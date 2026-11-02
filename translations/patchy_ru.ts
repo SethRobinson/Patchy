@@ -18728,6 +18728,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Manage built-in and saved stroke presets</source>
         <translation>Управлять встроенными и сохранёнными наборами обводки</translation>
     </message>
+    <message>
+        <source>Reload the saved file, dropping unsaved changes</source>
+        <translation>Заново загрузить сохранённый файл, отбросив несохранённые изменения</translation>
+    </message>
+    <message>
+        <source>Show only the canvas, or bring the toolbars back</source>
+        <translation>Показать только холст или вернуть панели инструментов</translation>
+    </message>
+    <message>
+        <source>Show the image&apos;s upper-left corner</source>
+        <translation>Показать левый верхний угол изображения</translation>
+    </message>
+    <message>
+        <source>Show the image&apos;s lower-right corner</source>
+        <translation>Показать правый нижний угол изображения</translation>
+    </message>
+    <message>
+        <source>Move the view up by a window height</source>
+        <translation>Сдвинуть вид вверх на высоту окна</translation>
+    </message>
+    <message>
+        <source>Move the view down by a window height</source>
+        <translation>Сдвинуть вид вниз на высоту окна</translation>
+    </message>
+    <message>
+        <source>Move the view left by a window width</source>
+        <translation>Сдвинуть вид влево на ширину окна</translation>
+    </message>
+    <message>
+        <source>Move the view right by a window width</source>
+        <translation>Сдвинуть вид вправо на ширину окна</translation>
+    </message>
+    <message>
+        <source>Open the feature guide in your web browser</source>
+        <translation>Открыть обзор возможностей в браузере</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -31553,6 +31589,62 @@ Locked: %1</source>
     <message>
         <source>Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)</source>
         <translation>Непрозрачность кисти, 0–100 %: нажмите цифровые клавиши (5 = 50%, 0 = 100%, 00 = 0%).</translation>
+    </message>
+    <message>
+        <source>Re&amp;vert</source>
+        <translation>&amp;Восстановить</translation>
+    </message>
+    <message>
+        <source>&amp;Hide Panels</source>
+        <translation>&amp;Скрыть панели</translation>
+    </message>
+    <message>
+        <source>Scroll to Top-Left Corner</source>
+        <translation>Прокрутить к левому верхнему углу</translation>
+    </message>
+    <message>
+        <source>Scroll to Bottom-Right Corner</source>
+        <translation>Прокрутить к правому нижнему углу</translation>
+    </message>
+    <message>
+        <source>Scroll Up One Screen</source>
+        <translation>Прокрутить на экран вверх</translation>
+    </message>
+    <message>
+        <source>Scroll Down One Screen</source>
+        <translation>Прокрутить на экран вниз</translation>
+    </message>
+    <message>
+        <source>Scroll Left One Screen</source>
+        <translation>Прокрутить на экран влево</translation>
+    </message>
+    <message>
+        <source>Scroll Right One Screen</source>
+        <translation>Прокрутить на экран вправо</translation>
+    </message>
+    <message>
+        <source>Patchy &amp;Help</source>
+        <translation>&amp;Справка Patchy</translation>
+    </message>
+    <message>
+        <source>%1 is no longer on disk</source>
+        <translation>%1 больше нет на диске</translation>
+    </message>
+    <message>
+        <source>Close the open smart object contents of %1 before reverting</source>
+        <translation>Перед восстановлением закройте открытое содержимое смарт-объекта в %1</translation>
+    </message>
+    <message>
+        <source>Revert</source>
+        <translation>Восстановить</translation>
+    </message>
+    <message>
+        <source>Revert %1 to the saved file? Your unsaved changes will be lost.</source>
+        <translation>Восстановить %1 из сохранённого файла? Несохранённые изменения будут потеряны.</translation>
+    </message>
+    <message>
+        <source>Reverted %1</source>
+        <translation>%1 восстановлен</translation>
     </message>
 </context>
 <context>

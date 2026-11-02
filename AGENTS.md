@@ -156,7 +156,7 @@ Read these before acting in the named area:
 - **Trace Image to Shapes (raster to vector)** *(legal: "Vector tracing")*: [image-trace.md](docs/image-trace.md).
 - **Export for Web:** [web-export.md](docs/web-export.md).
 - **Float windows and document activation:** [float-windows.md](docs/float-windows.md).
-- **Document tab context menu and Rename File:** [document-tabs.md](docs/document-tabs.md). A rename never replaces a file and never marks the document saved.
+- **Document tab context menu, Rename File and File > Revert:** [document-tabs.md](docs/document-tabs.md). A rename never replaces a file and never marks the document saved.
 - **Scanner, photocopy, Divide Scanned Photos, sprite-sheet, image-sequence, seamless-tiling import, and Files as Layers:** [import.md](docs/import.md); clipboard import and paste: [clipboard.md](docs/clipboard.md).
 - **Plug-ins and legacy 8BF support (Windows)** *(legal: clean-room ABI)*: [plugins.md](docs/plugins.md).
 - **GEGL filters** *(legal)*: [gegl-filters.md](docs/gegl-filters.md). Patchy's own GEGL, GPL-3 module included; releases publish its source (`PatchyGeglSources.zip`). Sources only from the list in [legal-licensing.md](docs/legal-licensing.md), logged in [gegl-provenance.md](docs/gegl-provenance.md); never GIMP's or GEGL's source.

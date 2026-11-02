@@ -206,6 +206,9 @@ class ZoomStatusBar;
 // A QAction property marking a menu command that works with no document open
 // (recent-file rows, panel toggles); see command_works_without_document.
 inline constexpr char kWorksWithoutDocumentProperty[] = "patchy.worksWithoutDocument";
+// Help > Patchy Help (F1, GitHub issue 584) opens the feature list in the browser.
+inline constexpr char kPatchyHelpUrl[] = "https://github.com/SethRobinson/Patchy/blob/main/docs/features.md";
+inline constexpr char kHelpUrlProperty[] = "patchy.helpUrl";
 // Whether a menu-bar command stays enabled on the empty workspace (GitHub issue
 // 162). Every other menu-bar command is a document action, disabled until a
 // document is open; `command_id` is its hotkey id or empty.
@@ -507,6 +510,15 @@ public:
   [[nodiscard]] ScreenMode screen_mode() const noexcept { return screen_mode_; }
   void set_screen_mode(ScreenMode mode);
   void cycle_screen_mode();
+  // View > Hide Panels (Tab, GitHub issue 584; docs/screen-modes.md): hides the toolbars
+  // and the panel column, and shows again exactly the ones it hid. Never persisted; a
+  // screen-mode change and closing the window show them first.
+  [[nodiscard]] bool panels_hidden() const noexcept { return panels_hidden_; }
+  void set_panels_hidden(bool hidden);
+  // File > Revert (F12, GitHub issue 584): reloads the active document from its file,
+  // dropping unsaved changes after one question, in the same tab position.
+  [[nodiscard]] bool active_document_can_revert() const;
+  void revert_active_document();
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -3646,6 +3658,18 @@ private:
   // Registered actions added to the window while Full Screen hides the bars that
   // carry them, so their shortcuts keep matching; removed again on leaving.
   QList<QPointer<QAction>> screen_mode_hosted_actions_;
+  // View > Hide Panels: the bars and the column it hid, shown again on the way back.
+  bool panels_hidden_{false};
+  std::vector<QPointer<QWidget>> panels_hidden_by_toggle_;
+  int panels_hidden_column_width_{0};
+  QAction* hide_panels_action_{nullptr};
+  QAction* revert_action_{nullptr};
+  // The keys that act on the view only while the canvas (or nothing that takes keys) has
+  // focus: Tab and the Home/End/Page scroll commands (canvas_key_command_yields).
+  std::vector<QPointer<QAction>> canvas_key_actions_;
+  [[nodiscard]] bool canvas_key_command_yields(const QKeyEvent& event) const;
+  void refresh_revert_action();
+  void refresh_hide_panels_action();
   QWidget* screen_mode_hint_{nullptr};
   bool applying_screen_mode_{false};
   bool screen_mode_sync_pending_{false};

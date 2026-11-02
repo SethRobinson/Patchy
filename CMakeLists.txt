@@ -2542,6 +2542,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/selection_marquee_lasso_tests_regions_lasso.cpp
       tests/ui/crop_tool_tests.cpp
       tests/ui/ruler_tool_tests.cpp
+      tests/ui/view_shortcut_keys_tests.cpp
       tests/ui/tool_palette_customize_tests.cpp
       tests/ui/unit_spin_box_tests.cpp
       tests/ui/clipboard_free_transform_tests.cpp

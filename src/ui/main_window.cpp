@@ -5162,6 +5162,11 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     start_panel_->setGeometry(document_tabs_->rect());
   }
 
+  if (event->type() == QEvent::ShortcutOverride && canvas_key_command_yields(*static_cast<QKeyEvent*>(event))) {
+    // The focused field or list takes the key itself (GitHub issue 584).
+    event->accept();
+    return true;
+  }
   if (event->type() == QEvent::ShortcutOverride) {
     if (auto* editor = qobject_cast<QTextEdit*>(watched);
         editor != nullptr && editor->objectName() == QStringLiteral("inlineTextEditor")) {
@@ -5762,7 +5767,8 @@ void MainWindow::closeEvent(QCloseEvent* event) {
     }
   }
   // A full-screen mode's hidden bars and panels are not the layout to keep, and the
-  // next start is always Standard (screen modes, GitHub issue 212).
+  // next start is always Standard (screen modes, GitHub issue 212); nor is Hide Panels.
+  set_panels_hidden(false);
   restore_standard_screen_chrome();
   save_window_geometry();
   save_panel_layout();
@@ -12245,7 +12251,8 @@ bool MainWindow::document_action_enabled_during_preview_lock(const QAction* acti
       object_name == QStringLiteral("viewSnapToDocumentAction") ||
       object_name == QStringLiteral("viewSnapToLayersAction") ||
       object_name == QStringLiteral("viewSnapToSelectionAction") ||
-      object_name == QStringLiteral("windowForceRefreshAction")) {
+      object_name == QStringLiteral("windowForceRefreshAction") ||
+      object_name.startsWith(QStringLiteral("viewScroll"))) {
     return true;
   }
   if (action->data().isValid()) {
@@ -12393,6 +12400,7 @@ void MainWindow::update_document_action_state() {
   }
   refresh_add_layer_mask_button_state();
   refresh_layer_styles_button_state();
+  refresh_revert_action();
   update_legacy_plugin_repeat_actions();
   update_last_filter_action();
   // 16/32-bit documents (docs/high-bit-depth.md): a 32-bit document offers only the

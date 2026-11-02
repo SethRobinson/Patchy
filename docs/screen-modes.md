@@ -13,6 +13,10 @@ A full-screen or canvas-only switch is a widely shared editor convention (GIMP a
 - **Hint.** `screenModeHint` shows for 2.5 s, then fades: "Press Esc to exit full screen", in Full Screen "Press F or Esc ..." with the cycle command's key. Theme roles `menu_bg`, `menu_border`, `text_primary`.
 - **System exits.** Full screen left by the window system (macOS's green button) returns to Standard, rechecked 1.5 s after a change (`schedule_screen_mode_window_state_sync`). No title-bar click or drag acts while full screen (Windows skips HTCAPTION there, so the Qt path sees them and drops them); macOS keeps its native frame and menu bar.
 
+## Hide Panels
+
+View > Hide Panels (`viewHidePanelsAction`, `view.hide_panels`, Tab, GitHub issue 584; `set_panels_hidden` in `main_window_chrome.cpp`) hides every visible toolbar and the panel column and shows exactly those again, the column at its own width; the window carries the hidden bars' commands meanwhile. Tab works only while the canvas, a button or a tab bar has the keyboard: a focused field, list or other control keeps it (`canvas_key_command_yields`, from the ShortcutOverride in `eventFilter`; the Home/End/Page scroll keys share the rule). Never persisted: any screen-mode change and closing the window show the panels first, and the command is off in Full Screen. Test: `ui_issue_584_tab_hides_and_restores_panels`.
+
 ## The tool palette button
 
 - `screenModeButton` sits in its own 22 px row under Quick Mask (`ToolPaletteFooter::kScreenModeRowHeight`; the footer is 97 px at Normal), a 36 x 21 box (QSS content 32 x 17, icon 17 px; one row smaller and the box would overflow it at Smallest) centered like Quick Mask; the footer only places it (`set_screen_mode_button`), and it scales with the footer ([tool-palette.md](tool-palette.md#toolbar-icon-size)). One button, not three, so it costs one short row.

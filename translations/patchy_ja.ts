@@ -18640,6 +18640,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Manage built-in and saved stroke presets</source>
         <translation>組み込みと保存済みの線のプリセットを管理</translation>
     </message>
+    <message>
+        <source>Reload the saved file, dropping unsaved changes</source>
+        <translation>保存されたファイルを読み込み直し、未保存の変更を破棄します</translation>
+    </message>
+    <message>
+        <source>Show only the canvas, or bring the toolbars back</source>
+        <translation>カンバスだけを表示するか、バーを元に戻します</translation>
+    </message>
+    <message>
+        <source>Show the image&apos;s upper-left corner</source>
+        <translation>画像の左上隅を表示します</translation>
+    </message>
+    <message>
+        <source>Show the image&apos;s lower-right corner</source>
+        <translation>画像の右下隅を表示します</translation>
+    </message>
+    <message>
+        <source>Move the view up by a window height</source>
+        <translation>表示をウィンドウの高さ分だけ上に移動します</translation>
+    </message>
+    <message>
+        <source>Move the view down by a window height</source>
+        <translation>表示をウィンドウの高さ分だけ下に移動します</translation>
+    </message>
+    <message>
+        <source>Move the view left by a window width</source>
+        <translation>表示をウィンドウの幅分だけ左に移動します</translation>
+    </message>
+    <message>
+        <source>Move the view right by a window width</source>
+        <translation>表示をウィンドウの幅分だけ右に移動します</translation>
+    </message>
+    <message>
+        <source>Open the feature guide in your web browser</source>
+        <translation>機能ガイドを Web ブラウザーで開きます</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -31387,6 +31423,62 @@ Locked: %1</source>
     <message>
         <source>Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)</source>
         <translation>ブラシの不透明度、0% から 100%: 数字キーで設定 (5 = 50%、0 = 100%、00 = 0%)</translation>
+    </message>
+    <message>
+        <source>Re&amp;vert</source>
+        <translation>復帰(&amp;V)</translation>
+    </message>
+    <message>
+        <source>&amp;Hide Panels</source>
+        <translation>パネルを隠す(&amp;H)</translation>
+    </message>
+    <message>
+        <source>Scroll to Top-Left Corner</source>
+        <translation>左上隅へスクロール</translation>
+    </message>
+    <message>
+        <source>Scroll to Bottom-Right Corner</source>
+        <translation>右下隅へスクロール</translation>
+    </message>
+    <message>
+        <source>Scroll Up One Screen</source>
+        <translation>1 画面上へスクロール</translation>
+    </message>
+    <message>
+        <source>Scroll Down One Screen</source>
+        <translation>1 画面下へスクロール</translation>
+    </message>
+    <message>
+        <source>Scroll Left One Screen</source>
+        <translation>1 画面左へスクロール</translation>
+    </message>
+    <message>
+        <source>Scroll Right One Screen</source>
+        <translation>1 画面右へスクロール</translation>
+    </message>
+    <message>
+        <source>Patchy &amp;Help</source>
+        <translation>Patchy ヘルプ(&amp;H)</translation>
+    </message>
+    <message>
+        <source>%1 is no longer on disk</source>
+        <translation>%1 はディスク上にありません</translation>
+    </message>
+    <message>
+        <source>Close the open smart object contents of %1 before reverting</source>
+        <translation>復帰する前に、%1 で開いているスマートオブジェクトの内容を閉じてください</translation>
+    </message>
+    <message>
+        <source>Revert</source>
+        <translation>復帰</translation>
+    </message>
+    <message>
+        <source>Revert %1 to the saved file? Your unsaved changes will be lost.</source>
+        <translation>%1 を保存されたファイルに戻しますか? 未保存の変更は失われます。</translation>
+    </message>
+    <message>
+        <source>Reverted %1</source>
+        <translation>%1 を復帰しました</translation>
     </message>
 </context>
 <context>

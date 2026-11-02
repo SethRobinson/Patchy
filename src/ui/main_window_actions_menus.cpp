@@ -40,6 +40,7 @@
 #include "ui/command_search.hpp"
 #include "ui/quick_mask_trace.hpp"
 #include "ui/update_checker.hpp"
+#include "ui/zoom_status_bar.hpp"
 
 #include <QAction>
 #include <QActionGroup>
@@ -550,6 +551,15 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   scripts_menu_->addSeparator();
   connect(scripts_menu_, &QMenu::aboutToShow, this, [this] { rebuild_scripts_menu(); });
   file_menu->addSeparator();
+  // GitHub issue 584: reload the document from its file (F12). Its enabled state follows
+  // the active document's file (refresh_revert_action), not just having a document.
+  revert_action_ = file_menu->addAction(QString());
+  bind_action_text(revert_action_, QT_TR_NOOP("Re&vert"));
+  revert_action_->setObjectName(QStringLiteral("fileRevertAction"));
+  revert_action_->setMenuRole(QAction::NoRole);
+  register_hotkey(revert_action_, "file.revert", QKeySequence(Qt::Key_F12));
+  connect(revert_action_, &QAction::triggered, this, [this] { revert_active_document(); });
+  revert_action_->setEnabled(false);
   auto* close_action = file_menu->addAction(tr("&Close"));
   auto* close_all_action = file_menu->addAction(tr("Close &All"));
   file_menu->addSeparator();
@@ -2625,6 +2635,55 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_document_action(tiling_mode_action_);
   view_menu->addSeparator();
   build_screen_mode_actions(*view_menu);
+  // GitHub issue 584: Tab hides the toolbars and the panel column, and shows them again.
+  // Like the scroll keys below it yields to a focused field or list (canvas_key_command_yields).
+  hide_panels_action_ = view_menu->addAction(QString());
+  bind_action_text(hide_panels_action_, QT_TR_NOOP("&Hide Panels"));
+  hide_panels_action_->setObjectName(QStringLiteral("viewHidePanelsAction"));
+  hide_panels_action_->setMenuRole(QAction::NoRole);
+  hide_panels_action_->setCheckable(true);
+  hide_panels_action_->setAutoRepeat(false);
+  hide_panels_action_->setProperty(kWorksWithoutDocumentProperty, true);
+  register_hotkey(hide_panels_action_, "view.hide_panels", QKeySequence(Qt::Key_Tab));
+  connect(hide_panels_action_, &QAction::triggered, this, [this](bool checked) { set_panels_hidden(checked); });
+  canvas_key_actions_.push_back(hide_panels_action_);
+  // Home/End/Page Up/Page Down move the view (GitHub issue 584). Window commands with no
+  // menu row, so they can be rebound; they act only with the canvas focused.
+  const struct {
+    const char* text;
+    const char* object_name;
+    const char* id;
+    QKeySequence key;
+    CanvasWidget::ViewScroll scroll;
+  } scroll_commands[] = {
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Scroll to Top-Left Corner"), "viewScrollTopLeftAction", "view.scroll_top_left",
+       QKeySequence(Qt::Key_Home), CanvasWidget::ViewScroll::TopLeft},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Scroll to Bottom-Right Corner"), "viewScrollBottomRightAction", "view.scroll_bottom_right",
+       QKeySequence(Qt::Key_End), CanvasWidget::ViewScroll::BottomRight},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Scroll Up One Screen"), "viewScrollPageUpAction", "view.scroll_page_up",
+       QKeySequence(Qt::Key_PageUp), CanvasWidget::ViewScroll::PageUp},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Scroll Down One Screen"), "viewScrollPageDownAction", "view.scroll_page_down",
+       QKeySequence(Qt::Key_PageDown), CanvasWidget::ViewScroll::PageDown},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Scroll Left One Screen"), "viewScrollPageLeftAction", "view.scroll_page_left",
+       QKeySequence(Qt::SHIFT | Qt::Key_PageUp), CanvasWidget::ViewScroll::PageLeft},
+      {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Scroll Right One Screen"), "viewScrollPageRightAction", "view.scroll_page_right",
+       QKeySequence(Qt::SHIFT | Qt::Key_PageDown), CanvasWidget::ViewScroll::PageRight},
+  };
+  for (const auto& command : scroll_commands) {
+    auto* action = new QAction(this);
+    bind_action_text(action, command.text);
+    action->setObjectName(QString::fromLatin1(command.object_name));
+    action->setProperty(kViewNavigationActionProperty, true);
+    register_hotkey(action, QString::fromLatin1(command.id), command.key);
+    addAction(action);
+    connect(action, &QAction::triggered, this, [this, scroll = command.scroll] {
+      if (canvas_ != nullptr) {
+        canvas_->scroll_view(scroll);
+      }
+    });
+    register_document_action(action);
+    canvas_key_actions_.push_back(action);
+  }
   zoom_in->setObjectName(QStringLiteral("viewZoomInAction"));
   zoom_out->setObjectName(QStringLiteral("viewZoomOutAction"));
   fit_on_screen->setObjectName(QStringLiteral("viewFitOnScreenAction"));
@@ -2920,6 +2979,16 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(window_menu, &QMenu::aboutToShow, this, [this, window_menu] {
     rebuild_window_document_entries(window_menu);
   });
+
+  // GitHub issue 584: F1 opens the feature list on GitHub in the default browser.
+  auto* patchy_help_action = help_menu->addAction(QString());
+  bind_action_text(patchy_help_action, QT_TR_NOOP("Patchy &Help"));
+  patchy_help_action->setObjectName(QStringLiteral("helpPatchyHelpAction"));
+  patchy_help_action->setMenuRole(QAction::NoRole);
+  patchy_help_action->setProperty(kHelpUrlProperty, QUrl(QString::fromLatin1(kPatchyHelpUrl)));
+  register_hotkey(patchy_help_action, "help.patchy_help", QKeySequence(Qt::Key_F1));
+  connect(patchy_help_action, &QAction::triggered, this,
+          [patchy_help_action] { QDesktopServices::openUrl(patchy_help_action->property(kHelpUrlProperty).toUrl()); });
 
   // GitHub issue 554: search the menus by name. The menu bar's search button after Help
   // runs the same action; macOS's native Help menu has its own search, so no button there.

@@ -124,6 +124,8 @@
 #include <QLockFile>
 #include <QMenu>
 #include <QMessageBox>
+#include <QTabBar>
+#include <QTabWidget>
 #include <QMetaObject>
 #include <QMimeData>
 #include <QObject>
@@ -3231,6 +3233,83 @@ void MainWindow::open_document_path(QString path, OpenExisting existing) {
       show_open_failed_message_box(this, translated_file_message(error.what()), QDir::toNativeSeparators(path));
     }
   }
+}
+
+bool MainWindow::active_document_can_revert() const {
+  const auto* current = active_session();
+  if (current == nullptr || current->path.isEmpty() || current->smart_object_link.has_value()) {
+    return false;
+  }
+  // A file Patchy opened by its content reopens the same way; otherwise its extension
+  // must be one File > Open reads (a session's file always is, unless a save wrote a
+  // format Patchy cannot read back).
+  return !current->content_extension.isEmpty() ||
+         openable_file_extensions().contains(QFileInfo(current->path).suffix(), Qt::CaseInsensitive);
+}
+
+void MainWindow::refresh_revert_action() {
+  if (revert_action_ != nullptr) {
+    revert_action_->setEnabled(!preview_dialog_edit_locked() && active_document_can_revert());
+  }
+}
+
+// File > Revert (GitHub issue 584). The file is loaded as a new session first, so a file
+// that no longer opens leaves the document as it was; then the old session closes without
+// a save prompt and the new tab takes its place. The file on disk is only read.
+void MainWindow::revert_active_document() {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  if (!active_document_can_revert()) {
+    return;
+  }
+  finish_pending_shape_appearance_edit();
+  finish_active_text_editor();
+  auto* current = active_session();
+  if (current == nullptr) {
+    return;
+  }
+  const auto old_id = current->session_id;
+  const auto path = current->path;
+  const auto file_name = QFileInfo(path).fileName();
+  if (!QFileInfo::exists(path)) {
+    show_status_error(tr("%1 is no longer on disk").arg(QDir::toNativeSeparators(path)));
+    return;
+  }
+  if (!open_smart_object_child_sessions(old_id).empty()) {
+    show_status_error(tr("Close the open smart object contents of %1 before reverting").arg(file_name));
+    return;
+  }
+  if (session_is_modified(*current) && !unattended_automation()) {
+    const auto answer = show_warning_message(
+        this, tr("Revert"), tr("Revert %1 to the saved file? Your unsaved changes will be lost.").arg(file_name),
+        QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Yes, QStringLiteral("revertDocumentMessageBox"));
+    if (answer != QMessageBox::Yes) {
+      return;
+    }
+  }
+  current = session_with_id(old_id);
+  if (current == nullptr) {
+    return;
+  }
+  const int tab_index =
+      current->float_window == nullptr && document_tabs_ != nullptr ? document_tabs_->indexOf(current->canvas) : -1;
+  open_document_path(path, OpenExisting::LoadCopy);
+  const auto* reloaded = active_session();
+  if (reloaded == nullptr || reloaded->session_id == old_id) {
+    return;  // the file did not open (the reader said why): keep the document
+  }
+  auto* reloaded_canvas = reloaded->canvas;
+  if (auto* old_session = session_with_id(old_id); old_session != nullptr) {
+    (void)close_document_session(*old_session, CloseConfirmation::AlreadyConfirmed);
+  }
+  if (tab_index >= 0 && document_tabs_ != nullptr) {
+    if (const auto new_index = document_tabs_->indexOf(reloaded_canvas); new_index >= 0 && new_index != tab_index) {
+      document_tabs_->tabBar()->moveTab(new_index, std::min(tab_index, document_tabs_->count() - 1));
+    }
+  }
+  statusBar()->showMessage(tr("Reverted %1").arg(file_name));
 }
 
 // The pages after the first of a PDF opened as separate documents. Each becomes a

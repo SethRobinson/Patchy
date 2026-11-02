@@ -18728,6 +18728,42 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Manage built-in and saved stroke presets</source>
         <translation>Zarządzaj wbudowanymi i zapisanymi ustawieniami wstępnymi obrysu</translation>
     </message>
+    <message>
+        <source>Reload the saved file, dropping unsaved changes</source>
+        <translation>Wczytaj ponownie zapisany plik, odrzucając niezapisane zmiany</translation>
+    </message>
+    <message>
+        <source>Show only the canvas, or bring the toolbars back</source>
+        <translation>Pokaż tylko obszar roboczy lub przywróć paski</translation>
+    </message>
+    <message>
+        <source>Show the image&apos;s upper-left corner</source>
+        <translation>Pokaż lewy górny róg obrazu</translation>
+    </message>
+    <message>
+        <source>Show the image&apos;s lower-right corner</source>
+        <translation>Pokaż prawy dolny róg obrazu</translation>
+    </message>
+    <message>
+        <source>Move the view up by a window height</source>
+        <translation>Przesuń widok w górę o wysokość okna</translation>
+    </message>
+    <message>
+        <source>Move the view down by a window height</source>
+        <translation>Przesuń widok w dół o wysokość okna</translation>
+    </message>
+    <message>
+        <source>Move the view left by a window width</source>
+        <translation>Przesuń widok w lewo o szerokość okna</translation>
+    </message>
+    <message>
+        <source>Move the view right by a window width</source>
+        <translation>Przesuń widok w prawo o szerokość okna</translation>
+    </message>
+    <message>
+        <source>Open the feature guide in your web browser</source>
+        <translation>Otwórz przewodnik po funkcjach w przeglądarce</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -31553,6 +31589,62 @@ Zablokowano: %1</translation>
     <message>
         <source>Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)</source>
         <translation>Krycie pędzla, 0%-100%: naciśnij klawisze numeryczne (5 = 50%, 0 = 100%, 00 = 0%)</translation>
+    </message>
+    <message>
+        <source>Re&amp;vert</source>
+        <translation>&amp;Przywróć</translation>
+    </message>
+    <message>
+        <source>&amp;Hide Panels</source>
+        <translation>&amp;Ukryj panele</translation>
+    </message>
+    <message>
+        <source>Scroll to Top-Left Corner</source>
+        <translation>Przewiń do lewego górnego rogu</translation>
+    </message>
+    <message>
+        <source>Scroll to Bottom-Right Corner</source>
+        <translation>Przewiń do prawego dolnego rogu</translation>
+    </message>
+    <message>
+        <source>Scroll Up One Screen</source>
+        <translation>Przewiń o ekran w górę</translation>
+    </message>
+    <message>
+        <source>Scroll Down One Screen</source>
+        <translation>Przewiń o ekran w dół</translation>
+    </message>
+    <message>
+        <source>Scroll Left One Screen</source>
+        <translation>Przewiń o ekran w lewo</translation>
+    </message>
+    <message>
+        <source>Scroll Right One Screen</source>
+        <translation>Przewiń o ekran w prawo</translation>
+    </message>
+    <message>
+        <source>Patchy &amp;Help</source>
+        <translation>Pomo&amp;c Patchy</translation>
+    </message>
+    <message>
+        <source>%1 is no longer on disk</source>
+        <translation>%1 nie ma już na dysku</translation>
+    </message>
+    <message>
+        <source>Close the open smart object contents of %1 before reverting</source>
+        <translation>Przed przywróceniem zamknij otwartą zawartość inteligentnego obiektu z %1</translation>
+    </message>
+    <message>
+        <source>Revert</source>
+        <translation>Przywróć</translation>
+    </message>
+    <message>
+        <source>Revert %1 to the saved file? Your unsaved changes will be lost.</source>
+        <translation>Przywrócić %1 do zapisanego pliku? Niezapisane zmiany zostaną utracone.</translation>
+    </message>
+    <message>
+        <source>Reverted %1</source>
+        <translation>Przywrócono %1</translation>
     </message>
 </context>
 <context>

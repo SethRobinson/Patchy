@@ -29,11 +29,13 @@
 #include "ui/panel_column.hpp"
 #include "ui/theme_palette.hpp"
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QActionGroup>
 #include <QApplication>
 #include <QByteArray>
 #include <QCursor>
+#include <QDialog>
 #include <QEvent>
 #include <QFont>
 #include <QFontMetrics>
@@ -1203,6 +1205,9 @@ void MainWindow::set_screen_mode(ScreenMode mode) {
     return;
   }
   const QScopedValueRollback applying(applying_screen_mode_, true);
+  // Hide Panels ends with any screen-mode change, so each mode records and restores the
+  // bars the user really chose.
+  set_panels_hidden(false);
   if (screen_mode_ == ScreenMode::Standard) {
     StandardScreenChrome chrome;
     chrome.maximized = isMaximized();
@@ -1355,6 +1360,89 @@ void MainWindow::refresh_screen_mode_actions() {
     }
   }
   refresh_screen_mode_button();
+  refresh_hide_panels_action();
+}
+
+void MainWindow::set_panels_hidden(bool hidden) {
+  // Full Screen already shows the canvas alone; there is nothing left to hide.
+  if (hidden && screen_mode_ == ScreenMode::FullScreen) {
+    hidden = false;
+  }
+  if (hidden == panels_hidden_) {
+    refresh_hide_panels_action();
+    return;
+  }
+  if (hidden) {
+    panels_hidden_by_toggle_.clear();
+    for (auto* bar : findChildren<QToolBar*>(QString(), Qt::FindDirectChildrenOnly)) {
+      if (!bar->isHidden()) {
+        panels_hidden_by_toggle_.emplace_back(bar);
+        bar->hide();
+      }
+    }
+    if (panel_column_ != nullptr && !panel_column_->isHidden()) {
+      panels_hidden_column_width_ = panel_column_->width();
+      panels_hidden_by_toggle_.emplace_back(panel_column_);
+      panel_column_->hide();
+    }
+  } else {
+    for (const auto& widget : panels_hidden_by_toggle_) {
+      if (widget == nullptr) {
+        continue;
+      }
+      widget->show();
+      if (widget.data() == static_cast<QWidget*>(panel_column_) && workspace_splitter_ != nullptr &&
+          panels_hidden_column_width_ > 0) {
+        // As apply_screen_mode_chrome: the splitter hands a re-shown column whatever width
+        // it computes, so give it back its own.
+        const auto total = workspace_splitter_->width() > 0 ? workspace_splitter_->width() : width();
+        workspace_splitter_->setSizes(
+            {std::max(0, total - workspace_splitter_->handleWidth() - panels_hidden_column_width_),
+             panels_hidden_column_width_});
+      }
+    }
+    panels_hidden_by_toggle_.clear();
+  }
+  panels_hidden_ = hidden;
+  // Hidden bars no longer match their actions' shortcuts, so the window carries them.
+  set_screen_mode_shortcut_host(hidden || screen_mode_ == ScreenMode::FullScreen);
+  refresh_hide_panels_action();
+  if (canvas_ != nullptr && canvas_->window() == this && isActiveWindow()) {
+    canvas_->setFocus(Qt::OtherFocusReason);
+  }
+}
+
+void MainWindow::refresh_hide_panels_action() {
+  if (hide_panels_action_ == nullptr) {
+    return;
+  }
+  hide_panels_action_->setChecked(panels_hidden_);
+  hide_panels_action_->setEnabled(screen_mode_ != ScreenMode::FullScreen);
+}
+
+// Tab and the Home/End/Page keys are view commands only while the canvas has the keyboard:
+// a focused field, list, slider or other key-taking control in the window keeps them, as
+// it keeps the letters it types. Answered from the ShortcutOverride in eventFilter.
+bool MainWindow::canvas_key_command_yields(const QKeyEvent& event) const {
+  const QKeySequence pressed(QKeyCombination(event.modifiers() & ~Qt::KeypadModifier, Qt::Key(event.key())));
+  const bool canvas_key = std::any_of(canvas_key_actions_.begin(), canvas_key_actions_.end(), [&](const auto& action) {
+    if (action == nullptr || !action->isEnabled()) {
+      return false;
+    }
+    const auto shortcuts = action->shortcuts();
+    return std::any_of(shortcuts.begin(), shortcuts.end(), [&](const QKeySequence& shortcut) {
+      return shortcut.matches(pressed) == QKeySequence::ExactMatch;
+    });
+  });
+  if (!canvas_key) {
+    return false;
+  }
+  const auto* focus = QApplication::focusWidget();
+  if (focus == nullptr || focus->isWindow() || qobject_cast<const QDialog*>(focus->window()) != nullptr) {
+    return false;
+  }
+  return qobject_cast<const CanvasWidget*>(focus) == nullptr && qobject_cast<const QAbstractButton*>(focus) == nullptr &&
+         qobject_cast<const QTabBar*>(focus) == nullptr;
 }
 
 void MainWindow::refresh_screen_mode_button() {
@@ -1444,6 +1532,7 @@ void MainWindow::sync_screen_mode_to_window_state() {
   // The window already left full screen (and may be maximized), so only the chrome and
   // the mode follow; the window state is the one the user or the system chose.
   const QScopedValueRollback applying(applying_screen_mode_, true);
+  set_panels_hidden(false);
   restore_standard_screen_chrome();
   standard_screen_chrome_.reset();
   screen_mode_ = ScreenMode::Standard;
