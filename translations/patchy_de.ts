@@ -75,10 +75,6 @@
         <translation>Füllen</translation>
     </message>
     <message>
-        <source>Contents</source>
-        <translation>Inhalt</translation>
-    </message>
-    <message>
         <source>Fill color</source>
         <translation>Füllfarbe</translation>
     </message>
@@ -95,16 +91,8 @@
         <translation>Überblenden</translation>
     </message>
     <message>
-        <source>Mode</source>
-        <translation>Modus</translation>
-    </message>
-    <message>
         <source> %</source>
         <translation> %</translation>
-    </message>
-    <message>
-        <source>Opacity</source>
-        <translation>Deckkraft</translation>
     </message>
     <message>
         <source>Preserve Transparency</source>
@@ -133,6 +121,22 @@
     <message>
         <source>Content-Aware fills from the pixels around the selection</source>
         <translation>Inhaltsbasiert füllt mit den Pixeln rund um die Auswahl</translation>
+    </message>
+    <message>
+        <source>Contents:</source>
+        <translation>Inhalt:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Modus:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Deckkraft:</translation>
+    </message>
+    <message>
+        <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
+        <translation>Modus und Deckkraft legen Füllmethode und Deckkraft der neuen Ebene fest</translation>
     </message>
 </context>
 <context>

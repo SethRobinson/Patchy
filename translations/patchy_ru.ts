@@ -75,10 +75,6 @@
         <translation>Заливка</translation>
     </message>
     <message>
-        <source>Contents</source>
-        <translation>Содержимое</translation>
-    </message>
-    <message>
         <source>Fill color</source>
         <translation>Цвет заливки</translation>
     </message>
@@ -95,16 +91,8 @@
         <translation>Смешивание</translation>
     </message>
     <message>
-        <source>Mode</source>
-        <translation>Режим</translation>
-    </message>
-    <message>
         <source> %</source>
         <translation> %</translation>
-    </message>
-    <message>
-        <source>Opacity</source>
-        <translation>Непрозрачность</translation>
     </message>
     <message>
         <source>Preserve Transparency</source>
@@ -133,6 +121,22 @@
     <message>
         <source>Content-Aware fills from the pixels around the selection</source>
         <translation>Заливка с учётом содержимого берёт пиксели вокруг выделения</translation>
+    </message>
+    <message>
+        <source>Contents:</source>
+        <translation>Содержание:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Режим:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Непрозрачность:</translation>
+    </message>
+    <message>
+        <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
+        <translation>Режим и Непрозрачность задают режим наложения и непрозрачность нового слоя</translation>
     </message>
 </context>
 <context>

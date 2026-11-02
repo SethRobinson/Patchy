@@ -2305,8 +2305,10 @@ private:
   void remove_object_dialog();
   // Edit > Fill's Content-Aware (GitHub issue 575): Remove Object's default fill of the
   // selection with no dialog, one history entry; `to_new_layer` puts the filled selection
-  // on a new layer above the active one and leaves the layer as it was.
-  void content_aware_fill_selection(bool to_new_layer);
+  // on a new layer above the active one, with `blend` (Normal where the document's depth
+  // lacks it) and `opacity_percent` (1..100), and leaves the layer as it was.
+  void content_aware_fill_selection(bool to_new_layer, BlendMode blend = BlendMode::Normal,
+                                    int opacity_percent = 100);
   // Select Subject, Select Background and Remove Background (main_window_ai_selection.cpp,
   // docs/ai-selection.md): one BiRefNet pass over the merged document under a cancellable
   // progress dialog (compute_subject_matte, which names `command` in its errors), then the

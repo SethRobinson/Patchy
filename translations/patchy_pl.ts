@@ -75,10 +75,6 @@
         <translation>Wypełnij</translation>
     </message>
     <message>
-        <source>Contents</source>
-        <translation>Zawartość</translation>
-    </message>
-    <message>
         <source>Fill color</source>
         <translation>Kolor wypełnienia</translation>
     </message>
@@ -95,16 +91,8 @@
         <translation>Mieszanie</translation>
     </message>
     <message>
-        <source>Mode</source>
-        <translation>Tryb</translation>
-    </message>
-    <message>
         <source> %</source>
         <translation> %</translation>
-    </message>
-    <message>
-        <source>Opacity</source>
-        <translation>Krycie</translation>
     </message>
     <message>
         <source>Preserve Transparency</source>
@@ -133,6 +121,22 @@
     <message>
         <source>Content-Aware fills from the pixels around the selection</source>
         <translation>Wypełnienie z uwzględnieniem zawartości używa pikseli wokół zaznaczenia</translation>
+    </message>
+    <message>
+        <source>Contents:</source>
+        <translation>Zawartość:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Tryb:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Krycie:</translation>
+    </message>
+    <message>
+        <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
+        <translation>Tryb i Krycie ustawiają tryb mieszania i krycie nowej warstwy</translation>
     </message>
 </context>
 <context>

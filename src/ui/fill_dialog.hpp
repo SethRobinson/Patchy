@@ -43,8 +43,9 @@ void save_fill_dialog_settings(const FillDialogSettings& settings);
 // Runs the modal Fill dialog (object name patchyFillDialog), starting from the remembered
 // settings. Choosing Color... in Contents opens the color picker at once; cancelling the
 // picker goes back to the previous choice. Content-Aware is offered only when
-// `content_aware_available` (a selection on a layer's pixels); while it is chosen the
-// Blending controls are disabled and Add to New Layer is enabled. Returns the accepted
+// `content_aware_available` (a selection on a layer's pixels); while it is chosen Add to New
+// Layer is enabled, Preserve Transparency is disabled, and Mode and Opacity are enabled only
+// with Add to New Layer (layer blend modes only: Behind and Clear are off). Returns the accepted
 // settings (and remembers them), or nullopt on Cancel.
 [[nodiscard]] std::optional<FillDialogSettings> request_fill_settings(QWidget* parent, QColor foreground,
                                                                       QColor background,

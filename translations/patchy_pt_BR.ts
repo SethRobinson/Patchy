@@ -75,10 +75,6 @@
         <translation>Preencher</translation>
     </message>
     <message>
-        <source>Contents</source>
-        <translation>Conteúdo</translation>
-    </message>
-    <message>
         <source>Fill color</source>
         <translation>Cor de preenchimento</translation>
     </message>
@@ -95,16 +91,8 @@
         <translation>Mesclagem</translation>
     </message>
     <message>
-        <source>Mode</source>
-        <translation>Modo</translation>
-    </message>
-    <message>
         <source> %</source>
         <translation> %</translation>
-    </message>
-    <message>
-        <source>Opacity</source>
-        <translation>Opacidade</translation>
     </message>
     <message>
         <source>Preserve Transparency</source>
@@ -133,6 +121,22 @@
     <message>
         <source>Content-Aware fills from the pixels around the selection</source>
         <translation>Sensível ao conteúdo preenche com os pixels ao redor da seleção</translation>
+    </message>
+    <message>
+        <source>Contents:</source>
+        <translation>Conteúdo:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Modo:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Opacidade:</translation>
+    </message>
+    <message>
+        <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
+        <translation>Modo e Opacidade definem o modo de mesclagem e a opacidade da nova camada</translation>
     </message>
 </context>
 <context>

@@ -161,10 +161,12 @@ std::optional<FillDialogSettings> request_fill_settings(QWidget* parent, QColor 
   dialog.setWindowTitle(QCoreApplication::translate("FillDialog", "Fill"));
   auto* layout = new QVBoxLayout(&dialog);
 
-  auto* contents_box = new QGroupBox(QCoreApplication::translate("FillDialog", "Contents"), &dialog);
-  auto* contents_layout = new QVBoxLayout(contents_box);
+  // Both boxes are forms with one label column width, so every field starts at one x and
+  // the checkboxes sit in the field column (issue 575's follow-up).
+  auto* contents_box = new QGroupBox(QCoreApplication::translate("FillDialog", "Fill"), &dialog);
+  auto* contents_form = new QFormLayout(contents_box);
+  contents_form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
   auto* contents_row = new QHBoxLayout();
-  contents_layout->addLayout(contents_row);
   auto* contents_combo = new QComboBox(contents_box);
   contents_combo->setObjectName(QStringLiteral("editFillContentsCombo"));
   for (const auto contents : kFillContentsOrder) {
@@ -213,12 +215,13 @@ std::optional<FillDialogSettings> request_fill_settings(QWidget* parent, QColor 
   swatch_policy.setRetainSizeWhenHidden(true);
   color_swatch->setSizePolicy(swatch_policy);
   contents_row->addWidget(color_swatch);
+  contents_form->addRow(QCoreApplication::translate("FillDialog", "Contents:"), contents_row);
   auto* new_layer_check = new QCheckBox(QCoreApplication::translate("FillDialog", "Add to New Layer"), contents_box);
   new_layer_check->setObjectName(QStringLiteral("editFillContentAwareNewLayerCheck"));
   new_layer_check->setToolTip(QCoreApplication::translate(
       "FillDialog", "Put the content-aware fill on a new layer above this one, transparent outside the selection"));
   new_layer_check->setChecked(remembered.content_aware_new_layer);
-  contents_layout->addWidget(new_layer_check);
+  contents_form->addRow(QString(), new_layer_check);
   layout->addWidget(contents_box);
 
   const auto current_contents = [contents_combo] {
@@ -271,33 +274,71 @@ std::optional<FillDialogSettings> request_fill_settings(QWidget* parent, QColor 
 
   auto* blending_box = new QGroupBox(QCoreApplication::translate("FillDialog", "Blending"), &dialog);
   auto* form = new QFormLayout(blending_box);
+  form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
   auto* mode_combo = new QComboBox(blending_box);
   mode_combo->setObjectName(QStringLiteral("editFillModeCombo"));
   add_paint_mode_items(mode_combo);
+  // Behind and Clear change only alpha: a separator sets them apart from Normal and Dissolve
+  // here (the Brush bar's shared list keeps its own layout).
+  const auto behind_data = paint_mode_item_data(PaintMode::behind());
+  const auto clear_data = paint_mode_item_data(PaintMode::clear());
+  const auto behind_index = mode_combo->findData(behind_data);
+  if (behind_index > 0 && !is_blend_mode_separator(mode_combo, behind_index - 1)) {
+    mode_combo->insertSeparator(behind_index);
+  }
   mode_combo->setCurrentIndex(std::max(0, mode_combo->findData(paint_mode_item_data(remembered.mode))));
-  form->addRow(QCoreApplication::translate("FillDialog", "Mode"), mode_combo);
+  form->addRow(QCoreApplication::translate("FillDialog", "Mode:"), mode_combo);
   auto* opacity_spin = add_dialog_slider_spin_row(
-      form, blending_box, QCoreApplication::translate("FillDialog", "Opacity"), QStringLiteral("editFillOpacitySlider"),
-      QStringLiteral("editFillOpacitySpin"), 1, 100, remembered.opacity, QCoreApplication::translate("FillDialog", " %"));
+      form, blending_box, QCoreApplication::translate("FillDialog", "Opacity:"),
+      QStringLiteral("editFillOpacitySlider"), QStringLiteral("editFillOpacitySpin"), 1, 100, remembered.opacity,
+      QCoreApplication::translate("FillDialog", " %"));
+  auto* opacity_row = opacity_spin->parentWidget();
   auto* preserve_check =
       new QCheckBox(QCoreApplication::translate("FillDialog", "Preserve Transparency"), blending_box);
   preserve_check->setObjectName(QStringLiteral("editFillPreserveTransparencyCheck"));
   preserve_check->setToolTip(
       QCoreApplication::translate("FillDialog", "Fill only where the layer already has pixels, keeping their opacity"));
   preserve_check->setChecked(remembered.preserve_transparency);
-  form->addRow(preserve_check);
+  form->addRow(QString(), preserve_check);
   layout->addWidget(blending_box);
+  align_form_label_columns({contents_form, form});
 
-  // Content-Aware fills from the surroundings, so Mode, Opacity and Preserve Transparency do
-  // not apply to it; Add to New Layer applies only to it.
-  const auto update_content_aware = [current_contents, color_swatch, new_layer_check, blending_box] {
+  // Content-Aware fills from the surroundings, so Preserve Transparency never applies to it,
+  // and Mode and Opacity apply only with Add to New Layer, as the new layer's blend mode and
+  // opacity. Behind and Clear are not layer blend modes, so they are off then.
+  const auto set_enabled_with_label = [form](QWidget* field, bool enabled) {
+    field->setEnabled(enabled);
+    if (auto* label = form->labelForField(field); label != nullptr) {
+      label->setEnabled(enabled);
+    }
+  };
+  const auto update_content_aware = [current_contents, color_swatch, new_layer_check, blending_box, mode_combo,
+                                     opacity_row, preserve_check, set_enabled_with_label, behind_data,
+                                     clear_data] {
     const bool content_aware = current_contents() == FillContents::ContentAware;
+    const bool layer_modes_only = content_aware && new_layer_check->isChecked();
     color_swatch->setVisible(!content_aware);
     new_layer_check->setEnabled(content_aware);
-    blending_box->setEnabled(!content_aware);
-    blending_box->setToolTip(content_aware ? QCoreApplication::translate(
-                                                 "FillDialog", "Content-Aware fills from the pixels around the selection")
-                                           : QString());
+    set_enabled_with_label(mode_combo, !content_aware || layer_modes_only);
+    set_enabled_with_label(opacity_row, !content_aware || layer_modes_only);
+    preserve_check->setEnabled(!content_aware);
+    if (auto* model = qobject_cast<QStandardItemModel*>(mode_combo->model()); model != nullptr) {
+      for (const auto data : {behind_data, clear_data}) {
+        if (auto* item = model->item(mode_combo->findData(data)); item != nullptr) {
+          item->setFlags(layer_modes_only ? item->flags() & ~(Qt::ItemIsEnabled | Qt::ItemIsSelectable)
+                                          : item->flags() | Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+        }
+      }
+    }
+    if (layer_modes_only && paint_mode_from_item_data(mode_combo->currentData().toInt()).kind != PaintModeKind::Blend) {
+      mode_combo->setCurrentIndex(std::max(0, mode_combo->findData(paint_mode_item_data(PaintMode{}))));
+    }
+    blending_box->setToolTip(
+        !content_aware     ? QString()
+        : layer_modes_only ? QCoreApplication::translate("FillDialog",
+                                                         "Mode and Opacity set the new layer's blend mode and opacity")
+                           : QCoreApplication::translate("FillDialog",
+                                                         "Content-Aware fills from the pixels around the selection"));
   };
   update_content_aware();
   QObject::connect(contents_combo, &QComboBox::currentIndexChanged, &dialog,
@@ -305,6 +346,8 @@ std::optional<FillDialogSettings> request_fill_settings(QWidget* parent, QColor 
                      update_swatch();
                      update_content_aware();
                    });
+  QObject::connect(new_layer_check, &QCheckBox::toggled, &dialog,
+                   [update_content_aware](bool) { update_content_aware(); });
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
   layout->addWidget(buttons);

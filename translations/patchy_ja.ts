@@ -75,10 +75,6 @@
         <translation>塗りつぶし</translation>
     </message>
     <message>
-        <source>Contents</source>
-        <translation>内容</translation>
-    </message>
-    <message>
         <source>Fill color</source>
         <translation>塗りつぶしの色</translation>
     </message>
@@ -95,16 +91,8 @@
         <translation>描画オプション</translation>
     </message>
     <message>
-        <source>Mode</source>
-        <translation>モード</translation>
-    </message>
-    <message>
         <source> %</source>
         <translation> %</translation>
-    </message>
-    <message>
-        <source>Opacity</source>
-        <translation>不透明度</translation>
     </message>
     <message>
         <source>Preserve Transparency</source>
@@ -133,6 +121,22 @@
     <message>
         <source>Content-Aware fills from the pixels around the selection</source>
         <translation>コンテンツに応じた塗りつぶしは選択範囲の周囲のピクセルで塗りつぶします</translation>
+    </message>
+    <message>
+        <source>Contents:</source>
+        <translation>内容:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>モード:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>不透明度:</translation>
+    </message>
+    <message>
+        <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
+        <translation>モードと不透明度は新規レイヤーの描画モードと不透明度になります</translation>
     </message>
 </context>
 <context>

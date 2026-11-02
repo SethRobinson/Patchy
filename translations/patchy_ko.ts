@@ -75,10 +75,6 @@
         <translation>칠</translation>
     </message>
     <message>
-        <source>Contents</source>
-        <translation>내용</translation>
-    </message>
-    <message>
         <source>Fill color</source>
         <translation>칠 색상</translation>
     </message>
@@ -95,16 +91,8 @@
         <translation>혼합</translation>
     </message>
     <message>
-        <source>Mode</source>
-        <translation>모드</translation>
-    </message>
-    <message>
         <source> %</source>
         <translation> %</translation>
-    </message>
-    <message>
-        <source>Opacity</source>
-        <translation>불투명도</translation>
     </message>
     <message>
         <source>Preserve Transparency</source>
@@ -133,6 +121,22 @@
     <message>
         <source>Content-Aware fills from the pixels around the selection</source>
         <translation>내용 인식은 선택 영역 주변의 픽셀로 채웁니다.</translation>
+    </message>
+    <message>
+        <source>Contents:</source>
+        <translation>내용:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>모드:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>불투명도:</translation>
+    </message>
+    <message>
+        <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
+        <translation>모드와 불투명도는 새 레이어의 혼합 모드와 불투명도로 설정됩니다</translation>
     </message>
 </context>
 <context>

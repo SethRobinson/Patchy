@@ -6953,6 +6953,8 @@ void ui_edit_fill_dialog_content_aware_fills_selection() {
     QSlider* opacity_slider{};
     QSpinBox* opacity_spin{};
     QPushButton* swatch{};
+    QComboBox* mode{};
+    QCheckBox* preserve{};
   };
   const auto parts_of = [](QDialog& dialog) {
     DialogParts parts;
@@ -6961,13 +6963,16 @@ void ui_edit_fill_dialog_content_aware_fills_selection() {
     parts.opacity_slider = dialog.findChild<QSlider*>(QStringLiteral("editFillOpacitySlider"));
     parts.opacity_spin = dialog.findChild<QSpinBox*>(QStringLiteral("editFillOpacitySpin"));
     parts.swatch = dialog.findChild<QPushButton*>(QStringLiteral("editFillColorSwatch"));
+    parts.mode = dialog.findChild<QComboBox*>(QStringLiteral("editFillModeCombo"));
+    parts.preserve = dialog.findChild<QCheckBox*>(QStringLiteral("editFillPreserveTransparencyCheck"));
     for (auto* box : dialog.findChildren<QGroupBox*>()) {
       if (box->isAncestorOf(dialog.findChild<QComboBox*>(QStringLiteral("editFillModeCombo")))) {
         parts.blending = box;
       }
     }
     CHECK(parts.contents != nullptr && parts.new_layer != nullptr && parts.blending != nullptr &&
-          parts.opacity_slider != nullptr && parts.opacity_spin != nullptr && parts.swatch != nullptr);
+          parts.opacity_slider != nullptr && parts.opacity_spin != nullptr && parts.swatch != nullptr &&
+          parts.mode != nullptr && parts.preserve != nullptr);
     return parts;
   };
   const auto item_enabled = [](QComboBox* combo, int index) {
@@ -6983,10 +6988,48 @@ void ui_edit_fill_dialog_content_aware_fills_selection() {
     }
     const auto parts = parts_of(*dialog);
     if (parts.contents == nullptr || parts.new_layer == nullptr || parts.blending == nullptr ||
-        parts.opacity_slider == nullptr || parts.opacity_spin == nullptr || parts.swatch == nullptr) {
+        parts.opacity_slider == nullptr || parts.opacity_spin == nullptr || parts.swatch == nullptr ||
+        parts.mode == nullptr || parts.preserve == nullptr) {
       dialog->reject();
       return;
     }
+    // Issue 575's follow-up: a Fill box and a Blending box, both forms with labels ending in
+    // a colon, the checkboxes in the field column, and every field starting at one x.
+    auto* fill_box = qobject_cast<QGroupBox*>(parts.contents->parentWidget());
+    CHECK(fill_box != nullptr && fill_box->title() == QStringLiteral("Fill"));
+    CHECK(parts.blending->title() == QStringLiteral("Blending"));
+    auto* fill_form = fill_box != nullptr ? qobject_cast<QFormLayout*>(fill_box->layout()) : nullptr;
+    auto* blending_form = qobject_cast<QFormLayout*>(parts.blending->layout());
+    CHECK(fill_form != nullptr && blending_form != nullptr);
+    if (fill_form != nullptr && blending_form != nullptr) {
+      const auto label_text = [](QFormLayout* form, int row) {
+        auto* item = form->itemAt(row, QFormLayout::LabelRole);
+        auto* label = item != nullptr ? qobject_cast<QLabel*>(item->widget()) : nullptr;
+        return label != nullptr ? label->text() : QString();
+      };
+      CHECK(fill_form->rowCount() == 2 && blending_form->rowCount() == 3);
+      CHECK(label_text(fill_form, 0) == QStringLiteral("Contents:"));
+      CHECK(label_text(blending_form, 0) == QStringLiteral("Mode:"));
+      CHECK(label_text(blending_form, 1) == QStringLiteral("Opacity:"));
+      int row = -1;
+      QFormLayout::ItemRole role{};
+      fill_form->getWidgetPosition(parts.new_layer, &row, &role);
+      CHECK(row == 1 && role == QFormLayout::FieldRole);
+      blending_form->getWidgetPosition(parts.preserve, &row, &role);
+      CHECK(row == 2 && role == QFormLayout::FieldRole);
+      CHECK(fill_form->itemAt(1, QFormLayout::LabelRole) == nullptr);
+      CHECK(blending_form->itemAt(2, QFormLayout::LabelRole) == nullptr);
+      const auto left = [dialog](QWidget* widget) { return widget->mapTo(dialog, QPoint(0, 0)).x(); };
+      CHECK(left(parts.contents) == left(parts.mode));
+      CHECK(left(parts.contents) == left(parts.opacity_slider));
+      CHECK(left(parts.new_layer) == left(parts.preserve));
+      CHECK(left(parts.new_layer) == left(parts.contents));
+    }
+    // A separator above Behind in this dialog's Mode list: Normal, Dissolve, -, Behind, Clear, -.
+    CHECK(parts.mode->findData(patchy::ui::paint_mode_item_data(patchy::PaintMode::behind())) == 3);
+    CHECK(patchy::ui::is_blend_mode_separator(parts.mode, 2));
+    CHECK(parts.mode->findData(patchy::ui::paint_mode_item_data(patchy::PaintMode::clear())) == 4);
+    CHECK(patchy::ui::is_blend_mode_separator(parts.mode, 5));
     const QStringList expected{QStringLiteral("foreground"), QStringLiteral("background"), QStringLiteral("color"),
                                QString(),                    QStringLiteral("black"),      QStringLiteral("gray50"),
                                QStringLiteral("white"),      QString(),                    QStringLiteral("contentAware")};
@@ -7005,6 +7048,7 @@ void ui_edit_fill_dialog_content_aware_fills_selection() {
     CHECK(parts.contents->sizeAdjustPolicy() == QComboBox::AdjustToContents);
     CHECK(!parts.new_layer->isEnabled());
     CHECK(parts.blending->isEnabled());
+    CHECK(parts.mode->isEnabled() && parts.opacity_slider->isEnabled() && parts.preserve->isEnabled());
     parts.opacity_slider->setValue(40);
     CHECK(parts.opacity_spin->value() == 40);
     parts.opacity_spin->setValue(70);
@@ -7032,7 +7076,8 @@ void ui_edit_fill_dialog_content_aware_fills_selection() {
     CHECK(layer != nullptr);
     return layer != nullptr ? layer->pixels() : patchy::PixelBuffer{};
   };
-  // Answers the dialog with Content-Aware, `new_layer` ticked or not.
+  // Answers the dialog with Content-Aware, `new_layer` ticked or not. Mode and Opacity
+  // follow Add to New Layer; with it ticked the dialog picks Multiply at 60%.
   const auto accept_content_aware = [&](bool new_layer, const char* artifact) {
     QTimer::singleShot(0, [&, new_layer, artifact] {
       auto* dialog = find_top_level_dialog(QStringLiteral("patchyFillDialog"));
@@ -7042,18 +7087,39 @@ void ui_edit_fill_dialog_content_aware_fills_selection() {
       }
       const auto parts = parts_of(*dialog);
       if (parts.contents == nullptr || parts.new_layer == nullptr || parts.blending == nullptr ||
-          parts.swatch == nullptr) {
+          parts.swatch == nullptr || parts.mode == nullptr || parts.preserve == nullptr ||
+          parts.opacity_spin == nullptr || parts.opacity_slider == nullptr) {
         dialog->reject();
         return;
       }
+      const auto behind = parts.mode->findData(patchy::ui::paint_mode_item_data(patchy::PaintMode::behind()));
+      const auto clear = parts.mode->findData(patchy::ui::paint_mode_item_data(patchy::PaintMode::clear()));
+      // A chosen Behind gives way to Normal once the new layer's modes apply.
+      parts.mode->setCurrentIndex(behind);
       const auto index = parts.contents->findData(QStringLiteral("contentAware"));
       CHECK(index == 8);
       CHECK(item_enabled(parts.contents, index));
+      parts.new_layer->setChecked(false);
       parts.contents->setCurrentIndex(index);
       CHECK(parts.new_layer->isEnabled());
-      CHECK(!parts.blending->isEnabled());
+      CHECK(parts.blending->isEnabled());
+      CHECK(!parts.mode->isEnabled() && !parts.opacity_slider->isEnabled() && !parts.opacity_spin->isEnabled());
+      CHECK(!parts.preserve->isEnabled());
       CHECK(parts.swatch->isHidden());
+      CHECK(item_enabled(parts.mode, behind) && item_enabled(parts.mode, clear));
+      parts.new_layer->setChecked(true);
+      CHECK(parts.mode->isEnabled() && parts.opacity_slider->isEnabled() && parts.opacity_spin->isEnabled());
+      CHECK(!parts.preserve->isEnabled());
+      CHECK(!item_enabled(parts.mode, behind) && !item_enabled(parts.mode, clear));
+      CHECK(parts.mode->currentData().toInt() == patchy::ui::paint_mode_item_data(patchy::PaintMode{}));
       parts.new_layer->setChecked(new_layer);
+      CHECK(parts.mode->isEnabled() == new_layer);
+      CHECK(item_enabled(parts.mode, behind) == !new_layer);
+      if (new_layer) {
+        parts.mode->setCurrentIndex(parts.mode->findData(
+            patchy::ui::paint_mode_item_data(patchy::PaintMode::of(patchy::BlendMode::Multiply))));
+        parts.opacity_spin->setValue(60);
+      }
       QApplication::processEvents();
       if (artifact != nullptr) {
         save_widget_artifact(artifact, *dialog);
@@ -7120,6 +7186,8 @@ void ui_edit_fill_dialog_content_aware_fills_selection() {
       if (added != nullptr) {
         CHECK(added->kind() == patchy::LayerKind::Pixel);
         CHECK(added->name() == "Content-Aware Fill");
+        CHECK(added->blend_mode() == patchy::BlendMode::Multiply);
+        CHECK(std::abs(added->opacity() - 0.6F) < 0.001F);
         const auto bounds = added->bounds();
         const auto& added_pixels = added->pixels();
         std::int64_t opaque_inside = 0;

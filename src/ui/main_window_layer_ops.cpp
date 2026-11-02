@@ -4788,7 +4788,9 @@ void MainWindow::edit_fill_dialog() {
     return;
   }
   if (chosen->contents == FillContents::ContentAware) {
-    content_aware_fill_selection(chosen->content_aware_new_layer);
+    // Mode and Opacity apply to the new layer; the dialog offers only layer blend modes then.
+    const auto blend = chosen->mode.kind == PaintModeKind::Blend ? chosen->mode.blend : BlendMode::Normal;
+    content_aware_fill_selection(chosen->content_aware_new_layer, blend, chosen->opacity);
     return;
   }
   const auto color = fill_contents_color(*chosen, canvas_->primary_color(), canvas_->secondary_color());
@@ -5689,7 +5691,7 @@ void MainWindow::remove_object_dialog() {
                                      .arg(last_result.source_count));
 }
 
-void MainWindow::content_aware_fill_selection(bool to_new_layer) {
+void MainWindow::content_aware_fill_selection(bool to_new_layer, BlendMode blend, int opacity_percent) {
   if (canvas_ == nullptr || !has_active_document()) {
     return;
   }
@@ -5754,6 +5756,8 @@ void MainWindow::content_aware_fill_selection(bool to_new_layer) {
   Layer copied(doc.allocate_layer_id(), tr("Content-Aware Fill").toStdString(),
                copy_pixels_from_layer(filled, copy_rect, canvas_));
   copied.set_bounds(Rect{copy_rect.x, copy_rect.y, copied.pixels().width(), copied.pixels().height()});
+  copied.set_blend_mode(blend_mode_supported_at_depth(blend, document_bit_depth(doc)) ? blend : BlendMode::Normal);
+  copied.set_opacity(static_cast<float>(std::clamp(opacity_percent, 1, 100)) / 100.0F);
   const auto copied_id = copied.id();
   insert_layer_after_anchor(doc, std::move(copied), active_id);
   doc.set_active_layer(copied_id);

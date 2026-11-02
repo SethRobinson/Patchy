@@ -75,10 +75,6 @@
         <translation>Rellenar</translation>
     </message>
     <message>
-        <source>Contents</source>
-        <translation>Contenido</translation>
-    </message>
-    <message>
         <source>Fill color</source>
         <translation>Color de relleno</translation>
     </message>
@@ -95,16 +91,8 @@
         <translation>Fusión</translation>
     </message>
     <message>
-        <source>Mode</source>
-        <translation>Modo</translation>
-    </message>
-    <message>
         <source> %</source>
         <translation> %</translation>
-    </message>
-    <message>
-        <source>Opacity</source>
-        <translation>Opacidad</translation>
     </message>
     <message>
         <source>Preserve Transparency</source>
@@ -133,6 +121,22 @@
     <message>
         <source>Content-Aware fills from the pixels around the selection</source>
         <translation>Según el contenido rellena con los píxeles que rodean la selección</translation>
+    </message>
+    <message>
+        <source>Contents:</source>
+        <translation>Contenido:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Modo:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Opacidad:</translation>
+    </message>
+    <message>
+        <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
+        <translation>Modo y Opacidad fijan el modo de fusión y la opacidad de la capa nueva</translation>
     </message>
 </context>
 <context>

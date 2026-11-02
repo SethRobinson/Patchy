@@ -75,10 +75,6 @@
         <translation>填充</translation>
     </message>
     <message>
-        <source>Contents</source>
-        <translation>内容</translation>
-    </message>
-    <message>
         <source>Fill color</source>
         <translation>填充颜色</translation>
     </message>
@@ -95,16 +91,8 @@
         <translation>混合</translation>
     </message>
     <message>
-        <source>Mode</source>
-        <translation>模式</translation>
-    </message>
-    <message>
         <source> %</source>
         <translation> %</translation>
-    </message>
-    <message>
-        <source>Opacity</source>
-        <translation>不透明度</translation>
     </message>
     <message>
         <source>Preserve Transparency</source>
@@ -133,6 +121,22 @@
     <message>
         <source>Content-Aware fills from the pixels around the selection</source>
         <translation>内容识别使用选区周围的像素进行填充</translation>
+    </message>
+    <message>
+        <source>Contents:</source>
+        <translation>内容:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>模式:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>不透明度:</translation>
+    </message>
+    <message>
+        <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
+        <translation>模式和不透明度设置新图层的混合模式和不透明度</translation>
     </message>
 </context>
 <context>

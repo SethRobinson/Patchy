@@ -75,10 +75,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Contents</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Fill color</source>
         <translation type="unfinished"></translation>
     </message>
@@ -95,15 +91,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Mode</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source> %</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Opacity</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -132,6 +120,22 @@
     </message>
     <message>
         <source>Content-Aware fills from the pixels around the selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Contents:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
