@@ -183,6 +183,14 @@ QString photoshop_style_template() {
       min-width: 0;
       min-height: 0;
     }
+    /* The clone source popup's section lines (GitHub issue 574), in the menu separator's color. */
+    QFrame#cloneSourcePointDivider, QFrame#cloneSourceTransformDivider {
+      background: @menu_separator;
+      color: @menu_separator;
+      min-height: 1px;
+      max-height: 1px;
+      border: 0;
+    }
     QToolButton#colorPanelSettingsButton::menu-indicator,
     QToolButton#layersPanelSettingsButton::menu-indicator {
       width: 0;

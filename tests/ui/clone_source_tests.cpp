@@ -10,6 +10,7 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/clone_source_panel.hpp"
 #include "ui/main_window.hpp"
+#include "ui/theme_palette.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
@@ -17,6 +18,7 @@
 #include <QDoubleSpinBox>
 #include <QFont>
 #include <QFontInfo>
+#include <QFrame>
 #include <QImage>
 #include <QLabel>
 #include <QLayout>
@@ -1340,6 +1342,97 @@ void ui_clone_source_overlay_resize_screenshot() {
   }
 }
 
+// GitHub issue 574 follow-up: a line under the Point and Offset rows (Clear's section) and
+// one under the scale, rotation and flip rows (Reset's section), above the overlay. Each
+// spans the field columns and draws in the menu separator's color.
+void ui_clone_source_popup_divides_its_sections() {
+  SettingsValueRestorer saved_aligned(QStringLiteral("tools/cloneAligned"));
+  auto&& [window, canvas] = ShownWindowFixture{};
+  require_action_by_text(window, QStringLiteral("Clone"))->trigger();
+  QApplication::processEvents();
+  auto* aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck"));
+  auto* gear = window.findChild<QToolButton*>(QStringLiteral("cloneSourceOptionsButton"));
+  auto* menu = window.findChild<QMenu*>(QStringLiteral("cloneSourceMenu"));
+  auto* panel = window.findChild<patchy::ui::CloneSourcePanel*>(QStringLiteral("cloneSourcePanel"));
+  CHECK(aligned != nullptr && gear != nullptr && menu != nullptr && panel != nullptr);
+  if (aligned == nullptr || gear == nullptr || menu == nullptr || panel == nullptr) {
+    return;
+  }
+  auto* point_divider = panel->findChild<QFrame*>(QStringLiteral("cloneSourcePointDivider"));
+  auto* transform_divider = panel->findChild<QFrame*>(QStringLiteral("cloneSourceTransformDivider"));
+  auto* offset_note = panel->findChild<QLabel*>(QStringLiteral("cloneSourceOffsetNote"));
+  auto* transform_note = panel->findChild<QLabel*>(QStringLiteral("cloneSourceTransformNote"));
+  auto* overlay_check = panel->findChild<QCheckBox*>(QStringLiteral("cloneSourceOverlayCheck"));
+  CHECK(point_divider != nullptr && transform_divider != nullptr && offset_note != nullptr &&
+        transform_note != nullptr && overlay_check != nullptr);
+  if (point_divider == nullptr || transform_divider == nullptr || offset_note == nullptr || transform_note == nullptr ||
+      overlay_check == nullptr) {
+    return;
+  }
+  const auto rect_in_panel = [panel](const QWidget* widget) {
+    return QRect(widget->mapTo(panel, QPoint(0, 0)), widget->size());
+  };
+  const auto lowest = [&](std::initializer_list<const QWidget*> widgets) {
+    int bottom = -1;
+    for (const auto* widget : widgets) {
+      if (widget->isVisible()) {
+        bottom = std::max(bottom, rect_in_panel(widget).bottom());
+      }
+    }
+    return bottom;
+  };
+  const auto check_dividers = [&](const char* when) {
+    QApplication::processEvents();
+    const auto point_line = rect_in_panel(point_divider);
+    const auto transform_line = rect_in_panel(transform_divider);
+    std::printf("  %s: Point line %d,%d %dx%d, transform line %d,%d %dx%d\n", when, point_line.x(), point_line.y(),
+                point_line.width(), point_line.height(), transform_line.x(), transform_line.y(), transform_line.width(),
+                transform_line.height());
+    CHECK(menu->isVisible());
+    CHECK(point_divider->isVisible() && transform_divider->isVisible());
+    CHECK(point_divider->frameShape() == QFrame::HLine && transform_divider->frameShape() == QFrame::HLine);
+    for (const auto& line : {point_line, transform_line}) {
+      CHECK(line.height() == 1);
+      // From the row captions to the right edge of the second field column.
+      CHECK(line.left() <= rect_in_panel(panel->source_label()).left() - 8);
+      CHECK(line.right() >= rect_in_panel(panel->offset_y_spin()).right());
+    }
+    // Point, Offset (and its note), then the line, then Scale and Rotation.
+    CHECK(lowest({panel->source_label(), panel->clear_source_button(), panel->offset_x_spin(),
+                  panel->offset_y_spin(), offset_note}) < point_line.top());
+    CHECK(point_line.bottom() < rect_in_panel(panel->scale_spin()).top());
+    CHECK(point_line.bottom() < rect_in_panel(panel->rotation_spin()).top());
+    // Flip and Reset (and the transform note), then the line, then the overlay.
+    CHECK(lowest({panel->flip_horizontal_button(), panel->reset_button(), transform_note}) < transform_line.top());
+    CHECK(transform_line.bottom() < rect_in_panel(overlay_check).top());
+    // Drawn in the menu separator's color, unlike the popup around it.
+    const auto shot = panel->grab().toImage();
+    const QPoint on_line(point_line.center().x(), point_line.top());
+    CHECK(color_close(shot.pixelColor(on_line), patchy::ui::theme().menu_separator, 8));
+    CHECK(!color_close(shot.pixelColor(on_line - QPoint(0, 3)), patchy::ui::theme().menu_separator, 8));
+    const QPoint on_transform_line(transform_line.center().x(), transform_line.top());
+    CHECK(color_close(shot.pixelColor(on_transform_line), patchy::ui::theme().menu_separator, 8));
+  };
+
+  // No source yet, then the reporter's state: a source with the offset note shown.
+  aligned->setChecked(true);
+  open_gear_popup(*gear, *menu);
+  check_dividers("no source");
+  menu->close();
+  QApplication::processEvents();
+  canvas->set_brush_size(30);
+  alt_click(*canvas, QPoint(60, 60));
+  QApplication::processEvents();
+  aligned->setChecked(false);
+  QApplication::processEvents();
+  open_gear_popup(*gear, *menu);
+  save_window_popup_artifact("issue574_popup_dividers", window, *gear, *menu);
+  CHECK(offset_note->isVisible());
+  check_dividers("source set, Aligned off");
+  menu->close();
+  QApplication::processEvents();
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> clone_source_tests() {
@@ -1365,5 +1458,6 @@ std::vector<patchy::test::TestCase> clone_source_tests() {
       {"ui_clone_source_flip_buttons_center_on_their_label", ui_clone_source_flip_buttons_center_on_their_label},
       {"ui_clone_source_popup_fits_the_aligned_note", ui_clone_source_popup_fits_the_aligned_note},
       {"ui_clone_source_popup_reopen_gets_full_height", ui_clone_source_popup_reopen_gets_full_height},
+      {"ui_clone_source_popup_divides_its_sections", ui_clone_source_popup_divides_its_sections},
   };
 }

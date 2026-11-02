@@ -11,6 +11,7 @@
 #include <QCoreApplication>
 #include <QDoubleSpinBox>
 #include <QEvent>
+#include <QFrame>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -124,10 +125,20 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
   offset_note_->setObjectName(QStringLiteral("cloneSourceOffsetNote"));
   make_wrapping_note(offset_note_);
   layout->addWidget(offset_note_, 3, 2, 1, 3);
+  // Lines between the sections (GitHub issue 574): Clear acts on Point and Offset above
+  // the first, Reset on scale, rotation and flips above the second.
+  const auto add_divider = [this, layout](int row, const QString& name) {
+    auto* divider = new QFrame(this);
+    divider->setObjectName(name);
+    divider->setFrameShape(QFrame::HLine);
+    divider->setFrameShadow(QFrame::Plain);
+    layout->addWidget(divider, row, 0, 1, 5);
+  };
+  add_divider(4, QStringLiteral("cloneSourcePointDivider"));
 
-  // Rows 4 and 5: the Clone Stamp's scale, rotation and flips, and Reset.
+  // Rows 5 and 6: the Clone Stamp's scale, rotation and flips, and Reset.
   scale_label_ = new QLabel(this);
-  layout->addWidget(scale_label_, 4, 0);
+  layout->addWidget(scale_label_, 5, 0);
   scale_spin_ = new QDoubleSpinBox(this);
   scale_spin_->setObjectName(QStringLiteral("cloneSourceScaleSpin"));
   scale_spin_->setRange(patchy::CloneSourceTransform::kMinScalePercent,
@@ -136,10 +147,10 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
   scale_spin_->setSingleStep(1.0);
   scale_spin_->setValue(100.0);
   configure_dialog_spinbox(scale_spin_, 84);
-  layout->addWidget(scale_spin_, 4, 2);
+  layout->addWidget(scale_spin_, 5, 2);
   rotation_label_ = new QLabel(this);
   rotation_label_->setAlignment(kFieldCaption);
-  layout->addWidget(rotation_label_, 4, 3, kFieldCaption);
+  layout->addWidget(rotation_label_, 5, 3, kFieldCaption);
   rotation_spin_ = new QDoubleSpinBox(this);
   rotation_spin_->setObjectName(QStringLiteral("cloneSourceRotationSpin"));
   rotation_spin_->setRange(-patchy::CloneSourceTransform::kMaxRotationDegrees,
@@ -148,12 +159,12 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
   rotation_spin_->setSingleStep(1.0);
   rotation_spin_->setWrapping(true);
   configure_dialog_spinbox(rotation_spin_, 84);
-  layout->addWidget(rotation_spin_, 4, 4);
+  layout->addWidget(rotation_spin_, 5, 4);
   connect(scale_spin_, &QDoubleSpinBox::valueChanged, this, [this] { emit_transform(); });
   connect(rotation_spin_, &QDoubleSpinBox::valueChanged, this, [this] { emit_transform(); });
   // The flips mirror the source about the source point (one eye onto the other).
   flip_label_ = new QLabel(this);
-  layout->addWidget(flip_label_, 5, 0, Qt::AlignVCenter);
+  layout->addWidget(flip_label_, 6, 0, Qt::AlignVCenter);
   auto* flip_row = new QHBoxLayout();
   flip_row->setSpacing(4);
   flip_row->setContentsMargins(0, 0, 0, 0);
@@ -176,30 +187,32 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
     connect(button, &QToolButton::toggled, this, [this] { emit_transform(); });
   }
   flip_row->addStretch(1);
-  layout->addLayout(flip_row, 5, 2);
+  layout->addLayout(flip_row, 6, 2);
   reset_button_ = new QPushButton(this);
   reset_button_->setObjectName(QStringLiteral("cloneSourceResetButton"));
   reset_button_->setAutoDefault(false);
-  layout->addWidget(reset_button_, 5, 4);
+  layout->addWidget(reset_button_, 6, 4);
   connect(reset_button_, &QPushButton::clicked, this,
           [this] { emit transform_edited(patchy::CloneSourceTransform{}); });
   transform_note_ = new QLabel(this);
   transform_note_->setObjectName(QStringLiteral("cloneSourceTransformNote"));
   make_wrapping_note(transform_note_);
-  layout->addWidget(transform_note_, 6, 0, 1, 5);
+  layout->addWidget(transform_note_, 7, 0, 1, 5);
 
-  // Row 7: the overlay.
+  add_divider(8, QStringLiteral("cloneSourceTransformDivider"));
+
+  // Row 9: the overlay.
   overlay_check_ = new QCheckBox(this);
   overlay_check_->setObjectName(QStringLiteral("cloneSourceOverlayCheck"));
-  layout->addWidget(overlay_check_, 7, 0, 1, 3);
+  layout->addWidget(overlay_check_, 9, 0, 1, 3);
   overlay_opacity_label_ = new QLabel(this);
   overlay_opacity_label_->setAlignment(kFieldCaption);
-  layout->addWidget(overlay_opacity_label_, 7, 3, kFieldCaption);
+  layout->addWidget(overlay_opacity_label_, 9, 3, kFieldCaption);
   overlay_opacity_spin_ = new QSpinBox(this);
   overlay_opacity_spin_->setObjectName(QStringLiteral("cloneSourceOverlayOpacitySpin"));
   overlay_opacity_spin_->setRange(1, 100);
   configure_dialog_spinbox(overlay_opacity_spin_, 84);
-  layout->addWidget(overlay_opacity_spin_, 7, 4);
+  layout->addWidget(overlay_opacity_spin_, 9, 4);
   const auto overlay_changed = [this] { emit overlay_edited(overlay_check_->isChecked(), overlay_opacity_spin_->value()); };
   connect(overlay_check_, &QCheckBox::toggled, this, overlay_changed);
   connect(overlay_opacity_spin_, &QSpinBox::valueChanged, this, overlay_changed);
