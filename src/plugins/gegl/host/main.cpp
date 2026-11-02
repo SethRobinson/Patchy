@@ -3,7 +3,7 @@
 // (nothing is linked; the legal rule is "GEGL operations through a helper" in
 // docs/legal-licensing.md) and does one job per run:
 //
-//   patchy-gegl-host --gegl <libgegl> [--gpl3] --list   every operation and its settings, as JSON
+//   patchy-gegl-host --gegl <libgegl> [--gpl3] --list   GEGL's version, every operation and its settings, as JSON
 //   patchy-gegl-host --gegl <libgegl> [--gpl3] --run    one operation on the pixels from stdin
 //
 // --run reads text lines ("op <name>", "size <w> <h>", "format <babl format>",
@@ -146,6 +146,7 @@ struct GeglRectangle {
 
 struct Api {
   void (*gegl_init)(int*, char***) = nullptr;
+  void (*gegl_get_version)(int*, int*, int*) = nullptr;
   void* (*gegl_config)() = nullptr;
   void (*g_object_set)(void*, const char*, ...) = nullptr;
   char** (*gegl_list_operations)(unsigned*) = nullptr;
@@ -277,6 +278,7 @@ void bind(Fn& target, const char* name) {
 
 void bind_api() {
   bind(api.gegl_init, "gegl_init");
+  bind(api.gegl_get_version, "gegl_get_version");
   bind(api.gegl_config, "gegl_config");
   bind(api.g_object_set, "g_object_set");
   bind(api.gegl_list_operations, "gegl_list_operations");
@@ -490,7 +492,13 @@ int list_operations() {
   unsigned count = 0;
   char** names = api.gegl_list_operations(&count);
   auto* graph = api.gegl_node_new();
-  std::string out = "{\"operations\":[";
+  int major = 0;
+  int minor = 0;
+  int micro = 0;
+  api.gegl_get_version(&major, &minor, &micro);
+  std::string out = "{\"version\":" +
+                    json_string((std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(micro)).c_str()) +
+                    ",\"operations\":[";
   bool first = true;
   for (unsigned i = 0; i < count; ++i) {
     const char* name = names[i];

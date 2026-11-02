@@ -6,6 +6,7 @@
 
 #include "ui/background_workers.hpp"
 #include "ui/command_search.hpp"
+#include "ui/filter_workflows.hpp"
 #include "ui/gegl_filters.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window_shared.hpp"
@@ -106,6 +107,18 @@ std::shared_ptr<const FilterRegistry> MainWindow::gegl_filter_registry_for(const
   return gegl_filters_->registry;
 }
 
+void MainWindow::add_gegl_filter_credit(const QString& identifier, FilterDialogSpec& spec) const {
+  if (gegl_filters_ == nullptr || !identifier.startsWith(QLatin1String(kGeglFilterIdPrefix))) {
+    return;
+  }
+  spec.credit = gegl_filter_credit(*gegl_filters_, identifier.toStdString());
+  spec.about_text = tr("About GEGL...");
+  // The scan result the dialog opened with, held while the dialog lives.
+  spec.show_about = [scan = std::shared_ptr<const GeglFilterScanResult>(gegl_filters_)](QWidget* parent) {
+    show_about_gegl(parent, scan.get());
+  };
+}
+
 void MainWindow::rebuild_gegl_filters_menu_when_closed() {
   // A rebuild deletes submenus, so never under an open popup.
   if (QApplication::activePopupWidget() == nullptr) {
@@ -146,6 +159,18 @@ void MainWindow::rebuild_gegl_filters_menu() {
     note->setProperty(kCommandSearchDataEntryProperty, true);  // a scan state, not a command
     note->setToolTip(text);
   };
+  // Last in the menu, whatever the scan found: who makes GEGL, its licenses and source.
+  const auto add_about = [this] {
+    gegl_filters_menu_->addSeparator()->setProperty(kGeglMenuEntryProperty, true);
+    auto* about = gegl_filters_menu_->addAction(tr("About GEGL..."));
+    about->setObjectName(QStringLiteral("geglAboutAction"));
+    about->setMenuRole(QAction::NoRole);
+    about->setProperty(kGeglMenuEntryProperty, true);
+    about->setProperty(kCommandSearchDataEntryProperty, true);
+    connect(about, &QAction::triggered, this, [this] {
+      QTimer::singleShot(0, this, [this] { show_about_gegl(this, gegl_filters_.get()); });
+    });
+  };
   const auto* registry = gegl_filters_ != nullptr ? gegl_filters_->registry.get() : nullptr;
   if (registry == nullptr || registry->filters().empty()) {
     if (gegl_filter_scan_in_flight_ || gegl_filters_ == nullptr) {
@@ -154,6 +179,7 @@ void MainWindow::rebuild_gegl_filters_menu() {
       add_note(gegl_filters_->problem.isEmpty() ? tr("No GEGL filters found") : gegl_filters_->problem,
                "geglFiltersProblemNote");
     }
+    add_about();
     update_document_action_state();
     return;
   }
@@ -192,6 +218,7 @@ void MainWindow::rebuild_gegl_filters_menu() {
       register_document_action(action);
     }
   }
+  add_about();
   update_document_action_state();
 }
 

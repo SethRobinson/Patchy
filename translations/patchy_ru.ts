@@ -250,6 +250,52 @@
         <extracomment>%1 is what the helper reported.</extracomment>
         <translation>Не удалось загрузить GEGL Patchy. %1</translation>
     </message>
+    <message>
+        <source>Filter from GEGL%1 (gegl.org), GPL-3</source>
+        <extracomment>%1 is GEGL&apos;s version with a leading space (&quot; 0.4.72&quot;), or nothing when it is not known.</extracomment>
+        <translation>Фильтр из GEGL%1 (gegl.org), GPL-3</translation>
+    </message>
+    <message>
+        <source>Filter from GEGL%1 (gegl.org)</source>
+        <extracomment>%1 is GEGL&apos;s version with a leading space (&quot; 0.4.72&quot;), or nothing when it is not known.</extracomment>
+        <translation>Фильтр из GEGL%1 (gegl.org)</translation>
+    </message>
+    <message>
+        <source>About GEGL</source>
+        <translation>О GEGL</translation>
+    </message>
+    <message>
+        <source>GEGL (Generic Graphics Library) is a free, open-source image processing engine, with babl handling its pixel formats. It is the engine behind GIMP&apos;s filters.</source>
+        <translation>GEGL (Generic Graphics Library) это свободный движок обработки изображений с открытым исходным кодом; форматами пикселей в нём занимается babl. Это движок, на котором работают фильтры GIMP.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Patchy includes its own build of GEGL and offers %n of its operations under Filter &gt; GEGL Filters, run in Patchy&apos;s own dialogs. GIMP is not needed.</source>
+        <translation>
+            <numerusform>Patchy включает собственную сборку GEGL и предлагает %n её операцию в меню Фильтр &gt; Фильтры GEGL, которая работает в собственных окнах Patchy. GIMP не нужен.</numerusform>
+            <numerusform>Patchy включает собственную сборку GEGL и предлагает %n её операции в меню Фильтр &gt; Фильтры GEGL, которые работают в собственных окнах Patchy. GIMP не нужен.</numerusform>
+            <numerusform>Patchy включает собственную сборку GEGL и предлагает %n её операций в меню Фильтр &gt; Фильтры GEGL, которые работают в собственных окнах Patchy. GIMP не нужен.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>GEGL and babl are made by Øyvind Kolås and the GEGL and GIMP contributors.</source>
+        <translation>GEGL и babl создают Øyvind Kolås и участники проектов GEGL и GIMP.</translation>
+    </message>
+    <message>
+        <source>GEGL and babl are distributed under the GNU LGPL version 3 or later. The filters marked GPL-3 come from GEGL&apos;s GPL-3 module and are under the GNU GPL version 3 or later. Their license texts are included with Patchy, and the complete source of Patchy&apos;s GEGL is PatchyGeglSources.zip, published with every Patchy release.</source>
+        <translation>GEGL и babl распространяются по лицензии GNU LGPL версии 3 или более поздней. Фильтры с пометкой GPL-3 взяты из модуля GPL-3 библиотеки GEGL и распространяются по лицензии GNU GPL версии 3 или более поздней. Тексты их лицензий поставляются с Patchy, а полный исходный код GEGL для Patchy находится в архиве PatchyGeglSources.zip, который публикуется с каждым выпуском Patchy.</translation>
+    </message>
+    <message>
+        <source>Questions about how Patchy runs a filter belong with Patchy, not the GEGL team.</source>
+        <translation>Вопросы о том, как Patchy запускает фильтр, адресуйте Patchy, а не команде GEGL.</translation>
+    </message>
+    <message>
+        <source>Visit the GEGL website (gegl.org)</source>
+        <translation>Открыть сайт GEGL (gegl.org)</translation>
+    </message>
+    <message>
+        <source>Show the license texts</source>
+        <translation>Показать тексты лицензий</translation>
+    </message>
 </context>
 <context>
     <name>InvisibleWatermarkDialog</name>
@@ -32065,6 +32111,10 @@ Locked: %1</source>
     <message>
         <source>Titling Alternates (fonts that have them)</source>
         <translation>Заголовочные варианты (в шрифтах, где они есть)</translation>
+    </message>
+    <message>
+        <source>About GEGL...</source>
+        <translation>О GEGL...</translation>
     </message>
 </context>
 <context>

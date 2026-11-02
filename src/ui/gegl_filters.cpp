@@ -5,20 +5,27 @@
 
 #include "core/layer.hpp"
 #include "core/pixel_buffer.hpp"
+#include "ui/dialog_utils.hpp"
 #include "ui/qt_paths.hpp"
+#include "ui/theme_qss.hpp"
 
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLabel>
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QSaveFile>
 #include <QStandardPaths>
+#include <QUrl>
+#include <QVBoxLayout>
 
 #include <algorithm>
 #include <cmath>
@@ -518,7 +525,7 @@ GeglFilterScanResult scan_gegl_filters(const GeglHelperCommand& command, const Q
   }
   // The cache: the helper's last list, reused while its key matches. Bump kCacheVersion
   // when the helper's list changes shape.
-  constexpr int kCacheVersion = 1;
+  constexpr int kCacheVersion = 2;  // 2: GEGL's version
   const auto stamp = [](const QString& path) {
     const QFileInfo info(path);
     return QStringLiteral("%1|%2|%3").arg(path).arg(info.size()).arg(info.lastModified().toMSecsSinceEpoch());
@@ -567,6 +574,7 @@ GeglFilterScanResult scan_gegl_filters(const GeglHelperCommand& command, const Q
   auto registry = std::make_shared<FilterRegistry>();
   const auto operations = document.value(QStringLiteral("operations")).toArray();
   result.operations = static_cast<int>(operations.size());
+  result.version = document.value(QStringLiteral("version")).toString();
   for (const auto& entry : operations) {
     const auto operation = entry.toObject();
     if (!gegl_operation_offered(operation)) {
@@ -595,10 +603,99 @@ GeglFilterScanResult scan_gegl_filters(const GeglHelperCommand& command, const Q
     const auto categories = operation.value(QStringLiteral("categories")).toString().split(QLatin1Char(':'));
     result.categories[filter.identifier] = categories.value(0).toLower();
     result.descriptions[filter.identifier] = operation.value(QStringLiteral("description")).toString();
+    result.licenses[filter.identifier] = operation.value(QStringLiteral("license")).toString();
     registry->register_filter(std::move(filter));
   }
   result.registry = std::move(registry);
   return result;
+}
+
+QString gegl_filter_credit(const GeglFilterScanResult& scan, const std::string& identifier) {
+  const auto found = scan.licenses.find(identifier);
+  const bool gpl3 = found != scan.licenses.end() && found->second.startsWith(QLatin1String("GPL3"));
+  const auto version = scan.version.isEmpty() ? QString() : QLatin1Char(' ') + scan.version;
+  //: %1 is GEGL's version with a leading space (" 0.4.72"), or nothing when it is not known.
+  return gpl3 ? QCoreApplication::translate("GeglFilters", "Filter from GEGL%1 (gegl.org), GPL-3").arg(version)
+              //: %1 is GEGL's version with a leading space (" 0.4.72"), or nothing when it is not known.
+              : QCoreApplication::translate("GeglFilters", "Filter from GEGL%1 (gegl.org)").arg(version);
+}
+
+QString gegl_licenses_folder() {
+  // Where each package puts them (docs/gegl-filters.md, "Bundled GEGL"): beside the program
+  // on Windows and in build trees, the app's Resources on macOS, the installed bundle on
+  // Linux, the Flatpak's license folder.
+  const QDir program(QCoreApplication::applicationDirPath());
+  for (const auto& candidate :
+       {QStringLiteral("gegl/licenses"), QStringLiteral("../Resources/gegl/licenses"),
+        QStringLiteral("../lib/patchy/gegl/licenses"), QStringLiteral("../share/licenses/com.rtsoft.patchy")}) {
+    if (const QFileInfo info(program.filePath(candidate)); info.isDir()) {
+      return info.canonicalFilePath();
+    }
+  }
+  return {};
+}
+
+void show_about_gegl(QWidget* parent, const GeglFilterScanResult* scan) {
+  QDialog about(parent);
+  about.setObjectName(QStringLiteral("geglAboutDialog"));
+  about.setWindowTitle(QCoreApplication::translate("GeglFilters", "About GEGL"));
+  auto* layout = new QVBoxLayout(&about);
+  const auto version = scan != nullptr ? scan->version : QString();
+  auto* heading = new QLabel(version.isEmpty() ? QStringLiteral("GEGL") : QStringLiteral("GEGL %1").arg(version), &about);
+  heading->setObjectName(QStringLiteral("geglAboutHeading"));
+  heading->setFont(offset_font(heading->font(), 3, true));
+  layout->addWidget(heading);
+  const int offered =
+      scan != nullptr && scan->registry != nullptr ? static_cast<int>(scan->registry->filters().size()) : 0;
+  const QStringList paragraphs{
+      QCoreApplication::translate("GeglFilters",
+                                  "GEGL (Generic Graphics Library) is a free, open-source image processing engine, "
+                                  "with babl handling its pixel formats. It is the engine behind GIMP's filters."),
+      QCoreApplication::translate("GeglFilters",
+                                  "Patchy includes its own build of GEGL and offers %n of its operations under "
+                                  "Filter > GEGL Filters, run in Patchy's own dialogs. GIMP is not needed.",
+                                  nullptr, offered),
+      QCoreApplication::translate("GeglFilters",
+                                  "GEGL and babl are made by Øyvind Kolås and the GEGL and GIMP contributors."),
+      QCoreApplication::translate("GeglFilters",
+                                  "GEGL and babl are distributed under the GNU LGPL version 3 or later. The filters "
+                                  "marked GPL-3 come from GEGL's GPL-3 module and are under the GNU GPL version 3 or "
+                                  "later. Their license texts are included with Patchy, and the complete source of "
+                                  "Patchy's GEGL is PatchyGeglSources.zip, published with every Patchy release."),
+      QCoreApplication::translate("GeglFilters",
+                                  "Questions about how Patchy runs a filter belong with Patchy, not the GEGL team."),
+  };
+  auto* body = new QLabel(&about);
+  body->setObjectName(QStringLiteral("geglAboutText"));
+  body->setTextFormat(Qt::RichText);
+  body->setWordWrap(true);
+  QString html;
+  for (const auto& paragraph : paragraphs) {
+    html += QStringLiteral("<p>%1</p>").arg(paragraph.toHtmlEscaped());
+  }
+  body->setText(html);
+  body->setMinimumWidth(420);
+  layout->addWidget(body);
+  const auto add_link = [&](const char* object_name, const QString& href, const QString& text) {
+    auto* link = new QLabel(&about);
+    link->setObjectName(QLatin1String(object_name));
+    link->setTextFormat(Qt::RichText);
+    link->setTextInteractionFlags(Qt::TextBrowserInteraction);
+    link->setOpenExternalLinks(true);
+    set_themed_label_text(*link, QStringLiteral("<a style=\"color:@accent\" href=\"%1\">%2</a>")
+                                     .arg(href.toHtmlEscaped(), text.toHtmlEscaped()));
+    layout->addWidget(link);
+  };
+  add_link("geglAboutLink", QStringLiteral("https://gegl.org"),
+           QCoreApplication::translate("GeglFilters", "Visit the GEGL website (gegl.org)"));
+  if (const auto licenses = gegl_licenses_folder(); !licenses.isEmpty()) {
+    add_link("geglAboutLicensesLink", QUrl::fromLocalFile(licenses).toString(),
+             QCoreApplication::translate("GeglFilters", "Show the license texts"));
+  }
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &about);
+  QObject::connect(buttons, &QDialogButtonBox::accepted, &about, &QDialog::accept);
+  layout->addWidget(buttons);
+  exec_dialog(about);
 }
 
 }  // namespace patchy::ui

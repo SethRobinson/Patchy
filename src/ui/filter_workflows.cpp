@@ -901,8 +901,23 @@ std::optional<FilterInvocation> request_filter_settings(
     }
   });
 
+  if (!spec.credit.isEmpty()) {
+    auto* credit = new QLabel(spec.credit, &dialog);
+    credit->setObjectName(QStringLiteral("filterDialogCreditLabel"));
+    credit->setWordWrap(true);
+    set_themed_style(*credit, QStringLiteral("color: @text_secondary;"));
+    layout->addWidget(credit);
+  }
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Reset,
                                        &dialog);
+  if (spec.show_about) {
+    auto* about = buttons->addButton(spec.about_text, QDialogButtonBox::HelpRole);
+    about->setObjectName(QStringLiteral("filterDialogAboutButton"));
+    about->setAutoDefault(false);
+    QObject::connect(about, &QPushButton::clicked, &dialog, [&dialog, show_about = spec.show_about] {
+      show_about(&dialog);
+    });
+  }
   layout->addWidget(buttons);
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);

@@ -21,8 +21,10 @@
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QFileInfo>
+#include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
+#include <QPushButton>
 #include <QStandardPaths>
 #include <QString>
 #include <QStringList>
@@ -261,6 +263,10 @@ void ui_gegl_filters_list_and_apply_if_available() {
     }
     gegl_menu->hide();
     QApplication::processEvents();
+    // About GEGL ends the menu (docs/gegl-filters.md, "Credit").
+    const auto entries = gegl_menu->actions();
+    CHECK(entries.size() >= 2 && entries.back()->objectName() == QStringLiteral("geglAboutAction") &&
+          entries[entries.size() - 2]->isSeparator());
   }
 
   // Through apply_filter onto a layer, one undo step.
@@ -280,11 +286,34 @@ void ui_gegl_filters_list_and_apply_if_available() {
   const auto& undone = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(*layer_id)->pixels();
   CHECK(std::equal(undone.data().begin(), undone.data().end(), original.data().begin(), original.data().end()));
 
+  // About GEGL from a filter dialog's About button (docs/gegl-filters.md, "Credit"): its
+  // heading names GEGL's version, it links gegl.org and the license texts (saved to
+  // test-artifacts/gegl-about-dialog.png).
+  bool saw_about = false;
+  QTimer about_poll;
+  about_poll.setInterval(100);
+  QObject::connect(&about_poll, &QTimer::timeout, &window, [&] {
+    auto* about = find_top_level_dialog(QStringLiteral("geglAboutDialog"));
+    if (about == nullptr) {
+      return;
+    }
+    about_poll.stop();
+    const auto* heading = about->findChild<QLabel*>(QStringLiteral("geglAboutHeading"));
+    const auto* link = about->findChild<QLabel*>(QStringLiteral("geglAboutLink"));
+    saw_about = heading != nullptr && heading->text().startsWith(QStringLiteral("GEGL 0.")) && link != nullptr &&
+                link->text().contains(QStringLiteral("https://gegl.org")) &&
+                about->findChild<QLabel*>(QStringLiteral("geglAboutLicensesLink")) != nullptr;
+    save_widget_artifact("gegl-about-dialog", *about);
+    about->accept();
+  });
+
   // The menu command opens Patchy's filter dialog from GEGL's settings (saved to
   // test-artifacts/gegl-<id>-dialog.png for visual QA); Cancel leaves the layer alone.
-  // Vignette shows a color setting as a choice.
-  const auto open_dialog = [&](const QString& identifier, const QString& control) {
+  // Vignette shows a color setting as a choice. Each credits GEGL and its version, with
+  // GPL-3 for the GPL-3 module's operations (Cartoon), and has the About GEGL button.
+  const auto open_dialog = [&](const QString& identifier, const QString& control, bool gpl3, bool open_about) {
     bool saw_dialog = false;
+    bool about_requested = false;
     int polls = 0;
     QTimer poll;
     poll.setInterval(250);
@@ -298,12 +327,22 @@ void ui_gegl_filters_list_and_apply_if_available() {
         }
         return;
       }
-      if (polls < 10) {
-        return;  // let the previews land first
+      if (polls < 10 || about_poll.isActive()) {
+        return;  // let the previews land first, and About GEGL close
+      }
+      auto* about_button = dialog->findChild<QPushButton*>(QStringLiteral("filterDialogAboutButton"));
+      if (open_about && !about_requested && about_button != nullptr) {
+        about_requested = true;
+        about_poll.start();
+        QTimer::singleShot(0, about_button, &QPushButton::click);
+        return;
       }
       poll.stop();
+      const auto* credit = dialog->findChild<QLabel*>(QStringLiteral("filterDialogCreditLabel"));
       saw_dialog = dialog->property("patchy.filterIdentifier").toString() == identifier &&
-                   dialog->findChild<QWidget*>(control) != nullptr;
+                   dialog->findChild<QWidget*>(control) != nullptr && about_button != nullptr && credit != nullptr &&
+                   credit->text().startsWith(QStringLiteral("Filter from GEGL 0.")) &&
+                   credit->text().endsWith(QStringLiteral(", GPL-3")) == gpl3;
       save_widget_artifact(identifier.mid(5).prepend(QStringLiteral("gegl-")).toStdString() + "-dialog", *dialog);
       dialog->reject();
     });
@@ -313,8 +352,10 @@ void ui_gegl_filters_list_and_apply_if_available() {
     const auto& cancelled = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(*layer_id)->pixels();
     CHECK(std::equal(cancelled.data().begin(), cancelled.data().end(), original.data().begin(), original.data().end()));
   };
-  open_dialog(QStringLiteral("gegl.unsharp-mask"), QStringLiteral("geglParam_scaleSlider"));
-  open_dialog(QStringLiteral("gegl.vignette"), QStringLiteral("geglParam_colorCombo"));
+  open_dialog(QStringLiteral("gegl.unsharp-mask"), QStringLiteral("geglParam_scaleSlider"), false, false);
+  open_dialog(QStringLiteral("gegl.vignette"), QStringLiteral("geglParam_colorCombo"), false, false);
+  open_dialog(QStringLiteral("gegl.cartoon"), QStringLiteral("geglParam_mask-radiusSlider"), true, true);
+  CHECK(saw_about);
 
   // Search Commands finds them by name, GEGL's description as the line under it.
   bool searched = false;

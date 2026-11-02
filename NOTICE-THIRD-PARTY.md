@@ -1128,8 +1128,9 @@ version 2.1 or later), libffi (MIT), PCRE2 (BSD) and zlib (zlib license); the Li
 carries GLib, json-glib and PCRE2 built the same way and Ubuntu's libffi, and the Flatpak uses its runtime's
 GLib and json-glib. GEGL is built from its release tarball without a few
 operations, removed from its build lists by `scripts/dev/gegl/common.sh`; nothing else is
-modified. The license texts and the exact versions are in the package's GEGL `licenses`
-folder (`SOURCES.txt`; in the macOS app, `Contents/Resources/gegl/licenses`; in the Flatpak,
+modified. The license texts (one per library, libintl's LGPL included) and the exact
+versions are in the package's GEGL `licenses` folder (`gegl\licenses` beside `patchy.exe`
+on Windows, with `SOURCES.txt`; in the macOS app, `Contents/Resources/gegl/licenses`; in the Flatpak,
 `/app/share/licenses/com.rtsoft.patchy`). The complete
 corresponding source of all of them, with the scripts that built them, is
 `PatchyGeglSources.zip`, published with every Patchy release at

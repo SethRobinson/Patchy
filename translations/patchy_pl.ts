@@ -250,6 +250,52 @@
         <extracomment>%1 is what the helper reported.</extracomment>
         <translation>Nie można załadować GEGL Patchy. %1</translation>
     </message>
+    <message>
+        <source>Filter from GEGL%1 (gegl.org), GPL-3</source>
+        <extracomment>%1 is GEGL&apos;s version with a leading space (&quot; 0.4.72&quot;), or nothing when it is not known.</extracomment>
+        <translation>Filtr z GEGL%1 (gegl.org), GPL-3</translation>
+    </message>
+    <message>
+        <source>Filter from GEGL%1 (gegl.org)</source>
+        <extracomment>%1 is GEGL&apos;s version with a leading space (&quot; 0.4.72&quot;), or nothing when it is not known.</extracomment>
+        <translation>Filtr z GEGL%1 (gegl.org)</translation>
+    </message>
+    <message>
+        <source>About GEGL</source>
+        <translation>O GEGL</translation>
+    </message>
+    <message>
+        <source>GEGL (Generic Graphics Library) is a free, open-source image processing engine, with babl handling its pixel formats. It is the engine behind GIMP&apos;s filters.</source>
+        <translation>GEGL (Generic Graphics Library) to wolny silnik przetwarzania obrazów o otwartym kodzie źródłowym; babl obsługuje jego formaty pikseli. To silnik filtrów programu GIMP.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Patchy includes its own build of GEGL and offers %n of its operations under Filter &gt; GEGL Filters, run in Patchy&apos;s own dialogs. GIMP is not needed.</source>
+        <translation>
+            <numerusform>Patchy zawiera własną kompilację GEGL i oferuje %n jego operację w menu Filtr &gt; Filtry GEGL, uruchamianą we własnych oknach Patchy. GIMP nie jest potrzebny.</numerusform>
+            <numerusform>Patchy zawiera własną kompilację GEGL i oferuje %n jego operacje w menu Filtr &gt; Filtry GEGL, uruchamiane we własnych oknach Patchy. GIMP nie jest potrzebny.</numerusform>
+            <numerusform>Patchy zawiera własną kompilację GEGL i oferuje %n jego operacji w menu Filtr &gt; Filtry GEGL, uruchamianych we własnych oknach Patchy. GIMP nie jest potrzebny.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>GEGL and babl are made by Øyvind Kolås and the GEGL and GIMP contributors.</source>
+        <translation>GEGL i babl tworzą Øyvind Kolås oraz współtwórcy GEGL i GIMP.</translation>
+    </message>
+    <message>
+        <source>GEGL and babl are distributed under the GNU LGPL version 3 or later. The filters marked GPL-3 come from GEGL&apos;s GPL-3 module and are under the GNU GPL version 3 or later. Their license texts are included with Patchy, and the complete source of Patchy&apos;s GEGL is PatchyGeglSources.zip, published with every Patchy release.</source>
+        <translation>GEGL i babl są rozpowszechniane na licencji GNU LGPL w wersji 3 lub nowszej. Filtry oznaczone GPL-3 pochodzą z modułu GPL-3 biblioteki GEGL i podlegają licencji GNU GPL w wersji 3 lub nowszej. Ich teksty licencji są dołączone do Patchy, a pełny kod źródłowy GEGL używanego przez Patchy to PatchyGeglSources.zip, publikowany z każdym wydaniem Patchy.</translation>
+    </message>
+    <message>
+        <source>Questions about how Patchy runs a filter belong with Patchy, not the GEGL team.</source>
+        <translation>Pytania o to, jak Patchy uruchamia filtr, należy kierować do Patchy, a nie do zespołu GEGL.</translation>
+    </message>
+    <message>
+        <source>Visit the GEGL website (gegl.org)</source>
+        <translation>Odwiedź stronę GEGL (gegl.org)</translation>
+    </message>
+    <message>
+        <source>Show the license texts</source>
+        <translation>Pokaż teksty licencji</translation>
+    </message>
 </context>
 <context>
     <name>InvisibleWatermarkDialog</name>
@@ -32065,6 +32111,10 @@ Zablokowano: %1</translation>
     <message>
         <source>Titling Alternates (fonts that have them)</source>
         <translation>Warianty tytułowe (czcionki, które je mają)</translation>
+    </message>
+    <message>
+        <source>About GEGL...</source>
+        <translation>O GEGL...</translation>
     </message>
 </context>
 <context>

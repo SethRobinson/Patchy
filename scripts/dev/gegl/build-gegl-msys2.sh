@@ -14,7 +14,7 @@
 # the operation modules Patchy offers are staged (GPL-3 module included): never the file
 # loaders and savers, transforms, seamless clone or vector fill (docs/legal-licensing.md).
 # Needs: pacman packages toolchain meson ninja pkgconf glib2 json-glib gettext-tools
-# python libjpeg-turbo libpng zlib.
+# python libjpeg-turbo libpng zlib, and libarchive's bsdtar (MSYS-side) for libintl's license.
 set -euo pipefail
 
 REPO=${1:?usage: build-gegl-msys2.sh <repo>}
@@ -125,6 +125,25 @@ for package in $packages; do
   done
 done
 [ $missing = 0 ] || { echo "the source packages above are not in sources.lock: nothing staged" >&2; exit 3; }
+
+# gettext-runtime's own license file only points to intl/COPYING.LIB, libintl's LGPL text:
+# ship that file, from the upstream tarball inside MSYS2's locked source package.
+for entry in "${sources[@]}"; do
+  case "$entry" in "$PACKAGE_PREFIX-gettext-runtime "*) ;; *) continue ;; esac
+  source=${entry##*: }
+  archive="$REPO/.deps/gegl/sources/$source"
+  if [ ! -f "$archive" ]; then
+    mkdir -p "$(dirname "$archive")"
+    curl -sSfL -o "$archive" "https://repo.msys2.org/mingw/sources/$source"
+  fi
+  patchy_gegl_locked "$source" "$(sha256sum "$archive" | cut -d' ' -f1)" ||
+    { echo "$archive is not the $source in sources.lock" >&2; exit 3; }
+  bsdtar -xf "$archive"
+  upstream=$(ls mingw-w64-gettext/gettext-*.tar.* | grep -v '\.sig$' | head -1)
+  inner=$(basename "$upstream")
+  bsdtar -xOf "$upstream" "${inner%.tar.*}/gettext-runtime/intl/COPYING.LIB" >"$STAGE/licenses/libintl-COPYING.LIB.txt"
+  [ -s "$STAGE/licenses/libintl-COPYING.LIB.txt" ] || { echo "no intl/COPYING.LIB in $upstream" >&2; exit 3; }
+done
 
 # Licenses and the sources (docs/gegl-filters.md, "Sources").
 cp "gegl-$GEGL_VERSION/COPYING.LESSER" "$STAGE/licenses/gegl-COPYING.LESSER.txt"

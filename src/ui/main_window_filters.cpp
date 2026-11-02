@@ -2583,7 +2583,8 @@ void MainWindow::apply_filter(const QString& identifier, const FilterInvocation*
       throw std::invalid_argument("Unknown filter identifier");
     }
     const auto display_name = filter_display_name(*filter);
-    const auto dialog_spec = filter_dialog_spec_for(*filter);
+    auto dialog_spec = filter_dialog_spec_for(*filter);
+    add_gegl_filter_credit(identifier, dialog_spec);
     // The selection may change while the settings dialog is open (local-028): the
     // preview reads it when each render starts, and Apply reads it again below.
     auto selection = filter_selection(*canvas_);

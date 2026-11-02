@@ -42,6 +42,7 @@ The package is intentionally limited to the files needed by end users:
 - app and Qt base translations for every shipped language (German, Spanish, French, Italian, Japanese, Korean, Polish, Brazilian Portuguese, Russian, Simplified and Traditional Chinese) under `translations`
 - bundled compatibility fonts under `fonts`
 - `README.md`, `LICENSE`, `NOTICE-THIRD-PARTY.md`, Qt module SPDX notices under `licenses\qt`, and the G'MIC and pocketfft license texts under `licenses\gmic`
+- `patchy-gegl-host.exe` and Patchy's own GEGL under `gegl`, with a license text for each of its libraries and `SOURCES.txt` under `gegl\licenses` (docs/gegl-filters.md)
 
 The zip does not include build files, tests, test fixtures, Qt translations for languages Patchy does not ship, Qt generic input plugins, installer-only helpers such as `InstallPatchy.exe` and `UninstallPatchy.exe`, the Visual C++ Redistributable installer, or developer packaging notes.
 

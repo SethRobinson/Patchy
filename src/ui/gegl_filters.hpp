@@ -17,6 +17,7 @@
 #include <string>
 
 class QJsonObject;
+class QWidget;
 
 namespace patchy::ui {
 
@@ -36,6 +37,10 @@ struct GeglFilterScanResult {
   std::map<std::string, QString> categories;
   // Status tip text: GEGL's description of each operation.
   std::map<std::string, QString> descriptions;
+  // GEGL's license key of each filter id: "GPL3+" for the GPL-3 module's operations, empty
+  // for the LGPL rest.
+  std::map<std::string, QString> licenses;
+  QString version;        // GEGL's version ("0.4.72"); empty before a scan
   int operations{0};      // everything GEGL listed
 };
 
@@ -58,5 +63,13 @@ inline constexpr char kGeglFilterIdPrefix[] = "gegl.";
 // A GEGL category as a menu label: Patchy's translated name for the known ones, else
 // GEGL's word capitalized ("edge-detect" -> "Edge Detect").
 [[nodiscard]] QString gegl_category_label(const QString& category);
+// The credit line of a GEGL filter's dialog ("Filter from GEGL 0.4.72 (gegl.org)", with
+// ", GPL-3" for the GPL-3 module's operations).
+[[nodiscard]] QString gegl_filter_credit(const GeglFilterScanResult& scan, const std::string& identifier);
+// The folder holding the license texts of Patchy's own GEGL; empty when it is not found.
+[[nodiscard]] QString gegl_licenses_folder();
+// About GEGL (docs/gegl-filters.md, "Credit"): what GEGL is, who makes it, its licenses and
+// where its source is. `scan` may be null (before a scan, or with no GEGL found).
+void show_about_gegl(QWidget* parent, const GeglFilterScanResult* scan);
 
 }  // namespace patchy::ui

@@ -250,6 +250,51 @@
         <extracomment>%1 is what the helper reported.</extracomment>
         <translation>Le GEGL de Patchy n&apos;a pas pu être chargé. %1</translation>
     </message>
+    <message>
+        <source>Filter from GEGL%1 (gegl.org), GPL-3</source>
+        <extracomment>%1 is GEGL&apos;s version with a leading space (&quot; 0.4.72&quot;), or nothing when it is not known.</extracomment>
+        <translation>Filtre de GEGL%1 (gegl.org), GPL-3</translation>
+    </message>
+    <message>
+        <source>Filter from GEGL%1 (gegl.org)</source>
+        <extracomment>%1 is GEGL&apos;s version with a leading space (&quot; 0.4.72&quot;), or nothing when it is not known.</extracomment>
+        <translation>Filtre de GEGL%1 (gegl.org)</translation>
+    </message>
+    <message>
+        <source>About GEGL</source>
+        <translation>À propos de GEGL</translation>
+    </message>
+    <message>
+        <source>GEGL (Generic Graphics Library) is a free, open-source image processing engine, with babl handling its pixel formats. It is the engine behind GIMP&apos;s filters.</source>
+        <translation>GEGL (Generic Graphics Library) est un moteur de traitement d&apos;image libre et open source ; babl gère ses formats de pixel. C&apos;est le moteur des filtres de GIMP.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Patchy includes its own build of GEGL and offers %n of its operations under Filter &gt; GEGL Filters, run in Patchy&apos;s own dialogs. GIMP is not needed.</source>
+        <translation>
+            <numerusform>Patchy inclut sa propre compilation de GEGL et propose %n de ses opérations dans Filtre &gt; Filtres GEGL, exécutées dans les boîtes de dialogue de Patchy. GIMP n&apos;est pas nécessaire.</numerusform>
+            <numerusform>Patchy inclut sa propre compilation de GEGL et propose %n de ses opérations dans Filtre &gt; Filtres GEGL, exécutées dans les boîtes de dialogue de Patchy. GIMP n&apos;est pas nécessaire.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>GEGL and babl are made by Øyvind Kolås and the GEGL and GIMP contributors.</source>
+        <translation>GEGL et babl sont développés par Øyvind Kolås et les contributeurs de GEGL et de GIMP.</translation>
+    </message>
+    <message>
+        <source>GEGL and babl are distributed under the GNU LGPL version 3 or later. The filters marked GPL-3 come from GEGL&apos;s GPL-3 module and are under the GNU GPL version 3 or later. Their license texts are included with Patchy, and the complete source of Patchy&apos;s GEGL is PatchyGeglSources.zip, published with every Patchy release.</source>
+        <translation>GEGL et babl sont distribués sous la GNU LGPL version 3 ou ultérieure. Les filtres marqués GPL-3 proviennent du module GPL-3 de GEGL et sont sous la GNU GPL version 3 ou ultérieure. Leurs textes de licence sont fournis avec Patchy, et le code source complet du GEGL de Patchy est PatchyGeglSources.zip, publié avec chaque version de Patchy.</translation>
+    </message>
+    <message>
+        <source>Questions about how Patchy runs a filter belong with Patchy, not the GEGL team.</source>
+        <translation>Les questions sur la façon dont Patchy exécute un filtre concernent Patchy, pas l&apos;équipe de GEGL.</translation>
+    </message>
+    <message>
+        <source>Visit the GEGL website (gegl.org)</source>
+        <translation>Visiter le site de GEGL (gegl.org)</translation>
+    </message>
+    <message>
+        <source>Show the license texts</source>
+        <translation>Afficher les textes de licence</translation>
+    </message>
 </context>
 <context>
     <name>InvisibleWatermarkDialog</name>
@@ -31982,6 +32027,10 @@ Verrouillé : %1</translation>
     <message>
         <source>Titling Alternates (fonts that have them)</source>
         <translation>Variantes de titrage (polices qui en ont)</translation>
+    </message>
+    <message>
+        <source>About GEGL...</source>
+        <translation>À propos de GEGL...</translation>
     </message>
 </context>
 <context>

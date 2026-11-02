@@ -96,6 +96,8 @@ if (pluginsFolder) {
     "gegl/licenses/SOURCES.txt",
     "gegl/licenses/gegl-COPYING.txt",
     "gegl/licenses/gegl-COPYING.LESSER.txt",
+    "gegl/licenses/babl-COPYING.txt",
+    "gegl/licenses/libintl-COPYING.LIB.txt",
     "LICENSE",
     "NOTICE-THIRD-PARTY.md",
     "licenses/gmic/gmic-COPYING.txt",

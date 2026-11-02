@@ -250,6 +250,51 @@
         <extracomment>%1 is what the helper reported.</extracomment>
         <translation>Patchys GEGL konnte nicht geladen werden. %1</translation>
     </message>
+    <message>
+        <source>Filter from GEGL%1 (gegl.org), GPL-3</source>
+        <extracomment>%1 is GEGL&apos;s version with a leading space (&quot; 0.4.72&quot;), or nothing when it is not known.</extracomment>
+        <translation>Filter aus GEGL%1 (gegl.org), GPL-3</translation>
+    </message>
+    <message>
+        <source>Filter from GEGL%1 (gegl.org)</source>
+        <extracomment>%1 is GEGL&apos;s version with a leading space (&quot; 0.4.72&quot;), or nothing when it is not known.</extracomment>
+        <translation>Filter aus GEGL%1 (gegl.org)</translation>
+    </message>
+    <message>
+        <source>About GEGL</source>
+        <translation>Über GEGL</translation>
+    </message>
+    <message>
+        <source>GEGL (Generic Graphics Library) is a free, open-source image processing engine, with babl handling its pixel formats. It is the engine behind GIMP&apos;s filters.</source>
+        <translation>GEGL (Generic Graphics Library) ist eine freie, quelloffene Bildverarbeitungs-Engine; babl kümmert sich um ihre Pixelformate. Sie ist die Engine hinter den Filtern von GIMP.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Patchy includes its own build of GEGL and offers %n of its operations under Filter &gt; GEGL Filters, run in Patchy&apos;s own dialogs. GIMP is not needed.</source>
+        <translation>
+            <numerusform>Patchy enthält einen eigenen Build von GEGL und bietet %n seiner Operationen unter Filter &gt; GEGL-Filter an, ausgeführt in Patchys eigenen Dialogen. GIMP wird nicht benötigt.</numerusform>
+            <numerusform>Patchy enthält einen eigenen Build von GEGL und bietet %n seiner Operationen unter Filter &gt; GEGL-Filter an, ausgeführt in Patchys eigenen Dialogen. GIMP wird nicht benötigt.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>GEGL and babl are made by Øyvind Kolås and the GEGL and GIMP contributors.</source>
+        <translation>GEGL und babl werden von Øyvind Kolås und den Mitwirkenden von GEGL und GIMP entwickelt.</translation>
+    </message>
+    <message>
+        <source>GEGL and babl are distributed under the GNU LGPL version 3 or later. The filters marked GPL-3 come from GEGL&apos;s GPL-3 module and are under the GNU GPL version 3 or later. Their license texts are included with Patchy, and the complete source of Patchy&apos;s GEGL is PatchyGeglSources.zip, published with every Patchy release.</source>
+        <translation>GEGL und babl stehen unter der GNU LGPL Version 3 oder neuer. Die mit GPL-3 gekennzeichneten Filter stammen aus dem GPL-3-Modul von GEGL und stehen unter der GNU GPL Version 3 oder neuer. Ihre Lizenztexte liegen Patchy bei, und der vollständige Quellcode von Patchys GEGL ist PatchyGeglSources.zip, veröffentlicht mit jeder Patchy-Version.</translation>
+    </message>
+    <message>
+        <source>Questions about how Patchy runs a filter belong with Patchy, not the GEGL team.</source>
+        <translation>Fragen dazu, wie Patchy einen Filter ausführt, gehören zu Patchy, nicht zum GEGL-Team.</translation>
+    </message>
+    <message>
+        <source>Visit the GEGL website (gegl.org)</source>
+        <translation>GEGL-Website besuchen (gegl.org)</translation>
+    </message>
+    <message>
+        <source>Show the license texts</source>
+        <translation>Lizenztexte anzeigen</translation>
+    </message>
 </context>
 <context>
     <name>InvisibleWatermarkDialog</name>
@@ -31982,6 +32027,10 @@ Fixiert: %1</translation>
     <message>
         <source>Titling Alternates (fonts that have them)</source>
         <translation>Titelschriftvarianten (Schriften, die sie haben)</translation>
+    </message>
+    <message>
+        <source>About GEGL...</source>
+        <translation>Über GEGL...</translation>
     </message>
 </context>
 <context>

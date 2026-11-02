@@ -196,6 +196,7 @@ class GradientLibrary;
 struct GradientLibraryEntry;
 class ScriptEngineHost;
 struct GeglFilterScanResult;
+struct FilterDialogSpec;
 class ScriptEditorDialog;
 class StyleLibrary;
 class StatusDocumentInfoLabel;
@@ -1415,6 +1416,8 @@ private:
   void rebuild_gegl_filters_menu_when_closed();
   // The GEGL registry for a "gegl." id; null for any other id or before a scan.
   [[nodiscard]] std::shared_ptr<const FilterRegistry> gegl_filter_registry_for(const QString& identifier) const;
+  // A GEGL filter's dialog credits GEGL (docs/gegl-filters.md, "Credit"); other ids are left alone.
+  void add_gegl_filter_credit(const QString& identifier, FilterDialogSpec& spec) const;
   void cut_selection();
   void copy_selection();
   void copy_merged();

@@ -124,6 +124,11 @@ struct FilterDialogSpec {
   QString display_name;
   std::vector<FilterControlSpec> controls;
   std::uint32_t schema_version{1};
+  // Where the filter comes from (GEGL's, docs/gegl-filters.md "Credit"): a line above the
+  // buttons, and an About button that calls show_about with the dialog. Unset: neither.
+  QString credit;
+  QString about_text;
+  std::function<void(QWidget*)> show_about;
 };
 
 struct SmartFilterBlendingSettings {

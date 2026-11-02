@@ -250,6 +250,50 @@
         <extracomment>%1 is what the helper reported.</extracomment>
         <translation>Patchy の GEGL を読み込めませんでした。%1</translation>
     </message>
+    <message>
+        <source>Filter from GEGL%1 (gegl.org), GPL-3</source>
+        <extracomment>%1 is GEGL&apos;s version with a leading space (&quot; 0.4.72&quot;), or nothing when it is not known.</extracomment>
+        <translation>GEGL%1 のフィルター (gegl.org)、GPL-3</translation>
+    </message>
+    <message>
+        <source>Filter from GEGL%1 (gegl.org)</source>
+        <extracomment>%1 is GEGL&apos;s version with a leading space (&quot; 0.4.72&quot;), or nothing when it is not known.</extracomment>
+        <translation>GEGL%1 のフィルター (gegl.org)</translation>
+    </message>
+    <message>
+        <source>About GEGL</source>
+        <translation>GEGL について</translation>
+    </message>
+    <message>
+        <source>GEGL (Generic Graphics Library) is a free, open-source image processing engine, with babl handling its pixel formats. It is the engine behind GIMP&apos;s filters.</source>
+        <translation>GEGL (Generic Graphics Library) は、無料でオープンソースの画像処理エンジンで、ピクセル形式は babl が扱います。GIMP のフィルターを支えるエンジンです。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Patchy includes its own build of GEGL and offers %n of its operations under Filter &gt; GEGL Filters, run in Patchy&apos;s own dialogs. GIMP is not needed.</source>
+        <translation>
+            <numerusform>Patchy は独自にビルドした GEGL を同梱し、その %n 個の処理を [フィルター] &gt; [GEGL フィルター] で提供します。処理は Patchy 自身のダイアログで実行され、GIMP は不要です。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>GEGL and babl are made by Øyvind Kolås and the GEGL and GIMP contributors.</source>
+        <translation>GEGL と babl は Øyvind Kolås と GEGL および GIMP の貢献者によって開発されています。</translation>
+    </message>
+    <message>
+        <source>GEGL and babl are distributed under the GNU LGPL version 3 or later. The filters marked GPL-3 come from GEGL&apos;s GPL-3 module and are under the GNU GPL version 3 or later. Their license texts are included with Patchy, and the complete source of Patchy&apos;s GEGL is PatchyGeglSources.zip, published with every Patchy release.</source>
+        <translation>GEGL と babl は GNU LGPL バージョン 3 以降で配布されています。GPL-3 と表示されたフィルターは GEGL の GPL-3 モジュールのもので、GNU GPL バージョン 3 以降が適用されます。ライセンス文書は Patchy に同梱されており、Patchy の GEGL の完全なソースは、Patchy の各リリースとともに公開される PatchyGeglSources.zip です。</translation>
+    </message>
+    <message>
+        <source>Questions about how Patchy runs a filter belong with Patchy, not the GEGL team.</source>
+        <translation>Patchy がフィルターをどのように実行するかについての質問は、GEGL チームではなく Patchy にお寄せください。</translation>
+    </message>
+    <message>
+        <source>Visit the GEGL website (gegl.org)</source>
+        <translation>GEGL の Web サイトを開く (gegl.org)</translation>
+    </message>
+    <message>
+        <source>Show the license texts</source>
+        <translation>ライセンス文書を表示</translation>
+    </message>
 </context>
 <context>
     <name>InvisibleWatermarkDialog</name>
@@ -31899,6 +31943,10 @@ Locked: %1</source>
     <message>
         <source>Titling Alternates (fonts that have them)</source>
         <translation>タイトル用字形 (対応フォントのみ)</translation>
+    </message>
+    <message>
+        <source>About GEGL...</source>
+        <translation>GEGL について...</translation>
     </message>
 </context>
 <context>
