@@ -354,8 +354,7 @@ canvas context menus ([tools.md](tools.md)), the options-bar Appearance gear, La
 Shape > Shape Appearance... (`layer.shape_appearance`), the Properties
 panel's Edit Appearance..., and a Path Select / Direct Select double-click on
 the shape's geometry. Reset restores the factory appearance (geometry stays). Controls: paint kind, width, alignment, caps, joins, dashes
-(Solid, Dashed {2, 2}, Long dashes, Short dashes, Dotted, Sparse dots, Dash dot, Dash dot dot,
-Custom; rows carry `StrokeDashPreset` ids as item data, Custom last). Custom's Dash pattern field
+(`StrokeDashPreset` ids as item data, Custom last). Custom's Dash pattern field
 (`shapeStrokeDashPatternEdit`, `parse_dash_pattern_text`) takes lengths in stroke widths,
 space separated; an odd count repeats once (SVG's reading) and one length must be above 0.
 It holds any file's array and commits on Enter or focus-out. Zero-length dashes draw only
@@ -393,13 +392,16 @@ rasterizes on a worker: the vector MODEL applies synchronously, baked pixels
 lag, requests coalesce, the pattern anchor rides a scratch layer; accept
 commits the in-flight result (60 s timeout).
 
-Layer > New Fill Layer creates Solid Color, Gradient (FG-to-BG linear), and
-Pattern fill layers as shape layers with an empty path (whole canvas); a
-TARGETED Paths-panel row becomes the new layer's shape path (PS's "current
-path" rule, build_fill_layer), and selections become raster masks. Library
-patterns adopt into the document store on use. New Gradient/Pattern Fill
-stages the layer; one history entry, only on OK. Cancel restores the
-original document, active layer and pattern store included. Changing a path
+Layer > New Fill Layer makes Solid Color, Gradient (FG-to-BG linear) and
+Pattern fill layers: shape layers with an empty path (whole canvas); a
+TARGETED Paths-panel row becomes the shape path (PS's "current path" rule,
+build_fill_layer), selections become raster masks. Library patterns join
+the document store on use. New Gradient/Pattern Fill stages the layer;
+one history entry, only on OK; Cancel restores the document, active layer
+and pattern store. On a pathless fill layer (`fill_layer_only`) the dialog
+shows only Fill, typed Solid Color, Gradient or Pattern (no No Fill) and saved
+so (#582). Gradient lists open on the layer's preset, else Custom
+([gradients.md](gradients.md#preset-lists)). Changing a path
 transform's layer, selection, path, or edit target cancels it. Sub-lattice
 dash lengths clamp to the raster lattice; excessive boundary counts fall
 back to a solid stroke.

@@ -161,7 +161,8 @@ QString request_gradient_manager(QWidget *parent, GradientLibrary &library,
     }
     name->setText(entry->name);
     folder->setText(entry->folder);
-    preview->setPixmap(gradient_thumbnail(entry->definition, 320, 72));
+    preview->setPixmap(
+        gradient_thumbnail(entry->definition, 320, 72, library.preview_colors()));
   };
   QObject::connect(tree, &QTreeWidget::itemSelectionChanged, &dialog, refresh);
   QObject::connect(tree, &QTreeWidget::itemDoubleClicked, &dialog,
