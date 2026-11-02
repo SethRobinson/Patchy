@@ -114,6 +114,26 @@
         <source>Fill only where the layer already has pixels, keeping their opacity</source>
         <translation>Wypełnia tylko tam, gdzie warstwa ma już piksele, zachowując ich krycie</translation>
     </message>
+    <message>
+        <source>Content-Aware</source>
+        <translation>Z uwzględnieniem zawartości</translation>
+    </message>
+    <message>
+        <source>Make a selection to fill it from its surroundings</source>
+        <translation>Utwórz zaznaczenie, aby wypełnić je na podstawie otoczenia</translation>
+    </message>
+    <message>
+        <source>Add to New Layer</source>
+        <translation>Dodaj na nową warstwę</translation>
+    </message>
+    <message>
+        <source>Put the content-aware fill on a new layer above this one, transparent outside the selection</source>
+        <translation>Umieść wypełnienie z uwzględnieniem zawartości na nowej warstwie nad tą, przezroczystej poza zaznaczeniem</translation>
+    </message>
+    <message>
+        <source>Content-Aware fills from the pixels around the selection</source>
+        <translation>Wypełnienie z uwzględnieniem zawartości używa pikseli wokół zaznaczenia</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -31914,6 +31934,22 @@ Zablokowano: %1</translation>
     <message>
         <source>New Gradient Fill</source>
         <translation>Nowe wypełnienie gradientowe</translation>
+    </message>
+    <message>
+        <source>Content-Aware fill needs a selection: select the area to fill first</source>
+        <translation>Wypełnienie z uwzględnieniem zawartości wymaga zaznaczenia: wybierz najpierw obszar do wypełnienia</translation>
+    </message>
+    <message>
+        <source>Content-Aware Fill</source>
+        <translation>Wypełnienie z uwzględnieniem zawartości</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill (%1 patches)</source>
+        <translation>Wypełniono zaznaczenie z uwzględnieniem zawartości (%1 łatek)</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill on a new layer (%1 patches)</source>
+        <translation>Wypełniono zaznaczenie z uwzględnieniem zawartości na nowej warstwie (%1 łatek)</translation>
     </message>
 </context>
 <context>

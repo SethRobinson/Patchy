@@ -114,6 +114,26 @@
         <source>Fill only where the layer already has pixels, keeping their opacity</source>
         <translation>Remplir uniquement là où le calque a déjà des pixels, en gardant leur opacité</translation>
     </message>
+    <message>
+        <source>Content-Aware</source>
+        <translation>D&apos;après le contenu</translation>
+    </message>
+    <message>
+        <source>Make a selection to fill it from its surroundings</source>
+        <translation>Faites une sélection pour la remplir à partir de ses alentours</translation>
+    </message>
+    <message>
+        <source>Add to New Layer</source>
+        <translation>Ajouter à un nouveau calque</translation>
+    </message>
+    <message>
+        <source>Put the content-aware fill on a new layer above this one, transparent outside the selection</source>
+        <translation>Placer le remplissage d&apos;après le contenu sur un nouveau calque au-dessus de celui-ci, transparent hors de la sélection</translation>
+    </message>
+    <message>
+        <source>Content-Aware fills from the pixels around the selection</source>
+        <translation>D&apos;après le contenu remplit avec les pixels autour de la sélection</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -31831,6 +31851,22 @@ Verrouillé : %1</translation>
     <message>
         <source>New Gradient Fill</source>
         <translation>Nouveau fond dégradé</translation>
+    </message>
+    <message>
+        <source>Content-Aware fill needs a selection: select the area to fill first</source>
+        <translation>Le remplissage d&apos;après le contenu a besoin d&apos;une sélection : sélectionnez d&apos;abord la zone à remplir</translation>
+    </message>
+    <message>
+        <source>Content-Aware Fill</source>
+        <translation>Remplissage d&apos;après le contenu</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill (%1 patches)</source>
+        <translation>Sélection remplie avec le remplissage d&apos;après le contenu (%1 pièces)</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill on a new layer (%1 patches)</source>
+        <translation>Sélection remplie avec le remplissage d&apos;après le contenu sur un nouveau calque (%1 pièces)</translation>
     </message>
 </context>
 <context>

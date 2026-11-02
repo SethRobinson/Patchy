@@ -114,6 +114,26 @@
         <source>Fill only where the layer already has pixels, keeping their opacity</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Content-Aware</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make a selection to fill it from its surroundings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add to New Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Put the content-aware fill on a new layer above this one, transparent outside the selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Content-Aware fills from the pixels around the selection</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -31749,6 +31769,22 @@ Locked: %1</source>
     </message>
     <message>
         <source>New Gradient Fill</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Content-Aware fill needs a selection: select the area to fill first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Content-Aware Fill</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill (%1 patches)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill on a new layer (%1 patches)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
