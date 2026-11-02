@@ -324,8 +324,31 @@ std::optional<FilterParameterDefinition> parameter_for(const QJsonObject& p, Geg
     d.minimum = minimum;
     d.maximum = std::max(minimum, maximum);
     if (p.contains(QStringLiteral("uiMin")) && p.contains(QStringLiteral("uiMax"))) {
-      const double ui_minimum = std::clamp(p.value(QStringLiteral("uiMin")).toDouble(), *d.minimum, *d.maximum);
-      const double ui_maximum = std::clamp(p.value(QStringLiteral("uiMax")).toDouble(), ui_minimum, *d.maximum);
+      double ui_low = p.value(QStringLiteral("uiMin")).toDouble();
+      double ui_high = p.value(QStringLiteral("uiMax")).toDouble();
+      const double fallback = p.value(QStringLiteral("default")).toDouble();
+      const bool pixels = d.spatial_scale == FilterSpatialScale::Pixels;
+      // GEGL fills a missing UI range with the value range ("Settings" in
+      // docs/gegl-filters.md): an unbounded one (Convolution Matrix, gradient points)
+      // would make a slider of plus or minus a million, and an integer's whole range
+      // (Dither's 2 to 65536 levels) one where the useful values are a pixel wide. The
+      // spin box still takes any value inside the limits.
+      if (ui_low <= -kLargestValue || ui_high >= kLargestValue) {
+        if (pixels) {
+          ui_low = fallback >= 0.0 ? 0.0 : -4096.0;
+          ui_high = 4096.0;
+        } else {
+          const double extent = std::max(10.0, 2.0 * std::abs(fallback));
+          ui_low = -extent;
+          ui_high = extent;
+        }
+      } else if (integer && !pixels && p.value(QStringLiteral("role")).toString().isEmpty() &&
+                 ui_low == p.value(QStringLiteral("min")).toDouble() &&
+                 ui_high == p.value(QStringLiteral("max")).toDouble() && ui_high - ui_low > 1024.0) {
+        ui_high = std::max(ui_low + 1.0, std::max(256.0, 4.0 * fallback));
+      }
+      const double ui_minimum = std::clamp(ui_low, *d.minimum, *d.maximum);
+      const double ui_maximum = std::clamp(ui_high, ui_minimum, *d.maximum);
       d.practical_minimum = ui_minimum;
       d.practical_maximum = ui_maximum;
     }

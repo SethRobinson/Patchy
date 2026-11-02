@@ -194,12 +194,21 @@ CompanionMenu::CompanionMenu(QMenu* plugins_menu, MainWindow& window)
   menu_->menuAction()->setMenuRole(QAction::NoRole);
   launcher_ = [](const QString& program, const QStringList& args, const QString& working_directory,
                  const QProcessEnvironment& environment) {
+#if QT_CONFIG(process)
     QProcess process;
     process.setProgram(program);
     process.setArguments(args);
     process.setWorkingDirectory(working_directory);
     process.setProcessEnvironment(environment);
     return process.startDetached();
+#else
+    // wasm Qt has no QProcess; the web build has no Companions menu either.
+    (void)program;
+    (void)args;
+    (void)working_directory;
+    (void)environment;
+    return false;
+#endif
   };
   connect(menu_, &QMenu::aboutToShow, this, [this] { rebuild(); });
   menu_->installEventFilter(this);

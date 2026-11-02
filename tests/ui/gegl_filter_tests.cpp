@@ -5,6 +5,8 @@
 #include "core/pixel_depth.hpp"
 #include "filters/filter_engine.hpp"
 #include "ui/command_search.hpp"
+#include "ui/filter_parameter_panel.hpp"
+#include "ui/filter_workflows.hpp"
 #include "ui/gegl_filters.hpp"
 #include "ui/main_window.hpp"
 #include "ui/script_engine.hpp"
@@ -19,6 +21,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QDoubleSpinBox>
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QFileInfo>
@@ -26,12 +29,15 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QPushButton>
+#include <QSlider>
+#include <QSpinBox>
 #include <QStandardPaths>
 #include <QString>
 #include <QStringList>
 #include <QTimer>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -490,10 +496,116 @@ void ui_gegl_script_identifiers_are_pinned() {
   CHECK(backlog_contains(window, QStringLiteral("pinned ok")));
 }
 
+// Every decimal GEGL setting's slider spans its practical range (GEGL's UI range) end to
+// end: Exposure's Black Level (-0.1 to 0.1) once rounded to a 0..0 slider that could not go
+// negative. A slider with thousands of ticks (Exposure, 0.001 over 20 stops) moves a
+// usable amount per wheel notch and groove click. Skips without the bundle.
+void ui_gegl_sliders_cover_their_practical_range() {
+  if (patchy::ui::bundled_gegl_library().isEmpty()) {
+    patchy::test::skip("this build has no GEGL of its own");
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::ensure_gegl_filters_scanned(window);
+  const auto registry =
+      patchy::ui::MainWindowTestAccess::gegl_filter_registry(window, QStringLiteral("gegl.gaussian-blur"));
+  CHECK(registry != nullptr);
+  if (registry == nullptr) {
+    return;
+  }
+  QStringList wrong;
+  int checked = 0;
+  for (const auto& filter : registry->filters()) {
+    patchy::ui::FilterParameterPanel panel;
+    panel.rebuild(patchy::ui::filter_dialog_spec_for(filter), registry->default_invocation(filter.identifier),
+                  patchy::ui::FilterParameterPanelOptions{});
+    for (const auto& parameter : filter.catalog.parameters) {
+      if (parameter.kind != patchy::FilterParameterKind::Double || !parameter.practical_minimum ||
+          !parameter.practical_maximum) {
+        continue;
+      }
+      const auto name = QString::fromStdString(parameter.control_object_name);
+      auto* slider = panel.findChild<QSlider*>(name + QStringLiteral("Slider"));
+      auto* spin = panel.findChild<QDoubleSpinBox*>(name + QStringLiteral("Spin"));
+      if (slider == nullptr || spin == nullptr) {
+        continue;  // shown another way (an angle dial, a choice)
+      }
+      ++checked;
+      const double step = parameter.step.value_or(0.01);
+      slider->setValue(slider->minimum());
+      const double low = spin->value();
+      slider->setValue(slider->maximum());
+      const double high = spin->value();
+      const auto label = QString::fromStdString(filter.identifier + "." + parameter.key);
+      if (std::abs(low - *parameter.practical_minimum) > step || std::abs(high - *parameter.practical_maximum) > step) {
+        wrong << QStringLiteral("%1 slider spans %2..%3, not %4..%5")
+                     .arg(label).arg(low).arg(high).arg(*parameter.practical_minimum).arg(*parameter.practical_maximum);
+      }
+      const int ticks = slider->maximum() - slider->minimum();
+      if (ticks > 2000 && (slider->singleStep() * 400 < ticks || slider->pageStep() * 20 < ticks)) {
+        wrong << QStringLiteral("%1: %2 ticks, single step %3, page step %4")
+                     .arg(label).arg(ticks).arg(slider->singleStep()).arg(slider->pageStep());
+      }
+    }
+  }
+  for (const auto& line : wrong) {
+    std::fprintf(stderr, "  %s\n", qPrintable(line));
+  }
+  CHECK(wrong.isEmpty());
+  CHECK(checked > 50);
+  // The case that was reported, by name.
+  const auto* exposure = registry->find("gegl.exposure");
+  CHECK(exposure != nullptr);
+  if (exposure != nullptr) {
+    patchy::ui::FilterParameterPanel panel;
+    panel.rebuild(patchy::ui::filter_dialog_spec_for(*exposure), registry->default_invocation("gegl.exposure"),
+                  patchy::ui::FilterParameterPanelOptions{});
+    auto* black = panel.findChild<QSlider*>(QStringLiteral("geglParam_black-levelSlider"));
+    auto* black_spin = panel.findChild<QDoubleSpinBox*>(QStringLiteral("geglParam_black-levelSpin"));
+    CHECK(black != nullptr && black_spin != nullptr);
+    if (black != nullptr && black_spin != nullptr) {
+      CHECK(black->maximum() - black->minimum() == 200);  // -0.1 to 0.1 in 0.001 steps
+      CHECK(black->value() == 100 && std::abs(black_spin->value()) < 1e-9);
+      black->setValue(0);
+      CHECK(std::abs(black_spin->value() + 0.1) < 1e-9);
+    }
+  }
+  // GEGL gives no UI range for these: an unbounded one becomes plus or minus 10 (pixel
+  // coordinates 0 to 4096), an integer's whole range is capped, and the spin box still
+  // takes the full range.
+  const auto practical = [&](const char* id, const char* key) -> std::pair<double, double> {
+    const auto* filter = registry->find(id);
+    if (filter == nullptr) return {0.0, 0.0};
+    for (const auto& parameter : filter->catalog.parameters) {
+      if (parameter.key == key) {
+        return {parameter.practical_minimum.value_or(-1.0e9), parameter.practical_maximum.value_or(1.0e9)};
+      }
+    }
+    return {0.0, 0.0};
+  };
+  CHECK((practical("gegl.convolution-matrix", "a1") == std::pair<double, double>{-10.0, 10.0}));
+  CHECK((practical("gegl.convolution-matrix", "divisor") == std::pair<double, double>{-1000.0, 1000.0}));
+  CHECK((practical("gegl.linear-gradient", "start-x") == std::pair<double, double>{0.0, 4096.0}));
+  CHECK((practical("gegl.dither", "red-levels") == std::pair<double, double>{2.0, 256.0}));
+  if (const auto* dither = registry->find("gegl.dither"); dither != nullptr) {
+    patchy::ui::FilterParameterPanel panel;
+    panel.rebuild(patchy::ui::filter_dialog_spec_for(*dither), registry->default_invocation("gegl.dither"),
+                  patchy::ui::FilterParameterPanelOptions{});
+    auto* levels = panel.findChild<QSlider*>(QStringLiteral("geglParam_red-levelsSlider"));
+    auto* levels_spin = panel.findChild<QSpinBox*>(QStringLiteral("geglParam_red-levelsSpin"));
+    CHECK(levels != nullptr && levels_spin != nullptr);
+    if (levels != nullptr && levels_spin != nullptr) {
+      CHECK(levels->minimum() == 2 && levels->maximum() == 256 && levels->value() == 6);
+      CHECK(levels_spin->maximum() == 65536);
+    }
+  }
+}
+
 std::vector<patchy::test::TestCase> gegl_filter_tests() {
   return {
       {"ui_gegl_filters_list_and_apply_if_available", ui_gegl_filters_list_and_apply_if_available},
       {"ui_gegl_bundled_filters_all_run", ui_gegl_bundled_filters_all_run},
       {"ui_gegl_script_identifiers_are_pinned", ui_gegl_script_identifiers_are_pinned},
+      {"ui_gegl_sliders_cover_their_practical_range", ui_gegl_sliders_cover_their_practical_range},
   };
 }

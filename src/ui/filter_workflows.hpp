@@ -113,6 +113,11 @@ struct FilterControlSpec {
   std::vector<FilterParameterOption> options{};
   FilterParameterPresentation presentation{
       FilterParameterPresentation::Standard};
+  // A decimal control's slider range (the practical range, exactly); unset: the
+  // integer minimum and maximum above. GEGL's Black Level spans -0.1 to 0.1, which
+  // the integer fields round to nothing.
+  std::optional<double> slider_minimum{};
+  std::optional<double> slider_maximum{};
 };
 
 // A direct filter dialog with at least this many controls lays them out in two
@@ -126,9 +131,11 @@ struct FilterDialogSpec {
   std::uint32_t schema_version{1};
   // Where the filter comes from (GEGL's, docs/gegl-filters.md "Credit"): a line above the
   // buttons, and an About button that calls show_about with the dialog. Unset: neither.
-  QString credit;
-  QString about_text;
-  std::function<void(QWidget*)> show_about;
+  // Default member initializers keep positional specs that stop before them free of
+  // clang's -Wmissing-field-initializers.
+  QString credit{};
+  QString about_text{};
+  std::function<void(QWidget*)> show_about{};
 };
 
 struct SmartFilterBlendingSettings {

@@ -189,7 +189,7 @@ void ui_adjustment_presets_store_names_and_listing() {
   patchy::HueSaturationAdjustment settings;
   settings.hue_shift = 33;
   patchy::ahu::write_file(patchy::ui::to_filesystem_path(path), settings);
-  QFile(QDir(folder).filePath(QStringLiteral("not a preset.txt"))).open(QIODevice::WriteOnly);
+  CHECK(QFile(QDir(folder).filePath(QStringLiteral("not a preset.txt"))).open(QIODevice::WriteOnly));
   const auto listed = patchy::ui::user_adjustment_presets(AdjustmentPresetKind::HueSaturation);
   CHECK(listed.size() == 1);
   if (listed.size() == 1) {

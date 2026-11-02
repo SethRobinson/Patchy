@@ -63,8 +63,9 @@ Ids are `gegl.` plus the operation name without `gegl:` (`gegl.gaussian-blur`). 
 
 The helper reports each property from GEGL's own description of it (`gegl_operation_list_properties`): name, label, help, default, limits, the UI range of GEGL's own param specs, `unit` and choices. `parameter_for` maps them:
 
-- double and float: Double, the limits clamped to plus or minus one million, the UI range as the slider range, the step from GEGL's digits.
+- double and float: Double, the limits clamped to plus or minus one million, the UI range as the slider range (exactly: the dialog spec's `slider_minimum`/`slider_maximum`, since rounding made Exposure's Black Level slider, -0.1 to 0.1, a dead 0 to 0), the step from GEGL's digits.
 - int, uint and seed: Integer; a seed gets the Randomize button.
+- GEGL fills a missing UI range with the value range. An unbounded one (Convolution Matrix entries, gradient points) gets a slider of plus or minus 10, widened to twice the default (pixel coordinates: 0 to 4096); an integer whose UI range is its whole value range and spans over 1024, with no role and no pixel unit (Dither's 2 to 65536 levels), gets max(256, 4 × default) as its top. The spin box keeps GEGL's limits. A slider of over 2000 ticks (Exposure, Color Temperature) moves half a percent per wheel notch or arrow key and a tenth per groove click (`scale_slider_steps`). `ui_gegl_sliders_cover_their_practical_range` checks every offered setting.
 - bool: Boolean. enum: Option, the choice nick as the value and GEGL's label as the text.
 - `unit` pixel-distance or pixel-coordinate: pixels that scale with the in-dialog preview (`FilterSpatialScale::Pixels`); degree: degrees.
 - color: an Option of Default (GEGL's own color, nothing sent), Foreground Color, Background Color, Black and White (`kColorChoices`, Patchy's existing data texts); the colors are the invocation's, captured when the filter starts. Operations with one include Vignette, Color to Alpha, Color Overlay and Supernova.

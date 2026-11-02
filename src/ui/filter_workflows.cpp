@@ -468,6 +468,10 @@ FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
     control.step = parameter.step;
     control.options = parameter.options;
     control.presentation = parameter.presentation;
+    if (parameter.kind == FilterParameterKind::Double) {
+      control.slider_minimum = parameter.practical_minimum.value_or(parameter.minimum.value_or(0.0));
+      control.slider_maximum = parameter.practical_maximum.value_or(parameter.maximum.value_or(100.0));
+    }
     spec.controls.push_back(std::move(control));
   }
   return spec;

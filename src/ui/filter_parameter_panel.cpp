@@ -57,6 +57,17 @@ std::string stable_key_for(const FilterControlSpec& control) {
   return key.toStdString();
 }
 
+// A slider with thousands of ticks (GEGL's Exposure: 0.001 over 20 stops; Color
+// Temperature: 0.1 over 11000 K) would move a hair per wheel notch, arrow key or groove
+// click: there a notch moves half a percent and a click a tenth of the range. The spin
+// box keeps the fine step; sliders of up to 2000 ticks keep Qt's 1 and 10.
+void scale_slider_steps(QSlider& slider, int ticks) {
+  if (ticks > 2000) {
+    slider.setSingleStep(ticks / 200);
+    slider.setPageStep(ticks / 10);
+  }
+}
+
 }  // namespace
 
 FilterParameterPanel::FilterParameterPanel(QWidget* parent)
@@ -230,10 +241,10 @@ void FilterParameterPanel::rebuild(const FilterDialogSpec& spec,
           control.typed_minimum.value_or(static_cast<double>(control.minimum));
       const auto maximum =
           control.typed_maximum.value_or(static_cast<double>(control.maximum));
-      const auto slider_minimum =
-          std::clamp(static_cast<double>(control.minimum), minimum, maximum);
+      const auto slider_minimum = std::clamp(
+          control.slider_minimum.value_or(static_cast<double>(control.minimum)), minimum, maximum);
       const auto slider_maximum = std::clamp(
-          static_cast<double>(control.maximum), slider_minimum, maximum);
+          control.slider_maximum.value_or(static_cast<double>(control.maximum)), slider_minimum, maximum);
       const auto step = std::max(0.000001, control.step.value_or(0.01));
       const auto ticks = std::clamp(
           static_cast<int>(std::lround((slider_maximum - slider_minimum) / step)),
@@ -257,6 +268,7 @@ void FilterParameterPanel::rebuild(const FilterDialogSpec& spec,
         spin->setButtonSymbols(QAbstractSpinBox::PlusMinus);
       }
       slider->setRange(0, ticks);
+      scale_slider_steps(*slider, ticks);
       const auto number = std::clamp(
           numeric_filter_value(initial_value,
                                numeric_filter_value(control.default_value)),
@@ -299,6 +311,7 @@ void FilterParameterPanel::rebuild(const FilterDialogSpec& spec,
       // the full typed range (a typed 500 px blur must not clamp to the
       // slider's end).
       slider->setRange(control.minimum, control.maximum);
+      scale_slider_steps(*slider, control.maximum - control.minimum);
       const auto typed_minimum = static_cast<int>(
           std::lround(control.typed_minimum.value_or(control.minimum)));
       const auto typed_maximum = static_cast<int>(
