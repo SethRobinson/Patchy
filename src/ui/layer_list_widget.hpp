@@ -269,6 +269,10 @@ private:
   QPoint drag_start_position_{};
   QPoint last_drag_viewport_position_{};
   std::optional<LayerId> drag_anchor_layer_id_;
+  // Where a Shift-click range starts: the layer last plain- or Ctrl-clicked, by id so
+  // rebuilds keep it. Used while that row exists and is selected, else the current row
+  // (GitHub issue 594).
+  std::optional<LayerId> range_anchor_layer_id_;
   std::vector<LayerId> dragged_layer_ids_;
   std::int64_t drag_source_session_id_{0};
   std::optional<DropTarget> drop_preview_;
