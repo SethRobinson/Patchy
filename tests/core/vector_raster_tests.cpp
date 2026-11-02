@@ -22,6 +22,8 @@
 #include <unordered_set>
 #include <utility>
 #include "core/document.hpp"
+#include "core/gradient_fill_drag.hpp"
+#include "core/pixel_tools.hpp"
 #include "core/layer.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/pattern_resource.hpp"
@@ -1887,8 +1889,86 @@ void gradient_fill_layer_aligns_to_its_mask_bounds() {
   }
 }
 
+// The Gradient tool's Fill Layer mode (GitHub issue 580): the Gradient Fill built from a drag
+// renders what the tool paints for the same drag, Linear and Radial, reversed, with
+// transparent stops, and from drags that start or end off the canvas.
+void gradient_fill_from_drag_renders_the_gradient_tool_drag() {
+  constexpr int kWidth = 64;
+  constexpr int kHeight = 48;
+  const auto canvas = patchy::Rect::from_size(kWidth, kHeight);
+  struct DragCase {
+    patchy::GradientMethod method;
+    bool reverse;
+    std::vector<patchy::GradientStop> stops;
+    int x0, y0, x1, y1;
+  };
+  const std::vector<patchy::GradientStop> two_stops{patchy::GradientStop{0.0F, patchy::EditColor{230, 20, 10, 255}},
+                                                    patchy::GradientStop{1.0F, patchy::EditColor{10, 40, 240, 255}}};
+  const std::vector<patchy::GradientStop> faded{patchy::GradientStop{0.0F, patchy::EditColor{0, 0, 0, 255}},
+                                                patchy::GradientStop{0.4F, patchy::EditColor{255, 255, 0, 128}},
+                                                patchy::GradientStop{1.0F, patchy::EditColor{0, 128, 255, 0}}};
+  const std::vector<DragCase> cases{
+      {patchy::GradientMethod::Linear, false, two_stops, 5, 10, 50, 30},
+      {patchy::GradientMethod::Linear, true, faded, 60, 40, 10, 5},
+      {patchy::GradientMethod::Linear, false, two_stops, 32, 2, 32, 45},
+      {patchy::GradientMethod::Linear, false, faded, -20, 5, 90, 9},
+      {patchy::GradientMethod::Radial, false, two_stops, 20, 20, 35, 28},
+      {patchy::GradientMethod::Radial, true, faded, -10, 50, 30, 10},
+  };
+  for (const auto& drag : cases) {
+    patchy::Document painted(kWidth, kHeight, patchy::PixelFormat::rgba8());
+    painted.add_pixel_layer("Paint", patchy::PixelBuffer(kWidth, kHeight, patchy::PixelFormat::rgba8()));
+    patchy::GradientOptions options;
+    options.method = drag.method;
+    options.reverse = drag.reverse;
+    options.stops = drag.stops;
+    const auto paint_id = painted.layers().front().id();
+    CHECK(!patchy::draw_gradient(painted, paint_id, drag.x0, drag.y0, drag.x1, drag.y1, patchy::EditOptions{}, options)
+               .empty());
+    const auto& paint = std::as_const(painted).layers().front();
+
+    patchy::Layer fill(1, "Gradient Fill 1", patchy::PixelBuffer());
+    patchy::VectorShapeContent content;
+    content.fill.kind = patchy::VectorFillKind::Gradient;
+    content.fill.gradient = patchy::gradient_fill_from_drag(drag.stops, drag.method, drag.reverse, canvas, drag.x0,
+                                                            drag.y0, drag.x1, drag.y1);
+    content.stroke.enabled = false;
+    CHECK(!content.fill.gradient.align_with_layer);
+    fill.set_vector_shape(content);
+    fill.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+    patchy::update_vector_shape_raster(fill, canvas, nullptr);
+    CHECK(fill.bounds().width == kWidth && fill.bounds().height == kHeight);
+    int worst_color = 0;
+    int worst_alpha = 0;
+    for (int y = 0; y < kHeight; ++y) {
+      for (int x = 0; x < kWidth; ++x) {
+        const auto* expected = paint.pixels().pixel(x - paint.bounds().x, y - paint.bounds().y);
+        const auto* actual = fill.pixels().pixel(x - fill.bounds().x, y - fill.bounds().y);
+        worst_alpha = std::max(worst_alpha, std::abs(static_cast<int>(expected[3]) - static_cast<int>(actual[3])));
+        if (expected[3] >= 8) {
+          for (int channel = 0; channel < 3; ++channel) {
+            worst_color = std::max(worst_color, std::abs(static_cast<int>(expected[channel]) -
+                                                         static_cast<int>(actual[channel])));
+          }
+        }
+      }
+    }
+    if (worst_color > 2 || worst_alpha > 2) {
+      std::cerr << "drag " << drag.x0 << ',' << drag.y0 << " -> " << drag.x1 << ',' << drag.y1 << " differs by "
+                << worst_color << " (color) and " << worst_alpha << " (alpha)\n";
+    }
+    CHECK(worst_color <= 2);
+    CHECK(worst_alpha <= 2);
+  }
+  // A drag much longer than the canvas still fits the Gradient Fill dialog's Scale range.
+  const auto long_drag = patchy::gradient_fill_from_drag(two_stops, patchy::GradientMethod::Linear, false, canvas,
+                                                         -2000, 0, 2000, 0);
+  CHECK(long_drag.scale <= 10.0F);
+}
+
 std::vector<patchy::test::TestCase> vector_raster_tests() {
   return {
+      {"gradient_fill_from_drag_renders_the_gradient_tool_drag", gradient_fill_from_drag_renders_the_gradient_tool_drag},
       {"gradient_fill_layer_geometry_matches_photoshop_probes", gradient_fill_layer_geometry_matches_photoshop_probes},
       {"gradient_fill_layer_aligns_to_its_mask_bounds", gradient_fill_layer_aligns_to_its_mask_bounds},
       {"raster_shape_feather_softens_edge_and_density_floors_alpha",

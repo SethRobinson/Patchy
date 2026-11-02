@@ -148,6 +148,7 @@ if(NOT MSVC)
 endif()
 
 add_library(patchy_core
+  src/core/gradient_fill_drag.cpp
   src/core/gradient_presets.cpp
   src/core/adjustment_deep.cpp
   src/core/adjustment_layer.cpp
@@ -2516,6 +2517,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/missing_fonts_tests.cpp
       tests/ui/filter_catalog_dialog_tests.cpp
       tests/ui/stylize_render_filters_ui_tests.cpp
+      tests/ui/filter_dialog_selection_tests.cpp
       tests/ui/layer_style_gradient_tests.cpp
       tests/ui/layer_style_gradient_tests_effects.cpp
       tests/ui/layer_style_gradient_tests_presets.cpp

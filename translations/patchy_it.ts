@@ -31809,6 +31809,30 @@ Bloccato: %1</translation>
         <translation>%1 ripristinato</translation>
     </message>
     <message>
+        <source>Fill Layer</source>
+        <translation>Livello di riempimento</translation>
+    </message>
+    <message>
+        <source>What a drag makes: painted pixels, or a Gradient Fill layer (a new one, or the selected Gradient Fill layer redrawn)</source>
+        <translation>Cosa crea un trascinamento: pixel dipinti o un livello di riempimento sfumatura (uno nuovo, oppure quello selezionato ridisegnato)</translation>
+    </message>
+    <message>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>Sblocca il livello di riempimento sfumatura per cambiarne la sfumatura</translation>
+    </message>
+    <message>
+        <source>Edit Gradient Fill</source>
+        <translation>Modifica riempimento sfumatura</translation>
+    </message>
+    <message>
+        <source>Changed the gradient of %1.</source>
+        <translation>Sfumatura di %1 modificata.</translation>
+    </message>
+    <message>
+        <source>New Gradient Fill</source>
+        <translation>Nuovo riempimento sfumatura</translation>
+    </message>
+    <message>
         <source>Content-Aware fill needs a selection: select the area to fill first</source>
         <translation>Il riempimento in base al contenuto richiede una selezione: seleziona prima l&apos;area da riempire</translation>
     </message>

@@ -31892,6 +31892,30 @@ Zablokowano: %1</translation>
         <translation>Przywrócono %1</translation>
     </message>
     <message>
+        <source>Fill Layer</source>
+        <translation>Warstwa wypełnienia</translation>
+    </message>
+    <message>
+        <source>What a drag makes: painted pixels, or a Gradient Fill layer (a new one, or the selected Gradient Fill layer redrawn)</source>
+        <translation>Co tworzy przeciągnięcie: malowane piksele albo warstwę wypełnienia gradientowego (nową lub ponownie narysowaną zaznaczoną warstwę wypełnienia gradientowego)</translation>
+    </message>
+    <message>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>Odblokuj warstwę wypełnienia gradientowego, aby zmienić jej gradient</translation>
+    </message>
+    <message>
+        <source>Edit Gradient Fill</source>
+        <translation>Edytuj wypełnienie gradientowe</translation>
+    </message>
+    <message>
+        <source>Changed the gradient of %1.</source>
+        <translation>Zmieniono gradient warstwy %1.</translation>
+    </message>
+    <message>
+        <source>New Gradient Fill</source>
+        <translation>Nowe wypełnienie gradientowe</translation>
+    </message>
+    <message>
         <source>Content-Aware fill needs a selection: select the area to fill first</source>
         <translation>Wypełnienie z uwzględnieniem zawartości wymaga zaznaczenia: wybierz najpierw obszar do wypełnienia</translation>
     </message>

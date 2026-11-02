@@ -31892,6 +31892,30 @@ Locked: %1</source>
         <translation>%1 восстановлен</translation>
     </message>
     <message>
+        <source>Fill Layer</source>
+        <translation>Слой заливки</translation>
+    </message>
+    <message>
+        <source>What a drag makes: painted pixels, or a Gradient Fill layer (a new one, or the selected Gradient Fill layer redrawn)</source>
+        <translation>Что создаёт перетаскивание: нарисованные пиксели или слой градиентной заливки (новый или перерисованный выбранный слой градиентной заливки)</translation>
+    </message>
+    <message>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>Разблокируйте слой градиентной заливки, чтобы изменить его градиент</translation>
+    </message>
+    <message>
+        <source>Edit Gradient Fill</source>
+        <translation>Изменение градиентной заливки</translation>
+    </message>
+    <message>
+        <source>Changed the gradient of %1.</source>
+        <translation>Градиент слоя %1 изменён.</translation>
+    </message>
+    <message>
+        <source>New Gradient Fill</source>
+        <translation>Новая градиентная заливка</translation>
+    </message>
+    <message>
         <source>Content-Aware fill needs a selection: select the area to fill first</source>
         <translation>Для заливки с учётом содержимого требуется выделение: сначала выберите область, которую нужно залить</translation>
     </message>

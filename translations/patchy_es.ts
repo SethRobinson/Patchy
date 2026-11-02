@@ -31809,6 +31809,30 @@ Bloqueada: %1</translation>
         <translation>Se revirtió %1</translation>
     </message>
     <message>
+        <source>Fill Layer</source>
+        <translation>Capa de relleno</translation>
+    </message>
+    <message>
+        <source>What a drag makes: painted pixels, or a Gradient Fill layer (a new one, or the selected Gradient Fill layer redrawn)</source>
+        <translation>Lo que crea un arrastre: píxeles pintados o una capa de relleno de degradado (una nueva, o la capa de relleno de degradado seleccionada redibujada)</translation>
+    </message>
+    <message>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>Desbloquee la capa de relleno de degradado para cambiar su degradado</translation>
+    </message>
+    <message>
+        <source>Edit Gradient Fill</source>
+        <translation>Editar relleno de degradado</translation>
+    </message>
+    <message>
+        <source>Changed the gradient of %1.</source>
+        <translation>Se cambió el degradado de %1.</translation>
+    </message>
+    <message>
+        <source>New Gradient Fill</source>
+        <translation>Nuevo relleno de degradado</translation>
+    </message>
+    <message>
         <source>Content-Aware fill needs a selection: select the area to fill first</source>
         <translation>El relleno según el contenido necesita una selección: seleccione primero la zona que desea rellenar</translation>
     </message>

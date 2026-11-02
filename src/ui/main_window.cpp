@@ -6061,6 +6061,12 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
         }
         handle_vector_shape_drawn(kind, bounds, line_start, line_end);
       });
+  canvas->set_gradient_fill_drawn_callback([this, canvas](QPoint from, QPoint to) {
+    if (canvas != canvas_) {
+      return;
+    }
+    handle_gradient_fill_drawn(from, to);
+  });
   canvas->set_shape_create_requested_callback([this, canvas](CanvasTool tool, QPointF document_point) {
     if (canvas != canvas_) {
       return;
@@ -12216,6 +12222,12 @@ void MainWindow::begin_preview_dialog_edit_lock() {
       target_session->canvas->set_edit_locked(true);
     }
   }
+  // A filter dialog that lets the selection change keeps the selection tools live on
+  // its own canvas only (local-028).
+  if (preview_selection_session_ != nullptr && canvas_ != nullptr) {
+    canvas_->set_selection_sampling_callback([this] { prepare_preview_selection_sampling(); });
+    canvas_->set_selection_edits_allowed_while_locked(true);
+  }
   if (document_tabs_ != nullptr) {
     if (auto* tab_bar = document_tabs_->tabBar(); tab_bar != nullptr) {
       tab_bar->setEnabled(false);
@@ -12236,6 +12248,8 @@ void MainWindow::end_preview_dialog_edit_lock() {
   }
   for (const auto& target_session : sessions_) {
     if (target_session->canvas != nullptr) {
+      target_session->canvas->set_selection_edits_allowed_while_locked(false);
+      target_session->canvas->set_selection_sampling_callback({});
       target_session->canvas->set_edit_locked(false);
     }
   }
@@ -12253,6 +12267,28 @@ void MainWindow::end_preview_dialog_edit_lock() {
 bool MainWindow::preview_dialog_edit_locked() const noexcept {
   return preview_dialog_edit_lock_depth_ > 0;
 }
+
+namespace {
+
+// The palette tools a filter dialog that lets the selection change leaves live; the
+// canvas side is CanvasWidget::selection_tool_passes_edit_lock.
+bool tool_passes_preview_selection_lock(CanvasTool tool) noexcept {
+  switch (tool) {
+    case CanvasTool::Marquee:
+    case CanvasTool::EllipticalMarquee:
+    case CanvasTool::Lasso:
+    case CanvasTool::PolygonLasso:
+    case CanvasTool::MagneticLasso:
+    case CanvasTool::MagicWand:
+    case CanvasTool::QuickSelect:
+    case CanvasTool::ObjectSelect:
+      return true;
+    default:
+      return false;
+  }
+}
+
+}  // namespace
 
 bool MainWindow::document_action_enabled_during_preview_lock(const QAction* action) const {
   if (action == nullptr) {
@@ -12279,11 +12315,35 @@ bool MainWindow::document_action_enabled_during_preview_lock(const QAction* acti
       object_name.startsWith(QStringLiteral("viewScroll"))) {
     return true;
   }
+  // Under a filter dialog that lets the selection change (local-028), the Select
+  // commands and the selection tools stay live; nothing else that edits the document.
+  if (preview_selection_session_ != nullptr) {
+    static const QSet<QString> selection_actions{
+        QStringLiteral("editSelectAllAction"),   QStringLiteral("editDeselectAction"),
+        QStringLiteral("selectReselectAction"),  QStringLiteral("selectInverseAction"),
+        QStringLiteral("selectGrowAction"),      QStringLiteral("selectSimilarAction"),
+        QStringLiteral("selectExpandAction"),    QStringLiteral("selectContractAction"),
+        QStringLiteral("selectBorderAction"),    QStringLiteral("selectLayerTransparencyAction"),
+    };
+    if (selection_actions.contains(object_name)) {
+      return true;
+    }
+  }
   if (action->data().isValid()) {
     const auto tool = static_cast<CanvasTool>(action->data().toInt());
+    if (preview_selection_session_ != nullptr && tool_passes_preview_selection_lock(tool)) {
+      return true;
+    }
     return tool == CanvasTool::Pan || tool == CanvasTool::Zoom;
   }
   return false;
+}
+
+void MainWindow::prepare_preview_selection_sampling() {
+  if (preview_selection_session_ != nullptr && preview_selection_session_->show_original) {
+    auto show_original = preview_selection_session_->show_original;
+    show_original();
+  }
 }
 
 bool MainWindow::show_preview_dialog_edit_lock_message() {
@@ -12405,7 +12465,9 @@ void MainWindow::update_document_action_state() {
   // document starts with the tool chosen on the home screen.
   for (auto* action : tool_actions_) {
     if (action != nullptr) {
-      action->setEnabled(!locked);
+      action->setEnabled(!locked || (preview_selection_session_ != nullptr && action->data().isValid() &&
+                                     tool_passes_preview_selection_lock(
+                                         static_cast<CanvasTool>(action->data().toInt()))));
     }
   }
   if (primary_color_button_ != nullptr) {

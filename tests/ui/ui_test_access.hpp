@@ -150,6 +150,8 @@ public:
   static patchy::VectorShapeContent current_shape_appearance(const MainWindow& window);
 
   static bool apply_options_bar_appearance(MainWindow& window);
+  // The options bar's Solid Color... entry for the fill or stroke swatch (opens patchyColorDialog).
+  static void pick_vector_solid_color(MainWindow& window, bool for_stroke);
 
   static void update_vector_swatch_icons(MainWindow& window);
 

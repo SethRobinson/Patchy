@@ -1,6 +1,7 @@
 # Command search
 
-Help > Search Commands (`help.search_commands`, default Ctrl+Shift+/, GitHub issue 554) opens a
+Help > Search Commands (`help.search_commands`, default Ctrl+F (Command+F) as in Photoshop, with
+Ctrl+Shift+/ as a second key; GitHub issue 554) opens a
 popup that finds menu-bar commands, tools and keyboard commands by name, menu or description.
 Code: `src/ui/command_search.cpp`, `MainWindow::show_command_search` in
 `src/ui/main_window_actions_menus.cpp`. Tests: `ui_command_search_popup_filters_and_runs_commands`,
@@ -20,11 +21,11 @@ Code: `src/ui/command_search.cpp`, `MainWindow::show_command_search` in
   out (panel targets, or already in a menu). Disabled and unnamed commands are skipped like
   menu commands.
 - Each row shows the menu path in the muted color with its separator (`Filter › Blur › `),
-  then the name (mnemonics and trailing ellipsis removed), then the description in muted
-  italics, the current shortcut at the right, and a check mark for a checked command. The
-  name keeps its full width; the path elides from the left and is dropped when only its
-  ellipsis would fit, the description elides from the right. The description is also the
-  row's tooltip.
+  then the name (mnemonics and trailing ellipsis removed), the current shortcut at the right,
+  and a check mark for a checked command. The name keeps its full width; the path elides from
+  the left and is dropped when only its ellipsis would fit. The description is the row's
+  tooltip only (`Qt::ToolTipRole`), never drawn on the row: on every row it was too much
+  (issue 554), and it is still searched.
 - Some menus refresh their commands only when they open (`aboutToShow`).
   `show_command_search` runs the same refreshers first (Smart Object, merge, layer color and
   visibility states, the AppImage entry), rebuilds File > Scripts and the Window menu's

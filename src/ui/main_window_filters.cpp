@@ -54,6 +54,7 @@
 #include <QScopeGuard>
 #include <QString>
 #include <QStringLiteral>
+#include <QTimer>
 #include <Qt>
 #include <QtGlobal>
 
@@ -2583,7 +2584,10 @@ void MainWindow::apply_filter(const QString& identifier, const FilterInvocation*
     }
     const auto display_name = filter_display_name(*filter);
     const auto dialog_spec = filter_dialog_spec_for(*filter);
-    const auto selection = filter_selection(*canvas_);
+    // The selection may change while the settings dialog is open (local-028): the
+    // preview reads it when each render starts, and Apply reads it again below.
+    auto selection = filter_selection(*canvas_);
+    auto live_selection = std::make_shared<FilterSelection>(selection);
     const auto bounds = layer->bounds();
     auto original_pixels =
         std::make_shared<const PixelBuffer>(std::as_const(*layer).pixels());
@@ -2668,7 +2672,7 @@ void MainWindow::apply_filter(const QString& identifier, const FilterInvocation*
       auto preview_registry = std::make_shared<FilterRegistry>(registry);
       auto preview_state = std::make_shared<AsyncPixelPreviewState<FilterPreviewSettings>>();
       preview_state->start =
-          [this, preview_state, active, original_pixels, last_preview_bounds, selection, bounds,
+          [this, preview_state, active, original_pixels, last_preview_bounds, live_selection, bounds,
            source_pixels, source_bounds, embedded_source,
            preview_registry](const FilterPreviewSettings& settings) {
             if (!settings.preview_enabled) {
@@ -2692,6 +2696,7 @@ void MainWindow::apply_filter(const QString& identifier, const FilterInvocation*
             if (canvas_ != nullptr) {
               canvas_->begin_preview_render();
             }
+            const auto selection = *live_selection;
             run_tracked_background_worker([app, window, preview_state, generation, result_bounds, last_preview_bounds,
                          selection, bounds, source_pixels, source_bounds, embedded_source, settings,
                          preview_registry, active] {
@@ -2747,6 +2752,51 @@ void MainWindow::apply_filter(const QString& identifier, const FilterInvocation*
         enqueue_async_pixel_preview(preview_state, std::move(settings), !settings.preview_enabled);
       };
 
+      // The selection stays editable while the dialog is open (local-028; "Selection
+      // edits under a filter dialog" in docs/selection-tools.md). A change re-renders
+      // both previews once the gesture is over; a pixel-reading selection command first
+      // gets the unfiltered layer back, and the refresh timer brings the preview back
+      // even when that command changes nothing.
+      FilterDialogSelectionLink selection_link;
+      QTimer selection_refresh;
+      selection_refresh.setSingleShot(true);
+      // Long enough that a run of arrow nudges re-renders once, at its end.
+      constexpr int kSelectionPreviewRefreshMs = 120;
+      selection_refresh.setInterval(kSelectionPreviewRefreshMs);
+      connect(&selection_refresh, &QTimer::timeout, this, [this, &selection_refresh, &selection_link, live_selection] {
+        if (canvas_ == nullptr) {
+          return;
+        }
+        if (canvas_->pointer_gesture_active() || canvas_->magnetic_lasso_active() ||
+            canvas_->polygon_lasso_active()) {
+          selection_refresh.start();
+          return;
+        }
+        *live_selection = filter_selection(*canvas_);
+        if (selection_link.selection_changed) {
+          auto selection_changed = selection_link.selection_changed;
+          selection_changed(*live_selection);
+        }
+      });
+      PreviewSelectionSession selection_session;
+      selection_session.layer_id = *active;
+      selection_session.original = *layer;
+      selection_session.show_original = [preview_state, &selection_refresh] {
+        // The preview-off request restores the pristine pixels and drops any render
+        // still in flight (generation bump).
+        if (preview_state->start) {
+          auto start = preview_state->start;
+          start(FilterPreviewSettings{false, {}});
+        }
+        selection_refresh.start();
+      };
+      selection_session.selection_changed = [&selection_refresh] { selection_refresh.start(); };
+      preview_selection_session_ = &selection_session;
+      const auto end_selection_session = qScopeGuard([this, &selection_refresh] {
+        selection_refresh.stop();
+        preview_selection_session_ = nullptr;
+        update_document_action_state();
+      });
       auto preview_edit_lock = lock_preview_dialog_edits();
       auto preview_cleanup = qScopeGuard([this, &doc, preview_state, original = *layer] {
         close_async_pixel_preview(preview_state);
@@ -2760,7 +2810,8 @@ void MainWindow::apply_filter(const QString& identifier, const FilterInvocation*
       auto settings =
           request_filter_settings(this, dialog_spec, preview_changed,
                                   std::move(initial_invocation),
-                                  &dialog_preview_source, nullptr, dialog_notice);
+                                  &dialog_preview_source, nullptr, dialog_notice, &selection_link);
+      selection_refresh.stop();
       close_async_pixel_preview(preview_state);
       layer = doc.find_layer(*active);
       if (layer == nullptr) {
@@ -2776,6 +2827,8 @@ void MainWindow::apply_filter(const QString& identifier, const FilterInvocation*
         return;
       }
       applied_settings = std::move(settings);
+      // OK applies inside the selection as it is now.
+      selection = filter_selection(*canvas_);
     }
     if (is_flame && guide_paths.empty() && follows_path(*applied_settings)) {
       show_status_error(tr("Follow Path needs a selected path"));

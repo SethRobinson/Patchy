@@ -1922,6 +1922,8 @@ private:
   void pick_vector_pattern(bool for_stroke);
   [[nodiscard]] patchy::Layer* editable_active_vector_shape_layer();
   [[nodiscard]] std::vector<patchy::LayerId> editable_selected_shape_layer_ids() const;
+  // The editable selected shapes a stroke edit reaches: fill layers (no path) are left out (#583).
+  [[nodiscard]] std::vector<patchy::LayerId> stroke_target_shape_layer_ids() const;
   [[nodiscard]] bool vector_appearance_controls_live() const;
   // Resolves a pattern id to renderable tiles: document store first, then the
   // library, then the bundled presets (the rasterizer's own fallback order).
@@ -2008,13 +2010,18 @@ private:
   // Fill/stroke editing (main_window_vector.cpp): the live-preview appearance
   // dialog for the active shape layer, and Layer > New Fill Layer creation
   // (a shape layer with an empty path = the whole canvas).
+  // stroke_edit: the editor changes only the stroke, so fill layers in the selection are skipped.
   bool edit_active_shape_appearance(bool record_undo = true,
       std::function<std::optional<ShapeAppearanceSettings>(const ShapeAppearanceSettings&,
-          std::function<void(const ShapeAppearanceSettings&)>)> editor = {});
+          std::function<void(const ShapeAppearanceSettings&)>)> editor = {}, bool stroke_edit = false);
   void create_fill_layer_with_appearance(const VectorFill& fill, const QString& name);
   [[nodiscard]] Layer build_fill_layer(const patchy::VectorFill& fill, const QString& name);
   [[nodiscard]] QString unique_fill_layer_name(const QString& base);
-  void create_fill_layer(const patchy::VectorFill& fill, const QString& name, QString label);
+  void create_fill_layer(const patchy::VectorFill& fill, const QString& name, QString label,
+                         float opacity = 1.0F);
+  // The Gradient tool's Fill Layer mode (GitHub issue 580): a released drag rewrites the
+  // active Gradient Fill layer's gradient, or adds a new Gradient Fill layer above.
+  void handle_gradient_fill_drawn(QPoint from, QPoint to);
   void new_solid_color_fill_layer();
   void new_gradient_fill_layer();
   void new_pattern_fill_layer();
@@ -2800,6 +2807,9 @@ private:
   void end_preview_dialog_edit_lock();
   [[nodiscard]] bool preview_dialog_edit_locked() const noexcept;
   [[nodiscard]] bool document_action_enabled_during_preview_lock(const QAction* action) const;
+  // Before a Select command that reads layer pixels (Grow, Similar, Load Layer
+  // Transparency) runs under a PreviewSelectionSession: the unfiltered pixels go back first.
+  void prepare_preview_selection_sampling();
   bool show_preview_dialog_edit_lock_message();
   void sync_brush_controls_from_canvas();
   void load_recent_files();
@@ -3382,6 +3392,7 @@ private:
   double round_brush_base_angle_degrees_{0.0};
   double round_brush_base_roundness_{100.0};
   QComboBox* gradient_method_combo_{nullptr};
+  QComboBox* gradient_mode_combo_{nullptr};
   QSpinBox* gradient_opacity_spin_{nullptr};
   QSlider* gradient_opacity_slider_{nullptr};
   QCheckBox* gradient_reverse_check_{nullptr};
@@ -3647,6 +3658,21 @@ private:
   // G'MIC Filter Library): the edit lock then leaves the Layers panel's visibility eyes
   // working (LayerListWidget::set_visibility_only) instead of disabling the list.
   bool preview_lock_allows_layer_visibility_{false};
+  // Set by a filter dialog that lets the selection change while it is open (local-028;
+  // "Selection edits under a filter dialog" in docs/selection-tools.md): the edit lock then
+  // leaves the selection tools and the Select commands live on the dialog's canvas.
+  // Owned by the dialog's frame (MainWindow::apply_filter).
+  struct PreviewSelectionSession {
+    // The previewed layer as it was before the preview: selection undo steps recorded
+    // during the dialog hold it instead of the preview pixels.
+    LayerId layer_id{};
+    Layer original;
+    // Puts the unfiltered pixels back before a selection command reads them.
+    std::function<void()> show_original;
+    // Called after every selection change (and after show_original).
+    std::function<void()> selection_changed;
+  };
+  PreviewSelectionSession* preview_selection_session_{nullptr};
   bool scanner_import_active_{false};
   QPointer<QDialog> tile_preview_window_;
   QPointer<AnimationPreviewWindow> animation_preview_window_;

@@ -36,6 +36,8 @@
 #include "core/layer_metadata.hpp"
 #include "core/vector_live_shapes.hpp"
 #include "core/vector_raster.hpp"
+#include "core/gradient_fill_drag.hpp"
+#include "core/pixel_tools.hpp"
 #include "psd_test_support.hpp"
 #include <algorithm>
 #include <array>
@@ -1820,6 +1822,102 @@ void psd_vector_gradient_fill_without_alpha_stops_writes_opaque_stops() {
   CHECK(roundtrip->fill.gradient.color_stops.size() == 2);
 }
 
+// The Gradient tool's Fill Layer mode (GitHub issue 580) writes ordinary GdFl fill layers: the
+// drag's angle, scale, offsets, Reverse, Align with Layer off and the stops survive a PSD round
+// trip, and the reread layers render the same pixels. The written file is left in
+// test-artifacts for the Photoshop open check (docs/gradients.md).
+void gradient_fill_from_drag_layers_round_trip_through_psd() {
+  constexpr int kWidth = 96;
+  constexpr int kHeight = 64;
+  const auto canvas = patchy::Rect::from_size(kWidth, kHeight);
+  patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("bg", patchy::test::solid_rgba(kWidth, kHeight, 255, 255, 255, 255));
+  const std::vector<patchy::GradientStop> faded{patchy::GradientStop{0.0F, patchy::EditColor{20, 30, 200, 255}},
+                                                patchy::GradientStop{0.35F, patchy::EditColor{250, 200, 0, 160}},
+                                                patchy::GradientStop{1.0F, patchy::EditColor{200, 0, 60, 0}}};
+  const auto add_fill = [&](const char* name, patchy::GradientMethod method, bool reverse, int x0, int y0, int x1,
+                            int y1) -> patchy::Layer& {
+    patchy::Layer layer(document.allocate_layer_id(), name, patchy::PixelBuffer());
+    patchy::VectorShapeContent content;
+    content.fill.kind = patchy::VectorFillKind::Gradient;
+    content.fill.gradient = patchy::gradient_fill_from_drag(faded, method, reverse, canvas, x0, y0, x1, y1);
+    content.stroke.enabled = false;
+    layer.set_vector_shape(content);
+    layer.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+    document.add_layer(std::move(layer));
+    return document.layers().back();
+  };
+  auto& linear = add_fill("Linear drag", patchy::GradientMethod::Linear, true, 10, 50, 80, 12);
+  linear.set_opacity(0.6F);
+  auto& radial = add_fill("Radial drag", patchy::GradientMethod::Radial, false, -12, 70, 40, 20);
+  radial.set_blend_mode(patchy::BlendMode::Multiply);
+  patchy::PixelBuffer mask(40, 30, patchy::PixelFormat::gray8());
+  mask.clear(255);
+  radial.set_mask(patchy::LayerMask{patchy::Rect{30, 20, 40, 30}, mask, 0, false});
+  // A drag from far off the canvas: offsets past 200% and a Scale near the 1000% limit.
+  auto& far = add_fill("Far radial", patchy::GradientMethod::Radial, false, -150, -100, 200, 200);
+  far.set_opacity(0.5F);
+  CHECK(std::abs(far.vector_shape()->fill.gradient.offset_x_percent) > 200.0F);
+  CHECK(far.vector_shape()->fill.gradient.scale > 9.0F);
+  for (auto& layer : document.layers()) {
+    if (layer.vector_shape() != nullptr) {
+      patchy::update_vector_shape_raster(layer, canvas, &document.metadata().patterns);
+    }
+  }
+
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  std::filesystem::create_directories("test-artifacts");
+  {
+    std::ofstream file(std::filesystem::path("test-artifacts") / "gradient_fill_from_drag.psd", std::ios::binary);
+    file.write(reinterpret_cast<const char*>(written.data()), static_cast<std::streamsize>(written.size()));
+  }
+  auto reread = patchy::psd::DocumentIo::read(written, {});
+  CHECK(reread.layers().size() == 4);
+  if (reread.layers().size() != 4) {
+    return;
+  }
+  for (std::size_t index = 1; index < 4; ++index) {
+    const auto& before = std::as_const(document).layers()[index];
+    auto& after = reread.layers()[index];
+    const auto* original = before.vector_shape();
+    const auto* roundtrip = std::as_const(after).vector_shape();
+    CHECK(roundtrip != nullptr);
+    if (roundtrip == nullptr) {
+      continue;
+    }
+    CHECK(roundtrip->fill.kind == patchy::VectorFillKind::Gradient);
+    const auto& expected = original->fill.gradient;
+    const auto& actual = roundtrip->fill.gradient;
+    CHECK(actual.type == expected.type);
+    CHECK(actual.reverse == expected.reverse);
+    CHECK(!actual.align_with_layer);
+    CHECK(actual.smoothness == 0);
+    CHECK(std::abs(actual.angle_degrees - expected.angle_degrees) < 1e-3F);
+    CHECK(std::abs(actual.scale - expected.scale) < 1e-4F);
+    CHECK(std::abs(actual.offset_x_percent - expected.offset_x_percent) < 1e-3F);
+    CHECK(std::abs(actual.offset_y_percent - expected.offset_y_percent) < 1e-3F);
+    CHECK(actual.color_stops.size() == expected.color_stops.size());
+    CHECK(actual.alpha_stops.size() == expected.alpha_stops.size());
+    CHECK(std::abs(after.opacity() - before.opacity()) < 0.01F);
+    CHECK(after.blend_mode() == before.blend_mode());
+    CHECK(after.mask().has_value() == before.mask().has_value());
+    patchy::update_vector_shape_raster(after, canvas, &reread.metadata().patterns);
+    const auto& expected_pixels = before.pixels();
+    const auto& actual_pixels = std::as_const(after).pixels();
+    CHECK(after.bounds() == before.bounds());
+    int worst = 0;
+    for (int y = 0; y < before.bounds().height; ++y) {
+      for (int x = 0; x < before.bounds().width; ++x) {
+        for (int channel = 0; channel < 4; ++channel) {
+          worst = std::max(worst, std::abs(static_cast<int>(expected_pixels.pixel(x, y)[channel]) -
+                                           static_cast<int>(actual_pixels.pixel(x, y)[channel])));
+        }
+      }
+    }
+    CHECK(worst <= 1);
+  }
+}
+
 // A Patchy-authored gradient from before the Trns fix (the committed 48x32 fixture: one gradient
 // fill layer with an empty Trns list) heals on save. The reader marks the layer's blocks dirty,
 // the fill payload builder refuses the byte-exact shortcut for a stop-less gradient, and the
@@ -2908,6 +3006,7 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
        psd_vector_dirty_regeneration_reproduces_unchanged_bytes},
       {"psd_vector_move_translates_model_and_round_trips", psd_vector_move_translates_model_and_round_trips},
       {"psd_vector_mask_and_params_write_round_trip", psd_vector_mask_and_params_write_round_trip},
+      {"gradient_fill_from_drag_layers_round_trip_through_psd", gradient_fill_from_drag_layers_round_trip_through_psd},
       {"psd_vector_gradient_fill_without_alpha_stops_writes_opaque_stops",
        psd_vector_gradient_fill_without_alpha_stops_writes_opaque_stops},
       {"psd_vector_gradient_without_transparency_stops_heals_on_save",

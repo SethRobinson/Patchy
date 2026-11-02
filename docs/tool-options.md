@@ -81,6 +81,7 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Dodge, Burn | Strength, Range, Protect Tones | `localAdjustmentStrength`, `localToneRange`, `localProtectTones` | yes | yes |
 | Sponge | Mode, Vibrance | `spongeMode`, `spongeVibrance` | yes | yes |
 | Gradient | Method, Opacity, Reverse, gradient stops | `gradientMethod`, `gradientOpacity`, `gradientReverse`, `gradientUseCustomStops`, `gradientStops` | yes | yes |
+| Gradient | Mode (`gradientModeCombo`: Pixels, Fill Layer; [gradients.md](gradients.md#gradient-tool-fill-layer-mode)) | `gradientMode` (token) | new (issue 580) | yes |
 | Fill | Opacity, Soft, Tol, Contiguous | `fillOpacity`, `fillSoftness`, `fillTolerance`, `fillContiguous` | yes | yes |
 | Line, Rect, Ellipse, Pen, Polygon, Custom Shape | Mode (Shape/Path/Pixels) | `vectorToolMode` | yes | yes |
 | same | Fill and Stroke paint (by pattern/gradient id), Stroke width (0 = off; stored as Stroke on plus the last real width), Line weight | `vectorFill*`, `vectorStroke*`, `vectorLineWeight` | yes | yes |

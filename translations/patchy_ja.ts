@@ -31726,6 +31726,30 @@ Locked: %1</source>
         <translation>%1 を復帰しました</translation>
     </message>
     <message>
+        <source>Fill Layer</source>
+        <translation>塗りつぶしレイヤー</translation>
+    </message>
+    <message>
+        <source>What a drag makes: painted pixels, or a Gradient Fill layer (a new one, or the selected Gradient Fill layer redrawn)</source>
+        <translation>ドラッグで作成するもの: 描画したピクセル、またはグラデーション塗りつぶしレイヤー (新規、または選択中のグラデーション塗りつぶしレイヤーを描き直し)</translation>
+    </message>
+    <message>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>グラデーションを変更するには、グラデーション塗りつぶしレイヤーのロックを解除してください</translation>
+    </message>
+    <message>
+        <source>Edit Gradient Fill</source>
+        <translation>グラデーション塗りつぶしを編集</translation>
+    </message>
+    <message>
+        <source>Changed the gradient of %1.</source>
+        <translation>%1 のグラデーションを変更しました。</translation>
+    </message>
+    <message>
+        <source>New Gradient Fill</source>
+        <translation>新規グラデーション塗りつぶし</translation>
+    </message>
+    <message>
         <source>Content-Aware fill needs a selection: select the area to fill first</source>
         <translation>コンテンツに応じた塗りつぶしには選択範囲が必要です。先に塗りつぶす領域を選択してください</translation>
     </message>

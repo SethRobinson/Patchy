@@ -31726,6 +31726,30 @@ Locked: %1</source>
         <translation>已恢复 %1</translation>
     </message>
     <message>
+        <source>Fill Layer</source>
+        <translation>填充图层</translation>
+    </message>
+    <message>
+        <source>What a drag makes: painted pixels, or a Gradient Fill layer (a new one, or the selected Gradient Fill layer redrawn)</source>
+        <translation>拖动生成的内容：绘制的像素，或渐变填充图层（新建一个，或重新绘制所选的渐变填充图层）</translation>
+    </message>
+    <message>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>请解锁渐变填充图层以更改其渐变</translation>
+    </message>
+    <message>
+        <source>Edit Gradient Fill</source>
+        <translation>编辑渐变填充</translation>
+    </message>
+    <message>
+        <source>Changed the gradient of %1.</source>
+        <translation>已更改 %1 的渐变。</translation>
+    </message>
+    <message>
+        <source>New Gradient Fill</source>
+        <translation>新建渐变填充</translation>
+    </message>
+    <message>
         <source>Content-Aware fill needs a selection: select the area to fill first</source>
         <translation>内容识别填充需要选区：请先选择要填充的区域</translation>
     </message>

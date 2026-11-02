@@ -765,9 +765,20 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   }
 
   if (edit_locked_ && tool_ != CanvasTool::Zoom) {
-    show_edit_locked_message();
-    event->accept();
-    return;
+    // A filter dialog that lets the selection change passes a selection tool's
+    // left press; nothing else reaches the document (local-028).
+    if (event->button() != Qt::LeftButton || !selection_tool_passes_edit_lock() ||
+        widget_position_in_ruler(event->pos()) || guide_at_widget_position(event->pos()) >= 0) {
+      show_edit_locked_message();
+      event->accept();
+      return;
+    }
+    if (selection_sampling_callback_ &&
+        (tool_ == CanvasTool::MagicWand || tool_ == CanvasTool::QuickSelect ||
+         tool_ == CanvasTool::MagneticLasso || tool_ == CanvasTool::ObjectSelect)) {
+      auto callback = selection_sampling_callback_;
+      callback();
+    }
   }
 
   if (event->button() == Qt::LeftButton && widget_position_in_ruler(event->pos())) {
@@ -1743,7 +1754,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         !quick_mask_active_ &&
         (layer_edit_target_ == LayerEditTarget::Content ||
          (layer_edit_target_ == LayerEditTarget::VectorMask && vector_mask_target_layer() != nullptr));
-    if (vector_shape_drag ||
+    // A Fill Layer mode gradient (GitHub issue 580) likewise leaves the pixels alone.
+    if (vector_shape_drag || gradient_drag_makes_fill_layer() ||
         begin_edit(tool_ == CanvasTool::Gradient ? tr("Gradient") : tr("Shape"))) {
       const auto snapped_point = snapped_document_point(document_point);
       clear_brush_stroke_tracking();
@@ -1982,7 +1994,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     dragging_text_entry_selection_ = false;
   }
 
-  if (edit_locked_ && !zooming_) {
+  if (edit_locked_ && !zooming_ && !selection_tool_passes_edit_lock()) {
     clear_move_hover_outline();
     last_mouse_position_ = event->pos();
     event->accept();
@@ -2784,7 +2796,8 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     return;
   }
 
-  if (edit_locked_ && !zooming_) {
+  if (edit_locked_ && !zooming_ &&
+      (event->button() != Qt::LeftButton || !selection_tool_passes_edit_lock())) {
     clear_move_hover_outline();
     event->accept();
     return;
@@ -3670,6 +3683,17 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       vector_shape_drawn_callback_(kind, bounds, QPointF(shape_start_), QPointF(shape_current_));
       return;
     }
+    // Fill Layer mode hands the drag to MainWindow, which makes or rewrites a
+    // Gradient Fill layer with its own undo entry (GitHub issue 580).
+    if (gradient_drag_makes_fill_layer()) {
+      drawing_shape_ = false;
+      clear_brush_stroke_tracking();
+      update();
+      if (shape_current_ != shape_start_) {
+        gradient_fill_drawn_callback_(shape_start_, shape_current_);
+      }
+      return;
+    }
     QRect preview_rect = normalized_rect(shape_from, shape_end);
     if (document_ != nullptr) {
       const auto margin = std::max(4, brush_size_ + 4);
@@ -3719,9 +3743,20 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
   }
   const auto document_point = document_position(event->pos());
   if (edit_locked_) {
-    show_edit_locked_message();
-    event->accept();
-    return;
+    // Under a filter dialog that lets the selection change, only the double-click
+    // that closes a magnetic or polygonal lasso passes (local-028); a double-click
+    // must never open text or shape editing there.
+    const bool closes_lasso =
+        event->button() == Qt::LeftButton && selection_tool_passes_edit_lock() &&
+        ((tool_ == CanvasTool::MagneticLasso && magnetic_lassoing_) || polygon_lassoing_ ||
+         tool_ == CanvasTool::PolygonLasso);
+    if (!closes_lasso) {
+      if (!selection_tool_passes_edit_lock()) {
+        show_edit_locked_message();
+      }
+      event->accept();
+      return;
+    }
   }
   // Double-clicking an artboard's name label renames it, whatever the tool.
   if (handle_artboard_label_double_click(event)) {
@@ -3932,9 +3967,24 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
       event->accept();
       return;
     }
-    show_edit_locked_message();
-    event->accept();
-    return;
+    // Under a filter dialog that lets the selection change (local-028), a selection
+    // tool keeps its modifier keys, the arrow nudges of the selection outline, and
+    // the keys of a live magnetic or polygonal lasso; every other key stays locked
+    // (digits would set layer opacity, Escape deselect layers).
+    const auto key = event->key();
+    const auto key_modifiers = event->modifiers() & ~Qt::KeypadModifier;
+    const bool lasso_key = (magnetic_lassoing_ || polygon_lassoing_) &&
+                           (key == Qt::Key_Escape || key == Qt::Key_Backspace || key == Qt::Key_Delete ||
+                            key == Qt::Key_Return || key == Qt::Key_Enter);
+    const bool modifier_key =
+        key == Qt::Key_Shift || key == Qt::Key_Alt || key == Qt::Key_Control || key == Qt::Key_Meta;
+    const bool nudge_key = (key == Qt::Key_Left || key == Qt::Key_Right || key == Qt::Key_Up || key == Qt::Key_Down) &&
+                           (key_modifiers == Qt::NoModifier || key_modifiers == Qt::ShiftModifier);
+    if (!selection_tool_passes_edit_lock() || !(lasso_key || modifier_key || nudge_key)) {
+      show_edit_locked_message();
+      event->accept();
+      return;
+    }
   }
 
   // An active pen-path session owns Escape/Backspace/Delete/Enter the same way

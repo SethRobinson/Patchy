@@ -666,6 +666,54 @@ bool CanvasWidget::edit_locked() const noexcept {
   return edit_locked_;
 }
 
+void CanvasWidget::set_selection_edits_allowed_while_locked(bool allowed) noexcept {
+  if (selection_edits_allowed_while_locked_ == allowed) {
+    return;
+  }
+  selection_edits_allowed_while_locked_ = allowed;
+  if (!allowed && edit_locked_) {
+    // A selection gesture still live when the dialog closes ends here, as
+    // set_edit_locked ends every gesture when the lock begins.
+    selecting_ = false;
+    lassoing_ = false;
+    moving_selection_ = false;
+    marquee_resize_handle_ = TransformHandle::None;
+    cancel_magnetic_lasso();
+    cancel_polygon_lasso();
+    cancel_quick_select_stroke();
+    cancel_object_select();
+  }
+  update_tool_cursor();
+  update();
+}
+
+bool CanvasWidget::selection_edits_allowed_while_locked() const noexcept {
+  return selection_edits_allowed_while_locked_;
+}
+
+void CanvasWidget::set_selection_sampling_callback(std::function<void()> callback) {
+  selection_sampling_callback_ = std::move(callback);
+}
+
+bool CanvasWidget::selection_tool_passes_edit_lock() const noexcept {
+  if (!selection_edits_allowed_while_locked_) {
+    return false;
+  }
+  switch (tool_) {
+    case CanvasTool::Marquee:
+    case CanvasTool::EllipticalMarquee:
+    case CanvasTool::Lasso:
+    case CanvasTool::PolygonLasso:
+    case CanvasTool::MagneticLasso:
+    case CanvasTool::MagicWand:
+    case CanvasTool::QuickSelect:
+    case CanvasTool::ObjectSelect:
+      return true;
+    default:
+      return false;
+  }
+}
+
 void CanvasWidget::set_layer_edit_target(LayerEditTarget target) noexcept {
   if (layer_edit_target_ == target) {
     return;
@@ -923,6 +971,23 @@ void CanvasWidget::set_gradient_method(GradientMethod method) noexcept {
 
 GradientMethod CanvasWidget::gradient_method() const noexcept {
   return gradient_method_;
+}
+
+void CanvasWidget::set_gradient_tool_mode(GradientToolMode mode) noexcept {
+  gradient_tool_mode_ = mode;
+}
+
+GradientToolMode CanvasWidget::gradient_tool_mode() const noexcept {
+  return gradient_tool_mode_;
+}
+
+void CanvasWidget::set_gradient_fill_drawn_callback(std::function<void(QPoint, QPoint)> callback) {
+  gradient_fill_drawn_callback_ = std::move(callback);
+}
+
+bool CanvasWidget::gradient_drag_makes_fill_layer() const {
+  return tool_ == CanvasTool::Gradient && gradient_tool_mode_ == GradientToolMode::FillLayer &&
+         gradient_fill_drawn_callback_ && !quick_mask_active_ && layer_edit_target_ == LayerEditTarget::Content;
 }
 
 void CanvasWidget::set_gradient_reverse(bool reverse) noexcept {
