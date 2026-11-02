@@ -19083,6 +19083,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>%1 (start it outside Patchy)</source>
         <translation>%1 (Patchy 밖에서 시작)</translation>
     </message>
+    <message>
+        <source>Manifests That Could Not Be Read...</source>
+        <translation>읽을 수 없는 매니페스트...</translation>
+    </message>
+    <message>
+        <source>Companion Manifests</source>
+        <translation>컴패니언 앱 매니페스트</translation>
+    </message>
+    <message>
+        <source>These files in the companions folder were skipped:</source>
+        <translation>컴패니언 앱 폴더의 다음 파일을 건너뛰었습니다:</translation>
+    </message>
+    <message>
+        <source>%1 is starting...</source>
+        <translation>%1이(가) 시작되는 중입니다...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

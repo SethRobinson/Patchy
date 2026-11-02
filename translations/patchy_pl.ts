@@ -19173,6 +19173,22 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>%1 (start it outside Patchy)</source>
         <translation>%1 (uruchom poza Patchy)</translation>
     </message>
+    <message>
+        <source>Manifests That Could Not Be Read...</source>
+        <translation>Manifesty, których nie można odczytać...</translation>
+    </message>
+    <message>
+        <source>Companion Manifests</source>
+        <translation>Manifesty aplikacji towarzyszących</translation>
+    </message>
+    <message>
+        <source>These files in the companions folder were skipped:</source>
+        <translation>Te pliki w folderze aplikacji towarzyszących zostały pominięte:</translation>
+    </message>
+    <message>
+        <source>%1 is starting...</source>
+        <translation>%1 jest uruchamiany...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

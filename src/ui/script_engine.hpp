@@ -156,8 +156,10 @@ public:
   [[nodiscard]] bool session_modified(std::int64_t id) const;
   [[nodiscard]] bool session_can_undo(std::int64_t id, bool redo = false) const;
   bool restore_session_history(std::int64_t id, bool redo);
-  QJsonObject automation_state() const;
-  [[nodiscard]] QString automation_fingerprint() const;
+  // `refresh_brushes` false skips re-reading the brush folders: companion event polling runs
+  // every half second and must stay off the disk (docs/companions.md#events).
+  QJsonObject automation_state(bool refresh_brushes = true) const;
+  [[nodiscard]] QString automation_fingerprint(bool refresh_brushes = true) const;
   [[nodiscard]] bool automation_ready() const;
   QImage render_preview(std::int64_t id, const QJsonObject& options, QJsonObject* metadata);
   void draw_strokes(std::int64_t session_id, LayerId layer_id, const QJSValue& strokes);

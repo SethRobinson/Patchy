@@ -2,6 +2,7 @@
 // the window handle in get_info, and the Plugins > Companions menu.
 #include "scripting_test_support.hpp"
 #include "test_harness.hpp"
+#include "ui/brush_automation.hpp"
 #include "ui/companion_apps.hpp"
 #include "ui/main_window.hpp"
 #include "ui/mcp_attachment.hpp"
@@ -9,6 +10,7 @@
 #include "ui/script_engine.hpp"
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
+#include "unicode_path_names.hpp"
 
 #include <QApplication>
 #include <QCoreApplication>
@@ -361,6 +363,119 @@ void ui_companion_protocol_range_is_checked() {
   remove_test_scratch_dir(folder);
 }
 
+// Event polling for a subscribed companion never re-reads the brush folders (it runs every
+// half second, also while the artist paints); an explicit get_state still does.
+void ui_mcp_event_polling_stays_off_the_brush_folders() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto endpoint = unique_endpoint();
+  patchy::ui::McpAttachment attachment(window, endpoint);
+  CHECK(attachment.error().isEmpty());
+  SocketClient companion;
+  CHECK(companion.open(endpoint));
+  CHECK(companion.initialize(QStringLiteral("OpenFill"), {{"patchy/events", true}, {"patchy/companion", "io.example.fill"}}));
+  auto& brushes = window.brush_automation_library();
+  // The first full poll records the token; from then on every fifth 100 ms tick polls it. The
+  // window's own once-a-second folder check refreshes once on its first tick (its listing
+  // starts empty) and never again while no file changes, so the count is taken after it.
+  QElapsedTimer settle;
+  settle.start();
+  (void)wait_until([&] { companion.pump(); return settle.elapsed() >= 1500; }, 3000);
+  const int before = brushes.refresh_count();
+  CHECK(run_script(window, QStringLiteral("app.activeDocument.selection.selectRect(1, 2, 3, 4);")));
+  const int after_script = brushes.refresh_count();
+  CHECK(!companion.event(QStringLiteral("stateChanged")).isEmpty());
+  QElapsedTimer idle;
+  idle.start();
+  (void)wait_until([&] { companion.pump(); return idle.elapsed() >= 1600; }, 4000);
+  CHECK(brushes.refresh_count() == after_script);
+  CHECK(after_script >= before);
+  CHECK(!companion.call("get_state")["isError"].toBool());
+  CHECK(brushes.refresh_count() > after_script);
+}
+
+// A pick while the companion is starting does not start a second copy; once the grace period
+// ends it starts again. An app bundle named as the command runs its Contents/MacOS executable,
+// a relative workingDirectory is below the manifest's folder, a manifest with a Unicode file
+// name reads, PATCHY_MCP_ARGS goes beside PATCHY_MCP, and a broken manifest gets a menu entry
+// that says why it was skipped.
+void ui_companion_launch_guard_bundles_and_manifest_problems() {
+  const StandardPathsTestMode standard_paths;
+  const auto folder = patchy::ui::companions_folder_path();
+  remove_test_scratch_dir(folder);
+  const auto unicode_dir = QString::fromUtf8(patchy::test::utf8_string(patchy::test::kUnicodeDirName));
+  const auto bundle = folder + '/' + unicode_dir + QStringLiteral("/Fake Fill.app");
+  CHECK(QDir().mkpath(bundle + QStringLiteral("/Contents/MacOS")));
+  CHECK(QDir().mkpath(folder + QStringLiteral("/work")));
+  const auto write = [&](const QString& path, const QByteArray& bytes) {
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    CHECK(file.write(bytes) == bytes.size());
+  };
+  write(bundle + QStringLiteral("/Contents/Info.plist"),
+        "<?xml version=\"1.0\"?><plist version=\"1.0\"><dict>\n<key>CFBundleName</key><string>Fake</string>\n"
+        "<key>CFBundleExecutable</key>\n  <string>fill-bin</string>\n</dict></plist>\n");
+  write(bundle + QStringLiteral("/Contents/MacOS/fill-bin"), "#!/bin/sh\n");
+  const auto manifest_name = QString::fromUtf8(patchy::test::utf8_string(patchy::test::kUnicodeCombinedStem)) +
+                             QStringLiteral(".json");
+  write(folder + '/' + manifest_name,
+        R"({"id": "io.example.bundle", "name": "Bundle Fill", "workingDirectory": "work",
+            "command": ")" + unicode_dir.toUtf8() + R"(/Fake Fill.app"})");
+  write(folder + QStringLiteral("/broken.json"), "{ not json");
+
+  QStringList problems;
+  const auto manifests = patchy::ui::load_companion_manifests(&problems);
+  CHECK(manifests.size() == 1 && problems.size() == 1 && problems.front().contains(QStringLiteral("broken.json")));
+  CHECK(QFileInfo(manifests.front().manifest_path) == QFileInfo(folder + '/' + manifest_name));
+  CHECK(QFileInfo(patchy::ui::resolve_companion_command(manifests.front())) ==
+        QFileInfo(bundle + QStringLiteral("/Contents/MacOS/fill-bin")));
+  CHECK(QFileInfo(patchy::ui::companion_working_directory(manifests.front())) == QFileInfo(folder + QStringLiteral("/work")));
+  // No CFBundleExecutable: the bundle's own name.
+  write(bundle + QStringLiteral("/Contents/Info.plist"), "<plist><dict></dict></plist>");
+  write(bundle + QStringLiteral("/Contents/MacOS/Fake Fill"), "#!/bin/sh\n");
+  CHECK(QFileInfo(patchy::ui::companion_bundle_executable(bundle)) ==
+        QFileInfo(bundle + QStringLiteral("/Contents/MacOS/Fake Fill")));
+  CHECK(patchy::ui::companion_bundle_executable(folder + QStringLiteral("/work")).isEmpty());
+
+  const auto environment = patchy::ui::companion_environment(manifests.front());
+  if (environment.contains(QStringLiteral("PATCHY_MCP"))) {
+    CHECK(environment.value(QStringLiteral("PATCHY_MCP_ARGS")) == QStringLiteral(R"(["--attach"])"));
+  } else {
+    CHECK(!environment.contains(QStringLiteral("PATCHY_MCP_ARGS")));
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* companions = window.findChild<patchy::ui::CompanionMenu*>();
+  CHECK(companions != nullptr);
+  std::vector<QString> launches;
+  companions->set_launcher_for_testing([&](const QString& program, const QStringList&, const QString&,
+                                           const QProcessEnvironment&) {
+    launches.push_back(program);
+    return true;
+  });
+  companions->set_launch_grace_for_testing(400);
+  emit companions->menu()->aboutToShow();
+  CHECK(companions->menu()->findChild<QAction*>(QStringLiteral("companionsNoneAction")) == nullptr);
+  auto* skipped = companions->menu()->findChild<QAction*>(QStringLiteral("companionsProblemsAction"));
+  CHECK(skipped != nullptr && skipped->isEnabled());
+  auto* entry = companions->menu()->findChild<QAction*>(QStringLiteral("companionAction_io.example.bundle"));
+  CHECK(entry != nullptr);
+  entry->trigger();
+  entry->trigger();
+  CHECK(launches.size() == 1);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Bundle Fill is starting..."));
+  QElapsedTimer grace;
+  grace.start();
+  (void)wait_until([&] { return grace.elapsed() >= 500; }, 2000);
+  entry->trigger();
+  CHECK(launches.size() == 2);
+
+  remove_test_scratch_dir(folder);
+  emit companions->menu()->aboutToShow();
+  CHECK(companions->menu()->findChild<QAction*>(QStringLiteral("companionsProblemsAction")) == nullptr);
+}
+
 }  // namespace
 
 // get_state reports each layer's raster mask (bounds and settings), so a companion can find
@@ -487,6 +602,28 @@ void ui_companion_environment_names_the_appimage() {
   const auto inside = patchy::ui::companion_environment(manifest);
   CHECK(inside.value(QStringLiteral("PATCHY_EXECUTABLE")) == QStringLiteral("/opt/apps/Patchy-x86_64.AppImage"));
   CHECK(inside.value(QStringLiteral("PATCHY_MCP")) == QStringLiteral("/opt/apps/Patchy-x86_64.AppImage"));
+  CHECK(inside.value(QStringLiteral("PATCHY_MCP_ARGS")) == QStringLiteral(R"(["patchy-mcp","--attach"])"));
+  // What the runtime and AppRun set for Patchy stays out of the companion's environment; a
+  // platform theme the user chose (no AppRun marker) stays.
+  CHECK(!inside.contains(QStringLiteral("APPDIR")) && !inside.contains(QStringLiteral("APPIMAGE")));
+  const auto saved_theme = qgetenv("QT_QPA_PLATFORMTHEME");
+  const auto saved_marker = qgetenv("PATCHY_APPRUN_SET_PLATFORMTHEME");
+  const auto saved_owd = qgetenv("OWD");
+  const auto restore_theme = qScopeGuard([&] {
+    saved_theme.isNull() ? qunsetenv("QT_QPA_PLATFORMTHEME") : qputenv("QT_QPA_PLATFORMTHEME", saved_theme);
+    saved_marker.isNull() ? qunsetenv("PATCHY_APPRUN_SET_PLATFORMTHEME")
+                          : qputenv("PATCHY_APPRUN_SET_PLATFORMTHEME", saved_marker);
+    saved_owd.isNull() ? qunsetenv("OWD") : qputenv("OWD", saved_owd);
+  });
+  qputenv("OWD", "/home/user");
+  qputenv("QT_QPA_PLATFORMTHEME", "xdgdesktopportal");
+  qputenv("PATCHY_APPRUN_SET_PLATFORMTHEME", "1");
+  const auto scrubbed = patchy::ui::companion_environment(manifest);
+  CHECK(!scrubbed.contains(QStringLiteral("OWD")) && !scrubbed.contains(QStringLiteral("QT_QPA_PLATFORMTHEME")) &&
+        !scrubbed.contains(QStringLiteral("PATCHY_APPRUN_SET_PLATFORMTHEME")));
+  qunsetenv("PATCHY_APPRUN_SET_PLATFORMTHEME");
+  qputenv("QT_QPA_PLATFORMTHEME", "gtk3");
+  CHECK(patchy::ui::companion_environment(manifest).value(QStringLiteral("QT_QPA_PLATFORMTHEME")) == QStringLiteral("gtk3"));
 #endif
 }
 
@@ -499,5 +636,7 @@ std::vector<patchy::test::TestCase> companion_tests() {
       {"ui_companion_menu_quits_attached_companion", ui_companion_menu_quits_attached_companion},
       {"ui_companion_protocol_range_is_checked", ui_companion_protocol_range_is_checked},
       {"ui_companion_environment_names_the_appimage", ui_companion_environment_names_the_appimage},
+      {"ui_mcp_event_polling_stays_off_the_brush_folders", ui_mcp_event_polling_stays_off_the_brush_folders},
+      {"ui_companion_launch_guard_bundles_and_manifest_problems", ui_companion_launch_guard_bundles_and_manifest_problems},
   };
 }

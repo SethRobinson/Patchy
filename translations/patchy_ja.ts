@@ -19083,6 +19083,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>%1 (start it outside Patchy)</source>
         <translation>%1 (Patchy の外から起動)</translation>
     </message>
+    <message>
+        <source>Manifests That Could Not Be Read...</source>
+        <translation>読み込めなかったマニフェスト...</translation>
+    </message>
+    <message>
+        <source>Companion Manifests</source>
+        <translation>コンパニオンアプリのマニフェスト</translation>
+    </message>
+    <message>
+        <source>These files in the companions folder were skipped:</source>
+        <translation>コンパニオンアプリのフォルダーにある次のファイルはスキップされました:</translation>
+    </message>
+    <message>
+        <source>%1 is starting...</source>
+        <translation>%1 は起動中です...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

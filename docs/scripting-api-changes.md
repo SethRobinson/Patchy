@@ -16,6 +16,15 @@ those of 2026-10-20 to 2026-10-21 in
 [scripting-api-changes-2026-10-20-to-21.md](scripting-api-changes-2026-10-20-to-21.md).
 Every entry below is API 1.
 
+2026-11-03 (additive and behavioral, companions): a companion started from Plugins > Companions also
+gets `PATCHY_MCP_ARGS`, a JSON array of the arguments that follow `PATCHY_MCP` to attach
+(`["--attach"]`, or `["patchy-mcp","--attach"]` inside an AppImage). A manifest's `command` may name
+a macOS app bundle (`*.app`), which runs its `Contents/MacOS` executable; a relative `workingDirectory`
+resolves against the manifest's folder (it was Patchy's working folder). Inside an AppImage the
+companion no longer inherits `APPDIR`, `APPIMAGE`, `ARGV0`, `OWD` or the platform theme AppRun chose
+([companions.md](companions.md#companions-menu)). Permanent identifier: `PATCHY_MCP_ARGS`. Pinned by
+`ui_companion_launch_guard_bundles_and_manifest_problems` and
+`ui_companion_environment_names_the_appimage`.
 2026-11-02 (additive): text runs (`addTextLayer`, `setTextRuns`) take the rest of the Character
 panel's OpenType toggles (GitHub issue 346, [text-character-styles.md](text-character-styles.md)):
 booleans `ligatures` (default true), `contextualAlternates`, `discretionaryLigatures`, `swash`,

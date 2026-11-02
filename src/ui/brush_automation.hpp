@@ -22,6 +22,9 @@ class BrushAutomationLibrary : public QObject {
   // either storage folder was added, removed, resized or touched. It lists the folders
   // without reading or hashing any file, so an idle window stays cheap (GitHub issue 135).
   void refresh_if_files_changed();
+  // How many times refresh() has read the storage folders. Companion event polling must not
+  // add to it (docs/companions.md#events).
+  [[nodiscard]] int refresh_count() const { return refresh_count_; }
   [[nodiscard]] QString revision() const;
   [[nodiscard]] QJsonArray tips() const;
   [[nodiscard]] QJsonObject tip_info(const QString& id) const;
@@ -42,6 +45,7 @@ class BrushAutomationLibrary : public QObject {
   BrushTipLibrary& tips_;
   QString directory_, fingerprint_, tip_fingerprint_, revision_;
   QByteArray file_listing_;
+  int refresh_count_ = 0;
   QJsonArray presets_;
   mutable std::map<QString, std::shared_ptr<const BrushTip>> preset_tips_;
   std::map<QString, std::shared_ptr<const BrushTip>> captured_tips_;

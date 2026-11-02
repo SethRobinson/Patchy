@@ -182,8 +182,12 @@ struct McpSession::Impl final : public QObject {
 
   QJsonObject state() const {
     auto result = host_.automation_state();
-    result["stateToken"] = nonce_ + '/' + host_.automation_fingerprint();
+    result["stateToken"] = state_token(false);  // the brush folders were just read
     return result;
+  }
+
+  QString state_token(bool refresh_brushes) const {
+    return nonce_ + '/' + host_.automation_fingerprint(refresh_brushes);
   }
 
   void rpc_error(const QJsonValue& id, int code, const QString& message) {
@@ -506,7 +510,9 @@ struct McpSession::Impl final : public QObject {
       }
     }
     if (full) {
-      const auto token = state()["stateToken"].toString();
+      // The token alone, without reading the brush folders: a preset saved in Patchy bumps the
+      // library revision anyway, and the next get_state picks up files changed elsewhere.
+      const auto token = state_token(false);
       if (token != event_token_) {
         const bool first = event_token_.isEmpty();
         event_token_ = token;

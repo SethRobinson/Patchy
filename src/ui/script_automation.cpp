@@ -120,9 +120,9 @@ bool ScriptEngineHost::restore_session_history(std::int64_t id, bool redo) {
   return true;
 }
 
-QJsonObject ScriptEngineHost::automation_state() const {
+QJsonObject ScriptEngineHost::automation_state(bool refresh_brushes) const {
   auto& brushes = window_.brush_automation_library();
-  brushes.refresh();
+  if (refresh_brushes) { brushes.refresh(); }
   QJsonArray documents;
   for (const auto id : session_ids()) {
     const auto* doc = session_document_const(id);
@@ -158,10 +158,10 @@ QJsonObject ScriptEngineHost::automation_state() const {
             {"presetId", window_.active_automation_preset_id_}}) : QJsonValue(QJsonValue::Null)}};
 }
 
-QString ScriptEngineHost::automation_fingerprint() const {
+QString ScriptEngineHost::automation_fingerprint(bool refresh_brushes) const {
   // Revisions and selection geometry, never a scan of layer pixel buffers.
   // The active document/layer and save state are deliberately part of the token.
-  QByteArray bytes = QJsonDocument(automation_state()).toJson(QJsonDocument::Compact);
+  QByteArray bytes = QJsonDocument(automation_state(refresh_brushes)).toJson(QJsonDocument::Compact);
   if (window_.canvas_) bytes += QJsonDocument(BrushAutomationLibrary::settings(window_.canvas_->current_script_brush())).toJson(QJsonDocument::Compact);
   QDataStream stream(&bytes, QIODevice::Append);
   stream.setVersion(QDataStream::Qt_6_0);

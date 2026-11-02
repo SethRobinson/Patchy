@@ -19128,6 +19128,22 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>%1 (start it outside Patchy)</source>
         <translation>%1 (außerhalb von Patchy starten)</translation>
     </message>
+    <message>
+        <source>Manifests That Could Not Be Read...</source>
+        <translation>Nicht lesbare Manifeste...</translation>
+    </message>
+    <message>
+        <source>Companion Manifests</source>
+        <translation>Manifeste der Begleit-Apps</translation>
+    </message>
+    <message>
+        <source>These files in the companions folder were skipped:</source>
+        <translation>Diese Dateien im Ordner für Begleit-Apps wurden übersprungen:</translation>
+    </message>
+    <message>
+        <source>%1 is starting...</source>
+        <translation>%1 wird gerade gestartet...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

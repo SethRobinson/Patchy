@@ -19128,6 +19128,22 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>%1 (start it outside Patchy)</source>
         <translation>%1 (lancez-le en dehors de Patchy)</translation>
     </message>
+    <message>
+        <source>Manifests That Could Not Be Read...</source>
+        <translation>Manifestes illisibles...</translation>
+    </message>
+    <message>
+        <source>Companion Manifests</source>
+        <translation>Manifestes des applications compagnons</translation>
+    </message>
+    <message>
+        <source>These files in the companions folder were skipped:</source>
+        <translation>Ces fichiers du dossier des applications compagnons ont été ignorés :</translation>
+    </message>
+    <message>
+        <source>%1 is starting...</source>
+        <translation>%1 est en cours de démarrage...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

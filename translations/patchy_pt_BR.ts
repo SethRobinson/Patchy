@@ -19128,6 +19128,22 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>%1 (start it outside Patchy)</source>
         <translation>%1 (inicie fora do Patchy)</translation>
     </message>
+    <message>
+        <source>Manifests That Could Not Be Read...</source>
+        <translation>Manifestos que não puderam ser lidos...</translation>
+    </message>
+    <message>
+        <source>Companion Manifests</source>
+        <translation>Manifestos de aplicativos complementares</translation>
+    </message>
+    <message>
+        <source>These files in the companions folder were skipped:</source>
+        <translation>Estes arquivos na pasta de aplicativos complementares foram ignorados:</translation>
+    </message>
+    <message>
+        <source>%1 is starting...</source>
+        <translation>%1 está sendo iniciado...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

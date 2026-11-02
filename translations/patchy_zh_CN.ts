@@ -19083,6 +19083,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>%1 (start it outside Patchy)</source>
         <translation>%1（请在 Patchy 之外启动）</translation>
     </message>
+    <message>
+        <source>Manifests That Could Not Be Read...</source>
+        <translation>无法读取的清单...</translation>
+    </message>
+    <message>
+        <source>Companion Manifests</source>
+        <translation>配套应用清单</translation>
+    </message>
+    <message>
+        <source>These files in the companions folder were skipped:</source>
+        <translation>已跳过配套应用文件夹中的以下文件：</translation>
+    </message>
+    <message>
+        <source>%1 is starting...</source>
+        <translation>%1 正在启动...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

@@ -12,6 +12,9 @@ namespace patchy::ui {
 // The argument the AppImage's AppRun takes to start the bundled patchy-mcp connector
 // instead of the app (packaging/linux/appimage/AppRun).
 inline constexpr char kAppImageConnectorArgument[] = "patchy-mcp";
+// Set to 1 by AppRun when it chose QT_QPA_PLATFORMTHEME itself, so a companion Patchy starts
+// gets the user's own setting back (src/ui/companion_apps.cpp).
+inline constexpr char kAppRunSetPlatformThemeVariable[] = "PATCHY_APPRUN_SET_PLATFORMTHEME";
 
 // The absolute path of the running .AppImage file. Empty off Linux, inside a Flatpak,
 // and when this executable does not live under APPDIR: an AppImage'd program (an AI

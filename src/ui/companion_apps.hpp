@@ -3,12 +3,14 @@
 // connector (docs/companions.md). Each one is a JSON manifest in the per-user companions
 // folder; picking its entry tells the running companion to show itself, or starts it with
 // the connector endpoint in its environment. The manifest keys are a file-format contract.
+#include <QDeadlineTimer>
 #include <QObject>
 #include <QProcessEnvironment>
 #include <QString>
 #include <QStringList>
 
 #include <functional>
+#include <map>
 #include <vector>
 
 class QMenu;
@@ -20,9 +22,9 @@ struct CompanionManifest {
   QString id;          // reverse-DNS, unique: "io.github.example.openfill"
   QString name;        // shown in messages
   QString menu_label;  // the menu entry; defaults to name
-  QString command;     // absolute, relative to the manifest's folder, or found on PATH
+  QString command;     // absolute, relative to the manifest's folder, or found on PATH; a file or a *.app bundle
   QStringList args;
-  QString working_directory;  // empty: the manifest's folder
+  QString working_directory;  // empty: the manifest's folder; relative: below the manifest's folder
   int min_protocol = 1;       // the companion protocol range it works with (docs/companions.md#protocol)
   int max_protocol = 0;       // 0: no upper limit
   QString manifest_path;
@@ -38,11 +40,21 @@ struct CompanionManifest {
 [[nodiscard]] std::vector<CompanionManifest> load_companion_manifests(QStringList* problems = nullptr);
 // Reads one manifest; empty `id` with `error` set when the file is not a valid manifest.
 [[nodiscard]] CompanionManifest read_companion_manifest(const QString& path, QString* error);
-// The program a manifest starts, resolved as `command` describes; empty when not found.
+// The program a manifest starts, resolved as `command` describes; empty when not found. An
+// app bundle (a folder named *.app) resolves to Contents/MacOS/<CFBundleExecutable>.
 [[nodiscard]] QString resolve_companion_command(const CompanionManifest& manifest);
+// The executable inside an app bundle: Info.plist's CFBundleExecutable (XML plists), else the
+// bundle's name, under Contents/MacOS. Empty when that file does not exist.
+[[nodiscard]] QString companion_bundle_executable(const QString& bundle_path);
+// Where the companion starts: `workingDirectory` resolved against the manifest's folder, or
+// that folder itself.
+[[nodiscard]] QString companion_working_directory(const CompanionManifest& manifest);
 // The environment a companion starts with: this process's plus PATCHY_MCP_ENDPOINT,
-// PATCHY_COMPANION_ID, PATCHY_EXECUTABLE and PATCHY_MCP (the connector, when installed; inside
-// an AppImage both name the .AppImage file, whose connector takes the patchy-mcp argument).
+// PATCHY_COMPANION_ID, PATCHY_EXECUTABLE, PATCHY_MCP (the connector, when installed; inside
+// an AppImage both name the .AppImage file, whose connector takes the patchy-mcp argument) and
+// PATCHY_MCP_ARGS (a JSON array of the arguments that follow PATCHY_MCP to attach). Inside an
+// AppImage, what its runtime and AppRun set for Patchy (APPDIR, APPIMAGE, ARGV0, OWD and the
+// portal platform theme AppRun chose) is left out.
 [[nodiscard]] QProcessEnvironment companion_environment(const CompanionManifest& manifest);
 
 // Owns the Companions submenu, parented to the Plugins menu. The entries are rebuilt from
@@ -64,6 +76,7 @@ class CompanionMenu final : public QObject {
   // False inside a Flatpak sandbox, which cannot start host programs: the artist starts the
   // companion and it attaches (docs/companions.md#companions-menu).
   void set_can_launch_for_testing(bool can_launch) { can_launch_ = can_launch; }
+  void set_launch_grace_for_testing(int milliseconds) { launch_grace_ms_ = milliseconds; }
 
  protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -73,5 +86,9 @@ class CompanionMenu final : public QObject {
   QMenu* menu_;
   Launcher launcher_;
   bool can_launch_;
+  // Companions started but not attached yet, by id: a second pick inside the grace period does
+  // not start another copy.
+  std::map<QString, QDeadlineTimer> launching_;
+  int launch_grace_ms_ = 20000;
 };
 }  // namespace patchy::ui

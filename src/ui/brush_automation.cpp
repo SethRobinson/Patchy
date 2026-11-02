@@ -93,6 +93,7 @@ BrushAutomationLibrary::BrushAutomationLibrary(BrushTipLibrary& tips, QObject* p
   refresh();
 }
 void BrushAutomationLibrary::refresh() {
+  ++refresh_count_;
   const auto tip_signature = preset_storage_signature(tips_.storage_dir());
   const auto signature = preset_storage_signature(directory_) + tip_signature;
   const auto fingerprint = QString::fromLatin1(QCryptographicHash::hash(signature, QCryptographicHash::Sha256).toHex());

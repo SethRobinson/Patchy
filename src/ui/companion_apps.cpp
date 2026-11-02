@@ -3,6 +3,7 @@
 #include "ui/ai_control_paths.hpp"
 #include "ui/appimage_environment.hpp"
 #include "ui/command_search.hpp"
+#include "ui/dialog_utils.hpp"
 #include "ui/main_window.hpp"
 #include "ui/mcp_attachment.hpp"
 #include "ui/mcp_session.hpp"
@@ -112,26 +113,77 @@ std::vector<CompanionManifest> load_companion_manifests(QStringList* problems) {
   return manifests;
 }
 
+QString companion_bundle_executable(const QString& bundle_path) {
+  const QDir bundle(bundle_path);
+  QString name;
+  QFile plist(bundle.absoluteFilePath(QStringLiteral("Contents/Info.plist")));
+  if (plist.size() <= 1024 * 1024 && plist.open(QIODevice::ReadOnly)) {
+    // XML property lists only; a binary one falls back to the bundle's own name.
+    static const QRegularExpression executable_key(
+        QStringLiteral("<key>\\s*CFBundleExecutable\\s*</key>\\s*<string>([^<]+)</string>"));
+    const auto match = executable_key.match(QString::fromUtf8(plist.readAll()));
+    if (match.hasMatch()) { name = match.captured(1).trimmed(); }
+  }
+  if (name.isEmpty() || name.contains(QLatin1Char('/'))) { name = QFileInfo(bundle_path).completeBaseName(); }
+  const QFileInfo executable(bundle.absoluteFilePath(QStringLiteral("Contents/MacOS/") + name));
+  return executable.isFile() ? executable.absoluteFilePath() : QString();
+}
+
+namespace {
+// A file runs as is; an app bundle (a folder named *.app) runs its Contents/MacOS executable,
+// so the companion still gets its arguments and environment (`open -a` would drop both).
+QString runnable_path(const QFileInfo& info) {
+  if (info.isFile()) { return info.absoluteFilePath(); }
+  if (info.isDir() && info.suffix().compare(QStringLiteral("app"), Qt::CaseInsensitive) == 0) {
+    return companion_bundle_executable(info.absoluteFilePath());
+  }
+  return {};
+}
+}  // namespace
+
 QString resolve_companion_command(const CompanionManifest& manifest) {
   const QFileInfo command(manifest.command);
-  if (command.isAbsolute()) { return command.isFile() ? command.absoluteFilePath() : QString(); }
+  if (command.isAbsolute()) { return runnable_path(command); }
   if (manifest.command.contains(QLatin1Char('/')) || manifest.command.contains(QLatin1Char('\\'))) {
-    const QFileInfo relative(QFileInfo(manifest.manifest_path).absoluteDir(), manifest.command);
-    return relative.isFile() ? relative.absoluteFilePath() : QString();
+    return runnable_path(QFileInfo(QFileInfo(manifest.manifest_path).absoluteDir(), manifest.command));
   }
   return QStandardPaths::findExecutable(manifest.command);
 }
 
+QString companion_working_directory(const CompanionManifest& manifest) {
+  const QDir manifest_folder = QFileInfo(manifest.manifest_path).absoluteDir();
+  if (manifest.working_directory.isEmpty()) { return manifest_folder.absolutePath(); }
+  return QDir::cleanPath(manifest_folder.absoluteFilePath(manifest.working_directory));
+}
+
 QProcessEnvironment companion_environment(const CompanionManifest& manifest) {
   auto environment = QProcessEnvironment::systemEnvironment();
+  const auto appimage = appimage_file_path();
+  if (!appimage.isEmpty()) {
+    // What the AppImage runtime and AppRun set for Patchy itself, which would mislead a
+    // companion that is a Qt program or an AppImage of its own (packaging/linux/appimage/AppRun).
+    for (const auto* name : {"APPDIR", "APPIMAGE", "ARGV0", "OWD"}) { environment.remove(QLatin1String(name)); }
+    if (environment.contains(QLatin1String(kAppRunSetPlatformThemeVariable))) {
+      environment.remove(QStringLiteral("QT_QPA_PLATFORMTHEME"));
+      environment.remove(QLatin1String(kAppRunSetPlatformThemeVariable));
+    }
+  }
   environment.insert(QStringLiteral("PATCHY_MCP_ENDPOINT"), mcp_attachment_endpoint());
   environment.insert(QStringLiteral("PATCHY_COMPANION_ID"), manifest.id);
   environment.insert(QStringLiteral("PATCHY_EXECUTABLE"), user_visible_executable_path());
   // Inside an AppImage the .AppImage file is the connector, run with the patchy-mcp argument
   // (its mount, where a patchy-mcp beside the executable would live, is gone once Patchy exits).
+  // PATCHY_MCP_ARGS is the JSON array of arguments that follow PATCHY_MCP to attach.
   const auto paths = resolve_ai_control_paths();
   const auto connector = paths.appimage_path.isEmpty() ? paths.connector_path : paths.appimage_path;
-  if (!connector.isEmpty()) { environment.insert(QStringLiteral("PATCHY_MCP"), connector); }
+  if (!connector.isEmpty()) {
+    environment.insert(QStringLiteral("PATCHY_MCP"), connector);
+    QJsonArray args;
+    if (!paths.appimage_path.isEmpty()) { args.append(QLatin1String(kAppImageConnectorArgument)); }
+    args.append(QStringLiteral("--attach"));
+    environment.insert(QStringLiteral("PATCHY_MCP_ARGS"),
+                       QString::fromUtf8(QJsonDocument(args).toJson(QJsonDocument::Compact)));
+  }
   return environment;
 }
 
@@ -164,8 +216,10 @@ bool CompanionMenu::eventFilter(QObject* watched, QEvent* event) {
 
 void CompanionMenu::rebuild() {
   menu_->clear();
-  const auto manifests = load_companion_manifests();
+  QStringList problems;
+  const auto manifests = load_companion_manifests(&problems);
   for (const auto& manifest : manifests) {
+    if (McpAttachment::companion_attached(manifest.id)) { launching_.erase(manifest.id); }
     const auto label = QString(manifest.menu_label).replace(QLatin1Char('&'), QStringLiteral("&&"));
     const bool supported = companion_protocol_supported(manifest);
     const bool reachable = can_launch_ || McpAttachment::companion_attached(manifest.id);
@@ -198,7 +252,7 @@ void CompanionMenu::rebuild() {
     quit_action->setProperty(kWorksWithoutDocumentProperty, true);
     connect(quit_action, &QAction::triggered, this, [this, manifest] { (void)quit(manifest); });
   }
-  if (menu_->isEmpty()) {
+  if (menu_->isEmpty() && problems.isEmpty()) {
     auto* none = menu_->addAction(tr("No companion apps installed"));
     none->setObjectName(QStringLiteral("companionsNoneAction"));
     none->setEnabled(false);
@@ -206,6 +260,20 @@ void CompanionMenu::rebuild() {
     none->setProperty(kCommandSearchDataEntryProperty, true);  // a folder state, not a command
   }
   menu_->addSeparator();
+  if (!problems.isEmpty()) {
+    // A manifest that is skipped says why, instead of its entry just not appearing.
+    auto* skipped = menu_->addAction(tr("Manifests That Could Not Be Read..."));
+    skipped->setObjectName(QStringLiteral("companionsProblemsAction"));
+    skipped->setMenuRole(QAction::NoRole);
+    skipped->setProperty(kCommandSearchDataEntryProperty, true);  // shown only while a file is broken
+    skipped->setProperty(kWorksWithoutDocumentProperty, true);
+    connect(skipped, &QAction::triggered, this, [this, problems] {
+      show_information_message(&window_, tr("Companion Manifests"),
+                               tr("These files in the companions folder were skipped:") + QStringLiteral("\n\n") +
+                                   problems.join(QLatin1Char('\n')),
+                               QStringLiteral("companionProblemsMessage"));
+    });
+  }
   auto* open_folder = menu_->addAction(tr("Open Companions Folder"));
   open_folder->setObjectName(QStringLiteral("companionsOpenFolderAction"));
   open_folder->setMenuRole(QAction::NoRole);
@@ -222,20 +290,27 @@ bool CompanionMenu::activate(const CompanionManifest& manifest) {
     return false;
   }
   if (McpAttachment::send_companion_command(manifest.id, QStringLiteral("show"))) {
+    launching_.erase(manifest.id);
     window_.statusBar()->showMessage(tr("Asked %1 to show its panel").arg(manifest.name), 4000);
     return true;
   }
   if (!can_launch_) {
     return false;
   }
+  // A companion attaches only once it has started, so a second pick before that would start a
+  // second copy; until it attaches, or the grace period ends, the pick just says it is starting.
+  if (const auto pending = launching_.find(manifest.id);
+      pending != launching_.end() && !pending->second.hasExpired()) {
+    window_.statusBar()->showMessage(tr("%1 is starting...").arg(manifest.name), 4000);
+    return true;
+  }
   const auto program = resolve_companion_command(manifest);
-  const auto working_directory = manifest.working_directory.isEmpty()
-                                     ? QFileInfo(manifest.manifest_path).absolutePath()
-                                     : manifest.working_directory;
-  if (program.isEmpty() || !launcher_(program, manifest.args, working_directory, companion_environment(manifest))) {
+  if (program.isEmpty() ||
+      !launcher_(program, manifest.args, companion_working_directory(manifest), companion_environment(manifest))) {
     window_.statusBar()->showMessage(tr("Could not start %1 (%2)").arg(manifest.name, manifest.command), 8000);
     return false;
   }
+  launching_.insert_or_assign(manifest.id, QDeadlineTimer(launch_grace_ms_));
   window_.statusBar()->showMessage(tr("Starting %1...").arg(manifest.name), 4000);
   return true;
 }
@@ -244,6 +319,7 @@ bool CompanionMenu::quit(const CompanionManifest& manifest) {
   if (!McpAttachment::send_companion_command(manifest.id, QStringLiteral("quit"))) {
     return false;
   }
+  launching_.erase(manifest.id);
   window_.statusBar()->showMessage(tr("Asked %1 to quit").arg(manifest.name), 4000);
   return true;
 }

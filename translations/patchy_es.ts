@@ -19128,6 +19128,22 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>%1 (start it outside Patchy)</source>
         <translation>%1 (inícielo fuera de Patchy)</translation>
     </message>
+    <message>
+        <source>Manifests That Could Not Be Read...</source>
+        <translation>Manifiestos que no se pudieron leer...</translation>
+    </message>
+    <message>
+        <source>Companion Manifests</source>
+        <translation>Manifiestos de aplicaciones complementarias</translation>
+    </message>
+    <message>
+        <source>These files in the companions folder were skipped:</source>
+        <translation>Se omitieron estos archivos de la carpeta de aplicaciones complementarias:</translation>
+    </message>
+    <message>
+        <source>%1 is starting...</source>
+        <translation>%1 se está iniciando...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

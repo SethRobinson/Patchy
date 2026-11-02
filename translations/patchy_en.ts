@@ -19111,6 +19111,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>%1 (start it outside Patchy)</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Manifests That Could Not Be Read...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Companion Manifests</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>These files in the companions folder were skipped:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 is starting...</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
