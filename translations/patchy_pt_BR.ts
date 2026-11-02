@@ -18840,6 +18840,11 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>All Languages</source>
         <translation>Todos os idiomas</translation>
     </message>
+    <message>
+        <source>Other</source>
+        <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
+        <translation>Outras</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

@@ -1,9 +1,11 @@
 // The text bar font picker's Recent section (GitHub issue 569) and its Style and Language
 // filters (GitHub issue 570). See docs/font-picker.md.
 #include "ui/app_settings.hpp"
+#include "ui/dialog_utils.hpp"
 #include "ui/font_family_filters.hpp"
 #include "ui/font_picker.hpp"
 #include "ui/main_window.hpp"
+#include "ui/theme_palette.hpp"
 #include "test_fonts.hpp"
 #include "test_harness.hpp"
 #include "ui_test_groups.hpp"
@@ -15,13 +17,17 @@
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QImage>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
+#include <QPainter>
+#include <QScrollBar>
 #include <QStandardPaths>
 #include <QSignalBlocker>
 #include <QTest>
 
+#include <cstdlib>
 #include <iostream>
 
 using namespace patchy::test::ui;
@@ -220,7 +226,7 @@ void ui_font_picker_style_and_language_filters_persist() {
   CHECK(list != nullptr && style != nullptr && language != nullptr && status != nullptr);
   CHECK(style->currentData().toString() == QStringLiteral("all"));
   CHECK(language->currentData().toString() == QStringLiteral("all"));
-  CHECK(style->count() == 9);
+  CHECK(style->count() == 10);
   CHECK(language->count() > 1);
   CHECK(style->focusPolicy() == Qt::NoFocus && language->focusPolicy() == Qt::NoFocus);
   const auto all_rows = family_rows(*list, false);
@@ -309,6 +315,158 @@ void ui_font_picker_style_and_language_filters_persist() {
   reset_picker_settings();
 }
 
+// The popup over its open filter list, composed like the screen shows it (offscreen, the list
+// is its own top-level window).
+QImage grab_popup_with_open_list(QWidget& popup, QComboBox& combo) {
+  auto* list_window = combo.view()->window();
+  const auto origin = popup.mapToGlobal(QPoint(0, 0));
+  const auto list_origin = list_window->mapToGlobal(QPoint(0, 0)) - origin;
+  const QRect bounds = QRect(QPoint(0, 0), popup.size()).united(QRect(list_origin, list_window->size()));
+  QImage image(bounds.size(), QImage::Format_ARGB32_Premultiplied);
+  image.fill(Qt::transparent);
+  QPainter painter(&image);
+  painter.drawPixmap(-bounds.topLeft(), popup.grab());
+  painter.drawPixmap(list_origin - bounds.topLeft(), list_window->grab());
+  painter.end();
+  return image;
+}
+
+// GitHub issue 569 follow-up: the rule above "All Fonts" uses menu_separator, which stands off
+// the list background in both schemes (field_inset_border sat a shade off it and vanished).
+void ui_font_picker_recent_separator_reads_in_both_schemes() {
+  reset_picker_settings();
+  for (const auto scheme : {patchy::ui::ColorScheme::Dark, patchy::ui::ColorScheme::Light}) {
+    const auto& palette = patchy::ui::theme(scheme);
+    const auto contrast = [&palette](const QColor& rule) {
+      return std::abs(qGray(rule.rgb()) - qGray(palette.popup_list_bg.rgb()));
+    };
+    std::cout << "  note: rule contrast " << contrast(palette.menu_separator) << " (was "
+              << contrast(palette.field_inset_border) << ")\n";
+    CHECK(contrast(palette.menu_separator) >= 30);
+    CHECK(contrast(palette.menu_separator) > contrast(palette.field_inset_border));
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* picker = type_tool_picker(window);
+  CHECK(picker != nullptr);
+  if (picker->count() < 2) {
+    patchy::test::skip("fewer than two font families on this machine");
+  }
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QString::fromLatin1(patchy::ui::kFontPickerRecentFamiliesKey),
+                      QStringList{picker->itemText(1), picker->itemText(0)});
+  }
+  const auto capture = [picker](const char* name) {
+    auto* popup = open_picker_popup(*picker);
+    CHECK(popup != nullptr);
+    auto* list = popup->findChild<QListView*>(QStringLiteral("textFontPickerList"));
+    CHECK(list != nullptr);
+    CHECK(row_kind(list->model()->index(3, 0)) == FontPickerRowKind::all_header);
+    // The rule is drawn in the separator role two pixels into the All Fonts row.
+    const auto row = list->visualRect(list->model()->index(3, 0));
+    const auto image = list->viewport()->grab().toImage();
+    CHECK(image.pixelColor(row.center().x() / 2, row.top() + 2).rgb() == patchy::ui::theme().menu_separator.rgb());
+    save_widget_artifact(name, *popup);
+    popup->close();
+    QApplication::processEvents();
+  };
+  capture("issue569_separator_dark");
+  {
+    ColorSchemeRestorer light(patchy::ui::ColorSchemePreference::Light);
+    capture("issue569_separator_light");
+  }
+  reset_picker_settings();
+}
+
+// GitHub issue 570 follow-up: both filter lists scroll at a fixed height, Enter in an open list
+// only picks that entry (the font popup stays open), and Style offers Other for fonts whose
+// files state no style.
+void ui_font_picker_filter_lists_scroll_keep_enter_and_offer_other() {
+  const StandardPathsTestMode standard_paths_test_mode;  // the style cache goes to a test folder
+  patchy::ui::FontStyleIndex::instance().clear();
+  reset_picker_settings();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* picker = type_tool_picker(window);
+  CHECK(picker != nullptr);
+  auto* popup = open_picker_popup(*picker);
+  CHECK(popup != nullptr);
+  auto* list = popup->findChild<QListView*>(QStringLiteral("textFontPickerList"));
+  auto* style = popup->findChild<QComboBox*>(QStringLiteral("textFontPickerStyleCombo"));
+  auto* language = popup->findChild<QComboBox*>(QStringLiteral("textFontPickerLanguageCombo"));
+  auto* status = popup->findChild<QLabel*>(QStringLiteral("textFontPickerStatusLabel"));
+  CHECK(list != nullptr && style != nullptr && language != nullptr && status != nullptr);
+  for (auto* combo : {style, language}) {
+    CHECK(combo->maxVisibleItems() == patchy::ui::kLongListPopupRows);
+    // The sheet hint that makes every style honour maxVisibleItems.
+    CHECK(combo->styleSheet().contains(QStringLiteral("combobox-popup: 0")));
+  }
+  // Other is appended: the stored tokens of the older entries keep their places.
+  CHECK(style->count() == 10);
+  CHECK(style->itemData(9).toString() == QStringLiteral("other"));
+  CHECK(style->itemData(8).toString() == QStringLiteral("variable"));
+
+  const auto press_enter_in_open_list = [popup](QComboBox& combo, int row) {
+    combo.showPopup();
+    QApplication::processEvents();
+    auto* view = combo.view();
+    CHECK(view->isVisible());
+    view->setCurrentIndex(view->model()->index(row, 0));
+    auto* target = QApplication::focusWidget() != nullptr ? QApplication::focusWidget() : view;
+    QTest::keyClick(target, Qt::Key_Return);
+    QApplication::processEvents();
+    CHECK(!view->isVisible());
+    CHECK(popup->isVisible());  // the font popup stays open
+    CHECK(combo.currentIndex() == row);
+  };
+  // The first entry (already current) and another one, in both lists.
+  press_enter_in_open_list(*style, 0);
+  press_enter_in_open_list(*language, 0);
+  CHECK(language->count() > 2);
+  press_enter_in_open_list(*language, 2);
+  // Enter sent straight to the list view behaves the same.
+  language->showPopup();
+  QApplication::processEvents();
+  language->view()->setCurrentIndex(language->view()->model()->index(0, 0));
+  QTest::keyClick(language->view(), Qt::Key_Enter);
+  QApplication::processEvents();
+  CHECK(popup->isVisible());
+  CHECK(language->currentIndex() == 0);
+
+  // The Language list open over the popup, scrolling, with Other in the Style box.
+  style->setCurrentIndex(style->findData(QStringLiteral("other")));
+  CHECK(wait_for_style_reading(*popup, *status, 120000));
+  language->showPopup();
+  QApplication::processEvents();
+  if (language->count() > patchy::ui::kLongListPopupRows) {
+    CHECK(language->view()->verticalScrollBar()->maximum() > 0);  // scrolls, not screen-tall
+  }
+  save_image_artifact("issue570_language_list_and_other", grab_popup_with_open_list(*popup, *language));
+  language->hidePopup();
+  QApplication::processEvents();
+
+  // Other lists exactly the families with no usable style class.
+  auto& index = patchy::ui::FontStyleIndex::instance();
+  const auto other_rows = family_rows(*list, false);
+  for (const auto& family : other_rows) {
+    const auto traits = index.cached(family);
+    CHECK(traits.has_value() && traits->category == patchy::FontStyleCategory::unknown);
+  }
+  for (int row = 0; row < picker->count(); ++row) {
+    const auto family = picker->itemText(row);
+    const auto traits = index.cached(family);
+    if (traits.has_value() && traits->category == patchy::FontStyleCategory::unknown) {
+      CHECK(other_rows.contains(family));
+    }
+  }
+  std::cout << "  note: " << other_rows.size() << " of " << picker->count() << " families under Other\n";
+  popup->close();
+  QApplication::processEvents();
+  index.clear();
+  reset_picker_settings();
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> font_picker_filter_tests() {
@@ -316,5 +474,8 @@ std::vector<patchy::test::TestCase> font_picker_filter_tests() {
       {"ui_font_picker_recent_section_orders_skips_and_persists",
        ui_font_picker_recent_section_orders_skips_and_persists},
       {"ui_font_picker_style_and_language_filters_persist", ui_font_picker_style_and_language_filters_persist},
+      {"ui_font_picker_recent_separator_reads_in_both_schemes", ui_font_picker_recent_separator_reads_in_both_schemes},
+      {"ui_font_picker_filter_lists_scroll_keep_enter_and_offer_other",
+       ui_font_picker_filter_lists_scroll_keep_enter_and_offer_other},
   };
 }

@@ -221,6 +221,15 @@ protected:
         case Qt::Key_Down:
           step_to_family_row(*list_, current.isValid() ? current.row() : -1, 1);
           return true;
+        case Qt::Key_Return:
+        case Qt::Key_Enter:
+          // A filter combo's list open above the font popup owns Enter: hand it over rather
+          // than pick a font and close everything (GitHub issue 570 follow-up).
+          if (auto* active = QApplication::activePopupWidget(); active != nullptr && active != list_->window()) {
+            QApplication::sendEvent(active->focusWidget() != nullptr ? active->focusWidget() : active, event);
+            return true;
+          }
+          break;
         case Qt::Key_PageUp:
         case Qt::Key_PageDown: {
           QApplication::sendEvent(list_, event);
@@ -242,6 +251,36 @@ protected:
 
 private:
   QAbstractItemView* list_;
+};
+
+// Enter or Return in a filter combo's open list picks the row and closes only that list. The
+// stock container's handling let the key reach the font popup, which then closed as if a font
+// had been picked (GitHub issue 570 follow-up).
+class ComboListEnterGuard : public QObject {
+public:
+  explicit ComboListEnterGuard(QComboBox& combo) : QObject(&combo), combo_(combo) {}
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) {
+      const auto key = static_cast<const QKeyEvent*>(event)->key();
+      if (key == Qt::Key_Return || key == Qt::Key_Enter) {
+        if (event->type() == QEvent::KeyPress) {
+          const auto current = combo_.view()->currentIndex();
+          if (current.isValid() && (current.flags() & Qt::ItemIsEnabled) != 0) {
+            combo_.setCurrentIndex(current.row());
+          }
+          combo_.hidePopup();
+        }
+        event->accept();
+        return true;
+      }
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  QComboBox& combo_;
 };
 
 struct FontListRow {
@@ -360,7 +399,9 @@ private:
     painter->save();
     const auto rect = option.rect;
     if (index.data(kFontPickerRowKindRole).toInt() == static_cast<int>(FontPickerRowKind::all_header)) {
-      painter->setPen(theme().field_inset_border);
+      // menu_separator, not the list frame's field_inset_border: that one sits a shade off the
+      // list background and the rule vanished (GitHub issue 569 follow-up).
+      painter->setPen(theme().menu_separator);
       painter->drawLine(rect.left() + 4, rect.top() + 2, rect.right() - 4, rect.top() + 2);
     }
     const QFont label_font = scaled_font(combo_.font(), 0.9);
@@ -396,6 +437,9 @@ private:
     case FontStyleFilter::variable:
       //: Variable fonts (one font file with adjustable weight or width axes).
       return FontPickerCombo::tr("Variable");
+    case FontStyleFilter::other:
+      //: Fonts whose files state no style (none of the entries above).
+      return FontPickerCombo::tr("Other");
   }
   return {};
 }
@@ -876,6 +920,14 @@ void FontPickerCombo::showPopup() {
   language_combo->view()->setMinimumWidth(language_combo->view()->sizeHintForColumn(0) + 24);
   filter_row->addWidget(language_combo);
   layout->addLayout(filter_row);
+  // Both lists scroll at a fixed height instead of running off the screen (the Language list
+  // has dozens of entries; GitHub issue 570 follow-up), and keep Enter to themselves.
+  for (auto* combo : {style_combo, language_combo}) {
+    use_scrolling_list_popup(*combo);
+    auto* guard = new ComboListEnterGuard(*combo);
+    combo->view()->installEventFilter(guard);
+    combo->view()->window()->installEventFilter(guard);  // the list's popup container
+  }
 
   auto* status = new QLabel(popup);
   status->setObjectName(QStringLiteral("textFontPickerStatusLabel"));

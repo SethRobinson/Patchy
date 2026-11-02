@@ -18840,6 +18840,11 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>All Languages</source>
         <translation>Toutes les langues</translation>
     </message>
+    <message>
+        <source>Other</source>
+        <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
+        <translation>Autres</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

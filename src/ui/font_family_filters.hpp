@@ -34,6 +34,7 @@ enum class FontStyleFilter : std::uint8_t {
   symbol,
   monospace,
   variable,
+  other,  // no usable style class (GitHub issue 570 follow-up); appended, tokens never move
 };
 
 [[nodiscard]] std::span<const FontStyleFilter> font_style_filters() noexcept;

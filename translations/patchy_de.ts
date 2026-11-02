@@ -18840,6 +18840,11 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>All Languages</source>
         <translation>Alle Sprachen</translation>
     </message>
+    <message>
+        <source>Other</source>
+        <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
+        <translation>Sonstige</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

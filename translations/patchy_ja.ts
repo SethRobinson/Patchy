@@ -18796,6 +18796,11 @@ Each item&apos;s own View setting still applies.</source>
         <source>All Languages</source>
         <translation>すべての言語</translation>
     </message>
+    <message>
+        <source>Other</source>
+        <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
+        <translation>その他</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

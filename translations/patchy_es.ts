@@ -18840,6 +18840,11 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>All Languages</source>
         <translation>Todos los idiomas</translation>
     </message>
+    <message>
+        <source>Other</source>
+        <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
+        <translation>Otras</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

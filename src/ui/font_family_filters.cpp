@@ -22,6 +22,7 @@ constexpr std::array kStyleFilters{
     FontStyleFilter::all,        FontStyleFilter::serif,  FontStyleFilter::sans_serif,
     FontStyleFilter::slab_serif, FontStyleFilter::script, FontStyleFilter::decorative,
     FontStyleFilter::symbol,     FontStyleFilter::monospace, FontStyleFilter::variable,
+    FontStyleFilter::other,
 };
 
 // Cache file format (one family per line after the header): category token, 0/1 variable,
@@ -90,6 +91,8 @@ QString font_style_filter_token(FontStyleFilter filter) {
       return QStringLiteral("monospace");
     case FontStyleFilter::variable:
       return QStringLiteral("variable");
+    case FontStyleFilter::other:
+      return QStringLiteral("other");
   }
   return QStringLiteral("all");
 }
@@ -253,6 +256,8 @@ bool FontStyleIndex::matches(FontStyleFilter filter, const QString& family, cons
       return fixed_pitch(family);
     case FontStyleFilter::variable:
       return traits.variable;
+    case FontStyleFilter::other:
+      return traits.category == FontStyleCategory::unknown;
   }
   return true;
 }

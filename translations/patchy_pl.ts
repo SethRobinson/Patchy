@@ -18884,6 +18884,11 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>All Languages</source>
         <translation>Wszystkie języki</translation>
     </message>
+    <message>
+        <source>Other</source>
+        <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
+        <translation>Inne</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>
