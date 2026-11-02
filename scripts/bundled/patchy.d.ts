@@ -229,6 +229,30 @@ interface PatchyImageData {
   data: ArrayBuffer;
 }
 
+/** 8-bit coverage block (0 none, 255 full); data holds width * height bytes. */
+interface PatchyMaskData {
+  /** Document-space position of the block; both default to 0 when passed in. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  data: ArrayBuffer;
+}
+
+/** A raster layer mask as layer.getLayerMask() reports it. */
+type PatchyCanvasAnchor = "topLeft" | "top" | "topRight" | "left" | "center" | "right" | "bottomLeft" |
+  "bottom" | "bottomRight";
+
+interface PatchyLayerMask extends PatchyMaskData {
+  /** Coverage outside the block: 0 (hidden) or 255 (shown). */
+  defaultColor: number;
+  /** Properties panel Density, 0..100. */
+  density: number;
+  /** Properties panel Feather in pixels (applied when rendering; data stays unblurred). */
+  feather: number;
+  disabled: boolean;
+}
+
 /** One run of formatted text: the layer options apply unless a field overrides them. */
 interface PatchyTextRun {
   text: string;
@@ -368,6 +392,21 @@ interface PatchyLayer {
    * An empty path reveals all, or hides all when inverted. */
   setVectorMask(options: Partial<PatchyVectorMask>): void;
   removeVectorMask(): void;
+  /** The raster layer mask at 8 bits (16/32-bit masks are converted), or null without one. */
+  getLayerMask(): PatchyLayerMask | null;
+  /**
+   * Replaces the raster layer mask, as one undoable edit with the run. Either a coverage
+   * block ({x?, y?, width, height, data}; defaultColor defaults to 0, so outside the block
+   * is hidden) or {fromSelection: true, invert?} for the document selection with its soft
+   * edges (Layer > Layer Mask > Reveal Selection, or Hide Selection with invert). density
+   * (0..100, default 100) and feather (pixels, default 0) set the mask's Properties panel
+   * values. Pixel, adjustment and group layers; throws when the layer's pixels are locked,
+   * on unknown keys, and for fromSelection without a selection.
+   */
+  setLayerMask(mask: (Partial<Pick<PatchyMaskData, "x" | "y">> & Pick<PatchyMaskData, "width" | "height" | "data"> |
+    {fromSelection: true; invert?: boolean}) & {defaultColor?: 0 | 255; density?: number; feather?: number}): void;
+  /** Deletes the raster layer mask; false when there is none. */
+  removeLayerMask(): boolean;
   transformVectorMask(matrix: PatchyVectorMatrix): void;
   rasterizeVectorMask(): void;
   /** Native raster fill on an unlocked RGB/RGBA8 pixel layer; selection clips the paint. */
@@ -686,6 +725,19 @@ interface PatchySelection {
     feather?: number; antialias?: boolean}): void;
   /** Fits the hard selection boundary once. tolerance: 0.5..10 px, default 2. */
   toPath(options?: {tolerance?: number}): PatchyVectorPath;
+  /**
+   * The selection's coverage, soft edges included, over `rect` (clipped to the canvas;
+   * 0 where nothing is selected), by default over the selection's bounds. Null when there
+   * is no selection and no rect. Throws when rect lies outside the canvas.
+   */
+  getMask(rect?: PatchyRect): PatchyMaskData | null;
+  /**
+   * Sets the selection from a coverage block (x and y default to 0), combined with the
+   * current selection by `operation` (default "replace"). Coverage that ends up all zero
+   * deselects. The current Feather and Anti-alias settings do not apply.
+   */
+  setMask(mask: Partial<Pick<PatchyMaskData, "x" | "y">> & Pick<PatchyMaskData, "width" | "height" | "data">,
+    options?: {operation?: "replace" | "add" | "subtract" | "intersect"}): void;
   readonly exists: boolean;
   /** Bounding box, or undefined when there is no selection. */
   readonly bounds: PatchyRect | undefined;
@@ -1002,6 +1054,12 @@ interface PatchyDocument {
   redo(): boolean;
   /** Writes a PNG without changing path, modified status, or history. */
   renderPreview(path: string, options?: PatchyPreviewOptions): PatchyPreview;
+  /**
+   * The merged visible image as RGBA8 at full resolution over `rect` (clipped to the
+   * canvas; default the whole canvas), the same pixels a flat PNG export writes there.
+   * 16 and 32-bit documents come back as their 8-bit display values. Read-only.
+   */
+  getCompositePixels(rect?: PatchyRect): PatchyImageData;
   readonly width: number;
   readonly height: number;
   readonly name: string;
@@ -1187,7 +1245,14 @@ interface PatchyDocument {
    *  Bicubic Sharper for a reduction, Bicubic Smoother for an enlargement); an unknown id
    *  throws. Text layers and smart objects re-render from their sources afterwards. */
   resizeImage(width: number, height: number, options?: {method?: PatchyResampleMethod}): void;
-  resizeCanvas(width: number, height: number): void;
+  /** Without options only the canvas size changes: layers keep their positions and nothing is
+   *  filled. With options it is Image > Canvas Size: `anchor` (default "topLeft") or `x`/`y`
+   *  (where the old canvas's top-left lands in the new one, so `{x: 200}` adds 200 px on the
+   *  left) places the content, the Background layer fills the new area with `fill` (default
+   *  white), and the selection moves with the content. Throws for Smart Filters and unparsed
+   *  Smart Objects when options are given. */
+  resizeCanvas(width: number, height: number, options?: {anchor?: PatchyCanvasAnchor; x?: number; y?: number;
+    fill?: string}): void;
   /** The artboards, top of the layer stack first (empty without artboards). */
   readonly artboards: PatchyLayer[];
   /**
@@ -1722,6 +1787,21 @@ interface PatchyIo {
   makeDir(path: string): boolean;
   /** Removes one file (never a folder); true when it was removed. */
   deleteFile(path: string): boolean;
+  /**
+   * Decodes an image file (PNG, JPEG, BMP, TIFF and the other formats Qt reads) into RGBA8
+   * at x = y = 0, or with grayscale: true into one byte per pixel (the luminance, alpha
+   * ignored: a mask saved by writeImage reads back as PatchyMaskData). Throws when it cannot
+   * be read, is larger than 30000 pixels on a side, or on unknown options.
+   */
+  readImage(path: string): PatchyImageData;
+  readImage(path: string, options: {grayscale?: false}): PatchyImageData;
+  readImage(path: string, options: {grayscale: true}): PatchyMaskData;
+  /**
+   * Encodes a block to a file by its extension (PNG when there is none): 4 bytes per pixel
+   * writes RGBA, 1 byte per pixel (getMask, getLayerMask) writes grayscale. Replaces the
+   * file whole, so a failed write keeps the previous file. Position fields are ignored.
+   */
+  writeImage(path: string, image: PatchyImageData | PatchyMaskData): void;
 }
 
 /**

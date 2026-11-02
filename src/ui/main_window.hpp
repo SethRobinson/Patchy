@@ -2017,7 +2017,11 @@ private:
   void create_fill_layer_with_appearance(const VectorFill& fill, const QString& name);
   [[nodiscard]] Layer build_fill_layer(const patchy::VectorFill& fill, const QString& name);
   [[nodiscard]] QString unique_fill_layer_name(const QString& base);
-  void create_fill_layer(const patchy::VectorFill& fill, const QString& name, QString label);
+  void create_fill_layer(const patchy::VectorFill& fill, const QString& name, QString label,
+                         float opacity = 1.0F);
+  // The Gradient tool's Fill Layer mode (GitHub issue 580): a released drag rewrites the
+  // active Gradient Fill layer's gradient, or adds a new Gradient Fill layer above.
+  void handle_gradient_fill_drawn(QPoint from, QPoint to);
   void new_solid_color_fill_layer();
   void new_gradient_fill_layer();
   void new_pattern_fill_layer();
@@ -2296,6 +2300,10 @@ private:
   // Duplicate to New Layer) that fills on a worker thread, previews into the
   // active layer, and pushes one history entry on OK.
   void remove_object_dialog();
+  // Edit > Fill's Content-Aware (GitHub issue 575): Remove Object's default fill of the
+  // selection with no dialog, one history entry; `to_new_layer` puts the filled selection
+  // on a new layer above the active one and leaves the layer as it was.
+  void content_aware_fill_selection(bool to_new_layer);
   // Select Subject, Select Background and Remove Background (main_window_ai_selection.cpp,
   // docs/ai-selection.md): one BiRefNet pass over the merged document under a cancellable
   // progress dialog (compute_subject_matte, which names `command` in its errors), then the
@@ -3385,6 +3393,7 @@ private:
   double round_brush_base_angle_degrees_{0.0};
   double round_brush_base_roundness_{100.0};
   QComboBox* gradient_method_combo_{nullptr};
+  QComboBox* gradient_mode_combo_{nullptr};
   QSpinBox* gradient_opacity_spin_{nullptr};
   QSlider* gradient_opacity_slider_{nullptr};
   QCheckBox* gradient_reverse_check_{nullptr};

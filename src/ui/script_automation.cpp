@@ -30,6 +30,17 @@ QJsonObject rect_json(const QRect& r) {
   return {{"x", r.x()}, {"y", r.y()}, {"width", r.width()}, {"height", r.height()}};
 }
 
+// The raster mask's geometry and Properties settings, not its pixels (getLayerMask reads those).
+QJsonValue layer_mask_state(const Layer& layer) {
+  const auto& mask = layer.mask();
+  if (!mask.has_value()) {
+    return QJsonValue(QJsonValue::Null);
+  }
+  return QJsonObject{{"bounds", rect_json(QRect(mask->bounds.x, mask->bounds.y, mask->pixels.width(), mask->pixels.height()))},
+                     {"enabled", !mask->disabled}, {"defaultColor", static_cast<int>(mask->default_color)},
+                     {"density", static_cast<double>(mask->density) * 100.0 / 255.0}, {"feather", mask->feather}};
+}
+
 QJsonArray layer_state(const std::vector<Layer>& layers, const std::vector<Layer>& roots) {
   QJsonArray result;
   for (const auto& layer : layers) {
@@ -54,6 +65,7 @@ QJsonArray layer_state(const std::vector<Layer>& layers, const std::vector<Layer
                               {"enabled", !layer.vector_mask()->disabled}, {"inverted", layer.vector_mask()->inverted},
                               {"linked", !layer.vector_mask()->unlinked}, {"density", layer.vector_mask()->density * 100.0 / 255.0},
                               {"feather", layer.vector_mask()->feather}}) : QJsonValue(QJsonValue::Null)},
+                            {"hasLayerMask", layer.mask().has_value()}, {"layerMask", layer_mask_state(layer)},
                             {"children", layer_state(layer.children(), roots)}});
   }
   return result;

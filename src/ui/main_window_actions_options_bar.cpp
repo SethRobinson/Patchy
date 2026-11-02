@@ -3188,6 +3188,37 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     save_tool_settings();
   });
 
+  // Mode sits first, as on the shape tools (GitHub issue 580): Pixels paints the layer,
+  // Fill Layer makes a Gradient Fill layer or rewrites the active one.
+  add_option_label(QT_TR_NOOP("Mode:"), {CanvasTool::Gradient});
+  gradient_mode_combo_ = new QComboBox(toolbar);
+  gradient_mode_combo_->setObjectName(QStringLiteral("gradientModeCombo"));
+  gradient_mode_combo_->addItem(tr("Pixels"), static_cast<int>(GradientToolMode::Pixels));
+  gradient_mode_combo_->addItem(tr("Fill Layer"), static_cast<int>(GradientToolMode::FillLayer));
+  gradient_mode_combo_->setFixedWidth(ui_text_length(86));
+  bind_tooltip(gradient_mode_combo_,
+               QT_TR_NOOP("What a drag makes: painted pixels, or a Gradient Fill layer (a new one, or the "
+                          "selected Gradient Fill layer redrawn)"));
+  add_option_widget(gradient_mode_combo_, {CanvasTool::Gradient});
+  add_option_separator({CanvasTool::Gradient});
+  QPointer<QComboBox> gradient_mode_combo(gradient_mode_combo_);
+  register_retranslation([gradient_mode_combo] {
+    if (gradient_mode_combo == nullptr || gradient_mode_combo->count() < 2) {
+      return;
+    }
+    const QSignalBlocker blocker(gradient_mode_combo);
+    // MainWindow::tr: "Pixels" exists in the QObject context with another meaning.
+    gradient_mode_combo->setItemText(0, MainWindow::tr("Pixels"));
+    gradient_mode_combo->setItemText(1, MainWindow::tr("Fill Layer"));
+  });
+  connect(gradient_mode_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (canvas_ == nullptr || gradient_mode_combo_ == nullptr || index < 0) {
+      return;
+    }
+    canvas_->set_gradient_tool_mode(static_cast<GradientToolMode>(gradient_mode_combo_->itemData(index).toInt()));
+    save_tool_settings();
+  });
+
   add_option_label(QT_TR_NOOP("Method:"), {CanvasTool::Gradient});
   gradient_method_combo_ = new QComboBox(toolbar);
   gradient_method_combo_->setObjectName(QStringLiteral("gradientMethodCombo"));

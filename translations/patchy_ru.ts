@@ -114,6 +114,26 @@
         <source>Fill only where the layer already has pixels, keeping their opacity</source>
         <translation>Заливать только там, где на слое уже есть пиксели, сохраняя их непрозрачность</translation>
     </message>
+    <message>
+        <source>Content-Aware</source>
+        <translation>С учётом содержимого</translation>
+    </message>
+    <message>
+        <source>Make a selection to fill it from its surroundings</source>
+        <translation>Создайте выделение, чтобы заполнить его по окружению</translation>
+    </message>
+    <message>
+        <source>Add to New Layer</source>
+        <translation>Добавить на новый слой</translation>
+    </message>
+    <message>
+        <source>Put the content-aware fill on a new layer above this one, transparent outside the selection</source>
+        <translation>Поместить заливку с учётом содержимого на новый слой над этим, прозрачный вне выделения</translation>
+    </message>
+    <message>
+        <source>Content-Aware fills from the pixels around the selection</source>
+        <translation>Заливка с учётом содержимого берёт пиксели вокруг выделения</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -14454,10 +14474,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Набор обводки с именем «%1» уже существует.</translation>
     </message>
     <message>
-        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
-        <translation>Встроенный набор: его можно использовать, но нельзя переименовать, переместить или удалить.</translation>
-    </message>
-    <message>
         <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
         <translation>Сохранённых наборов обводки пока нет. В окне «Внешний вид фигуры» настройте обводку и нажмите «Сохранить...» рядом со штрихами.</translation>
     </message>
@@ -14784,6 +14800,42 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>The preset could not be exported.</source>
         <translation>Не удалось экспортировать набор.</translation>
+    </message>
+    <message>
+        <source>offset %1</source>
+        <translation>смещение %1</translation>
+    </message>
+    <message>
+        <source>%1 copy</source>
+        <translation>%1 копия</translation>
+    </message>
+    <message>
+        <source>%1 copy %2</source>
+        <translation>%1 копия %2</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation>Встроенный набор: его можно использовать, но нельзя переименовать, переместить или удалить. Создайте дубликат, чтобы получить копию для правки.</translation>
+    </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2; leave it empty for a solid line</source>
+        <translation>Длины штрихов и промежутков в ширинах обводки через пробел, например 4 2 или 6 2 1 2; оставьте пустым для сплошной линии</translation>
+    </message>
+    <message>
+        <source>Copy the selected preset into a new saved preset you can rename and edit</source>
+        <translation>Скопировать выбранную настройку в новую сохранённую, которую можно переименовать и изменить</translation>
+    </message>
+    <message>
+        <source>Fill layer. Double-click to edit its settings.</source>
+        <translation>Слой заливки. Дважды щёлкните, чтобы изменить его параметры.</translation>
+    </message>
+    <message>
+        <source>Pattern Fill</source>
+        <translation>Заливка узором</translation>
+    </message>
+    <message>
+        <source>Color Fill</source>
+        <translation>Заливка цветом</translation>
     </message>
 </context>
 <context>
@@ -18975,6 +19027,57 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Open the feature guide in your web browser</source>
         <translation>Открыть обзор возможностей в браузере</translation>
+    </message>
+    <message>
+        <source>Show the folder of companion app manifests on disk</source>
+        <translation>Показывает на диске папку с манифестами сопутствующих приложений</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::CompanionMenu</name>
+    <message>
+        <source>%1 could not be read.</source>
+        <translation>Не удалось прочитать %1.</translation>
+    </message>
+    <message>
+        <source>%1 is not a JSON object.</source>
+        <translation>%1 не является объектом JSON.</translation>
+    </message>
+    <message>
+        <source>%1: every args entry must be a string.</source>
+        <translation>%1: каждый элемент args должен быть строкой.</translation>
+    </message>
+    <message>
+        <source>%1 needs a reverse-DNS id, a name and a command.</source>
+        <translation>%1 требует id в обратной записи DNS, name и command.</translation>
+    </message>
+    <message>
+        <source>%1 repeats the id %2.</source>
+        <translation>%1 повторяет id %2.</translation>
+    </message>
+    <message>
+        <source>&amp;Companions</source>
+        <translation>&amp;Сопутствующие приложения</translation>
+    </message>
+    <message>
+        <source>No companion apps installed</source>
+        <translation>Сопутствующие приложения не установлены</translation>
+    </message>
+    <message>
+        <source>Open Companions Folder</source>
+        <translation>Открыть папку сопутствующих приложений</translation>
+    </message>
+    <message>
+        <source>Asked %1 to show its panel</source>
+        <translation>%1 получил запрос показать свою панель</translation>
+    </message>
+    <message>
+        <source>Could not start %1 (%2)</source>
+        <translation>Не удалось запустить %1 (%2)</translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation>Запуск %1...</translation>
     </message>
 </context>
 <context>
@@ -31872,28 +31975,52 @@ Locked: %1</source>
         <translation>%1 восстановлен</translation>
     </message>
     <message>
-        <source>Standard Ligatures (fonts that have them)</source>
-        <translation>Стандартные лигатуры (в шрифтах, где они есть)</translation>
+        <source>Fill Layer</source>
+        <translation>Слой заливки</translation>
     </message>
     <message>
-        <source>Contextual Alternates (fonts that have them)</source>
-        <translation>Контекстные варианты (в шрифтах, где они есть)</translation>
+        <source>What a drag makes: painted pixels, or a Gradient Fill layer (a new one, or the selected Gradient Fill layer redrawn)</source>
+        <translation>Что создаёт перетаскивание: нарисованные пиксели или слой градиентной заливки (новый или перерисованный выбранный слой градиентной заливки)</translation>
     </message>
     <message>
-        <source>Discretionary Ligatures (fonts that have them)</source>
-        <translation>Дополнительные лигатуры (в шрифтах, где они есть)</translation>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>Разблокируйте слой градиентной заливки, чтобы изменить его градиент</translation>
     </message>
     <message>
-        <source>Swash (fonts that have them)</source>
-        <translation>Росчерки (в шрифтах, где они есть)</translation>
+        <source>Edit Gradient Fill</source>
+        <translation>Изменение градиентной заливки</translation>
     </message>
     <message>
-        <source>Stylistic Alternates (fonts that have them)</source>
-        <translation>Стилистические варианты (в шрифтах, где они есть)</translation>
+        <source>Changed the gradient of %1.</source>
+        <translation>Градиент слоя %1 изменён.</translation>
     </message>
     <message>
-        <source>Titling Alternates (fonts that have them)</source>
-        <translation>Заголовочные варианты (в шрифтах, где они есть)</translation>
+        <source>New Gradient Fill</source>
+        <translation>Новая градиентная заливка</translation>
+    </message>
+    <message>
+        <source>Content-Aware fill needs a selection: select the area to fill first</source>
+        <translation>Для заливки с учётом содержимого требуется выделение: сначала выберите область, которую нужно залить</translation>
+    </message>
+    <message>
+        <source>Content-Aware Fill</source>
+        <translation>Заливка с учётом содержимого</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill (%1 patches)</source>
+        <translation>Выделение залито с учётом содержимого (фрагментов: %1)</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill on a new layer (%1 patches)</source>
+        <translation>Выделение залито с учётом содержимого на новом слое (фрагментов: %1)</translation>
+    </message>
+    <message>
+        <source>Edit Fill Settings...</source>
+        <translation>Изменить параметры заливки...</translation>
+    </message>
+    <message>
+        <source>Fill layer: %1</source>
+        <translation>Слой заливки: %1</translation>
     </message>
 </context>
 <context>
@@ -34024,6 +34151,102 @@ Locked: %1</source>
     <message>
         <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
         <translation>perspective.clone: sample — это &quot;current&quot;, &quot;currentAndBelow&quot; или &quot;all&quot;.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas anchor must be one of %1.</source>
+        <translation>Привязка resizeCanvas должна быть одной из %1.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas %1 must be a number between -30000 and 30000.</source>
+        <translation>resizeCanvas %1 должно быть числом от -30000 до 30000.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas: unknown option %1.</source>
+        <translation>resizeCanvas: неизвестный параметр %1.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas takes an anchor or x and y, not both.</source>
+        <translation>resizeCanvas принимает привязку или x и y, но не то и другое.</translation>
+    </message>
+    <message>
+        <source>Rasterize Smart Filters and Smart Objects before resizing the canvas with an anchor or offset.</source>
+        <translation>Растеризуйте смарт-фильтры и смарт-объекты, прежде чем менять размер холста с привязкой или смещением.</translation>
+    </message>
+    <message>
+        <source>%1: unknown option &quot;%2&quot;.</source>
+        <translation>%1: неизвестный параметр «%2».</translation>
+    </message>
+    <message>
+        <source>%1 needs a {x, y, width, height} rectangle.</source>
+        <translation>%1 требует прямоугольник {x, y, width, height}.</translation>
+    </message>
+    <message>
+        <source>%1 needs integer x, y, width and height, with a size from 1 to %2.</source>
+        <translation>%1 требует целые значения x, y, width и height и размер от 1 до %2.</translation>
+    </message>
+    <message>
+        <source>%1 needs a {width, height, data} object.</source>
+        <translation>%1 требует объект {width, height, data}.</translation>
+    </message>
+    <message>
+        <source>%1: data must hold width * height bytes.</source>
+        <translation>%1: data должен содержать width * height байт.</translation>
+    </message>
+    <message>
+        <source>%1: data must hold width * height * 4 RGBA bytes.</source>
+        <translation>%1: data должен содержать width * height * 4 байта RGBA.</translation>
+    </message>
+    <message>
+        <source>%1: the rectangle is outside the canvas.</source>
+        <translation>%1: прямоугольник находится за пределами холста.</translation>
+    </message>
+    <message>
+        <source>%1 options must be an object.</source>
+        <translation>%1: параметры должны быть объектом.</translation>
+    </message>
+    <message>
+        <source>setMask: operation must be &quot;replace&quot;, &quot;add&quot;, &quot;subtract&quot; or &quot;intersect&quot;.</source>
+        <translation>setMask: operation должен быть «replace», «add», «subtract» или «intersect».</translation>
+    </message>
+    <message>
+        <source>setLayerMask needs a mask object.</source>
+        <translation>setLayerMask требует объект маски.</translation>
+    </message>
+    <message>
+        <source>setLayerMask needs a pixel, adjustment, or group layer.</source>
+        <translation>setLayerMask требует растрового, корректирующего слоя или группы.</translation>
+    </message>
+    <message>
+        <source>setLayerMask: fromSelection needs a selection.</source>
+        <translation>setLayerMask: для fromSelection нужно выделение.</translation>
+    </message>
+    <message>
+        <source>setLayerMask: defaultColor must be 0 or 255.</source>
+        <translation>setLayerMask: defaultColor должен быть 0 или 255.</translation>
+    </message>
+    <message>
+        <source>setLayerMask: %1 must be a number from %2 to %3.</source>
+        <translation>setLayerMask: %1 должен быть числом от %2 до %3.</translation>
+    </message>
+    <message>
+        <source>readImage: %1 is larger than %2 pixels on a side.</source>
+        <translation>readImage: сторона %1 больше %2 пикселей.</translation>
+    </message>
+    <message>
+        <source>readImage: could not read %1 (%2).</source>
+        <translation>readImage: не удалось прочитать %1 (%2).</translation>
+    </message>
+    <message>
+        <source>writeImage: unsupported image format &quot;%1&quot;.</source>
+        <translation>writeImage: неподдерживаемый формат изображения «%1».</translation>
+    </message>
+    <message>
+        <source>writeImage: could not allocate the image.</source>
+        <translation>writeImage: не удалось создать изображение.</translation>
+    </message>
+    <message>
+        <source>writeImage: could not write %1.</source>
+        <translation>writeImage: не удалось записать %1.</translation>
     </message>
 </context>
 <context>

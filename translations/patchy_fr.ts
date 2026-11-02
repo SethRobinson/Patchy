@@ -114,6 +114,26 @@
         <source>Fill only where the layer already has pixels, keeping their opacity</source>
         <translation>Remplir uniquement là où le calque a déjà des pixels, en gardant leur opacité</translation>
     </message>
+    <message>
+        <source>Content-Aware</source>
+        <translation>D&apos;après le contenu</translation>
+    </message>
+    <message>
+        <source>Make a selection to fill it from its surroundings</source>
+        <translation>Faites une sélection pour la remplir à partir de ses alentours</translation>
+    </message>
+    <message>
+        <source>Add to New Layer</source>
+        <translation>Ajouter à un nouveau calque</translation>
+    </message>
+    <message>
+        <source>Put the content-aware fill on a new layer above this one, transparent outside the selection</source>
+        <translation>Placer le remplissage d&apos;après le contenu sur un nouveau calque au-dessus de celui-ci, transparent hors de la sélection</translation>
+    </message>
+    <message>
+        <source>Content-Aware fills from the pixels around the selection</source>
+        <translation>D&apos;après le contenu remplit avec les pixels autour de la sélection</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -14411,10 +14431,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Un contour prédéfini nommé « %1 » existe déjà.</translation>
     </message>
     <message>
-        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
-        <translation>Contour prédéfini intégré : il peut être utilisé, mais pas renommé, déplacé ni supprimé.</translation>
-    </message>
-    <message>
         <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
         <translation>Aucun contour prédéfini enregistré. Dans Apparence de la forme, réglez le contour puis cliquez sur Enregistrer... à côté de Tirets.</translation>
     </message>
@@ -14740,6 +14756,42 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>The preset could not be exported.</source>
         <translation>Impossible d&apos;exporter le préréglage.</translation>
+    </message>
+    <message>
+        <source>offset %1</source>
+        <translation>décalage %1</translation>
+    </message>
+    <message>
+        <source>%1 copy</source>
+        <translation>%1 copie</translation>
+    </message>
+    <message>
+        <source>%1 copy %2</source>
+        <translation>%1 copie %2</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation>Contour prédéfini intégré : il peut être utilisé, mais pas renommé, déplacé ni supprimé. Dupliquez-le pour obtenir une copie modifiable.</translation>
+    </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2; leave it empty for a solid line</source>
+        <translation>Longueurs des tirets et des espaces en largeurs de contour, séparées par des espaces, par exemple 4 2 ou 6 2 1 2 ; laissez vide pour un trait plein</translation>
+    </message>
+    <message>
+        <source>Copy the selected preset into a new saved preset you can rename and edit</source>
+        <translation>Copier le contour prédéfini sélectionné dans un nouveau contour enregistré que vous pouvez renommer et modifier</translation>
+    </message>
+    <message>
+        <source>Fill layer. Double-click to edit its settings.</source>
+        <translation>Calque de remplissage. Double-cliquez pour modifier ses paramètres.</translation>
+    </message>
+    <message>
+        <source>Pattern Fill</source>
+        <translation>Fond motif</translation>
+    </message>
+    <message>
+        <source>Color Fill</source>
+        <translation>Fond couleur</translation>
     </message>
 </context>
 <context>
@@ -18931,6 +18983,57 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Open the feature guide in your web browser</source>
         <translation>Ouvrir le guide des fonctions dans le navigateur web</translation>
+    </message>
+    <message>
+        <source>Show the folder of companion app manifests on disk</source>
+        <translation>Affiche sur le disque le dossier des manifestes d&apos;applications compagnons</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::CompanionMenu</name>
+    <message>
+        <source>%1 could not be read.</source>
+        <translation>Impossible de lire %1.</translation>
+    </message>
+    <message>
+        <source>%1 is not a JSON object.</source>
+        <translation>%1 n&apos;est pas un objet JSON.</translation>
+    </message>
+    <message>
+        <source>%1: every args entry must be a string.</source>
+        <translation>%1 : chaque entrée de args doit être une chaîne.</translation>
+    </message>
+    <message>
+        <source>%1 needs a reverse-DNS id, a name and a command.</source>
+        <translation>%1 nécessite un id au format DNS inversé, un name et une command.</translation>
+    </message>
+    <message>
+        <source>%1 repeats the id %2.</source>
+        <translation>%1 répète l&apos;id %2.</translation>
+    </message>
+    <message>
+        <source>&amp;Companions</source>
+        <translation>Applications &amp;compagnons</translation>
+    </message>
+    <message>
+        <source>No companion apps installed</source>
+        <translation>Aucune application compagnon installée</translation>
+    </message>
+    <message>
+        <source>Open Companions Folder</source>
+        <translation>Ouvrir le dossier des applications compagnons</translation>
+    </message>
+    <message>
+        <source>Asked %1 to show its panel</source>
+        <translation>%1 a été invité à afficher son panneau</translation>
+    </message>
+    <message>
+        <source>Could not start %1 (%2)</source>
+        <translation>Impossible de démarrer %1 (%2)</translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation>Démarrage de %1...</translation>
     </message>
 </context>
 <context>
@@ -31789,28 +31892,52 @@ Verrouillé : %1</translation>
         <translation>%1 a été rechargé</translation>
     </message>
     <message>
-        <source>Standard Ligatures (fonts that have them)</source>
-        <translation>Ligatures standard (polices qui en ont)</translation>
+        <source>Fill Layer</source>
+        <translation>Calque de remplissage</translation>
     </message>
     <message>
-        <source>Contextual Alternates (fonts that have them)</source>
-        <translation>Variantes contextuelles (polices qui en ont)</translation>
+        <source>What a drag makes: painted pixels, or a Gradient Fill layer (a new one, or the selected Gradient Fill layer redrawn)</source>
+        <translation>Ce que crée un glissement : des pixels peints, ou un calque de fond dégradé (un nouveau, ou le calque de fond dégradé sélectionné redessiné)</translation>
     </message>
     <message>
-        <source>Discretionary Ligatures (fonts that have them)</source>
-        <translation>Ligatures conditionnelles (polices qui en ont)</translation>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>Déverrouillez le calque de fond dégradé pour modifier son dégradé</translation>
     </message>
     <message>
-        <source>Swash (fonts that have them)</source>
-        <translation>Lettres ornées (polices qui en ont)</translation>
+        <source>Edit Gradient Fill</source>
+        <translation>Modifier le fond dégradé</translation>
     </message>
     <message>
-        <source>Stylistic Alternates (fonts that have them)</source>
-        <translation>Variantes stylistiques (polices qui en ont)</translation>
+        <source>Changed the gradient of %1.</source>
+        <translation>Dégradé de %1 modifié.</translation>
     </message>
     <message>
-        <source>Titling Alternates (fonts that have them)</source>
-        <translation>Variantes de titrage (polices qui en ont)</translation>
+        <source>New Gradient Fill</source>
+        <translation>Nouveau fond dégradé</translation>
+    </message>
+    <message>
+        <source>Content-Aware fill needs a selection: select the area to fill first</source>
+        <translation>Le remplissage d&apos;après le contenu a besoin d&apos;une sélection : sélectionnez d&apos;abord la zone à remplir</translation>
+    </message>
+    <message>
+        <source>Content-Aware Fill</source>
+        <translation>Remplissage d&apos;après le contenu</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill (%1 patches)</source>
+        <translation>Sélection remplie avec le remplissage d&apos;après le contenu (%1 pièces)</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill on a new layer (%1 patches)</source>
+        <translation>Sélection remplie avec le remplissage d&apos;après le contenu sur un nouveau calque (%1 pièces)</translation>
+    </message>
+    <message>
+        <source>Edit Fill Settings...</source>
+        <translation>Modifier les paramètres du fond...</translation>
+    </message>
+    <message>
+        <source>Fill layer: %1</source>
+        <translation>Calque de remplissage : %1</translation>
     </message>
 </context>
 <context>
@@ -33940,6 +34067,102 @@ Verrouillé : %1</translation>
     <message>
         <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
         <translation>perspective.clone : sample vaut &quot;current&quot;, &quot;currentAndBelow&quot; ou &quot;all&quot;.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas anchor must be one of %1.</source>
+        <translation>L&apos;ancre de resizeCanvas doit être l&apos;une des valeurs %1.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas %1 must be a number between -30000 and 30000.</source>
+        <translation>resizeCanvas %1 doit être un nombre compris entre -30000 et 30000.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas: unknown option %1.</source>
+        <translation>resizeCanvas : option inconnue %1.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas takes an anchor or x and y, not both.</source>
+        <translation>resizeCanvas accepte une ancre ou x et y, pas les deux.</translation>
+    </message>
+    <message>
+        <source>Rasterize Smart Filters and Smart Objects before resizing the canvas with an anchor or offset.</source>
+        <translation>Pixellisez les filtres dynamiques et les objets dynamiques avant de redimensionner la zone de travail avec une ancre ou un décalage.</translation>
+    </message>
+    <message>
+        <source>%1: unknown option &quot;%2&quot;.</source>
+        <translation>%1 : option inconnue « %2 ».</translation>
+    </message>
+    <message>
+        <source>%1 needs a {x, y, width, height} rectangle.</source>
+        <translation>%1 nécessite un rectangle {x, y, width, height}.</translation>
+    </message>
+    <message>
+        <source>%1 needs integer x, y, width and height, with a size from 1 to %2.</source>
+        <translation>%1 nécessite des valeurs entières pour x, y, width et height, avec une taille comprise entre 1 et %2.</translation>
+    </message>
+    <message>
+        <source>%1 needs a {width, height, data} object.</source>
+        <translation>%1 nécessite un objet {width, height, data}.</translation>
+    </message>
+    <message>
+        <source>%1: data must hold width * height bytes.</source>
+        <translation>%1 : data doit contenir width * height octets.</translation>
+    </message>
+    <message>
+        <source>%1: data must hold width * height * 4 RGBA bytes.</source>
+        <translation>%1 : data doit contenir width * height * 4 octets RVBA.</translation>
+    </message>
+    <message>
+        <source>%1: the rectangle is outside the canvas.</source>
+        <translation>%1 : le rectangle est en dehors de la zone de travail.</translation>
+    </message>
+    <message>
+        <source>%1 options must be an object.</source>
+        <translation>%1 : les options doivent être un objet.</translation>
+    </message>
+    <message>
+        <source>setMask: operation must be &quot;replace&quot;, &quot;add&quot;, &quot;subtract&quot; or &quot;intersect&quot;.</source>
+        <translation>setMask : operation doit valoir « replace », « add », « subtract » ou « intersect ».</translation>
+    </message>
+    <message>
+        <source>setLayerMask needs a mask object.</source>
+        <translation>setLayerMask nécessite un objet de masque.</translation>
+    </message>
+    <message>
+        <source>setLayerMask needs a pixel, adjustment, or group layer.</source>
+        <translation>setLayerMask nécessite un calque de pixels, de réglage ou de groupe.</translation>
+    </message>
+    <message>
+        <source>setLayerMask: fromSelection needs a selection.</source>
+        <translation>setLayerMask : fromSelection nécessite une sélection.</translation>
+    </message>
+    <message>
+        <source>setLayerMask: defaultColor must be 0 or 255.</source>
+        <translation>setLayerMask : defaultColor doit valoir 0 ou 255.</translation>
+    </message>
+    <message>
+        <source>setLayerMask: %1 must be a number from %2 to %3.</source>
+        <translation>setLayerMask : %1 doit être un nombre compris entre %2 et %3.</translation>
+    </message>
+    <message>
+        <source>readImage: %1 is larger than %2 pixels on a side.</source>
+        <translation>readImage : %1 dépasse %2 pixels sur un côté.</translation>
+    </message>
+    <message>
+        <source>readImage: could not read %1 (%2).</source>
+        <translation>readImage : impossible de lire %1 (%2).</translation>
+    </message>
+    <message>
+        <source>writeImage: unsupported image format &quot;%1&quot;.</source>
+        <translation>writeImage : format d&apos;image non pris en charge « %1 ».</translation>
+    </message>
+    <message>
+        <source>writeImage: could not allocate the image.</source>
+        <translation>writeImage : impossible de créer l&apos;image.</translation>
+    </message>
+    <message>
+        <source>writeImage: could not write %1.</source>
+        <translation>writeImage : impossible d&apos;écrire %1.</translation>
     </message>
 </context>
 <context>

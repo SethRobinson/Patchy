@@ -272,6 +272,14 @@ bool layer_is_vector_shape(const Layer& layer) {
   return layer_has_vector_shape_marker(layer) && layer.vector_shape() != nullptr;
 }
 
+bool layer_is_fill_layer(const Layer& layer) {
+  if (!layer_is_vector_shape(layer)) {
+    return false;
+  }
+  const auto* shape = layer.vector_shape();
+  return shape->path.empty() && shape->parts.empty() && shape->fill.kind != VectorFillKind::None;
+}
+
 bool layer_pixels_are_procedural(const Layer& layer) {
   return layer_is_text(layer) || layer_is_smart_object(layer) || layer_is_vector_shape(layer);
 }

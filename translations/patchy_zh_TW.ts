@@ -114,6 +114,26 @@
         <source>Fill only where the layer already has pixels, keeping their opacity</source>
         <translation>只在圖層已有像素的地方填滿，並保留其不透明度</translation>
     </message>
+    <message>
+        <source>Content-Aware</source>
+        <translation>內容感知</translation>
+    </message>
+    <message>
+        <source>Make a selection to fill it from its surroundings</source>
+        <translation>建立選取範圍後可依其周圍內容填色</translation>
+    </message>
+    <message>
+        <source>Add to New Layer</source>
+        <translation>加入新圖層</translation>
+    </message>
+    <message>
+        <source>Put the content-aware fill on a new layer above this one, transparent outside the selection</source>
+        <translation>將內容感知填色放到此圖層上方的新圖層,選取範圍外保持透明</translation>
+    </message>
+    <message>
+        <source>Content-Aware fills from the pixels around the selection</source>
+        <translation>內容感知使用選取範圍周圍的像素填色</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -14368,10 +14388,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>已有名為「%1」的筆畫預設集。</translation>
     </message>
     <message>
-        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
-        <translation>內建預設集：可以使用，但不能重新命名、移動或刪除。</translation>
-    </message>
-    <message>
         <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
         <translation>還沒有儲存的筆畫預設集。請在「形狀外觀」中設定筆畫，然後按一下「虛線」旁的「儲存...」。</translation>
     </message>
@@ -14696,6 +14712,42 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>The preset could not be exported.</source>
         <translation>無法匯出預設集。</translation>
+    </message>
+    <message>
+        <source>offset %1</source>
+        <translation>位移 %1</translation>
+    </message>
+    <message>
+        <source>%1 copy</source>
+        <translation>%1 拷貝</translation>
+    </message>
+    <message>
+        <source>%1 copy %2</source>
+        <translation>%1 拷貝 %2</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation>內建預設集：可以使用，但不能重新命名、移動或刪除。複製它可得到可編輯的拷貝。</translation>
+    </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2; leave it empty for a solid line</source>
+        <translation>以筆畫寬度為單位的虛線和間隙長度，以空格分隔，例如 4 2 或 6 2 1 2；留空則為實線</translation>
+    </message>
+    <message>
+        <source>Copy the selected preset into a new saved preset you can rename and edit</source>
+        <translation>將所選預設集複製為可重新命名和編輯的新儲存預設集</translation>
+    </message>
+    <message>
+        <source>Fill layer. Double-click to edit its settings.</source>
+        <translation>填滿圖層。按兩下可編輯其設定。</translation>
+    </message>
+    <message>
+        <source>Pattern Fill</source>
+        <translation>圖樣填色</translation>
+    </message>
+    <message>
+        <source>Color Fill</source>
+        <translation>純色填色</translation>
     </message>
 </context>
 <context>
@@ -18887,6 +18939,57 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Open the feature guide in your web browser</source>
         <translation>在網頁瀏覽器中開啟功能指南</translation>
+    </message>
+    <message>
+        <source>Show the folder of companion app manifests on disk</source>
+        <translation>在磁碟上顯示配套應用程式資訊清單所在的資料夾</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::CompanionMenu</name>
+    <message>
+        <source>%1 could not be read.</source>
+        <translation>無法讀取 %1。</translation>
+    </message>
+    <message>
+        <source>%1 is not a JSON object.</source>
+        <translation>%1 不是 JSON 物件。</translation>
+    </message>
+    <message>
+        <source>%1: every args entry must be a string.</source>
+        <translation>%1：args 的每一項都必須是字串。</translation>
+    </message>
+    <message>
+        <source>%1 needs a reverse-DNS id, a name and a command.</source>
+        <translation>%1 需要反向 DNS 格式的 id、name 和 command。</translation>
+    </message>
+    <message>
+        <source>%1 repeats the id %2.</source>
+        <translation>%1 重複使用了 id %2。</translation>
+    </message>
+    <message>
+        <source>&amp;Companions</source>
+        <translation>配套應用程式(&amp;C)</translation>
+    </message>
+    <message>
+        <source>No companion apps installed</source>
+        <translation>未安裝配套應用程式</translation>
+    </message>
+    <message>
+        <source>Open Companions Folder</source>
+        <translation>開啟配套應用程式資料夾</translation>
+    </message>
+    <message>
+        <source>Asked %1 to show its panel</source>
+        <translation>已要求 %1 顯示其面板</translation>
+    </message>
+    <message>
+        <source>Could not start %1 (%2)</source>
+        <translation>無法啟動 %1（%2）</translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation>正在啟動 %1...</translation>
     </message>
 </context>
 <context>
@@ -31706,28 +31809,52 @@ Locked: %1</source>
         <translation>已回復 %1</translation>
     </message>
     <message>
-        <source>Standard Ligatures (fonts that have them)</source>
-        <translation>標準連字 (僅限支援的字型)</translation>
+        <source>Fill Layer</source>
+        <translation>填滿圖層</translation>
     </message>
     <message>
-        <source>Contextual Alternates (fonts that have them)</source>
-        <translation>內容替代字 (僅限支援的字型)</translation>
+        <source>What a drag makes: painted pixels, or a Gradient Fill layer (a new one, or the selected Gradient Fill layer redrawn)</source>
+        <translation>拖曳產生的內容：繪製的像素，或漸層填色圖層（新增一個，或重新繪製所選的漸層填色圖層）</translation>
     </message>
     <message>
-        <source>Discretionary Ligatures (fonts that have them)</source>
-        <translation>自由連字 (僅限支援的字型)</translation>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>請解除鎖定漸層填色圖層以變更其漸層</translation>
     </message>
     <message>
-        <source>Swash (fonts that have them)</source>
-        <translation>花飾字 (僅限支援的字型)</translation>
+        <source>Edit Gradient Fill</source>
+        <translation>編輯漸層填色</translation>
     </message>
     <message>
-        <source>Stylistic Alternates (fonts that have them)</source>
-        <translation>風格替代字 (僅限支援的字型)</translation>
+        <source>Changed the gradient of %1.</source>
+        <translation>已變更 %1 的漸層。</translation>
     </message>
     <message>
-        <source>Titling Alternates (fonts that have them)</source>
-        <translation>標題替代字 (僅限支援的字型)</translation>
+        <source>New Gradient Fill</source>
+        <translation>新增漸層填色</translation>
+    </message>
+    <message>
+        <source>Content-Aware fill needs a selection: select the area to fill first</source>
+        <translation>內容感知填色需要選取範圍:請先選取要填色的區域</translation>
+    </message>
+    <message>
+        <source>Content-Aware Fill</source>
+        <translation>內容感知填色</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill (%1 patches)</source>
+        <translation>已使用內容感知填色填滿選取範圍 (%1 個修補片)</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill on a new layer (%1 patches)</source>
+        <translation>已使用內容感知填色在新圖層上填滿選取範圍 (%1 個修補片)</translation>
+    </message>
+    <message>
+        <source>Edit Fill Settings...</source>
+        <translation>編輯填滿設定...</translation>
+    </message>
+    <message>
+        <source>Fill layer: %1</source>
+        <translation>填滿圖層：%1</translation>
     </message>
 </context>
 <context>
@@ -33856,6 +33983,102 @@ Locked: %1</source>
     <message>
         <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
         <translation>perspective.clone: sample 為 &quot;current&quot;、&quot;currentAndBelow&quot; 或 &quot;all&quot;。</translation>
+    </message>
+    <message>
+        <source>resizeCanvas anchor must be one of %1.</source>
+        <translation>resizeCanvas 的錨點必須是 %1 之一。</translation>
+    </message>
+    <message>
+        <source>resizeCanvas %1 must be a number between -30000 and 30000.</source>
+        <translation>resizeCanvas 的 %1 必須是 -30000 到 30000 之間的數字。</translation>
+    </message>
+    <message>
+        <source>resizeCanvas: unknown option %1.</source>
+        <translation>resizeCanvas：未知選項 %1。</translation>
+    </message>
+    <message>
+        <source>resizeCanvas takes an anchor or x and y, not both.</source>
+        <translation>resizeCanvas 只能指定錨點或 x 和 y，不能同時指定。</translation>
+    </message>
+    <message>
+        <source>Rasterize Smart Filters and Smart Objects before resizing the canvas with an anchor or offset.</source>
+        <translation>使用錨點或位移調整版面尺寸之前，請先點陣化智慧型濾鏡和智慧型物件。</translation>
+    </message>
+    <message>
+        <source>%1: unknown option &quot;%2&quot;.</source>
+        <translation>%1：不明的選項「%2」。</translation>
+    </message>
+    <message>
+        <source>%1 needs a {x, y, width, height} rectangle.</source>
+        <translation>%1 需要 {x, y, width, height} 矩形。</translation>
+    </message>
+    <message>
+        <source>%1 needs integer x, y, width and height, with a size from 1 to %2.</source>
+        <translation>%1 需要整數 x、y、width 和 height，尺寸介於 1 和 %2 之間。</translation>
+    </message>
+    <message>
+        <source>%1 needs a {width, height, data} object.</source>
+        <translation>%1 需要 {width, height, data} 物件。</translation>
+    </message>
+    <message>
+        <source>%1: data must hold width * height bytes.</source>
+        <translation>%1：data 必須包含 width * height 個位元組。</translation>
+    </message>
+    <message>
+        <source>%1: data must hold width * height * 4 RGBA bytes.</source>
+        <translation>%1：data 必須包含 width * height * 4 個 RGBA 位元組。</translation>
+    </message>
+    <message>
+        <source>%1: the rectangle is outside the canvas.</source>
+        <translation>%1：矩形位於畫布之外。</translation>
+    </message>
+    <message>
+        <source>%1 options must be an object.</source>
+        <translation>%1 的選項必須是物件。</translation>
+    </message>
+    <message>
+        <source>setMask: operation must be &quot;replace&quot;, &quot;add&quot;, &quot;subtract&quot; or &quot;intersect&quot;.</source>
+        <translation>setMask：operation 必須是「replace」、「add」、「subtract」或「intersect」。</translation>
+    </message>
+    <message>
+        <source>setLayerMask needs a mask object.</source>
+        <translation>setLayerMask 需要遮色片物件。</translation>
+    </message>
+    <message>
+        <source>setLayerMask needs a pixel, adjustment, or group layer.</source>
+        <translation>setLayerMask 需要像素圖層、調整圖層或群組。</translation>
+    </message>
+    <message>
+        <source>setLayerMask: fromSelection needs a selection.</source>
+        <translation>setLayerMask：fromSelection 需要選取範圍。</translation>
+    </message>
+    <message>
+        <source>setLayerMask: defaultColor must be 0 or 255.</source>
+        <translation>setLayerMask：defaultColor 必須是 0 或 255。</translation>
+    </message>
+    <message>
+        <source>setLayerMask: %1 must be a number from %2 to %3.</source>
+        <translation>setLayerMask：%1 必須是介於 %2 和 %3 之間的數字。</translation>
+    </message>
+    <message>
+        <source>readImage: %1 is larger than %2 pixels on a side.</source>
+        <translation>readImage：%1 的邊長超過 %2 像素。</translation>
+    </message>
+    <message>
+        <source>readImage: could not read %1 (%2).</source>
+        <translation>readImage：無法讀取 %1（%2）。</translation>
+    </message>
+    <message>
+        <source>writeImage: unsupported image format &quot;%1&quot;.</source>
+        <translation>writeImage：不支援的影像格式「%1」。</translation>
+    </message>
+    <message>
+        <source>writeImage: could not allocate the image.</source>
+        <translation>writeImage：無法建立影像。</translation>
+    </message>
+    <message>
+        <source>writeImage: could not write %1.</source>
+        <translation>writeImage：無法寫入 %1。</translation>
     </message>
 </context>
 <context>

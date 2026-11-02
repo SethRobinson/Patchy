@@ -5,6 +5,7 @@
 // Pure function move; behavior must stay identical, and the construction order
 // is load-bearing (see create_actions() for the phase order).
 
+#include "ui/companion_apps.hpp"
 #include "ui/hotkey_registry.hpp"
 #include "core/layer_alignment.hpp"
 #include "core/pixel_buffer.hpp"
@@ -2539,6 +2540,10 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
 #endif
   legacy_plugins_menu_ = plugins_menu->addMenu(tr("Legacy Photoshop Plug-ins"));
   legacy_plugins_menu_->setObjectName(QStringLiteral("legacyPluginsMenu"));
+#ifndef Q_OS_WASM
+  // Plugins > Companions (docs/companions.md); the Plugins menu owns it.
+  new CompanionMenu(plugins_menu, *this);
+#endif
 
   auto* zoom_in = view_menu->addAction(tr("Zoom &In"));
   auto* zoom_out = view_menu->addAction(tr("Zoom &Out"));

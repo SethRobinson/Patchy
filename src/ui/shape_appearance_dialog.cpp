@@ -308,6 +308,10 @@ struct DialogState {
   std::vector<double> custom_dashes;
   // The user picked Custom: keep that row even when the pattern matches a preset.
   bool custom_dash_row{false};
+  // The gradients the fill and stroke Custom rows restore: the layer's own when it
+  // matches no preset (GitHub #578, #579).
+  GradientDefinition custom_fill_gradient;
+  GradientDefinition custom_stroke_gradient;
 };
 
 // A chain button at the app's normal button size, centered on a thin bracket
@@ -349,21 +353,6 @@ private:
 };
 
 }  // namespace
-
-// GRD presets may defer stops to the tool colors; shape fills store concrete
-// colors, so resolve at pick time (the layer-style dialog's convention).
-GradientDefinition resolve_gradient_definition(GradientDefinition definition, RgbColor foreground,
-                                               RgbColor background) {
-  for (auto& stop : definition.color_stops) {
-    if (stop.kind == GradientColorStop::Kind::Foreground) {
-      stop.color = foreground;
-    } else if (stop.kind == GradientColorStop::Kind::Background) {
-      stop.color = background;
-    }
-    stop.kind = GradientColorStop::Kind::User;
-  }
-  return definition;
-}
 
 std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     QWidget* parent, std::function<void(const ShapeAppearanceSettings&)> preview_changed,
@@ -456,6 +445,14 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
 
 
   const bool multiple = batch != nullptr && batch->selected_count > 1;
+  // A fill layer without a path has nothing for Layer, Edge or Stroke to change
+  // here: only its Fill section shows (GitHub #582).
+  const bool fill_layer_only =
+      state->settings.fill_layer_only &&
+      (batch == nullptr || std::all_of(batch->originals.begin(), batch->originals.end(),
+                                       [](const ShapeAppearanceSettings& value) {
+                                         return value.fill_layer_only;
+                                       }));
   if (multiple) {
     const auto rectangle = std::find_if(batch->originals.begin(), batch->originals.end(),
                                         appearance_has_editable_radii);
@@ -791,7 +788,11 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
 
   auto* fill_kind_combo = new QComboBox(fill_group);
   fill_kind_combo->setObjectName(QStringLiteral("shapeFillKindCombo"));
-  fill_kind_combo->addItem(QObject::tr("No Fill"), static_cast<int>(VectorFillKind::None));
+  // A fill layer is its fill: it switches between Solid Color, Gradient and
+  // Pattern (a fill layer of that type in a PSD) but never to none.
+  if (!fill_layer_only) {
+    fill_kind_combo->addItem(QObject::tr("No Fill"), static_cast<int>(VectorFillKind::None));
+  }
   fill_kind_combo->addItem(QObject::tr("Solid Color"), static_cast<int>(VectorFillKind::Solid));
   fill_kind_combo->addItem(QObject::tr("Gradient"), static_cast<int>(VectorFillKind::Gradient));
   fill_kind_combo->addItem(QObject::tr("Pattern"), static_cast<int>(VectorFillKind::Pattern));
@@ -804,15 +805,50 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   auto* fill_color_row = fill_color_button;
   fill_form->addRow(QObject::tr("Color:"), fill_color_row);
 
-  // Both the fill and the stroke paint offer the same preset lists.
-  const auto populate_gradient_combo = [gradient_library](QComboBox* combo) {
+  // Both the fill and the stroke paint offer the same preset lists, their
+  // Foreground/Background stops drawn in the colors a pick resolves them with (#581).
+  const GradientPreviewColors preview_colors{foreground, background};
+  const auto populate_gradient_combo = [gradient_library, preview_colors](QComboBox* combo) {
     combo->setIconSize(QSize(64, 16));
     use_scrolling_list_popup(*combo);
     if (gradient_library != nullptr) {
       for (const auto& entry : gradient_library->entries()) {
-        combo->addItem(QIcon(entry.thumbnail), entry.name, entry.storage_id);
+        const bool cached = gradient_library->preview_colors() == preview_colors ||
+                            !gradient_has_dynamic_stops(entry.definition);
+        combo->addItem(QIcon(cached ? entry.thumbnail
+                                    : gradient_thumbnail(entry.definition, 112, 28, preview_colors)),
+                       entry.name, entry.storage_id);
       }
     }
+  };
+  // Shows the preset the gradient was made from, or a Custom row (empty data, at
+  // the top) holding the gradient when it matches none: an edited or imported one
+  // (GitHub #578, #579). A paint without a gradient yet shows the first preset,
+  // which a switch to Gradient seeds from. Signals stay blocked.
+  const auto select_gradient_row = [gradient_library, preview_colors](
+                                       QComboBox* combo, const GradientDefinition& gradient,
+                                       GradientDefinition& custom) {
+    QSignalBlocker blocker(combo);
+    const auto id = gradient_library != nullptr
+                        ? matching_gradient_library_entry(*gradient_library, gradient, preview_colors)
+                        : QString();
+    if (const auto row = id.isEmpty() ? -1 : combo->findData(id); row >= 0) {
+      combo->setCurrentIndex(row);
+      return;
+    }
+    const int custom_row = combo->count() > 0 && combo->itemData(0).toString().isEmpty() ? 0 : -1;
+    if (gradient.form == GradientDefinitionForm::Solid && gradient.color_stops.empty()) {
+      combo->setCurrentIndex(custom_row == 0 && combo->count() > 1 ? 1 : 0);
+      return;
+    }
+    custom = gradient;
+    const auto icon = QIcon(gradient_thumbnail(gradient, 112, 28, preview_colors));
+    if (custom_row < 0) {
+      combo->insertItem(0, icon, QObject::tr("Custom"), QString());
+    } else {
+      combo->setItemIcon(0, icon);
+    }
+    combo->setCurrentIndex(0);
   };
   // Each row keeps the name the saved paint carries (kPatternSavedNameRole): a Photoshop
   // preset shows its readable name but writes back its own localization key.
@@ -1209,6 +1245,12 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   field_rows[stroke_dash_offset_spin] = stroke_dash_offset_row;
 
   right_column->addWidget(stroke_group);
+  if (fill_layer_only) {
+    for (QWidget* group : std::initializer_list<QWidget*>{layer_group, edge_group, stroke_group}) {
+      group->setVisible(false);
+    }
+    left_widget->setVisible(false);
+  }
 
   left_column->addStretch(1);
   right_column->addStretch(1);
@@ -1236,7 +1278,11 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     QObject::connect(apply_all, &QPushButton::clicked, &dialog, [=] {
       auto recipe = state->settings;
       recipe.edits.reset();
-      edits->append({{}, [recipe](ShapeAppearanceSettings& target) {
+      edits->append({{}, [recipe, fill_layer_only](ShapeAppearanceSettings& target) {
+        if (fill_layer_only) {  // only the Fill section shows
+          target.fill = recipe.fill;
+          return;
+        }
         const auto geometry = target.geometry;
         target = recipe;
         target.geometry = geometry;
@@ -1334,6 +1380,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     gradient_scale_spin->setValue(
         std::clamp(static_cast<int>(std::lround(gradient.scale * 100.0F)), 10, 1000));
     gradient_reverse_check->setChecked(gradient.reverse);
+    select_gradient_row(fill_gradient_combo, gradient, state->custom_fill_gradient);
   };
 
   const auto sync_stroke_paint_controls = [=] {
@@ -1358,6 +1405,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
       stroke_gradient_scale_spin->setValue(
           std::clamp(static_cast<int>(std::lround(gradient.scale * 100.0F)), 10, 1000));
       stroke_gradient_reverse_check->setChecked(gradient.reverse);
+      select_gradient_row(stroke_gradient_combo, gradient, state->custom_stroke_gradient);
     }
     {
       QSignalBlocker pattern_blocker(stroke_pattern_combo);
@@ -1566,15 +1614,28 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     auto restored = reset_defaults;
     restored.geometry = state->settings.geometry;
     restored.preview_enabled = state->settings.preview_enabled;
+    // A fill layer's dialog resets only the Fill section it shows.
+    const auto keep_hidden_sections = [fill_layer_only](ShapeAppearanceSettings& target,
+                                                        const ShapeAppearanceSettings& source) {
+      if (!fill_layer_only) return;
+      target.stroke = source.stroke;
+      target.layer_opacity = source.layer_opacity;
+      target.fill_opacity = source.fill_opacity;
+      target.feather = source.feather;
+      target.density = source.density;
+      target.fill_layer_only = source.fill_layer_only;
+    };
+    keep_hidden_sections(restored, state->settings);
 
     state->settings = std::move(restored);
     if (batch != nullptr) {
       auto recipe = reset_defaults;
       recipe.edits.reset();
-      edits->append({{}, [recipe](ShapeAppearanceSettings& target) {
-        const auto geometry = target.geometry;
+      edits->append({{}, [recipe, keep_hidden_sections](ShapeAppearanceSettings& target) {
+        const auto original = target;
         target = recipe;
-        target.geometry = geometry;
+        target.geometry = original.geometry;
+        keep_hidden_sections(target, original);
       }});
       *previous = state->settings;
     }
@@ -1648,6 +1709,11 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     }
   });
   QObject::connect(fill_gradient_combo, &QComboBox::currentIndexChanged, &dialog, [=](int) {
+    if (fill_gradient_combo->currentData().toString().isEmpty()) {
+      static_cast<GradientDefinition&>(state->settings.fill.gradient) = state->custom_fill_gradient;
+      notify({"fill.gradient.definition"});
+      return;
+    }
     if (gradient_library == nullptr) {
       return;
     }
@@ -1902,6 +1968,13 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     notify({"stroke.content.kind"});
   });
   QObject::connect(stroke_gradient_combo, &QComboBox::currentIndexChanged, &dialog, [=](int) {
+    if (stroke_gradient_combo->currentData().toString().isEmpty()) {
+      static_cast<GradientDefinition&>(state->settings.stroke.content.gradient) =
+          state->custom_stroke_gradient;
+      state->stroke_paint_touched = true;
+      notify({"stroke.content.gradient.definition"});
+      return;
+    }
     if (gradient_library == nullptr) {
       return;
     }
@@ -2114,6 +2187,21 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     };
     (*refresh_mixed)();
     state->settings.edits = std::make_shared<AppearanceEdits<ShapeAppearanceSettings>>(*edits);
+  }
+
+  // The Fill-only dialog is that fill layer's settings (GitHub issue 580 follow-up): titled
+  // like the layer, which also has no shape badge or Shape menu wording.
+  if (fill_layer_only) {
+    dialog.setProperty("fillLayerSettings", true);
+    const auto set_fill_title = [&dialog](VectorFillKind kind) {
+      dialog.setWindowTitle(kind == VectorFillKind::Gradient ? QObject::tr("Gradient Fill")
+                            : kind == VectorFillKind::Pattern ? QObject::tr("Pattern Fill")
+                                                              : QObject::tr("Color Fill"));
+    };
+    set_fill_title(state->settings.fill.kind);
+    QObject::connect(fill_kind_combo, &QComboBox::currentIndexChanged, &dialog, [fill_kind_combo, set_fill_title](int) {
+      set_fill_title(static_cast<VectorFillKind>(fill_kind_combo->currentData().toInt()));
+    });
   }
 
   // Value spins commit on Enter/arrows/focus-out only: per-keystroke preview

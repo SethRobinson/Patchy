@@ -9,11 +9,14 @@
 #include <QLocalSocket>
 #include <QStandardPaths>
 #include <QThread>
+#include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <future>
 #include <mutex>
 #include <thread>
+#include <vector>
 
 namespace patchy::ui {
 QString mcp_attachment_endpoint() {
@@ -45,19 +48,35 @@ QString mcp_attachment_endpoint() {
   return name;
 }
 
+// A few clients at once: an AI assistant and companion apps (docs/companions.md). Each
+// connection gets one of a fixed pool of sessions, made on the UI thread at startup and
+// reused after its previous client has closed. A connection beyond the pool is closed,
+// never queued to start editing when another client leaves.
+constexpr std::size_t kMaxAttachedClients = 4;
+
 struct McpAttachment::Impl {
+  struct Slot {
+    std::mutex output_mutex;
+    QByteArray output;
+    std::unique_ptr<McpSession> session;
+  };
+  struct Client {
+    std::unique_ptr<QLocalSocket> socket;
+    McpLineBuffer input;
+    Slot* slot{nullptr};
+  };
   std::atomic<bool> stopping{false};
-  std::mutex output_mutex;
-  QByteArray output;
   QString error;
-  McpSession session;
+  std::array<Slot, kMaxAttachedClients> pool;
   std::unique_ptr<QThread> worker;
 
-  Impl(MainWindow& window, const QString& endpoint)
-      : session(window, true, [this](const QByteArray& bytes) {
-          const std::lock_guard lock(output_mutex);
-          output.append(bytes);
-        }) {
+  Impl(MainWindow& window, const QString& endpoint) {
+    for (auto& slot : pool) {
+      slot.session = std::make_unique<McpSession>(window, true, [&slot](const QByteArray& bytes) {
+        const std::lock_guard lock(slot.output_mutex);
+        slot.output.append(bytes);
+      });
+    }
     std::promise<QString> started;
     auto ready = started.get_future();
     worker.reset(QThread::create([this, endpoint, started = std::move(started)]() mutable {
@@ -75,38 +94,56 @@ struct McpAttachment::Impl {
       }
       started.set_value(server.isListening() ? QString() : server.errorString());
       if (!server.isListening()) { return; }
+      std::vector<std::unique_ptr<Client>> clients;
       while (!stopping) {
-        if (!server.hasPendingConnections()) { (void)server.waitForNewConnection(25); }
-        if (!server.hasPendingConnections()) { continue; }
-        std::unique_ptr<QLocalSocket> socket(server.nextPendingConnection());
-        {
-          const std::lock_guard lock(output_mutex);
-          output.clear();
-        }
-        session.connect_from_any_thread();
-        while (!stopping && !session.ready()) { std::this_thread::sleep_for(std::chrono::milliseconds(5)); }
-        McpLineBuffer input;
-        while (!stopping && socket->state() == QLocalSocket::ConnectedState) {
-          // One attached assistant per workspace. Do not queue another client
-          // to begin editing automatically when this one leaves.
-          (void)server.waitForNewConnection(0);
-          while (server.hasPendingConnections()) {
-            std::unique_ptr<QLocalSocket> extra(server.nextPendingConnection());
-            extra->abort();
+        if (clients.empty() && !server.hasPendingConnections()) { (void)server.waitForNewConnection(25); }
+        else { (void)server.waitForNewConnection(0); }
+        while (server.hasPendingConnections()) {
+          std::unique_ptr<QLocalSocket> socket(server.nextPendingConnection());
+          Slot* free = nullptr;
+          for (auto& slot : pool) {
+            const bool taken = std::any_of(clients.begin(), clients.end(),
+                                           [&slot](const auto& client) { return client->slot == &slot; });
+            if (!taken && slot.session->closed()) { free = &slot; break; }
           }
-          if (!socket->bytesAvailable()) { (void)socket->waitForReadyRead(10); }
-          input.append(socket->read(64 * 1024), [this](const QByteArray& line) { session.receive_line(line); });
+          if (free == nullptr) { socket->abort(); continue; }
+          {
+            const std::lock_guard lock(free->output_mutex);
+            free->output.clear();
+          }
+          free->session->connect_from_any_thread();
+          while (!stopping && !free->session->ready()) { std::this_thread::sleep_for(std::chrono::milliseconds(5)); }
+          auto client = std::make_unique<Client>();
+          client->socket = std::move(socket);
+          client->slot = free;
+          clients.push_back(std::move(client));
+        }
+        // One client waits as before; several share the same short poll.
+        const int wait = clients.empty() ? 0 : std::max(1, 10 / static_cast<int>(clients.size()));
+        for (auto it = clients.begin(); it != clients.end();) {
+          auto& client = **it;
+          if (client.socket->state() != QLocalSocket::ConnectedState) {
+            client.socket->abort();
+            client.slot->session->disconnect_from_any_thread();
+            it = clients.erase(it);
+            continue;
+          }
+          if (!client.socket->bytesAvailable()) { (void)client.socket->waitForReadyRead(wait); }
+          client.input.append(client.socket->read(64 * 1024),
+                              [&client](const QByteArray& line) { client.slot->session->receive_line(line); });
           QByteArray pending;
           {
-            const std::lock_guard lock(output_mutex);
-            pending.swap(output);
+            const std::lock_guard lock(client.slot->output_mutex);
+            pending.swap(client.slot->output);
           }
-          if (!pending.isEmpty()) { (void)socket->write(pending); }
-          if (socket->bytesToWrite()) { (void)socket->waitForBytesWritten(10); }
+          if (!pending.isEmpty()) { (void)client.socket->write(pending); }
+          if (client.socket->bytesToWrite()) { (void)client.socket->waitForBytesWritten(10); }
+          ++it;
         }
-        socket->abort();
-        session.disconnect_from_any_thread();
-        while (!stopping && !session.closed()) { std::this_thread::sleep_for(std::chrono::milliseconds(5)); }
+      }
+      for (auto& client : clients) {
+        client->socket->abort();
+        client->slot->session->disconnect_from_any_thread();
       }
       server.close();
     }));
@@ -116,12 +153,30 @@ struct McpAttachment::Impl {
   ~Impl() {
     stopping = true;
     worker->wait();
-    session.shutdown();
+    for (auto& slot : pool) { slot.session->shutdown(); }
   }
 };
 
+McpAttachment::Impl* McpAttachment::active_ = nullptr;
+
+bool McpAttachment::send_companion_command(const QString& companion_id, const QString& action) {
+  if (active_ == nullptr || companion_id.isEmpty()) { return false; }
+  bool sent = false;
+  for (auto& slot : active_->pool) {
+    if (slot.session->ready() && slot.session->companion_id() == companion_id) {
+      slot.session->post_event({{"type", "companionCommand"}, {"companion", companion_id}, {"action", action}});
+      sent = true;
+    }
+  }
+  return sent;
+}
+
 McpAttachment::McpAttachment(MainWindow& window, const QString& endpoint)
-    : impl_(std::make_unique<Impl>(window, endpoint)) {}
-McpAttachment::~McpAttachment() = default;
+    : impl_(std::make_unique<Impl>(window, endpoint)) {
+  active_ = impl_.get();
+}
+McpAttachment::~McpAttachment() {
+  if (active_ == impl_.get()) { active_ = nullptr; }
+}
 QString McpAttachment::error() const { return impl_->error; }
 }  // namespace patchy::ui

@@ -31,6 +31,7 @@
 #include "core/style_presets.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/photo_pattern_presets.hpp"
+#include "remove_object_fixture.hpp"
 #include "test_fonts.hpp"
 #include "test_harness.hpp"
 #include <QAbstractSpinBox>
@@ -55,6 +56,7 @@
 #include <QEventLoop>
 #include <QFontComboBox>
 #include <QFrame>
+#include <QGroupBox>
 #include <QImage>
 #include <QLabel>
 #include <QKeyEvent>
@@ -151,6 +153,7 @@ void ui_startup_restores_stored_brush_and_gradient_settings() {
   SettingsValueRestorer saved_eraser_opacity(QStringLiteral("tools/eraserOpacity"));
   SettingsValueRestorer saved_eraser_softness(QStringLiteral("tools/eraserSoftness"));
   SettingsValueRestorer saved_gradient_method(QStringLiteral("tools/gradientMethod"));
+  SettingsValueRestorer saved_gradient_mode(QStringLiteral("tools/gradientMode"));
   SettingsValueRestorer saved_gradient_reverse(QStringLiteral("tools/gradientReverse"));
   SettingsValueRestorer saved_gradient_opacity(QStringLiteral("tools/gradientOpacity"));
   SettingsValueRestorer saved_gradient_use_custom(QStringLiteral("tools/gradientUseCustomStops"));
@@ -170,6 +173,7 @@ void ui_startup_restores_stored_brush_and_gradient_settings() {
     settings.setValue(QStringLiteral("tools/eraserOpacity"), 15);
     settings.setValue(QStringLiteral("tools/eraserSoftness"), 95);
     settings.setValue(QStringLiteral("tools/gradientMethod"), static_cast<int>(patchy::GradientMethod::Radial));
+    settings.setValue(QStringLiteral("tools/gradientMode"), QStringLiteral("fillLayer"));
     settings.setValue(QStringLiteral("tools/gradientReverse"), true);
     settings.setValue(QStringLiteral("tools/gradientOpacity"), 66);
     settings.setValue(QStringLiteral("tools/gradientUseCustomStops"), true);
@@ -187,8 +191,15 @@ void ui_startup_restores_stored_brush_and_gradient_settings() {
   auto* brush_airbrush = window.findChild<QCheckBox*>(QStringLiteral("brushAirbrushCheck"));
   auto* brush_softness = window.findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin"));
   auto* gradient_method = window.findChild<QComboBox*>(QStringLiteral("gradientMethodCombo"));
+  auto* gradient_mode = window.findChild<QComboBox*>(QStringLiteral("gradientModeCombo"));
   auto* gradient_opacity = window.findChild<QSpinBox*>(QStringLiteral("gradientOpacitySpin"));
   auto* gradient_reverse = window.findChild<QCheckBox*>(QStringLiteral("gradientReverseCheck"));
+  CHECK(gradient_mode != nullptr);
+  if (gradient_mode != nullptr) {
+    // The Gradient tool's Fill Layer mode (GitHub issue 580) comes back too.
+    CHECK(gradient_mode->currentIndex() == 1);
+    CHECK(canvas->gradient_tool_mode() == patchy::ui::GradientToolMode::FillLayer);
+  }
   CHECK(brush_preset != nullptr);
   CHECK(brush_size != nullptr);
   CHECK(brush_opacity != nullptr);
@@ -6787,7 +6798,7 @@ void accept_edit_fill_dialog(const QString& contents, const QString& mode, int o
       dialog->reject();
       return;
     }
-    CHECK(contents_combo->count() == 6);
+    CHECK(contents_combo->count() == 9);  // seven entries and two separators (issue 575)
     if (color.has_value()) {
       swatch->setProperty("fillColor", *color);
     }
@@ -6908,6 +6919,251 @@ void ui_edit_fill_dialog_fills_contents_with_mode_and_opacity() {
   QApplication::processEvents();
   CHECK(layer_pixel(2, 2).alpha() == 0);
   CHECK(layer_pixel(40, 40) == QColor(0, 0, 0));
+  patchy::ui::save_fill_dialog_settings(patchy::ui::FillDialogSettings{});
+}
+
+// Edit > Fill... polish and Content-Aware (GitHub issue 575): the Contents order with its two
+// separators, Content-Aware disabled without a selection, the Opacity slider mirroring the
+// spin box, Add to New Layer and the Blending box following Content-Aware; then a
+// Content-Aware fill of issue #23's banner (tests/remove_object_fixture.hpp) changes pixels
+// only inside the selection as one undo step, and Add to New Layer leaves the layer alone and
+// puts the filled selection on a new layer above it, transparent elsewhere.
+void ui_edit_fill_dialog_content_aware_fills_selection() {
+  patchy::ui::save_fill_dialog_settings(patchy::ui::FillDialogSettings{});
+  const auto fixture = patchy::test::make_banner_fixture();
+  patchy::Document document(fixture.width, fixture.height, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(fixture.width, fixture.height, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < fixture.height; ++y) {
+    std::memcpy(pixels.row(y).data(), fixture.pixel(0, y), static_cast<std::size_t>(fixture.width) * 4U);
+  }
+  const auto original = pixels;
+  const auto layer_id = document.add_pixel_layer("Banner", std::move(pixels)).id();
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Content-Aware Fill"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(2.0);
+  auto* fill = require_action(window, "editFillAction");
+  using Access = patchy::ui::MainWindowTestAccess;
+
+  struct DialogParts {
+    QComboBox* contents{};
+    QCheckBox* new_layer{};
+    QGroupBox* blending{};
+    QSlider* opacity_slider{};
+    QSpinBox* opacity_spin{};
+    QPushButton* swatch{};
+  };
+  const auto parts_of = [](QDialog& dialog) {
+    DialogParts parts;
+    parts.contents = dialog.findChild<QComboBox*>(QStringLiteral("editFillContentsCombo"));
+    parts.new_layer = dialog.findChild<QCheckBox*>(QStringLiteral("editFillContentAwareNewLayerCheck"));
+    parts.opacity_slider = dialog.findChild<QSlider*>(QStringLiteral("editFillOpacitySlider"));
+    parts.opacity_spin = dialog.findChild<QSpinBox*>(QStringLiteral("editFillOpacitySpin"));
+    parts.swatch = dialog.findChild<QPushButton*>(QStringLiteral("editFillColorSwatch"));
+    for (auto* box : dialog.findChildren<QGroupBox*>()) {
+      if (box->isAncestorOf(dialog.findChild<QComboBox*>(QStringLiteral("editFillModeCombo")))) {
+        parts.blending = box;
+      }
+    }
+    CHECK(parts.contents != nullptr && parts.new_layer != nullptr && parts.blending != nullptr &&
+          parts.opacity_slider != nullptr && parts.opacity_spin != nullptr && parts.swatch != nullptr);
+    return parts;
+  };
+  const auto item_enabled = [](QComboBox* combo, int index) {
+    return (combo->model()->flags(combo->model()->index(index, combo->modelColumn())) & Qt::ItemIsEnabled) != 0;
+  };
+
+  // No selection: the order and separators, Content-Aware disabled, the slider pair.
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyFillDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    const auto parts = parts_of(*dialog);
+    if (parts.contents == nullptr || parts.new_layer == nullptr || parts.blending == nullptr ||
+        parts.opacity_slider == nullptr || parts.opacity_spin == nullptr || parts.swatch == nullptr) {
+      dialog->reject();
+      return;
+    }
+    const QStringList expected{QStringLiteral("foreground"), QStringLiteral("background"), QStringLiteral("color"),
+                               QString(),                    QStringLiteral("black"),      QStringLiteral("gray50"),
+                               QStringLiteral("white"),      QString(),                    QStringLiteral("contentAware")};
+    CHECK(parts.contents->count() == expected.size());
+    for (int index = 0; index < std::min<int>(parts.contents->count(), expected.size()); ++index) {
+      const bool separator = parts.contents->itemData(index, Qt::AccessibleDescriptionRole).toString() ==
+                             QStringLiteral("separator");
+      CHECK(separator == expected[index].isEmpty());
+      CHECK(parts.contents->itemData(index).toString() == expected[index]);
+    }
+    CHECK(parts.contents->itemText(8) == QStringLiteral("Content-Aware"));
+    CHECK(!item_enabled(parts.contents, 8));
+    CHECK(item_enabled(parts.contents, 0));
+    // Every entry fits: the combo is at least as wide as its widest item needs.
+    CHECK(parts.contents->width() >= parts.contents->sizeHint().width());
+    CHECK(parts.contents->sizeAdjustPolicy() == QComboBox::AdjustToContents);
+    CHECK(!parts.new_layer->isEnabled());
+    CHECK(parts.blending->isEnabled());
+    parts.opacity_slider->setValue(40);
+    CHECK(parts.opacity_spin->value() == 40);
+    parts.opacity_spin->setValue(70);
+    CHECK(parts.opacity_slider->value() == 70);
+    dialog->reject();
+  });
+  fill->trigger();
+  QApplication::processEvents();
+
+  const QRect hole(fixture.hole_x, fixture.hole_y, fixture.hole_width, fixture.hole_height);
+  patchy::PixelBuffer selection(fixture.width, fixture.height, patchy::PixelFormat::gray8());
+  selection.clear(0);
+  for (int y = hole.top(); y <= hole.bottom(); ++y) {
+    for (int x = hole.left(); x <= hole.right(); ++x) {
+      *selection.pixel(x, y) = 255U;
+    }
+  }
+  canvas->replace_selection_from_grayscale(selection, QStringLiteral("Hole"));
+  QApplication::processEvents();
+  save_widget_artifact("issue_575_content_aware_canvas_before", *canvas);
+
+  const auto layer_pixels = [&window](patchy::LayerId id) {
+    const auto& doc = std::as_const(Access::document(window));
+    const auto* layer = doc.find_layer(id);
+    CHECK(layer != nullptr);
+    return layer != nullptr ? layer->pixels() : patchy::PixelBuffer{};
+  };
+  // Answers the dialog with Content-Aware, `new_layer` ticked or not.
+  const auto accept_content_aware = [&](bool new_layer, const char* artifact) {
+    QTimer::singleShot(0, [&, new_layer, artifact] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("patchyFillDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      const auto parts = parts_of(*dialog);
+      if (parts.contents == nullptr || parts.new_layer == nullptr || parts.blending == nullptr ||
+          parts.swatch == nullptr) {
+        dialog->reject();
+        return;
+      }
+      const auto index = parts.contents->findData(QStringLiteral("contentAware"));
+      CHECK(index == 8);
+      CHECK(item_enabled(parts.contents, index));
+      parts.contents->setCurrentIndex(index);
+      CHECK(parts.new_layer->isEnabled());
+      CHECK(!parts.blending->isEnabled());
+      CHECK(parts.swatch->isHidden());
+      parts.new_layer->setChecked(new_layer);
+      QApplication::processEvents();
+      if (artifact != nullptr) {
+        save_widget_artifact(artifact, *dialog);
+      }
+      dialog->accept();
+    });
+  };
+
+  // In place: only the selection changes, the dark "1" bar is gone, one history entry.
+  {
+    const auto undo_before = Access::active_session_undo_depth(window);
+    accept_content_aware(false, "issue_575_edit_fill_content_aware");
+    fill->trigger();
+    QApplication::processEvents();
+    const auto after = layer_pixels(layer_id);
+    std::int64_t changed_inside = 0;
+    std::int64_t changed_outside = 0;
+    std::int64_t white_bar_left = 0;
+    for (std::int32_t y = 0; y < fixture.height; ++y) {
+      for (std::int32_t x = 0; x < fixture.width; ++x) {
+        const bool differs = std::memcmp(after.pixel(x, y), original.pixel(x, y), 4U) != 0;
+        if (hole.contains(QPoint(x, y))) {
+          changed_inside += differs ? 1 : 0;
+        } else {
+          changed_outside += differs ? 1 : 0;
+        }
+      }
+    }
+    for (std::int32_t y = fixture.bar_top; y <= fixture.bar_bottom; ++y) {
+      for (std::int32_t x = fixture.bar_left; x <= fixture.bar_right; ++x) {
+        white_bar_left += after.pixel(x, y)[0] > 200 ? 1 : 0;
+      }
+    }
+    CHECK(changed_inside > 0);
+    CHECK(changed_outside == 0);
+    CHECK(white_bar_left == 0);
+    CHECK(Access::active_session_undo_depth(window) == undo_before + 1);
+    CHECK(patchy::ui::load_fill_dialog_settings().contents == patchy::ui::FillContents::ContentAware);
+    CHECK(!patchy::ui::load_fill_dialog_settings().content_aware_new_layer);
+    save_widget_artifact("issue_575_content_aware_canvas_after", *canvas);
+    Access::undo(window);
+    QApplication::processEvents();
+    const auto undone = layer_pixels(layer_id);
+    CHECK(std::memcmp(undone.data().data(), original.data().data(), original.data().size()) == 0);
+  }
+
+  // Add to New Layer: the layer stays as it was; a new layer above it holds the fill.
+  {
+    const auto undo_before = Access::active_session_undo_depth(window);
+    const auto layers_before = std::as_const(Access::document(window)).layers().size();
+    accept_content_aware(true, "issue_575_edit_fill_content_aware_new_layer");
+    fill->trigger();
+    QApplication::processEvents();
+    const auto& doc = std::as_const(Access::document(window));
+    CHECK(doc.layers().size() == layers_before + 1);
+    const auto banner = layer_pixels(layer_id);
+    CHECK(std::memcmp(banner.data().data(), original.data().data(), original.data().size()) == 0);
+    const auto new_id = doc.active_layer_id();
+    CHECK(new_id.has_value() && *new_id != layer_id);
+    if (new_id.has_value() && doc.layers().size() == layers_before + 1) {
+      CHECK(doc.layers().back().id() == *new_id);
+      const auto* added = doc.find_layer(*new_id);
+      CHECK(added != nullptr);
+      if (added != nullptr) {
+        CHECK(added->kind() == patchy::LayerKind::Pixel);
+        CHECK(added->name() == "Content-Aware Fill");
+        const auto bounds = added->bounds();
+        const auto& added_pixels = added->pixels();
+        std::int64_t opaque_inside = 0;
+        std::int64_t visible_outside = 0;
+        for (std::int32_t y = 0; y < fixture.height; ++y) {
+          for (std::int32_t x = 0; x < fixture.width; ++x) {
+            const auto lx = x - bounds.x;
+            const auto ly = y - bounds.y;
+            const bool on_layer = lx >= 0 && ly >= 0 && lx < added_pixels.width() && ly < added_pixels.height();
+            const auto alpha = on_layer ? added_pixels.pixel(lx, ly)[3] : 0;
+            if (hole.contains(QPoint(x, y))) {
+              opaque_inside += alpha == 255U ? 1 : 0;
+            } else {
+              visible_outside += alpha != 0U ? 1 : 0;
+            }
+          }
+        }
+        CHECK(opaque_inside == static_cast<std::int64_t>(hole.width()) * hole.height());
+        CHECK(visible_outside == 0);
+      }
+    }
+    CHECK(Access::active_session_undo_depth(window) == undo_before + 1);
+    CHECK(patchy::ui::load_fill_dialog_settings().content_aware_new_layer);
+    save_widget_artifact("issue_575_content_aware_new_layer_canvas_after", *canvas);
+    Access::undo(window);
+    QApplication::processEvents();
+    CHECK(std::as_const(Access::document(window)).layers().size() == layers_before);
+  }
+
+  // A remembered Content-Aware falls back to Foreground Color when there is no selection.
+  require_action(window, "editDeselectAction")->trigger();
+  QApplication::processEvents();
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyFillDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* contents = dialog->findChild<QComboBox*>(QStringLiteral("editFillContentsCombo"));
+    CHECK(contents != nullptr && contents->currentData().toString() == QStringLiteral("foreground"));
+    dialog->reject();
+  });
+  fill->trigger();
+  QApplication::processEvents();
   patchy::ui::save_fill_dialog_settings(patchy::ui::FillDialogSettings{});
 }
 
@@ -11452,6 +11708,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_fill_opacity_accepts_zero_and_fills_nothing", ui_fill_opacity_accepts_zero_and_fills_nothing},
       {"ui_edit_fill_dialog_fills_contents_with_mode_and_opacity",
        ui_edit_fill_dialog_fills_contents_with_mode_and_opacity},
+      {"ui_edit_fill_dialog_content_aware_fills_selection", ui_edit_fill_dialog_content_aware_fills_selection},
       {"ui_fill_tool_click_honors_tolerance_contiguous_and_opacity",
        ui_fill_tool_click_honors_tolerance_contiguous_and_opacity},
       {"ui_fill_of_wand_selection_with_many_spans_is_fast", ui_fill_of_wand_selection_with_many_spans_is_fast},

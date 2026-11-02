@@ -361,6 +361,11 @@ inline constexpr const char* kVectorRasterStatusPatchy = "patchy_raster";
 [[nodiscard]] bool layer_has_vector_shape_marker(const Layer& layer);
 // The real predicate: the metadata marker AND the structured content.
 [[nodiscard]] bool layer_is_vector_shape(const Layer& layer);
+// A Solid Color, Gradient or Pattern Fill layer: a vector shape layer with no path, so it
+// fills the whole canvas (Layer > New Fill Layer, the Gradient tool's Fill Layer mode). A
+// path (vector mask) makes it a shape layer. Its UI is the fill's settings alone: a stroke,
+// feather or density shows nothing there (GitHub issue 580 follow-up).
+[[nodiscard]] bool layer_is_fill_layer(const Layer& layer);
 // Text, smart-object, or vector-shape: pixels are a derived cache of richer
 // content, so hand edits must rasterize first (the shared guard condition).
 [[nodiscard]] bool layer_pixels_are_procedural(const Layer& layer);

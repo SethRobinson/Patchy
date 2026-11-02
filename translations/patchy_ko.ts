@@ -114,6 +114,26 @@
         <source>Fill only where the layer already has pixels, keeping their opacity</source>
         <translation>레이어에 이미 픽셀이 있는 곳만 칠하고 그 불투명도를 유지합니다</translation>
     </message>
+    <message>
+        <source>Content-Aware</source>
+        <translation>내용 인식</translation>
+    </message>
+    <message>
+        <source>Make a selection to fill it from its surroundings</source>
+        <translation>선택 영역을 만들면 주변 내용으로 채웁니다.</translation>
+    </message>
+    <message>
+        <source>Add to New Layer</source>
+        <translation>새 레이어에 추가</translation>
+    </message>
+    <message>
+        <source>Put the content-aware fill on a new layer above this one, transparent outside the selection</source>
+        <translation>내용 인식 채우기를 이 레이어 위의 새 레이어에 넣고 선택 영역 밖은 투명하게 둡니다.</translation>
+    </message>
+    <message>
+        <source>Content-Aware fills from the pixels around the selection</source>
+        <translation>내용 인식은 선택 영역 주변의 픽셀로 채웁니다.</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -14368,10 +14388,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>&quot;%1&quot;(이)라는 획 사전 설정이 이미 있습니다.</translation>
     </message>
     <message>
-        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
-        <translation>기본 제공 사전 설정: 사용할 수 있지만 이름 바꾸기, 이동, 삭제는 할 수 없습니다.</translation>
-    </message>
-    <message>
         <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
         <translation>저장된 획 사전 설정이 아직 없습니다. 모양 외형에서 획을 설정한 다음 점선 패턴 옆의 저장...을 클릭하세요.</translation>
     </message>
@@ -14696,6 +14712,42 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>The preset could not be exported.</source>
         <translation>사전 설정을 내보낼 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>offset %1</source>
+        <translation>오프셋 %1</translation>
+    </message>
+    <message>
+        <source>%1 copy</source>
+        <translation>%1 사본</translation>
+    </message>
+    <message>
+        <source>%1 copy %2</source>
+        <translation>%1 사본 %2</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation>기본 제공 사전 설정: 사용할 수 있지만 이름 바꾸기, 이동, 삭제는 할 수 없습니다. 복제하면 편집할 수 있는 사본이 만들어집니다.</translation>
+    </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2; leave it empty for a solid line</source>
+        <translation>획 두께 단위의 점선과 간격 길이를 공백으로 구분합니다. 예: 4 2 또는 6 2 1 2. 실선은 비워 두세요</translation>
+    </message>
+    <message>
+        <source>Copy the selected preset into a new saved preset you can rename and edit</source>
+        <translation>선택한 사전 설정을 이름을 바꾸고 편집할 수 있는 새 저장된 사전 설정으로 복사합니다</translation>
+    </message>
+    <message>
+        <source>Fill layer. Double-click to edit its settings.</source>
+        <translation>채우기 레이어. 두 번 클릭하여 설정을 편집합니다.</translation>
+    </message>
+    <message>
+        <source>Pattern Fill</source>
+        <translation>패턴 채우기</translation>
+    </message>
+    <message>
+        <source>Color Fill</source>
+        <translation>단색 채우기</translation>
     </message>
 </context>
 <context>
@@ -18887,6 +18939,57 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Open the feature guide in your web browser</source>
         <translation>웹 브라우저에서 기능 안내서를 엽니다</translation>
+    </message>
+    <message>
+        <source>Show the folder of companion app manifests on disk</source>
+        <translation>디스크에서 컴패니언 앱 매니페스트 폴더를 표시합니다</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::CompanionMenu</name>
+    <message>
+        <source>%1 could not be read.</source>
+        <translation>%1을(를) 읽을 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>%1 is not a JSON object.</source>
+        <translation>%1은(는) JSON 객체가 아닙니다.</translation>
+    </message>
+    <message>
+        <source>%1: every args entry must be a string.</source>
+        <translation>%1: args의 각 항목은 문자열이어야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1 needs a reverse-DNS id, a name and a command.</source>
+        <translation>%1에는 역방향 DNS 형식의 id, name, command가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>%1 repeats the id %2.</source>
+        <translation>%1에서 id %2이(가) 중복됩니다.</translation>
+    </message>
+    <message>
+        <source>&amp;Companions</source>
+        <translation>컴패니언 앱(&amp;C)</translation>
+    </message>
+    <message>
+        <source>No companion apps installed</source>
+        <translation>설치된 컴패니언 앱이 없습니다</translation>
+    </message>
+    <message>
+        <source>Open Companions Folder</source>
+        <translation>컴패니언 앱 폴더 열기</translation>
+    </message>
+    <message>
+        <source>Asked %1 to show its panel</source>
+        <translation>%1에 패널을 표시하도록 요청했습니다</translation>
+    </message>
+    <message>
+        <source>Could not start %1 (%2)</source>
+        <translation>%1을(를) 시작할 수 없습니다(%2)</translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation>%1을(를) 시작하는 중...</translation>
     </message>
 </context>
 <context>
@@ -31706,28 +31809,52 @@ Locked: %1</source>
         <translation>%1을(를) 되돌렸습니다</translation>
     </message>
     <message>
-        <source>Standard Ligatures (fonts that have them)</source>
-        <translation>표준 합자 (지원하는 글꼴만)</translation>
+        <source>Fill Layer</source>
+        <translation>채우기 레이어</translation>
     </message>
     <message>
-        <source>Contextual Alternates (fonts that have them)</source>
-        <translation>문맥상 대체 (지원하는 글꼴만)</translation>
+        <source>What a drag makes: painted pixels, or a Gradient Fill layer (a new one, or the selected Gradient Fill layer redrawn)</source>
+        <translation>드래그로 만드는 것: 칠한 픽셀, 또는 그레이디언트 채우기 레이어 (새 레이어, 또는 선택한 그레이디언트 채우기 레이어를 다시 그림)</translation>
     </message>
     <message>
-        <source>Discretionary Ligatures (fonts that have them)</source>
-        <translation>임의 합자 (지원하는 글꼴만)</translation>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>그레이디언트를 변경하려면 그레이디언트 채우기 레이어의 잠금을 해제하세요</translation>
     </message>
     <message>
-        <source>Swash (fonts that have them)</source>
-        <translation>스와시 (지원하는 글꼴만)</translation>
+        <source>Edit Gradient Fill</source>
+        <translation>그레이디언트 채우기 편집</translation>
     </message>
     <message>
-        <source>Stylistic Alternates (fonts that have them)</source>
-        <translation>스타일 대체 (지원하는 글꼴만)</translation>
+        <source>Changed the gradient of %1.</source>
+        <translation>%1의 그레이디언트를 변경했습니다.</translation>
     </message>
     <message>
-        <source>Titling Alternates (fonts that have them)</source>
-        <translation>제목 대체 (지원하는 글꼴만)</translation>
+        <source>New Gradient Fill</source>
+        <translation>새 그레이디언트 채우기</translation>
+    </message>
+    <message>
+        <source>Content-Aware fill needs a selection: select the area to fill first</source>
+        <translation>내용 인식 채우기에는 선택이 필요합니다. 먼저 채울 영역을 선택하세요.</translation>
+    </message>
+    <message>
+        <source>Content-Aware Fill</source>
+        <translation>내용 인식 채우기</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill (%1 patches)</source>
+        <translation>내용 인식 채우기로 선택 영역을 채웠습니다(패치 %1개).</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill on a new layer (%1 patches)</source>
+        <translation>내용 인식 채우기로 새 레이어에 선택 영역을 채웠습니다(패치 %1개).</translation>
+    </message>
+    <message>
+        <source>Edit Fill Settings...</source>
+        <translation>채우기 설정 편집...</translation>
+    </message>
+    <message>
+        <source>Fill layer: %1</source>
+        <translation>채우기 레이어: %1</translation>
     </message>
 </context>
 <context>
@@ -33856,6 +33983,102 @@ Locked: %1</source>
     <message>
         <source>perspective.clone: sample is &quot;current&quot;, &quot;currentAndBelow&quot; or &quot;all&quot;.</source>
         <translation>perspective.clone: sample는 &quot;current&quot;, &quot;currentAndBelow&quot; 또는 &quot;all&quot;입니다.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas anchor must be one of %1.</source>
+        <translation>resizeCanvas 기준점은 %1 중 하나여야 합니다.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas %1 must be a number between -30000 and 30000.</source>
+        <translation>resizeCanvas %1은(는) -30000에서 30000 사이의 숫자여야 합니다.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas: unknown option %1.</source>
+        <translation>resizeCanvas: 알 수 없는 옵션 %1.</translation>
+    </message>
+    <message>
+        <source>resizeCanvas takes an anchor or x and y, not both.</source>
+        <translation>resizeCanvas에는 기준점 또는 x와 y 중 하나만 지정하세요.</translation>
+    </message>
+    <message>
+        <source>Rasterize Smart Filters and Smart Objects before resizing the canvas with an anchor or offset.</source>
+        <translation>기준점이나 오프셋으로 캔버스 크기를 변경하기 전에 스마트 필터와 스마트 개체를 래스터화하세요.</translation>
+    </message>
+    <message>
+        <source>%1: unknown option &quot;%2&quot;.</source>
+        <translation>%1: 알 수 없는 옵션 &quot;%2&quot;입니다.</translation>
+    </message>
+    <message>
+        <source>%1 needs a {x, y, width, height} rectangle.</source>
+        <translation>%1에는 {x, y, width, height} 사각형이 필요합니다.</translation>
+    </message>
+    <message>
+        <source>%1 needs integer x, y, width and height, with a size from 1 to %2.</source>
+        <translation>%1에는 정수 x, y, width, height와 1에서 %2 사이의 크기가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>%1 needs a {width, height, data} object.</source>
+        <translation>%1에는 {width, height, data} 객체가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>%1: data must hold width * height bytes.</source>
+        <translation>%1: data에는 width * height바이트가 있어야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1: data must hold width * height * 4 RGBA bytes.</source>
+        <translation>%1: data에는 width * height * 4바이트의 RGBA 데이터가 있어야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1: the rectangle is outside the canvas.</source>
+        <translation>%1: 사각형이 캔버스 밖에 있습니다.</translation>
+    </message>
+    <message>
+        <source>%1 options must be an object.</source>
+        <translation>%1 옵션은 객체여야 합니다.</translation>
+    </message>
+    <message>
+        <source>setMask: operation must be &quot;replace&quot;, &quot;add&quot;, &quot;subtract&quot; or &quot;intersect&quot;.</source>
+        <translation>setMask: operation은 &quot;replace&quot;, &quot;add&quot;, &quot;subtract&quot;, &quot;intersect&quot; 중 하나여야 합니다.</translation>
+    </message>
+    <message>
+        <source>setLayerMask needs a mask object.</source>
+        <translation>setLayerMask에는 마스크 객체가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>setLayerMask needs a pixel, adjustment, or group layer.</source>
+        <translation>setLayerMask에는 픽셀, 조정 또는 그룹 레이어가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>setLayerMask: fromSelection needs a selection.</source>
+        <translation>setLayerMask: fromSelection에는 선택 영역이 필요합니다.</translation>
+    </message>
+    <message>
+        <source>setLayerMask: defaultColor must be 0 or 255.</source>
+        <translation>setLayerMask: defaultColor는 0 또는 255여야 합니다.</translation>
+    </message>
+    <message>
+        <source>setLayerMask: %1 must be a number from %2 to %3.</source>
+        <translation>setLayerMask: %1은(는) %2에서 %3 사이의 숫자여야 합니다.</translation>
+    </message>
+    <message>
+        <source>readImage: %1 is larger than %2 pixels on a side.</source>
+        <translation>readImage: %1의 한 변이 %2픽셀보다 큽니다.</translation>
+    </message>
+    <message>
+        <source>readImage: could not read %1 (%2).</source>
+        <translation>readImage: %1을(를) 읽을 수 없습니다(%2).</translation>
+    </message>
+    <message>
+        <source>writeImage: unsupported image format &quot;%1&quot;.</source>
+        <translation>writeImage: 지원되지 않는 이미지 형식 &quot;%1&quot;입니다.</translation>
+    </message>
+    <message>
+        <source>writeImage: could not allocate the image.</source>
+        <translation>writeImage: 이미지를 만들 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>writeImage: could not write %1.</source>
+        <translation>writeImage: %1을(를) 쓸 수 없습니다.</translation>
     </message>
 </context>
 <context>

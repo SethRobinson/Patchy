@@ -1743,6 +1743,8 @@ QString layer_content_thumbnail_tooltip(const Layer& layer, bool report_font_pro
                        ? font_problem_tooltip()
                        : layer_is_text(layer)         ? QObject::tr("Text layer")
                        : layer_is_smart_object(layer) ? QObject::tr("Smart object thumbnail")
+                       : layer_is_fill_layer(layer)
+                           ? QObject::tr("Fill layer. Double-click to edit its settings.")
                        : layer_is_vector_shape(layer) ? QObject::tr("Shape layer thumbnail")
                                                       : QObject::tr("Layer thumbnail");
 }
@@ -2168,10 +2170,11 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
         std::move(open_smart_object));
     smart_badge->setProperty("smartObjectLinked", linked);
   }
-  if (layer_is_vector_shape(layer)) {
-    // Shape/fill layers bake their pixels, so the thumbnail alone cannot
+  if (layer_is_vector_shape(layer) && !layer_is_fill_layer(layer)) {
+    // Shape layers bake their pixels, so the thumbnail alone cannot
     // reveal the vector content; the badge makes it explicit (and opens the
-    // appearance editor, mirroring the fx badge).
+    // appearance editor, mirroring the fx badge). A fill layer has no shape to
+    // show: its content thumbnail opens its settings (GitHub issue 580 follow-up).
     add_badge_button(QStringLiteral("layerVectorBadgeButton"), QStringLiteral("badge-vector"),
                      QObject::tr("Vector shape layer. Click to edit its appearance."),
                      std::move(open_shape_appearance));
@@ -5492,12 +5495,16 @@ void MainWindow::refresh_document_info() {
       const auto stroke = shape->stroke.enabled
                               ? tr("%1 px %2").arg(shape->stroke.width, 0, 'f', 1).arg(paint_name(shape->stroke.content))
                               : tr("off");
-      set_property_label_text(active_layer_shape_label_,
-                              tr("Shape: Fill %1 | Stroke %2 | Feather %3 px | Density %4%")
-                                  .arg(paint_name(shape->fill))
-                                  .arg(stroke)
-                                  .arg(shape->feather, 0, 'f', 1)
-                                  .arg(static_cast<int>(std::lround(shape->density * 100.0 / 255.0))));
+      if (layer_is_fill_layer(*layer)) {
+        set_property_label_text(active_layer_shape_label_, tr("Fill layer: %1").arg(paint_name(shape->fill)));
+      } else {
+        set_property_label_text(active_layer_shape_label_,
+                                tr("Shape: Fill %1 | Stroke %2 | Feather %3 px | Density %4%")
+                                    .arg(paint_name(shape->fill))
+                                    .arg(stroke)
+                                    .arg(shape->feather, 0, 'f', 1)
+                                    .arg(static_cast<int>(std::lround(shape->density * 100.0 / 255.0))));
+      }
     } else {
       set_property_label_text(active_layer_shape_label_, QString());
     }
