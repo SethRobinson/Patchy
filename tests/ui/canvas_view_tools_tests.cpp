@@ -3426,10 +3426,10 @@ void ui_open_shows_small_images_at_actual_size_and_fits_large_ones() {
               << view->height() << ")" << std::endl;
     const auto top_left = view->widget_position_for_document_point(QPoint(0, 0));
     const auto bottom_right = view->widget_position_for_document_point(QPoint(width, height));
-    // Fit's 40 px margin per side is taken inside the view area (GitHub issue 301).
+    // Fit's 10 px margin per side is taken inside the view area (GitHub issues 301, 585).
     const auto area = view->view_content_rect();
-    const bool larger_than_view = width * (1.0 / view->devicePixelRatioF()) > area.width() - 80 ||
-                                  height * (1.0 / view->devicePixelRatioF()) > area.height() - 80;
+    const bool larger_than_view = width * (1.0 / view->devicePixelRatioF()) > area.width() - 20 ||
+                                  height * (1.0 / view->devicePixelRatioF()) > area.height() - 20;
     if (larger_than_view) {
       CHECK(view->view_zoom() < 1.0);
       CHECK(top_left.x() >= area.left() && top_left.y() >= area.top());
@@ -6198,7 +6198,7 @@ void ui_zoom_options_bar_view_buttons_set_view() {
   const auto doc_width = static_cast<double>(document.width());
   const auto doc_height = static_cast<double>(document.height());
   const auto area = canvas->view_content_rect();
-  const auto fit_zoom = std::min((area.width() - 80.0) / doc_width, (area.height() - 80.0) / doc_height);
+  const auto fit_zoom = std::min((area.width() - 20.0) / doc_width, (area.height() - 20.0) / doc_height);
   const auto fill_zoom = std::max(area.width() / doc_width, area.height() / doc_height);
   CHECK(fill_zoom > fit_zoom);
 
@@ -6248,7 +6248,7 @@ void ui_hand_options_bar_shows_zoom_view_buttons() {
   const auto doc_width = static_cast<double>(document.width());
   const auto doc_height = static_cast<double>(document.height());
   const auto area = canvas->view_content_rect();
-  const auto fit_zoom = std::min((area.width() - 80.0) / doc_width, (area.height() - 80.0) / doc_height);
+  const auto fit_zoom = std::min((area.width() - 20.0) / doc_width, (area.height() - 20.0) / doc_height);
   const auto fill_zoom = std::max(area.width() / doc_width, area.height() / doc_height);
 
   canvas->set_zoom(0.37);
@@ -6326,7 +6326,7 @@ void ui_fill_and_fit_screen_stay_clear_of_rulers_and_scroll_bars() {
   };
   const auto check_fit = [&](const char* label) {
     const auto shown = shown_rect();
-    const auto area = free_area().adjusted(40.0, 40.0, -40.0, -40.0);
+    const auto area = free_area().adjusted(10.0, 10.0, -10.0, -10.0);
     std::cout << "issue 301 " << label << ": fit shows " << shown.left() << "," << shown.top() << " to "
               << shown.right() << "," << shown.bottom() << std::endl;
     CHECK(shown.left() >= area.left() - 1.0 && shown.top() >= area.top() - 1.0);
