@@ -1533,6 +1533,10 @@ void ui_about_dialog_shows_labeled_external_links() {
     CHECK(contributors->text().contains(QStringLiteral(">ifloppy</a>")));
     CHECK(contributors->text().contains(QStringLiteral("href=\"https://github.com/lucastucious\"")));
     CHECK(contributors->text().contains(QStringLiteral(">lucastucious</a>")));
+    // Code contributors come first, in the order their first pull request merged.
+    CHECK(contributors->text().contains(QStringLiteral("href=\"https://github.com/softwaregames1\"")));
+    CHECK(contributors->text().indexOf(QStringLiteral(">softwaregames1</a>")) >
+          contributors->text().indexOf(QStringLiteral(">lucastucious</a>")));
     CHECK(contributors->text().contains(QStringLiteral("href=\"https://github.com/Oppa-YA\"")));
     CHECK(contributors->text().contains(QStringLiteral(">Oppa-YA</a>")));
     CHECK(contributors->text().contains(QStringLiteral("href=\"https://github.com/YuFu-Onship\"")));

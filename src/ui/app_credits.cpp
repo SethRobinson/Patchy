@@ -21,6 +21,7 @@ QString contributors_link_html(const QString& link_color) {
       {"csbun", "https://github.com/csbun"},
       {"ifloppy", "https://github.com/ifloppy"},
       {"lucastucious", "https://github.com/lucastucious"},
+      {"softwaregames1", "https://github.com/softwaregames1"},
       {"c-sanchez", "https://github.com/c-sanchez"},
       {"egofree71", "https://github.com/egofree71"},
       {"PorkingMane", "https://github.com/PorkingMane"},
