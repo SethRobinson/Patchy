@@ -16,6 +16,8 @@ class McpAttachment {
   // Sends companionCommand {companion, action} to every attached client that declared
   // `companion_id` at initialize (docs/companions.md). UI thread; false when none is attached.
   static bool send_companion_command(const QString& companion_id, const QString& action);
+  // True while a client that declared `companion_id` is attached. UI thread.
+  [[nodiscard]] static bool companion_attached(const QString& companion_id);
  private:
   struct Impl;
   std::unique_ptr<Impl> impl_;

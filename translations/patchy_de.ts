@@ -18638,6 +18638,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Starting %1...</source>
         <translation>%1 wird gestartet...</translation>
     </message>
+    <message>
+        <source>Quit %1</source>
+        <translation>%1 beenden</translation>
+    </message>
+    <message>
+        <source>Asked %1 to quit</source>
+        <translation>%1 wurde gebeten, sich zu beenden</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

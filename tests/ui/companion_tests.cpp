@@ -326,11 +326,57 @@ void ui_mcp_state_reports_layer_masks() {
   CHECK(!plain.isEmpty() && !plain["hasLayerMask"].toBool() && plain["layerMask"].isNull());
 }
 
+// While a companion is attached its Quit entry appears and sends companionCommand "quit";
+// a companion that is not attached has none.
+void ui_companion_menu_quits_attached_companion() {
+  const StandardPathsTestMode standard_paths;
+  const auto folder = patchy::ui::companions_folder_path();
+  remove_test_scratch_dir(folder);
+  CHECK(QDir().mkpath(folder));
+  const auto write = [&](const QString& name, const QByteArray& bytes) {
+    QFile file(folder + '/' + name);
+    CHECK(file.open(QIODevice::WriteOnly));
+    CHECK(file.write(bytes) == bytes.size());
+  };
+  write(QStringLiteral("fill.json"), R"({"id": "io.example.fill", "name": "Fill & Co", "command": "fill.cmd"})");
+  write(QStringLiteral("other.json"), R"({"id": "io.example.other", "name": "Other", "command": "other.cmd"})");
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* companions = window.findChild<patchy::ui::CompanionMenu*>();
+  CHECK(companions != nullptr);
+  const auto quit_entry = [&](const QString& id) {
+    emit companions->menu()->aboutToShow();
+    return companions->menu()->findChild<QAction*>(QStringLiteral("companionQuitAction_") + id);
+  };
+  CHECK(quit_entry(QStringLiteral("io.example.fill")) == nullptr);
+
+  const auto endpoint = unique_endpoint();
+  patchy::ui::McpAttachment attachment(window, endpoint);
+  CHECK(attachment.error().isEmpty());
+  SocketClient companion;
+  CHECK(companion.open(endpoint));
+  CHECK(companion.initialize(QStringLiteral("Fill"), {{"patchy/companion", "io.example.fill"}}));
+  CHECK(wait_until([&] { return patchy::ui::McpAttachment::companion_attached(QStringLiteral("io.example.fill")); }));
+  CHECK(quit_entry(QStringLiteral("io.example.other")) == nullptr);
+  auto* quit = quit_entry(QStringLiteral("io.example.fill"));
+  CHECK(quit != nullptr && quit->text() == QStringLiteral("Quit Fill && Co"));
+  quit->trigger();
+  const auto command = companion.event(QStringLiteral("companionCommand"));
+  CHECK(command["companion"] == "io.example.fill" && command["action"] == "quit");
+
+  companion.socket.disconnectFromServer();
+  CHECK(wait_until([&] { return !patchy::ui::McpAttachment::companion_attached(QStringLiteral("io.example.fill")); }));
+  CHECK(quit_entry(QStringLiteral("io.example.fill")) == nullptr);
+  remove_test_scratch_dir(folder);
+}
+
 std::vector<patchy::test::TestCase> companion_tests() {
   return {
       {"ui_mcp_multi_client_attach_tokens_and_busy", ui_mcp_multi_client_attach_tokens_and_busy},
       {"ui_mcp_events_reach_subscribed_companions", ui_mcp_events_reach_subscribed_companions},
       {"ui_companion_menu_lists_manifests_and_launches", ui_companion_menu_lists_manifests_and_launches},
       {"ui_mcp_state_reports_layer_masks", ui_mcp_state_reports_layer_masks},
+      {"ui_companion_menu_quits_attached_companion", ui_companion_menu_quits_attached_companion},
   };
 }

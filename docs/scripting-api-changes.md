@@ -14,6 +14,9 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-11-02 (additive, MCP): `companionCommand` adds the action `"quit"`, sent by the Quit entry
+Plugins > Companions shows while that companion is attached. Permanent identifier: the action
+value. Pinned by `ui_companion_menu_quits_attached_companion`.
 2026-11-02 (additive): `doc.resizeCanvas(w, h, options)` takes `anchor` (nine ids, `"topLeft"`
 to `"bottomRight"`) or `x`/`y` (the old canvas origin in the new canvas) and `fill`; with options
 it works like Image > Canvas Size (content and selection move, the Background fills with `fill`,

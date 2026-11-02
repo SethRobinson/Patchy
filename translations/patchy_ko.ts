@@ -18594,6 +18594,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Starting %1...</source>
         <translation>%1을(를) 시작하는 중...</translation>
     </message>
+    <message>
+        <source>Quit %1</source>
+        <translation>%1 종료</translation>
+    </message>
+    <message>
+        <source>Asked %1 to quit</source>
+        <translation>%1에 종료를 요청했습니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

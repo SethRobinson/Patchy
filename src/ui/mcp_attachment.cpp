@@ -171,6 +171,13 @@ bool McpAttachment::send_companion_command(const QString& companion_id, const QS
   return sent;
 }
 
+bool McpAttachment::companion_attached(const QString& companion_id) {
+  if (active_ == nullptr || companion_id.isEmpty()) { return false; }
+  return std::any_of(active_->pool.begin(), active_->pool.end(), [&companion_id](const auto& slot) {
+    return slot.session->ready() && slot.session->companion_id() == companion_id;
+  });
+}
+
 McpAttachment::McpAttachment(MainWindow& window, const QString& endpoint)
     : impl_(std::make_unique<Impl>(window, endpoint)) {
   active_ = impl_.get();

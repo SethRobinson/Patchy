@@ -18638,6 +18638,14 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Starting %1...</source>
         <translation>Démarrage de %1...</translation>
     </message>
+    <message>
+        <source>Quit %1</source>
+        <translation>Quitter %1</translation>
+    </message>
+    <message>
+        <source>Asked %1 to quit</source>
+        <translation>%1 a été invité à se fermer</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

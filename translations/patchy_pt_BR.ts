@@ -18638,6 +18638,14 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Starting %1...</source>
         <translation>Iniciando %1...</translation>
     </message>
+    <message>
+        <source>Quit %1</source>
+        <translation>Sair do %1</translation>
+    </message>
+    <message>
+        <source>Asked %1 to quit</source>
+        <translation>Pedido para %1 encerrar enviado</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

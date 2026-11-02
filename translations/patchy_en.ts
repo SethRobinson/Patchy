@@ -18621,6 +18621,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Starting %1...</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Quit %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Asked %1 to quit</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

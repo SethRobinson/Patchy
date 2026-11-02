@@ -18682,6 +18682,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Starting %1...</source>
         <translation>Uruchamianie %1...</translation>
     </message>
+    <message>
+        <source>Quit %1</source>
+        <translation>Zakończ %1</translation>
+    </message>
+    <message>
+        <source>Asked %1 to quit</source>
+        <translation>Poproszono %1 o zakończenie</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
