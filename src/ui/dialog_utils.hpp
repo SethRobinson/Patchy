@@ -32,6 +32,7 @@ class QLabel;
 class QLineEdit;
 class QMenu;
 class QPushButton;
+class QSlider;
 class QSpinBox;
 class QTabWidget;
 class QVBoxLayout;
@@ -184,6 +185,11 @@ QSpinBox* add_dialog_slider_spin_row(QFormLayout* form, QWidget* parent, const Q
                                      int spin_width = 72, int row_spacing = -1, bool step_buttons = false,
                                      int slider_maximum = std::numeric_limits<int>::max(),
                                      SliderCurve curve = SliderCurve::Linear);
+// Same row with a slider the caller made (a painted track, for one); the row takes it over
+// and keeps its object name.
+QSpinBox* add_dialog_slider_spin_row(QFormLayout* form, QWidget* parent, const QString& label, QSlider* slider,
+                                     const QString& spin_object_name, int minimum, int maximum, int value,
+                                     const QString& suffix = QString(), int spin_width = 72);
 // Same row with a unit-entry spin box: the suffix comes from the native unit and typed
 // unit tokens convert on entry (px/in/cm/mm/pt/%/deg; see unit_spin_box.hpp). `provider`
 // supplies the PPI and percent basis; leave it empty for a plain 300 ppi, no-percent field.

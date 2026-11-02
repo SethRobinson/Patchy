@@ -6,10 +6,12 @@
 #include "ui/filter_workflows.hpp"
 
 #include "formats/acv_curves_io.hpp"
+#include "formats/photoshop_adjustment_presets.hpp"
 #include "ui/blend_mode_ui.hpp"
 #include "ui/coalesced_preview_emitter.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/curves_editor.hpp"
+#include "ui/adjustment_presets.hpp"
 #include "ui/curves_presets.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/qt_paths.hpp"
@@ -17,6 +19,7 @@
 #include "ui/theme_palette.hpp"
 #include "core/pixel_depth.hpp"
 #include "ui/filter_workflows_internal.hpp"
+#include "ui/icon_theme.hpp"
 #include "ui/gradient_stops_editor.hpp"
 #include "ui/layer_style_gradient_controls.hpp"
 
@@ -42,6 +45,7 @@
 #include <QMessageBox>
 #include <QHBoxLayout>
 #include <QIcon>
+#include <QToolButton>
 #include <QLabel>
 #include <QLinearGradient>
 #include <QListView>
@@ -77,6 +81,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <functional>
+#include <initializer_list>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -94,7 +99,287 @@ struct SliderRowSpec {
   int maximum{100};
   int value{0};
   QString suffix;
+  // A painted track (GradientTrackSlider) instead of a plain slider.
+  bool gradient_track{false};
 };
+
+// A slider whose track shows what it picks (#588, #591). The track colors are content, like a
+// color swatch, so they stay the same in every theme; the frame and the handle use theme
+// roles. A press jumps to the pointer and a drag follows it; the keys work as on any slider.
+// The first, middle and last track colors ride the patchy.trackStart/Middle/End properties.
+class GradientTrackSlider final : public QSlider {
+public:
+  GradientTrackSlider(const QString& object_name, QWidget* parent) : QSlider(Qt::Horizontal, parent) {
+    setObjectName(object_name);
+    setFocusPolicy(Qt::StrongFocus);
+    setFixedHeight(20);
+    setMinimumWidth(120);
+  }
+
+  void set_stops(QGradientStops stops) {
+    if (stops == stops_) {
+      return;
+    }
+    stops_ = std::move(stops);
+    setProperty("patchy.trackStart", color_at(0.0));
+    setProperty("patchy.trackMiddle", color_at(0.5));
+    setProperty("patchy.trackEnd", color_at(1.0));
+    update();
+  }
+
+protected:
+  void paintEvent(QPaintEvent* event) override {
+    Q_UNUSED(event);
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    if (!isEnabled()) {
+      painter.setOpacity(0.35);
+    }
+    const auto track = track_rect();
+    QLinearGradient gradient(track.topLeft(), track.topRight());
+    gradient.setStops(stops_.isEmpty()
+                          ? QGradientStops{{0.0, theme().slider_groove_bg}, {1.0, theme().slider_groove_bg}}
+                          : stops_);
+    painter.setPen(QPen(theme().slider_groove_border, 1.0));
+    painter.setBrush(gradient);
+    painter.drawRoundedRect(track, 3.0, 3.0);
+    const auto x = x_for_value(value());
+    const QRectF handle(x - 4.0, 1.5, 8.0, height() - 3.0);
+    painter.setPen(QPen(hasFocus() ? theme().accent : theme().slider_handle_border, 1.0));
+    painter.setBrush(theme().slider_handle_bg);
+    painter.drawRoundedRect(handle, 2.0, 2.0);
+  }
+
+  void mousePressEvent(QMouseEvent* event) override {
+    if (event->button() != Qt::LeftButton) {
+      QSlider::mousePressEvent(event);
+      return;
+    }
+    setFocus(Qt::MouseFocusReason);
+    setSliderDown(true);
+    setValue(value_for_x(event->position().x()));
+    event->accept();
+  }
+
+  void mouseMoveEvent(QMouseEvent* event) override {
+    if (isSliderDown()) {
+      setValue(value_for_x(event->position().x()));
+      event->accept();
+      return;
+    }
+    QSlider::mouseMoveEvent(event);
+  }
+
+  void mouseReleaseEvent(QMouseEvent* event) override {
+    if (isSliderDown() && event->button() == Qt::LeftButton) {
+      setSliderDown(false);
+      event->accept();
+      return;
+    }
+    QSlider::mouseReleaseEvent(event);
+  }
+
+private:
+  [[nodiscard]] QRectF track_rect() const {
+    return QRectF(5.5, height() / 2.0 - 4.0, std::max(1.0, width() - 11.0), 8.0);
+  }
+
+  [[nodiscard]] double x_for_value(int value) const {
+    const auto track = track_rect();
+    const auto span = std::max(1, maximum() - minimum());
+    return track.left() + track.width() * static_cast<double>(value - minimum()) / span;
+  }
+
+  [[nodiscard]] int value_for_x(double x) const {
+    const auto track = track_rect();
+    const auto fraction = std::clamp((x - track.left()) / std::max(1.0, track.width()), 0.0, 1.0);
+    return minimum() + static_cast<int>(std::lround(fraction * (maximum() - minimum())));
+  }
+
+  [[nodiscard]] QColor color_at(double position) const {
+    if (stops_.isEmpty()) {
+      return {};
+    }
+    if (position <= stops_.front().first) {
+      return stops_.front().second;
+    }
+    for (qsizetype index = 1; index < stops_.size(); ++index) {
+      const auto& right = stops_[index];
+      if (position <= right.first) {
+        const auto& left = stops_[index - 1];
+        const auto t = right.first > left.first ? (position - left.first) / (right.first - left.first) : 1.0;
+        const auto mix = [t](double from, double to) { return static_cast<float>(from + (to - from) * t); };
+        return QColor::fromRgbF(mix(left.second.redF(), right.second.redF()),
+                                mix(left.second.greenF(), right.second.greenF()),
+                                mix(left.second.blueF(), right.second.blueF()));
+      }
+    }
+    return stops_.back().second;
+  }
+
+  QGradientStops stops_;
+};
+
+// Track colors (content): a hue at the given strength, the hue wheel around `center`
+// degrees, and an even ramp through the given colors.
+QColor hue_track_color(double degrees, double saturation = 1.0, double value = 1.0) {
+  const auto wrapped = std::fmod(std::fmod(degrees, 360.0) + 360.0, 360.0);
+  return QColor::fromHsvF(static_cast<float>(wrapped / 360.0), static_cast<float>(saturation),
+                          static_cast<float>(value));
+}
+
+QGradientStops hue_wheel_stops(double center) {
+  QGradientStops stops;
+  for (int step = 0; step <= 12; ++step) {
+    const auto t = step / 12.0;
+    stops.append({t, hue_track_color(center - 180.0 + 360.0 * t)});
+  }
+  return stops;
+}
+
+QGradientStops ramp_stops(std::initializer_list<QColor> colors) {
+  QGradientStops stops;
+  const auto count = static_cast<int>(colors.size());
+  int index = 0;
+  for (const auto& color : colors) {
+    stops.append({count > 1 ? static_cast<double>(index) / (count - 1) : 0.0, color});
+    ++index;
+  }
+  return stops;
+}
+
+// The Preset combo of the Hue/Saturation and Levels dialogs: Custom (what the sliders hold
+// when it matches no preset), the shipped presets, then the user's own presets after a
+// separator. Item data: the shipped id, or "user:" and the user preset's name.
+template <typename Settings>
+class AdjustmentPresetCombo {
+public:
+  struct Shipped {
+    QString id;
+    QString name;
+    Settings settings;
+  };
+
+  AdjustmentPresetCombo(QComboBox* combo, AdjustmentPresetKind kind, std::vector<Shipped> shipped,
+                        std::function<Settings(const QString& path)> read_user,
+                        std::function<bool(const Settings&, const Settings&)> same)
+      : combo_(combo), kind_(kind), shipped_(std::move(shipped)), read_user_(std::move(read_user)),
+        same_(std::move(same)) {
+    reload();
+  }
+
+  // Rebuilds the items from the shipped list and the user's folder (a file that does not
+  // read as a preset is left out).
+  void reload() {
+    const QSignalBlocker blocker(combo_);
+    combo_->clear();
+    user_.clear();
+    combo_->addItem(QObject::tr("Custom"), QStringLiteral("custom"));
+    for (const auto& preset : shipped_) {
+      combo_->addItem(preset.name, preset.id);
+    }
+    for (const auto& preset : user_adjustment_presets(kind_)) {
+      try {
+        user_.push_back({preset.name, read_user_(preset.path)});
+      } catch (const std::exception&) {
+      }
+    }
+    if (!user_.empty()) {
+      combo_->insertSeparator(combo_->count());
+      for (const auto& user : user_) {
+        combo_->addItem(user.first, QStringLiteral("user:") + user.first);
+      }
+    }
+  }
+
+  // Keeps the selected preset while the settings still equal it (a just-saved user preset
+  // that equals a shipped one stays selected); otherwise selects the first preset the
+  // settings equal (shipped first), or Custom.
+  void select_matching(const Settings& current) {
+    if (const auto selected = settings_at(combo_->currentIndex()); selected.has_value() && same_(*selected, current)) {
+      return;
+    }
+    int index = 0;
+    for (std::size_t row = 0; row < shipped_.size() && index == 0; ++row) {
+      if (same_(shipped_[row].settings, current)) {
+        index = combo_->findData(shipped_[row].id);
+      }
+    }
+    for (std::size_t row = 0; row < user_.size() && index == 0; ++row) {
+      if (same_(user_[row].second, current)) {
+        index = combo_->findData(QStringLiteral("user:") + user_[row].first);
+      }
+    }
+    const QSignalBlocker blocker(combo_);
+    combo_->setCurrentIndex(std::max(0, index));
+  }
+
+  void select_user(const QString& name) {
+    const QSignalBlocker blocker(combo_);
+    combo_->setCurrentIndex(std::max(0, combo_->findData(QStringLiteral("user:") + name)));
+  }
+
+  [[nodiscard]] std::optional<Settings> settings_at(int index) const {
+    const auto data = combo_->itemData(index).toString();
+    for (const auto& preset : shipped_) {
+      if (preset.id == data) {
+        return preset.settings;
+      }
+    }
+    for (const auto& user : user_) {
+      if (QStringLiteral("user:") + user.first == data) {
+        return user.second;
+      }
+    }
+    return std::nullopt;
+  }
+
+  [[nodiscard]] std::optional<QString> selected_user() const {
+    const auto data = combo_->currentData().toString();
+    if (data.startsWith(QStringLiteral("user:"))) {
+      return data.mid(5);
+    }
+    return std::nullopt;
+  }
+
+private:
+  QComboBox* combo_;
+  AdjustmentPresetKind kind_;
+  std::vector<Shipped> shipped_;
+  std::function<Settings(const QString& path)> read_user_;
+  std::function<bool(const Settings&, const Settings&)> same_;
+  std::vector<std::pair<QString, Settings>> user_;
+};
+
+// Keeps the dialog buttons last in the tab order, after controls added once they existed;
+// every other widget keeps its place in the chain.
+void keep_buttons_last_in_tab_order(QDialog& dialog, const QDialogButtonBox& buttons) {
+  std::vector<QWidget*> controls;
+  std::vector<QWidget*> trailing;
+  for (auto* widget = dialog.nextInFocusChain(); widget != nullptr && widget != &dialog;
+       widget = widget->nextInFocusChain()) {
+    if ((widget->focusPolicy() & Qt::TabFocus) == 0) {
+      continue;
+    }
+    (buttons.isAncestorOf(widget) ? trailing : controls).push_back(widget);
+  }
+  controls.insert(controls.end(), trailing.begin(), trailing.end());
+  for (std::size_t index = 1; index < controls.size(); ++index) {
+    QWidget::setTabOrder(controls[index - 1], controls[index]);
+  }
+}
+
+// Gives a dialog's OK and Cancel one width (#591): the wider of the two.
+void match_ok_cancel_widths(QDialogButtonBox& buttons) {
+  auto* ok = buttons.button(QDialogButtonBox::Ok);
+  auto* cancel = buttons.button(QDialogButtonBox::Cancel);
+  if (ok == nullptr || cancel == nullptr) {
+    return;
+  }
+  const auto width = std::max(ok->sizeHint().width(), cancel->sizeHint().width());
+  ok->setMinimumWidth(width);
+  cancel->setMinimumWidth(width);
+}
 
 int levels_channel_tab_index(LevelsChannel channel) {
   switch (channel) {
@@ -524,6 +809,12 @@ private:
 };
 
 QSpinBox* add_slider_row(QDialog& dialog, QFormLayout* form, const SliderRowSpec& spec) {
+  if (spec.gradient_track) {
+    return add_dialog_slider_spin_row(form, &dialog, spec.label,
+                                      new GradientTrackSlider(spec.object_prefix + QStringLiteral("Slider"), &dialog),
+                                      spec.object_prefix + QStringLiteral("Spin"), spec.minimum, spec.maximum,
+                                      spec.value, spec.suffix);
+  }
   return add_dialog_slider_spin_row(form, &dialog, spec.label,
                                     spec.object_prefix + QStringLiteral("Slider"),
                                     spec.object_prefix + QStringLiteral("Spin"), spec.minimum,
@@ -580,14 +871,17 @@ std::optional<Settings> request_adjustment_settings_dialog(
   }
   QObject::connect(preview, &QCheckBox::toggled, &dialog, [&flush_preview](bool) { flush_preview(); });
 
-  if (add_extras) {
-    add_extras(dialog, form, spins, flush_preview);
-  }
-
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  buttons->setObjectName(object_name + QStringLiteral("Buttons"));
+  match_ok_cancel_widths(*buttons);
   layout->addWidget(buttons);
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  // Extras run once the whole dialog exists, so they can add rows, buttons and tab order.
+  if (add_extras) {
+    add_extras(dialog, form, spins, flush_preview);
+    keep_buttons_last_in_tab_order(dialog, *buttons);
+  }
 
   QTimer::singleShot(0, &dialog, [&dialog, &flush_preview] {
     if (dialog.isVisible()) {
@@ -602,9 +896,42 @@ std::optional<Settings> request_adjustment_settings_dialog(
 
 }  // namespace
 
+namespace {
+
+// A Levels eyedropper (#589): the Pick tool's icon with a corner square of the tone it sets
+// (black, gray or white: content colors).
+QToolButton* make_levels_eyedropper(QWidget* parent, const QString& object_name, QColor tone, const QString& tip) {
+  auto* button = new QToolButton(parent);
+  button->setObjectName(object_name);
+  button->setCheckable(true);
+  button->setAutoRaise(true);
+  button->setToolTip(tip);
+  button->setAccessibleName(tip);
+  constexpr int kIcon = 16;
+  const auto ratio = std::max(1.0, parent->devicePixelRatioF());
+  auto pixmap = themed_svg_icon(QStringLiteral("tool-eyedropper")).pixmap(QSize(kIcon, kIcon), ratio);
+  if (pixmap.isNull()) {
+    pixmap = QPixmap(QSize(kIcon, kIcon) * ratio);
+    pixmap.setDevicePixelRatio(ratio);
+    pixmap.fill(Qt::transparent);
+  }
+  {
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setPen(QPen(theme().field_inset_border, 1.0));
+    painter.setBrush(tone);
+    painter.drawRect(QRectF(kIcon - 7.5, kIcon - 7.5, 6.0, 6.0));
+  }
+  button->setIcon(QIcon(pixmap));
+  button->setIconSize(QSize(kIcon, kIcon));
+  return button;
+}
+
+}  // namespace
+
 std::optional<LevelsSettings> request_levels_settings(
     QWidget* parent, std::function<void(bool, const LevelsSettings&)> preview_changed, LevelsSettings initial,
-    const PixelBuffer* histogram_source) {
+    const PixelBuffer* histogram_source, CurvesDialogHooks hooks) {
   initial = clamp_levels_settings(initial);
   const auto sampled_histograms = curves_histograms_from_pixels(histogram_source);
   auto histogram_for_channel = [&sampled_histograms](LevelsChannel channel) {
@@ -621,12 +948,22 @@ std::optional<LevelsSettings> request_levels_settings(
   root->addLayout(controls, 1);
 
   auto* preset_row = new QHBoxLayout();
-  preset_row->addWidget(new QLabel(QObject::tr("Preset:"), &dialog));
+  preset_row->setSpacing(10);
   auto* preset = new QComboBox(&dialog);
   preset->setObjectName(QStringLiteral("levelsPresetCombo"));
-  preset->addItem(QObject::tr("Default"));
+  auto* preset_label = new QLabel(QObject::tr("Preset:"), &dialog);
+  preset_label->setBuddy(preset);
+  preset_row->addWidget(preset_label);
   preset_row->addWidget(preset, 1);
   controls->addLayout(preset_row);
+  std::vector<AdjustmentPresetCombo<LevelsAdjustment>::Shipped> shipped_presets;
+  for (const auto& entry : builtin_levels_presets()) {
+    shipped_presets.push_back(
+        {QString::fromLatin1(entry.id), QCoreApplication::translate("QObject", entry.name), entry.settings});
+  }
+  AdjustmentPresetCombo<LevelsAdjustment> presets(
+      preset, AdjustmentPresetKind::Levels, std::move(shipped_presets),
+      [](const QString& path) { return alv::read_file(to_filesystem_path(path)); }, levels_presets_match);
 
   // One click per channel, the same tab bar the Curves editor uses (issue 453).
   auto* channel = new QTabBar(&dialog);
@@ -637,6 +974,7 @@ std::optional<LevelsSettings> request_levels_settings(
   channel->addTab(QObject::tr("Red"));
   channel->addTab(QObject::tr("Green"));
   channel->addTab(QObject::tr("Blue"));
+  set_channel_tab_swatches(*channel);
   controls->addWidget(channel);
 
   auto* input_label = new QLabel(QObject::tr("Input Levels:"), &dialog);
@@ -656,16 +994,40 @@ std::optional<LevelsSettings> request_levels_settings(
   black_input->setRange(0, 254);
   gamma->setRange(10, 999);
   white_input->setRange(1, 255);
-  configure_dialog_spinbox(black_input, 64);
-  configure_dialog_spinbox(gamma, 64);
-  configure_dialog_spinbox(white_input, 64);
+  configure_dialog_spinbox(black_input, 40);
+  configure_dialog_spinbox(gamma, 40);
+  configure_dialog_spinbox(white_input, 40);
+  black_input->setToolTip(QObject::tr("Black input level"));
+  gamma->setToolTip(QObject::tr("Gamma (midtones)"));
+  white_input->setToolTip(QObject::tr("White input level"));
 
+  // B:, G: and W: fields, each with the eyedropper that sets it from the image (#589).
+  auto* black_pick = make_levels_eyedropper(&dialog, QStringLiteral("levelsBlackPointButton"), QColor(0, 0, 0),
+                                            QObject::tr("Set the black point from the image"));
+  auto* gray_pick = make_levels_eyedropper(&dialog, QStringLiteral("levelsGrayPointButton"), QColor(128, 128, 128),
+                                           QObject::tr("Neutralize a gray point from the image"));
+  auto* white_pick = make_levels_eyedropper(&dialog, QStringLiteral("levelsWhitePointButton"),
+                                            QColor(255, 255, 255), QObject::tr("Set the white point from the image"));
+  const std::array<QToolButton*, 3> eyedroppers{black_pick, gray_pick, white_pick};
+  for (auto* button : eyedroppers) {
+    button->setEnabled(static_cast<bool>(hooks.set_canvas_mode));
+  }
   auto* input_values = new QHBoxLayout();
-  input_values->addWidget(black_input);
+  input_values->setSpacing(4);
+  const auto add_input_field = [&](const QString& text, QSpinBox* spin, QToolButton* pick, const QString& label_name) {
+    auto* label = new QLabel(text, &dialog);
+    label->setObjectName(label_name);
+    label->setToolTip(spin->toolTip());
+    label->setBuddy(spin);
+    input_values->addWidget(label);
+    input_values->addWidget(spin);
+    input_values->addWidget(pick);
+  };
+  add_input_field(QObject::tr("B:"), black_input, black_pick, QStringLiteral("levelsBlackInputLabel"));
   input_values->addStretch(1);
-  input_values->addWidget(gamma);
+  add_input_field(QObject::tr("G:"), gamma, gray_pick, QStringLiteral("levelsGammaLabel"));
   input_values->addStretch(1);
-  input_values->addWidget(white_input);
+  add_input_field(QObject::tr("W:"), white_input, white_pick, QStringLiteral("levelsWhiteInputLabel"));
   controls->addLayout(input_values);
 
   auto* output_label = new QLabel(QObject::tr("Output Levels:"), &dialog);
@@ -699,12 +1061,11 @@ std::optional<LevelsSettings> request_levels_settings(
   auto* auto_button = new QPushButton(QObject::tr("Auto"), &dialog);
   auto_button->setObjectName(QStringLiteral("levelsAutoButton"));
   side->addWidget(auto_button);
-  side->addStretch(1);
+  side->addSpacing(8);
 
   auto* preview = new QCheckBox(QObject::tr("Preview"), &dialog);
   preview->setObjectName(QStringLiteral("levelsPreviewCheck"));
   preview->setChecked(true);
-  side->addWidget(preview);
 
   bool updating = false;
   LevelsSettings dialog_settings = clamp_levels_settings(initial);
@@ -759,11 +1120,69 @@ std::optional<LevelsSettings> request_levels_settings(
   auto schedule_preview = [&] { preview_emitter.schedule(preview_request()); };
   auto flush_preview = [&] { preview_emitter.flush(preview_request()); };
 
+  // Presets (#589): the combo follows the settings; Save, Delete, Import and Export sit in
+  // the button column, all as wide as OK.
+  AdjustmentPresetButtons* preset_buttons = nullptr;
+  const auto sync_preset = [&] {
+    presets.select_matching(committed_settings());
+    if (preset_buttons != nullptr) {
+      preset_buttons->refresh();
+    }
+  };
+  const auto apply_preset = [&](LevelsAdjustment settings) {
+    settings.channel = visible_channel;
+    apply_settings_to_widgets(settings);
+    sync_preset();
+    flush_preview();
+  };
+  AdjustmentPresetButtons::Hooks preset_hooks;
+  preset_hooks.write_current = [&](const QString& path) {
+    alv::write_file(to_filesystem_path(path), committed_settings());
+  };
+  preset_hooks.check_file = [](const QString& path) { (void)alv::read_file(to_filesystem_path(path)); };
+  preset_hooks.selected_user_preset = [&] { return presets.selected_user(); };
+  preset_hooks.user_presets_changed = [&](const QString& name) {
+    presets.reload();
+    if (!name.isEmpty()) {
+      presets.select_user(name);
+      if (const auto chosen = presets.settings_at(preset->currentIndex());
+          chosen.has_value() && !levels_presets_match(*chosen, committed_settings())) {
+        apply_preset(*chosen);
+        return;
+      }
+    }
+    sync_preset();
+  };
+  preset_buttons = new AdjustmentPresetButtons(AdjustmentPresetKind::Levels, QStringLiteral("levels"),
+                                               AdjustmentPresetButtons::Arrangement::Column, preset_hooks, &dialog);
+  side->addWidget(preset_buttons);
+  side->addStretch(1);
+  side->addWidget(preview);
+  {
+    // OK, Cancel, Auto and the preset buttons share one width.
+    std::vector<QPushButton*> column{buttons->button(QDialogButtonBox::Ok), buttons->button(QDialogButtonBox::Cancel),
+                                     auto_button, preset_buttons->save_button(), preset_buttons->delete_button(),
+                                     preset_buttons->import_button(), preset_buttons->export_button()};
+    int width = 0;
+    for (auto* button : column) {
+      width = std::max(width, button->sizeHint().width());
+    }
+    for (auto* button : column) {
+      button->setMinimumWidth(width);
+    }
+  }
+  QObject::connect(preset, &QComboBox::activated, &dialog, [&](int index) {
+    if (const auto chosen = presets.settings_at(index); chosen.has_value()) {
+      apply_preset(*chosen);
+    }
+  });
+
   auto sync_from_widgets = [&] {
     if (updating) {
       return;
     }
     apply_settings_to_widgets(committed_settings());
+    sync_preset();
     schedule_preview();
   };
 
@@ -804,6 +1223,7 @@ std::optional<LevelsSettings> request_levels_settings(
     record.gamma_percent = gamma_percent;
     set_levels_record_for_channel(settings, visible_channel, record);
     apply_settings_to_widgets(settings);
+    sync_preset();
     schedule_preview();
   });
   output_range->set_values_changed_callback([&](int black, int white) {
@@ -816,6 +1236,7 @@ std::optional<LevelsSettings> request_levels_settings(
     record.white_output = white;
     set_levels_record_for_channel(settings, visible_channel, record);
     apply_settings_to_widgets(settings);
+    sync_preset();
     schedule_preview();
   });
   QObject::connect(auto_button, &QPushButton::clicked, &dialog, [&] {
@@ -844,19 +1265,83 @@ std::optional<LevelsSettings> request_levels_settings(
     auto settings = committed_settings();
     set_levels_record_for_channel(settings, visible_channel, LevelsRecord{black, white, 100, 0, 255});
     apply_settings_to_widgets(settings);
+    sync_preset();
     flush_preview();
   });
 
+  // The eyedroppers sample the image under the pointer; one is active at a time, and each
+  // pick sets every color channel's record from the samples so far (#589).
+  CurvesEyedropperSamples eyedropper_samples;
+  const auto activate_eyedropper = [&](CurvesCanvasMode mode) {
+    if (!hooks.set_canvas_mode) {
+      return;
+    }
+    hooks.set_canvas_mode(mode, [&, mode](const CurvesCanvasSample& sample) {
+      const auto& gesture = sample.gesture;
+      if (gesture.phase == CanvasReadPhase::Dismiss) {
+        dialog.reject();
+        return;
+      }
+      if (gesture.phase != CanvasReadPhase::Press || !sample.input_color.isValid() ||
+          sample.input_color.alpha() == 0) {
+        return;
+      }
+      const RgbColor color{static_cast<std::uint8_t>(sample.input_color.red()),
+                           static_cast<std::uint8_t>(sample.input_color.green()),
+                           static_cast<std::uint8_t>(sample.input_color.blue())};
+      if (mode == CurvesCanvasMode::BlackPoint) {
+        eyedropper_samples.black = color;
+      } else if (mode == CurvesCanvasMode::GrayPoint) {
+        eyedropper_samples.gray = color;
+      } else {
+        eyedropper_samples.white = color;
+      }
+      apply_settings_to_widgets(levels_adjustment_from_eyedropper_samples(committed_settings(), eyedropper_samples));
+      sync_preset();
+      flush_preview();
+    });
+  };
+  for (std::size_t index = 0; index < eyedroppers.size(); ++index) {
+    QObject::connect(eyedroppers[index], &QToolButton::toggled, &dialog, [&, index](bool checked) {
+      constexpr std::array modes{CurvesCanvasMode::BlackPoint, CurvesCanvasMode::GrayPoint,
+                                 CurvesCanvasMode::WhitePoint};
+      if (checked) {
+        for (std::size_t other = 0; other < eyedroppers.size(); ++other) {
+          if (other != index) {
+            const QSignalBlocker blocker(eyedroppers[other]);
+            eyedroppers[other]->setChecked(false);
+          }
+        }
+        activate_eyedropper(modes[index]);
+      } else if (std::none_of(eyedroppers.begin(), eyedroppers.end(),
+                              [](const QToolButton* button) { return button->isChecked(); }) &&
+                 hooks.clear_canvas_mode) {
+        hooks.clear_canvas_mode();
+      }
+    });
+  }
+
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  QObject::connect(&dialog, &QDialog::finished, &dialog, [&] {
+    if (hooks.clear_canvas_mode) {
+      hooks.clear_canvas_mode();
+    }
+  });
 
   apply_settings_to_widgets(initial);
+  presets.select_matching(committed_settings());
+  preset_buttons->refresh();
   QTimer::singleShot(0, &dialog, [&dialog, &flush_preview] {
     if (dialog.isVisible()) {
       flush_preview();
     }
   });
-  if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
+  const auto result = run_non_modal_dialog(dialog);
+  if (hooks.clear_canvas_mode) {
+    hooks.clear_canvas_mode();
+  }
+  if (result != QDialog::Accepted) {
     return std::nullopt;
   }
   return committed_settings();
@@ -868,7 +1353,7 @@ std::optional<CurvesSettings> request_curves_settings(
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyCurvesDialog"));
   dialog.setWindowTitle(QObject::tr("Curves"));
-  dialog.setMinimumSize(640, 630);
+  dialog.setMinimumSize(560, 560);
 
   auto* root = new QVBoxLayout(&dialog);
   auto* canvas_tools = new QHBoxLayout();
@@ -955,18 +1440,52 @@ std::optional<CurvesSettings> request_curves_settings(
     item->setData(kPresetIdRole, preset.id);
     item->setToolTip(display_name);
   }
-  root->addWidget(preset_list);
+  // The user's own presets follow the shipped ones (item id "user:" and the name).
+  std::vector<std::pair<QString, CurvesAdjustment>> user_curves;
+  const auto rebuild_user_items = [&] {
+    const QSignalBlocker blocker(preset_list);
+    for (int row = preset_list->count() - 1; row > 0; --row) {
+      if (preset_list->item(row)->data(kPresetIdRole).toString().startsWith(QStringLiteral("user:"))) {
+        delete preset_list->takeItem(row);
+      }
+    }
+    user_curves.clear();
+    for (const auto& user : user_adjustment_presets(AdjustmentPresetKind::Curves)) {
+      try {
+        auto curves = acv::read_file(to_filesystem_path(user.path));
+        auto* item = new QListWidgetItem(
+            QIcon(QPixmap::fromImage(curves_adjustment_thumbnail(curves, kPresetThumbnailSize))), user.name,
+            preset_list);
+        item->setData(kPresetIdRole, QStringLiteral("user:") + user.name);
+        item->setToolTip(user.name);
+        user_curves.emplace_back(user.name, std::move(curves));
+      } catch (const std::exception&) {
+      }
+    }
+  };
+  rebuild_user_items();
+  const auto preset_curves_for = [&](const QString& id) -> std::optional<CurvesAdjustment> {
+    if (id.startsWith(QStringLiteral("user:"))) {
+      for (const auto& [name, curves] : user_curves) {
+        if (QStringLiteral("user:") + name == id) {
+          return curves;
+        }
+      }
+      return std::nullopt;
+    }
+    if (const auto* builtin = find_curves_preset(id); builtin != nullptr) {
+      return builtin->adjustment;
+    }
+    return std::nullopt;
+  };
+
+  // The preset strip on top with its buttons beside it (#592).
+  auto* preset_row = new QHBoxLayout();
+  preset_row->setSpacing(6);
+  preset_row->addWidget(preset_list, 1);
+  root->insertLayout(1, preset_row);
 
   auto* footer = new QHBoxLayout();
-  auto* load_preset = new QPushButton(QObject::tr("Load..."), &dialog);
-  load_preset->setObjectName(QStringLiteral("curvesLoadPresetButton"));
-  load_preset->setToolTip(QObject::tr("Load a Photoshop Curves preset"));
-  footer->addWidget(load_preset);
-  auto* save_preset = new QPushButton(QObject::tr("Save..."), &dialog);
-  save_preset->setObjectName(QStringLiteral("curvesSavePresetButton"));
-  save_preset->setToolTip(QObject::tr("Save the current curves as a Photoshop preset"));
-  footer->addWidget(save_preset);
-  footer->addSpacing(12);
   auto* before = new QPushButton(QObject::tr("Before"), &dialog);
   before->setObjectName(QStringLiteral("curvesBeforeButton"));
   before->setToolTip(QObject::tr("Hold to compare with the unadjusted image"));
@@ -1138,20 +1657,39 @@ std::optional<CurvesSettings> request_curves_settings(
     const QSignalBlocker blocker(preset_list);
     preset_list->setCurrentItem(custom_preset_item);
   };
+  AdjustmentPresetButtons* preset_buttons = nullptr;
   auto sync_curves_preset_selection = [&] {
     update_custom_preset_thumbnail();
-    QListWidgetItem* selected = custom_preset_item;
-    if (const auto* matching = find_curves_preset(dialog_settings); matching != nullptr) {
-      for (int row = 1; row < preset_list->count(); ++row) {
-        auto* item = preset_list->item(row);
-        if (item != nullptr && item->data(kPresetIdRole).toString() == matching->id) {
-          selected = item;
+    QString wanted;
+    const auto* current_item = preset_list->currentItem();
+    const auto current_id = current_item != nullptr ? current_item->data(kPresetIdRole).toString() : QString();
+    if (const auto selected = preset_curves_for(current_id); selected.has_value() && *selected == dialog_settings) {
+      wanted = current_id;
+    } else if (const auto* matching = find_curves_preset(dialog_settings); matching != nullptr) {
+      wanted = matching->id;
+    } else {
+      for (const auto& [name, curves] : user_curves) {
+        if (curves == dialog_settings) {
+          wanted = QStringLiteral("user:") + name;
           break;
         }
       }
     }
-    const QSignalBlocker blocker(preset_list);
-    preset_list->setCurrentItem(selected);
+    QListWidgetItem* selected = custom_preset_item;
+    for (int row = 1; row < preset_list->count() && !wanted.isEmpty(); ++row) {
+      auto* item = preset_list->item(row);
+      if (item != nullptr && item->data(kPresetIdRole).toString() == wanted) {
+        selected = item;
+        break;
+      }
+    }
+    {
+      const QSignalBlocker blocker(preset_list);
+      preset_list->setCurrentItem(selected);
+    }
+    if (preset_buttons != nullptr) {
+      preset_buttons->refresh();
+    }
   };
 
   editor->adjustment_changed = [&](const CurvesSettings& settings, bool gesture_finished) {
@@ -1161,6 +1699,9 @@ std::optional<CurvesSettings> request_curves_settings(
     dialog_settings = settings;
     editor->set_adjustment(dialog_settings);
     select_custom_preset();
+    if (preset_buttons != nullptr) {
+      preset_buttons->refresh();
+    }
     if (gesture_finished) {
       flush_preview();
     } else {
@@ -1173,61 +1714,72 @@ std::optional<CurvesSettings> request_curves_settings(
                        return;
                      }
                      const auto id = current->data(kPresetIdRole).toString();
+                     if (preset_buttons != nullptr) {
+                       preset_buttons->refresh();
+                     }
                      if (id.isEmpty()) {
                        return;
                      }
-                     const auto* preset = find_curves_preset(id);
-                     if (preset == nullptr) {
+                     const auto curves = preset_curves_for(id);
+                     if (!curves.has_value()) {
                        return;
                      }
                      eyedropper_samples = {};
-                     dialog_settings = preset->adjustment;
+                     dialog_settings = *curves;
                      editor->set_adjustment(dialog_settings);
                      update_custom_preset_thumbnail();
                      flush_preview();
                    });
+
+  // Save..., Delete, Import... and Export... (.acv) for the user's presets (#592).
+  AdjustmentPresetButtons::Hooks preset_hooks;
+  preset_hooks.write_current = [&](const QString& path) { acv::write_file(to_filesystem_path(path), dialog_settings); };
+  preset_hooks.check_file = [](const QString& path) { (void)acv::read_file(to_filesystem_path(path)); };
+  preset_hooks.selected_user_preset = [&]() -> std::optional<QString> {
+    const auto* item = preset_list->currentItem();
+    const auto id = item != nullptr ? item->data(kPresetIdRole).toString() : QString();
+    if (id.startsWith(QStringLiteral("user:"))) {
+      return id.mid(5);
+    }
+    return std::nullopt;
+  };
+  preset_hooks.user_presets_changed = [&](const QString& name) {
+    rebuild_user_items();
+    if (!name.isEmpty()) {
+      const auto id = QStringLiteral("user:") + name;
+      if (const auto curves = preset_curves_for(id); curves.has_value() && *curves != dialog_settings) {
+        eyedropper_samples = {};
+        dialog_settings = *curves;
+        editor->set_adjustment(dialog_settings);
+        flush_preview();
+      }
+      for (int row = 1; row < preset_list->count(); ++row) {
+        if (preset_list->item(row)->data(kPresetIdRole).toString() == id) {
+          const QSignalBlocker blocker(preset_list);
+          preset_list->setCurrentRow(row);
+          preset_list->scrollToItem(preset_list->item(row));
+          break;
+        }
+      }
+    }
+    sync_curves_preset_selection();
+  };
+  preset_buttons = new AdjustmentPresetButtons(AdjustmentPresetKind::Curves, QStringLiteral("curves"),
+                                               AdjustmentPresetButtons::Arrangement::Grid, preset_hooks, &dialog);
+  preset_row->addWidget(preset_buttons, 0, Qt::AlignVCenter);
+  {
+    // Tab order follows the layout: the canvas tools, the presets and their buttons, then
+    // the editor.
+    QWidget* previous = clipping_button;
+    for (QWidget* next : {static_cast<QWidget*>(preset_list), static_cast<QWidget*>(preset_buttons->save_button()),
+                          static_cast<QWidget*>(preset_buttons->delete_button()),
+                          static_cast<QWidget*>(preset_buttons->import_button()),
+                          static_cast<QWidget*>(preset_buttons->export_button())}) {
+      QWidget::setTabOrder(previous, next);
+      previous = next;
+    }
+  }
   sync_curves_preset_selection();
-  QObject::connect(load_preset, &QPushButton::clicked, &dialog, [&] {
-    const auto path = get_open_file_name(
-        &dialog, QObject::tr("Load Curves Preset"), QString(),
-        QObject::tr("Photoshop Curves Preset (*.acv)"), nullptr,
-        QStringLiteral("curvesPresetOpenFileDialog"));
-    if (path.isEmpty()) {
-      return;
-    }
-    try {
-      eyedropper_samples = {};
-      dialog_settings = acv::read_file(to_filesystem_path(path));
-      editor->set_adjustment(dialog_settings);
-      sync_curves_preset_selection();
-      flush_preview();
-    } catch (const std::exception&) {
-      show_critical_message(
-          &dialog, QObject::tr("Load Curves Preset"),
-          QObject::tr("The Curves preset could not be loaded. The file may be damaged or unsupported."),
-          QStringLiteral("curvesPresetLoadErrorMessageBox"));
-    }
-  });
-  QObject::connect(save_preset, &QPushButton::clicked, &dialog, [&] {
-    auto path = get_save_file_name(
-        &dialog, QObject::tr("Save Curves Preset"), QString(),
-        QObject::tr("Photoshop Curves Preset (*.acv)"), nullptr,
-        QStringLiteral("curvesPresetSaveFileDialog"));
-    if (path.isEmpty()) {
-      return;
-    }
-    if (QFileInfo(path).suffix().isEmpty()) {
-      path += QStringLiteral(".acv");
-    }
-    try {
-      acv::write_file(to_filesystem_path(path), dialog_settings);
-      offer_browser_download_for_saved_file(path);
-    } catch (const std::exception&) {
-      show_critical_message(&dialog, QObject::tr("Save Curves Preset"),
-                            QObject::tr("The Curves preset could not be saved."),
-                            QStringLiteral("curvesPresetSaveErrorMessageBox"));
-    }
-  });
   QObject::connect(before, &QPushButton::pressed, &dialog, [&] {
     preview_emitter.flush(AdjustmentPreviewRequest<CurvesSettings>{false, dialog_settings});
     if (active_clipping_mode.has_value() && hooks.clipping_changed) {
@@ -1302,6 +1854,68 @@ HueSaturationSettings to_hue_saturation_settings(const HueSaturationAdjustment& 
   return settings;
 }
 
+namespace {
+
+// The middle of a range's full-strength span, in degrees; Master and Colorize use red.
+double hue_range_center(const HueSaturationSettings& settings, int range) {
+  if (range <= 0 || range > 6) {
+    return 0.0;
+  }
+  const auto& band = settings.bands[static_cast<std::size_t>(range - 1)];
+  const auto span = ((band.inner_end - band.inner_start) % 360 + 360) % 360;
+  return band.inner_start + span / 2.0;
+}
+
+// What a mid gray turns into under the colorize triple: the swatch beside Colorize (#588).
+QColor colorize_swatch_color(const HueSaturationSettings& settings) {
+  AdjustmentSettings adjustment;
+  adjustment.kind = AdjustmentKind::HueSaturation;
+  adjustment.hue_saturation = to_hue_saturation_adjustment(settings);
+  adjustment.hue_saturation.colorize = true;
+  const auto color = apply_adjustment_to_color(RgbColor{128, 128, 128}, adjustment);
+  return QColor(color.red, color.green, color.blue);
+}
+
+// A color (content) in a theme-colored frame, faded while disabled. Its color rides the
+// patchy.swatchColor property.
+class ColorSwatchLabel final : public QWidget {
+public:
+  explicit ColorSwatchLabel(QWidget* parent) : QWidget(parent) {
+    setFixedSize(34, 18);
+  }
+
+  void set_color(QColor color) {
+    if (color != color_) {
+      color_ = color;
+      setProperty("patchy.swatchColor", color);
+      update();
+    }
+  }
+
+protected:
+  void paintEvent(QPaintEvent* event) override {
+    Q_UNUSED(event);
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    if (!isEnabled()) {
+      painter.setOpacity(0.35);
+    }
+    const QRectF box = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
+    painter.setPen(QPen(theme().field_inset_border, 1.0));
+    painter.setBrush(color_);
+    painter.drawRoundedRect(box, 4.0, 4.0);
+  }
+
+private:
+  QColor color_{128, 128, 128};
+};
+
+GradientTrackSlider* gradient_slider(QDialog& dialog, const QString& object_name) {
+  return dynamic_cast<GradientTrackSlider*>(dialog.findChild<QSlider*>(object_name));
+}
+
+}  // namespace
+
 std::optional<HueSaturationSettings> request_hue_saturation_settings(
     QWidget* parent, std::function<void(bool, const HueSaturationSettings&)> preview_changed,
     HueSaturationSettings initial) {
@@ -1313,16 +1927,15 @@ std::optional<HueSaturationSettings> request_hue_saturation_settings(
   // so switching targets round-trips all of them.
   auto stash = std::make_shared<HueSaturationSettings>(initial);
   auto colorize_check = std::make_shared<QCheckBox*>(nullptr);
-  auto range_combo = std::make_shared<QComboBox*>(nullptr);
 
   const auto rows_for = [](const HueSaturationSettings& value, bool colorize) {
     if (colorize) {
       return std::vector<SliderRowSpec>{
-          {QObject::tr("Hue"), QStringLiteral("hueSaturationHue"), 0, 360, value.colorize_hue, {}},
+          {QObject::tr("Hue"), QStringLiteral("hueSaturationHue"), 0, 360, value.colorize_hue, {}, true},
           {QObject::tr("Saturation"), QStringLiteral("hueSaturationSaturation"), 0, 100, value.colorize_saturation,
-           {}},
+           {}, true},
           {QObject::tr("Lightness"), QStringLiteral("hueSaturationLightness"), -100, 100, value.colorize_lightness,
-           {}}};
+           {}, true}};
     }
     const auto range = std::clamp(value.edit_range, 0, 6);
     const auto hue = range == 0 ? value.hue_shift : value.bands[static_cast<std::size_t>(range - 1)].hue_shift;
@@ -1331,9 +1944,9 @@ std::optional<HueSaturationSettings> request_hue_saturation_settings(
     const auto lightness = range == 0 ? value.lightness_delta
                                       : value.bands[static_cast<std::size_t>(range - 1)].lightness_delta;
     return std::vector<SliderRowSpec>{
-        {QObject::tr("Hue"), QStringLiteral("hueSaturationHue"), -180, 180, hue, {}},
-        {QObject::tr("Saturation"), QStringLiteral("hueSaturationSaturation"), -100, 100, saturation, {}},
-        {QObject::tr("Lightness"), QStringLiteral("hueSaturationLightness"), -100, 100, lightness, {}}};
+        {QObject::tr("Hue"), QStringLiteral("hueSaturationHue"), -180, 180, hue, {}, true},
+        {QObject::tr("Saturation"), QStringLiteral("hueSaturationSaturation"), -100, 100, saturation, {}, true},
+        {QObject::tr("Lightness"), QStringLiteral("hueSaturationLightness"), -100, 100, lightness, {}, true}};
   };
 
   // Reads the three spins back into whichever triple is currently selected.
@@ -1385,39 +1998,196 @@ std::optional<HueSaturationSettings> request_hue_saturation_settings(
       parent, QStringLiteral("patchyHueSaturationDialog"), QObject::tr("Hue/Saturation"),
       QStringLiteral("hueSaturationPreviewCheck"), rows_for(initial, initial.colorize), build_settings,
       std::move(preview_changed), {},
-      [stash, colorize_check, range_combo, capture, retarget](QDialog& dialog, QFormLayout* form,
-                                                             const std::vector<QSpinBox*>& spins,
-                                                             const std::function<void()>& flush_preview) {
+      [stash, colorize_check, capture, retarget, build_settings](QDialog& dialog, QFormLayout* form,
+                                                                const std::vector<QSpinBox*>& spins,
+                                                                const std::function<void()>& flush_preview) {
         auto* combo = new QComboBox(&dialog);
         combo->setObjectName(QStringLiteral("hueSaturationRangeCombo"));
         combo->addItems({QObject::tr("Master"), QObject::tr("Reds"), QObject::tr("Yellows"), QObject::tr("Greens"),
                          QObject::tr("Cyans"), QObject::tr("Blues"), QObject::tr("Magentas")});
         combo->setCurrentIndex(std::clamp(stash->edit_range, 0, 6));
         combo->setEnabled(!stash->colorize);
-        *range_combo = combo;
         form->insertRow(0, QObject::tr("Edit:"), combo);
 
-        auto* check = new QCheckBox(QObject::tr("Colorize"), &dialog);
+        // Colorize, with a swatch of the color it gives a mid gray.
+        auto* colorize_row = new QWidget(&dialog);
+        auto* colorize_layout = new QHBoxLayout(colorize_row);
+        colorize_layout->setContentsMargins(0, 0, 0, 0);
+        auto* check = new QCheckBox(QObject::tr("Colorize"), colorize_row);
         check->setObjectName(QStringLiteral("hueSaturationColorizeCheck"));
         check->setChecked(stash->colorize);
         *colorize_check = check;
-        form->addRow(QString(), check);
+        auto* swatch = new ColorSwatchLabel(colorize_row);
+        swatch->setObjectName(QStringLiteral("hueSaturationColorizeSwatch"));
+        swatch->setToolTip(QObject::tr("The color Colorize gives a mid gray"));
+        swatch->setAccessibleName(QObject::tr("Colorize color"));
+        colorize_layout->addWidget(check);
+        colorize_layout->addWidget(swatch);
+        colorize_layout->addStretch(1);
+        form->addRow(QString(), colorize_row);
 
+        // Presets on top (#588): the combo, then Save, Delete, Import and Export.
+        auto* preset_area = new QWidget(&dialog);
+        preset_area->setObjectName(QStringLiteral("hueSaturationPresetArea"));
+        auto* preset_layout = new QVBoxLayout(preset_area);
+        preset_layout->setContentsMargins(0, 0, 0, 4);
+        preset_layout->setSpacing(6);
+        auto* combo_row = new QHBoxLayout();
+        combo_row->setSpacing(10);
+        auto* preset_combo = new QComboBox(preset_area);
+        preset_combo->setObjectName(QStringLiteral("hueSaturationPresetCombo"));
+        auto* preset_label = new QLabel(QObject::tr("Preset:"), preset_area);
+        preset_label->setBuddy(preset_combo);
+        combo_row->addWidget(preset_label);
+        combo_row->addWidget(preset_combo, 1);
+        preset_layout->addLayout(combo_row);
+        std::vector<AdjustmentPresetCombo<HueSaturationAdjustment>::Shipped> shipped;
+        for (const auto& preset : builtin_hue_saturation_presets()) {
+          shipped.push_back({QString::fromLatin1(preset.id), QCoreApplication::translate("QObject", preset.name),
+                             preset.settings});
+        }
+        auto presets = std::make_shared<AdjustmentPresetCombo<HueSaturationAdjustment>>(
+            preset_combo, AdjustmentPresetKind::HueSaturation, std::move(shipped),
+            [](const QString& path) { return ahu::read_file(to_filesystem_path(path)); },
+            hue_saturation_presets_match);
+        const auto current = [build_settings, spins] { return build_settings(spins); };
+
+        // Everything that shows the settings: the tracks, the swatch, the preset selection.
+        auto preset_buttons = std::make_shared<AdjustmentPresetButtons*>(nullptr);
+        const auto refresh = [&dialog, current, swatch, presets, preset_buttons] {
+          const auto settings = current();
+          auto* hue = gradient_slider(dialog, QStringLiteral("hueSaturationHueSlider"));
+          auto* saturation = gradient_slider(dialog, QStringLiteral("hueSaturationSaturationSlider"));
+          auto* lightness = gradient_slider(dialog, QStringLiteral("hueSaturationLightnessSlider"));
+          if (hue != nullptr && saturation != nullptr && lightness != nullptr) {
+            const QColor gray(128, 128, 128);
+            if (settings.colorize) {
+              hue->set_stops(hue_wheel_stops(180.0));
+              saturation->set_stops(ramp_stops({gray, hue_track_color(settings.colorize_hue)}));
+              auto mid = settings;
+              mid.colorize_lightness = 0;
+              lightness->set_stops(ramp_stops({QColor(0, 0, 0), colorize_swatch_color(mid), QColor(255, 255, 255)}));
+            } else {
+              const auto range = std::clamp(settings.edit_range, 0, 6);
+              const auto center = hue_range_center(settings, range);
+              const auto shift = range == 0 ? settings.hue_shift
+                                            : settings.bands[static_cast<std::size_t>(range - 1)].hue_shift;
+              hue->set_stops(hue_wheel_stops(center));
+              const auto shifted = center + shift;
+              saturation->set_stops(
+                  ramp_stops({gray, hue_track_color(shifted, 0.5, 0.8), hue_track_color(shifted)}));
+              lightness->set_stops(
+                  ramp_stops({QColor(0, 0, 0), hue_track_color(shifted, 0.75, 0.9), QColor(255, 255, 255)}));
+            }
+          }
+          swatch->set_color(colorize_swatch_color(settings));
+          swatch->setEnabled(settings.colorize);
+          presets->select_matching(to_hue_saturation_adjustment(settings));
+          if (*preset_buttons != nullptr) {
+            (*preset_buttons)->refresh();
+          }
+        };
+
+        // A preset replaces every triple; a range preset shows its range in Edit.
+        const auto apply_preset = [&dialog, stash, combo, check, spins, retarget, refresh,
+                                   flush_preview](const HueSaturationAdjustment& adjustment) {
+          auto next = to_hue_saturation_settings(adjustment);
+          next.edit_range = 0;
+          if (!next.colorize && next.hue_shift == 0 && next.saturation_delta == 0 && next.lightness_delta == 0) {
+            for (std::size_t band = 0; band < next.bands.size(); ++band) {
+              if (next.bands[band].has_effect()) {
+                next.edit_range = static_cast<int>(band) + 1;
+                break;
+              }
+            }
+          }
+          *stash = next;
+          {
+            const QSignalBlocker block_check(check);
+            const QSignalBlocker block_combo(combo);
+            check->setChecked(next.colorize);
+            combo->setEnabled(!next.colorize);
+            combo->setCurrentIndex(next.edit_range);
+          }
+          retarget(dialog, *stash, next.colorize, spins);
+          refresh();
+          flush_preview();
+        };
+
+        AdjustmentPresetButtons::Hooks hooks;
+        hooks.write_current = [current](const QString& path) {
+          ahu::write_file(to_filesystem_path(path), to_hue_saturation_adjustment(current()));
+        };
+        hooks.check_file = [](const QString& path) { (void)ahu::read_file(to_filesystem_path(path)); };
+        hooks.selected_user_preset = [presets] { return presets->selected_user(); };
+        hooks.user_presets_changed = [presets, current, apply_preset, refresh, preset_combo](const QString& name) {
+          presets->reload();
+          if (!name.isEmpty()) {
+            presets->select_user(name);
+            if (const auto chosen = presets->settings_at(preset_combo->currentIndex());
+                chosen.has_value() &&
+                !hue_saturation_presets_match(*chosen, to_hue_saturation_adjustment(current()))) {
+              apply_preset(*chosen);
+              return;
+            }
+          }
+          refresh();
+        };
+        auto* buttons = new AdjustmentPresetButtons(AdjustmentPresetKind::HueSaturation,
+                                                    QStringLiteral("hueSaturation"),
+                                                    AdjustmentPresetButtons::Arrangement::Row, hooks, preset_area);
+        *preset_buttons = buttons;
+        preset_layout->addWidget(buttons);
+        if (auto* layout = qobject_cast<QVBoxLayout*>(dialog.layout()); layout != nullptr) {
+          layout->insertWidget(0, preset_area);
+        }
+        refresh();
+
+        QObject::connect(preset_combo, &QComboBox::activated, &dialog, [presets, apply_preset](int index) {
+          if (const auto chosen = presets->settings_at(index); chosen.has_value()) {
+            apply_preset(*chosen);
+          }
+        });
+        for (auto* spin : spins) {
+          QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog, [refresh](int) { refresh(); });
+        }
         QObject::connect(combo, &QComboBox::currentIndexChanged, &dialog,
-                         [&dialog, stash, spins, capture, retarget, flush_preview](int index) {
+                         [&dialog, stash, spins, capture, retarget, refresh, flush_preview](int index) {
                            capture(*stash, false, spins);
                            stash->edit_range = std::clamp(index, 0, 6);
                            retarget(dialog, *stash, false, spins);
+                           refresh();
                            flush_preview();
                          });
         QObject::connect(check, &QCheckBox::toggled, &dialog,
-                         [&dialog, stash, combo, spins, capture, retarget, flush_preview](bool colorize) {
+                         [&dialog, stash, combo, spins, capture, retarget, refresh, flush_preview](bool colorize) {
                            // Stash the outgoing triple, then retarget the sliders.
                            capture(*stash, !colorize, spins);
                            combo->setEnabled(!colorize);
                            retarget(dialog, *stash, colorize, spins);
+                           refresh();
                            flush_preview();
                          });
+        // Top to bottom: presets, Edit, the sliders, Colorize, Preview.
+        QWidget* previous = preset_combo;
+        for (QWidget* next : {static_cast<QWidget*>(buttons->save_button()), static_cast<QWidget*>(buttons->delete_button()),
+                              static_cast<QWidget*>(buttons->import_button()),
+                              static_cast<QWidget*>(buttons->export_button()), static_cast<QWidget*>(combo)}) {
+          QWidget::setTabOrder(previous, next);
+          previous = next;
+        }
+        for (auto* spin : spins) {
+          if (auto* slider = spin->parentWidget()->findChild<QSlider*>()) {
+            QWidget::setTabOrder(previous, slider);
+            previous = slider;
+          }
+          QWidget::setTabOrder(previous, spin);
+          previous = spin;
+        }
+        QWidget::setTabOrder(previous, check);
+        if (auto* preview = dialog.findChild<QCheckBox*>(QStringLiteral("hueSaturationPreviewCheck"))) {
+          QWidget::setTabOrder(check, preview);
+        }
       });
 }
 
@@ -1433,9 +2203,9 @@ std::optional<ColorBalanceSettings> request_color_balance_settings(
     initial.set_tone(range, clamp_tone(initial.tone(range)));
   }
 
-  // The three sliders edit the tone range the Tone combo selects (Midtones
-  // first, as in Photoshop); the other two triples are stashed so switching
-  // tones round-trips all of them.
+  // The three sliders edit the tone range the tabs select (Midtones first, as in
+  // Photoshop); the other two triples are stashed so switching tones round-trips all of
+  // them.
   struct State {
     ColorBalanceSettings settings;
     ColorBalanceToneRange range{ColorBalanceToneRange::Midtones};
@@ -1460,20 +2230,29 @@ std::optional<ColorBalanceSettings> request_color_balance_settings(
   return request_adjustment_settings_dialog<ColorBalanceSettings>(
       parent, QStringLiteral("patchyColorBalanceDialog"), QObject::tr("Color Balance"),
       QStringLiteral("colorBalancePreviewCheck"),
-      {{QObject::tr("Cyan / Red"), QStringLiteral("colorBalanceCyanRed"), -100, 100, midtones.cyan_red, {}},
+      {{QObject::tr("Cyan / Red"), QStringLiteral("colorBalanceCyanRed"), -100, 100, midtones.cyan_red, {}, true},
        {QObject::tr("Magenta / Green"), QStringLiteral("colorBalanceMagentaGreen"), -100, 100,
-        midtones.magenta_green, {}},
-       {QObject::tr("Yellow / Blue"), QStringLiteral("colorBalanceYellowBlue"), -100, 100, midtones.yellow_blue, {}}},
+        midtones.magenta_green, {}, true},
+       {QObject::tr("Yellow / Blue"), QStringLiteral("colorBalanceYellowBlue"), -100, 100, midtones.yellow_blue, {},
+        true}},
       build_settings, std::move(preview_changed), {},
-      [state, capture](QDialog& dialog, QFormLayout* form, const std::vector<QSpinBox*>& spins,
-                       const std::function<void()>& flush_preview) {
-        auto* combo = new QComboBox(&dialog);
-        combo->setObjectName(QStringLiteral("colorBalanceToneCombo"));
-        combo->addItem(QObject::tr("Shadows"), static_cast<int>(ColorBalanceToneRange::Shadows));
-        combo->addItem(QObject::tr("Midtones"), static_cast<int>(ColorBalanceToneRange::Midtones));
-        combo->addItem(QObject::tr("Highlights"), static_cast<int>(ColorBalanceToneRange::Highlights));
-        combo->setCurrentIndex(combo->findData(static_cast<int>(state->range)));
-        form->insertRow(0, QObject::tr("Tone:"), combo);
+      [state, capture, initial](QDialog& dialog, QFormLayout* form, const std::vector<QSpinBox*>& spins,
+                                const std::function<void()>& flush_preview) {
+        // One tab per tone range (#591), in tonal order.
+        constexpr std::array<ColorBalanceToneRange, 3> kRanges{
+            ColorBalanceToneRange::Shadows, ColorBalanceToneRange::Midtones, ColorBalanceToneRange::Highlights};
+        auto* tabs = new QTabBar(&dialog);
+        tabs->setObjectName(QStringLiteral("colorBalanceToneTabs"));
+        tabs->setDrawBase(false);
+        tabs->setExpanding(true);
+        tabs->addTab(QObject::tr("Shadows"));
+        tabs->addTab(QObject::tr("Midtones"));
+        tabs->addTab(QObject::tr("Highlights"));
+        tabs->setCurrentIndex(static_cast<int>(std::find(kRanges.begin(), kRanges.end(), state->range) -
+                                               kRanges.begin()));
+        if (auto* layout = qobject_cast<QVBoxLayout*>(dialog.layout()); layout != nullptr) {
+          layout->insertWidget(0, tabs);
+        }
 
         auto* preserve = new QCheckBox(QObject::tr("Preserve Luminosity"), &dialog);
         preserve->setObjectName(QStringLiteral("colorBalancePreserveLuminosityCheck"));
@@ -1481,27 +2260,74 @@ std::optional<ColorBalanceSettings> request_color_balance_settings(
         state->preserve = preserve;
         form->addRow(QString(), preserve);
 
-        QObject::connect(combo, &QComboBox::currentIndexChanged, &dialog,
-                         [&dialog, state, combo, spins, capture, flush_preview](int index) {
+        // Each track runs between the two colors it trades (content colors).
+        const std::array<QString, 3> prefixes{QStringLiteral("colorBalanceCyanRed"),
+                                              QStringLiteral("colorBalanceMagentaGreen"),
+                                              QStringLiteral("colorBalanceYellowBlue")};
+        const std::array<std::pair<QColor, QColor>, 3> ends{
+            std::pair{QColor(0, 255, 255), QColor(255, 0, 0)}, std::pair{QColor(255, 0, 255), QColor(0, 255, 0)},
+            std::pair{QColor(255, 255, 0), QColor(0, 0, 255)}};
+        for (std::size_t row = 0; row < prefixes.size(); ++row) {
+          if (auto* slider = gradient_slider(dialog, prefixes[row] + QStringLiteral("Slider"))) {
+            slider->set_stops(ramp_stops({ends[row].first, ends[row].second}));
+          }
+        }
+
+        const auto show_tone = [&dialog, state, spins, prefixes] {
+          const auto tone = state->settings.tone(state->range);
+          const std::array<int, 3> values{tone.cyan_red, tone.magenta_green, tone.yellow_blue};
+          for (std::size_t row = 0; row < spins.size() && row < values.size(); ++row) {
+            if (auto* slider = dialog.findChild<QSlider*>(prefixes[row] + QStringLiteral("Slider"))) {
+              const QSignalBlocker block_slider(slider);
+              slider->setValue(values[row]);
+            }
+            const QSignalBlocker block_spin(spins[row]);
+            spins[row]->setValue(values[row]);
+          }
+        };
+        QObject::connect(tabs, &QTabBar::currentChanged, &dialog,
+                         [state, spins, capture, show_tone, flush_preview, kRanges](int index) {
                            capture(*state, spins);
-                           state->range = static_cast<ColorBalanceToneRange>(combo->itemData(index).toInt());
-                           const auto tone = state->settings.tone(state->range);
-                           const std::array<int, 3> values{tone.cyan_red, tone.magenta_green, tone.yellow_blue};
-                           const std::array<QString, 3> prefixes{QStringLiteral("colorBalanceCyanRed"),
-                                                                 QStringLiteral("colorBalanceMagentaGreen"),
-                                                                 QStringLiteral("colorBalanceYellowBlue")};
-                           for (std::size_t row = 0; row < spins.size() && row < values.size(); ++row) {
-                             if (auto* slider = dialog.findChild<QSlider*>(prefixes[row] + QStringLiteral("Slider"))) {
-                               const QSignalBlocker block_slider(slider);
-                               slider->setValue(values[row]);
-                             }
-                             const QSignalBlocker block_spin(spins[row]);
-                             spins[row]->setValue(values[row]);
-                           }
+                           state->range = kRanges[static_cast<std::size_t>(std::clamp(index, 0, 2))];
+                           show_tone();
                            flush_preview();
                          });
         QObject::connect(preserve, &QCheckBox::toggled, &dialog,
                          [flush_preview](bool) { flush_preview(); });
+
+        // Reset, bottom left on the OK/Cancel line: back to the settings the dialog opened with.
+        if (auto* buttons = dialog.findChild<QDialogButtonBox*>(QStringLiteral("patchyColorBalanceDialogButtons"))) {
+          auto* reset = buttons->addButton(QObject::tr("Reset"), QDialogButtonBox::ResetRole);
+          reset->setObjectName(QStringLiteral("colorBalanceResetButton"));
+          reset->setToolTip(QObject::tr("Restore the settings the dialog opened with"));
+          reset->setAutoDefault(false);
+          QObject::connect(reset, &QPushButton::clicked, &dialog,
+                           [state, preserve, initial, show_tone, flush_preview] {
+                             state->settings = initial;
+                             {
+                               const QSignalBlocker block(preserve);
+                               preserve->setChecked(initial.preserve_luminosity);
+                             }
+                             show_tone();
+                             flush_preview();
+                           });
+        }
+
+        // Top to bottom (#591): tone tabs, the sliders, Preserve Luminosity, Preview.
+        QWidget* previous = tabs;
+        tabs->setFocusPolicy(Qt::StrongFocus);
+        for (auto* spin : spins) {
+          if (auto* slider = spin->parentWidget()->findChild<QSlider*>()) {
+            QWidget::setTabOrder(previous, slider);
+            previous = slider;
+          }
+          QWidget::setTabOrder(previous, spin);
+          previous = spin;
+        }
+        QWidget::setTabOrder(previous, preserve);
+        if (auto* preview = dialog.findChild<QCheckBox*>(QStringLiteral("colorBalancePreviewCheck"))) {
+          QWidget::setTabOrder(preserve, preview);
+        }
       });
 }
 
@@ -2465,6 +3291,22 @@ std::optional<BlackWhiteSettings> request_black_white_settings(
         };
         add_section(QObject::tr("Neutral"), QStringLiteral("blackWhitePresetNeutralHeader"), false);
         add_section(QObject::tr("Tinted"), QStringLiteral("blackWhitePresetTintedHeader"), true);
+        // The user's own presets (#528 follow-up): a third section, shown once there are any.
+        auto* user_header = new QLabel(QObject::tr("My Presets"), content);
+        user_header->setObjectName(QStringLiteral("blackWhitePresetUserHeader"));
+        {
+          auto header_font = user_header->font();
+          header_font.setBold(true);
+          user_header->setFont(header_font);
+        }
+        content_layout->addWidget(user_header);
+        auto* user_grid = new QGridLayout();
+        user_grid->setContentsMargins(0, 0, 0, 4);
+        user_grid->setHorizontalSpacing(2);
+        user_grid->setVerticalSpacing(2);
+        user_grid->setColumnStretch(kBlackWhitePresetColumns, 1);
+        content_layout->addLayout(user_grid);
+        auto user_presets = std::make_shared<std::vector<std::pair<QString, BlackWhiteSettings>>>();
         content_layout->addStretch(1);
         tiles->front()->setToolTip(QObject::tr("The current slider settings"));
         strip->setWidget(content);
@@ -2482,8 +3324,15 @@ std::optional<BlackWhiteSettings> request_black_white_settings(
             }
           }
         }
+        // The strip with the preset buttons in a column on its right.
+        auto* strip_row = new QWidget(&dialog);
+        strip_row->setObjectName(QStringLiteral("blackWhitePresetRow"));
+        auto* strip_row_layout = new QHBoxLayout(strip_row);
+        strip_row_layout->setContentsMargins(0, 0, 0, 0);
+        strip_row_layout->setSpacing(6);
+        strip_row_layout->addWidget(strip, 1);
         if (auto* layout = qobject_cast<QVBoxLayout*>(dialog.layout()); layout != nullptr) {
-          layout->insertWidget(0, strip);
+          layout->insertWidget(0, strip_row);
           if (influence.has_value()) {
             auto* note = new QLabel(QObject::tr("Bars: how much of this image each slider acts on."), &dialog);
             note->setObjectName(QStringLiteral("blackWhiteInfluenceNote"));
@@ -2494,7 +3343,9 @@ std::optional<BlackWhiteSettings> request_black_white_settings(
 
         const auto current = [build_settings, spins] { return build_settings(spins); };
         auto applying_preset = std::make_shared<bool>(false);
-        const auto refresh = [current, chips, tiles, thumbnail_source, applying_preset] {
+        auto preset_buttons = std::make_shared<AdjustmentPresetButtons*>(nullptr);
+        const auto refresh = [current, chips, tiles, thumbnail_source, applying_preset, user_presets,
+                              preset_buttons] {
           const auto settings = current();
           for (std::size_t index = 0; index < chips->size(); ++index) {
             (*chips)[index]->set_gray(black_white_gray_for_hue(settings, kBlackWhiteSliderHues[index]));
@@ -2503,13 +3354,42 @@ std::optional<BlackWhiteSettings> request_black_white_settings(
           if (*applying_preset) {
             return;
           }
+          // A user preset matches on its weights and Tint, and on the tint color when tinted.
+          const auto user_matches = [&settings](BlackWhiteSettings saved) {
+            if (!saved.tint) {
+              saved.tint_color = settings.tint_color;
+            }
+            return saved == settings;
+          };
+          QString checked_user;
+          for (auto* tile : *tiles) {
+            if (tile->isChecked() && tile->preset_id().startsWith(QStringLiteral("user:"))) {
+              checked_user = tile->preset_id().mid(5);
+            }
+          }
+          QString first_user;
+          bool keep_checked = false;
+          for (const auto& [name, saved] : *user_presets) {
+            if (user_matches(saved)) {
+              keep_checked = keep_checked || name == checked_user;
+              if (first_user.isEmpty()) {
+                first_user = name;
+              }
+            }
+          }
           const auto* match = matching_black_white_preset(settings);
-          const auto wanted = match != nullptr ? QString::fromLatin1(match->id) : QString();
+          auto wanted = keep_checked      ? QStringLiteral("user:") + checked_user
+                        : match != nullptr ? QString::fromLatin1(match->id)
+                        : first_user.isEmpty() ? QString()
+                                               : QStringLiteral("user:") + first_user;
           for (auto* tile : *tiles) {
             if (tile->preset_id() == wanted) {
               tile->setChecked(true);
               break;
             }
+          }
+          if (*preset_buttons != nullptr) {
+            (*preset_buttons)->refresh();
           }
         };
         refresh();
@@ -2582,6 +3462,102 @@ std::optional<BlackWhiteSettings> request_black_white_settings(
                                                    QObject::tr("Tint Color"), apply);
           apply(picked.value_or(QColor(original.red, original.green, original.blue)));
         });
+
+        // User presets: tiles in their own section, and Save, Delete, Import and Export
+        // (.blw) beside the strip.
+        const auto apply_settings = [spins, state, applying_preset, sync_tint_controls, refresh,
+                                     flush_preview](const BlackWhiteSettings& settings) {
+          const std::array<int, 6> weights{settings.reds,  settings.yellows, settings.greens,
+                                           settings.cyans, settings.blues,   settings.magentas};
+          *applying_preset = true;
+          for (std::size_t index = 0; index < spins.size() && index < weights.size(); ++index) {
+            spins[index]->setValue(weights[index]);
+          }
+          state->tint = settings.tint;
+          state->tint_color = settings.tint_color;
+          sync_tint_controls();
+          *applying_preset = false;
+          refresh();
+          flush_preview();
+        };
+        auto user_tiles = std::make_shared<std::vector<BlackWhitePresetTile*>>();
+        const auto rebuild_user_tiles = [&dialog, content, user_header, user_grid, group, tiles, user_tiles,
+                                         user_presets, cell, thumbnail_source, apply_settings] {
+          for (auto* tile : *user_tiles) {
+            group->removeButton(tile);
+            tiles->erase(std::remove(tiles->begin(), tiles->end(), tile), tiles->end());
+            delete tile;
+          }
+          user_tiles->clear();
+          user_presets->clear();
+          for (const auto& user : user_adjustment_presets(AdjustmentPresetKind::BlackWhite)) {
+            try {
+              user_presets->emplace_back(user.name, blw::read_file(to_filesystem_path(user.path)));
+            } catch (const std::exception&) {
+            }
+          }
+          int index = 0;
+          for (const auto& [name, saved] : *user_presets) {
+            auto* tile = new BlackWhitePresetTile(QStringLiteral("user:") + name, name, cell, content);
+            tile->setObjectName(QStringLiteral("blackWhiteUserPreset_") + name);
+            tile->set_thumbnail(black_white_thumbnail(thumbnail_source, saved));
+            group->addButton(tile);
+            user_grid->addWidget(tile, index / kBlackWhitePresetColumns, index % kBlackWhitePresetColumns);
+            tiles->push_back(tile);
+            user_tiles->push_back(tile);
+            const auto settings = saved;
+            QObject::connect(tile, &QAbstractButton::clicked, &dialog,
+                             [apply_settings, settings] { apply_settings(settings); });
+            ++index;
+          }
+          user_header->setVisible(!user_presets->empty());
+        };
+        rebuild_user_tiles();
+        AdjustmentPresetButtons::Hooks hooks;
+        hooks.write_current = [current](const QString& path) { blw::write_file(to_filesystem_path(path), current()); };
+        hooks.check_file = [](const QString& path) { (void)blw::read_file(to_filesystem_path(path)); };
+        hooks.selected_user_preset = [tiles]() -> std::optional<QString> {
+          for (auto* tile : *tiles) {
+            if (tile->isChecked() && tile->preset_id().startsWith(QStringLiteral("user:"))) {
+              return tile->preset_id().mid(5);
+            }
+          }
+          return std::nullopt;
+        };
+        hooks.user_presets_changed = [strip, rebuild_user_tiles, user_presets, user_tiles, current, apply_settings,
+                                      refresh](const QString& name) {
+          rebuild_user_tiles();
+          if (!name.isEmpty()) {
+            for (std::size_t index = 0; index < user_presets->size(); ++index) {
+              if ((*user_presets)[index].first != name) {
+                continue;
+              }
+              if ((*user_presets)[index].second != current()) {
+                apply_settings((*user_presets)[index].second);
+              }
+              // Once the new tile has its place in the strip's layout.
+              QTimer::singleShot(0, strip, [strip, tile = QPointer<QWidget>((*user_tiles)[index])] {
+                if (tile != nullptr) {
+                  strip->ensureWidgetVisible(tile);
+                }
+              });
+              break;
+            }
+          }
+          refresh();
+        };
+        auto* buttons = new AdjustmentPresetButtons(AdjustmentPresetKind::BlackWhite, QStringLiteral("blackWhite"),
+                                                    AdjustmentPresetButtons::Arrangement::Column, hooks, strip_row);
+        *preset_buttons = buttons;
+        strip_row_layout->addWidget(buttons);
+        QWidget* previous = tiles->back();
+        for (QWidget* next : {static_cast<QWidget*>(buttons->save_button()), static_cast<QWidget*>(buttons->delete_button()),
+                              static_cast<QWidget*>(buttons->import_button()),
+                              static_cast<QWidget*>(buttons->export_button())}) {
+          QWidget::setTabOrder(previous, next);
+          previous = next;
+        }
+        refresh();
       });
 }
 

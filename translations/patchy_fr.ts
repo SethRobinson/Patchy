@@ -3254,20 +3254,8 @@
         <translation>Courbe personnalisée actuelle</translation>
     </message>
     <message>
-        <source>Load...</source>
-        <translation>Charger...</translation>
-    </message>
-    <message>
-        <source>Load a Photoshop Curves preset</source>
-        <translation>Charger un paramètre prédéfini de courbes Photoshop</translation>
-    </message>
-    <message>
         <source>Save...</source>
         <translation>Enregistrer...</translation>
-    </message>
-    <message>
-        <source>Save the current curves as a Photoshop preset</source>
-        <translation>Enregistrer les courbes actuelles comme paramètre prédéfini Photoshop</translation>
     </message>
     <message>
         <source>Before</source>
@@ -3278,24 +3266,8 @@
         <translation>Maintenez enfoncé pour comparer avec l&apos;image non réglée</translation>
     </message>
     <message>
-        <source>Load Curves Preset</source>
-        <translation>Charger un paramètre prédéfini de courbes</translation>
-    </message>
-    <message>
         <source>Photoshop Curves Preset (*.acv)</source>
         <translation>Paramètre prédéfini de courbes Photoshop (*.acv)</translation>
-    </message>
-    <message>
-        <source>The Curves preset could not be loaded. The file may be damaged or unsupported.</source>
-        <translation>Le paramètre prédéfini de courbes n&apos;a pas pu être chargé. Le fichier est peut-être endommagé ou non pris en charge.</translation>
-    </message>
-    <message>
-        <source>Save Curves Preset</source>
-        <translation>Enregistrer le paramètre prédéfini de courbes</translation>
-    </message>
-    <message>
-        <source>The Curves preset could not be saved.</source>
-        <translation>Le paramètre prédéfini de courbes n&apos;a pas pu être enregistré.</translation>
     </message>
     <message>
         <source>Hue</source>
@@ -11414,10 +11386,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Tons moyens</translation>
     </message>
     <message>
-        <source>Tone:</source>
-        <translation>Ton :</translation>
-    </message>
-    <message>
         <source>Preserve Luminosity</source>
         <translation>Conserver la luminosité</translation>
     </message>
@@ -14548,6 +14516,230 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>%1, %2</source>
         <translation>%1, %2</translation>
+    </message>
+    <message>
+        <source>Could not open the preset file</source>
+        <translation>Impossible d&apos;ouvrir le fichier de préréglage</translation>
+    </message>
+    <message>
+        <source>Could not read the preset file</source>
+        <translation>Impossible de lire le fichier de préréglage</translation>
+    </message>
+    <message>
+        <source>The preset file is too large</source>
+        <translation>Le fichier de préréglage est trop volumineux</translation>
+    </message>
+    <message>
+        <source>Could not open the preset file for writing</source>
+        <translation>Impossible d&apos;ouvrir le fichier de préréglage en écriture</translation>
+    </message>
+    <message>
+        <source>Could not write the preset file</source>
+        <translation>Impossible d&apos;écrire le fichier de préréglage</translation>
+    </message>
+    <message>
+        <source>The preset file is damaged or unsupported</source>
+        <translation>Le fichier de préréglage est endommagé ou non pris en charge</translation>
+    </message>
+    <message>
+        <source>Black input level</source>
+        <translation>Niveau d&apos;entrée du noir</translation>
+    </message>
+    <message>
+        <source>Gamma (midtones)</source>
+        <translation>Gamma (tons moyens)</translation>
+    </message>
+    <message>
+        <source>White input level</source>
+        <translation>Niveau d&apos;entrée du blanc</translation>
+    </message>
+    <message>
+        <source>B:</source>
+        <translation>N:</translation>
+    </message>
+    <message>
+        <source>G:</source>
+        <translation>G:</translation>
+    </message>
+    <message>
+        <source>W:</source>
+        <translation>B:</translation>
+    </message>
+    <message>
+        <source>The color Colorize gives a mid gray</source>
+        <translation>La couleur que Coloriser donne à un gris moyen</translation>
+    </message>
+    <message>
+        <source>Colorize color</source>
+        <translation>Couleur de colorisation</translation>
+    </message>
+    <message>
+        <source>Restore the settings the dialog opened with</source>
+        <translation>Rétablir les réglages à l&apos;ouverture de la boîte de dialogue</translation>
+    </message>
+    <message>
+        <source>My Presets</source>
+        <translation>Mes préréglages</translation>
+    </message>
+    <message>
+        <source>Photoshop Hue/Saturation Preset (*.ahu)</source>
+        <translation>Préréglage Teinte/Saturation Photoshop (*.ahu)</translation>
+    </message>
+    <message>
+        <source>Photoshop Levels Preset (*.alv)</source>
+        <translation>Préréglage Niveaux Photoshop (*.alv)</translation>
+    </message>
+    <message>
+        <source>Photoshop Black &amp; White Preset (*.blw)</source>
+        <translation>Préréglage Noir et blanc Photoshop (*.blw)</translation>
+    </message>
+    <message>
+        <source>Golden Monochrome</source>
+        <translation>Monochrome doré</translation>
+    </message>
+    <message>
+        <source>Moonlight</source>
+        <translation>Clair de lune</translation>
+    </message>
+    <message>
+        <source>Warm Vintage</source>
+        <translation>Vintage chaud</translation>
+    </message>
+    <message>
+        <source>Vivid Film</source>
+        <translation>Film éclatant</translation>
+    </message>
+    <message>
+        <source>Soft Pastel</source>
+        <translation>Pastel doux</translation>
+    </message>
+    <message>
+        <source>Cool Shift</source>
+        <translation>Décalage froid</translation>
+    </message>
+    <message>
+        <source>Warm Shift</source>
+        <translation>Décalage chaud</translation>
+    </message>
+    <message>
+        <source>Warm Skin Tones</source>
+        <translation>Tons chair chauds</translation>
+    </message>
+    <message>
+        <source>Autumn Leaves</source>
+        <translation>Feuilles d&apos;automne</translation>
+    </message>
+    <message>
+        <source>Aqua Skies</source>
+        <translation>Ciel aqua</translation>
+    </message>
+    <message>
+        <source>Deep Ocean</source>
+        <translation>Océan profond</translation>
+    </message>
+    <message>
+        <source>Brighten Slightly</source>
+        <translation>Éclaircir légèrement</translation>
+    </message>
+    <message>
+        <source>Brighten Medium</source>
+        <translation>Éclaircir moyennement</translation>
+    </message>
+    <message>
+        <source>Brighten Strong</source>
+        <translation>Éclaircir fortement</translation>
+    </message>
+    <message>
+        <source>Darken Slightly</source>
+        <translation>Assombrir légèrement</translation>
+    </message>
+    <message>
+        <source>Darken Medium</source>
+        <translation>Assombrir moyennement</translation>
+    </message>
+    <message>
+        <source>Darken Strong</source>
+        <translation>Assombrir fortement</translation>
+    </message>
+    <message>
+        <source>Slight Contrast</source>
+        <translation>Contraste léger</translation>
+    </message>
+    <message>
+        <source>Dramatic Contrast</source>
+        <translation>Contraste spectaculaire</translation>
+    </message>
+    <message>
+        <source>Deep Blacks</source>
+        <translation>Noirs profonds</translation>
+    </message>
+    <message>
+        <source>Crushed Blacks</source>
+        <translation>Noirs écrasés</translation>
+    </message>
+    <message>
+        <source>Brilliant Whites</source>
+        <translation>Blancs éclatants</translation>
+    </message>
+    <message>
+        <source>Silhouette</source>
+        <translation>Silhouette</translation>
+    </message>
+    <message>
+        <source>Faded Light</source>
+        <translation>Délavé léger</translation>
+    </message>
+    <message>
+        <source>Faded Medium</source>
+        <translation>Délavé moyen</translation>
+    </message>
+    <message>
+        <source>Faded Strong</source>
+        <translation>Délavé fort</translation>
+    </message>
+    <message>
+        <source>Washed Out</source>
+        <translation>Délavé</translation>
+    </message>
+    <message>
+        <source>Import...</source>
+        <translation>Importer...</translation>
+    </message>
+    <message>
+        <source>Add a preset file to your presets</source>
+        <translation>Ajouter un fichier de préréglage à vos préréglages</translation>
+    </message>
+    <message>
+        <source>Write the current settings to a preset file</source>
+        <translation>Écrire les réglages actuels dans un fichier de préréglage</translation>
+    </message>
+    <message>
+        <source>A preset named &quot;%1&quot; already exists. Replace it?</source>
+        <translation>Un préréglage nommé « %1 » existe déjà. Le remplacer ?</translation>
+    </message>
+    <message>
+        <source>The preset could not be saved.</source>
+        <translation>Impossible d&apos;enregistrer le préréglage.</translation>
+    </message>
+    <message>
+        <source>The preset could not be deleted.</source>
+        <translation>Impossible de supprimer le préréglage.</translation>
+    </message>
+    <message>
+        <source>Import Preset</source>
+        <translation>Importer un préréglage</translation>
+    </message>
+    <message>
+        <source>The preset could not be imported. The file may be damaged or unsupported.</source>
+        <translation>Impossible d&apos;importer le préréglage. Le fichier est peut-être endommagé ou non pris en charge.</translation>
+    </message>
+    <message>
+        <source>Export Preset</source>
+        <translation>Exporter le préréglage</translation>
+    </message>
+    <message>
+        <source>The preset could not be exported.</source>
+        <translation>Impossible d&apos;exporter le préréglage.</translation>
     </message>
 </context>
 <context>

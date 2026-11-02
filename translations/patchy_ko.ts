@@ -3318,20 +3318,8 @@
         <translation>현재 사용자 지정 곡선</translation>
     </message>
     <message>
-        <source>Load...</source>
-        <translation>불러오기...</translation>
-    </message>
-    <message>
-        <source>Load a Photoshop Curves preset</source>
-        <translation>Photoshop 곡선 사전 설정 로드</translation>
-    </message>
-    <message>
         <source>Save...</source>
         <translation>저장...</translation>
-    </message>
-    <message>
-        <source>Save the current curves as a Photoshop preset</source>
-        <translation>현재 곡선을 Photoshop 사전 설정으로 저장</translation>
     </message>
     <message>
         <source>Before</source>
@@ -3342,24 +3330,8 @@
         <translation>조정되지 않은 이미지와 비교하려면 길게 누르세요.</translation>
     </message>
     <message>
-        <source>Load Curves Preset</source>
-        <translation>곡선 사전 설정 불러오기</translation>
-    </message>
-    <message>
         <source>Photoshop Curves Preset (*.acv)</source>
         <translation>Photoshop 곡선 사전 설정(*.acv)</translation>
-    </message>
-    <message>
-        <source>The Curves preset could not be loaded. The file may be damaged or unsupported.</source>
-        <translation>곡선 사전 설정을 로드할 수 없습니다. 파일이 손상되었거나 지원되지 않을 수 있습니다.</translation>
-    </message>
-    <message>
-        <source>Save Curves Preset</source>
-        <translation>곡선 사전 설정 저장</translation>
-    </message>
-    <message>
-        <source>The Curves preset could not be saved.</source>
-        <translation>곡선 사전 설정을 저장할 수 없습니다.</translation>
     </message>
     <message>
         <source>Hue</source>
@@ -11381,10 +11353,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>중간톤</translation>
     </message>
     <message>
-        <source>Tone:</source>
-        <translation>톤:</translation>
-    </message>
-    <message>
         <source>Preserve Luminosity</source>
         <translation>광도 유지</translation>
     </message>
@@ -14504,6 +14472,230 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>%1, %2</source>
         <translation>%1, %2</translation>
+    </message>
+    <message>
+        <source>Could not open the preset file</source>
+        <translation>사전 설정 파일을 열 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Could not read the preset file</source>
+        <translation>사전 설정 파일을 읽을 수 없습니다</translation>
+    </message>
+    <message>
+        <source>The preset file is too large</source>
+        <translation>사전 설정 파일이 너무 큽니다</translation>
+    </message>
+    <message>
+        <source>Could not open the preset file for writing</source>
+        <translation>사전 설정 파일을 쓰기용으로 열 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Could not write the preset file</source>
+        <translation>사전 설정 파일을 쓸 수 없습니다</translation>
+    </message>
+    <message>
+        <source>The preset file is damaged or unsupported</source>
+        <translation>사전 설정 파일이 손상되었거나 지원되지 않습니다</translation>
+    </message>
+    <message>
+        <source>Black input level</source>
+        <translation>검정 입력 레벨</translation>
+    </message>
+    <message>
+        <source>Gamma (midtones)</source>
+        <translation>감마(중간 톤)</translation>
+    </message>
+    <message>
+        <source>White input level</source>
+        <translation>흰색 입력 레벨</translation>
+    </message>
+    <message>
+        <source>B:</source>
+        <translation>검정:</translation>
+    </message>
+    <message>
+        <source>G:</source>
+        <translation>감마:</translation>
+    </message>
+    <message>
+        <source>W:</source>
+        <translation>흰색:</translation>
+    </message>
+    <message>
+        <source>The color Colorize gives a mid gray</source>
+        <translation>색상화가 중간 회색에 주는 색</translation>
+    </message>
+    <message>
+        <source>Colorize color</source>
+        <translation>색상화 색</translation>
+    </message>
+    <message>
+        <source>Restore the settings the dialog opened with</source>
+        <translation>대화 상자를 열 때의 설정으로 되돌립니다</translation>
+    </message>
+    <message>
+        <source>My Presets</source>
+        <translation>내 사전 설정</translation>
+    </message>
+    <message>
+        <source>Photoshop Hue/Saturation Preset (*.ahu)</source>
+        <translation>Photoshop 색조/채도 사전 설정 (*.ahu)</translation>
+    </message>
+    <message>
+        <source>Photoshop Levels Preset (*.alv)</source>
+        <translation>Photoshop 레벨 사전 설정 (*.alv)</translation>
+    </message>
+    <message>
+        <source>Photoshop Black &amp; White Preset (*.blw)</source>
+        <translation>Photoshop 흑백 사전 설정 (*.blw)</translation>
+    </message>
+    <message>
+        <source>Golden Monochrome</source>
+        <translation>골드 단색</translation>
+    </message>
+    <message>
+        <source>Moonlight</source>
+        <translation>달빛</translation>
+    </message>
+    <message>
+        <source>Warm Vintage</source>
+        <translation>따뜻한 빈티지</translation>
+    </message>
+    <message>
+        <source>Vivid Film</source>
+        <translation>선명한 필름</translation>
+    </message>
+    <message>
+        <source>Soft Pastel</source>
+        <translation>부드러운 파스텔</translation>
+    </message>
+    <message>
+        <source>Cool Shift</source>
+        <translation>차가운 이동</translation>
+    </message>
+    <message>
+        <source>Warm Shift</source>
+        <translation>따뜻한 이동</translation>
+    </message>
+    <message>
+        <source>Warm Skin Tones</source>
+        <translation>따뜻한 피부 톤</translation>
+    </message>
+    <message>
+        <source>Autumn Leaves</source>
+        <translation>가을 낙엽</translation>
+    </message>
+    <message>
+        <source>Aqua Skies</source>
+        <translation>아쿠아 하늘</translation>
+    </message>
+    <message>
+        <source>Deep Ocean</source>
+        <translation>깊은 바다</translation>
+    </message>
+    <message>
+        <source>Brighten Slightly</source>
+        <translation>약간 밝게</translation>
+    </message>
+    <message>
+        <source>Brighten Medium</source>
+        <translation>보통 밝게</translation>
+    </message>
+    <message>
+        <source>Brighten Strong</source>
+        <translation>강하게 밝게</translation>
+    </message>
+    <message>
+        <source>Darken Slightly</source>
+        <translation>약간 어둡게</translation>
+    </message>
+    <message>
+        <source>Darken Medium</source>
+        <translation>보통 어둡게</translation>
+    </message>
+    <message>
+        <source>Darken Strong</source>
+        <translation>강하게 어둡게</translation>
+    </message>
+    <message>
+        <source>Slight Contrast</source>
+        <translation>약한 대비</translation>
+    </message>
+    <message>
+        <source>Dramatic Contrast</source>
+        <translation>극적인 대비</translation>
+    </message>
+    <message>
+        <source>Deep Blacks</source>
+        <translation>깊은 검정</translation>
+    </message>
+    <message>
+        <source>Crushed Blacks</source>
+        <translation>뭉개진 검정</translation>
+    </message>
+    <message>
+        <source>Brilliant Whites</source>
+        <translation>선명한 흰색</translation>
+    </message>
+    <message>
+        <source>Silhouette</source>
+        <translation>실루엣</translation>
+    </message>
+    <message>
+        <source>Faded Light</source>
+        <translation>약한 바램</translation>
+    </message>
+    <message>
+        <source>Faded Medium</source>
+        <translation>보통 바램</translation>
+    </message>
+    <message>
+        <source>Faded Strong</source>
+        <translation>강한 바램</translation>
+    </message>
+    <message>
+        <source>Washed Out</source>
+        <translation>물 빠진 색</translation>
+    </message>
+    <message>
+        <source>Import...</source>
+        <translation>가져오기...</translation>
+    </message>
+    <message>
+        <source>Add a preset file to your presets</source>
+        <translation>사전 설정 파일을 내 사전 설정에 추가합니다</translation>
+    </message>
+    <message>
+        <source>Write the current settings to a preset file</source>
+        <translation>현재 설정을 사전 설정 파일로 씁니다</translation>
+    </message>
+    <message>
+        <source>A preset named &quot;%1&quot; already exists. Replace it?</source>
+        <translation>&quot;%1&quot; 사전 설정이 이미 있습니다. 바꾸시겠습니까?</translation>
+    </message>
+    <message>
+        <source>The preset could not be saved.</source>
+        <translation>사전 설정을 저장할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>The preset could not be deleted.</source>
+        <translation>사전 설정을 삭제할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Import Preset</source>
+        <translation>사전 설정 가져오기</translation>
+    </message>
+    <message>
+        <source>The preset could not be imported. The file may be damaged or unsupported.</source>
+        <translation>사전 설정을 가져올 수 없습니다. 파일이 손상되었거나 지원되지 않을 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Export Preset</source>
+        <translation>사전 설정 내보내기</translation>
+    </message>
+    <message>
+        <source>The preset could not be exported.</source>
+        <translation>사전 설정을 내보낼 수 없습니다.</translation>
     </message>
 </context>
 <context>

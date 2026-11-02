@@ -3318,20 +3318,8 @@
         <translation>Текущая пользовательская кривая</translation>
     </message>
     <message>
-        <source>Load...</source>
-        <translation>Загрузить...</translation>
-    </message>
-    <message>
-        <source>Load a Photoshop Curves preset</source>
-        <translation>Загрузите пресет Photoshop Curves</translation>
-    </message>
-    <message>
         <source>Save...</source>
         <translation>Сохранить...</translation>
-    </message>
-    <message>
-        <source>Save the current curves as a Photoshop preset</source>
-        <translation>Сохраните текущие кривые в качестве пресета Photoshop.</translation>
     </message>
     <message>
         <source>Before</source>
@@ -3342,24 +3330,8 @@
         <translation>Удерживайте, чтобы сравнить с неотрегулированным изображением</translation>
     </message>
     <message>
-        <source>Load Curves Preset</source>
-        <translation>Загрузка предустановленных кривых</translation>
-    </message>
-    <message>
         <source>Photoshop Curves Preset (*.acv)</source>
         <translation>Предустановки кривых Photoshop (*.acv)</translation>
-    </message>
-    <message>
-        <source>The Curves preset could not be loaded. The file may be damaged or unsupported.</source>
-        <translation>Не удалось загрузить предустановку «Кривые». Возможно, файл поврежден или не поддерживается.</translation>
-    </message>
-    <message>
-        <source>Save Curves Preset</source>
-        <translation>Сохранить предустановку кривых</translation>
-    </message>
-    <message>
-        <source>The Curves preset could not be saved.</source>
-        <translation>Не удалось сохранить настройку «Кривые».</translation>
     </message>
     <message>
         <source>Hue</source>
@@ -11447,10 +11419,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Средние тона</translation>
     </message>
     <message>
-        <source>Tone:</source>
-        <translation>Тон:</translation>
-    </message>
-    <message>
         <source>Preserve Luminosity</source>
         <translation>Сохранить яркость</translation>
     </message>
@@ -14592,6 +14560,230 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>%1, %2</source>
         <translation>%1, %2</translation>
+    </message>
+    <message>
+        <source>Could not open the preset file</source>
+        <translation>Не удалось открыть файл набора</translation>
+    </message>
+    <message>
+        <source>Could not read the preset file</source>
+        <translation>Не удалось прочитать файл набора</translation>
+    </message>
+    <message>
+        <source>The preset file is too large</source>
+        <translation>Файл набора слишком велик</translation>
+    </message>
+    <message>
+        <source>Could not open the preset file for writing</source>
+        <translation>Не удалось открыть файл набора для записи</translation>
+    </message>
+    <message>
+        <source>Could not write the preset file</source>
+        <translation>Не удалось записать файл набора</translation>
+    </message>
+    <message>
+        <source>The preset file is damaged or unsupported</source>
+        <translation>Файл набора повреждён или не поддерживается</translation>
+    </message>
+    <message>
+        <source>Black input level</source>
+        <translation>Входной уровень чёрного</translation>
+    </message>
+    <message>
+        <source>Gamma (midtones)</source>
+        <translation>Гамма (средние тона)</translation>
+    </message>
+    <message>
+        <source>White input level</source>
+        <translation>Входной уровень белого</translation>
+    </message>
+    <message>
+        <source>B:</source>
+        <translation>Ч:</translation>
+    </message>
+    <message>
+        <source>G:</source>
+        <translation>Г:</translation>
+    </message>
+    <message>
+        <source>W:</source>
+        <translation>Б:</translation>
+    </message>
+    <message>
+        <source>The color Colorize gives a mid gray</source>
+        <translation>Цвет, который тонирование придаёт среднему серому</translation>
+    </message>
+    <message>
+        <source>Colorize color</source>
+        <translation>Цвет тонирования</translation>
+    </message>
+    <message>
+        <source>Restore the settings the dialog opened with</source>
+        <translation>Вернуть настройки, с которыми открылось окно</translation>
+    </message>
+    <message>
+        <source>My Presets</source>
+        <translation>Мои наборы</translation>
+    </message>
+    <message>
+        <source>Photoshop Hue/Saturation Preset (*.ahu)</source>
+        <translation>Набор «Цветовой тон/насыщенность» Photoshop (*.ahu)</translation>
+    </message>
+    <message>
+        <source>Photoshop Levels Preset (*.alv)</source>
+        <translation>Набор «Уровни» Photoshop (*.alv)</translation>
+    </message>
+    <message>
+        <source>Photoshop Black &amp; White Preset (*.blw)</source>
+        <translation>Набор «Черно-белое» Photoshop (*.blw)</translation>
+    </message>
+    <message>
+        <source>Golden Monochrome</source>
+        <translation>Золотой монохром</translation>
+    </message>
+    <message>
+        <source>Moonlight</source>
+        <translation>Лунный свет</translation>
+    </message>
+    <message>
+        <source>Warm Vintage</source>
+        <translation>Тёплый винтаж</translation>
+    </message>
+    <message>
+        <source>Vivid Film</source>
+        <translation>Яркая плёнка</translation>
+    </message>
+    <message>
+        <source>Soft Pastel</source>
+        <translation>Мягкая пастель</translation>
+    </message>
+    <message>
+        <source>Cool Shift</source>
+        <translation>Холодный сдвиг</translation>
+    </message>
+    <message>
+        <source>Warm Shift</source>
+        <translation>Тёплый сдвиг</translation>
+    </message>
+    <message>
+        <source>Warm Skin Tones</source>
+        <translation>Тёплые тона кожи</translation>
+    </message>
+    <message>
+        <source>Autumn Leaves</source>
+        <translation>Осенние листья</translation>
+    </message>
+    <message>
+        <source>Aqua Skies</source>
+        <translation>Бирюзовое небо</translation>
+    </message>
+    <message>
+        <source>Deep Ocean</source>
+        <translation>Глубокий океан</translation>
+    </message>
+    <message>
+        <source>Brighten Slightly</source>
+        <translation>Слегка осветлить</translation>
+    </message>
+    <message>
+        <source>Brighten Medium</source>
+        <translation>Осветлить средне</translation>
+    </message>
+    <message>
+        <source>Brighten Strong</source>
+        <translation>Осветлить сильно</translation>
+    </message>
+    <message>
+        <source>Darken Slightly</source>
+        <translation>Слегка затемнить</translation>
+    </message>
+    <message>
+        <source>Darken Medium</source>
+        <translation>Затемнить средне</translation>
+    </message>
+    <message>
+        <source>Darken Strong</source>
+        <translation>Затемнить сильно</translation>
+    </message>
+    <message>
+        <source>Slight Contrast</source>
+        <translation>Слабый контраст</translation>
+    </message>
+    <message>
+        <source>Dramatic Contrast</source>
+        <translation>Драматичный контраст</translation>
+    </message>
+    <message>
+        <source>Deep Blacks</source>
+        <translation>Глубокий чёрный</translation>
+    </message>
+    <message>
+        <source>Crushed Blacks</source>
+        <translation>Сжатый чёрный</translation>
+    </message>
+    <message>
+        <source>Brilliant Whites</source>
+        <translation>Сияющий белый</translation>
+    </message>
+    <message>
+        <source>Silhouette</source>
+        <translation>Силуэт</translation>
+    </message>
+    <message>
+        <source>Faded Light</source>
+        <translation>Слегка выцветшее</translation>
+    </message>
+    <message>
+        <source>Faded Medium</source>
+        <translation>Средне выцветшее</translation>
+    </message>
+    <message>
+        <source>Faded Strong</source>
+        <translation>Сильно выцветшее</translation>
+    </message>
+    <message>
+        <source>Washed Out</source>
+        <translation>Блёклое</translation>
+    </message>
+    <message>
+        <source>Import...</source>
+        <translation>Импорт...</translation>
+    </message>
+    <message>
+        <source>Add a preset file to your presets</source>
+        <translation>Добавить файл набора в ваши наборы</translation>
+    </message>
+    <message>
+        <source>Write the current settings to a preset file</source>
+        <translation>Записать текущие настройки в файл набора</translation>
+    </message>
+    <message>
+        <source>A preset named &quot;%1&quot; already exists. Replace it?</source>
+        <translation>Набор с именем «%1» уже существует. Заменить его?</translation>
+    </message>
+    <message>
+        <source>The preset could not be saved.</source>
+        <translation>Не удалось сохранить набор.</translation>
+    </message>
+    <message>
+        <source>The preset could not be deleted.</source>
+        <translation>Не удалось удалить набор.</translation>
+    </message>
+    <message>
+        <source>Import Preset</source>
+        <translation>Импорт набора</translation>
+    </message>
+    <message>
+        <source>The preset could not be imported. The file may be damaged or unsupported.</source>
+        <translation>Не удалось импортировать набор. Файл может быть повреждён или не поддерживаться.</translation>
+    </message>
+    <message>
+        <source>Export Preset</source>
+        <translation>Экспорт набора</translation>
+    </message>
+    <message>
+        <source>The preset could not be exported.</source>
+        <translation>Не удалось экспортировать набор.</translation>
     </message>
 </context>
 <context>

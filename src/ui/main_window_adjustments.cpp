@@ -194,8 +194,16 @@ void MainWindow::new_levels_adjustment_layer() {
       histogram_source = &layer->pixels();
     }
   }
+  // The eyedroppers read what lies under the new layer (#589).
+  const auto hooks = curves_canvas_hooks(canvas_, [this, &preview_id](QPoint point) {
+    if (preview_id.has_value() && document().find_layer(*preview_id) != nullptr) {
+      return curves_sample_before_layer(std::as_const(document()), *preview_id, point);
+    }
+    const auto image = qimage_from_document_rect(std::as_const(document()), QRect(point, QSize(1, 1)), true);
+    return image.isNull() ? QColor{} : image.pixelColor(0, 0);
+  });
   auto preview_edit_lock = lock_preview_dialog_edits();
-  const auto settings = request_levels_settings(this, preview_changed, {}, histogram_source);
+  const auto settings = request_levels_settings(this, preview_changed, {}, histogram_source, hooks);
   remove_adjustment_layer_preview(preview_id, restore_active_layer);
   preview_edit_lock.release();
   if (!settings.has_value()) {
@@ -848,6 +856,19 @@ std::optional<AdjustmentSettings> MainWindow::request_adjustment_settings(
         settings.levels = sanitized_levels_adjustment(levels);
         preview(settings);
       };
+      // The eyedroppers read the layers below an adjustment layer, as Curves does; a
+      // clipped layer or an adjustment Smart Filter gets none.
+      CurvesDialogHooks hooks;
+      if (const auto* context = adjustment_layer_id.has_value()
+                                    ? std::as_const(document()).find_layer(*adjustment_layer_id)
+                                    : nullptr;
+          context != nullptr && !context->clipped()) {
+        const auto layer_id = *adjustment_layer_id;
+        hooks = curves_canvas_hooks(canvas_, [this, layer_id](QPoint point) {
+          return curves_sample_before_layer(std::as_const(document()), layer_id, point);
+        });
+        hooks.clipping_changed = {};
+      }
       const auto result = request_levels_settings(this, preview_changed,
                                                   LevelsSettings{original.levels.black_input,
                                                                  original.levels.white_input,
@@ -857,7 +878,8 @@ std::optional<AdjustmentSettings> MainWindow::request_adjustment_settings(
                                                                  original.levels.channel,
                                                                  original.levels.red,
                                                                  original.levels.green,
-                                                                 original.levels.blue});
+                                                                 original.levels.blue},
+                                                  nullptr, hooks);
       if (result.has_value()) {
         accepted_settings = original;
         accepted_settings->levels = sanitized_levels_adjustment(*result);

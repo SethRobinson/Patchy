@@ -3318,20 +3318,8 @@
         <translation>Bieżąca krzywa niestandardowa</translation>
     </message>
     <message>
-        <source>Load...</source>
-        <translation>Wczytaj...</translation>
-    </message>
-    <message>
-        <source>Load a Photoshop Curves preset</source>
-        <translation>Wczytaj ustawienie Krzywych programu Photoshop</translation>
-    </message>
-    <message>
         <source>Save...</source>
         <translation>Zapisz...</translation>
-    </message>
-    <message>
-        <source>Save the current curves as a Photoshop preset</source>
-        <translation>Zapisz bieżące krzywe jako ustawienie wstępne programu Photoshop</translation>
     </message>
     <message>
         <source>Before</source>
@@ -3342,24 +3330,8 @@
         <translation>Przytrzymaj, aby porównać z nieskorygowanym obrazem</translation>
     </message>
     <message>
-        <source>Load Curves Preset</source>
-        <translation>Wczytaj ustawienie Krzywych</translation>
-    </message>
-    <message>
         <source>Photoshop Curves Preset (*.acv)</source>
         <translation>Ustawienie Krzywych programu Photoshop (*.acv)</translation>
-    </message>
-    <message>
-        <source>The Curves preset could not be loaded. The file may be damaged or unsupported.</source>
-        <translation>Nie udało się wczytać ustawienia Krzywych. Plik może być uszkodzony lub nieobsługiwany.</translation>
-    </message>
-    <message>
-        <source>Save Curves Preset</source>
-        <translation>Zapisz ustawienie Krzywych</translation>
-    </message>
-    <message>
-        <source>The Curves preset could not be saved.</source>
-        <translation>Nie udało się zapisać ustawienia Krzywych.</translation>
     </message>
     <message>
         <source>Hue</source>
@@ -11447,10 +11419,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Półtony</translation>
     </message>
     <message>
-        <source>Tone:</source>
-        <translation>Ton:</translation>
-    </message>
-    <message>
         <source>Preserve Luminosity</source>
         <translation>Zachowaj jasność</translation>
     </message>
@@ -14592,6 +14560,230 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>%1, %2</source>
         <translation>%1, %2</translation>
+    </message>
+    <message>
+        <source>Could not open the preset file</source>
+        <translation>Nie można otworzyć pliku ustawienia</translation>
+    </message>
+    <message>
+        <source>Could not read the preset file</source>
+        <translation>Nie można odczytać pliku ustawienia</translation>
+    </message>
+    <message>
+        <source>The preset file is too large</source>
+        <translation>Plik ustawienia jest za duży</translation>
+    </message>
+    <message>
+        <source>Could not open the preset file for writing</source>
+        <translation>Nie można otworzyć pliku ustawienia do zapisu</translation>
+    </message>
+    <message>
+        <source>Could not write the preset file</source>
+        <translation>Nie można zapisać pliku ustawienia</translation>
+    </message>
+    <message>
+        <source>The preset file is damaged or unsupported</source>
+        <translation>Plik ustawienia jest uszkodzony lub nieobsługiwany</translation>
+    </message>
+    <message>
+        <source>Black input level</source>
+        <translation>Poziom wejściowy czerni</translation>
+    </message>
+    <message>
+        <source>Gamma (midtones)</source>
+        <translation>Gamma (półcienie)</translation>
+    </message>
+    <message>
+        <source>White input level</source>
+        <translation>Poziom wejściowy bieli</translation>
+    </message>
+    <message>
+        <source>B:</source>
+        <translation>C:</translation>
+    </message>
+    <message>
+        <source>G:</source>
+        <translation>G:</translation>
+    </message>
+    <message>
+        <source>W:</source>
+        <translation>B:</translation>
+    </message>
+    <message>
+        <source>The color Colorize gives a mid gray</source>
+        <translation>Kolor, jaki Koloruj nadaje średniej szarości</translation>
+    </message>
+    <message>
+        <source>Colorize color</source>
+        <translation>Kolor koloryzacji</translation>
+    </message>
+    <message>
+        <source>Restore the settings the dialog opened with</source>
+        <translation>Przywróć ustawienia z chwili otwarcia okna</translation>
+    </message>
+    <message>
+        <source>My Presets</source>
+        <translation>Moje ustawienia</translation>
+    </message>
+    <message>
+        <source>Photoshop Hue/Saturation Preset (*.ahu)</source>
+        <translation>Ustawienie Barwa/nasycenie programu Photoshop (*.ahu)</translation>
+    </message>
+    <message>
+        <source>Photoshop Levels Preset (*.alv)</source>
+        <translation>Ustawienie Poziomy programu Photoshop (*.alv)</translation>
+    </message>
+    <message>
+        <source>Photoshop Black &amp; White Preset (*.blw)</source>
+        <translation>Ustawienie Czarno-białe programu Photoshop (*.blw)</translation>
+    </message>
+    <message>
+        <source>Golden Monochrome</source>
+        <translation>Złota monochromia</translation>
+    </message>
+    <message>
+        <source>Moonlight</source>
+        <translation>Światło księżyca</translation>
+    </message>
+    <message>
+        <source>Warm Vintage</source>
+        <translation>Ciepły vintage</translation>
+    </message>
+    <message>
+        <source>Vivid Film</source>
+        <translation>Żywy film</translation>
+    </message>
+    <message>
+        <source>Soft Pastel</source>
+        <translation>Delikatny pastel</translation>
+    </message>
+    <message>
+        <source>Cool Shift</source>
+        <translation>Chłodne przesunięcie</translation>
+    </message>
+    <message>
+        <source>Warm Shift</source>
+        <translation>Ciepłe przesunięcie</translation>
+    </message>
+    <message>
+        <source>Warm Skin Tones</source>
+        <translation>Ciepłe odcienie skóry</translation>
+    </message>
+    <message>
+        <source>Autumn Leaves</source>
+        <translation>Jesienne liście</translation>
+    </message>
+    <message>
+        <source>Aqua Skies</source>
+        <translation>Turkusowe niebo</translation>
+    </message>
+    <message>
+        <source>Deep Ocean</source>
+        <translation>Głęboki ocean</translation>
+    </message>
+    <message>
+        <source>Brighten Slightly</source>
+        <translation>Rozjaśnij lekko</translation>
+    </message>
+    <message>
+        <source>Brighten Medium</source>
+        <translation>Rozjaśnij średnio</translation>
+    </message>
+    <message>
+        <source>Brighten Strong</source>
+        <translation>Rozjaśnij mocno</translation>
+    </message>
+    <message>
+        <source>Darken Slightly</source>
+        <translation>Przyciemnij lekko</translation>
+    </message>
+    <message>
+        <source>Darken Medium</source>
+        <translation>Przyciemnij średnio</translation>
+    </message>
+    <message>
+        <source>Darken Strong</source>
+        <translation>Przyciemnij mocno</translation>
+    </message>
+    <message>
+        <source>Slight Contrast</source>
+        <translation>Lekki kontrast</translation>
+    </message>
+    <message>
+        <source>Dramatic Contrast</source>
+        <translation>Dramatyczny kontrast</translation>
+    </message>
+    <message>
+        <source>Deep Blacks</source>
+        <translation>Głęboka czerń</translation>
+    </message>
+    <message>
+        <source>Crushed Blacks</source>
+        <translation>Zgniecione czernie</translation>
+    </message>
+    <message>
+        <source>Brilliant Whites</source>
+        <translation>Lśniąca biel</translation>
+    </message>
+    <message>
+        <source>Silhouette</source>
+        <translation>Sylwetka</translation>
+    </message>
+    <message>
+        <source>Faded Light</source>
+        <translation>Lekko wyblakłe</translation>
+    </message>
+    <message>
+        <source>Faded Medium</source>
+        <translation>Średnio wyblakłe</translation>
+    </message>
+    <message>
+        <source>Faded Strong</source>
+        <translation>Mocno wyblakłe</translation>
+    </message>
+    <message>
+        <source>Washed Out</source>
+        <translation>Sprane</translation>
+    </message>
+    <message>
+        <source>Import...</source>
+        <translation>Importuj...</translation>
+    </message>
+    <message>
+        <source>Add a preset file to your presets</source>
+        <translation>Dodaj plik ustawienia do swoich ustawień</translation>
+    </message>
+    <message>
+        <source>Write the current settings to a preset file</source>
+        <translation>Zapisz bieżące ustawienia do pliku ustawienia</translation>
+    </message>
+    <message>
+        <source>A preset named &quot;%1&quot; already exists. Replace it?</source>
+        <translation>Ustawienie o nazwie „%1” już istnieje. Zastąpić je?</translation>
+    </message>
+    <message>
+        <source>The preset could not be saved.</source>
+        <translation>Nie można zapisać ustawienia.</translation>
+    </message>
+    <message>
+        <source>The preset could not be deleted.</source>
+        <translation>Nie można usunąć ustawienia.</translation>
+    </message>
+    <message>
+        <source>Import Preset</source>
+        <translation>Importuj ustawienie</translation>
+    </message>
+    <message>
+        <source>The preset could not be imported. The file may be damaged or unsupported.</source>
+        <translation>Nie można zaimportować ustawienia. Plik może być uszkodzony lub nieobsługiwany.</translation>
+    </message>
+    <message>
+        <source>Export Preset</source>
+        <translation>Eksportuj ustawienie</translation>
+    </message>
+    <message>
+        <source>The preset could not be exported.</source>
+        <translation>Nie można wyeksportować ustawienia.</translation>
     </message>
 </context>
 <context>

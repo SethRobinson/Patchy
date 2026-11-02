@@ -3254,20 +3254,8 @@
         <translation>Curva personale corrente</translation>
     </message>
     <message>
-        <source>Load...</source>
-        <translation>Carica...</translation>
-    </message>
-    <message>
-        <source>Load a Photoshop Curves preset</source>
-        <translation>Carica un predefinito Curve di Photoshop</translation>
-    </message>
-    <message>
         <source>Save...</source>
         <translation>Salva...</translation>
-    </message>
-    <message>
-        <source>Save the current curves as a Photoshop preset</source>
-        <translation>Salva le curve correnti come predefinito di Photoshop</translation>
     </message>
     <message>
         <source>Before</source>
@@ -3278,24 +3266,8 @@
         <translation>Tieni premuto per confrontare con l&apos;immagine non regolata</translation>
     </message>
     <message>
-        <source>Load Curves Preset</source>
-        <translation>Carica predefinito Curve</translation>
-    </message>
-    <message>
         <source>Photoshop Curves Preset (*.acv)</source>
         <translation>Predefinito Curve di Photoshop (*.acv)</translation>
-    </message>
-    <message>
-        <source>The Curves preset could not be loaded. The file may be damaged or unsupported.</source>
-        <translation>Impossibile caricare il predefinito Curve. Il file potrebbe essere danneggiato o non supportato.</translation>
-    </message>
-    <message>
-        <source>Save Curves Preset</source>
-        <translation>Salva predefinito Curve</translation>
-    </message>
-    <message>
-        <source>The Curves preset could not be saved.</source>
-        <translation>Impossibile salvare il predefinito Curve.</translation>
     </message>
     <message>
         <source>Hue</source>
@@ -11414,10 +11386,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Mezzitoni</translation>
     </message>
     <message>
-        <source>Tone:</source>
-        <translation>Tono:</translation>
-    </message>
-    <message>
         <source>Preserve Luminosity</source>
         <translation>Mantieni luminosità</translation>
     </message>
@@ -14548,6 +14516,230 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>%1, %2</source>
         <translation>%1, %2</translation>
+    </message>
+    <message>
+        <source>Could not open the preset file</source>
+        <translation>Impossibile aprire il file del predefinito</translation>
+    </message>
+    <message>
+        <source>Could not read the preset file</source>
+        <translation>Impossibile leggere il file del predefinito</translation>
+    </message>
+    <message>
+        <source>The preset file is too large</source>
+        <translation>Il file del predefinito è troppo grande</translation>
+    </message>
+    <message>
+        <source>Could not open the preset file for writing</source>
+        <translation>Impossibile aprire il file del predefinito in scrittura</translation>
+    </message>
+    <message>
+        <source>Could not write the preset file</source>
+        <translation>Impossibile scrivere il file del predefinito</translation>
+    </message>
+    <message>
+        <source>The preset file is damaged or unsupported</source>
+        <translation>Il file del predefinito è danneggiato o non supportato</translation>
+    </message>
+    <message>
+        <source>Black input level</source>
+        <translation>Livello di input del nero</translation>
+    </message>
+    <message>
+        <source>Gamma (midtones)</source>
+        <translation>Gamma (mezzitoni)</translation>
+    </message>
+    <message>
+        <source>White input level</source>
+        <translation>Livello di input del bianco</translation>
+    </message>
+    <message>
+        <source>B:</source>
+        <translation>N:</translation>
+    </message>
+    <message>
+        <source>G:</source>
+        <translation>G:</translation>
+    </message>
+    <message>
+        <source>W:</source>
+        <translation>B:</translation>
+    </message>
+    <message>
+        <source>The color Colorize gives a mid gray</source>
+        <translation>Il colore che Colora dà a un grigio medio</translation>
+    </message>
+    <message>
+        <source>Colorize color</source>
+        <translation>Colore di colorazione</translation>
+    </message>
+    <message>
+        <source>Restore the settings the dialog opened with</source>
+        <translation>Ripristina le impostazioni con cui si è aperta la finestra</translation>
+    </message>
+    <message>
+        <source>My Presets</source>
+        <translation>I miei predefiniti</translation>
+    </message>
+    <message>
+        <source>Photoshop Hue/Saturation Preset (*.ahu)</source>
+        <translation>Predefinito Tonalità/saturazione di Photoshop (*.ahu)</translation>
+    </message>
+    <message>
+        <source>Photoshop Levels Preset (*.alv)</source>
+        <translation>Predefinito Livelli di Photoshop (*.alv)</translation>
+    </message>
+    <message>
+        <source>Photoshop Black &amp; White Preset (*.blw)</source>
+        <translation>Predefinito Bianco e nero di Photoshop (*.blw)</translation>
+    </message>
+    <message>
+        <source>Golden Monochrome</source>
+        <translation>Monocromia dorata</translation>
+    </message>
+    <message>
+        <source>Moonlight</source>
+        <translation>Chiaro di luna</translation>
+    </message>
+    <message>
+        <source>Warm Vintage</source>
+        <translation>Vintage caldo</translation>
+    </message>
+    <message>
+        <source>Vivid Film</source>
+        <translation>Pellicola vivace</translation>
+    </message>
+    <message>
+        <source>Soft Pastel</source>
+        <translation>Pastello tenue</translation>
+    </message>
+    <message>
+        <source>Cool Shift</source>
+        <translation>Spostamento freddo</translation>
+    </message>
+    <message>
+        <source>Warm Shift</source>
+        <translation>Spostamento caldo</translation>
+    </message>
+    <message>
+        <source>Warm Skin Tones</source>
+        <translation>Incarnato caldo</translation>
+    </message>
+    <message>
+        <source>Autumn Leaves</source>
+        <translation>Foglie d&apos;autunno</translation>
+    </message>
+    <message>
+        <source>Aqua Skies</source>
+        <translation>Cieli acqua</translation>
+    </message>
+    <message>
+        <source>Deep Ocean</source>
+        <translation>Oceano profondo</translation>
+    </message>
+    <message>
+        <source>Brighten Slightly</source>
+        <translation>Schiarisci leggermente</translation>
+    </message>
+    <message>
+        <source>Brighten Medium</source>
+        <translation>Schiarisci medio</translation>
+    </message>
+    <message>
+        <source>Brighten Strong</source>
+        <translation>Schiarisci forte</translation>
+    </message>
+    <message>
+        <source>Darken Slightly</source>
+        <translation>Scurisci leggermente</translation>
+    </message>
+    <message>
+        <source>Darken Medium</source>
+        <translation>Scurisci medio</translation>
+    </message>
+    <message>
+        <source>Darken Strong</source>
+        <translation>Scurisci forte</translation>
+    </message>
+    <message>
+        <source>Slight Contrast</source>
+        <translation>Contrasto leggero</translation>
+    </message>
+    <message>
+        <source>Dramatic Contrast</source>
+        <translation>Contrasto drammatico</translation>
+    </message>
+    <message>
+        <source>Deep Blacks</source>
+        <translation>Neri profondi</translation>
+    </message>
+    <message>
+        <source>Crushed Blacks</source>
+        <translation>Neri schiacciati</translation>
+    </message>
+    <message>
+        <source>Brilliant Whites</source>
+        <translation>Bianchi brillanti</translation>
+    </message>
+    <message>
+        <source>Silhouette</source>
+        <translation>Silhouette</translation>
+    </message>
+    <message>
+        <source>Faded Light</source>
+        <translation>Sbiadito leggero</translation>
+    </message>
+    <message>
+        <source>Faded Medium</source>
+        <translation>Sbiadito medio</translation>
+    </message>
+    <message>
+        <source>Faded Strong</source>
+        <translation>Sbiadito forte</translation>
+    </message>
+    <message>
+        <source>Washed Out</source>
+        <translation>Slavato</translation>
+    </message>
+    <message>
+        <source>Import...</source>
+        <translation>Importa...</translation>
+    </message>
+    <message>
+        <source>Add a preset file to your presets</source>
+        <translation>Aggiungi un file di predefinito ai tuoi predefiniti</translation>
+    </message>
+    <message>
+        <source>Write the current settings to a preset file</source>
+        <translation>Scrivi le impostazioni correnti in un file di predefinito</translation>
+    </message>
+    <message>
+        <source>A preset named &quot;%1&quot; already exists. Replace it?</source>
+        <translation>Esiste già un predefinito chiamato &quot;%1&quot;. Sostituirlo?</translation>
+    </message>
+    <message>
+        <source>The preset could not be saved.</source>
+        <translation>Impossibile salvare il predefinito.</translation>
+    </message>
+    <message>
+        <source>The preset could not be deleted.</source>
+        <translation>Impossibile eliminare il predefinito.</translation>
+    </message>
+    <message>
+        <source>Import Preset</source>
+        <translation>Importa predefinito</translation>
+    </message>
+    <message>
+        <source>The preset could not be imported. The file may be damaged or unsupported.</source>
+        <translation>Impossibile importare il predefinito. Il file potrebbe essere danneggiato o non supportato.</translation>
+    </message>
+    <message>
+        <source>Export Preset</source>
+        <translation>Esporta predefinito</translation>
+    </message>
+    <message>
+        <source>The preset could not be exported.</source>
+        <translation>Impossibile esportare il predefinito.</translation>
     </message>
 </context>
 <context>

@@ -297,6 +297,15 @@ int main(int argc, char* argv[]) {
     }
     qputenv("PATCHY_USER_SCRIPTS_DIR", scripts.toUtf8());
   }
+  // Saved adjustment presets (#588) stay out of the developer's real presets folder.
+  if (qEnvironmentVariableIsEmpty("PATCHY_ADJUSTMENT_PRESETS_DIR")) {
+    const auto presets = QDir::current().filePath(QStringLiteral("test-artifacts/adjustment-presets/") +
+                                                  QString::number(QCoreApplication::applicationPid()));
+    if (QFileInfo::exists(presets)) {
+      patchy::test::ui::remove_test_scratch_dir(presets);
+    }
+    qputenv("PATCHY_ADJUSTMENT_PRESETS_DIR", presets.toUtf8());
+  }
   // The dropped-font store is private to this PROCESS. It used to be QStandardPaths'
   // test-mode app-data folder, one directory shared by every checkout and worktree on the
   // machine. A process keeps the store files it registered open until it exits, so a second
@@ -436,6 +445,7 @@ int main(int argc, char* argv[]) {
            folder_open_export_tests,
            artboard_ui_tests,
            image_adjustments_curves_tests,
+           adjustment_presets_tests,
            selection_engines_tests,
            ai_selection_ui_tests,
            misc_visuals_outline_stress_tests,

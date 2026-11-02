@@ -3254,20 +3254,8 @@
         <translation>Aktuelle benutzerdefinierte Kurve</translation>
     </message>
     <message>
-        <source>Load...</source>
-        <translation>Laden...</translation>
-    </message>
-    <message>
-        <source>Load a Photoshop Curves preset</source>
-        <translation>Eine Photoshop-Gradationskurven-Vorgabe laden</translation>
-    </message>
-    <message>
         <source>Save...</source>
         <translation>Speichern...</translation>
-    </message>
-    <message>
-        <source>Save the current curves as a Photoshop preset</source>
-        <translation>Die aktuellen Gradationskurven als Photoshop-Vorgabe speichern</translation>
     </message>
     <message>
         <source>Before</source>
@@ -3278,24 +3266,8 @@
         <translation>Gedrückt halten, um mit dem unkorrigierten Bild zu vergleichen</translation>
     </message>
     <message>
-        <source>Load Curves Preset</source>
-        <translation>Gradationskurven-Vorgabe laden</translation>
-    </message>
-    <message>
         <source>Photoshop Curves Preset (*.acv)</source>
         <translation>Photoshop-Gradationskurven-Vorgabe (*.acv)</translation>
-    </message>
-    <message>
-        <source>The Curves preset could not be loaded. The file may be damaged or unsupported.</source>
-        <translation>Die Gradationskurven-Vorgabe konnte nicht geladen werden. Die Datei ist möglicherweise beschädigt oder wird nicht unterstützt.</translation>
-    </message>
-    <message>
-        <source>Save Curves Preset</source>
-        <translation>Gradationskurven-Vorgabe speichern</translation>
-    </message>
-    <message>
-        <source>The Curves preset could not be saved.</source>
-        <translation>Die Gradationskurven-Vorgabe konnte nicht gespeichert werden.</translation>
     </message>
     <message>
         <source>Hue</source>
@@ -11414,10 +11386,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Mitteltöne</translation>
     </message>
     <message>
-        <source>Tone:</source>
-        <translation>Ton:</translation>
-    </message>
-    <message>
         <source>Preserve Luminosity</source>
         <translation>Luminanz erhalten</translation>
     </message>
@@ -14548,6 +14516,230 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>%1, %2</source>
         <translation>%1, %2</translation>
+    </message>
+    <message>
+        <source>Could not open the preset file</source>
+        <translation>Die Vorgabedatei konnte nicht geöffnet werden</translation>
+    </message>
+    <message>
+        <source>Could not read the preset file</source>
+        <translation>Die Vorgabedatei konnte nicht gelesen werden</translation>
+    </message>
+    <message>
+        <source>The preset file is too large</source>
+        <translation>Die Vorgabedatei ist zu groß</translation>
+    </message>
+    <message>
+        <source>Could not open the preset file for writing</source>
+        <translation>Die Vorgabedatei konnte nicht zum Schreiben geöffnet werden</translation>
+    </message>
+    <message>
+        <source>Could not write the preset file</source>
+        <translation>Die Vorgabedatei konnte nicht geschrieben werden</translation>
+    </message>
+    <message>
+        <source>The preset file is damaged or unsupported</source>
+        <translation>Die Vorgabedatei ist beschädigt oder wird nicht unterstützt</translation>
+    </message>
+    <message>
+        <source>Black input level</source>
+        <translation>Schwarzer Tonwert (Eingabe)</translation>
+    </message>
+    <message>
+        <source>Gamma (midtones)</source>
+        <translation>Gamma (Mitteltöne)</translation>
+    </message>
+    <message>
+        <source>White input level</source>
+        <translation>Weißer Tonwert (Eingabe)</translation>
+    </message>
+    <message>
+        <source>B:</source>
+        <translation>S:</translation>
+    </message>
+    <message>
+        <source>G:</source>
+        <translation>G:</translation>
+    </message>
+    <message>
+        <source>W:</source>
+        <translation>W:</translation>
+    </message>
+    <message>
+        <source>The color Colorize gives a mid gray</source>
+        <translation>Die Farbe, die Färben einem mittleren Grau gibt</translation>
+    </message>
+    <message>
+        <source>Colorize color</source>
+        <translation>Färbungsfarbe</translation>
+    </message>
+    <message>
+        <source>Restore the settings the dialog opened with</source>
+        <translation>Die Einstellungen beim Öffnen des Dialogs wiederherstellen</translation>
+    </message>
+    <message>
+        <source>My Presets</source>
+        <translation>Meine Vorgaben</translation>
+    </message>
+    <message>
+        <source>Photoshop Hue/Saturation Preset (*.ahu)</source>
+        <translation>Photoshop-Farbton/Sättigung-Vorgabe (*.ahu)</translation>
+    </message>
+    <message>
+        <source>Photoshop Levels Preset (*.alv)</source>
+        <translation>Photoshop-Tonwertkorrektur-Vorgabe (*.alv)</translation>
+    </message>
+    <message>
+        <source>Photoshop Black &amp; White Preset (*.blw)</source>
+        <translation>Photoshop-Schwarzweiß-Vorgabe (*.blw)</translation>
+    </message>
+    <message>
+        <source>Golden Monochrome</source>
+        <translation>Goldenes Monochrom</translation>
+    </message>
+    <message>
+        <source>Moonlight</source>
+        <translation>Mondlicht</translation>
+    </message>
+    <message>
+        <source>Warm Vintage</source>
+        <translation>Warmer Vintage-Look</translation>
+    </message>
+    <message>
+        <source>Vivid Film</source>
+        <translation>Lebendiger Film</translation>
+    </message>
+    <message>
+        <source>Soft Pastel</source>
+        <translation>Sanftes Pastell</translation>
+    </message>
+    <message>
+        <source>Cool Shift</source>
+        <translation>Kühle Verschiebung</translation>
+    </message>
+    <message>
+        <source>Warm Shift</source>
+        <translation>Warme Verschiebung</translation>
+    </message>
+    <message>
+        <source>Warm Skin Tones</source>
+        <translation>Warme Hauttöne</translation>
+    </message>
+    <message>
+        <source>Autumn Leaves</source>
+        <translation>Herbstlaub</translation>
+    </message>
+    <message>
+        <source>Aqua Skies</source>
+        <translation>Aquahimmel</translation>
+    </message>
+    <message>
+        <source>Deep Ocean</source>
+        <translation>Tiefer Ozean</translation>
+    </message>
+    <message>
+        <source>Brighten Slightly</source>
+        <translation>Leicht aufhellen</translation>
+    </message>
+    <message>
+        <source>Brighten Medium</source>
+        <translation>Mittel aufhellen</translation>
+    </message>
+    <message>
+        <source>Brighten Strong</source>
+        <translation>Stark aufhellen</translation>
+    </message>
+    <message>
+        <source>Darken Slightly</source>
+        <translation>Leicht abdunkeln</translation>
+    </message>
+    <message>
+        <source>Darken Medium</source>
+        <translation>Mittel abdunkeln</translation>
+    </message>
+    <message>
+        <source>Darken Strong</source>
+        <translation>Stark abdunkeln</translation>
+    </message>
+    <message>
+        <source>Slight Contrast</source>
+        <translation>Leichter Kontrast</translation>
+    </message>
+    <message>
+        <source>Dramatic Contrast</source>
+        <translation>Dramatischer Kontrast</translation>
+    </message>
+    <message>
+        <source>Deep Blacks</source>
+        <translation>Tiefe Schwärzen</translation>
+    </message>
+    <message>
+        <source>Crushed Blacks</source>
+        <translation>Zugelaufene Schwärzen</translation>
+    </message>
+    <message>
+        <source>Brilliant Whites</source>
+        <translation>Strahlendes Weiß</translation>
+    </message>
+    <message>
+        <source>Silhouette</source>
+        <translation>Silhouette</translation>
+    </message>
+    <message>
+        <source>Faded Light</source>
+        <translation>Leicht verblasst</translation>
+    </message>
+    <message>
+        <source>Faded Medium</source>
+        <translation>Mittel verblasst</translation>
+    </message>
+    <message>
+        <source>Faded Strong</source>
+        <translation>Stark verblasst</translation>
+    </message>
+    <message>
+        <source>Washed Out</source>
+        <translation>Ausgewaschen</translation>
+    </message>
+    <message>
+        <source>Import...</source>
+        <translation>Importieren...</translation>
+    </message>
+    <message>
+        <source>Add a preset file to your presets</source>
+        <translation>Eine Vorgabedatei zu Ihren Vorgaben hinzufügen</translation>
+    </message>
+    <message>
+        <source>Write the current settings to a preset file</source>
+        <translation>Die aktuellen Einstellungen in eine Vorgabedatei schreiben</translation>
+    </message>
+    <message>
+        <source>A preset named &quot;%1&quot; already exists. Replace it?</source>
+        <translation>Eine Vorgabe namens „%1“ ist bereits vorhanden. Ersetzen?</translation>
+    </message>
+    <message>
+        <source>The preset could not be saved.</source>
+        <translation>Die Vorgabe konnte nicht gespeichert werden.</translation>
+    </message>
+    <message>
+        <source>The preset could not be deleted.</source>
+        <translation>Die Vorgabe konnte nicht gelöscht werden.</translation>
+    </message>
+    <message>
+        <source>Import Preset</source>
+        <translation>Vorgabe importieren</translation>
+    </message>
+    <message>
+        <source>The preset could not be imported. The file may be damaged or unsupported.</source>
+        <translation>Die Vorgabe konnte nicht importiert werden. Die Datei ist möglicherweise beschädigt oder wird nicht unterstützt.</translation>
+    </message>
+    <message>
+        <source>Export Preset</source>
+        <translation>Vorgabe exportieren</translation>
+    </message>
+    <message>
+        <source>The preset could not be exported.</source>
+        <translation>Die Vorgabe konnte nicht exportiert werden.</translation>
     </message>
 </context>
 <context>

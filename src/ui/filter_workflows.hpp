@@ -181,9 +181,11 @@ void blend_by_selection_coverage(PixelBuffer& result, const PixelBuffer& origina
     // Optional: a line the dialog shows above its controls for the current
     // settings (empty hides it), re-read on every change.
     const std::function<QString(const FilterInvocation&)>& notice = {});
+// `hooks` drives the black, gray and white eyedroppers (only set_canvas_mode and
+// clear_canvas_mode are used); without them the eyedroppers are disabled.
 [[nodiscard]] std::optional<LevelsSettings> request_levels_settings(
     QWidget* parent, std::function<void(bool, const LevelsSettings&)> preview_changed = {},
-    LevelsSettings initial = {}, const PixelBuffer* histogram_source = nullptr);
+    LevelsSettings initial = {}, const PixelBuffer* histogram_source = nullptr, CurvesDialogHooks hooks = {});
 [[nodiscard]] std::optional<CurvesSettings> request_curves_settings(
     QWidget* parent, std::function<void(bool, const CurvesSettings&)> preview_changed = {},
     CurvesSettings initial = {}, CurvesHistograms histograms = {}, CurvesDialogHooks hooks = {});
