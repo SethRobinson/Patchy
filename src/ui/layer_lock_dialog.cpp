@@ -7,11 +7,14 @@
 #include <QCoreApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QFont>
+#include <QFontMetrics>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QVBoxLayout>
 
+#include <algorithm>
 #include <array>
 
 namespace patchy::ui {
@@ -103,6 +106,11 @@ std::optional<LayerLockChoices> request_layer_locks(QWidget* parent, const Layer
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("layerLocksDialog"));
   dialog.setWindowTitle(QCoreApplication::translate("LayerLockDialog", "Lock Layers"));
+  // At the layout's own width KDE cut the title to "Lock...yers" (#544): leave the whole
+  // title room beside a system title bar's icon and buttons in every language.
+  QFont title_font = dialog.font();
+  title_font.setBold(true);
+  dialog.setMinimumWidth(std::max(320, QFontMetrics(title_font).horizontalAdvance(dialog.windowTitle()) + 200));
   auto* layout = new QVBoxLayout(&dialog);
 
   auto* target = new QLabel(QCoreApplication::translate("LayerLockDialog", "Selected layers: %1").arg(layer_count),
