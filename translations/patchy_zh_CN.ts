@@ -31856,6 +31856,30 @@ Locked: %1</source>
         <source>Fill layer: %1</source>
         <translation>填充图层：%1</translation>
     </message>
+    <message>
+        <source>Standard Ligatures (fonts that have them)</source>
+        <translation>标准连字 (仅限支持的字体)</translation>
+    </message>
+    <message>
+        <source>Contextual Alternates (fonts that have them)</source>
+        <translation>上下文替代字 (仅限支持的字体)</translation>
+    </message>
+    <message>
+        <source>Discretionary Ligatures (fonts that have them)</source>
+        <translation>自由连字 (仅限支持的字体)</translation>
+    </message>
+    <message>
+        <source>Swash (fonts that have them)</source>
+        <translation>花饰字 (仅限支持的字体)</translation>
+    </message>
+    <message>
+        <source>Stylistic Alternates (fonts that have them)</source>
+        <translation>风格替代字 (仅限支持的字体)</translation>
+    </message>
+    <message>
+        <source>Titling Alternates (fonts that have them)</source>
+        <translation>标题替代字 (仅限支持的字体)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

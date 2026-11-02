@@ -31856,6 +31856,30 @@ Locked: %1</source>
         <source>Fill layer: %1</source>
         <translation>塗りつぶしレイヤー: %1</translation>
     </message>
+    <message>
+        <source>Standard Ligatures (fonts that have them)</source>
+        <translation>標準合字 (対応フォントのみ)</translation>
+    </message>
+    <message>
+        <source>Contextual Alternates (fonts that have them)</source>
+        <translation>前後関係に依存する字形 (対応フォントのみ)</translation>
+    </message>
+    <message>
+        <source>Discretionary Ligatures (fonts that have them)</source>
+        <translation>任意の合字 (対応フォントのみ)</translation>
+    </message>
+    <message>
+        <source>Swash (fonts that have them)</source>
+        <translation>スワッシュ字形 (対応フォントのみ)</translation>
+    </message>
+    <message>
+        <source>Stylistic Alternates (fonts that have them)</source>
+        <translation>スタイル代替字 (対応フォントのみ)</translation>
+    </message>
+    <message>
+        <source>Titling Alternates (fonts that have them)</source>
+        <translation>タイトル用字形 (対応フォントのみ)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -31939,6 +31939,30 @@ Fixiert: %1</translation>
         <source>Fill layer: %1</source>
         <translation>Füllebene: %1</translation>
     </message>
+    <message>
+        <source>Standard Ligatures (fonts that have them)</source>
+        <translation>Standardligaturen (Schriften, die sie haben)</translation>
+    </message>
+    <message>
+        <source>Contextual Alternates (fonts that have them)</source>
+        <translation>Kontextbedingte Varianten (Schriften, die sie haben)</translation>
+    </message>
+    <message>
+        <source>Discretionary Ligatures (fonts that have them)</source>
+        <translation>Bedingte Ligaturen (Schriften, die sie haben)</translation>
+    </message>
+    <message>
+        <source>Swash (fonts that have them)</source>
+        <translation>Schwungschrift (Schriften, die sie haben)</translation>
+    </message>
+    <message>
+        <source>Stylistic Alternates (fonts that have them)</source>
+        <translation>Stilistische Varianten (Schriften, die sie haben)</translation>
+    </message>
+    <message>
+        <source>Titling Alternates (fonts that have them)</source>
+        <translation>Titelschriftvarianten (Schriften, die sie haben)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

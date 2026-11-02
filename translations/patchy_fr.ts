@@ -31939,6 +31939,30 @@ Verrouillé : %1</translation>
         <source>Fill layer: %1</source>
         <translation>Calque de remplissage : %1</translation>
     </message>
+    <message>
+        <source>Standard Ligatures (fonts that have them)</source>
+        <translation>Ligatures standard (polices qui en ont)</translation>
+    </message>
+    <message>
+        <source>Contextual Alternates (fonts that have them)</source>
+        <translation>Variantes contextuelles (polices qui en ont)</translation>
+    </message>
+    <message>
+        <source>Discretionary Ligatures (fonts that have them)</source>
+        <translation>Ligatures conditionnelles (polices qui en ont)</translation>
+    </message>
+    <message>
+        <source>Swash (fonts that have them)</source>
+        <translation>Lettres ornées (polices qui en ont)</translation>
+    </message>
+    <message>
+        <source>Stylistic Alternates (fonts that have them)</source>
+        <translation>Variantes stylistiques (polices qui en ont)</translation>
+    </message>
+    <message>
+        <source>Titling Alternates (fonts that have them)</source>
+        <translation>Variantes de titrage (polices qui en ont)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -31939,6 +31939,30 @@ Bloqueada: %1</translation>
         <source>Fill layer: %1</source>
         <translation>Capa de relleno: %1</translation>
     </message>
+    <message>
+        <source>Standard Ligatures (fonts that have them)</source>
+        <translation>Ligaduras estándar (fuentes que los tienen)</translation>
+    </message>
+    <message>
+        <source>Contextual Alternates (fonts that have them)</source>
+        <translation>Alternativas contextuales (fuentes que los tienen)</translation>
+    </message>
+    <message>
+        <source>Discretionary Ligatures (fonts that have them)</source>
+        <translation>Ligaduras discrecionales (fuentes que los tienen)</translation>
+    </message>
+    <message>
+        <source>Swash (fonts that have them)</source>
+        <translation>Caracteres decorativos (fuentes que los tienen)</translation>
+    </message>
+    <message>
+        <source>Stylistic Alternates (fonts that have them)</source>
+        <translation>Alternativas estilísticas (fuentes que los tienen)</translation>
+    </message>
+    <message>
+        <source>Titling Alternates (fonts that have them)</source>
+        <translation>Alternativas de titulación (fuentes que los tienen)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

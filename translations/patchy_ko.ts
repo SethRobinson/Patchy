@@ -31856,6 +31856,30 @@ Locked: %1</source>
         <source>Fill layer: %1</source>
         <translation>채우기 레이어: %1</translation>
     </message>
+    <message>
+        <source>Standard Ligatures (fonts that have them)</source>
+        <translation>표준 합자 (지원하는 글꼴만)</translation>
+    </message>
+    <message>
+        <source>Contextual Alternates (fonts that have them)</source>
+        <translation>문맥상 대체 (지원하는 글꼴만)</translation>
+    </message>
+    <message>
+        <source>Discretionary Ligatures (fonts that have them)</source>
+        <translation>임의 합자 (지원하는 글꼴만)</translation>
+    </message>
+    <message>
+        <source>Swash (fonts that have them)</source>
+        <translation>스와시 (지원하는 글꼴만)</translation>
+    </message>
+    <message>
+        <source>Stylistic Alternates (fonts that have them)</source>
+        <translation>스타일 대체 (지원하는 글꼴만)</translation>
+    </message>
+    <message>
+        <source>Titling Alternates (fonts that have them)</source>
+        <translation>제목 대체 (지원하는 글꼴만)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
