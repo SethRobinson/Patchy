@@ -114,6 +114,26 @@
         <source>Fill only where the layer already has pixels, keeping their opacity</source>
         <translation>只在图层已有像素的地方填充，并保留其不透明度</translation>
     </message>
+    <message>
+        <source>Content-Aware</source>
+        <translation>内容识别</translation>
+    </message>
+    <message>
+        <source>Make a selection to fill it from its surroundings</source>
+        <translation>创建选区后可根据其周围内容填充</translation>
+    </message>
+    <message>
+        <source>Add to New Layer</source>
+        <translation>添加到新图层</translation>
+    </message>
+    <message>
+        <source>Put the content-aware fill on a new layer above this one, transparent outside the selection</source>
+        <translation>将内容识别填充放到此图层上方的新图层中，选区外保持透明</translation>
+    </message>
+    <message>
+        <source>Content-Aware fills from the pixels around the selection</source>
+        <translation>内容识别使用选区周围的像素进行填充</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -31704,6 +31724,22 @@ Locked: %1</source>
     <message>
         <source>Reverted %1</source>
         <translation>已恢复 %1</translation>
+    </message>
+    <message>
+        <source>Content-Aware fill needs a selection: select the area to fill first</source>
+        <translation>内容识别填充需要选区：请先选择要填充的区域</translation>
+    </message>
+    <message>
+        <source>Content-Aware Fill</source>
+        <translation>内容识别填充</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill (%1 patches)</source>
+        <translation>已使用内容识别填充填充选区（%1 个图块）</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill on a new layer (%1 patches)</source>
+        <translation>已使用内容识别填充在新图层上填充选区（%1 个图块）</translation>
     </message>
 </context>
 <context>

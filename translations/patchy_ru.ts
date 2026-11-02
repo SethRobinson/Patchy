@@ -114,6 +114,26 @@
         <source>Fill only where the layer already has pixels, keeping their opacity</source>
         <translation>Заливать только там, где на слое уже есть пиксели, сохраняя их непрозрачность</translation>
     </message>
+    <message>
+        <source>Content-Aware</source>
+        <translation>С учётом содержимого</translation>
+    </message>
+    <message>
+        <source>Make a selection to fill it from its surroundings</source>
+        <translation>Создайте выделение, чтобы заполнить его по окружению</translation>
+    </message>
+    <message>
+        <source>Add to New Layer</source>
+        <translation>Добавить на новый слой</translation>
+    </message>
+    <message>
+        <source>Put the content-aware fill on a new layer above this one, transparent outside the selection</source>
+        <translation>Поместить заливку с учётом содержимого на новый слой над этим, прозрачный вне выделения</translation>
+    </message>
+    <message>
+        <source>Content-Aware fills from the pixels around the selection</source>
+        <translation>Заливка с учётом содержимого берёт пиксели вокруг выделения</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -31870,6 +31890,22 @@ Locked: %1</source>
     <message>
         <source>Reverted %1</source>
         <translation>%1 восстановлен</translation>
+    </message>
+    <message>
+        <source>Content-Aware fill needs a selection: select the area to fill first</source>
+        <translation>Для заливки с учётом содержимого требуется выделение: сначала выберите область, которую нужно залить</translation>
+    </message>
+    <message>
+        <source>Content-Aware Fill</source>
+        <translation>Заливка с учётом содержимого</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill (%1 patches)</source>
+        <translation>Выделение залито с учётом содержимого (фрагментов: %1)</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill on a new layer (%1 patches)</source>
+        <translation>Выделение залито с учётом содержимого на новом слое (фрагментов: %1)</translation>
     </message>
 </context>
 <context>

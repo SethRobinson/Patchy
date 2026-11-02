@@ -114,6 +114,26 @@
         <source>Fill only where the layer already has pixels, keeping their opacity</source>
         <translation>Riempi solo dove il livello ha già dei pixel, mantenendone l&apos;opacità</translation>
     </message>
+    <message>
+        <source>Content-Aware</source>
+        <translation>In base al contenuto</translation>
+    </message>
+    <message>
+        <source>Make a selection to fill it from its surroundings</source>
+        <translation>Crea una selezione per riempirla in base all&apos;area circostante</translation>
+    </message>
+    <message>
+        <source>Add to New Layer</source>
+        <translation>Aggiungi a un nuovo livello</translation>
+    </message>
+    <message>
+        <source>Put the content-aware fill on a new layer above this one, transparent outside the selection</source>
+        <translation>Metti il riempimento in base al contenuto su un nuovo livello sopra questo, trasparente fuori dalla selezione</translation>
+    </message>
+    <message>
+        <source>Content-Aware fills from the pixels around the selection</source>
+        <translation>In base al contenuto riempie con i pixel intorno alla selezione</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -31787,6 +31807,22 @@ Bloccato: %1</translation>
     <message>
         <source>Reverted %1</source>
         <translation>%1 ripristinato</translation>
+    </message>
+    <message>
+        <source>Content-Aware fill needs a selection: select the area to fill first</source>
+        <translation>Il riempimento in base al contenuto richiede una selezione: seleziona prima l&apos;area da riempire</translation>
+    </message>
+    <message>
+        <source>Content-Aware Fill</source>
+        <translation>Riempimento in base al contenuto</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill (%1 patches)</source>
+        <translation>Selezione riempita con il riempimento in base al contenuto (%1 toppe)</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill on a new layer (%1 patches)</source>
+        <translation>Selezione riempita con il riempimento in base al contenuto su un nuovo livello (%1 toppe)</translation>
     </message>
 </context>
 <context>

@@ -114,6 +114,26 @@
         <source>Fill only where the layer already has pixels, keeping their opacity</source>
         <translation>只在圖層已有像素的地方填滿，並保留其不透明度</translation>
     </message>
+    <message>
+        <source>Content-Aware</source>
+        <translation>內容感知</translation>
+    </message>
+    <message>
+        <source>Make a selection to fill it from its surroundings</source>
+        <translation>建立選取範圍後可依其周圍內容填色</translation>
+    </message>
+    <message>
+        <source>Add to New Layer</source>
+        <translation>加入新圖層</translation>
+    </message>
+    <message>
+        <source>Put the content-aware fill on a new layer above this one, transparent outside the selection</source>
+        <translation>將內容感知填色放到此圖層上方的新圖層,選取範圍外保持透明</translation>
+    </message>
+    <message>
+        <source>Content-Aware fills from the pixels around the selection</source>
+        <translation>內容感知使用選取範圍周圍的像素填色</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -31704,6 +31724,22 @@ Locked: %1</source>
     <message>
         <source>Reverted %1</source>
         <translation>已回復 %1</translation>
+    </message>
+    <message>
+        <source>Content-Aware fill needs a selection: select the area to fill first</source>
+        <translation>內容感知填色需要選取範圍:請先選取要填色的區域</translation>
+    </message>
+    <message>
+        <source>Content-Aware Fill</source>
+        <translation>內容感知填色</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill (%1 patches)</source>
+        <translation>已使用內容感知填色填滿選取範圍 (%1 個修補片)</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill on a new layer (%1 patches)</source>
+        <translation>已使用內容感知填色在新圖層上填滿選取範圍 (%1 個修補片)</translation>
     </message>
 </context>
 <context>

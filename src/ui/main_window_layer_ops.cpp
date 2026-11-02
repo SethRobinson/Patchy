@@ -4772,9 +4772,18 @@ void MainWindow::edit_fill_dialog() {
       return;
     }
   }
+  // Content-Aware fills a selection on a layer's own pixels (not a mask, channel or Quick Mask).
+  const bool content_aware_available = canvas_->has_selection() && !canvas_->quick_mask_active() &&
+                                       !canvas_->editing_smart_filter_mask() &&
+                                       edit_target == CanvasWidget::LayerEditTarget::Content;
   auto* const document_before = &document();
-  const auto chosen = request_fill_settings(this, canvas_->primary_color(), canvas_->secondary_color());
+  const auto chosen =
+      request_fill_settings(this, canvas_->primary_color(), canvas_->secondary_color(), content_aware_available);
   if (!chosen.has_value() || canvas_ == nullptr || !has_active_document() || &document() != document_before) {
+    return;
+  }
+  if (chosen->contents == FillContents::ContentAware) {
+    content_aware_fill_selection(chosen->content_aware_new_layer);
     return;
   }
   const auto color = fill_contents_color(*chosen, canvas_->primary_color(), canvas_->secondary_color());
@@ -5673,6 +5682,81 @@ void MainWindow::remove_object_dialog() {
                                : tr("Removed object with the nearest edge (source %1 of %2)")
                                      .arg(last_result.source_index)
                                      .arg(last_result.source_count));
+}
+
+void MainWindow::content_aware_fill_selection(bool to_new_layer) {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+  if (!canvas_->has_selection()) {
+    show_status_error(tr("Content-Aware fill needs a selection: select the area to fill first"));
+    return;
+  }
+  // The canvas precheck reports its own refusal (lock, layer kind, rasterize prompt).
+  if (!canvas_->can_begin_pixel_edit(true)) {
+    return;
+  }
+  auto* const doc_before = &document();
+  const auto session_id = session().session_id;
+  const auto active = std::as_const(*doc_before).active_layer_id();
+  const auto* layer = active.has_value() ? std::as_const(*doc_before).find_layer(*active) : nullptr;
+  if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
+    show_status_error(tr("Select an editable pixel layer first"));
+    return;
+  }
+  const auto active_id = *active;
+  const Layer original = *layer;
+  // Remove Object's dialog-free run at its defaults (best match, no tone match, no edge
+  // feather; docs/healing.md), written into the layer without history so the one entry
+  // below holds the original.
+  CanvasWidget::RemoveObjectResult result;
+  {
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    const auto restore_cursor = qScopeGuard([] { QApplication::restoreOverrideCursor(); });
+    CanvasWidget::RemoveObjectOptions options;
+    options.attempt = 0;
+    options.record_history = false;
+    result = canvas_->remove_object_in_selection(options);
+  }
+  if (!result.applied || canvas_ == nullptr || active_session() == nullptr ||
+      active_session()->session_id != session_id || &document() != doc_before) {
+    return;
+  }
+  auto& doc = document();
+  auto* target = doc.find_layer(active_id);
+  if (target == nullptr) {
+    return;
+  }
+  Layer filled = std::move(*target);
+  *target = original;
+  const auto changed = to_qrect(original.bounds()).united(to_qrect(filled.bounds()));
+  push_undo_snapshot(tr("Content-Aware Fill"));
+  if (!to_new_layer) {
+    *target = std::move(filled);
+    canvas_->document_changed(changed);
+    statusBar()->showMessage(tr("Filled the selection with content-aware fill (%1 patches)").arg(result.patches));
+    return;
+  }
+  // The new layer holds the filled pixels under the selection (Layer Via Copy's copy of
+  // the filled layer), transparent elsewhere.
+  const auto selected = canvas_->selected_document_rect();
+  const auto copy_rect = intersect_copy_rect(selected.has_value() ? to_core_rect(*selected) : filled.bounds(),
+                                             Rect::from_size(doc.width(), doc.height()));
+  if (copy_rect.empty()) {
+    canvas_->document_changed(changed);
+    return;
+  }
+  Layer copied(doc.allocate_layer_id(), tr("Content-Aware Fill").toStdString(),
+               copy_pixels_from_layer(filled, copy_rect, canvas_));
+  copied.set_bounds(Rect{copy_rect.x, copy_rect.y, copied.pixels().width(), copied.pixels().height()});
+  const auto copied_id = copied.id();
+  insert_layer_after_anchor(doc, std::move(copied), active_id);
+  doc.set_active_layer(copied_id);
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed(changed);
+  statusBar()->showMessage(
+      tr("Filled the selection with content-aware fill on a new layer (%1 patches)").arg(result.patches));
 }
 
 void MainWindow::stroke_selection() {

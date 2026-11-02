@@ -114,6 +114,26 @@
         <source>Fill only where the layer already has pixels, keeping their opacity</source>
         <translation>레이어에 이미 픽셀이 있는 곳만 칠하고 그 불투명도를 유지합니다</translation>
     </message>
+    <message>
+        <source>Content-Aware</source>
+        <translation>내용 인식</translation>
+    </message>
+    <message>
+        <source>Make a selection to fill it from its surroundings</source>
+        <translation>선택 영역을 만들면 주변 내용으로 채웁니다.</translation>
+    </message>
+    <message>
+        <source>Add to New Layer</source>
+        <translation>새 레이어에 추가</translation>
+    </message>
+    <message>
+        <source>Put the content-aware fill on a new layer above this one, transparent outside the selection</source>
+        <translation>내용 인식 채우기를 이 레이어 위의 새 레이어에 넣고 선택 영역 밖은 투명하게 둡니다.</translation>
+    </message>
+    <message>
+        <source>Content-Aware fills from the pixels around the selection</source>
+        <translation>내용 인식은 선택 영역 주변의 픽셀로 채웁니다.</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -31704,6 +31724,22 @@ Locked: %1</source>
     <message>
         <source>Reverted %1</source>
         <translation>%1을(를) 되돌렸습니다</translation>
+    </message>
+    <message>
+        <source>Content-Aware fill needs a selection: select the area to fill first</source>
+        <translation>내용 인식 채우기에는 선택이 필요합니다. 먼저 채울 영역을 선택하세요.</translation>
+    </message>
+    <message>
+        <source>Content-Aware Fill</source>
+        <translation>내용 인식 채우기</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill (%1 patches)</source>
+        <translation>내용 인식 채우기로 선택 영역을 채웠습니다(패치 %1개).</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill on a new layer (%1 patches)</source>
+        <translation>내용 인식 채우기로 새 레이어에 선택 영역을 채웠습니다(패치 %1개).</translation>
     </message>
 </context>
 <context>

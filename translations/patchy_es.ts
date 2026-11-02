@@ -114,6 +114,26 @@
         <source>Fill only where the layer already has pixels, keeping their opacity</source>
         <translation>Rellenar solo donde la capa ya tiene píxeles, manteniendo su opacidad</translation>
     </message>
+    <message>
+        <source>Content-Aware</source>
+        <translation>Según el contenido</translation>
+    </message>
+    <message>
+        <source>Make a selection to fill it from its surroundings</source>
+        <translation>Haga una selección para rellenarla a partir de su entorno</translation>
+    </message>
+    <message>
+        <source>Add to New Layer</source>
+        <translation>Añadir a una capa nueva</translation>
+    </message>
+    <message>
+        <source>Put the content-aware fill on a new layer above this one, transparent outside the selection</source>
+        <translation>Poner el relleno según el contenido en una capa nueva encima de esta, transparente fuera de la selección</translation>
+    </message>
+    <message>
+        <source>Content-Aware fills from the pixels around the selection</source>
+        <translation>Según el contenido rellena con los píxeles que rodean la selección</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -31787,6 +31807,22 @@ Bloqueada: %1</translation>
     <message>
         <source>Reverted %1</source>
         <translation>Se revirtió %1</translation>
+    </message>
+    <message>
+        <source>Content-Aware fill needs a selection: select the area to fill first</source>
+        <translation>El relleno según el contenido necesita una selección: seleccione primero la zona que desea rellenar</translation>
+    </message>
+    <message>
+        <source>Content-Aware Fill</source>
+        <translation>Relleno según el contenido</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill (%1 patches)</source>
+        <translation>Selección rellenada con relleno según el contenido (%1 parches)</translation>
+    </message>
+    <message>
+        <source>Filled the selection with content-aware fill on a new layer (%1 patches)</source>
+        <translation>Selección rellenada con relleno según el contenido en una capa nueva (%1 parches)</translation>
     </message>
 </context>
 <context>
