@@ -4178,6 +4178,121 @@ void ui_new_solid_fill_layer_uses_selection_mask() {
   CHECK(document.layers().size() == initial_layers);
 }
 
+// GitHub #583: a Color, Gradient or Pattern fill layer has no path to stroke. With one
+// selected, the options bar's stroke width and color set up the next shape and leave the
+// fill layer alone (no edit, no undo step); a shape layer still takes them.
+void ui_options_bar_stroke_skips_fill_layers() {
+  VectorSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+
+  canvas->set_primary_color(QColor(40, 90, 200));
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog != nullptr) dialog->accept();
+  });
+  require_action(window, "layerNewSolidColorFillAction")->trigger();
+  QApplication::processEvents();
+  const auto fill_id = document.active_layer_id();
+  CHECK(fill_id.has_value());
+  if (!fill_id) return;
+  const auto fill_before = *std::as_const(document).find_layer(*fill_id)->vector_shape();
+  CHECK(fill_before.path.empty());
+
+  require_action(window, "toolRectAction")->trigger();
+  QApplication::processEvents();
+  auto* stroke_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("vectorStrokeWidthSpin"));
+  auto* stroke_swatch = window.findChild<QToolButton*>(QStringLiteral("vectorStrokeSwatchButton"));
+  CHECK(stroke_width != nullptr && stroke_swatch != nullptr);
+  if (stroke_width == nullptr || stroke_swatch == nullptr) return;
+  CHECK(stroke_width->isEnabled() && stroke_swatch->isEnabled());
+  const auto base_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  const auto pick_stroke_color = [&](QColor color) {
+    QTimer::singleShot(0, [&, color] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) return;
+      auto* picker = dialog->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
+      CHECK(picker != nullptr);
+      if (picker != nullptr) picker->setCurrentColor(color);
+      QApplication::processEvents();
+      dialog->accept();
+    });
+    patchy::ui::MainWindowTestAccess::pick_vector_solid_color(window, true);
+    QApplication::processEvents();
+  };
+  const auto fill_layer_unchanged = [&] {
+    const auto* layer = std::as_const(document).find_layer(*fill_id);
+    CHECK(layer != nullptr && layer->vector_shape() != nullptr);
+    if (layer == nullptr || layer->vector_shape() == nullptr) return;
+    const auto& stroke = layer->vector_shape()->stroke;
+    CHECK(stroke.enabled == fill_before.stroke.enabled);
+    CHECK(stroke.width == fill_before.stroke.width);
+    CHECK(stroke.content.kind == fill_before.stroke.content.kind);
+    CHECK(stroke.content.color == fill_before.stroke.content.color);
+    CHECK(layer->vector_shape()->fill.color == fill_before.fill.color);
+    CHECK(!patchy::layer_vector_block_dirty(*layer));
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == base_depth);
+  };
+
+  stroke_width->setValue(6.0);
+  Q_EMIT stroke_width->editingFinished();  // commits the debounced edit now
+  QApplication::processEvents();
+  pick_stroke_color(QColor(10, 200, 30));
+  fill_layer_unchanged();
+  // The controls keep the new values (the fill layer's own stroke does not sync back) ...
+  CHECK(std::abs(stroke_width->value() - 6.0) < 1e-9);
+  const auto next = patchy::ui::MainWindowTestAccess::current_shape_appearance(window);
+  CHECK(next.stroke.enabled);
+  CHECK(std::abs(next.stroke.width - 6.0) < 1e-9);
+  CHECK(next.stroke.content.color == (patchy::RgbColor{10, 200, 30}));
+  // ... also after the fill layer is selected again.
+  patchy::ui::MainWindowTestAccess::select_layers(window, {*fill_id}, *fill_id);
+  QApplication::processEvents();
+  CHECK(std::abs(stroke_width->value() - 6.0) < 1e-9);
+  fill_layer_unchanged();
+
+  // The next shape gets that stroke.
+  shape_drag(*canvas, QPoint(120, 120), QPoint(300, 240));
+  const auto shape_id = document.active_layer_id();
+  CHECK(shape_id.has_value() && *shape_id != *fill_id);
+  if (!shape_id || *shape_id == *fill_id) return;
+  {
+    const auto* shape = std::as_const(document).find_layer(*shape_id);
+    CHECK(shape != nullptr && shape->vector_shape() != nullptr);
+    CHECK(shape->vector_shape()->stroke.enabled);
+    CHECK(std::abs(shape->vector_shape()->stroke.width - 6.0) < 1e-9);
+    CHECK(shape->vector_shape()->stroke.content.color == (patchy::RgbColor{10, 200, 30}));
+  }
+
+  // A shape layer with a path still takes stroke edits, one undo step each.
+  const auto shape_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  stroke_width->setValue(9.0);
+  Q_EMIT stroke_width->editingFinished();
+  QApplication::processEvents();
+  pick_stroke_color(QColor(200, 20, 120));
+  {
+    const auto* shape = std::as_const(document).find_layer(*shape_id);
+    CHECK(std::abs(shape->vector_shape()->stroke.width - 9.0) < 1e-9);
+    CHECK(shape->vector_shape()->stroke.content.color == (patchy::RgbColor{200, 20, 120}));
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == shape_depth + 2);
+
+  // With both selected, the stroke edit reaches the shape only.
+  patchy::ui::MainWindowTestAccess::select_layers(window, {*fill_id, *shape_id}, *fill_id);
+  QApplication::processEvents();
+  stroke_width->setValue(4.0);
+  Q_EMIT stroke_width->editingFinished();
+  QApplication::processEvents();
+  CHECK(std::abs(std::as_const(document).find_layer(*shape_id)->vector_shape()->stroke.width - 4.0) < 1e-9);
+  const auto* fill_layer = std::as_const(document).find_layer(*fill_id);
+  CHECK(fill_layer->vector_shape()->stroke.enabled == fill_before.stroke.enabled);
+  CHECK(fill_layer->vector_shape()->stroke.width == fill_before.stroke.width);
+}
+
+
 void ui_shape_geometry_edits_live_shape() {
   VectorSettingsGuard settings_guard;
   auto&& [window, canvas] = ShownWindowFixture{};
@@ -8969,6 +9084,7 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_options_bar_dash_combo_lists_saved_stroke_presets",
        ui_options_bar_dash_combo_lists_saved_stroke_presets},
       {"ui_new_solid_fill_layer_uses_selection_mask", ui_new_solid_fill_layer_uses_selection_mask},
+      {"ui_options_bar_stroke_skips_fill_layers", ui_options_bar_stroke_skips_fill_layers},
       {"ui_new_fill_layer_clips_to_targeted_path", ui_new_fill_layer_clips_to_targeted_path},
       {"ui_shape_pattern_fill_uses_custom_library_pattern",
        ui_shape_pattern_fill_uses_custom_library_pattern},

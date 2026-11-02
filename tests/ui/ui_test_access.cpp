@@ -205,6 +205,10 @@ bool MainWindowTestAccess::apply_options_bar_appearance(MainWindow& window) {
   return window.apply_options_bar_appearance_to_active_shape();
 }
 
+void MainWindowTestAccess::pick_vector_solid_color(MainWindow& window, bool for_stroke) {
+  window.pick_vector_solid_color(for_stroke);
+}
+
 void MainWindowTestAccess::update_vector_swatch_icons(MainWindow& window) {
   window.update_vector_swatch_icons();
 }

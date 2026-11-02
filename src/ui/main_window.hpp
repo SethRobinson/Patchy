@@ -1922,6 +1922,8 @@ private:
   void pick_vector_pattern(bool for_stroke);
   [[nodiscard]] patchy::Layer* editable_active_vector_shape_layer();
   [[nodiscard]] std::vector<patchy::LayerId> editable_selected_shape_layer_ids() const;
+  // The editable selected shapes a stroke edit reaches: fill layers (no path) are left out (#583).
+  [[nodiscard]] std::vector<patchy::LayerId> stroke_target_shape_layer_ids() const;
   [[nodiscard]] bool vector_appearance_controls_live() const;
   // Resolves a pattern id to renderable tiles: document store first, then the
   // library, then the bundled presets (the rasterizer's own fallback order).
@@ -2008,9 +2010,10 @@ private:
   // Fill/stroke editing (main_window_vector.cpp): the live-preview appearance
   // dialog for the active shape layer, and Layer > New Fill Layer creation
   // (a shape layer with an empty path = the whole canvas).
+  // stroke_edit: the editor changes only the stroke, so fill layers in the selection are skipped.
   bool edit_active_shape_appearance(bool record_undo = true,
       std::function<std::optional<ShapeAppearanceSettings>(const ShapeAppearanceSettings&,
-          std::function<void(const ShapeAppearanceSettings&)>)> editor = {});
+          std::function<void(const ShapeAppearanceSettings&)>)> editor = {}, bool stroke_edit = false);
   void create_fill_layer_with_appearance(const VectorFill& fill, const QString& name);
   [[nodiscard]] Layer build_fill_layer(const patchy::VectorFill& fill, const QString& name);
   [[nodiscard]] QString unique_fill_layer_name(const QString& base);
