@@ -18652,6 +18652,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Manage built-in and saved stroke presets</source>
         <translation>기본 제공 및 저장된 획 사전 설정 관리</translation>
     </message>
+    <message>
+        <source>Reload the saved file, dropping unsaved changes</source>
+        <translation>저장된 파일을 다시 불러오고 저장하지 않은 변경 내용을 버립니다</translation>
+    </message>
+    <message>
+        <source>Show only the canvas, or bring the toolbars back</source>
+        <translation>캔버스만 표시하거나 막대를 다시 표시합니다</translation>
+    </message>
+    <message>
+        <source>Show the image&apos;s upper-left corner</source>
+        <translation>이미지의 왼쪽 위 모서리를 표시합니다</translation>
+    </message>
+    <message>
+        <source>Show the image&apos;s lower-right corner</source>
+        <translation>이미지의 오른쪽 아래 모서리를 표시합니다</translation>
+    </message>
+    <message>
+        <source>Move the view up by a window height</source>
+        <translation>보기를 창 높이만큼 위로 이동합니다</translation>
+    </message>
+    <message>
+        <source>Move the view down by a window height</source>
+        <translation>보기를 창 높이만큼 아래로 이동합니다</translation>
+    </message>
+    <message>
+        <source>Move the view left by a window width</source>
+        <translation>보기를 창 너비만큼 왼쪽으로 이동합니다</translation>
+    </message>
+    <message>
+        <source>Move the view right by a window width</source>
+        <translation>보기를 창 너비만큼 오른쪽으로 이동합니다</translation>
+    </message>
+    <message>
+        <source>Open the feature guide in your web browser</source>
+        <translation>웹 브라우저에서 기능 안내서를 엽니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -31407,6 +31443,62 @@ Locked: %1</source>
     <message>
         <source>Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)</source>
         <translation>브러시 불투명도, 0%-100%: 숫자 키 누르기(5 = 50%, 0 = 100%, 00 = 0%)</translation>
+    </message>
+    <message>
+        <source>Re&amp;vert</source>
+        <translation>되돌리기(&amp;V)</translation>
+    </message>
+    <message>
+        <source>&amp;Hide Panels</source>
+        <translation>패널 숨기기(&amp;H)</translation>
+    </message>
+    <message>
+        <source>Scroll to Top-Left Corner</source>
+        <translation>왼쪽 위 모서리로 스크롤</translation>
+    </message>
+    <message>
+        <source>Scroll to Bottom-Right Corner</source>
+        <translation>오른쪽 아래 모서리로 스크롤</translation>
+    </message>
+    <message>
+        <source>Scroll Up One Screen</source>
+        <translation>한 화면 위로 스크롤</translation>
+    </message>
+    <message>
+        <source>Scroll Down One Screen</source>
+        <translation>한 화면 아래로 스크롤</translation>
+    </message>
+    <message>
+        <source>Scroll Left One Screen</source>
+        <translation>한 화면 왼쪽으로 스크롤</translation>
+    </message>
+    <message>
+        <source>Scroll Right One Screen</source>
+        <translation>한 화면 오른쪽으로 스크롤</translation>
+    </message>
+    <message>
+        <source>Patchy &amp;Help</source>
+        <translation>Patchy 도움말(&amp;H)</translation>
+    </message>
+    <message>
+        <source>%1 is no longer on disk</source>
+        <translation>%1이(가) 더 이상 디스크에 없습니다</translation>
+    </message>
+    <message>
+        <source>Close the open smart object contents of %1 before reverting</source>
+        <translation>되돌리기 전에 %1에서 열려 있는 스마트 개체 콘텐츠를 닫으십시오</translation>
+    </message>
+    <message>
+        <source>Revert</source>
+        <translation>되돌리기</translation>
+    </message>
+    <message>
+        <source>Revert %1 to the saved file? Your unsaved changes will be lost.</source>
+        <translation>%1을(를) 저장된 파일로 되돌리시겠습니까? 저장하지 않은 변경 내용은 사라집니다.</translation>
+    </message>
+    <message>
+        <source>Reverted %1</source>
+        <translation>%1을(를) 되돌렸습니다</translation>
     </message>
 </context>
 <context>

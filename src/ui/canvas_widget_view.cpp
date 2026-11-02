@@ -236,6 +236,72 @@ void CanvasWidget::center_document_in_view() {
   notify_view_changed();
 }
 
+void CanvasWidget::scroll_view(ViewScroll scroll) {
+  if (document_ == nullptr || document_->width() <= 0 || document_->height() <= 0 || width() <= 0 || height() <= 0) {
+    return;
+  }
+  const auto area = view_content_rect();
+  // Per axis: the pan range that keeps the image covering the view area, from the far edge
+  // (`last`, the image's end at the area's end) to the near one (`first`, its start at the
+  // area's start). Paging moves by one area span inside that range; a view already parked
+  // past an edge (a Hand drag into the pasteboard) is not pulled back by a page the other way.
+  const auto axis = [](double pan, double area_start, double area_span, double image_span, int step) {
+    if (image_span <= area_span) {
+      return pan;
+    }
+    const double first = area_start;
+    const double last = area_start + area_span - image_span;
+    if (step == -2) {
+      return first;
+    }
+    if (step == 2) {
+      return last;
+    }
+    if (step < 0) {
+      return std::max(pan, std::min(pan + area_span, first));
+    }
+    return std::min(pan, std::max(pan - area_span, last));
+  };
+  const auto image_width = static_cast<double>(document_->width()) * zoom_;
+  const auto image_height = static_cast<double>(document_->height()) * zoom_;
+  int horizontal = 0;
+  int vertical = 0;
+  switch (scroll) {
+    case ViewScroll::TopLeft:
+      horizontal = vertical = -2;
+      break;
+    case ViewScroll::BottomRight:
+      horizontal = vertical = 2;
+      break;
+    case ViewScroll::PageUp:
+      vertical = -1;
+      break;
+    case ViewScroll::PageDown:
+      vertical = 1;
+      break;
+    case ViewScroll::PageLeft:
+      horizontal = -1;
+      break;
+    case ViewScroll::PageRight:
+      horizontal = 1;
+      break;
+  }
+  const auto old_pan = pan_;
+  if (horizontal != 0) {
+    pan_.setX(axis(pan_.x(), area.left(), area.width(), image_width, horizontal));
+  }
+  if (vertical != 0) {
+    pan_.setY(axis(pan_.y(), area.top(), area.height(), image_height, vertical));
+  }
+  constrain_pan();
+  if (pan_ == old_pan) {
+    return;
+  }
+  update_tool_cursor();
+  update();
+  notify_view_changed();
+}
+
 void CanvasWidget::zoom_to_document_rect(QRect document_rect) {
   if (document_ == nullptr || document_->width() <= 0 || document_->height() <= 0 || width() <= 0 || height() <= 0) {
     return;

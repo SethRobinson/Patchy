@@ -1443,6 +1443,7 @@ void MainWindow::refresh_document_tab_titles() {
 }
 
 void MainWindow::refresh_document_window_title() {
+  refresh_revert_action();
   if (!has_active_document()) {
 #ifdef Q_OS_MACOS
     setWindowFilePath(QString());

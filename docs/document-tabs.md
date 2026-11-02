@@ -1,7 +1,7 @@
 # Document tab context menu
 
-Read this before changing the menu a right-click on a document tab opens, Rename File, or what
-opening an already open file does.
+Read this before changing the menu a right-click on a document tab opens, Rename File, File >
+Revert, or what opening an already open file does.
 Floating a document (also on this menu) is in [float-windows.md](float-windows.md).
 
 `MainWindow::show_document_tab_context_menu` (src/ui/main_window_sessions.cpp) builds the
@@ -101,3 +101,7 @@ untitled document; Unicode folder and names; Dark and Light captures
 `ui_document_tab_context_menu` (tests/ui/layer_context_lifecycle_tests.cpp); Scan for
 Watermarks: `ui_document_tab_scan_for_watermarks` (tests/ui/file_info_tests.cpp, capture
 `ui_document_tab_menu_scan_for_watermarks`).
+
+## File > Revert
+
+`file.revert` (F12, GitHub issue 584; `MainWindow::revert_active_document` in main_window_files.cpp) reloads the active document from its file. Enabled for a document with a file in a format File > Open reads (or one opened by its content), never for an untitled document or an Edit Contents tab (`active_document_can_revert`). A modified document asks first (`revertDocumentMessageBox`); one with open smart object contents is refused. The file opens as a new session before the old one closes without a save prompt, so a file that no longer opens leaves the document as it was; the new tab moves to the old tab's place. Not undoable; the file is only read. Test: `ui_issue_584_revert_reloads_the_saved_file`.

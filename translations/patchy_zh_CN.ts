@@ -18652,6 +18652,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Manage built-in and saved stroke presets</source>
         <translation>管理内置和已保存的描边预设</translation>
     </message>
+    <message>
+        <source>Reload the saved file, dropping unsaved changes</source>
+        <translation>重新载入已存储的文件，放弃未存储的更改</translation>
+    </message>
+    <message>
+        <source>Show only the canvas, or bring the toolbars back</source>
+        <translation>只显示画布，或恢复工具栏</translation>
+    </message>
+    <message>
+        <source>Show the image&apos;s upper-left corner</source>
+        <translation>显示图像的左上角</translation>
+    </message>
+    <message>
+        <source>Show the image&apos;s lower-right corner</source>
+        <translation>显示图像的右下角</translation>
+    </message>
+    <message>
+        <source>Move the view up by a window height</source>
+        <translation>将视图向上移动一个窗口高度</translation>
+    </message>
+    <message>
+        <source>Move the view down by a window height</source>
+        <translation>将视图向下移动一个窗口高度</translation>
+    </message>
+    <message>
+        <source>Move the view left by a window width</source>
+        <translation>将视图向左移动一个窗口宽度</translation>
+    </message>
+    <message>
+        <source>Move the view right by a window width</source>
+        <translation>将视图向右移动一个窗口宽度</translation>
+    </message>
+    <message>
+        <source>Open the feature guide in your web browser</source>
+        <translation>在网页浏览器中打开功能指南</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -31407,6 +31443,62 @@ Locked: %1</source>
     <message>
         <source>Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)</source>
         <translation>画笔不透明度，0% 到 100%：按数字键 (5 = 50%，0 = 100%，00 = 0%)</translation>
+    </message>
+    <message>
+        <source>Re&amp;vert</source>
+        <translation>恢复(&amp;V)</translation>
+    </message>
+    <message>
+        <source>&amp;Hide Panels</source>
+        <translation>隐藏面板(&amp;H)</translation>
+    </message>
+    <message>
+        <source>Scroll to Top-Left Corner</source>
+        <translation>滚动到左上角</translation>
+    </message>
+    <message>
+        <source>Scroll to Bottom-Right Corner</source>
+        <translation>滚动到右下角</translation>
+    </message>
+    <message>
+        <source>Scroll Up One Screen</source>
+        <translation>向上滚动一屏</translation>
+    </message>
+    <message>
+        <source>Scroll Down One Screen</source>
+        <translation>向下滚动一屏</translation>
+    </message>
+    <message>
+        <source>Scroll Left One Screen</source>
+        <translation>向左滚动一屏</translation>
+    </message>
+    <message>
+        <source>Scroll Right One Screen</source>
+        <translation>向右滚动一屏</translation>
+    </message>
+    <message>
+        <source>Patchy &amp;Help</source>
+        <translation>Patchy 帮助(&amp;H)</translation>
+    </message>
+    <message>
+        <source>%1 is no longer on disk</source>
+        <translation>%1 已不在磁盘上</translation>
+    </message>
+    <message>
+        <source>Close the open smart object contents of %1 before reverting</source>
+        <translation>恢复前请先关闭 %1 中打开的智能对象内容</translation>
+    </message>
+    <message>
+        <source>Revert</source>
+        <translation>恢复</translation>
+    </message>
+    <message>
+        <source>Revert %1 to the saved file? Your unsaved changes will be lost.</source>
+        <translation>将 %1 恢复为已存储的文件？未存储的更改将会丢失。</translation>
+    </message>
+    <message>
+        <source>Reverted %1</source>
+        <translation>已恢复 %1</translation>
     </message>
 </context>
 <context>

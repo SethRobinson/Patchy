@@ -286,6 +286,12 @@ public:
   // canvas rotate), where the stale pan could otherwise leave the remaining
   // image mostly off screen.
   void center_document_in_view();
+  // Home/End/Page Up/Page Down (GitHub issue 584, docs/view-navigation.md "Keyboard
+  // scrolling"): the image's top-left or bottom-right corner to the matching corner of
+  // the view area, or one view-area height (width) up, down, left or right, stopping at
+  // the image's edge. An axis where the whole image fits does not move.
+  enum class ViewScroll { TopLeft, BottomRight, PageUp, PageDown, PageLeft, PageRight };
+  void scroll_view(ViewScroll scroll);
   void zoom_to_document_rect(QRect document_rect);
   void set_spacebar_panning(bool enabled);
   [[nodiscard]] bool begin_pan_at_global_position(QPoint global_position);

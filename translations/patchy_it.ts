@@ -18696,6 +18696,42 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Manage built-in and saved stroke presets</source>
         <translation>Gestisci le tracce predefinite integrate e salvate</translation>
     </message>
+    <message>
+        <source>Reload the saved file, dropping unsaved changes</source>
+        <translation>Ricarica il file salvato, scartando le modifiche non salvate</translation>
+    </message>
+    <message>
+        <source>Show only the canvas, or bring the toolbars back</source>
+        <translation>Mostra solo l&apos;area di lavoro, o riporta le barre</translation>
+    </message>
+    <message>
+        <source>Show the image&apos;s upper-left corner</source>
+        <translation>Mostra l&apos;angolo superiore sinistro dell&apos;immagine</translation>
+    </message>
+    <message>
+        <source>Show the image&apos;s lower-right corner</source>
+        <translation>Mostra l&apos;angolo inferiore destro dell&apos;immagine</translation>
+    </message>
+    <message>
+        <source>Move the view up by a window height</source>
+        <translation>Sposta la vista in alto di un&apos;altezza di finestra</translation>
+    </message>
+    <message>
+        <source>Move the view down by a window height</source>
+        <translation>Sposta la vista in basso di un&apos;altezza di finestra</translation>
+    </message>
+    <message>
+        <source>Move the view left by a window width</source>
+        <translation>Sposta la vista a sinistra di una larghezza di finestra</translation>
+    </message>
+    <message>
+        <source>Move the view right by a window width</source>
+        <translation>Sposta la vista a destra di una larghezza di finestra</translation>
+    </message>
+    <message>
+        <source>Open the feature guide in your web browser</source>
+        <translation>Apri la guida alle funzioni nel browser web</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -31490,6 +31526,62 @@ Bloccato: %1</translation>
     <message>
         <source>Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)</source>
         <translation>Opacità pennello, da 0% a 100%: premi i tasti numerici (5 = 50%, 0 = 100%, 00 = 0%)</translation>
+    </message>
+    <message>
+        <source>Re&amp;vert</source>
+        <translation>&amp;Ripristina</translation>
+    </message>
+    <message>
+        <source>&amp;Hide Panels</source>
+        <translation>&amp;Nascondi pannelli</translation>
+    </message>
+    <message>
+        <source>Scroll to Top-Left Corner</source>
+        <translation>Scorri all&apos;angolo superiore sinistro</translation>
+    </message>
+    <message>
+        <source>Scroll to Bottom-Right Corner</source>
+        <translation>Scorri all&apos;angolo inferiore destro</translation>
+    </message>
+    <message>
+        <source>Scroll Up One Screen</source>
+        <translation>Scorri in alto di una schermata</translation>
+    </message>
+    <message>
+        <source>Scroll Down One Screen</source>
+        <translation>Scorri in basso di una schermata</translation>
+    </message>
+    <message>
+        <source>Scroll Left One Screen</source>
+        <translation>Scorri a sinistra di una schermata</translation>
+    </message>
+    <message>
+        <source>Scroll Right One Screen</source>
+        <translation>Scorri a destra di una schermata</translation>
+    </message>
+    <message>
+        <source>Patchy &amp;Help</source>
+        <translation>&amp;Guida di Patchy</translation>
+    </message>
+    <message>
+        <source>%1 is no longer on disk</source>
+        <translation>%1 non è più sul disco</translation>
+    </message>
+    <message>
+        <source>Close the open smart object contents of %1 before reverting</source>
+        <translation>Chiudi il contenuto aperto dell&apos;oggetto avanzato di %1 prima di ripristinare</translation>
+    </message>
+    <message>
+        <source>Revert</source>
+        <translation>Ripristina</translation>
+    </message>
+    <message>
+        <source>Revert %1 to the saved file? Your unsaved changes will be lost.</source>
+        <translation>Ripristinare %1 al file salvato? Le modifiche non salvate andranno perse.</translation>
+    </message>
+    <message>
+        <source>Reverted %1</source>
+        <translation>%1 ripristinato</translation>
     </message>
 </context>
 <context>

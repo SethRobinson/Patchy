@@ -18696,6 +18696,42 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Manage built-in and saved stroke presets</source>
         <translation>Gérer les contours prédéfinis intégrés et enregistrés</translation>
     </message>
+    <message>
+        <source>Reload the saved file, dropping unsaved changes</source>
+        <translation>Recharger le fichier enregistré en abandonnant les modifications non enregistrées</translation>
+    </message>
+    <message>
+        <source>Show only the canvas, or bring the toolbars back</source>
+        <translation>Afficher uniquement le canevas, ou rappeler les barres</translation>
+    </message>
+    <message>
+        <source>Show the image&apos;s upper-left corner</source>
+        <translation>Afficher le coin supérieur gauche de l&apos;image</translation>
+    </message>
+    <message>
+        <source>Show the image&apos;s lower-right corner</source>
+        <translation>Afficher le coin inférieur droit de l&apos;image</translation>
+    </message>
+    <message>
+        <source>Move the view up by a window height</source>
+        <translation>Déplacer la vue d&apos;une hauteur de fenêtre vers le haut</translation>
+    </message>
+    <message>
+        <source>Move the view down by a window height</source>
+        <translation>Déplacer la vue d&apos;une hauteur de fenêtre vers le bas</translation>
+    </message>
+    <message>
+        <source>Move the view left by a window width</source>
+        <translation>Déplacer la vue d&apos;une largeur de fenêtre vers la gauche</translation>
+    </message>
+    <message>
+        <source>Move the view right by a window width</source>
+        <translation>Déplacer la vue d&apos;une largeur de fenêtre vers la droite</translation>
+    </message>
+    <message>
+        <source>Open the feature guide in your web browser</source>
+        <translation>Ouvrir le guide des fonctions dans le navigateur web</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -31490,6 +31526,62 @@ Verrouillé : %1</translation>
     <message>
         <source>Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)</source>
         <translation>Opacité du pinceau, 0 % à 100 % : appuyez sur les touches numériques (5 = 50 %, 0 = 100 %, 00 = 0 %)</translation>
+    </message>
+    <message>
+        <source>Re&amp;vert</source>
+        <translation>&amp;Version précédente</translation>
+    </message>
+    <message>
+        <source>&amp;Hide Panels</source>
+        <translation>&amp;Masquer les panneaux</translation>
+    </message>
+    <message>
+        <source>Scroll to Top-Left Corner</source>
+        <translation>Défiler jusqu&apos;au coin supérieur gauche</translation>
+    </message>
+    <message>
+        <source>Scroll to Bottom-Right Corner</source>
+        <translation>Défiler jusqu&apos;au coin inférieur droit</translation>
+    </message>
+    <message>
+        <source>Scroll Up One Screen</source>
+        <translation>Défiler d&apos;un écran vers le haut</translation>
+    </message>
+    <message>
+        <source>Scroll Down One Screen</source>
+        <translation>Défiler d&apos;un écran vers le bas</translation>
+    </message>
+    <message>
+        <source>Scroll Left One Screen</source>
+        <translation>Défiler d&apos;un écran vers la gauche</translation>
+    </message>
+    <message>
+        <source>Scroll Right One Screen</source>
+        <translation>Défiler d&apos;un écran vers la droite</translation>
+    </message>
+    <message>
+        <source>Patchy &amp;Help</source>
+        <translation>&amp;Aide de Patchy</translation>
+    </message>
+    <message>
+        <source>%1 is no longer on disk</source>
+        <translation>%1 n&apos;est plus sur le disque</translation>
+    </message>
+    <message>
+        <source>Close the open smart object contents of %1 before reverting</source>
+        <translation>Fermez le contenu de l&apos;objet dynamique ouvert de %1 avant de revenir en arrière</translation>
+    </message>
+    <message>
+        <source>Revert</source>
+        <translation>Version précédente</translation>
+    </message>
+    <message>
+        <source>Revert %1 to the saved file? Your unsaved changes will be lost.</source>
+        <translation>Revenir au fichier enregistré de %1 ? Vos modifications non enregistrées seront perdues.</translation>
+    </message>
+    <message>
+        <source>Reverted %1</source>
+        <translation>%1 a été rechargé</translation>
     </message>
 </context>
 <context>

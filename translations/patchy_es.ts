@@ -18696,6 +18696,42 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Manage built-in and saved stroke presets</source>
         <translation>Gestionar ajustes preestablecidos de trazo integrados y guardados</translation>
     </message>
+    <message>
+        <source>Reload the saved file, dropping unsaved changes</source>
+        <translation>Volver a cargar el archivo guardado y descartar los cambios sin guardar</translation>
+    </message>
+    <message>
+        <source>Show only the canvas, or bring the toolbars back</source>
+        <translation>Mostrar solo el lienzo o recuperar las barras</translation>
+    </message>
+    <message>
+        <source>Show the image&apos;s upper-left corner</source>
+        <translation>Mostrar la esquina superior izquierda de la imagen</translation>
+    </message>
+    <message>
+        <source>Show the image&apos;s lower-right corner</source>
+        <translation>Mostrar la esquina inferior derecha de la imagen</translation>
+    </message>
+    <message>
+        <source>Move the view up by a window height</source>
+        <translation>Mover la vista hacia arriba una altura de ventana</translation>
+    </message>
+    <message>
+        <source>Move the view down by a window height</source>
+        <translation>Mover la vista hacia abajo una altura de ventana</translation>
+    </message>
+    <message>
+        <source>Move the view left by a window width</source>
+        <translation>Mover la vista a la izquierda un ancho de ventana</translation>
+    </message>
+    <message>
+        <source>Move the view right by a window width</source>
+        <translation>Mover la vista a la derecha un ancho de ventana</translation>
+    </message>
+    <message>
+        <source>Open the feature guide in your web browser</source>
+        <translation>Abrir la guía de funciones en el navegador web</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -31490,6 +31526,62 @@ Bloqueada: %1</translation>
     <message>
         <source>Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)</source>
         <translation>Opacidad del pincel, 0% a 100%: pulse las teclas numéricas (5 = 50%, 0 = 100%, 00 = 0%)</translation>
+    </message>
+    <message>
+        <source>Re&amp;vert</source>
+        <translation>Re&amp;vertir</translation>
+    </message>
+    <message>
+        <source>&amp;Hide Panels</source>
+        <translation>&amp;Ocultar paneles</translation>
+    </message>
+    <message>
+        <source>Scroll to Top-Left Corner</source>
+        <translation>Desplazar a la esquina superior izquierda</translation>
+    </message>
+    <message>
+        <source>Scroll to Bottom-Right Corner</source>
+        <translation>Desplazar a la esquina inferior derecha</translation>
+    </message>
+    <message>
+        <source>Scroll Up One Screen</source>
+        <translation>Desplazar una pantalla hacia arriba</translation>
+    </message>
+    <message>
+        <source>Scroll Down One Screen</source>
+        <translation>Desplazar una pantalla hacia abajo</translation>
+    </message>
+    <message>
+        <source>Scroll Left One Screen</source>
+        <translation>Desplazar una pantalla a la izquierda</translation>
+    </message>
+    <message>
+        <source>Scroll Right One Screen</source>
+        <translation>Desplazar una pantalla a la derecha</translation>
+    </message>
+    <message>
+        <source>Patchy &amp;Help</source>
+        <translation>&amp;Ayuda de Patchy</translation>
+    </message>
+    <message>
+        <source>%1 is no longer on disk</source>
+        <translation>%1 ya no está en el disco</translation>
+    </message>
+    <message>
+        <source>Close the open smart object contents of %1 before reverting</source>
+        <translation>Cierre el contenido abierto del objeto inteligente de %1 antes de revertir</translation>
+    </message>
+    <message>
+        <source>Revert</source>
+        <translation>Revertir</translation>
+    </message>
+    <message>
+        <source>Revert %1 to the saved file? Your unsaved changes will be lost.</source>
+        <translation>¿Revertir %1 al archivo guardado? Se perderán los cambios sin guardar.</translation>
+    </message>
+    <message>
+        <source>Reverted %1</source>
+        <translation>Se revirtió %1</translation>
     </message>
 </context>
 <context>

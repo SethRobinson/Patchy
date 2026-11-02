@@ -18679,6 +18679,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Manage built-in and saved stroke presets</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Reload the saved file, dropping unsaved changes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show only the canvas, or bring the toolbars back</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show the image&apos;s upper-left corner</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show the image&apos;s lower-right corner</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move the view up by a window height</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move the view down by a window height</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move the view left by a window width</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move the view right by a window width</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open the feature guide in your web browser</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -31408,6 +31444,62 @@ Locked: %1</source>
     </message>
     <message>
         <source>Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Re&amp;vert</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Hide Panels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scroll to Top-Left Corner</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scroll to Bottom-Right Corner</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scroll Up One Screen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scroll Down One Screen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scroll Left One Screen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scroll Right One Screen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy &amp;Help</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 is no longer on disk</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close the open smart object contents of %1 before reverting</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Revert</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Revert %1 to the saved file? Your unsaved changes will be lost.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reverted %1</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -18696,6 +18696,42 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Manage built-in and saved stroke presets</source>
         <translation>Integrierte und gespeicherte Konturvorgaben verwalten</translation>
     </message>
+    <message>
+        <source>Reload the saved file, dropping unsaved changes</source>
+        <translation>Gespeicherte Datei neu laden, ungespeicherte Änderungen verwerfen</translation>
+    </message>
+    <message>
+        <source>Show only the canvas, or bring the toolbars back</source>
+        <translation>Nur die Arbeitsfläche zeigen oder die Leisten zurückholen</translation>
+    </message>
+    <message>
+        <source>Show the image&apos;s upper-left corner</source>
+        <translation>Die linke obere Ecke des Bildes zeigen</translation>
+    </message>
+    <message>
+        <source>Show the image&apos;s lower-right corner</source>
+        <translation>Die rechte untere Ecke des Bildes zeigen</translation>
+    </message>
+    <message>
+        <source>Move the view up by a window height</source>
+        <translation>Die Ansicht um eine Fensterhöhe nach oben bewegen</translation>
+    </message>
+    <message>
+        <source>Move the view down by a window height</source>
+        <translation>Die Ansicht um eine Fensterhöhe nach unten bewegen</translation>
+    </message>
+    <message>
+        <source>Move the view left by a window width</source>
+        <translation>Die Ansicht um eine Fensterbreite nach links bewegen</translation>
+    </message>
+    <message>
+        <source>Move the view right by a window width</source>
+        <translation>Die Ansicht um eine Fensterbreite nach rechts bewegen</translation>
+    </message>
+    <message>
+        <source>Open the feature guide in your web browser</source>
+        <translation>Die Funktionsübersicht im Webbrowser öffnen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -31490,6 +31526,62 @@ Fixiert: %1</translation>
     <message>
         <source>Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)</source>
         <translation>Pinseldeckkraft, 0 % bis 100 %: Drücken Sie die Zifferntasten (5 = 50 %, 0 = 100 %, 00 = 0 %)</translation>
+    </message>
+    <message>
+        <source>Re&amp;vert</source>
+        <translation>&amp;Zurück zur letzten Version</translation>
+    </message>
+    <message>
+        <source>&amp;Hide Panels</source>
+        <translation>&amp;Bedienfelder ausblenden</translation>
+    </message>
+    <message>
+        <source>Scroll to Top-Left Corner</source>
+        <translation>Zur linken oberen Ecke blättern</translation>
+    </message>
+    <message>
+        <source>Scroll to Bottom-Right Corner</source>
+        <translation>Zur rechten unteren Ecke blättern</translation>
+    </message>
+    <message>
+        <source>Scroll Up One Screen</source>
+        <translation>Einen Bildschirm nach oben blättern</translation>
+    </message>
+    <message>
+        <source>Scroll Down One Screen</source>
+        <translation>Einen Bildschirm nach unten blättern</translation>
+    </message>
+    <message>
+        <source>Scroll Left One Screen</source>
+        <translation>Einen Bildschirm nach links blättern</translation>
+    </message>
+    <message>
+        <source>Scroll Right One Screen</source>
+        <translation>Einen Bildschirm nach rechts blättern</translation>
+    </message>
+    <message>
+        <source>Patchy &amp;Help</source>
+        <translation>Patchy-&amp;Hilfe</translation>
+    </message>
+    <message>
+        <source>%1 is no longer on disk</source>
+        <translation>%1 ist nicht mehr auf dem Datenträger</translation>
+    </message>
+    <message>
+        <source>Close the open smart object contents of %1 before reverting</source>
+        <translation>Schließen Sie zuerst den geöffneten Smartobjekt-Inhalt von %1</translation>
+    </message>
+    <message>
+        <source>Revert</source>
+        <translation>Zurück zur letzten Version</translation>
+    </message>
+    <message>
+        <source>Revert %1 to the saved file? Your unsaved changes will be lost.</source>
+        <translation>%1 auf die gespeicherte Datei zurücksetzen? Ihre ungespeicherten Änderungen gehen verloren.</translation>
+    </message>
+    <message>
+        <source>Reverted %1</source>
+        <translation>%1 wurde neu geladen</translation>
     </message>
 </context>
 <context>

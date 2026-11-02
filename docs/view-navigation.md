@@ -84,6 +84,10 @@ The pen button action `PenButtonAction::ZoomCanvas` (`canvas_widget_pen.cpp` for
 
 `kZoomDragFactorPerPixel` (canvas_widget_view.cpp) is the one sensitivity constant for both gestures. Dialog previews have their own copy: `ZoomableImagePreview::set_scrubby_zoom` (the Develop Raw dialog's Scrubby Zoom, GitHub issue 395) repeats it and `kZoomClickSlopPx` in zoomable_image_preview.cpp; keep them in step.
 
+## Keyboard scrolling
+
+GitHub issue 584. Home and End (`view.scroll_top_left`, `view.scroll_bottom_right`) put the image's corner at the view area's corner; Page Up/Down and Shift+Page Up/Down (`view.scroll_page_*`) move one view-area span, stopping at the image edge. An axis where the image fits stays put (`CanvasWidget::scroll_view`). Window commands with no menu row; they yield to a focused field or list (`canvas_key_command_yields`). Test: `ui_issue_584_home_end_and_page_keys_scroll_the_view`.
+
 ## Screen modes
 
 View > Screen Mode, F, Esc and the tool palette's screen mode button: [screen-modes.md](screen-modes.md).
