@@ -399,9 +399,10 @@ private:
     painter->save();
     const auto rect = option.rect;
     if (index.data(kFontPickerRowKindRole).toInt() == static_cast<int>(FontPickerRowKind::all_header)) {
-      // menu_separator, not the list frame's field_inset_border: that one sits a shade off the
-      // list background and the rule vanished (GitHub issue 569 follow-up).
-      painter->setPen(theme().menu_separator);
+      // field_border (the gray around fields and combos), not the list frame's
+      // field_inset_border: in Dark that one sits a shade off the list background and the rule
+      // vanished (GitHub issue 569 follow-up). menu_separator is too faint in Light.
+      painter->setPen(theme().field_border);
       painter->drawLine(rect.left() + 4, rect.top() + 2, rect.right() - 4, rect.top() + 2);
     }
     const QFont label_font = scaled_font(combo_.font(), 0.9);

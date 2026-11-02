@@ -13,8 +13,9 @@ control. Text-session rules for the popup (its objectName, picks that must apply
   Recent header, All Fonts header) and `kFontPickerRecentRowRole`. Headers have no item flags, so
   they cannot be selected or picked; Up/Down from the search box step over them, and a Page Up/Down
   that lands on one moves to the next family. The All Fonts header draws the separator rule in
-  `menu_separator` (`field_inset_border`, the list frame's color, sits a shade off the list
-  background and the rule vanished; issue 569 follow-up).
+  `field_border` (`field_inset_border`, the list frame's color, sits a shade off the list
+  background in Dark and the rule vanished; `menu_separator` is too faint in Light; issue 569
+  follow-up).
 - A pick commits by family name (`findText`), not by row: the same family can be both a Recent row
   and a full-list row.
 - The popup opens on the current family's Recent row with the list at the top, so the section is in

@@ -331,8 +331,8 @@ QImage grab_popup_with_open_list(QWidget& popup, QComboBox& combo) {
   return image;
 }
 
-// GitHub issue 569 follow-up: the rule above "All Fonts" uses menu_separator, which stands off
-// the list background in both schemes (field_inset_border sat a shade off it and vanished).
+// GitHub issue 569 follow-up: the rule above "All Fonts" uses field_border, which stands off the
+// list background in both schemes (field_inset_border sat a shade off it in Dark and vanished).
 void ui_font_picker_recent_separator_reads_in_both_schemes() {
   reset_picker_settings();
   for (const auto scheme : {patchy::ui::ColorScheme::Dark, patchy::ui::ColorScheme::Light}) {
@@ -340,10 +340,9 @@ void ui_font_picker_recent_separator_reads_in_both_schemes() {
     const auto contrast = [&palette](const QColor& rule) {
       return std::abs(qGray(rule.rgb()) - qGray(palette.popup_list_bg.rgb()));
     };
-    std::cout << "  note: rule contrast " << contrast(palette.menu_separator) << " (was "
+    std::cout << "  note: rule contrast " << contrast(palette.field_border) << " (was "
               << contrast(palette.field_inset_border) << ")\n";
-    CHECK(contrast(palette.menu_separator) >= 30);
-    CHECK(contrast(palette.menu_separator) > contrast(palette.field_inset_border));
+    CHECK(contrast(palette.field_border) >= 35);
   }
   patchy::ui::MainWindow window;
   show_window(window);
@@ -366,7 +365,7 @@ void ui_font_picker_recent_separator_reads_in_both_schemes() {
     // The rule is drawn in the separator role two pixels into the All Fonts row.
     const auto row = list->visualRect(list->model()->index(3, 0));
     const auto image = list->viewport()->grab().toImage();
-    CHECK(image.pixelColor(row.center().x() / 2, row.top() + 2).rgb() == patchy::ui::theme().menu_separator.rgb());
+    CHECK(image.pixelColor(row.center().x() / 2, row.top() + 2).rgb() == patchy::ui::theme().field_border.rgb());
     save_widget_artifact(name, *popup);
     popup->close();
     QApplication::processEvents();
