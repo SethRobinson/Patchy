@@ -39,8 +39,10 @@
 #include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
 #include <QPainter>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QScreen>
 #include <QScrollBar>
 #include <QSpinBox>
@@ -887,11 +889,15 @@ void ui_web_export_animation_plays_in_the_preview() {
       CHECK(animation_group != nullptr && keep != nullptr && swatch != nullptr && hint != nullptr);
       if (animation_group != nullptr && keep != nullptr && swatch != nullptr && hint != nullptr) {
         CHECK(!animation_group->isVisible());
-        CHECK(!keep->isVisible() && swatch->isVisible() && swatch->isEnabled() && hint->isVisible());
-        // The explanation is the info mark's tooltip, and the color is labeled "Fill with:".
+        // Keep transparent stays in sight, disabled, with Fill with selected (GitHub issue 571).
+        auto* fill = dialog->findChild<QRadioButton*>(QStringLiteral("webExportFillTransparencyRadio"));
+        CHECK(fill != nullptr && fill->isVisible() && fill->isChecked());
+        CHECK(keep->isVisible() && !keep->isEnabled() && swatch->isVisible() && swatch->isEnabled() &&
+              hint->isVisible());
+        // The explanation is the info mark's tooltip.
         CHECK(hint->toolTip() == QStringLiteral("Fills transparent areas (JPEG has no transparency)"));
         auto* label = dialog->findChild<QLabel*>(QStringLiteral("webExportBackgroundLabel"));
-        CHECK(label != nullptr && label->isVisible() && label->text() == QStringLiteral("Fill with:"));
+        CHECK(label != nullptr && !label->isVisible());
       }
     }
     // Closing stops the timer.
@@ -1564,7 +1570,7 @@ void ui_web_export_quad_compare_and_presets_in_the_dialog() {
     QApplication::processEvents();
     auto* list = dialog.findChild<QTreeWidget*>(QStringLiteral("webExportFormatList"));
     auto* quality = dialog.findChild<QSpinBox*>(QStringLiteral("webExportJpegQualitySpin"));
-    auto* quality_presets = dialog.findChild<QComboBox*>(QStringLiteral("webExportJpegQualityPresetCombo"));
+    auto* quality_presets = dialog.findChild<QToolButton*>(QStringLiteral("webExportJpegQualityPresetsButton"));
     auto* presets = dialog.findChild<QComboBox*>(QStringLiteral("webExportPresetCombo"));
     auto* save = dialog.findChild<QPushButton*>(QStringLiteral("webExportPresetSaveButton"));
     auto* remove = dialog.findChild<QPushButton*>(QStringLiteral("webExportPresetDeleteButton"));
@@ -1591,17 +1597,37 @@ void ui_web_export_quad_compare_and_presets_in_the_dialog() {
     // The zoom controls are framed push buttons.
     CHECK(!zoom_fit->isFlat());
 
-    // Quality presets: 80 is no preset (Custom); picking High sets 70; typing 85 shows Very High.
-    CHECK(quality->value() == 80 && quality_presets->currentIndex() == -1);
-    const auto high = quality_presets->findData(70);
-    CHECK(high >= 0 && quality_presets->itemText(high) == QStringLiteral("High"));
-    quality_presets->setCurrentIndex(high);
-    emit quality_presets->activated(high);
-    CHECK(quality->value() == 70);
-    quality->setValue(85);
-    CHECK(quality_presets->currentText() == QStringLiteral("Very High"));
-    quality->setValue(84);
-    CHECK(quality_presets->currentIndex() == -1);
+    // Quality presets: a chevron drop-down on the field. 80 ticks none; High sets 70; at 85 the
+    // menu ticks Very High.
+    auto* menu = quality_presets->menu();
+    CHECK(menu != nullptr && menu->objectName() == QStringLiteral("webExportJpegQualityPresetsMenu"));
+    if (menu != nullptr) {
+      const auto ticked = [menu] {
+        emit menu->aboutToShow();
+        QStringList checked;
+        for (auto* action : menu->actions()) {
+          if (action->isChecked()) {
+            checked << action->text();
+          }
+        }
+        return checked;
+      };
+      QStringList names;
+      for (auto* action : menu->actions()) {
+        names << QStringLiteral("%1=%2").arg(action->text()).arg(action->data().toInt());
+      }
+      CHECK(names == QStringList({QStringLiteral("Low=30"), QStringLiteral("Medium=50"), QStringLiteral("High=70"),
+                                  QStringLiteral("Very High=85"), QStringLiteral("Maximum=100")}));
+      CHECK(quality->value() == 80 && ticked().isEmpty());
+      menu->actions().at(2)->trigger();
+      CHECK(quality->value() == 70);
+      quality->setValue(85);
+      CHECK(ticked() == QStringList({QStringLiteral("Very High")}));
+      quality->setValue(84);
+      CHECK(ticked().isEmpty());
+    }
+    // The quality field has the shared - and + buttons.
+    CHECK(quality->buttonSymbols() == QAbstractSpinBox::UpDownArrows);
 
     // Presets: the built-in ones are listed; Delete is off for them.
     CHECK(presets->count() == static_cast<int>(patchy::ui::web_export_builtin_presets().size()));
@@ -1882,6 +1908,195 @@ void ui_web_export_preview_buttons_fit_at_minimum_size() {
   CHECK(clipped.isEmpty());
 }
 
+// The row under the preview (GitHub issue 571): "View:" with Split, Side by side, 4-up and
+// Result only in that order, then "Zoom:", the amount as a plain percent, - and + of one
+// width, 100% and Fit (checked while the preview fits) at the right edge, all on one line,
+// also at the minimum size.
+void ui_web_export_view_row_order_and_zoom_controls() {
+  WebExportSettingsGuard guard;
+  with_web_export_dialog(textured_document(320, 200), [&](QDialog& dialog) {
+    dialog.resize(dialog.minimumSize());
+    QApplication::processEvents();
+    auto* row = dialog.findChild<QWidget*>(QStringLiteral("webExportViewRow"));
+    QList<QAbstractButton*> buttons;
+    for (const auto* name : {"webExportCompareSplit", "webExportCompareSideBySide", "webExportCompareQuad",
+                             "webExportCompareResult", "webExportZoomOut", "webExportZoomIn", "webExportZoom100",
+                             "webExportZoomFit"}) {
+      buttons << dialog.findChild<QAbstractButton*>(QLatin1String(name));
+    }
+    auto* amount = dialog.findChild<QLabel*>(QStringLiteral("webExportZoomLabel"));
+    CHECK(row != nullptr && amount != nullptr && !buttons.contains(nullptr));
+    if (row == nullptr || amount == nullptr || buttons.contains(nullptr)) {
+      return;
+    }
+    QStringList labels;
+    for (auto* label : row->findChildren<QLabel*>(Qt::FindDirectChildrenOnly)) {
+      labels << label->text();
+    }
+    CHECK(labels.contains(QStringLiteral("View:")) && labels.contains(QStringLiteral("Zoom:")));
+    CHECK(!labels.contains(QStringLiteral("Compare:")));
+    CHECK(buttons[2]->text() == QStringLiteral("4-up"));
+    // Left to right, on one line.
+    for (int index = 1; index < buttons.size(); ++index) {
+      CHECK(buttons[index]->geometry().left() > buttons[index - 1]->geometry().right());
+      CHECK(std::abs(buttons[index]->geometry().center().y() - buttons[0]->geometry().center().y()) <= 1);
+    }
+    CHECK(amount->geometry().left() > buttons[3]->geometry().right() &&
+          amount->geometry().right() < buttons[4]->geometry().left());
+    CHECK(buttons[4]->width() == buttons[5]->width());
+    CHECK(std::abs(buttons[7]->geometry().right() - (row->width() - 1)) <= 1);
+    // The amount is a plain percent, Fit checked while the preview fits.
+    auto* fit = buttons[7];
+    CHECK(QRegularExpression(QStringLiteral("^\\d+%$")).match(amount->text()).hasMatch());
+    CHECK(fit->isCheckable() && fit->isChecked());
+    buttons[6]->click();
+    QApplication::processEvents();
+    CHECK(amount->text() == QStringLiteral("100%") && !fit->isChecked());
+    fit->click();
+    QApplication::processEvents();
+    CHECK(fit->isChecked());
+    fit->click();
+    QApplication::processEvents();
+    CHECK(fit->isChecked());
+  });
+}
+
+// Switching views never resizes the dialog, at its minimum size or larger (GitHub issue 571:
+// 2 x 2 grew the window past the screen).
+void ui_web_export_view_modes_keep_the_dialog_size() {
+  WebExportSettingsGuard guard;
+  with_web_export_dialog(textured_document(640, 400), [&](QDialog& dialog) {
+    auto* preview = dialog.findChild<QWidget*>(QStringLiteral("webExportPreview"));
+    CHECK(preview != nullptr &&
+          wait_until([&] { return preview->property("webExportShowsCurrent").toBool(); }));
+    for (const bool smallest : {true, false}) {
+      dialog.resize(smallest ? dialog.minimumSize() : dialog.minimumSize() + QSize(180, 90));
+      QApplication::processEvents();
+      const auto size = dialog.size();
+      for (const auto* name : {"webExportCompareQuad", "webExportCompareSideBySide", "webExportCompareResult",
+                               "webExportCompareQuad", "webExportCompareSplit"}) {
+        auto* button = dialog.findChild<QAbstractButton*>(QLatin1String(name));
+        CHECK(button != nullptr);
+        if (button == nullptr) {
+          continue;
+        }
+        button->click();
+        for (int pass = 0; pass < 3; ++pass) {
+          QCoreApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
+          QApplication::processEvents();
+        }
+        if (dialog.size() != size) {
+          std::fprintf(stderr, "  %s: %dx%d became %dx%d (minimum %dx%d)\n", name, size.width(), size.height(),
+                       dialog.width(), dialog.height(), dialog.minimumWidth(), dialog.minimumHeight());
+        }
+        CHECK(dialog.size() == size);
+      }
+    }
+  });
+}
+
+// JPEG shows Keep transparent too, disabled, with Fill with selected; the user's own choice
+// comes back for the formats with alpha. Captures
+// web_export_jpeg_settings with the quality presets list open.
+void ui_web_export_jpeg_keeps_the_transparency_choice() {
+  WebExportSettingsGuard guard;
+  with_web_export_dialog(textured_document(320, 200), [&](QDialog& dialog) {
+    dialog.resize(1280, 820);
+    auto* list = dialog.findChild<QTreeWidget*>(QStringLiteral("webExportFormatList"));
+    auto* keep = dialog.findChild<QRadioButton*>(QStringLiteral("webExportKeepTransparencyRadio"));
+    auto* fill = dialog.findChild<QRadioButton*>(QStringLiteral("webExportFillTransparencyRadio"));
+    auto* presets = dialog.findChild<QToolButton*>(QStringLiteral("webExportJpegQualityPresetsButton"));
+    auto* preview = dialog.findChild<QWidget*>(QStringLiteral("webExportPreview"));
+    CHECK(list != nullptr && keep != nullptr && fill != nullptr && presets != nullptr && preview != nullptr);
+    if (list == nullptr || keep == nullptr || fill == nullptr || presets == nullptr || preview == nullptr) {
+      return;
+    }
+    QApplication::processEvents();
+    CHECK(keep->isVisible() && !keep->isEnabled() && fill->isChecked());
+    list->setCurrentItem(row_named(list, QStringLiteral("PNG")));
+    QApplication::processEvents();
+    CHECK(keep->isEnabled() && keep->isChecked() && !fill->isChecked());
+    fill->setChecked(true);
+    list->setCurrentItem(row_named(list, QStringLiteral("JPEG")));
+    QApplication::processEvents();
+    CHECK(!keep->isEnabled() && fill->isChecked());
+    list->setCurrentItem(row_named(list, QStringLiteral("GIF")));
+    QApplication::processEvents();
+    CHECK(keep->isEnabled() && fill->isChecked());
+    keep->setChecked(true);
+    list->setCurrentItem(row_named(list, QStringLiteral("JPEG")));
+    QApplication::processEvents();
+    CHECK(fill->isChecked() && !keep->isEnabled());
+    list->setCurrentItem(row_named(list, QStringLiteral("PNG")));
+    QApplication::processEvents();
+    CHECK(keep->isChecked());
+    list->setCurrentItem(row_named(list, QStringLiteral("JPEG")));
+    CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool(); }));
+    if (auto* menu = presets->menu(); menu != nullptr) {
+      menu->popup(presets->mapToGlobal(QPoint(0, presets->height())));
+      QApplication::processEvents();
+      CHECK(menu->isVisible());
+      save_window_popup_artifact("web_export_jpeg_settings", dialog, *presets, *menu);
+      menu->hide();
+    }
+  });
+}
+
+// The busy spinner turns only while the shown result (and in 4-up its tiles) is encoding, and
+// always stops when they arrive, even while other rows still encode (GitHub issue 571).
+void ui_web_export_spinner_stops_when_the_shown_results_arrive() {
+  WebExportSettingsGuard guard;
+  const auto photo = patchy::test::committed_format_fixture_path("readme", "havana_vintage_car_cc0.jpg");
+  const auto image = QImage(patchy::ui::to_qstring(photo)).scaledToWidth(1200, Qt::SmoothTransformation);
+  const auto document = patchy::ui::document_from_qimage(image.convertToFormat(QImage::Format_RGBA8888), "Photo");
+  with_web_export_dialog(document, [&](QDialog& dialog) {
+    auto* list = dialog.findChild<QTreeWidget*>(QStringLiteral("webExportFormatList"));
+    auto* busy = dialog.findChild<QWidget*>(QStringLiteral("webExportBusySpinner"));
+    auto* preview = dialog.findChild<QWidget*>(QStringLiteral("webExportPreview"));
+    auto* half = dialog.findChild<QWidget*>(QStringLiteral("webExportHalfQualityPreview"));
+    auto* quarter = dialog.findChild<QWidget*>(QStringLiteral("webExportQuarterQualityPreview"));
+    auto* quad = dialog.findChild<QAbstractButton*>(QStringLiteral("webExportCompareQuad"));
+    auto* quality = dialog.findChild<QSpinBox*>(QStringLiteral("webExportJpegQualitySpin"));
+    CHECK(list != nullptr && busy != nullptr && preview != nullptr && half != nullptr && quarter != nullptr &&
+          quad != nullptr && quality != nullptr);
+    if (list == nullptr || busy == nullptr || preview == nullptr || half == nullptr || quarter == nullptr ||
+        quad == nullptr || quality == nullptr) {
+      return;
+    }
+    const auto spinning = [busy] { return busy->property("webExportBusy").toBool(); };
+    CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool(); }));
+    CHECK(!spinning());
+    // Visiting AVIF queues its slow background encode; back on JPEG the shown result is ready
+    // and the spinner stops though AVIF may still be encoding.
+    list->setCurrentItem(row_named(list, QStringLiteral("AVIF")));
+    QApplication::processEvents();
+    list->setCurrentItem(row_named(list, QStringLiteral("JPEG")));
+    quality->setValue(61);
+    QApplication::processEvents();
+    CHECK(spinning());
+    CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool(); }));
+    CHECK(!spinning());
+    // 4-up: spinning until both tiles have landed, then stopped.
+    quad->click();
+    QApplication::processEvents();
+    CHECK(wait_until([&] {
+      return half->property("webExportShowsCurrent").toBool() && quarter->property("webExportShowsCurrent").toBool();
+    }));
+    CHECK(!spinning());
+    // A change made while encoding supersedes the old jobs; it still ends stopped.
+    for (const int value : {40, 45, 50}) {
+      quality->setValue(value);
+      QApplication::processEvents();
+    }
+    CHECK(spinning());
+    CHECK(wait_until([&] {
+      return preview->property("webExportShowsCurrent").toBool() && half->property("webExportShowsCurrent").toBool() &&
+             quarter->property("webExportShowsCurrent").toBool();
+    }));
+    CHECK(wait_until([&] { return !spinning(); }, 2000));
+  });
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> web_export_tests() {
@@ -1909,5 +2124,10 @@ std::vector<patchy::test::TestCase> web_export_tests() {
       {"ui_web_export_quad_compare_and_presets_in_the_dialog", ui_web_export_quad_compare_and_presets_in_the_dialog},
       {"ui_web_export_settings_column_fits_every_language", ui_web_export_settings_column_fits_every_language},
       {"ui_web_export_preview_buttons_fit_at_minimum_size", ui_web_export_preview_buttons_fit_at_minimum_size},
+      {"ui_web_export_view_row_order_and_zoom_controls", ui_web_export_view_row_order_and_zoom_controls},
+      {"ui_web_export_view_modes_keep_the_dialog_size", ui_web_export_view_modes_keep_the_dialog_size},
+      {"ui_web_export_jpeg_keeps_the_transparency_choice", ui_web_export_jpeg_keeps_the_transparency_choice},
+      {"ui_web_export_spinner_stops_when_the_shown_results_arrive",
+       ui_web_export_spinner_stops_when_the_shown_results_arrive},
   };
 }

@@ -878,11 +878,53 @@ TransparencyChoiceWidgets add_transparency_choice(QVBoxLayout* layout, QWidget* 
   return widgets;
 }
 
+namespace {
+// Set on the Keep transparent radio of a keep_shown_when_forced choice.
+constexpr char kTransparencyForcedProperty[] = "patchy.transparencyForced";
+constexpr char kTransparencyUserFillProperty[] = "patchy.transparencyUserFill";
+}  // namespace
+
 void set_transparency_choice_forced_fill(const TransparencyChoiceWidgets& widgets, bool forced) {
+  if (widgets.keep_shown_when_forced) {
+    if (widgets.keep->property(kTransparencyForcedProperty).toBool() != forced) {
+      // A forced fill only shows Fill with; the user's own choice comes back afterwards.
+      const QSignalBlocker block_keep(widgets.keep);
+      const QSignalBlocker block_fill(widgets.fill);
+      if (forced) {
+        widgets.keep->setProperty(kTransparencyUserFillProperty, widgets.fill->isChecked());
+        widgets.fill->setChecked(true);
+      } else {
+        const bool user_fill = widgets.keep->property(kTransparencyUserFillProperty).toBool();
+        (user_fill ? widgets.fill : widgets.keep)->setChecked(true);
+      }
+      widgets.keep->setProperty(kTransparencyForcedProperty, forced);
+    }
+    widgets.keep->setVisible(true);
+    widgets.fill->setVisible(true);
+    widgets.keep->setEnabled(!forced);
+    widgets.background_label->setVisible(false);
+    widgets.swatch->setEnabled(forced || widgets.fill->isChecked());
+    return;
+  }
   widgets.keep->setVisible(!forced);
   widgets.fill->setVisible(!forced);
   widgets.background_label->setVisible(forced);
   widgets.swatch->setEnabled(forced || widgets.fill->isChecked());
+}
+
+bool transparency_choice_fills(const TransparencyChoiceWidgets& widgets) {
+  if (widgets.keep->property(kTransparencyForcedProperty).toBool()) {
+    return widgets.keep->property(kTransparencyUserFillProperty).toBool();
+  }
+  return widgets.fill->isChecked();
+}
+
+void set_transparency_choice_fills(const TransparencyChoiceWidgets& widgets, bool fill) {
+  if (widgets.keep->property(kTransparencyForcedProperty).toBool()) {
+    widgets.keep->setProperty(kTransparencyUserFillProperty, fill);
+    return;
+  }
+  (fill ? widgets.fill : widgets.keep)->setChecked(true);
 }
 
 QColor transparency_choice_color(const TransparencyChoiceWidgets& widgets) {

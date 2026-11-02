@@ -19,6 +19,7 @@
 #include <initializer_list>
 #include <limits>
 #include <optional>
+#include <vector>
 
 class QAction;
 class QBoxLayout;
@@ -34,6 +35,7 @@ class QMenu;
 class QPushButton;
 class QSpinBox;
 class QTabWidget;
+class QToolButton;
 class QVBoxLayout;
 class QWidget;
 
@@ -139,6 +141,19 @@ void configure_dialog_spinbox(QDoubleSpinBox* spin, int width = 92);
 // prefix, and applies sub-control rules unreliably to children created after the stylesheet.
 [[nodiscard]] ThemedQss dialog_spinbox_button_style();
 void configure_compact_symbol_button(QPushButton* button);
+// A chevron drop-down of preset values against a spin box (Preferences > Interface scale,
+// File > Export for Web's Quality fields). Picking a preset sets the field; the preset the
+// field holds is ticked when the list opens, a value off the list ticks none. Put the button
+// right after the spin box (spacing 1) and style it with spin_presets_button_style().
+struct SpinPreset {
+  QString text;
+  int value{0};
+};
+[[nodiscard]] QToolButton* make_spin_presets_button(QSpinBox* spin, QWidget* parent, const QString& button_object_name,
+                                                    const QString& menu_object_name, const QString& tooltip,
+                                                    const std::vector<SpinPreset>& presets);
+// The field-faced chevron button as tall as the spin box beside it (QToolButton[spinPresetsButton]).
+[[nodiscard]] ThemedQss spin_presets_button_style();
 // A small "Patchy" pill placed beside a control whose setting Photoshop cannot
 // represent (the Patchy-only marker convention in docs/ui-conventions.md).
 // `explanation` becomes the badge's tooltip; callers put the same text on the

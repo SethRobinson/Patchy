@@ -13185,10 +13185,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>sRVB, aucun profil nécessaire</translation>
     </message>
     <message>
-        <source>Compare:</source>
-        <translation>Comparer :</translation>
-    </message>
-    <message>
         <source>Split</source>
         <translation>Partagé</translation>
     </message>
@@ -14534,10 +14530,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Inclure une miniature</translation>
     </message>
     <message>
-        <source>2 x 2</source>
-        <translation>2 x 2</translation>
-    </message>
-    <message>
         <source>The original, the result, and the result at 50% and 25% of the quality</source>
         <translation>L&apos;original, le résultat et le résultat à 50 % et 25 % de la qualité</translation>
     </message>
@@ -14548,6 +14540,14 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>%1, %2</source>
         <translation>%1, %2</translation>
+    </message>
+    <message>
+        <source>View:</source>
+        <translation>Affichage :</translation>
+    </message>
+    <message>
+        <source>4-up</source>
+        <translation>4 vues</translation>
     </message>
 </context>
 <context>

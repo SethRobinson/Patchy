@@ -1525,10 +1525,20 @@ protected:
         draw_tag(result_label_, false);
         break;
     }
+    painter.end();
+    paint_frame();
   }
 
   [[nodiscard]] QCursor interaction_cursor(bool is_panning) const override {
     return is_panning ? Qt::ClosedHandCursor : Qt::OpenHandCursor;
+  }
+
+  // A frame around the pane in every view, so the panes' edges show (GitHub issue 571).
+  void paint_frame() {
+    QPainter painter(this);
+    painter.setPen(theme().group_box_border);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRect(rect().adjusted(0, 0, -1, -1));
   }
 
   void mousePressEvent(QMouseEvent* event) override {
@@ -1697,78 +1707,26 @@ private:
   QString other_;
 };
 
-// Two groups on one row (the compare buttons left, the zoom controls right), or the second
-// under the first when the row is narrower than both at their minimum, so no button is ever
-// squeezed below its text (GitHub issue 571). Its minimum width is the wider group's; while
-// wrapped it is a row taller.
-class WrappingRow final : public QWidget {
+// Runs `action` once, when `widget` first shows (its children are polished by then).
+class OnFirstShow final : public QObject {
 public:
-  WrappingRow(QWidget* first, QWidget* second, int spacing, QWidget* parent)
-      : QWidget(parent), first_(first), second_(second), spacing_(spacing) {
-    first_->setParent(this);
-    second_->setParent(this);
-    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-    setProperty("webExportWrapped", false);
-  }
-
-  [[nodiscard]] QSize sizeHint() const override {
-    const auto first = first_->sizeHint();
-    const auto second = second_->sizeHint();
-    return {first.width() + spacing_ + second.width(), height_for(wrapped_)};
-  }
-  [[nodiscard]] QSize minimumSizeHint() const override {
-    return {std::max(first_->minimumSizeHint().width(), second_->minimumSizeHint().width()), height_for(wrapped_)};
+  OnFirstShow(QWidget& widget, std::function<void()> action) : action_(std::move(action)) {
+    widget.installEventFilter(this);
   }
 
 protected:
-  bool event(QEvent* event) override {
-    // A child's size changed (a longer zoom label, a language change): measure again.
-    if (event->type() == QEvent::LayoutRequest) {
-      arrange();
-      updateGeometry();
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::Show && action_) {
+      auto action = std::move(action_);
+      action_ = nullptr;
+      watched->removeEventFilter(this);
+      action();
     }
-    return QWidget::event(event);
-  }
-  void resizeEvent(QResizeEvent* event) override {
-    QWidget::resizeEvent(event);
-    arrange();
+    return QObject::eventFilter(watched, event);
   }
 
 private:
-  [[nodiscard]] int height_for(bool wrapped) const {
-    const auto first = first_->minimumSizeHint().expandedTo(first_->sizeHint()).height();
-    const auto second = second_->minimumSizeHint().expandedTo(second_->sizeHint()).height();
-    return wrapped ? first + spacing_ + second : std::max(first, second);
-  }
-
-  void arrange() {
-    const auto first_min = first_->minimumSizeHint().width();
-    const auto second_min = second_->minimumSizeHint().width();
-    const bool wrap = first_min + spacing_ + second_min > width();
-    if (wrap != wrapped_) {
-      wrapped_ = wrap;
-      setProperty("webExportWrapped", wrap);
-      updateGeometry();
-    }
-    const auto first_height = first_->sizeHint().height();
-    const auto second_height = second_->sizeHint().height();
-    if (wrap) {
-      const auto second_width = std::clamp(second_->sizeHint().width(), second_min, std::max(second_min, width()));
-      first_->setGeometry(0, 0, width(), first_height);
-      second_->setGeometry(width() - second_width, first_height + spacing_, second_width, second_height);
-      return;
-    }
-    const auto row_height = std::max(first_height, second_height);
-    const auto second_width =
-        std::clamp(width() - spacing_ - first_min, second_min, std::max(second_min, second_->sizeHint().width()));
-    first_->setGeometry(0, (row_height - first_height) / 2, width() - spacing_ - second_width, first_height);
-    second_->setGeometry(width() - second_width, (row_height - second_height) / 2, second_width, second_height);
-  }
-
-  QWidget* first_;
-  QWidget* second_;
-  int spacing_;
-  bool wrapped_{false};
+  std::function<void()> action_;
 };
 
 [[nodiscard]] QGroupBox* make_group(QWidget* parent, const QString& title, const char* object_name) {
@@ -1902,31 +1860,35 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   set_themed_style(*format_hint, QStringLiteral("color: @hint_text;"));
   controls->addWidget(format_hint);
 
-  // Quality presets beside each Quality field (Patchy's own names and values): picking one sets
-  // the quality; a quality typed by hand shows its preset's name, or Custom when none matches.
-  const auto add_quality_presets = [](QSpinBox* quality, const char* object_name) {
+  // The number fields get the shared - and + buttons (dialog_spinbox_button_style); they step
+  // as the field always has (GitHub issue 571).
+  const auto with_step_buttons = [](QAbstractSpinBox* spin) {
+    spin->setButtonSymbols(QAbstractSpinBox::UpDownArrows);
+    spin->setProperty("webExportStepSpin", true);
+  };
+  // Each Quality field has a chevron of presets against it (Patchy's own names and values; the
+  // drop-down Preferences > Interface scale uses): picking one sets the quality, and the preset
+  // the field holds is ticked.
+  std::vector<SpinPreset> quality_presets;
+  for (const auto& preset : web_export_quality_presets()) {
+    quality_presets.push_back({QCoreApplication::translate("QObject", preset.name), preset.quality});
+  }
+  const auto add_quality_presets = [&](QSpinBox* quality, const char* object_name) {
+    with_step_buttons(quality);
     auto* row = quality->parentWidget();
-    auto* combo = new QComboBox(row);
-    combo->setObjectName(QLatin1String(object_name));
-    combo->setPlaceholderText(QObject::tr("Custom"));
-    for (const auto& preset : web_export_quality_presets()) {
-      combo->addItem(QCoreApplication::translate("QObject", preset.name), preset.quality);
-    }
-    combo->setToolTip(QObject::tr("Quality presets"));
+    auto* button = make_spin_presets_button(quality, row, QLatin1String(object_name) + QStringLiteral("Button"),
+                                            QLatin1String(object_name) + QStringLiteral("Menu"),
+                                            QObject::tr("Quality presets"), quality_presets);
     if (auto* layout = qobject_cast<QBoxLayout*>(row->layout())) {
-      layout->addWidget(combo);
+      // The chevron sits against the field, as its drop-down.
+      layout->removeWidget(quality);
+      auto* field = new QHBoxLayout();
+      field->setContentsMargins(0, 0, 0, 0);
+      field->setSpacing(1);
+      field->addWidget(quality);
+      field->addWidget(button);
+      layout->addLayout(field);
     }
-    const auto sync = [combo, quality] {
-      const QSignalBlocker block(combo);
-      combo->setCurrentIndex(combo->findData(quality->value()));
-    };
-    QObject::connect(quality, &QSpinBox::valueChanged, combo, [sync](int) { sync(); });
-    QObject::connect(combo, &QComboBox::activated, quality, [combo, quality](int index) {
-      if (index >= 0) {
-        quality->setValue(combo->itemData(index).toInt());
-      }
-    });
-    sync();
   };
 
   // JPEG settings.
@@ -1936,15 +1898,16 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
                                                   QStringLiteral("webExportJpegQualitySlider"),
                                                   QStringLiteral("webExportJpegQualitySpin"), 1, 100,
                                                   settings.jpeg_quality, QString(), kQualitySpinWidth);
-  add_quality_presets(jpeg_quality, "webExportJpegQualityPresetCombo");
+  add_quality_presets(jpeg_quality, "webExportJpegQualityPresets");
   auto* jpeg_progressive = new QCheckBox(QObject::tr("Progressive"), jpeg_group);
   jpeg_progressive->setObjectName(QStringLiteral("webExportJpegProgressiveCheck"));
   jpeg_progressive->setToolTip(QObject::tr("Shows a rough image first while the file loads."));
-  jpeg_form->addRow(jpeg_progressive);
+  // Check boxes sit in the field column, under the fields (GitHub issue 571).
+  jpeg_form->addRow(QString(), jpeg_progressive);
   auto* jpeg_optimize = new QCheckBox(QObject::tr("Optimize coding"), jpeg_group);
   jpeg_optimize->setObjectName(QStringLiteral("webExportJpegOptimizeCheck"));
   jpeg_optimize->setToolTip(QObject::tr("Makes the file smaller without changing the image."));
-  jpeg_form->addRow(jpeg_optimize);
+  jpeg_form->addRow(QString(), jpeg_optimize);
   controls->addWidget(jpeg_group);
 
   // WebP settings.
@@ -1954,10 +1917,10 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
                                                   QStringLiteral("webExportWebpQualitySlider"),
                                                   QStringLiteral("webExportWebpQualitySpin"), 0, 100,
                                                   settings.webp_quality, QString(), kQualitySpinWidth);
-  add_quality_presets(webp_quality, "webExportWebpQualityPresetCombo");
+  add_quality_presets(webp_quality, "webExportWebpQualityPresets");
   auto* webp_lossless = new QCheckBox(QObject::tr("Lossless (larger file)"), webp_group);
   webp_lossless->setObjectName(QStringLiteral("webExportWebpLosslessCheck"));
-  webp_form->addRow(webp_lossless);
+  webp_form->addRow(QString(), webp_lossless);
   controls->addWidget(webp_group);
 
   // AVIF and JPEG XL settings (slow encoders: a note says so).
@@ -1967,7 +1930,7 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
                             parent);
     note->setWordWrap(true);
     set_themed_style(*note, QStringLiteral("color: @hint_text;"));
-    form->addRow(note);
+    form->addRow(QString(), note);
   };
   auto* avif_group = make_group(&dialog, QObject::tr("AVIF settings"), "webExportAvifGroup");
   auto* avif_form = make_form(avif_group);
@@ -1975,19 +1938,18 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
                                                   QStringLiteral("webExportAvifQualitySlider"),
                                                   QStringLiteral("webExportAvifQualitySpin"), 0, 100,
                                                   settings.avif_quality, QString(), kQualitySpinWidth);
-  add_quality_presets(avif_quality, "webExportAvifQualityPresetCombo");
+  add_quality_presets(avif_quality, "webExportAvifQualityPresets");
   auto* avif_speed = new QSpinBox(avif_group);
   avif_speed->setObjectName(QStringLiteral("webExportAvifSpeedSpin"));
   avif_speed->setRange(0, 10);
   avif_speed->setValue(settings.avif_speed);
   avif_speed->setToolTip(QObject::tr("Lower speed makes smaller files and takes longer to save."));
   configure_dialog_spinbox(avif_speed, 76);
-  // Speed and JPEG XL's Effort are the same width (GitHub issue 571).
-  avif_speed->setFixedWidth(ui_text_length(76));
+  with_step_buttons(avif_speed);
   avif_form->addRow(QObject::tr("Speed:"), avif_speed);
   auto* avif_lossless = new QCheckBox(QObject::tr("Lossless (larger file)"), avif_group);
   avif_lossless->setObjectName(QStringLiteral("webExportAvifLosslessCheck"));
-  avif_form->addRow(avif_lossless);
+  avif_form->addRow(QString(), avif_lossless);
   add_slow_note(avif_form, avif_group);
   avif_group->setVisible(false);
   controls->addWidget(avif_group);
@@ -1998,18 +1960,18 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
                                                  QStringLiteral("webExportJxlQualitySlider"),
                                                  QStringLiteral("webExportJxlQualitySpin"), 1, 100,
                                                  settings.jxl_quality, QString(), kQualitySpinWidth);
-  add_quality_presets(jxl_quality, "webExportJxlQualityPresetCombo");
+  add_quality_presets(jxl_quality, "webExportJxlQualityPresets");
   auto* jxl_effort = new QSpinBox(jxl_group);
   jxl_effort->setObjectName(QStringLiteral("webExportJxlEffortSpin"));
   jxl_effort->setRange(1, 9);
   jxl_effort->setValue(settings.jxl_effort);
   jxl_effort->setToolTip(QObject::tr("Higher effort makes smaller files and takes longer to save."));
   configure_dialog_spinbox(jxl_effort, 76);
-  jxl_effort->setFixedWidth(ui_text_length(76));
+  with_step_buttons(jxl_effort);
   jxl_form->addRow(QObject::tr("Effort:"), jxl_effort);
   auto* jxl_lossless = new QCheckBox(QObject::tr("Lossless (larger file)"), jxl_group);
   jxl_lossless->setObjectName(QStringLiteral("webExportJxlLosslessCheck"));
-  jxl_form->addRow(jxl_lossless);
+  jxl_form->addRow(QString(), jxl_lossless);
   add_slow_note(jxl_form, jxl_group);
   jxl_group->setVisible(false);
   controls->addWidget(jxl_group);
@@ -2031,7 +1993,7 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   auto* png_note = new QLabel(QObject::tr("Full color, lossless. Transparency is kept."), png_group);
   png_note->setObjectName(QStringLiteral("webExportPngNote"));
   png_note->setWordWrap(true);
-  png_form->addRow(png_note);
+  png_form->addRow(QString(), png_note);
   auto* png_palette_box = new QWidget(png_group);
   png_palette_box->setObjectName(QStringLiteral("webExportPngPaletteBox"));
   auto* png_palette_form = new QFormLayout(png_palette_box);
@@ -2043,12 +2005,15 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   const auto png_rows = add_palette_rows(png_palette_form, png_palette_box, QStringLiteral("webExportPng"),
                                          settings.png_colors, settings.png_dither, settings.png_dither_amount);
   png_form->addRow(png_palette_box);
+  for (auto* spin : {static_cast<QAbstractSpinBox*>(png_rows.colors), static_cast<QAbstractSpinBox*>(png_rows.amount)}) {
+    with_step_buttons(spin);
+  }
   auto* png_animation_note =
       new QLabel(QObject::tr("An animated PNG is written in full color; the palette applies to still images."), png_group);
   png_animation_note->setObjectName(QStringLiteral("webExportPngAnimationNote"));
   png_animation_note->setWordWrap(true);
   set_themed_style(*png_animation_note, QStringLiteral("color: @hint_text;"));
-  png_form->addRow(png_animation_note);
+  png_form->addRow(QString(), png_animation_note);
   controls->addWidget(png_group);
 
   // GIF settings.
@@ -2056,6 +2021,9 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   auto* gif_form = make_form(gif_group);
   const auto gif_rows = add_palette_rows(gif_form, gif_group, QStringLiteral("webExportGif"), settings.gif_colors,
                                          settings.gif_dither, settings.gif_dither_amount);
+  for (auto* spin : {static_cast<QAbstractSpinBox*>(gif_rows.colors), static_cast<QAbstractSpinBox*>(gif_rows.amount)}) {
+    with_step_buttons(spin);
+  }
   controls->addWidget(gif_group);
 
   // Animation, built from the same helper as the Export > Layers as Animated ... dialogs:
@@ -2120,14 +2088,14 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   controls->addWidget(animation_group);
 
   // Transparency, built from the same helper as the Export section's group: Keep transparent
-  // or Fill with the one background color. JPEG has no alpha, so it always fills and only the
-  // color shows.
+  // or Fill with the one background color. JPEG has no alpha, so it always fills: Keep
+  // transparent stays in sight, disabled, with Fill with selected (GitHub issue 571).
   auto* transparency_group = make_group(&dialog, QObject::tr("Transparency"), "webExportTransparencyGroup");
   auto* transparency_layout = new QVBoxLayout(transparency_group);
   transparency_layout->setContentsMargins(10, 10, 10, 8);
   transparency_layout->setSpacing(4);
   std::function<void()> transparency_changed;
-  const auto transparency = add_transparency_choice(transparency_layout, transparency_group, dialog,
+  auto transparency = add_transparency_choice(transparency_layout, transparency_group, dialog,
                                                     QStringLiteral("webExport"), settings.jpeg_background,
                                                     settings.fill_transparent, /*forced_fill*/ false,
                                                     [&transparency_changed] {
@@ -2136,9 +2104,8 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
                                                       }
                                                     },
                                                     /*one_row*/ true);
-  // JPEG's forced fill reads "Fill with:" like the other formats' radio, and an info mark
-  // after the color carries the explanation as its tooltip.
-  transparency.background_label->setText(QObject::tr("Fill with:"));
+  transparency.keep_shown_when_forced = true;
+  // For JPEG an info mark after the color carries the explanation as its tooltip.
   auto* jpeg_background_info = new QToolButton(transparency.fill_row);
   jpeg_background_info->setObjectName(QStringLiteral("webExportJpegBackgroundInfo"));
   jpeg_background_info->setIcon(themed_glyph_icon(
@@ -2189,27 +2156,32 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   controls->addWidget(transparency_group);
 
   // Image size.
+  // A form like the format sections, so Size, Scale and Resample share the field column
+  // (GitHub issue 571).
   auto* size_group = make_group(&dialog, QObject::tr("Image size"), "webExportSizeGroup");
-  auto* size_grid = new QGridLayout(size_group);
-  size_grid->setContentsMargins(10, 10, 10, 8);
-  size_grid->setHorizontalSpacing(6);
-  size_grid->setVerticalSpacing(6);
-  const auto make_pixels_spin = [&](const char* object_name, int basis) {
-    auto* spin = new UnitIntSpinBox(SpinUnit::Pixels, size_group);
+  auto* size_form = make_form(size_group);
+  const auto make_pixels_spin = [&](const char* object_name, int basis, QWidget* parent) {
+    auto* spin = new UnitIntSpinBox(SpinUnit::Pixels, parent);
     spin->set_context_provider([basis] { return UnitConversionContext{72.0, static_cast<double>(basis)}; });
     spin->setObjectName(QLatin1String(object_name));
     spin->setRange(1, kMaxOutputPixels);
     configure_dialog_spinbox(spin, kSizeSpinWidth);
+    // One "px" after Height instead of a suffix in each field; typed units still convert.
+    spin->setSuffix(QString());
+    with_step_buttons(spin);
     return spin;
   };
-  // One row: "Size: [width] [link] [height]" (GitHub issue 571). The spin goes in right after
-  // its label (insertion order pairs the scrub handle).
-  size_grid->addWidget(new QLabel(QObject::tr("Size:"), size_group), 0, 0);
-  auto* width_spin = make_pixels_spin("webExportWidthSpin", document_size.width());
+  // One row: "Size: [width] [link] [height] px".
+  auto* size_row = new QWidget(size_group);
+  size_row->setObjectName(QStringLiteral("webExportSizeRow"));
+  auto* size_layout = new QHBoxLayout(size_row);
+  size_layout->setContentsMargins(0, 0, 0, 0);
+  size_layout->setSpacing(4);
+  auto* width_spin = make_pixels_spin("webExportWidthSpin", document_size.width(), size_row);
   width_spin->setToolTip(QObject::tr("Width"));
   width_spin->setAccessibleName(QObject::tr("Width"));
-  size_grid->addWidget(width_spin, 0, 1);
-  auto* link = new QToolButton(size_group);
+  size_layout->addWidget(width_spin);
+  auto* link = new QToolButton(size_row);
   link->setObjectName(QStringLiteral("webExportLinkButton"));
   link->setIcon(simple_icon(QStringLiteral("link")));
   link->setIconSize(QSize(18, 18));
@@ -2217,30 +2189,32 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   link->setChecked(true);
   link->setAutoRaise(true);
   link->setToolTip(QObject::tr("Constrain proportions"));
-  size_grid->addWidget(link, 0, 2, Qt::AlignCenter);
-  auto* height_spin = make_pixels_spin("webExportHeightSpin", document_size.height());
+  size_layout->addWidget(link, 0, Qt::AlignCenter);
+  auto* height_spin = make_pixels_spin("webExportHeightSpin", document_size.height(), size_row);
   height_spin->setToolTip(QObject::tr("Height"));
   height_spin->setAccessibleName(QObject::tr("Height"));
-  size_grid->addWidget(height_spin, 0, 3);
-  // Scale and Resample are rows of their own, so their (longer) translated labels never widen
-  // the Size row's label column.
-  auto* scale_row = new QHBoxLayout();
-  scale_row->setSpacing(8);
-  scale_row->addWidget(new QLabel(QObject::tr("Scale:"), size_group));
-  auto* scale_spin = new QDoubleSpinBox(size_group);
+  size_layout->addWidget(height_spin);
+  auto* pixels_label = new QLabel(spin_unit_suffix(SpinUnit::Pixels).trimmed(), size_row);
+  pixels_label->setObjectName(QStringLiteral("webExportSizeUnitLabel"));
+  size_layout->addWidget(pixels_label);
+  size_layout->addStretch(1);
+  size_form->addRow(QObject::tr("Size:"), size_row);
+  auto* scale_row = new QWidget(size_group);
+  auto* scale_layout = new QHBoxLayout(scale_row);
+  scale_layout->setContentsMargins(0, 0, 0, 0);
+  scale_layout->setSpacing(8);
+  auto* scale_spin = new QDoubleSpinBox(scale_row);
   scale_spin->setObjectName(QStringLiteral("webExportScaleSpin"));
   scale_spin->setSuffix(percent_suffix());
   configure_dialog_spinbox(scale_spin, kSizeSpinWidth);
-  scale_row->addWidget(scale_spin);
+  with_step_buttons(scale_spin);
+  scale_layout->addWidget(scale_spin);
   auto* original_size = new QLabel(
-      QObject::tr("of %1 x %2").arg(document_size.width()).arg(document_size.height()), size_group);
+      QObject::tr("of %1 x %2").arg(document_size.width()).arg(document_size.height()), scale_row);
   original_size->setObjectName(QStringLiteral("webExportOriginalSizeLabel"));
   set_themed_style(*original_size, QStringLiteral("color: @hint_text;"));
-  scale_row->addWidget(original_size, 1);
-  size_grid->addLayout(scale_row, 1, 0, 1, 5);
-  auto* resample_row = new QHBoxLayout();
-  resample_row->setSpacing(8);
-  resample_row->addWidget(new QLabel(QObject::tr("Resample:"), size_group));
+  scale_layout->addWidget(original_size, 1);
+  size_form->addRow(QObject::tr("Scale:"), scale_row);
   auto* resample_combo = new QComboBox(size_group);
   resample_combo->setObjectName(QStringLiteral("webExportResampleCombo"));
   resample_combo->addItem(QObject::tr("Smooth"), resample_key(WebExportResample::Smooth));
@@ -2250,12 +2224,10 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   resample_combo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
   resample_combo->setMinimumContentsLength(10);
   fit_combo_popup_to_entries(*resample_combo);
-  resample_row->addWidget(resample_combo, 1);
-  size_grid->addLayout(resample_row, 2, 0, 1, 5);
+  size_form->addRow(QObject::tr("Resample:"), resample_combo);
   auto* trim_check = new QCheckBox(QObject::tr("Trim transparent edges"), size_group);
   trim_check->setObjectName(QStringLiteral("webExportTrimCheck"));
-  size_grid->addWidget(trim_check, 3, 0, 1, 5);
-  size_grid->setColumnStretch(4, 1);
+  size_form->addRow(QString(), trim_check);
   controls->addWidget(size_group);
 
   // Metadata and color.
@@ -2275,7 +2247,7 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   thumbnail_check->setToolTip(QObject::tr(
       "Adds a small preview image (about 5 to 10 KB) that some viewers and file browsers show. Works with every "
       "Metadata choice: with None the file holds only the thumbnail."));
-  metadata_form->addRow(thumbnail_check);
+  metadata_form->addRow(QString(), thumbnail_check);
   QCheckBox* convert_check = nullptr;
   if (non_srgb) {
     const auto profile_name =
@@ -2292,11 +2264,14 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   }
   controls->addWidget(metadata_group);
   controls->addStretch(1);
+  // One label column across the sections, so every field starts at one x (GitHub issue 571).
+  align_form_label_columns({jpeg_form, webp_form, avif_form, jxl_form, png_form, png_palette_form, gif_form,
+                            size_form, metadata_form});
 
   // --- right column: preview ---
   auto* preview_column = new QVBoxLayout();
   preview_column->setSpacing(6);
-  // Panes: the original (Side by side and 2 x 2) left of the result; 2 x 2 adds the result at
+  // Panes: the original (Side by side and 4-up) left of the result; 4-up adds the result at
   // 50% and 25% of the quality below them.
   auto* panes_grid = new QGridLayout();
   panes_grid->setSpacing(10);
@@ -2322,38 +2297,36 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   const std::array<WebExportPane*, 4> panes{main_pane, original_pane, half_pane, quarter_pane};
   preview_column->addLayout(panes_grid, 1);
 
-  // The compare buttons and the zoom controls share a row, or wrap onto two when the dialog
-  // is too narrow for both (WrappingRow): every button keeps its whole text.
-  auto* compare_group = new QWidget(&dialog);
-  compare_group->setObjectName(QStringLiteral("webExportCompareButtons"));
-  auto* view_row = new QHBoxLayout(compare_group);
+  // One row under the preview (GitHub issue 571): "View: Split | Side by side | 4-up |
+  // Result only", then "Zoom: <amount> - + 100% Fit" with Fit at the right edge. It never wraps;
+  // the dialog's minimum width is this row's.
+  auto* view_controls = new QWidget(&dialog);
+  view_controls->setObjectName(QStringLiteral("webExportViewRow"));
+  auto* view_row = new QHBoxLayout(view_controls);
   view_row->setContentsMargins(0, 0, 0, 0);
   view_row->setSpacing(4);
-  view_row->addWidget(new QLabel(QObject::tr("Compare:"), compare_group));
+  view_row->addWidget(new QLabel(QObject::tr("View:"), view_controls));
   auto* compare_buttons = new QButtonGroup(&dialog);
   compare_buttons->setExclusive(true);
   const auto make_compare_button = [&](const QString& text, const char* object_name, WebExportCompare mode) {
-    auto* button = new QPushButton(text, compare_group);
+    auto* button = new QPushButton(text, view_controls);
     button->setObjectName(QLatin1String(object_name));
     button->setCheckable(true);
     button->setFocusPolicy(Qt::NoFocus);
+    button->setAutoDefault(false);
     compare_buttons->addButton(button, static_cast<int>(mode));
     view_row->addWidget(button);
     return button;
   };
   (void)make_compare_button(QObject::tr("Split"), "webExportCompareSplit", WebExportCompare::Split);
   (void)make_compare_button(QObject::tr("Side by side"), "webExportCompareSideBySide", WebExportCompare::SideBySide);
-  (void)make_compare_button(QObject::tr("Result only"), "webExportCompareResult", WebExportCompare::ResultOnly);
-  (void)make_compare_button(QObject::tr("2 x 2"), "webExportCompareQuad", WebExportCompare::Quad)
+  (void)make_compare_button(QObject::tr("4-up"), "webExportCompareQuad", WebExportCompare::Quad)
       ->setToolTip(QObject::tr("The original, the result, and the result at 50% and 25% of the quality"));
+  (void)make_compare_button(QObject::tr("Result only"), "webExportCompareResult", WebExportCompare::ResultOnly);
   view_row->addStretch(1);
-  auto* zoom_group = new QWidget(&dialog);
-  zoom_group->setObjectName(QStringLiteral("webExportZoomControls"));
-  auto* zoom_row = new QHBoxLayout(zoom_group);
-  zoom_row->setContentsMargins(0, 0, 0, 0);
-  zoom_row->setSpacing(4);
-  // Framed push buttons like the compare buttons (GitHub issue 571), so they read as buttons.
-  // No explicit minimum width: a push button never shrinks below its text.
+  view_row->addSpacing(8);
+  view_row->addWidget(new QLabel(QObject::tr("Zoom:"), view_controls));
+  // Framed push buttons like the view buttons, never narrower than their text.
   const auto make_zoom_button = [&dialog](const char* object_name, const QString& text, const QString& tooltip) {
     auto* button = new QPushButton(text, &dialog);
     button->setObjectName(QLatin1String(object_name));
@@ -2363,23 +2336,22 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     button->setFocusPolicy(Qt::NoFocus);
     return button;
   };
-  auto* zoom_fit = make_zoom_button("webExportZoomFit", QObject::tr("Fit"), QObject::tr("Fit the image in the preview"));
-  auto* zoom_100 = make_zoom_button("webExportZoom100", QStringLiteral("100%"),
-                                    QObject::tr("Zoom to 100% (1 image pixel = 1 screen pixel)"));
-  auto* zoom_out = make_zoom_button("webExportZoomOut", QStringLiteral("-"), QObject::tr("Zoom out"));
-  auto* zoom_in = make_zoom_button("webExportZoomIn", QStringLiteral("+"), QObject::tr("Zoom in"));
-  // As wide as the longest text it can show (the zoom stops at 1600%), so it neither jumps
-  // nor clips.
-  auto* zoom_label = new WideLabel(QObject::tr("Fit (%1%)").arg(1600), zoom_group);
+  // The amount, as wide as its longest value (the zoom stops at 1600%) plus a little room.
+  auto* zoom_label = new WideLabel(QStringLiteral("1600%  "), view_controls);
   zoom_label->setObjectName(QStringLiteral("webExportZoomLabel"));
   zoom_label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-  for (auto* button : {zoom_fit, zoom_100, zoom_out, zoom_in}) {
-    button->setParent(zoom_group);
-    zoom_row->addWidget(button);
+  auto* zoom_out = make_zoom_button("webExportZoomOut", QStringLiteral("-"), QObject::tr("Zoom out"));
+  auto* zoom_in = make_zoom_button("webExportZoomIn", QStringLiteral("+"), QObject::tr("Zoom in"));
+  auto* zoom_100 = make_zoom_button("webExportZoom100", QStringLiteral("100%"),
+                                    QObject::tr("Zoom to 100% (1 image pixel = 1 screen pixel)"));
+  auto* zoom_fit = make_zoom_button("webExportZoomFit", QObject::tr("Fit"), QObject::tr("Fit the image in the preview"));
+  // Checked while the preview fits the image.
+  zoom_fit->setCheckable(true);
+  view_row->addWidget(zoom_label);
+  for (auto* button : {zoom_out, zoom_in, zoom_100, zoom_fit}) {
+    button->setParent(view_controls);
+    view_row->addWidget(button);
   }
-  zoom_row->addWidget(zoom_label);
-  auto* view_controls = new WrappingRow(compare_group, zoom_group, 4, &dialog);
-  view_controls->setObjectName(QStringLiteral("webExportViewRow"));
   preview_column->addWidget(view_controls);
 
   // Playback for an animated result (shown only then): Play/Pause, previous and next frame,
@@ -2471,7 +2443,7 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     read.jpeg_progressive = jpeg_progressive->isChecked();
     read.jpeg_optimize = jpeg_optimize->isChecked();
     read.jpeg_background = transparency_choice_color(transparency);
-    read.fill_transparent = transparency.fill->isChecked();
+    read.fill_transparent = transparency_choice_fills(transparency);
     if (const auto* timing = timing_for(read.format)) {
       read.animation_frame_delay_ms = animation_timing_delay_ms(*timing);
     }
@@ -2626,14 +2598,34 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     const auto mode = compare_mode();
     const bool quad = mode == WebExportCompare::Quad;
     const bool with_original = quad || mode == WebExportCompare::SideBySide;
-    original_pane->setVisible(with_original);
-    half_pane->setVisible(quad);
-    quarter_pane->setVisible(quad);
+    // The panes share one minimum area in every view, so switching views never resizes the
+    // dialog (GitHub issue 571: 2 x 2 grew the window past the screen).
+    constexpr int kAreaWidth = 300;
+    constexpr int kAreaHeight = 420;
+    const auto spacing = panes_grid->spacing();
+    const int columns = with_original ? 2 : 1;
+    const int rows = quad ? 2 : 1;
+    const QSize pane_minimum((kAreaWidth - (columns - 1) * spacing) / columns,
+                             (kAreaHeight - (rows - 1) * spacing) / rows);
+    // Showing a pane activates the dialog's layout at once: panes leaving go first, then the
+    // new minimums, and only then the panes this view adds (with the previous view's larger
+    // minimums still set, showing them grew the window).
+    const std::array<std::pair<WebExportPane*, bool>, 3> shown{
+        {{original_pane, with_original}, {half_pane, quad}, {quarter_pane, quad}}};
+    for (const auto& [pane, visible] : shown) {
+      if (!visible) {
+        pane->hide();
+      }
+    }
+    for (auto* pane : panes) {
+      pane->setMinimumSize(pane_minimum);
+    }
     panes_grid->setColumnStretch(0, with_original ? 1 : 0);
     panes_grid->setRowStretch(1, quad ? 1 : 0);
-    // Four tiles share the room two panes have in the other modes.
-    for (auto* pane : panes) {
-      pane->setMinimumSize(quad ? QSize(240, 200) : QSize(300, 420));
+    for (const auto& [pane, visible] : shown) {
+      if (visible) {
+        pane->show();
+      }
     }
     main_pane->set_content(mode == WebExportCompare::Split ? WebExportPane::Content::Split
                                                            : WebExportPane::Content::Result);
@@ -2768,6 +2760,32 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     }
   };
 
+  // The spinner turns only while what the preview shows is still encoding: the selected
+  // format's result and, in 4-up, its two tiles. Other rows encode quietly in the background
+  // (GitHub issue 571: it kept turning after the shown result was done).
+  const auto shown_results_pending = [&] {
+    const auto current = read_settings();
+    const auto pending = [&](const WebExportJob& job) {
+      return !engine.cached(job.signature).has_value() && !errors.contains(job.signature);
+    };
+    if (pending(web_export_job(current, current.format, document_size))) {
+      return true;
+    }
+    if (compare_mode() == WebExportCompare::Quad) {
+      for (const auto& [pane, job] : variant_jobs(current)) {
+        if (job.has_value() && pending(*job)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+  const auto refresh_busy = [&] {
+    const bool active = shown_results_pending();
+    busy->set_active(active);
+    busy->setProperty("webExportBusy", active);
+  };
+
   const auto show_result = [&] {
     const auto current = read_settings();
     const auto format = current.format;
@@ -2845,8 +2863,8 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
                                                  : QObject::tr("Encoding %1...").arg(format_label));
     }
     main_pane->setProperty("webExportShowsCurrent", cached.has_value());
-    busy->set_active(engine.busy() || !cached.has_value());
     show_variants();
+    refresh_busy();
   };
 
   auto* debounce = new QTimer(&dialog);
@@ -2891,7 +2909,7 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     if (job.signature == current_job.signature) {
       if (!result.error.isEmpty()) {
         info_label->setText(QObject::tr("Encoding failed: %1").arg(result.error));
-        busy->set_active(false);
+        refresh_busy();
         if (accepting) {
           accepting = false;
           save_button->setEnabled(true);
@@ -2906,7 +2924,7 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     } else if (compare_mode() == WebExportCompare::Quad) {
       show_variants();
     }
-    busy->set_active(engine.busy() || !engine.cached(current_job.signature).has_value());
+    refresh_busy();
   });
 
   std::function<void()> refresh_preset_selection;
@@ -2933,8 +2951,7 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     jpeg_progressive->setChecked(values.jpeg_progressive);
     jpeg_optimize->setChecked(values.jpeg_optimize);
     set_transparency_choice_color(transparency, values.jpeg_background);
-    transparency.fill->setChecked(values.fill_transparent);
-    transparency.keep->setChecked(!values.fill_transparent);
+    set_transparency_choice_fills(transparency, values.fill_transparent);
     for (const auto& row : animation_rows) {
       set_animation_timing_delay_ms(row.timing, values.animation_frame_delay_ms);
     }
@@ -3211,8 +3228,9 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   // Zoom: the main pane drives; side by side keeps the two panes in step.
   const auto refresh_zoom_label = [&] {
     const auto percent = main_pane->property("previewZoomPercent").toInt();
-    zoom_label->setText(main_pane->fit_mode() ? QObject::tr("Fit (%1%)").arg(percent)
-                                              : QStringLiteral("%1%").arg(percent));
+    zoom_label->setText(QStringLiteral("%1%").arg(percent));
+    const QSignalBlocker block(zoom_fit);
+    zoom_fit->setChecked(main_pane->fit_mode());
   };
   bool syncing_view = false;
   const auto sync_view = [&](WebExportPane* from) {
@@ -3236,7 +3254,11 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
       sync_view(pane);
     });
   }
-  QObject::connect(zoom_fit, &QPushButton::clicked, &dialog, [&] { main_pane->zoom_to_fit(); });
+  QObject::connect(zoom_fit, &QPushButton::clicked, &dialog, [&] {
+    main_pane->zoom_to_fit();
+    // A click on a checked Fit leaves it checked: the preview still fits.
+    refresh_zoom_label();
+  });
   QObject::connect(zoom_100, &QPushButton::clicked, &dialog, [&] { main_pane->zoom_to(1.0); });
   QObject::connect(zoom_out, &QPushButton::clicked, &dialog, [&] { main_pane->zoom_step(-1); });
   QObject::connect(zoom_in, &QPushButton::clicked, &dialog, [&] { main_pane->zoom_step(1); });
@@ -3280,9 +3302,20 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
       spin->setProperty("webExportNoSpinButtons", true);
     }
   }
+  // Fields with the - and + buttons: the edit area already stops at the + button, so the right
+  // padding only clears the - button (as Preferences > Interface scale).
   append_themed_style(dialog, ThemedQss(QStringLiteral(
                                   "QSpinBox[webExportNoSpinButtons=\"true\"], "
-                                  "QDoubleSpinBox[webExportNoSpinButtons=\"true\"] { padding-right: 6px; }")));
+                                  "QDoubleSpinBox[webExportNoSpinButtons=\"true\"] { padding-right: 6px; }\n"
+                                  "QSpinBox[webExportStepSpin=\"true\"], "
+                                  "QDoubleSpinBox[webExportStepSpin=\"true\"] { padding-right: 30px; }\n"
+                                  // - and + of one width.
+                                  "QPushButton#webExportZoomOut, QPushButton#webExportZoomIn "
+                                  "{ min-width: 16px; max-width: 16px; }\n")) +
+                                  spin_presets_button_style());
+  // The info line keeps room for two lines, so "Encoding..." turning into the longer result
+  // line does not grow a dialog at its minimum size.
+  info_label->setMinimumHeight(2 * info_label->fontMetrics().lineSpacing());
   // A wheel over an unfocused combo box, spin box or slider in the settings column scrolls
   // the column (GitHub issue 92's guard; it also covers controls shown later).
   install_wheel_scroll_guard(dialog);
@@ -3297,6 +3330,33 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     size = size.boundedTo(screen->availableGeometry().size());
   }
   dialog.resize(size);
+  // Widths that need the polished style sheet, measured once the dialog shows (its children
+  // are polished by then): Speed and Effort one width, and the settings column as wide as its
+  // widest section needs (fields with their - and + buttons), from 328 (GitHub issue 571's
+  // narrower column) up to the first design's 410. A first open then shrinks to the new minimum.
+  const bool first_open = !app_settings().contains(QLatin1String(kDialogSizeKey));
+  OnFirstShow measure_on_show(dialog, [&] {
+    // The groups of the other formats are still hidden: polish them too before measuring.
+    for (auto* child : controls_widget->findChildren<QWidget*>()) {
+      child->ensurePolished();
+    }
+    for (auto* layout : controls_widget->findChildren<QLayout*>()) {
+      layout->invalidate();
+    }
+    const auto step_width = std::max(avif_speed->sizeHint().width(), jxl_effort->sizeHint().width());
+    avif_speed->setMinimumWidth(step_width);
+    jxl_effort->setMinimumWidth(step_width);
+    int needed = preset_row->sizeHint().width();
+    for (auto* group : controls_widget->findChildren<QGroupBox*>(Qt::FindDirectChildrenOnly)) {
+      needed = std::max(needed, group->sizeHint().width());
+    }
+    needed += controls_scroll->verticalScrollBar()->sizeHint().width() + 2 * controls_scroll->frameWidth() + 2;
+    controls_scroll->setFixedWidth(std::clamp(needed, ui_text_length(328), ui_text_length(410)));
+    dialog.layout()->activate();
+    if (first_open) {
+      dialog.resize(dialog.minimumSizeHint().expandedTo(dialog.minimumSize()));
+    }
+  });
   request_encodes();
 
   const auto code = exec_dialog(dialog);

@@ -13185,10 +13185,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>sRGB, nessun profilo necessario</translation>
     </message>
     <message>
-        <source>Compare:</source>
-        <translation>Confronta:</translation>
-    </message>
-    <message>
         <source>Split</source>
         <translation>Diviso</translation>
     </message>
@@ -14534,10 +14530,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Includi miniatura</translation>
     </message>
     <message>
-        <source>2 x 2</source>
-        <translation>2 x 2</translation>
-    </message>
-    <message>
         <source>The original, the result, and the result at 50% and 25% of the quality</source>
         <translation>L&apos;originale, il risultato e il risultato al 50% e al 25% della qualità</translation>
     </message>
@@ -14548,6 +14540,14 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>%1, %2</source>
         <translation>%1, %2</translation>
+    </message>
+    <message>
+        <source>View:</source>
+        <translation>Vista:</translation>
+    </message>
+    <message>
+        <source>4-up</source>
+        <translation>4 viste</translation>
     </message>
 </context>
 <context>

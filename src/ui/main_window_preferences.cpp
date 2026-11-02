@@ -643,32 +643,14 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
       tr("Type any whole percent from %1 to %2, use the - and + buttons, or pick a preset from the list.")
           .arg(kMinGuiScalePercent)
           .arg(kMaxGuiScalePercent));
-  auto* gui_scale_presets_button = new QToolButton(scale_row);
-  gui_scale_presets_button->setObjectName(QStringLiteral("preferencesGuiScalePresetsButton"));
-  gui_scale_presets_button->setPopupMode(QToolButton::InstantPopup);
-  gui_scale_presets_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
-  gui_scale_presets_button->setIcon(themed_svg_icon(QStringLiteral("chevron-down")));
-  gui_scale_presets_button->setToolTip(tr("Interface scale presets"));
-  gui_scale_presets_button->setAccessibleName(tr("Interface scale presets"));
-  auto* gui_scale_presets_menu = new QMenu(gui_scale_presets_button);
-  gui_scale_presets_menu->setObjectName(QStringLiteral("preferencesGuiScalePresetsMenu"));
-  for (const int percent : kGuiScalePresetPercents) {
-    auto* action = gui_scale_presets_menu->addAction(gui_scale_text(percent));
-    action->setData(percent);
-    action->setCheckable(true);
-    connect(action, &QAction::triggered, gui_scale_spin, [gui_scale_spin, percent] {
-      gui_scale_spin->setValue(percent);
-    });
-  }
   // The preset the field holds is ticked; a typed value off the list ticks none.
-  connect(gui_scale_presets_menu, &QMenu::aboutToShow, gui_scale_spin,
-          [gui_scale_spin, gui_scale_presets_menu] {
-            gui_scale_spin->interpretText();
-            for (auto* action : gui_scale_presets_menu->actions()) {
-              action->setChecked(action->data().toInt() == gui_scale_spin->value());
-            }
-          });
-  gui_scale_presets_button->setMenu(gui_scale_presets_menu);
+  std::vector<SpinPreset> gui_scale_presets;
+  for (const int percent : kGuiScalePresetPercents) {
+    gui_scale_presets.push_back({gui_scale_text(percent), percent});
+  }
+  auto* gui_scale_presets_button = make_spin_presets_button(
+      gui_scale_spin, scale_row, QStringLiteral("preferencesGuiScalePresetsButton"),
+      QStringLiteral("preferencesGuiScalePresetsMenu"), tr("Interface scale presets"), gui_scale_presets);
 
   // The tool palette's icons and buttons on top of the interface scale, as named steps
   // (a second percentage beside the first would read as the same setting). Applied live
@@ -2221,26 +2203,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     QDialog#patchyPreferencesDialog QSpinBox#preferencesUiTextSizeSpin {
       padding-right: 30px;
     }
-    /* The interface-scale presets drop-down: a field-faced chevron button as tall as the
-       scale field beside it. */
-    QDialog#patchyPreferencesDialog QToolButton#preferencesGuiScalePresetsButton {
-      background: @field_bg;
-      border: 1px solid @field_inset_border;
-      border-top-color: @field_bevel_top;
-      border-radius: 0;
-      padding: 0;
-      min-width: 16px;
-      max-width: 16px;
-      min-height: 24px;
-    }
-    QDialog#patchyPreferencesDialog QToolButton#preferencesGuiScalePresetsButton:hover {
-      border-color: @button_hover_border;
-    }
-    QDialog#patchyPreferencesDialog QToolButton#preferencesGuiScalePresetsButton::menu-indicator {
-      image: none;
-      width: 0;
-    }
-  )")) + dialog_spinbox_button_style());
+  )")) + dialog_spinbox_button_style() + spin_presets_button_style());
   keep_preferences_fields_compact(*page_stack);
   move_form_gaps_into_labels(*page_stack);
 

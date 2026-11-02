@@ -13185,10 +13185,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>sRGB, kein Profil nötig</translation>
     </message>
     <message>
-        <source>Compare:</source>
-        <translation>Vergleichen:</translation>
-    </message>
-    <message>
         <source>Split</source>
         <translation>Geteilt</translation>
     </message>
@@ -14534,10 +14530,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Miniatur einschließen</translation>
     </message>
     <message>
-        <source>2 x 2</source>
-        <translation>2 x 2</translation>
-    </message>
-    <message>
         <source>The original, the result, and the result at 50% and 25% of the quality</source>
         <translation>Das Original, das Ergebnis und das Ergebnis bei 50 % und 25 % der Qualität</translation>
     </message>
@@ -14548,6 +14540,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>%1, %2</source>
         <translation>%1, %2</translation>
+    </message>
+    <message>
+        <source>View:</source>
+        <translation>Ansicht:</translation>
+    </message>
+    <message>
+        <source>4-up</source>
+        <translation>4-fach</translation>
     </message>
 </context>
 <context>

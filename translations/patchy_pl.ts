@@ -13220,10 +13220,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>sRGB, profil niepotrzebny</translation>
     </message>
     <message>
-        <source>Compare:</source>
-        <translation>Porównaj:</translation>
-    </message>
-    <message>
         <source>Split</source>
         <translation>Podzielony</translation>
     </message>
@@ -14578,10 +14574,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Dołącz miniaturę</translation>
     </message>
     <message>
-        <source>2 x 2</source>
-        <translation>2 x 2</translation>
-    </message>
-    <message>
         <source>The original, the result, and the result at 50% and 25% of the quality</source>
         <translation>Oryginał, wynik i wynik przy 50% i 25% jakości</translation>
     </message>
@@ -14592,6 +14584,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>%1, %2</source>
         <translation>%1, %2</translation>
+    </message>
+    <message>
+        <source>View:</source>
+        <translation>Widok:</translation>
+    </message>
+    <message>
+        <source>4-up</source>
+        <translation>4 widoki</translation>
     </message>
 </context>
 <context>
