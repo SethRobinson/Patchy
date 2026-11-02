@@ -29,6 +29,7 @@
 // happens to find its own mangled name again.
 #include "core/document.hpp"
 #include "formats/acv_curves_io.hpp"
+#include "formats/photoshop_adjustment_presets.hpp"
 #include "formats/af_document_io.hpp"
 #include "formats/aseprite_document_io.hpp"
 #include "formats/bmp_document_io.hpp"
@@ -258,6 +259,34 @@ void unicode_path_flat_format_file_io_round_trips() {
   patchy::acv::write_file(acv_path, curves);
   written.push_back(acv_path);
   CHECK(patchy::acv::read_file(acv_path) == curves);
+
+  const auto ahu_path = named(dir, kUnicodeCombinedStem, ".ahu");
+  patchy::HueSaturationAdjustment hue_saturation;
+  hue_saturation.hue_shift = 25;
+  hue_saturation.bands[2].saturation_delta = -30;
+  patchy::ahu::write_file(ahu_path, hue_saturation);
+  written.push_back(ahu_path);
+  {
+    const auto reread = patchy::ahu::read_file(ahu_path);
+    CHECK(reread.hue_shift == 25);
+    CHECK(reread.bands[2].saturation_delta == -30);
+  }
+
+  const auto alv_path = named(dir, kUnicodeCombinedStem, ".alv");
+  patchy::LevelsAdjustment levels;
+  levels.black_input = 20;
+  levels.gamma_percent = 130;
+  patchy::alv::write_file(alv_path, levels);
+  written.push_back(alv_path);
+  CHECK(patchy::alv::read_file(alv_path) == levels);
+
+  const auto blw_path = named(dir, kUnicodeCombinedStem, ".blw");
+  patchy::BlackWhiteAdjustment black_white;
+  black_white.reds = 75;
+  black_white.tint = true;
+  patchy::blw::write_file(blw_path, black_white);
+  written.push_back(blw_path);
+  CHECK(patchy::blw::read_file(blw_path) == black_white);
 
   const auto gpl_path = named(dir, kUnicodeCombinedStem, ".gpl");
   const std::array<patchy::RgbColor, 3> colors = {{{1, 2, 3}, {4, 5, 6}, {250, 251, 252}}};

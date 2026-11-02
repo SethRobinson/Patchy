@@ -7,6 +7,7 @@
 #include "core/layer_tree.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/curves_editor.hpp"
+#include "ui/adjustment_presets.hpp"
 #include "ui/curves_presets.hpp"
 #include "ui/filter_workflows.hpp"
 #include "core/document_depth.hpp"
@@ -669,8 +670,10 @@ void ui_levels_dialog_channel_tabs_tint_the_histogram() {
     CHECK(dialog->findChild<QComboBox*>(QStringLiteral("levelsChannelCombo")) == nullptr);
     CHECK(tabs->currentIndex() == 0);
 
-    const auto graph_rect = QRect(0, 0, graph->width(), graph->height()).adjusted(8, 8, -8, -28);
+    // The graph's rect at the time of each read: the dialog may still settle its layout
+    // after the first pass.
     const auto bar_pixel = [&](int bin) {
+      const auto graph_rect = QRect(0, 0, graph->width(), graph->height()).adjusted(8, 8, -8, -28);
       const auto column = graph_rect.left() + (bin * graph_rect.width()) / 256;
       return graph->grab().toImage().pixelColor(column, graph_rect.bottom() - 2);
     };
@@ -2972,18 +2975,18 @@ void ui_curves_acv_load_save_updates_editor_and_preview() {
   QTimer::singleShot(0, [&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyCurvesDialog")));
     CHECK(dialog != nullptr);
-    auto* load = dialog->findChild<QPushButton*>(QStringLiteral("curvesLoadPresetButton"));
-    auto* save = dialog->findChild<QPushButton*>(QStringLiteral("curvesSavePresetButton"));
+    auto* load = dialog->findChild<QPushButton*>(QStringLiteral("curvesImportPresetButton"));
+    auto* save = dialog->findChild<QPushButton*>(QStringLiteral("curvesExportPresetButton"));
     auto* editor = dialog->findChild<patchy::ui::CurvesEditorWidget*>(QStringLiteral("curvesEditor"));
     CHECK(load != nullptr);
     CHECK(save != nullptr);
     CHECK(editor != nullptr);
-    CHECK(load->text() == QStringLiteral("Load..."));
-    CHECK(save->text() == QStringLiteral("Save..."));
+    CHECK(load->text() == QStringLiteral("Import..."));
+    CHECK(save->text() == QStringLiteral("Export..."));
 
     QTimer::singleShot(0, [&] {
       auto* file_dialog = qobject_cast<QFileDialog*>(
-          find_top_level_dialog(QStringLiteral("curvesPresetOpenFileDialog")));
+          find_top_level_dialog(QStringLiteral("curvesPresetImportFileDialog")));
       CHECK(file_dialog != nullptr);
       CHECK(file_dialog->nameFilters().contains(QStringLiteral("Photoshop Curves Preset (*.acv)")));
       saw_load_dialog = true;
@@ -2995,7 +2998,7 @@ void ui_curves_acv_load_save_updates_editor_and_preview() {
 
     QTimer::singleShot(0, [&] {
       auto* file_dialog = qobject_cast<QFileDialog*>(
-          find_top_level_dialog(QStringLiteral("curvesPresetSaveFileDialog")));
+          find_top_level_dialog(QStringLiteral("curvesPresetExportFileDialog")));
       CHECK(file_dialog != nullptr);
       saw_save_dialog = true;
       file_dialog->selectFile(output_without_suffix);
@@ -3022,6 +3025,11 @@ void ui_curves_acv_load_save_updates_editor_and_preview() {
   CHECK(preview_curves == expected);
   CHECK(QFileInfo::exists(output_path));
   CHECK(patchy::acv::read_file(patchy::ui::to_filesystem_path(output_path)) == expected);
+  // Import also kept the file as a user preset, named after it.
+  const auto imported = patchy::ui::user_adjustment_preset_path(patchy::ui::AdjustmentPresetKind::Curves,
+                                                                QStringLiteral("ui-curves-load"));
+  CHECK(QFileInfo::exists(imported));
+  QFile::remove(imported);
 }
 
 void ui_curves_dialog_preview_toggle_and_cancel_restore_pixels() {
@@ -4042,7 +4050,7 @@ void ui_color_balance_dialog_tone_selector_edits_each_range() {
   QTimer::singleShot(0, [&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyColorBalanceDialog")));
     CHECK(dialog != nullptr);
-    auto* tone = dialog->findChild<QComboBox*>(QStringLiteral("colorBalanceToneCombo"));
+    auto* tone = dialog->findChild<QTabBar*>(QStringLiteral("colorBalanceToneTabs"));
     auto* preserve = dialog->findChild<QCheckBox*>(QStringLiteral("colorBalancePreserveLuminosityCheck"));
     auto* cyan_red = dialog->findChild<QSpinBox*>(QStringLiteral("colorBalanceCyanRedSpin"));
     auto* magenta_green = dialog->findChild<QSpinBox*>(QStringLiteral("colorBalanceMagentaGreenSpin"));
@@ -4288,6 +4296,76 @@ void set_spin(QDialog& dialog, const char* name, int value) {
   if (spin != nullptr) {
     spin->setValue(value);
   }
+}
+
+// "Only Master works" (#588): a hue-range edit previews on the layer while the dialog is
+// open, and OK changes the layer's pixels (no adjustment layer), exactly as an adjustment
+// layer with the same settings renders. Color Balance takes the same route (#591).
+void ui_hue_saturation_range_edits_preview_and_apply_to_pixels() {
+  {
+    patchy::Document source(32, 24, patchy::PixelFormat::rgba8());
+    source.add_pixel_layer("Paint", solid_pixels(32, 24, patchy::PixelFormat::rgba8(), QColor(220, 40, 40)));
+    patchy::ui::MainWindow window;
+    window.add_document_session(std::move(source), QStringLiteral("Reds"));
+    show_window(window);
+    auto& document = patchy::ui::MainWindowTestAccess::document(window);
+    const auto original = std::as_const(document).layers().front().pixels();
+    bool saw_preview = false;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyHueSaturationDialog")));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      auto* range = dialog->findChild<QComboBox*>(QStringLiteral("hueSaturationRangeCombo"));
+      CHECK(range != nullptr);
+      if (range != nullptr) {
+        range->setCurrentIndex(1);  // Reds
+      }
+      set_spin(*dialog, "hueSaturationHueSpin", 120);
+      saw_preview = process_events_until(
+          [&] {
+            const auto* pixel = std::as_const(document).layers().front().pixels().pixel(5, 5);
+            return pixel[1] > pixel[0];
+          },
+          3000);
+      dialog->accept();
+    });
+    require_action(window, "imageAdjustHueSaturationAction")->trigger();
+    QApplication::processEvents();
+    CHECK(saw_preview);
+    CHECK(std::as_const(document).layers().size() == 1);
+    const auto* pixel = std::as_const(document).layers().front().pixels().pixel(5, 5);
+    CHECK(pixel[1] > pixel[0]);
+    CHECK(!patchy::ui::pixel_buffers_equal(std::as_const(document).layers().front().pixels(), original));
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == 1);
+  }
+
+  check_direct_adjustment_matches_layer({"imageAdjustHueSaturationAction", "layerNewHueSaturationAdjustmentAction",
+                                         "patchyHueSaturationDialog", [](QDialog& dialog) {
+                                           auto* range = dialog.findChild<QComboBox*>(
+                                               QStringLiteral("hueSaturationRangeCombo"));
+                                           CHECK(range != nullptr);
+                                           if (range == nullptr) {
+                                             return;
+                                           }
+                                           range->setCurrentIndex(1);
+                                           set_spin(dialog, "hueSaturationHueSpin", -40);
+                                           set_spin(dialog, "hueSaturationSaturationSpin", 30);
+                                           range->setCurrentIndex(5);
+                                           set_spin(dialog, "hueSaturationLightnessSpin", -20);
+                                         }});
+  check_direct_adjustment_matches_layer({"imageAdjustColorBalanceAction", "layerNewColorBalanceAdjustmentAction",
+                                         "patchyColorBalanceDialog", [](QDialog& dialog) {
+                                           set_spin(dialog, "colorBalanceCyanRedSpin", 35);
+                                           auto* tabs = dialog.findChild<QTabBar*>(
+                                               QStringLiteral("colorBalanceToneTabs"));
+                                           CHECK(tabs != nullptr);
+                                           if (tabs != nullptr) {
+                                             tabs->setCurrentIndex(0);
+                                           }
+                                           set_spin(dialog, "colorBalanceYellowBlueSpin", -25);
+                                         }});
 }
 
 void set_double_spin(QDialog& dialog, const char* name, double value) {
@@ -4785,6 +4863,8 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
       {"ui_histogram_display_ceiling_is_four_times_the_mean_non_empty_bin",
        ui_histogram_display_ceiling_is_four_times_the_mean_non_empty_bin},
       {"ui_hue_saturation_dialog_adjusts_selected_pixels", ui_hue_saturation_dialog_adjusts_selected_pixels},
+      {"ui_hue_saturation_range_edits_preview_and_apply_to_pixels",
+       ui_hue_saturation_range_edits_preview_and_apply_to_pixels},
       {"ui_hue_saturation_creates_masked_adjustment_layer", ui_hue_saturation_creates_masked_adjustment_layer},
       {"ui_adjustment_layer_inserts_above_selection_with_white_mask",
        ui_adjustment_layer_inserts_above_selection_with_white_mask},

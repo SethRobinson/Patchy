@@ -1,0 +1,35 @@
+# Adjustment dialog presets
+
+Shipped presets, the user's own presets, and the dialog layout of the Hue/Saturation, Levels, Curves, Color Balance and Black & White dialogs (#588, #589, #591, #592, #528). Code: `src/ui/adjustment_presets.{hpp,cpp}` (store, shipped Hue/Saturation and Levels presets, `AdjustmentPresetButtons`), `src/ui/adjustment_dialogs.cpp` (dialogs, `AdjustmentPresetCombo`, `GradientTrackSlider`), `src/formats/photoshop_adjustment_presets.{hpp,cpp}` (.ahu, .alv, .blw). Curves presets: `src/ui/curves_presets.cpp`; Black & White presets: `builtin_black_white_presets` ([adjustment-kinds.md](adjustment-kinds.md)).
+
+## User presets
+
+- One file per preset in the kind's Photoshop format, named after the preset, in `<app data>/adjustment-presets/<folder>`. Folder names are permanent: `hue-saturation` (.ahu), `levels` (.alv), `curves` (.acv), `black-white` (.blw). `PATCHY_ADJUSTMENT_PRESETS_DIR` replaces the root; the UI suite points it at `test-artifacts/adjustment-presets/<pid>`.
+- `user_adjustment_preset_path` turns a name into a file name: `<>:"/\|?*` and control characters become `_`, surrounding spaces and dots go, Windows device names get a leading `_`. The list is the folder's files of that suffix, sorted case-insensitively; a file that does not read is left out.
+- `AdjustmentPresetButtons` (Save..., Delete, Import..., Export...; object names `<prefix>SavePresetButton` and so on): Save asks for a name (`adjustmentPresetNameDialog`) and asks before replacing; Delete asks first and is enabled only on a user preset; Import checks the file, then copies its bytes into the folder under the file's name (a number is added on a clash) through `write_file_bytes_atomically` and applies it; Export writes the current settings. Arrangements: a row (Hue/Saturation), a column (Levels, Black & White), a 2x2 grid (Curves).
+- A just-saved or imported preset stays selected while the settings equal it, even when a shipped preset holds the same values; otherwise shipped presets win the match.
+
+## Formats
+
+The three new files hold exactly the PSD adjustment block payload, so they share the PSD codec ([psd-layer-blocks.md](psd-layer-blocks.md#adjustment-presets)). Verified on Photoshop 2026 over COM: its `Lvls`, `HStr` and `BanW` events with `presetKindCustom` and a `Usng` path applied Patchy's exported files (and a 100-byte .ahu without the trailer); on five probe colors per file Photoshop's result was within 1 level of Patchy's (November 2, 2026). Photoshop has no scripted way to save a preset, so the read fixtures in `local-test-fixtures/adjustment-presets/` are block payloads Photoshop wrote into a PSD; see its README.
+
+## Shipped presets
+
+Names and values are Patchy's own; none repeats a Photoshop preset's values (checked against the values known to overlap, never by opening Photoshop's preset files; [legal-licensing.md](legal-licensing.md)). Ids are permanent.
+
+- Hue/Saturation (`builtin_hue_saturation_presets`): `hue_saturation.default`; colorize `sepia_wash` (32, 28, 0), `blueprint` (200, 40, 0), `golden_mono` (42, 45, 0), `moonlight` (222, 30, -5); master `faded_film`, `warm_vintage`, `vivid_film`, `soft_pastel`, `cool_shift`, `warm_shift`; one range each `warm_skin` (Reds), `autumn_leaves` (Greens), `aqua_skies` (Blues), `deep_ocean` (Cyans). A range preset switches Edit to its range.
+- Levels (`builtin_levels_presets`): `levels.default`, `brighten_slightly`/`medium`/`strong` (gamma 1.10, 1.30, 1.55), `darken_slightly`/`medium`/`strong` (0.90, 0.80, 0.65), `slight_contrast`, `medium_contrast`, `strong_contrast`, `dramatic_contrast`, `deep_blacks`, `crushed_blacks`, `brilliant_whites`, `silhouette`, and with output levels `faded_light`/`medium`/`strong`, `matte`, `washed_out`. Matching ignores the channel tab.
+- The Preset combo (Hue/Saturation, Levels) lists Custom (selected when nothing matches), the shipped presets, a separator and the user's presets (item data `user:<name>`).
+
+## Dialog layout
+
+- Hue/Saturation: preset combo and buttons on top; the Edit combo stays a combo (no tabs: seven are too wide). Hue, Saturation and Lightness are `GradientTrackSlider`s: hue is the wheel around the edited range's centre (red for Master, 0 to 360 for Colorize), saturation runs from gray to the shifted hue, lightness from black through it to white. The swatch beside Colorize (`hueSaturationColorizeSwatch`) shows what Colorize makes of a mid gray, through the core transfer.
+- Levels: preset combo with wider spacing after "Preset:"; red, green and blue squares on the channel tabs (`set_channel_tab_swatches`, Curves too); B:, G:, W: fields at 40 instead of 64, each with an eyedropper (`levelsBlackPointButton`, `levelsGrayPointButton`, `levelsWhitePointButton`) on the Curves canvas hooks. A pick sets every color channel's record (`levels_adjustment_from_eyedropper_samples`: sampled black and white inputs, and the gamma that takes the gray sample to mid-gray, `gamma = ln(x) / ln(0.5)`); the composite record is kept. The right column (OK, Cancel, Auto, preset buttons) shares one width.
+- Color Balance: Shadows/Midtones/Highlights tabs (`colorBalanceToneTabs`) instead of the Tone combo; tracks cyan to red, magenta to green, yellow to blue; tab order tabs, slider/field pairs, Preserve Luminosity, Preview, buttons; Reset (`colorBalanceResetButton`, ResetRole, so bottom left) restores the settings the dialog opened with; OK and Cancel share one width (every generic adjustment dialog does).
+- Curves: presets on top with the button grid beside them; Load/Save became Import.../Export...; Auto and Reset sit on the Input/Output line; minimum size 560x560. User presets follow the shipped tiles with thumbnails.
+- Black & White: a "My Presets" section (shown once there are any) at the end of the strip, and the button column right of the strip. No Auto ([legal-constraints.md](legal-constraints.md)).
+- Track and swatch colors are content (what the control picks), the same in both schemes; frames and handles use theme roles.
+
+## Image > Adjustments
+
+Hue/Saturation and Color Balance run through `direct_adjustment_dialog` like the #528 kinds: the preview covers the hue ranges and OK writes the layer's pixels in one undo step. Before #588 their preview ignored range-only edits and OK added an adjustment layer.

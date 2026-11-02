@@ -26,6 +26,7 @@ std::vector<patchy::test::TestCase> smart_filter_gallery_tests();
 std::vector<patchy::test::TestCase> psd_writer_stability_tests();
 std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests();
 std::vector<patchy::test::TestCase> adjustments_curves_tests();
+std::vector<patchy::test::TestCase> adjustment_preset_files_tests();
 std::vector<patchy::test::TestCase> psd_structure_tests();
 std::vector<patchy::test::TestCase> psd_text_tests();
 std::vector<patchy::test::TestCase> psd_legacy_text_tests();

@@ -2,15 +2,18 @@
 
 #include "core/pixel_depth.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/ui_text_size.hpp"
 
 #include <QFocusEvent>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPixmap>
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QSizePolicy>
@@ -197,6 +200,26 @@ double histogram_display_ceiling(std::uint64_t total_samples, std::uint64_t non_
 
 QColor channel_histogram_color(CurvesChannel channel) {
   return histogram_color(channel);
+}
+
+void set_channel_tab_swatches(QTabBar& tabs) {
+  // Channel hues are content (the channel itself), like the histogram bars; the frame
+  // uses the theme's field border.
+  constexpr int kSwatch = 10;
+  const auto ratio = std::max(1.0, tabs.devicePixelRatioF());
+  tabs.setIconSize(QSize(kSwatch, kSwatch));
+  for (int index = 1; index < std::min(tabs.count(), 4); ++index) {
+    QPixmap pixmap(QSize(kSwatch, kSwatch) * ratio);
+    pixmap.setDevicePixelRatio(ratio);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setPen(QPen(theme().field_inset_border, 1.0));
+    painter.setBrush(channel_color(channel_from_index(index), true));
+    painter.drawRoundedRect(QRectF(0.5, 0.5, kSwatch - 1.0, kSwatch - 1.0), 2.0, 2.0);
+    painter.end();
+    tabs.setTabIcon(index, QIcon(pixmap));
+  }
 }
 
 double histogram_display_fraction(std::uint64_t count, double ceiling) {
@@ -583,6 +606,7 @@ CurvesEditorWidget::CurvesEditorWidget(QWidget* parent) : QWidget(parent) {
   channel_tabs_->addTab(QObject::tr("Red"));
   channel_tabs_->addTab(QObject::tr("Green"));
   channel_tabs_->addTab(QObject::tr("Blue"));
+  set_channel_tab_swatches(*channel_tabs_);
   root->addWidget(channel_tabs_);
 
   graph_ = new CurvesGraphWidget(this);
@@ -608,19 +632,16 @@ CurvesEditorWidget::CurvesEditorWidget(QWidget* parent) : QWidget(parent) {
   output_label->setBuddy(output_spin_);
   numeric_row->addWidget(output_spin_);
   numeric_row->addStretch(1);
-  root->addLayout(numeric_row);
-
-  auto* action_row = new QHBoxLayout();
-  action_row->addStretch(1);
+  // Auto and Reset share the Input/Output line (#592).
   auto_button_ = new QPushButton(QObject::tr("Auto"), this);
   auto_button_->setObjectName(QStringLiteral("curvesAutoButton"));
   auto_button_->setToolTip(QObject::tr("Set the active channel from its histogram"));
-  action_row->addWidget(auto_button_);
+  numeric_row->addWidget(auto_button_);
   reset_button_ = new QPushButton(QObject::tr("Reset"), this);
   reset_button_->setObjectName(QStringLiteral("curvesResetButton"));
   reset_button_->setToolTip(QObject::tr("Reset all channels"));
-  action_row->addWidget(reset_button_);
-  root->addLayout(action_row);
+  numeric_row->addWidget(reset_button_);
+  root->addLayout(numeric_row);
 
   graph_->point_selected = [this](int index) { select_point(index); };
   graph_->point_add_requested = [this](int input, int output) { return add_point(input, output); };

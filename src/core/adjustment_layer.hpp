@@ -649,6 +649,11 @@ void set_curve_points_for_channel(CurvesAdjustment& curves, CurvesChannel channe
 // instead of layering an ambiguous point onto it.
 [[nodiscard]] CurvesAdjustment curves_adjustment_from_eyedropper_samples(
     const CurvesEyedropperSamples& samples);
+// The same samples as Levels (#589): each color channel's record gets the sampled black and
+// white inputs and the gamma that maps the gray sample's channel to mid-gray between them;
+// the composite record and the output levels are left as `settings` has them.
+[[nodiscard]] LevelsAdjustment levels_adjustment_from_eyedropper_samples(LevelsAdjustment settings,
+                                                                        const CurvesEyedropperSamples& samples);
 
 // The single shared formulas between the destructive catalog filters
 // (filter_engine.cpp delegates here) and the adjustment layers: rounding is

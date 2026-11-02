@@ -2188,20 +2188,8 @@ RGB: %2, %3, %4</translation>
         <translation>現在のカスタムカーブ</translation>
     </message>
     <message>
-        <source>Load...</source>
-        <translation>読み込み...</translation>
-    </message>
-    <message>
-        <source>Load a Photoshop Curves preset</source>
-        <translation>Photoshop のトーンカーブプリセットを読み込み</translation>
-    </message>
-    <message>
         <source>Save...</source>
         <translation>保存...</translation>
-    </message>
-    <message>
-        <source>Save the current curves as a Photoshop preset</source>
-        <translation>現在のトーンカーブを Photoshop プリセットとして保存</translation>
     </message>
     <message>
         <source>Before</source>
@@ -2212,24 +2200,8 @@ RGB: %2, %3, %4</translation>
         <translation>押している間、調整前の画像と比較</translation>
     </message>
     <message>
-        <source>Load Curves Preset</source>
-        <translation>トーンカーブプリセットを読み込み</translation>
-    </message>
-    <message>
         <source>Photoshop Curves Preset (*.acv)</source>
         <translation>Photoshop トーンカーブプリセット (*.acv)</translation>
-    </message>
-    <message>
-        <source>The Curves preset could not be loaded. The file may be damaged or unsupported.</source>
-        <translation>トーンカーブプリセットを読み込めませんでした。ファイルが破損しているか、対応していない可能性があります。</translation>
-    </message>
-    <message>
-        <source>Save Curves Preset</source>
-        <translation>トーンカーブプリセットを保存</translation>
-    </message>
-    <message>
-        <source>The Curves preset could not be saved.</source>
-        <translation>トーンカーブプリセットを保存できませんでした。</translation>
     </message>
     <message>
         <source>Unsharp Mask</source>
@@ -11381,10 +11353,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>中間調</translation>
     </message>
     <message>
-        <source>Tone:</source>
-        <translation>階調:</translation>
-    </message>
-    <message>
         <source>Preserve Luminosity</source>
         <translation>輝度を保持</translation>
     </message>
@@ -14504,6 +14472,230 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>4-up</source>
         <translation>4 分割</translation>
+    </message>
+    <message>
+        <source>Could not open the preset file</source>
+        <translation>プリセットファイルを開けませんでした</translation>
+    </message>
+    <message>
+        <source>Could not read the preset file</source>
+        <translation>プリセットファイルを読み込めませんでした</translation>
+    </message>
+    <message>
+        <source>The preset file is too large</source>
+        <translation>プリセットファイルが大きすぎます</translation>
+    </message>
+    <message>
+        <source>Could not open the preset file for writing</source>
+        <translation>プリセットファイルを書き込み用に開けませんでした</translation>
+    </message>
+    <message>
+        <source>Could not write the preset file</source>
+        <translation>プリセットファイルを書き込めませんでした</translation>
+    </message>
+    <message>
+        <source>The preset file is damaged or unsupported</source>
+        <translation>プリセットファイルが壊れているか、対応していません</translation>
+    </message>
+    <message>
+        <source>Black input level</source>
+        <translation>黒の入力レベル</translation>
+    </message>
+    <message>
+        <source>Gamma (midtones)</source>
+        <translation>ガンマ (中間調)</translation>
+    </message>
+    <message>
+        <source>White input level</source>
+        <translation>白の入力レベル</translation>
+    </message>
+    <message>
+        <source>B:</source>
+        <translation>黒:</translation>
+    </message>
+    <message>
+        <source>G:</source>
+        <translation>ガンマ:</translation>
+    </message>
+    <message>
+        <source>W:</source>
+        <translation>白:</translation>
+    </message>
+    <message>
+        <source>The color Colorize gives a mid gray</source>
+        <translation>色彩の統一で中間グレーがなる色</translation>
+    </message>
+    <message>
+        <source>Colorize color</source>
+        <translation>色彩の統一の色</translation>
+    </message>
+    <message>
+        <source>Restore the settings the dialog opened with</source>
+        <translation>ダイアログを開いたときの設定に戻します</translation>
+    </message>
+    <message>
+        <source>My Presets</source>
+        <translation>マイプリセット</translation>
+    </message>
+    <message>
+        <source>Photoshop Hue/Saturation Preset (*.ahu)</source>
+        <translation>Photoshop 色相・彩度プリセット (*.ahu)</translation>
+    </message>
+    <message>
+        <source>Photoshop Levels Preset (*.alv)</source>
+        <translation>Photoshop レベル補正プリセット (*.alv)</translation>
+    </message>
+    <message>
+        <source>Photoshop Black &amp; White Preset (*.blw)</source>
+        <translation>Photoshop 白黒プリセット (*.blw)</translation>
+    </message>
+    <message>
+        <source>Golden Monochrome</source>
+        <translation>ゴールドモノクロ</translation>
+    </message>
+    <message>
+        <source>Moonlight</source>
+        <translation>月明かり</translation>
+    </message>
+    <message>
+        <source>Warm Vintage</source>
+        <translation>暖かいヴィンテージ</translation>
+    </message>
+    <message>
+        <source>Vivid Film</source>
+        <translation>鮮やかなフィルム</translation>
+    </message>
+    <message>
+        <source>Soft Pastel</source>
+        <translation>ソフトパステル</translation>
+    </message>
+    <message>
+        <source>Cool Shift</source>
+        <translation>寒色シフト</translation>
+    </message>
+    <message>
+        <source>Warm Shift</source>
+        <translation>暖色シフト</translation>
+    </message>
+    <message>
+        <source>Warm Skin Tones</source>
+        <translation>暖かい肌色</translation>
+    </message>
+    <message>
+        <source>Autumn Leaves</source>
+        <translation>紅葉</translation>
+    </message>
+    <message>
+        <source>Aqua Skies</source>
+        <translation>アクアの空</translation>
+    </message>
+    <message>
+        <source>Deep Ocean</source>
+        <translation>深い海</translation>
+    </message>
+    <message>
+        <source>Brighten Slightly</source>
+        <translation>少し明るく</translation>
+    </message>
+    <message>
+        <source>Brighten Medium</source>
+        <translation>中程度に明るく</translation>
+    </message>
+    <message>
+        <source>Brighten Strong</source>
+        <translation>強く明るく</translation>
+    </message>
+    <message>
+        <source>Darken Slightly</source>
+        <translation>少し暗く</translation>
+    </message>
+    <message>
+        <source>Darken Medium</source>
+        <translation>中程度に暗く</translation>
+    </message>
+    <message>
+        <source>Darken Strong</source>
+        <translation>強く暗く</translation>
+    </message>
+    <message>
+        <source>Slight Contrast</source>
+        <translation>弱いコントラスト</translation>
+    </message>
+    <message>
+        <source>Dramatic Contrast</source>
+        <translation>ドラマチックなコントラスト</translation>
+    </message>
+    <message>
+        <source>Deep Blacks</source>
+        <translation>深い黒</translation>
+    </message>
+    <message>
+        <source>Crushed Blacks</source>
+        <translation>つぶれた黒</translation>
+    </message>
+    <message>
+        <source>Brilliant Whites</source>
+        <translation>輝く白</translation>
+    </message>
+    <message>
+        <source>Silhouette</source>
+        <translation>シルエット</translation>
+    </message>
+    <message>
+        <source>Faded Light</source>
+        <translation>淡い退色</translation>
+    </message>
+    <message>
+        <source>Faded Medium</source>
+        <translation>中程度の退色</translation>
+    </message>
+    <message>
+        <source>Faded Strong</source>
+        <translation>強い退色</translation>
+    </message>
+    <message>
+        <source>Washed Out</source>
+        <translation>色あせ</translation>
+    </message>
+    <message>
+        <source>Import...</source>
+        <translation>読み込み...</translation>
+    </message>
+    <message>
+        <source>Add a preset file to your presets</source>
+        <translation>プリセットファイルをマイプリセットに追加します</translation>
+    </message>
+    <message>
+        <source>Write the current settings to a preset file</source>
+        <translation>現在の設定をプリセットファイルに書き出します</translation>
+    </message>
+    <message>
+        <source>A preset named &quot;%1&quot; already exists. Replace it?</source>
+        <translation>「%1」という名前のプリセットは既にあります。置き換えますか?</translation>
+    </message>
+    <message>
+        <source>The preset could not be saved.</source>
+        <translation>プリセットを保存できませんでした。</translation>
+    </message>
+    <message>
+        <source>The preset could not be deleted.</source>
+        <translation>プリセットを削除できませんでした。</translation>
+    </message>
+    <message>
+        <source>Import Preset</source>
+        <translation>プリセットの読み込み</translation>
+    </message>
+    <message>
+        <source>The preset could not be imported. The file may be damaged or unsupported.</source>
+        <translation>プリセットを読み込めませんでした。ファイルが壊れているか、対応していない可能性があります。</translation>
+    </message>
+    <message>
+        <source>Export Preset</source>
+        <translation>プリセットの書き出し</translation>
+    </message>
+    <message>
+        <source>The preset could not be exported.</source>
+        <translation>プリセットを書き出せませんでした。</translation>
     </message>
 </context>
 <context>

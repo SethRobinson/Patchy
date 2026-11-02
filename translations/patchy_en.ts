@@ -3254,19 +3254,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Load...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Load a Photoshop Curves preset</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Save...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Save the current curves as a Photoshop preset</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -3278,23 +3266,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Load Curves Preset</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Photoshop Curves Preset (*.acv)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The Curves preset could not be loaded. The file may be damaged or unsupported.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Save Curves Preset</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The Curves preset could not be saved.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -11398,10 +11370,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Tone:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Preserve Luminosity</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14530,6 +14498,230 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>4-up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not open the preset file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not read the preset file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The preset file is too large</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not open the preset file for writing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not write the preset file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The preset file is damaged or unsupported</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Black input level</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gamma (midtones)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>White input level</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>B:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>G:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>W:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The color Colorize gives a mid gray</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colorize color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restore the settings the dialog opened with</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>My Presets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Photoshop Hue/Saturation Preset (*.ahu)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Photoshop Levels Preset (*.alv)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Photoshop Black &amp; White Preset (*.blw)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Golden Monochrome</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Moonlight</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Warm Vintage</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vivid Film</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Soft Pastel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cool Shift</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Warm Shift</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Warm Skin Tones</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Autumn Leaves</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Aqua Skies</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Deep Ocean</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brighten Slightly</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brighten Medium</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brighten Strong</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Darken Slightly</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Darken Medium</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Darken Strong</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Slight Contrast</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dramatic Contrast</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Deep Blacks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Crushed Blacks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Brilliant Whites</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Silhouette</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Faded Light</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Faded Medium</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Faded Strong</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Washed Out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add a preset file to your presets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Write the current settings to a preset file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A preset named &quot;%1&quot; already exists. Replace it?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The preset could not be saved.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The preset could not be deleted.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import Preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The preset could not be imported. The file may be damaged or unsupported.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export Preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The preset could not be exported.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
