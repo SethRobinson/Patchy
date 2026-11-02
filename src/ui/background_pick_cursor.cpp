@@ -11,8 +11,9 @@
 
 namespace patchy::ui {
 
-BackgroundPickCursor::BackgroundPickCursor(QWidget* widget)
-    : QObject(widget), widget_(widget), normal_cursor_(widget->cursor()) {
+BackgroundPickCursor::BackgroundPickCursor(QWidget* widget, bool right_picks_background)
+    : QObject(widget), widget_(widget), normal_cursor_(widget->cursor()),
+      right_picks_background_(right_picks_background) {
   // Hover moves carry the modifiers too, so Alt held before the pointer arrived counts.
   widget_->setMouseTracking(true);
   widget_->installEventFilter(this);
@@ -35,7 +36,7 @@ void BackgroundPickCursor::set_hovered(bool hovered) {
     QCoreApplication::instance()->installEventFilter(this);
   } else {
     QCoreApplication::instance()->removeEventFilter(this);
-    pressed_ = false;
+    pressed_button_ = Qt::NoButton;
     show_background_cursor(false);
   }
 }
@@ -61,23 +62,23 @@ bool BackgroundPickCursor::eventFilter(QObject* watched, QEvent* event) {
         break;
       case QEvent::MouseMove:
         set_hovered(true);
-        if (!pressed_) {
+        if (pressed_button_ == Qt::NoButton) {
           show_background_cursor((static_cast<QMouseEvent*>(event)->modifiers() & Qt::AltModifier) != 0);
         }
         break;
       case QEvent::MouseButtonPress: {
         const auto* mouse = static_cast<QMouseEvent*>(event);
-        if (mouse->button() == Qt::LeftButton) {
+        if (mouse->button() == Qt::LeftButton || (right_picks_background_ && mouse->button() == Qt::RightButton)) {
           set_hovered(true);
-          pressed_ = true;
-          show_background_cursor((mouse->modifiers() & Qt::AltModifier) != 0);
+          pressed_button_ = mouse->button();
+          show_background_cursor(mouse->button() == Qt::RightButton || (mouse->modifiers() & Qt::AltModifier) != 0);
         }
         break;
       }
       case QEvent::MouseButtonRelease: {
         const auto* mouse = static_cast<QMouseEvent*>(event);
-        if (mouse->button() == Qt::LeftButton) {
-          pressed_ = false;
+        if (pressed_button_ != Qt::NoButton && mouse->button() == pressed_button_) {
+          pressed_button_ = Qt::NoButton;
           show_background_cursor(hovered_ && (mouse->modifiers() & Qt::AltModifier) != 0);
         }
         break;
@@ -87,7 +88,8 @@ bool BackgroundPickCursor::eventFilter(QObject* watched, QEvent* event) {
     }
     return false;
   }
-  if (hovered_ && !pressed_ && (event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease)) {
+  if (hovered_ && pressed_button_ == Qt::NoButton &&
+      (event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease)) {
     const auto* key = static_cast<QKeyEvent*>(event);
     // The Alt key's own event: platforms differ on whether its modifiers already
     // include Alt, so the key decides; any other key carries the current state.

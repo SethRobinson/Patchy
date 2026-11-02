@@ -5,9 +5,9 @@
 // views picked from the settings gear (GitHub issue 404): the Hue Cube (a saturation/value
 // field and a hue strip), RGB Sliders, HSB Sliders or CMYK Sliders. Every view shows
 // and edits the foreground. In the cube a click or drag sets the foreground; with Alt
-// (Option on macOS) held at the press it sets the background, for the whole drag, as the
-// Pick tool's Alt-click does. A slider or its number sets the foreground. MainWindow
-// applies each pick and pushes every color change back through set_colors.
+// (Option on macOS) held at the press, or with the right button, it sets the background
+// for the whole drag, as the Pick tool's Alt-click does. A slider or its number sets the
+// foreground. MainWindow applies each pick and pushes every color change back through set_colors.
 
 #include "ui/color_field_widgets.hpp"
 
@@ -107,7 +107,7 @@ public:
   [[nodiscard]] int hue() const override { return hue_; }
   [[nodiscard]] int saturation() const override { return saturation_; }
   [[nodiscard]] int value() const override { return value_; }
-  void begin_field_pick(Qt::KeyboardModifiers modifiers) override;
+  bool begin_field_pick(Qt::KeyboardModifiers modifiers, Qt::MouseButton button = Qt::LeftButton) override;
   void end_field_pick() override;
   void set_saturation_value_from_point(QPoint point, QSize size) override;
   void set_hue_from_point(QPoint point, QSize size) override;

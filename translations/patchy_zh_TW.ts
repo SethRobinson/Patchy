@@ -16796,10 +16796,6 @@ Each item&apos;s own View setting still applies.</source>
 <context>
     <name>patchy::ui::ColorDockPanel</name>
     <message>
-        <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
-        <translation>按一下或拖曳可設定前景色。按住 %ALT% 按一下或按住 %ALT% 拖曳可設定背景色。</translation>
-    </message>
-    <message>
         <source>Hue Cube</source>
         <translation>色相立方體</translation>
     </message>
@@ -16908,6 +16904,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Black</source>
         <translation>黑色</translation>
+    </message>
+    <message>
+        <source>Click or drag to set the foreground color. Right-click, right-drag, %ALT%-click or %ALT%-drag to set the background color.</source>
+        <translation>按一下或拖曳以設定前景色。按右鍵、以右鍵拖曳、按住 %ALT% 按一下或按住 %ALT% 拖曳以設定背景色。</translation>
     </message>
 </context>
 <context>

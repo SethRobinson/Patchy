@@ -16884,10 +16884,6 @@ Each item&apos;s own View setting still applies.</source>
 <context>
     <name>patchy::ui::ColorDockPanel</name>
     <message>
-        <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
-        <translation>Щёлкните или перетащите, чтобы задать основной цвет. Щёлкните с %ALT% или перетащите с %ALT%, чтобы задать цвет фона.</translation>
-    </message>
-    <message>
         <source>Hue Cube</source>
         <translation>Куб цветового тона</translation>
     </message>
@@ -16996,6 +16992,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Black</source>
         <translation>Черный</translation>
+    </message>
+    <message>
+        <source>Click or drag to set the foreground color. Right-click, right-drag, %ALT%-click or %ALT%-drag to set the background color.</source>
+        <translation>Щёлкните или перетащите, чтобы задать основной цвет. Щёлкните правой кнопкой, перетащите правой кнопкой, используйте %ALT%-щелчок или %ALT%-перетаскивание, чтобы задать фоновый цвет.</translation>
     </message>
 </context>
 <context>

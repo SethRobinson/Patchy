@@ -5,7 +5,7 @@
 // panel's field and hue strip and the Palette panel's swatches (GitHub issue 365).
 // While the pointer is over the widget, holding Alt (Option on macOS) swaps the widget's
 // own cursor for the background cursor and releasing Alt swaps it back, on the key
-// itself as well as on mouse moves. A left press fixes the cursor until its release, as
+// itself as well as on mouse moves. An accepted press fixes the cursor until its release, as
 // the press fixes which color the drag sets. Modifiers are read from each event, never
 // from QApplication::keyboardModifiers().
 
@@ -22,8 +22,9 @@ class BackgroundPickCursor final : public QObject {
 
 public:
   // Watches `widget` (and parents itself to it). The widget's cursor at this call is the
-  // one shown without Alt.
-  explicit BackgroundPickCursor(QWidget* widget);
+  // one shown without Alt. Opt in to right-button background picks only on surfaces
+  // that accept them.
+  explicit BackgroundPickCursor(QWidget* widget, bool right_picks_background = false);
   ~BackgroundPickCursor() override;
 
   [[nodiscard]] bool showing_background_cursor() const noexcept { return showing_background_; }
@@ -38,7 +39,8 @@ private:
   QWidget* widget_{nullptr};
   QCursor normal_cursor_;
   bool hovered_{false};
-  bool pressed_{false};
+  Qt::MouseButton pressed_button_{Qt::NoButton};
+  bool right_picks_background_{false};
   bool showing_background_{false};
 };
 
