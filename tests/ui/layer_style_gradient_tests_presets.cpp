@@ -79,12 +79,6 @@
 #include <string_view>
 #include <utility>
 #include <vector>
-#ifndef Q_OS_WASM
-#include "ui/gimp_plugin_arguments.hpp"
-#include "ui/gimp_plugin_run_dialog.hpp"
-#include "ui/gimp_plugin_settings_dialog.hpp"
-#endif
-#include "ui/dialog_utils.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
@@ -1557,53 +1551,6 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     (void)patchy::ui::run_camera_raw_filter_dialog(nullptr, camera_raw_request);
     grab_dialog(QStringLiteral("webExportDialog"), "web_export");
     (void)patchy::ui::request_web_export(nullptr, std::make_shared<const patchy::Document>(document));
-#ifndef Q_OS_WASM
-    grab_dialog(QStringLiteral("gimpPluginSettingsDialog"), "gimp_plugin_settings");
-    {
-      // A GIMP 3 plug-in's settings as Patchy's dialog shows them: every kind of row.
-      using patchy::gimp::ParamDefKind;
-      using patchy::ui::GimpArgumentWidget;
-      patchy::ui::GimpPluginArgumentSet arguments;
-      arguments.defs.resize(3);
-      const auto add = [&arguments](ParamDefKind kind, GimpArgumentWidget widget, const char* name, const char* nick,
-                                    const char* value_type) -> patchy::ui::GimpPluginArgument& {
-        patchy::gimp::ParamDef def;
-        def.kind = kind;
-        def.name = std::string(name);
-        def.nick = std::string(nick);
-        def.blurb = std::string(nick);
-        def.value_type_name = std::string(value_type);
-        arguments.defs.push_back(def);
-        arguments.editable.push_back({def, QString::fromLatin1(name), QString::fromLatin1(nick), QString::fromLatin1(nick), widget});
-        return arguments.editable.back();
-      };
-      auto& segments = add(ParamDefKind::Int, GimpArgumentWidget::Integer, "num-segments", "_Number of segments", "gint");
-      segments.def.int_min = 1;
-      segments.def.int_max = 1024;
-      segments.def.int_default = 10;
-      auto& amount = add(ParamDefKind::Double, GimpArgumentWidget::Double, "amount", "Amount", "gdouble");
-      amount.def.double_min = 0.0;
-      amount.def.double_max = 1.0;
-      amount.def.double_default = 0.5;
-      add(ParamDefKind::Boolean, GimpArgumentWidget::Boolean, "bg-transparent", "Transparent background", "gboolean");
-      auto& orientation = add(ParamDefKind::Choice, GimpArgumentWidget::Choice, "orientation", "Orientation", "gchararray");
-      orientation.def.choices.push_back({std::string("horizontal"), 0, std::string("Horizontal"), std::nullopt});
-      orientation.def.choices.push_back({std::string("vertical"), 1, std::string("Vertical"), std::nullopt});
-      orientation.def.string_default = std::string("horizontal");
-      add(ParamDefKind::GeglColor, GimpArgumentWidget::Color, "color", "Color", "GeglColor");
-      add(ParamDefKind::Id, GimpArgumentWidget::Layer, "effect-image", "Effect image", "GimpDrawable");
-      patchy::ui::GimpPluginSettingsDialog dialog(QStringLiteral("Blinds"), QStringLiteral("Simulate an image painted on window blinds"),
-                                                  arguments, patchy::ui::gimp_plugin_default_values(arguments), true);
-      (void)patchy::ui::run_non_modal_dialog(dialog);
-    }
-    grab_dialog(QStringLiteral("gimpPluginRunDialog"), "gimp_plugin_run");
-    {
-      patchy::ui::GimpPluginRunDialog box(QStringLiteral("Blinds"));
-      box.set_plugin_window(QRect(100, 100, 400, 300));
-      box.set_patchy_dialog_option(true, {});
-      (void)patchy::ui::run_non_modal_dialog(box);
-    }
-#endif
     grab_dialog(QStringLiteral("viewExtrasOptionsDialog"), "view_extras_options");
     (void)patchy::ui::request_view_extras_options(nullptr, patchy::ui::kAllViewExtras);
     grab_dialog(QStringLiteral("toolPaletteCustomizeDialog"), "tool_palette_customize");
@@ -1664,11 +1611,7 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     animation_preview.close();
     QApplication::processEvents();
   }
-#ifndef Q_OS_WASM
-  CHECK(captured == 40);  // the two GIMP plug-in dialogs included
-#else
   CHECK(captured == 36);
-#endif
 }
 
 void ui_style_manager_lists_renames_and_uses_styles() {

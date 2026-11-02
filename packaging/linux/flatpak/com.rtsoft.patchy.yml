@@ -16,15 +16,6 @@ finish-args:
   - --share=network
   # Recent files, command-line file arguments, brush and palette folders.
   - --filesystem=home
-  # GIMP 3 plug-ins from GIMP's Flatpak (docs/gimp-plugins.md, "GIMP's Flatpak"): read
-  # GIMP's files, its plug-in extensions and its settings folder, and start each plug-in
-  # in GIMP's own sandbox through flatpak-spawn --host ... flatpak run org.gimp.GIMP.
-  - --talk-name=org.freedesktop.Flatpak
-  - --filesystem=~/.local/share/flatpak/app/org.gimp.GIMP:ro
-  - --filesystem=~/.local/share/flatpak/runtime:ro
-  - --filesystem=/var/lib/flatpak/app/org.gimp.GIMP:ro
-  - --filesystem=/var/lib/flatpak/runtime:ro
-  - --filesystem=~/.var/app/org.gimp.GIMP/config/GIMP:ro
 cleanup:
   - /include
   - /lib/cmake

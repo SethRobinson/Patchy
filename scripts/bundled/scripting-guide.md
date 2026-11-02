@@ -316,7 +316,7 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | Global | What it is |
 | --- | --- |
 | `app` | The application: documents, dialogs, commands. |
-| `patchy` | The namespace: `patchy.ui`, `patchy.io`, `patchy.args`, `patchy.scripts`, `patchy.plugins`, `patchy.gimpPlugins`, `patchy.gmic`, `patchy.recovery`, `patchy.brushes`, `patchy.setResult()`, `patchy.isMainScript()`, `patchy.version`, `patchy.apiVersion`. |
+| `patchy` | The namespace: `patchy.ui`, `patchy.io`, `patchy.args`, `patchy.scripts`, `patchy.plugins`, `patchy.gegl`, `patchy.gmic`, `patchy.recovery`, `patchy.brushes`, `patchy.setResult()`, `patchy.isMainScript()`, `patchy.version`, `patchy.apiVersion`. |
 | `console` | `log`, `info`, `warn`, `error`; output goes to the Script Manager console and to `--script-output`. |
 | `setTimeout` / `setInterval` / `clearTimeout` / `clearInterval` / `requestAnimationFrame` | Timers, like in a browser. The run stays alive while timers are pending. |
 | `include(path)` | Runs another script file in the same scope. Relative paths resolve against the running script, then your user scripts folder, then the bundled scripts, so `include("Effects/fancy-background.js")` works from anywhere. Your script's `OPTIONS` object is protected: an included file's own OPTIONS block does not replace it. |
@@ -650,23 +650,16 @@ Windows builds run classic Photoshop filter plug-ins (`.8bf`, 32-bit and 64-bit)
 | `patchy.plugins.rescan()` | Rescans every folder and returns `list()`. |
 | `layer.applyPlugin(id, {dialog, captureDialog})` | Runs the plug-in on an 8 or 16-bit pixel layer inside the selection, one undo step (a 16-bit layer goes through an 8-bit copy; 32-bit layers throw). `{dialog: false}` skips its settings dialog (last or default settings; a plug-in that opens one anyway gets its OK pressed); unattended runs never show it. `{captureDialog: "shot.png"}` saves an image of the plug-in's dialog while it is up (an unattended run shows the dialog for the capture and answers it itself). |
 
-### GIMP 3 plug-ins (patchy.gimpPlugins)
+### GEGL filters (patchy.gegl)
 
-Desktop builds run the plug-ins of your own GIMP 3 install (Patchy finds it; GIMP must be installed). Each plug-in runs as its own program; finding them asks each plug-in once what it offers and remembers the answer until the file changes.
+Desktop builds include GEGL's image filters (Filter > GEGL Filters).
 
 | Member | Meaning |
 | --- | --- |
-| `patchy.gimpPlugins.list()` | Every procedure the plug-ins registered: `{id, procedure, name, menu, supported, hidden, reason, reasonCode, file, blurb, imageTypes, params}`. `params` names the arguments `applyGimpPlugin` accepts. |
-| `patchy.gimpPlugins.rescan({force})` | Rescans (new or changed plug-ins only, all with `force: true`) and returns `list()`. |
-| `patchy.gimpPlugins.install()` | `{found, folder, version, series, source, flatpak, pluginFolders, failedFiles, problem}`; `failedFiles` lists `{file, error}` for plug-ins that did not start. |
-| `patchy.gimpPlugins.folders`, `.enabled`, `.installFolder` | Preferences > Plug-ins settings (persisted); setting one rescans. |
-| `patchy.gimpPlugins.geglFilters()` | The GEGL filters of the same GIMP install (Plugins > GEGL Filters): `{id, name, category, description, parameters}`, each parameter `{name, label, type, default, minimum, maximum, choices}` with type `integer`, `number`, `boolean` or `choice`. Run one with `layer.applyFilter(id, {name: value})`; a color setting is a choice of `default`, `foreground`, `background`, `black` or `white`. |
-| `layer.applyGimpPlugin(id, {dialog, lastValues, args, timeoutMs, trace, wireLog, captureDialog, answerDialog})` | Runs the procedure on an 8, 16 or 32-bit RGB layer inside the selection, as part of the script's undo entry. Non-interactive with the registered defaults and a 120 s limit unless `dialog: true` (the plug-in's own dialog). `args` sets arguments by name, e.g. `{"num-segments": 5, orientation: "vertical"}`. On Windows `captureDialog: "shot.png"` saves an image of the dialog and `answerDialog: "ok"` or `"cancel"` answers it; unattended runs answer OK by themselves. Throws with the reason on failure. |
+| `patchy.gegl.filters()` | Every GEGL filter offered: `{id, name, category, description, parameters}`, each parameter `{name, label, type, default, minimum, maximum, choices}` with type `integer`, `number`, `boolean` or `choice`. Run one with `layer.applyFilter(id, {name: value})`; a color setting is a choice of `default`, `foreground`, `background`, `black` or `white`. Empty in the web version. |
 
 ```js
-const blinds = patchy.gimpPlugins.list().find(p => p.procedure === "plug-in-blinds");
-if (blinds && blinds.supported) app.activeDocument.activeLayer.applyGimpPlugin(blinds.id, {args: {"num-segments": 5}});
-if (patchy.gimpPlugins.geglFilters().some(f => f.id === "gegl.cartoon"))
+if (patchy.gegl.filters().some(f => f.id === "gegl.cartoon"))
   app.activeDocument.activeLayer.applyFilter("gegl.cartoon", {"mask-radius": 10});
 ```
 

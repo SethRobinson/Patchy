@@ -1,5 +1,5 @@
 // patchy-gegl-host (docs/gegl-filters.md): the one Patchy process that loads GEGL. It loads
-// Patchy's own GEGL, babl and GLib, or the user's from their GIMP 3 install, at run time
+// Patchy's own GEGL, babl and GLib (the package's gegl folder) at run time
 // (nothing is linked; the legal rule is "GEGL operations through a helper" in
 // docs/legal-licensing.md) and does one job per run:
 //
@@ -230,8 +230,8 @@ void load_gegl(const std::string& library) {
   const auto wide = widen(library);
   const auto slash = wide.find_last_of(L"\\/");
   const auto folder = slash == std::wstring::npos ? std::wstring(L".") : wide.substr(0, slash);
-  // GEGL loads its operation modules later, and they find GIMP's other DLLs on the search
-  // path: put GIMP's bin folder first for the whole process.
+  // GEGL loads its operation modules later, and they find the bundle's other DLLs on the
+  // search path: put its bin folder first for the whole process.
   SetDllDirectoryW(folder.c_str());
   std::wstring path = folder;
   if (const DWORD size = GetEnvironmentVariableW(L"PATH", nullptr, 0); size > 0) {
@@ -361,7 +361,7 @@ void start_gegl(bool allow_gpl3, const std::string& library) {
   api.gegl_init(nullptr, nullptr);
 #ifndef _WIN32
   // GEGL's catalog is the one beside the library: GEGL can bind its domain to the folder
-  // of the machine it was built on (GIMP.app's does, and GIMP binds it again itself).
+  // of the machine it was built on.
   // Windows GEGL finds it relative to its DLL, and libintl there reads paths in the ANSI
   // code page, so it is left alone.
   if (api.bindtextdomain != nullptr) {

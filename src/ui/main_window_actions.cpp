@@ -276,9 +276,6 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
     bind_action_text(action, source);
     refresh_action_tooltip(action);
   }
-  if (gimp_plugins_menu_ != nullptr) {
-    bind_action_text(gimp_plugins_menu_->menuAction(), QT_TR_NOOP("GIMP 3 Plug-ins"));
-  }
   if (gegl_filters_menu_ != nullptr) {
     bind_action_text(gegl_filters_menu_->menuAction(), QT_TR_NOOP("GEGL Filters"));
   }
@@ -465,7 +462,6 @@ void MainWindow::retranslate_ui() {
   rebuild_recent_folders_menu();
   rebuild_legacy_plugins_menu();  // translated status tips and the empty-menu note
 #ifndef Q_OS_WASM
-  rebuild_gimp_plugins_menu();
   if (gegl_filters_ != nullptr || gegl_filter_scan_in_flight_) {
     // GEGL's own labels come from the scan in the language it ran in: list them again.
     start_gegl_filter_scan();

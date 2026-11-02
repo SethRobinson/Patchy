@@ -121,8 +121,8 @@ if [ -n "${PATCHY_MAC_SIGN_IDENTITY:-}" ]; then
       xargs -0 codesign --force --options runtime --timestamp -s "$PATCHY_MAC_SIGN_IDENTITY"
   fi
   codesign --force --deep --options runtime --timestamp -s "$PATCHY_MAC_SIGN_IDENTITY" "$STAGE/Patchy.app"
-  # The GEGL helper loads GIMP's libraries (docs/gegl-filters.md): it alone gets the
-  # entitlements for that, then the app is sealed again over the re-signed helper.
+  # The GEGL helper loads the bundle's GEGL with DYLD_LIBRARY_PATH (docs/gegl-filters.md): it
+  # alone gets the entitlements for that, then the app is sealed again over the re-signed helper.
   codesign --force --options runtime --timestamp --entitlements packaging/macos/patchy-gegl-host.entitlements \
     -s "$PATCHY_MAC_SIGN_IDENTITY" "$STAGE/Patchy.app/Contents/MacOS/patchy-gegl-host"
   codesign --force --options runtime --timestamp -s "$PATCHY_MAC_SIGN_IDENTITY" "$STAGE/Patchy.app"

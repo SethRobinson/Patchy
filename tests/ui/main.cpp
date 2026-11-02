@@ -461,7 +461,7 @@ int main(int argc, char* argv[]) {
            mcp_tests,
            unicode_path_tests,
            legacy_plugin_tests,
-           gimp_plugin_tests,
+           gegl_filter_tests,
            gmic_ui_tests,
            history_panel_tests,
            color_dock_panel_tests,

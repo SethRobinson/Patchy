@@ -1,14 +1,13 @@
 #pragma once
 
-// GEGL filters from the user's GIMP 3 (docs/gegl-filters.md). The scan asks
-// patchy-gegl-host for every operation the user's GEGL has, keeps the image filters
+// GEGL filters (docs/gegl-filters.md). The scan asks patchy-gegl-host for every
+// operation Patchy's own GEGL has, keeps the image filters
 // Patchy can describe (gegl_operation_offered) and turns each into a FilterDefinition
 // with the id "gegl.<operation>" in a registry of its own: Patchy's filter dialog,
 // canvas preview, progress and Last Filter run them, and nothing persists them (no
 // Smart Filters, Saved Looks or recipes). Each run starts the helper once.
 
 #include "filters/filter_registry.hpp"
-#include "plugins/gimp/gimp_install.hpp"
 
 #include <QString>
 #include <QStringList>
@@ -21,16 +20,12 @@ class QJsonObject;
 
 namespace patchy::ui {
 
-// How Patchy starts patchy-gegl-host for one GIMP install: directly, or inside GIMP's
-// Flatpak (flatpak run --command=<helper> org.gimp.GIMP), where GEGL's libraries live.
-// The helper's own --gpl3 and --list / --run follow `arguments`.
+// How Patchy starts patchy-gegl-host. The helper's own --gpl3 and --list / --run follow
+// `arguments`.
 struct GeglHelperCommand {
   QString program;
   QStringList arguments;
-  QString library;        // the libgegl the helper loads (a sandbox path inside GIMP's Flatpak)
-  QString library_file;   // the same file as this process sees it (the scan cache's key)
-  bool flatpak{false};
-  bool bundled{false};    // Patchy's own GEGL: its modules sit beside the library
+  QString library;        // the libgegl the helper loads (the scan cache's key)
 };
 
 struct GeglFilterScanResult {
@@ -53,11 +48,6 @@ inline constexpr char kGeglFilterIdPrefix[] = "gegl.";
 [[nodiscard]] QString bundled_gegl_library();
 // The helper's command line for Patchy's own GEGL.
 [[nodiscard]] GeglHelperCommand bundled_gegl_command(const QString& library);
-// The GEGL library of a GIMP 3 install (inside GIMP's Flatpak: its sandbox path); empty
-// when it has none Patchy can load. From Patchy's own Flatpak, GIMP's Flatpak is not used.
-[[nodiscard]] QString find_gegl_library(const gimp::GimpInstall& install);
-// The helper's command line for that install and library.
-[[nodiscard]] GeglHelperCommand gegl_helper_command(const gimp::GimpInstall& install, const QString& library);
 // Whether an operation from the helper's list is offered; `why` gets the reason it is not.
 [[nodiscard]] bool gegl_operation_offered(const QJsonObject& operation, QString* why = nullptr);
 // Lists the operations of `library` through the helper and builds the registry, with

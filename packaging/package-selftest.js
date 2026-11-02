@@ -91,7 +91,6 @@ if (pluginsFolder) {
     "patchy-mcp.exe",
     "patchy-8bf-host32.exe",
     "patchy-8bf-host64.exe",
-    "patchy-gimp-host.exe",
     "patchy-gegl-host.exe",
     "gegl/bin/libgegl-0.4-0.dll",
     "gegl/licenses/SOURCES.txt",
@@ -120,7 +119,7 @@ if (pluginsFolder) {
 }
 
 // --- Patchy's own GEGL (docs/gegl-filters.md, "Bundled GEGL"): a filter must run --------
-var gegl = patchy.gimpPlugins.geglFilters();
+var gegl = patchy.gegl.filters();
 check(gegl.some(function (f) { return f.id === "gegl.gaussian-blur"; }), "GEGL filters are missing (" + gegl.length + " listed)");
 var geglTarget = source.addLayer("gegl");
 geglTarget.fillRect(0, 0, 8, 8, "#ff0000");

@@ -369,7 +369,6 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"plugins.last_settings", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Run the last plug-in with its dialog")},
     {"plugins.open_folder", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show the plug-ins folder on disk")},
     {"plugins.rescan", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Look for new or removed plug-ins")},
-    {"plugins.gimp_rescan", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Look for new or changed GIMP 3 plug-ins and reload what they register")},
     {"pluginsLegacyWindowsOnlyNote", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "8BF plug-ins need Windows")},
     // View
     {"view.zoom_in", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Magnify the view")},
@@ -810,8 +809,7 @@ std::vector<MenuCommandEntry> collect_menu_entries(const QMenuBar* menu_bar, boo
   QSet<const QAction*> seen;
   for_each_menu_bar_command(menu_bar, !unavailable_too, [&](QAction* action, const QString& top,
                                                             const QStringList& submenus) {
-    if ((!unavailable_too && !action->isEnabled() && !action->property(kCommandSearchListsDisabledProperty).toBool()) ||
-        seen.contains(action)) {
+    if ((!unavailable_too && !action->isEnabled()) || seen.contains(action)) {
       return;
     }
     const auto name = strip_menu_ellipsis(clean_action_text(action));

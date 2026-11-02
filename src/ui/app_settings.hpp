@@ -184,23 +184,6 @@ void set_stored_preferences_last_page(const QString& page_id);
 // application and in the per-user app-data directory. See docs/plugins.md.
 [[nodiscard]] QStringList stored_legacy_plugin_folders();
 void set_stored_legacy_plugin_folders(const QStringList& folders);
-// GIMP 3 plug-ins (docs/gimp-plugins.md): on by default; the user-added plug-in folders;
-// the GIMP install folder chosen by hand (empty: found automatically).
-[[nodiscard]] bool stored_gimp_plugins_enabled();
-void set_stored_gimp_plugins_enabled(bool enabled);
-[[nodiscard]] QStringList stored_gimp_plugin_folders();
-void set_stored_gimp_plugin_folders(const QStringList& folders);
-[[nodiscard]] QString stored_gimp_install_folder();
-void set_stored_gimp_install_folder(const QString& folder);
-// Per GIMP procedure ("plug-in-blinds"): whether the plug-in's own dialog opens instead
-// of Patchy's settings dialog (default yes), whether Patchy's dialog previews on the canvas (default
-// on), and the last values used there (JSON, gimp_plugin_arguments.hpp).
-[[nodiscard]] bool stored_gimp_plugin_own_dialog(const QString& procedure);
-void set_stored_gimp_plugin_own_dialog(const QString& procedure, bool own_dialog);
-[[nodiscard]] bool stored_gimp_plugin_preview(const QString& procedure);
-void set_stored_gimp_plugin_preview(const QString& procedure, bool preview);
-[[nodiscard]] QString stored_gimp_plugin_values(const QString& procedure);
-void set_stored_gimp_plugin_values(const QString& procedure, const QString& json);
 
 // The largest screen a legacy plug-in is told about (key `plugins/screenSize`,
 // "<width>x<height>" or "monitor"; a compatibility contract). Plug-in windows

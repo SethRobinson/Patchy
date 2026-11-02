@@ -14,17 +14,12 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
-2026-11-02 (additive): `patchy.gimpPlugins.geglFilters()` lists the GEGL filters of the user's GIMP 3
+2026-11-02 (additive): `patchy.gegl.filters()` lists the GEGL filters Patchy offers
 (`{id, name, category, description, parameters}`, each parameter `{name, label, type, default,
 minimum, maximum, choices}`), and `layer.applyFilter` runs them by id ([gegl-filters.md](gegl-filters.md)).
-Permanent identifiers: the method, its keys, the type tokens `integer`, `number`, `boolean`, `choice`,
-the color choices `default`, `foreground`, `background`, `black`, `white`, and filter ids
+Permanent identifiers: the object, the method, its keys, the type tokens `integer`, `number`, `boolean`,
+`choice`, the color choices `default`, `foreground`, `background`, `black`, `white`, and filter ids
 `gegl.<operation>`. Pinned by `ui_gegl_filters_list_and_apply_if_available`.
-2026-11-01 (additive): `patchy.gimpPlugins` (`list()`, `rescan({force})`, `install()`, `folders`,
-`enabled`, `installFolder`) and `layer.applyGimpPlugin(id, {dialog, lastValues, args, timeoutMs,
-trace, wireLog, captureDialog, answerDialog})`: the user's GIMP 3 plug-ins ([gimp-plugins.md](gimp-plugins.md#scripting)).
-Permanent identifiers: the object, its members and option keys, the `list()` and `install()` keys,
-and plug-in ids `gimp.<procedure>`. Pinned by `ui_gimp_plugin_script_api_lists_and_runs_test_plugin_if_available`.
 2026-10-31 (behavioral): shape stroke `dashes` take 0 entries (a dot with round or square caps);
 the list still needs one value above 0. Before, any 0 was refused, so a Dotted stroke read back
 from `getShape()` ([0, 2]) could not be written again (GitHub issue 548). Pinned by

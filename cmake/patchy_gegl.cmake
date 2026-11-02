@@ -2,7 +2,7 @@
 # modules Patchy offers, babl's extensions, GEGL's translations and their licenses, built by
 # scripts/dev/gegl/ into <deps>/gegl/<version>/<platform> and copied once into <build>/gegl,
 # where patchy-gegl-host finds them beside the program (bundled_gegl_library). A build
-# without the folder falls back to the user's GIMP 3 at run time.
+# without the folder offers no GEGL filters (the Filter menu says so).
 
 set(PATCHY_GEGL_BUNDLE_VERSION "0.4.72")
 if(WIN32)
@@ -53,5 +53,5 @@ if(PATCHY_GEGL_BUNDLE_DIR_FOUND)
   )
   add_custom_target(patchy_gegl_bundle DEPENDS "${PATCHY_GEGL_BUNDLE_STAMP}")
 else()
-  message(STATUS "Patchy's own GEGL: not found (GEGL filters use the user's GIMP 3; see scripts/dev/gegl/)")
+  message(STATUS "Patchy's own GEGL: not found, so no GEGL filters (build it with scripts/dev/gegl/)")
 endif()

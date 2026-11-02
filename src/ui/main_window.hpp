@@ -195,14 +195,7 @@ struct StartupLibraryPreloads;
 class GradientLibrary;
 struct GradientLibraryEntry;
 class ScriptEngineHost;
-struct GimpPluginProcedure;
-struct GimpPluginScanResult;
 struct GeglFilterScanResult;
-struct GimpPluginScanOptions;
-struct GimpPluginRunResult;
-struct GimpPluginRunInput;
-struct GimpLayerInput;
-struct GimpPluginArgumentSet;
 class ScriptEditorDialog;
 class StyleLibrary;
 class StatusDocumentInfoLabel;
@@ -1390,80 +1383,18 @@ private:
   bool add_legacy_plugin_entry(const QString& path, LegacyPhotoshopPluginProbe probe, QStringList* report);
   void finish_legacy_plugin_scan(int generation,
                                  std::vector<std::pair<QString, LegacyPhotoshopPluginProbe>> probes);
-  // GIMP 3 plug-ins (main_window_gimp_plugins.cpp, docs/gimp-plugins.md). The user's
-  // installed plug-ins run as separate programs through patchy-gimp-host; the scan
-  // queries new or changed plug-in files on a worker and caches what they register.
-  enum class GimpPluginApplyStatus { Applied, NoChange, Cancelled, Error };
-  struct GimpPluginApplyOptions {
-    int run_mode{0};                 // GIMP RunMode: 0 interactive, 1 non-interactive, 2 last values
-    QByteArray arguments;            // GIMP wire PROC_RUN carrying argument values (scripts)
-    std::uint32_t argument_count{0};
-    std::uint32_t timeout_ms{0};     // 0: none
-    bool trace{false};
-    QString wire_log;
-    QString capture_dialog;  // PNG of the plug-in's dialog once it settles (scripts)
-    int answer_dialog{0};    // 1 OK, 2 Cancel: answers the plug-in's dialog (scripts)
-  };
-  [[nodiscard]] GimpPluginScanOptions gimp_plugin_scan_options() const;
-  void start_gimp_plugin_scan(bool announce, bool force_requery = false);
-  // GEGL filters from the user's GIMP 3 (main_window_gegl_filters.cpp,
-  // docs/gegl-filters.md): a scan through patchy-gegl-host fills Plugins > GEGL Filters,
-  // and apply_filter runs "gegl.*" ids from their own registry.
+  // GEGL filters from Patchy's own GEGL (main_window_gegl_filters.cpp, docs/gegl-filters.md):
+  // a scan through patchy-gegl-host fills Filter > GEGL Filters, and apply_filter runs
+  // "gegl.*" ids from their own registry.
   void start_gegl_filter_scan();
-  // The same scan on the calling thread (tests, offscreen runs).
+  // The same scan on the calling thread (scripts, tests, offscreen runs).
   void ensure_gegl_filters_scanned();
   void finish_gegl_filter_scan(int generation, std::shared_ptr<GeglFilterScanResult> result);
   void rebuild_gegl_filters_menu();
+  // Rebuilds now, or once no popup is open when one is.
   void rebuild_gegl_filters_menu_when_closed();
   // The GEGL registry for a "gegl." id; null for any other id or before a scan.
   [[nodiscard]] std::shared_ptr<const FilterRegistry> gegl_filter_registry_for(const QString& identifier) const;
-  // The same scan on the calling thread (scripts, tests).
-  void rescan_gimp_plugins(bool force_requery = false);
-  void ensure_gimp_plugins_scanned();
-  [[nodiscard]] bool gimp_plugin_scan_in_flight() const noexcept { return gimp_plugin_scan_in_flight_; }
-  void finish_gimp_plugin_scan(int generation, std::shared_ptr<GimpPluginScanResult> result, bool announce);
-  void rebuild_gimp_plugins_menu();
-  // Rebuilds now, or once no popup is open (or the GIMP submenu opens) when one is.
-  void rebuild_gimp_plugins_menu_when_closed();
-  [[nodiscard]] const GimpPluginProcedure* find_gimp_plugin(const QString& identifier) const noexcept;
-  // Menu entries, hotkeys and Search Commands run a plug-in from a queued call, never
-  // inside the menu's own mouse handling (main_window_gimp_plugin_runs.cpp): the run's
-  // dialogs keep the event loop going, and a menu deleted meanwhile must not be
-  // returned into.
-  void run_gimp_plugin(const QString& identifier, int run_mode = 0);
-  GimpPluginApplyStatus apply_gimp_plugin(DocumentSession& session, LayerId layer_id, const GimpPluginProcedure& entry,
-                                          const GimpPluginApplyOptions& options, const std::function<void()>& before_write,
-                                          QString* error);
-  bool prepare_gimp_layer_input(DocumentSession& session, LayerId layer_id, GimpLayerInput& input, QString* error);
-  [[nodiscard]] bool gimp_run_input(DocumentSession& session, const GimpPluginProcedure& entry, const GimpLayerInput& layer,
-                                    const GimpPluginApplyOptions& options, GimpPluginRunInput& run, QString* error);
-  // Puts the layer back as it was, takes over what the run stored and the colors it
-  // picked, and writes an Ok result as one undo step (before_write pushes it).
-  GimpPluginApplyStatus finish_gimp_run(DocumentSession& session, const QString& display_name, const GimpLayerInput& layer,
-                                        const GimpPluginRunResult& result, const std::function<void()>& before_write,
-                                        QString* error);
-  // Shows a result on the canvas for a preview: `rect` (layer pixels) of the layer from
-  // `pixels` (packed rows, `width` wide, in the plug-in's format), scaled by 1 / scale.
-  void show_gimp_preview_pixels(DocumentSession& session, const GimpLayerInput& layer, const std::uint8_t* pixels,
-                                int width, int height, QRect rect, double scale, bool restore_first);
-  void restore_gimp_layer(DocumentSession& session, const GimpLayerInput& layer);
-  enum class GimpDialogOutcome { Applied, NoChange, Cancelled, Failed, UseOwnDialog };
-  GimpDialogOutcome run_gimp_plugin_own_dialog(DocumentSession& session, LayerId layer_id, const GimpPluginProcedure& entry,
-                                               int run_mode, bool offer_patchy_dialog, QString* error);
-  GimpDialogOutcome run_gimp_plugin_settings_dialog(DocumentSession& session, LayerId layer_id,
-                                                    const GimpPluginProcedure& entry, const GimpPluginArgumentSet& arguments,
-                                                    QString* error);
-  // A reason code from the query (gimp_procedure.hpp) as text for the user (Preferences,
-  // tooltips, scripts): the one wording source for every place that says why a plug-in
-  // cannot run. In the menu a refused entry ends in the one suffix "(Unsupported)".
-  [[nodiscard]] static QString gimp_plugin_reason_text(const QString& code);
-  [[nodiscard]] static QString gimp_plugin_unsupported_suffix();
-  // Why a runnable plug-in cannot run on the current document right now (no image, a
-  // group layer, locked pixels...): the menu suffix, empty when it can; `full` gets the
-  // sentence. Rechecked whenever the menu opens.
-  [[nodiscard]] QString gimp_plugin_state_reason(const GimpPluginProcedure& entry, QString* full) const;
-  void refresh_gimp_plugin_menu_state();
-  [[nodiscard]] static QString gimp_plugin_error_text(const QString& name, const GimpPluginRunResult& result);
   void cut_selection();
   void copy_selection();
   void copy_merged();
@@ -3744,28 +3675,11 @@ private:
   FilterRegistry filters_;
   PluginHost plugin_host_;
   std::vector<LegacyPluginEntry> legacy_plugins_;
-  QMenu* gimp_plugins_menu_{nullptr};
   QMenu* gegl_filters_menu_{nullptr};
   std::shared_ptr<GeglFilterScanResult> gegl_filters_;
   int gegl_filter_scan_generation_{0};
   bool gegl_filter_scan_in_flight_{false};
   bool gegl_filters_menu_stale_{false};
-  std::shared_ptr<GimpPluginScanResult> gimp_plugins_;
-  int gimp_plugin_scan_generation_{0};
-  bool gimp_plugin_scan_in_flight_{false};
-  bool gimp_plugin_scan_pending_{false};
-  // A scan finished while a popup was open: the menu waits for a rebuild.
-  bool gimp_plugins_menu_stale_{false};
-  // What plug-ins stored through gimp-pdb-set-data this session (their last values).
-  std::map<std::string, std::vector<std::uint8_t>> gimp_plugin_stored_data_;
-  // A plug-in run (its dialog) is up: a second one is refused (closing the window is
-  // refused by the edit lock meanwhile).
-  bool gimp_plugin_active_{false};
-  // Tests: preview runs started and ended early, and an answer for the next plug-in
-  // dialog (1 OK, 2 Cancel) like scripts' answerDialog.
-  int gimp_preview_runs_started_{0};
-  int gimp_preview_runs_aborted_{0};
-  int gimp_plugin_test_answer_{0};
   int legacy_plugin_scan_generation_{0};
   bool legacy_plugin_scan_in_flight_{false};
   bool legacy_plugin_scan_pending_{false};

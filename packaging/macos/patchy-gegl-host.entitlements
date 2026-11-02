@@ -2,11 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- patchy-gegl-host loads GEGL from the user's GIMP.app, signed by GIMP's team (docs/gegl-filters.md). -->
+	<!-- patchy-gegl-host loads Patchy's own GEGL from Contents/Frameworks/gegl, and GEGL loads
+	     its operation modules from there (docs/gegl-filters.md). make-dmg.sh signs them all with
+	     Patchy's identity; this stays until a signed DMG shows the helper loads them without it. -->
 	<key>com.apple.security.cs.disable-library-validation</key>
 	<true/>
-	<!-- GIMP's libraries find each other through an @rpath only GIMP's own programs set;
-	     Patchy points the helper at GIMP's lib folder with DYLD_LIBRARY_PATH. -->
+	<!-- Patchy points the helper at the bundle's lib folder with DYLD_LIBRARY_PATH (prepare_helper). -->
 	<key>com.apple.security.cs.allow-dyld-environment-variables</key>
 	<true/>
 </dict>

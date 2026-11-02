@@ -165,11 +165,6 @@ public:
   // captureDialog asks for it, and then answer it automatically. Windows only;
   // throws elsewhere.
   Q_INVOKABLE void applyPlugin(const QString& pluginId, const QJSValue& options = QJSValue());
-  // Runs a GIMP 3 plug-in procedure (an id from patchy.gimpPlugins.list()) on this
-  // layer, limited to the selection, as part of the run's undo entry. Options
-  // {dialog, lastValues, args, timeoutMs, trace, wireLog}: dialog true opens the
-  // plug-in's own dialog (never in unattended runs); args sets arguments by name.
-  Q_INVOKABLE void applyGimpPlugin(const QString& pluginId, const QJSValue& options = QJSValue());
   // A G'MIC library filter (patchy.gmic.list()) on this layer, limited to the
   // selection, part of the run's undo entry. `values` is an array (one per
   // parameter, in order) or an object keyed by parameter name; missing ones use
@@ -514,35 +509,16 @@ private:
   ScriptEngineHost& host_;
 };
 
-// patchy.gimpPlugins: the user's GIMP 3 plug-ins (docs/gimp-plugins.md).
-class ScriptGimpPluginsObject : public QObject {
+// patchy.gegl: GEGL filters (docs/gegl-filters.md).
+class ScriptGeglObject : public QObject {
   Q_OBJECT
-  Q_PROPERTY(QStringList folders READ folders WRITE set_folders)
-  Q_PROPERTY(bool enabled READ enabled WRITE set_enabled)
-  Q_PROPERTY(QString installFolder READ install_folder WRITE set_install_folder)
 
 public:
-  explicit ScriptGimpPluginsObject(ScriptEngineHost& host);
+  explicit ScriptGeglObject(ScriptEngineHost& host);
 
-  // The user-added plug-in folders (persisted); setting rescans.
-  [[nodiscard]] QStringList folders() const;
-  void set_folders(const QStringList& folders);
-  // Preferences' "Use GIMP 3 plug-ins" (persisted); setting rescans.
-  [[nodiscard]] bool enabled() const;
-  void set_enabled(bool enabled);
-  // The GIMP install folder chosen by hand, "" when found automatically (persisted).
-  [[nodiscard]] QString install_folder() const;
-  void set_install_folder(const QString& folder);
-  // The install the scan uses: {found, folder, version, source, pluginFolders, problem}.
-  Q_INVOKABLE QJSValue install();
-  // Every procedure the plug-ins registered: {id, procedure, name, menu, supported,
-  // reason, file, blurb, params}.
-  Q_INVOKABLE QJSValue list();
-  // Rescans ({force: true} queries every plug-in again); returns list().
-  Q_INVOKABLE QJSValue rescan(const QJSValue& options = QJSValue());
-  // The GEGL filters of the same GIMP install (docs/gegl-filters.md): {id, name, category,
-  // description, parameters}; layer.applyFilter runs one by id.
-  Q_INVOKABLE QJSValue geglFilters();
+  // Every GEGL filter Patchy offers: {id, name, category, description, parameters};
+  // layer.applyFilter runs one by id. Scans GEGL on first use.
+  Q_INVOKABLE QJSValue filters();
 
 private:
   ScriptEngineHost& host_;

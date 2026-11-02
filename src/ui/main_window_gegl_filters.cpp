@@ -1,5 +1,5 @@
-// MainWindow's GEGL filters (docs/gegl-filters.md): the scan of the user's GIMP 3 GEGL on
-// a worker, and Plugins > GEGL Filters built from it. Runs go through apply_filter with
+// MainWindow's GEGL filters (docs/gegl-filters.md): the scan of Patchy's own GEGL on a
+// worker, and Filter > GEGL Filters built from it. Runs go through apply_filter with
 // the GEGL registry (main_window_filters.cpp).
 
 #include "ui/main_window.hpp"
@@ -7,7 +7,7 @@
 #include "ui/background_workers.hpp"
 #include "ui/command_search.hpp"
 #include "ui/gegl_filters.hpp"
-#include "ui/gimp_plugin_catalog.hpp"
+#include "ui/localization.hpp"
 #include "ui/main_window_shared.hpp"
 
 #include <QAction>
@@ -29,20 +29,13 @@ namespace {
 
 constexpr char kGeglMenuEntryProperty[] = "patchy.geglMenuEntry";
 
-// How to start the helper for the GIMP 3 install the GIMP plug-in settings point at.
-std::optional<GeglHelperCommand> gegl_command_for(const GimpPluginScanOptions& options, QString* problem) {
-  const auto install = select_gimp_install(options);
-  if (!install.has_value()) {
-    *problem = MainWindow::tr("GEGL filters come from GIMP 3, which was not found.");
-    return std::nullopt;
+// Patchy's own GEGL, or nothing when the build has none.
+std::optional<GeglHelperCommand> scan_command(QString* problem) {
+  if (const auto bundled = bundled_gegl_library(); !bundled.isEmpty()) {
+    return bundled_gegl_command(bundled);
   }
-  const auto library = find_gegl_library(*install);
-  if (library.isEmpty()) {
-    *problem = install->flatpak ? MainWindow::tr("GEGL filters are not available from GIMP's Flatpak yet.")
-                                : MainWindow::tr("This GIMP 3 install has no GEGL library Patchy can use.");
-    return std::nullopt;
-  }
-  return gegl_helper_command(*install, library);
+  *problem = MainWindow::tr("This build of Patchy has no GEGL filters.");
+  return std::nullopt;
 }
 
 std::shared_ptr<GeglFilterScanResult> scan_for(const std::optional<GeglHelperCommand>& command, const QString& problem,
@@ -55,31 +48,23 @@ std::shared_ptr<GeglFilterScanResult> scan_for(const std::optional<GeglHelperCom
   return std::make_shared<GeglFilterScanResult>(scan_gegl_filters(*command, language));
 }
 
-// Patchy's own GEGL when the build ships one, whatever the GIMP settings; otherwise GIMP 3's,
-// which follows the GIMP plug-in settings.
-std::optional<GeglHelperCommand> scan_command(const GimpPluginScanOptions& options, QString* problem) {
-  if (const auto bundled = bundled_gegl_library(); !bundled.isEmpty()) {
-    return bundled_gegl_command(bundled);
-  }
-  if (!options.enabled) {
-    *problem = MainWindow::tr("GEGL filters come from GIMP 3, which is turned off in Preferences > Plug-ins.");
-    return std::nullopt;
-  }
-  return gegl_command_for(options, problem);
+// GEGL's labels follow Patchy's language.
+QString gegl_language() {
+  const auto code = LocalizationManager::instance().current_language();
+  return code.isEmpty() ? QStringLiteral("en") : code;
 }
 
 }  // namespace
 
 void MainWindow::start_gegl_filter_scan() {
   QString problem;
-  const auto options = gimp_plugin_scan_options();
-  const auto command = scan_command(options, &problem);
+  const auto command = scan_command(&problem);
   const int generation = ++gegl_filter_scan_generation_;
   gegl_filter_scan_in_flight_ = true;
   rebuild_gegl_filters_menu_when_closed();  // the "Scanning..." note
   auto* app = QApplication::instance();
   QPointer<MainWindow> window(this);
-  const auto language = gimp_plugin_language();  // GEGL's labels follow Patchy's language
+  const auto language = gegl_language();
   run_tracked_background_worker([app, window, generation, command, problem, language] {
     auto result = scan_for(command, problem, language);
     if (app == nullptr) {
@@ -101,8 +86,8 @@ void MainWindow::ensure_gegl_filters_scanned() {
     return;
   }
   QString problem;
-  const auto command = scan_command(gimp_plugin_scan_options(), &problem);
-  finish_gegl_filter_scan(++gegl_filter_scan_generation_, scan_for(command, problem, gimp_plugin_language()));
+  const auto command = scan_command(&problem);
+  finish_gegl_filter_scan(++gegl_filter_scan_generation_, scan_for(command, problem, gegl_language()));
 }
 
 void MainWindow::finish_gegl_filter_scan(int generation, std::shared_ptr<GeglFilterScanResult> result) {
@@ -122,7 +107,7 @@ std::shared_ptr<const FilterRegistry> MainWindow::gegl_filter_registry_for(const
 }
 
 void MainWindow::rebuild_gegl_filters_menu_when_closed() {
-  // As for the GIMP menu: a rebuild deletes submenus, so never under an open popup.
+  // A rebuild deletes submenus, so never under an open popup.
   if (QApplication::activePopupWidget() == nullptr) {
     rebuild_gegl_filters_menu();
     return;
@@ -200,7 +185,7 @@ void MainWindow::rebuild_gegl_filters_menu() {
       const auto description = gegl_filters_->descriptions[filter->identifier];
       action->setStatusTip(description);
       action->setToolTip(description);
-      // Queued, like the GIMP entries: the dialog must not open inside the menu's click.
+      // Queued: the dialog must not open inside the menu's click.
       connect(action, &QAction::triggered, this, [this, identifier] {
         QTimer::singleShot(0, this, [this, identifier] { apply_filter(identifier); });
       });

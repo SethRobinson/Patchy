@@ -483,8 +483,8 @@ interface PatchyLayer {
   fillRect(x: number, y: number, width: number, height: number, color: string): void;
   /**
    * Applies a filter to this layer's pixels by registry id, e.g.
-   * applyFilter("patchy.filters.gaussian_blur", {radius: 8}), or a GEGL filter of the user's
-   * GIMP 3 by its "gegl." id from patchy.gimpPlugins.geglFilters(), e.g.
+   * applyFilter("patchy.filters.gaussian_blur", {radius: 8}), or a GEGL filter by its "gegl."
+   * id from patchy.gegl.filters(), e.g.
    * applyFilter("gegl.cartoon", {"mask-radius": 10}). With a selection only
    * the selected pixels change, a soft edge blended by its coverage (the Filter menu's
    * rule). Unknown ids or parameters throw.
@@ -518,34 +518,6 @@ interface PatchyLayer {
    * itself). Windows only; unknown or unsupported ids throw.
    */
   applyPlugin(pluginId: string, options?: { dialog?: boolean; captureDialog?: string }): void;
-  /**
-   * Runs a GIMP 3 plug-in procedure (an id from patchy.gimpPlugins.list(), "gimp.<procedure>")
-   * on this 8, 16 or 32-bit RGB layer, limited to the document selection, as part of the
-   * run's undo entry. Without options it runs non-interactively with the procedure's
-   * registered defaults and a 120 s limit. `dialog: true` shows the plug-in's own dialog
-   * (ignored in unattended runs, no time limit); `lastValues: true` runs with the values the
-   * plug-in kept from its last run; `args` sets arguments by their registered name (checked
-   * against the procedure's types and ranges: choices by name, colors as "#rrggbb" or
-   * [r, g, b, a] in 0..1); `timeoutMs` (0: none); `trace` logs the conversation to stderr;
-   * `wireLog` writes it to a file for scripts/dev/gimp/wire_dump.py. Windows: with
-   * `dialog: true`, `captureDialog` saves a PNG of the plug-in's dialog once it has settled
-   * and `answerDialog` ("ok" or "cancel") answers it; an unattended run answers "ok" by
-   * itself. Throws with the reason when the plug-in fails, is cancelled, or calls a GIMP
-   * function Patchy does not provide.
-   */
-  applyGimpPlugin(
-    pluginId: string,
-    options?: {
-      dialog?: boolean;
-      lastValues?: boolean;
-      args?: Record<string, number | boolean | string | number[]>;
-      timeoutMs?: number;
-      trace?: boolean;
-      wireLog?: string;
-      captureDialog?: string;
-      answerDialog?: "ok" | "cancel";
-    },
-  ): void;
   /**
    * Runs a G'MIC library filter (an id from patchy.gmic.list()) on this layer, limited
    * to the document selection, as part of the run's undo entry. `values` is an array
@@ -1822,54 +1794,14 @@ interface PatchyPlugins {
   rescan(): ReturnType<PatchyPlugins["list"]>;
 }
 
-interface PatchyGimpPlugins {
-  /** Preferences > Plug-ins "Use GIMP 3 plug-ins" (persisted). Setting it rescans. */
-  enabled: boolean;
-  /** The GIMP 3 install folder chosen by hand, "" when found automatically (persisted). Setting it rescans. */
-  installFolder: string;
-  /** Plug-in folders added by hand (persisted). Setting it rescans. */
-  folders: string[];
-  /** The install the last scan used, and why nothing could be scanned when that is the case. */
-  install(): {
-    found: boolean;
-    folder?: string;
-    version?: string;
-    series?: string;
-    source?: string;
-    flatpak?: boolean;
-    pluginFolders: string[];
-    /** Plug-in files that could not be started or registered nothing, with the reason. */
-    failedFiles: {file: string; error: string}[];
-    problem: string;
-  };
+interface PatchyGegl {
   /**
-   * Every procedure the plug-ins registered. `supported` is false, with the reason, for those
-   * Patchy cannot run; `hidden` marks file formats and helpers that never show in a menu.
-   * `params` lists the arguments after the image ones, by their registered names.
+   * The GEGL filters Patchy offers (Filter > GEGL Filters), labels in Patchy's language.
+   * Run one with layer.applyFilter(id, params), params keyed by `name`. A "choice" takes
+   * one of `choices`; a color setting is a choice of "default" (GEGL's own), "foreground",
+   * "background", "black" or "white". Empty in a build without GEGL (and on the web).
    */
-  list(): {
-    id: string;
-    procedure: string;
-    name: string;
-    menu: string;
-    supported: boolean;
-    hidden: boolean;
-    reason: string;
-    reasonCode: string;
-    file: string;
-    blurb: string;
-    imageTypes: string;
-    params: { name: string; label: string; description: string; kind: string; type: string }[];
-  }[];
-  /** Rescans (only new or changed plug-ins are queried; `force` queries all) and returns list(). */
-  rescan(options?: { force?: boolean }): ReturnType<PatchyGimpPlugins["list"]>;
-  /**
-   * The GEGL filters of the same GIMP 3 install (Plugins > GEGL Filters), labels in Patchy's
-   * language. Run one with layer.applyFilter(id, params), params keyed by `name`. A
-   * "choice" takes one of `choices`; a color setting is a choice of "default" (GEGL's own),
-   * "foreground", "background", "black" or "white". Empty without GIMP 3's GEGL.
-   */
-  geglFilters(): {
+  filters(): {
     id: string;
     name: string;
     category: string;
@@ -2009,7 +1941,7 @@ interface PatchyNamespace {
   readonly ui: PatchyUi;
   readonly recovery: PatchyRecovery;
   readonly plugins: PatchyPlugins;
-  readonly gimpPlugins: PatchyGimpPlugins;
+  readonly gegl: PatchyGegl;
   readonly gmic: PatchyGmic;
   readonly perspective: PatchyPerspective;
   readonly scripts: PatchyScripts;

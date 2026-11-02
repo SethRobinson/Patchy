@@ -137,7 +137,7 @@ rem 2026), which "if errorlevel 1" does not catch, so every check in this file c
 rem against 0 instead. Belt and braces: delete the previous executables first, moving a
 rem running one aside the way the PRE_LINK steps in CMakeLists.txt do (a renamed image
 rem keeps running), so a failed link leaves no executable to package.
-for %%E in (patchy.exe patchy-mcp.exe patchy-8bf-host32.exe patchy-8bf-host64.exe patchy-gimp-host.exe patchy-gegl-host.exe) do (
+for %%E in (patchy.exe patchy-mcp.exe patchy-8bf-host32.exe patchy-8bf-host64.exe patchy-gegl-host.exe) do (
   "%CMAKE_EXE%" "-DPATCHY_LOCKED_EXECUTABLE=%BUILD_DIR:\=/%/%%E" -P "%REPO%\cmake\unlock_locked_executable.cmake"
   if exist "%BUILD_DIR%\%%E" (
     echo "%BUILD_DIR%\%%E" could not be deleted or moved aside. Close the program using it and rerun.
@@ -195,12 +195,6 @@ if not exist "%BUILD_DIR%\patchy-8bf-host64.exe" (
 )
 copy /Y "%BUILD_DIR%\patchy-8bf-host32.exe" "%STAGE_DIR%\" >nul || goto fail
 copy /Y "%BUILD_DIR%\patchy-8bf-host64.exe" "%STAGE_DIR%\" >nul || goto fail
-rem The GIMP 3 plug-in helper (docs/gimp-plugins.md); GIMP itself is never shipped.
-if not exist "%BUILD_DIR%\patchy-gimp-host.exe" (
-  echo The GIMP plug-in helper was not created at "%BUILD_DIR%\patchy-gimp-host.exe".
-  goto fail
-)
-copy /Y "%BUILD_DIR%\patchy-gimp-host.exe" "%STAGE_DIR%\" >nul || goto fail
 rem The GEGL helper and Patchy's own GEGL, with its licenses in gegl\licenses (docs/gegl-filters.md).
 if not exist "%BUILD_DIR%\gegl\bin\libgegl-0.4-0.dll" (
   echo Patchy's own GEGL was not copied into "%BUILD_DIR%\gegl"; build it with scripts\dev\gegl\build-gegl-msys2.sh.
@@ -343,8 +337,6 @@ if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
 call :SignFile "%BUILD_DIR%\patchy-8bf-host32.exe"
 if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
 call :SignFile "%BUILD_DIR%\patchy-8bf-host64.exe"
-if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
-call :SignFile "%BUILD_DIR%\patchy-gimp-host.exe"
 if not "!ERRORLEVEL!"=="0" exit /b !ERRORLEVEL!
 call :SignFile "%BUILD_DIR%\patchy-gegl-host.exe"
 exit /b %ERRORLEVEL%

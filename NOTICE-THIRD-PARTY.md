@@ -1117,18 +1117,6 @@ THE SOFTWARE.
 --------------------------------------------------------------------------------
 ```
 
-## GIMP plug-in protocol layouts (libgimpbase headers)
-
-Patchy's GIMP 3 plug-in host (`src/plugins/gimp/`) uses numerical parameters
-and data structure layouts (message numbers, parameter type numbers, field order
-and widths) from `gimpprotocol.h` and `gimpwire.h` of LIBGIMP's libgimpbase, GIMP
-3.2.6, Copyright (C) 1995-1997 Peter Mattis and Spencer Kimball, licensed under
-the GNU Lesser General Public License version 3 or later
-(<https://www.gnu.org/licenses/lgpl-3.0.html>). LGPL-3 section 3 permits this use
-of a header's numerical parameters and data structure layouts. No GIMP code,
-library, plug-in or data file is included in or distributed with Patchy; the
-user's own GIMP 3 installation provides the plug-ins at run time.
-
 ## Patchy's own GEGL (the gegl folder)
 
 Patchy's packages carry GEGL 0.4.72 and babl 0.1.128 (<https://gegl.org>,
@@ -1161,5 +1149,4 @@ Copyright (C) the GLib authors; all three are licensed under the GNU Lesser
 General Public License (GEGL and babl version 3 or later, GLib version 2.1 or
 later). LGPL-3 section 3 permits this use of a header's numerical parameters
 and data structure layouts. No GEGL, babl or GLib code is compiled into the helper or any
-other Patchy program; the helper loads the libraries above, or a user's own GIMP 3
-installation's, at run time.
+other Patchy program; the helper loads the libraries above at run time.

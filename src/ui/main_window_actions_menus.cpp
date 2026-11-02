@@ -2357,8 +2357,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   }
 #endif
 #ifndef Q_OS_WASM
-  // GEGL's filters (docs/gegl-filters.md): Patchy's own GEGL, or GIMP 3's when a build has
-  // none, by GEGL category. Filled by the scan; the first eight rows above stay pinned.
+  // GEGL's filters (docs/gegl-filters.md): Patchy's own GEGL, by GEGL category. Filled by
+  // the scan; the first eight rows above stay pinned.
   gegl_filters_menu_ = filter_menu->addMenu(tr("GEGL Filters"));
   gegl_filters_menu_->setObjectName(QStringLiteral("geglFiltersMenu"));
   gegl_filters_menu_->menuAction()->setMenuRole(QAction::NoRole);
@@ -2523,32 +2523,6 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
 #endif
   legacy_plugins_menu_ = plugins_menu->addMenu(tr("Legacy Photoshop Plug-ins"));
   legacy_plugins_menu_->setObjectName(QStringLiteral("legacyPluginsMenu"));
-#ifndef Q_OS_WASM
-  // GIMP 3 plug-ins from the user's own GIMP install (docs/gimp-plugins.md); the scan fills
-  // the submenu above its Rescan command.
-  gimp_plugins_menu_ = plugins_menu->addMenu(tr("GIMP 3 Plug-ins"));
-  gimp_plugins_menu_->setObjectName(QStringLiteral("gimpPluginsMenu"));
-  gimp_plugins_menu_->menuAction()->setMenuRole(QAction::NoRole);
-  // Reasons that depend on the document (no image, a group layer, locked pixels) are
-  // checked whenever the menu opens (docs/gimp-plugins.md, "Query and the menu"). A scan
-  // that finished while a popup was open lands here at the latest; the submenus being
-  // replaced are closed while this one opens.
-  connect(gimp_plugins_menu_, &QMenu::aboutToShow, this, [this] {
-    if (gimp_plugins_menu_stale_) {
-      rebuild_gimp_plugins_menu();
-    }
-    refresh_gimp_plugin_menu_state();
-  });
-  auto* gimp_rescan_action = gimp_plugins_menu_->addAction(tr("Rescan GIMP Plug-ins"));
-  gimp_rescan_action->setObjectName(QStringLiteral("gimpPluginsRescanAction"));
-  gimp_rescan_action->setMenuRole(QAction::NoRole);
-  register_hotkey(gimp_rescan_action, "plugins.gimp_rescan");
-  connect(gimp_rescan_action, &QAction::triggered, this, [this] {
-    start_gimp_plugin_scan(true, /*force_requery=*/true);
-    start_gegl_filter_scan();  // the same GIMP install
-  });
-  bind_action_text(gimp_rescan_action, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Rescan GIMP Plug-ins"));
-#endif
 
   auto* zoom_in = view_menu->addAction(tr("Zoom &In"));
   auto* zoom_out = view_menu->addAction(tr("Zoom &Out"));

@@ -34,7 +34,7 @@ GLIB_SHA256=8a9ea10943c36fc117e253f80c91e477b673525ae45762942858aef57631bb90
 JSON_GLIB_VERSION=1.10.8
 JSON_GLIB_SHA256=55c5c141a564245b8f8fbe7698663c87a45a7333c2a2c56f06f811ab73b212dd
 # GNU signs gettext with PGP and publishes no checksum: this is the SHA-256 of the copy first
-# fetched on November 2, 2026 (docs/gimp-plugins-provenance.md).
+# fetched on November 2, 2026 (docs/gegl-provenance.md).
 GETTEXT_VERSION=0.26
 GETTEXT_SHA256=d1fb86e260cfe7da6031f94d2e44c0da55903dbae0a2fa0fae78c91ae1b56f00
 

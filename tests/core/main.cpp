@@ -180,7 +180,6 @@ int main(int argc, char** argv) {
            font_style_class_tests,
            infra_selection_tests,
            pipl_tests,
-           gimp_plugin_tests,
            vector_shape_tests,
            path_edits_tests,
            vector_raster_tests,

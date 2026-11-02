@@ -94,7 +94,7 @@
 ## Plug-ins, scripting, and AI control
 
 - Classic Photoshop filter plug-ins (.8bf, 32 and 64-bit) on Windows, 8 and 16-bit (Repeat Last Plug-in: Ctrl+F): see [Photoshop plug-ins](../README.md#photoshop-plug-ins-8bf-windows-only)
-- GEGL filters (Filter menu) and your GIMP 3's plug-ins: [GEGL](gegl-filters.md), [plug-ins](gimp-plugins.md)
+- Over a hundred GEGL filters (Filter > GEGL Filters): [GEGL filters](gegl-filters.md)
 - JavaScript scripting: a Script Manager (File > Scripts) with a folder tree of bundled and user scripts, a code editor with live run status, per-script hotkeys (`@hotkey` defaults or your own), a documented API covering documents, layers, text, selections, pixels, filters, form dialogs, file pickers, and batch processing, bundled examples from data merge to glitch effects and games, editable bundled scripts, and a --run-script flag with script arguments for tools and AI agents (--headless for servers and CI). See the [scripting guide](../scripts/bundled/scripting-guide.md) (Help menu)
 - Local AI control through the bundled MCP connector: native pressure-aware brush strokes, reusable brush presets, editable vector shapes and paths, palette controls, image previews, and persistent document sessions. Help > Set up AI Control has setup steps and prompts: [AI control guide](ai-control.md)
 

@@ -1,10 +1,5 @@
 #include "ui_test_access.hpp"
 
-#include "ui/gimp_plugin_catalog.hpp"
-
-#include <memory>
-#include <utility>
-
 namespace patchy::ui {
 
 Document& MainWindowTestAccess::document(MainWindow& window) {
@@ -24,34 +19,6 @@ void MainWindowTestAccess::show_preferences(MainWindow& window) { window.show_pr
 std::size_t MainWindowTestAccess::watermark_checks_running(MainWindow& window) { return window.watermark_checks_.size(); }
 
 int MainWindowTestAccess::document_tab_count(MainWindow& window) { return window.document_tabs_->count(); }
-
-void MainWindowTestAccess::rebuild_gimp_plugins_menu(MainWindow& window) {
-#ifndef Q_OS_WASM
-  window.rebuild_gimp_plugins_menu();
-#else
-  (void)window;
-#endif
-}
-
-void MainWindowTestAccess::begin_gimp_plugin_scan(MainWindow& window) {
-#ifndef Q_OS_WASM
-  window.gimp_plugin_scan_in_flight_ = true;
-  ++window.gimp_plugin_scan_generation_;
-  window.rebuild_gimp_plugins_menu();
-#else
-  (void)window;
-#endif
-}
-
-void MainWindowTestAccess::finish_gimp_plugin_scan(MainWindow& window, GimpPluginScanResult result) {
-#ifndef Q_OS_WASM
-  window.finish_gimp_plugin_scan(window.gimp_plugin_scan_generation_,
-                                 std::make_shared<GimpPluginScanResult>(std::move(result)), false);
-#else
-  (void)window;
-  (void)result;
-#endif
-}
 
 void MainWindowTestAccess::ensure_gegl_filters_scanned(MainWindow& window) {
 #ifndef Q_OS_WASM
@@ -74,16 +41,6 @@ void MainWindowTestAccess::apply_filter_without_dialog(MainWindow& window, const
 void MainWindowTestAccess::apply_filter_with_dialog(MainWindow& window, const QString& identifier) {
   window.apply_filter(identifier);
 }
-
-void MainWindowTestAccess::set_gimp_plugin_dialog_answer(MainWindow& window, int answer) {
-  window.gimp_plugin_test_answer_ = answer;
-}
-
-int MainWindowTestAccess::gimp_preview_runs_started(const MainWindow& window) { return window.gimp_preview_runs_started_; }
-
-int MainWindowTestAccess::gimp_preview_runs_aborted(const MainWindow& window) { return window.gimp_preview_runs_aborted_; }
-
-bool MainWindowTestAccess::gimp_plugin_active(const MainWindow& window) { return window.gimp_plugin_active_; }
 
 void MainWindowTestAccess::allow_high_quality_offer_offscreen(MainWindow& window) {
   window.high_quality_offer_in_offscreen_tests_ = true;
