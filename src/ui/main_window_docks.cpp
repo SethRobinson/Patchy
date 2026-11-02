@@ -672,11 +672,23 @@ bool MainWindow::handle_right_dock_resize_event(QObject* watched, QEvent* event)
     if (grew && isVisible()) {
       // The section's floor takes the new minimum now (the overflow area waits a pass
       // before it scrolls); the full fit, which may lower floors, follows.
+      // The raised floors can grow the window past the screen before the fit lowers them,
+      // and a window never shrinks back by itself: the fit takes back that growth (#213),
+      // only while the window sits at the raised minimum (no one sized it since).
+      const int height_before = this->height();
       refresh_layers_panel_floor();
       if (panel_column_ != nullptr) {
         panel_column_->refresh_floors();
       }
-      QTimer::singleShot(0, this, [this] { fit_right_dock_floors_to_screen(); });
+      QTimer::singleShot(0, this, [this, height_before] {
+        const int grown = this->height();
+        const bool forced = grown > height_before && grown <= minimumHeight();
+        fit_right_dock_floors_to_screen();
+        const int budget = available_window_height();
+        if (forced && budget > 0 && !isMaximized() && !isFullScreen() && grown > budget) {
+          resize(width(), std::max({height_before, budget, minimumHeight()}));
+        }
+      });
     } else if (shrank) {
       // Unwrapped rows: the floors follow the content back down, in this pass, so the
       // overflow area places the panel for it right after.

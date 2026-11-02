@@ -2479,8 +2479,12 @@ bool MainWindow::prompt_rasterize_procedural_layer(LayerId layer_id,
 
 void MainWindow::apply_filter(const QString& identifier, const FilterInvocation* repeat) {
   // GEGL filters (docs/gegl-filters.md) run from their own registry, held for the whole
-  // run: a rescan may replace it meanwhile.
+  // run: a rescan may replace it meanwhile. The web build has no GEGL.
+#ifndef Q_OS_WASM
   const auto gegl_registry = gegl_filter_registry_for(identifier);
+#else
+  const std::shared_ptr<const FilterRegistry> gegl_registry;
+#endif
   const FilterRegistry& registry = gegl_registry != nullptr ? *gegl_registry : filters_;
   if (canvas_ != nullptr && canvas_->quick_mask_active()) {
     show_status_error(
@@ -2584,7 +2588,9 @@ void MainWindow::apply_filter(const QString& identifier, const FilterInvocation*
     }
     const auto display_name = filter_display_name(*filter);
     auto dialog_spec = filter_dialog_spec_for(*filter);
+#ifndef Q_OS_WASM
     add_gegl_filter_credit(identifier, dialog_spec);
+#endif
     // The selection may change while the settings dialog is open (local-028): the
     // preview reads it when each render starts, and Apply reads it again below.
     auto selection = filter_selection(*canvas_);

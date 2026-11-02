@@ -782,28 +782,41 @@ void ui_levels_histogram_clipped_linear_heights_and_auto_shared_sampler() {
     CHECK(white_input != nullptr);
     CHECK(auto_button != nullptr);
 
-    // Mirrors LevelsInputGraph::graph_rect(); at the 272px minimum width the
-    // inner rect is exactly 256 columns, one per bin.
+    // Mirrors LevelsInputGraph's paint: graph_rect(), its column-to-bin mapping and its
+    // bar scale (the graph height less 8). At the 272x116 minimum that is one column per
+    // bin and a 72px scale; a larger dialog (macOS fonts) probes the same bars.
     const auto image = graph->grab().toImage();
     const auto graph_rect = QRect(0, 0, graph->width(), graph->height()).adjusted(8, 8, -8, -28);
     CHECK(graph_rect.width() >= 256);
-    const auto column = graph_rect.left() + (180 * graph_rect.width()) / 256;
-    // Bin 180 holds 300 of 30,000 samples: 23% of the ceiling, 17px of the
-    // 72px bar scale. The 12px probe must be inside the bar and the 24px probe
-    // outside it (sqrt-of-max drew 7px, and normalizing to the tallest bin
-    // would draw under 1px).
-    CHECK(color_close(image.pixelColor(column, graph_rect.bottom() - 2), QColor(218, 218, 218), 8));
-    CHECK(color_close(image.pixelColor(column, graph_rect.bottom() - 12), QColor(218, 218, 218), 8));
-    CHECK(color_close(image.pixelColor(column, graph_rect.bottom() - 24), QColor(55, 55, 55), 8));
-    // Bin 60 holds 27,000 samples, 20 times the ceiling: it clips to the full
-    // 72px scale instead of stretching the graph.
-    const auto tall_column = graph_rect.left() + (60 * graph_rect.width()) / 256;
-    CHECK(color_close(image.pixelColor(tall_column, graph_rect.bottom() - 60), QColor(218, 218, 218), 8));
-    CHECK(color_close(image.pixelColor(tall_column, graph_rect.bottom() - 70), QColor(218, 218, 218), 8));
+    const auto column_for_bin = [&graph_rect](int bin) {
+      for (int x = 0; x < graph_rect.width(); ++x) {
+        const auto first = (x * 256) / graph_rect.width();
+        const auto last = std::max(((x + 1) * 256) / graph_rect.width(), first + 1);
+        if (bin >= first && bin < last) {
+          return graph_rect.left() + x;
+        }
+      }
+      return graph_rect.left();
+    };
+    const auto bar_scale = graph_rect.height() - 8;
+    const auto bottom = graph_rect.bottom();
+    // Bin 180 holds 300 of 30,000 samples: 23% of the ceiling, 17px of a 72px scale.
+    // A probe at 70% of that height must be inside the bar and one at 140% outside it
+    // (sqrt-of-max drew 7px of 72, and normalizing to the tallest bin would draw under 1px).
+    const auto column = column_for_bin(180);
+    const auto bar = static_cast<int>(std::round(0.23 * bar_scale));
+    CHECK(color_close(image.pixelColor(column, bottom - 2), QColor(218, 218, 218), 8));
+    CHECK(color_close(image.pixelColor(column, bottom - (bar * 7) / 10), QColor(218, 218, 218), 8));
+    CHECK(color_close(image.pixelColor(column, bottom - (bar * 14) / 10), QColor(55, 55, 55), 8));
+    // Bin 60 holds 27,000 samples, 20 times the ceiling: it clips to the full scale
+    // instead of stretching the graph.
+    const auto tall_column = column_for_bin(60);
+    CHECK(color_close(image.pixelColor(tall_column, bottom - (bar_scale * 5) / 6), QColor(218, 218, 218), 8));
+    CHECK(color_close(image.pixelColor(tall_column, bottom - (bar_scale - 2)), QColor(218, 218, 218), 8));
     // A 30-sample bin draws 2% of the scale: visible as a baseline, not tall.
-    const auto floor_column = graph_rect.left() + (100 * graph_rect.width()) / 256;
-    CHECK(color_close(image.pixelColor(floor_column, graph_rect.bottom() - 1), QColor(218, 218, 218), 8));
-    CHECK(color_close(image.pixelColor(floor_column, graph_rect.bottom() - 6), QColor(55, 55, 55), 8));
+    const auto floor_column = column_for_bin(100);
+    CHECK(color_close(image.pixelColor(floor_column, bottom - 1), QColor(218, 218, 218), 8));
+    CHECK(color_close(image.pixelColor(floor_column, bottom - 6), QColor(55, 55, 55), 8));
 
     auto_button->click();
     CHECK(black_input->value() == 60);

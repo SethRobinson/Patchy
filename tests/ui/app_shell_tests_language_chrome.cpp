@@ -1375,24 +1375,27 @@ void ui_language_catalog_covers_dialog_status_and_properties() {
   CHECK(filter_gallery_rendering == QStringLiteral("プレビューを描画しています..."));
   const auto filter_gallery_ready = QCoreApplication::translate("QObject", "Ready");
   CHECK(filter_gallery_ready == QStringLiteral("準備完了"));
-  const auto curves_load = QCoreApplication::translate("QObject", "Load...");
-  CHECK(curves_load == QStringLiteral("読み込み..."));
+  // The Curves dialog's preset row is the shared adjustment preset buttons (#592).
   const auto curves_save = QCoreApplication::translate("QObject", "Save...");
   CHECK(curves_save == QStringLiteral("保存..."));
-  const auto curves_load_title = QCoreApplication::translate("QObject", "Load Curves Preset");
-  CHECK(curves_load_title == QStringLiteral("トーンカーブプリセットを読み込み"));
-  const auto curves_save_title = QCoreApplication::translate("QObject", "Save Curves Preset");
-  CHECK(curves_save_title == QStringLiteral("トーンカーブプリセットを保存"));
+  const auto curves_import = QCoreApplication::translate("QObject", "Import...");
+  CHECK(curves_import == QStringLiteral("読み込み..."));
+  const auto curves_export = QCoreApplication::translate("QObject", "Export...");
+  CHECK(curves_export == QStringLiteral("書き出し..."));
+  const auto curves_import_title = QCoreApplication::translate("QObject", "Import Preset");
+  CHECK(curves_import_title == QStringLiteral("プリセットの読み込み"));
+  const auto curves_export_title = QCoreApplication::translate("QObject", "Export Preset");
+  CHECK(curves_export_title == QStringLiteral("プリセットの書き出し"));
   const auto curves_preset_filter =
       QCoreApplication::translate("QObject", "Photoshop Curves Preset (*.acv)");
   CHECK(curves_preset_filter == QStringLiteral("Photoshop トーンカーブプリセット (*.acv)"));
-  const auto curves_load_error = QCoreApplication::translate(
-      "QObject", "The Curves preset could not be loaded. The file may be damaged or unsupported.");
-  CHECK(curves_load_error == QStringLiteral(
-                                  "トーンカーブプリセットを読み込めませんでした。ファイルが破損しているか、対応していない可能性があります。"));
-  const auto curves_save_error =
-      QCoreApplication::translate("QObject", "The Curves preset could not be saved.");
-  CHECK(curves_save_error == QStringLiteral("トーンカーブプリセットを保存できませんでした。"));
+  const auto curves_import_error = QCoreApplication::translate(
+      "QObject", "The preset could not be imported. The file may be damaged or unsupported.");
+  CHECK(curves_import_error == QStringLiteral(
+                                   "プリセットを読み込めませんでした。ファイルが壊れているか、対応していない可能性があります。"));
+  const auto curves_export_error =
+      QCoreApplication::translate("QObject", "The preset could not be exported.");
+  CHECK(curves_export_error == QStringLiteral("プリセットを書き出せませんでした。"));
   const auto curves_target = QCoreApplication::translate("QObject", "Target");
   CHECK(curves_target == QStringLiteral("画像内調整"));
   const auto curves_before = QCoreApplication::translate("QObject", "Before");

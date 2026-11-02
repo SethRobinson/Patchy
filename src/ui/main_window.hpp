@@ -795,7 +795,8 @@ private:
   void refresh_palette_panel();
   void refresh_palette_mode_chip();
   void refresh_hdr_exposure_control();
-  void maybe_offer_indexed_palette_adoption();
+  // `announce` false keeps the status bar's message (an open's import notes, GitHub issue 487).
+  void maybe_offer_indexed_palette_adoption(bool announce = true);
   // The Affinity "Image" layer import choice (keep embedded smart objects or
   // convert to plain pixel layers); asks unless imports/afImageLayers decides.
   void maybe_convert_af_image_layers(Document& target);

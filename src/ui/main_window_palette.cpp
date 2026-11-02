@@ -874,7 +874,7 @@ void MainWindow::snap_layers_to_palette(bool active_layer_only) {
                                              : tr("Image snapped to the palette"));
 }
 
-void MainWindow::maybe_offer_indexed_palette_adoption() {
+void MainWindow::maybe_offer_indexed_palette_adoption(bool announce) {
   if (!has_active_document()) {
     return;
   }
@@ -926,7 +926,9 @@ void MainWindow::maybe_offer_indexed_palette_adoption() {
   }
   refresh_palette_panel();
   schedule_palette_compliance_check();
-  statusBar()->showMessage(tr("Editing with the image's palette"));
+  if (announce) {
+    statusBar()->showMessage(tr("Editing with the image's palette"));
+  }
 }
 
 void MainWindow::refresh_palette_panel() {

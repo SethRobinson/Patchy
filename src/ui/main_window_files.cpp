@@ -3273,8 +3273,9 @@ void MainWindow::open_document_path(QString path, OpenExisting existing) {
       }
       const bool active = target() != nullptr && target() == active_session();
       if (active && !unattended_automation()) {
-        // Unattended runs must not block on the adoption offer.
-        maybe_offer_indexed_palette_adoption();
+        // Unattended runs must not block on the adoption offer. The import notes already in
+        // the status bar stay there (GitHub issue 487).
+        maybe_offer_indexed_palette_adoption(notes.isEmpty());
       }
       if (!unattended_automation()) {
         // A note the user just answered in a question stays out of the box (#551).
