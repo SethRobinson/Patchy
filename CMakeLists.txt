@@ -411,6 +411,7 @@ endif()
 
 add_library(patchy_psd
   src/formats/acv_curves_io.cpp
+  src/formats/photoshop_adjustment_presets.cpp
   src/formats/miniz/miniz.c
   src/psd/abr_reader.cpp
   src/psd/asl_io.cpp
@@ -1322,6 +1323,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/curves_editor.cpp
       src/ui/curves_presets.hpp
       src/ui/curves_presets.cpp
+      src/ui/adjustment_presets.hpp
+      src/ui/adjustment_presets.cpp
       src/ui/filter_workflows.cpp
       src/ui/adjustment_dialogs.cpp
       src/ui/filter_look_library.hpp
@@ -2373,6 +2376,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/psd_test_support.cpp
     tests/core/smart_filter_descriptors_test_support.cpp
     tests/core/adjustments_curves_tests.cpp
+    tests/core/adjustment_preset_files_tests.cpp
     tests/core/af_tests.cpp
     tests/core/pdn_tests.cpp
     tests/core/xcf_tests.cpp
@@ -2590,6 +2594,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/folder_open_export_tests.cpp
       tests/ui/artboard_tests.cpp
       tests/ui/image_adjustments_curves_tests.cpp
+      tests/ui/adjustment_presets_tests.cpp
       tests/ui/selection_engines_tests.cpp
       tests/ui/ai_selection_tests.cpp
       tests/ui/misc_visuals_outline_stress_tests.cpp

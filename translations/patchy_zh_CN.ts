@@ -3254,20 +3254,8 @@
         <translation>当前的自定曲线</translation>
     </message>
     <message>
-        <source>Load...</source>
-        <translation>载入...</translation>
-    </message>
-    <message>
-        <source>Load a Photoshop Curves preset</source>
-        <translation>载入 Photoshop 曲线预设</translation>
-    </message>
-    <message>
         <source>Save...</source>
         <translation>存储...</translation>
-    </message>
-    <message>
-        <source>Save the current curves as a Photoshop preset</source>
-        <translation>将当前曲线存储为 Photoshop 预设</translation>
     </message>
     <message>
         <source>Before</source>
@@ -3278,24 +3266,8 @@
         <translation>按住以与未调整的图像进行比较</translation>
     </message>
     <message>
-        <source>Load Curves Preset</source>
-        <translation>载入曲线预设</translation>
-    </message>
-    <message>
         <source>Photoshop Curves Preset (*.acv)</source>
         <translation>Photoshop 曲线预设 (*.acv)</translation>
-    </message>
-    <message>
-        <source>The Curves preset could not be loaded. The file may be damaged or unsupported.</source>
-        <translation>无法载入曲线预设。文件可能已损坏或不受支持。</translation>
-    </message>
-    <message>
-        <source>Save Curves Preset</source>
-        <translation>存储曲线预设</translation>
-    </message>
-    <message>
-        <source>The Curves preset could not be saved.</source>
-        <translation>无法存储曲线预设。</translation>
     </message>
     <message>
         <source>Hue</source>
@@ -11381,10 +11353,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>中间调</translation>
     </message>
     <message>
-        <source>Tone:</source>
-        <translation>色调:</translation>
-    </message>
-    <message>
         <source>Preserve Luminosity</source>
         <translation>保持明度</translation>
     </message>
@@ -14504,6 +14472,230 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>4-up</source>
         <translation>四联</translation>
+    </message>
+    <message>
+        <source>Could not open the preset file</source>
+        <translation>无法打开预设文件</translation>
+    </message>
+    <message>
+        <source>Could not read the preset file</source>
+        <translation>无法读取预设文件</translation>
+    </message>
+    <message>
+        <source>The preset file is too large</source>
+        <translation>预设文件过大</translation>
+    </message>
+    <message>
+        <source>Could not open the preset file for writing</source>
+        <translation>无法打开预设文件进行写入</translation>
+    </message>
+    <message>
+        <source>Could not write the preset file</source>
+        <translation>无法写入预设文件</translation>
+    </message>
+    <message>
+        <source>The preset file is damaged or unsupported</source>
+        <translation>预设文件已损坏或不受支持</translation>
+    </message>
+    <message>
+        <source>Black input level</source>
+        <translation>黑色输入色阶</translation>
+    </message>
+    <message>
+        <source>Gamma (midtones)</source>
+        <translation>伽马 (中间调)</translation>
+    </message>
+    <message>
+        <source>White input level</source>
+        <translation>白色输入色阶</translation>
+    </message>
+    <message>
+        <source>B:</source>
+        <translation>黑:</translation>
+    </message>
+    <message>
+        <source>G:</source>
+        <translation>伽马:</translation>
+    </message>
+    <message>
+        <source>W:</source>
+        <translation>白:</translation>
+    </message>
+    <message>
+        <source>The color Colorize gives a mid gray</source>
+        <translation>着色赋予中灰色的颜色</translation>
+    </message>
+    <message>
+        <source>Colorize color</source>
+        <translation>着色颜色</translation>
+    </message>
+    <message>
+        <source>Restore the settings the dialog opened with</source>
+        <translation>恢复对话框打开时的设置</translation>
+    </message>
+    <message>
+        <source>My Presets</source>
+        <translation>我的预设</translation>
+    </message>
+    <message>
+        <source>Photoshop Hue/Saturation Preset (*.ahu)</source>
+        <translation>Photoshop 色相/饱和度预设 (*.ahu)</translation>
+    </message>
+    <message>
+        <source>Photoshop Levels Preset (*.alv)</source>
+        <translation>Photoshop 色阶预设 (*.alv)</translation>
+    </message>
+    <message>
+        <source>Photoshop Black &amp; White Preset (*.blw)</source>
+        <translation>Photoshop 黑白预设 (*.blw)</translation>
+    </message>
+    <message>
+        <source>Golden Monochrome</source>
+        <translation>金色单色</translation>
+    </message>
+    <message>
+        <source>Moonlight</source>
+        <translation>月光</translation>
+    </message>
+    <message>
+        <source>Warm Vintage</source>
+        <translation>暖调复古</translation>
+    </message>
+    <message>
+        <source>Vivid Film</source>
+        <translation>鲜艳胶片</translation>
+    </message>
+    <message>
+        <source>Soft Pastel</source>
+        <translation>柔和粉彩</translation>
+    </message>
+    <message>
+        <source>Cool Shift</source>
+        <translation>冷色偏移</translation>
+    </message>
+    <message>
+        <source>Warm Shift</source>
+        <translation>暖色偏移</translation>
+    </message>
+    <message>
+        <source>Warm Skin Tones</source>
+        <translation>暖调肤色</translation>
+    </message>
+    <message>
+        <source>Autumn Leaves</source>
+        <translation>秋叶</translation>
+    </message>
+    <message>
+        <source>Aqua Skies</source>
+        <translation>水色天空</translation>
+    </message>
+    <message>
+        <source>Deep Ocean</source>
+        <translation>深海</translation>
+    </message>
+    <message>
+        <source>Brighten Slightly</source>
+        <translation>稍微提亮</translation>
+    </message>
+    <message>
+        <source>Brighten Medium</source>
+        <translation>中度提亮</translation>
+    </message>
+    <message>
+        <source>Brighten Strong</source>
+        <translation>强烈提亮</translation>
+    </message>
+    <message>
+        <source>Darken Slightly</source>
+        <translation>稍微压暗</translation>
+    </message>
+    <message>
+        <source>Darken Medium</source>
+        <translation>中度压暗</translation>
+    </message>
+    <message>
+        <source>Darken Strong</source>
+        <translation>强烈压暗</translation>
+    </message>
+    <message>
+        <source>Slight Contrast</source>
+        <translation>轻微对比度</translation>
+    </message>
+    <message>
+        <source>Dramatic Contrast</source>
+        <translation>戏剧性对比度</translation>
+    </message>
+    <message>
+        <source>Deep Blacks</source>
+        <translation>深黑</translation>
+    </message>
+    <message>
+        <source>Crushed Blacks</source>
+        <translation>压缩黑色</translation>
+    </message>
+    <message>
+        <source>Brilliant Whites</source>
+        <translation>亮白</translation>
+    </message>
+    <message>
+        <source>Silhouette</source>
+        <translation>剪影</translation>
+    </message>
+    <message>
+        <source>Faded Light</source>
+        <translation>轻微褪色</translation>
+    </message>
+    <message>
+        <source>Faded Medium</source>
+        <translation>中度褪色</translation>
+    </message>
+    <message>
+        <source>Faded Strong</source>
+        <translation>强烈褪色</translation>
+    </message>
+    <message>
+        <source>Washed Out</source>
+        <translation>泛白</translation>
+    </message>
+    <message>
+        <source>Import...</source>
+        <translation>导入...</translation>
+    </message>
+    <message>
+        <source>Add a preset file to your presets</source>
+        <translation>将预设文件添加到你的预设</translation>
+    </message>
+    <message>
+        <source>Write the current settings to a preset file</source>
+        <translation>将当前设置写入预设文件</translation>
+    </message>
+    <message>
+        <source>A preset named &quot;%1&quot; already exists. Replace it?</source>
+        <translation>名为“%1”的预设已存在。要替换吗?</translation>
+    </message>
+    <message>
+        <source>The preset could not be saved.</source>
+        <translation>无法保存预设。</translation>
+    </message>
+    <message>
+        <source>The preset could not be deleted.</source>
+        <translation>无法删除预设。</translation>
+    </message>
+    <message>
+        <source>Import Preset</source>
+        <translation>导入预设</translation>
+    </message>
+    <message>
+        <source>The preset could not be imported. The file may be damaged or unsupported.</source>
+        <translation>无法导入预设。文件可能已损坏或不受支持。</translation>
+    </message>
+    <message>
+        <source>Export Preset</source>
+        <translation>导出预设</translation>
+    </message>
+    <message>
+        <source>The preset could not be exported.</source>
+        <translation>无法导出预设。</translation>
     </message>
 </context>
 <context>

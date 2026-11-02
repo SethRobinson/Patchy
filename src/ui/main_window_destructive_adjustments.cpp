@@ -149,7 +149,14 @@ void MainWindow::levels_dialog() {
       canvas_->document_changed();
     }
   });
-  const auto settings = request_levels_settings(this, preview_changed, {}, original_pixels.get());
+  // The eyedroppers read the image as it was before the preview (#589).
+  const auto hooks = curves_canvas_hooks(
+      canvas_, [this, active_id, original_pixels, bounds](QPoint point) {
+        const auto image = qimage_from_document_rect_with_layer_pixels(
+            std::as_const(document()), QRect(point, QSize(1, 1)), true, active_id, *original_pixels, bounds);
+        return image.isNull() ? QColor{} : image.pixelColor(0, 0);
+      });
+  const auto settings = request_levels_settings(this, preview_changed, {}, original_pixels.get(), hooks);
   close_async_pixel_preview(preview_state);
   layer = doc.find_layer(active_id);
   if (layer == nullptr) {
@@ -379,209 +386,41 @@ void MainWindow::curves_dialog() {
   statusBar()->showMessage(tr("Applied %1").arg(tr("Curves")));
 }
 
+// Hue/Saturation and Color Balance change the layer's pixels like every other Image >
+// Adjustments command, through the adjustment layer's own transfer; the preview counts
+// the six hue ranges too (#588, #591).
 void MainWindow::hue_saturation_dialog() {
-  auto& doc = document();
-  select_only_layer_if_none_active();
-  const auto active = doc.active_layer_id();
-  if (!active.has_value()) {
-    return;
-  }
-  auto* layer = doc.find_layer(*active);
-  if (!editable_rgb_layer_any_depth(layer)) {
-    show_status_error(tr("Select an editable RGB pixel layer"));
-    return;
-  }
-  if (layer_is_smart_object(*layer)) {
-    show_status_error(tr(
-        "Rasterize the Smart Object before applying destructive filters or adjustments"));
-    return;
-  }
-  if (!prompt_rasterize_procedural_layer(*active, tr("Hue/Saturation"), false)) {
-    return;
-  }
-  layer = doc.find_layer(*active);
-  if (!editable_rgb_layer_any_depth(layer)) {
-    show_status_error(tr("Select an editable RGB pixel layer"));
-    return;
-  }
-  const auto active_id = *active;
-  const auto bounds = layer->bounds();
-  auto original_pixels =
-      std::make_shared<const PixelBuffer>(std::as_const(*layer).pixels());
-  const auto selection = filter_selection(*canvas_);
-  const auto hue_saturation_has_effect = [](const HueSaturationSettings& settings) {
-    return settings.colorize || settings.hue_shift != 0 || settings.saturation_delta != 0 ||
-           settings.lightness_delta != 0;
-  };
-  DestructiveAdjustmentPreviewHooks preview_hooks;
-  preview_hooks.original_pixels = original_pixels;
-  preview_hooks.restore_identity = [this, active_id, bounds, original_pixels] {
-    if (auto* preview_layer = document().find_layer(active_id); preview_layer != nullptr) {
-      set_layer_pixels_preserving_origin(*preview_layer, *original_pixels, bounds);
-      if (canvas_ != nullptr) {
-        canvas_->document_changed(to_qrect(bounds));
-      }
-    }
-  };
-  preview_hooks.apply_result = [window = QPointer<MainWindow>(this), active_id,
-                                bounds](PixelBuffer result) {
-    if (window == nullptr) {
-      return;
-    }
-    if (auto* preview_layer = window->document().find_layer(active_id); preview_layer != nullptr) {
-      set_layer_pixels_preserving_origin(*preview_layer, std::move(result), bounds);
-      if (window->canvas_ != nullptr) {
-        window->canvas_->document_changed(to_qrect(bounds));
-      }
-    }
-  };
-  preview_hooks.preview_render_active = [window = QPointer<MainWindow>(this)](bool active) {
-    if (window != nullptr && window->canvas_ != nullptr) {
-      if (active) {
-        window->canvas_->begin_preview_render();
-      } else {
-        window->canvas_->end_preview_render();
-      }
-    }
-  };
-  auto preview_state = make_destructive_adjustment_preview_state(std::move(preview_hooks));
-  const auto preview_changed = [preview_state, bounds, selection, hue_saturation_has_effect](
-                                   bool enabled, const HueSaturationSettings& settings) {
-    const auto identity = !enabled || !hue_saturation_has_effect(settings);
-    DestructiveAdjustmentPreviewRequest request;
-    request.identity = identity;
-    if (!identity) {
-      request.render = [bounds, selection, settings](PixelBuffer& pixels) {
-        apply_hue_saturation_to_pixels(pixels, bounds, selection, settings, nullptr);
-      };
-    }
-    enqueue_async_pixel_preview(preview_state, std::move(request), identity);
-  };
-
-  auto preview_edit_lock = lock_preview_dialog_edits();
-  auto preview_cleanup = qScopeGuard([this, &doc, preview_state, original = *layer] {
-    close_async_pixel_preview(preview_state);
-    if (auto* target = doc.find_layer(original.id()); target != nullptr) {
-      *target = original;
-      canvas_->document_changed();
-    }
+  direct_adjustment_dialog(tr("Hue/Saturation"), [this](const DirectAdjustmentPreview& preview, const PixelBuffer&) {
+    const auto wrap = [](const HueSaturationSettings& hue_saturation) {
+      AdjustmentSettings adjustment;
+      adjustment.kind = AdjustmentKind::HueSaturation;
+      adjustment.hue_saturation = to_hue_saturation_adjustment(hue_saturation);
+      return adjustment;
+    };
+    const auto settings = request_hue_saturation_settings(
+        this, [preview, wrap](bool enabled, const HueSaturationSettings& hue_saturation) {
+          preview(enabled, wrap(hue_saturation));
+        });
+    return settings.has_value() ? std::optional<AdjustmentSettings>(wrap(*settings)) : std::nullopt;
   });
-  const auto settings = request_hue_saturation_settings(this, preview_changed);
-  close_async_pixel_preview(preview_state);
-  layer = doc.find_layer(active_id);
-  if (layer == nullptr) {
-    return;
-  }
-  set_layer_pixels_preserving_origin(*layer, *original_pixels, bounds);
-  canvas_->document_changed(to_qrect(bounds));
-  preview_cleanup.dismiss();
-  preview_edit_lock.release();
-  if (!settings.has_value()) {
-    statusBar()->showMessage(tr("Cancelled Hue/Saturation"));
-    return;
-  }
-  apply_hue_saturation_adjustment(*settings);
 }
 
 void MainWindow::color_balance_dialog() {
-  auto& doc = document();
-  select_only_layer_if_none_active();
-  const auto active = doc.active_layer_id();
-  if (!active.has_value()) {
-    return;
-  }
-  auto* layer = doc.find_layer(*active);
-  if (!editable_rgb_layer_any_depth(layer)) {
-    show_status_error(tr("Select an editable RGB pixel layer"));
-    return;
-  }
-  if (layer_is_smart_object(*layer)) {
-    show_status_error(tr(
-        "Rasterize the Smart Object before applying destructive filters or adjustments"));
-    return;
-  }
-  if (!prompt_rasterize_procedural_layer(*active, tr("Color Balance"), false)) {
-    return;
-  }
-  layer = doc.find_layer(*active);
-  if (!editable_rgb_layer_any_depth(layer)) {
-    show_status_error(tr("Select an editable RGB pixel layer"));
-    return;
-  }
-  const auto active_id = *active;
-  const auto bounds = layer->bounds();
-  auto original_pixels =
-      std::make_shared<const PixelBuffer>(std::as_const(*layer).pixels());
-  const auto selection = filter_selection(*canvas_);
-  const auto color_balance_has_effect = [](const ColorBalanceSettings& settings) { return settings.has_effect(); };
-  DestructiveAdjustmentPreviewHooks preview_hooks;
-  preview_hooks.original_pixels = original_pixels;
-  preview_hooks.restore_identity = [this, active_id, bounds, original_pixels] {
-    if (auto* preview_layer = document().find_layer(active_id); preview_layer != nullptr) {
-      set_layer_pixels_preserving_origin(*preview_layer, *original_pixels, bounds);
-      if (canvas_ != nullptr) {
-        canvas_->document_changed(to_qrect(bounds));
-      }
-    }
-  };
-  preview_hooks.apply_result = [window = QPointer<MainWindow>(this), active_id,
-                                bounds](PixelBuffer result) {
-    if (window == nullptr) {
-      return;
-    }
-    if (auto* preview_layer = window->document().find_layer(active_id); preview_layer != nullptr) {
-      set_layer_pixels_preserving_origin(*preview_layer, std::move(result), bounds);
-      if (window->canvas_ != nullptr) {
-        window->canvas_->document_changed(to_qrect(bounds));
-      }
-    }
-  };
-  preview_hooks.preview_render_active = [window = QPointer<MainWindow>(this)](bool active) {
-    if (window != nullptr && window->canvas_ != nullptr) {
-      if (active) {
-        window->canvas_->begin_preview_render();
-      } else {
-        window->canvas_->end_preview_render();
-      }
-    }
-  };
-  auto preview_state = make_destructive_adjustment_preview_state(std::move(preview_hooks));
-  const auto preview_changed = [preview_state, bounds, selection, color_balance_has_effect](
-                                   bool enabled, const ColorBalanceSettings& settings) {
-    const auto identity = !enabled || !color_balance_has_effect(settings);
-    DestructiveAdjustmentPreviewRequest request;
-    request.identity = identity;
-    if (!identity) {
-      request.render = [bounds, selection, settings](PixelBuffer& pixels) {
-        apply_color_balance_to_pixels(pixels, bounds, selection, settings, nullptr);
-      };
-    }
-    enqueue_async_pixel_preview(preview_state, std::move(request), identity);
-  };
-
-  auto preview_edit_lock = lock_preview_dialog_edits();
-  auto preview_cleanup = qScopeGuard([this, &doc, preview_state, original = *layer] {
-    close_async_pixel_preview(preview_state);
-    if (auto* target = doc.find_layer(original.id()); target != nullptr) {
-      *target = original;
-      canvas_->document_changed();
-    }
+  direct_adjustment_dialog(tr("Color Balance"), [this](const DirectAdjustmentPreview& preview, const PixelBuffer&) {
+    const auto wrap = [](const ColorBalanceSettings& color_balance) {
+      AdjustmentSettings adjustment;
+      adjustment.kind = AdjustmentKind::ColorBalance;
+      adjustment.color_balance = color_balance;
+      return adjustment;
+    };
+    const auto settings = request_color_balance_settings(
+        this,
+        [preview, wrap](bool enabled, const ColorBalanceSettings& color_balance) {
+          preview(enabled, wrap(color_balance));
+        },
+        new_color_balance_settings());
+    return settings.has_value() ? std::optional<AdjustmentSettings>(wrap(*settings)) : std::nullopt;
   });
-  const auto settings = request_color_balance_settings(this, preview_changed, new_color_balance_settings());
-  close_async_pixel_preview(preview_state);
-  layer = doc.find_layer(active_id);
-  if (layer == nullptr) {
-    return;
-  }
-  set_layer_pixels_preserving_origin(*layer, *original_pixels, bounds);
-  canvas_->document_changed(to_qrect(bounds));
-  preview_cleanup.dismiss();
-  preview_edit_lock.release();
-  if (!settings.has_value()) {
-    statusBar()->showMessage(tr("Cancelled Color Balance"));
-    return;
-  }
-  apply_color_balance_adjustment(*settings);
 }
 
 // The shared body of the Image > Adjustments commands that reuse an adjustment layer's

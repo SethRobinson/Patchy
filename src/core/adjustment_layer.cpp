@@ -2133,6 +2133,42 @@ CurvesAdjustment curves_adjustment_from_eyedropper_samples(const CurvesEyedroppe
   return curves;
 }
 
+LevelsAdjustment levels_adjustment_from_eyedropper_samples(LevelsAdjustment settings,
+                                                           const CurvesEyedropperSamples& samples) {
+  const auto channel_record = [&samples](LevelsRecord record, auto component) {
+    record = clamp_levels_record(record);
+    int black = samples.black.has_value() ? static_cast<int>(component(*samples.black)) : 0;
+    int white = samples.white.has_value() ? static_cast<int>(component(*samples.white)) : 255;
+    black = std::clamp(black, 0, 254);
+    white = std::clamp(white, 1, 255);
+    if (black >= white) {
+      // Degenerate samples still give a usable range, as the Curves eyedroppers do.
+      if (samples.white.has_value() && !samples.black.has_value()) {
+        black = std::max(0, white - 1);
+      } else {
+        white = std::min(255, black + 1);
+        black = std::min(black, white - 1);
+      }
+    }
+    record.black_input = black;
+    record.white_input = white;
+    record.gamma_percent = 100;
+    if (samples.gray.has_value() && white - black >= 2) {
+      // Levels maps x = (in - black) / (white - black) to x^(1/gamma): mid-gray needs
+      // gamma = ln(x) / ln(0.5).
+      const auto value = std::clamp(static_cast<int>(component(*samples.gray)), black + 1, white - 1);
+      const auto x = static_cast<double>(value - black) / static_cast<double>(white - black);
+      const auto gamma = std::log(x) / std::log(0.5);
+      record.gamma_percent = std::clamp(static_cast<int>(std::lround(gamma * 100.0)), 10, 999);
+    }
+    return clamp_levels_record(record);
+  };
+  settings.red = channel_record(settings.red, [](RgbColor color) { return color.red; });
+  settings.green = channel_record(settings.green, [](RgbColor color) { return color.green; });
+  settings.blue = channel_record(settings.blue, [](RgbColor color) { return color.blue; });
+  return settings;
+}
+
 std::array<std::uint8_t, 256> build_curve_lut(const CurveControlPoints& source) {
   const auto points = normalized_curve_control_points(source);
   const auto count = points.size();

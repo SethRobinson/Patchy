@@ -64,6 +64,10 @@ inline constexpr std::uint64_t kHistogramCeilingMeanMultiple = 4;
 // Shared by the Curves and Levels dialogs so both tint a channel alike.
 [[nodiscard]] QColor channel_histogram_color(CurvesChannel channel);
 
+// A small square of each color channel's hue on an RGB/Red/Green/Blue tab bar (channel
+// colors are content); the composite tab has none. Shared by Curves and Levels (#589).
+void set_channel_tab_swatches(QTabBar& tabs);
+
 // Reusable Curves editing panel. The host owns the authoritative adjustment:
 // every interaction reports a proposed copy through adjustment_changed, and
 // the host pushes accepted state back through set_adjustment(). Keeping the
