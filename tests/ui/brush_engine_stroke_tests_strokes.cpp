@@ -1318,10 +1318,28 @@ void ui_brush_opacity_and_flow_digit_keys_set_values() {
   // The (0,7) pair is consumed, so this 0 starts a fresh entry: 100%.
   send_key(canvas, Qt::Key_0);
   CHECK(canvas.brush_opacity() == 100);
-  // ...and a second 0 inside the pair window spells "00", Photoshop's 100% (it used to
-  // compute 0 and clamp to 1%).
+  // ...and a second 0 inside the pair window spells "00": 0%, like a layer's (GitHub issue 562).
   send_key(canvas, Qt::Key_0);
+  CHECK(canvas.brush_opacity() == 0);
+  // A 0% Brush stroke leaves the pixels alone.
+  const auto paint_bytes = [&document] {
+    const auto bytes = std::as_const(document).layers().back().pixels().data();
+    return std::vector<std::uint8_t>(bytes.begin(), bytes.end());
+  };
+  const auto before = paint_bytes();
+  QTest::mousePress(&canvas, Qt::LeftButton, Qt::NoModifier, QPoint(40, 40));
+  QTest::mouseMove(&canvas, QPoint(110, 70));
+  QTest::mouseRelease(&canvas, Qt::LeftButton, Qt::NoModifier, QPoint(110, 70));
+  QApplication::processEvents();
+  CHECK(paint_bytes() == before);
+  send_key(canvas, Qt::Key_0);  // the pair is consumed: a lone 0 again is 100%
   CHECK(canvas.brush_opacity() == 100);
+  // The same stroke at 100% paints, so the one above did cross the layer.
+  QTest::mousePress(&canvas, Qt::LeftButton, Qt::NoModifier, QPoint(40, 40));
+  QTest::mouseMove(&canvas, QPoint(110, 70));
+  QTest::mouseRelease(&canvas, Qt::LeftButton, Qt::NoModifier, QPoint(110, 70));
+  QApplication::processEvents();
+  CHECK(paint_bytes() != before);
 
   // Shift targets Flow while Airbrush is off. With Airbrush on, Photoshop's
   // shortcut assignment flips: bare digits target Flow and Shift targets
@@ -1335,12 +1353,24 @@ void ui_brush_opacity_and_flow_digit_keys_set_values() {
   CHECK(canvas.brush_opacity() == 60);
   send_key(canvas, Qt::Key_3);
   CHECK(canvas.brush_flow() == 30);
+  // "00" sets Flow to 0% too.
+  QTest::qWait(900);
+  send_key(canvas, Qt::Key_0);
+  send_key(canvas, Qt::Key_0);
+  CHECK(canvas.brush_flow() == 0);
+  canvas.set_brush_flow(30);
 
-  // The gradient tool routes digits to the gradient opacity instead.
+  // The gradient tool routes digits to the gradient opacity instead, "00" included.
   canvas.set_tool(patchy::ui::CanvasTool::Gradient);
+  QTest::qWait(900);
   send_key(canvas, Qt::Key_4);
   CHECK(canvas.gradient_opacity() == 40);
   CHECK(canvas.brush_opacity() == 60);
+  QTest::qWait(900);
+  send_key(canvas, Qt::Key_0);
+  send_key(canvas, Qt::Key_0);
+  CHECK(canvas.gradient_opacity() == 0);
+  canvas.set_gradient_opacity(40);
 
   // Non-painting tools ignore the digit keys.
   canvas.set_tool(patchy::ui::CanvasTool::Move);

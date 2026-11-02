@@ -19079,8 +19079,8 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Skripte</translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
-        <translation>Deckkraft von Werkzeug oder Ebene festlegen (1 = 10 %, 0 = 100 %; zwei Ziffern schnell eingeben für einen genauen Wert)</translation>
+        <source>Set tool or layer opacity, 0% to 100% (1 = 10%, 0 = 100%, 00 = 0%; type two digits quickly for an exact value)</source>
+        <translation>Deckkraft von Werkzeug oder Ebene festlegen, 0 % bis 100 % (1 = 10 %, 0 = 100 %, 00 = 0 %; zwei Ziffern schnell eingeben für einen genauen Wert)</translation>
     </message>
 </context>
 <context>
@@ -25689,10 +25689,6 @@ Y: %2
         <translation>Pinselgröße: Drücken Sie [ oder ], oder ziehen Sie mit %ALT%+rechter Maustaste auf der Arbeitsfläche</translation>
     </message>
     <message>
-        <source>Brush opacity: press number keys (5 = 50%, 0 = 100%)</source>
-        <translation>Pinseldeckkraft: Drücken Sie die Zifferntasten (5 = 50 %, 0 = 100 %)</translation>
-    </message>
-    <message>
         <source>Brush edge softness: %ALT%+Right-drag up or down on the canvas</source>
         <translation>Weichheit der Pinselkante: Ziehen Sie mit %ALT%+rechter Maustaste auf der Arbeitsfläche nach oben oder unten</translation>
     </message>
@@ -31470,6 +31466,10 @@ Fixiert: %1</translation>
     <message>
         <source>This build of Patchy has no GEGL filters.</source>
         <translation>Dieser Patchy-Build hat keine GEGL-Filter.</translation>
+    </message>
+    <message>
+        <source>Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)</source>
+        <translation>Pinseldeckkraft, 0 % bis 100 %: Drücken Sie die Zifferntasten (5 = 50 %, 0 = 100 %, 00 = 0 %)</translation>
     </message>
 </context>
 <context>

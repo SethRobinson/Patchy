@@ -19062,7 +19062,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
+        <source>Set tool or layer opacity, 0% to 100% (1 = 10%, 0 = 100%, 00 = 0%; type two digits quickly for an exact value)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -25646,10 +25646,6 @@ Y: %2
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Brush opacity: press number keys (5 = 50%, 0 = 100%)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Brush edge softness: %ALT%+Right-drag up or down on the canvas</source>
         <translation type="unfinished"></translation>
     </message>
@@ -31389,6 +31385,10 @@ Locked: %1</source>
     <message>
         <source>This build of Patchy has no GEGL filters.</source>
         <translation>This build of Patchy has no GEGL filters.</translation>
+    </message>
+    <message>
+        <source>Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

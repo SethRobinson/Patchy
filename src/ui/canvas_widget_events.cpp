@@ -4627,11 +4627,8 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
   if (opacity_pending_digit_ >= 0 && opacity_digit_timer_.isValid() &&
       opacity_digit_timer_.elapsed() < kDigitPairWindowMs) {
     value = opacity_pending_digit_ * 10 + digit;
-    if (value == 0) {
-      // "00": a layer's 0%, as in Photoshop. A tool has no 0% opacity, so there it is 100%,
-      // not a clamped 1%.
-      value = targets_layer ? 0 : 100;
-    }
+    // "00" is 0% for layers, tools and Flow alike (GitHub issue 562): the options bar runs
+    // 0..100 (issue 253), and a 0% stroke paints nothing.
     opacity_pending_digit_ = -1;
     opacity_digit_timer_.invalidate();
   } else {
@@ -4639,7 +4636,7 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
     opacity_pending_digit_ = digit;
     opacity_digit_timer_.start();
   }
-  value = std::clamp(value, targets_layer ? 0 : 1, 100);
+  value = std::clamp(value, 0, 100);
   if (targets_layer) {
     layer_opacity_digit_callback_(value);
     return true;

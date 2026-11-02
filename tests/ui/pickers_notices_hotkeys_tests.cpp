@@ -4555,7 +4555,7 @@ void ui_hotkey_editor_search_row_stays_while_list_scrolls() {
     // The bottom of the list is the built-in keys panel, with the 0-9 row's new text.
     bool saw_opacity_row = false;
     for (auto* label : list->findChildren<QLabel*>()) {
-      if (label->text() == QStringLiteral("Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)")) {
+      if (label->text() == QStringLiteral("Set tool or layer opacity, 0% to 100% (1 = 10%, 0 = 100%, 00 = 0%; type two digits quickly for an exact value)")) {
         saw_opacity_row = label->isVisible();
       }
       CHECK(!label->text().contains(QStringLiteral("10%-100%")));

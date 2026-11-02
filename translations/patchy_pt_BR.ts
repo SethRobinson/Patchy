@@ -19079,8 +19079,8 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Scripts</translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
-        <translation>Definir a opacidade da ferramenta ou da camada (1 = 10%, 0 = 100%; digite dois dígitos rápido para um valor exato)</translation>
+        <source>Set tool or layer opacity, 0% to 100% (1 = 10%, 0 = 100%, 00 = 0%; type two digits quickly for an exact value)</source>
+        <translation>Definir a opacidade da ferramenta ou da camada, 0% a 100% (1 = 10%, 0 = 100%, 00 = 0%; digite dois dígitos rápido para um valor exato)</translation>
     </message>
 </context>
 <context>
@@ -20917,10 +20917,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Opacity:</source>
         <translation>Opacidade:</translation>
-    </message>
-    <message>
-        <source>Brush opacity: press number keys (5 = 50%, 0 = 100%)</source>
-        <translation>Opacidade do pincel: pressione as teclas numéricas (5 = 50%, 0 = 100%)</translation>
     </message>
     <message>
         <source>Soft:</source>
@@ -31470,6 +31466,10 @@ Bloqueado: %1</translation>
     <message>
         <source>This build of Patchy has no GEGL filters.</source>
         <translation>Esta versão do Patchy não tem filtros GEGL.</translation>
+    </message>
+    <message>
+        <source>Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)</source>
+        <translation>Opacidade do pincel, 0% a 100%: pressione as teclas numéricas (5 = 50%, 0 = 100%, 00 = 0%)</translation>
     </message>
 </context>
 <context>

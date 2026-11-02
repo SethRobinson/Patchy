@@ -19034,8 +19034,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>スクリプト</translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
-        <translation>ツールまたはレイヤーの不透明度を設定 (1 = 10%、0 = 100%。2 桁をすばやく入力で正確な値)</translation>
+        <source>Set tool or layer opacity, 0% to 100% (1 = 10%, 0 = 100%, 00 = 0%; type two digits quickly for an exact value)</source>
+        <translation>ツールまたはレイヤーの不透明度を設定、0% から 100% (1 = 10%、0 = 100%、00 = 0%。2 桁をすばやく入力で正確な値)</translation>
     </message>
 </context>
 <context>
@@ -25629,10 +25629,6 @@ Clipped to the layer below</source>
         <translation>ブラシサイズ: [ / ] キー、またはキャンバス上で %ALT%+右ドラッグ</translation>
     </message>
     <message>
-        <source>Brush opacity: press number keys (5 = 50%, 0 = 100%)</source>
-        <translation>ブラシの不透明度: 数字キーで設定 (5 = 50%、0 = 100%)</translation>
-    </message>
-    <message>
         <source>Brush edge softness: %ALT%+Right-drag up or down on the canvas</source>
         <translation>ブラシエッジの柔らかさ: キャンバス上で %ALT%+右ドラッグ（上下）</translation>
     </message>
@@ -31387,6 +31383,10 @@ Locked: %1</source>
     <message>
         <source>This build of Patchy has no GEGL filters.</source>
         <translation>この Patchy のビルドには GEGL フィルターがありません。</translation>
+    </message>
+    <message>
+        <source>Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)</source>
+        <translation>ブラシの不透明度、0% から 100%: 数字キーで設定 (5 = 50%、0 = 100%、00 = 0%)</translation>
     </message>
 </context>
 <context>

@@ -19034,8 +19034,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>指令碼</translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
-        <translation>設定工具或圖層不透明度(1 = 10%，0 = 100%；快速輸入兩位數字可設為精確值)</translation>
+        <source>Set tool or layer opacity, 0% to 100% (1 = 10%, 0 = 100%, 00 = 0%; type two digits quickly for an exact value)</source>
+        <translation>設定工具或圖層不透明度，0% 到 100%(1 = 10%，0 = 100%，00 = 0%；快速輸入兩位數字可設為精確值)</translation>
     </message>
 </context>
 <context>
@@ -25629,10 +25629,6 @@ Y：%2
         <translation>筆刷尺寸:按 [ 或 ],或在畫布上以 %ALT%+右鍵拖曳</translation>
     </message>
     <message>
-        <source>Brush opacity: press number keys (5 = 50%, 0 = 100%)</source>
-        <translation>筆刷不透明度:按數字鍵 (5 表示 50%, 0 表示 100%)</translation>
-    </message>
-    <message>
         <source>Brush edge softness: %ALT%+Right-drag up or down on the canvas</source>
         <translation>筆刷邊緣的柔和度:在畫布上以 %ALT%+右鍵向上或向下拖曳</translation>
     </message>
@@ -31387,6 +31383,10 @@ Locked: %1</source>
     <message>
         <source>This build of Patchy has no GEGL filters.</source>
         <translation>此 Patchy 版本沒有 GEGL 濾鏡。</translation>
+    </message>
+    <message>
+        <source>Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)</source>
+        <translation>筆刷不透明度，0% 到 100%:按數字鍵 (5 表示 50%, 0 表示 100%, 00 表示 0%)</translation>
     </message>
 </context>
 <context>

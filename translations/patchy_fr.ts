@@ -19079,8 +19079,8 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Scripts</translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
-        <translation>Définir l&apos;opacité de l&apos;outil ou du calque (1 = 10 %, 0 = 100 % ; tapez vite deux chiffres pour une valeur exacte)</translation>
+        <source>Set tool or layer opacity, 0% to 100% (1 = 10%, 0 = 100%, 00 = 0%; type two digits quickly for an exact value)</source>
+        <translation>Définir l&apos;opacité de l&apos;outil ou du calque, 0 % à 100 % (1 = 10 %, 0 = 100 %, 00 = 0 % ; tapez vite deux chiffres pour une valeur exacte)</translation>
     </message>
 </context>
 <context>
@@ -25689,10 +25689,6 @@ Y : %2
         <translation>Taille du pinceau : appuyez sur [ ou ], ou %ALT%+glisser avec le bouton droit sur la zone de travail</translation>
     </message>
     <message>
-        <source>Brush opacity: press number keys (5 = 50%, 0 = 100%)</source>
-        <translation>Opacité du pinceau : appuyez sur les touches numériques (5 = 50 %, 0 = 100 %)</translation>
-    </message>
-    <message>
         <source>Brush edge softness: %ALT%+Right-drag up or down on the canvas</source>
         <translation>Douceur du bord du pinceau : %ALT%+glisser avec le bouton droit vers le haut ou vers le bas sur la zone de travail</translation>
     </message>
@@ -31470,6 +31466,10 @@ Verrouillé : %1</translation>
     <message>
         <source>This build of Patchy has no GEGL filters.</source>
         <translation>Cette version de Patchy n&apos;a pas de filtres GEGL.</translation>
+    </message>
+    <message>
+        <source>Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)</source>
+        <translation>Opacité du pinceau, 0 % à 100 % : appuyez sur les touches numériques (5 = 50 %, 0 = 100 %, 00 = 0 %)</translation>
     </message>
 </context>
 <context>
