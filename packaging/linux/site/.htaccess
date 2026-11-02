@@ -1,5 +1,5 @@
 # Served from rtsoft.com/flatpak, beside the Patchy Flatpak repository
-# (scripts\release\upload-linux-to-rtsoft.bat uploads it; packaging/linux/README.md).
+# (scripts\release\upload-flatpak-repo-to-rtsoft.bat uploads it; packaging/linux/README.md).
 #
 # With these types a browser hands a clicked .flatpakref or .flatpakrepo link to the
 # desktop's software center instead of showing it as text. The repository itself needs

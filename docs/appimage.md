@@ -2,7 +2,7 @@
 
 Patchy ships on Linux as a Flatpak ([packaging/linux/README.md](../packaging/linux/README.md))
 and, since GitHub issue 83, as an AppImage: `PatchyLinux.AppImage` on GitHub Releases (with
-`PatchyLinux.AppImage.zsync`) and the rtsoft.com mirror. One x86_64 file, no runtime to
+`PatchyLinux.AppImage.zsync`). One x86_64 file, no runtime to
 install, runs on Ubuntu 22.04 and every newer distro (Mint 21+, Debian 12+, Fedora 36+).
 
 ## Compatibility floor: build on Ubuntu 22.04
@@ -271,7 +271,6 @@ pinned to v1.16 (the captures themselves were not regenerated between those tags
 `docs/images/screenshots/` ([packaging/linux/README.md](../packaging/linux/README.md)).
 `release-linux.ps1` runs that check, then `make-appimage.sh` after `make-flatpak.sh`, and copies both files
 back; `publish-github-release.ps1` publishes them as `PatchyLinux.AppImage` and
-`PatchyLinux.AppImage.zsync` (stable names, never renamed); `upload-linux-to-rtsoft.bat`
-mirrors the AppImage only. The announcement commit adds the `appimage_url` and three
+`PatchyLinux.AppImage.zsync` (stable names, never renamed). The announcement commit adds the `appimage_url` and three
 `appimage_install_*` keys `publish-github-release.ps1` prints to the `linux` entry of
 `latest_version.json` ([release-process.md](release-process.md)).

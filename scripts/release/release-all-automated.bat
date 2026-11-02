@@ -11,7 +11,8 @@ rem wait for the consoles. Targets: windows (x64 and the cross-built ARM64 packa
 rem linux wasm (built and suite-tested on the remote wasm host, scripts\remote\release-wasm.ps1)
 rem wasm-local (build-wasm.bat on this machine, no suite), verify-windows verify-windows-arm64 (the ARM64 package on the ARM64 host)
 rem verify-mac verify-linux (the release tests, after the builders), upload-wasm upload-all
-rem upload-desktop (upload-all without the wasm site), and upload-github (publish after
+rem (the Flatpak repository and the wasm site on rtsoft.com) upload-desktop (the Flatpak
+rem repository only), and upload-github (publish after
 rem pushing the build commit with the OLD update manifest).
 rem All requested targets launch in parallel. Run builds, upload-all, and upload-github
 rem in separate invocations, waiting for successful exit markers between phases.

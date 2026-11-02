@@ -26,7 +26,7 @@ start "Patchy release - Windows" /low cmd /c "%~dp0build-release.bat"
 start "Patchy release - macOS" cmd /c "%~dp0..\remote\release-mac.bat"
 start "Patchy release - Linux" cmd /c "%~dp0..\remote\release-linux.bat"
 start "Patchy release - Web (wasm)" cmd /c "%~dp0..\remote\release-wasm.bat"
-echo Four release windows launched. When they all finish, run scripts\release\upload-to-rtsoft.bat.
+echo Four release windows launched. When they all finish and are verified, see docs\release-process.md for publishing.
 exit /b 0
 
 :metainfo_failed

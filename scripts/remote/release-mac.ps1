@@ -49,7 +49,7 @@ New-Item -ItemType Directory -Force $dest | Out-Null
 scp -q "${remoteHost}:patchy/src/build/package/Patchy-*.dmg" $dest
 if ($LASTEXITCODE -ne 0) { throw 'copying the dmg back from the mac build host failed' }
 
-# upload-mac-to-rtsoft.bat picks the newest build\package\Patchy-*.dmg, so an empty
+# publish-github-release.ps1 takes build\package\Patchy-<version>.dmg, so an empty
 # copy-back would leave it with nothing to publish (or something stale from an earlier
 # version, had the delete-previous step above not run).
 $dmgs = @(Get-ChildItem $dest -Filter 'Patchy-*.dmg')

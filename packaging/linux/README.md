@@ -9,9 +9,9 @@ Patchy ships on Linux as a Flatpak (this page) and as an AppImage
   `https://rtsoft.com/flatpak/com.rtsoft.patchy.flatpakref` and `patchy.flatpakrepo`
   beside it. This is what `flatpak update` and the software centers read (GitHub issue
   28). `build/package/Patchy-<version>-flatpak-repo.tar` holds all three;
-  `scripts\release\upload-linux-to-rtsoft.bat` installs it on the server.
+  `scripts\release\upload-flatpak-repo-to-rtsoft.bat` installs it on the server.
 - **The single-file bundle** `build/package/Patchy-<version>.flatpak`, published as
-  `PatchyLinux.flatpak` on GitHub Releases and the rtsoft.com mirror. It carries the
+  `PatchyLinux.flatpak` on GitHub Releases. It carries the
   repository URL and public key (`--repo-url`, `--gpg-keys`), so a bundle install gets
   the repository as its origin and updates like a repository install.
 

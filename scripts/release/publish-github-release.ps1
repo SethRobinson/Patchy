@@ -14,7 +14,8 @@ Latest. A draft is invisible to visitors, so a failed or partial upload never sh
 as a shipped release. Re-running after a failure reuses the existing draft and
 re-uploads with --clobber.
 
-GitHub is the canonical download location; rtsoft.com stays a mirror (upload-to-rtsoft.bat).
+GitHub Releases is the only download location (rtsoft.com stopped mirroring the files with
+1.25; it keeps the Flatpak repository and the web build, upload-to-rtsoft.bat).
 The README table and latest_version.json use the /releases/latest/download/<name>
 permalinks, which only work because the asset names never change between versions.
 
@@ -25,9 +26,9 @@ Assets, taken from -AssetDir (default build\package):
   Patchy-<version>-x86_64.AppImage(.zsync) -> PatchyLinux.AppImage(.zsync)
   PatchyGeglSources.zip (build-release.bat; the source of the GEGL the packages carry,
   which its licenses require beside the downloads: docs/gegl-filters.md, "Sources")
-  (the mac and Linux builders write versioned files; the stable-name copies that
-  upload-mac/linux-to-rtsoft.bat leave in build\package are whatever shipped LAST, so
-  they are never used here. When -AssetDir already holds the stable names and no
+  (the mac and Linux builders write versioned files; stable-name copies left in
+  build\package by an older run are whatever shipped then, so they are never used
+  here. When -AssetDir already holds the stable names and no
   versioned file, the stable names are used as-is: that is the backfill case.)
 
 Without -Target the release commit must be HEAD, clean, and already pushed to
@@ -177,8 +178,7 @@ if (-not $SkipAppImage) {
 }
 
 # Stage under the published names in a scratch folder (gh names an asset after its
-# file), never inside build\package: the stable names there belong to the rtsoft
-# upload scripts.
+# file), never inside build\package, where stable-name copies from older runs may sit.
 $stage = Join-Path $repoRoot "build\github-release\$tag"
 if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
 New-Item -ItemType Directory -Path $stage | Out-Null
@@ -271,7 +271,7 @@ $notesText += @"
 | macOS 12+ (Apple Silicon) | [PatchyMacOS.dmg]($base/PatchyMacOS.dmg) |
 | Linux Flatpak bundle | [PatchyLinux.flatpak]($base/PatchyLinux.flatpak) |$appImageRow
 
-Windows builds are code signed; the macOS app is signed and notarized. Checksums are in [SHA256SUMS.txt]($base/SHA256SUMS.txt).$geglSourcesSentence The same files are mirrored at rtsoft.com, and the browser version runs at [patchyimageeditor.com](https://www.patchyimageeditor.com).
+Windows builds are code signed; the macOS app is signed and notarized. Checksums are in [SHA256SUMS.txt]($base/SHA256SUMS.txt).$geglSourcesSentence The browser version runs at [patchyimageeditor.com](https://www.patchyimageeditor.com).
 "@
 if (-not $SkipAppImage) {
   # Install lines for the AppImage; the README's AppImage section has the per-distro FUSE
