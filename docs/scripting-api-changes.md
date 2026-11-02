@@ -14,6 +14,12 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-11-02 (additive, MCP): the companion protocol, version 1 ([companions.md](companions.md#protocol)).
+`get_info` adds `companionProtocol` (`{min, max}`); the `initialize` reply's
+`experimental["patchy/companion"]` is `{minProtocol, maxProtocol}`; a client's
+`experimental["patchy/companion"]` may be `{id, name, version, minProtocol, maxProtocol}` (a string
+is still its id); manifests take optional `minProtocol` and `maxProtocol`. Permanent identifiers:
+those keys and field names. Pinned by `ui_companion_protocol_range_is_checked`.
 2026-11-02 (additive, MCP): `companionCommand` adds the action `"quit"`, sent by the Quit entry
 Plugins > Companions shows while that companion is attached. Permanent identifier: the action
 value. Pinned by `ui_companion_menu_quits_attached_companion`.

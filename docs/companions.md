@@ -10,6 +10,15 @@ A companion is a separate program, such as OpenFill (local generative fill throu
 - Up to four clients attach at once, so a companion and an AI assistant can both be connected. Each has its own state token; while one client's script runs, the others get `busy`.
 - Generation happens between requests, so nothing is locked while the companion works. The token covers selection geometry, so take a fresh `get_state` right before inserting a result: the artist may have reselected meanwhile. `busy` means the artist is mid-gesture, in a modal dialog, or another request is running; retry later. Never replay a request that returned `workspace_disconnected`.
 
+## Protocol
+
+The companion protocol is an integer version covering what companions rely on: the events, the manifest keys, the Companions menu commands (`show`, `quit`) and the pixel-exchange script calls. Version 1 is everything on this page. An addition gets a capability token in `get_info`; only a breaking change raises the maximum, and the minimum rises only when Patchy stops serving an old version (`kCompanionProtocolMin`/`Max`, `ui/mcp_session.hpp`). Compare protocol numbers, never Patchy's version: development builds report the last release's version.
+
+- `get_info.companionProtocol` is `{min, max}` from the running Patchy. A Patchy without it predates companions (1.24 and older): tell the artist which Patchy release they need and stop.
+- At `initialize` a companion declares `experimental["patchy/companion"]`: `{id, name, version, minProtocol, maxProtocol}` (a bare string is taken as the id). Patchy shows "*name* needs a newer version of Patchy" or "*name* is too old for this version of Patchy; update it" in the status bar when the ranges do not overlap, but still serves the connection: the companion makes the same comparison and stops.
+- The `initialize` reply's `experimental["patchy/companion"]` is `{minProtocol, maxProtocol}`. `patchy-mcp` answers `initialize` before it reaches the window, so that is the connector's range; `get_info` is the window's.
+- A manifest's optional `minProtocol` and `maxProtocol` (whole numbers from 1) grey out its menu entry, labelled "(needs a newer Patchy)" or "(needs an update)", when this Patchy serves no version in the range. A Patchy that predates companions has no menu and never reads the manifest, so the companion's own check is still needed.
+
 ## Pixel exchange
 
 Large pixel blocks travel as image files. A script holds paths, never inlined arrays (script source and results are capped at 4 Mi characters). The calls are general scripting API, in `src/ui/script_pixel_io.cpp`:
@@ -65,10 +74,11 @@ Manifest keys (a file-format contract, never renamed):
 
 ```json
 {"id": "io.github.example.fill", "name": "Example Fill", "menuLabel": "Example Fill",
- "command": "bin/example-fill.exe", "args": ["--patchy"], "workingDirectory": ""}
+ "command": "bin/example-fill.exe", "args": ["--patchy"], "workingDirectory": "",
+ "minProtocol": 1, "maxProtocol": 1}
 ```
 
-`id` is reverse-DNS and unique (a duplicate is skipped); `name` and `command` are required; `menuLabel` defaults to `name`. `command` is absolute, relative to the manifest's folder when it contains a slash, or looked up on PATH. An installer writes the file; deleting it removes the entry.
+`id` is reverse-DNS and unique (a duplicate is skipped); `name` and `command` are required; `menuLabel` defaults to `name`; `minProtocol` defaults to 1 and `maxProtocol` to no limit ([Protocol](#protocol)). `command` is absolute, relative to the manifest's folder when it contains a slash, or looked up on PATH. An installer writes the file; deleting it removes the entry.
 
 ## Boundaries
 

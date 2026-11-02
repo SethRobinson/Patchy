@@ -13,6 +13,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QStatusBar>
 #include <QTimer>
 #include <QUuid>
 #include <QElapsedTimer>
@@ -75,7 +76,9 @@ QJsonObject mcp_initialize_result(const QJsonObject& params) {
   const auto requested = params["protocolVersion"].toString();
   return {{"protocolVersion", requested == "2025-06-18" ? requested : QStringLiteral("2025-11-25")},
         {"capabilities", QJsonObject{{"tools", QJsonObject{}},
-                                     {"experimental", QJsonObject{{"patchy/events", QJsonObject{}}}}}},
+                                     {"experimental", QJsonObject{{"patchy/events", QJsonObject{}},
+                                                                  {"patchy/companion", QJsonObject{{"minProtocol", kCompanionProtocolMin},
+                                                                                                   {"maxProtocol", kCompanionProtocolMax}}}}}}},
         {"serverInfo", QJsonObject{{"name", "patchy"}, {"version", QCoreApplication::applicationVersion()}}},
         {"instructions", QStringLiteral("Read get_info to identify the workspace: isolated, or the user's open Patchy window with --attach. Read get_help(workflow) and get_help(api). In attached mode every mutating tool requires expectedState from a fresh get_state or preview. If state is stale, inspect again before editing. Use document/layer IDs, batch edits, inspect get_preview, and save checkpoints. JS globals reset between calls. Requests are serialized; failed scripts may leave undoable edits.")}};
 }
@@ -335,7 +338,8 @@ struct McpSession::Impl final : public QObject {
             "brushTips", "brushPresets", "brushDynamics", "wetEdges", "mixerBrush", "penPose", "strokeSmoothing", "timedAirbrush", "brushLibraryWrites", "slowMode", "pauseAutomation", "palettes", "paletteColorNames", "indexedPng", "pixelExchange", "companionEvents"}},
           {"scriptTrust", "applicationPrivileges"}, {"workspaceAvailable", true}, {"liveWindowAttachment", attached_},
           {"workspace", attached_ ? "attached" : "isolated"}, {"requiresExpectedState", attached_},
-          {"processId", QString::number(QCoreApplication::applicationPid())}};
+          {"processId", QString::number(QCoreApplication::applicationPid())},
+          {"companionProtocol", QJsonObject{{"min", kCompanionProtocolMin}, {"max", kCompanionProtocolMax}}}};
         // Where the window is, so a companion can keep its panel beside it (docs/companions.md).
         // Only a Windows HWND can make another process's window an owned window.
         const auto frame = window_.frameGeometry();
@@ -429,7 +433,23 @@ struct McpSession::Impl final : public QObject {
   }
 
   void start_events(const QJsonObject& experimental) {
-    companion_id_ = experimental["patchy/companion"].toString().left(128);
+    // `patchy/companion` is {id, name, version, minProtocol, maxProtocol}; a bare string is the id.
+    const auto declared = experimental.value("patchy/companion");
+    const auto companion = declared.toObject();
+    companion_id_ = (declared.isString() ? declared.toString() : companion["id"].toString()).left(128);
+    if (declared.isObject()) {
+      const int min_protocol = companion["minProtocol"].toInt(kCompanionProtocolMin);
+      const int max_protocol = companion["maxProtocol"].toInt(min_protocol);
+      if (min_protocol > kCompanionProtocolMax || max_protocol < kCompanionProtocolMin) {
+        // The companion compares get_info itself and stops; this tells the artist why.
+        const auto name = companion["name"].toString(companion_id_).left(80);
+        window_.statusBar()->showMessage(
+            min_protocol > kCompanionProtocolMax
+                ? QCoreApplication::translate("patchy::ui::McpSession", "%1 needs a newer version of Patchy").arg(name)
+                : QCoreApplication::translate("patchy::ui::McpSession", "%1 is too old for this version of Patchy; update it").arg(name),
+            10000);
+      }
+    }
     const auto requested = experimental.value("patchy/events");
     events_ = requested.isObject() || requested.toBool(false);
     if (!events_) { return; }

@@ -23,8 +23,13 @@ struct CompanionManifest {
   QString command;     // absolute, relative to the manifest's folder, or found on PATH
   QStringList args;
   QString working_directory;  // empty: the manifest's folder
+  int min_protocol = 1;       // the companion protocol range it works with (docs/companions.md#protocol)
+  int max_protocol = 0;       // 0: no upper limit
   QString manifest_path;
 };
+
+// Whether this Patchy serves a protocol version inside the manifest's range.
+[[nodiscard]] bool companion_protocol_supported(const CompanionManifest& manifest);
 
 // <per-user app data>/companions. Created on demand by the menu's Open Folder entry.
 [[nodiscard]] QString companions_folder_path();

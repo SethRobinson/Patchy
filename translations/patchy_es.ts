@@ -18646,6 +18646,18 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Asked %1 to quit</source>
         <translation>Se pidió a %1 que se cierre</translation>
     </message>
+    <message>
+        <source>%1: minProtocol and maxProtocol must be whole numbers from 1, the minimum first.</source>
+        <translation>%1: minProtocol y maxProtocol deben ser números enteros desde 1, primero el mínimo.</translation>
+    </message>
+    <message>
+        <source>%1 (needs a newer Patchy)</source>
+        <translation>%1 (necesita un Patchy más reciente)</translation>
+    </message>
+    <message>
+        <source>%1 (needs an update)</source>
+        <translation>%1 (necesita actualizarse)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -31554,6 +31566,17 @@ Bloqueada: %1</translation>
     <message>
         <source>Script</source>
         <translation>Script</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::McpSession</name>
+    <message>
+        <source>%1 needs a newer version of Patchy</source>
+        <translation>%1 necesita una versión más reciente de Patchy</translation>
+    </message>
+    <message>
+        <source>%1 is too old for this version of Patchy; update it</source>
+        <translation>%1 es demasiado antiguo para esta versión de Patchy; actualícelo</translation>
     </message>
 </context>
 <context>

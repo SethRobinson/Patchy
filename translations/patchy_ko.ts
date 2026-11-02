@@ -18602,6 +18602,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Asked %1 to quit</source>
         <translation>%1에 종료를 요청했습니다</translation>
     </message>
+    <message>
+        <source>%1: minProtocol and maxProtocol must be whole numbers from 1, the minimum first.</source>
+        <translation>%1: minProtocol과 maxProtocol은 1 이상의 정수여야 하며 최솟값이 먼저 와야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1 (needs a newer Patchy)</source>
+        <translation>%1 (최신 Patchy 필요)</translation>
+    </message>
+    <message>
+        <source>%1 (needs an update)</source>
+        <translation>%1 (업데이트 필요)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -31471,6 +31483,17 @@ Locked: %1</source>
     <message>
         <source>Script</source>
         <translation>스크립트</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::McpSession</name>
+    <message>
+        <source>%1 needs a newer version of Patchy</source>
+        <translation>%1에는 최신 버전의 Patchy가 필요합니다</translation>
+    </message>
+    <message>
+        <source>%1 is too old for this version of Patchy; update it</source>
+        <translation>%1은(는) 이 Patchy 버전에 비해 너무 오래되었습니다. 업데이트하세요</translation>
     </message>
 </context>
 <context>

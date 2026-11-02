@@ -18602,6 +18602,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Asked %1 to quit</source>
         <translation>已请求 %1 退出</translation>
     </message>
+    <message>
+        <source>%1: minProtocol and maxProtocol must be whole numbers from 1, the minimum first.</source>
+        <translation>%1：minProtocol 和 maxProtocol 必须是从 1 开始的整数，且最小值在前。</translation>
+    </message>
+    <message>
+        <source>%1 (needs a newer Patchy)</source>
+        <translation>%1（需要更新的 Patchy）</translation>
+    </message>
+    <message>
+        <source>%1 (needs an update)</source>
+        <translation>%1（需要更新）</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -31471,6 +31483,17 @@ Locked: %1</source>
     <message>
         <source>Script</source>
         <translation>脚本</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::McpSession</name>
+    <message>
+        <source>%1 needs a newer version of Patchy</source>
+        <translation>%1 需要更新版本的 Patchy</translation>
+    </message>
+    <message>
+        <source>%1 is too old for this version of Patchy; update it</source>
+        <translation>%1 对此版本的 Patchy 来说太旧了，请更新它</translation>
     </message>
 </context>
 <context>
