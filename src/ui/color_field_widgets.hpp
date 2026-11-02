@@ -26,10 +26,13 @@ public:
   [[nodiscard]] virtual int saturation() const = 0;
   [[nodiscard]] virtual int value() const = 0;
 
-  // A left press starts a pick with the press event's own modifiers (never
+  // An accepted press starts a pick with the press event's own modifiers (never
   // QApplication::keyboardModifiers()); the moves that follow belong to it until
   // end_field_pick, so a modifier read here holds for the whole drag.
-  virtual void begin_field_pick(Qt::KeyboardModifiers modifiers) { Q_UNUSED(modifiers); }
+  virtual bool begin_field_pick(Qt::KeyboardModifiers modifiers, Qt::MouseButton button = Qt::LeftButton) {
+    Q_UNUSED(modifiers);
+    return button == Qt::LeftButton;
+  }
   virtual void end_field_pick() {}
   virtual void set_saturation_value_from_point(QPoint point, QSize size) = 0;
   virtual void set_hue_from_point(QPoint point, QSize size) = 0;
@@ -61,6 +64,7 @@ protected:
 
 private:
   HsvFieldSource& source_;
+  Qt::MouseButton pick_button_{Qt::NoButton};
   // The gradient is rendered only when the hue or the size changes, not per repaint.
   QImage plane_;
   int plane_hue_{-1};
@@ -84,6 +88,7 @@ protected:
 
 private:
   HsvFieldSource& source_;
+  Qt::MouseButton pick_button_{Qt::NoButton};
 };
 
 }  // namespace patchy::ui

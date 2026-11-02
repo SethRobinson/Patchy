@@ -7,7 +7,8 @@
 // sliders, which set the foreground, follow it, and are remembered (GitHub issue 404), and
 // to CMYK sliders in the working CMYK space (the issue's follow-up). A drag in the field
 // keeps its per-move work small: no gradient re-render, no settings write until the
-// release (GitHub issue 464).
+// release (GitHub issue 464). The row under the cube shows the foreground as hex and R, G,
+// B, and typing, Ctrl+V or a number sets it (GitHub issue 577).
 #include "color/color_management.hpp"
 #include "core/document.hpp"
 #include "core/palette_presets.hpp"
@@ -23,6 +24,7 @@
 #include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
+#include <QClipboard>
 #include <QColor>
 #include <QContextMenuEvent>
 #include <QDataStream>
@@ -30,11 +32,13 @@
 #include <QEnterEvent>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMenu>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QSplitter>
 #include <QTabBar>
+#include <QTest>
 #include <QTimer>
 #include <QToolButton>
 #include <QStatusBar>
@@ -94,6 +98,8 @@ void click(QWidget& widget, QPoint point, Qt::KeyboardModifiers modifiers = Qt::
   send_mouse(widget, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton, modifiers);
   QApplication::processEvents();
 }
+
+bool shows_background_cursor(const QWidget& widget);
 
 void ui_color_panel_click_sets_foreground_and_alt_sets_background() {
   patchy::ui::MainWindow window;
@@ -155,12 +161,40 @@ void ui_color_panel_click_sets_foreground_and_alt_sets_background() {
   CHECK(canvas->primary_color().rgb() == turned.rgb());
   CHECK(canvas->secondary_color().rgb() == background_after_alt.rgb());
   CHECK(panel->hue() == strip_hue_at(plain_y, strip->height()));
-  // The new plain press is a foreground pick again, even right after an Alt drag.
+  save_widget_artifact("ui_color_panel_before_right_pick", *panel);
+  // Right-button picks share the Alt target, including a whole drag on either surface.
+  for (auto* surface : {static_cast<QWidget*>(field), static_cast<QWidget*>(strip)}) {
+    const auto foreground = canvas->primary_color();
+    const auto hue_before = panel->hue();
+    const QPoint start(surface->width() / 3, surface->height() / 3);
+    const QPoint end(surface->width() * 2 / 3, surface->height() * 2 / 3);
+    const auto expected_at = [&](QPoint point) {
+      return surface == field ? field_color_at(hue_before, point, surface->size())
+                              : QColor::fromHsv(strip_hue_at(point.y(), surface->height()), 255, 255);
+    };
+    send_mouse(*surface, QEvent::MouseButtonPress, start, Qt::RightButton, Qt::RightButton);
+    QApplication::processEvents();
+    CHECK(canvas->secondary_color().rgb() == expected_at(start).rgb());
+    CHECK(panel->picking());
+    CHECK(shows_background_cursor(*surface));
+    send_mouse(*surface, QEvent::MouseMove, end, Qt::NoButton, Qt::RightButton);
+    QApplication::processEvents();
+    CHECK(canvas->secondary_color().rgb() == expected_at(end).rgb());
+    CHECK(canvas->primary_color().rgb() == foreground.rgb());
+    CHECK(panel->background_chip()->color().rgb() == expected_at(end).rgb());
+    CHECK(panel->hue() == hue_before);
+    send_mouse(*surface, QEvent::MouseButtonRelease, end, Qt::RightButton, Qt::NoButton);
+    CHECK(!panel->picking());
+    CHECK(!shows_background_cursor(*surface));
+  }
+  save_widget_artifact("ui_color_panel_after_right_pick", *panel);
+  const auto background_after_right = canvas->secondary_color();
+  // The new plain press is a foreground pick again, even right after a background drag.
   const QPoint fourth(field->width() / 3, field->height() / 4);
   const auto fourth_expected = field_color_at(panel->hue(), fourth, field->size());
   click(*field, fourth);
   CHECK(canvas->primary_color().rgb() == fourth_expected.rgb());
-  CHECK(canvas->secondary_color().rgb() == background_after_alt.rgb());
+  CHECK(canvas->secondary_color().rgb() == background_after_right.rgb());
 
   if (auto* column = MainWindowTestAccess::panel_column(window); column != nullptr) {
     save_widget_artifact("ui_color_panel_in_column", *column);
@@ -562,6 +596,16 @@ void ui_color_picker_foreground_window_alt_pick_sets_background() {
   if (picker == nullptr || grid == nullptr || plane == nullptr) {
     return;
   }
+
+  // The shared Square field still ignores right-button input in a color window.
+  const auto foreground_before_right = canvas->primary_color();
+  const auto background_before_right = canvas->secondary_color();
+  const QPoint right_pick(plane->width() / 3, plane->height() / 3);
+  send_mouse(*plane, QEvent::MouseButtonPress, right_pick, Qt::RightButton, Qt::RightButton);
+  send_mouse(*plane, QEvent::MouseMove, right_pick + QPoint(5, 5), Qt::NoButton, Qt::RightButton);
+  send_mouse(*plane, QEvent::MouseButtonRelease, right_pick, Qt::RightButton, Qt::NoButton);
+  CHECK(canvas->primary_color().rgb() == foreground_before_right.rgb());
+  CHECK(canvas->secondary_color().rgb() == background_before_right.rgb());
 
   // Plain clicks on two swatches set the foreground, as before.
   click(*grid, picker_cell(0));
@@ -1190,6 +1234,207 @@ void ui_color_panel_field_drag_keeps_per_move_work_small() {
   CHECK(field->plane_render_count() == renders + 1);
 }
 
+// GitHub issue 577: the hex field takes typed and pasted values ("#RRGGBB" or "RRGGBB"),
+// short forms and names on Return, and the R, G, B boxes take numbers; each sets the
+// foreground once and leaves the background alone.
+void ui_color_panel_hex_and_rgb_fields_set_foreground() {
+  SettingsValueRestorer view_setting(kColorPanelViewKey);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* panel = open_color_panel(window);
+  if (panel == nullptr) {
+    return;
+  }
+  panel->set_view(View::HueCube);
+  require_action(window, "colorDefaultAction")->trigger();
+  QApplication::processEvents();
+  auto* hex = panel->hex_edit();
+  auto* red = panel->cube_rgb_spin(Channel::Red);
+  auto* green = panel->cube_rgb_spin(Channel::Green);
+  auto* blue = panel->cube_rgb_spin(Channel::Blue);
+  CHECK(hex != nullptr && red != nullptr && green != nullptr && blue != nullptr);
+  if (hex == nullptr || red == nullptr || green == nullptr || blue == nullptr) {
+    return;
+  }
+  CHECK(hex->isVisible() && red->isVisible() && green->isVisible() && blue->isVisible());
+  CHECK(hex->text() == QStringLiteral("#000000"));
+  const auto background = canvas->secondary_color();
+  int picks = 0;
+  QObject::connect(panel, &ColorDockPanel::color_picked, panel, [&picks] { ++picks; });
+  const auto shows = [&](QColor color) {
+    return hex->text() == color.name(QColor::HexRgb).toUpper() && red->value() == color.red() &&
+           green->value() == color.green() && blue->value() == color.blue();
+  };
+
+  // Typing: a whole value applies as its last digit lands, without rewriting the text typed.
+  hex->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  CHECK(hex->hasFocus());
+  hex->selectAll();
+  QTest::keyClicks(hex, QStringLiteral("1a2B3"));
+  CHECK(canvas->primary_color().rgb() == QColor(Qt::black).rgb());
+  CHECK(picks == 0);
+  QTest::keyClicks(hex, QStringLiteral("c"));
+  const QColor typed(0x1A, 0x2B, 0x3C);
+  CHECK(canvas->primary_color().rgb() == typed.rgb());
+  CHECK(picks == 1);
+  CHECK(hex->text() == QStringLiteral("1a2B3c"));
+  CHECK(red->value() == typed.red() && green->value() == typed.green() && blue->value() == typed.blue());
+  QTest::keyClick(hex, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(hex->text() == QStringLiteral("#1A2B3C"));
+  CHECK(picks == 1);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Foreground color changed"));
+
+  // Ctrl+V over the selected value replaces it and applies, with or without the "#".
+  QGuiApplication::clipboard()->setText(QStringLiteral("#336699"));
+  hex->selectAll();
+  QTest::keyClick(hex, Qt::Key_V, Qt::ControlModifier);
+  CHECK(canvas->primary_color().rgb() == QColor(0x33, 0x66, 0x99).rgb());
+  QGuiApplication::clipboard()->setText(QStringLiteral("C0FFEE"));
+  hex->selectAll();
+  QTest::keyClick(hex, Qt::Key_V, Qt::ControlModifier);
+  CHECK(canvas->primary_color().rgb() == QColor(0xC0, 0xFF, 0xEE).rgb());
+  QTest::keyClick(hex, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(shows(QColor(0xC0, 0xFF, 0xEE)));
+  CHECK(picks == 3);
+
+  // Short forms and names apply on Return; text that names no color brings the value back.
+  hex->selectAll();
+  QTest::keyClicks(hex, QStringLiteral("#f80"));
+  CHECK(canvas->primary_color().rgb() == QColor(0xC0, 0xFF, 0xEE).rgb());
+  QTest::keyClick(hex, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(canvas->primary_color().rgb() == QColor(0xFF, 0x88, 0x00).rgb());
+  hex->selectAll();
+  QTest::keyClicks(hex, QStringLiteral("navy"));
+  QTest::keyClick(hex, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(canvas->primary_color().rgb() == QColor(0, 0, 128).rgb());
+  CHECK(shows(QColor(0, 0, 128)));
+  const auto picks_before_junk = picks;
+  hex->selectAll();
+  QTest::keyClicks(hex, QStringLiteral("zz"));
+  QTest::keyClick(hex, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(canvas->primary_color().rgb() == QColor(0, 0, 128).rgb());
+  CHECK(shows(QColor(0, 0, 128)));
+  CHECK(picks == picks_before_junk);
+
+  // A number box: a typed number applies on Return, an arrow key at once.
+  green->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  green->selectAll();
+  QTest::keyClicks(green, QStringLiteral("200"));
+  CHECK(canvas->primary_color().rgb() == QColor(0, 0, 128).rgb());
+  QTest::keyClick(green, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(canvas->primary_color().rgb() == QColor(0, 200, 128).rgb());
+  CHECK(shows(QColor(0, 200, 128)));
+  CHECK(picks == picks_before_junk + 1);
+  QTest::keyClick(green, Qt::Key_Up);
+  QApplication::processEvents();
+  CHECK(canvas->primary_color().rgb() == QColor(0, 201, 128).rgb());
+  red->setValue(90);
+  blue->setValue(90);
+  green->setValue(90);
+  QApplication::processEvents();
+  CHECK(canvas->primary_color().rgb() == QColor(90, 90, 90).rgb());
+  CHECK(shows(QColor(90, 90, 90)));
+  CHECK(canvas->secondary_color().rgb() == background.rgb());
+  // The cube shows the same foreground.
+  CHECK(QColor::fromHsv(panel->hue(), panel->saturation(), panel->value()).rgb() == QColor(90, 90, 90).rgb());
+  hex->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  hex->selectAll();
+  QTest::keyClicks(hex, QStringLiteral("#3366CC"));
+  QTest::keyClick(hex, Qt::Key_Return);
+  hex->clearFocus();
+  QApplication::processEvents();
+  CHECK(shows(QColor(0x33, 0x66, 0xCC)));
+  if (auto* section = MainWindowTestAccess::panel_section(window, kColorPanel); section != nullptr) {
+    save_widget_artifact("ui_color_panel_hex_rgb_row", *section);
+  }
+}
+
+// GitHub issue 577: the hex field and R, G, B boxes follow the foreground set anywhere else,
+// and showing it never comes back as a pick.
+void ui_color_panel_hex_and_rgb_fields_follow_the_foreground() {
+  SettingsValueRestorer view_setting(kColorPanelViewKey);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* panel = open_color_panel(window);
+  if (panel == nullptr) {
+    return;
+  }
+  panel->set_view(View::HueCube);
+  QApplication::processEvents();
+  auto* hex = panel->hex_edit();
+  CHECK(hex != nullptr);
+  if (hex == nullptr) {
+    return;
+  }
+  const auto shows = [&](QColor color) {
+    return hex->text() == color.name(QColor::HexRgb).toUpper() &&
+           panel->cube_rgb_spin(Channel::Red)->value() == color.red() &&
+           panel->cube_rgb_spin(Channel::Green)->value() == color.green() &&
+           panel->cube_rgb_spin(Channel::Blue)->value() == color.blue();
+  };
+  int picks = 0;
+  QObject::connect(panel, &ColorDockPanel::color_picked, panel, [&picks] { ++picks; });
+  require_action(window, "colorDefaultAction")->trigger();
+  QApplication::processEvents();
+  CHECK(shows(QColor(Qt::black)));
+  require_action(window, "colorSwapAction")->trigger();
+  QApplication::processEvents();
+  CHECK(shows(QColor(Qt::white)));
+  // The Foreground Color window's HTML field.
+  panel->foreground_chip()->click();
+  QApplication::processEvents();
+  auto* dialog = window.findChild<QDialog*>(QStringLiteral("patchyColorDialog"));
+  CHECK(dialog != nullptr && dialog->isVisible());
+  if (dialog != nullptr) {
+    auto* html = dialog->findChild<QLineEdit*>(QStringLiteral("patchyColorHtmlEdit"));
+    CHECK(html != nullptr);
+    if (html != nullptr) {
+      html->setText(QStringLiteral("#123456"));
+      CHECK(QMetaObject::invokeMethod(html, "editingFinished", Qt::DirectConnection));
+      QApplication::processEvents();
+      CHECK(canvas->primary_color().rgb() == QColor(0x12, 0x34, 0x56).rgb());
+      CHECK(shows(QColor(0x12, 0x34, 0x56)));
+    }
+    dialog->close();
+    QApplication::processEvents();
+  }
+  // The RGB Sliders view.
+  panel->set_view(View::RgbSliders);
+  QApplication::processEvents();
+  CHECK(picks == 0);
+  panel->channel_spin(Channel::Red)->setValue(77);
+  QApplication::processEvents();
+  CHECK(picks == 1);
+  panel->set_view(View::HueCube);
+  QApplication::processEvents();
+  CHECK(shows(canvas->primary_color()));
+  CHECK(canvas->primary_color().red() == 77);
+  // A pick in the field.
+  click(*panel->field(), QPoint(panel->field()->width() / 3, panel->field()->height() / 3));
+  CHECK(picks == 2);
+  CHECK(shows(canvas->primary_color()));
+  // A new value from elsewhere replaces text left in a focused field.
+  hex->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  hex->selectAll();
+  QTest::keyClicks(hex, QStringLiteral("#12"));
+  require_action(window, "colorDefaultAction")->trigger();
+  QApplication::processEvents();
+  CHECK(shows(QColor(Qt::black)));
+  CHECK(picks == 2);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> color_dock_panel_tests() {
@@ -1213,5 +1458,8 @@ std::vector<patchy::test::TestCase> color_dock_panel_tests() {
       {"ui_color_panel_view_persists", ui_color_panel_view_persists},
       {"ui_color_panel_cmyk_sliders_set_foreground", ui_color_panel_cmyk_sliders_set_foreground},
       {"ui_color_panel_field_drag_keeps_per_move_work_small", ui_color_panel_field_drag_keeps_per_move_work_small},
+      {"ui_color_panel_hex_and_rgb_fields_set_foreground", ui_color_panel_hex_and_rgb_fields_set_foreground},
+      {"ui_color_panel_hex_and_rgb_fields_follow_the_foreground",
+       ui_color_panel_hex_and_rgb_fields_follow_the_foreground},
   };
 }

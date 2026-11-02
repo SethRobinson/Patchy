@@ -198,8 +198,8 @@ QString color_tool_tip(QColor color) {
   return color.name(QColor::HexRgb).toUpper();
 }
 
-// A color carried by drag-and-drop or the clipboard: Qt's standard color mime
-// (application/x-color) first, then "#RRGGBB"-style text.
+}  // namespace
+
 QColor parse_panel_color(QString text) {
   text = text.trimmed();
   if (!text.startsWith(QLatin1Char('#'))) {
@@ -224,6 +224,10 @@ QColor parse_panel_color(QString text) {
   return QColor(text);
 }
 
+namespace {
+
+// A color carried by drag-and-drop or the clipboard: Qt's standard color mime
+// (application/x-color) first, then "#RRGGBB"-style text.
 std::optional<QColor> color_from_mime(const QMimeData* mime) {
   if (mime == nullptr) {
     return std::nullopt;
@@ -324,8 +328,12 @@ public:
     return background_pick_handler_ && (modifiers & Qt::AltModifier) != 0;
   }
   void pick_background(QColor color);
-  void begin_field_pick(Qt::KeyboardModifiers modifiers) override {
+  bool begin_field_pick(Qt::KeyboardModifiers modifiers, Qt::MouseButton button = Qt::LeftButton) override {
+    if (button != Qt::LeftButton) {
+      return false;
+    }
     field_picks_background_ = alt_picks_background(modifiers);
+    return true;
   }
   void end_field_pick() override { field_picks_background_ = false; }
   // Reacts to a MainWindow palette push: refreshes the "Current palette" swatches

@@ -5,9 +5,10 @@
 // views picked from the settings gear (GitHub issue 404): the Hue Cube (a saturation/value
 // field and a hue strip), RGB Sliders, HSB Sliders or CMYK Sliders. Every view shows
 // and edits the foreground. In the cube a click or drag sets the foreground; with Alt
-// (Option on macOS) held at the press it sets the background, for the whole drag, as the
-// Pick tool's Alt-click does. A slider or its number sets the foreground. MainWindow
-// applies each pick and pushes every color change back through set_colors.
+// (Option on macOS) held at the press, or with the right button, it sets the background
+// for the whole drag, as the Pick tool's Alt-click does. A slider or its number sets the
+// foreground, as do the hex field and R, G, B boxes under the cube (GitHub issue 577).
+// MainWindow applies each pick and pushes every color change back through set_colors.
 
 #include "ui/color_field_widgets.hpp"
 
@@ -23,6 +24,7 @@ class QAction;
 class QActionGroup;
 class QEvent;
 class QLabel;
+class QLineEdit;
 class QMenu;
 class QSpinBox;
 class QStackedWidget;
@@ -81,6 +83,9 @@ public:
   [[nodiscard]] QAction* view_action(View view) const;
   [[nodiscard]] QWidget* channel_track(Channel channel) const;
   [[nodiscard]] QSpinBox* channel_spin(Channel channel) const;
+  // The row under the cube: the foreground as "#RRGGBB" and its Red, Green and Blue boxes.
+  [[nodiscard]] QLineEdit* hex_edit() const noexcept { return hex_edit_; }
+  [[nodiscard]] QSpinBox* cube_rgb_spin(Channel channel) const;
 
   // The foreground in a channel's own range, as its slider and number show it.
   [[nodiscard]] int channel_value(Channel channel) const;
@@ -107,7 +112,7 @@ public:
   [[nodiscard]] int hue() const override { return hue_; }
   [[nodiscard]] int saturation() const override { return saturation_; }
   [[nodiscard]] int value() const override { return value_; }
-  void begin_field_pick(Qt::KeyboardModifiers modifiers) override;
+  bool begin_field_pick(Qt::KeyboardModifiers modifiers, Qt::MouseButton button = Qt::LeftButton) override;
   void end_field_pick() override;
   void set_saturation_value_from_point(QPoint point, QSize size) override;
   void set_hue_from_point(QPoint point, QSize size) override;
@@ -134,6 +139,11 @@ private:
   void adopt_foreground(QColor color);
   void produce_foreground(QColor color);
   void refresh_channel_views();
+  // The hex field's text as the foreground. While typing (`finished` false) only a whole
+  // six-digit value applies; on Return or focus out anything parse_panel_color reads does,
+  // and the field then shows the foreground again.
+  void apply_hex_text(bool finished);
+  void show_hex(bool force);
   // Takes an RGB or CMYK slider's color: HSV follows, keeping the hue of a gray and the
   // hue and saturation of black.
   void take_slider_color(QColor color);
@@ -160,6 +170,9 @@ private:
   std::array<QLabel*, kChannelCount> channel_labels_{};
   std::array<ColorChannelTrack*, kChannelCount> channel_tracks_{};
   std::array<QSpinBox*, kChannelCount> channel_spins_{};
+  QLineEdit* hex_edit_{nullptr};
+  std::array<QLabel*, 3> cube_rgb_labels_{};
+  std::array<QSpinBox*, 3> cube_rgb_spins_{};
   View view_{View::HueCube};
   int hue_{0};
   int saturation_{0};

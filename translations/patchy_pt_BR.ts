@@ -16840,10 +16840,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
 <context>
     <name>patchy::ui::ColorDockPanel</name>
     <message>
-        <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
-        <translation>Clique ou arraste para definir a cor do primeiro plano. %ALT%-clique ou %ALT%-arraste para definir a cor de fundo.</translation>
-    </message>
-    <message>
         <source>Hue Cube</source>
         <translation>Cubo de matiz</translation>
     </message>
@@ -16952,6 +16948,18 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Black</source>
         <translation>Preto</translation>
+    </message>
+    <message>
+        <source>Click or drag to set the foreground color. Right-click, right-drag, %ALT%-click or %ALT%-drag to set the background color.</source>
+        <translation>Clique ou arraste para definir a cor de primeiro plano. Clique com o botão direito, arraste com o botão direito, use %ALT%-clique ou %ALT%-arraste para definir a cor de fundo.</translation>
+    </message>
+    <message>
+        <source>Foreground color as hexadecimal (#RRGGBB). Type or paste a value or a color name.</source>
+        <translation>Cor do primeiro plano em hexadecimal (#RRGGBB). Digite ou cole um valor ou um nome de cor.</translation>
+    </message>
+    <message>
+        <source>Foreground color hex value</source>
+        <translation>Valor hexadecimal da cor do primeiro plano</translation>
     </message>
 </context>
 <context>

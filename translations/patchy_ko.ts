@@ -16796,10 +16796,6 @@ Each item&apos;s own View setting still applies.</source>
 <context>
     <name>patchy::ui::ColorDockPanel</name>
     <message>
-        <source>Click or drag to set the foreground color. %ALT%-click or %ALT%-drag to set the background color.</source>
-        <translation>클릭하거나 드래그하여 전경색을 설정합니다. %ALT%-클릭하거나 %ALT%-드래그하여 배경색을 설정합니다.</translation>
-    </message>
-    <message>
         <source>Hue Cube</source>
         <translation>색조 큐브</translation>
     </message>
@@ -16908,6 +16904,18 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Black</source>
         <translation>검정</translation>
+    </message>
+    <message>
+        <source>Click or drag to set the foreground color. Right-click, right-drag, %ALT%-click or %ALT%-drag to set the background color.</source>
+        <translation>클릭하거나 드래그하여 전경색을 설정합니다. 마우스 오른쪽 버튼으로 클릭하거나 드래그하거나, %ALT% 키를 누른 채 클릭하거나 %ALT% 키를 누른 채 드래그하여 배경색을 설정합니다.</translation>
+    </message>
+    <message>
+        <source>Foreground color as hexadecimal (#RRGGBB). Type or paste a value or a color name.</source>
+        <translation>전경색 16진수 값(#RRGGBB). 값이나 색상 이름을 입력하거나 붙여넣습니다.</translation>
+    </message>
+    <message>
+        <source>Foreground color hex value</source>
+        <translation>전경색 16진수 값</translation>
     </message>
 </context>
 <context>

@@ -83,8 +83,8 @@ void ColorPlaneWidget::paintEvent(QPaintEvent* event) {
 }
 
 void ColorPlaneWidget::mousePressEvent(QMouseEvent* event) {
-  if (event->button() == Qt::LeftButton) {
-    source_.begin_field_pick(event->modifiers());
+  if (source_.begin_field_pick(event->modifiers(), event->button())) {
+    pick_button_ = event->button();
     source_.set_saturation_value_from_point(event->position().toPoint(), size());
     event->accept();
     return;
@@ -93,7 +93,7 @@ void ColorPlaneWidget::mousePressEvent(QMouseEvent* event) {
 }
 
 void ColorPlaneWidget::mouseMoveEvent(QMouseEvent* event) {
-  if ((event->buttons() & Qt::LeftButton) != 0) {
+  if (pick_button_ != Qt::NoButton && (event->buttons() & pick_button_) != 0) {
     source_.set_saturation_value_from_point(event->position().toPoint(), size());
     event->accept();
     return;
@@ -102,7 +102,8 @@ void ColorPlaneWidget::mouseMoveEvent(QMouseEvent* event) {
 }
 
 void ColorPlaneWidget::mouseReleaseEvent(QMouseEvent* event) {
-  if (event->button() == Qt::LeftButton) {
+  if (pick_button_ != Qt::NoButton && event->button() == pick_button_) {
+    pick_button_ = Qt::NoButton;
     source_.end_field_pick();
     event->accept();
     return;
@@ -140,8 +141,8 @@ void HueSliderWidget::paintEvent(QPaintEvent* event) {
 }
 
 void HueSliderWidget::mousePressEvent(QMouseEvent* event) {
-  if (event->button() == Qt::LeftButton) {
-    source_.begin_field_pick(event->modifiers());
+  if (source_.begin_field_pick(event->modifiers(), event->button())) {
+    pick_button_ = event->button();
     source_.set_hue_from_point(event->position().toPoint(), size());
     event->accept();
     return;
@@ -150,7 +151,7 @@ void HueSliderWidget::mousePressEvent(QMouseEvent* event) {
 }
 
 void HueSliderWidget::mouseMoveEvent(QMouseEvent* event) {
-  if ((event->buttons() & Qt::LeftButton) != 0) {
+  if (pick_button_ != Qt::NoButton && (event->buttons() & pick_button_) != 0) {
     source_.set_hue_from_point(event->position().toPoint(), size());
     event->accept();
     return;
@@ -159,7 +160,8 @@ void HueSliderWidget::mouseMoveEvent(QMouseEvent* event) {
 }
 
 void HueSliderWidget::mouseReleaseEvent(QMouseEvent* event) {
-  if (event->button() == Qt::LeftButton) {
+  if (pick_button_ != Qt::NoButton && event->button() == pick_button_) {
+    pick_button_ = Qt::NoButton;
     source_.end_field_pick();
     event->accept();
     return;

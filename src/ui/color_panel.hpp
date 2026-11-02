@@ -106,6 +106,11 @@ bool apply_color_to_open_color_picker(QColor color);
 // MainWindow's Edit > Cut/Copy/Paste handlers use it for focus routing.
 [[nodiscard]] PatchyColorPicker* color_picker_ancestor_of(QWidget* widget);
 
+// The color a hex or color-name entry names: "#RRGGBB", "RRGGBB", "#RGB", "#RRGGBBAA"
+// (alpha last) or a CSS/SVG name; invalid when it names none. The color window's HTML
+// field and the Color panel's hex field both read typed and pasted text with it.
+[[nodiscard]] QColor parse_panel_color(QString text);
+
 [[nodiscard]] QString color_button_style(QColor color);
 [[nodiscard]] QString inline_text_editor_style(QColor color, int pixel_size);
 // The live color window (picks apply as they happen). `button` is its one button: Close for the
