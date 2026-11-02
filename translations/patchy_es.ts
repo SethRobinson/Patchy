@@ -14793,6 +14793,18 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Color Fill</source>
         <translation>Relleno de color</translation>
     </message>
+    <message>
+        <source>Manage...</source>
+        <translation>Gestionar…</translation>
+    </message>
+    <message>
+        <source>Open the Gradient Manager to save, rename, import or delete gradient presets</source>
+        <translation>Abrir el Gestor de degradados para guardar, renombrar, importar o eliminar ajustes preestablecidos de degradado</translation>
+    </message>
+    <message>
+        <source>Manage gradient presets</source>
+        <translation>Gestionar los ajustes preestablecidos de degradado</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

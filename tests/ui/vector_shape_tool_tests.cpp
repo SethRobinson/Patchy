@@ -5882,6 +5882,131 @@ void ui_shape_appearance_gradient_lists_select_the_matching_preset() {
   }
 }
 
+// GitHub #552 follow-up: the fill and stroke Gradient rows have a Manage... button
+// beside the list that opens the Gradient Manager on the current gradient (so New
+// from Current can save it). Afterwards the list is rebuilt: a preset added there
+// appears and is selected when it matches the paint, and Use Gradient picks a
+// preset like the list does.
+void ui_shape_appearance_gradient_manage_buttons_open_the_manager() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::GradientLibrary library(directory.filePath(QStringLiteral("gradients")));
+  CHECK(library.restore_default_gradients() > 0);
+  patchy::GradientDefinition user;
+  user.color_stops = {patchy::GradientColorStop{0.0F, {20, 160, 60}, 0.5F},
+                      patchy::GradientColorStop{1.0F, {240, 220, 20}, 0.5F}};
+  user.alpha_stops = {patchy::GradientAlphaStop{0.0F, 1.0F, 0.5F}, patchy::GradientAlphaStop{1.0F, 1.0F, 0.5F}};
+  const auto user_id = library.add_gradient(QStringLiteral("My Ramp"), user);
+  CHECK(!user_id.isEmpty());
+  patchy::GradientDefinition custom;
+  custom.color_stops = {patchy::GradientColorStop{0.0F, {10, 10, 10}, 0.5F},
+                        patchy::GradientColorStop{0.4F, {250, 120, 0}, 0.5F},
+                        patchy::GradientColorStop{1.0F, {255, 255, 255}, 0.5F}};
+  custom.alpha_stops = {patchy::GradientAlphaStop{0.0F, 1.0F, 0.5F}, patchy::GradientAlphaStop{1.0F, 1.0F, 0.5F}};
+  const patchy::RgbColor foreground{200, 30, 40};
+  const patchy::RgbColor background{20, 60, 210};
+  const auto* black_white = library.find_entry(kBlackToWhiteId);
+  CHECK(black_white != nullptr);
+  if (black_white == nullptr) return;
+  patchy::ui::ShapeAppearanceSettings initial;
+  initial.fill.kind = patchy::VectorFillKind::Gradient;
+  static_cast<patchy::GradientDefinition&>(initial.fill.gradient) = custom;
+  initial.stroke.enabled = true;
+  initial.stroke.width = 6;
+  initial.stroke.content.kind = patchy::VectorFillKind::Gradient;
+  static_cast<patchy::GradientDefinition&>(initial.stroke.content.gradient) =
+      patchy::ui::resolve_gradient_definition(black_white->definition, foreground, background);
+  QString saved_id;
+  int managers = 0;
+  bool checked = false;
+  QTimer::singleShot(0, [&] {
+    try {
+      auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) return;
+      auto* fill_combo = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillGradientCombo"));
+      auto* stroke_combo = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeGradientCombo"));
+      auto* fill_manage = dialog->findChild<QPushButton*>(QStringLiteral("shapeFillGradientManageButton"));
+      auto* stroke_manage = dialog->findChild<QPushButton*>(QStringLiteral("shapeStrokeGradientManageButton"));
+      CHECK(fill_combo != nullptr && stroke_combo != nullptr && fill_manage != nullptr && stroke_manage != nullptr);
+      if (fill_combo == nullptr || stroke_combo == nullptr || fill_manage == nullptr || stroke_manage == nullptr) {
+        return;
+      }
+      // Each button sits right of its list on the same row, labeled and enabled.
+      for (const auto& [combo, manage] :
+           {std::pair{fill_combo, fill_manage}, std::pair{stroke_combo, stroke_manage}}) {
+        CHECK(manage->isVisibleTo(dialog) && manage->isEnabled());
+        CHECK(!manage->toolTip().isEmpty() && !manage->accessibleName().isEmpty());
+        CHECK(combo->parentWidget() == manage->parentWidget());
+        const QRect combo_rect(combo->mapTo(dialog, QPoint(0, 0)), combo->size());
+        const QRect manage_rect(manage->mapTo(dialog, QPoint(0, 0)), manage->size());
+        CHECK(manage_rect.left() >= combo_rect.right());
+        CHECK(manage_rect.center().y() >= combo_rect.top() && manage_rect.center().y() <= combo_rect.bottom());
+      }
+      CHECK(fill_combo->currentData().toString().isEmpty());  // Custom
+      CHECK(stroke_combo->currentData().toString() == kBlackToWhiteId);
+      save_widget_artifact("issue552_shape_appearance_gradient_manage", *dialog);
+
+      // Fill: the manager opens on the custom gradient; a preset saved from it
+      // shows in the list afterwards and is the one selected.
+      QTimer::singleShot(0, [&] {
+        auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("gradientManagerDialog")));
+        CHECK(manager != nullptr);
+        if (manager == nullptr) return;
+        ++managers;
+        auto* new_current = manager->findChild<QPushButton*>(QStringLiteral("gradientManagerNewButton"));
+        CHECK(new_current != nullptr && new_current->isEnabled());
+        saved_id = library.add_gradient(QStringLiteral("Saved Ramp"), custom);
+        manager->reject();
+      });
+      fill_manage->click();
+      QApplication::processEvents();
+      CHECK(!saved_id.isEmpty());
+      CHECK(fill_combo->findData(saved_id) >= 0);
+      CHECK(fill_combo->currentData().toString() == saved_id);
+      CHECK(stroke_combo->findData(saved_id) < 0);  // the other list refreshes on its own Manage
+
+      // Stroke: Use Gradient picks My Ramp; the list shows it and the stroke takes it.
+      QTimer::singleShot(0, [&] {
+        auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("gradientManagerDialog")));
+        CHECK(manager != nullptr);
+        if (manager == nullptr) return;
+        ++managers;
+        auto* tree = manager->findChild<QTreeWidget*>(QStringLiteral("gradientManagerTree"));
+        auto* use = manager->findChild<QPushButton*>(QStringLiteral("gradientManagerUseButton"));
+        CHECK(tree != nullptr && use != nullptr);
+        if (tree == nullptr || use == nullptr) return;
+        QTreeWidgetItem* found = nullptr;
+        std::function<void(QTreeWidgetItem*)> visit = [&](QTreeWidgetItem* item) {
+          if (item->data(0, Qt::UserRole).toString() == user_id) found = item;
+          for (int child = 0; child < item->childCount(); ++child) visit(item->child(child));
+        };
+        for (int top = 0; top < tree->topLevelItemCount(); ++top) visit(tree->topLevelItem(top));
+        CHECK(found != nullptr);
+        if (found != nullptr) tree->setCurrentItem(found);
+        use->click();
+      });
+      stroke_manage->click();
+      QApplication::processEvents();
+      CHECK(stroke_combo->currentData().toString() == user_id);
+      CHECK(stroke_combo->findData(saved_id) >= 0);
+      checked = true;
+      dialog->accept();
+    } catch (...) {
+      patchy::ui::unwind_non_modal_dialog_loop(std::current_exception());
+    }
+  });
+  const auto edited = patchy::ui::request_shape_appearance_settings(nullptr, {}, initial, {}, &library, nullptr,
+                                                                    nullptr, foreground, background);
+  CHECK(checked);
+  CHECK(managers == 2);
+  CHECK(edited.has_value());
+  if (edited.has_value()) {
+    CHECK(edited->fill.gradient.color_stops == custom.color_stops);
+    CHECK(edited->stroke.content.gradient.color_stops == user.color_stops);
+  }
+}
+
 // GitHub #581: gradient preset previews draw Foreground/Background stops in the
 // current colors and alpha over the transparency checkerboard, and follow a color
 // change; previews without such stops are not redrawn.
@@ -9480,6 +9605,8 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_new_gradient_fill_layer_selects_its_preset_and_shows_only_fill},
       {"ui_shape_appearance_gradient_lists_select_the_matching_preset",
        ui_shape_appearance_gradient_lists_select_the_matching_preset},
+      {"ui_shape_appearance_gradient_manage_buttons_open_the_manager",
+       ui_shape_appearance_gradient_manage_buttons_open_the_manager},
       {"ui_gradient_preset_thumbnails_follow_the_current_colors",
        ui_gradient_preset_thumbnails_follow_the_current_colors},
       {"ui_paths_panel_actions_follow_row_selection", ui_paths_panel_actions_follow_row_selection},

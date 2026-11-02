@@ -14837,6 +14837,18 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Color Fill</source>
         <translation>Wypełnienie kolorem</translation>
     </message>
+    <message>
+        <source>Manage...</source>
+        <translation>Zarządzaj…</translation>
+    </message>
+    <message>
+        <source>Open the Gradient Manager to save, rename, import or delete gradient presets</source>
+        <translation>Otwórz Menedżer gradientów, aby zapisywać, zmieniać nazwy, importować lub usuwać ustawienia wstępne gradientów</translation>
+    </message>
+    <message>
+        <source>Manage gradient presets</source>
+        <translation>Zarządzaj ustawieniami wstępnymi gradientów</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

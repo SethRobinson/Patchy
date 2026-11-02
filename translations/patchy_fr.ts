@@ -14793,6 +14793,18 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Color Fill</source>
         <translation>Fond couleur</translation>
     </message>
+    <message>
+        <source>Manage...</source>
+        <translation>Gérer…</translation>
+    </message>
+    <message>
+        <source>Open the Gradient Manager to save, rename, import or delete gradient presets</source>
+        <translation>Ouvrir le Gestionnaire de dégradés pour enregistrer, renommer, importer ou supprimer des paramètres prédéfinis de dégradé</translation>
+    </message>
+    <message>
+        <source>Manage gradient presets</source>
+        <translation>Gérer les paramètres prédéfinis de dégradé</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

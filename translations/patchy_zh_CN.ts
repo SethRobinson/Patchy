@@ -14749,6 +14749,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Color Fill</source>
         <translation>纯色填充</translation>
     </message>
+    <message>
+        <source>Manage...</source>
+        <translation>管理…</translation>
+    </message>
+    <message>
+        <source>Open the Gradient Manager to save, rename, import or delete gradient presets</source>
+        <translation>打开渐变管理器以保存、重命名、导入或删除渐变预设</translation>
+    </message>
+    <message>
+        <source>Manage gradient presets</source>
+        <translation>管理渐变预设</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

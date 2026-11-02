@@ -14793,6 +14793,18 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Color Fill</source>
         <translation>Preenchimento de Cor</translation>
     </message>
+    <message>
+        <source>Manage...</source>
+        <translation>Gerenciar…</translation>
+    </message>
+    <message>
+        <source>Open the Gradient Manager to save, rename, import or delete gradient presets</source>
+        <translation>Abrir o Gerenciador de degradês para salvar, renomear, importar ou excluir predefinições de degradê</translation>
+    </message>
+    <message>
+        <source>Manage gradient presets</source>
+        <translation>Gerenciar predefinições de degradê</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

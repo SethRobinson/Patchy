@@ -14793,6 +14793,18 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Color Fill</source>
         <translation>Farbfüllung</translation>
     </message>
+    <message>
+        <source>Manage...</source>
+        <translation>Verwalten…</translation>
+    </message>
+    <message>
+        <source>Open the Gradient Manager to save, rename, import or delete gradient presets</source>
+        <translation>Die Verlaufsverwaltung öffnen, um Verlaufsvorgaben zu speichern, umzubenennen, zu importieren oder zu löschen</translation>
+    </message>
+    <message>
+        <source>Manage gradient presets</source>
+        <translation>Verlaufsvorgaben verwalten</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

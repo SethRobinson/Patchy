@@ -14776,6 +14776,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Color Fill</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Manage...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open the Gradient Manager to save, rename, import or delete gradient presets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Manage gradient presets</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

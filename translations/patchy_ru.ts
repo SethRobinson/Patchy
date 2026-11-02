@@ -14837,6 +14837,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Color Fill</source>
         <translation>Заливка цветом</translation>
     </message>
+    <message>
+        <source>Manage...</source>
+        <translation>Управлять…</translation>
+    </message>
+    <message>
+        <source>Open the Gradient Manager to save, rename, import or delete gradient presets</source>
+        <translation>Открыть менеджер градиентов, чтобы сохранять, переименовывать, импортировать или удалять наборы градиентов</translation>
+    </message>
+    <message>
+        <source>Manage gradient presets</source>
+        <translation>Управлять наборами градиентов</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
