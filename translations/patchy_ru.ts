@@ -18702,6 +18702,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>%1 (needs an update)</source>
         <translation>%1 (требуется обновление)</translation>
     </message>
+    <message>
+        <source>%1 (start it outside Patchy)</source>
+        <translation>%1 (запустите вне Patchy)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

@@ -18702,6 +18702,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>%1 (needs an update)</source>
         <translation>%1 (wymaga aktualizacji)</translation>
     </message>
+    <message>
+        <source>%1 (start it outside Patchy)</source>
+        <translation>%1 (uruchom poza Patchy)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

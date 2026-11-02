@@ -132,7 +132,8 @@ QProcessEnvironment companion_environment(const CompanionManifest& manifest) {
 }
 
 CompanionMenu::CompanionMenu(QMenu* plugins_menu, MainWindow& window)
-    : QObject(plugins_menu), window_(window), menu_(plugins_menu->addMenu(tr("&Companions"))) {
+    : QObject(plugins_menu), window_(window), menu_(plugins_menu->addMenu(tr("&Companions"))),
+      can_launch_(!resolve_ai_control_paths().flatpak) {
   menu_->setObjectName(QStringLiteral("companionsMenu"));
   menu_->menuAction()->setMenuRole(QAction::NoRole);
   launcher_ = [](const QString& program, const QStringList& args, const QString& working_directory,
@@ -163,10 +164,13 @@ void CompanionMenu::rebuild() {
   for (const auto& manifest : manifests) {
     const auto label = QString(manifest.menu_label).replace(QLatin1Char('&'), QStringLiteral("&&"));
     const bool supported = companion_protocol_supported(manifest);
-    auto* action = menu_->addAction(supported                                       ? label
-                                    : manifest.min_protocol > kCompanionProtocolMax ? tr("%1 (needs a newer Patchy)").arg(label)
-                                                                                    : tr("%1 (needs an update)").arg(label));
-    action->setEnabled(supported);
+    const bool reachable = can_launch_ || McpAttachment::companion_attached(manifest.id);
+    auto* action = menu_->addAction(!supported ? (manifest.min_protocol > kCompanionProtocolMax
+                                                      ? tr("%1 (needs a newer Patchy)").arg(label)
+                                                      : tr("%1 (needs an update)").arg(label))
+                                    : reachable ? label
+                                                : tr("%1 (start it outside Patchy)").arg(label));
+    action->setEnabled(supported && reachable);
     action->setObjectName(QStringLiteral("companionAction_") + manifest.id);
     action->setMenuRole(QAction::NoRole);
     action->setToolTip(manifest.name);
@@ -216,6 +220,9 @@ bool CompanionMenu::activate(const CompanionManifest& manifest) {
   if (McpAttachment::send_companion_command(manifest.id, QStringLiteral("show"))) {
     window_.statusBar()->showMessage(tr("Asked %1 to show its panel").arg(manifest.name), 4000);
     return true;
+  }
+  if (!can_launch_) {
+    return false;
   }
   const auto program = resolve_companion_command(manifest);
   const auto working_directory = manifest.working_directory.isEmpty()

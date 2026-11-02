@@ -18658,6 +18658,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>%1 (needs an update)</source>
         <translation>%1 (Aktualisierung nötig)</translation>
     </message>
+    <message>
+        <source>%1 (start it outside Patchy)</source>
+        <translation>%1 (außerhalb von Patchy starten)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

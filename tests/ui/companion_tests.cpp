@@ -442,6 +442,25 @@ void ui_companion_menu_quits_attached_companion() {
   companion.socket.disconnectFromServer();
   CHECK(wait_until([&] { return !patchy::ui::McpAttachment::companion_attached(QStringLiteral("io.example.fill")); }));
   CHECK(quit_entry(QStringLiteral("io.example.fill")) == nullptr);
+
+  // Inside a Flatpak the entry cannot start the companion: it says so until the companion attaches.
+  companions->set_can_launch_for_testing(false);
+  int launches = 0;
+  companions->set_launcher_for_testing([&](const QString&, const QStringList&, const QString&,
+                                           const QProcessEnvironment&) { return ++launches > 0; });
+  emit companions->menu()->aboutToShow();
+  auto* entry = companions->menu()->findChild<QAction*>(QStringLiteral("companionAction_io.example.fill"));
+  CHECK(entry != nullptr && !entry->isEnabled() && entry->text() == QStringLiteral("Fill && Co (start it outside Patchy)"));
+  CHECK(!companions->activate(patchy::ui::load_companion_manifests().front()));
+  CHECK(launches == 0);
+  SocketClient again;
+  CHECK(again.open(endpoint));
+  CHECK(again.initialize(QStringLiteral("Fill"), {{"patchy/companion", "io.example.fill"}}));
+  CHECK(wait_until([&] { return patchy::ui::McpAttachment::companion_attached(QStringLiteral("io.example.fill")); }));
+  emit companions->menu()->aboutToShow();
+  entry = companions->menu()->findChild<QAction*>(QStringLiteral("companionAction_io.example.fill"));
+  CHECK(entry != nullptr && entry->isEnabled() && entry->text() == QStringLiteral("Fill && Co"));
+  CHECK(quit_entry(QStringLiteral("io.example.fill")) != nullptr);
   remove_test_scratch_dir(folder);
 }
 

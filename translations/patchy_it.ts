@@ -18658,6 +18658,10 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>%1 (needs an update)</source>
         <translation>%1 (va aggiornato)</translation>
     </message>
+    <message>
+        <source>%1 (start it outside Patchy)</source>
+        <translation>%1 (avvialo fuori da Patchy)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

@@ -18658,6 +18658,10 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>%1 (needs an update)</source>
         <translation>%1 (precisa de atualização)</translation>
     </message>
+    <message>
+        <source>%1 (start it outside Patchy)</source>
+        <translation>%1 (inicie fora do Patchy)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

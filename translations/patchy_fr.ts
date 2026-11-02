@@ -18658,6 +18658,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>%1 (needs an update)</source>
         <translation>%1 (mise à jour nécessaire)</translation>
     </message>
+    <message>
+        <source>%1 (start it outside Patchy)</source>
+        <translation>%1 (lancez-le en dehors de Patchy)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

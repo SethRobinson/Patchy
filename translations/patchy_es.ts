@@ -18658,6 +18658,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>%1 (needs an update)</source>
         <translation>%1 (necesita actualizarse)</translation>
     </message>
+    <message>
+        <source>%1 (start it outside Patchy)</source>
+        <translation>%1 (inícielo fuera de Patchy)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

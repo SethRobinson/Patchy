@@ -60,6 +60,9 @@ class CompanionMenu final : public QObject {
   bool quit(const CompanionManifest& manifest);
   // Tests replace QProcess::startDetached.
   void set_launcher_for_testing(Launcher launcher) { launcher_ = std::move(launcher); }
+  // False inside a Flatpak sandbox, which cannot start host programs: the artist starts the
+  // companion and it attaches (docs/companions.md#companions-menu).
+  void set_can_launch_for_testing(bool can_launch) { can_launch_ = can_launch; }
 
  protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -68,5 +71,6 @@ class CompanionMenu final : public QObject {
   MainWindow& window_;
   QMenu* menu_;
   Launcher launcher_;
+  bool can_launch_;
 };
 }  // namespace patchy::ui

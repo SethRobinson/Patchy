@@ -18614,6 +18614,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>%1 (needs an update)</source>
         <translation>%1 (업데이트 필요)</translation>
     </message>
+    <message>
+        <source>%1 (start it outside Patchy)</source>
+        <translation>%1 (Patchy 밖에서 시작)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
