@@ -13,6 +13,13 @@ JOBS="${JOBS:-4}"
 QT_DIR=/opt/qt/6.8.3/gcc_64
 TOOLS=/opt/appimage-tools
 ORT_LIB_DIR=/opt/deps/onnxruntime/1.30.0/linux-x64/lib
+# Patchy's own GEGL for the AppImage (docs/gegl-filters.md), built here once and kept in
+# .deps like the other platforms' bundles; the presets point CMake at it.
+GEGL_BUNDLE="$ROOT/.deps/gegl/0.4.72/linux-x64-appimage"
+if [ ! -f "$GEGL_BUNDLE/lib/libgegl-0.4.so.0" ]; then
+  echo "== build Patchy's own GEGL for the AppImage =="
+  bash "$ROOT/scripts/dev/gegl/build-gegl-appimage.sh" "$ROOT"
+fi
 
 if [ "$MODE" = "tests" ]; then
   FILTER="${2:-}"
@@ -81,6 +88,10 @@ mkdir -p "$APPDIR/usr/translations"
 # The entry point must be executable in the image whatever mode the checkout gave it.
 cp "$ROOT/packaging/linux/appimage/AppRun" /tmp/AppRun
 chmod 755 /tmp/AppRun
+# Patchy's GEGL (usr/lib/patchy/gegl) is complete and finds its libraries through its own
+# RUNPATHs: kept out of linuxdeploy's reach, which would copy GLib into usr/lib and rewrite them.
+GEGL_ASIDE=$(mktemp -d /tmp/patchy-appimage-gegl.XXXXXX)
+mv "$APPDIR/usr/lib/patchy/gegl" "$GEGL_ASIDE/gegl"
 # Keep the plug-in's AppImage beside linuxdeploy: that is where linuxdeploy looks.
 "$TOOLS/linuxdeploy-x86_64.AppImage" --appdir "$APPDIR" \
   --executable "$APPDIR/usr/bin/patchy" \
@@ -90,6 +101,10 @@ chmod 755 /tmp/AppRun
   --custom-apprun /tmp/AppRun \
   --plugin qt
 unset LD_LIBRARY_PATH
+mv "$GEGL_ASIDE/gegl" "$APPDIR/usr/lib/patchy/gegl"
+case "$GEGL_ASIDE" in /tmp/patchy-appimage-gegl.?*) rmdir "$GEGL_ASIDE" ;; esac
+[ -x "$APPDIR/usr/bin/patchy-gegl-host" ] && [ -f "$APPDIR/usr/lib/patchy/gegl/lib/libgegl-0.4.so.0" ] \
+  || { echo "ERROR: the GEGL helper or Patchy's own GEGL is missing from the AppDir" >&2; exit 1; }
 
 # linuxdeploy wraps the custom AppRun (as AppRun.wrapped) in one that sources
 # linuxdeploy-plugin-qt's hook, which forces QT_QPA_PLATFORMTHEME=gtk2 on GNOME and XFCE,
@@ -194,7 +209,18 @@ mkdir -p "$STAGE" "$ROOT/build/package"
 echo "== smoke check inside the 22.04 container (extracted run) =="
 SMOKE=$(mktemp -d /tmp/patchy-appimage-smoke.XXXXXX)
 mkdir -p "$SMOKE/settings"
-echo 'console.log("headless smoke")' > "$SMOKE/smoke.js"
+# The GEGL filters must list and run from the mounted image (patchy-gegl-host and the bundle).
+cat > "$SMOKE/smoke.js" <<'JS'
+console.log("headless smoke");
+var gegl = patchy.gegl.filters();
+if (gegl.length < 100 || !gegl.some(function (f) { return f.id === "gegl.cartoon"; })) {
+  throw new Error("GEGL filters are missing (" + gegl.length + " listed)");
+}
+var doc = app.newDocument(32, 16, {name: "gegl smoke"});
+doc.activeLayer.fillRect(0, 0, 16, 16, "#ff0000");
+doc.activeLayer.applyFilter("gegl.gaussian-blur", {"std-dev-x": 3, "std-dev-y": 3});
+console.log("gegl ok: " + gegl.length + " filters");
+JS
 timeout 180 env PATCHY_SETTINGS_DIR="$SMOKE/settings" PATCHY_NO_SOUND=1 \
   "$STAGE/PatchyLinux.AppImage" --headless --run-script "$SMOKE/smoke.js" --script-output "$SMOKE/out.txt" \
   > "$SMOKE/console.txt" 2>&1 || { echo "ERROR: headless smoke check failed:" >&2; cat "$SMOKE/console.txt" >&2; exit 1; }

@@ -364,9 +364,13 @@ void start_gegl(bool allow_gpl3, const std::string& library) {
   // of the machine it was built on.
   // Windows GEGL finds it relative to its DLL, and libintl there reads paths in the ANSI
   // code page, so it is left alone.
+  // Patchy passes the folder (PATCHY_GEGL_LOCALE_DIR; the macOS app keeps it in Resources).
   if (api.bindtextdomain != nullptr) {
     const auto slash = library.find_last_of('/');
-    const auto locale = (slash == std::string::npos ? std::string(".") : library.substr(0, slash)) + "/../share/locale";
+    std::string locale = (slash == std::string::npos ? std::string(".") : library.substr(0, slash)) + "/../share/locale";
+    if (const char* given = std::getenv("PATCHY_GEGL_LOCALE_DIR"); given != nullptr && *given != '\0') {
+      locale = given;
+    }
     api.bindtextdomain("gegl-0.4", locale.c_str());
   }
 #else

@@ -1124,11 +1124,13 @@ Patchy's packages carry GEGL 0.4.72 and babl 0.1.128 (<https://gegl.org>,
 operation module, which is under the GNU GPL version 3 or later), as separate libraries that
 `patchy-gegl-host` loads. On Windows and macOS they come with GLib and json-glib (GNU LGPL
 version 2.1 or later), libintl from the gettext runtime and, on Windows, libiconv (GNU LGPL
-version 2.1 or later), libffi (MIT), PCRE2 (BSD) and zlib (zlib license); the Linux Flatpak
-uses its runtime's GLib and json-glib. GEGL is built from its release tarball without a few
+version 2.1 or later), libffi (MIT), PCRE2 (BSD) and zlib (zlib license); the Linux AppImage
+carries GLib, json-glib and PCRE2 built the same way and Ubuntu's libffi, and the Flatpak uses its runtime's
+GLib and json-glib. GEGL is built from its release tarball without a few
 operations, removed from its build lists by `scripts/dev/gegl/common.sh`; nothing else is
 modified. The license texts and the exact versions are in the package's GEGL `licenses`
-folder (`SOURCES.txt`; in the Flatpak, `/app/share/licenses/com.rtsoft.patchy`). The complete
+folder (`SOURCES.txt`; in the macOS app, `Contents/Resources/gegl/licenses`; in the Flatpak,
+`/app/share/licenses/com.rtsoft.patchy`). The complete
 corresponding source of all of them, with the scripts that built them, is
 `PatchyGeglSources.zip`, published with every Patchy release at
 <https://github.com/SethRobinson/Patchy/releases> and at

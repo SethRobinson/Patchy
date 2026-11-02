@@ -66,6 +66,8 @@ trap 'remove_scratch "$STAGE"' EXIT
 cp -R "$APP" "$STAGE/Patchy.app"
 # Dev-tree extras that are not part of the shipped app.
 rm -rf "${STAGE:?}/Patchy.app/Contents/MacOS/test-fixtures"
+# A build tree from the GIMP plug-in branch keeps that removed helper in its bundle.
+rm -f "${STAGE:?}/Patchy.app/Contents/MacOS/patchy-gimp-host"
 
 echo "== macdeployqt (bundling Qt frameworks and plugins) =="
 "$QT_BIN/macdeployqt" "$STAGE/Patchy.app" -executable="$STAGE/Patchy.app/Contents/MacOS/patchy-mcp"
@@ -120,12 +122,9 @@ if [ -n "${PATCHY_MAC_SIGN_IDENTITY:-}" ]; then
     find "$STAGE/Patchy.app/Contents/Frameworks/gegl" -type f \( -name '*.dylib' -o -name '*.so' \) -print0 |
       xargs -0 codesign --force --options runtime --timestamp -s "$PATCHY_MAC_SIGN_IDENTITY"
   fi
+  # The GEGL helper needs no entitlements: it loads only these libraries, signed by the same
+  # team, through their @rpath names (checked November 2, 2026 with a hardened helper).
   codesign --force --deep --options runtime --timestamp -s "$PATCHY_MAC_SIGN_IDENTITY" "$STAGE/Patchy.app"
-  # The GEGL helper loads the bundle's GEGL with DYLD_LIBRARY_PATH (docs/gegl-filters.md): it
-  # alone gets the entitlements for that, then the app is sealed again over the re-signed helper.
-  codesign --force --options runtime --timestamp --entitlements packaging/macos/patchy-gegl-host.entitlements \
-    -s "$PATCHY_MAC_SIGN_IDENTITY" "$STAGE/Patchy.app/Contents/MacOS/patchy-gegl-host"
-  codesign --force --options runtime --timestamp -s "$PATCHY_MAC_SIGN_IDENTITY" "$STAGE/Patchy.app"
   codesign --verify --deep --strict "$STAGE/Patchy.app"
 elif [ "${PATCHY_REQUIRE_SIGNING:-0}" = "1" ]; then
   echo "ERROR: PATCHY_REQUIRE_SIGNING=1 but PATCHY_MAC_SIGN_IDENTITY is not set." >&2

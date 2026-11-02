@@ -2203,14 +2203,26 @@ exec \"$(dirname \"$(readlink -f \"$0\")\")/patchy\" --mcp-connector \"$@\"
           COMMAND ${CMAKE_COMMAND} -E copy_if_different ${PATCHY_ONNXRUNTIME_RUNTIME_FILES}
                   "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Frameworks/")
       endif()
-      # Patchy's own GEGL (cmake/patchy_gegl.cmake) in Frameworks/gegl, where
-      # bundled_gegl_library finds it; make-dmg.sh signs each of its libraries.
+      # Patchy's own GEGL (cmake/patchy_gegl.cmake): its code in Frameworks/gegl/lib, where
+      # bundled_gegl_library finds it and make-dmg.sh signs each library, and its catalogs and
+      # licenses in Resources/gegl. codesign takes a folder with a dot in its name inside
+      # Frameworks for a bundle and refuses the app, so the module folders are renamed
+      # gegl-modules and babl-extensions (prepare_helper points GEGL_PATH and BABL_PATH there).
       if(TARGET patchy_gegl_bundle)
         list(APPEND PATCHY_BUNDLE_RESOURCE_DEPS "${PATCHY_GEGL_BUNDLE_STAMP}")
         list(APPEND PATCHY_BUNDLE_AI_COMMANDS
           COMMAND ${CMAKE_COMMAND} -E rm -rf "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Frameworks/gegl"
-          COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_BINARY_DIR}/gegl"
-                  "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Frameworks/gegl")
+          COMMAND ${CMAKE_COMMAND} -E rm -rf "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/gegl"
+          COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_BINARY_DIR}/gegl/lib"
+                  "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Frameworks/gegl/lib"
+          COMMAND ${CMAKE_COMMAND} -E rename "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Frameworks/gegl/lib/gegl-0.4"
+                  "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Frameworks/gegl/lib/gegl-modules"
+          COMMAND ${CMAKE_COMMAND} -E rename "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Frameworks/gegl/lib/babl-0.1"
+                  "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Frameworks/gegl/lib/babl-extensions"
+          COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_BINARY_DIR}/gegl/share"
+                  "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/gegl/share"
+          COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_BINARY_DIR}/gegl/licenses"
+                  "$<TARGET_BUNDLE_CONTENT_DIR:patchy>/Resources/gegl/licenses")
       endif()
       # The G'MIC engine's OpenMP runtime (cmake/patchy_gmic.cmake), found through the
       # executables' @executable_path/../Frameworks rpath.
@@ -2285,8 +2297,14 @@ exec \"$(dirname \"$(readlink -f \"$0\")\")/patchy\" --mcp-connector \"$@\"
       )
     endif()
     if(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
-      # The GEGL helper (docs/gegl-filters.md).
+      # The GEGL helper and Patchy's own GEGL in lib/patchy/gegl, where bundled_gegl_library
+      # finds it from bin (docs/gegl-filters.md; lib, not a multiarch LIBDIR). The Flatpak builds
+      # GEGL as manifest modules instead.
       install(TARGETS patchy-gegl-host RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+      if(TARGET patchy_gegl_bundle)
+        install(DIRECTORY "${PATCHY_GEGL_BUNDLE_DIR_FOUND}/" DESTINATION "lib/patchy/gegl"
+                USE_SOURCE_PERMISSIONS)
+      endif()
       install(DIRECTORY "${PATCHY_AGENT_KIT_DIR}/"
               DESTINATION "${CMAKE_INSTALL_DATADIR}/patchy/ai")
       install(FILES "${PATCHY_BUNDLED_SCRIPTS_DIR}/patchy.d.ts"

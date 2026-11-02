@@ -31,6 +31,7 @@ ENV LANG=en_US.UTF-8
 
 # 22.04's apt CMake is 3.22; the project needs 3.26 (presets schema 6).
 RUN pip3 install --no-cache-dir "cmake==3.31.6" "aqtinstall==3.3.0"
+
 RUN aqt install-qt linux desktop 6.8.3 linux_gcc_64 -m qtimageformats qtpdf -O /opt/qt
 
 # ONNX Runtime and the segmentation models, pinned and checksummed by the same script the
@@ -57,6 +58,14 @@ RUN mkdir -p /opt/appimage-tools && cd /opt/appimage-tools \
          "2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d  runtime-x86_64" \
        | sha256sum -c - \
     && chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool-x86_64.AppImage
+
+# What scripts/dev/gegl/build-gegl-appimage.sh needs to build Patchy's own GEGL from source
+# (docs/gegl-filters.md): GLib 2.84 wants Meson 1.4 or newer and Python's packaging module;
+# GEGL's configure requires libjpeg and libpng for file loaders the bundle never ships.
+RUN apt-get update && apt-get install -y --no-install-recommends pkg-config libffi-dev zlib1g-dev xz-utils \
+      libjpeg-turbo8-dev libpng-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip3 install --no-cache-dir "meson==1.7.2" "packaging==24.2"
 
 # No FUSE inside the container: the tool AppImages extract themselves to run.
 ENV APPIMAGE_EXTRACT_AND_RUN=1

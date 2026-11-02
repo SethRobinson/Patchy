@@ -96,7 +96,8 @@ cp "$PREFIX"/lib/gegl-0.4/{gegl-common,gegl-common-cxx,gegl-generated,gegl-commo
 cp "$PREFIX"/lib/babl-0.1/* "$STAGE/lib/babl-0.1/"
 rm -f "$STAGE"/lib/babl-0.1/cairo.*
 # The libraries the staged ones load from the prefix, followed until nothing new appears;
-# each is named @rpath/<file> and finds the others through DYLD_LIBRARY_PATH or its rpath.
+# each is named @rpath/<file> and finds the others through its rpaths (no DYLD_LIBRARY_PATH:
+# a hardened-runtime helper ignores it).
 queue=("$PREFIX/lib/libgegl-0.4.0.dylib" "$PREFIX/lib/libbabl-0.1.0.dylib" "$STAGE"/lib/gegl-0.4/* "$STAGE"/lib/babl-0.1/*)
 while [ ${#queue[@]} -gt 0 ]; do
   item=${queue[0]}

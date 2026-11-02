@@ -36,11 +36,14 @@ install -y podman uidmap`, one time). It builds the image from
 1. Configure and build preset `linux-appimage` into `build/appimage` (the Flatpak's
    options: tests off, `PATCHY_REQUIRE_AI_SELECTION=ON`, `PATCHY_GMIC_THREADS=ON`, ONNX
    Runtime and models from `/opt/deps`, which the image fills with `setup-ai-deps.sh`).
-   The preset's paths (`/opt/qt`, `/opt/deps`, `gcc-12`) exist only in the container.
+   The preset's paths (`/opt/qt`, `/opt/deps`, `gcc-12`) exist only in the container. Patchy's own GEGL is
+   built first when `.deps/gegl/0.4.72/linux-x64-appimage` is missing
+   ([gegl-filters.md](gegl-filters.md#bundled-gegl)).
 2. `cmake --install` into `build/appimage-appdir/usr` (the normal `bin/` + `share/patchy/`
    layout; every resource lookup already probes `../share/patchy`). `libonnxruntime.so*`
    goes to `usr/lib` (the app `dlopen`s it by name; linuxdeploy's `$ORIGIN/../lib` RUNPATH
-   finds it). Qt's SPDX notices go beside the CMake-installed licenses.
+   finds it). The GEGL bundle lands in `usr/lib/patchy/gegl` with `usr/bin/patchy-gegl-host`
+   and is moved aside while linuxdeploy runs. Qt's SPDX notices go beside the CMake-installed licenses.
 3. linuxdeploy + linuxdeploy-plugin-qt bundle the libraries and Qt plug-ins: xcb (default),
    wayland-egl, wayland-generic and offscreen platforms (`EXTRA_PLATFORM_PLUGINS`), image
    formats, the SVG icon engine, TLS. linuxdeploy's excludelist keeps glibc, libstdc++,

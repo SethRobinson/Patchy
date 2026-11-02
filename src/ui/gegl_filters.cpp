@@ -104,25 +104,37 @@ QString babl_format_for(const PixelFormat& format) {
 
 QString number_text(double value) { return QString::number(value, 'g', 17); }
 
-// The helper's environment. Off Windows: the loader is pointed at the bundle's library folder
-// (macOS: DYLD_LIBRARY_PATH, which the signed helper's entitlement allows,
-// packaging/macos/patchy-gegl-host.entitlements; elsewhere LD_LIBRARY_PATH), and GEGL and
-// babl at their module folders (GEGL_PATH and BABL_PATH, their documented module paths);
-// Windows GEGL finds them relative to its DLL. LANGUAGE: GEGL translates its own labels
-// through gettext (the helper asks its catalog).
+// The helper's environment. Off Windows GEGL and babl are pointed at their module folders
+// (GEGL_PATH and BABL_PATH, their documented module paths) and, on Linux, the loader at the
+// bundle's library folder (LD_LIBRARY_PATH; the build-tree bundle has no RUNPATHs). macOS
+// libraries find each other through their @rpath names, which a hardened-runtime helper
+// needs: it ignores DYLD_LIBRARY_PATH. Windows GEGL finds its modules relative to its DLL.
+// LANGUAGE: GEGL translates its own labels through gettext (the helper asks its catalog).
 void prepare_helper(QProcess& helper, const GeglHelperCommand& command, const QString& language = {}) {
   auto environment = QProcessEnvironment::systemEnvironment();
 #ifndef Q_OS_WIN
   const auto library_folder = QFileInfo(command.library).absolutePath();
-#ifdef Q_OS_MACOS
-  environment.insert(QStringLiteral("DYLD_LIBRARY_PATH"), library_folder);
-#else
+#ifndef Q_OS_MACOS
   const auto previous = environment.value(QStringLiteral("LD_LIBRARY_PATH"));
   environment.insert(QStringLiteral("LD_LIBRARY_PATH"),
                      previous.isEmpty() ? library_folder : library_folder + QLatin1Char(':') + previous);
 #endif
-  environment.insert(QStringLiteral("GEGL_PATH"), QDir(library_folder).filePath(QStringLiteral("gegl-0.4")));
-  environment.insert(QStringLiteral("BABL_PATH"), QDir(library_folder).filePath(QStringLiteral("babl-0.1")));
+  // The macOS app bundle renames the module folders and keeps the catalogs in Resources
+  // (CMakeLists.txt: codesign refuses dotted folder names in Frameworks); build trees and
+  // Linux keep GEGL's own names and share/locale beside lib.
+  const QDir lib(library_folder);
+  const auto modules = lib.exists(QStringLiteral("gegl-modules")) ? QStringLiteral("gegl-modules") : QStringLiteral("gegl-0.4");
+  const auto extensions =
+      lib.exists(QStringLiteral("babl-extensions")) ? QStringLiteral("babl-extensions") : QStringLiteral("babl-0.1");
+  environment.insert(QStringLiteral("GEGL_PATH"), lib.filePath(modules));
+  environment.insert(QStringLiteral("BABL_PATH"), lib.filePath(extensions));
+  for (const auto& locale : {lib.filePath(QStringLiteral("../share/locale")),
+                             lib.filePath(QStringLiteral("../../../Resources/gegl/share/locale"))}) {
+    if (QFileInfo(locale).isDir()) {
+      environment.insert(QStringLiteral("PATCHY_GEGL_LOCALE_DIR"), QDir::cleanPath(locale));
+      break;
+    }
+  }
 #else
   (void)command;
 #endif
