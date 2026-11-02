@@ -52,9 +52,6 @@ bool excluded_by_name(const QString& name) {
   static const QStringList kExcluded = {
       QStringLiteral("gegl:median-blur"),  // Surface Blur rule: histogram form unverifiable
       QStringLiteral("gegl:focus-blur"),   // Blur Gallery record: a per-pixel blur radius mask
-      // Apple US 8638338 claim 25 is unresolved against a vibrance boost (docs/gegl-filters.md,
-      // "Legal review"); Patchy has its own Vibrance adjustment.
-      QStringLiteral("gegl:vibrance"),
       // Not useful on a layer: no change to pixels in 0..1 (Absolute), damage to
       // straight-alpha pixels (Unpremultiply), nothing beyond the layer's own bounds (Tile),
       // a fixed-size solid rectangle (Rectangle; the shape tools do that), a drop shadow whose

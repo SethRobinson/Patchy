@@ -115,12 +115,13 @@ void ui_gegl_filters_list_and_apply_if_available() {
   // The GPL-3 operations (the helper's --gpl3).
   CHECK(registry->find("gegl.cartoon") != nullptr);
   // Left out by the legal review (docs/gegl-filters.md, "Legal review"), and as not useful.
-  for (const auto* id : {"gegl.median-blur", "gegl.focus-blur", "gegl.vibrance", "gegl.seamless-clone",
+  for (const auto* id : {"gegl.median-blur", "gegl.focus-blur", "gegl.seamless-clone",
                          "gegl.absolute", "gegl.unpremultiply", "gegl.tile", "gegl.rectangle", "gegl.dropshadow"}) {
     CHECK(registry->find(id) == nullptr);
   }
-  // Cleared by the review: expired Shadow/Highlight patents, no superpixel patent found.
-  for (const auto* id : {"gegl.shadows-highlights", "gegl.slic", "gegl.waterpixels"}) {
+  // Cleared by the review: expired Shadow/Highlight patents, no superpixel patent found, and
+  // Vibrance by the claim read of Apple US 8638338 (docs/patent-research-adjustments.md).
+  for (const auto* id : {"gegl.shadows-highlights", "gegl.slic", "gegl.waterpixels", "gegl.vibrance"}) {
     CHECK(registry->find(id) != nullptr);
   }
   CHECK(registry->find("gegl.red-eye-removal") == nullptr);
@@ -341,7 +342,7 @@ void ui_gegl_bundled_filters_all_run() {
     return;
   }
   const auto& filters = registry->filters();
-  CHECK(filters.size() >= 100U);  // 116 from GEGL 0.4.72 with the GPL-3 module
+  CHECK(filters.size() >= 100U);  // 117 from GEGL 0.4.72 with the GPL-3 module
   const patchy::PixelFormat format{patchy::ColorMode::RGB, patchy::BitDepth::UInt8, 4};
   patchy::PixelBuffer gradient(48, 32, format);
   {
