@@ -18982,8 +18982,8 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Scripts</translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
-        <translation>Definir la opacidad de la herramienta o de la capa (1 = 10%, 0 = 100%; escriba dos dígitos rápido para un valor exacto)</translation>
+        <source>Set tool or layer opacity, 0% to 100% (1 = 10%, 0 = 100%, 00 = 0%; type two digits quickly for an exact value)</source>
+        <translation>Definir la opacidad de la herramienta o de la capa, 0% a 100% (1 = 10%, 0 = 100%, 00 = 0%; escriba dos dígitos rápido para un valor exacto)</translation>
     </message>
 </context>
 <context>
@@ -25592,10 +25592,6 @@ Y: %2
         <translation>Tamaño del pincel: pulse [ o ], o %ALT%+arrastre con el botón derecho en el lienzo</translation>
     </message>
     <message>
-        <source>Brush opacity: press number keys (5 = 50%, 0 = 100%)</source>
-        <translation>Opacidad del pincel: pulse las teclas numéricas (5 = 50%, 0 = 100%)</translation>
-    </message>
-    <message>
         <source>Brush edge softness: %ALT%+Right-drag up or down on the canvas</source>
         <translation>Suavidad del borde del pincel: %ALT%+arrastre con el botón derecho hacia arriba o hacia abajo en el lienzo</translation>
     </message>
@@ -31357,6 +31353,10 @@ Bloqueada: %1</translation>
     <message>
         <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
         <translation>Guiones del trazo y ajustes preestablecidos de trazo guardados. Los guiones usan terminaciones planas; los puntos usan terminaciones y esquinas redondeadas</translation>
+    </message>
+    <message>
+        <source>Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)</source>
+        <translation>Opacidad del pincel, 0% a 100%: pulse las teclas numéricas (5 = 50%, 0 = 100%, 00 = 0%)</translation>
     </message>
 </context>
 <context>

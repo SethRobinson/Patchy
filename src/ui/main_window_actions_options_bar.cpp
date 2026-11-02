@@ -2747,7 +2747,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   // Opacity and Soft have no inline slider (Flow and Smooth never did): the field's
   // popup slider, a drag on its label or inside the field, and the number keys set them.
-  bind_tooltip(brush_opacity, QT_TR_NOOP("Brush opacity: press number keys (5 = 50%, 0 = 100%)"));
+  bind_tooltip(brush_opacity, QT_TR_NOOP("Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)"));
   // Mode and Opacity | the tip's own settings (GitHub issue 364). Pixels mode only on the
   // shape tools, like the controls on either side.
   {

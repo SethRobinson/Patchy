@@ -9991,6 +9991,71 @@ void ui_brush_airbrush_box_follows_canvas_state() {
   QApplication::processEvents();
 }
 
+// GitHub issue 562: "00" sets a painting tool's Opacity and Flow to 0%, and a 0% value is kept
+// like any other: the options bar shows it, a tool switch keeps it, and the next session's
+// stored settings bring it back instead of clamping it to 1%.
+void ui_brush_zero_opacity_survives_tool_switch_and_reload() {
+  const auto set_both = [](patchy::ui::MainWindow& window, int opacity, int flow) {
+    auto* canvas = require_canvas(window);
+    canvas->set_brush_opacity(opacity);
+    canvas->set_brush_flow(flow);
+    // Through the canvas's own change path, which syncs the bar and saves the settings.
+    QTest::qWait(900);
+    send_key(*canvas, Qt::Key_0 + opacity / 10);
+    send_key(*canvas, Qt::Key_0 + opacity % 10);
+    QTest::qWait(900);
+    send_key(*canvas, Qt::Key_0 + flow / 10, Qt::ShiftModifier);
+    send_key(*canvas, Qt::Key_0 + flow % 10, Qt::ShiftModifier);
+    QTest::qWait(900);
+  };
+  {
+    patchy::ui::MainWindow window;
+    window.add_document_session(status_info_test_document(), QStringLiteral("Zero Opacity"));
+    show_window(window);
+    require_action(window, "toolBrushAction")->trigger();
+    QApplication::processEvents();
+    auto* canvas = require_canvas(window);
+    canvas->set_brush_build_up(false);
+    set_both(window, 0, 0);
+    CHECK(canvas->brush_opacity() == 0 && canvas->brush_flow() == 0);
+    auto* opacity_spin = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
+    auto* flow_spin = window.findChild<QSpinBox*>(QStringLiteral("brushFlowSpin"));
+    CHECK(opacity_spin != nullptr && flow_spin != nullptr);
+    if (opacity_spin == nullptr || flow_spin == nullptr) {
+      return;
+    }
+    CHECK(opacity_spin->value() == 0 && flow_spin->value() == 0);
+
+    require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
+    QApplication::processEvents();
+    require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+    QApplication::processEvents();
+    CHECK(require_canvas(window)->brush_opacity() == 0 && require_canvas(window)->brush_flow() == 0);
+    CHECK(opacity_spin->value() == 0 && flow_spin->value() == 0);
+  }
+  {
+    // A new window reads the stored Brush settings on its first document.
+    patchy::ui::MainWindow window;
+    window.add_document_session(status_info_test_document(), QStringLiteral("Reloaded"));
+    show_window(window);
+    require_action(window, "toolBrushAction")->trigger();
+    QApplication::processEvents();
+    auto* canvas = require_canvas(window);
+    CHECK(canvas->brush_opacity() == 0);
+    CHECK(canvas->brush_flow() == 0);
+    auto* opacity_spin = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
+    CHECK(opacity_spin != nullptr && opacity_spin->value() == 0);
+    // Back to the startup values for the tests after this one ("00" for 100% would now be 0%).
+    canvas->set_brush_opacity(100);
+    canvas->set_brush_flow(100);
+    send_key(*canvas, Qt::Key_0);
+    QTest::qWait(900);
+    send_key(*canvas, Qt::Key_0, Qt::ShiftModifier);
+    QTest::qWait(900);
+    CHECK(canvas->brush_opacity() == 100 && canvas->brush_flow() == 100);
+  }
+}
+
 // GitHub issue 476 follow-up: fast Next Blend Mode presses never wait on the compositor. Each
 // press sets the mode at once (document, panel and status); the canvas renders on a worker and,
 // while one render is in flight, only the newest mode, so seven quick presses render at most
@@ -11446,6 +11511,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_layer_opacity_digit_keys_with_move_tool", ui_layer_opacity_digit_keys_with_move_tool},
       {"ui_opacity_digit_keys_work_from_panels", ui_opacity_digit_keys_work_from_panels},
       {"ui_brush_airbrush_box_follows_canvas_state", ui_brush_airbrush_box_follows_canvas_state},
+      {"ui_brush_zero_opacity_survives_tool_switch_and_reload", ui_brush_zero_opacity_survives_tool_switch_and_reload},
       {"ui_layer_blend_mode_fast_steps_render_only_the_landing_mode",
        ui_layer_blend_mode_fast_steps_render_only_the_landing_mode},
       {"ui_layer_blend_list_previews_highlighted_mode_and_reverts_on_close",

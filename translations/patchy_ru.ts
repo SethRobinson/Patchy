@@ -19027,8 +19027,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Скрипты</translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
-        <translation>Установить непрозрачность инструмента или слоя (1 = 10 %, 0 = 100 %; быстро введите две цифры для точного значения)</translation>
+        <source>Set tool or layer opacity, 0% to 100% (1 = 10%, 0 = 100%, 00 = 0%; type two digits quickly for an exact value)</source>
+        <translation>Установить непрозрачность инструмента или слоя, 0–100 % (1 = 10 %, 0 = 100 %, 00 = 0 %; быстро введите две цифры для точного значения)</translation>
     </message>
 </context>
 <context>
@@ -20865,10 +20865,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Opacity:</source>
         <translation>Непрозрачность:</translation>
-    </message>
-    <message>
-        <source>Brush opacity: press number keys (5 = 50%, 0 = 100%)</source>
-        <translation>Непрозрачность кисти: нажмите цифровые клавиши (5 = 50%, 0 = 100%).</translation>
     </message>
     <message>
         <source>Soft:</source>
@@ -31440,6 +31436,10 @@ Locked: %1</source>
     <message>
         <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
         <translation>Штрихи обводки и сохранённые наборы обводки. Штриховые наборы используют плоские концы, точечные — круглые концы и углы</translation>
+    </message>
+    <message>
+        <source>Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)</source>
+        <translation>Непрозрачность кисти, 0–100 %: нажмите цифровые клавиши (5 = 50%, 0 = 100%, 00 = 0%).</translation>
     </message>
 </context>
 <context>

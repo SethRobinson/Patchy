@@ -18937,8 +18937,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>스크립트</translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
-        <translation>도구 또는 레이어 불투명도 설정(1 = 10%, 0 = 100%, 두 자리를 빠르게 입력하면 정확한 값)</translation>
+        <source>Set tool or layer opacity, 0% to 100% (1 = 10%, 0 = 100%, 00 = 0%; type two digits quickly for an exact value)</source>
+        <translation>도구 또는 레이어 불투명도 설정, 0%-100%(1 = 10%, 0 = 100%, 00 = 0%, 두 자리를 빠르게 입력하면 정확한 값)</translation>
     </message>
 </context>
 <context>
@@ -20775,10 +20775,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Opacity:</source>
         <translation>불투명도:</translation>
-    </message>
-    <message>
-        <source>Brush opacity: press number keys (5 = 50%, 0 = 100%)</source>
-        <translation>브러시 불투명도: 숫자 키 누르기(5 = 50%, 0 = 100%)</translation>
     </message>
     <message>
         <source>Soft:</source>
@@ -31274,6 +31270,10 @@ Locked: %1</source>
     <message>
         <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
         <translation>획 점선과 저장된 획 사전 설정. 점선 사전 설정은 맞대기 캡을, 점 사전 설정은 원형 캡과 원형 모서리를 사용합니다</translation>
+    </message>
+    <message>
+        <source>Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)</source>
+        <translation>브러시 불투명도, 0%-100%: 숫자 키 누르기(5 = 50%, 0 = 100%, 00 = 0%)</translation>
     </message>
 </context>
 <context>

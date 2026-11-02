@@ -30,8 +30,8 @@ the crop tools. No tool takes them during a pointer drag (`pointer_gesture_activ
 Transform, Warp or path transform, whose commit owns the next history entry.
 
 The value follows `CanvasWidget::handle_opacity_digit_key`'s rules: 1 to 9 are 10 to 90%, 0 is
-100%, a second digit within 800 ms refines the first ("0" then "5" is 5%; "00" is 0% for layers,
-as in Photoshop, and 100% for a tool's own Opacity or Flow, which stop at 1%). Shift
+100%, a second digit within 800 ms refines the first ("0" then "5" is 5%; "00" is 0%, for layers
+as in Photoshop and for a tool's own Opacity or Flow, which run 0..100 (issue 562)). Shift
 with a digit does nothing here. `MainWindow::set_layer_opacity_from_digit_keys` sets the value
 through the Layers panel's Opacity field (its pending edit, so the field shows it) and holds the
 edit open with `layer_opacity_digit_finish_timer_` (1 s, longer than the pair window) instead of

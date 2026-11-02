@@ -19027,8 +19027,8 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Skrypty</translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
-        <translation>Ustaw krycie narzędzia lub warstwy (1 = 10%, 0 = 100%; wpisz szybko dwie cyfry, aby podać dokładną wartość)</translation>
+        <source>Set tool or layer opacity, 0% to 100% (1 = 10%, 0 = 100%, 00 = 0%; type two digits quickly for an exact value)</source>
+        <translation>Ustaw krycie narzędzia lub warstwy, 0%-100% (1 = 10%, 0 = 100%, 00 = 0%; wpisz szybko dwie cyfry, aby podać dokładną wartość)</translation>
     </message>
 </context>
 <context>
@@ -20865,10 +20865,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Opacity:</source>
         <translation>Krycie:</translation>
-    </message>
-    <message>
-        <source>Brush opacity: press number keys (5 = 50%, 0 = 100%)</source>
-        <translation>Krycie pędzla: naciśnij klawisze numeryczne (5 = 50%, 0 = 100%)</translation>
     </message>
     <message>
         <source>Soft:</source>
@@ -31440,6 +31436,10 @@ Zablokowano: %1</translation>
     <message>
         <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
         <translation>Kreski obrysu i zapisane ustawienia wstępne obrysu. Kreski mają płaskie zakończenia, kropki zaokrąglone zakończenia i narożniki</translation>
+    </message>
+    <message>
+        <source>Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)</source>
+        <translation>Krycie pędzla, 0%-100%: naciśnij klawisze numeryczne (5 = 50%, 0 = 100%, 00 = 0%)</translation>
     </message>
 </context>
 <context>

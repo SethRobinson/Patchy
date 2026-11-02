@@ -18982,8 +18982,8 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Script</translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
-        <translation>Imposta l&apos;opacità dello strumento o del livello (1 = 10%, 0 = 100%; digita due cifre in fretta per un valore esatto)</translation>
+        <source>Set tool or layer opacity, 0% to 100% (1 = 10%, 0 = 100%, 00 = 0%; type two digits quickly for an exact value)</source>
+        <translation>Imposta l&apos;opacità dello strumento o del livello, da 0% a 100% (1 = 10%, 0 = 100%, 00 = 0%; digita due cifre in fretta per un valore esatto)</translation>
     </message>
 </context>
 <context>
@@ -25592,10 +25592,6 @@ Y: %2
         <translation>Dimensione pennello: premi [ o ], oppure %ALT%+trascina con il tasto destro sul quadro</translation>
     </message>
     <message>
-        <source>Brush opacity: press number keys (5 = 50%, 0 = 100%)</source>
-        <translation>Opacità pennello: premi i tasti numerici (5 = 50%, 0 = 100%)</translation>
-    </message>
-    <message>
         <source>Brush edge softness: %ALT%+Right-drag up or down on the canvas</source>
         <translation>Morbidezza del bordo del pennello: %ALT%+trascina con il tasto destro verso l&apos;alto o verso il basso sul quadro</translation>
     </message>
@@ -31357,6 +31353,10 @@ Bloccato: %1</translation>
     <message>
         <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
         <translation>Tratteggio della traccia e tracce predefinite salvate. I tratteggi usano estremità piatte; i punti usano estremità e angoli arrotondati</translation>
+    </message>
+    <message>
+        <source>Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)</source>
+        <translation>Opacità pennello, da 0% a 100%: premi i tasti numerici (5 = 50%, 0 = 100%, 00 = 0%)</translation>
     </message>
 </context>
 <context>

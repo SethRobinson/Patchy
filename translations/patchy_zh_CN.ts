@@ -18937,8 +18937,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>脚本</translation>
     </message>
     <message>
-        <source>Set tool or layer opacity (1 = 10%, 0 = 100%; type two digits quickly for an exact value)</source>
-        <translation>设置工具或图层不透明度(1 = 10%，0 = 100%；快速输入两位数字可设为精确值)</translation>
+        <source>Set tool or layer opacity, 0% to 100% (1 = 10%, 0 = 100%, 00 = 0%; type two digits quickly for an exact value)</source>
+        <translation>设置工具或图层不透明度，0% 到 100%(1 = 10%，0 = 100%，00 = 0%；快速输入两位数字可设为精确值)</translation>
     </message>
 </context>
 <context>
@@ -25532,10 +25532,6 @@ Y: %2
         <translation>画笔大小：按 [ 或 ]，或在画布上按住 %ALT% 并右键拖动</translation>
     </message>
     <message>
-        <source>Brush opacity: press number keys (5 = 50%, 0 = 100%)</source>
-        <translation>画笔不透明度：按数字键 (5 = 50%，0 = 100%)</translation>
-    </message>
-    <message>
         <source>Brush edge softness: %ALT%+Right-drag up or down on the canvas</source>
         <translation>画笔边缘柔和度：在画布上按住 %ALT% 并右键上下拖动</translation>
     </message>
@@ -31274,6 +31270,10 @@ Locked: %1</source>
     <message>
         <source>Stroke dashes and saved stroke presets. Dash presets use butt caps; dot presets use round caps and corners</source>
         <translation>描边虚线和已保存的描边预设。虚线预设使用平头端点；点状预设使用圆头端点和圆角</translation>
+    </message>
+    <message>
+        <source>Brush opacity, 0% to 100%: press number keys (5 = 50%, 0 = 100%, 00 = 0%)</source>
+        <translation>画笔不透明度，0% 到 100%：按数字键 (5 = 50%，0 = 100%，00 = 0%)</translation>
     </message>
 </context>
 <context>
