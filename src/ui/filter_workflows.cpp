@@ -911,7 +911,9 @@ std::optional<FilterInvocation> request_filter_settings(
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Reset,
                                        &dialog);
   if (spec.show_about) {
-    auto* about = buttons->addButton(spec.about_text, QDialogButtonBox::HelpRole);
+    // Reset role so it sits just right of Reset on every platform: Qt lays out a
+    // role's buttons in insertion order, and the standard Reset was added first.
+    auto* about = buttons->addButton(spec.about_text, QDialogButtonBox::ResetRole);
     about->setObjectName(QStringLiteral("filterDialogAboutButton"));
     about->setAutoDefault(false);
     QObject::connect(about, &QPushButton::clicked, &dialog, [&dialog, show_about = spec.show_about] {
