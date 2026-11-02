@@ -1239,7 +1239,13 @@ void ui_web_export_dialog_previews_and_saves() {
     QApplication::processEvents();
     CHECK(original->property("previewZoomPercent").toInt() == 200);
     CHECK(original->property("previewPanOffset") == preview->property("previewPanOffset"));
-    CHECK(original->width() == preview->width());
+    // Two equal-stretch columns split an odd width with one pixel to spare.
+    const auto panes_match = [&] { return std::abs(original->width() - preview->width()) <= 1; };
+    if (!wait_until(panes_match)) {
+      std::fprintf(stderr, "  side by side panes: original %d px, result %d px\n", original->width(),
+                   preview->width());
+    }
+    CHECK(panes_match());
     list->setCurrentItem(png_row);
     CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool(); }));
     CHECK(dialog->findChild<QWidget*>(QStringLiteral("webExportPngGroup"))->isVisible());

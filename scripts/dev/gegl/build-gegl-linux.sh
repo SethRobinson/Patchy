@@ -69,14 +69,7 @@ for module in gegl-common gegl-common-cxx gegl-generated gegl-common-gpl3 gegl-c
 done
 cp "$PREFIX"/lib/babl-0.1/*.so "$STAGE/lib/babl-0.1/"
 rm -f "$STAGE/lib/babl-0.1/cairo.so"
-for catalog in "$REPO"/translations/patchy_*.ts; do
-  language=$(basename "$catalog" .ts)
-  language=${language#patchy_}
-  if [ -f "$PREFIX/share/locale/$language/LC_MESSAGES/gegl-0.4.mo" ]; then
-    mkdir -p "$STAGE/share/locale/$language/LC_MESSAGES"
-    cp "$PREFIX/share/locale/$language/LC_MESSAGES/gegl-0.4.mo" "$STAGE/share/locale/$language/LC_MESSAGES/"
-  fi
-done
+patchy_gegl_catalogs "$REPO"
 strip --strip-unneeded "$STAGE"/lib/*.so.0 "$STAGE"/lib/*/*.so
 cp "gegl-$GEGL_VERSION/COPYING.LESSER" "$STAGE/licenses/gegl-COPYING.LESSER.txt"
 cp "gegl-$GEGL_VERSION/COPYING" "$STAGE/licenses/gegl-COPYING.txt"

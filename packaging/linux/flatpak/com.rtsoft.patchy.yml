@@ -4,6 +4,9 @@ runtime: org.kde.Platform
 runtime-version: '6.11'
 sdk: org.kde.Sdk
 command: patchy
+# GEGL's catalogs stay in the app: a separate .Locale extension is missing from the
+# single-file bundle, and GEGL's filter names would fall back to English there.
+separate-locales: false
 finish-args:
   - --socket=wayland
   - --socket=fallback-x11

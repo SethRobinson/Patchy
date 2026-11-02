@@ -74,14 +74,7 @@ done
 cp "$PREFIX/lib/gegl-0.4/gegl-core.dll" "$STAGE/lib/gegl-0.4/"
 cp "$PREFIX"/lib/babl-0.1/*.dll "$STAGE/lib/babl-0.1/"
 # GEGL's own translations (its labels follow Patchy's language), for Patchy's languages only.
-for catalog in "$REPO"/translations/patchy_*.ts; do
-  language=$(basename "$catalog" .ts)
-  language=${language#patchy_}
-  if [ -f "$PREFIX/share/locale/$language/LC_MESSAGES/gegl-0.4.mo" ]; then
-    mkdir -p "$STAGE/share/locale/$language/LC_MESSAGES"
-    cp "$PREFIX/share/locale/$language/LC_MESSAGES/gegl-0.4.mo" "$STAGE/share/locale/$language/LC_MESSAGES/"
-  fi
-done
+patchy_gegl_catalogs "$REPO"
 rm -f "$STAGE/lib/babl-0.1/cairo.dll"  # cairo pixel formats: Patchy hands GEGL no cairo surfaces
 # The MSYS2 libraries the staged ones load, found by following their import tables until
 # nothing new appears (GLib and its libraries, json-glib, zlib, the C++ runtime where the

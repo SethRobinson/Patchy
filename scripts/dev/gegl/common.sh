@@ -64,6 +64,23 @@ patchy_gegl_check_sources() {
   done
 }
 
+# patchy_gegl_catalogs <repo>: copies GEGL's catalog for each of Patchy's languages from
+# $PREFIX into $STAGE/share/locale. GEGL's build skips its catalogs without gettext's msgfmt,
+# so a bundle that would ship none fails here (GEGL's labels follow Patchy's language).
+patchy_gegl_catalogs() {
+  copied=0
+  for catalog in "$1"/translations/patchy_*.ts; do
+    language=$(basename "$catalog" .ts)
+    language=${language#patchy_}
+    if [ -f "$PREFIX/share/locale/$language/LC_MESSAGES/gegl-0.4.mo" ]; then
+      mkdir -p "$STAGE/share/locale/$language/LC_MESSAGES"
+      cp "$PREFIX/share/locale/$language/LC_MESSAGES/gegl-0.4.mo" "$STAGE/share/locale/$language/LC_MESSAGES/"
+      copied=$((copied + 1))
+    fi
+  done
+  [ "$copied" -gt 0 ] || { echo "GEGL built no translation catalogs (is gettext's msgfmt installed?)" >&2; exit 1; }
+}
+
 # patchy_gegl_license <source> <name>: copies one license text into $STAGE/licenses/<name>,
 # failing the build when it is missing (a bundle never ships without its licenses).
 patchy_gegl_license() {

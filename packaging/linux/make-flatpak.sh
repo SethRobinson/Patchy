@@ -69,6 +69,10 @@ if command -v appstreamcli >/dev/null; then
 else
   echo "NOTE: appstreamcli is not installed; the metainfo was not validated" >&2
 fi
+# GEGL's labels follow Patchy's language from GEGL's own catalogs, inside the app (the
+# manifest's separate-locales: false; a .Locale extension is not in the bundle).
+[ -f "$BUILD_DIR/files/share/locale/de/LC_MESSAGES/gegl-0.4.mo" ] && [ ! -L "$BUILD_DIR/files/share/locale/de" ] \
+  || { echo "ERROR: GEGL's German catalog is not inside the Flatpak's files" >&2; exit 1; }
 
 # Proves the sandboxed app runs with no display before any bundle exists. The Qt
 # offscreen platform comes from the org.kde.Platform runtime, not from this repo, so

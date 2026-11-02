@@ -18,9 +18,11 @@ ORT_LIB_DIR=/opt/deps/onnxruntime/1.30.0/linux-x64/lib
 GEGL_BUNDLE="$ROOT/.deps/gegl/0.4.72/linux-x64-appimage"
 PATCHY_GEGL_SCRIPTS="$ROOT/scripts/dev/gegl"
 . "$PATCHY_GEGL_SCRIPTS/common.sh"
-# Rebuilt when missing or when its SOURCES.txt no longer matches sources.lock and the
-# current source note (a stale bundle must not ship beside this release's sources zip).
-if [ ! -f "$GEGL_BUNDLE/lib/libgegl-0.4.so.0" ] || ! patchy_gegl_check_sources "$GEGL_BUNDLE/licenses/SOURCES.txt"; then
+# Rebuilt when missing, without GEGL's German catalog (built before the container had
+# msgfmt), or when its SOURCES.txt no longer matches sources.lock and the current source
+# note (a stale bundle must not ship beside this release's sources zip).
+if [ ! -f "$GEGL_BUNDLE/lib/libgegl-0.4.so.0" ] || [ ! -f "$GEGL_BUNDLE/share/locale/de/LC_MESSAGES/gegl-0.4.mo" ] ||
+    ! patchy_gegl_check_sources "$GEGL_BUNDLE/licenses/SOURCES.txt"; then
   echo "== build Patchy's own GEGL for the AppImage =="
   bash "$ROOT/scripts/dev/gegl/build-gegl-appimage.sh" "$ROOT"
   patchy_gegl_check_sources "$GEGL_BUNDLE/licenses/SOURCES.txt"
@@ -109,7 +111,8 @@ unset LD_LIBRARY_PATH
 mv "$GEGL_ASIDE/gegl" "$APPDIR/usr/lib/patchy/gegl"
 case "$GEGL_ASIDE" in /tmp/patchy-appimage-gegl.?*) rmdir "$GEGL_ASIDE" ;; esac
 [ -x "$APPDIR/usr/bin/patchy-gegl-host" ] && [ -f "$APPDIR/usr/lib/patchy/gegl/lib/libgegl-0.4.so.0" ] \
-  || { echo "ERROR: the GEGL helper or Patchy's own GEGL is missing from the AppDir" >&2; exit 1; }
+  && [ -f "$APPDIR/usr/lib/patchy/gegl/share/locale/de/LC_MESSAGES/gegl-0.4.mo" ] \
+  || { echo "ERROR: the GEGL helper, Patchy's own GEGL or its catalogs are missing from the AppDir" >&2; exit 1; }
 
 # linuxdeploy wraps the custom AppRun (as AppRun.wrapped) in one that sources
 # linuxdeploy-plugin-qt's hook, which forces QT_QPA_PLATFORMTHEME=gtk2 on GNOME and XFCE,

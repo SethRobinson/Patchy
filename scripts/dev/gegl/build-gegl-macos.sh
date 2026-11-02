@@ -126,14 +126,7 @@ if otool -L "$STAGE"/lib/*.dylib "$STAGE"/lib/*/* | grep -E "/opt/homebrew|/usr/
   echo "a staged library names a Homebrew path" >&2
   exit 1
 fi
-for catalog in "$REPO"/translations/patchy_*.ts; do
-  language=$(basename "$catalog" .ts)
-  language=${language#patchy_}
-  if [ -f "$PREFIX/share/locale/$language/LC_MESSAGES/gegl-0.4.mo" ]; then
-    mkdir -p "$STAGE/share/locale/$language/LC_MESSAGES"
-    cp "$PREFIX/share/locale/$language/LC_MESSAGES/gegl-0.4.mo" "$STAGE/share/locale/$language/LC_MESSAGES/"
-  fi
-done
+patchy_gegl_catalogs "$REPO"
 cp "gegl-$GEGL_VERSION/COPYING.LESSER" "$STAGE/licenses/gegl-COPYING.LESSER.txt"
 cp "gegl-$GEGL_VERSION/COPYING" "$STAGE/licenses/gegl-COPYING.txt"
 cp "babl-$BABL_VERSION/COPYING" "$STAGE/licenses/babl-COPYING.txt"
