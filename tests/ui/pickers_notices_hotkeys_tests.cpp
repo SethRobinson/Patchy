@@ -26,6 +26,7 @@
 #include "ui/app_settings.hpp"
 #include "ui/gradient_library.hpp"
 #include "ui/gradient_preset_popup.hpp"
+#include "ai/segmentation_engine.hpp"
 #include "ui/command_search.hpp"
 #include "ui/hotkey_registry.hpp"
 #include "psd/psd_document_io.hpp"
@@ -4792,7 +4793,12 @@ void ui_command_search_lists_tools_keys_and_descriptions() {
         QStringLiteral("file.import_divide_photos"),
 #endif
     };
+    // A build without ONNX Runtime or the model has no Object Selection tool.
+    const bool object_select_built = patchy::ai::segmentation_available();
     for (const auto& id : patchy::ui::command_search_described_ids()) {
+      if (!object_select_built && id == QStringLiteral("tools.object_select")) {
+        continue;
+      }
       if (!listed_ids.contains(id) && !other_platforms.contains(id)) {
         std::cerr << "described command id not listed by the search: " << id.toStdString() << '\n';
         CHECK(false);
