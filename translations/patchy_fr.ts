@@ -31416,6 +31416,14 @@ Verrouillé : %1</translation>
         <translation>%1 forme(s) fusionnée(s) en un seul contour</translation>
     </message>
     <message>
+        <source>No shapes overlap, so none were merged</source>
+        <translation>Aucune forme ne se chevauche, rien n’a été fusionné</translation>
+    </message>
+    <message>
+        <source>Merged the shapes that overlap; %1 other shape(s) kept their points</source>
+        <translation>Formes qui se chevauchent fusionnées ; %1 autre(s) forme(s) gardent leurs points</translation>
+    </message>
+    <message>
         <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
         <translation>Joindre les deux extrémités sélectionnées par un segment droit, ou fermer chaque tracé ouvert qui a un point sélectionné</translation>
     </message>

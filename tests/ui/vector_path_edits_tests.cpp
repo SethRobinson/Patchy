@@ -627,6 +627,70 @@ void ui_path_merge_shapes_bakes_the_combine() {
   CHECK(shape_of(document, survivor).path.subpaths[0].anchors.size() == 8);
 }
 
+// Merge Shapes merges only the shapes that overlap (#587): the separate ellipse keeps its anchors
+// and handles. With nothing overlapping the command changes nothing and adds no undo step.
+void ui_path_merge_shapes_keeps_shapes_that_overlap_nothing() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  canvas->set_view_zoom_centered(1.0);
+  const auto id = make_rect_shape_layer(window, *canvas, QPoint(60, 90), QPoint(170, 200));
+  patchy::PathSubpath ellipse;
+  ellipse.shape_group = 2;
+  {
+    constexpr double k = 0.5522847498;
+    constexpr double cx = 340.0;
+    constexpr double cy = 160.0;
+    constexpr double rx = 80.0;
+    constexpr double ry = 50.0;
+    const double points[4][2] = {{cx + rx, cy}, {cx, cy + ry}, {cx - rx, cy}, {cx, cy - ry}};
+    const double tangents[4][2] = {{0, ry}, {-rx, 0}, {0, -ry}, {rx, 0}};
+    for (int i = 0; i < 4; ++i) {
+      patchy::PathAnchor anchor;
+      anchor.anchor_x = points[i][0];
+      anchor.anchor_y = points[i][1];
+      anchor.in_x = points[i][0] - tangents[i][0] * k;
+      anchor.in_y = points[i][1] - tangents[i][1] * k;
+      anchor.out_x = points[i][0] + tangents[i][0] * k;
+      anchor.out_y = points[i][1] + tangents[i][1] * k;
+      anchor.smooth = true;
+      ellipse.anchors.push_back(anchor);
+    }
+  }
+  patchy::VectorPath path;
+  path.subpaths = {square(60, 90, 110, 0), square(130, 150, 90, 1), ellipse};
+  set_target_path(*canvas, path);
+  require_action(window, "toolPathSelectAction")->trigger();
+  canvas->select_path_groups({0, 1, 2});
+  QApplication::processEvents();
+  save_widget_artifact("ui_i587_merge_before", *canvas);
+  auto* merge_action = require_action(window, "pathMergeShapesAction");
+  CHECK(merge_action->isEnabled());
+  const auto undo_before = undo_depth(window);
+  merge_action->trigger();
+  QApplication::processEvents();
+  save_widget_artifact("ui_i587_merge_after", *canvas);
+  CHECK(undo_depth(window) == undo_before + 1);
+  const auto merged = shape_of(document, id).path;
+  CHECK(merged.subpaths.size() == 2);
+  CHECK(merged.subpaths.size() == 2 && merged.subpaths[0].anchors.size() == 8);  // the fused squares
+  CHECK(merged.subpaths.size() == 2 && merged.subpaths[1] == ellipse);          // untouched
+  CHECK(canvas->path_edit_selected_groups().size() == 2);
+  std::cerr << "merge status: " << window.statusBar()->currentMessage().toStdString() << '\n';
+  CHECK(window.statusBar()->currentMessage().startsWith(QStringLiteral("Merged the shapes that overlap")));
+  // Nothing overlaps any more: no change and no undo step.
+  QApplication::processEvents();
+  CHECK(merge_action->isEnabled());
+  const auto undo_after = undo_depth(window);
+  merge_action->trigger();
+  QApplication::processEvents();
+  CHECK(undo_depth(window) == undo_after);
+  CHECK(shape_of(document, id).path == merged);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("No shapes overlap, so none were merged"));
+}
+
 // Weld while editing: a Direct Select drag of an end point snaps onto the other line's end point
 // (a ring shows it) and the release joins them in the drag's undo step; Alt places it freely.
 void ui_path_weld_on_drag_joins_end_points() {
@@ -1047,6 +1111,7 @@ std::vector<patchy::test::TestCase> vector_path_edits_tests() {
       {"ui_path_align_shapes_inside_a_layer", ui_path_align_shapes_inside_a_layer},
       {"ui_path_split_shape_with_break_and_join", ui_path_split_shape_with_break_and_join},
       {"ui_path_merge_shapes_bakes_the_combine", ui_path_merge_shapes_bakes_the_combine},
+      {"ui_path_merge_shapes_keeps_shapes_that_overlap_nothing", ui_path_merge_shapes_keeps_shapes_that_overlap_nothing},
       {"ui_path_weld_on_drag_joins_end_points", ui_path_weld_on_drag_joins_end_points},
       {"ui_path_break_several_points_renders_cleanly", ui_path_break_several_points_renders_cleanly},
       {"ui_path_point_commands_edit_menus_and_undo", ui_path_point_commands_edit_menus_and_undo},

@@ -31416,6 +31416,14 @@ Bloqueada: %1</translation>
         <translation>%1 forma(s) fusionada(s) en un solo contorno</translation>
     </message>
     <message>
+        <source>No shapes overlap, so none were merged</source>
+        <translation>Ninguna forma se superpone, así que no se fusionó ninguna</translation>
+    </message>
+    <message>
+        <source>Merged the shapes that overlap; %1 other shape(s) kept their points</source>
+        <translation>Formas superpuestas fusionadas; %1 forma(s) más conservaron sus puntos</translation>
+    </message>
+    <message>
         <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
         <translation>Unir los dos puntos finales seleccionados con un segmento recto, o cerrar cada trazado abierto que tenga un punto seleccionado</translation>
     </message>

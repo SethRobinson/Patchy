@@ -304,6 +304,73 @@ void path_merge_components_keeps_the_rest_and_handles_cutters() {
 }
 
 
+// Only shapes that overlap merge (#587): a curved shape that touches nothing keeps its exact
+// anchors and handles in its own place, the overlapping rectangles fuse in the first one's place.
+void path_merge_components_keeps_isolated_component_points() {
+  VectorPath path;
+  path.subpaths = {polygon({{20, 20}, {120, 20}, {120, 100}, {20, 100}}), circle(300, 110, 50, 1),
+                   polygon({{80, 60}, {200, 60}, {200, 160}, {80, 160}}, true, 2)};
+  const auto merged = patchy::merge_path_components(path, groups_of(path));
+  CHECK(merged.has_value());
+  if (!merged.has_value()) {
+    return;
+  }
+  CHECK((groups_of(merged->path) == std::vector<int>{0, 1}));
+  CHECK(merged->path.subpaths.size() == 2);
+  CHECK(merged->path.subpaths[0].anchors.size() == 8);  // the fused rectangles
+  CHECK(merged->path.subpaths[1] == path.subpaths[1]);  // the ellipse, byte for byte
+  CHECK((merged->merged_groups == std::vector<int>{0}));
+  CHECK((merged->kept_groups == std::vector<int>{1}));
+  CHECK((merged->removed_groups == std::vector<int>{2}));
+  CHECK(merged->merged_group == 0 && merged->merged_subpaths == 1);
+  CHECK(coverage_mismatch(path, merged->path, {0, 0, 380, 220}, 40) <= 6);
+  // Picked alone, the overlapping pair still merges and the ellipse is not touched.
+  const auto pair = patchy::merge_path_components(path, {2, 0});
+  CHECK(pair.has_value() && pair->kept_groups.empty() && pair->path.subpaths[1] == path.subpaths[1]);
+  // Deterministic.
+  CHECK(patchy::merge_path_components(path, groups_of(path))->path == merged->path);
+}
+
+// A shape inside another counts as overlapping and merges into it; a shape inside another one's
+// hole touches nothing and stays, and so does the ring around it.
+void path_merge_components_merges_nested_and_keeps_shapes_in_holes() {
+  VectorPath nested;
+  nested.subpaths = {polygon({{20, 20}, {200, 20}, {200, 200}, {20, 200}}), circle(110, 110, 30, 1),
+                     polygon({{260, 20}, {320, 20}, {320, 80}, {260, 80}}, true, 2)};
+  const auto merged = patchy::merge_path_components(nested, groups_of(nested));
+  CHECK(merged.has_value() && (groups_of(merged->path) == std::vector<int>{0, 2}));
+  CHECK(merged->path.subpaths[0].anchors.size() == 4);  // the circle adds nothing
+  CHECK(merged->path.subpaths[1] == nested.subpaths[2]);
+  CHECK((merged->kept_groups == std::vector<int>{2}));
+
+  VectorPath ring;  // one component: an outer square and its even-odd hole, a square in the hole
+  ring.subpaths = {polygon({{20, 20}, {200, 20}, {200, 200}, {20, 200}}),
+                   polygon({{60, 60}, {160, 60}, {160, 160}, {60, 160}}),
+                   polygon({{90, 90}, {130, 90}, {130, 130}, {90, 130}}, true, 1)};
+  const auto apart = patchy::merge_path_components(ring, groups_of(ring));
+  CHECK(apart.has_value() && apart->path == ring);
+  CHECK((apart->kept_groups == std::vector<int>{0, 1}) && apart->merged_groups.empty());
+  // Grown to cross the hole's edge, the inner square merges with the ring.
+  ring.subpaths[2] = polygon({{50, 90}, {130, 90}, {130, 130}, {50, 130}}, true, 1);
+  const auto crossing = patchy::merge_path_components(ring, groups_of(ring));
+  CHECK(crossing.has_value() && crossing->kept_groups.empty() && groups_of(crossing->path).size() == 1);
+}
+
+// Shapes that all miss each other: the path comes back unchanged, nothing merged or removed.
+void path_merge_components_leaves_disjoint_shapes_unchanged() {
+  VectorPath path;
+  path.subpaths = {polygon({{0, 0}, {40, 0}, {40, 40}, {0, 40}}), circle(100, 20, 15, 1),
+                   polygon({{150, 0}, {190, 0}, {190, 40}, {150, 40}}, true, 2, PathCombineOp::Subtract),
+                   polygon({{0, 100}, {40, 140}, {0, 140}}, true, 3, PathCombineOp::Xor)};
+  const auto merged = patchy::merge_path_components(path, groups_of(path));
+  CHECK(merged.has_value() && merged->path == path);
+  CHECK((merged->kept_groups == std::vector<int>{0, 1, 2, 3}));
+  CHECK(merged->merged_groups.empty() && merged->removed_groups.empty() && merged->merged_subpaths == 0);
+  // A single picked shape still bakes on its own (a self-crossing outline cleans up).
+  CHECK(patchy::merge_path_components(path, {1})->path.subpaths[1] != path.subpaths[1]);
+}
+
+
 // A seeded sweep (#555 follow-up): random convex and concave polygons, some with curved handles,
 // random point selections, every point command; the results render inside the source's hull
 // (grown by the stroke and its miters) for fill and every stroke alignment.
@@ -442,6 +509,10 @@ std::vector<patchy::test::TestCase> path_edits_tests() {
       {"path_merge_components_matches_the_live_combine", path_merge_components_matches_the_live_combine},
       {"path_merge_components_keeps_the_rest_and_handles_cutters",
        path_merge_components_keeps_the_rest_and_handles_cutters},
+      {"path_merge_components_keeps_isolated_component_points", path_merge_components_keeps_isolated_component_points},
+      {"path_merge_components_merges_nested_and_keeps_shapes_in_holes",
+       path_merge_components_merges_nested_and_keeps_shapes_in_holes},
+      {"path_merge_components_leaves_disjoint_shapes_unchanged", path_merge_components_leaves_disjoint_shapes_unchanged},
       {"path_break_at_points_renders_without_spikes", path_break_at_points_renders_without_spikes},
   };
 }

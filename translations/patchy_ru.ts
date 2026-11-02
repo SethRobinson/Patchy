@@ -31499,6 +31499,14 @@ Locked: %1</source>
         <translation>Слито фигур в один контур: %1</translation>
     </message>
     <message>
+        <source>No shapes overlap, so none were merged</source>
+        <translation>Фигуры не перекрываются, поэтому ничего не слито</translation>
+    </message>
+    <message>
+        <source>Merged the shapes that overlap; %1 other shape(s) kept their points</source>
+        <translation>Перекрывающиеся фигуры слиты; другие фигуры с прежними точками: %1</translation>
+    </message>
+    <message>
         <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
         <translation>Соединить две выбранные конечные точки прямым сегментом или замкнуть каждый разомкнутый контур с выбранной точкой</translation>
     </message>

@@ -31333,6 +31333,14 @@ Locked: %1</source>
         <translation>已将 %1 个形状融合为一个轮廓</translation>
     </message>
     <message>
+        <source>No shapes overlap, so none were merged</source>
+        <translation>没有重叠的形状，因此未融合任何形状</translation>
+    </message>
+    <message>
+        <source>Merged the shapes that overlap; %1 other shape(s) kept their points</source>
+        <translation>已融合重叠的形状；其余 %1 个形状保留了原有的点</translation>
+    </message>
+    <message>
         <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
         <translation>用直线段连接两个选中的端点，或闭合每条含有选中锚点的开放路径</translation>
     </message>
