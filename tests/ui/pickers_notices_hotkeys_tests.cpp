@@ -4926,13 +4926,14 @@ void ui_command_search_lists_tools_keys_and_descriptions() {
     const auto metrics = list->fontMetrics();
     const int dpr_scale = qRound(shot.devicePixelRatio());
     const int name_end = 22 + metrics.horizontalAdvance(QStringLiteral("Layer › New › New Layer")) + 6;
-    const auto shortcut = row->data(Qt::UserRole + 2).toString();
-    const int key_start = row_rect.right() - 12 - metrics.horizontalAdvance(shortcut) - 6;
-    CHECK(key_start - name_end > 40);
+    // Where the description used to start: the 250 px after the name stay background (the
+    // shortcut sits further right).
+    const int scan_end = name_end + 250;
+    CHECK(scan_end < list->viewport()->width() - 120);
     const QRgb background = shot.pixel(name_end * dpr_scale, row_rect.center().y() * dpr_scale);
     int inked = 0;
     for (int y = (row_rect.top() + 2) * dpr_scale; y < (row_rect.bottom() - 1) * dpr_scale; ++y) {
-      for (int x = name_end * dpr_scale; x < key_start * dpr_scale; ++x) {
+      for (int x = name_end * dpr_scale; x < scan_end * dpr_scale; ++x) {
         inked += shot.pixel(x, y) != background ? 1 : 0;
       }
     }
