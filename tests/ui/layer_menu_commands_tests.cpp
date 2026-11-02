@@ -11,6 +11,9 @@
 #include <QCheckBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QFont>
+#include <QFontMetrics>
+#include <QLayout>
 #include <QListWidget>
 #include <QMenu>
 #include <QMenuBar>
@@ -372,6 +375,14 @@ void ui_layer_lock_layers_dialog_applies_and_undoes() {
     CHECK(transparent->checkState() == Qt::Unchecked);
     CHECK(position->checkState() == Qt::PartiallyChecked);
     CHECK(all->checkState() == Qt::PartiallyChecked);
+    // Room for the whole title beside a system title bar's icon and buttons (#544 follow-up:
+    // KDE showed "Lock...yers" at the layout's own width).
+    QFont title_font = dialog.font();
+    title_font.setBold(true);
+    const int title_room = QFontMetrics(title_font).horizontalAdvance(dialog.windowTitle()) + 200;
+    CHECK(dialog.minimumWidth() >= title_room);
+    CHECK(dialog.width() >= title_room);
+    CHECK(dialog.width() > dialog.layout()->sizeHint().width());
     for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
       ColorSchemeRestorer restore(scheme);
       QApplication::processEvents();

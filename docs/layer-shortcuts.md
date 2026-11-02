@@ -100,7 +100,8 @@ depth shows, outside history, marking the document modified. Pin:
 Layer > Lock Layers... (`layerLockLayersAction`, `layer.lock_layers`, Ctrl+/; "/" alone stays
 Lock Transparent Pixels) runs `request_layer_locks` (src/ui/layer_lock_dialog.cpp,
 `layerLocksDialog`): All above the indented Transparent Pixels, Image Pixels and Position, then
-Prevent Auto-Nesting. `layer_lock_choices_for` prefills each box from the selection; a lock
+Prevent Auto-Nesting. Its minimum width fits the bold title plus 200 px for a system title
+bar's icon and buttons (at least 320). `layer_lock_choices_for` prefills each box from the selection; a lock
 only some layers have starts partly checked, and a click turns a box only on or off. Mixed boxes
 left alone keep each layer's own state (`apply_layer_lock_choices`). OK writes one "Lock layer"
 undo entry (none when nothing changes) and keeps a multi-selection selected
