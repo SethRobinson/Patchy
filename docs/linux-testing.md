@@ -55,6 +55,10 @@ What this does not cover:
   never `make-flatpak.sh`, which deletes the release bundles in `build/package`). XTest
   through Python `ctypes` on `libXtst.so.6` sends real clicks without extra packages;
   ImageMagick `import -window root` captures.
+- Killing the `flatpak run` process leaves the sandboxed Patchy running (it does not
+  match `pgrep -f com.rtsoft.patchy` either). Stop the app's own PID (`pgrep -x -f
+  "patchy <args>"`), confirm with `flatpak ps`, and remove the attach and single-instance
+  sockets a signal leaves in `$XDG_RUNTIME_DIR/app/com.rtsoft.patchy/` once nothing listens.
 - flatpak-builder sets `SOURCE_DATE_EPOCH` to the manifest's modification time, so the
   in-app build date of such a build is that time, not the build time.
 
