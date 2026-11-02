@@ -19100,6 +19100,22 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Asked %1 to quit</source>
         <translation>%1 wurde gebeten, sich zu beenden</translation>
     </message>
+    <message>
+        <source>%1: minProtocol and maxProtocol must be whole numbers from 1, the minimum first.</source>
+        <translation>%1: minProtocol und maxProtocol müssen ganze Zahlen ab 1 sein, das Minimum zuerst.</translation>
+    </message>
+    <message>
+        <source>%1 (needs a newer Patchy)</source>
+        <translation>%1 (benötigt ein neueres Patchy)</translation>
+    </message>
+    <message>
+        <source>%1 (needs an update)</source>
+        <translation>%1 (Aktualisierung nötig)</translation>
+    </message>
+    <message>
+        <source>%1 (start it outside Patchy)</source>
+        <translation>%1 (außerhalb von Patchy starten)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -32169,6 +32185,17 @@ Fixiert: %1</translation>
     <message>
         <source>Script</source>
         <translation>Skript</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::McpSession</name>
+    <message>
+        <source>%1 needs a newer version of Patchy</source>
+        <translation>%1 benötigt eine neuere Version von Patchy</translation>
+    </message>
+    <message>
+        <source>%1 is too old for this version of Patchy; update it</source>
+        <translation>%1 ist für diese Patchy-Version zu alt; bitte aktualisieren</translation>
     </message>
 </context>
 <context>

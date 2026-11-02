@@ -1,9 +1,11 @@
 #include "ui/companion_apps.hpp"
 
 #include "ui/ai_control_paths.hpp"
+#include "ui/appimage_environment.hpp"
 #include "ui/command_search.hpp"
 #include "ui/main_window.hpp"
 #include "ui/mcp_attachment.hpp"
+#include "ui/mcp_session.hpp"
 
 #include <QAction>
 #include <QCoreApplication>
@@ -46,7 +48,8 @@ CompanionManifest read_companion_manifest(const QString& path, QString* error) {
     return fail(CompanionMenu::tr("%1 is not a JSON object.").arg(QFileInfo(path).fileName()));
   }
   const auto object = document.object();
-  // Permanent manifest keys (docs/companions.md): id, name, menuLabel, command, args, workingDirectory.
+  // Permanent manifest keys (docs/companions.md): id, name, menuLabel, command, args, workingDirectory,
+  // minProtocol, maxProtocol.
   static const QRegularExpression id_pattern(QStringLiteral("^[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)+$"));
   manifest.id = object["id"].toString();
   manifest.name = object["name"].toString().trimmed();
@@ -64,7 +67,27 @@ CompanionManifest read_companion_manifest(const QString& path, QString* error) {
       manifest.menu_label.isEmpty() || manifest.command.isEmpty()) {
     return fail(CompanionMenu::tr("%1 needs a reverse-DNS id, a name and a command.").arg(QFileInfo(path).fileName()));
   }
+  const auto protocol = [&object](const char* key, int fallback) {
+    const auto value = object.value(QLatin1String(key));
+    if (value.isUndefined()) { return fallback; }
+    const double number = value.toDouble(-1.0);
+    return value.isDouble() && number >= 1.0 && number <= 1000.0 && number == static_cast<int>(number)
+               ? static_cast<int>(number)
+               : -1;
+  };
+  manifest.min_protocol = protocol("minProtocol", 1);
+  manifest.max_protocol = protocol("maxProtocol", 0);
+  if (manifest.min_protocol < 1 || manifest.max_protocol < 0 ||
+      (manifest.max_protocol != 0 && manifest.max_protocol < manifest.min_protocol)) {
+    return fail(CompanionMenu::tr("%1: minProtocol and maxProtocol must be whole numbers from 1, the minimum first.")
+                    .arg(QFileInfo(path).fileName()));
+  }
   return manifest;
+}
+
+bool companion_protocol_supported(const CompanionManifest& manifest) {
+  return manifest.min_protocol <= kCompanionProtocolMax &&
+         (manifest.max_protocol == 0 || manifest.max_protocol >= kCompanionProtocolMin);
 }
 
 std::vector<CompanionManifest> load_companion_manifests(QStringList* problems) {
@@ -103,14 +126,18 @@ QProcessEnvironment companion_environment(const CompanionManifest& manifest) {
   auto environment = QProcessEnvironment::systemEnvironment();
   environment.insert(QStringLiteral("PATCHY_MCP_ENDPOINT"), mcp_attachment_endpoint());
   environment.insert(QStringLiteral("PATCHY_COMPANION_ID"), manifest.id);
-  environment.insert(QStringLiteral("PATCHY_EXECUTABLE"), QCoreApplication::applicationFilePath());
-  const auto connector = resolve_ai_control_paths().connector_path;
+  environment.insert(QStringLiteral("PATCHY_EXECUTABLE"), user_visible_executable_path());
+  // Inside an AppImage the .AppImage file is the connector, run with the patchy-mcp argument
+  // (its mount, where a patchy-mcp beside the executable would live, is gone once Patchy exits).
+  const auto paths = resolve_ai_control_paths();
+  const auto connector = paths.appimage_path.isEmpty() ? paths.connector_path : paths.appimage_path;
   if (!connector.isEmpty()) { environment.insert(QStringLiteral("PATCHY_MCP"), connector); }
   return environment;
 }
 
 CompanionMenu::CompanionMenu(QMenu* plugins_menu, MainWindow& window)
-    : QObject(plugins_menu), window_(window), menu_(plugins_menu->addMenu(tr("&Companions"))) {
+    : QObject(plugins_menu), window_(window), menu_(plugins_menu->addMenu(tr("&Companions"))),
+      can_launch_(!resolve_ai_control_paths().flatpak) {
   menu_->setObjectName(QStringLiteral("companionsMenu"));
   menu_->menuAction()->setMenuRole(QAction::NoRole);
   launcher_ = [](const QString& program, const QStringList& args, const QString& working_directory,
@@ -139,7 +166,15 @@ void CompanionMenu::rebuild() {
   menu_->clear();
   const auto manifests = load_companion_manifests();
   for (const auto& manifest : manifests) {
-    auto* action = menu_->addAction(QString(manifest.menu_label).replace(QLatin1Char('&'), QStringLiteral("&&")));
+    const auto label = QString(manifest.menu_label).replace(QLatin1Char('&'), QStringLiteral("&&"));
+    const bool supported = companion_protocol_supported(manifest);
+    const bool reachable = can_launch_ || McpAttachment::companion_attached(manifest.id);
+    auto* action = menu_->addAction(!supported ? (manifest.min_protocol > kCompanionProtocolMax
+                                                      ? tr("%1 (needs a newer Patchy)").arg(label)
+                                                      : tr("%1 (needs an update)").arg(label))
+                                    : reachable ? label
+                                                : tr("%1 (start it outside Patchy)").arg(label));
+    action->setEnabled(supported && reachable);
     action->setObjectName(QStringLiteral("companionAction_") + manifest.id);
     action->setMenuRole(QAction::NoRole);
     action->setToolTip(manifest.name);
@@ -183,9 +218,15 @@ void CompanionMenu::rebuild() {
 }
 
 bool CompanionMenu::activate(const CompanionManifest& manifest) {
+  if (!companion_protocol_supported(manifest)) {
+    return false;
+  }
   if (McpAttachment::send_companion_command(manifest.id, QStringLiteral("show"))) {
     window_.statusBar()->showMessage(tr("Asked %1 to show its panel").arg(manifest.name), 4000);
     return true;
+  }
+  if (!can_launch_) {
+    return false;
   }
   const auto program = resolve_companion_command(manifest);
   const auto working_directory = manifest.working_directory.isEmpty()

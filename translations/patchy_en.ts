@@ -19083,6 +19083,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Asked %1 to quit</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>%1: minProtocol and maxProtocol must be whole numbers from 1, the minimum first.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 (needs a newer Patchy)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 (needs an update)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 (start it outside Patchy)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>
@@ -32087,6 +32103,17 @@ Locked: %1</source>
     </message>
     <message>
         <source>Script</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::McpSession</name>
+    <message>
+        <source>%1 needs a newer version of Patchy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 is too old for this version of Patchy; update it</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

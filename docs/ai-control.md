@@ -183,7 +183,8 @@ contain PNG MCP image content plus text and `structuredContent` metadata.
 | `undo`, `redo` | Restore one document history step |
 
 `get_info` also reports `mainWindow` (`geometry`, `minimized`, and on Windows `nativeId`,
-the HWND) so a companion can keep its panel beside the window. A client that sets
+the HWND) so a companion can keep its panel beside the window, and `companionProtocol`
+(`{min, max}`, [companions.md](companions.md#protocol)). A client that sets
 `capabilities.experimental["patchy/events"]` at initialize receives
 `notifications/patchy/event` ([companions.md](companions.md#events)); others never do.
 

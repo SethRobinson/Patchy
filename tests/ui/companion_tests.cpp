@@ -5,11 +5,14 @@
 #include "ui/companion_apps.hpp"
 #include "ui/main_window.hpp"
 #include "ui/mcp_attachment.hpp"
+#include "ui/mcp_session.hpp"
 #include "ui/script_engine.hpp"
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
 
 #include <QApplication>
+#include <QCoreApplication>
+#include <QScopeGuard>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
@@ -19,6 +22,7 @@
 #include <QJsonObject>
 #include <QLocalSocket>
 #include <QMenu>
+#include <QStatusBar>
 #include <QUuid>
 
 #include <chrono>
@@ -285,6 +289,78 @@ void ui_companion_menu_lists_manifests_and_launches() {
   CHECK(companions->menu()->findChild<QAction*>(QStringLiteral("companionsNoneAction")) != nullptr);
 }
 
+// A manifest's minProtocol/maxProtocol outside what this Patchy serves greys its entry out with
+// the reason; malformed ranges are rejected; get_info and the initialize reply report the range,
+// and a companion declaring an unserved range is told about in the status bar.
+void ui_companion_protocol_range_is_checked() {
+  const StandardPathsTestMode standard_paths;
+  const auto folder = patchy::ui::companions_folder_path();
+  remove_test_scratch_dir(folder);
+  CHECK(QDir().mkpath(folder));
+  const auto write = [&](const QString& name, const QByteArray& bytes) {
+    QFile file(folder + '/' + name);
+    CHECK(file.open(QIODevice::WriteOnly));
+    CHECK(file.write(bytes) == bytes.size());
+  };
+  const auto max = QByteArray::number(patchy::ui::kCompanionProtocolMax);
+  write(QStringLiteral("current.json"), R"({"id": "io.example.current", "name": "Current", "command": "c.cmd",
+                                            "minProtocol": 1, "maxProtocol": )" + max + "}");
+  write(QStringLiteral("future.json"), R"({"id": "io.example.future", "name": "Future", "command": "f.cmd",
+                                           "minProtocol": )" + QByteArray::number(patchy::ui::kCompanionProtocolMax + 1) + "}");
+  write(QStringLiteral("bad.json"), R"({"id": "io.example.bad", "name": "Bad", "command": "b.cmd",
+                                        "minProtocol": 3, "maxProtocol": 2})");
+  write(QStringLiteral("fraction.json"), R"({"id": "io.example.fraction", "name": "Fraction", "command": "x.cmd",
+                                             "minProtocol": 1.5})");
+  QStringList problems;
+  const auto manifests = patchy::ui::load_companion_manifests(&problems);
+  CHECK(manifests.size() == 2);
+  CHECK(problems.size() == 2);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* companions = window.findChild<patchy::ui::CompanionMenu*>();
+  CHECK(companions != nullptr);
+  int launches = 0;
+  companions->set_launcher_for_testing([&](const QString&, const QStringList&, const QString&,
+                                           const QProcessEnvironment&) { return ++launches > 0; });
+  emit companions->menu()->aboutToShow();
+  auto* current = companions->menu()->findChild<QAction*>(QStringLiteral("companionAction_io.example.current"));
+  auto* future = companions->menu()->findChild<QAction*>(QStringLiteral("companionAction_io.example.future"));
+  CHECK(current != nullptr && current->isEnabled() && current->text() == QStringLiteral("Current"));
+  CHECK(future != nullptr && !future->isEnabled() && future->text() == QStringLiteral("Future (needs a newer Patchy)"));
+  CHECK(!companions->activate(manifests[0].id == QStringLiteral("io.example.future") ? manifests[0] : manifests[1]));
+  CHECK(launches == 0);
+
+  const auto endpoint = unique_endpoint();
+  patchy::ui::McpAttachment attachment(window, endpoint);
+  CHECK(attachment.error().isEmpty());
+  SocketClient client;
+  CHECK(client.open(endpoint));
+  const int init = client.send("initialize", {{"protocolVersion", "2025-11-25"},
+                                              {"clientInfo", QJsonObject{{"name", "Current"}, {"version", "1"}}},
+                                              {"capabilities", QJsonObject{{"experimental", QJsonObject{{"patchy/companion",
+                                                QJsonObject{{"id", "io.example.current"}, {"name", "Current"}, {"version", "0.3"},
+                                                            {"minProtocol", 1}, {"maxProtocol", 9}}}}}}}});
+  const auto reply = client.reply(init)["result"].toObject();
+  const auto served = reply["capabilities"].toObject()["experimental"].toObject()["patchy/companion"].toObject();
+  CHECK(served["minProtocol"].toInt() == patchy::ui::kCompanionProtocolMin);
+  CHECK(served["maxProtocol"].toInt() == patchy::ui::kCompanionProtocolMax);
+  const auto info = client.call("get_info")["structuredContent"].toObject()["companionProtocol"].toObject();
+  CHECK(info["min"].toInt() == patchy::ui::kCompanionProtocolMin && info["max"].toInt() == patchy::ui::kCompanionProtocolMax);
+  CHECK(patchy::ui::McpAttachment::companion_attached(QStringLiteral("io.example.current")));
+  CHECK(!window.statusBar()->currentMessage().contains(QStringLiteral("Current")));
+
+  SocketClient future_client;
+  CHECK(future_client.open(endpoint));
+  CHECK(future_client.initialize(QStringLiteral("Future"),
+                                 {{"patchy/companion", QJsonObject{{"id", "io.example.future"}, {"name", "Future"},
+                                                                   {"minProtocol", patchy::ui::kCompanionProtocolMax + 1}}}}));
+  CHECK(wait_until([&] {
+    return window.statusBar()->currentMessage() == QStringLiteral("Future needs a newer version of Patchy");
+  }));
+  remove_test_scratch_dir(folder);
+}
+
 }  // namespace
 
 // get_state reports each layer's raster mask (bounds and settings), so a companion can find
@@ -368,7 +444,50 @@ void ui_companion_menu_quits_attached_companion() {
   companion.socket.disconnectFromServer();
   CHECK(wait_until([&] { return !patchy::ui::McpAttachment::companion_attached(QStringLiteral("io.example.fill")); }));
   CHECK(quit_entry(QStringLiteral("io.example.fill")) == nullptr);
+
+  // Inside a Flatpak the entry cannot start the companion: it says so until the companion attaches.
+  companions->set_can_launch_for_testing(false);
+  int launches = 0;
+  companions->set_launcher_for_testing([&](const QString&, const QStringList&, const QString&,
+                                           const QProcessEnvironment&) { return ++launches > 0; });
+  emit companions->menu()->aboutToShow();
+  auto* entry = companions->menu()->findChild<QAction*>(QStringLiteral("companionAction_io.example.fill"));
+  CHECK(entry != nullptr && !entry->isEnabled() && entry->text() == QStringLiteral("Fill && Co (start it outside Patchy)"));
+  CHECK(!companions->activate(patchy::ui::load_companion_manifests().front()));
+  CHECK(launches == 0);
+  SocketClient again;
+  CHECK(again.open(endpoint));
+  CHECK(again.initialize(QStringLiteral("Fill"), {{"patchy/companion", "io.example.fill"}}));
+  CHECK(wait_until([&] { return patchy::ui::McpAttachment::companion_attached(QStringLiteral("io.example.fill")); }));
+  emit companions->menu()->aboutToShow();
+  entry = companions->menu()->findChild<QAction*>(QStringLiteral("companionAction_io.example.fill"));
+  CHECK(entry != nullptr && entry->isEnabled() && entry->text() == QStringLiteral("Fill && Co"));
+  CHECK(quit_entry(QStringLiteral("io.example.fill")) != nullptr);
   remove_test_scratch_dir(folder);
+}
+
+// Inside an AppImage a companion is handed the .AppImage file as both PATCHY_EXECUTABLE and
+// PATCHY_MCP (run with the patchy-mcp argument), never paths in the per-launch mount.
+void ui_companion_environment_names_the_appimage() {
+  patchy::ui::CompanionManifest manifest;
+  manifest.id = QStringLiteral("io.example.fill");
+  const auto outside = patchy::ui::companion_environment(manifest);
+  CHECK(outside.value(QStringLiteral("PATCHY_COMPANION_ID")) == manifest.id);
+  CHECK(QFileInfo(outside.value(QStringLiteral("PATCHY_EXECUTABLE"))) == QFileInfo(QCoreApplication::applicationFilePath()));
+#ifdef Q_OS_LINUX
+  const auto saved_appimage = qgetenv("APPIMAGE");
+  const auto saved_appdir = qgetenv("APPDIR");
+  const auto restore = qScopeGuard([&] {
+    saved_appimage.isNull() ? qunsetenv("APPIMAGE") : qputenv("APPIMAGE", saved_appimage);
+    saved_appdir.isNull() ? qunsetenv("APPDIR") : qputenv("APPDIR", saved_appdir);
+  });
+  // A real AppImage runs usr/bin/patchy below its mount, so the mount is a parent folder.
+  qputenv("APPDIR", QFileInfo(QCoreApplication::applicationDirPath()).absolutePath().toUtf8());
+  qputenv("APPIMAGE", "/opt/apps/Patchy-x86_64.AppImage");
+  const auto inside = patchy::ui::companion_environment(manifest);
+  CHECK(inside.value(QStringLiteral("PATCHY_EXECUTABLE")) == QStringLiteral("/opt/apps/Patchy-x86_64.AppImage"));
+  CHECK(inside.value(QStringLiteral("PATCHY_MCP")) == QStringLiteral("/opt/apps/Patchy-x86_64.AppImage"));
+#endif
 }
 
 std::vector<patchy::test::TestCase> companion_tests() {
@@ -378,5 +497,7 @@ std::vector<patchy::test::TestCase> companion_tests() {
       {"ui_companion_menu_lists_manifests_and_launches", ui_companion_menu_lists_manifests_and_launches},
       {"ui_mcp_state_reports_layer_masks", ui_mcp_state_reports_layer_masks},
       {"ui_companion_menu_quits_attached_companion", ui_companion_menu_quits_attached_companion},
+      {"ui_companion_protocol_range_is_checked", ui_companion_protocol_range_is_checked},
+      {"ui_companion_environment_names_the_appimage", ui_companion_environment_names_the_appimage},
   };
 }
