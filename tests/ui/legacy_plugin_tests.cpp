@@ -444,8 +444,8 @@ void ui_legacy_plugin_mehdi_dialog_capture_if_available() {
   CHECK(image.width() > 200 && image.height() > 100);
 }
 
-// Plugins > Repeat Last Plug-in (Ctrl+F) and Last Plug-in Settings... (no default
-// key: Ctrl+Alt+F is Filter > Last Filter, which repeats plug-ins too): disabled until a plug-in completes a run, then named after it,
+// Plugins > Repeat Last Plug-in and Last Plug-in Settings... (no default keys: Ctrl+F is
+// Search Commands, Ctrl+Alt+F Filter > Last Filter, which repeats plug-ins too): disabled until a plug-in completes a run, then named after it,
 // repeating it on the active layer with its own undo step; gone with the
 // plug-in's folder.
 void ui_legacy_plugin_repeat_last_commands() {
@@ -463,7 +463,9 @@ void ui_legacy_plugin_repeat_last_commands() {
   {
     const auto* command = window.hotkey_registry().find_command(QStringLiteral("plugins.repeat_last"));
     CHECK(command != nullptr);
-    CHECK(command != nullptr && command->default_shortcuts.contains(QKeySequence(Qt::CTRL | Qt::Key_F)));
+    // No key of its own: Ctrl+F is Search Commands, Ctrl+Alt+F Filter > Last Filter (which
+    // repeats plug-ins too), as in Photoshop.
+    CHECK(command != nullptr && command->default_shortcuts.isEmpty());
     const auto* command2 = window.hotkey_registry().find_command(QStringLiteral("plugins.last_settings"));
     CHECK(command2 != nullptr);
     CHECK(command2 != nullptr && command2->default_shortcuts.isEmpty());
