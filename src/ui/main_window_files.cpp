@@ -3024,39 +3024,50 @@ void MainWindow::maybe_convert_af_image_layers(Document& target) {
   if (placed == 0) {
     return;
   }
-  auto settings = app_settings();
   const auto policy =
-      settings.value(QStringLiteral("imports/afImageLayers"), QStringLiteral("ask")).toString();
+      app_settings().value(QStringLiteral("imports/afImageLayers"), QStringLiteral("ask")).toString();
   if (policy == QStringLiteral("smart")) {
     return;
   }
-  bool convert = policy == QStringLiteral("pixel");
-  if (!convert) {
-    QMessageBox box(this);
-    box.setObjectName(QStringLiteral("afImageLayersMessageBox"));
-    box.setIcon(QMessageBox::Question);
-    box.setWindowTitle(tr("Affinity Image Layers"));
-    box.setText(tr("This document places %n image file(s) as Affinity \"Image\" layers.", nullptr,
-                   static_cast<int>(placed)));
-    box.setInformativeText(
-        tr("Keep them as embedded smart objects? Each keeps its full-resolution original file for "
-           "re-editing and PSD export. Converting to regular pixel layers keeps only the pixels at "
-           "their placed size, which uses less memory but discards the originals."));
-    auto* keep_button = box.addButton(tr("Keep as Smart Objects"), QMessageBox::AcceptRole);
-    auto* convert_button = box.addButton(tr("Convert to Pixel Layers"), QMessageBox::DestructiveRole);
-    box.setDefaultButton(keep_button);
-    auto* remember = new QCheckBox(tr("Remember this choice"), &box);
-    box.setCheckBox(remember);
-    exec_dialog(box);
-    convert = box.clickedButton() == convert_button;
-    if (remember->isChecked()) {
-      settings.setValue(QStringLiteral("imports/afImageLayers"),
-                        convert ? QStringLiteral("pixel") : QStringLiteral("smart"));
-    }
-    if (!convert) {
-      return;
-    }
+  if (policy == QStringLiteral("pixel") || ask_af_image_layers_conversion(placed)) {
+    convert_af_image_layers(target);
   }
+}
+
+bool MainWindow::af_image_layers_question_pending(const Document& target) {
+  const auto policy =
+      app_settings().value(QStringLiteral("imports/afImageLayers"), QStringLiteral("ask")).toString();
+  return policy != QStringLiteral("smart") && policy != QStringLiteral("pixel") &&
+         count_smart_object_layers(target.layers()) > 0;
+}
+
+bool MainWindow::ask_af_image_layers_conversion(std::size_t placed) {
+  auto settings = app_settings();
+  QMessageBox box(this);
+  box.setObjectName(QStringLiteral("afImageLayersMessageBox"));
+  box.setIcon(QMessageBox::Question);
+  box.setWindowTitle(tr("Affinity Image Layers"));
+  box.setText(tr("This document places %n image file(s) as Affinity \"Image\" layers.", nullptr,
+                 static_cast<int>(placed)));
+  box.setInformativeText(
+      tr("Keep them as embedded smart objects? Each keeps its full-resolution original file for "
+         "re-editing and PSD export. Converting to regular pixel layers keeps only the pixels at "
+         "their placed size, which uses less memory but discards the originals."));
+  auto* keep_button = box.addButton(tr("Keep as Smart Objects"), QMessageBox::AcceptRole);
+  auto* convert_button = box.addButton(tr("Convert to Pixel Layers"), QMessageBox::DestructiveRole);
+  box.setDefaultButton(keep_button);
+  auto* remember = new QCheckBox(tr("Remember this choice"), &box);
+  box.setCheckBox(remember);
+  exec_dialog(box);
+  const bool convert = box.clickedButton() == convert_button;
+  if (remember->isChecked()) {
+    settings.setValue(QStringLiteral("imports/afImageLayers"),
+                      convert ? QStringLiteral("pixel") : QStringLiteral("smart"));
+  }
+  return convert;
+}
+
+void MainWindow::convert_af_image_layers(Document& target) {
   std::vector<std::string> source_uuids;
   strip_smart_object_layers(target, target.layers(), source_uuids);
   // The import authored one embedded source per placed image; with every
@@ -3133,8 +3144,19 @@ void MainWindow::open_document_path(QString path, OpenExisting existing) {
     }
     lay_out_raster_less_imported_text(loaded->document);
     record_text_layout_metrics_for_reopened_text(loaded->document);
+    // Open-time questions and notices wait until the new tab is fit on screen and drawn
+    // (GitHub issue 593): they run one event-loop turn after the fit, in their usual order.
+    // A running script keeps them inline (it reads the document as soon as this returns);
+    // unattended runs show none, and a saved choice still applies here.
+    const bool defer_prompts =
+        !unattended_automation() && (script_engine_host_ == nullptr || !script_engine_host_->run_active());
+    bool af_question = false;
     if (!unattended_automation() && is_affinity_document_extension(loaded->extension)) {
-      maybe_convert_af_image_layers(loaded->document);
+      if (defer_prompts && af_image_layers_question_pending(loaded->document)) {
+        af_question = true;
+      } else {
+        maybe_convert_af_image_layers(loaded->document);
+      }
     }
 
     // A browser pick/drop is an import, not a writable host path. The loaded
@@ -3154,9 +3176,18 @@ void MainWindow::open_document_path(QString path, OpenExisting existing) {
       add_document_session(std::move(loaded->document), first_title, session_path, tr("Open"));
     }
     session().content_extension = loaded->content_extension;
-    offer_painted_gimp_text_conversion(session(), loaded->import_notices);
+    {
+      const UiProfileScope profile_scope("open.fit_to_view");
+      canvas_->fit_to_view_without_enlarging();
+    }
+    const bool gimp_text_question = painted_gimp_text_question_pending(session());
+    if (!gimp_text_question) {
+      (void)offer_painted_gimp_text_conversion(session(), loaded->import_notices);
+    }
     session().import_notes = loaded->import_notices;
-    start_open_watermark_check(session().session_id);
+    const auto session_note_count = loaded->import_notices.size();
+    const auto opened_session_id = session().session_id;
+    start_open_watermark_check(opened_session_id);
     bool cmyk_proof_opened = false;
     if (loaded->pdf_color_mode == PdfImportColorMode::Cmyk) {
       // The Import PDF dialog's CMYK Color: say so when there is no CMYK profile to proof with.
@@ -3174,20 +3205,11 @@ void MainWindow::open_document_path(QString path, OpenExisting existing) {
              "colors and ink numbers can differ slightly from a true CMYK editor"));
       cmyk_proof_opened = true;
     }
-    if (!unattended_automation() && is_photoshop_document_extension(loaded->extension) &&
-        app_settings().value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool()) {
-      show_compatibility_report(this, document(), loaded_file_name);
-    }
-    {
-      const UiProfileScope profile_scope("open.fit_to_view");
-      canvas_->fit_to_view_without_enlarging();
-    }
+    const bool compatibility_report =
+        !unattended_automation() && is_photoshop_document_extension(loaded->extension) &&
+        app_settings().value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool();
     open_extra_imported_page_sessions(loaded_file_name, std::move(loaded->extra_documents), loaded->pdf_color_mode,
                                       loaded->pdf_bit_depth.value_or(BitDepth::UInt8), loaded->import_notices);
-    if (!unattended_automation()) {
-      // Unattended runs must not block on the adoption offer.
-      maybe_offer_indexed_palette_adoption();
-    }
     update_undo_redo_actions();
     fire_theme_event(ThemeSoundEvent::DocumentOpened,
                      {{QStringLiteral("width"), std::as_const(document()).width()},
@@ -3205,19 +3227,78 @@ void MainWindow::open_document_path(QString path, OpenExisting existing) {
       // they are not missed (GitHub issue 487); the consolidated popup is opt-in
       // (see show_import_notices_popup) unless the notes describe data loss.
       show_import_notes_status(loaded->import_notices);
-      if (!unattended_automation()) {
-        show_import_notices_popup(this, loaded_file_name, loaded->import_notices,
-                                  loaded->force_import_notices_popup);
+    }
+    // The notes added after the session's own (CMYK Proof), which follow a GIMP answer's note.
+    const QStringList later_notes = loaded->import_notices.mid(session_note_count);
+    const auto* opened = session_with_id(opened_session_id);
+    auto prompts = [this, session_id = opened_session_id, revision = opened != nullptr ? opened->revision : 0,
+                    af_question, gimp_text_question, compatibility_report, notes = loaded->import_notices,
+                    later_notes, file_name = loaded_file_name, force_popup = loaded->force_import_notices_popup,
+                    cmyk_proof_opened]() mutable {
+      // Skipped when the tab closed in between; the active-document dialogs only while it is active.
+      const auto target = [this, session_id] { return session_with_id(session_id); };
+      if (target() == nullptr) {
+        return;
       }
+      if (af_question && ask_af_image_layers_conversion(
+                             count_smart_object_layers(std::as_const(target()->document).layers()))) {
+        // Untouched since the open, so it still opens converted: no undo step, not modified.
+        if (auto* session = target(); session != nullptr && session->revision == revision) {
+          convert_af_image_layers(session->document);
+          layer_thumbnail_cache_.clear();
+          ++session->revision;
+          session->saved_revision = session->revision;
+          if (session->canvas != nullptr) {
+            session->canvas->document_changed();
+          }
+          if (session == active_session()) {
+            refresh_layer_list();
+            refresh_layer_controls();
+          }
+        }
+      }
+      QStringList answered_notes;
+      if (auto* session = target(); gimp_text_question && session != nullptr) {
+        answered_notes = offer_painted_gimp_text_conversion(*session, session->import_notes);
+        notes = session->import_notes + later_notes;
+        if (session == active_session()) {
+          show_import_notes_status(notes);
+          update_undo_redo_actions();
+        }
+      }
+      if (auto* session = target(); compatibility_report && session != nullptr) {
+        show_compatibility_report(this, session->document, file_name);
+      }
+      const bool active = target() != nullptr && target() == active_session();
+      if (active && !unattended_automation()) {
+        // Unattended runs must not block on the adoption offer.
+        maybe_offer_indexed_palette_adoption();
+      }
+      if (!unattended_automation()) {
+        // A note the user just answered in a question stays out of the box (#551).
+        auto popup_notes = notes;
+        for (const auto& answered : answered_notes) {
+          popup_notes.removeAll(answered);
+        }
+        show_import_notices_popup(this, file_name, popup_notes, force_popup);
+      }
+      if (target() == nullptr || target() != active_session()) {
+        return;
+      }
+      if (cmyk_proof_opened) {
+        show_cmyk_proof_open_notice();
+      }
+      // Linked smart objects whose files are missing (GitHub issue 257; off in Preferences).
+      show_missing_linked_files_dialog(true);
+      // Photoshop's Missing Fonts dialog on open (GitHub issue 169; off in Preferences). Last, so
+      // its own status message is not overwritten by the import notes.
+      show_resolve_missing_fonts_dialog(true);
+    };
+    if (defer_prompts) {
+      QMetaObject::invokeMethod(this, std::move(prompts), Qt::QueuedConnection);
+    } else {
+      prompts();
     }
-    if (cmyk_proof_opened) {
-      show_cmyk_proof_open_notice();
-    }
-    // Linked smart objects whose files are missing (GitHub issue 257; off in Preferences).
-    show_missing_linked_files_dialog(true);
-    // Photoshop's Missing Fonts dialog on open (GitHub issue 169; off in Preferences). Last, so
-    // its own status message is not overwritten by the import notes.
-    show_resolve_missing_fonts_dialog(true);
 #ifdef Q_OS_WASM
     wasm_files::publish_open_probe(QStringLiteral("opened"), path);
 #endif

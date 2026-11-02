@@ -786,6 +786,11 @@ private:
   // The Affinity "Image" layer import choice (keep embedded smart objects or
   // convert to plain pixel layers); asks unless imports/afImageLayers decides.
   void maybe_convert_af_image_layers(Document& target);
+  // Whether that call would ask (placed images and the "ask" setting); the question alone,
+  // returning whether to convert; and the conversion itself.
+  [[nodiscard]] static bool af_image_layers_question_pending(const Document& target);
+  bool ask_af_image_layers_conversion(std::size_t placed);
+  static void convert_af_image_layers(Document& target);
   void schedule_palette_compliance_check();
   void run_palette_compliance_check();
   void configure_canvas(CanvasWidget* canvas);
@@ -1065,8 +1070,11 @@ private:
   void render_pending_xcf_text_layers(Document& target);
   // A GIMP file's painted-on text layers (docs/xcf.md, "Text layers"): keeps them as pixels,
   // or as one undo step turns them into text or adds text copies, as imports/xcfPaintedTextLayers
-  // says or the user picks; `notices` then says what was done.
-  void offer_painted_gimp_text_conversion(DocumentSession& target, QStringList& notices);
+  // says or the user picks; `notices` then says what was done. Returns the notes the user's
+  // answer covers (empty when no question was shown), which the Import Notes box leaves out.
+  QStringList offer_painted_gimp_text_conversion(DocumentSession& target, QStringList& notices);
+  // Whether that call would ask (an interactive open, the "ask" setting, painted-on text).
+  [[nodiscard]] bool painted_gimp_text_question_pending(const DocumentSession& target) const;
   // PDF post-open passes (same pattern): text layers render through the full text
   // matrix the reader stored (a PDF Tm may rotate or shear a run) with an x-scale
   // correction so a substituted font keeps the authored run width; image layers

@@ -37,6 +37,7 @@
 #include <QToolButton>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <string>
@@ -623,15 +624,15 @@ std::size_t stack_index(const std::vector<patchy::Layer>& layers, patchy::LayerI
 }
 
 // GitHub issue 551: a GIMP file with two painted-on text layers ("Painted" at half opacity and
-// "Locked" with GIMP's content lock) over a plain pixel layer.
-QString write_painted_text_xcf(const QTemporaryDir& dir) {
+// "Locked" with GIMP's content lock) over a plain pixel layer the size of the image.
+QString write_painted_text_xcf(const QTemporaryDir& dir, std::int32_t width = 240, std::int32_t height = 120) {
   namespace builder = patchy::test::xcf;
   builder::Image image;
-  image.width = 240;
-  image.height = 120;
+  image.width = width;
+  image.height = height;
   builder::Layer plain;
   plain.name = "Plain";
-  plain.drawable = builder::solid(240, 120, {255, 255, 255, 255});
+  plain.drawable = builder::solid(width, height, {255, 255, 255, 255});
   plain.properties.push_back(builder::prop_offsets(0, 0));
   const auto painted_text = [](const std::string& name, std::int32_t y) {
     builder::Layer layer;
@@ -656,12 +657,21 @@ QString write_painted_text_xcf(const QTemporaryDir& dir) {
   return write_xcf_file(dir, "painted-text.xcf", builder::write(image));
 }
 
+// What came up while a GIMP file opened.
+struct PaintedTextOpen {
+  bool asked{false};
+  // The canvas zoom while the question was up.
+  double zoom_at_question{0.0};
+  // The Import Notes box's text; empty when none came up.
+  QString import_notes;
+};
+
 // Opens `path` and, when the painted-on text question comes up, saves it as an artifact
-// (`capture`), ticks Don't ask again (`dont_ask`) and clicks the button named `button`.
-// Returns whether the question came up.
-bool open_answering_painted_text_question(patchy::ui::MainWindow& window, const QString& path, const char* button,
-                                          bool dont_ask = false, const std::string& capture = {}) {
-  bool saw_dialog = false;
+// (`capture`), ticks Don't ask again (`dont_ask`) and clicks the button named `button`. An
+// Import Notes box is read and closed.
+PaintedTextOpen open_painted_text(patchy::ui::MainWindow& window, const QString& path, const char* button,
+                                  bool dont_ask = false, const std::string& capture = {}) {
+  PaintedTextOpen result;
   int attempts = 0;
   QTimer poller;
   QObject::connect(&poller, &QTimer::timeout, [&] {
@@ -671,11 +681,16 @@ bool open_answering_painted_text_question(patchy::ui::MainWindow& window, const 
     }
     for (auto* widget : QApplication::topLevelWidgets()) {
       auto* box = qobject_cast<QMessageBox*>(widget);
+      if (box != nullptr && box->objectName() == QStringLiteral("importNoticesMessageBox") && box->isVisible()) {
+        result.import_notes = box->text();
+        box->accept();
+        return;
+      }
       if (box == nullptr || box->objectName() != QStringLiteral("xcfPaintedTextMessageBox") || !box->isVisible()) {
         continue;
       }
-      saw_dialog = true;
-      poller.stop();
+      result.asked = true;
+      result.zoom_at_question = patchy::ui::MainWindowTestAccess::canvas(window)->zoom();
       if (!capture.empty()) {
         patchy::test::ui::save_widget_artifact(capture, *box);
       }
@@ -696,7 +711,13 @@ bool open_answering_painted_text_question(patchy::ui::MainWindow& window, const 
   patchy::ui::MainWindowTestAccess::open_document_path(window, path);
   QApplication::processEvents();
   poller.stop();
-  return saw_dialog;
+  return result;
+}
+
+// Returns whether the question came up.
+bool open_answering_painted_text_question(patchy::ui::MainWindow& window, const QString& path, const char* button,
+                                          bool dont_ask = false, const std::string& capture = {}) {
+  return open_painted_text(window, path, button, dont_ask, capture).asked;
 }
 
 // The import notes ride the status bar after an open (the first note, then a count).
@@ -856,6 +877,47 @@ void ui_xcf_painted_text_preference_converts_without_asking() {
   CHECK(!notes_contain(window, "opened as pixel layers"));
 }
 
+// GitHub issue 593: the question comes up over the document already fit on screen, not at
+// its first zoom before Fit on Screen.
+void ui_xcf_painted_text_question_waits_for_fit() {
+  const PaintedTextSettings settings;
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto path = write_painted_text_xcf(temp, 2400, 1200);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto opened = open_painted_text(window, path, "xcfPaintedTextKeepButton");
+  CHECK(opened.asked);
+  const double fitted = patchy::ui::MainWindowTestAccess::canvas(window)->zoom();
+  CHECK(fitted < 0.99);
+  CHECK(std::abs(opened.zoom_at_question - fitted) < 1e-9);
+}
+
+// #551 follow-up: once the question was answered, the Import Notes box leaves out the note
+// about it (the status bar keeps it); a saved choice applied without asking still lists it.
+void ui_xcf_painted_text_answer_stays_out_of_import_notes() {
+  const PaintedTextSettings settings;
+  const SettingsValueRestorer popup{QStringLiteral("imports/showPsdWarningsAndInfo")};
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), true);
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto path = write_painted_text_xcf(temp);
+  for (const auto* button : {"xcfPaintedTextConvertButton", "xcfPaintedTextKeepButton", "xcfPaintedTextCopiesButton"}) {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    const auto opened = open_painted_text(window, path, button);
+    CHECK(opened.asked);
+    CHECK(!opened.import_notes.contains(QStringLiteral("painted on in GIMP")));
+    CHECK(notes_contain(window, "painted on in GIMP"));
+  }
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/xcfPaintedTextLayers"), QStringLiteral("text"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto opened = open_painted_text(window, path, "xcfPaintedTextKeepButton");
+  CHECK(!opened.asked);
+  CHECK(opened.import_notes.contains(QStringLiteral("became editable text")));
+}
+
 // Scripted and headless opens never wait on the question: "Ask" keeps GIMP's pixels there, and a
 // remembered choice still applies.
 void ui_xcf_painted_text_headless_opens_never_ask() {
@@ -912,6 +974,8 @@ std::vector<patchy::test::TestCase> xcf_ui_tests() {
       {"ui_xcf_painted_text_question_adds_copies_and_remembers", ui_xcf_painted_text_question_adds_copies_and_remembers},
       {"ui_xcf_painted_text_preference_converts_without_asking", ui_xcf_painted_text_preference_converts_without_asking},
       {"ui_xcf_painted_text_headless_opens_never_ask", ui_xcf_painted_text_headless_opens_never_ask},
+      {"ui_xcf_painted_text_question_waits_for_fit", ui_xcf_painted_text_question_waits_for_fit},
+      {"ui_xcf_painted_text_answer_stays_out_of_import_notes", ui_xcf_painted_text_answer_stays_out_of_import_notes},
       {"ui_xcf_issue_551_review_capture", ui_xcf_issue_551_review_capture},
       {"ui_script_opens_xcf_files", ui_script_opens_xcf_files},
       {"ui_xcf_review_capture", ui_xcf_review_capture},

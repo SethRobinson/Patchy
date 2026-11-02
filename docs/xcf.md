@@ -203,7 +203,9 @@ size and color follow the first run, since a span can restyle all of the text.
   file still looks as GIMP drew it). Don't ask again saves the choice in
   `imports/xcfPaintedTextLayers` (`ask`, `pixels`, `text`, `copies`; also a Preferences combo).
   Converting or copying is one undo step that marks the document modified, and the reader's
-  notice gives way to one saying what was done. Unattended runs (scripts, MCP, batch, tests)
+  notice gives way to one saying what was done. The question waits until the tab is fit on
+  screen (#593, [file-formats.md](file-formats.md)); once answered, its notes stay out of the
+  Import Notes box (the status bar keeps them), while a saved choice is still listed there. Unattended runs (scripts, MCP, batch, tests)
   never ask: `ask` keeps the pixels, a saved choice applies. Files as Layers keeps the pixels.
   The stored text is in memory only: no format writes it (a PSD has no Photoshop-safe place for
   it), so a saved and reopened file has plain pixels.
