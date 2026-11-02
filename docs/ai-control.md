@@ -147,8 +147,12 @@ explicit endpoint for multiple instances and isolated automation. Flatpak uses
 `$XDG_RUNTIME_DIR/app/$FLATPAK_ID` for the default socket because separate app and
 connector sandboxes have private `/tmp` directories. Other desktop installs retain
 the platform's normal local-socket location. A QThread owns
-all socket reads/writes and processes cancellation independently of UI work. Only
-one attached client is accepted; additional connections are closed, never queued.
+all socket reads/writes and processes cancellation independently of UI work. Up to
+four clients attach at once (an assistant and companion apps, [companions.md](companions.md)),
+each on one of a fixed pool of sessions made at startup, with its own state nonce and
+status-bar readout. A request while another client's script runs gets `busy`. A fifth
+connection, or one arriving before a departed client's session has closed, is closed,
+never queued.
 The host `flatpak` launcher must inherit the desktop user's `XDG_RUNTIME_DIR`.
 Clients that filter subprocess environments, including the Python MCP SDK, must
 pass its existing value explicitly. Otherwise Flatpak can bind its per-app runtime
@@ -177,6 +181,11 @@ contain PNG MCP image content plus text and `structuredContent` metadata.
 | `draw_strokes` | Native Brush, Eraser or Mixer Brush batch targeting document/layer IDs |
 | `get_preview` | Fresh canvas PNG with crop/scale metadata and state token, or the connected window capture |
 | `undo`, `redo` | Restore one document history step |
+
+`get_info` also reports `mainWindow` (`geometry`, `minimized`, and on Windows `nativeId`,
+the HWND) so a companion can keep its panel beside the window. A client that sets
+`capabilities.experimental["patchy/events"]` at initialize receives
+`notifications/patchy/event` ([companions.md](companions.md#events)); others never do.
 
 Document operations execute on the Qt UI thread. A dedicated input thread keeps
 cancellation and busy responses responsive while JavaScript is running. Only one

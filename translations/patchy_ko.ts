@@ -18543,6 +18543,57 @@ Each item&apos;s own View setting still applies.</source>
         <source>Manage built-in and saved stroke presets</source>
         <translation>기본 제공 및 저장된 획 사전 설정 관리</translation>
     </message>
+    <message>
+        <source>Show the folder of companion app manifests on disk</source>
+        <translation>디스크에서 컴패니언 앱 매니페스트 폴더를 표시합니다</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::CompanionMenu</name>
+    <message>
+        <source>%1 could not be read.</source>
+        <translation>%1을(를) 읽을 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>%1 is not a JSON object.</source>
+        <translation>%1은(는) JSON 객체가 아닙니다.</translation>
+    </message>
+    <message>
+        <source>%1: every args entry must be a string.</source>
+        <translation>%1: args의 각 항목은 문자열이어야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1 needs a reverse-DNS id, a name and a command.</source>
+        <translation>%1에는 역방향 DNS 형식의 id, name, command가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>%1 repeats the id %2.</source>
+        <translation>%1에서 id %2이(가) 중복됩니다.</translation>
+    </message>
+    <message>
+        <source>&amp;Companions</source>
+        <translation>컴패니언 앱(&amp;C)</translation>
+    </message>
+    <message>
+        <source>No companion apps installed</source>
+        <translation>설치된 컴패니언 앱이 없습니다</translation>
+    </message>
+    <message>
+        <source>Open Companions Folder</source>
+        <translation>컴패니언 앱 폴더 열기</translation>
+    </message>
+    <message>
+        <source>Asked %1 to show its panel</source>
+        <translation>%1에 패널을 표시하도록 요청했습니다</translation>
+    </message>
+    <message>
+        <source>Could not start %1 (%2)</source>
+        <translation>%1을(를) 시작할 수 없습니다(%2)</translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation>%1을(를) 시작하는 중...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

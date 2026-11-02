@@ -18631,6 +18631,57 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Manage built-in and saved stroke presets</source>
         <translation>Zarządzaj wbudowanymi i zapisanymi ustawieniami wstępnymi obrysu</translation>
     </message>
+    <message>
+        <source>Show the folder of companion app manifests on disk</source>
+        <translation>Pokazuje na dysku folder z manifestami aplikacji towarzyszących</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::CompanionMenu</name>
+    <message>
+        <source>%1 could not be read.</source>
+        <translation>Nie można odczytać %1.</translation>
+    </message>
+    <message>
+        <source>%1 is not a JSON object.</source>
+        <translation>%1 nie jest obiektem JSON.</translation>
+    </message>
+    <message>
+        <source>%1: every args entry must be a string.</source>
+        <translation>%1: każdy wpis args musi być ciągiem znaków.</translation>
+    </message>
+    <message>
+        <source>%1 needs a reverse-DNS id, a name and a command.</source>
+        <translation>%1 wymaga id w odwrotnym zapisie DNS, name i command.</translation>
+    </message>
+    <message>
+        <source>%1 repeats the id %2.</source>
+        <translation>%1 powtarza id %2.</translation>
+    </message>
+    <message>
+        <source>&amp;Companions</source>
+        <translation>Aplikacje &amp;towarzyszące</translation>
+    </message>
+    <message>
+        <source>No companion apps installed</source>
+        <translation>Brak zainstalowanych aplikacji towarzyszących</translation>
+    </message>
+    <message>
+        <source>Open Companions Folder</source>
+        <translation>Otwórz folder aplikacji towarzyszących</translation>
+    </message>
+    <message>
+        <source>Asked %1 to show its panel</source>
+        <translation>Poproszono %1 o pokazanie panelu</translation>
+    </message>
+    <message>
+        <source>Could not start %1 (%2)</source>
+        <translation>Nie można uruchomić %1 (%2)</translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation>Uruchamianie %1...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

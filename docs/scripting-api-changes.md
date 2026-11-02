@@ -14,14 +14,25 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-11-02 (behavioral and additive, MCP): the attach socket serves up to four clients at once
+instead of refusing a second one with `workspace_unavailable`; a request while another client's
+script runs gets `busy`. `get_info` adds `mainWindow` (`geometry`, `minimized`, `nativeId` on
+Windows) and the capabilities `pixelExchange` and `companionEvents`. A client that sets
+`capabilities.experimental["patchy/events"]` at initialize receives `notifications/patchy/event`
+(`selectionChanged`, `activeDocumentChanged`, `documentClosed`, `stateChanged`, `companionCommand`);
+`experimental["patchy/companion"]` names its Companions menu id ([companions.md](companions.md)).
+Permanent identifiers: the experimental keys, the notification method, the event types and
+fields, the capability tokens, and the `mainWindow` fields. Pinned by
+`ui_mcp_multi_client_attach_tokens_and_busy`, `ui_mcp_events_reach_subscribed_companions` and
+`tests/mcp_client_tests.py`.
 2026-11-02 (additive): pixel exchange for scripts and companion apps ([companions.md](companions.md)):
 `doc.selection.getMask(rect?)` and `setMask(mask, {operation})` (one byte of selection coverage
 per pixel, soft edges included), `layer.getLayerMask()`, `setLayerMask(mask)` (a coverage block or
 `{fromSelection, invert}`, with `defaultColor`, `density` 0..100 and `feather`) and
 `removeLayerMask()`, `doc.getCompositePixels(rect?)` (the flattened RGBA8 pixels), and
-`patchy.io.readImage(path)` / `writeImage(path, block)`. Permanent identifiers: the method names,
-the option keys `operation`, `fromSelection`, `invert`, `defaultColor`, `density`, `feather`, and
-the operation tokens. Pinned by `ui_script_selection_mask_reads_and_combines`,
+`patchy.io.readImage(path, {grayscale})` / `writeImage(path, block)`. Permanent identifiers: the
+method names, the option keys `operation`, `fromSelection`, `invert`, `defaultColor`, `density`,
+`feather`, `grayscale`, and the operation tokens. Pinned by `ui_script_selection_mask_reads_and_combines`,
 `ui_script_layer_mask_set_get_and_remove`, `ui_script_layer_mask_companion_insert_is_one_undo_step`,
 `ui_script_composite_pixels_match_flatten` and `ui_script_io_image_round_trips_unicode_path`.
 2026-10-31 (behavioral): shape stroke `dashes` take 0 entries (a dot with round or square caps);

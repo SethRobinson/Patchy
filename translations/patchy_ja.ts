@@ -18543,6 +18543,57 @@ Each item&apos;s own View setting still applies.</source>
         <source>Manage built-in and saved stroke presets</source>
         <translation>組み込みと保存済みの線のプリセットを管理</translation>
     </message>
+    <message>
+        <source>Show the folder of companion app manifests on disk</source>
+        <translation>コンパニオンアプリのマニフェストがあるフォルダーをディスク上で表示します</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::CompanionMenu</name>
+    <message>
+        <source>%1 could not be read.</source>
+        <translation>%1 を読み込めませんでした。</translation>
+    </message>
+    <message>
+        <source>%1 is not a JSON object.</source>
+        <translation>%1 は JSON オブジェクトではありません。</translation>
+    </message>
+    <message>
+        <source>%1: every args entry must be a string.</source>
+        <translation>%1: args の各項目は文字列にしてください。</translation>
+    </message>
+    <message>
+        <source>%1 needs a reverse-DNS id, a name and a command.</source>
+        <translation>%1 には逆 DNS 形式の id、name、command が必要です。</translation>
+    </message>
+    <message>
+        <source>%1 repeats the id %2.</source>
+        <translation>%1 は id %2 を重複して使っています。</translation>
+    </message>
+    <message>
+        <source>&amp;Companions</source>
+        <translation>コンパニオンアプリ(&amp;C)</translation>
+    </message>
+    <message>
+        <source>No companion apps installed</source>
+        <translation>コンパニオンアプリはインストールされていません</translation>
+    </message>
+    <message>
+        <source>Open Companions Folder</source>
+        <translation>コンパニオンアプリのフォルダーを開く</translation>
+    </message>
+    <message>
+        <source>Asked %1 to show its panel</source>
+        <translation>%1 にパネルを表示するよう依頼しました</translation>
+    </message>
+    <message>
+        <source>Could not start %1 (%2)</source>
+        <translation>%1 を起動できませんでした (%2)</translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation>%1 を起動しています...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

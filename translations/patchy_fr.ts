@@ -18587,6 +18587,57 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Manage built-in and saved stroke presets</source>
         <translation>Gérer les contours prédéfinis intégrés et enregistrés</translation>
     </message>
+    <message>
+        <source>Show the folder of companion app manifests on disk</source>
+        <translation>Affiche sur le disque le dossier des manifestes d&apos;applications compagnons</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::CompanionMenu</name>
+    <message>
+        <source>%1 could not be read.</source>
+        <translation>Impossible de lire %1.</translation>
+    </message>
+    <message>
+        <source>%1 is not a JSON object.</source>
+        <translation>%1 n&apos;est pas un objet JSON.</translation>
+    </message>
+    <message>
+        <source>%1: every args entry must be a string.</source>
+        <translation>%1 : chaque entrée de args doit être une chaîne.</translation>
+    </message>
+    <message>
+        <source>%1 needs a reverse-DNS id, a name and a command.</source>
+        <translation>%1 nécessite un id au format DNS inversé, un name et une command.</translation>
+    </message>
+    <message>
+        <source>%1 repeats the id %2.</source>
+        <translation>%1 répète l&apos;id %2.</translation>
+    </message>
+    <message>
+        <source>&amp;Companions</source>
+        <translation>Applications &amp;compagnons</translation>
+    </message>
+    <message>
+        <source>No companion apps installed</source>
+        <translation>Aucune application compagnon installée</translation>
+    </message>
+    <message>
+        <source>Open Companions Folder</source>
+        <translation>Ouvrir le dossier des applications compagnons</translation>
+    </message>
+    <message>
+        <source>Asked %1 to show its panel</source>
+        <translation>%1 a été invité à afficher son panneau</translation>
+    </message>
+    <message>
+        <source>Could not start %1 (%2)</source>
+        <translation>Impossible de démarrer %1 (%2)</translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation>Démarrage de %1...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

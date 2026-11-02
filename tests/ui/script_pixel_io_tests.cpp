@@ -251,10 +251,13 @@ void ui_script_io_image_round_trips_unicode_path() {
     patchy.io.writeImage(maskPath, {width: 3, height: 1, data: new Uint8Array([0, 128, 255]).buffer});
     var mask = new Uint8Array(patchy.io.readImage(maskPath).data);
     console.log('gray=' + mask[0] + ',' + mask[4] + ',' + mask[5] + ',' + mask[7] + ',' + mask[8] + ',' + mask[11]);
+    var plane = patchy.io.readImage(maskPath, {grayscale: true});
+    console.log('plane=' + plane.width + 'x' + plane.height + ' ' + Array.prototype.join.call(new Uint8Array(plane.data), ','));
     var errors = [];
     [function () { patchy.io.writeImage(dir + '/x.notaformat', {width: 1, height: 1, data: new Uint8Array(4).buffer}); },
      function () { patchy.io.writeImage(dir + '/y.png', {width: 2, height: 2, data: new Uint8Array(5).buffer}); },
-     function () { patchy.io.readImage(dir + '/missing.png'); }].forEach(function (f) {
+     function () { patchy.io.readImage(dir + '/missing.png'); },
+     function () { patchy.io.readImage(maskPath, {gray: true}); }].forEach(function (f) {
       try { f(); errors.push('no-throw'); } catch (e) { errors.push(e.message.length > 0 ? 'thrown' : 'empty'); }
     });
     console.log('errors=' + errors.join(','));
@@ -264,7 +267,8 @@ void ui_script_io_image_round_trips_unicode_path() {
   CHECK(!host.last_run_had_error());
   CHECK(backlog_contains(window, QStringLiteral("rgba=0,0,2x2 255,0,0,255,0,255,0,128,0,0,255,255,10,20,30,40")));
   CHECK(backlog_contains(window, QStringLiteral("gray=0,128,128,255,255,255")));
-  CHECK(backlog_contains(window, QStringLiteral("errors=thrown,thrown,thrown")));
+  CHECK(backlog_contains(window, QStringLiteral("plane=3x1 0,128,255")));
+  CHECK(backlog_contains(window, QStringLiteral("errors=thrown,thrown,thrown,thrown")));
   remove_test_scratch_dir(dir);
 }
 

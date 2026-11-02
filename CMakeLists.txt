@@ -1585,6 +1585,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/mcp_activity.cpp
       src/ui/mcp_attachment.hpp
       src/ui/mcp_attachment.cpp
+      src/ui/companion_apps.hpp
+      src/ui/companion_apps.cpp
       src/ui/canvas_widget_script_stroke.cpp
       src/ui/script_folders.hpp
       src/ui/script_folders.cpp
@@ -2563,6 +2565,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/script_move_tests.cpp
       tests/ui/document_recovery_tests.cpp
       tests/ui/mcp_tests.cpp
+      tests/ui/companion_tests.cpp
       tests/ui/unicode_path_tests.cpp
       tests/ui/legacy_plugin_tests.cpp
       tests/ui/gmic_tests.cpp

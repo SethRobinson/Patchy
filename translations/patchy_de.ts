@@ -18587,6 +18587,57 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Manage built-in and saved stroke presets</source>
         <translation>Integrierte und gespeicherte Konturvorgaben verwalten</translation>
     </message>
+    <message>
+        <source>Show the folder of companion app manifests on disk</source>
+        <translation>Zeigt den Ordner mit den Manifesten der Begleit-Apps auf dem Datenträger</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::CompanionMenu</name>
+    <message>
+        <source>%1 could not be read.</source>
+        <translation>%1 konnte nicht gelesen werden.</translation>
+    </message>
+    <message>
+        <source>%1 is not a JSON object.</source>
+        <translation>%1 ist kein JSON-Objekt.</translation>
+    </message>
+    <message>
+        <source>%1: every args entry must be a string.</source>
+        <translation>%1: Jeder Eintrag in args muss eine Zeichenkette sein.</translation>
+    </message>
+    <message>
+        <source>%1 needs a reverse-DNS id, a name and a command.</source>
+        <translation>%1 benötigt eine id in umgekehrter DNS-Schreibweise, einen name und einen command.</translation>
+    </message>
+    <message>
+        <source>%1 repeats the id %2.</source>
+        <translation>%1 wiederholt die id %2.</translation>
+    </message>
+    <message>
+        <source>&amp;Companions</source>
+        <translation>&amp;Begleit-Apps</translation>
+    </message>
+    <message>
+        <source>No companion apps installed</source>
+        <translation>Keine Begleit-Apps installiert</translation>
+    </message>
+    <message>
+        <source>Open Companions Folder</source>
+        <translation>Ordner für Begleit-Apps öffnen</translation>
+    </message>
+    <message>
+        <source>Asked %1 to show its panel</source>
+        <translation>%1 wurde gebeten, sein Fenster anzuzeigen</translation>
+    </message>
+    <message>
+        <source>Could not start %1 (%2)</source>
+        <translation>%1 konnte nicht gestartet werden (%2)</translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation>%1 wird gestartet...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

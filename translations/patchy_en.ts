@@ -18570,6 +18570,57 @@ Each item&apos;s own View setting still applies.</source>
         <source>Manage built-in and saved stroke presets</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Show the folder of companion app manifests on disk</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::CompanionMenu</name>
+    <message>
+        <source>%1 could not be read.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 is not a JSON object.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: every args entry must be a string.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 needs a reverse-DNS id, a name and a command.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 repeats the id %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Companions</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No companion apps installed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Companions Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Asked %1 to show its panel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not start %1 (%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

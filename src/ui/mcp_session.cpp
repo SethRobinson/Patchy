@@ -16,10 +16,12 @@
 #include <QTimer>
 #include <QUuid>
 #include <QElapsedTimer>
+#include <algorithm>
 #include <atomic>
 #include <cstdio>
 #include <csignal>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <stdexcept>
 #ifdef Q_OS_WIN
@@ -72,7 +74,8 @@ QJsonArray mcp_tool_catalog() {
 QJsonObject mcp_initialize_result(const QJsonObject& params) {
   const auto requested = params["protocolVersion"].toString();
   return {{"protocolVersion", requested == "2025-06-18" ? requested : QStringLiteral("2025-11-25")},
-        {"capabilities", QJsonObject{{"tools", QJsonObject{}}}},
+        {"capabilities", QJsonObject{{"tools", QJsonObject{}},
+                                     {"experimental", QJsonObject{{"patchy/events", QJsonObject{}}}}}},
         {"serverInfo", QJsonObject{{"name", "patchy"}, {"version", QCoreApplication::applicationVersion()}}},
         {"instructions", QStringLiteral("Read get_info to identify the workspace: isolated, or the user's open Patchy window with --attach. Read get_help(workflow) and get_help(api). In attached mode every mutating tool requires expectedState from a fresh get_state or preview. If state is stale, inspect again before editing. Use document/layer IDs, batch edits, inspect get_preview, and save checkpoints. JS globals reset between calls. Requests are serialized; failed scripts may leave undoable edits.")}};
 }
@@ -113,6 +116,8 @@ struct McpSession::Impl final : public QObject {
     connect(&host_, &ui::ScriptEngineHost::painting_progress, this, [this](const QString& text) {
       if (script_pending_) activity_->set_operation(text, true);
     });
+    events_timer_.setInterval(100);
+    connect(&events_timer_, &QTimer::timeout, this, [this] { poll_events(); });
   }
 
   ~Impl() override { shutdown(); }
@@ -124,6 +129,7 @@ struct McpSession::Impl final : public QObject {
     QMetaObject::invokeMethod(this, [this] {
       if (disconnected_) { shutdown(); return; }
       initialized_ = false;
+      stop_events();
       nonce_ = QUuid::createUuid().toString(QUuid::WithoutBraces);
       cancelled_ = false;
       release_request();
@@ -132,6 +138,7 @@ struct McpSession::Impl final : public QObject {
   }
 
   void shutdown() {
+    stop_events();
     if (owns_run_) { host_.stop_active_run(); }
     activity_->set_disconnected();
     ready_ = false;
@@ -261,6 +268,7 @@ struct McpSession::Impl final : public QObject {
       initialized_ = true;
       activity_->set_connected(message["params"].toObject()["clientInfo"].toObject()["name"].toString(QStringLiteral("MCP")));
       reply(id, mcp_initialize_result(message["params"].toObject()));
+      start_events(message["params"].toObject()["capabilities"].toObject()["experimental"].toObject());
       return;
     }
     if (method == "ping") { reply(id, {}); return; }
@@ -324,10 +332,20 @@ struct McpSession::Impl final : public QObject {
         QJsonObject info{{"version", app_.applicationVersion()}, {"apiVersion", 1}, {"mode", offscreen ? "offscreen" : "visible"},
           {"platform", QGuiApplication::platformName()}, {"windowVisible", !offscreen && window_.isVisible()},
           {"skillDirectory", kit_directory()}, {"capabilities", QJsonArray{"persistentDocuments", "javascript", "brush", "eraser", "pressure", "seededDynamics", "pixels", "preview", "undo", "redo", "vectorShapes", "vectorPaths", "vectorMasks", "vectorPaints",
-            "brushTips", "brushPresets", "brushDynamics", "wetEdges", "mixerBrush", "penPose", "strokeSmoothing", "timedAirbrush", "brushLibraryWrites", "slowMode", "pauseAutomation", "palettes", "paletteColorNames", "indexedPng"}},
+            "brushTips", "brushPresets", "brushDynamics", "wetEdges", "mixerBrush", "penPose", "strokeSmoothing", "timedAirbrush", "brushLibraryWrites", "slowMode", "pauseAutomation", "palettes", "paletteColorNames", "indexedPng", "pixelExchange", "companionEvents"}},
           {"scriptTrust", "applicationPrivileges"}, {"workspaceAvailable", true}, {"liveWindowAttachment", attached_},
           {"workspace", attached_ ? "attached" : "isolated"}, {"requiresExpectedState", attached_},
           {"processId", QString::number(QCoreApplication::applicationPid())}};
+        // Where the window is, so a companion can keep its panel beside it (docs/companions.md).
+        // Only a Windows HWND can make another process's window an owned window.
+        const auto frame = window_.frameGeometry();
+        QJsonObject main_window{{"geometry", QJsonObject{{"x", frame.x()}, {"y", frame.y()},
+                                                          {"width", frame.width()}, {"height", frame.height()}}},
+                                {"minimized", window_.isMinimized()}};
+#ifdef Q_OS_WIN
+        main_window.insert("nativeId", QString::number(static_cast<qulonglong>(window_.winId())));
+#endif
+        info.insert("mainWindow", main_window);
         // An owned connector's own update check (connector_freshness.hpp); the attached
         // Patchy shows its user the update prompt itself.
         if (!attached_ && !connector_update_available().isEmpty()) { info.insert("updateAvailable", connector_update_available()); }
@@ -403,6 +421,80 @@ struct McpSession::Impl final : public QObject {
     }
   }
 
+  void post_event(const QJsonObject& event) {
+    // A declared companion receives its own commands even without the event stream.
+    const bool command = event["type"] == "companionCommand" && !companion_id_.isEmpty();
+    if (!initialized_ || disconnected_ || (!events_ && !command)) { return; }
+    send({{"jsonrpc", "2.0"}, {"method", "notifications/patchy/event"}, {"params", event}});
+  }
+
+  void start_events(const QJsonObject& experimental) {
+    companion_id_ = experimental["patchy/companion"].toString().left(128);
+    const auto requested = experimental.value("patchy/events");
+    events_ = requested.isObject() || requested.toBool(false);
+    if (!events_) { return; }
+    observe(true, true);
+    events_timer_.start();
+  }
+
+  void stop_events() {
+    events_timer_.stop();
+    events_ = false;
+    companion_id_.clear();
+    event_documents_.clear();
+    event_active_ = 0;
+    event_selection_.reset();
+    event_token_.clear();
+    event_ticks_ = 0;
+  }
+
+  void poll_events() {
+    // Never inside a script run: its own pumped events would report half-finished state.
+    if (!events_ || !initialized_ || disconnected_ || host_.run_active()) { return; }
+    observe(++event_ticks_ % 5 == 0, false);
+  }
+
+  // Selection, documents and the active tab every tick (no layer data); the state token,
+  // which serializes the layer tree, every fifth tick. `quiet` records without sending.
+  void observe(bool full, bool quiet) {
+    const auto documents = host_.session_ids();
+    for (const auto previous : event_documents_) {
+      if (!quiet && std::find(documents.begin(), documents.end(), previous) == documents.end()) {
+        post_event({{"type", "documentClosed"}, {"documentId", QString::number(previous)}});
+      }
+    }
+    event_documents_ = documents;
+    const auto active = host_.active_session_id();
+    const auto document_value = [](std::int64_t id) {
+      return id != 0 ? QJsonValue(QString::number(id)) : QJsonValue(QJsonValue::Null);
+    };
+    const bool switched = active != event_active_;
+    if (switched) {
+      event_active_ = active;
+      if (!quiet) { post_event({{"type", "activeDocumentChanged"}, {"documentId", document_value(active)}}); }
+    }
+    std::optional<QRect> selection;
+    if (active != 0 && host_.has_selection(active)) { selection = host_.selection_region(active).boundingRect(); }
+    if (switched || selection != event_selection_) {
+      event_selection_ = selection;
+      if (!quiet) {
+        post_event({{"type", "selectionChanged"}, {"documentId", document_value(active)},
+                    {"bounds", selection ? QJsonValue(QJsonObject{{"x", selection->x()}, {"y", selection->y()},
+                                                                  {"width", selection->width()},
+                                                                  {"height", selection->height()}})
+                                         : QJsonValue(QJsonValue::Null)}});
+      }
+    }
+    if (full) {
+      const auto token = state()["stateToken"].toString();
+      if (token != event_token_) {
+        const bool first = event_token_.isEmpty();
+        event_token_ = token;
+        if (!quiet && !first) { post_event({{"type", "stateChanged"}, {"stateToken", token}}); }
+      }
+    }
+  }
+
   void finish_script() {
     script_pending_ = false;
     {
@@ -429,6 +521,17 @@ struct McpSession::Impl final : public QObject {
   QString nonce_;
   QElapsedTimer pump_clock_;
   bool previous_connector_mode_{false};
+  // Companion events (UI thread only).
+  QTimer events_timer_;
+  bool events_{false};
+ public:
+  QString companion_id_;
+ private:
+  std::vector<std::int64_t> event_documents_;
+  std::int64_t event_active_{0};
+  std::optional<QRect> event_selection_;
+  QString event_token_;
+  int event_ticks_{0};
   std::atomic<bool> owns_run_{false};
  public:
   std::atomic<bool> ready_{false};
@@ -454,4 +557,6 @@ bool McpSession::closed() const { return impl_->closed_; }
 void McpSession::receive_line(const QByteArray& line) { impl_->receive_line(line); }
 void McpSession::disconnect_from_any_thread() { impl_->disconnect_from_any_thread(); }
 void McpSession::shutdown() { impl_->shutdown(); }
+void McpSession::post_event(const QJsonObject& event) { impl_->post_event(event); }
+QString McpSession::companion_id() const { return impl_->companion_id_; }
 }  // namespace patchy::ui

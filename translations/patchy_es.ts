@@ -18587,6 +18587,57 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Manage built-in and saved stroke presets</source>
         <translation>Gestionar ajustes preestablecidos de trazo integrados y guardados</translation>
     </message>
+    <message>
+        <source>Show the folder of companion app manifests on disk</source>
+        <translation>Muestra en el disco la carpeta de manifiestos de aplicaciones complementarias</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::CompanionMenu</name>
+    <message>
+        <source>%1 could not be read.</source>
+        <translation>No se pudo leer %1.</translation>
+    </message>
+    <message>
+        <source>%1 is not a JSON object.</source>
+        <translation>%1 no es un objeto JSON.</translation>
+    </message>
+    <message>
+        <source>%1: every args entry must be a string.</source>
+        <translation>%1: cada entrada de args debe ser una cadena.</translation>
+    </message>
+    <message>
+        <source>%1 needs a reverse-DNS id, a name and a command.</source>
+        <translation>%1 necesita un id en formato DNS inverso, un name y un command.</translation>
+    </message>
+    <message>
+        <source>%1 repeats the id %2.</source>
+        <translation>%1 repite el id %2.</translation>
+    </message>
+    <message>
+        <source>&amp;Companions</source>
+        <translation>&amp;Aplicaciones complementarias</translation>
+    </message>
+    <message>
+        <source>No companion apps installed</source>
+        <translation>No hay aplicaciones complementarias instaladas</translation>
+    </message>
+    <message>
+        <source>Open Companions Folder</source>
+        <translation>Abrir carpeta de aplicaciones complementarias</translation>
+    </message>
+    <message>
+        <source>Asked %1 to show its panel</source>
+        <translation>Se pidió a %1 que mostrara su panel</translation>
+    </message>
+    <message>
+        <source>Could not start %1 (%2)</source>
+        <translation>No se pudo iniciar %1 (%2)</translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation>Iniciando %1...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

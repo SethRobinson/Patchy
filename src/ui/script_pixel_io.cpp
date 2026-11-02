@@ -458,8 +458,19 @@ QJSValue ScriptDocumentObject::getCompositePixels(const QJSValue& rect) const {
 // ---------------------------------------------------------------------------
 // patchy.io.readImage / writeImage
 
-QJSValue ScriptIoObject::readImage(const QString& path) {
+QJSValue ScriptIoObject::readImage(const QString& path, const QJSValue& options) {
   const ScriptApiCall api_call(host_);
+  bool grayscale = false;
+  if (!options.isUndefined() && !options.isNull()) {
+    if (!options.isObject() || options.isArray()) {
+      host_.throw_js_error(ScriptEngineHost::tr("%1 options must be an object.").arg(QStringLiteral("readImage")));
+      return {};
+    }
+    if (!reject_unknown_keys(host_, options, {QStringLiteral("grayscale")}, QStringLiteral("readImage"))) {
+      return {};
+    }
+    grayscale = options.property(QStringLiteral("grayscale")).toBool();
+  }
   QImageReader reader(path);
   reader.setAutoTransform(false);
   const auto size = reader.size();
@@ -478,13 +489,15 @@ QJSValue ScriptIoObject::readImage(const QString& path) {
         ScriptEngineHost::tr("readImage: %1 is larger than %2 pixels on a side.").arg(path).arg(kMaxScriptDimension));
     return {};
   }
-  const auto rgba = image.convertToFormat(QImage::Format_RGBA8888);
-  QByteArray data(static_cast<qsizetype>(rgba.width()) * rgba.height() * 4, Qt::Uninitialized);
-  for (int y = 0; y < rgba.height(); ++y) {
-    std::copy_n(rgba.constScanLine(y), static_cast<std::size_t>(rgba.width()) * 4,
-                data.data() + static_cast<qsizetype>(y) * rgba.width() * 4);
+  // Grayscale is the luminance of the color with alpha ignored: how a saved mask reads back.
+  const int channels = grayscale ? 1 : 4;
+  const auto decoded = image.convertToFormat(grayscale ? QImage::Format_Grayscale8 : QImage::Format_RGBA8888);
+  const auto row_bytes = static_cast<qsizetype>(decoded.width()) * channels;
+  QByteArray data(row_bytes * decoded.height(), Qt::Uninitialized);
+  for (int y = 0; y < decoded.height(); ++y) {
+    std::copy_n(decoded.constScanLine(y), row_bytes, data.data() + y * row_bytes);
   }
-  return block_to_js(host_.engine(), QRect(0, 0, rgba.width(), rgba.height()), std::move(data));
+  return block_to_js(host_.engine(), QRect(0, 0, decoded.width(), decoded.height()), std::move(data));
 }
 
 void ScriptIoObject::writeImage(const QString& path, const QJSValue& imageData) {

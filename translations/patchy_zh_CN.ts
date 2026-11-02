@@ -18543,6 +18543,57 @@ Each item&apos;s own View setting still applies.</source>
         <source>Manage built-in and saved stroke presets</source>
         <translation>管理内置和已保存的描边预设</translation>
     </message>
+    <message>
+        <source>Show the folder of companion app manifests on disk</source>
+        <translation>在磁盘上显示配套应用清单所在的文件夹</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::CompanionMenu</name>
+    <message>
+        <source>%1 could not be read.</source>
+        <translation>无法读取 %1。</translation>
+    </message>
+    <message>
+        <source>%1 is not a JSON object.</source>
+        <translation>%1 不是 JSON 对象。</translation>
+    </message>
+    <message>
+        <source>%1: every args entry must be a string.</source>
+        <translation>%1：args 的每一项都必须是字符串。</translation>
+    </message>
+    <message>
+        <source>%1 needs a reverse-DNS id, a name and a command.</source>
+        <translation>%1 需要反向 DNS 格式的 id、name 和 command。</translation>
+    </message>
+    <message>
+        <source>%1 repeats the id %2.</source>
+        <translation>%1 重复使用了 id %2。</translation>
+    </message>
+    <message>
+        <source>&amp;Companions</source>
+        <translation>配套应用(&amp;C)</translation>
+    </message>
+    <message>
+        <source>No companion apps installed</source>
+        <translation>未安装配套应用</translation>
+    </message>
+    <message>
+        <source>Open Companions Folder</source>
+        <translation>打开配套应用文件夹</translation>
+    </message>
+    <message>
+        <source>Asked %1 to show its panel</source>
+        <translation>已请求 %1 显示其面板</translation>
+    </message>
+    <message>
+        <source>Could not start %1 (%2)</source>
+        <translation>无法启动 %1（%2）</translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation>正在启动 %1...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

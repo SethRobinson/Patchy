@@ -1769,9 +1769,13 @@ interface PatchyIo {
   deleteFile(path: string): boolean;
   /**
    * Decodes an image file (PNG, JPEG, BMP, TIFF and the other formats Qt reads) into RGBA8
-   * at x = y = 0. Throws when it cannot be read or is larger than 30000 pixels on a side.
+   * at x = y = 0, or with grayscale: true into one byte per pixel (the luminance, alpha
+   * ignored: a mask saved by writeImage reads back as PatchyMaskData). Throws when it cannot
+   * be read, is larger than 30000 pixels on a side, or on unknown options.
    */
   readImage(path: string): PatchyImageData;
+  readImage(path: string, options: {grayscale?: false}): PatchyImageData;
+  readImage(path: string, options: {grayscale: true}): PatchyMaskData;
   /**
    * Encodes a block to a file by its extension (PNG when there is none): 4 bytes per pixel
    * writes RGBA, 1 byte per pixel (getMask, getLayerMask) writes grayscale. Replaces the

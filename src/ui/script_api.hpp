@@ -491,7 +491,7 @@ public:
   // Removes one file (never a folder); true when it was removed.
   Q_INVOKABLE bool deleteFile(const QString& path);
   // PNG and the other image formats Qt reads, to and from pixel blocks (script_pixel_io.cpp).
-  Q_INVOKABLE QJSValue readImage(const QString& path);
+  Q_INVOKABLE QJSValue readImage(const QString& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE void writeImage(const QString& path, const QJSValue& imageData);
 
 private:

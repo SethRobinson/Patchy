@@ -18631,6 +18631,57 @@ Each item&apos;s own View setting still applies.</source>
         <source>Manage built-in and saved stroke presets</source>
         <translation>Управлять встроенными и сохранёнными наборами обводки</translation>
     </message>
+    <message>
+        <source>Show the folder of companion app manifests on disk</source>
+        <translation>Показывает на диске папку с манифестами сопутствующих приложений</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::CompanionMenu</name>
+    <message>
+        <source>%1 could not be read.</source>
+        <translation>Не удалось прочитать %1.</translation>
+    </message>
+    <message>
+        <source>%1 is not a JSON object.</source>
+        <translation>%1 не является объектом JSON.</translation>
+    </message>
+    <message>
+        <source>%1: every args entry must be a string.</source>
+        <translation>%1: каждый элемент args должен быть строкой.</translation>
+    </message>
+    <message>
+        <source>%1 needs a reverse-DNS id, a name and a command.</source>
+        <translation>%1 требует id в обратной записи DNS, name и command.</translation>
+    </message>
+    <message>
+        <source>%1 repeats the id %2.</source>
+        <translation>%1 повторяет id %2.</translation>
+    </message>
+    <message>
+        <source>&amp;Companions</source>
+        <translation>&amp;Сопутствующие приложения</translation>
+    </message>
+    <message>
+        <source>No companion apps installed</source>
+        <translation>Сопутствующие приложения не установлены</translation>
+    </message>
+    <message>
+        <source>Open Companions Folder</source>
+        <translation>Открыть папку сопутствующих приложений</translation>
+    </message>
+    <message>
+        <source>Asked %1 to show its panel</source>
+        <translation>%1 получил запрос показать свою панель</translation>
+    </message>
+    <message>
+        <source>Could not start %1 (%2)</source>
+        <translation>Не удалось запустить %1 (%2)</translation>
+    </message>
+    <message>
+        <source>Starting %1...</source>
+        <translation>Запуск %1...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CustomShapeLibrary</name>

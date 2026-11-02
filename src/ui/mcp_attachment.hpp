@@ -13,8 +13,12 @@ class McpAttachment {
   explicit McpAttachment(MainWindow& window, const QString& endpoint = mcp_attachment_endpoint());
   ~McpAttachment();
   [[nodiscard]] QString error() const;
+  // Sends companionCommand {companion, action} to every attached client that declared
+  // `companion_id` at initialize (docs/companions.md). UI thread; false when none is attached.
+  static bool send_companion_command(const QString& companion_id, const QString& action);
  private:
   struct Impl;
   std::unique_ptr<Impl> impl_;
+  static Impl* active_;
 };
 }  // namespace patchy::ui
