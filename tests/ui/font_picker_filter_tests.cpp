@@ -356,6 +356,11 @@ void ui_font_picker_recent_separator_reads_in_both_schemes() {
     settings.setValue(QString::fromLatin1(patchy::ui::kFontPickerRecentFamiliesKey),
                       QStringList{picker->itemText(1), picker->itemText(0)});
   }
+  {
+    // A current family in the Recent section opens the list at the top, rule in view.
+    const QSignalBlocker blocker(picker);
+    picker->setCurrentFont(QFont(picker->itemText(1)));
+  }
   const auto capture = [picker](const char* name) {
     auto* popup = open_picker_popup(*picker);
     CHECK(popup != nullptr);
