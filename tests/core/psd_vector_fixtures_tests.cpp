@@ -923,6 +923,78 @@ void psd_authored_shape_layer_writes_native_blocks() {
   CHECK(metrics.max_channel_delta == 0);
 }
 
+// GitHub #582: Shape Appearance switches a fill layer (no path) between Solid Color,
+// Gradient and Pattern. Each save writes only the new type's content block, no vmsk,
+// and the file reopens as a full-canvas fill layer of that type, like Photoshop's
+// Change Layer Content.
+void psd_fill_layer_type_switch_writes_new_fill_type() {
+  patchy::Document document(32, 24, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("bg", patchy::test::solid_rgba(32, 24, 255, 255, 255, 255));
+  patchy::PatternResource pattern;
+  pattern.id = "6b31e700-5820-4f15-9d31-200000000582";
+  pattern.name = "Checks";
+  pattern.tile = patchy::test::solid_rgba(2, 2, 40, 90, 200, 255);
+  document.metadata().patterns.patterns.push_back(pattern);
+  patchy::Layer fill(document.allocate_layer_id(), "Gradient Fill 1", patchy::PixelBuffer());
+  patchy::VectorShapeContent content;
+  content.fill.kind = patchy::VectorFillKind::Gradient;
+  content.fill.gradient.color_stops = {patchy::GradientColorStop{0.0F, {200, 30, 30}, 0.5F},
+                                       patchy::GradientColorStop{1.0F, {30, 30, 200}, 0.5F}};
+  content.fill.gradient.alpha_stops = {patchy::GradientAlphaStop{0.0F, 1.0F, 0.5F},
+                                       patchy::GradientAlphaStop{1.0F, 1.0F, 0.5F}};
+  content.stroke.enabled = false;
+  fill.set_vector_shape(content);
+  fill.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+  patchy::update_vector_shape_raster(fill, patchy::Rect::from_size(32, 24), &document.metadata().patterns);
+  document.add_layer(std::move(fill));
+
+  auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  struct Step {
+    patchy::VectorFillKind kind;
+    const char* key;
+  };
+  for (const auto& step : {Step{patchy::VectorFillKind::Solid, "SoCo"},
+                           Step{patchy::VectorFillKind::Pattern, "PtFl"},
+                           Step{patchy::VectorFillKind::Gradient, "GdFl"}}) {
+    auto reread = patchy::psd::DocumentIo::read(bytes, {});
+    CHECK(reread.layers().size() == 2);
+    if (reread.layers().size() != 2) return;
+    auto& layer = reread.layers()[1];
+    CHECK(std::as_const(layer).vector_shape() != nullptr);
+    if (std::as_const(layer).vector_shape() == nullptr) return;
+    // What Shape Appearance's accept does to the edited layer; a picked pattern joins the
+    // document's store (ensure_vector_fill_patterns), as an unused one is not saved.
+    reread.metadata().patterns.adopt(pattern);
+    auto edited = *std::as_const(layer).vector_shape();
+    edited.fill.kind = step.kind;
+    edited.fill.color = patchy::RgbColor{10, 160, 90};
+    edited.fill.pattern_id = pattern.id;
+    edited.fill.pattern_name = pattern.name;
+    // A switch to Gradient seeds a preset's stops (Shape Appearance's fill kind combo).
+    edited.fill.gradient.color_stops = content.fill.gradient.color_stops;
+    edited.fill.gradient.alpha_stops = content.fill.gradient.alpha_stops;
+    layer.set_vector_shape(std::move(edited));
+    patchy::mark_layer_vector_block_dirty(layer);
+    patchy::update_vector_shape_raster(layer, patchy::Rect::from_size(32, 24), &reread.metadata().patterns);
+    bytes = patchy::psd::DocumentIo::write_layered_rgb8(reread);
+    const auto extra = patchy::test::psd_layer_extra_data(bytes, 1);
+    CHECK(patchy::test::psd_layer_block_payload(extra, "SoCo").has_value() == (std::string_view(step.key) == "SoCo"));
+    CHECK(patchy::test::psd_layer_block_payload(extra, "GdFl").has_value() == (std::string_view(step.key) == "GdFl"));
+    CHECK(patchy::test::psd_layer_block_payload(extra, "PtFl").has_value() == (std::string_view(step.key) == "PtFl"));
+    CHECK(!patchy::test::psd_layer_block_payload(extra, "vmsk").has_value());
+    const auto reopened = patchy::psd::DocumentIo::read(bytes, {});
+    const auto* shape = std::as_const(reopened).layers()[1].vector_shape();
+    CHECK(shape != nullptr);
+    if (shape == nullptr) return;
+    CHECK(shape->fill.kind == step.kind);
+    CHECK(shape->path.empty());
+    // The fill covers the whole canvas over the white background.
+    const auto flat = patchy::Compositor{}.flatten_rgb8(reopened);
+    const auto* corner = flat.pixel(0, 0);
+    CHECK(!(corner[0] == 255 && corner[1] == 255 && corner[2] == 255));
+  }
+}
+
 // GitHub #548 follow-up: a custom dash pattern typed in Shape Appearance and the
 // Butt-cap Dotted pattern write to vstk strokeStyleLineDashSet and reopen exactly.
 void psd_authored_custom_and_dotted_dashes_round_trip() {
@@ -2917,6 +2989,7 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
       {"psd_saved_paths_reorder_round_trips", psd_saved_paths_reorder_round_trips},
       {"psd_work_path_saved_as_named_round_trips", psd_work_path_saved_as_named_round_trips},
       {"psd_authored_shape_layer_writes_native_blocks", psd_authored_shape_layer_writes_native_blocks},
+      {"psd_fill_layer_type_switch_writes_new_fill_type", psd_fill_layer_type_switch_writes_new_fill_type},
       {"psd_authored_custom_and_dotted_dashes_round_trip", psd_authored_custom_and_dotted_dashes_round_trip},
       {"psd_authored_dash_presets_round_trip", psd_authored_dash_presets_round_trip},
       {"psd_authored_dash_offset_round_trip", psd_authored_dash_offset_round_trip},

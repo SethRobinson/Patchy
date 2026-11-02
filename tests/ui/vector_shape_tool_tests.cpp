@@ -60,7 +60,12 @@
 #include "core/vector_shape.hpp"
 #include "core/vector_raster.hpp"
 #include "ui/custom_shape_library.hpp"
+#include "ui/gradient_library.hpp"
+#include "ui/gradient_manager_dialog.hpp"
 #include "ui/shape_appearance_dialog.hpp"
+#include "ui/transparency_checkerboard.hpp"
+#include <QScrollBar>
+#include <QSet>
 #include "ui/stroke_preset_manager_dialog.hpp"
 #include <QMessageBox>
 #include <QTreeWidget>
@@ -5453,6 +5458,240 @@ void ui_new_gradient_fill_layer_spans_canvas() {
   CHECK(bottom.red() + 60 < top.red());
 }
 
+// Built-in gradient preset ids (src/core/gradient_presets.cpp, persisted).
+const QString kForegroundToBackgroundId = QStringLiteral("6b31e700-0001-4f15-9d31-200000000001");
+const QString kForegroundToTransparentId = QStringLiteral("6b31e700-0002-4f15-9d31-200000000002");
+const QString kBlackToWhiteId = QStringLiteral("6b31e700-0003-4f15-9d31-200000000003");
+
+// GitHub #578 and #582: Layer > New Fill Layer > Gradient opens Shape Appearance on
+// the new layer's Foreground to Background gradient with that preset selected, even on
+// the default black and white where Black to White draws the same, and on any other
+// pair. A fill layer without a path shows only its Fill section, sized to fit, and its
+// type switches between Solid Color, Gradient and Pattern but not to No Fill. A shape
+// layer keeps every section.
+void ui_new_gradient_fill_layer_selects_its_preset_and_shows_only_fill() {
+  VectorSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  int fill_only_width = 0;
+  int fill_dialogs = 0;
+  const auto check_fill_dialog = [&](const char* artifact) {
+    auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) return;
+    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillGradientCombo"));
+    auto* kind = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillKindCombo"));
+    CHECK(combo != nullptr && kind != nullptr);
+    if (combo == nullptr || kind == nullptr) return;
+    CHECK(combo->currentData().toString() == kForegroundToBackgroundId);
+    CHECK(combo->findData(QString()) < 0);  // no Custom row
+    CHECK(combo->isVisibleTo(dialog) && kind->isVisibleTo(dialog));
+    CHECK(kind->count() == 3);
+    CHECK(kind->findData(static_cast<int>(patchy::VectorFillKind::None)) < 0);
+    for (const char* hidden : {"shapeStrokeWidthSpin", "shapeFeatherSpin", "shapeDensitySpin",
+                               "shapeAppearanceLeftColumn"}) {
+      auto* widget = dialog->findChild<QWidget*>(QLatin1String(hidden));
+      CHECK(widget != nullptr && !widget->isVisibleTo(dialog));
+    }
+    auto* scroll = dialog->findChild<QScrollArea*>(QStringLiteral("shapeAppearanceScroll"));
+    CHECK(scroll != nullptr && !scroll->verticalScrollBar()->isVisible());
+    fill_only_width = dialog->width();
+    save_widget_artifact(artifact, *dialog);
+    ++fill_dialogs;
+    dialog->accept();
+  };
+  for (const auto& [foreground, background] :
+       {std::pair{QColor(Qt::black), QColor(Qt::white)}, std::pair{QColor(200, 30, 40), QColor(20, 60, 210)}}) {
+    canvas->set_primary_color(foreground);
+    canvas->set_secondary_color(background);
+    const bool defaults = foreground == QColor(Qt::black);
+    QTimer::singleShot(0, [&, defaults] {
+      check_fill_dialog(defaults ? "issue578_new_gradient_fill_default_colors" : "issue578_new_gradient_fill");
+    });
+    window.findChild<QAction*>(QStringLiteral("layerNewGradientFillAction"))->trigger();
+    QApplication::processEvents();
+  }
+  // Editing the layer later shows the same preset.
+  QTimer::singleShot(0, [&] { check_fill_dialog("issue582_gradient_fill_layer_appearance"); });
+  patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
+  QApplication::processEvents();
+  CHECK(fill_dialogs == 3);
+
+  make_rect_shape_layer(window, *canvas);
+  bool checked = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) return;
+    auto* kind = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillKindCombo"));
+    CHECK(kind != nullptr && kind->findData(static_cast<int>(patchy::VectorFillKind::None)) >= 0);
+    for (const char* shown : {"shapeStrokeWidthSpin", "shapeFeatherSpin", "shapeAppearanceLeftColumn"}) {
+      auto* widget = dialog->findChild<QWidget*>(QLatin1String(shown));
+      CHECK(widget != nullptr && widget->isVisibleTo(dialog));
+    }
+    CHECK(dialog->width() > fill_only_width);
+    checked = true;
+    dialog->reject();
+  });
+  patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
+  QApplication::processEvents();
+  CHECK(checked);
+}
+
+// GitHub #579: Shape Appearance opens with the fill and stroke Gradient lists on the
+// preset the layer's gradient came from (a built-in, a user preset, a Foreground/
+// Background preset resolved in the current colors) or, when it matches none, on a
+// Custom row that holds the layer's own gradient and restores it after trying presets.
+// The rows draw Foreground/Background stops in the current colors (#581).
+void ui_shape_appearance_gradient_lists_select_the_matching_preset() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::GradientLibrary library(directory.filePath(QStringLiteral("gradients")));
+  CHECK(library.restore_default_gradients() > 0);
+  patchy::GradientDefinition user;
+  user.color_stops = {patchy::GradientColorStop{0.0F, {20, 160, 60}, 0.5F},
+                      patchy::GradientColorStop{1.0F, {240, 220, 20}, 0.5F}};
+  user.alpha_stops = {patchy::GradientAlphaStop{0.0F, 1.0F, 0.5F}, patchy::GradientAlphaStop{1.0F, 1.0F, 0.5F}};
+  const auto user_id = library.add_gradient(QStringLiteral("My Ramp"), user);
+  CHECK(!user_id.isEmpty());
+  const patchy::RgbColor foreground{200, 30, 40};
+  const patchy::RgbColor background{20, 60, 210};
+  const auto preset = [&](const QString& id) {
+    const auto* entry = library.find_entry(id);
+    CHECK(entry != nullptr);
+    return entry != nullptr ? patchy::ui::resolve_gradient_definition(entry->definition, foreground, background)
+                            : patchy::GradientDefinition{};
+  };
+  patchy::GradientDefinition custom;
+  custom.color_stops = {patchy::GradientColorStop{0.0F, {10, 10, 10}, 0.5F},
+                        patchy::GradientColorStop{0.4F, {250, 120, 0}, 0.5F},
+                        patchy::GradientColorStop{1.0F, {255, 255, 255}, 0.5F}};
+  custom.alpha_stops = {patchy::GradientAlphaStop{0.0F, 1.0F, 0.5F}, patchy::GradientAlphaStop{1.0F, 1.0F, 0.5F}};
+  struct Case {
+    patchy::GradientDefinition fill;
+    patchy::GradientDefinition stroke;
+    QString fill_id;  // empty: the Custom row
+    QString stroke_id;
+  };
+  // A PSD round trip moves locations by 4096ths and keeps its own name; that still matches.
+  auto imported_user = user;
+  imported_user.name = "Imported";
+  imported_user.color_stops.back().location = 4095.0F / 4096.0F + 1.0F / 8192.0F;
+  const std::vector<Case> cases{
+      {preset(kBlackToWhiteId), preset(user_id), kBlackToWhiteId, user_id},
+      {custom, preset(kForegroundToTransparentId), QString(), kForegroundToTransparentId},
+      {preset(kForegroundToBackgroundId), custom, kForegroundToBackgroundId, QString()},
+      {imported_user, imported_user, user_id, user_id},
+  };
+  for (std::size_t index = 0; index < cases.size(); ++index) {
+    const auto& item = cases[index];
+    patchy::ui::ShapeAppearanceSettings initial;
+    initial.fill.kind = patchy::VectorFillKind::Gradient;
+    static_cast<patchy::GradientDefinition&>(initial.fill.gradient) = item.fill;
+    initial.stroke.enabled = true;
+    initial.stroke.width = 4;
+    initial.stroke.content.kind = patchy::VectorFillKind::Gradient;
+    static_cast<patchy::GradientDefinition&>(initial.stroke.content.gradient) = item.stroke;
+    bool checked = false;
+    QTimer::singleShot(0, [&] {
+      try {
+        auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+        CHECK(dialog != nullptr);
+        if (dialog == nullptr) return;
+        auto* fill_combo = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillGradientCombo"));
+        auto* stroke_combo = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeGradientCombo"));
+        CHECK(fill_combo != nullptr && stroke_combo != nullptr);
+        if (fill_combo == nullptr || stroke_combo == nullptr) return;
+        for (const auto& [combo, id] :
+             {std::pair{fill_combo, item.fill_id}, std::pair{stroke_combo, item.stroke_id}}) {
+          CHECK(combo->currentData().toString() == id);
+          if (id.isEmpty()) {
+            CHECK(combo->currentIndex() == 0);
+            CHECK(combo->currentText() == QObject::tr("Custom"));
+          } else {
+            CHECK(combo->findData(QString()) < 0);
+          }
+        }
+        if (index == 1) {
+          // The Foreground to Background row shows the current colors.
+          const auto row = fill_combo->findData(kForegroundToBackgroundId);
+          const auto icon = fill_combo->itemIcon(row).pixmap(QSize(112, 28)).toImage();
+          CHECK(color_close(icon.pixelColor(1, icon.height() / 2), QColor(200, 30, 40), 12));
+          CHECK(color_close(icon.pixelColor(icon.width() - 2, icon.height() / 2), QColor(20, 60, 210), 12));
+          fill_combo->showPopup();
+          QApplication::processEvents();
+          save_widget_artifact("issue581_shape_appearance_gradient_list", *fill_combo->view()->window());
+          fill_combo->hidePopup();
+          // Trying a preset, then Custom again, restores the layer's gradient.
+          fill_combo->setCurrentIndex(fill_combo->findData(kBlackToWhiteId));
+          fill_combo->setCurrentIndex(0);
+        }
+        checked = true;
+        dialog->accept();
+      } catch (...) {
+        patchy::ui::unwind_non_modal_dialog_loop(std::current_exception());
+      }
+    });
+    const auto edited = patchy::ui::request_shape_appearance_settings(nullptr, {}, initial, {}, &library, nullptr,
+                                                                      nullptr, foreground, background);
+    CHECK(checked);
+    CHECK(edited.has_value());
+    if (edited.has_value()) {
+      CHECK(edited->fill.gradient.color_stops == initial.fill.gradient.color_stops);
+      CHECK(edited->stroke.content.gradient.color_stops == initial.stroke.content.gradient.color_stops);
+    }
+  }
+}
+
+// GitHub #581: gradient preset previews draw Foreground/Background stops in the
+// current colors and alpha over the transparency checkerboard, and follow a color
+// change; previews without such stops are not redrawn.
+void ui_gradient_preset_thumbnails_follow_the_current_colors() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::GradientLibrary library(directory.filePath(QStringLiteral("gradients")));
+  CHECK(library.restore_default_gradients() > 0);
+  const auto* to_transparent = library.find_entry(kForegroundToTransparentId);
+  const auto* black_white = library.find_entry(kBlackToWhiteId);
+  CHECK(to_transparent != nullptr && black_white != nullptr);
+  if (to_transparent == nullptr || black_white == nullptr) return;
+  const auto black_white_key = black_white->thumbnail.cacheKey();
+  const auto check_thumbnail = [&](QColor foreground) {
+    const auto image = to_transparent->thumbnail.toImage();
+    CHECK(color_close(image.pixelColor(0, image.height() / 2), foreground, 4));
+    // The transparent end is the checkerboard: both its squares, no paint.
+    const int x = image.width() - 1;
+    QSet<QRgb> squares;
+    for (int y = 0; y < image.height(); ++y) squares.insert(image.pixel(x, y) & 0xffffffU);
+    CHECK(squares.size() == 2);
+    CHECK(squares.contains(patchy::ui::checkerboard_dark_square().rgb() & 0xffffffU));
+    CHECK(squares.contains(patchy::ui::checkerboard_light_square().rgb() & 0xffffffU));
+  };
+  library.set_preview_colors({{200, 30, 40}, {20, 60, 210}});
+  check_thumbnail(QColor(200, 30, 40));
+  library.set_preview_colors({{30, 170, 60}, {20, 60, 210}});
+  check_thumbnail(QColor(30, 170, 60));
+  CHECK(black_white->thumbnail.cacheKey() == black_white_key);
+
+  // The Gradient Manager's list and its large preview use them too.
+  bool checked = false;
+  QTimer::singleShot(0, [&] {
+    auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("gradientManagerDialog")));
+    CHECK(manager != nullptr);
+    if (manager == nullptr) return;
+    auto* preview = manager->findChild<QLabel*>(QStringLiteral("gradientManagerPreview"));
+    CHECK(preview != nullptr);
+    if (preview != nullptr) {
+      const auto image = preview->pixmap().toImage();
+      CHECK(color_close(image.pixelColor(0, image.height() / 2), QColor(30, 170, 60), 4));
+    }
+    save_widget_artifact("issue581_gradient_manager_previews", *manager);
+    checked = true;
+    manager->reject();
+  });
+  (void)patchy::ui::request_gradient_manager(nullptr, library, kForegroundToTransparentId);
+  CHECK(checked);
+}
+
 void ui_pen_hover_shows_context_cursor_badges() {
   VectorSettingsGuard settings_guard;
   auto&& [window, canvas] = ShownWindowFixture{};
@@ -8995,6 +9234,12 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_path_mode_drag_previews_path_outline_only},
       {"ui_shape_geometry_edits_live_shape", ui_shape_geometry_edits_live_shape},
       {"ui_new_gradient_fill_layer_spans_canvas", ui_new_gradient_fill_layer_spans_canvas},
+      {"ui_new_gradient_fill_layer_selects_its_preset_and_shows_only_fill",
+       ui_new_gradient_fill_layer_selects_its_preset_and_shows_only_fill},
+      {"ui_shape_appearance_gradient_lists_select_the_matching_preset",
+       ui_shape_appearance_gradient_lists_select_the_matching_preset},
+      {"ui_gradient_preset_thumbnails_follow_the_current_colors",
+       ui_gradient_preset_thumbnails_follow_the_current_colors},
       {"ui_paths_panel_actions_follow_row_selection", ui_paths_panel_actions_follow_row_selection},
       {"ui_paths_panel_target_shows_overlay_with_any_tool",
        ui_paths_panel_target_shows_overlay_with_any_tool},

@@ -39,13 +39,11 @@ struct ShapeAppearanceSettings {
   std::uint8_t density{255};
   std::shared_ptr<const AppearanceEdits<ShapeAppearanceSettings>> edits{};
   bool preview_enabled{true};
+  // A Color, Gradient or Pattern fill layer without a vector path: the dialog shows
+  // only its Fill section (GitHub #582). Not an appearance value: never compared,
+  // edited or applied.
+  bool fill_layer_only{false};
 };
-
-// GRD presets may defer stops to the tool colors; shape fills store concrete
-// colors, so resolve at pick time (shared with the options-bar paint pickers).
-[[nodiscard]] GradientDefinition resolve_gradient_definition(GradientDefinition definition,
-                                                             RgbColor foreground,
-                                                             RgbColor background);
 
 // The Dashes > Custom "Dash pattern" field's text: lengths in stroke widths, space
 // separated in the UI locale. Parsing returns nullopt for text that is not a
