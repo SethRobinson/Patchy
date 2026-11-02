@@ -39,7 +39,9 @@ constexpr double kZoomDragFactorPerPixel = 1.01;
 constexpr double kMinimumVisibleDocumentFraction = 0.10;
 constexpr int kScrollBarSingleStep = 20;
 // Fit on Screen's and the Zoom-tool marquee's margin, per side of the view area.
-constexpr double kFitMarginPerSide = 40.0;
+// Just enough to keep edge handles and marching ants clear of the rulers and
+// scroll bars (GitHub issue 585).
+constexpr double kFitMarginPerSide = 10.0;
 
 // The allowed pan range per axis: at least 10% of the document (or of the
 // viewport, whichever is smaller) must stay visible. The scroll bars derive
