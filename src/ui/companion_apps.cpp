@@ -1,6 +1,7 @@
 #include "ui/companion_apps.hpp"
 
 #include "ui/ai_control_paths.hpp"
+#include "ui/appimage_environment.hpp"
 #include "ui/command_search.hpp"
 #include "ui/main_window.hpp"
 #include "ui/mcp_attachment.hpp"
@@ -125,8 +126,11 @@ QProcessEnvironment companion_environment(const CompanionManifest& manifest) {
   auto environment = QProcessEnvironment::systemEnvironment();
   environment.insert(QStringLiteral("PATCHY_MCP_ENDPOINT"), mcp_attachment_endpoint());
   environment.insert(QStringLiteral("PATCHY_COMPANION_ID"), manifest.id);
-  environment.insert(QStringLiteral("PATCHY_EXECUTABLE"), QCoreApplication::applicationFilePath());
-  const auto connector = resolve_ai_control_paths().connector_path;
+  environment.insert(QStringLiteral("PATCHY_EXECUTABLE"), user_visible_executable_path());
+  // Inside an AppImage the .AppImage file is the connector, run with the patchy-mcp argument
+  // (its mount, where a patchy-mcp beside the executable would live, is gone once Patchy exits).
+  const auto paths = resolve_ai_control_paths();
+  const auto connector = paths.appimage_path.isEmpty() ? paths.connector_path : paths.appimage_path;
   if (!connector.isEmpty()) { environment.insert(QStringLiteral("PATCHY_MCP"), connector); }
   return environment;
 }

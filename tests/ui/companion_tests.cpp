@@ -11,6 +11,8 @@
 #include "ui_test_support.hpp"
 
 #include <QApplication>
+#include <QCoreApplication>
+#include <QScopeGuard>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
@@ -464,6 +466,30 @@ void ui_companion_menu_quits_attached_companion() {
   remove_test_scratch_dir(folder);
 }
 
+// Inside an AppImage a companion is handed the .AppImage file as both PATCHY_EXECUTABLE and
+// PATCHY_MCP (run with the patchy-mcp argument), never paths in the per-launch mount.
+void ui_companion_environment_names_the_appimage() {
+  patchy::ui::CompanionManifest manifest;
+  manifest.id = QStringLiteral("io.example.fill");
+  const auto outside = patchy::ui::companion_environment(manifest);
+  CHECK(outside.value(QStringLiteral("PATCHY_COMPANION_ID")) == manifest.id);
+  CHECK(QFileInfo(outside.value(QStringLiteral("PATCHY_EXECUTABLE"))) == QFileInfo(QCoreApplication::applicationFilePath()));
+#ifdef Q_OS_LINUX
+  const auto saved_appimage = qgetenv("APPIMAGE");
+  const auto saved_appdir = qgetenv("APPDIR");
+  const auto restore = qScopeGuard([&] {
+    saved_appimage.isNull() ? qunsetenv("APPIMAGE") : qputenv("APPIMAGE", saved_appimage);
+    saved_appdir.isNull() ? qunsetenv("APPDIR") : qputenv("APPDIR", saved_appdir);
+  });
+  // A real AppImage runs usr/bin/patchy below its mount, so the mount is a parent folder.
+  qputenv("APPDIR", QFileInfo(QCoreApplication::applicationDirPath()).absolutePath().toUtf8());
+  qputenv("APPIMAGE", "/opt/apps/Patchy-x86_64.AppImage");
+  const auto inside = patchy::ui::companion_environment(manifest);
+  CHECK(inside.value(QStringLiteral("PATCHY_EXECUTABLE")) == QStringLiteral("/opt/apps/Patchy-x86_64.AppImage"));
+  CHECK(inside.value(QStringLiteral("PATCHY_MCP")) == QStringLiteral("/opt/apps/Patchy-x86_64.AppImage"));
+#endif
+}
+
 std::vector<patchy::test::TestCase> companion_tests() {
   return {
       {"ui_mcp_multi_client_attach_tokens_and_busy", ui_mcp_multi_client_attach_tokens_and_busy},
@@ -472,5 +498,6 @@ std::vector<patchy::test::TestCase> companion_tests() {
       {"ui_mcp_state_reports_layer_masks", ui_mcp_state_reports_layer_masks},
       {"ui_companion_menu_quits_attached_companion", ui_companion_menu_quits_attached_companion},
       {"ui_companion_protocol_range_is_checked", ui_companion_protocol_range_is_checked},
+      {"ui_companion_environment_names_the_appimage", ui_companion_environment_names_the_appimage},
   };
 }

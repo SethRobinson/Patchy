@@ -41,7 +41,8 @@ struct CompanionManifest {
 // The program a manifest starts, resolved as `command` describes; empty when not found.
 [[nodiscard]] QString resolve_companion_command(const CompanionManifest& manifest);
 // The environment a companion starts with: this process's plus PATCHY_MCP_ENDPOINT,
-// PATCHY_COMPANION_ID, PATCHY_EXECUTABLE and PATCHY_MCP (the connector, when installed).
+// PATCHY_COMPANION_ID, PATCHY_EXECUTABLE and PATCHY_MCP (the connector, when installed; inside
+// an AppImage both name the .AppImage file, whose connector takes the patchy-mcp argument).
 [[nodiscard]] QProcessEnvironment companion_environment(const CompanionManifest& manifest);
 
 // Owns the Companions submenu, parented to the Plugins menu. The entries are rebuilt from
