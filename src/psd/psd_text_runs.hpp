@@ -71,6 +71,16 @@ struct PsdTextStyleRun {
   // Txt2 block only (style keys /24 and /23); the TySh EngineData has no key for them.
   bool ordinals{false};
   bool fractions{false};
+  // The other OpenType toggles of Photoshop's Character panel (GitHub issue 346). Standard
+  // Ligatures (liga) is on by default and Contextual Alternates (calt) off, as in Photoshop.
+  // Photoshop's TySh has /Ligatures and /DLigatures; the rest are Txt2-only style keys (/20
+  // Contextual Alternates, /25 Swash, /26 Titling, /28 Stylistic Alternates).
+  bool ligatures{true};
+  bool contextual_alternates{false};
+  bool discretionary_ligatures{false};
+  bool swash{false};
+  bool stylistic_alternates{false};
+  bool titling_alternates{false};
 };
 
 // Photoshop's document-level ratios (TySh /SuperscriptSize .583, /SuperscriptPosition .333,
@@ -85,7 +95,9 @@ inline constexpr double kTextSmallCapSizeFraction = 0.7;
 [[nodiscard]] bool text_run_has_character_styles(const PsdTextStyleRun& run) noexcept;
 // Runs v9 column 16: the run's character styles as a comma-separated token list (`allcaps`,
 // `smallcaps`, `superscript`, `subscript`, `underline`, `strikethrough`, `ordinals`,
-// `fractions`), or "-" for none. The tokens are a file-format contract: never rename one.
+// `fractions`, `noligatures`, `contextualalternates`, `discretionaryligatures`, `swash`,
+// `stylisticalternates`, `titlingalternates`), or "-" for none. The tokens are a file-format
+// contract: never rename one.
 [[nodiscard]] std::string serialize_text_run_character_styles(const PsdTextStyleRun& run);
 // Reads a column-16 token list into `run` (unknown tokens are ignored, so a newer writer's
 // additions survive in nothing worse than being dropped).

@@ -31705,6 +31705,30 @@ Locked: %1</source>
         <source>Reverted %1</source>
         <translation>已回復 %1</translation>
     </message>
+    <message>
+        <source>Standard Ligatures (fonts that have them)</source>
+        <translation>標準連字 (僅限支援的字型)</translation>
+    </message>
+    <message>
+        <source>Contextual Alternates (fonts that have them)</source>
+        <translation>內容替代字 (僅限支援的字型)</translation>
+    </message>
+    <message>
+        <source>Discretionary Ligatures (fonts that have them)</source>
+        <translation>自由連字 (僅限支援的字型)</translation>
+    </message>
+    <message>
+        <source>Swash (fonts that have them)</source>
+        <translation>花飾字 (僅限支援的字型)</translation>
+    </message>
+    <message>
+        <source>Stylistic Alternates (fonts that have them)</source>
+        <translation>風格替代字 (僅限支援的字型)</translation>
+    </message>
+    <message>
+        <source>Titling Alternates (fonts that have them)</source>
+        <translation>標題替代字 (僅限支援的字型)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

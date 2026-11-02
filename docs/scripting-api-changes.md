@@ -14,6 +14,12 @@ those of 2026-10-10 to 2026-10-19 in
 [scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md).
 Every entry below is API 1.
 
+2026-11-02 (additive): text runs (`addTextLayer`, `setTextRuns`) take the rest of the Character
+panel's OpenType toggles (GitHub issue 346, [text-character-styles.md](text-character-styles.md)):
+booleans `ligatures` (default true), `contextualAlternates`, `discretionaryLigatures`, `swash`,
+`stylisticAlternates` and `titlingAlternates`; an unset key keeps the layer's. `textRuns` reads all
+six back. Permanent identifiers: those keys. Pinned by
+`ui_text_opentype_features_use_the_font_features_if_available`.
 2026-11-02 (additive): `patchy.gegl.filters()` lists the GEGL filters Patchy offers
 (`{id, name, category, description, parameters}`, each parameter `{name, label, type, default,
 minimum, maximum, choices}`), and `layer.applyFilter` runs them by id ([gegl-filters.md](gegl-filters.md)).

@@ -163,8 +163,10 @@ Style sheet (`/1/1[i]/0/6/0[j]/0/0/6`, and `/0/5`, `/1/2`):
 | `/13` | FontBaseline | 0, 1 superscript, 2 subscript |
 | `/15` | Strikethrough | 0, 1 on |
 | `/16` | Underline | 0, 2 on (Photoshop's "underline left") |
-| `/18` | Ligatures | true |
+| `/18`, `/19` | Ligatures, DLigatures | true, false; also TySh keys |
+| `/20` | Contextual Alternates | false by default; Txt2 only |
 | `/23`, `/24` | Fractions, Ordinals | bool; Txt2 only, the TySh has no key ([text-character-styles.md](text-character-styles.md)) |
+| `/25`, `/26`, `/28` | Swash, Titling, Stylistic Alternates | bool; Txt2 only |
 | `/38` | Language | 14 |
 | `/53`, `/54` | FillColor, StrokeColor | `<< /99 /SimplePaint /0 << /0 1 /1 [ a r g b ] >> >>` (floats 0..1, alpha first) |
 | `/55` | blender | `/SimpleBlender` (default sheets) |

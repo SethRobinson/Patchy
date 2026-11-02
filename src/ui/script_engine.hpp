@@ -410,6 +410,12 @@ public:
     std::optional<bool> strikethrough;
     std::optional<bool> ordinals;
     std::optional<bool> fractions;
+    std::optional<bool> ligatures;
+    std::optional<bool> contextual_alternates;
+    std::optional<bool> discretionary_ligatures;
+    std::optional<bool> swash;
+    std::optional<bool> stylistic_alternates;
+    std::optional<bool> titling_alternates;
   };
   struct TextLayerParams {
     QString text;

@@ -1594,6 +1594,13 @@ std::string engine_style_sheet_data(const PsdTextStyleRun& run, int font_index, 
   if (run.strikethrough) {
     style += " /Strikethrough true";
   }
+  // Photoshop's two TySh ligature keys; its other OpenType toggles are Txt2-only.
+  if (!run.ligatures) {
+    style += " /Ligatures false";
+  }
+  if (run.discretionary_ligatures) {
+    style += " /DLigatures true";
+  }
   style += " /AutoKerning true /Kerning 0 /FillColor ";
   style += engine_color_object(run.color);
   style += " >>";

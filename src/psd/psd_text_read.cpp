@@ -1498,6 +1498,8 @@ PsdTextEngineDefaults extract_engine_text_defaults(std::span<const std::uint8_t>
       defaults.font_baseline = engine_choice_after_key(sheet, "/FontBaseline", 0);
       defaults.underline = engine_bool_after_key(sheet, "/Underline");
       defaults.strikethrough = engine_bool_after_key(sheet, "/Strikethrough");
+      defaults.ligatures = engine_bool_after_key(sheet, "/Ligatures", true);
+      defaults.discretionary_ligatures = engine_bool_after_key(sheet, "/DLigatures");
       if (const auto baseline = engine_number_after_key(sheet, "/BaselineDirection"); baseline.has_value()) {
         defaults.baseline_direction = static_cast<int>(std::lround(*baseline));
       }
@@ -1512,7 +1514,8 @@ PsdTextEngineDefaults extract_engine_text_defaults(std::span<const std::uint8_t>
 
 namespace {
 
-// Lays the 'Txt2' object's Ordinals/Fractions runs over the TySh runs, splitting a TySh run where
+// Lays the 'Txt2' object's OpenType feature runs (Ordinals, Fractions, Contextual Alternates,
+// Swash, Titling and Stylistic Alternates) over the TySh runs, splitting a TySh run where
 // a feature starts or stops inside it (the two run lists normally split at the same places).
 std::vector<PsdTextStyleRun> runs_with_text_object_features(std::vector<PsdTextStyleRun> runs,
                                                             std::span<const TextStyleRunFeatures> features) {
@@ -1532,9 +1535,15 @@ std::vector<PsdTextStyleRun> runs_with_text_object_features(std::vector<PsdTextS
         piece.length = piece_end - position;
         piece.ordinals = features[f].ordinals;
         piece.fractions = features[f].fractions;
-        if (!result.empty() && result.back().start + result.back().length == piece.start &&
-            result.back().ordinals == piece.ordinals && result.back().fractions == piece.fractions &&
-            piece.start > run.start) {
+        piece.contextual_alternates = features[f].contextual_alternates;
+        piece.swash = features[f].swash;
+        piece.titling_alternates = features[f].titling_alternates;
+        piece.stylistic_alternates = features[f].stylistic_alternates;
+        const auto& last = result.empty() ? piece : result.back();
+        if (!result.empty() && last.start + last.length == piece.start && last.ordinals == piece.ordinals &&
+            last.fractions == piece.fractions && last.contextual_alternates == piece.contextual_alternates &&
+            last.swash == piece.swash && last.titling_alternates == piece.titling_alternates &&
+            last.stylistic_alternates == piece.stylistic_alternates && piece.start > run.start) {
           result.back().length += piece.length;
         } else {
           result.push_back(std::move(piece));
@@ -1625,6 +1634,11 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
     run.font_baseline = engine_choice_after_key(dictionaries[index], "/FontBaseline", defaults.font_baseline);
     run.underline = engine_bool_after_key(dictionaries[index], "/Underline", defaults.underline);
     run.strikethrough = engine_bool_after_key(dictionaries[index], "/Strikethrough", defaults.strikethrough);
+    // Standard and discretionary ligatures are the two OpenType toggles the TySh carries; the
+    // other four come from the 'Txt2' object with ordinals and fractions.
+    run.ligatures = engine_bool_after_key(dictionaries[index], "/Ligatures", defaults.ligatures);
+    run.discretionary_ligatures =
+        engine_bool_after_key(dictionaries[index], "/DLigatures", defaults.discretionary_ligatures);
     run.auto_leading = engine_bool_after_key(dictionaries[index], "/AutoLeading", defaults.auto_leading);
     // Photoshop records a stale /Leading value even for auto-leading runs; only a fixed
     // (non-auto) run's leading participates in layout.
@@ -1781,7 +1795,8 @@ bool text_run_size_is_integral(const PsdTextStyleRun& run) {
 
 bool text_run_has_character_styles(const PsdTextStyleRun& run) noexcept {
   return run.font_caps != 0 || run.font_baseline != 0 || run.underline || run.strikethrough || run.ordinals ||
-         run.fractions;
+         run.fractions || !run.ligatures || run.contextual_alternates || run.discretionary_ligatures || run.swash ||
+         run.stylistic_alternates || run.titling_alternates;
 }
 
 std::string serialize_text_run_character_styles(const PsdTextStyleRun& run) {
@@ -1800,6 +1815,12 @@ std::string serialize_text_run_character_styles(const PsdTextStyleRun& run) {
   if (run.strikethrough) add("strikethrough");
   if (run.ordinals) add("ordinals");
   if (run.fractions) add("fractions");
+  if (!run.ligatures) add("noligatures");
+  if (run.contextual_alternates) add("contextualalternates");
+  if (run.discretionary_ligatures) add("discretionaryligatures");
+  if (run.swash) add("swash");
+  if (run.stylistic_alternates) add("stylisticalternates");
+  if (run.titling_alternates) add("titlingalternates");
   return tokens.empty() ? std::string("-") : tokens;
 }
 
@@ -1810,6 +1831,12 @@ void parse_text_run_character_styles(std::string_view field, PsdTextStyleRun& ru
   run.strikethrough = false;
   run.ordinals = false;
   run.fractions = false;
+  run.ligatures = true;
+  run.contextual_alternates = false;
+  run.discretionary_ligatures = false;
+  run.swash = false;
+  run.stylistic_alternates = false;
+  run.titling_alternates = false;
   while (!field.empty()) {
     const auto comma = field.find(',');
     const auto token = field.substr(0, comma);
@@ -1830,6 +1857,18 @@ void parse_text_run_character_styles(std::string_view field, PsdTextStyleRun& ru
       run.ordinals = true;
     } else if (token == "fractions") {
       run.fractions = true;
+    } else if (token == "noligatures") {
+      run.ligatures = false;
+    } else if (token == "contextualalternates") {
+      run.contextual_alternates = true;
+    } else if (token == "discretionaryligatures") {
+      run.discretionary_ligatures = true;
+    } else if (token == "swash") {
+      run.swash = true;
+    } else if (token == "stylisticalternates") {
+      run.stylistic_alternates = true;
+    } else if (token == "titlingalternates") {
+      run.titling_alternates = true;
     }
   }
 }

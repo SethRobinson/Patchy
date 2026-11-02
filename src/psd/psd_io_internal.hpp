@@ -369,6 +369,8 @@ struct PsdTextEngineDefaults {
   int font_baseline{0};
   bool underline{false};
   bool strikethrough{false};
+  bool ligatures{true};
+  bool discretionary_ligatures{false};
   std::optional<RgbColor> fill_color;
   double auto_leading_fraction{1.2};
 };

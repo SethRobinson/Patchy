@@ -2481,6 +2481,24 @@ void apply_text_run_to_format(MainWindow& window, QTextCharFormat& format,
   if (run.fractions.has_value()) {
     format.setProperty(kTextFractionsFormatProperty, *run.fractions);
   }
+  if (run.ligatures.has_value()) {
+    format.setProperty(kTextLigaturesOffFormatProperty, !*run.ligatures);
+  }
+  if (run.contextual_alternates.has_value()) {
+    format.setProperty(kTextContextualAlternatesFormatProperty, *run.contextual_alternates);
+  }
+  if (run.discretionary_ligatures.has_value()) {
+    format.setProperty(kTextDiscretionaryLigaturesFormatProperty, *run.discretionary_ligatures);
+  }
+  if (run.swash.has_value()) {
+    format.setProperty(kTextSwashFormatProperty, *run.swash);
+  }
+  if (run.stylistic_alternates.has_value()) {
+    format.setProperty(kTextStylisticAlternatesFormatProperty, *run.stylistic_alternates);
+  }
+  if (run.titling_alternates.has_value()) {
+    format.setProperty(kTextTitlingAlternatesFormatProperty, *run.titling_alternates);
+  }
   if (!run.family.isEmpty() || run.bold.has_value() || run.italic.has_value()) {
     format.clearProperty(kTextStyleNameFormatProperty);
   }

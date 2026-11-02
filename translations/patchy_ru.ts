@@ -31871,6 +31871,30 @@ Locked: %1</source>
         <source>Reverted %1</source>
         <translation>%1 восстановлен</translation>
     </message>
+    <message>
+        <source>Standard Ligatures (fonts that have them)</source>
+        <translation>Стандартные лигатуры (в шрифтах, где они есть)</translation>
+    </message>
+    <message>
+        <source>Contextual Alternates (fonts that have them)</source>
+        <translation>Контекстные варианты (в шрифтах, где они есть)</translation>
+    </message>
+    <message>
+        <source>Discretionary Ligatures (fonts that have them)</source>
+        <translation>Дополнительные лигатуры (в шрифтах, где они есть)</translation>
+    </message>
+    <message>
+        <source>Swash (fonts that have them)</source>
+        <translation>Росчерки (в шрифтах, где они есть)</translation>
+    </message>
+    <message>
+        <source>Stylistic Alternates (fonts that have them)</source>
+        <translation>Стилистические варианты (в шрифтах, где они есть)</translation>
+    </message>
+    <message>
+        <source>Titling Alternates (fonts that have them)</source>
+        <translation>Заголовочные варианты (в шрифтах, где они есть)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

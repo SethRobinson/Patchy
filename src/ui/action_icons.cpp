@@ -10,6 +10,7 @@
 #include <QPaintDevice>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPainterPathStroker>
 #include <QPixmap>
 #include <QPolygon>
 #include <QPolygonF>
@@ -911,10 +912,12 @@ QIcon text_alignment_icon(Qt::Alignment alignment, bool vertical) {
 }
 
 QIcon text_character_style_icon(int style) {
-  // Drawn in a 22-unit square from the interface font's own letters (bold), so the eight marks
-  // read as one set: two capitals, a capital and a small capital, x with a raised or lowered 2,
-  // an underlined U, a struck S, 1 with a raised "st" and a built fraction; then the faux pair,
-  // a B thickened by an outline and a serifed I leaning on a shear.
+  // Drawn in a 22-unit square from the interface font's own letters (bold), so the marks read as
+  // one set: two capitals, a capital and a small capital, x with a raised or lowered 2, an
+  // underlined U, a struck S, 1 with a raised "st" and a built fraction; the faux pair, a B
+  // thickened by an outline and a serifed I leaning on a shear; then the OpenType features: a
+  // touching "fi", an "e" joined to an "a" by a stroke along the baseline, "st" tied by an arch,
+  // an A trailing a long tail, an "a" beside its one-storey form, and a T under a rule.
   auto glyph = [style](QPainter& painter, const QColor& ink) {
     painter.setRenderHint(QPainter::Antialiasing, true);
     const auto letters = [](const QString& text, double size, double x, double baseline) {
@@ -935,6 +938,15 @@ QIcon text_character_style_icon(int style) {
     };
     std::optional<QRectF> bar;
     double outline = 0.0;
+    // A thin stroke drawn as part of the letters (the joins, ties and tails below).
+    const auto add_stroke = [&path](const QPainterPath& line, double width) {
+      QPainterPathStroker stroker;
+      stroker.setWidth(width);
+      stroker.setCapStyle(Qt::RoundCap);
+      stroker.setJoinStyle(Qt::RoundJoin);
+      path.addPath(stroker.createStroke(line));
+      path.setFillRule(Qt::WindingFill);
+    };
     switch (style) {
       case 0:
         append_after(QStringLiteral("AA"), 13.0, 16.0, 0.0);
@@ -981,6 +993,51 @@ QIcon text_character_style_icon(int style) {
         path.addPath(shear.map(letter));
         break;
       }
+      case 10:
+        append_after(QStringLiteral("f"), 15.0, 17.5, 0.0);
+        append_after(QStringLiteral("i"), 15.0, 17.5, -1.4);
+        break;
+      case 11: {
+        append_after(QStringLiteral("e"), 12.0, 15.0, 0.0);
+        const auto e_bounds = path.boundingRect();
+        append_after(QStringLiteral("a"), 12.0, 15.0, 2.6);
+        const auto a_left = e_bounds.right() + 2.6;
+        QPainterPath join;
+        join.moveTo(e_bounds.right() - 0.8, e_bounds.bottom() - 1.2);
+        join.cubicTo(e_bounds.right() + 0.4, e_bounds.bottom() + 1.6, a_left - 0.4, e_bounds.bottom() + 1.6,
+                     a_left + 0.6, e_bounds.bottom() - 1.4);
+        add_stroke(join, 1.3);
+        break;
+      }
+      case 12: {
+        append_after(QStringLiteral("s"), 12.0, 18.0, 0.0);
+        const auto s_bounds = path.boundingRect();
+        append_after(QStringLiteral("t"), 12.0, 18.0, 1.2);
+        const auto stem = s_bounds.right() + 1.2 + 1.8;
+        QPainterPath tie;
+        tie.moveTo(s_bounds.center().x() + 0.6, s_bounds.top() + 0.6);
+        tie.cubicTo(s_bounds.center().x() + 0.6, s_bounds.top() - 4.4, stem, s_bounds.top() - 4.4, stem,
+                    s_bounds.top() - 0.6);
+        add_stroke(tie, 1.3);
+        break;
+      }
+      case 13: {
+        append_after(QStringLiteral("A"), 13.0, 14.5, 0.0);
+        const auto a_bounds = path.boundingRect();
+        QPainterPath tail;
+        tail.moveTo(a_bounds.right() - 1.2, a_bounds.bottom() - 0.6);
+        tail.cubicTo(a_bounds.right() + 1.6, 20.5, a_bounds.left() - 1.0, 21.0, a_bounds.left() - 2.6, 17.4);
+        add_stroke(tail, 1.3);
+        break;
+      }
+      case 14:
+        append_after(QStringLiteral("a"), 12.0, 16.0, 0.0);
+        append_after(QString(QChar(0x0251)), 12.0, 16.0, 1.6);
+        break;
+      case 15:
+        append_after(QStringLiteral("T"), 13.0, 19.0, 0.0);
+        bar = QRectF(0.0, 3.6, 0.0, 1.8);
+        break;
       default: {
         path.addPath(letters(QStringLiteral("1"), 9.0, 0.0, 10.0));
         const auto slash_left = path.boundingRect().right() - 0.5;

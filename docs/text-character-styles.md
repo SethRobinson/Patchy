@@ -1,31 +1,43 @@
-# Character styles (caps, super/subscript, underline, strikethrough, ordinals, fractions)
+# Character styles (caps, super/subscript, underline, strikethrough, OpenType features)
 
-The Character panel's style row (GitHub issue 346): All Caps, Small Caps, Superscript,
-Subscript, Underline, Strikethrough and the OpenType Ordinals and Fractions. Session and
-panel plumbing are in [text-tool.md](text-tool.md); the Txt2 keys in [txt2.md](txt2.md).
+The Character panel's style rows (GitHub issue 346): All Caps, Small Caps, Superscript,
+Subscript, Underline, Strikethrough and the OpenType Standard Ligatures, Contextual Alternates,
+Discretionary Ligatures, Swash, Stylistic Alternates, Titling Alternates, Ordinals and
+Fractions. Session and panel plumbing are in [text-tool.md](text-tool.md); the Txt2 keys in
+[txt2.md](txt2.md).
 
 ## Model
 
 - Per style run: `PsdTextStyleRun::font_caps` (Photoshop `/FontCaps`: 1 Small Caps, 2 All Caps),
   `font_baseline` (`/FontBaseline`: 1 superscript, 2 subscript), `underline`, `strikethrough`,
-  `ordinals`, `fractions` (src/psd/psd_text_runs.hpp).
+  `ordinals`, `fractions`, `ligatures` (on by default, as in Photoshop), `contextual_alternates`,
+  `discretionary_ligatures`, `swash`, `stylistic_alternates`, `titling_alternates`
+  (src/psd/psd_text_runs.hpp).
 - `patchy.text.runs` v9 adds column 16, a comma-separated token list (`allcaps`, `smallcaps`,
-  `superscript`, `subscript`, `underline`, `strikethrough`, `ordinals`, `fractions`, or `-`).
+  `superscript`, `subscript`, `underline`, `strikethrough`, `ordinals`, `fractions`,
+  `noligatures`, `contextualalternates`, `discretionaryligatures`, `swash`,
+  `stylisticalternates`, `titlingalternates`, or `-`).
   The tokens are a file-format contract. The column (and the v9 header) is written only when a
   run carries a style, so other text keeps its bytes; a reader skips any `vN` header line.
 - The text keeps its own case and size: All Caps never rewrites the characters, and a
   superscript run's FontSize stays the nominal size, as in Photoshop.
 - In editor and render documents the styles are QTextCharFormat flags (`kTextFontCapsFormatProperty`
-  and the five after it, ui/text_layout.hpp), like faux bold.
+  and the five after it, `kTextLigaturesOffFormatProperty` and the five after it,
+  ui/text_layout.hpp), like faux bold. Standard Ligatures is stored as "off".
 
 ## PSD
 
 - TySh: `/FontCaps n`, `/FontBaseline n`, `/Underline true /YUnderline 0` (Photoshop pairs them),
-  `/Strikethrough true`, each written only when set. Ordinals and Fractions have no TySh key;
-  Photoshop CC 2018 and 2026 keep them only in Txt2.
+  `/Strikethrough true`, `/Ligatures false`, `/DLigatures true`, each written only when it is
+  not the default. The other OpenType toggles have no TySh key; Photoshop CC 2018 and 2026 keep
+  them only in Txt2.
 - Txt2 style sheet: `/12` caps, `/13` baseline, `/15` strikethrough (1), `/16` underline (2),
-  `/23` Fractions, `/24` Ordinals. The reader takes `/23` and `/24` from the layer's Txt2 object
-  (`TextEngineBlock::object_style_features`) and splits TySh runs where they change.
+  `/18` Ligatures (true by default), `/19` Discretionary Ligatures, `/20` Contextual Alternates,
+  `/23` Fractions, `/24` Ordinals, `/25` Swash, `/26` Titling, `/28` Stylistic Alternates
+  (Photoshop 2026 COM captures, Action Manager `textStyle` keys `ligature`, `altligature`,
+  `contextualLigatures`, `swash`, `titling`, `stylisticAlternates`). The reader takes the
+  ligature pair from the TySh and `/20`, `/23` to `/26` and `/28` from the layer's Txt2 object
+  (`TextEngineBlock::object_style_features`), splitting TySh runs where they change.
 - The document ratios Patchy writes (`/SuperscriptSize .583 /SuperscriptPosition .333
   /SubscriptSize .583 /SubscriptPosition .333 /SmallCapSize .7`) are Photoshop's defaults; the
   renderer uses the same constants (`kTextScriptSizeFraction` & co.), never a file's values.
@@ -47,11 +59,22 @@ before faux bold and layout; underline and strikethrough are drawn by the plan.
   small caps, 70% (Photoshop's SmallCapSize). Myriad Pro has none and Photoshop synthesizes it.
 - **Ordinals / Fractions:** the face's `ordn` / `frac`; a face without the feature leaves the text
   unchanged (Arial has `frac` but no `ordn`).
+- **The other OpenType toggles:** `liga` (turned off), `calt`, `dlig`, `swsh`, `salt`, `titl`,
+  each only where it changes the face's glyphs, like ordinals. **Contextual Alternates are off by
+  default**, as in Photoshop (its default sheets hold `/20 false`; Segoe Script at 72 px draws
+  22 px wider without them, matching HarfBuzz's calt-off advance), while HarfBuzz turns `calt` on:
+  `build_text_render_document` sets `calt` 0 on the document's default font, which reaches every
+  run like `vert`. Arial, Calibri, Times New Roman and Segoe UI draw Latin text the same either
+  way; connecting script faces change. No face shipped with Windows has `titl`. Photoshop files
+  can turn it on per run: every run of `restaurant-menu-inside.psd` has `/20 true`, read as
+  `contextualalternates`, so those runs keep drawing with `calt`.
 - **OpenType features per run.** QTextCharFormat cannot carry font features in Qt 6.8, so a
   fragment whose features change its glyphs gets `kTextRenderFeaturesFormatProperty` and extra
   letter spacing equal to (featured advance - plain advance) / characters, so the layout reserves
   the featured width; the draw path (`fragment_glyph_runs`, text_render.cpp) replaces Qt's glyphs
-  with the fragment's own featured shaping, anchored at Qt's first glyph. Lines holding such a
+  with the fragment's own featured shaping, anchored at Qt's first glyph; the property lists `tag`
+  (on) and `-tag` (off) entries, led by the document font's defaults (`-calt`), which a format
+  cannot carry. Lines holding such a
   fragment draw glyph run by glyph run even in Qt-natural layout (`format_needs_glyph_run_draw`). Caret stops inside the fragment
   are spread evenly. Shaping is per fragment, so a feature does not see context across a run
   boundary.
@@ -70,10 +93,15 @@ before faux bold and layout; underline and strikethrough are drawn by the plan.
 
 ## Panel and scripting
 
-- `textCharacterStyleRow`, the dialog's first row: the faux pair (`textCharacterFauxBold`,
-  `textCharacterFauxItalic`, icons 8 and 9) then eight checkable `NoFocus` buttons
-  (`textCharacterAllCapsButton` ... `textCharacterFractionsButton`, icons
-  `text_character_style_icon`). The caps pair and the baseline pair exclude each other. Each
+- `textCharacterStyleRow`, at the head of the dialog with no label: two centred rows of eight
+  checkable `NoFocus` buttons, split in fours by an 8 px gap, so they never widen the fields
+  (philipzae's layout, issue 346). Row 1: Faux Bold, Faux Italic (`textCharacterFauxBold`,
+  `textCharacterFauxItalic`, icons 8 and 9), Underline, Strikethrough | All Caps, Small Caps,
+  Superscript, Subscript. Row 2: Standard Ligatures, Contextual Alternates, Discretionary
+  Ligatures, Swash | Stylistic Alternates, Titling Alternates, Ordinals, Fractions
+  (`textCharacter...Button`, icons `text_character_style_icon` 0 to 7 and 10 to 15, Patchy's
+  own letter marks). Standard Ligatures shows checked on new text. The caps pair and the
+  baseline pair exclude each other. Each
   toggle is one Type step on the selection, the whole object with a bare caret, or every selected
   text layer. A selection's toggle never reaches the runs outside it, on or off, in the runs or
   the pixels (issue 466; `ui_text_character_styles_apply_only_to_the_selection` covers all ten).
@@ -82,13 +110,14 @@ before faux bold and layout; underline and strikethrough are drawn by the plan.
   that raises one word's ink leaves the other word on its pixels
   (`ui_text_style_edits_keep_the_point_text_line_in_place`).
 - Scripting: text runs take `caps` (`"all"`, `"small"`, `"none"`), `script` (`"superscript"`,
-  `"subscript"`, `"none"`), `underline`, `strikethrough`, `ordinals`, `fractions`; `textRuns`
-  reads them back ([scripting-api-changes.md](scripting-api-changes.md)).
+  `"subscript"`, `"none"`), `underline`, `strikethrough`, `ordinals`, `fractions`, `ligatures`,
+  `contextualAlternates`, `discretionaryLigatures`, `swash`, `stylisticAlternates`,
+  `titlingAlternates`; `textRuns` reads them back ([scripting-api-changes.md](scripting-api-changes.md)).
 
 ## Known gaps
 
-Vertical text takes the caps only (no bars, no shifted baselines, no features). Fractions and
-ordinals do not shape across run boundaries. A superscript's fractional pixel size rounds to a
+Vertical text takes the caps only (no bars, no shifted baselines, no features). OpenType
+features do not shape across run boundaries. A superscript's fractional pixel size rounds to a
 whole pixel. Turning faux bold off on one word re-antialiases a faux bold neighbour by a few alpha
 levels at the same transform and bounds (the draw, not the placement).
 
@@ -106,7 +135,11 @@ within a pixel per line (bars within 0.7 px).
 Core: `psd_text_character_styles_round_trip_native_text`,
 `psd_text_character_style_tokens_parse_and_serialize`,
 `psd_text_character_styles_import_photoshop_sample_if_available` (philipzae's
-`Character - Styling and Extras.psd` in local-test-fixtures/psd). UI
+`Character - Styling and Extras.psd` in local-test-fixtures/psd),
+`psd_text_opentype_features_import_photoshop_captures_if_available` (local-test-fixtures/psd/
+opentype-features, Photoshop 2026 captures of each toggle). UI
 (tests/ui/text_character_styles_tests.cpp): the Photoshop-calibrated bar, script and caps renders
-in both layout modes, ordinals and fractions, the panel toggles, every toggle on a partial selection
+in both layout modes, ordinals and fractions, the other OpenType toggles and Segoe Script's
+calt-off and calt-on widths against Photoshop (`ui_text_opentype_features_use_the_font_features_if_available`),
+the two centred rows (`ui_text_character_style_rows_are_centred`), the panel toggles, every toggle on a partial selection
 (`ui_text_character_styles_apply_only_to_the_selection`), and the sample re-render.

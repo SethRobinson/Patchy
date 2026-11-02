@@ -240,6 +240,12 @@ interface PatchyTextRun {
   underline?: boolean; strikethrough?: boolean;
   /** OpenType ordinals and fractions; text in a font without them stays unchanged. */
   ordinals?: boolean; fractions?: boolean;
+  /**
+   * The other OpenType features of the Character panel, applied where the font has them. Standard
+   * ligatures are on and the rest off by default, as in Photoshop.
+   */
+  ligatures?: boolean; contextualAlternates?: boolean; discretionaryLigatures?: boolean;
+  swash?: boolean; stylisticAlternates?: boolean; titlingAlternates?: boolean;
 }
 
 /** A stored run read back from a text layer (see PatchyLayer.textRuns). */
@@ -247,6 +253,8 @@ interface PatchyTextRunInfo {
   text: string; font: string; style: string; size: number; bold: boolean; italic: boolean; color: string;
   caps: "all" | "small" | "none"; script: "superscript" | "subscript" | "none";
   underline: boolean; strikethrough: boolean; ordinals: boolean; fractions: boolean;
+  ligatures: boolean; contextualAlternates: boolean; discretionaryLigatures: boolean;
+  swash: boolean; stylisticAlternates: boolean; titlingAlternates: boolean;
 }
 
 /** What a smart-object layer holds (see PatchyLayer.getSmartObject). */

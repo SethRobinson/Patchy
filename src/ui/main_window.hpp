@@ -2707,9 +2707,10 @@ private:
   void apply_text_character_faux_bold_to_active_editor();
   void apply_text_character_faux_italic_to_active_editor();
   void apply_text_character_rotate_roman_to_active_editor();
-  // One of the Character panel's style toggles (text_character_style_icon order: All Caps, Small
-  // Caps, Superscript, Subscript, Underline, Strikethrough, Ordinals, Fractions). The two caps
-  // and the two baselines exclude each other, as in Photoshop.
+  // One of the Character panel's style toggles: 0 All Caps, 1 Small Caps, 2 Superscript,
+  // 3 Subscript, 4 Underline, 5 Strikethrough, 6 Ordinals, 7 Fractions, 8 Standard Ligatures,
+  // 9 Contextual Alternates, 10 Discretionary Ligatures, 11 Swash, 12 Stylistic Alternates,
+  // 13 Titling Alternates. The two caps and the two baselines exclude each other, as in Photoshop.
   void apply_text_character_style_to_active_editor(int style, bool on);
   // Paragraph panel (alignment, indents, spacing): the same live-session-or-selected-layers
   // model as the Character panel. Metrics are paragraph-level, so a bare caret edits its
@@ -3442,14 +3443,15 @@ private:
   QSpinBox* text_character_tracking_spin_{nullptr};
   QSpinBox* text_character_h_scale_spin_{nullptr};
   QSpinBox* text_character_v_scale_spin_{nullptr};
-  // Checkable buttons at the head of the style row (text_character_style_icon 8 and 9).
+  // Checkable buttons at the head of the first style row (text_character_style_icon 8 and 9).
   QPushButton* text_character_faux_bold_{nullptr};
   QPushButton* text_character_faux_italic_{nullptr};
   // Vertical type only: rotate Roman glyphs along the column (Photoshop's Standard Vertical
   // Roman Alignment, /BaselineDirection 2).
   QCheckBox* text_character_rotate_roman_{nullptr};
-  // Character panel style toggles (GitHub issue 346), in text_character_style_icon order.
-  std::array<QPushButton*, 8> text_character_style_buttons_{};
+  // Character panel style toggles (GitHub issue 346), in apply_text_character_style_to_active_editor
+  // order.
+  std::array<QPushButton*, 14> text_character_style_buttons_{};
   // Paragraph panel (alignment, indents, spacing), exempt from the focus-loss auto-commit
   // like the Character panel.
   QPushButton* text_paragraph_button_{nullptr};

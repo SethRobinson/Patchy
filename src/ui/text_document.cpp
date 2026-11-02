@@ -58,6 +58,12 @@ psd::PsdTextStyleRun psd_run_with_styles(const TextCharacterStyles& styles) {
   run.strikethrough = styles.strikethrough;
   run.ordinals = styles.ordinals;
   run.fractions = styles.fractions;
+  run.ligatures = styles.ligatures;
+  run.contextual_alternates = styles.contextual_alternates;
+  run.discretionary_ligatures = styles.discretionary_ligatures;
+  run.swash = styles.swash;
+  run.stylistic_alternates = styles.stylistic_alternates;
+  run.titling_alternates = styles.titling_alternates;
   return run;
 }
 
@@ -76,6 +82,12 @@ TextCharacterStyles text_character_styles_from_format(const QTextCharFormat& for
   styles.strikethrough = format.property(kTextStrikethroughFormatProperty).toBool();
   styles.ordinals = format.property(kTextOrdinalsFormatProperty).toBool();
   styles.fractions = format.property(kTextFractionsFormatProperty).toBool();
+  styles.ligatures = !format.property(kTextLigaturesOffFormatProperty).toBool();
+  styles.contextual_alternates = format.property(kTextContextualAlternatesFormatProperty).toBool();
+  styles.discretionary_ligatures = format.property(kTextDiscretionaryLigaturesFormatProperty).toBool();
+  styles.swash = format.property(kTextSwashFormatProperty).toBool();
+  styles.stylistic_alternates = format.property(kTextStylisticAlternatesFormatProperty).toBool();
+  styles.titling_alternates = format.property(kTextTitlingAlternatesFormatProperty).toBool();
   return styles;
 }
 
@@ -89,6 +101,12 @@ void set_text_character_styles_on_format(QTextCharFormat& format, const TextChar
   format.setProperty(kTextStrikethroughFormatProperty, styles.strikethrough);
   format.setProperty(kTextOrdinalsFormatProperty, styles.ordinals);
   format.setProperty(kTextFractionsFormatProperty, styles.fractions);
+  format.setProperty(kTextLigaturesOffFormatProperty, !styles.ligatures);
+  format.setProperty(kTextContextualAlternatesFormatProperty, styles.contextual_alternates);
+  format.setProperty(kTextDiscretionaryLigaturesFormatProperty, styles.discretionary_ligatures);
+  format.setProperty(kTextSwashFormatProperty, styles.swash);
+  format.setProperty(kTextStylisticAlternatesFormatProperty, styles.stylistic_alternates);
+  format.setProperty(kTextTitlingAlternatesFormatProperty, styles.titling_alternates);
 }
 
 QString serialize_text_character_styles(const TextCharacterStyles& styles) {
@@ -105,6 +123,12 @@ TextCharacterStyles parse_text_character_styles(const QString& field) {
   styles.strikethrough = run.strikethrough;
   styles.ordinals = run.ordinals;
   styles.fractions = run.fractions;
+  styles.ligatures = run.ligatures;
+  styles.contextual_alternates = run.contextual_alternates;
+  styles.discretionary_ligatures = run.discretionary_ligatures;
+  styles.swash = run.swash;
+  styles.stylistic_alternates = run.stylistic_alternates;
+  styles.titling_alternates = run.titling_alternates;
   return styles;
 }
 
@@ -1258,6 +1282,27 @@ namespace {
 constexpr QFont::Tag kSmallCapsFeature("smcp");
 constexpr QFont::Tag kOrdinalsFeature("ordn");
 constexpr QFont::Tag kFractionsFeature("frac");
+constexpr QFont::Tag kLigaturesFeature("liga");
+constexpr QFont::Tag kContextualAlternatesFeature("calt");
+constexpr QFont::Tag kDiscretionaryLigaturesFeature("dlig");
+constexpr QFont::Tag kSwashFeature("swsh");
+constexpr QFont::Tag kStylisticAlternatesFeature("salt");
+constexpr QFont::Tag kTitlingAlternatesFeature("titl");
+
+// kTextRenderFeaturesFormatProperty entries: "tag" turns a feature on, "-tag" off.
+QString render_feature_name(QFont::Tag tag, quint32 value) {
+  const auto name = QString::fromLatin1(tag.toString());
+  return value != 0 ? name : QLatin1Char('-') + name;
+}
+
+void apply_render_feature_names(QFont& font, const QStringList& names) {
+  for (const auto& name : names) {
+    const bool off = name.startsWith(QLatin1Char('-'));
+    if (const auto tag = QFont::Tag::fromString(off ? QStringView(name).mid(1) : QStringView(name)); tag.has_value()) {
+      font.setFeature(*tag, off ? 0U : 1U);
+    }
+  }
+}
 
 struct ShapedText {
   QList<quint32> glyphs;
@@ -1295,11 +1340,7 @@ QFont text_render_featured_font(const QTextCharFormat& format) {
   auto font = format.font();
   font.setLetterSpacing(QFont::AbsoluteSpacing,
                         format.property(kTextRenderBaseLetterSpacingFormatProperty).toDouble());
-  for (const auto& name : format.property(kTextRenderFeaturesFormatProperty).toStringList()) {
-    if (const auto tag = QFont::Tag::fromString(name); tag.has_value()) {
-      font.setFeature(*tag, 1);
-    }
-  }
+  apply_render_feature_names(font, format.property(kTextRenderFeaturesFormatProperty).toStringList());
   return font;
 }
 
@@ -1319,10 +1360,18 @@ void apply_text_character_styles_to_document(QTextDocument& document, bool verti
       }
       const auto format = fragment.charFormat();
       const auto styles = text_character_styles_from_format(format);
-      if (styles.caps == 0 && styles.baseline == 0 && !styles.ordinals && !styles.fractions) {
+      if (styles.caps == 0 && styles.baseline == 0 && !styles.any_features()) {
         continue;  // underline and strikethrough are drawn by the render plan
       }
       auto font = format.font();
+      // The document's default features (contextual alternates off, build_text_render_document)
+      // reach every run through the layout, so the reference shaping below takes them too.
+      const auto document_font = document.defaultFont();
+      for (const auto& tag : document_font.featureTags()) {
+        if (!font.isFeatureSet(tag)) {
+          font.setFeature(tag, document_font.featureValue(tag));
+        }
+      }
       QTextCharFormat overlay;
       if (styles.caps == 2) {
         font.setCapitalization(QFont::AllUppercase);
@@ -1360,23 +1409,28 @@ void apply_text_character_styles_to_document(QTextDocument& document, bool verti
       if (!vertical) {
         const auto text = fragment.text();
         const auto plain = shape_text_line(text, font);
-        const auto try_feature = [&](QFont::Tag tag) {
+        const auto try_feature = [&](QFont::Tag tag, quint32 value = 1U) {
           auto featured = font;
-          for (const auto& name : features) {
-            if (const auto existing = QFont::Tag::fromString(name); existing.has_value()) {
-              featured.setFeature(*existing, 1);
-            }
-          }
-          featured.setFeature(tag, 1);
+          apply_render_feature_names(featured, features);
+          featured.setFeature(tag, value);
           if (shape_text_line(text, featured).glyphs != plain.glyphs) {
-            features << QString::fromLatin1(tag.toString());
+            features << render_feature_name(tag, value);
           }
         };
         if (styles.caps == 1) try_feature(kSmallCapsFeature);
         if (styles.ordinals) try_feature(kOrdinalsFeature);
         if (styles.fractions) try_feature(kFractionsFeature);
+        if (!styles.ligatures) try_feature(kLigaturesFeature, 0U);
+        if (styles.contextual_alternates) try_feature(kContextualAlternatesFeature);
+        if (styles.discretionary_ligatures) try_feature(kDiscretionaryLigaturesFeature);
+        if (styles.swash) try_feature(kSwashFeature);
+        if (styles.stylistic_alternates) try_feature(kStylisticAlternatesFeature);
+        if (styles.titling_alternates) try_feature(kTitlingAlternatesFeature);
       }
-      if (styles.caps == 1 && !features.contains(QString::fromLatin1(kSmallCapsFeature.toString()))) {
+      if (features.isEmpty() && styles.caps == 0 && styles.baseline == 0) {
+        continue;  // the face has none of the requested features: the run draws exactly as typed
+      }
+      if (styles.caps == 1 && !features.contains(render_feature_name(kSmallCapsFeature, 1U))) {
         // No small capitals in the face: Qt synthesizes them at 70%, Photoshop's /SmallCapSize.
         font.setCapitalization(QFont::SmallCaps);
       }
@@ -1386,17 +1440,20 @@ void apply_text_character_styles_to_document(QTextDocument& document, bool verti
         // plan draws the featured glyphs from their own shaping (draw_featured_glyph_runs).
         const auto base_spacing = absolute_letter_spacing(font);
         auto featured_font = font;
-        for (const auto& name : features) {
-          if (const auto tag = QFont::Tag::fromString(name); tag.has_value()) {
-            featured_font.setFeature(*tag, 1);
-          }
-        }
+        apply_render_feature_names(featured_font, features);
         const auto text = fragment.text();
         const auto plain_advance = shape_text_line(text, font).advance;
         const auto featured_advance = shape_text_line(text, featured_font).advance;
         const auto count = std::max(1, static_cast<int>(text.size()));
         font.setLetterSpacing(QFont::AbsoluteSpacing, base_spacing + (featured_advance - plain_advance) / count);
-        overlay.setProperty(kTextRenderFeaturesFormatProperty, features);
+        // The draw path rebuilds the font from the format, which cannot carry the document's
+        // default features, so they lead the list (a requested feature after them wins).
+        QStringList draw_features;
+        for (const auto& tag : document_font.featureTags()) {
+          draw_features << render_feature_name(tag, document_font.featureValue(tag));
+        }
+        draw_features << features;
+        overlay.setProperty(kTextRenderFeaturesFormatProperty, draw_features);
         overlay.setProperty(kTextRenderBaseLetterSpacingFormatProperty, base_spacing);
       }
       overlay.setFont(font);
@@ -1445,6 +1502,10 @@ TextRenderDocument build_text_render_document(const TextToolSettings& settings, 
     // against. Fonts without the feature are unaffected.
     result.font.setFeature(QFont::Tag("vert"), 1);
   }
+  // Photoshop shapes with Contextual Alternates off unless a run turns them on (Txt2 /20 false
+  // in its default sheets; Segoe Script draws wider without them, COM captures, November 2026),
+  // where HarfBuzz turns calt on by default. Same route as 'vert' above.
+  result.font.setFeature(kContextualAlternatesFeature, 0);
   result.document = std::make_unique<QTextDocument>();
   auto& document = *result.document;
   document.setDocumentMargin(0);

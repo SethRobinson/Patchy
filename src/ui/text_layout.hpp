@@ -110,6 +110,14 @@ inline constexpr int kTextRenderBaseLetterSpacingFormatProperty = QTextFormat::U
 // Block property: Photoshop's paragraph composer (paragraph runs v5, Txt2 /35), set only when a
 // paragraph is not World-Ready (1, the default): 0 is the Latin and East Asian composer.
 inline constexpr int kTextBlockComposerProperty = QTextFormat::UserProperty + 52;
+// The other OpenType toggles of the Character panel (runs v9 column 16), flags like the six
+// above. Standard Ligatures is on by default, so its property records it turned OFF.
+inline constexpr int kTextLigaturesOffFormatProperty = QTextFormat::UserProperty + 53;
+inline constexpr int kTextContextualAlternatesFormatProperty = QTextFormat::UserProperty + 54;
+inline constexpr int kTextDiscretionaryLigaturesFormatProperty = QTextFormat::UserProperty + 55;
+inline constexpr int kTextSwashFormatProperty = QTextFormat::UserProperty + 56;
+inline constexpr int kTextStylisticAlternatesFormatProperty = QTextFormat::UserProperty + 57;
+inline constexpr int kTextTitlingAlternatesFormatProperty = QTextFormat::UserProperty + 58;
 
 // One visual line as the renderer draws it: the line, the origin it is drawn at, and the
 // rect it is clipped to. `block_position` is the owning block's document position, which

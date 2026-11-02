@@ -53,7 +53,8 @@ QIcon text_alignment_icon(Qt::Alignment alignment, bool vertical);
 QIcon line_arrowhead_icon(bool at_end);
 // Character panel style toggles (GitHub issue 346): 0 All Caps, 1 Small Caps, 2 Superscript,
 // 3 Subscript, 4 Underline, 5 Strikethrough, 6 Ordinals, 7 Fractions; 8 Faux Bold and 9 Faux
-// Italic, which share the row.
+// Italic, which share the rows; 10 Standard Ligatures, 11 Contextual Alternates,
+// 12 Discretionary Ligatures, 13 Swash, 14 Stylistic Alternates, 15 Titling Alternates.
 QIcon text_character_style_icon(int style);
 
 // Layers panel lock glyphs (GitHub issue 484), shared by the panel's lock buttons and the

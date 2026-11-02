@@ -36,10 +36,17 @@ enum class TestFontRole {
   CourierNew,      // .af mixed-run text fixture face
   FranklinGothicMedium,  // a GDI family DirectWrite files as "Franklin Gothic" + face "Medium"
   BalmoralLet,     // the issue 16/20 reporter's script face, from the gitignored local fixtures only
+  ScriptFeatures,  // faces whose swash and contextual alternates change glyphs (Comic Sans, Segoe Script)
 };
 
 inline QStringList test_font_candidates(TestFontRole role) {
   switch (role) {
+    case TestFontRole::ScriptFeatures:
+#if defined(Q_OS_WIN)
+      return {QStringLiteral("C:/Windows/Fonts/comic.ttf"), QStringLiteral("C:/Windows/Fonts/segoesc.ttf")};
+#else
+      return {};
+#endif
     case TestFontRole::UiDefault:
 #if defined(Q_OS_WIN)
       return {

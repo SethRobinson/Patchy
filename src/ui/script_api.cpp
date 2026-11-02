@@ -308,6 +308,12 @@ bool parse_text_runs(ScriptEngineHost& host, const QJSValue& value, const char* 
       flag("strikethrough", &run.strikethrough);
       flag("ordinals", &run.ordinals);
       flag("fractions", &run.fractions);
+      flag("ligatures", &run.ligatures);
+      flag("contextualAlternates", &run.contextual_alternates);
+      flag("discretionaryLigatures", &run.discretionary_ligatures);
+      flag("swash", &run.swash);
+      flag("stylisticAlternates", &run.stylistic_alternates);
+      flag("titlingAlternates", &run.titling_alternates);
     } else {
       host.throw_js_error(ScriptEngineHost::tr("%1: run %2 must be a string or an object.").arg(QLatin1String(verb)).arg(index));
       return false;
@@ -949,6 +955,12 @@ QJSValue ScriptLayerObject::text_runs() const {
     object.setProperty(QStringLiteral("strikethrough"), run.styles.strikethrough);
     object.setProperty(QStringLiteral("ordinals"), run.styles.ordinals);
     object.setProperty(QStringLiteral("fractions"), run.styles.fractions);
+    object.setProperty(QStringLiteral("ligatures"), run.styles.ligatures);
+    object.setProperty(QStringLiteral("contextualAlternates"), run.styles.contextual_alternates);
+    object.setProperty(QStringLiteral("discretionaryLigatures"), run.styles.discretionary_ligatures);
+    object.setProperty(QStringLiteral("swash"), run.styles.swash);
+    object.setProperty(QStringLiteral("stylisticAlternates"), run.styles.stylistic_alternates);
+    object.setProperty(QStringLiteral("titlingAlternates"), run.styles.titling_alternates);
     array.setProperty(index++, object);
   }
   return array;

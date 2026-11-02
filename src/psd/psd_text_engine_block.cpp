@@ -93,21 +93,23 @@ EngineNode style_sheet(const PsdTextStyleRun& run, int font_index, double auto_l
       {"11", engine_integer(1)},
       // Character-panel styles (GitHub issue 346, Photoshop 2026 captures): /12 FontCaps, /13
       // FontBaseline, /15 strikethrough (1 on), /16 underline (2 on, Photoshop's horizontal
-      // "underline left"), /23 Fractions, /24 Ordinals.
+      // "underline left"), /18 Ligatures (on by default), /19 Discretionary Ligatures, /20
+      // Contextual Alternates, /23 Fractions, /24 Ordinals, /25 Swash, /26 Titling, /28 Stylistic
+      // Alternates.
       {"12", engine_integer(run.font_caps == 1 || run.font_caps == 2 ? run.font_caps : 0)},
       {"13", engine_integer(run.font_baseline == 1 || run.font_baseline == 2 ? run.font_baseline : 0)},
       {"14", engine_integer(0)},
       {"15", engine_integer(run.strikethrough ? 1 : 0)},
       {"16", engine_integer(run.underline ? 2 : 0)},
-      {"18", engine_bool(true)},
-      {"19", engine_bool(false)},
-      {"20", engine_bool(false)},
+      {"18", engine_bool(run.ligatures)},
+      {"19", engine_bool(run.discretionary_ligatures)},
+      {"20", engine_bool(run.contextual_alternates)},
       {"23", engine_bool(run.fractions)},
       {"24", engine_bool(run.ordinals)},
-      {"25", engine_bool(false)},
-      {"26", engine_bool(false)},
+      {"25", engine_bool(run.swash)},
+      {"26", engine_bool(run.titling_alternates)},
       {"27", engine_bool(false)},
-      {"28", engine_bool(false)},
+      {"28", engine_bool(run.stylistic_alternates)},
       {"29", engine_bool(false)},
       {"30", engine_integer(0)},
       {"31", engine_bool(false)},
@@ -348,7 +350,12 @@ std::vector<TextStyleRunFeatures> TextEngineBlock::object_style_features(std::si
     const auto* sheet = run.at_path({"0", "0", "6"});
     entry.ordinals = flag(sheet, "24");
     entry.fractions = flag(sheet, "23");
-    any = any || entry.ordinals || entry.fractions;
+    entry.contextual_alternates = flag(sheet, "20");
+    entry.swash = flag(sheet, "25");
+    entry.titling_alternates = flag(sheet, "26");
+    entry.stylistic_alternates = flag(sheet, "28");
+    any = any || entry.ordinals || entry.fractions || entry.contextual_alternates || entry.swash ||
+          entry.titling_alternates || entry.stylistic_alternates;
     result.push_back(entry);
   }
   if (!any) result.clear();

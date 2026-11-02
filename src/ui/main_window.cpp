@@ -8118,8 +8118,10 @@ void MainWindow::open_text_character_dialog() {
   set_themed_style(*text_character_hint_label_, QStringLiteral("color: @hint_text;"));
   layout->addRow(text_character_hint_label_);
 
-  // Character styles first (GitHub issue 346): one row of toggles led by faux bold and faux
-  // italic. The buttons keep no focus, so the keyboard stays in a live text session.
+  // Character styles first (GitHub issue 346): two centred rows of eight toggles, each split in
+  // fours by a gap, so the buttons never widen the dialog's fields. The first row holds faux
+  // bold, faux italic, the bars, the caps and the scripts; the second the OpenType features. The
+  // buttons keep no focus, so the keyboard stays in a live text session.
   {
     const auto make_button = [](QWidget* parent, const char* object_name, int icon, const QString& name,
                                 const QString& detail) {
@@ -8138,7 +8140,9 @@ void MainWindow::open_text_character_dialog() {
       const char* object_name;
       QString tooltip;
     };
-    const std::array<StyleButton, 8> styles{{
+    // In apply_text_character_style_to_active_editor order; the icon is
+    // text_character_style_icon(index), or index + 2 past the faux pair's 8 and 9.
+    const std::array<StyleButton, 14> styles{{
         {"textCharacterAllCapsButton", tr("All Caps")},
         {"textCharacterSmallCapsButton", tr("Small Caps")},
         {"textCharacterSuperscriptButton", tr("Superscript")},
@@ -8147,31 +8151,58 @@ void MainWindow::open_text_character_dialog() {
         {"textCharacterStrikethroughButton", tr("Strikethrough")},
         {"textCharacterOrdinalsButton", tr("Ordinals (fonts that have them)")},
         {"textCharacterFractionsButton", tr("Fractions (fonts that have them)")},
+        {"textCharacterLigaturesButton", tr("Standard Ligatures (fonts that have them)")},
+        {"textCharacterContextualAlternatesButton", tr("Contextual Alternates (fonts that have them)")},
+        {"textCharacterDiscretionaryLigaturesButton", tr("Discretionary Ligatures (fonts that have them)")},
+        {"textCharacterSwashButton", tr("Swash (fonts that have them)")},
+        {"textCharacterStylisticAlternatesButton", tr("Stylistic Alternates (fonts that have them)")},
+        {"textCharacterTitlingAlternatesButton", tr("Titling Alternates (fonts that have them)")},
     }};
-    auto* row = new QWidget(dialog);
-    row->setObjectName(QStringLiteral("textCharacterStyleRow"));
-    auto* row_layout = new QHBoxLayout(row);
-    row_layout->setContentsMargins(0, 0, 0, 0);
-    row_layout->setSpacing(2);
-    text_character_faux_bold_ =
-        make_button(row, "textCharacterFauxBold", 8, tr("Faux bold"),
-                    tr("Thicken the current face synthetically instead of switching to the family's bold face"));
-    text_character_faux_italic_ =
-        make_button(row, "textCharacterFauxItalic", 9, tr("Faux italic"),
-                    tr("Slant the current face synthetically instead of switching to the family's italic face"));
-    row_layout->addWidget(text_character_faux_bold_);
-    row_layout->addWidget(text_character_faux_italic_);
-    row_layout->addSpacing(6);
-    for (int index = 0; index < static_cast<int>(styles.size()); ++index) {
+    auto* rows = new QWidget(dialog);
+    rows->setObjectName(QStringLiteral("textCharacterStyleRow"));
+    auto* rows_layout = new QVBoxLayout(rows);
+    rows_layout->setContentsMargins(0, 0, 0, 0);
+    rows_layout->setSpacing(2);
+    const auto style_button = [&](int index, QWidget* parent) {
       const auto& style = styles[static_cast<std::size_t>(index)];
-      auto* button = make_button(row, style.object_name, index, style.tooltip, QString());
+      auto* button = make_button(parent, style.object_name, index < 8 ? index : index + 2, style.tooltip, QString());
       connect(button, &QPushButton::toggled, this,
               [this, index](bool on) { apply_text_character_style_to_active_editor(index, on); });
       text_character_style_buttons_[static_cast<std::size_t>(index)] = button;
-      row_layout->addWidget(button);
+      return button;
+    };
+    // -1 and -2 are the faux pair; every other entry is a style index.
+    constexpr std::array<std::array<int, 8>, 2> kRows{{{-1, -2, 4, 5, 0, 1, 2, 3}, {8, 9, 10, 11, 12, 13, 6, 7}}};
+    for (std::size_t r = 0; r < kRows.size(); ++r) {
+      auto* row = new QWidget(rows);
+      row->setObjectName(r == 0 ? QStringLiteral("textCharacterStyleRow1") : QStringLiteral("textCharacterStyleRow2"));
+      auto* row_layout = new QHBoxLayout(row);
+      row_layout->setContentsMargins(0, 0, 0, 0);
+      row_layout->setSpacing(2);
+      row_layout->addStretch(1);
+      for (std::size_t slot = 0; slot < kRows[r].size(); ++slot) {
+        if (slot == 4) {
+          row_layout->addSpacing(8);
+        }
+        const int entry = kRows[r][slot];
+        QPushButton* button = nullptr;
+        if (entry == -1) {
+          button = text_character_faux_bold_ = make_button(
+              row, "textCharacterFauxBold", 8, tr("Faux bold"),
+              tr("Thicken the current face synthetically instead of switching to the family's bold face"));
+        } else if (entry == -2) {
+          button = text_character_faux_italic_ = make_button(
+              row, "textCharacterFauxItalic", 9, tr("Faux italic"),
+              tr("Slant the current face synthetically instead of switching to the family's italic face"));
+        } else {
+          button = style_button(entry, row);
+        }
+        row_layout->addWidget(button);
+      }
+      row_layout->addStretch(1);
+      rows_layout->addWidget(row);
     }
-    row_layout->addStretch(1);
-    layout->addRow(tr("Style:"), row);
+    layout->addRow(rows);
   }
 
   text_character_leading_spin_ = new UnitSpinBox(SpinUnit::Points, dialog);
@@ -8485,9 +8516,20 @@ void MainWindow::sync_text_character_dialog_from_editor() {
                                           format.property(kTextFauxItalicFormatProperty).toBool());
   {
     const auto styles = text_character_styles_from_format(format);
-    const std::array<bool, 8> checked{styles.caps == 2,      styles.caps == 1,      styles.baseline == 1,
-                                      styles.baseline == 2,  styles.underline,      styles.strikethrough,
-                                      styles.ordinals,       styles.fractions};
+    const std::array<bool, 14> checked{styles.caps == 2,
+                                       styles.caps == 1,
+                                       styles.baseline == 1,
+                                       styles.baseline == 2,
+                                       styles.underline,
+                                       styles.strikethrough,
+                                       styles.ordinals,
+                                       styles.fractions,
+                                       styles.ligatures,
+                                       styles.contextual_alternates,
+                                       styles.discretionary_ligatures,
+                                       styles.swash,
+                                       styles.stylistic_alternates,
+                                       styles.titling_alternates};
     for (std::size_t index = 0; index < checked.size(); ++index) {
       if (auto* button = text_character_style_buttons_[index]; button != nullptr) {
         const QSignalBlocker block_style(button);
@@ -9056,8 +9098,26 @@ void MainWindow::apply_text_character_style_to_active_editor(int style, bool on)
         case 6:
           format.setProperty(kTextOrdinalsFormatProperty, on);
           break;
-        default:
+        case 7:
           format.setProperty(kTextFractionsFormatProperty, on);
+          break;
+        case 8:
+          format.setProperty(kTextLigaturesOffFormatProperty, !on);
+          break;
+        case 9:
+          format.setProperty(kTextContextualAlternatesFormatProperty, on);
+          break;
+        case 10:
+          format.setProperty(kTextDiscretionaryLigaturesFormatProperty, on);
+          break;
+        case 11:
+          format.setProperty(kTextSwashFormatProperty, on);
+          break;
+        case 12:
+          format.setProperty(kTextStylisticAlternatesFormatProperty, on);
+          break;
+        default:
+          format.setProperty(kTextTitlingAlternatesFormatProperty, on);
           break;
       }
     });

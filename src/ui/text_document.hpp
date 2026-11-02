@@ -79,8 +79,20 @@ struct TextCharacterStyles {
   bool strikethrough{false};
   bool ordinals{false};
   bool fractions{false};
+  bool ligatures{true};
+  bool contextual_alternates{false};
+  bool discretionary_ligatures{false};
+  bool swash{false};
+  bool stylistic_alternates{false};
+  bool titling_alternates{false};
   [[nodiscard]] bool any() const noexcept {
-    return caps != 0 || baseline != 0 || underline || strikethrough || ordinals || fractions;
+    return caps != 0 || baseline != 0 || underline || strikethrough || ordinals || fractions || !ligatures ||
+           contextual_alternates || discretionary_ligatures || swash || stylistic_alternates || titling_alternates;
+  }
+  // Any OpenType feature request other than Photoshop's defaults (ligatures on, the rest off).
+  [[nodiscard]] bool any_features() const noexcept {
+    return ordinals || fractions || !ligatures || contextual_alternates || discretionary_ligatures || swash ||
+           stylistic_alternates || titling_alternates;
   }
   friend bool operator==(const TextCharacterStyles&, const TextCharacterStyles&) = default;
 };

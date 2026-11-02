@@ -31707,6 +31707,30 @@ Locked: %1</source>
         <source>Reverted %1</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Standard Ligatures (fonts that have them)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Contextual Alternates (fonts that have them)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Discretionary Ligatures (fonts that have them)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Swash (fonts that have them)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stylistic Alternates (fonts that have them)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Titling Alternates (fonts that have them)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

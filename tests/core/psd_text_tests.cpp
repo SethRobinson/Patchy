@@ -1993,12 +1993,27 @@ void psd_text_baseline_shift_round_trips_native_text() {
 void psd_text_character_styles_round_trip_native_text() {
   patchy::Document document(256, 128, patchy::PixelFormat::rgb8());
   auto& layer = document.add_pixel_layer("Styled", solid_rgb(256, 128, 0, 0, 0));
-  layer.metadata()[patchy::kLayerMetadataText] = "ABCDEFGHIJ";
+  layer.metadata()[patchy::kLayerMetadataText] = "ABCDEFGHIJKLMNOPQ";
   layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
   layer.metadata()[patchy::kLayerMetadataTextSize] = "24";
-  const std::vector<std::string> tokens{"allcaps",       "smallcaps", "superscript", "subscript",
-                                        "underline",     "strikethrough", "ordinals", "fractions",
-                                        "smallcaps,subscript,underline,strikethrough,ordinals,fractions", "-"};
+  const std::vector<std::string> tokens{"allcaps",
+                                        "smallcaps",
+                                        "superscript",
+                                        "subscript",
+                                        "underline",
+                                        "strikethrough",
+                                        "ordinals",
+                                        "fractions",
+                                        "smallcaps,subscript,underline,strikethrough,ordinals,fractions",
+                                        "noligatures",
+                                        "contextualalternates",
+                                        "discretionaryligatures",
+                                        "swash",
+                                        "stylisticalternates",
+                                        "titlingalternates",
+                                        "underline,noligatures,contextualalternates,discretionaryligatures,swash,"
+                                        "stylisticalternates,titlingalternates",
+                                        "-"};
   std::string runs = "v9";
   for (std::size_t index = 0; index < tokens.size(); ++index) {
     runs += "\n" + std::to_string(index) + "\t1\t24\t0\t0\t#000000\tArial\tauto\t0\t1\t1\t0\t\t0\t0\t0\t" + tokens[index];
@@ -2012,6 +2027,9 @@ void psd_text_character_styles_round_trip_native_text() {
   CHECK(bytes.find("/FontBaseline 2") != std::string_view::npos);
   CHECK(bytes.find("/Underline true /YUnderline 0") != std::string_view::npos);
   CHECK(bytes.find("/Strikethrough true") != std::string_view::npos);
+  // The two OpenType toggles the TySh carries; the other four are Txt2 keys only.
+  CHECK(bytes.find("/Ligatures false") != std::string_view::npos);
+  CHECK(bytes.find("/DLigatures true") != std::string_view::npos);
   const auto read = patchy::psd::DocumentIo::read(written);
   CHECK(read.layers().size() == 1U);
   if (read.layers().size() != 1U) {
@@ -2053,6 +2071,69 @@ void psd_text_character_style_tokens_parse_and_serialize() {
   CHECK(patchy::psd::serialize_text_run_character_styles(run) == "allcaps,superscript,underline,fractions");
   patchy::psd::parse_text_run_character_styles("-", run);
   CHECK(!patchy::psd::text_run_has_character_styles(run));
+  // Standard ligatures are on by default, so their token records them turned off.
+  CHECK(run.ligatures && !run.contextual_alternates);
+  patchy::psd::parse_text_run_character_styles(
+      "titlingalternates,noligatures,swash,stylisticalternates,discretionaryligatures,contextualalternates", run);
+  CHECK(!run.ligatures && run.contextual_alternates && run.discretionary_ligatures && run.swash &&
+        run.stylistic_alternates && run.titling_alternates);
+  CHECK(patchy::psd::text_run_has_character_styles(run));
+  CHECK(patchy::psd::serialize_text_run_character_styles(run) ==
+        "noligatures,contextualalternates,discretionaryligatures,swash,stylisticalternates,titlingalternates");
+  patchy::psd::parse_text_run_character_styles("-", run);
+  CHECK(run.ligatures && !run.swash && !patchy::psd::text_run_has_character_styles(run));
+}
+
+// Photoshop 2026 captures of the Character panel's other OpenType toggles (COM, November 2026;
+// local-test-fixtures/psd/opentype-features, README.txt there). Standard and discretionary
+// ligatures come from the TySh (/Ligatures, /DLigatures), the other four from the 'Txt2' run
+// sheets (/20, /25, /26, /28); all_on_part sets five of them on six characters only.
+void psd_text_opentype_features_import_photoshop_captures_if_available() {
+  const auto folder = patchy::test::local_psd_fixture_path("opentype-features");
+  patchy::test::skip_unless_exists(folder / "base.psd");
+  const auto tokens_of = [&](const char* file) {
+    std::vector<std::pair<int, std::string>> result;
+    const auto read = patchy::psd::DocumentIo::read_file(folder / file);
+    for (const auto& layer : read.layers()) {
+      const auto found = layer.metadata().find(patchy::kLayerMetadataTextRuns);
+      if (found == layer.metadata().end()) {
+        continue;
+      }
+      const auto lines = split_lines(found->second);
+      for (std::size_t index = 1; index < lines.size(); ++index) {
+        const auto fields = split_tabs(lines[index]);
+        result.emplace_back(fields.size() >= 2U ? std::stoi(fields[1]) : 0,
+                            fields.size() >= 17U ? fields[16] : std::string("-"));
+      }
+    }
+    return result;
+  };
+  const auto single = [&](const char* file, const std::string& token) {
+    const auto runs = tokens_of(file);
+    CHECK(runs.size() == 1U);
+    if (runs.size() != 1U || runs.front().second != token) {
+      for (const auto& [length, value] : runs) {
+        std::printf("  %s: %d chars '%s'\n", file, length, value.c_str());
+      }
+    }
+    CHECK(!runs.empty() && runs.front().second == token);
+  };
+  single("base.psd", "-");
+  single("calt_base.psd", "-");
+  single("liga_off.psd", "noligatures");
+  single("dlig_on.psd", "discretionaryligatures");
+  single("calt_on.psd", "contextualalternates");
+  single("swsh_on.psd", "swash");
+  single("salt_on.psd", "stylisticalternates");
+  single("titl_on.psd", "titlingalternates");
+  const auto part = tokens_of("all_on_part.psd");
+  CHECK(part.size() == 3U);
+  if (part.size() == 3U) {
+    CHECK(part[0].first == 7 && part[0].second == "-");
+    CHECK(part[1].first == 6 && part[1].second ==
+                                    "noligatures,discretionaryligatures,swash,stylisticalternates,titlingalternates");
+    CHECK(part[2].second == "-");
+  }
 }
 
 // philipzae's "Character - Styling and Extras.psd" (Photoshop CC 2018, GitHub issue 346): one
@@ -2168,7 +2249,9 @@ void psd_restaurant_menu_dishes_runs_parse_photoshop_layout_if_available() {
     CHECK(std::abs((*transform)[0] - 5.863392) < 0.001);
   }
   const auto& text_runs = metadata.at(patchy::kLayerMetadataTextRuns);
-  CHECK(text_runs.find("v3\n") == 0);
+  // v9: every run of this file turns Contextual Alternates on (Txt2 /20 true), a run style.
+  CHECK(text_runs.find("v9\n") == 0);
+  CHECK(text_runs.find("contextualalternates") != std::string::npos);
   const auto lines = split_lines(text_runs);
   CHECK(lines.size() >= 3);
   bool found_title_run = false;
@@ -2345,7 +2428,9 @@ void psd_restaurant_menu_dishes_leading_survives_save_round_trip_if_available() 
     return;
   }
   const auto& runs = reread_dishes->metadata().at(patchy::kLayerMetadataTextRuns);
-  CHECK(runs.find("v3\n") == 0);
+  // Contextual Alternates (Txt2 /20 true on every run) survive the save as a v9 run style.
+  CHECK(runs.find("v9\n") == 0);
+  CHECK(runs.find("contextualalternates") != std::string::npos);
   // The regenerated TySh is Patchy-signed, but its fixed leading/tracking prove Photoshop
   // provenance: the layout marker must survive the reopen or the leading model switches off.
   CHECK(reread_dishes->metadata().at(patchy::kLayerMetadataTextLayoutMode) ==
@@ -3258,6 +3343,8 @@ std::vector<patchy::test::TestCase> psd_text_tests() {
       {"psd_text_baseline_shift_round_trips_native_text", psd_text_baseline_shift_round_trips_native_text},
       {"psd_text_character_styles_round_trip_native_text", psd_text_character_styles_round_trip_native_text},
       {"psd_text_character_style_tokens_parse_and_serialize", psd_text_character_style_tokens_parse_and_serialize},
+      {"psd_text_opentype_features_import_photoshop_captures_if_available",
+       psd_text_opentype_features_import_photoshop_captures_if_available},
       {"psd_text_character_styles_import_photoshop_sample_if_available",
        psd_text_character_styles_import_photoshop_sample_if_available},
       {"psd_text_engine_auto_leading_run_serializes_auto_marker",

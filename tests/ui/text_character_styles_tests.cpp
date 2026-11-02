@@ -1,6 +1,8 @@
 // The Character panel's styles (GitHub issue 346): All Caps, Small Caps, Superscript, Subscript,
-// Underline, Strikethrough, Ordinals and Fractions. The panel toggles write the run flags, and the
-// renders match Photoshop 2026's COM captures (docs/text-character-styles.md).
+// Underline, Strikethrough, Ordinals, Fractions and the other OpenType toggles (Standard and
+// Discretionary Ligatures, Contextual Alternates, Swash, Stylistic and Titling Alternates). The
+// panel toggles write the run flags, and the renders match Photoshop 2026's COM captures
+// (docs/text-character-styles.md).
 #include "core/document.hpp"
 #include "core/layer_metadata.hpp"
 #include "ui/canvas_widget.hpp"
@@ -22,6 +24,8 @@
 #include <QDir>
 #include <QFontDatabase>
 #include <QGlyphRun>
+#include <QImage>
+#include <QLabel>
 #include <QPainter>
 #include <QPushButton>
 #include <QStatusBar>
@@ -29,11 +33,13 @@
 #include <QTextLayout>
 #include <QTimer>
 #include <algorithm>
+#include <filesystem>
 #include <functional>
 #include <array>
 #include <cmath>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -136,7 +142,7 @@ bool has_family(const char* family) {
 
 // Whether the family's OpenType `tag` changes the glyphs of `text` (Patchy applies a feature only
 // then). Windows' Arial has smcp and frac; the Arial macOS ships has neither.
-bool font_feature_changes(const char* family, const char* tag, const QString& text) {
+bool font_feature_changes(const char* family, const char* tag, const QString& text, quint32 value = 1U) {
   const auto glyphs = [&text](const QFont& font) {
     QTextLayout layout(text, font);
     layout.beginLayout();
@@ -152,19 +158,21 @@ bool font_feature_changes(const char* family, const char* tag, const QString& te
   };
   QFont font(QString::fromLatin1(family));
   font.setPixelSize(static_cast<int>(kSize));
+  // Patchy's baseline, like Photoshop's: contextual alternates off (build_text_render_document).
+  font.setFeature(QFont::Tag("calt"), 0);
   auto featured = font;
-  featured.setFeature(QFont::Tag::fromString(QLatin1String(tag)).value(), 1);
+  featured.setFeature(QFont::Tag::fromString(QLatin1String(tag)).value(), value);
   return glyphs(featured) != glyphs(font);
 }
 
 // Adds a 100 px text layer made of `runs` (a JS array literal) at a fixed anchor and returns it.
 // A copy: the next add can move the document's layer vector.
 std::optional<patchy::Layer> add_runs_layer(patchy::ui::MainWindow& window, const QString& runs, const char* family,
-                                    bool photoshop_layout) {
+                                    bool photoshop_layout, double size = kSize) {
   CHECK(run_script(window, QStringLiteral("app.activeDocument.addTextLayer(%1, {font: '%2', size: %3, x: 40, y: 60, "
                                           "color: '#000000'});")
                                .arg(runs, QLatin1String(family))
-                               .arg(kSize)));
+                               .arg(size)));
   auto& document = MainWindowTestAccess::document(window);
   const auto id = document.active_layer_id();
   CHECK(id.has_value());
@@ -356,6 +364,196 @@ void ui_text_ordinals_and_fractions_use_the_font_features_if_available() {
   save_widget_artifact("ui_text_ordinals_and_fractions", window);
 }
 
+// The other OpenType toggles apply the font's own features and leave text in a font without one
+// as typed, as Photoshop does. Calibri joins "ffl" unless Standard Ligatures is off and ties "st"
+// with Discretionary Ligatures; Comic Sans swashes its capitals; no Windows face has titling
+// alternates. Contextual Alternates are off unless asked for (Photoshop's default): Segoe Script
+// at 72 px is as wide as Photoshop's own render each way (COM flattens in
+// local-test-fixtures/psd/opentype-features).
+void ui_text_opentype_features_use_the_font_features_if_available() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::ScriptFeatures);
+  if (!has_family("Calibri") || !has_family("Arial")) {
+    patchy::test::skip("Calibri or Arial is not installed");
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto same_pixels = [](const patchy::Layer& a, const patchy::Layer& b) {
+    return a.bounds().width == b.bounds().width && a.bounds().height == b.bounds().height &&
+           std::ranges::equal(a.pixels().data(), b.pixels().data());
+  };
+  struct Case {
+    const char* family;
+    const char* text;
+    const char* key;
+    const char* tag;
+    quint32 value;
+  };
+  const std::array<Case, 6> cases{{
+      {"Calibri", "office ffl", "ligatures: false", "liga", 0U},
+      {"Calibri", "Quest stay", "discretionaryLigatures: true", "dlig", 1U},
+      {"Arial", "office fifty Quest", "stylisticAlternates: true", "salt", 1U},
+      {"Comic Sans MS", "Swash Quest", "swash: true", "swsh", 1U},
+      {"Arial", "TITLE Title", "titlingAlternates: true", "titl", 1U},
+      {"Segoe Script", "Hello there", "contextualAlternates: true", "calt", 1U},
+  }};
+  int mismatches = 0;  // counted, not thrown, so one run reports every feature
+  for (const auto& entry : cases) {
+    if (!has_family(entry.family)) {
+      std::printf("  %s: no %s here\n", entry.key, entry.family);
+      continue;
+    }
+    const auto text = QString::fromLatin1(entry.text);
+    const auto plain = add_runs_layer(window, QStringLiteral("[{text: '%1'}]").arg(text), entry.family, false);
+    const auto featured =
+        add_runs_layer(window, QStringLiteral("[{text: '%1', %2}]").arg(text, QLatin1String(entry.key)), entry.family, false);
+    CHECK(plain && featured);
+    if (!plain || !featured) {
+      continue;
+    }
+    const bool changes = font_feature_changes(entry.family, entry.tag, text, entry.value);
+    const bool same = same_pixels(*plain, *featured);
+    const auto plain_ink = ink_of(*plain);
+    const auto featured_ink = ink_of(*featured);
+    std::printf("  %s (%s): the font %s it, render %s (ink %d and %d px wide)\n", entry.key, entry.family,
+                changes ? "has" : "lacks", same ? "unchanged" : "changed", plain_ink ? plain_ink->width() : -1,
+                featured_ink ? featured_ink->width() : -1);
+    std::fflush(stdout);
+    mismatches += same == !changes ? 0 : 1;
+  }
+  CHECK(mismatches == 0);
+  // Standard ligatures off spends more width: Calibri's "ffl" is one glyph narrower than three.
+  if (has_family("Calibri") && font_feature_changes("Calibri", "liga", QStringLiteral("ffl"), 0U)) {
+    const auto joined = add_runs_layer(window, QStringLiteral("[{text: 'ffl'}]"), "Calibri", false);
+    const auto apart = add_runs_layer(window, QStringLiteral("[{text: 'ffl', ligatures: false}]"), "Calibri", false);
+    const auto joined_ink = joined ? ink_of(*joined) : std::nullopt;
+    const auto apart_ink = apart ? ink_of(*apart) : std::nullopt;
+    CHECK(joined_ink && apart_ink);
+    if (joined_ink && apart_ink) {
+      CHECK(apart_ink->width() > joined_ink->width());
+    }
+  }
+  // Segoe Script against Photoshop 2026's flattens of the same line at 72 px.
+  const auto folder = patchy::test::local_psd_fixture_path("opentype-features");
+  if (has_family("Segoe Script") && std::filesystem::exists(folder / "calt_base.png")) {
+    const auto photoshop_ink_width = [&](const char* file) {
+      QImage image(patchy::ui::to_qstring(folder / file));
+      image = image.convertToFormat(QImage::Format_Grayscale8);
+      int left = image.width();
+      int right = -1;
+      for (int y = 0; y < image.height(); ++y) {
+        const auto* row = image.constScanLine(y);
+        for (int x = 0; x < image.width(); ++x) {
+          if (row[x] < 128) {
+            left = std::min(left, x);
+            right = std::max(right, x + 1);
+          }
+        }
+      }
+      return right - left;
+    };
+    const auto text = QStringLiteral("Hello there sweet tool");
+    const auto plain = add_runs_layer(window, QStringLiteral("[{text: '%1'}]").arg(text), "Segoe Script", false, 72.0);
+    const auto calt = add_runs_layer(window, QStringLiteral("[{text: '%1', contextualAlternates: true}]").arg(text),
+                                     "Segoe Script", false, 72.0);
+    const auto plain_ink = plain ? ink_of(*plain) : std::nullopt;
+    const auto calt_ink = calt ? ink_of(*calt) : std::nullopt;
+    CHECK(plain_ink && calt_ink);
+    if (plain_ink && calt_ink) {
+      expect_near(plain_ink->width(), photoshop_ink_width("sc_base.png"), 4.0, "Segoe Script ink width, calt off");
+      expect_near(calt_ink->width(), photoshop_ink_width("sc_calt_on.png"), 4.0, "Segoe Script ink width, calt on");
+    }
+  }
+  // The Photoshop open check's file: every layer above plus one carrying all six toggles in runs.
+  ensure_artifact_dir();
+  const auto saved = QDir::current().absoluteFilePath(QStringLiteral("test-artifacts/ui_text_opentype_features.psd"));
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    doc.addTextLayer([{text: 'office ', ligatures: false}, {text: 'Quest ', discretionaryLigatures: true},
+                      {text: 'Hello ', contextualAlternates: true}, {text: 'Swash ', swash: true},
+                      {text: 'alt ', stylisticAlternates: true}, {text: 'TITLE', titlingAlternates: true}],
+                     {font: 'Calibri', size: 40, x: 20, y: 440, color: '#203080'});
+    doc.saveAs('%1');
+  )JS").arg(saved)));
+  save_widget_artifact("ui_text_opentype_features", window);
+}
+
+// The style toggles stand in two rows of eight with no "Style:" label, each row centred and split
+// in fours by a wider gap: faux bold, faux italic, underline, strikethrough | all caps, small caps,
+// superscript, subscript; then the OpenType features (philipzae's order, GitHub issue 346).
+void ui_text_character_style_rows_are_centred() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(
+      "app.activeDocument.addTextLayer('Styled', {size: 48, x: 30, y: 80, color: '#000000'});")));
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  bool drove = false;
+  QTimer::singleShot(0, [&] {
+    try {
+      auto* dialog = window.findChild<QDialog*>(QStringLiteral("textCharacterDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      QApplication::processEvents();
+      for (const auto* label : dialog->findChildren<QLabel*>()) {
+        CHECK(label->text() != QStringLiteral("Style:"));
+      }
+      const std::array<std::array<const char*, 8>, 2> rows{{
+          {"textCharacterFauxBold", "textCharacterFauxItalic", "textCharacterUnderlineButton",
+           "textCharacterStrikethroughButton", "textCharacterAllCapsButton", "textCharacterSmallCapsButton",
+           "textCharacterSuperscriptButton", "textCharacterSubscriptButton"},
+          {"textCharacterLigaturesButton", "textCharacterContextualAlternatesButton",
+           "textCharacterDiscretionaryLigaturesButton", "textCharacterSwashButton",
+           "textCharacterStylisticAlternatesButton", "textCharacterTitlingAlternatesButton",
+           "textCharacterOrdinalsButton", "textCharacterFractionsButton"},
+      }};
+      auto* holder = dialog->findChild<QWidget*>(QStringLiteral("textCharacterStyleRow"));
+      CHECK(holder != nullptr);
+      std::optional<int> row_top;
+      for (const auto& row : rows) {
+        std::vector<QRect> rects;
+        for (const auto* name : row) {
+          auto* button = dialog->findChild<QPushButton*>(QLatin1String(name));
+          CHECK(button != nullptr);
+          if (button == nullptr || holder == nullptr) {
+            dialog->reject();
+            return;
+          }
+          CHECK(button->isEnabled() && !button->toolTip().isEmpty() && !button->icon().isNull());
+          rects.emplace_back(button->mapTo(holder, QPoint(0, 0)), button->size());
+        }
+        // One line, left to right in this order, the wider gap after the fourth.
+        for (std::size_t index = 1; index < rects.size(); ++index) {
+          CHECK(rects[index].top() == rects[0].top());
+          const int gap = rects[index].left() - rects[index - 1].right();
+          CHECK(index == 4 ? gap >= 8 : (gap > 0 && gap < 8));
+        }
+        if (row_top) {
+          CHECK(rects[0].top() > *row_top);
+        }
+        row_top = rects[0].top();
+        const int left_margin = rects.front().left();
+        const int right_margin = holder->width() - 1 - rects.back().right();
+        CHECK(std::abs(left_margin - right_margin) <= 1);
+      }
+      // Standard ligatures are on in new text, as in Photoshop; the rest start off.
+      auto* ligatures = dialog->findChild<QPushButton*>(QStringLiteral("textCharacterLigaturesButton"));
+      CHECK(ligatures != nullptr && ligatures->isChecked());
+      auto* swash = dialog->findChild<QPushButton*>(QStringLiteral("textCharacterSwashButton"));
+      CHECK(swash != nullptr && !swash->isChecked());
+      save_widget_artifact("ui_text_character_style_rows", *dialog);
+      drove = true;
+      dialog->reject();
+    } catch (...) {
+      patchy::ui::unwind_non_modal_dialog_loop(std::current_exception());
+    }
+  });
+  window.findChild<QPushButton*>(QStringLiteral("textCharacterButton"))->click();
+  CHECK(drove);
+}
+
 // The Character panel's style row toggles each run flag on the selected layer without a session,
 // as one undo step each; the two caps and the two baselines exclude each other, and turning every
 // style off again leaves the runs without the style column.
@@ -436,6 +634,32 @@ void ui_text_character_style_buttons_toggle_run_styles() {
       CHECK(!QString::fromStdString(std::as_const(document).find_layer(*id)->metadata().at(
                                         patchy::kLayerMetadataTextRuns))
                  .startsWith(QStringLiteral("v9")));
+      // The OpenType row: Standard Ligatures starts on, so clicking it records them off.
+      std::array<QPushButton*, 6> features{
+          button("textCharacterLigaturesButton"),           button("textCharacterContextualAlternatesButton"),
+          button("textCharacterDiscretionaryLigaturesButton"), button("textCharacterSwashButton"),
+          button("textCharacterStylisticAlternatesButton"), button("textCharacterTitlingAlternatesButton")};
+      if (std::ranges::any_of(features, [](const QPushButton* found) { return found == nullptr; })) {
+        dialog->reject();
+        return;
+      }
+      CHECK(features[0]->isChecked());
+      for (auto* feature : features) {
+        CHECK(feature->focusPolicy() == Qt::NoFocus);
+        feature->click();
+      }
+      CHECK(!features[0]->isChecked() && features[5]->isChecked());
+      CHECK(style_column() == QStringLiteral("noligatures,contextualalternates,discretionaryligatures,swash,"
+                                             "stylisticalternates,titlingalternates"));
+      require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+      CHECK(style_column() ==
+            QStringLiteral("noligatures,contextualalternates,discretionaryligatures,swash,stylisticalternates"));
+      CHECK(!features[5]->isChecked());
+      for (std::size_t index = 0; index < 5; ++index) {
+        features[index]->click();
+      }
+      CHECK(features[0]->isChecked());
+      CHECK(style_column() == QStringLiteral("-"));
       drove = true;
       dialog->reject();
     } catch (...) {
@@ -926,6 +1150,9 @@ std::vector<patchy::test::TestCase> text_character_styles_tests() {
       {"ui_text_script_and_caps_match_photoshop_if_available", ui_text_script_and_caps_match_photoshop_if_available},
       {"ui_text_ordinals_and_fractions_use_the_font_features_if_available",
        ui_text_ordinals_and_fractions_use_the_font_features_if_available},
+      {"ui_text_opentype_features_use_the_font_features_if_available",
+       ui_text_opentype_features_use_the_font_features_if_available},
+      {"ui_text_character_style_rows_are_centred", ui_text_character_style_rows_are_centred},
       {"ui_text_character_style_buttons_toggle_run_styles", ui_text_character_style_buttons_toggle_run_styles},
       {"ui_text_character_styles_apply_only_to_the_selection", ui_text_character_styles_apply_only_to_the_selection},
       {"ui_text_style_edits_keep_the_point_text_line_in_place", ui_text_style_edits_keep_the_point_text_line_in_place},

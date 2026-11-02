@@ -31871,6 +31871,30 @@ Zablokowano: %1</translation>
         <source>Reverted %1</source>
         <translation>Przywrócono %1</translation>
     </message>
+    <message>
+        <source>Standard Ligatures (fonts that have them)</source>
+        <translation>Ligatury standardowe (czcionki, które je mają)</translation>
+    </message>
+    <message>
+        <source>Contextual Alternates (fonts that have them)</source>
+        <translation>Warianty kontekstowe (czcionki, które je mają)</translation>
+    </message>
+    <message>
+        <source>Discretionary Ligatures (fonts that have them)</source>
+        <translation>Ligatury dowolne (czcionki, które je mają)</translation>
+    </message>
+    <message>
+        <source>Swash (fonts that have them)</source>
+        <translation>Ozdobniki (czcionki, które je mają)</translation>
+    </message>
+    <message>
+        <source>Stylistic Alternates (fonts that have them)</source>
+        <translation>Warianty stylistyczne (czcionki, które je mają)</translation>
+    </message>
+    <message>
+        <source>Titling Alternates (fonts that have them)</source>
+        <translation>Warianty tytułowe (czcionki, które je mają)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
