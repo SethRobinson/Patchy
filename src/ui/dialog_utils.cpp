@@ -5,6 +5,7 @@
 #include "ui/main_window.hpp"
 
 #include "ui/action_icons.hpp"
+#include "ui/icon_theme.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/ui_text_size.hpp"
 #include "ui/window_effects.hpp"
@@ -2476,6 +2477,58 @@ ThemedQss dialog_spinbox_button_style() {
     QDoubleSpinBox::down-arrow:disabled,
     QDoubleSpinBox::down-arrow:off {
       image: url(@icon(spin-minus-disabled));
+    }
+  )"));
+}
+
+QToolButton* make_spin_presets_button(QSpinBox* spin, QWidget* parent, const QString& button_object_name,
+                                     const QString& menu_object_name, const QString& tooltip,
+                                     const std::vector<SpinPreset>& presets) {
+  auto* button = new QToolButton(parent);
+  button->setObjectName(button_object_name);
+  button->setProperty("spinPresetsButton", true);
+  button->setPopupMode(QToolButton::InstantPopup);
+  button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  button->setIcon(themed_svg_icon(QStringLiteral("chevron-down")));
+  button->setToolTip(tooltip);
+  button->setAccessibleName(tooltip);
+  auto* menu = new QMenu(button);
+  menu->setObjectName(menu_object_name);
+  for (const auto& preset : presets) {
+    auto* action = menu->addAction(preset.text);
+    action->setData(preset.value);
+    action->setCheckable(true);
+    const auto value = preset.value;
+    QObject::connect(action, &QAction::triggered, spin, [spin, value] { spin->setValue(value); });
+  }
+  QObject::connect(menu, &QMenu::aboutToShow, spin, [spin, menu] {
+    spin->interpretText();
+    for (auto* action : menu->actions()) {
+      action->setChecked(action->data().toInt() == spin->value());
+    }
+  });
+  button->setMenu(menu);
+  return button;
+}
+
+ThemedQss spin_presets_button_style() {
+  return ThemedQss(QStringLiteral(R"(
+    QToolButton[spinPresetsButton="true"] {
+      background: @field_bg;
+      border: 1px solid @field_inset_border;
+      border-top-color: @field_bevel_top;
+      border-radius: 0;
+      padding: 0;
+      min-width: 16px;
+      max-width: 16px;
+      min-height: 24px;
+    }
+    QToolButton[spinPresetsButton="true"]:hover {
+      border-color: @button_hover_border;
+    }
+    QToolButton[spinPresetsButton="true"]::menu-indicator {
+      image: none;
+      width: 0;
     }
   )"));
 }

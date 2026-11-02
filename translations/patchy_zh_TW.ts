@@ -13150,10 +13150,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>sRGB，不需要描述檔</translation>
     </message>
     <message>
-        <source>Compare:</source>
-        <translation>比較:</translation>
-    </message>
-    <message>
         <source>Split</source>
         <translation>分割</translation>
     </message>
@@ -14490,10 +14486,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>包含縮圖</translation>
     </message>
     <message>
-        <source>2 x 2</source>
-        <translation>2 x 2</translation>
-    </message>
-    <message>
         <source>The original, the result, and the result at 50% and 25% of the quality</source>
         <translation>原始影像、結果，以及品質為 50% 和 25% 時的結果</translation>
     </message>
@@ -14504,6 +14496,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>%1, %2</source>
         <translation>%1, %2</translation>
+    </message>
+    <message>
+        <source>View:</source>
+        <translation>檢視:</translation>
+    </message>
+    <message>
+        <source>4-up</source>
+        <translation>四格</translation>
     </message>
 </context>
 <context>

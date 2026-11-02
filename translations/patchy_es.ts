@@ -13185,10 +13185,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>sRGB, no necesita perfil</translation>
     </message>
     <message>
-        <source>Compare:</source>
-        <translation>Comparar:</translation>
-    </message>
-    <message>
         <source>Split</source>
         <translation>Dividido</translation>
     </message>
@@ -14534,10 +14530,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Incluir miniatura</translation>
     </message>
     <message>
-        <source>2 x 2</source>
-        <translation>2 x 2</translation>
-    </message>
-    <message>
         <source>The original, the result, and the result at 50% and 25% of the quality</source>
         <translation>El original, el resultado y el resultado al 50 % y al 25 % de la calidad</translation>
     </message>
@@ -14548,6 +14540,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>%1, %2</source>
         <translation>%1, %2</translation>
+    </message>
+    <message>
+        <source>View:</source>
+        <translation>Vista:</translation>
+    </message>
+    <message>
+        <source>4-up</source>
+        <translation>4 vistas</translation>
     </message>
 </context>
 <context>

@@ -13185,10 +13185,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>sRGB, sem necessidade de perfil</translation>
     </message>
     <message>
-        <source>Compare:</source>
-        <translation>Comparar:</translation>
-    </message>
-    <message>
         <source>Split</source>
         <translation>Dividido</translation>
     </message>
@@ -14534,10 +14530,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Incluir miniatura</translation>
     </message>
     <message>
-        <source>2 x 2</source>
-        <translation>2 x 2</translation>
-    </message>
-    <message>
         <source>The original, the result, and the result at 50% and 25% of the quality</source>
         <translation>O original, o resultado e o resultado com 50% e 25% da qualidade</translation>
     </message>
@@ -14548,6 +14540,14 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>%1, %2</source>
         <translation>%1, %2</translation>
+    </message>
+    <message>
+        <source>View:</source>
+        <translation>Exibir:</translation>
+    </message>
+    <message>
+        <source>4-up</source>
+        <translation>4 vistas</translation>
     </message>
 </context>
 <context>

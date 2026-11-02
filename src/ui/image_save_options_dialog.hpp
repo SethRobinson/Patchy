@@ -68,12 +68,16 @@ void set_animation_timing_loop_count(const AnimationTimingControls& controls, in
 // `<prefix>BackgroundLabel`, `<prefix>BackgroundColorSwatch`. With forced fill (JPEG, no alpha)
 // the radios hide and "Background:" labels the swatch. `changed` runs when the choice or the
 // picked color changes. `one_row` puts both radios on one row (File > Export for Web).
+// With `keep_shown_when_forced` (Export for Web), forced fill keeps both radios in sight: Keep
+// transparent disabled and Fill with selected, the user's own choice held aside until the
+// fill is no longer forced (read it with transparency_choice_fills).
 struct TransparencyChoiceWidgets {
   QRadioButton* keep{nullptr};
   QRadioButton* fill{nullptr};
   QLabel* background_label{nullptr};
   QPushButton* swatch{nullptr};
   QWidget* fill_row{nullptr};
+  bool keep_shown_when_forced{false};
 };
 [[nodiscard]] TransparencyChoiceWidgets add_transparency_choice(QVBoxLayout* layout, QWidget* parent,
                                                                 QWidget& picker_parent, const QString& object_prefix,
@@ -83,6 +87,9 @@ struct TransparencyChoiceWidgets {
 // Switches a choice between forced fill (JPEG) and the free choice without changing which
 // radio is checked, so a format switch keeps the user's choice for the formats with alpha.
 void set_transparency_choice_forced_fill(const TransparencyChoiceWidgets& widgets, bool forced);
+// The user's choice (Fill with or not), also while a forced fill shows Fill with selected.
+[[nodiscard]] bool transparency_choice_fills(const TransparencyChoiceWidgets& widgets);
+void set_transparency_choice_fills(const TransparencyChoiceWidgets& widgets, bool fill);
 [[nodiscard]] QColor transparency_choice_color(const TransparencyChoiceWidgets& widgets);
 void set_transparency_choice_color(const TransparencyChoiceWidgets& widgets, QColor color);
 

@@ -13168,10 +13168,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Compare:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Split</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14517,10 +14513,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>2 x 2</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>The original, the result, and the result at 50% and 25% of the quality</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14530,6 +14522,14 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>%1, %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>View:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>4-up</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
