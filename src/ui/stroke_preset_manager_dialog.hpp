@@ -3,6 +3,7 @@
 #include "ui/shape_appearance_dialog.hpp"
 
 #include <optional>
+#include <vector>
 
 class QPixmap;
 class QWidget;
@@ -18,6 +19,15 @@ namespace patchy::ui {
 // "Align: Center, Caps: Round, Corners: Bevel, Dashes: 4 2, Offset: 1".
 [[nodiscard]] QString stroke_style_preset_summary(const StrokeStylePreset& preset);
 
+// The dash and gap lengths as the manager's list shows them (stroke widths, UI locale): each
+// dash and gap pair as "dash gap", pairs separated by " | ", then the offset when it is not 0;
+// empty for a solid stroke. For example "6 2 | 1 2   offset 1.5".
+[[nodiscard]] QString stroke_style_preset_dash_values(const StrokeStylePreset& preset);
+
+// A name for a copy of `name`: "<name> copy", else "<name> copy 2" and up, free among
+// `saved` and the built-in names.
+[[nodiscard]] QString stroke_preset_copy_name(const QString& name, const std::vector<StrokeStylePreset>& saved);
+
 // What the Stroke Presets manager's Use Preset chose: a built-in dash preset or a saved
 // preset; both empty when it was closed without one.
 struct StrokePresetChoice {
@@ -26,10 +36,11 @@ struct StrokePresetChoice {
 };
 
 // Opens the modal Stroke Presets manager (GitHub #557 follow-up). It lists the built-in dash
-// presets first, marked Built-in and locked (they can be used, never renamed, moved or
-// deleted), then the saved stroke presets (load_stroke_style_presets) with rename, move
-// up/down and delete; every edit is saved to the setting at once. `initial_name` preselects a
-// row by name.
+// presets first, marked Built-in and locked (they can be used and duplicated, never renamed,
+// edited, moved or deleted), then the saved stroke presets (load_stroke_style_presets), whose
+// name, Align, Caps, Corners, dashes and offset can be edited, with Duplicate, Move Up/Down and
+// Delete; every edit is saved to the setting at once. Each row shows its dash and gap values
+// (stroke_style_preset_dash_values). `initial_name` preselects a row by name.
 [[nodiscard]] StrokePresetChoice request_stroke_preset_manager(QWidget* parent, const QString& initial_name = {});
 
 }  // namespace patchy::ui

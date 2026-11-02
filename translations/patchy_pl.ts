@@ -14454,10 +14454,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Ustawienie wstępne obrysu o nazwie „%1” już istnieje.</translation>
     </message>
     <message>
-        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
-        <translation>Wbudowane ustawienie wstępne: można go używać, ale nie można zmienić jego nazwy, przenieść go ani usunąć.</translation>
-    </message>
-    <message>
         <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
         <translation>Brak zapisanych ustawień wstępnych obrysu. W oknie Wygląd kształtu ustaw obrys i kliknij Zapisz... obok pola Kreski.</translation>
     </message>
@@ -14784,6 +14780,30 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>The preset could not be exported.</source>
         <translation>Nie można wyeksportować ustawienia.</translation>
+    </message>
+    <message>
+        <source>offset %1</source>
+        <translation>przesunięcie %1</translation>
+    </message>
+    <message>
+        <source>%1 copy</source>
+        <translation>%1 kopia</translation>
+    </message>
+    <message>
+        <source>%1 copy %2</source>
+        <translation>%1 kopia %2</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation>Wbudowane ustawienie wstępne: można go używać, ale nie można zmienić jego nazwy, przenieść go ani usunąć. Zduplikuj je, aby uzyskać kopię do edycji.</translation>
+    </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2; leave it empty for a solid line</source>
+        <translation>Długości kresek i przerw w szerokościach obrysu, oddzielone spacjami, na przykład 4 2 lub 6 2 1 2; pozostaw puste dla linii ciągłej</translation>
+    </message>
+    <message>
+        <source>Copy the selected preset into a new saved preset you can rename and edit</source>
+        <translation>Skopiuj wybrane ustawienie wstępne do nowego zapisanego ustawienia, które można przemianować i edytować</translation>
     </message>
 </context>
 <context>

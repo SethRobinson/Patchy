@@ -14411,10 +14411,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Es gibt bereits eine Konturvorgabe namens &quot;%1&quot;.</translation>
     </message>
     <message>
-        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
-        <translation>Integrierte Vorgabe: Sie kann verwendet, aber nicht umbenannt, verschoben oder gelöscht werden.</translation>
-    </message>
-    <message>
         <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
         <translation>Noch keine gespeicherten Konturvorgaben. Richten Sie in Formdarstellung die Kontur ein und klicken Sie neben Striche auf Speichern...</translation>
     </message>
@@ -14740,6 +14736,30 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>The preset could not be exported.</source>
         <translation>Die Vorgabe konnte nicht exportiert werden.</translation>
+    </message>
+    <message>
+        <source>offset %1</source>
+        <translation>Versatz %1</translation>
+    </message>
+    <message>
+        <source>%1 copy</source>
+        <translation>%1 Kopie</translation>
+    </message>
+    <message>
+        <source>%1 copy %2</source>
+        <translation>%1 Kopie %2</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation>Integrierte Vorgabe: Sie kann verwendet, aber nicht umbenannt, verschoben oder gelöscht werden. Duplizieren Sie sie, um eine bearbeitbare Kopie zu erhalten.</translation>
+    </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2; leave it empty for a solid line</source>
+        <translation>Strich- und Lückenlängen in Konturbreiten, durch Leerzeichen getrennt, zum Beispiel 4 2 oder 6 2 1 2; leer lassen für eine durchgehende Linie</translation>
+    </message>
+    <message>
+        <source>Copy the selected preset into a new saved preset you can rename and edit</source>
+        <translation>Die gewählte Vorgabe als neue gespeicherte Vorgabe kopieren, die Sie umbenennen und bearbeiten können</translation>
     </message>
 </context>
 <context>

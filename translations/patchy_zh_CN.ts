@@ -14368,10 +14368,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>已存在名为“%1”的描边预设。</translation>
     </message>
     <message>
-        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
-        <translation>内置预设：可以使用，但不能重命名、移动或删除。</translation>
-    </message>
-    <message>
         <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
         <translation>还没有保存的描边预设。请在“形状外观”中设置描边，然后单击“虚线”旁边的“存储...”。</translation>
     </message>
@@ -14696,6 +14692,30 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>The preset could not be exported.</source>
         <translation>无法导出预设。</translation>
+    </message>
+    <message>
+        <source>offset %1</source>
+        <translation>偏移 %1</translation>
+    </message>
+    <message>
+        <source>%1 copy</source>
+        <translation>%1 副本</translation>
+    </message>
+    <message>
+        <source>%1 copy %2</source>
+        <translation>%1 副本 %2</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation>内置预设：可以使用，但不能重命名、移动或删除。复制它可得到一个可编辑的副本。</translation>
+    </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2; leave it empty for a solid line</source>
+        <translation>以描边宽度为单位的虚线和间隙长度，用空格分隔，例如 4 2 或 6 2 1 2；留空则为实线</translation>
+    </message>
+    <message>
+        <source>Copy the selected preset into a new saved preset you can rename and edit</source>
+        <translation>将所选预设复制为一个可以重命名和编辑的新存储预设</translation>
     </message>
 </context>
 <context>

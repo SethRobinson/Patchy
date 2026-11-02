@@ -14368,10 +14368,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>「%1」という名前の線のプリセットは既にあります。</translation>
     </message>
     <message>
-        <source>Built-in preset: it can be used, but not renamed, moved or deleted.</source>
-        <translation>組み込みプリセット: 使用できますが、名前の変更、移動、削除はできません。</translation>
-    </message>
-    <message>
         <source>No saved stroke presets yet. In Shape Appearance, set up the stroke and click Save... beside Dashes.</source>
         <translation>保存された線のプリセットはまだありません。シェイプの外観で線を設定し、破線の横の「保存...」をクリックしてください。</translation>
     </message>
@@ -14696,6 +14692,30 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>The preset could not be exported.</source>
         <translation>プリセットを書き出せませんでした。</translation>
+    </message>
+    <message>
+        <source>offset %1</source>
+        <translation>オフセット %1</translation>
+    </message>
+    <message>
+        <source>%1 copy</source>
+        <translation>%1 のコピー</translation>
+    </message>
+    <message>
+        <source>%1 copy %2</source>
+        <translation>%1 のコピー %2</translation>
+    </message>
+    <message>
+        <source>Built-in preset: it can be used, but not renamed, moved or deleted. Duplicate it to make a copy you can edit.</source>
+        <translation>組み込みプリセット: 使用できますが、名前の変更、移動、削除はできません。複製すると編集できるコピーが作成されます。</translation>
+    </message>
+    <message>
+        <source>Dash and gap lengths in stroke widths, separated by spaces, for example 4 2 or 6 2 1 2; leave it empty for a solid line</source>
+        <translation>線と間隔の長さ (線幅単位) をスペース区切りで指定します。例: 4 2 または 6 2 1 2。実線にするには空のままにします</translation>
+    </message>
+    <message>
+        <source>Copy the selected preset into a new saved preset you can rename and edit</source>
+        <translation>選択したプリセットを、名前の変更や編集ができる新しい保存済みプリセットとしてコピーします</translation>
     </message>
 </context>
 <context>
