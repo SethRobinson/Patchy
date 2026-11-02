@@ -3347,10 +3347,6 @@
         <translation>Saturation</translation>
     </message>
     <message>
-        <source>Lightness</source>
-        <translation>Luminosité</translation>
-    </message>
-    <message>
         <source>Hue/Saturation</source>
         <translation>Teinte/Saturation</translation>
     </message>
@@ -14853,6 +14849,18 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Manage gradient presets</source>
         <translation>Gérer les paramètres prédéfinis de dégradé</translation>
+    </message>
+    <message>
+        <source>Hue:</source>
+        <translation>Teinte :</translation>
+    </message>
+    <message>
+        <source>Lightness:</source>
+        <translation>Luminosité :</translation>
+    </message>
+    <message>
+        <source>Set the values the sliders show back to their defaults</source>
+        <translation>Rétablit les valeurs par défaut des curseurs</translation>
     </message>
 </context>
 <context>

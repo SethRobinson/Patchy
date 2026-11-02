@@ -3347,10 +3347,6 @@
         <translation>Sättigung</translation>
     </message>
     <message>
-        <source>Lightness</source>
-        <translation>Helligkeit</translation>
-    </message>
-    <message>
         <source>Hue/Saturation</source>
         <translation>Farbton/Sättigung</translation>
     </message>
@@ -14853,6 +14849,18 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Manage gradient presets</source>
         <translation>Verlaufsvorgaben verwalten</translation>
+    </message>
+    <message>
+        <source>Hue:</source>
+        <translation>Farbton:</translation>
+    </message>
+    <message>
+        <source>Lightness:</source>
+        <translation>Helligkeit:</translation>
+    </message>
+    <message>
+        <source>Set the values the sliders show back to their defaults</source>
+        <translation>Setzt die Werte der Regler auf ihre Standardwerte zurück</translation>
     </message>
 </context>
 <context>

@@ -3347,10 +3347,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Lightness</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Hue/Saturation</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14835,6 +14831,18 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Manage gradient presets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hue:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lightness:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Set the values the sliders show back to their defaults</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

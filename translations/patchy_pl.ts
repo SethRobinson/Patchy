@@ -3412,10 +3412,6 @@
         <translation>Nasycenie</translation>
     </message>
     <message>
-        <source>Lightness</source>
-        <translation>Jasność</translation>
-    </message>
-    <message>
         <source>Hue/Saturation</source>
         <translation>Barwa/Nasycenie</translation>
     </message>
@@ -14898,6 +14894,18 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Manage gradient presets</source>
         <translation>Zarządzaj ustawieniami wstępnymi gradientów</translation>
+    </message>
+    <message>
+        <source>Hue:</source>
+        <translation>Barwa:</translation>
+    </message>
+    <message>
+        <source>Lightness:</source>
+        <translation>Jasność:</translation>
+    </message>
+    <message>
+        <source>Set the values the sliders show back to their defaults</source>
+        <translation>Przywraca domyślne wartości suwaków</translation>
     </message>
 </context>
 <context>

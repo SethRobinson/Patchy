@@ -261,7 +261,95 @@ void ui_adjustment_presets_hue_saturation_presets_tracks_and_buttons() {
     CHECK(presets->count() == 16);
     CHECK(presets->currentData().toString() == QStringLiteral("hue_saturation.default"));
     CHECK(!remove->isEnabled());
+    process_events_for(60);
+
+    // Follow-up layout (#588): the Preset and Edit combos and Colorize line up with the
+    // tracks (5 px into each slider), a separator under the preset buttons, colons on the
+    // slider labels, Reset at the right under the Lightness field, Preview on the OK line.
+    auto* reset = child<QPushButton>(*dialog, "hueSaturationResetButton");
+    auto* separator = child<QWidget>(*dialog, "hueSaturationPresetSeparator");
+    auto* preview = child<QCheckBox>(*dialog, "hueSaturationPreviewCheck");
+    auto* lightness = child<QSpinBox>(*dialog, "hueSaturationLightnessSpin");
+    auto* buttons = dialog->findChild<QDialogButtonBox*>();
+    if (reset == nullptr || separator == nullptr || preview == nullptr || lightness == nullptr || buttons == nullptr) {
+      dialog->reject();
+      return;
+    }
+    const auto track_left = geometry_in(*hue_slider, *dialog).left() + 5;
+    CHECK(geometry_in(*range, *dialog).left() == track_left);
+    CHECK(geometry_in(*presets, *dialog).left() == track_left);
+    CHECK(geometry_in(*colorize, *dialog).left() == track_left);
+    CHECK(geometry_in(*saturation_slider, *dialog).left() + 5 == track_left);
+    CHECK(geometry_in(*separator, *dialog).top() > geometry_in(*export_button, *dialog).bottom());
+    CHECK(geometry_in(*separator, *dialog).bottom() < geometry_in(*range, *dialog).top());
+    CHECK(geometry_in(*presets, *dialog).bottom() < geometry_in(*save, *dialog).top());
+    CHECK(geometry_in(*reset, *dialog).top() > geometry_in(*lightness, *dialog).bottom());
+    CHECK(std::abs(geometry_in(*reset, *dialog).right() - geometry_in(*lightness, *dialog).right()) <= 1);
+    CHECK(std::abs(geometry_in(*reset, *dialog).center().y() - geometry_in(*colorize, *dialog).center().y()) <= 4);
+    auto* ok = buttons->button(QDialogButtonBox::Ok);
+    CHECK(ok->width() == buttons->button(QDialogButtonBox::Cancel)->width());
+    CHECK(std::abs(geometry_in(*preview, *dialog).center().y() - geometry_in(*ok, *dialog).center().y()) <= 4);
+    CHECK(geometry_in(*preview, *dialog).right() < geometry_in(*ok, *dialog).left());
+    for (const auto* name : {"Hue:", "Saturation:", "Lightness:"}) {
+      bool found = false;
+      for (auto* label : dialog->findChildren<QLabel*>()) {
+        found = found || label->text() == QString::fromLatin1(name);
+      }
+      CHECK(found);
+    }
+    // Tab order follows the layout.
+    const std::vector<QWidget*> order{presets,
+                                      save,
+                                      remove,
+                                      import,
+                                      export_button,
+                                      range,
+                                      hue_slider,
+                                      hue,
+                                      saturation_slider,
+                                      saturation,
+                                      lightness_slider,
+                                      lightness,
+                                      colorize,
+                                      reset,
+                                      preview,
+                                      ok};
+    const auto order_chain = focus_chain(presets, static_cast<int>(order.size()));
+    if (order_chain != order) {
+      std::cerr << "hue/saturation tab order:";
+      for (auto* widget : order_chain) {
+        std::cerr << ' ' << widget->metaObject()->className() << ':' << widget->objectName().toStdString();
+      }
+      std::cerr << '\n';
+    }
+    CHECK(order_chain == order);
     capture_both_schemes(*dialog, "ui_hue_saturation_presets_default");
+
+    // An Edit entry with a value off zero shows an asterisk; Reset or zeroing it by hand
+    // takes it away. The entries keep their indices.
+    range->setCurrentIndex(1);
+    hue->setValue(20);
+    CHECK(range->itemText(1) == QStringLiteral("Reds*") && range->itemText(0) == QStringLiteral("Master"));
+    range->setCurrentIndex(0);
+    saturation->setValue(-10);
+    CHECK(range->itemText(0) == QStringLiteral("Master*") && range->itemText(1) == QStringLiteral("Reds*"));
+    capture_both_schemes(*dialog, "ui_hue_saturation_edit_asterisks");
+    reset->click();
+    CHECK(hue->value() == 0 && saturation->value() == 0 && range->itemText(0) == QStringLiteral("Master"));
+    CHECK(range->itemText(1) == QStringLiteral("Reds*"));
+    range->setCurrentIndex(1);
+    CHECK(hue->value() == 20);
+    hue->setValue(0);
+    CHECK(range->itemText(1) == QStringLiteral("Reds"));
+    CHECK(presets->currentData().toString() == QStringLiteral("hue_saturation.default"));
+    // While Colorize is on, Reset restores the Colorize defaults and leaves Colorize on.
+    colorize->setChecked(true);
+    hue->setValue(200);
+    saturation->setValue(70);
+    reset->click();
+    CHECK(colorize->isChecked() && hue->value() == 0 && saturation->value() == 25);
+    colorize->setChecked(false);
+    range->setCurrentIndex(0);
 
     // Master: the hue track is the wheel around red, saturation runs from gray.
     CHECK(std::abs(property_color(*hue_slider, "patchy.trackMiddle").hsvHue() - 0) <= 2);
@@ -411,6 +499,11 @@ void ui_adjustment_presets_levels_presets_fields_and_eyedroppers() {
     const auto ok_width = buttons->button(QDialogButtonBox::Ok)->width();
     CHECK(buttons->button(QDialogButtonBox::Cancel)->width() == ok_width);
     CHECK(auto_button->width() == ok_width && save->width() == ok_width && remove->width() == ok_width);
+    // A separator under the preset buttons, as in the other preset dialogs.
+    auto* separator = child<QWidget>(*dialog, "levelsPresetSeparator");
+    auto* export_button = child<QPushButton>(*dialog, "levelsExportPresetButton");
+    CHECK(separator != nullptr && export_button != nullptr &&
+          geometry_in(*separator, *dialog).top() > geometry_in(*export_button, *dialog).bottom());
     capture_both_schemes(*dialog, "ui_levels_presets_dialog");
 
     // An output-level preset.
@@ -468,7 +561,9 @@ void ui_adjustment_presets_levels_presets_fields_and_eyedroppers() {
 
 void ui_adjustment_presets_curves_layout_and_user_presets() {
   clear_user_presets(AdjustmentPresetKind::Curves);
-  QWidget parent;
+  // Owned by a parent carrying the app style sheet, as in the app, so it opens at its real size.
+  const auto themed_parent = make_themed_dialog_parent();
+  auto& parent = *themed_parent;
   parent.show();
   QApplication::processEvents();
   bool checked = false;
@@ -497,14 +592,81 @@ void ui_adjustment_presets_curves_layout_and_user_presets() {
     CHECK(dialog->findChild<QPushButton*>(QStringLiteral("curvesLoadPresetButton")) == nullptr);
     CHECK(import->text() == QStringLiteral("Import...") && export_button->text() == QStringLiteral("Export..."));
     CHECK(save->text() == QStringLiteral("Save...") && remove->text() == QStringLiteral("Delete"));
-    // Presets on top with the buttons beside them; Auto and Reset on the Input/Output line.
+    // Top to bottom (#592): the preset list, its buttons, a separator, the canvas tools, the
+    // editor. Input, Output, Auto, Reset and Before form a column right of the graph, each
+    // label above its field and a gap before the buttons. OK is as wide as Cancel.
+    auto* output = child<QSpinBox>(*dialog, "curvesOutputSpin");
+    auto* graph = child<QWidget>(*dialog, "curvesGraph");
+    auto* separator = child<QWidget>(*dialog, "curvesPresetSeparator");
+    auto* target = child<QPushButton>(*dialog, "curvesTargetedAdjustmentButton");
+    auto* both = child<QPushButton>(*dialog, "curvesClippingPreviewButton");
+    auto* before = child<QPushButton>(*dialog, "curvesBeforeButton");
+    auto* preview = child<QCheckBox>(*dialog, "curvesPreviewCheck");
+    auto* buttons = dialog->findChild<QDialogButtonBox*>();
+    if (output == nullptr || graph == nullptr || separator == nullptr || target == nullptr || both == nullptr ||
+        before == nullptr || preview == nullptr || buttons == nullptr) {
+      dialog->reject();
+      return;
+    }
     const auto list_box = geometry_in(*list, *dialog);
-    CHECK(list_box.bottom() < geometry_in(*editor, *dialog).top());
-    CHECK(geometry_in(*import, *dialog).left() > list_box.right());
-    CHECK(std::abs(geometry_in(*auto_button, *dialog).center().y() - geometry_in(*input, *dialog).center().y()) <= 4);
-    CHECK(std::abs(geometry_in(*reset, *dialog).center().y() - geometry_in(*input, *dialog).center().y()) <= 4);
-    CHECK(dialog->minimumSize() == QSize(560, 560));
+    const auto save_box = geometry_in(*save, *dialog);
+    CHECK(save_box.top() > list_box.bottom() && save_box.left() == list_box.left());
+    for (auto* button : {remove, import, export_button}) {
+      CHECK(geometry_in(*button, *dialog).center().y() == save_box.center().y());
+    }
+    CHECK(geometry_in(*separator, *dialog).top() > save_box.bottom());
+    CHECK(geometry_in(*target, *dialog).top() > geometry_in(*separator, *dialog).bottom());
+    CHECK(geometry_in(*both, *dialog).center().y() == geometry_in(*target, *dialog).center().y());
+    CHECK(geometry_in(*tabs, *dialog).top() > geometry_in(*target, *dialog).bottom());
+    const auto graph_box = geometry_in(*graph, *dialog);
+    QLabel* input_caption = nullptr;
+    QLabel* output_caption = nullptr;
+    for (auto* label : editor->findChildren<QLabel*>()) {
+      if (label->buddy() == input) {
+        input_caption = label;
+      } else if (label->buddy() == output) {
+        output_caption = label;
+      }
+    }
+    CHECK(input_caption != nullptr && output_caption != nullptr);
+    if (input_caption != nullptr && output_caption != nullptr) {
+      CHECK(geometry_in(*input_caption, *dialog).bottom() < geometry_in(*input, *dialog).top());
+      CHECK(geometry_in(*input, *dialog).bottom() < geometry_in(*output_caption, *dialog).top());
+      CHECK(geometry_in(*output_caption, *dialog).bottom() < geometry_in(*output, *dialog).top());
+      CHECK(geometry_in(*input_caption, *dialog).left() > graph_box.right());
+    }
+    const auto column_left = geometry_in(*input, *dialog).left();
+    CHECK(column_left > graph_box.right());
+    for (QWidget* widget : {static_cast<QWidget*>(output), static_cast<QWidget*>(auto_button),
+                            static_cast<QWidget*>(reset), static_cast<QWidget*>(before)}) {
+      CHECK(geometry_in(*widget, *dialog).left() == column_left);
+      CHECK(geometry_in(*widget, *dialog).width() == input->width());
+    }
+    CHECK(geometry_in(*auto_button, *dialog).top() - geometry_in(*output, *dialog).bottom() >= 12);
+    CHECK(geometry_in(*reset, *dialog).top() > geometry_in(*auto_button, *dialog).bottom());
+    CHECK(geometry_in(*before, *dialog).top() > geometry_in(*reset, *dialog).bottom());
+    CHECK(geometry_in(*before, *dialog).bottom() <= graph_box.bottom());
+    auto* ok = buttons->button(QDialogButtonBox::Ok);
+    CHECK(ok->width() == buttons->button(QDialogButtonBox::Cancel)->width());
+    CHECK(std::abs(geometry_in(*preview, *dialog).center().y() - geometry_in(*ok, *dialog).center().y()) <= 4);
+    CHECK(geometry_in(*preview, *dialog).right() < geometry_in(*ok, *dialog).left());
+    // Tab order follows the layout.
+    const std::vector<QWidget*> order{list, save, remove, import, export_button, target};
+    CHECK(focus_chain(list, static_cast<int>(order.size())) == order);
+    const std::vector<QWidget*> column_order{input, output, auto_button, reset, before, preview, ok};
+    CHECK(focus_chain(input, static_cast<int>(column_order.size())) == column_order);
     CHECK(tabs->tabIcon(0).isNull() && !tabs->tabIcon(1).isNull());
+    // Opened under the theme (compact buttons), it is narrower than the first round's 560 px
+    // minimum. Qt caps a new window's height at 2/3 of the screen, and the offscreen screen is
+    // short, so the dialog is given its size hint here, as on a desktop screen.
+    dialog->resize(dialog->sizeHint());
+    process_events_for(60);
+    std::cerr << "curves dialog size " << dialog->width() << 'x' << dialog->height() << ", strip "
+              << list->height() << " (min " << list->minimumHeight() << "), graph " << graph->height() << '\n';
+    CHECK(dialog->width() < 560);
+    // Nothing is squeezed: the strip keeps its fixed 92 px height, the graph its minimum.
+    CHECK(list->height() == 92);
+    CHECK(graph->height() >= graph->minimumHeight());
     capture_both_schemes(*dialog, "ui_curves_presets_dialog");
 
     // Save a shipped curve as a user preset: it joins the strip and stays selected.
@@ -662,7 +824,8 @@ void ui_adjustment_presets_color_balance_tabs_tracks_reset_and_order() {
       CHECK(slider != nullptr && property_color(*slider, "patchy.trackStart") == ends.first &&
             property_color(*slider, "patchy.trackEnd") == ends.second);
     }
-    // Tab order: tones, each slider and its field, Preserve Luminosity, Preview, then the buttons.
+    // Tab order: tones, each slider and its field, Preserve Luminosity, Reset, Preview, then the
+    // buttons.
     const std::vector<QWidget*> expected{tabs,
                                          child<QSlider>(*dialog, "colorBalanceCyanRedSlider"),
                                          cyan_red,
@@ -671,6 +834,7 @@ void ui_adjustment_presets_color_balance_tabs_tracks_reset_and_order() {
                                          child<QSlider>(*dialog, "colorBalanceYellowBlueSlider"),
                                          yellow_blue,
                                          preserve,
+                                         reset,
                                          preview};
     const auto chain = focus_chain(tabs, static_cast<int>(expected.size()));
     if (chain != expected) {
@@ -681,12 +845,21 @@ void ui_adjustment_presets_color_balance_tabs_tracks_reset_and_order() {
       std::cerr << '\n';
     }
     CHECK(chain == expected);
-    // Reset sits left of OK on the button line; OK is as wide as Cancel.
+    // Follow-up (#591): sliders at least 180 px; Preserve Luminosity lines up with the tracks;
+    // Reset on its line, right under the Yellow/Blue field; Preview on the OK line; OK as
+    // wide as Cancel.
+    auto* yellow_blue_slider = child<QSlider>(*dialog, "colorBalanceYellowBlueSlider");
+    CHECK(yellow_blue_slider->minimumWidth() == 180 && yellow_blue_slider->width() >= 180);
+    CHECK(geometry_in(*preserve, *dialog).left() == geometry_in(*yellow_blue_slider, *dialog).left() + 5);
+    CHECK(std::abs(geometry_in(*reset, *dialog).center().y() - geometry_in(*preserve, *dialog).center().y()) <= 4);
+    CHECK(std::abs(geometry_in(*reset, *dialog).right() - geometry_in(*yellow_blue, *dialog).right()) <= 1);
+    CHECK(geometry_in(*reset, *dialog).top() > geometry_in(*yellow_blue, *dialog).bottom());
+    CHECK(!buttons->isAncestorOf(reset));
     auto* ok = buttons->button(QDialogButtonBox::Ok);
     auto* cancel = buttons->button(QDialogButtonBox::Cancel);
     CHECK(ok->width() == cancel->width());
-    CHECK(geometry_in(*reset, *dialog).right() < geometry_in(*ok, *dialog).left());
-    CHECK(std::abs(geometry_in(*reset, *dialog).center().y() - geometry_in(*ok, *dialog).center().y()) <= 2);
+    CHECK(std::abs(geometry_in(*preview, *dialog).center().y() - geometry_in(*ok, *dialog).center().y()) <= 4);
+    CHECK(geometry_in(*preview, *dialog).right() < geometry_in(*ok, *dialog).left());
     capture_both_schemes(*dialog, "ui_color_balance_tabs_dialog");
 
     cyan_red->setValue(20);

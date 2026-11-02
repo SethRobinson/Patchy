@@ -3346,10 +3346,6 @@
         <translation>饱和度</translation>
     </message>
     <message>
-        <source>Lightness</source>
-        <translation>明度</translation>
-    </message>
-    <message>
         <source>Hue/Saturation</source>
         <translation>色相/饱和度</translation>
     </message>
@@ -14808,6 +14804,18 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Manage gradient presets</source>
         <translation>管理渐变预设</translation>
+    </message>
+    <message>
+        <source>Hue:</source>
+        <translation>色相:</translation>
+    </message>
+    <message>
+        <source>Lightness:</source>
+        <translation>明度:</translation>
+    </message>
+    <message>
+        <source>Set the values the sliders show back to their defaults</source>
+        <translation>将滑块的值恢复为默认值</translation>
     </message>
 </context>
 <context>

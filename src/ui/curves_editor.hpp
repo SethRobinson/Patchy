@@ -14,6 +14,7 @@
 class QPushButton;
 class QSpinBox;
 class QTabBar;
+class QVBoxLayout;
 
 namespace patchy {
 
@@ -92,6 +93,9 @@ public:
   [[nodiscard]] CurvesChannel active_channel() const noexcept;
   [[nodiscard]] int selected_point() const noexcept;
   [[nodiscard]] QSize sizeHint() const override;
+  // Adds a button below Auto and Reset in the column right of the graph (the dialog's
+  // Before, #592).
+  void add_column_button(QPushButton* button);
 
   // gesture_finished is false for in-flight drags/spin edits and true at a
   // release/editing boundary. Dialog hosts can coalesce the former and flush
@@ -129,6 +133,7 @@ private:
   QSpinBox* output_spin_{nullptr};
   QPushButton* reset_button_{nullptr};
   QPushButton* auto_button_{nullptr};
+  QVBoxLayout* column_{nullptr};
 };
 
 }  // namespace ui

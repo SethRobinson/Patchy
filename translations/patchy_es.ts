@@ -3347,10 +3347,6 @@
         <translation>Saturación</translation>
     </message>
     <message>
-        <source>Lightness</source>
-        <translation>Luminosidad</translation>
-    </message>
-    <message>
         <source>Hue/Saturation</source>
         <translation>Tono/saturación</translation>
     </message>
@@ -14853,6 +14849,18 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Manage gradient presets</source>
         <translation>Gestionar los ajustes preestablecidos de degradado</translation>
+    </message>
+    <message>
+        <source>Hue:</source>
+        <translation>Tono:</translation>
+    </message>
+    <message>
+        <source>Lightness:</source>
+        <translation>Luminosidad:</translation>
+    </message>
+    <message>
+        <source>Set the values the sliders show back to their defaults</source>
+        <translation>Devuelve los valores de los deslizadores a sus valores predeterminados</translation>
     </message>
 </context>
 <context>
