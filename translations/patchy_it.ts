@@ -14793,6 +14793,18 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Color Fill</source>
         <translation>Riempimento colore</translation>
     </message>
+    <message>
+        <source>Manage...</source>
+        <translation>Gestisci…</translation>
+    </message>
+    <message>
+        <source>Open the Gradient Manager to save, rename, import or delete gradient presets</source>
+        <translation>Apri Gestione sfumature per salvare, rinominare, importare o eliminare i predefiniti sfumatura</translation>
+    </message>
+    <message>
+        <source>Manage gradient presets</source>
+        <translation>Gestisci i predefiniti sfumatura</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

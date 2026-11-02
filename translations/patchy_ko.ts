@@ -14749,6 +14749,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Color Fill</source>
         <translation>단색 채우기</translation>
     </message>
+    <message>
+        <source>Manage...</source>
+        <translation>관리…</translation>
+    </message>
+    <message>
+        <source>Open the Gradient Manager to save, rename, import or delete gradient presets</source>
+        <translation>그레이디언트 관리자를 열어 그레이디언트 사전 설정을 저장, 이름 변경, 가져오기 또는 삭제합니다</translation>
+    </message>
+    <message>
+        <source>Manage gradient presets</source>
+        <translation>그레이디언트 사전 설정 관리</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

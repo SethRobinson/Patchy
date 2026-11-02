@@ -12,6 +12,7 @@
 #include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/gradient_library.hpp"
+#include "ui/gradient_manager_dialog.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/theme_palette.hpp"
@@ -878,11 +879,59 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   const auto saved_pattern_name = [](const QComboBox* combo) {
     return combo->currentData(kPatternSavedNameRole).toString().toStdString();
   };
+  // The Gradient row: the preset list and a Manage... button that opens the
+  // Gradient Manager (GitHub #552 follow-up), where the current gradient can be
+  // saved as a preset (New from Current) and presets renamed, imported or
+  // deleted. Afterwards the list is rebuilt and shows the preset the gradient
+  // matches, or Custom; Use Gradient picks a preset like the list does.
+  const auto add_gradient_row = [&field_rows, &dialog, state, gradient_library, preview_colors,
+                                 populate_gradient_combo, select_gradient_row](
+                                    QFormLayout* form, QWidget* parent, bool for_stroke) {
+    auto* row = new QWidget(parent);
+    auto* row_layout = new QHBoxLayout(row);
+    row_layout->setContentsMargins(0, 0, 0, 0);
+    row_layout->setSpacing(6);
+    auto* combo = new QComboBox(row);
+    combo->setObjectName(for_stroke ? QStringLiteral("shapeStrokeGradientCombo")
+                                    : QStringLiteral("shapeFillGradientCombo"));
+    populate_gradient_combo(combo);
+    auto* manage = new QPushButton(QObject::tr("Manage..."), row);
+    manage->setObjectName(for_stroke ? QStringLiteral("shapeStrokeGradientManageButton")
+                                     : QStringLiteral("shapeFillGradientManageButton"));
+    manage->setToolTip(QObject::tr("Open the Gradient Manager to save, rename, import or delete gradient presets"));
+    manage->setAccessibleName(QObject::tr("Manage gradient presets"));
+    manage->setEnabled(gradient_library != nullptr);
+    row_layout->addWidget(combo, 1);
+    row_layout->addWidget(manage);
+    form->addRow(QObject::tr("Gradient:"), row);
+    field_rows[combo] = row;
+    QObject::connect(manage, &QPushButton::clicked, &dialog, [=, &dialog] {
+      if (gradient_library == nullptr) return;
+      const GradientDefinition current =
+          for_stroke ? static_cast<const GradientDefinition&>(state->settings.stroke.content.gradient)
+                     : static_cast<const GradientDefinition&>(state->settings.fill.gradient);
+      auto& custom = for_stroke ? state->custom_stroke_gradient : state->custom_fill_gradient;
+      const auto selected =
+          request_gradient_manager(&dialog, *gradient_library, combo->currentData().toString(), current);
+      const bool had_custom_row = combo->count() > 0 && combo->itemData(0).toString().isEmpty();
+      {
+        QSignalBlocker blocker(combo);
+        combo->clear();
+        populate_gradient_combo(combo);
+        if (had_custom_row) {
+          combo->insertItem(0, QIcon(gradient_thumbnail(custom, 112, 28, preview_colors)),
+                            QObject::tr("Custom"), QString());
+        }
+      }
+      select_gradient_row(combo, current, custom);
+      if (const auto picked = selected.isEmpty() ? -1 : combo->findData(selected); picked >= 0) {
+        combo->setCurrentIndex(picked);
+      }
+    });
+    return combo;
+  };
 
-  auto* fill_gradient_combo = new QComboBox(fill_group);
-  fill_gradient_combo->setObjectName(QStringLiteral("shapeFillGradientCombo"));
-  populate_gradient_combo(fill_gradient_combo);
-  fill_form->addRow(QObject::tr("Gradient:"), fill_gradient_combo);
+  auto* fill_gradient_combo = add_gradient_row(fill_form, fill_group, false);
 
   auto* gradient_type_combo = new QComboBox(fill_group);
   gradient_type_combo->setObjectName(QStringLiteral("shapeGradientTypeCombo"));
@@ -1057,10 +1106,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   stroke_color_button->setText(QObject::tr("Color..."));
   stroke_form->addRow(QObject::tr("Color:"), stroke_color_button);
 
-  auto* stroke_gradient_combo = new QComboBox(stroke_group);
-  stroke_gradient_combo->setObjectName(QStringLiteral("shapeStrokeGradientCombo"));
-  populate_gradient_combo(stroke_gradient_combo);
-  stroke_form->addRow(QObject::tr("Gradient:"), stroke_gradient_combo);
+  auto* stroke_gradient_combo = add_gradient_row(stroke_form, stroke_group, true);
 
   auto* stroke_gradient_type_combo = new QComboBox(stroke_group);
   stroke_gradient_type_combo->setObjectName(QStringLiteral("shapeStrokeGradientTypeCombo"));

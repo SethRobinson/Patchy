@@ -42,6 +42,8 @@ Preset previews (`gradient_thumbnail`) draw alpha over the transparency checkerb
 
 Shape Appearance's fill and stroke Gradient lists open on the preset the layer's gradient came from (`matching_gradient_library_entry`, #578, #579): entries whose definition, Foreground/Background stops resolved in the current colors, draws the same (`gradient_definitions_draw_same`: form, smoothness, stops and alpha stops within PSD/GRD rounding; noise settings exactly; the name ignored). Ties prefer the gradient's own name, then an entry with Foreground/Background stops, so a new Gradient Fill on black and white shows Foreground to Background, not Black to White. No match adds a Custom row (empty item data) at the top that holds the layer's gradient and restores it after a preset is tried. A paint with no gradient yet shows the first preset, which a switch to Gradient seeds from.
 
+A Manage... button beside each of those lists (`shapeFillGradientManageButton`, `shapeStrokeGradientManageButton`; #552 follow-up) opens the Gradient Manager on the paint's gradient, so New from Current saves it as a preset. On close the list is rebuilt from the library and reselected by the same matching (a Custom row it had stays); a Use Gradient pick then applies like a pick in the list.
+
 ## Stop editor widget
 
 `GradientStopsEditorWidget` is callback-driven: it never mutates its own stop vectors; hosts copy-and-sort, and must never sort the working vectors in place: an in-flight tag or midpoint drag holds an index into them. Photoshop `Mdpn` belongs to the destination/right stop; the first stop's midpoint is unused.

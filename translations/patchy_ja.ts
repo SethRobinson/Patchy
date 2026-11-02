@@ -14749,6 +14749,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Color Fill</source>
         <translation>べた塗り</translation>
     </message>
+    <message>
+        <source>Manage...</source>
+        <translation>管理…</translation>
+    </message>
+    <message>
+        <source>Open the Gradient Manager to save, rename, import or delete gradient presets</source>
+        <translation>グラデーションマネージャーを開いて、グラデーションプリセットを保存、名前変更、読み込み、削除します</translation>
+    </message>
+    <message>
+        <source>Manage gradient presets</source>
+        <translation>グラデーションプリセットを管理</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
