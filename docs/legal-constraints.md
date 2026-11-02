@@ -33,7 +33,7 @@ Read before touching a feature below or one near it. Licensing, file formats, tr
 
 ## GEGL filters
 
-- **Patchy's own GEGL is built without Median Blur, Focus Blur and Red Eye Removal** (`PATCHY_GEGL_DROPPED`, removed from GEGL's build lists, not merely hidden), and Vibrance stays out of the menu while Apple US 8638338 claim 25 is unread (review of 2026-11-02, [gegl-filters.md](gegl-filters.md#legal-review)). A new GEGL version or operation needs the same review before it ships; licensing is in [legal-licensing.md](legal-licensing.md#gegl-operations-through-a-helper).
+- **Patchy's own GEGL is built without Median Blur, Focus Blur and Red Eye Removal** (`PATCHY_GEGL_DROPPED`, removed from GEGL's build lists, not merely hidden; review of 2026-11-02, [gegl-filters.md](gegl-filters.md#legal-review)). Its Vibrance is out of the menu, though the claim read of 2026-11-02 cleared it (adjustment-layers bullet below). A new GEGL version or operation needs the same review before it ships; licensing is in [legal-licensing.md](legal-licensing.md#gegl-operations-through-a-helper).
 
 ## Brush behavior
 
@@ -72,6 +72,7 @@ Read before touching a feature below or one near it. Licensing, file formats, tr
 ## Adjustment layers
 
 - **Black & White mixes only the user's six weights** (October 2026, [record](patent-research-adjustments.md)). Never derive the weights or the gray from image content, such as an Auto button (Adobe US 7706606, to 2029), and never drive the weights from one control along a path (Apple US 9092893, to 2032), without a new review.
+- **Vibrance's gain stays a fixed function of each pixel's own values** (claim read of 2026-11-02, [record](patent-research-adjustments.md)). Until 2032-03-22 (Apple US 8638338; continuation US 9639965 to 2028-09-29), never a slider that gives colors outside a protected color region the plain saturation amount and colors inside it an amount scaled by distance from reference colors (skin tones or any other), and never a nearest-reference-color search, without a new review. Hue/Saturation's band ranges keep Photoshop's pre-2007 range-and-falloff form. GEGL's `gegl:vibrance` (one chroma offset for every pixel) is clear.
 - **Color Lookup applies only the table in the user's own file or a LUT file the user picks** (October 2026, [record](patent-research-adjustments.md)). Patchy reads the LUT text a `clrL` block keeps (`.cube`, `.3dl`, `.look`) and its embedded ICC device-link or abstract profile, and applies the table unmodified by fixed interpolation. A LUT file the user picks, in those formats only, is embedded in the user's document as Photoshop embeds it. Never ship, copy, recreate, fetch, or list by name the looks Photoshop or any third party bundles. An unedited `clrL` block is written back byte for byte. Never add, without a new review: LUT generation from image content, learned looks, look matching between images, table editing, or LUT export.
 
 ## Soft proof and gamut warning
