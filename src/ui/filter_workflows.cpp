@@ -476,7 +476,8 @@ FilterDialogSpec filter_dialog_spec_for(const FilterDefinition& filter) {
 std::optional<FilterInvocation> request_filter_settings(
     QWidget* parent, const FilterDialogSpec& spec, const std::function<void(FilterPreviewSettings)>& preview_changed,
     FilterInvocation initial, const FilterDialogPreviewSource* preview_source,
-    SmartFilterBlendingSettings* blending, const std::function<QString(const FilterInvocation&)>& notice) {
+    SmartFilterBlendingSettings* blending, const std::function<QString(const FilterInvocation&)>& notice,
+    FilterDialogSelectionLink* selection_link) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyFilterDialog"));
   dialog.setProperty("patchy.filterIdentifier", spec.identifier);
@@ -727,6 +728,7 @@ std::optional<FilterInvocation> request_filter_settings(
   }
 
   std::shared_ptr<FilterProxyPreviewState> proxy_state;
+  std::shared_ptr<const FilterRegistry> proxy_registry;
   std::function<void()> refresh_dialog_overlay;
   // apply below captures this frame by reference while its render completion is
   // posted to QCoreApplication, so an exception escaping run_non_modal_dialog's
@@ -740,7 +742,7 @@ std::optional<FilterInvocation> request_filter_settings(
   const auto close_proxy_state =
       qScopeGuard([&proxy_state] { close_filter_proxy_preview(proxy_state); });
   if (has_preview_source && proxy_preview != nullptr) {
-    auto proxy_registry =
+    proxy_registry =
         std::make_shared<const FilterRegistry>(*preview_source->registry);
     proxy_state = std::make_shared<FilterProxyPreviewState>();
     proxy_state->apply = [&](FilterProxyRender rendered, FilterRecipe,
@@ -761,7 +763,7 @@ std::optional<FilterInvocation> request_filter_settings(
     };
     proxy_state->fail = [](QString) {};
     proxy_state->start = make_filter_proxy_render_start(
-        proxy_state, std::move(proxy_registry), dialog_proxy,
+        proxy_state, proxy_registry, dialog_proxy,
         Rect{preview_source->bounds.x, preview_source->bounds.y,
              preview_source->pixels->width(),
              preview_source->pixels->height()},
@@ -870,6 +872,34 @@ std::optional<FilterInvocation> request_filter_settings(
     refresh_dialog_overlay();
     schedule_proxy_render_callback();
   }
+
+  // A selection changed on the canvas while the dialog is open (local-028): the proxy is
+  // rebuilt from the same immutable source for the new selection (bounded, once per
+  // change) and the canvas preview is emitted again for it.
+  if (selection_link != nullptr) {
+    selection_link->selection_changed = [&](const FilterSelection& selection) {
+      if (proxy_state != nullptr && proxy_registry != nullptr && has_preview_source) {
+        dialog_proxy = make_filter_preview_proxy(*preview_source->pixels, preview_source->bounds, selection,
+                                                 kFilterProxyMaximumDimension);
+        cancel_filter_proxy_preview(proxy_state);
+        proxy_state->start = make_filter_proxy_render_start(
+            proxy_state, proxy_registry, dialog_proxy,
+            Rect{preview_source->bounds.x, preview_source->bounds.y, preview_source->pixels->width(),
+                 preview_source->pixels->height()},
+            {});
+        if (schedule_proxy_render_callback) {
+          schedule_proxy_render_callback();
+        }
+      }
+      flush_preview();
+    };
+  }
+  // Declared after everything the link's function captures, so it is cleared first.
+  const auto clear_selection_link = qScopeGuard([selection_link] {
+    if (selection_link != nullptr) {
+      selection_link->selection_changed = {};
+    }
+  });
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Reset,
                                        &dialog);

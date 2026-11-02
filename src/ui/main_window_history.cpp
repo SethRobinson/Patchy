@@ -35,6 +35,7 @@
 #include "ui/theme_palette.hpp"
 
 #include <QListWidgetItem>
+#include <QScopeGuard>
 #include <QMenu>
 #include <QPoint>
 #include <QRegion>
@@ -339,6 +340,15 @@ void MainWindow::push_undo_snapshot(DocumentSession& target_session, QString lab
 void MainWindow::push_selection_history(DocumentSession& target_session, QString label,
                                         CanvasWidget::SelectionSnapshot before, bool coalesce) {
   const bool target_is_active = &target_session == active_session();
+  // A filter dialog that lets the selection change (local-028) re-renders its previews
+  // for the new selection; this runs after the entry is recorded (or coalesced).
+  const auto notify_preview_selection_session = qScopeGuard([this, target_is_active] {
+    if (target_is_active && preview_selection_session_ != nullptr &&
+        preview_selection_session_->selection_changed) {
+      auto selection_changed = preview_selection_session_->selection_changed;
+      selection_changed();
+    }
+  });
   if (target_is_active) {
     finish_pending_shape_appearance_edit();
     finish_pending_layer_opacity_edit();
@@ -361,9 +371,17 @@ void MainWindow::push_selection_history(DocumentSession& target_session, QString
   // current document together with the pre-edit selection. The document is not
   // flagged modified for save purposes (a mere selection is not unsaved work),
   // but the change still joins the undo/redo history.
+  // Under a filter dialog's live preview the layer shows filtered pixels the
+  // document does not own yet: the entry keeps the layer as it was before them.
+  auto document = active_session.document;
+  if (target_is_active && preview_selection_session_ != nullptr) {
+    if (auto* previewed = document.find_layer(preview_selection_session_->layer_id); previewed != nullptr) {
+      *previewed = preview_selection_session_->original;
+    }
+  }
   record_history_push(
       active_session,
-      DocumentSession::HistoryState{active_session.document, std::nullopt, active_session.revision,
+      DocumentSession::HistoryState{std::move(document), std::nullopt, active_session.revision,
                                     std::move(before), {}, 0},
       label);
   active_session.history.set_selection_move_coalescing(coalesce);

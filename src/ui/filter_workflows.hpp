@@ -149,6 +149,14 @@ struct FilterDialogPreviewSource {
   const FilterRegistry* registry{nullptr};
 };
 
+// Lets the canvas selection change while request_filter_settings runs (local-028; docs/
+// selection-tools.md "Selection edits under a filter dialog"). The dialog sets
+// `selection_changed` for as long as it runs: the host calls it with the new selection,
+// and the dialog rebuilds its proxy preview for it and emits the canvas preview again.
+struct FilterDialogSelectionLink {
+  std::function<void(const FilterSelection&)> selection_changed;
+};
+
 using FilterProgress = ::patchy::FilterProgress;
 using FilterCancelled = ::patchy::FilterCancelled;
 
@@ -180,7 +188,8 @@ void blend_by_selection_coverage(PixelBuffer& result, const PixelBuffer& origina
     SmartFilterBlendingSettings* blending = nullptr,
     // Optional: a line the dialog shows above its controls for the current
     // settings (empty hides it), re-read on every change.
-    const std::function<QString(const FilterInvocation&)>& notice = {});
+    const std::function<QString(const FilterInvocation&)>& notice = {},
+    FilterDialogSelectionLink* selection_link = nullptr);
 [[nodiscard]] std::optional<LevelsSettings> request_levels_settings(
     QWidget* parent, std::function<void(bool, const LevelsSettings&)> preview_changed = {},
     LevelsSettings initial = {}, const PixelBuffer* histogram_source = nullptr);

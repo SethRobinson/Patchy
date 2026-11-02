@@ -2796,6 +2796,9 @@ private:
   void end_preview_dialog_edit_lock();
   [[nodiscard]] bool preview_dialog_edit_locked() const noexcept;
   [[nodiscard]] bool document_action_enabled_during_preview_lock(const QAction* action) const;
+  // Before a Select command that reads layer pixels (Grow, Similar, Load Layer
+  // Transparency) runs under a PreviewSelectionSession: the unfiltered pixels go back first.
+  void prepare_preview_selection_sampling();
   bool show_preview_dialog_edit_lock_message();
   void sync_brush_controls_from_canvas();
   void load_recent_files();
@@ -3643,6 +3646,21 @@ private:
   // G'MIC Filter Library): the edit lock then leaves the Layers panel's visibility eyes
   // working (LayerListWidget::set_visibility_only) instead of disabling the list.
   bool preview_lock_allows_layer_visibility_{false};
+  // Set by a filter dialog that lets the selection change while it is open (local-028;
+  // "Selection edits under a filter dialog" in docs/selection-tools.md): the edit lock then
+  // leaves the selection tools and the Select commands live on the dialog's canvas.
+  // Owned by the dialog's frame (MainWindow::apply_filter).
+  struct PreviewSelectionSession {
+    // The previewed layer as it was before the preview: selection undo steps recorded
+    // during the dialog hold it instead of the preview pixels.
+    LayerId layer_id{};
+    Layer original;
+    // Puts the unfiltered pixels back before a selection command reads them.
+    std::function<void()> show_original;
+    // Called after every selection change (and after show_original).
+    std::function<void()> selection_changed;
+  };
+  PreviewSelectionSession* preview_selection_session_{nullptr};
   bool scanner_import_active_{false};
   QPointer<QDialog> tile_preview_window_;
   QPointer<AnimationPreviewWindow> animation_preview_window_;

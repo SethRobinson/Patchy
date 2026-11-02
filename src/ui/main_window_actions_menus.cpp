@@ -974,15 +974,21 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
           [this] { canvas_->run_selection_command(tr("Inverse Selection"), [this] { canvas_->invert_selection(); }); });
   connect(quick_mask_action_, &QAction::triggered, this,
           [this] { toggle_quick_mask_mode(); });
-  connect(grow_selection_action, &QAction::triggered, this,
-          [this] { canvas_->run_selection_command(tr("Grow Selection"), [this] { canvas_->grow_selection(); }); });
+  // Grow, Similar and Load Layer Transparency read layer pixels: under a filter dialog's
+  // preview the unfiltered ones go back first (prepare_preview_selection_sampling).
+  connect(grow_selection_action, &QAction::triggered, this, [this] {
+    prepare_preview_selection_sampling();
+    canvas_->run_selection_command(tr("Grow Selection"), [this] { canvas_->grow_selection(); });
+  });
   connect(similar_selection_action, &QAction::triggered, this, [this] {
+    prepare_preview_selection_sampling();
     canvas_->run_selection_command(tr("Select Similar"), [this] { canvas_->select_similar_to_selection(); });
   });
   connect(expand_selection_action, &QAction::triggered, this, [this] { expand_selection_dialog(); });
   connect(contract_selection_action, &QAction::triggered, this, [this] { contract_selection_dialog(); });
   connect(border_selection_action, &QAction::triggered, this, [this] { border_selection_dialog(); });
   connect(layer_transparency_action, &QAction::triggered, this, [this] {
+    prepare_preview_selection_sampling();
     select_only_layer_if_none_active();
     canvas_->run_selection_command(tr("Load Layer Transparency"),
                                    [this] { canvas_->select_active_layer_opaque_pixels(); });
