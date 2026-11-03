@@ -383,6 +383,18 @@ void ui_layer_lock_layers_dialog_applies_and_undoes() {
     CHECK(dialog.minimumWidth() >= title_room);
     CHECK(dialog.width() >= title_room);
     CHECK(dialog.width() > dialog.layout()->sizeHint().width());
+    // OK as wide as Cancel (#544 follow-up 2).
+    auto* button_box = dialog.findChild<QDialogButtonBox*>();
+    CHECK(button_box != nullptr);
+    if (button_box != nullptr) {
+      auto* ok = button_box->button(QDialogButtonBox::Ok);
+      auto* cancel = button_box->button(QDialogButtonBox::Cancel);
+      CHECK(ok != nullptr && cancel != nullptr);
+      if (ok != nullptr && cancel != nullptr) {
+        CHECK(ok->width() == cancel->width());
+        CHECK(ok->width() >= std::max(ok->sizeHint().width(), cancel->sizeHint().width()));
+      }
+    }
     for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
       ColorSchemeRestorer restore(scheme);
       QApplication::processEvents();
