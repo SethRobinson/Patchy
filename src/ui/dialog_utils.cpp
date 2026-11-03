@@ -88,6 +88,7 @@
 #include <exception>
 #include <initializer_list>
 #include <limits>
+#include <memory>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -3003,12 +3004,122 @@ static bool unattended_dialog(const QWidget& dialog) {
   return false;
 }
 
+namespace {
+
+// See ensure_slider_drag_coalescing in dialog_utils.hpp. Mirrors the canvas's
+// drag-move coalescing (docs/interactive-previews.md, "Drag move coalescing").
+class SliderDragCoalescer final : public QObject {
+ public:
+  static SliderDragCoalescer& instance() {
+    static auto* coalescer = new SliderDragCoalescer(qApp);
+    return *coalescer;
+  }
+
+  bool all_moves{false};
+  int coalesced{0};
+
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    switch (event->type()) {
+      case QEvent::MouseMove:
+        return defer_move(watched, *static_cast<QMouseEvent*>(event));
+      case QEvent::MouseButtonPress:
+      case QEvent::MouseButtonRelease:
+      case QEvent::MouseButtonDblClick:
+      case QEvent::KeyPress:
+      case QEvent::KeyRelease:
+        // The release (or a key) acts where the pointer really is.
+        if (!replaying_) {
+          flush();
+        }
+        return false;
+      default:
+        return false;
+    }
+  }
+
+ private:
+  explicit SliderDragCoalescer(QObject* parent) : QObject(parent) { qApp->installEventFilter(this); }
+
+  bool defer_move(QObject* watched, const QMouseEvent& event) {
+    if (replaying_ || (!event.spontaneous() && !all_moves)) {
+      return false;
+    }
+    auto* slider = qobject_cast<QAbstractSlider*>(watched);
+    if (slider == nullptr || !slider->isSliderDown()) {
+      return false;
+    }
+    if (!pass_active_) {
+      begin_pass();  // the first move of this pass reaches the slider now
+      return false;
+    }
+    if (pending_slider_ != nullptr && pending_slider_ != slider) {
+      flush();
+    }
+    pending_slider_ = slider;
+    pending_.reset(static_cast<QMouseEvent*>(event.clone()));
+    ++coalesced;
+    return true;
+  }
+
+  void begin_pass() {
+    // Queued behind the input already waiting, so it runs once that has been read.
+    pass_active_ = true;
+    QMetaObject::invokeMethod(this, [this] { end_pass(); }, Qt::QueuedConnection);
+  }
+
+  void end_pass() {
+    pass_active_ = false;
+    if (pending_ == nullptr) {
+      return;
+    }
+    if (pending_slider_ != nullptr && pending_slider_->isSliderDown()) {
+      begin_pass();  // moves that queue up behind this one coalesce into the next pass
+    }
+    flush();
+  }
+
+  void flush() {
+    if (pending_ == nullptr) {
+      return;
+    }
+    auto event = std::move(pending_);
+    const QPointer<QAbstractSlider> slider = pending_slider_;
+    pending_slider_ = nullptr;
+    if (slider == nullptr || !slider->isSliderDown()) {
+      return;  // the drag ended before the move ran
+    }
+    replaying_ = true;
+    QCoreApplication::sendEvent(slider, event.get());
+    replaying_ = false;
+  }
+
+  bool pass_active_{false};
+  bool replaying_{false};
+  QPointer<QAbstractSlider> pending_slider_;
+  std::unique_ptr<QMouseEvent> pending_;
+};
+
+}  // namespace
+
+void ensure_slider_drag_coalescing() {
+  if (qApp != nullptr) {
+    (void)SliderDragCoalescer::instance();
+  }
+}
+
+void set_slider_drag_coalescing_all_moves_for_testing(bool all_moves) {
+  SliderDragCoalescer::instance().all_moves = all_moves;
+}
+
+int slider_drag_moves_coalesced_for_testing() { return SliderDragCoalescer::instance().coalesced; }
+
 int exec_dialog(QDialog& dialog) {
   if (unattended_dialog(dialog)) {
     return QDialog::Rejected;
   }
   remember_dialog_position(dialog);
   install_scrub_labels_in(&dialog);
+  ensure_slider_drag_coalescing();
 #ifdef Q_OS_WASM
   // The guards watch app-wide events; make sure they exist before the first
   // modal ever shows (run_non_modal_dialog installs them too, but a modal can
@@ -3295,6 +3406,7 @@ int run_non_modal_dialog(QDialog& dialog) {
   }
   remember_dialog_position(dialog);
   install_scrub_labels_in(&dialog);
+  ensure_slider_drag_coalescing();
 #ifdef Q_OS_WASM
   ensure_wasm_dialog_guards();
 #endif

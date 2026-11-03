@@ -1,7 +1,10 @@
 #include "ui/curved_slider.hpp"
+#include "ui/dialog_utils.hpp"
+#include "ui/image_document_io.hpp"
 #include "ui/app_settings.hpp"
 
 #include "ui/canvas_widget.hpp"
+#include "core/document_depth.hpp"
 #include "core/pattern_presets.hpp"
 #include "ui/blend_if_range_editor.hpp"
 #include "ui/color_panel.hpp"
@@ -19,12 +22,14 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDoubleSpinBox>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QGroupBox>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPushButton>
@@ -33,6 +38,8 @@
 #include <QScrollArea>
 #include <QSpinBox>
 #include <QSlider>
+#include <QStyle>
+#include <QStyleOptionSlider>
 #include <QTest>
 #include <QTimer>
 #include <QWidget>
@@ -677,6 +684,359 @@ void ui_layer_style_opacity_slider_does_not_block_on_slow_preview_render() {
   const auto* edited_layer = patchy::ui::MainWindowTestAccess::document(window).find_layer(layer_id);
   CHECK(edited_layer != nullptr);
   CHECK(std::abs(edited_layer->opacity() - 0.52F) <= 0.001F);
+}
+
+// GitHub #601: slider drags in dialogs on a large image. A drag is one value
+// change per 60 Hz frame followed by the event processing that frame gets; the
+// longest single event-loop pass is the stall a user sees as a stuck handle.
+struct SliderDragTiming {
+  int steps{0};
+  qint64 total_ms{0};
+  qint64 worst_pass_ms{0};
+  qint64 settle_ms{0};
+  // The synchronous cost of one value change (the handler chain a motion event runs).
+  double change_mean_ms{0.0};
+  double change_worst_ms{0.0};
+};
+
+QSize slider_drag_document_size() {
+  QSize size(4000, 3000);
+  if (const auto text = qEnvironmentVariable("PATCHY_TEST_601_SIZE"); !text.isEmpty()) {
+    const auto parts = text.split(QLatin1Char('x'));
+    if (parts.size() == 2) {
+      size = QSize(parts[0].toInt(), parts[1].toInt());
+    }
+  }
+  return size;
+}
+
+// A white background and an anti-aliased ellipse layer over the middle 36% of
+// the canvas (under half, so a canvas patch for it is a partial refresh).
+patchy::Document slider_drag_document(bool stroked, patchy::LayerId& layer_id) {
+  const auto size = slider_drag_document_size();
+  const int width = size.width();
+  const int height = size.height();
+  const auto format = patchy::PixelFormat::rgba8();
+  patchy::Document document(width, height, format);
+  document.add_pixel_layer("Background", solid_pixels(width, height, format, QColor(Qt::white)));
+  QImage shape(width * 6 / 10, height * 6 / 10, QImage::Format_RGBA8888);
+  shape.fill(Qt::transparent);
+  {
+    QPainter painter(&shape);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(60, 120, 220));
+    painter.drawEllipse(QRectF(0, 0, shape.width(), shape.height()).adjusted(4, 4, -4, -4));
+  }
+  patchy::PixelBuffer pixels(shape.width(), shape.height(), format);
+  for (int y = 0; y < shape.height(); ++y) {
+    std::memcpy(pixels.pixel(0, y), shape.constScanLine(y), static_cast<std::size_t>(shape.width()) * 4);
+  }
+  patchy::Layer layer(document.allocate_layer_id(), "Shape", std::move(pixels));
+  layer.set_bounds(patchy::Rect{width * 2 / 10, height * 2 / 10, shape.width(), shape.height()});
+  if (stroked) {
+    patchy::LayerStroke stroke;
+    stroke.enabled = true;
+    stroke.size = 29.0F;
+    stroke.color = {200, 40, 40};
+    layer.layer_style().strokes = {stroke};
+  }
+  layer_id = layer.id();
+  document.add_layer(std::move(layer));
+  document.set_active_layer(layer_id);
+  if (qEnvironmentVariableIntValue("PATCHY_TEST_601_DEEP") != 0) {
+    patchy::convert_document_depth(document, patchy::BitDepth::UInt16);
+  }
+  return document;
+}
+
+SliderDragTiming drive_slider_drag(patchy::ui::CanvasWidget& canvas, const std::vector<int>& values,
+                                   const std::function<void(int)>& set_value,
+                                   const std::function<void(int)>& after_step = {}) {
+  SliderDragTiming timing;
+  QElapsedTimer total;
+  total.start();
+  double change_total_ms = 0.0;
+  for (const auto value : values) {
+    QElapsedTimer change;
+    change.start();
+    set_value(value);
+    const auto change_ms = static_cast<double>(change.nsecsElapsed()) / 1.0e6;
+    change_total_ms += change_ms;
+    timing.change_worst_ms = std::max(timing.change_worst_ms, change_ms);
+    ++timing.steps;
+    QElapsedTimer frame;
+    frame.start();
+    while (frame.elapsed() < 16) {
+      QElapsedTimer pass;
+      pass.start();
+      QApplication::processEvents(QEventLoop::AllEvents, 1);
+      timing.worst_pass_ms = std::max(timing.worst_pass_ms, pass.elapsed());
+    }
+    if (after_step) {
+      after_step(timing.steps);
+    }
+  }
+  timing.total_ms = total.elapsed();
+  timing.change_mean_ms = timing.steps > 0 ? change_total_ms / timing.steps : 0.0;
+  // Time until the last value is on the canvas.
+  QElapsedTimer settle;
+  settle.start();
+  while (settle.elapsed() < 30000) {
+    QApplication::processEvents(QEventLoop::AllEvents, 5);
+    if (settle.elapsed() > 100 && canvas.render_settled()) {
+      break;
+    }
+  }
+  timing.settle_ms = settle.elapsed();
+  return timing;
+}
+
+void print_slider_drag_timing(const char* what, const SliderDragTiming& timing) {
+  const auto size = slider_drag_document_size();
+  std::printf("[601] %s %dx%d %s: %d steps in %lld ms, value change mean %.2f ms worst %.2f ms, worst event pass "
+              "%lld ms, settle %lld ms\n",
+              what, size.width(), size.height(),
+              qEnvironmentVariableIntValue("PATCHY_TEST_601_DEEP") != 0 ? "16-bit" : "8-bit", timing.steps,
+              static_cast<long long>(timing.total_ms), timing.change_mean_ms, timing.change_worst_ms,
+              static_cast<long long>(timing.worst_pass_ms), static_cast<long long>(timing.settle_ms));
+  std::fflush(stdout);
+}
+
+std::vector<int> slider_drag_values(int from, int to, int step) {
+  std::vector<int> values;
+  for (int value = from; step > 0 ? value <= to : value >= to; value += step) {
+    values.push_back(value);
+  }
+  return values;
+}
+
+// Pumps events until the canvas holds a settled frame equal to a fresh render of
+// the document (the preview that landed last is the current one, rendered
+// exactly as the non-coalesced path would).
+bool wait_for_canvas_to_match_document(patchy::ui::MainWindow& window, patchy::ui::CanvasWidget& canvas) {
+  QElapsedTimer wait;
+  wait.start();
+  while (wait.elapsed() < 30000) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+    // Past the preview throttle, with no dialog preview render still running.
+    if (wait.elapsed() < 150 || canvas.preview_renders_in_flight() > 0 || !canvas.render_settled()) {
+      continue;
+    }
+    const auto shown = canvas.current_composite();
+    if (shown.isNull()) {
+      continue;
+    }
+    const auto expected =
+        patchy::ui::qimage_from_document(std::as_const(patchy::ui::MainWindowTestAccess::document(window)), true)
+            .convertToFormat(QImage::Format_RGBA8888);
+    if (shown.convertToFormat(QImage::Format_RGBA8888) == expected) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// The Layer Style dialog's Stroke Size, the reporter's case: the per-move cost
+// stays small, the canvas follows during the drag (the preview is throttled,
+// not held until the drag pauses), nothing waits on a render, and the frame
+// that settles is the exact render of the final value.
+void ui_layer_style_stroke_size_drag_stays_responsive_on_large_image() {
+  patchy::LayerId layer_id = 0;
+  patchy::ui::MainWindow window;
+  window.add_document_session(slider_drag_document(true, layer_id), QStringLiteral("Stroke Drag"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->force_refresh();
+  QApplication::processEvents();
+  const auto stroke_size_in_document = [&window, layer_id] {
+    const auto* layer = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(layer_id);
+    return layer != nullptr && !layer->layer_style().strokes.empty()
+               ? static_cast<int>(std::lround(layer->layer_style().strokes.front().size))
+               : -1;
+  };
+
+  bool exercised = false;
+  bool settled_exactly = false;
+  int size_mid_drag = -1;
+  int awaited_renders = -1;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    CHECK(categories != nullptr);
+    for (int row = 0; row < categories->count(); ++row) {
+      if (categories->item(row)->text() == QStringLiteral("Stroke")) {
+        categories->setCurrentRow(row);
+        break;
+      }
+    }
+    QApplication::processEvents();
+    auto* size = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleStrokeSizeSpin"));
+    CHECK(size != nullptr);
+    const auto before = canvas->render_cache_diagnostics();
+    const auto timing = drive_slider_drag(
+        *canvas, slider_drag_values(31, 184, 5), [size](int value) { size->setValue(value); },
+        [&](int step) {
+          if (step == 20) {
+            size_mid_drag = stroke_size_in_document();
+          }
+        });
+    print_slider_drag_timing("layer style stroke size", timing);
+    awaited_renders = canvas->render_cache_diagnostics().awaited_renders - before.awaited_renders;
+    settled_exactly = wait_for_canvas_to_match_document(window, *canvas);
+    exercised = true;
+    QTimer::singleShot(0, dialog, [dialog] { dialog->accept(); });
+  });
+  require_action(window, "layerBlendingOptionsAction")->trigger();
+  QApplication::processEvents();
+  CHECK(exercised);
+  // Twenty moves in (about 320 ms of dragging), the canvas already previews a
+  // size past the starting 29; a debounced preview stayed at 29 until a pause.
+  CHECK(size_mid_drag > 29);
+  CHECK(awaited_renders == 0);
+  CHECK(settled_exactly);
+  CHECK(stroke_size_in_document() == 181);
+}
+
+// Levels on a layer over a third of a large canvas: the previews land as
+// background canvas refreshes, never a GUI-thread patch or an awaited render.
+void ui_levels_drag_stays_responsive_on_large_image() {
+  patchy::LayerId layer_id = 0;
+  patchy::ui::MainWindow window;
+  window.add_document_session(slider_drag_document(false, layer_id), QStringLiteral("Levels Drag"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->force_refresh();
+  QApplication::processEvents();
+  bool exercised = false;
+  bool settled_exactly = false;
+  int awaited_renders = -1;
+  int async_refreshes = -1;
+  int region_batches = -1;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLevelsDialog")));
+    CHECK(dialog != nullptr);
+    auto* black = dialog->findChild<QSpinBox*>(QStringLiteral("levelsBlackInputSpin"));
+    CHECK(black != nullptr);
+    const auto before = canvas->render_cache_diagnostics();
+    const auto timing = drive_slider_drag(*canvas, slider_drag_values(2, 120, 4),
+                                          [black](int value) { black->setValue(value); });
+    print_slider_drag_timing("levels", timing);
+    settled_exactly = wait_for_canvas_to_match_document(window, *canvas);
+    const auto after = canvas->render_cache_diagnostics();
+    awaited_renders = after.awaited_renders - before.awaited_renders;
+    async_refreshes = after.live_preview_async_refreshes - before.live_preview_async_refreshes;
+    region_batches = after.dirty_region_batches - before.dirty_region_batches;
+    exercised = true;
+    QTimer::singleShot(0, dialog, [dialog] { dialog->reject(); });
+  });
+  require_action(window, "imageAdjustLevelsAction")->trigger();
+  QApplication::processEvents();
+  CHECK(exercised);
+  CHECK(awaited_renders == 0);
+  CHECK(async_refreshes > 0);
+  CHECK(region_batches == 0);
+  CHECK(settled_exactly);
+}
+
+// Gaussian Blur through its filter dialog: the same background canvas refresh.
+void ui_gaussian_blur_drag_stays_responsive_on_large_image() {
+  patchy::LayerId layer_id = 0;
+  patchy::ui::MainWindow window;
+  window.add_document_session(slider_drag_document(false, layer_id), QStringLiteral("Blur Drag"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->force_refresh();
+  QApplication::processEvents();
+  bool exercised = false;
+  bool settled_exactly = false;
+  int awaited_renders = -1;
+  int async_refreshes = -1;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    const auto spins = dialog->findChildren<QDoubleSpinBox*>();
+    CHECK(!spins.isEmpty());
+    auto* radius = spins.front();
+    const auto before = canvas->render_cache_diagnostics();
+    const auto timing = drive_slider_drag(*canvas, slider_drag_values(2, 40, 1),
+                                          [radius](int value) { radius->setValue(value); });
+    print_slider_drag_timing("gaussian blur", timing);
+    settled_exactly = wait_for_canvas_to_match_document(window, *canvas);
+    const auto after = canvas->render_cache_diagnostics();
+    awaited_renders = after.awaited_renders - before.awaited_renders;
+    async_refreshes = after.live_preview_async_refreshes - before.live_preview_async_refreshes;
+    exercised = true;
+    QTimer::singleShot(0, dialog, [dialog] { dialog->reject(); });
+  });
+  require_action(window, "filterAction_patchy_filters_gaussian_blur")->trigger();
+  QApplication::processEvents();
+  CHECK(exercised);
+  CHECK(awaited_renders == 0);
+  CHECK(async_refreshes > 0);
+  CHECK(settled_exactly);
+}
+
+class ProbeSlider final : public QSlider {
+ public:
+  using QSlider::QSlider;
+  QPoint handle_center() {
+    QStyleOptionSlider option;
+    initStyleOption(&option);
+    return style()->subControlRect(QStyle::CC_Slider, &option, QStyle::SC_SliderHandle, this).center();
+  }
+};
+
+// The app-wide slider move coalescing (GitHub #601): moves that queue up during
+// one event-loop pass reach the slider as one move to the latest position.
+void ui_slider_drag_moves_coalesce_to_the_latest_position() {
+  patchy::ui::ensure_slider_drag_coalescing();
+  QDialog dialog;
+  ProbeSlider slider(Qt::Horizontal, &dialog);
+  slider.setRange(0, 1000);
+  slider.setGeometry(10, 10, 600, 24);
+  dialog.resize(640, 60);
+  dialog.show();
+  QApplication::processEvents();
+  int changes = 0;
+  QObject::connect(&slider, &QSlider::valueChanged, &dialog, [&changes](int) { ++changes; });
+  const auto drag = [&](bool coalesce) {
+    slider.setValue(0);
+    QApplication::processEvents();
+    changes = 0;
+    patchy::ui::set_slider_drag_coalescing_all_moves_for_testing(coalesce);
+    const auto start = slider.handle_center();
+    QMouseEvent press(QEvent::MouseButtonPress, QPointF(start), slider.mapToGlobal(QPointF(start)), Qt::LeftButton,
+                      Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(&slider, &press);
+    CHECK(slider.isSliderDown());
+    QPointF last(start);
+    for (int step = 1; step <= 20; ++step) {
+      last = QPointF(start.x() + step * 20, start.y());
+      QCoreApplication::postEvent(&slider, new QMouseEvent(QEvent::MouseMove, last, slider.mapToGlobal(last),
+                                                           Qt::NoButton, Qt::LeftButton, Qt::NoModifier));
+    }
+    QApplication::processEvents();
+    QApplication::processEvents();
+    const auto during = changes;
+    const auto value = slider.value();
+    QMouseEvent release(QEvent::MouseButtonRelease, last, slider.mapToGlobal(last), Qt::LeftButton, Qt::NoButton,
+                        Qt::NoModifier);
+    QApplication::sendEvent(&slider, &release);
+    patchy::ui::set_slider_drag_coalescing_all_moves_for_testing(false);
+    return std::pair{during, value};
+  };
+  const auto coalesced_before = patchy::ui::slider_drag_moves_coalesced_for_testing();
+  const auto [plain_changes, plain_value] = drag(false);
+  CHECK(patchy::ui::slider_drag_moves_coalesced_for_testing() == coalesced_before);
+  const auto [coalesced_changes, coalesced_value] = drag(true);
+  CHECK(plain_changes == 20);
+  // The first move applies at once; the other 19 arrive as one replay.
+  CHECK(coalesced_changes == 2);
+  CHECK(patchy::ui::slider_drag_moves_coalesced_for_testing() - coalesced_before == 19);
+  CHECK(coalesced_value == plain_value);
+  CHECK(plain_value > 0);
 }
 
 void ui_layer_style_dialog_does_not_open_a_second_dialog() {
@@ -2599,6 +2959,13 @@ std::vector<patchy::test::TestCase> layer_style_gradient_tests_part1() {
        ui_layer_style_opacity_slider_does_not_block_on_slow_preview_render},
       {"ui_layer_style_dialog_does_not_open_a_second_dialog",
        ui_layer_style_dialog_does_not_open_a_second_dialog},
+      {"ui_layer_style_stroke_size_drag_stays_responsive_on_large_image",
+       ui_layer_style_stroke_size_drag_stays_responsive_on_large_image},
+      {"ui_levels_drag_stays_responsive_on_large_image", ui_levels_drag_stays_responsive_on_large_image},
+      {"ui_gaussian_blur_drag_stays_responsive_on_large_image",
+       ui_gaussian_blur_drag_stays_responsive_on_large_image},
+      {"ui_slider_drag_moves_coalesce_to_the_latest_position",
+       ui_slider_drag_moves_coalesce_to_the_latest_position},
       {"ui_blend_if_range_editor_renders_and_edits_split_handles",
        ui_blend_if_range_editor_renders_and_edits_split_handles},
       {"ui_layer_style_blend_if_controls_load_channels_and_map_settings",

@@ -13,6 +13,11 @@ namespace patchy::ui {
 // schedule() coalesces bursts of updates into one delivery per interval,
 // flush() delivers immediately (commit/cancel paths). The timer is owned by
 // `owner`, so the emitter must not outlive it.
+//
+// A throttle, not a debounce: a change arriving while the timer runs only
+// replaces the pending settings, so a slider dragged continuously (a change
+// every few milliseconds) still previews about every interval instead of
+// only once the drag pauses (GitHub #601).
 inline constexpr int kCoalescedPreviewDelayMs = 33;
 
 template <typename Settings>
@@ -28,7 +33,9 @@ public:
 
   void schedule(Settings settings) {
     pending_ = std::move(settings);
-    timer_->start();
+    if (!timer_->isActive()) {
+      timer_->start();
+    }
   }
 
   void flush(Settings settings) {

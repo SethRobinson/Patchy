@@ -1881,10 +1881,9 @@ void MainWindow::editable_smart_filter_dialog(
                 if (window != nullptr && window->canvas_ != nullptr) {
                   window->canvas_->end_preview_render();
                 }
-                const bool has_pending = preview_state->pending.has_value();
-                if (!preview_state->closed && !has_pending &&
-                    generation == preview_state->generation &&
-                    window != nullptr) {
+                // Lands even when a newer request waits (GitHub #601; see
+                // make_destructive_adjustment_preview_state).
+                if (!preview_state->closed && generation == preview_state->generation && window != nullptr) {
                   if (error->isEmpty()) {
                     if (auto* preview_layer =
                             window->document().find_layer(layer_id);
@@ -2729,9 +2728,9 @@ void MainWindow::apply_filter(const QString& identifier, const FilterInvocation*
                     if (window != nullptr && window->canvas_ != nullptr) {
                       window->canvas_->end_preview_render();
                     }
-                    const auto has_pending = preview_state->pending.has_value();
-                    if (!preview_state->closed && !has_pending && generation == preview_state->generation &&
-                        window != nullptr) {
+                    // Lands even when a newer request waits (GitHub #601; see
+                    // make_destructive_adjustment_preview_state).
+                    if (!preview_state->closed && generation == preview_state->generation && window != nullptr) {
                       if (error->isEmpty()) {
                         if (auto* layer = window->document().find_layer(*active); layer != nullptr) {
                           set_layer_pixels_with_bounds(*layer, std::move(*result), *result_bounds);

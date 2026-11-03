@@ -139,8 +139,9 @@ void MainWindow::edit_adjustment_smart_filter(LayerId layer_id, std::size_t exec
             if (window != nullptr && window->canvas_ != nullptr) {
               window->canvas_->end_preview_render();
             }
-            if (!preview_state->closed && !preview_state->pending.has_value() &&
-                generation == preview_state->generation && window != nullptr) {
+            // Lands even when a newer request waits (GitHub #601; see
+            // make_destructive_adjustment_preview_state).
+            if (!preview_state->closed && generation == preview_state->generation && window != nullptr) {
               if (error->isEmpty()) {
                 if (auto* preview_layer = window->document().find_layer(layer_id); preview_layer != nullptr) {
                   preview_layer->set_pixels(std::move(result->pixels));

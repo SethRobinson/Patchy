@@ -4353,6 +4353,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 #endif
   // A click on a menu separator would otherwise close the menu (GitHub issue 317).
   install_menu_separator_click_guard();
+  // Panel and options-bar sliders drag through the same move coalescing as the dialogs' (GitHub #601).
+  ensure_slider_drag_coalescing();
   document_tabs_->installEventFilter(this);
   suppress_native_tab_bar_base(*document_tabs_);
   if (auto* tab_bar = document_tabs_->findChild<QTabBar*>(); tab_bar != nullptr) {

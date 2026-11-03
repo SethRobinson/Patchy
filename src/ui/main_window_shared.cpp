@@ -355,9 +355,12 @@ make_destructive_adjustment_preview_state(DestructiveAdjustmentPreviewHooks hook
             if (hooks.preview_render_active) {
               hooks.preview_render_active(false);
             }
-            const auto has_pending = preview_state->pending.has_value();
-            if (!preview_state->closed && !has_pending &&
-                generation == preview_state->generation && result != nullptr) {
+            // A newer request may already wait (a slider still dragging): the
+            // finished render is still newer than what the canvas shows, so it
+            // lands; holding every result back while one is pending froze the
+            // preview for the whole drag (GitHub #601). An identity request
+            // bumps the generation, so a render it overtook never lands.
+            if (!preview_state->closed && generation == preview_state->generation && result != nullptr) {
               hooks.apply_result(std::move(*result));
             }
             if (!preview_state->closed && preview_state->pending.has_value() &&

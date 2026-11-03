@@ -58,6 +58,10 @@ void install_appearance_edit_intent(QWidget* widget, std::function<void()> commi
 
 void set_appearance_mixed(QWidget* widget, bool mixed) {
   if (!widget) return;
+  // The Layer Style dialog refreshes every bound field on each value change; an
+  // unchanged state must cost nothing (the label search below walks the dialog,
+  // about 5 ms a slider move, GitHub #601).
+  if (const auto current = widget->property("appearanceMixed"); current.isValid() && current.toBool() == mixed) return;
   if (!widget->property("appearanceOriginalTooltip").isValid())
     widget->setProperty("appearanceOriginalTooltip", widget->toolTip());
   const auto explanation = QObject::tr("Mixed: selected layers have different values");

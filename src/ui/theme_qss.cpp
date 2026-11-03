@@ -111,7 +111,11 @@ ThemedQss themed_style_template(const QWidget& widget) {
 
 void set_themed_style(QWidget& widget, const QString& qss_template) {
   widget.setProperty(kThemedStyleTemplateProperty, qss_template);
-  widget.setStyleSheet(apply_theme_tokens(qss_template));
+  // Setting even the same sheet repolishes the widget's whole subtree, and
+  // dialogs refresh their swatches on every slider move (GitHub #601).
+  if (auto resolved = apply_theme_tokens(qss_template); resolved != widget.styleSheet()) {
+    widget.setStyleSheet(resolved);
+  }
 }
 
 void set_themed_label_text(QLabel& label, const QString& text_template) {

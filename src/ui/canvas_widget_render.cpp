@@ -127,6 +127,20 @@ int processing_overlay_delay_ms() noexcept {
   return ok ? std::max(0, value) : kProcessingOverlayDelayMs;
 }
 
+// A live-preview change (canvas edit-locked by an open preview dialog) at least
+// this large refreshes the canvas in the background instead of patching it on
+// the GUI thread (GitHub #601: a 4000x3000 layer patch cost about 11 ms per
+// preview, 8000x6000 several times that, behind the processing wait).
+// PATCHY_LIVE_PREVIEW_ASYNC_MIN_AREA overrides it for tests.
+std::int64_t live_preview_async_refresh_min_area() noexcept {
+  static const std::int64_t area = [] {
+    bool ok = false;
+    const auto value = qEnvironmentVariableIntValue("PATCHY_LIVE_PREVIEW_ASYNC_MIN_AREA", &ok);
+    return ok && value >= 0 ? static_cast<std::int64_t>(value) : std::int64_t{1'000'000};
+  }();
+  return area;
+}
+
 std::int64_t processing_overlay_dirty_area_threshold() noexcept {
   bool ok = false;
   const auto value = qEnvironmentVariableIntValue("PATCHY_PROCESSING_OVERLAY_MIN_PIXELS", &ok);
@@ -240,6 +254,21 @@ bool CanvasWidget::should_defer_full_refresh_to_async() const noexcept {
       static_cast<std::int64_t>(document_->width()) * static_cast<std::int64_t>(document_->height());
   return canvas_area >= kProcessingOverlayDirtyAreaThreshold ||
          total_layer_count(std::as_const(*document_).layers()) >= kDeferFullRefreshMinLayers;
+}
+
+bool CanvasWidget::live_preview_change_should_refresh_async(const QRegion& document_region,
+                                                           DocumentChangeReason reason) const {
+  if constexpr (kBackgroundWorkRunsInline) {
+    return false;
+  }
+  if (!edit_locked_ || reason != DocumentChangeReason::Immediate || document_ == nullptr || !isVisible() ||
+      document_region.isEmpty() || mask_display_mode_ != MaskDisplayMode::None ||
+      layer_edit_target_ == LayerEditTarget::SmartFilterMask || processing_operation_active() ||
+      render_cache_.isNull() || render_cache_.size() != QSize(document_->width(), document_->height())) {
+    return false;
+  }
+  const auto clipped = document_region.intersected(QRect(0, 0, document_->width(), document_->height()));
+  return region_area(clipped) >= live_preview_async_refresh_min_area();
 }
 
 bool CanvasWidget::should_prepare_move_preview_async() const noexcept {
@@ -621,6 +650,15 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
     // Layer deletion can occur without replacing the Document object. Drop the
     // canvas-owned buffer before another layer can become active and inherit it.
     clear_smart_filter_mask_edit_target();
+  }
+  if (live_preview_change_should_refresh_async(document_region, reason)) {
+    // A preview dialog is open (the canvas is edit-locked) and its result
+    // landed over a large area: re-rendering that area here would stall the
+    // dialog's slider for every preview (GitHub #601). Keep the frame on
+    // screen and refresh in the background instead.
+    ++render_cache_diagnostics_.live_preview_async_refreshes;
+    document_changed_async_preview_impl(false);
+    return;
   }
   // Any document change invalidates the preview-scaled document; the next
   // zoomed-out drag rebuilds it lazily. The retained move base/proxy go the
@@ -1293,6 +1331,24 @@ void CanvasWidget::start_async_render_cache_refresh() {
           widget->async_render_cache_in_flight_ = false;
           widget->async_render_cache_pending_ = false;
           if (has_pending) {
+            // A preview that keeps changing (a dialog slider dragged on a large
+            // image, GitHub #601) would otherwise show nothing until it pauses:
+            // show this frame, newer than the one on screen, while the next
+            // refresh runs. The cache stays dirty, so exact-pixel readers still
+            // render the current document, and the hold keeps paint from doing
+            // so on the GUI thread.
+            if (generation == widget->async_render_cache_generation_ &&
+                widget->async_render_cache_explicit_hold_ && widget->render_cache_dirty_ && image != nullptr &&
+                !image->isNull() && widget->document_ != nullptr &&
+                snapshot_size == QSize(widget->document_->width(), widget->document_->height())) {
+              widget->quantize_image_for_palette_display(*image);
+              widget->render_cache_ = std::move(*image);
+              widget->invalidate_display_mip_cache();
+              ++widget->render_cache_diagnostics_.intermediate_refreshes;
+              if (widget->isVisible()) {
+                widget->update();
+              }
+            }
             widget->start_async_render_cache_refresh();
             return;
           }
