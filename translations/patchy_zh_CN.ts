@@ -26743,10 +26743,6 @@ Y: %2
         <translation>移除对象变体 %1</translation>
     </message>
     <message>
-        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
-        <translation>已将变体 %1 复制到隐藏图层“%2”</translation>
-    </message>
-    <message>
         <source>&amp;Files as Layers...</source>
         <translation>文件转为图层(&amp;F)...</translation>
     </message>
@@ -32251,6 +32247,10 @@ Locked: %1</source>
     <message>
         <source>Scale, rotate or distort the selection outline without moving pixels</source>
         <translation>缩放、旋转或扭曲选区轮廓，不移动像素</translation>
+    </message>
+    <message>
+        <source>Copied to &quot;%1&quot;</source>
+        <translation>已拷贝到 &quot;%1&quot;</translation>
     </message>
 </context>
 <context>

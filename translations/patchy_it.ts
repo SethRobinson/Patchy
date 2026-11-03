@@ -26809,10 +26809,6 @@ Y: %2
         <translation>Rimuovi oggetto variante %1</translation>
     </message>
     <message>
-        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
-        <translation>Variante %1 copiata nel livello nascosto &quot;%2&quot;</translation>
-    </message>
-    <message>
         <source>&amp;Files as Layers...</source>
         <translation>&amp;File come livelli...</translation>
     </message>
@@ -32335,6 +32331,10 @@ Bloccato: %1</translation>
     <message>
         <source>Scale, rotate or distort the selection outline without moving pixels</source>
         <translation>Ridimensiona, ruota o distorci il contorno della selezione senza spostare pixel</translation>
+    </message>
+    <message>
+        <source>Copied to &quot;%1&quot;</source>
+        <translation>Copiato in &quot;%1&quot;</translation>
     </message>
 </context>
 <context>

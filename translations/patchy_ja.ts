@@ -26743,10 +26743,6 @@ Clipped to the layer below</source>
         <translation>オブジェクトを除去 バリエーション %1</translation>
     </message>
     <message>
-        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
-        <translation>バリエーション %1 を非表示レイヤー &quot;%2&quot; にコピーしました</translation>
-    </message>
-    <message>
         <source>&amp;Files as Layers...</source>
         <translation>ファイルをレイヤーへ(&amp;F)...</translation>
     </message>
@@ -32251,6 +32247,10 @@ Locked: %1</source>
     <message>
         <source>Scale, rotate or distort the selection outline without moving pixels</source>
         <translation>ピクセルを動かさずに選択範囲の境界を拡大・縮小、回転、または変形します</translation>
+    </message>
+    <message>
+        <source>Copied to &quot;%1&quot;</source>
+        <translation>&quot;%1&quot; にコピーしました</translation>
     </message>
 </context>
 <context>

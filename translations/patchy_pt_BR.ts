@@ -24892,10 +24892,6 @@ Salve seu trabalho e feche o Patchy antes de executar o instalador.</translation
         <translation>Variação %1 de Remover objeto</translation>
     </message>
     <message>
-        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
-        <translation>Copiou a variação %1 para a camada oculta &quot;%2&quot;</translation>
-    </message>
-    <message>
         <source>Cancelled Remove Object</source>
         <translation>Remover objeto cancelado</translation>
     </message>
@@ -32335,6 +32331,10 @@ Bloqueado: %1</translation>
     <message>
         <source>Scale, rotate or distort the selection outline without moving pixels</source>
         <translation>Dimensionar, girar ou distorcer o contorno da seleção sem mover pixels</translation>
+    </message>
+    <message>
+        <source>Copied to &quot;%1&quot;</source>
+        <translation>Copiado para &quot;%1&quot;</translation>
     </message>
 </context>
 <context>

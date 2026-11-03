@@ -26809,10 +26809,6 @@ Y : %2
         <translation>Supprimer l&apos;objet variante %1</translation>
     </message>
     <message>
-        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
-        <translation>Variante %1 copiée dans le calque masqué &quot;%2&quot;</translation>
-    </message>
-    <message>
         <source>&amp;Files as Layers...</source>
         <translation>&amp;Fichiers en calques...</translation>
     </message>
@@ -32335,6 +32331,10 @@ Verrouillé : %1</translation>
     <message>
         <source>Scale, rotate or distort the selection outline without moving pixels</source>
         <translation>Mettre à l&apos;échelle, faire pivoter ou déformer le contour de la sélection sans déplacer de pixels</translation>
+    </message>
+    <message>
+        <source>Copied to &quot;%1&quot;</source>
+        <translation>Copié dans &quot;%1&quot;</translation>
     </message>
 </context>
 <context>

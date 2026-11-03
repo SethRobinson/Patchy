@@ -26764,10 +26764,6 @@ Y: %2
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>&amp;Files as Layers...</source>
         <translation type="unfinished"></translation>
     </message>
@@ -32253,6 +32249,10 @@ Locked: %1</source>
     </message>
     <message>
         <source>Scale, rotate or distort the selection outline without moving pixels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Copied to &quot;%1&quot;</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

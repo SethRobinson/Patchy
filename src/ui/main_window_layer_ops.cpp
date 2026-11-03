@@ -20,6 +20,7 @@
 #include <QCoreApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QEvent>
 #include <QEventLoop>
 #include <QFormLayout>
 #include <QHBoxLayout>
@@ -5441,6 +5442,46 @@ struct RemoveObjectWorker {
   int attempt{0};
 };
 
+// Keeps the dialog as tall as its layout wants at its current width. Qt
+// sizes a window's minimum from a word-wrapped label's width-independent
+// hint, so a status line that wraps to more lines squeezed the rows above it
+// instead of growing the dialog (GitHub #612). The preferred height, not the
+// minimum: at the minimum the spin boxes lose their bottom pixels. A text
+// change (LayoutRequest) or a narrower window (Resize) re-fits the height.
+class RemoveObjectDialogHeightGuard final : public QObject {
+ public:
+  explicit RemoveObjectDialogHeightGuard(QDialog& dialog) : QObject(&dialog), dialog_(dialog) {
+    dialog.installEventFilter(this);
+  }
+
+  void fit() {
+    auto* layout = dialog_.layout();
+    if (layout == nullptr || !layout->hasHeightForWidth()) {
+      return;
+    }
+    const int needed = layout->totalHeightForWidth(dialog_.width());
+    if (needed <= 0) {
+      return;
+    }
+    if (dialog_.minimumHeight() != needed) {
+      dialog_.setMinimumHeight(needed);
+    }
+    if (dialog_.height() < needed) {
+      dialog_.resize(dialog_.width(), needed);
+    }
+  }
+
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (watched == &dialog_ && (event->type() == QEvent::LayoutRequest || event->type() == QEvent::Resize)) {
+      fit();
+    }
+    return false;
+  }
+
+ private:
+  QDialog& dialog_;
+};
+
 std::uint64_t remove_object_selection_hash(const QRegion& region) {
   std::uint64_t hash = 14695981039346656037ULL;
   const auto mix = [&hash](int value) {
@@ -5556,6 +5597,8 @@ void MainWindow::remove_object_dialog() {
   status_label->setObjectName(QStringLiteral("removeObjectStatusLabel"));
   status_label->setWordWrap(true);
   layout->addWidget(status_label);
+  // The dialog grows with the wrapped status text instead of cropping rows (#612).
+  new RemoveObjectDialogHeightGuard(dialog);
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
   layout->addWidget(buttons);
@@ -5812,9 +5855,7 @@ void MainWindow::remove_object_dialog() {
     refresh_layer_list();
     refresh_layer_controls();
     canvas_->document_changed();
-    status_label->setText(tr("Copied variation %1 to the hidden layer \"%2\"")
-                              .arg(attempt + 1)
-                              .arg(QString::fromStdString(name)));
+    status_label->setText(tr("Copied to \"%1\"").arg(QString::fromStdString(name)));
   });
 
   auto preview_edit_lock = lock_preview_dialog_edits();

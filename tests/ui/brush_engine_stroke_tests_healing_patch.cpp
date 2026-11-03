@@ -1446,6 +1446,124 @@ void ui_remove_object_dialog_previews_rerolls_and_is_undoable() {
   CHECK(fresh_label == QStringLiteral("Variation 1"));
 }
 
+// GitHub #612: after Duplicate to New Layer the status label reads the short
+// 'Copied to "<layer>"', and no status text, however long, crops the Tone match
+// and Edge feather rows: the dialog grows to fit its wrapped label (also after
+// it is made narrower) and every row keeps its full height inside the dialog.
+// The dialog after the duplicate lands as ui_remove_object_dialog_after_duplicate.
+void ui_remove_object_dialog_status_never_crops_rows() {
+  SettingsValueRestorer tone_restorer(QStringLiteral("tools/removeObjectToneMatch"));
+  SettingsValueRestorer feather_restorer(QStringLiteral("tools/removeObjectFeather"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(26, 26)),
+       canvas->widget_position_for_document_point(QPoint(54, 54)));
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
+
+  static constexpr std::array<const char*, 6> kRowWidgets{
+      "removeObjectToneMatchSlider", "removeObjectToneMatchSpin", "removeObjectFeatherSlider",
+      "removeObjectFeatherSpin",     "removeObjectRerollButton",  "removeObjectDuplicateButton"};
+  // The row heights at the dialog's opening size (its preferred layout).
+  std::array<int, kRowWidgets.size()> opening_heights{};
+  // Every row widget sits fully inside the dialog at no less than its opening
+  // height, the status label gets the height its wrapped text needs at its
+  // width, and nothing overlaps the label.
+  const auto rows_fit = [&opening_heights](QDialog& dialog, const char* when) {
+    auto* status = dialog.findChild<QLabel*>(QStringLiteral("removeObjectStatusLabel"));
+    if (status == nullptr) {
+      std::cerr << when << ": no status label\n";
+      return false;
+    }
+    const auto status_rect = QRect(status->mapTo(&dialog, QPoint(0, 0)), status->size());
+    bool ok = true;
+    if (status->height() < status->heightForWidth(status->width())) {
+      std::cerr << when << ": status label " << status->height() << " px tall, needs "
+                << status->heightForWidth(status->width()) << "\n";
+      ok = false;
+    }
+    if (!dialog.rect().contains(status_rect)) {
+      std::cerr << when << ": status label leaves the dialog\n";
+      ok = false;
+    }
+    for (std::size_t i = 0; i < kRowWidgets.size(); ++i) {
+      const auto* name = kRowWidgets[i];
+      auto* widget = dialog.findChild<QWidget*>(QString::fromLatin1(name));
+      if (widget == nullptr || !widget->isVisible()) {
+        std::cerr << when << ": " << name << " missing or hidden\n";
+        ok = false;
+        continue;
+      }
+      const auto rect = QRect(widget->mapTo(&dialog, QPoint(0, 0)), widget->size());
+      const auto min_height = opening_heights[i];
+      if (min_height <= 0 || rect.height() < min_height || !dialog.rect().contains(rect) ||
+          rect.intersects(status_rect)) {
+        std::cerr << when << ": " << name << " cropped (" << rect.height() << " px of " << min_height
+                  << ", y " << rect.y() << ", label y " << status_rect.y() << ")\n";
+        ok = false;
+      }
+    }
+    return ok;
+  };
+
+  bool saw_dialog = false;
+  bool got_result = false;
+  QString copied_text;
+  bool fits_after_duplicate = false;
+  bool fits_long_text = false;
+  bool fits_narrow = false;
+  int driver_tries = 0;
+  auto poll = std::make_shared<std::function<void()>>();
+  *poll = [&, poll]() {
+    auto* dialog = find_remove_object_dialog();
+    if (dialog == nullptr || !dialog->isVisible()) {
+      if (++driver_tries < 500) {
+        QTimer::singleShot(10, *poll);
+      }
+      return;
+    }
+    saw_dialog = true;
+    auto* duplicate = dialog->findChild<QPushButton*>(QStringLiteral("removeObjectDuplicateButton"));
+    for (int i = 0; i < 400 && duplicate != nullptr && !duplicate->isEnabled(); ++i) {
+      process_events_for(25);
+    }
+    got_result = duplicate != nullptr && duplicate->isEnabled();
+    for (std::size_t i = 0; i < kRowWidgets.size(); ++i) {
+      if (auto* widget = dialog->findChild<QWidget*>(QString::fromLatin1(kRowWidgets[i])); widget != nullptr) {
+        opening_heights[i] = widget->height();
+      }
+    }
+    auto* status = dialog->findChild<QLabel*>(QStringLiteral("removeObjectStatusLabel"));
+    if (got_result && status != nullptr) {
+      duplicate->click();
+      process_events_for(100);
+      copied_text = status->text();
+      save_widget_artifact("ui_remove_object_dialog_after_duplicate", *dialog);
+      fits_after_duplicate = rows_fit(*dialog, "after duplicate");
+      // A long layer name or a long translation wraps to several lines.
+      status->setText(QStringLiteral("Copied to \"%1\"").arg(QString(QStringLiteral("long layer name ")).repeated(12)));
+      process_events_for(100);
+      save_widget_artifact("ui_remove_object_dialog_long_status", *dialog);
+      fits_long_text = rows_fit(*dialog, "long status");
+      dialog->resize(dialog->minimumWidth(), dialog->height());
+      process_events_for(100);
+      fits_narrow = rows_fit(*dialog, "narrow");
+    }
+    dialog->reject();
+  };
+  QTimer::singleShot(10, *poll);
+  require_action(window, "editRemoveObjectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+  CHECK(got_result);
+  CHECK(copied_text == QStringLiteral("Copied to \"Remove Object variation 1\""));
+  CHECK(fits_after_duplicate);
+  CHECK(fits_long_text);
+  CHECK(fits_narrow);
+}
+
 // Issue #23's banner (tests/remove_object_fixture.hpp) through the canvas
 // command: the content-aware fill of the "1" stays as dark as the band and
 // keeps the grungy stripe (the tone match reads only the fill's own hole
@@ -2807,6 +2925,7 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part2() {
       {"ui_remove_object_content_aware_restores_stripes", ui_remove_object_content_aware_restores_stripes},
       {"ui_remove_object_dialog_previews_rerolls_and_is_undoable",
        ui_remove_object_dialog_previews_rerolls_and_is_undoable},
+      {"ui_remove_object_dialog_status_never_crops_rows", ui_remove_object_dialog_status_never_crops_rows},
       {"ui_remove_object_banner_variations_tone_and_feather", ui_remove_object_banner_variations_tone_and_feather},
       {"ui_remove_object_parallel_heal_detaches_shared_pixels",
        ui_remove_object_parallel_heal_detaches_shared_pixels},

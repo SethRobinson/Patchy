@@ -26809,10 +26809,6 @@ Y: %2
         <translation>Eliminar objeto variante %1</translation>
     </message>
     <message>
-        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
-        <translation>Variante %1 copiada en la capa oculta &quot;%2&quot;</translation>
-    </message>
-    <message>
         <source>&amp;Files as Layers...</source>
         <translation>&amp;Archivos como capas...</translation>
     </message>
@@ -32335,6 +32331,10 @@ Bloqueada: %1</translation>
     <message>
         <source>Scale, rotate or distort the selection outline without moving pixels</source>
         <translation>Escalar, girar o distorsionar el contorno de la selección sin mover píxeles</translation>
+    </message>
+    <message>
+        <source>Copied to &quot;%1&quot;</source>
+        <translation>Copiado en &quot;%1&quot;</translation>
     </message>
 </context>
 <context>

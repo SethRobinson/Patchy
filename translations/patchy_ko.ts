@@ -24833,10 +24833,6 @@ Save your work and close Patchy before running the installer.</source>
         <translation>개체 제거 변형 %1</translation>
     </message>
     <message>
-        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
-        <translation>변형 %1을(를) 숨겨진 레이어 &quot;%2&quot;에 복사했습니다.</translation>
-    </message>
-    <message>
         <source>Cancelled Remove Object</source>
         <translation>개체 제거가 취소되었습니다.</translation>
     </message>
@@ -32251,6 +32247,10 @@ Locked: %1</source>
     <message>
         <source>Scale, rotate or distort the selection outline without moving pixels</source>
         <translation>픽셀을 옮기지 않고 선택 영역 윤곽을 크기 조절, 회전 또는 왜곡합니다</translation>
+    </message>
+    <message>
+        <source>Copied to &quot;%1&quot;</source>
+        <translation>&quot;%1&quot;에 복사했습니다</translation>
     </message>
 </context>
 <context>

@@ -24951,10 +24951,6 @@ Save your work and close Patchy before running the installer.</source>
         <translation>Удалить вариант объекта %1</translation>
     </message>
     <message>
-        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
-        <translation>Вариант %1 скопирован в скрытый слой «%2».</translation>
-    </message>
-    <message>
         <source>Cancelled Remove Object</source>
         <translation>Отменено Удалить объект</translation>
     </message>
@@ -32419,6 +32415,10 @@ Locked: %1</source>
     <message>
         <source>Scale, rotate or distort the selection outline without moving pixels</source>
         <translation>Масштабировать, поворачивать или искажать контур выделения, не сдвигая пиксели</translation>
+    </message>
+    <message>
+        <source>Copied to &quot;%1&quot;</source>
+        <translation>Скопировано в &quot;%1&quot;</translation>
     </message>
 </context>
 <context>

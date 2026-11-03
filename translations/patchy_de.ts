@@ -26809,10 +26809,6 @@ Y: %2
         <translation>Objekt entfernen Variante %1</translation>
     </message>
     <message>
-        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
-        <translation>Variante %1 in die ausgeblendete Ebene &quot;%2&quot; kopiert</translation>
-    </message>
-    <message>
         <source>&amp;Files as Layers...</source>
         <translation>&amp;Dateien als Ebenen...</translation>
     </message>
@@ -32335,6 +32331,10 @@ Fixiert: %1</translation>
     <message>
         <source>Scale, rotate or distort the selection outline without moving pixels</source>
         <translation>Auswahlkontur skalieren, drehen oder verzerren, ohne Pixel zu verschieben</translation>
+    </message>
+    <message>
+        <source>Copied to &quot;%1&quot;</source>
+        <translation>Nach &quot;%1&quot; kopiert</translation>
     </message>
 </context>
 <context>

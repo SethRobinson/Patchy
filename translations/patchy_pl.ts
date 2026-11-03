@@ -24951,10 +24951,6 @@ Zapisz pracę i zamknij Patchy przed uruchomieniem instalatora.</translation>
         <translation>Wariant usuwania obiektu %1</translation>
     </message>
     <message>
-        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
-        <translation>Skopiowano odmianę %1 do ukrytej warstwy &quot;%2&quot;</translation>
-    </message>
-    <message>
         <source>Cancelled Remove Object</source>
         <translation>Anulowano usuwanie obiektu</translation>
     </message>
@@ -32419,6 +32415,10 @@ Zablokowano: %1</translation>
     <message>
         <source>Scale, rotate or distort the selection outline without moving pixels</source>
         <translation>Skaluj, obracaj lub zniekształcaj obrys zaznaczenia bez przesuwania pikseli</translation>
+    </message>
+    <message>
+        <source>Copied to &quot;%1&quot;</source>
+        <translation>Skopiowano do &quot;%1&quot;</translation>
     </message>
 </context>
 <context>
