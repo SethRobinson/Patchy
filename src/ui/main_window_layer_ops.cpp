@@ -1421,6 +1421,145 @@ void MainWindow::transform_selection() {
   refresh_options_bar();
 }
 
+void MainWindow::create_canvas_session_context_actions() {
+  // Each entry reuses a string Patchy already shows (the options bars' Apply and Cancel,
+  // Image > Rotate & Flip's turns and flips), so the menus add no new text.
+  const auto make = [this](const char* source, const char* object_name, std::function<void()> handler) {
+    auto* action = new QAction(this);
+    action->setObjectName(QLatin1String(object_name));
+    action->setMenuRole(QAction::NoRole);
+    bind_action_text(action, source);
+    apply_bound_translation(action);
+    connect(action, &QAction::triggered, this, [handler = std::move(handler)] { handler(); });
+    return action;
+  };
+  transform_context_apply_action_ = make(QT_TR_NOOP("Apply"), "transformContextApplyAction", [this] {
+    if (canvas_ == nullptr) {
+      return;
+    }
+    if (canvas_->path_transform_active()) {
+      canvas_->commit_path_transform();
+    } else if (canvas_->warp_transform_active()) {
+      canvas_->finish_warp_transform();
+    } else {
+      canvas_->finish_free_transform();
+    }
+    refresh_options_bar();
+  });
+  transform_context_cancel_action_ = make(QT_TR_NOOP("Cancel"), "transformContextCancelAction", [this] {
+    if (canvas_ == nullptr) {
+      return;
+    }
+    if (canvas_->path_transform_active()) {
+      canvas_->cancel_path_transform();
+    } else if (canvas_->warp_transform_active()) {
+      canvas_->cancel_warp_transform();
+    } else {
+      canvas_->cancel_free_transform();
+    }
+    refresh_options_bar();
+  });
+  const auto turn = [this](double degrees) {
+    return [this, degrees] {
+      if (canvas_ != nullptr) {
+        canvas_->rotate_free_transform_session(degrees);
+      }
+    };
+  };
+  const auto flip = [this](bool horizontal) {
+    return [this, horizontal] {
+      if (canvas_ != nullptr) {
+        canvas_->flip_free_transform_session(horizontal);
+      }
+    };
+  };
+  transform_context_turn_actions_ = {
+      make(QT_TR_NOOP("Rotate 1&80"), "transformContextRotate180Action", turn(180.0)),
+      make(QT_TR_NOOP("Rotate &Right"), "transformContextRotateRightAction", turn(90.0)),
+      make(QT_TR_NOOP("Rotate &Left"), "transformContextRotateLeftAction", turn(-90.0)),
+      nullptr,
+      make(QT_TR_NOOP("Flip &Horizontal"), "transformContextFlipHorizontalAction", flip(true)),
+      make(QT_TR_NOOP("Flip &Vertical"), "transformContextFlipVerticalAction", flip(false)),
+  };
+  crop_context_apply_action_ = make(QT_TR_NOOP("Apply"), "cropContextApplyAction", [this] {
+    if (canvas_ != nullptr) {
+      canvas_->commit_crop_session();
+    }
+  });
+  crop_context_cancel_action_ = make(QT_TR_NOOP("Cancel"), "cropContextCancelAction", [this] {
+    if (canvas_ != nullptr) {
+      canvas_->reset_crop_session_to_canvas();
+    }
+  });
+}
+
+// Apply and Cancel first, then (Free Transform and Warp) Edit > Transform's types and
+// Warp, then (Free Transform) the box's own turns and flips. A path transform has no
+// types, and Warp is left out where it would refuse (a selection or several layers).
+QList<QAction*> MainWindow::transform_session_context_actions() {
+  QList<QAction*> actions{transform_context_apply_action_, transform_context_cancel_action_};
+  if (canvas_ == nullptr || canvas_->path_transform_active()) {
+    return actions;
+  }
+  actions.push_back(nullptr);
+  actions.append(transform_mode_actions_);
+  const bool warp_refused = canvas_->free_transform_is_multi_target() || canvas_->free_transform_floats_selection() ||
+                            canvas_->free_transform_targets_selection();
+  if (!warp_refused && warp_transform_action_ != nullptr) {
+    actions.push_back(warp_transform_action_);
+  }
+  if (canvas_->free_transform_active()) {
+    actions.push_back(nullptr);
+    actions.append(transform_context_turn_actions_);
+  }
+  return actions;
+}
+
+// Apply and Cancel (Cancel puts the canvas frame back, like Esc and the X button), then
+// in Ratio style the Ratio presets, the current one checked. Custom only reports.
+QList<QAction*> MainWindow::crop_context_actions() {
+  for (auto* action : std::as_const(crop_context_ratio_actions_)) {
+    action->deleteLater();
+  }
+  crop_context_ratio_actions_.clear();
+  if (canvas_ == nullptr) {
+    return {};
+  }
+  crop_context_apply_action_->setEnabled(canvas_->crop_session_has_changes());
+  crop_context_cancel_action_->setEnabled(canvas_->crop_session_can_reset());
+  QList<QAction*> actions{crop_context_apply_action_, crop_context_cancel_action_};
+  if (crop_ratio_preset_combo_ == nullptr || crop_style_combo_ == nullptr || crop_style_combo_->currentIndex() != 0) {
+    return actions;
+  }
+  actions.push_back(nullptr);
+  if (crop_context_ratio_group_ == nullptr) {
+    crop_context_ratio_group_ = new QActionGroup(this);
+    crop_context_ratio_group_->setExclusive(true);
+  }
+  const auto custom = crop_ratio_preset_combo_->count() - 1;
+  for (int index = 0; index < crop_ratio_preset_combo_->count(); ++index) {
+    auto* action = new QAction(crop_ratio_preset_combo_->itemText(index), this);
+    action->setObjectName(QStringLiteral("cropContextRatioAction%1").arg(index));
+    action->setCheckable(true);
+    action->setChecked(index == crop_ratio_preset_combo_->currentIndex());
+    action->setEnabled(index != custom);
+    if (index == custom && !action->isChecked()) {
+      delete action;
+      continue;
+    }
+    crop_context_ratio_group_->addAction(action);
+    QPointer<QComboBox> combo(crop_ratio_preset_combo_);
+    connect(action, &QAction::triggered, this, [combo, index] {
+      if (combo != nullptr) {
+        combo->setCurrentIndex(index);
+      }
+    });
+    crop_context_ratio_actions_.push_back(action);
+    actions.push_back(action);
+  }
+  return actions;
+}
+
 void MainWindow::transform_active_layer_mode(TransformDistortMode mode) {
   if (canvas_ == nullptr) {
     show_status_error(tr("Select a pixel layer to transform"));

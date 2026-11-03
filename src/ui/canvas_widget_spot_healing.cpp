@@ -1065,6 +1065,14 @@ void CanvasWidget::set_zoom_tool_context_actions_callback(std::function<QList<QA
   zoom_tool_context_actions_callback_ = std::move(callback);
 }
 
+void CanvasWidget::set_transform_session_context_actions_callback(std::function<QList<QAction*>()> callback) {
+  transform_session_context_actions_callback_ = std::move(callback);
+}
+
+void CanvasWidget::set_crop_context_actions_callback(std::function<QList<QAction*>()> callback) {
+  crop_context_actions_callback_ = std::move(callback);
+}
+
 void CanvasWidget::set_screen_mode_context_actions_callback(std::function<QList<QAction*>()> callback) {
   screen_mode_context_actions_callback_ = std::move(callback);
 }

@@ -689,6 +689,40 @@ public:
   void set_composition_changed_callback(std::function<void()> callback) {
     composition_changed_ = std::move(callback);
   }
+  // Host commands appended to the editor's right-click menu (GitHub issue 323).
+  void set_context_actions_callback(std::function<QList<QAction*>()> callback) {
+    context_actions_ = std::move(callback);
+  }
+
+protected:
+  // Qt's own text menu (Undo, Redo, Cut, Copy, Paste, Delete, Select All; translated by the
+  // qtbase catalogs) plus the host's commands after a separator. Convert to Shape and Create
+  // Work Path finish the edit, which deletes this editor, so the menu is reparented to the
+  // window first: a child menu would die under its own click.
+  void contextMenuEvent(QContextMenuEvent* event) override {
+    auto* menu = createStandardContextMenu(event->pos());
+    if (menu == nullptr) {
+      return;
+    }
+    menu->setObjectName(QStringLiteral("inlineTextEditorContextMenu"));
+    menu->setParent(window(), menu->windowFlags());
+    menu->setAttribute(Qt::WA_DeleteOnClose);
+    if (context_actions_) {
+      const auto actions = context_actions_();
+      if (std::any_of(actions.begin(), actions.end(), [](QAction* action) { return action != nullptr; })) {
+        menu->addSeparator();
+        for (auto* action : actions) {
+          if (action == nullptr) {
+            menu->addSeparator();
+          } else {
+            menu->addAction(action);
+          }
+        }
+      }
+    }
+    menu->popup(event->globalPos());
+    event->accept();
+  }
 
 protected:
 
@@ -866,6 +900,7 @@ private:
   QElapsedTimer caret_blink_clock_;
   QTimer caret_blink_timer_;
   std::function<void()> composition_changed_;
+  std::function<QList<QAction*>()> context_actions_;
 };
 
 // scale_font_size lives in dialog_utils.hpp; every derived font size in the UI
@@ -6282,6 +6317,13 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
   canvas->set_selection_context_actions_callback([this] { return selection_context_actions_; });
   canvas->set_selection_tool_context_actions_callback([this] { return selection_tool_context_actions_; });
   canvas->set_zoom_tool_context_actions_callback([this] { return zoom_tool_context_actions_; });
+  // Session menus (GitHub issue 323): a right-click during a transform or a crop.
+  canvas->set_transform_session_context_actions_callback([this, canvas] {
+    return canvas == canvas_ ? transform_session_context_actions() : QList<QAction*>{};
+  });
+  canvas->set_crop_context_actions_callback([this, canvas] {
+    return canvas == canvas_ ? crop_context_actions() : QList<QAction*>{};
+  });
   // Screen modes (GitHub issue 212): the way back from a full screen without menus.
   canvas->set_screen_mode_context_actions_callback([this] {
     return screen_mode_ == ScreenMode::Standard ? QList<QAction*>{} : QList<QAction*>{exit_full_screen_action_};
@@ -6991,6 +7033,8 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
 
   auto* editor = new InlineTextEdit(canvas_);
   editor->setObjectName(QStringLiteral("inlineTextEditor"));
+  editor->set_context_actions_callback(
+      [this] { return QList<QAction*>{type_convert_to_shape_action_, type_create_work_path_action_}; });
   editor->setAcceptRichText(true);
   auto editor_font = render_text_font_for_display_family(
       family, std::max(8, static_cast<int>(std::round(document_text_size * canvas_->zoom()))), text_bold,

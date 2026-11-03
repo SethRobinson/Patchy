@@ -1055,6 +1055,11 @@ public:
   // entry. Pixels are never touched. Refused without a selection or in Quick Mask.
   bool begin_transform_selection();
   [[nodiscard]] bool free_transform_targets_selection() const noexcept;
+  // Turns the open Free Transform box by `degrees` about its reference point, or mirrors
+  // it across its own vertical (horizontal = true) or horizontal axis: one session step
+  // each, through the options-bar path. False without a Free Transform session.
+  bool rotate_free_transform_session(double degrees);
+  bool flip_free_transform_session(bool horizontal);
   // Warp Transform: a 4x4 Bezier control cage over the layer (Photoshop's warp
   // tool). Smart objects commit non-destructively (warp metadata + regenerated
   // SoLd); plain pixel layers bake destructively; text layers are refused.
@@ -1600,6 +1605,12 @@ public:
   // Offered first, anywhere on the canvas, while the Zoom tool is active (Zoom In, Zoom
   // Out, Fit on Screen, ...); same contract.
   void set_zoom_tool_context_actions_callback(std::function<QList<QAction*>()> callback);
+  // Offered alone while a Free Transform, Warp or path transform session is open (Apply,
+  // Cancel, the transform types, the session turns and flips); the right-click itself
+  // never applies or cancels the session. Same contract.
+  void set_transform_session_context_actions_callback(std::function<QList<QAction*>()> callback);
+  // Offered first while the Crop tool has its session (Apply, Cancel, the ratio presets).
+  void set_crop_context_actions_callback(std::function<QList<QAction*>()> callback);
   // Offered last, anywhere on the canvas and the pasteboard, while the window is in a
   // full-screen screen mode (Exit Full Screen, GitHub issue 212); same contract.
   void set_screen_mode_context_actions_callback(std::function<QList<QAction*>()> callback);
@@ -4451,6 +4462,8 @@ private:
   std::function<QList<QAction*>()> selection_context_actions_callback_;
   std::function<QList<QAction*>()> selection_tool_context_actions_callback_;
   std::function<QList<QAction*>()> zoom_tool_context_actions_callback_;
+  std::function<QList<QAction*>()> transform_session_context_actions_callback_;
+  std::function<QList<QAction*>()> crop_context_actions_callback_;
   std::function<QList<QAction*>()> screen_mode_context_actions_callback_;
   std::function<bool()> unused_escape_callback_;
   std::function<QList<QAction*>()> shape_context_actions_callback_;

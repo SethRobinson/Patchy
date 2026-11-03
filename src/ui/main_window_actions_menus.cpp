@@ -723,11 +723,14 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
       register_hotkey(action, entry.hotkey_id, QKeySequence());
       connect(action, &QAction::triggered, this, [this, mode = entry.mode] { transform_active_layer_mode(mode); });
       register_document_action(action);
+      transform_mode_actions_.push_back(action);
     }
     transform_menu->addSeparator();
     transform_menu->addAction(warp_transform_action);
     warp_transform_action->setMenuRole(QAction::NoRole);
+    warp_transform_action_ = warp_transform_action;
   }
+  create_canvas_session_context_actions();
   edit_menu->addSeparator();
   // Select All, Clear Selection, Reselect and Inverse live only in the Select menu (GitHub issue 493).
   auto* select_all_action = new QAction(tr("Select &All"), this);

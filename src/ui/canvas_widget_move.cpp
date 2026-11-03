@@ -211,11 +211,15 @@ void CanvasWidget::reap_retired_context_menus() {
 bool CanvasWidget::show_canvas_context_menu(QPoint widget_point, QPoint global_position) {
   close_canvas_context_menu();
   reap_retired_context_menus();
-  if (document_ == nullptr || pointer_gesture_active() || transforming_layer_ || warping_layer_ ||
-      path_transform_active_) {
+  if (document_ == nullptr || pointer_gesture_active()) {
     return false;
   }
-  if (path_edit_tool_active() && show_path_context_menu(QPointF(widget_point), global_position)) {
+  const bool transform_session = transforming_layer_ || warping_layer_ || path_transform_active_;
+  if (transform_session && !transform_session_context_actions_callback_) {
+    return false;
+  }
+  if (!transform_session && path_edit_tool_active() &&
+      show_path_context_menu(QPointF(widget_point), global_position)) {
     return true;
   }
   auto* menu = new QMenu(this);
@@ -254,9 +258,26 @@ bool CanvasWidget::show_canvas_context_menu(QPoint widget_point, QPoint global_p
       }
     }
   };
-  // The Zoom tool's section comes first, anywhere on the canvas (GitHub issue 300).
-  if (tool_ == CanvasTool::Zoom && zoom_tool_context_actions_callback_) {
+  if (transform_session) {
+    // An open transform session (GitHub issue 323): its own commands only. The menu
+    // neither applies nor cancels the session; its entries do.
+    append_section(transform_session_context_actions_callback_());
+    if (menu->isEmpty()) {
+      canvas_context_menu_.clear();
+      menu->deleteLater();
+      return false;
+    }
+    menu->popup(global_position);
+    return true;
+  }
+  // The Zoom tool's section comes first, anywhere on the canvas (GitHub issue 300); the
+  // Hand tool offers the same view commands (GitHub issue 323).
+  if ((tool_ == CanvasTool::Zoom || tool_ == CanvasTool::Pan) && zoom_tool_context_actions_callback_) {
     append_section(zoom_tool_context_actions_callback_());
+  }
+  // The Crop tool's session: Apply, Cancel and the ratio presets (GitHub issue 323).
+  if (tool_ == CanvasTool::Crop && crop_session_active() && crop_context_actions_callback_) {
+    append_section(crop_context_actions_callback_());
   }
   const bool inside_selection = has_selection() && selection_alpha_at(document_point) != 0U;
   const bool selection_tool_on_document =

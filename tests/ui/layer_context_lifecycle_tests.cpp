@@ -6,6 +6,7 @@
 #include "core/adjustment_layer.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/pixel_depth.hpp"
+#include "core/vector_shape.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/new_document_dialog.hpp"
 #include "ui/gradient_stops_editor.hpp"
@@ -4755,6 +4756,274 @@ void ui_document_tab_context_menu_file_actions() {
   CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == 0);
 }
 
+
+// Session right-click menus (GitHub issue 323): built only from Patchy's own commands.
+QAction* context_entry(QMenu& menu, const QString& name) {
+  for (auto* action : menu.actions()) {
+    if (action->objectName() == name) {
+      return action;
+    }
+  }
+  return nullptr;
+}
+
+void pick_context_entry(QMenu& menu, const QString& name) {
+  auto* action = context_entry(menu, name);
+  CHECK(action != nullptr);
+  menu.hide();
+  if (action != nullptr) {
+    action->trigger();
+  }
+  QApplication::processEvents();
+}
+
+// During a Free Transform session a right-click opens the session's own menu without
+// applying or cancelling it: Apply and Cancel first, then Edit > Transform's types and
+// Warp, then the box's turns and flips, which change the pending box only. Cancel puts
+// the layer back, Apply is one history entry. Transform Selection gets the same menu
+// minus Warp; a path transform only Apply and Cancel.
+void ui_transform_session_context_menu_applies_and_cancels() {
+  patchy::Document document(160, 120, patchy::PixelFormat::rgba8());
+  patchy::Layer photo(document.allocate_layer_id(), "Photo",
+                      solid_pixels(60, 40, patchy::PixelFormat::rgba8(), QColor(Qt::red)));
+  photo.set_bounds({20, 20, 60, 40});
+  const auto photo_id = photo.id();
+  document.add_layer(std::move(photo));
+  document.set_active_layer(photo_id);
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  window.add_document_session(std::move(document), QStringLiteral("Transform menu"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_rulers_visible(false);
+  QApplication::processEvents();
+  const auto layer_bounds = [&] {
+    const auto* layer = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(photo_id);
+    return layer != nullptr ? layer->bounds() : patchy::Rect{};
+  };
+  const auto depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  auto* menu = right_click_move_canvas(*canvas, QPoint(50, 40));
+  CHECK(menu != nullptr);
+  CHECK(canvas->free_transform_active());  // the right-click alone changes nothing
+  if (menu != nullptr) {
+    QStringList names;
+    for (auto* action : menu->actions()) {
+      names.push_back(action->isSeparator() ? QStringLiteral("|") : action->objectName());
+    }
+    CHECK(names == (QStringList{QStringLiteral("transformContextApplyAction"),
+                                QStringLiteral("transformContextCancelAction"),
+                                QStringLiteral("|"),
+                                QStringLiteral("editTransformScaleAction"),
+                                QStringLiteral("editTransformRotateAction"),
+                                QStringLiteral("editTransformSkewAction"),
+                                QStringLiteral("editTransformDistortAction"),
+                                QStringLiteral("editTransformPerspectiveAction"),
+                                QStringLiteral("editWarpTransformAction"),
+                                QStringLiteral("|"),
+                                QStringLiteral("transformContextRotate180Action"),
+                                QStringLiteral("transformContextRotateRightAction"),
+                                QStringLiteral("transformContextRotateLeftAction"),
+                                QStringLiteral("|"),
+                                QStringLiteral("transformContextFlipHorizontalAction"),
+                                QStringLiteral("transformContextFlipVerticalAction")}));
+    save_window_popup_artifact("ui_transform_session_context_menu", window, *canvas, *menu);
+    pick_context_entry(*menu, QStringLiteral("transformContextRotateRightAction"));
+  }
+  auto state = canvas->transform_controls_state();
+  CHECK(state.has_value() && std::abs(state->rotation_degrees - 90.0) < 0.01);
+  menu = right_click_move_canvas(*canvas, QPoint(50, 40));
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    pick_context_entry(*menu, QStringLiteral("transformContextFlipHorizontalAction"));
+  }
+  state = canvas->transform_controls_state();
+  CHECK(state.has_value() && state->scale_x_percent < 0.0 && state->scale_y_percent > 0.0);
+  menu = right_click_move_canvas(*canvas, QPoint(50, 40));
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    pick_context_entry(*menu, QStringLiteral("editTransformSkewAction"));
+  }
+  CHECK(canvas->free_transform_distort_mode() == patchy::ui::CanvasWidget::TransformDistortMode::Skew);
+  menu = right_click_move_canvas(*canvas, QPoint(50, 40));
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    pick_context_entry(*menu, QStringLiteral("transformContextCancelAction"));
+  }
+  CHECK(!canvas->free_transform_active());
+  CHECK(layer_bounds() == (patchy::Rect{20, 20, 60, 40}));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth_before);
+
+  // Rotate Right then Apply: the 60 x 40 layer stands 40 x 60 about the same center.
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  for (const auto* name : {"transformContextRotateRightAction", "transformContextApplyAction"}) {
+    menu = right_click_move_canvas(*canvas, QPoint(50, 40));
+    CHECK(menu != nullptr);
+    if (menu != nullptr) {
+      pick_context_entry(*menu, QLatin1String(name));
+    }
+  }
+  CHECK(!canvas->free_transform_active());
+  const auto turned = layer_bounds();
+  CHECK(std::abs(turned.x - 30) <= 1 && std::abs(turned.y - 10) <= 1 && std::abs(turned.width - 40) <= 2 &&
+        std::abs(turned.height - 60) <= 2);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth_before + 1);
+
+  // Transform Selection: no Warp (it would refuse), the turns stay.
+  canvas->select_all();
+  QApplication::processEvents();
+  CHECK(canvas->begin_transform_selection());
+  menu = right_click_move_canvas(*canvas, QPoint(50, 40));
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    CHECK(context_entry(*menu, QStringLiteral("editWarpTransformAction")) == nullptr);
+    CHECK(context_entry(*menu, QStringLiteral("transformContextRotate180Action")) != nullptr);
+    pick_context_entry(*menu, QStringLiteral("transformContextCancelAction"));
+  }
+  CHECK(!canvas->free_transform_active());
+}
+
+// Crop tool: Apply and Cancel (both off on the untouched canvas frame), then the Ratio
+// presets with the current one checked; a preset reshapes the box and Apply crops.
+void ui_crop_context_menu_offers_apply_cancel_and_ratios() {
+  SettingsValueRestorer saved_ratio_w(QStringLiteral("tools/cropRatioWidth"));
+  SettingsValueRestorer saved_ratio_h(QStringLiteral("tools/cropRatioHeight"));
+  SettingsValueRestorer saved_style(QStringLiteral("tools/cropStyle"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action(window, "toolCropAction")->trigger();
+  QApplication::processEvents();
+  canvas->set_snap_enabled(false);
+  auto* style = window.findChild<QComboBox*>(QStringLiteral("cropStyleCombo"));
+  auto* presets = window.findChild<QComboBox*>(QStringLiteral("cropRatioPresetCombo"));
+  CHECK(style != nullptr && presets != nullptr);
+  if (style == nullptr || presets == nullptr) {
+    return;
+  }
+  style->setCurrentIndex(0);
+  presets->setCurrentIndex(0);
+  QApplication::processEvents();
+  const auto doc_size = [&] {
+    const auto& doc = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    return QSize(doc.width(), doc.height());
+  };
+  const auto width = doc_size().width();
+  const auto height = doc_size().height();
+
+  auto* menu = right_click_move_canvas(*canvas, QPoint(width / 2, height / 2));
+  CHECK(menu != nullptr);
+  if (menu == nullptr) {
+    return;
+  }
+  auto* apply = context_entry(*menu, QStringLiteral("cropContextApplyAction"));
+  auto* cancel = context_entry(*menu, QStringLiteral("cropContextCancelAction"));
+  CHECK(apply != nullptr && cancel != nullptr);
+  CHECK(menu->actions().size() >= 2 && menu->actions()[0] == apply && menu->actions()[1] == cancel);
+  CHECK(apply != nullptr && !apply->isEnabled());
+  CHECK(cancel != nullptr && !cancel->isEnabled());
+  auto* none = context_entry(*menu, QStringLiteral("cropContextRatioAction0"));
+  CHECK(none != nullptr && none->isCheckable() && none->isChecked());
+  CHECK(context_entry(*menu, QStringLiteral("cropContextRatioAction%1").arg(presets->count() - 1)) == nullptr);
+  pick_context_entry(*menu, QStringLiteral("cropContextRatioAction2"));  // 1 : 1 (Square)
+  CHECK(presets->currentIndex() == 2);
+  const auto side = std::min(width, height);
+  const auto box = canvas->crop_session_rect();
+  CHECK(box.has_value() && box->width() == side && box->height() == side);
+
+  menu = right_click_move_canvas(*canvas, QPoint(width / 2, height / 2));
+  CHECK(menu != nullptr);
+  if (menu == nullptr) {
+    return;
+  }
+  auto* square = context_entry(*menu, QStringLiteral("cropContextRatioAction2"));
+  CHECK(square != nullptr && square->isChecked());
+  CHECK(context_entry(*menu, QStringLiteral("cropContextApplyAction"))->isEnabled());
+  save_window_popup_artifact("ui_crop_context_menu", window, *canvas, *menu);
+  pick_context_entry(*menu, QStringLiteral("cropContextApplyAction"));
+  CHECK(doc_size() == QSize(side, side));
+  presets->setCurrentIndex(0);
+}
+
+// The Hand tool offers the Zoom tool's view commands; Fit on Screen works from it.
+void ui_hand_tool_context_menu_offers_view_zoom_commands() {
+  auto&& [window, canvas] = ShownWindowFixture{};
+  require_action_by_text(window, QStringLiteral("Hand"))->trigger();
+  canvas->set_view_zoom(3.0);
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Pan);
+  auto* menu = right_click_move_canvas(*canvas, QPoint(40, 40));
+  CHECK(menu != nullptr);
+  if (menu == nullptr) {
+    return;
+  }
+  for (const auto* name : {"viewZoomInAction", "viewZoomOutAction", "viewFitOnScreenAction",
+                           "viewActualPixelsAction", "viewZoom200Action"}) {
+    CHECK(context_entry(*menu, QLatin1String(name)) != nullptr);
+  }
+  save_window_popup_artifact("ui_hand_tool_context_menu", window, *canvas, *menu);
+  pick_context_entry(*menu, QStringLiteral("viewFitOnScreenAction"));
+  CHECK(canvas->view_zoom() < 3.0 - 0.001);
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Pan);
+}
+
+// The text editor keeps Qt's own text menu (Undo, Cut, Copy, Paste, Select All) and adds
+// the Type menu's Convert to Shape and Create Work Path; Convert to Shape from it ends the
+// edit and makes the shape layer.
+void ui_text_editor_context_menu_offers_outline_commands() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const auto text_position = canvas->widget_position_for_document_point(QPoint(120, 120));
+  send_mouse(*canvas, QEvent::MouseButtonPress, text_position, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, text_position, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  QPointer<QTextEdit> editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return;
+  }
+  editor->setPlainText(QStringLiteral("Menu"));
+  editor->setFocus(Qt::OtherFocusReason);
+  editor->selectAll();
+  QApplication::processEvents();
+
+  const auto local = editor->viewport()->rect().center();
+  QContextMenuEvent event(QContextMenuEvent::Mouse, local, editor->viewport()->mapToGlobal(local));
+  QApplication::sendEvent(editor->viewport(), &event);
+  QApplication::processEvents();
+  QMenu* menu = nullptr;
+  for (auto* candidate : window.findChildren<QMenu*>(QStringLiteral("inlineTextEditorContextMenu"))) {
+    if (candidate->isVisible()) {
+      menu = candidate;
+    }
+  }
+  CHECK(menu != nullptr);
+  if (menu == nullptr) {
+    return;
+  }
+  CHECK(menu->parent() == &window);
+  for (const auto* name : {"edit-undo", "edit-cut", "edit-copy", "edit-paste", "select-all",
+                           "typeConvertToShapeAction", "typeCreateWorkPathAction"}) {
+    CHECK(context_entry(*menu, QLatin1String(name)) != nullptr);
+  }
+  CHECK(menu->actions().back()->objectName() == QStringLiteral("typeCreateWorkPathAction"));
+  save_window_popup_artifact("ui_text_editor_context_menu", window, *canvas, *menu);
+  pick_context_entry(*menu, QStringLiteral("typeConvertToShapeAction"));
+  process_events_until([&] { return editor == nullptr; });
+  CHECK(editor == nullptr);
+  const auto& doc = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  const auto active = doc.active_layer_id();
+  const auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
+  CHECK(layer != nullptr && patchy::layer_is_vector_shape(*layer));
+}
+
 }  // namespace
 
 // GitHub issue 139: Image > Flip Horizontal mirrors an off-center layer about the
@@ -4801,6 +5070,10 @@ void ui_image_flip_and_layer_rotate_menu_actions_apply() {
 std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
   return {
       {"ui_image_flip_and_layer_rotate_menu_actions_apply", ui_image_flip_and_layer_rotate_menu_actions_apply},
+      {"ui_transform_session_context_menu_applies_and_cancels", ui_transform_session_context_menu_applies_and_cancels},
+      {"ui_crop_context_menu_offers_apply_cancel_and_ratios", ui_crop_context_menu_offers_apply_cancel_and_ratios},
+      {"ui_hand_tool_context_menu_offers_view_zoom_commands", ui_hand_tool_context_menu_offers_view_zoom_commands},
+      {"ui_text_editor_context_menu_offers_outline_commands", ui_text_editor_context_menu_offers_outline_commands},
       {"ui_move_layer_menu_selects_overlapping_layers_and_reveals_rows",
        ui_move_layer_menu_selects_overlapping_layers_and_reveals_rows},
       {"ui_move_layer_menu_respects_pixels_masks_and_visibility",

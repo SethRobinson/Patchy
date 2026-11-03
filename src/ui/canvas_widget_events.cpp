@@ -729,7 +729,6 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     // canvas context menu (show_canvas_context_menu), a drag opens nothing.
     if (event->buttons() == Qt::RightButton && document_ != nullptr && !spacebar_panning_ &&
         !handling_tablet_event_ && !pen_recently_in_proximity() && !pointer_gesture_active() &&
-        !transforming_layer_ && !warping_layer_ && !path_transform_active_ &&
         (event->modifiers() & Qt::AltModifier) == 0) {
       context_press_pos_ = event->pos();
     }

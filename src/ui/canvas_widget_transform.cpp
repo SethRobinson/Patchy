@@ -5284,6 +5284,32 @@ void CanvasWidget::commit_free_transform_floating() {
   notify_transform_controls_changed();
 }
 
+bool CanvasWidget::rotate_free_transform_session(double degrees) {
+  const auto state = transforming_layer_ ? transform_controls_state() : std::nullopt;
+  if (!state.has_value()) {
+    return false;
+  }
+  auto angle = std::fmod(state->rotation_degrees + degrees, 360.0);
+  if (angle > 180.0) {
+    angle -= 360.0;
+  } else if (angle <= -180.0) {
+    angle += 360.0;
+  }
+  return set_transform_controls_state(state->reference_position, state->scale_x_percent, state->scale_y_percent,
+                                      angle);
+}
+
+bool CanvasWidget::flip_free_transform_session(bool horizontal) {
+  const auto state = transforming_layer_ ? transform_controls_state() : std::nullopt;
+  if (!state.has_value()) {
+    return false;
+  }
+  return set_transform_controls_state(state->reference_position,
+                                      horizontal ? -state->scale_x_percent : state->scale_x_percent,
+                                      horizontal ? state->scale_y_percent : -state->scale_y_percent,
+                                      state->rotation_degrees);
+}
+
 bool CanvasWidget::begin_transform_selection() {
   if (transforming_layer_ && transform_selection_only_) {
     return true;

@@ -1449,6 +1449,11 @@ private:
   void transform_active_layer_dialog();
   // Select > Transform Selection (GitHub issue 323; CanvasWidget::begin_transform_selection).
   void transform_selection();
+  // Canvas right-click menus for sessions (GitHub issue 323; docs/tools.md, "Canvas
+  // right-click menu"): built from existing commands and Patchy's own names.
+  void create_canvas_session_context_actions();
+  QList<QAction*> transform_session_context_actions();
+  QList<QAction*> crop_context_actions();
   void warp_transform_active_layer();
   // Edit > Transform > Skew/Distort/Perspective (GitHub issue 225).
   void transform_active_layer_mode(TransformDistortMode mode);
@@ -3128,6 +3133,18 @@ private:
   // Edit-menu actions the canvas right-click menu's shape section reuses.
   QAction* free_transform_action_{nullptr};
   QAction* transform_selection_action_{nullptr};
+  // Edit > Transform's type entries (Scale to Perspective) and Warp, for the session menu.
+  QList<QAction*> transform_mode_actions_;
+  QAction* warp_transform_action_{nullptr};
+  // Context-menu-only commands (no hotkey ids, never in the menu bar).
+  QAction* transform_context_apply_action_{nullptr};
+  QAction* transform_context_cancel_action_{nullptr};
+  QList<QAction*> transform_context_turn_actions_;
+  QAction* crop_context_apply_action_{nullptr};
+  QAction* crop_context_cancel_action_{nullptr};
+  // Rebuilt from the Ratio preset list on every crop menu.
+  QList<QAction*> crop_context_ratio_actions_;
+  QActionGroup* crop_context_ratio_group_{nullptr};
   QAction* define_custom_shape_action_{nullptr};
   // Unite / Subtract Front / Intersect / Exclude, enabled with a combinable
   // multi-selection (refresh_combine_shapes_action_states).

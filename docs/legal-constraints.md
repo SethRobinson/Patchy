@@ -84,6 +84,10 @@ Read before touching a feature below or one near it. Licensing, file formats, tr
 
 - **Detect and embed only** (decided 2026-10-23; [watermarks.md](watermarks.md)): no remover or other model without a new decision. Adobe's MIT TrustMark models are the one exception to the Adobe-assets rule in [legal-licensing.md](legal-licensing.md): on request, never bundled, rehosted unchanged with Adobe's LICENSE.
 
+## Canvas context menus
+
+- **Context menus use only Patchy's own commands** (GitHub issue 323): never another editor's menu set, order or grouping, even when an issue posts its screenshots ([canvas-context-menu.md](canvas-context-menu.md)).
+
 ## Format, copyright, trademarks, and assets
 
 Moved to [legal-licensing.md](legal-licensing.md#format-copyright-trademarks-and-assets).
