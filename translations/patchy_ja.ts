@@ -21686,8 +21686,8 @@ RGB: -
         <translation>変更を保存しますか?</translation>
     </message>
     <message>
-        <source>Save changes to %1 before closing?</source>
-        <translation>閉じる前に %1 への変更を保存しますか?</translation>
+        <source>Save changes to &quot;%1&quot; before closing?</source>
+        <translation>閉じる前に「%1」への変更を保存しますか?</translation>
     </message>
     <message>
         <source>Untitled-%1</source>

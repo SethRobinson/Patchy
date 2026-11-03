@@ -25301,8 +25301,8 @@ Y : %2
         <translation>Enregistrer les modifications ?</translation>
     </message>
     <message>
-        <source>Save changes to %1 before closing?</source>
-        <translation>Enregistrer les modifications apportées à %1 avant de fermer ?</translation>
+        <source>Save changes to &quot;%1&quot; before closing?</source>
+        <translation>Enregistrer les modifications apportées à &quot;%1&quot; avant de fermer ?</translation>
     </message>
     <message>
         <source>Rasterize Smart Filters before changing document geometry</source>

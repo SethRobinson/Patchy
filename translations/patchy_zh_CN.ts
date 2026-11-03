@@ -25243,8 +25243,8 @@ Y: %2
         <translation>存储更改？</translation>
     </message>
     <message>
-        <source>Save changes to %1 before closing?</source>
-        <translation>关闭前是否存储对 %1 的更改？</translation>
+        <source>Save changes to &quot;%1&quot; before closing?</source>
+        <translation>关闭前是否存储对“%1”的更改？</translation>
     </message>
     <message>
         <source>Rasterize Smart Filters before changing document geometry</source>

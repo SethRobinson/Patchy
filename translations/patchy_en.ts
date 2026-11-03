@@ -25258,7 +25258,7 @@ Y: %2
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Save changes to %1 before closing?</source>
+        <source>Save changes to &quot;%1&quot; before closing?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
