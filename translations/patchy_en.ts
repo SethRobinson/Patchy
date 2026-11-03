@@ -12702,10 +12702,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -12723,10 +12719,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -14960,6 +14952,15 @@ Each item&apos;s own View setting still applies.</source>
         <source>Feather radius</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their pixels without them.</source>
+        <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17123,6 +17124,10 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Feathered selection by %1 px</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Object Selection found no object in the outline; the outline is kept</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -32352,6 +32357,50 @@ Locked: %1</source>
     </message>
     <message>
         <source>Feat&amp;her...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit %1 contents itself.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit in Default App opens a copy in the app your system uses for this file type. Each time you save it there, Patchy updates the smart object.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit in Default App</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not create a temporary folder for the contents</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No app opened %1. Open the copy at %2 in any editor; saving it updates the smart object</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opened %1 in its default app. Each save there updates the smart object</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Updated the smart object from %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

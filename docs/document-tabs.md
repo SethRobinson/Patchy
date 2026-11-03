@@ -15,7 +15,7 @@ menu `documentTabContextMenu` fresh on each right-click:
 | Reveal in Explorer (Finder, file manager) | `documentTabRevealAction` | per-platform label |
 | Copy File Path | `documentTabCopyPathAction` | native separators |
 | Rename File... | `documentTabRenameFileAction` | below; hidden on wasm |
-| Scan for Watermarks... | `documentTabScanForWatermarksAction` | after a separator; File > Scan for Watermarks for the clicked document |
+| Scan for Watermarks... | `documentTabScanForWatermarksAction` | after a separator; File > Metadata > Scan for Watermarks for the clicked document |
 
 The file items act on the session under the clicked tab (by session id, since the session
 may close while the menu is open) and are disabled when it has no path: a never-saved
@@ -25,7 +25,7 @@ Object's tab, whose path is the parent's link target.
 Scan for Watermarks works on any document, saved or not. It activates the clicked document
 (after the menu has closed), then runs `show_file_info_dialog(true)`: File Info on its
 Watermarks page with the scan already run ([watermarks.md](watermarks.md#scan-results)). The
-item shows the shortcut of File > Scan for Watermarks... (`fileScanForWatermarksAction`, hotkey
+item shows the shortcut of File > Metadata > Scan for Watermarks... (`fileScanForWatermarksAction`, hotkey
 id `file.scan_for_watermarks`, no default key), which owns the key.
 
 ## Rename File

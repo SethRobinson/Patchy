@@ -396,23 +396,43 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(import_files_as_layers_action, "file.import_files_as_layers");
   connect(import_files_as_layers_action, &QAction::triggered, this, [this] { import_files_as_layers(); });
   register_document_action(import_files_as_layers_action);
-  auto* place_embedded_action = file_menu->addAction(tr("Place &Embedded..."));
+  // GitHub issue 619: the File menu is grouped by separators and submenus so it fits a
+  // short screen. The commands keep their text, object names and command ids; only
+  // where they sit changes.
+  file_menu->addSeparator();
+  auto* place_menu = file_menu->addMenu(tr("P&lace"));
+  bind_widget_text(place_menu, QT_TR_NOOP("P&lace"));
+  place_menu->setObjectName(QStringLiteral("filePlaceMenu"));
+  place_menu->menuAction()->setMenuRole(QAction::NoRole);
+  auto* place_embedded_action = place_menu->addAction(tr("Place &Embedded..."));
   bind_action_text(place_embedded_action, QT_TR_NOOP("Place &Embedded..."));
   place_embedded_action->setObjectName(QStringLiteral("filePlaceEmbeddedAction"));
   register_hotkey(place_embedded_action, "file.place_embedded");
   connect(place_embedded_action, &QAction::triggered, this, [this] { place_embedded_file(); });
   register_document_action(place_embedded_action);
-  auto* place_linked_action = file_menu->addAction(tr("Place &Linked..."));
+  auto* place_linked_action = place_menu->addAction(tr("Place &Linked..."));
   bind_action_text(place_linked_action, QT_TR_NOOP("Place &Linked..."));
   place_linked_action->setObjectName(QStringLiteral("filePlaceLinkedAction"));
   place_linked_action->setMenuRole(QAction::NoRole);
   register_hotkey(place_linked_action, "file.place_linked");
   connect(place_linked_action, &QAction::triggered, this, [this] { place_linked_file(); });
   register_document_action(place_linked_action);
+  file_menu->addSeparator();
   auto* save_action = file_menu->addAction(tr("&Save"));
   auto* save_as_action = file_menu->addAction(tr("Save &As..."));
-  // Directly under Save As, not in the Export submenu (Seth, October 26, 2026): the
-  // web formats with live previews and sizes (docs/web-export.md).
+  // GitHub issue 584: reload the document from its file (F12), directly under Save As
+  // (issue 619). Its enabled state follows the active document's file
+  // (refresh_revert_action), not just having a document.
+  revert_action_ = file_menu->addAction(QString());
+  bind_action_text(revert_action_, QT_TR_NOOP("Re&vert"));
+  revert_action_->setObjectName(QStringLiteral("fileRevertAction"));
+  revert_action_->setMenuRole(QAction::NoRole);
+  register_hotkey(revert_action_, "file.revert", QKeySequence(Qt::Key_F12));
+  connect(revert_action_, &QAction::triggered, this, [this] { revert_active_document(); });
+  revert_action_->setEnabled(false);
+  // In the File menu itself, not in the Export submenu (Seth, October 26, 2026, and again
+  // for issue 619: it is the export most people use): the web formats with live previews
+  // and sizes (docs/web-export.md).
   auto* export_for_web_action = file_menu->addAction(tr("Export for &Web..."));
   bind_action_text(export_for_web_action, QT_TR_NOOP("Export for &Web..."));
   export_for_web_action->setObjectName(QStringLiteral("fileExportForWebAction"));
@@ -488,6 +508,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(export_animated_png_action, "file.export_animated_png");
   connect(export_animated_png_action, &QAction::triggered, this, [this] { export_animated_png(); });
   register_document_action(export_animated_png_action);
+  file_menu->addSeparator();
   // File Info sits above Print, as in Photoshop (docs/file-info.md).
   auto* file_info_action = file_menu->addAction(tr("File &Info..."));
   bind_action_text(file_info_action, QT_TR_NOOP("File &Info..."));
@@ -496,9 +517,14 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(file_info_action, "file.file_info", QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_I));
   connect(file_info_action, &QAction::triggered, this, [this] { show_file_info_dialog(); });
   register_document_action(file_info_action);
+  // The commands that act on the file's metadata without opening File Info (issue 619).
+  auto* metadata_menu = file_menu->addMenu(tr("M&etadata"));
+  bind_widget_text(metadata_menu, QT_TR_NOOP("M&etadata"));
+  metadata_menu->setObjectName(QStringLiteral("fileMetadataMenu"));
+  metadata_menu->menuAction()->setMenuRole(QAction::NoRole);
   // File Info opened on its Watermarks page with the scan already run (docs/watermarks.md);
   // also on the document tab's context menu, for the clicked document.
-  auto* scan_watermarks_action = file_menu->addAction(tr("Scan for &Watermarks..."));
+  auto* scan_watermarks_action = metadata_menu->addAction(tr("Scan for &Watermarks..."));
   bind_action_text(scan_watermarks_action, QT_TR_NOOP("Scan for &Watermarks..."));
   scan_watermarks_action->setObjectName(QStringLiteral("fileScanForWatermarksAction"));
   scan_watermarks_action->setMenuRole(QAction::NoRole);
@@ -506,13 +532,14 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(scan_watermarks_action, &QAction::triggered, this,
           [this] { show_file_info_dialog(/*watermarks_scan*/ true); });
   register_document_action(scan_watermarks_action);
-  auto* strip_metadata_action = file_menu->addAction(tr("Strip All Metadata..."));
+  auto* strip_metadata_action = metadata_menu->addAction(tr("Strip All Metadata..."));
   bind_action_text(strip_metadata_action, QT_TR_NOOP("Strip All Metadata..."));
   strip_metadata_action->setObjectName(QStringLiteral("fileStripMetadataAction"));
   strip_metadata_action->setMenuRole(QAction::NoRole);
   register_hotkey(strip_metadata_action, "file.strip_metadata");
   connect(strip_metadata_action, &QAction::triggered, this, [this] { strip_all_metadata(); });
   register_document_action(strip_metadata_action);
+  file_menu->addSeparator();
   auto* page_setup_action = file_menu->addAction(tr("Page Set&up..."));
   auto* print_action = file_menu->addAction(tr("&Print..."));
 #ifdef Q_OS_WASM
@@ -552,15 +579,6 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   scripts_menu_->addSeparator();
   connect(scripts_menu_, &QMenu::aboutToShow, this, [this] { rebuild_scripts_menu(); });
   file_menu->addSeparator();
-  // GitHub issue 584: reload the document from its file (F12). Its enabled state follows
-  // the active document's file (refresh_revert_action), not just having a document.
-  revert_action_ = file_menu->addAction(QString());
-  bind_action_text(revert_action_, QT_TR_NOOP("Re&vert"));
-  revert_action_->setObjectName(QStringLiteral("fileRevertAction"));
-  revert_action_->setMenuRole(QAction::NoRole);
-  register_hotkey(revert_action_, "file.revert", QKeySequence(Qt::Key_F12));
-  connect(revert_action_, &QAction::triggered, this, [this] { revert_active_document(); });
-  revert_action_->setEnabled(false);
   auto* close_action = file_menu->addAction(tr("&Close"));
   auto* close_all_action = file_menu->addAction(tr("Close &All"));
   file_menu->addSeparator();

@@ -1,4 +1,5 @@
 #include "ui_test_access.hpp"
+#include "core/smart_object.hpp"
 
 namespace patchy::ui {
 
@@ -259,6 +260,20 @@ void MainWindowTestAccess::set_ruler_unit_preference(MainWindow& window, Measure
 
 void MainWindowTestAccess::open_smart_object_contents(MainWindow& window) {
   window.open_smart_object_contents();
+}
+
+QString MainWindowTestAccess::start_external_smart_object_edit(MainWindow& window) {
+  const auto active = std::as_const(window.document()).active_layer_id();
+  const auto* layer = active.has_value() ? std::as_const(window.document()).find_layer(*active) : nullptr;
+  if (layer == nullptr) {
+    return {};
+  }
+  return window.start_external_smart_object_edit(window.session(), smart_object_source_uuid(*layer), false)
+      .value_or(QString());
+}
+
+bool MainWindowTestAccess::apply_external_smart_object_edit(MainWindow& window, const QString& path) {
+  return window.apply_external_smart_object_edit(path);
 }
 
 void MainWindowTestAccess::replace_smart_object_contents_with_path(MainWindow& window, const QString& path) {

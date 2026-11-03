@@ -1124,6 +1124,38 @@ QString file_dialog_initial_path(const QString& existing_path, const QString& fi
   return QDir(last_save_directory()).filePath(filename);
 }
 
+QString last_open_directory() {
+  auto settings = app_settings();
+  const auto path = settings.value(QStringLiteral("lastOpenDirectory")).toString();
+  if (!path.isEmpty()) {
+    const QFileInfo info(path);
+    if (info.isDir()) {
+      return info.absoluteFilePath();
+    }
+  }
+  return default_file_dialog_directory();
+}
+
+QString last_place_directory() {
+  const auto path = app_settings().value(QStringLiteral("lastPlaceDirectory")).toString();
+  if (!path.isEmpty()) {
+    const QFileInfo info(path);
+    if (info.isDir()) {
+      return info.absoluteFilePath();
+    }
+  }
+  return last_open_directory();
+}
+
+void remember_place_directory_for_path(const QString& path) {
+  const QFileInfo info(QFileInfo(path).absolutePath());
+  if (path.isEmpty() || !info.isDir()) {
+    return;
+  }
+  auto settings = app_settings();
+  settings.setValue(QStringLiteral("lastPlaceDirectory"), info.absoluteFilePath());
+}
+
 namespace {
 
 bool smart_filter_record_is_cloneable(const SmartFilterEffectsRecord& record) {
@@ -1336,6 +1368,7 @@ std::optional<int> request_integer_input(QWidget* parent, const QString& object_
   form->addRow(label, spin);
   layout->addLayout(form);
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  match_ok_cancel_widths(*buttons);
   layout->addWidget(buttons);
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);

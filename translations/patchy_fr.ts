@@ -12718,10 +12718,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Certains calques de texte n&apos;ont pas pu être lus comme du texte ; ils ont donc été ouverts comme calques de pixels.</translation>
     </message>
     <message>
-        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
-        <translation>Certains effets de calque de GIMP n&apos;ont pas d&apos;équivalent dans Patchy et n&apos;ont pas été appliqués ; ces calques montrent leurs pixels sans l&apos;effet.</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>Les calques liés de GIMP ont été ouverts comme calques de pixels ; ils ne suivent plus leurs fichiers liés.</translation>
     </message>
@@ -12740,10 +12736,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
         <translation>Certains calques n&apos;apparaissent que là où se trouve le calque en dessous, comme GIMP les compose ; ils ont été ouverts comme masques d&apos;écrêtage sur celui-ci.</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>Les effets de calque de GIMP que Patchy sait reproduire (Flou gaussien et filtres de couleur comme Niveaux, Teinte-Saturation et Désaturer) ont été appliqués aux pixels de leurs calques.</translation>
     </message>
     <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
@@ -14977,6 +14969,15 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Feather radius</source>
         <translation>Rayon du contour progressif</translation>
     </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
+        <translation>Les effets de calque de GIMP que Patchy sait reproduire (Flou gaussien, filtres de couleur comme Niveaux et Teinte-Saturation, et les filtres GEGL fournis avec Patchy, comme Masque flou, Bloom et Bruit) ont été appliqués aux pixels de leurs calques.</translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their pixels without them.</source>
+        <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
+        <translation>Certains effets de calque de GIMP que Patchy ne sait pas reproduire ont été omis (%1) ; ces calques montrent leurs pixels sans eux.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17141,6 +17142,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Feathered selection by %1 px</source>
         <translation>Contour progressif de %1 px appliqué</translation>
+    </message>
+    <message>
+        <source>Object Selection found no object in the outline; the outline is kept</source>
+        <translation>La sélection d&apos;objet n&apos;a trouvé aucun objet dans le contour ; le contour est conservé</translation>
     </message>
 </context>
 <context>
@@ -32434,6 +32439,50 @@ Verrouillé : %1</translation>
     <message>
         <source>Feat&amp;her...</source>
         <translation>Contour &amp;progressif...</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit %1 contents itself.</source>
+        <translation>Patchy ne peut pas modifier lui-même le contenu %1.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App opens a copy in the app your system uses for this file type. Each time you save it there, Patchy updates the smart object.</source>
+        <translation>Modifier dans l&apos;application par défaut ouvre une copie dans l&apos;application que votre système utilise pour ce type de fichier. À chaque enregistrement dans cette application, Patchy met à jour l&apos;objet dynamique.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App</source>
+        <translation>Modifier dans l&apos;application par défaut</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>Exporter...</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary folder for the contents</source>
+        <translation>Impossible de créer un dossier temporaire pour le contenu</translation>
+    </message>
+    <message>
+        <source>No app opened %1. Open the copy at %2 in any editor; saving it updates the smart object</source>
+        <translation>Aucune application n&apos;a ouvert %1. Ouvrez la copie située à %2 dans n&apos;importe quel éditeur ; l&apos;enregistrer met à jour l&apos;objet dynamique</translation>
+    </message>
+    <message>
+        <source>Opened %1 in its default app. Each save there updates the smart object</source>
+        <translation>%1 ouvert dans son application par défaut. Chaque enregistrement dans celle-ci met à jour l&apos;objet dynamique</translation>
+    </message>
+    <message>
+        <source>Updated the smart object from %1</source>
+        <translation>Objet dynamique mis à jour depuis %1</translation>
+    </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation>Pl&amp;acer</translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation>Mé&amp;tadonnées</translation>
+    </message>
+    <message>
+        <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
+        <translation>Une fois un nouveau contour tracé, sélectionne l&apos;objet qu&apos;il contient, l&apos;agrandit de quelques pixels et applique le contour progressif avant le glissement</translation>
     </message>
 </context>
 <context>

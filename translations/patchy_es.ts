@@ -12718,10 +12718,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Algunas capas de texto no se pudieron leer como texto, así que se abrieron como capas de píxeles.</translation>
     </message>
     <message>
-        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
-        <translation>Algunos efectos de capa de GIMP no tienen equivalente en Patchy y no se aplicaron; esas capas muestran sus píxeles sin el efecto.</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>Las capas de enlace de GIMP se abrieron como capas de píxeles; ya no siguen a sus archivos enlazados.</translation>
     </message>
@@ -12740,10 +12736,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
         <translation>Algunas capas solo se ven donde está la capa de debajo, como las compone GIMP; se abrieron como máscaras de recorte sobre ella.</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>Los efectos de capa de GIMP que Patchy puede reproducir (Desenfoque gaussiano y filtros de color como Niveles, Tono-Saturación y Desaturar) se aplicaron a los píxeles de sus capas.</translation>
     </message>
     <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
@@ -14977,6 +14969,15 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Feather radius</source>
         <translation>Radio de calado</translation>
     </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
+        <translation>Los efectos de capa de GIMP que Patchy puede reproducir (Desenfoque gaussiano, filtros de color como Niveles y Tono-Saturación, y los filtros GEGL que incluye Patchy, como Máscara de enfoque, Resplandor y Ruido) se aplicaron a los píxeles de sus capas.</translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their pixels without them.</source>
+        <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
+        <translation>Algunos efectos de capa de GIMP que Patchy no puede reproducir se omitieron (%1); esas capas muestran sus píxeles sin ellos.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17141,6 +17142,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Feathered selection by %1 px</source>
         <translation>Selección calada %1 px</translation>
+    </message>
+    <message>
+        <source>Object Selection found no object in the outline; the outline is kept</source>
+        <translation>La selección de objetos no encontró ningún objeto en el contorno; se conserva el contorno</translation>
     </message>
 </context>
 <context>
@@ -32434,6 +32439,50 @@ Bloqueada: %1</translation>
     <message>
         <source>Feat&amp;her...</source>
         <translation>Ca&amp;lar...</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit %1 contents itself.</source>
+        <translation>Patchy no puede editar por sí mismo el contenido %1.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App opens a copy in the app your system uses for this file type. Each time you save it there, Patchy updates the smart object.</source>
+        <translation>Editar en la aplicación predeterminada abre una copia en la aplicación que tu sistema usa para este tipo de archivo. Cada vez que la guardes allí, Patchy actualiza el objeto inteligente.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App</source>
+        <translation>Editar en la aplicación predeterminada</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>Exportar...</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary folder for the contents</source>
+        <translation>No se pudo crear una carpeta temporal para el contenido</translation>
+    </message>
+    <message>
+        <source>No app opened %1. Open the copy at %2 in any editor; saving it updates the smart object</source>
+        <translation>Ninguna aplicación abrió %1. Abre la copia en %2 con cualquier editor; al guardarla se actualiza el objeto inteligente</translation>
+    </message>
+    <message>
+        <source>Opened %1 in its default app. Each save there updates the smart object</source>
+        <translation>%1 abierto en su aplicación predeterminada. Cada vez que guardes allí se actualiza el objeto inteligente</translation>
+    </message>
+    <message>
+        <source>Updated the smart object from %1</source>
+        <translation>Objeto inteligente actualizado desde %1</translation>
+    </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation>Co&amp;locar</translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation>M&amp;etadatos</translation>
+    </message>
+    <message>
+        <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
+        <translation>Al terminar de dibujar un contorno nuevo, selecciona el objeto que contiene, lo amplía unos píxeles y aplica el calado antes de arrastrar</translation>
     </message>
 </context>
 <context>

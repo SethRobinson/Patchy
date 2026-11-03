@@ -157,6 +157,9 @@
 #include "ui/wasm_event_guard.hpp"
 #include "ui/wasm_memory_telemetry.hpp"
 #endif
+#ifndef Q_OS_WASM
+#include "ui/gegl_filters.hpp"
+#endif
 #include "ui/document_float_window.hpp"
 #include "ui/font_picker.hpp"
 #include "ui/hotkey_editor.hpp"
@@ -4597,6 +4600,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   });
 #endif
 #ifndef Q_OS_WASM
+  // GIMP files bake their layer effects through Patchy's GEGL (docs/xcf.md, "Layer effects").
+  install_xcf_effect_runner();
   // The GEGL filter scan (docs/gegl-filters.md) reuses its cached list unless GEGL or the
   // helper changed; like the legacy scan it never delays the first paint. Offscreen runs
   // (the UI tests, --headless) scan on first use instead (ensure_gegl_filters_scanned).
@@ -5951,6 +5956,10 @@ MainWindow::~MainWindow() {
   // down; the commit path must see this flag and bail before touching any member
   // container (observed as an uncaught "No active document" on macOS teardown).
   shutting_down_ = true;
+  // Delete the Edit in Default App temp copies (best effort: a bounded quit can skip this).
+  while (!external_smart_object_edits_.empty()) {
+    stop_external_smart_object_edits_for_session(external_smart_object_edits_.front().session_id);
+  }
 #ifndef Q_OS_WASM
   // Reaching the destructor means the process is exiting on purpose (a crash never
   // gets here): the recovery folder is deleted by whichever owner releases it last,

@@ -11,6 +11,7 @@
 #include "core/vector_shape.hpp"
 #include "ui/missing_links_dialog.hpp"
 #include "ui/smart_object_render.hpp"
+#include "ui/main_window_shared.hpp"
 #include "ui/pattern_library.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
@@ -51,6 +52,7 @@
 #include <QIODevice>
 #include <QPixmap>
 #include <QTabWidget>
+#include <QFileDialog>
 #include <QTimer>
 #include <QToolTip>
 #include <QPointer>
@@ -2853,6 +2855,192 @@ void ui_smart_object_placed_svg_is_vector_contents() {
   CHECK(!patchy::ui::render_smart_object_vector_contents(*png_probe, *big_placement).has_value());
 }
 
+// GitHub issue 617: File > Place Embedded and Place Linked share a remembered folder
+// (settings key lastPlaceDirectory). Before the first pick they start in File > Open's
+// folder; a pick in either dialog makes its folder the next one's start, and leaves
+// File > Open's folder alone.
+void ui_smart_object_place_dialogs_remember_folder() {
+  SettingsValueRestorer place_restorer(QStringLiteral("lastPlaceDirectory"));
+  SettingsValueRestorer open_restorer(QStringLiteral("lastOpenDirectory"));
+  const auto dir = linked_test_dir(QStringLiteral("place-folder"));
+  const auto open_dir = dir + QStringLiteral("/opened");
+  const auto art_dir = dir + QStringLiteral("/art");
+  CHECK(QDir().mkpath(open_dir));
+  CHECK(QDir().mkpath(art_dir));
+  const auto art_path = write_linked_test_png(art_dir + QStringLiteral("/art.png"), QColor(20, 200, 40, 255));
+  patchy::ui::app_settings().remove(QStringLiteral("lastPlaceDirectory"));
+  patchy::ui::app_settings().setValue(QStringLiteral("lastOpenDirectory"), open_dir);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  add_linked_test_document(window, 200, 160);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layers_before = std::as_const(document).layers().size();
+
+  // Answers the next Place dialog: records its start folder, then picks `pick` (or cancels).
+  const auto answer_place_dialog = [](const QString& object_name, const QString& pick, QString& started_in) {
+    QTimer::singleShot(0, [object_name, pick, &started_in] {
+      auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(object_name));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      started_in = QFileInfo(dialog->directory().absolutePath()).absoluteFilePath();
+      if (pick.isEmpty()) {
+        dialog->reject();
+        return;
+      }
+      dialog->setDirectory(QFileInfo(pick).absolutePath());
+      dialog->selectFile(pick);
+      static_cast<QDialog*>(dialog)->accept();
+    });
+  };
+
+  QString started_in;
+  answer_place_dialog(QStringLiteral("placeEmbeddedFileDialog"), art_path, started_in);
+  require_action(window, "filePlaceEmbeddedAction")->trigger();
+  QApplication::processEvents();
+  CHECK(started_in == QFileInfo(open_dir).absoluteFilePath());
+  CHECK(std::as_const(document).layers().size() == layers_before + 1);
+  CHECK(QFileInfo(patchy::ui::last_place_directory()) == QFileInfo(art_dir));
+  CHECK(QFileInfo(patchy::ui::last_open_directory()) == QFileInfo(open_dir));
+
+  // Place Linked starts where Place Embedded picked; a cancel keeps the folder.
+  started_in.clear();
+  answer_place_dialog(QStringLiteral("placeLinkedFileDialog"), QString(), started_in);
+  require_action(window, "filePlaceLinkedAction")->trigger();
+  QApplication::processEvents();
+  CHECK(started_in == QFileInfo(art_dir).absoluteFilePath());
+  CHECK(QFileInfo(patchy::ui::last_place_directory()) == QFileInfo(art_dir));
+
+  // A remembered folder that no longer exists falls back to File > Open's.
+  patchy::ui::app_settings().setValue(QStringLiteral("lastPlaceDirectory"), dir + QStringLiteral("/gone"));
+  CHECK(QFileInfo(patchy::ui::last_place_directory()) == QFileInfo(open_dir));
+}
+
+// GitHub issue 620: Edit Contents on embedded contents Patchy can't re-encode (an SVG)
+// offers Edit in Default App. The copy is written under the element's own name and
+// watched; each save re-embeds the bytes and re-renders the layer as one undo step,
+// an undo is followed by the next save, and closing the document deletes the copy.
+// The element has a Unicode name (AGENTS.md: every new file entry point).
+void ui_smart_object_edit_in_default_app_reembeds_saves() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.set_cli_automation_mode(false);
+  add_linked_test_document(window, 300, 200);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto dir = linked_test_dir(QStringLiteral("edit-default-app"));
+  // A Unicode element name: the temp copy is written and read back under it.
+  const auto svg_name =
+      patchy::ui::to_qstring(patchy::test::unicode_path_piece(patchy::test::kUnicodePathStems[2])) +
+      QStringLiteral(".svg");
+  const auto svg_path = dir + QLatin1Char('/') + svg_name;
+  write_linked_test_file(svg_path, linked_test_svg("#ff0000"));
+  patchy::ui::MainWindowTestAccess::place_embedded_file_with_path(window, svg_path);
+  QApplication::processEvents();
+  const auto layer_id = std::as_const(document).layers().back().id();
+  const auto center = [&] {
+    const auto* layer = std::as_const(document).find_layer(layer_id);
+    CHECK(layer != nullptr);
+    return layer != nullptr ? layer_center_color(*layer) : QColor();
+  };
+  const auto current_source = [&]() -> const patchy::SmartObjectSource* {
+    const auto* layer = std::as_const(document).find_layer(layer_id);
+    return layer != nullptr
+               ? std::as_const(document).metadata().smart_objects.find(patchy::smart_object_source_uuid(*layer))
+               : nullptr;
+  };
+  const auto embedded_bytes = [&] {
+    const auto* source = current_source();
+    CHECK(source != nullptr && source->file_bytes != nullptr);
+    return source != nullptr && source->file_bytes != nullptr
+               ? QByteArray(reinterpret_cast<const char*>(source->file_bytes->data()),
+                            static_cast<qsizetype>(source->file_bytes->size()))
+               : QByteArray();
+  };
+  CHECK(center().red() > 200 && center().blue() < 60);
+  CHECK(current_source() != nullptr &&
+        patchy::ui::classify_smart_object_contents(*current_source()) ==
+            patchy::ui::SmartObjectContentsFormat::ReadOnly);
+
+  // Edit Contents asks; Cancel leaves everything as it was.
+  bool saw_box = false;
+  QTimer::singleShot(0, [&] {
+    auto* box =
+        qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("editSmartObjectInDefaultAppMessageBox")));
+    CHECK(box != nullptr);
+    if (box == nullptr) {
+      return;
+    }
+    saw_box = true;
+    auto* edit_button = box->findChild<QPushButton*>(QStringLiteral("editSmartObjectInDefaultAppButton"));
+    CHECK(edit_button != nullptr);
+    CHECK(box->findChild<QPushButton*>(QStringLiteral("editSmartObjectExportButton")) != nullptr);
+    CHECK(box->defaultButton() == edit_button);
+    (void)capture_widget_artifact("ui_smart_object_edit_in_default_app_prompt", *box);
+    box->button(QMessageBox::Cancel)->click();
+  });
+  const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  patchy::ui::MainWindowTestAccess::open_smart_object_contents(window);
+  QApplication::processEvents();
+  CHECK(saw_box);
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_smart_object_child(window));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before);
+
+  // The copy carries the element's name and bytes; an unchanged file applies nothing.
+  const auto edit_path = patchy::ui::MainWindowTestAccess::start_external_smart_object_edit(window);
+  CHECK(!edit_path.isEmpty());
+  CHECK(QFileInfo(edit_path).fileName() == svg_name);
+  CHECK(QFileInfo(edit_path).absolutePath() != QFileInfo(svg_path).absolutePath());
+  {
+    QFile file(edit_path);
+    CHECK(file.open(QIODevice::ReadOnly));
+    CHECK(file.readAll() == embedded_bytes());
+  }
+  CHECK(!patchy::ui::MainWindowTestAccess::apply_external_smart_object_edit(window, edit_path));
+
+  // A save re-embeds the new bytes and re-renders: one undo step.
+  write_linked_test_file(edit_path, linked_test_svg("#0000ff"));
+  CHECK(patchy::ui::MainWindowTestAccess::apply_external_smart_object_edit(window, edit_path));
+  CHECK(embedded_bytes() == linked_test_svg("#0000ff"));
+  CHECK(center().blue() > 200 && center().red() < 60);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before + 1);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  CHECK(!patchy::ui::MainWindowTestAccess::apply_external_smart_object_edit(window, edit_path));
+
+  // Undo brings the red element back; the next save still finds it.
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(center().red() > 200);
+  write_linked_test_file(edit_path, linked_test_svg("#00ff00"));
+  CHECK(patchy::ui::MainWindowTestAccess::apply_external_smart_object_edit(window, edit_path));
+  CHECK(center().green() > 200 && center().red() < 60);
+
+  // The watcher picks up a save on its own.
+  write_linked_test_file(edit_path, linked_test_svg("#0000ff", " "));
+  CHECK(process_events_until([&] { return center().blue() > 200; }, 10000));
+  CHECK(embedded_bytes() == linked_test_svg("#0000ff", " "));
+
+  // Closing the document stops the edit and deletes the copy.
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr);
+  bool discarded = false;
+  QTimer::singleShot(0, [&] {
+    auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("saveChangesMessageBox")));
+    CHECK(box != nullptr);
+    if (box != nullptr) {
+      discarded = true;
+      box->button(QMessageBox::Discard)->click();
+    }
+  });
+  CHECK(patchy::ui::MainWindowTestAccess::close_document_tab(window, tabs->currentIndex()));
+  QApplication::processEvents();
+  CHECK(discarded);
+  CHECK(!QFileInfo::exists(edit_path));
+  CHECK(!QFileInfo::exists(QFileInfo(edit_path).absolutePath()));
+  CHECK(!patchy::ui::MainWindowTestAccess::apply_external_smart_object_edit(window, edit_path));
+}
+
 // The acceptance scenario, scripted: a new document, one SVG placed linked three
 // times at different sizes plus a text layer, saved next to the SVG, reopened, and
 // read back as three linked layers on one source. Changing the SVG on disk and
@@ -3866,6 +4054,8 @@ std::vector<patchy::test::TestCase> smart_object_tests() {
        ui_smart_object_ag_psd_animation_timeline_reports_missing_link_if_available},
       {"ui_smart_object_place_linked_links_the_file", ui_smart_object_place_linked_links_the_file},
       {"ui_smart_object_placed_svg_is_vector_contents", ui_smart_object_placed_svg_is_vector_contents},
+      {"ui_smart_object_place_dialogs_remember_folder", ui_smart_object_place_dialogs_remember_folder},
+      {"ui_smart_object_edit_in_default_app_reembeds_saves", ui_smart_object_edit_in_default_app_reembeds_saves},
       {"ui_smart_object_linked_svg_child_saves_vectors_without_warning",
        ui_smart_object_linked_svg_child_saves_vectors_without_warning},
       {"ui_script_smart_object_linked_round_trip_and_update",

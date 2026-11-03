@@ -12718,10 +12718,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Einige Textebenen konnten nicht als Text gelesen werden und wurden deshalb als Pixelebenen geöffnet.</translation>
     </message>
     <message>
-        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
-        <translation>Einige GIMP-Ebeneneffekte haben in Patchy keine Entsprechung und wurden nicht angewendet; diese Ebenen zeigen ihre Pixel ohne den Effekt.</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>GIMP-Verknüpfungsebenen wurden als Pixelebenen geöffnet; sie folgen ihren verknüpften Dateien nicht mehr.</translation>
     </message>
@@ -12740,10 +12736,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
         <translation>Einige Ebenen erscheinen nur dort, wo die Ebene darunter ist, so wie GIMP sie zusammensetzt; sie wurden als Schnittmasken auf ihr geöffnet.</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>GIMP-Ebeneneffekte, die Patchy nachbilden kann (Gaußscher Weichzeichner und Farbfilter wie Tonwertkorrektur, Farbton/Sättigung und Entsättigen), wurden auf die Pixel ihrer Ebenen angewendet.</translation>
     </message>
     <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
@@ -14977,6 +14969,15 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Feather radius</source>
         <translation>Radius der weichen Kante</translation>
     </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
+        <translation>GIMP-Ebeneneffekte, die Patchy nachbilden kann (Gaußscher Weichzeichner, Farbfilter wie Tonwertkorrektur und Farbton/Sättigung sowie die GEGL-Filter, die Patchy mitbringt, etwa Unscharf maskieren, Bloom und Rauschen), wurden auf die Pixel ihrer Ebenen angewendet.</translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their pixels without them.</source>
+        <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
+        <translation>Einige GIMP-Ebeneneffekte, die Patchy nicht nachbilden kann, wurden weggelassen (%1); diese Ebenen zeigen ihre Pixel ohne sie.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17141,6 +17142,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Feathered selection by %1 px</source>
         <translation>Auswahlkante um %1 px weichgezeichnet</translation>
+    </message>
+    <message>
+        <source>Object Selection found no object in the outline; the outline is kept</source>
+        <translation>Die Objektauswahl hat in der Kontur kein Objekt gefunden; die Kontur bleibt erhalten</translation>
     </message>
 </context>
 <context>
@@ -32434,6 +32439,50 @@ Fixiert: %1</translation>
     <message>
         <source>Feat&amp;her...</source>
         <translation>&amp;Weiche Kante...</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit %1 contents itself.</source>
+        <translation>Patchy kann %1-Inhalte nicht selbst bearbeiten.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App opens a copy in the app your system uses for this file type. Each time you save it there, Patchy updates the smart object.</source>
+        <translation>„In Standard-App bearbeiten“ öffnet eine Kopie in der App, die Ihr System für diesen Dateityp verwendet. Bei jedem Speichern dort aktualisiert Patchy das Smartobjekt.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App</source>
+        <translation>In Standard-App bearbeiten</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>Exportieren...</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary folder for the contents</source>
+        <translation>Temporärer Ordner für den Inhalt konnte nicht erstellt werden</translation>
+    </message>
+    <message>
+        <source>No app opened %1. Open the copy at %2 in any editor; saving it updates the smart object</source>
+        <translation>Keine App hat %1 geöffnet. Öffnen Sie die Kopie unter %2 in einem beliebigen Editor; beim Speichern wird das Smartobjekt aktualisiert</translation>
+    </message>
+    <message>
+        <source>Opened %1 in its default app. Each save there updates the smart object</source>
+        <translation>%1 in der Standard-App geöffnet. Jedes Speichern dort aktualisiert das Smartobjekt</translation>
+    </message>
+    <message>
+        <source>Updated the smart object from %1</source>
+        <translation>Smartobjekt aus %1 aktualisiert</translation>
+    </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation>P&amp;latzieren</translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation>M&amp;etadaten</translation>
+    </message>
+    <message>
+        <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
+        <translation>Nach dem Zeichnen einer neuen Kontur das Objekt darin auswählen, um einige Pixel erweitern und die weiche Kante anwenden, bevor Sie ziehen</translation>
     </message>
 </context>
 <context>

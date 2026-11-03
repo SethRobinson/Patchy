@@ -12753,10 +12753,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Niektórych warstw tekstowych nie udało się odczytać jako tekstu, więc otwarto je jako warstwy pikselowe.</translation>
     </message>
     <message>
-        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
-        <translation>Niektóre efekty warstw GIMP nie mają odpowiednika w Patchy i nie zostały zastosowane; te warstwy pokazują swoje piksele bez efektu.</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>Warstwy połączone GIMP otwarto jako warstwy pikselowe; nie śledzą już połączonych plików.</translation>
     </message>
@@ -12775,10 +12771,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
         <translation>Niektóre warstwy są widoczne tylko tam, gdzie jest warstwa pod nimi, tak jak składa je GIMP; otwarto je jako maski przycinające na niej.</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>Efekty warstw GIMP, które Patchy potrafi odtworzyć (Rozmycie gaussowskie i filtry koloru, takie jak Poziomy, Barwa-Nasycenie i Desaturacja), zastosowano do pikseli ich warstw.</translation>
     </message>
     <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
@@ -15022,6 +15014,15 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Feather radius</source>
         <translation>Promień wtapiania</translation>
     </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
+        <translation>Efekty warstw GIMP, które Patchy potrafi odtworzyć (Rozmycie gaussowskie, filtry koloru, takie jak Poziomy i Barwa-Nasycenie, oraz filtry GEGL dołączone do Patchy, takie jak Maska wyostrzająca, Poświata i Szum), zastosowano do pikseli ich warstw.</translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their pixels without them.</source>
+        <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
+        <translation>Pominięto niektóre efekty warstw GIMP, których Patchy nie potrafi odtworzyć (%1); te warstwy pokazują swoje piksele bez nich.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17186,6 +17187,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Feathered selection by %1 px</source>
         <translation>Wtopiono krawędź zaznaczenia o %1 px</translation>
+    </message>
+    <message>
+        <source>Object Selection found no object in the outline; the outline is kept</source>
+        <translation>Zaznaczanie obiektu nie znalazło obiektu w obrysie; obrys pozostaje</translation>
     </message>
 </context>
 <context>
@@ -32518,6 +32523,50 @@ Zablokowano: %1</translation>
     <message>
         <source>Feat&amp;her...</source>
         <translation>&amp;Wtapianie...</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit %1 contents itself.</source>
+        <translation>Patchy nie może samodzielnie edytować zawartości %1.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App opens a copy in the app your system uses for this file type. Each time you save it there, Patchy updates the smart object.</source>
+        <translation>Edytuj w domyślnej aplikacji otwiera kopię w aplikacji, której system używa dla tego typu pliku. Za każdym razem, gdy ją tam zapiszesz, Patchy zaktualizuje inteligentny obiekt.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App</source>
+        <translation>Edytuj w domyślnej aplikacji</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>Eksportuj...</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary folder for the contents</source>
+        <translation>Nie można utworzyć folderu tymczasowego na zawartość</translation>
+    </message>
+    <message>
+        <source>No app opened %1. Open the copy at %2 in any editor; saving it updates the smart object</source>
+        <translation>Żadna aplikacja nie otworzyła %1. Otwórz kopię z %2 w dowolnym edytorze; zapisanie jej zaktualizuje inteligentny obiekt</translation>
+    </message>
+    <message>
+        <source>Opened %1 in its default app. Each save there updates the smart object</source>
+        <translation>Otwarto %1 w domyślnej aplikacji. Każdy zapis tam aktualizuje inteligentny obiekt</translation>
+    </message>
+    <message>
+        <source>Updated the smart object from %1</source>
+        <translation>Zaktualizowano inteligentny obiekt z %1</translation>
+    </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation>&amp;Umieść</translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation>M&amp;etadane</translation>
+    </message>
+    <message>
+        <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
+        <translation>Po narysowaniu nowego obrysu zaznacza obiekt w jego wnętrzu, rozszerza go o kilka pikseli i stosuje wtapianie, zanim zaczniesz przeciągać</translation>
     </message>
 </context>
 <context>

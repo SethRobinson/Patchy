@@ -2,6 +2,7 @@
 #include <QImage>
 #include <QMenu>
 #include <QMenuBar>
+#include <QPainter>
 #include <QSignalSpy>
 #include <QTest>
 #include <QWidgetAction>
@@ -78,11 +79,14 @@
 #include <memory>
 #include <span>
 #include <utility>
+#include <tuple>
 #include <vector>
 
 using patchy::test::ui::accept_save_file_dialog_then;
+using patchy::test::ui::capture_widget_artifact;
 using patchy::test::ui::find_top_level_dialog;
 using patchy::test::ui::require_action;
+using patchy::test::ui::save_image_artifact;
 using patchy::test::ui::save_widget_artifact;
 using patchy::test::ui::SettingsValueRestorer;
 using patchy::test::ui::show_window;
@@ -876,20 +880,187 @@ void ui_file_export_menu_actions_registered() {
         QStringLiteral("&Documents to Folder..."));
   CHECK(require_action(window, "fileExportAnimatedGifAction")->text() ==
         QStringLiteral("Layers as Animated &GIF..."));
-  // Export for Web sits in the File menu itself, right under Save As (docs/web-export.md),
-  // and has Ctrl+Alt+Shift+S; Flat Image gave the key up.
+  // Export for Web sits in the File menu itself, under Save As and Revert, right above the
+  // Export submenu (docs/web-export.md, GitHub issue 619), and has Ctrl+Alt+Shift+S; Flat
+  // Image gave the key up.
   auto* web = require_action(window, "fileExportForWebAction");
   CHECK(!export_menu->actions().contains(web));
   if (file_menu != nullptr) {
     const auto actions = file_menu->actions();
     const auto web_index = actions.indexOf(web);
-    CHECK(web_index > 0 && actions.at(web_index - 1) == require_action(window, "fileSaveAsAction"));
+    CHECK(web_index > 0 && actions.at(web_index - 1) == require_action(window, "fileRevertAction"));
+    CHECK(web_index + 1 < actions.size() && actions.at(web_index + 1) == export_menu->menuAction());
   }
   const auto* web_command = window.hotkey_registry().find_command(QStringLiteral("file.export_for_web"));
   CHECK(web_command != nullptr && web_command->action == web);
   CHECK(web->text() == QStringLiteral("Export for &Web..."));
   CHECK(web->shortcut() == QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_S));
   CHECK(require_action(window, "fileExportFlatAction")->shortcut().isEmpty());
+}
+
+// GitHub issue 619: the File menu is grouped by separators, with Place and Metadata
+// submenus, so it fits a short screen. Only placement changed: every command keeps its
+// object name, text and command id.
+void ui_issue_619_file_menu_groups_and_submenus() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  auto* file_menu = window.menuBar()->actions().front()->menu();
+  auto* place_menu = window.findChild<QMenu*>(QStringLiteral("filePlaceMenu"));
+  auto* metadata_menu = window.findChild<QMenu*>(QStringLiteral("fileMetadataMenu"));
+  auto* import_menu = window.findChild<QMenu*>(QStringLiteral("fileImportMenu"));
+  auto* export_menu = window.findChild<QMenu*>(QStringLiteral("fileExportMenu"));
+  auto* scripts_menu = window.findChild<QMenu*>(QStringLiteral("fileScriptsMenu"));
+  auto* recent_files_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentMenu"));
+  auto* recent_folders_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentFolderMenu"));
+  CHECK(file_menu != nullptr && place_menu != nullptr && metadata_menu != nullptr && import_menu != nullptr &&
+        export_menu != nullptr && scripts_menu != nullptr && recent_files_menu != nullptr &&
+        recent_folders_menu != nullptr);
+  if (file_menu == nullptr || place_menu == nullptr || metadata_menu == nullptr || import_menu == nullptr ||
+      export_menu == nullptr || scripts_menu == nullptr || recent_files_menu == nullptr ||
+      recent_folders_menu == nullptr) {
+    return;
+  }
+  // The whole File menu, top to bottom; "-" is a separator.
+  const auto entry_name = [](QAction* action) -> QString {
+    if (action->isSeparator()) {
+      return QStringLiteral("-");
+    }
+    if (action->menu() != nullptr) {
+      return action->menu()->objectName();
+    }
+    // Quit has no object name; it is named by its text.
+    return action->objectName().isEmpty() ? action->text() : action->objectName();
+  };
+  QStringList entries;
+  for (auto* action : file_menu->actions()) {
+    entries << entry_name(action);
+  }
+  const QStringList expected = {
+      QStringLiteral("fileNewAction"),
+      QStringLiteral("fileOpenAction"),
+      QStringLiteral("fileOpenClipboardAction"),
+      QStringLiteral("fileOpenFolderAction"),
+      QStringLiteral("fileOpenRecentMenu"),
+      QStringLiteral("fileOpenRecentFolderMenu"),
+      QStringLiteral("fileImportMenu"),
+      QStringLiteral("-"),
+      QStringLiteral("filePlaceMenu"),
+      QStringLiteral("-"),
+      QStringLiteral("fileSaveAction"),
+      QStringLiteral("fileSaveAsAction"),
+      QStringLiteral("fileRevertAction"),
+      QStringLiteral("fileExportForWebAction"),
+      QStringLiteral("fileExportMenu"),
+      QStringLiteral("-"),
+      QStringLiteral("fileInfoAction"),
+      QStringLiteral("fileMetadataMenu"),
+      QStringLiteral("-"),
+      QStringLiteral("filePageSetupAction"),
+      QStringLiteral("filePrintAction"),
+      QStringLiteral("-"),
+      QStringLiteral("fileScriptsMenu"),
+      QStringLiteral("-"),
+      QStringLiteral("fileCloseAction"),
+      QStringLiteral("fileCloseAllAction"),
+      QStringLiteral("-"),
+      QStringLiteral("filePreferencesAction"),
+      QStringLiteral("-"),
+      QStringLiteral("&Quit"),
+  };
+  if (entries != expected) {
+    std::cerr << "File menu: " << entries.join(QStringLiteral(", ")).toStdString() << '\n';
+  }
+  CHECK(entries == expected);
+
+  // The submenus hold the moved commands, in order, with their old text and command ids.
+  const auto check_submenu = [&](QMenu* menu, const QString& title,
+                                 const std::vector<std::tuple<const char*, const char*, const char*>>& items) {
+    CHECK(menu->title() == title);
+    // macOS merges menu items by title into the app menu; a submenu must never move.
+    CHECK(menu->menuAction()->menuRole() == QAction::NoRole);
+    const auto actions = menu->actions();
+    CHECK(actions.size() == static_cast<qsizetype>(items.size()));
+    for (std::size_t i = 0; i < items.size() && i < static_cast<std::size_t>(actions.size()); ++i) {
+      const auto& [object_name, text, command_id] = items[i];
+      auto* action = require_action(window, object_name);
+      CHECK(actions.at(static_cast<qsizetype>(i)) == action);
+      CHECK(action->text() == QString::fromUtf8(text));
+      CHECK(!file_menu->actions().contains(action));
+      const auto* command = window.hotkey_registry().find_command(QString::fromLatin1(command_id));
+      CHECK(command != nullptr && command->action == action);
+    }
+  };
+  check_submenu(place_menu, QStringLiteral("P&lace"),
+                {{"filePlaceEmbeddedAction", "Place &Embedded...", "file.place_embedded"},
+                 {"filePlaceLinkedAction", "Place &Linked...", "file.place_linked"}});
+  check_submenu(metadata_menu, QStringLiteral("M&etadata"),
+                {{"fileScanForWatermarksAction", "Scan for &Watermarks...", "file.scan_for_watermarks"},
+                 {"fileStripMetadataAction", "Strip All Metadata...", "file.strip_metadata"}});
+  auto* revert = require_action(window, "fileRevertAction");
+  CHECK(revert->text() == QStringLiteral("Re&vert"));
+  CHECK(revert->shortcut() == QKeySequence(Qt::Key_F12));
+  const auto* revert_command = window.hotkey_registry().find_command(QStringLiteral("file.revert"));
+  CHECK(revert_command != nullptr && revert_command->action == revert);
+}
+
+// Review capture for the issue desk (GitHub issue 619): the File menu with its Place and
+// Metadata submenus drawn beside their rows, as they open (test-artifacts).
+void ui_issue_619_file_menu_review_capture() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* file_menu = window.menuBar()->actions().front()->menu();
+  CHECK(file_menu != nullptr);
+  if (file_menu == nullptr) {
+    return;
+  }
+  const auto prepare = [](QMenu& menu) {
+    menu.ensurePolished();
+    menu.adjustSize();
+  };
+  prepare(*file_menu);
+  const QImage file_image = capture_widget_artifact("issue_619_file_menu_only", *file_menu);
+  CHECK(!file_image.isNull());
+  if (file_image.isNull()) {
+    return;
+  }
+  const qreal dpr = file_image.devicePixelRatio();
+  struct Placed {
+    QImage image;
+    QPoint at;
+  };
+  std::vector<Placed> submenus;
+  QSize size(qRound(file_image.width() / dpr), qRound(file_image.height() / dpr));
+  for (const auto* name : {"filePlaceMenu", "fileMetadataMenu"}) {
+    auto* menu = window.findChild<QMenu*>(QString::fromLatin1(name));
+    if (menu == nullptr || !file_menu->actions().contains(menu->menuAction())) {
+      continue;
+    }
+    prepare(*menu);
+    const QImage image = capture_widget_artifact(std::string("issue_619_") + name, *menu);
+    if (image.isNull()) {
+      continue;
+    }
+    const QPoint at(size.width() - 4, file_menu->actionGeometry(menu->menuAction()).top());
+    submenus.push_back({image, at});
+  }
+  int width = qRound(file_image.width() / dpr);
+  int height = qRound(file_image.height() / dpr);
+  for (const auto& placed : submenus) {
+    width = std::max(width, placed.at.x() + qRound(placed.image.width() / dpr));
+    height = std::max(height, placed.at.y() + qRound(placed.image.height() / dpr));
+  }
+  QImage composed(QSize(qRound(width * dpr), qRound(height * dpr)), QImage::Format_ARGB32_Premultiplied);
+  composed.setDevicePixelRatio(dpr);
+  composed.fill(Qt::transparent);
+  {
+    QPainter painter(&composed);
+    painter.drawImage(QPoint(0, 0), file_image);
+    for (const auto& placed : submenus) {
+      painter.drawImage(placed.at, placed.image);
+    }
+  }
+  save_image_artifact("issue_619_file_menu", composed);
 }
 
 // Distance from an action's row edge to the first drawn pixel of its text.
@@ -1062,6 +1233,8 @@ std::vector<patchy::test::TestCase> folder_open_export_tests() {
       {"ui_open_already_open_file_switches_to_its_tab", ui_open_already_open_file_switches_to_its_tab},
       {"ui_folder_actions_and_commands_registered", ui_folder_actions_and_commands_registered},
       {"ui_file_export_menu_actions_registered", ui_file_export_menu_actions_registered},
+      {"ui_issue_619_file_menu_groups_and_submenus", ui_issue_619_file_menu_groups_and_submenus},
+      {"ui_issue_619_file_menu_review_capture", ui_issue_619_file_menu_review_capture},
       {"ui_menubar_menus_share_the_text_column", ui_menubar_menus_share_the_text_column},
       {"ui_menu_separator_click_keeps_menu_open", ui_menu_separator_click_keeps_menu_open},
       {"ui_export_documents_to_folder_writes_numbered_files", ui_export_documents_to_folder_writes_numbered_files},

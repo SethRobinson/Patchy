@@ -5,6 +5,7 @@
 
 #include "core/layer.hpp"
 #include "core/pixel_buffer.hpp"
+#include "formats/xcf_document_io.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/theme_qss.hpp"
@@ -176,28 +177,20 @@ QByteArray color_setting(const std::string& choice, const FilterInvocation& invo
 }
 
 // PATCHY_GEGL_TRACE=1: each run's steps on stderr.
-void trace(const char* step, const GeglOperationSpec& spec, qsizetype bytes) {
+void trace(const char* step, const std::string& operation, qsizetype bytes) {
   static const bool enabled = qEnvironmentVariableIntValue("PATCHY_GEGL_TRACE") != 0;
   if (enabled) {
-    std::fprintf(stderr, "gegl: %s %s (%lld bytes)\n", step, spec.operation.c_str(), static_cast<long long>(bytes));
+    std::fprintf(stderr, "gegl: %s %s (%lld bytes)\n", step, operation.c_str(), static_cast<long long>(bytes));
     std::fflush(stderr);
   }
 }
 
+void run_request(const GeglHelperCommand& command, const std::string& operation, const QByteArray& settings,
+                 PixelBuffer& pixels, const FilterProgress* progress);
+
 void run_operation(const GeglHelperCommand& command, const GeglOperationSpec& spec, const FilterInvocation& invocation,
                    PixelBuffer& pixels, const FilterProgress* progress) {
-  const auto format = babl_format_for(pixels.format());
-  if (format.isEmpty()) {
-    throw std::runtime_error(
-        QCoreApplication::translate("GeglFilters", "GEGL filters run on RGB layers only.").toStdString());
-  }
-  if (pixels.width() <= 0 || pixels.height() <= 0) {
-    return;
-  }
   QByteArray request;
-  request += "op " + QByteArray::fromStdString(spec.operation) + '\n';
-  request += "size " + QByteArray::number(pixels.width()) + ' ' + QByteArray::number(pixels.height()) + '\n';
-  request += "format " + format.toUtf8() + '\n';
   for (const auto& setting : spec.settings) {
     const auto found = invocation.parameters.find(setting.key);
     if (found == invocation.parameters.end()) {
@@ -230,6 +223,26 @@ void run_operation(const GeglHelperCommand& command, const GeglOperationSpec& sp
     }
     request += "set " + QByteArray(1, setting.kind) + ' ' + QByteArray::fromStdString(setting.key) + ' ' + value + '\n';
   }
+  run_request(command, spec.operation, request, pixels, progress);
+}
+
+// One run of the helper: the operation, the pixels' size and format, the `set` lines in
+// `settings`, then the pixels; the result replaces them.
+void run_request(const GeglHelperCommand& command, const std::string& operation, const QByteArray& settings,
+                 PixelBuffer& pixels, const FilterProgress* progress) {
+  const auto format = babl_format_for(pixels.format());
+  if (format.isEmpty()) {
+    throw std::runtime_error(
+        QCoreApplication::translate("GeglFilters", "GEGL filters run on RGB layers only.").toStdString());
+  }
+  if (pixels.width() <= 0 || pixels.height() <= 0) {
+    return;
+  }
+  QByteArray request;
+  request += "op " + QByteArray::fromStdString(operation) + '\n';
+  request += "size " + QByteArray::number(pixels.width()) + ' ' + QByteArray::number(pixels.height()) + '\n';
+  request += "format " + format.toUtf8() + '\n';
+  request += settings;
   request += "end\n";
   const auto row_bytes = static_cast<std::size_t>(pixels.width()) * bytes_per_pixel(pixels.format());
   const auto stride = pixels.stride_bytes();
@@ -246,7 +259,7 @@ void run_operation(const GeglHelperCommand& command, const GeglOperationSpec& sp
   const auto cancelled = [progress] {
     return progress != nullptr && progress->update && !progress->update(0, 1, FilterProgressStage::Filtering);
   };
-  trace("start", spec, request.size());
+  trace("start", operation, request.size());
   QProcess helper;
   prepare_helper(helper, command);
   helper.setProgram(command.program);
@@ -256,7 +269,7 @@ void run_operation(const GeglHelperCommand& command, const GeglOperationSpec& sp
     throw std::runtime_error(
         QCoreApplication::translate("GeglFilters", "Patchy's GEGL helper could not be started.").toStdString());
   }
-  trace("started", spec, 0);
+  trace("started", operation, 0);
   // Runs happen on workers without an event loop: only the waitFor calls move the bytes.
   helper.write(request);
   QByteArray output;
@@ -270,7 +283,7 @@ void run_operation(const GeglHelperCommand& command, const GeglOperationSpec& sp
     }
   }
   helper.closeWriteChannel();
-  trace("written", spec, 0);
+  trace("written", operation, 0);
   while (!helper.waitForFinished(100)) {
     output += helper.readAllStandardOutput();
     if (helper.state() == QProcess::NotRunning) {
@@ -283,13 +296,13 @@ void run_operation(const GeglHelperCommand& command, const GeglOperationSpec& sp
     }
   }
   output += helper.readAllStandardOutput();
-  trace("finished", spec, output.size());
+  trace("finished", operation, output.size());
   if (helper.exitStatus() != QProcess::NormalExit || helper.exitCode() != 0 ||
       static_cast<std::size_t>(output.size()) != row_bytes * rows) {
     const auto detail = QString::fromUtf8(helper.readAllStandardError()).trimmed().left(800);
     //: %1 is GEGL's operation name, %2 what the helper reported.
     throw std::runtime_error(QCoreApplication::translate("GeglFilters", "The GEGL filter %1 failed. %2")
-                                 .arg(QString::fromStdString(spec.operation), detail)
+                                 .arg(QString::fromStdString(operation), detail)
                                  .toStdString());
   }
   auto target = pixels.data();
@@ -719,6 +732,35 @@ void show_about_gegl(QWidget* parent, const GeglFilterScanResult* scan) {
   QObject::connect(buttons, &QDialogButtonBox::accepted, &about, &QDialog::accept);
   layout->addWidget(buttons);
   exec_dialog(about);
+}
+
+bool install_xcf_effect_runner() {
+  const auto library = bundled_gegl_library();
+  if (library.isEmpty() || !QFileInfo::exists(gegl_helper_path())) {
+    xcf::set_effect_runner({});
+    return false;
+  }
+  const auto command = bundled_gegl_command(library);
+  xcf::set_effect_runner([command](const xcf::EffectRun& run, PixelBuffer& pixels) {
+    QByteArray settings;
+    for (const auto& setting : run.settings) {
+      // Names and values come from the file: keep each to one line of the request.
+      if (setting.name.find_first_of(" \r\n") != std::string::npos ||
+          setting.value.find_first_of("\r\n") != std::string::npos) {
+        continue;
+      }
+      settings += "set " + QByteArray(1, setting.kind) + ' ' + QByteArray::fromStdString(setting.name) + ' ' +
+                  QByteArray::fromStdString(setting.value) + '\n';
+    }
+    try {
+      run_request(command, run.operation, settings, pixels, nullptr);
+      return true;
+    } catch (const std::exception& error) {
+      trace(error.what(), run.operation, 0);
+      return false;
+    }
+  });
+  return true;
 }
 
 }  // namespace patchy::ui

@@ -183,6 +183,11 @@ public:
   static void set_ruler_unit_preference(MainWindow& window, MeasurementUnit unit);
 
   static void open_smart_object_contents(MainWindow& window);
+  // Edit in Default App without launching an app (GitHub issue 620): writes the active
+  // layer's embedded contents to the watched temp file and returns its path (empty on
+  // failure); apply re-embeds the file now instead of waiting for the watcher.
+  static QString start_external_smart_object_edit(MainWindow& window);
+  static bool apply_external_smart_object_edit(MainWindow& window, const QString& path);
 
   static void replace_smart_object_contents_with_path(MainWindow& window, const QString& path);
 

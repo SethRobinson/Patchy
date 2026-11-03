@@ -12718,10 +12718,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Algumas camadas de texto não puderam ser lidas como texto, por isso foram abertas como camadas de pixels.</translation>
     </message>
     <message>
-        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
-        <translation>Alguns efeitos de camada do GIMP não têm equivalente no Patchy e não foram aplicados; essas camadas mostram seus pixels sem o efeito.</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>As camadas vinculadas do GIMP foram abertas como camadas de pixels; elas não acompanham mais seus arquivos vinculados.</translation>
     </message>
@@ -12740,10 +12736,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
         <translation>Algumas camadas só aparecem onde está a camada abaixo delas, como o GIMP as compõe; elas foram abertas como máscaras de corte sobre ela.</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>Os efeitos de camada do GIMP que o Patchy consegue reproduzir (Desfoque gaussiano e filtros de cor como Níveis, Matiz-Saturação e Dessaturar) foram aplicados aos pixels de suas camadas.</translation>
     </message>
     <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
@@ -14977,6 +14969,15 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Feather radius</source>
         <translation>Raio de difusão</translation>
     </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
+        <translation>Os efeitos de camada do GIMP que o Patchy consegue reproduzir (Desfoque gaussiano, filtros de cor como Níveis e Matiz-Saturação, e os filtros GEGL incluídos no Patchy, como Máscara de nitidez, Brilho difuso e Ruído) foram aplicados aos pixels de suas camadas.</translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their pixels without them.</source>
+        <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
+        <translation>Alguns efeitos de camada do GIMP que o Patchy não consegue reproduzir foram deixados de fora (%1); essas camadas mostram seus pixels sem eles.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17141,6 +17142,10 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Feathered selection by %1 px</source>
         <translation>Seleção difundida em %1 px</translation>
+    </message>
+    <message>
+        <source>Object Selection found no object in the outline; the outline is kept</source>
+        <translation>A seleção de objeto não encontrou nenhum objeto no contorno; o contorno é mantido</translation>
     </message>
 </context>
 <context>
@@ -32434,6 +32439,50 @@ Bloqueado: %1</translation>
     <message>
         <source>Feat&amp;her...</source>
         <translation>&amp;Difundir...</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit %1 contents itself.</source>
+        <translation>O Patchy não consegue editar sozinho o conteúdo %1.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App opens a copy in the app your system uses for this file type. Each time you save it there, Patchy updates the smart object.</source>
+        <translation>Editar no aplicativo padrão abre uma cópia no aplicativo que o sistema usa para este tipo de arquivo. Sempre que você salvar lá, o Patchy atualiza o objeto inteligente.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App</source>
+        <translation>Editar no aplicativo padrão</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>Exportar...</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary folder for the contents</source>
+        <translation>Não foi possível criar uma pasta temporária para o conteúdo</translation>
+    </message>
+    <message>
+        <source>No app opened %1. Open the copy at %2 in any editor; saving it updates the smart object</source>
+        <translation>Nenhum aplicativo abriu %1. Abra a cópia em %2 em qualquer editor; salvá-la atualiza o objeto inteligente</translation>
+    </message>
+    <message>
+        <source>Opened %1 in its default app. Each save there updates the smart object</source>
+        <translation>%1 aberto no aplicativo padrão. Cada vez que você salvar lá, o objeto inteligente é atualizado</translation>
+    </message>
+    <message>
+        <source>Updated the smart object from %1</source>
+        <translation>Objeto inteligente atualizado de %1</translation>
+    </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation>Inse&amp;rir</translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation>M&amp;etadados</translation>
+    </message>
+    <message>
+        <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
+        <translation>Ao terminar de desenhar um novo contorno, seleciona o objeto dentro dele, expande alguns pixels e aplica a difusão antes de arrastar</translation>
     </message>
 </context>
 <context>

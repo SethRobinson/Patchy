@@ -1577,7 +1577,120 @@ void xcf_layer_effects_bake_or_become_styles() {
     return std::any_of(notices.begin(), notices.end(), [&](const std::string& n) { return n.find(text) != std::string::npos; });
   };
   CHECK(has("were applied"));
-  CHECK(has("no Patchy equivalent"));
+  // No effect runner in the core tests: Bloom is left out, by name.
+  CHECK(!patchy::xcf::has_effect_runner());
+  CHECK(has(std::string(patchy::xcf::skipped_effects_notice_prefix()) + "Bloom" +
+            patchy::xcf::skipped_effects_notice_suffix()));
+}
+
+// Effects with no code of their own go to the effect runner (Patchy's GEGL in the app) when
+// it is set: every stored argument by name and kind, the result mixed by the effect's
+// opacity in linear light; operations outside the table, and runs that fail, are left out
+// with the notice naming them (docs/xcf.md, "Layer effects (GIMP 3 filters)").
+void xcf_effect_runner_gets_gegl_arguments_and_mixes_by_opacity() {
+  builder::Image image;
+  image.version = 22;
+  image.width = 4;
+  image.height = 2;
+  const auto layer_with = [&](const std::string& name, builder::Effect effect) {
+    auto layer = pixel_layer(name, builder::solid(4, 2, {200, 100, 50, 255}));
+    layer.effects.push_back(std::move(effect));
+    return layer;
+  };
+  builder::Bytes white;
+  white.string("R'G'B'A float");
+  white.u32(16);
+  for (const float value : {1.0F, 0.5F, 0.0F, 1.0F}) {
+    std::uint32_t bits = 0;
+    std::memcpy(&bits, &value, sizeof(bits));
+    for (int i = 0; i < 4; ++i) {
+      white.data.push_back(static_cast<std::uint8_t>(bits >> (8 * i)));
+    }
+  }
+  white.u32(0);
+  builder::Effect pixelize{"Pixelize", "gegl:pixelize",
+                           {filter_argument("size-x", 1, u32_bytes(6)), filter_argument("norm", 5, u32_bytes(2)),
+                            filter_argument("ratio-x", 3, f32_bytes(0.5F)), filter_argument("background", 8, white.data),
+                            filter_argument("config", 6, config_bytes("(x 1)"))}};
+  builder::Effect noise{"RGB Noise",
+                        "gegl:noise-rgb",
+                        {filter_argument("seed", 7, u32_bytes(4000000000U)), filter_argument("linear", 2, u32_bytes(1)),
+                         builder::prop_f32(builder::kFloatOpacity, 0.5F)}};
+  builder::Effect failing{"Bloom", "gegl:bloom", {}};
+  builder::Effect unknown{"Curves", "gimp:curves", {}};
+  // Clipping Adjust (FILTER_CLIP 0): the layer gets a margin of the blur length plus one, and
+  // keeps what the result covers there.
+  builder::Effect spread{"Motion Blur", "gegl:motion-blur-linear",
+                         {builder::prop_u32(46, 0), filter_argument("length", 3, f32_bytes(1.5F))}};
+  auto spread_layer = pixel_layer("spread", builder::solid(4, 2, {200, 100, 50, 255}), 2, 1);
+  spread_layer.effects.push_back(spread);
+  image.layers = {layer_with("pixelize", pixelize), layer_with("noise", noise), layer_with("failing", failing),
+                  layer_with("unknown", unknown), spread_layer};
+  std::vector<patchy::xcf::EffectRun> runs;
+  patchy::xcf::set_effect_runner([&runs](const patchy::xcf::EffectRun& run, patchy::PixelBuffer& pixels) {
+    runs.push_back(run);
+    if (run.operation == "gegl:bloom") {
+      return false;
+    }
+    if (run.operation == "gegl:motion-blur-linear") {
+      // 4 x 2 with a 3-pixel margin all round; the result covers one pixel left of the layer.
+      CHECK(pixels.width() == 10 && pixels.height() == 8);
+      auto* outside = pixels.pixel(2, 4);
+      outside[0] = 255;
+      outside[3] = 255;
+      return true;
+    }
+    CHECK(pixels.format().channels == 4 && pixels.width() == 4 && pixels.height() == 2);
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = 0;
+        px[1] = 0;
+        px[2] = 255;
+      }
+    }
+    return true;
+  });
+  std::vector<std::string> notices;
+  const auto document = patchy::xcf::DocumentIo::read(builder::write(image), &notices);
+  patchy::xcf::set_effect_runner({});
+  CHECK(!patchy::xcf::has_effect_runner());
+  CHECK(runs.size() == 4);
+  const auto* spread_result = find_named(document.layers(), "spread");
+  CHECK(spread_result->bounds().x == 1 && spread_result->bounds().y == 1 && spread_result->bounds().width == 5 &&
+        spread_result->bounds().height == 2);
+  CHECK(rgba_at(*spread_result, 0, 1)[0] == 255 && rgba_at(*spread_result, 1, 1)[0] == 200);
+  const auto setting = [&](const std::string& operation, const std::string& name) -> const patchy::xcf::EffectSetting* {
+    for (const auto& run : runs) {
+      if (run.operation != operation) continue;
+      for (const auto& item : run.settings) {
+        if (item.name == name) return &item;
+      }
+    }
+    return nullptr;
+  };
+  CHECK(setting("gegl:pixelize", "size-x") != nullptr && setting("gegl:pixelize", "size-x")->kind == 'i' &&
+        setting("gegl:pixelize", "size-x")->value == "6");
+  CHECK(setting("gegl:pixelize", "norm")->kind == 'e' && setting("gegl:pixelize", "norm")->value == "2");
+  CHECK(setting("gegl:pixelize", "ratio-x")->kind == 'd' && setting("gegl:pixelize", "ratio-x")->value == "0.5");
+  CHECK(setting("gegl:pixelize", "background")->kind == 'c' && setting("gegl:pixelize", "background")->value == "1 0.5 0 1");
+  CHECK(setting("gegl:pixelize", "config") == nullptr);  // strings stay at GEGL's default
+  CHECK(setting("gegl:noise-rgb", "seed")->kind == 'u' && setting("gegl:noise-rgb", "seed")->value == "4000000000");
+  CHECK(setting("gegl:noise-rgb", "linear")->kind == 'b' && setting("gegl:noise-rgb", "linear")->value == "1");
+  const auto px = [&](const char* name) { return rgba_at(*find_named(document.layers(), name), 1, 1); };
+  CHECK(px("pixelize")[0] == 0 && px("pixelize")[1] == 0 && px("pixelize")[2] == 255 && px("pixelize")[3] == 255);
+  // Half opacity mixes in linear light: red 200 halfway to 0 is 146, not 100.
+  CHECK(std::abs(static_cast<int>(px("noise")[0]) - 146) <= 1 && std::abs(static_cast<int>(px("noise")[2]) - 190) <= 1);
+  CHECK(px("failing")[0] == 200 && px("unknown")[0] == 200);
+  const auto has = [&](std::string_view text) {
+    return std::any_of(notices.begin(), notices.end(), [&](const std::string& n) { return n.find(text) != std::string::npos; });
+  };
+  CHECK(has("were applied"));
+  CHECK(has(std::string(patchy::xcf::skipped_effects_notice_prefix()) + "Bloom, Curves" +
+            patchy::xcf::skipped_effects_notice_suffix()));
+  const auto operations = patchy::xcf::effect_runner_operations();
+  CHECK(std::find(operations.begin(), operations.end(), "gegl:bloom") != operations.end());
+  CHECK(std::find(operations.begin(), operations.end(), "gegl:median-blur") == operations.end());
 }
 
 // A gegl:dropshadow color argument: a GeglColor (babl format, sample bytes in the file's
@@ -2831,6 +2944,8 @@ std::vector<patchy::test::TestCase> xcf_tests() {
       {"xcf_metadata_sample_gps", xcf_metadata_sample_gps},
       {"xcf_metadata_sample_dicom", xcf_metadata_sample_dicom},
       {"xcf_layer_effects_bake_or_become_styles", xcf_layer_effects_bake_or_become_styles},
+      {"xcf_effect_runner_gets_gegl_arguments_and_mixes_by_opacity",
+       xcf_effect_runner_gets_gegl_arguments_and_mixes_by_opacity},
       {"xcf_drop_shadow_keeps_color_mode_and_opacity", xcf_drop_shadow_keeps_color_mode_and_opacity},
       {"xcf_drop_shadow_issue_507_matches_gimp_if_available", xcf_drop_shadow_issue_507_matches_gimp_if_available},
       {"xcf_effect_fixtures_match_gimp_if_available", xcf_effect_fixtures_match_gimp_if_available},

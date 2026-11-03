@@ -32,6 +32,7 @@
 #include <QComboBox>
 #include <QContextMenuEvent>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QDragEnterEvent>
 #include <QDragMoveEvent>
@@ -2201,6 +2202,14 @@ void accept_integer_dialog(const QString& object_name, int value) {
       CHECK(spin->minimum() <= value);
       CHECK(spin->maximum() >= value);
       CHECK(spin->buttonSymbols() == QAbstractSpinBox::NoButtons);
+      // OK as wide as Cancel (#614 follow-up).
+      if (auto* box = dialog->findChild<QDialogButtonBox*>(); box != nullptr) {
+        auto* ok = box->button(QDialogButtonBox::Ok);
+        auto* cancel = box->button(QDialogButtonBox::Cancel);
+        CHECK(ok != nullptr && cancel != nullptr && ok->width() == cancel->width());
+      } else {
+        CHECK(false);
+      }
       spin->setValue(value);
       dialog->accept();
       return;

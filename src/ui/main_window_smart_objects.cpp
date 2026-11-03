@@ -372,6 +372,12 @@ void MainWindow::open_smart_object_contents() {
   const auto contents_format = classify_smart_object_contents(*source);
   if (contents_format != SmartObjectContentsFormat::PsdDocument &&
       contents_format != SmartObjectContentsFormat::QtImage) {
+    // Contents Patchy can render but not write back (SVG and the like) can still be
+    // edited in the system's app for their type (GitHub issue 620).
+    if (contents_format == SmartObjectContentsFormat::ReadOnly && !cli_automation_mode_) {
+      offer_external_smart_object_edit(uuid);
+      return;
+    }
     show_status_error(
         tr("Patchy can't re-encode %1 contents; use Export Smart Object Contents or rasterize the layer")
             .arg(QString::fromStdString(source->filename)));
@@ -1835,12 +1841,13 @@ void MainWindow::place_embedded_file() {
     return;
   }
   const auto path = get_open_file_name(
-      this, tr("Place Embedded"), file_dialog_initial_path(QString(), QString()),
+      this, tr("Place Embedded"), last_place_directory(),
       tr("Embeddable Files (*.psd *.psb *.png *.jpg *.jpeg *.tif *.tiff *.bmp *.svg *.svgz);;All Files (*.*)"),
       nullptr, QStringLiteral("placeEmbeddedFileDialog"));
   if (path.isEmpty()) {
     return;
   }
+  remember_place_directory_for_path(path);
   place_embedded_file_with_path(path);
 }
 
@@ -1872,12 +1879,13 @@ void MainWindow::place_linked_file() {
   }
   // The same formats as Place Embedded: a link only needs contents Patchy can render.
   const auto path = get_open_file_name(
-      this, tr("Place Linked"), file_dialog_initial_path(QString(), QString()),
+      this, tr("Place Linked"), last_place_directory(),
       tr("Embeddable Files (*.psd *.psb *.png *.jpg *.jpeg *.tif *.tiff *.bmp *.svg *.svgz);;All Files (*.*)"),
       nullptr, QStringLiteral("placeLinkedFileDialog"));
   if (path.isEmpty()) {
     return;
   }
+  remember_place_directory_for_path(path);
   place_linked_file_with_path(path);
 }
 

@@ -440,18 +440,6 @@ void insert_track_aligned_form_row(QFormLayout* form, int index, const QString& 
   }
 }
 
-// Gives a dialog's OK and Cancel one width (#591): the wider of the two.
-void match_ok_cancel_widths(QDialogButtonBox& buttons) {
-  auto* ok = buttons.button(QDialogButtonBox::Ok);
-  auto* cancel = buttons.button(QDialogButtonBox::Cancel);
-  if (ok == nullptr || cancel == nullptr) {
-    return;
-  }
-  const auto width = std::max(ok->sizeHint().width(), cancel->sizeHint().width());
-  ok->setMinimumWidth(width);
-  cancel->setMinimumWidth(width);
-}
-
 int levels_channel_tab_index(LevelsChannel channel) {
   switch (channel) {
     case LevelsChannel::Red:
@@ -1531,6 +1519,7 @@ std::optional<CurvesSettings> request_curves_settings(
 
   constexpr int kPresetIdRole = Qt::UserRole + 1;
   constexpr QSize kPresetThumbnailSize(72, 48);
+  constexpr QSize kPresetCellSize(98, 78);  // The narrowest cell; fit_preset_strip widens it.
   auto* preset_list = new QListWidget(&dialog);
   preset_list->setObjectName(QStringLiteral("curvesPresetList"));
   preset_list->setAccessibleName(QObject::tr("Curves presets"));
@@ -1544,9 +1533,8 @@ std::optional<CurvesSettings> request_curves_settings(
   preset_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
   preset_list->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   preset_list->setIconSize(kPresetThumbnailSize);
-  preset_list->setGridSize(QSize(98, 78));
+  preset_list->setGridSize(kPresetCellSize);
   preset_list->setUniformItemSizes(true);
-  preset_list->setFixedHeight(92);
 
   auto* custom_preset_item = new QListWidgetItem(QObject::tr("Custom"), preset_list);
   custom_preset_item->setData(kPresetIdRole, QString());
@@ -1600,7 +1588,7 @@ std::optional<CurvesSettings> request_curves_settings(
 
   // Top to bottom (#592): the preset strip, its buttons, a separator, the canvas tools, the
   // editor (Before joins its column beside the graph), then Preview on the OK/Cancel line.
-  root->addWidget(preset_list);
+  root->addWidget(preset_list, 0, Qt::AlignHCenter);
   auto* preset_buttons_row = new QHBoxLayout();
   root->addLayout(preset_buttons_row);
   root->addWidget(preset_section_separator(&dialog, QStringLiteral("curvesPresetSeparator")));
@@ -1889,8 +1877,10 @@ std::optional<CurvesSettings> request_curves_settings(
   };
   preset_buttons = new AdjustmentPresetButtons(AdjustmentPresetKind::Curves, QStringLiteral("curves"),
                                                AdjustmentPresetButtons::Arrangement::Row, preset_hooks, &dialog);
-  // The four buttons share the strip's width (#588).
-  preset_buttons_row->addWidget(preset_buttons, 1);
+  // Centered under the strip, each as wide as Highlights (#592 follow-up 2; sized below).
+  preset_buttons_row->addStretch(1);
+  preset_buttons_row->addWidget(preset_buttons);
+  preset_buttons_row->addStretch(1);
   {
     // Tab order follows the layout: the presets and their buttons, the canvas tools, the
     // editor and its column, Preview, then OK and Cancel.
@@ -1920,6 +1910,23 @@ std::optional<CurvesSettings> request_curves_settings(
     for (std::size_t index = 1; index < order.size(); ++index) {
       QWidget::setTabOrder(order[index - 1], order[index]);
     }
+  }
+  {
+    // The strip and its buttons keep one size at every dialog size (#592 follow-up 2): the
+    // strip shows whole cells across the width the rest of the dialog asks for, so resizing
+    // never cuts one off, and the four buttons are as wide as Highlights (wider only when a
+    // translated label needs it). Measured after the style sheet has polished everything.
+    dialog.ensurePolished();
+    preset_buttons->set_button_width(highlight_clipping_button->sizeHint().width());
+    const int column_width = std::max({canvas_tools->sizeHint().width(), editor->sizeHint().width(),
+                                       footer->sizeHint().width(), preset_buttons->sizeHint().width()});
+    const int frame = 2 * preset_list->frameWidth();
+    const int available = std::max(kPresetCellSize.width(), column_width - frame);
+    const int cells = std::max(1, available / kPresetCellSize.width());
+    const int cell_width = available / cells;
+    preset_list->setGridSize(QSize(cell_width, kPresetCellSize.height()));
+    const int scroll_bar_height = preset_list->horizontalScrollBar()->sizeHint().height();
+    preset_list->setFixedSize(cells * cell_width + frame, kPresetCellSize.height() + scroll_bar_height + frame);
   }
   sync_curves_preset_selection();
   QObject::connect(before, &QPushButton::pressed, &dialog, [&] {

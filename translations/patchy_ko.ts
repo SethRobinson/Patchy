@@ -12683,10 +12683,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>일부 텍스트 레이어를 텍스트로 읽을 수 없어 픽셀 레이어로 열렸습니다.</translation>
     </message>
     <message>
-        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
-        <translation>일부 GIMP 레이어 효과는 Patchy에 대응하는 기능이 없어 적용하지 않았습니다. 해당 레이어는 효과 없이 픽셀을 표시합니다.</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>GIMP 링크 레이어는 픽셀 레이어로 열렸으며 더 이상 연결된 파일을 따르지 않습니다.</translation>
     </message>
@@ -12705,10 +12701,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
         <translation>일부 레이어는 GIMP의 합성 방식대로 아래 레이어가 있는 곳에만 보입니다. 그 레이어에 대한 클리핑 마스크로 열렸습니다.</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>Patchy가 재현할 수 있는 GIMP 레이어 효과(가우시안 흐림과 레벨, 색조-채도, 채도 감소 같은 색상 필터)를 해당 레이어의 픽셀에 적용했습니다.</translation>
     </message>
     <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
@@ -14932,6 +14924,15 @@ Each item&apos;s own View setting still applies.</source>
         <source>Feather radius</source>
         <translation>페더 반경</translation>
     </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
+        <translation>Patchy가 재현할 수 있는 GIMP 레이어 효과(가우시안 흐림, 레벨과 색조-채도 같은 색상 필터, 그리고 언샤프 마스크, 블룸, 노이즈 같은 Patchy에 포함된 GEGL 필터)를 해당 레이어의 픽셀에 적용했습니다.</translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their pixels without them.</source>
+        <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
+        <translation>Patchy가 재현할 수 없는 일부 GIMP 레이어 효과는 제외했습니다(%1). 해당 레이어는 효과 없이 픽셀을 표시합니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17096,6 +17097,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Feathered selection by %1 px</source>
         <translation>선택 영역을 %1픽셀만큼 페더했습니다</translation>
+    </message>
+    <message>
+        <source>Object Selection found no object in the outline; the outline is kept</source>
+        <translation>개체 선택이 윤곽선 안에서 개체를 찾지 못했습니다. 윤곽선은 그대로 유지됩니다</translation>
     </message>
 </context>
 <context>
@@ -32350,6 +32355,50 @@ Locked: %1</source>
     <message>
         <source>Feat&amp;her...</source>
         <translation>페더(&amp;H)...</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit %1 contents itself.</source>
+        <translation>Patchy에서는 %1 콘텐츠를 직접 편집할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App opens a copy in the app your system uses for this file type. Each time you save it there, Patchy updates the smart object.</source>
+        <translation>기본 앱에서 편집은 시스템이 이 파일 형식에 사용하는 앱에서 사본을 엽니다. 그 앱에서 저장할 때마다 Patchy가 스마트 개체를 업데이트합니다.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App</source>
+        <translation>기본 앱에서 편집</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>내보내기...</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary folder for the contents</source>
+        <translation>콘텐츠용 임시 폴더를 만들 수 없습니다</translation>
+    </message>
+    <message>
+        <source>No app opened %1. Open the copy at %2 in any editor; saving it updates the smart object</source>
+        <translation>%1을(를) 연 앱이 없습니다. %2에 있는 사본을 아무 편집기에서나 여세요. 저장하면 스마트 개체가 업데이트됩니다</translation>
+    </message>
+    <message>
+        <source>Opened %1 in its default app. Each save there updates the smart object</source>
+        <translation>%1을(를) 기본 앱에서 열었습니다. 그 앱에서 저장할 때마다 스마트 개체가 업데이트됩니다</translation>
+    </message>
+    <message>
+        <source>Updated the smart object from %1</source>
+        <translation>%1에서 스마트 개체를 업데이트했습니다</translation>
+    </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation>배치(&amp;L)</translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation>메타데이터(&amp;E)</translation>
+    </message>
+    <message>
+        <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
+        <translation>새 윤곽선을 다 그리면 그 안의 개체를 선택하고 몇 픽셀 확장한 뒤 페더를 적용한 다음 드래그합니다</translation>
     </message>
 </context>
 <context>

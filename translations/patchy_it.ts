@@ -12718,10 +12718,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Alcuni livelli di testo non sono stati letti come testo, quindi sono stati aperti come livelli di pixel.</translation>
     </message>
     <message>
-        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
-        <translation>Alcuni effetti di livello di GIMP non hanno un equivalente in Patchy e non sono stati applicati; quei livelli mostrano i loro pixel senza l&apos;effetto.</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>I livelli collegati di GIMP sono stati aperti come livelli di pixel; non seguono più i file collegati.</translation>
     </message>
@@ -12740,10 +12736,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
         <translation>Alcuni livelli compaiono solo dove c&apos;è il livello sottostante, come li compone GIMP; sono stati aperti come maschere di ritaglio su di esso.</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>Gli effetti di livello di GIMP che Patchy sa riprodurre (Sfocatura gaussiana e filtri di colore come Livelli, Tonalità-Saturazione e Desatura) sono stati applicati ai pixel dei rispettivi livelli.</translation>
     </message>
     <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
@@ -14977,6 +14969,15 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Feather radius</source>
         <translation>Raggio sfumatura</translation>
     </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
+        <translation>Gli effetti di livello di GIMP che Patchy sa riprodurre (Sfocatura gaussiana, filtri di colore come Livelli e Tonalità-Saturazione, e i filtri GEGL inclusi in Patchy, come Maschera di contrasto, Bagliore e Rumore) sono stati applicati ai pixel dei rispettivi livelli.</translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their pixels without them.</source>
+        <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
+        <translation>Alcuni effetti di livello di GIMP che Patchy non sa riprodurre sono stati tralasciati (%1); quei livelli mostrano i loro pixel senza di essi.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17141,6 +17142,10 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Feathered selection by %1 px</source>
         <translation>Selezione sfumata di %1 px</translation>
+    </message>
+    <message>
+        <source>Object Selection found no object in the outline; the outline is kept</source>
+        <translation>La selezione oggetto non ha trovato alcun oggetto nel contorno; il contorno resta</translation>
     </message>
 </context>
 <context>
@@ -32434,6 +32439,50 @@ Bloccato: %1</translation>
     <message>
         <source>Feat&amp;her...</source>
         <translation>S&amp;fuma...</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit %1 contents itself.</source>
+        <translation>Patchy non può modificare da solo il contenuto %1.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App opens a copy in the app your system uses for this file type. Each time you save it there, Patchy updates the smart object.</source>
+        <translation>Modifica nell&apos;app predefinita apre una copia nell&apos;app che il sistema usa per questo tipo di file. Ogni volta che la salvi lì, Patchy aggiorna l&apos;oggetto avanzato.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App</source>
+        <translation>Modifica nell&apos;app predefinita</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>Esporta...</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary folder for the contents</source>
+        <translation>Impossibile creare una cartella temporanea per il contenuto</translation>
+    </message>
+    <message>
+        <source>No app opened %1. Open the copy at %2 in any editor; saving it updates the smart object</source>
+        <translation>Nessuna app ha aperto %1. Apri la copia in %2 con un editor qualsiasi; salvandola si aggiorna l&apos;oggetto avanzato</translation>
+    </message>
+    <message>
+        <source>Opened %1 in its default app. Each save there updates the smart object</source>
+        <translation>%1 aperto nella sua app predefinita. Ogni salvataggio lì aggiorna l&apos;oggetto avanzato</translation>
+    </message>
+    <message>
+        <source>Updated the smart object from %1</source>
+        <translation>Oggetto avanzato aggiornato da %1</translation>
+    </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation>Inse&amp;risci</translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation>M&amp;etadati</translation>
+    </message>
+    <message>
+        <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
+        <translation>Quando finite di tracciare un nuovo contorno, seleziona l&apos;oggetto al suo interno, lo espande di qualche pixel e applica la sfumatura prima del trascinamento</translation>
     </message>
 </context>
 <context>

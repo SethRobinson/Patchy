@@ -882,18 +882,6 @@ QString export_image_filter() {
   return filters.join(QStringLiteral(";;"));
 }
 
-QString last_open_directory() {
-  auto settings = app_settings();
-  const auto path = settings.value(QStringLiteral("lastOpenDirectory")).toString();
-  if (!path.isEmpty()) {
-    const QFileInfo info(path);
-    if (info.isDir()) {
-      return info.absoluteFilePath();
-    }
-  }
-  return default_file_dialog_directory();
-}
-
 // The Open dialog reopens on the format row picked last time instead of the
 // all-formats row (GitHub issue 114). A cancelled dialog keeps the old pick; a
 // row that no longer exists (language switch) falls back to the default.
@@ -1135,6 +1123,15 @@ QString translated_file_message(const std::string& message) {
                             QObject::tr("Layer '%1': Gaussian blur could not be applied; original pixels kept"));
       !note.isEmpty()) {
     return note;
+  }
+  // The GIMP layer effects an XCF read left out, named (docs/xcf.md, "Layer effects").
+  if (const auto prefix = QString::fromLatin1(xcf::skipped_effects_notice_prefix()),
+      suffix = QString::fromLatin1(xcf::skipped_effects_notice_suffix());
+      text.startsWith(prefix) && text.endsWith(suffix) && text.size() > prefix.size() + suffix.size()) {
+    //: %1 lists the names of GIMP layer effects (filters), separated by commas.
+    return QObject::tr("Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their "
+                       "pixels without them.")
+        .arg(text.mid(prefix.size(), text.size() - prefix.size() - suffix.size()));
   }
   // Core readers are Qt-free; localize their fixed diagnostic text at the UI boundary.
   return translate_data_text(message);

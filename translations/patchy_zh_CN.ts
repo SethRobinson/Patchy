@@ -12683,10 +12683,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>部分文字图层无法作为文字读取，因此已作为像素图层打开。</translation>
     </message>
     <message>
-        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
-        <translation>部分 GIMP 图层效果在 Patchy 中没有对应功能，未予应用；这些图层显示未加效果的像素。</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>GIMP 链接图层已作为像素图层打开，不再跟随所链接的文件。</translation>
     </message>
@@ -12705,10 +12701,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
         <translation>部分图层只在其下方图层所在之处显示（与 GIMP 的合成方式一致），已作为该图层的剪贴蒙版打开。</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>Patchy 能够重现的 GIMP 图层效果（高斯模糊，以及色阶、色相-饱和度、去色等颜色滤镜）已应用到其图层的像素上。</translation>
     </message>
     <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
@@ -14932,6 +14924,15 @@ Each item&apos;s own View setting still applies.</source>
         <source>Feather radius</source>
         <translation>羽化半径</translation>
     </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
+        <translation>Patchy 能够重现的 GIMP 图层效果（高斯模糊、色阶和色相-饱和度等颜色滤镜，以及 Patchy 自带的 GEGL 滤镜，如 USM 锐化、泛光和杂色）已应用到其图层的像素上。</translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their pixels without them.</source>
+        <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
+        <translation>部分 Patchy 无法重现的 GIMP 图层效果已略过（%1）；这些图层显示未加这些效果的像素。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17096,6 +17097,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Feathered selection by %1 px</source>
         <translation>已将选区羽化 %1 px</translation>
+    </message>
+    <message>
+        <source>Object Selection found no object in the outline; the outline is kept</source>
+        <translation>对象选择未在轮廓内找到对象；保留轮廓</translation>
     </message>
 </context>
 <context>
@@ -32350,6 +32355,50 @@ Locked: %1</source>
     <message>
         <source>Feat&amp;her...</source>
         <translation>羽化(&amp;H)...</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit %1 contents itself.</source>
+        <translation>Patchy 无法自行编辑 %1 内容。</translation>
+    </message>
+    <message>
+        <source>Edit in Default App opens a copy in the app your system uses for this file type. Each time you save it there, Patchy updates the smart object.</source>
+        <translation>“在默认应用中编辑”会在系统用于此文件类型的应用中打开一个副本。每次在那里保存，Patchy 都会更新智能对象。</translation>
+    </message>
+    <message>
+        <source>Edit in Default App</source>
+        <translation>在默认应用中编辑</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>导出...</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary folder for the contents</source>
+        <translation>无法为内容创建临时文件夹</translation>
+    </message>
+    <message>
+        <source>No app opened %1. Open the copy at %2 in any editor; saving it updates the smart object</source>
+        <translation>没有应用打开 %1。请在任意编辑器中打开位于 %2 的副本；保存后会更新智能对象</translation>
+    </message>
+    <message>
+        <source>Opened %1 in its default app. Each save there updates the smart object</source>
+        <translation>已在默认应用中打开 %1。每次在那里保存都会更新智能对象</translation>
+    </message>
+    <message>
+        <source>Updated the smart object from %1</source>
+        <translation>已从 %1 更新智能对象</translation>
+    </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation>置入(&amp;L)</translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation>元数据(&amp;E)</translation>
+    </message>
+    <message>
+        <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
+        <translation>画完新轮廓后，选择其中的对象，扩展几个像素并应用羽化，然后再拖动</translation>
     </message>
 </context>
 <context>

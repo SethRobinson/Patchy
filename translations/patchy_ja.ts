@@ -12683,10 +12683,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>一部のテキストレイヤーはテキストとして読み込めなかったため、ピクセルレイヤーとして開きました。</translation>
     </message>
     <message>
-        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
-        <translation>GIMP のレイヤー効果の一部は Patchy に相当するものがないため、適用していません。それらのレイヤーは効果なしのピクセルを表示します。</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>GIMP のリンクレイヤーはピクセルレイヤーとして開きました。リンク先のファイルにはもう追従しません。</translation>
     </message>
@@ -12705,10 +12701,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
         <translation>一部のレイヤーは、GIMP の合成方法どおり下のレイヤーがある所にだけ表示されます。そのレイヤーへのクリッピングマスクとして開きました。</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>Patchy で再現できる GIMP のレイヤー効果（ガウスぼかしと、レベル、色相-彩度、脱色などの色フィルター）は、各レイヤーのピクセルに適用しました。</translation>
     </message>
     <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
@@ -14932,6 +14924,15 @@ Each item&apos;s own View setting still applies.</source>
         <source>Feather radius</source>
         <translation>ぼかしの半径</translation>
     </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
+        <translation>Patchy で再現できる GIMP のレイヤー効果（ガウスぼかし、レベルや色相-彩度などの色フィルター、アンシャープマスク、ブルーム、ノイズなど Patchy に含まれる GEGL フィルター）は、各レイヤーのピクセルに適用しました。</translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their pixels without them.</source>
+        <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
+        <translation>Patchy で再現できない GIMP のレイヤー効果は省きました（%1）。それらのレイヤーは効果なしのピクセルを表示します。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17096,6 +17097,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Feathered selection by %1 px</source>
         <translation>選択範囲を %1 px ぼかしました</translation>
+    </message>
+    <message>
+        <source>Object Selection found no object in the outline; the outline is kept</source>
+        <translation>オブジェクト選択で輪郭内にオブジェクトが見つかりませんでした。輪郭はそのまま残ります</translation>
     </message>
 </context>
 <context>
@@ -32350,6 +32355,50 @@ Locked: %1</source>
     <message>
         <source>Feat&amp;her...</source>
         <translation>ぼかし(&amp;H)...</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit %1 contents itself.</source>
+        <translation>Patchy では %1 のコンテンツを直接編集できません。</translation>
+    </message>
+    <message>
+        <source>Edit in Default App opens a copy in the app your system uses for this file type. Each time you save it there, Patchy updates the smart object.</source>
+        <translation>「既定のアプリで編集」は、このファイル形式に対してシステムが使うアプリでコピーを開きます。そのアプリで保存するたびに、Patchy がスマートオブジェクトを更新します。</translation>
+    </message>
+    <message>
+        <source>Edit in Default App</source>
+        <translation>既定のアプリで編集</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>書き出し...</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary folder for the contents</source>
+        <translation>コンテンツ用の一時フォルダーを作成できませんでした</translation>
+    </message>
+    <message>
+        <source>No app opened %1. Open the copy at %2 in any editor; saving it updates the smart object</source>
+        <translation>%1 を開いたアプリがありません。%2 にあるコピーを任意のエディターで開いてください。保存するとスマートオブジェクトが更新されます</translation>
+    </message>
+    <message>
+        <source>Opened %1 in its default app. Each save there updates the smart object</source>
+        <translation>%1 を既定のアプリで開きました。そこで保存するたびにスマートオブジェクトが更新されます</translation>
+    </message>
+    <message>
+        <source>Updated the smart object from %1</source>
+        <translation>%1 からスマートオブジェクトを更新しました</translation>
+    </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation>配置(&amp;L)</translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation>メタデータ(&amp;E)</translation>
+    </message>
+    <message>
+        <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
+        <translation>新しい輪郭を描き終えたとき、その中のオブジェクトを選択し、数ピクセル拡張してぼかしを適用してからドラッグします</translation>
     </message>
 </context>
 <context>

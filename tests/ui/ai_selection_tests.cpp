@@ -52,6 +52,9 @@
 #include <QMessageBox>
 #include <QStringList>
 #include <QPushButton>
+#include <QSpinBox>
+#include <QStatusBar>
+#include <QToolBar>
 #include <QTimer>
 #include <cmath>
 #include <cstdint>
@@ -1031,6 +1034,166 @@ void ui_automatic_selection_refuses_an_empty_layer_without_sample_all() {
   CHECK(canvas->object_select_encodes_started() == 0);
 }
 
+// A square outline drawn with the Content-Aware Move tool (the Patch tool's lasso).
+void draw_square_outline(patchy::ui::CanvasWidget& canvas, QPoint top_left, QPoint bottom_right) {
+  const auto to_widget = [&canvas](QPoint point) {
+    return canvas.widget_position_for_document_point(point);
+  };
+  send_mouse(canvas, QEvent::MouseButtonPress, to_widget(top_left), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, to_widget(QPoint(bottom_right.x(), top_left.y())), Qt::NoButton,
+             Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, to_widget(bottom_right), Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, to_widget(QPoint(top_left.x(), bottom_right.y())), Qt::NoButton,
+             Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, to_widget(QPoint(top_left.x(), bottom_right.y())), Qt::LeftButton,
+             Qt::NoButton);
+  QApplication::processEvents();
+}
+
+std::uint8_t selection_coverage_at(const patchy::ui::CanvasWidget& canvas, QPoint point) {
+  const auto coverage = canvas.selection_as_grayscale();
+  if (point.x() < 0 || point.y() < 0 || point.x() >= coverage.width() || point.y() >= coverage.height()) {
+    return 0U;
+  }
+  return coverage.pixel(point.x(), point.y())[0];
+}
+
+// Content-Aware Move's Object Selection (GitHub issue 599 follow-up): the option persists, a
+// loose outline becomes the object inside it grown 4 px and feathered (its own undo step
+// after the outline's), and the move then takes the object.
+void ui_content_aware_move_object_selection_selects_the_object_before_the_move() {
+  automatic_selection_or_skip();
+  SettingsValueRestorer option_restorer(QStringLiteral("tools/contentAwareMoveObjectSelection"));
+  SettingsValueRestorer feather_restorer(QStringLiteral("tools/contentAwareMoveFeather"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("tools/contentAwareMoveObjectSelection"));
+    settings.remove(QStringLiteral("tools/contentAwareMoveFeather"));
+  }
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    require_action(window, "toolContentAwareMoveAction")->trigger();
+    QApplication::processEvents();
+    auto* option = window.findChild<QCheckBox*>(QStringLiteral("contentAwareMoveObjectSelectionCheck"));
+    CHECK(option != nullptr && option->isVisible() && !option->isChecked());
+    CHECK(!require_canvas(window)->content_aware_move_object_selection());
+    if (option == nullptr) {
+      return;
+    }
+    if (auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options")); options_bar != nullptr) {
+      save_widget_artifact("ui_content_aware_move_options_bar_object_selection", *options_bar);
+    }
+    option->setChecked(true);
+    QApplication::processEvents();
+    CHECK(require_canvas(window)->content_aware_move_object_selection());
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/contentAwareMoveObjectSelection")).toBool());
+  }
+
+  const QPoint center(110, 120);
+  const int radius = 40;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(disc_document(360, 240, center, radius), QStringLiteral("Content-Aware Move"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  require_action(window, "toolContentAwareMoveAction")->trigger();
+  QApplication::processEvents();
+  auto* option = window.findChild<QCheckBox*>(QStringLiteral("contentAwareMoveObjectSelectionCheck"));
+  CHECK(option != nullptr && option->isChecked());
+  CHECK(canvas->content_aware_move_object_selection());
+  auto* feather = window.findChild<QSpinBox*>(QStringLiteral("selectionFeatherSpin"));
+  CHECK(feather != nullptr);
+  if (feather == nullptr) {
+    return;
+  }
+  feather->setValue(2);
+  QApplication::processEvents();
+
+  const auto depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  draw_square_outline(*canvas, QPoint(30, 40), QPoint(200, 210));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 2U);
+  // The object, not the square: its middle is fully selected, the square's corner is not.
+  CHECK(selection_coverage_at(*canvas, center) == 255U);
+  CHECK(selection_coverage_at(*canvas, QPoint(36, 46)) == 0U);
+  CHECK(selection_coverage_at(*canvas, QPoint(center.x() + radius + 20, center.y())) == 0U);
+  // Grown past the disc's edge and feathered there.
+  CHECK(selection_coverage_at(*canvas, QPoint(center.x() + radius + 1, center.y())) > 128U);
+  bool soft = false;
+  for (int x = center.x() + radius; x <= center.x() + radius + 10; ++x) {
+    const auto value = selection_coverage_at(*canvas, QPoint(x, center.y()));
+    soft = soft || (value > 0U && value < 255U);
+  }
+  CHECK(soft);
+  save_widget_artifact("ui_content_aware_move_object_selection_outline", *canvas);
+  // Undo goes back to the drawn outline.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(selection_coverage_at(*canvas, QPoint(36, 46)) == 255U);
+
+  // Redo brings the object back (a press inside the outline would drag it); move it right.
+  require_action_by_text(window, QStringLiteral("Redo"))->trigger();
+  QApplication::processEvents();
+  CHECK(selection_coverage_at(*canvas, QPoint(36, 46)) == 0U);
+  CHECK(selection_coverage_at(*canvas, center) == 255U);
+  const auto to_widget = [canvas](QPoint point) {
+    return canvas->widget_position_for_document_point(point);
+  };
+  const QPoint drop(250, 120);
+  send_mouse(*canvas, QEvent::MouseButtonPress, to_widget(center), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, to_widget(QPoint(180, 120)), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, to_widget(drop), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  send_mouse(*canvas, QEvent::MouseButtonRelease, to_widget(drop), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  save_widget_artifact("ui_content_aware_move_object_selection_moved", *canvas);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto active = std::as_const(document).active_layer_id();
+  const auto* layer = active.has_value() ? std::as_const(document).find_layer(*active) : nullptr;
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  const auto red = [layer](QPoint point) {
+    const auto* px = layer->pixels().pixel(point.x(), point.y());
+    return px[0] > px[1] + 60;
+  };
+  CHECK(!red(center));  // the old spot is filled
+  CHECK(red(drop));     // the object landed
+}
+
+// Nothing usable from the model keeps the drawn outline as the selection, with a status line
+// and no extra undo step: here the active layer is empty, so there is nothing to find.
+void ui_content_aware_move_object_selection_keeps_the_outline_without_an_object() {
+  automatic_selection_or_skip();
+  SettingsValueRestorer option_restorer(QStringLiteral("tools/contentAwareMoveObjectSelection"));
+  auto document = disc_document(200, 160, QPoint(100, 80), 40);
+  patchy::PixelBuffer empty(200, 160, patchy::PixelFormat::rgba8());
+  empty.clear(0);
+  document.add_pixel_layer("Empty", std::move(empty));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Empty layer"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  canvas->set_object_select_sample_all_layers(false);
+  require_action(window, "toolContentAwareMoveAction")->trigger();
+  QApplication::processEvents();
+  auto* option = window.findChild<QCheckBox*>(QStringLiteral("contentAwareMoveObjectSelectionCheck"));
+  CHECK(option != nullptr);
+  if (option == nullptr) {
+    return;
+  }
+  option->setChecked(true);
+  QApplication::processEvents();
+  const auto depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  draw_square_outline(*canvas, QPoint(40, 30), QPoint(160, 130));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 1U);
+  CHECK(selection_coverage_at(*canvas, QPoint(45, 35)) == 255U);
+  CHECK(selection_coverage_at(*canvas, QPoint(100, 80)) == 255U);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("visible content")));
+}
+
 void ui_script_select_background_and_remove_background() {
   subject_selection_or_skip();
   patchy::ui::MainWindow window;
@@ -1174,5 +1337,9 @@ std::vector<patchy::test::TestCase> ai_selection_ui_tests() {
       {"ui_select_subject_follows_sample_all_layers", ui_select_subject_follows_sample_all_layers},
       {"ui_automatic_selection_refuses_an_empty_layer_without_sample_all",
        ui_automatic_selection_refuses_an_empty_layer_without_sample_all},
+      {"ui_content_aware_move_object_selection_selects_the_object_before_the_move",
+       ui_content_aware_move_object_selection_selects_the_object_before_the_move},
+      {"ui_content_aware_move_object_selection_keeps_the_outline_without_an_object",
+       ui_content_aware_move_object_selection_keeps_the_outline_without_an_object},
   };
 }

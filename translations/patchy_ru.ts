@@ -12753,10 +12753,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Некоторые текстовые слои не удалось прочитать как текст, поэтому они открыты как пиксельные слои.</translation>
     </message>
     <message>
-        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
-        <translation>Некоторые эффекты слоёв GIMP не имеют аналога в Patchy и не применены; эти слои показывают свои пиксели без эффекта.</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>Связанные слои GIMP открыты как пиксельные слои; они больше не следуют за связанными файлами.</translation>
     </message>
@@ -12775,10 +12771,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
         <translation>Некоторые слои видны только там, где есть слой под ними, как их составляет GIMP; они открыты как обтравочные маски на нём.</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>Эффекты слоя GIMP, которые Patchy может воспроизвести («Гауссово размытие» и цветовые фильтры, такие как «Уровни», «Тон-Насыщенность» и «Обесцвечивание»), применены к пикселям их слоёв.</translation>
     </message>
     <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
@@ -15022,6 +15014,15 @@ Each item&apos;s own View setting still applies.</source>
         <source>Feather radius</source>
         <translation>Радиус растушевки</translation>
     </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
+        <translation>Эффекты слоя GIMP, которые Patchy может воспроизвести («Гауссово размытие», цветовые фильтры, такие как «Уровни» и «Тон-Насыщенность», и фильтры GEGL, входящие в Patchy, например «Нерезкая маска», «Свечение» и «Шум»), применены к пикселям их слоёв.</translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their pixels without them.</source>
+        <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
+        <translation>Некоторые эффекты слоёв GIMP, которые Patchy не может воспроизвести, пропущены (%1); эти слои показывают свои пиксели без них.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17186,6 +17187,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Feathered selection by %1 px</source>
         <translation>Выделение растушевано на %1&#xa0;пкс.</translation>
+    </message>
+    <message>
+        <source>Object Selection found no object in the outline; the outline is kept</source>
+        <translation>Выделение объектов не нашло объект внутри контура; контур сохранён</translation>
     </message>
 </context>
 <context>
@@ -32518,6 +32523,50 @@ Locked: %1</source>
     <message>
         <source>Feat&amp;her...</source>
         <translation>Р&amp;астушевка...</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit %1 contents itself.</source>
+        <translation>Patchy не может сам редактировать содержимое %1.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App opens a copy in the app your system uses for this file type. Each time you save it there, Patchy updates the smart object.</source>
+        <translation>«Изменить в приложении по умолчанию» открывает копию в приложении, которое система использует для этого типа файлов. При каждом сохранении в нём Patchy обновляет смарт-объект.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App</source>
+        <translation>Изменить в приложении по умолчанию</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>Экспорт...</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary folder for the contents</source>
+        <translation>Не удалось создать временную папку для содержимого</translation>
+    </message>
+    <message>
+        <source>No app opened %1. Open the copy at %2 in any editor; saving it updates the smart object</source>
+        <translation>Ни одно приложение не открыло %1. Откройте копию по пути %2 в любом редакторе; при сохранении смарт-объект обновится</translation>
+    </message>
+    <message>
+        <source>Opened %1 in its default app. Each save there updates the smart object</source>
+        <translation>%1 открыт в приложении по умолчанию. Каждое сохранение в нём обновляет смарт-объект</translation>
+    </message>
+    <message>
+        <source>Updated the smart object from %1</source>
+        <translation>Смарт-объект обновлён из %1</translation>
+    </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation>&amp;Поместить</translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation>&amp;Метаданные</translation>
+    </message>
+    <message>
+        <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
+        <translation>После рисования нового контура выделяет объект внутри него, расширяет выделение на несколько пикселей и применяет растушёвку перед перетаскиванием</translation>
     </message>
 </context>
 <context>
