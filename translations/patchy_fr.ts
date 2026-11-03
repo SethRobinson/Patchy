@@ -32072,6 +32072,14 @@ Verrouillé : %1</translation>
         <source>About GEGL...</source>
         <translation>À propos de GEGL...</translation>
     </message>
+    <message>
+        <source>The zoom level from which View &gt; Show &gt; Pixel Grid draws lines between pixels.</source>
+        <translation>Le niveau de zoom à partir duquel Affichage &gt; Afficher &gt; Grille de pixels trace des lignes entre les pixels.</translation>
+    </message>
+    <message>
+        <source>Show pixel grid from:</source>
+        <translation>Afficher la grille de pixels à partir de :</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

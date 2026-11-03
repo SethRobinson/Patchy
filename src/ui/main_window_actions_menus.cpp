@@ -2596,7 +2596,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   auto* target_path_action = show_menu->addAction(tr("&Target Path"));
   view_guides_action_ = show_menu->addAction(tr("&Guides"));
   view_grid_action_ = show_menu->addAction(tr("&Grid"));
-  // Lines between pixels at 600% and up (GitHub issue 239); an app-wide preference.
+  // Lines between pixels from the pixel grid threshold up (GitHub issues 239 and 600; 600% by
+  // default); an app-wide preference.
   view_pixel_grid_action_ = show_menu->addAction(tr("Pi&xel Grid"));
   view_pixel_grid_action_->setObjectName(QStringLiteral("viewTogglePixelGridAction"));
   view_pixel_grid_action_->setMenuRole(QAction::NoRole);

@@ -2174,7 +2174,7 @@ QRect CanvasWidget::widget_rect_for_document_rect(QRect document_rect) const {
 QRect CanvasWidget::widget_repaint_rect_for_document_rect(QRect document_rect) const {
   const auto rect = widget_rect_for_document_rect(document_rect);
   const auto view = view_zoom();
-  if (!uses_smooth_display_scaling(view, uses_deep_zoom_pixel_renderer(view))) {
+  if (!uses_smooth_display_scaling(view, deep_zoom_pixels_active())) {
     return rect;
   }
   // Zoomed out, the patched display mip blends one mip pixel into its neighbours;

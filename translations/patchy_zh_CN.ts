@@ -31988,6 +31988,14 @@ Locked: %1</source>
         <source>About GEGL...</source>
         <translation>关于 GEGL...</translation>
     </message>
+    <message>
+        <source>The zoom level from which View &gt; Show &gt; Pixel Grid draws lines between pixels.</source>
+        <translation>视图 &gt; 显示 &gt; 像素网格开始在像素之间绘制线条的缩放级别。</translation>
+    </message>
+    <message>
+        <source>Show pixel grid from:</source>
+        <translation>像素网格显示起点:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

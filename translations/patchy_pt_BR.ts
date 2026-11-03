@@ -32072,6 +32072,14 @@ Bloqueado: %1</translation>
         <source>About GEGL...</source>
         <translation>Sobre o GEGL...</translation>
     </message>
+    <message>
+        <source>The zoom level from which View &gt; Show &gt; Pixel Grid draws lines between pixels.</source>
+        <translation>O nível de zoom a partir do qual Visualizar &gt; Mostrar &gt; Grade de pixels desenha linhas entre os pixels.</translation>
+    </message>
+    <message>
+        <source>Show pixel grid from:</source>
+        <translation>Mostrar grade de pixels a partir de:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

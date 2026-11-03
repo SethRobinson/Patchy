@@ -31991,6 +31991,14 @@ Locked: %1</source>
         <source>About GEGL...</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>The zoom level from which View &gt; Show &gt; Pixel Grid draws lines between pixels.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show pixel grid from:</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
