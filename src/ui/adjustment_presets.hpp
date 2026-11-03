@@ -64,7 +64,8 @@ struct LevelsPreset {
 // current settings and stores them; Delete removes the selected user preset after asking;
 // Import adds a preset file to the user's presets; Export writes the current settings to a
 // file of the kind's format. Object names: <prefix>SavePresetButton, ...DeletePresetButton,
-// ...ImportPresetButton, ...ExportPresetButton.
+// ...ImportPresetButton, ...ExportPresetButton. The four share one width; a Row fills the
+// width its layout gives it, split evenly (place it under the preset combo, #588).
 class AdjustmentPresetButtons final : public QWidget {
 public:
   enum class Arrangement { Row, Column, Grid };
@@ -87,6 +88,9 @@ public:
   // Call after the dialog's selection changes: Delete is enabled only on a user preset.
   void refresh();
 
+  [[nodiscard]] QSize sizeHint() const override;
+  [[nodiscard]] QSize minimumSizeHint() const override;
+
   [[nodiscard]] QPushButton* save_button() const noexcept { return save_; }
   [[nodiscard]] QPushButton* delete_button() const noexcept { return delete_; }
   [[nodiscard]] QPushButton* import_button() const noexcept { return import_; }
@@ -97,8 +101,11 @@ private:
   void delete_preset();
   void import_preset();
   void export_preset();
+  // A Row's size: four buttons as wide as the widest one needs.
+  [[nodiscard]] QSize row_size() const;
 
   AdjustmentPresetKind kind_;
+  Arrangement arrangement_;
   QString object_prefix_;
   Hooks hooks_;
   QPushButton* save_{nullptr};

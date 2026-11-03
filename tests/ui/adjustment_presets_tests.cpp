@@ -163,6 +163,37 @@ QRect geometry_in(const QWidget& widget, const QWidget& ancestor) {
   return QRect(widget.mapTo(&ancestor, QPoint(0, 0)), widget.size());
 }
 
+// Save, Delete, Import and Export in one row under `above`, as wide as each other (within the
+// 1 px a split leaves) and together spanning `above` edge to edge (#588 follow-up 2).
+void check_preset_button_row_spans(QDialog& dialog, const char* prefix, const QWidget& above) {
+  std::vector<QRect> rects;
+  for (const auto* role : {"Save", "Delete", "Import", "Export"}) {
+    const auto name = std::string(prefix) + role + "PresetButton";
+    auto* button = child<QPushButton>(dialog, name.c_str());
+    if (button == nullptr) {
+      return;
+    }
+    rects.push_back(geometry_in(*button, dialog));
+  }
+  const auto target = geometry_in(above, dialog);
+  std::cerr << prefix << " preset row: target " << target.left() << ".." << target.right() << ", buttons";
+  for (const auto& rect : rects) {
+    std::cerr << ' ' << rect.left() << '+' << rect.width();
+  }
+  std::cerr << '\n';
+  CHECK(rects.front().left() == target.left());
+  CHECK(rects.back().right() == target.right());
+  for (std::size_t index = 0; index < rects.size(); ++index) {
+    CHECK(std::abs(rects[index].width() - rects.front().width()) <= 1);
+    CHECK(rects[index].top() > target.bottom());
+    CHECK(rects[index].top() == rects.front().top());
+    if (index > 0) {
+      const auto gap = rects[index].left() - rects[index - 1].right() - 1;
+      CHECK(gap >= 0 && gap <= 8);
+    }
+  }
+}
+
 void ui_adjustment_presets_store_names_and_listing() {
   const auto folder = patchy::ui::user_adjustment_presets_directory(AdjustmentPresetKind::HueSaturation);
   CHECK(folder.endsWith(QStringLiteral("/hue-saturation")));
@@ -227,7 +258,9 @@ void ui_adjustment_presets_hue_saturation_presets_tracks_and_buttons() {
   imported.bands[0].hue_shift = 50;
   patchy::ahu::write_file(patchy::ui::to_filesystem_path(import_path), imported);
 
-  QWidget parent;
+  // Owned by a parent carrying the app style sheet, as in the app, so it opens at its real size.
+  const auto themed_parent = make_themed_dialog_parent();
+  auto& parent = *themed_parent;
   parent.show();
   QApplication::processEvents();
   bool checked = false;
@@ -283,6 +316,7 @@ void ui_adjustment_presets_hue_saturation_presets_tracks_and_buttons() {
     CHECK(geometry_in(*separator, *dialog).top() > geometry_in(*export_button, *dialog).bottom());
     CHECK(geometry_in(*separator, *dialog).bottom() < geometry_in(*range, *dialog).top());
     CHECK(geometry_in(*presets, *dialog).bottom() < geometry_in(*save, *dialog).top());
+    check_preset_button_row_spans(*dialog, "hueSaturation", *presets);
     CHECK(geometry_in(*reset, *dialog).top() > geometry_in(*lightness, *dialog).bottom());
     CHECK(std::abs(geometry_in(*reset, *dialog).right() - geometry_in(*lightness, *dialog).right()) <= 1);
     CHECK(std::abs(geometry_in(*reset, *dialog).center().y() - geometry_in(*colorize, *dialog).center().y()) <= 4);
@@ -452,7 +486,9 @@ void ui_adjustment_presets_levels_presets_fields_and_eyedroppers() {
     }
   };
 
-  QWidget parent;
+  // Owned by a parent carrying the app style sheet, as in the app, so it opens at its real size.
+  const auto themed_parent = make_themed_dialog_parent();
+  auto& parent = *themed_parent;
   parent.show();
   QApplication::processEvents();
   bool checked = false;
@@ -495,16 +531,81 @@ void ui_adjustment_presets_levels_presets_fields_and_eyedroppers() {
     CHECK(child<QLabel>(*dialog, "levelsBlackInputLabel")->text() == QStringLiteral("B:"));
     CHECK(!black->toolTip().isEmpty() && !gamma->toolTip().isEmpty() && !white->toolTip().isEmpty());
     CHECK(black->width() < black_output->width());
-    // OK, Cancel, Auto and the preset buttons are one width.
-    const auto ok_width = buttons->button(QDialogButtonBox::Ok)->width();
-    CHECK(buttons->button(QDialogButtonBox::Cancel)->width() == ok_width);
-    CHECK(auto_button->width() == ok_width && save->width() == ok_width && remove->width() == ok_width);
-    // A separator under the preset buttons, as in the other preset dialogs.
+    // OK, Cancel and Auto are one width.
+    auto* ok = buttons->button(QDialogButtonBox::Ok);
+    auto* cancel = buttons->button(QDialogButtonBox::Cancel);
+    const auto ok_width = ok->width();
+    CHECK(cancel->width() == ok_width && auto_button->width() == ok_width);
+    // Layout as the other preset dialogs (#589 follow-up): the combo indented past a label
+    // column, the four preset buttons under it sharing its width, a separator under them,
+    // then the tabs; Auto on the "Input Levels:" line at the right; Preview at the left of
+    // the OK/Cancel line, which is the bottom right.
     auto* separator = child<QWidget>(*dialog, "levelsPresetSeparator");
     auto* export_button = child<QPushButton>(*dialog, "levelsExportPresetButton");
-    CHECK(separator != nullptr && export_button != nullptr &&
-          geometry_in(*separator, *dialog).top() > geometry_in(*export_button, *dialog).bottom());
+    auto* preset_label = child<QLabel>(*dialog, "levelsPresetLabel");
+    auto* input_label = child<QLabel>(*dialog, "levelsInputLabel");
+    auto* preview = child<QCheckBox>(*dialog, "levelsPreviewCheck");
+    if (separator == nullptr || export_button == nullptr || preset_label == nullptr || input_label == nullptr ||
+        preview == nullptr) {
+      dialog->reject();
+      return;
+    }
+    const auto at = [&](const QWidget* widget) { return geometry_in(*widget, *dialog); };
+    CHECK(at(presets).left() > at(preset_label).left() + preset_label->sizeHint().width() + 8);
+    CHECK(at(presets).left() >= at(input_label).left() + input_label->sizeHint().width());
+    check_preset_button_row_spans(*dialog, "levels", *presets);
+    CHECK(at(separator).top() > at(export_button).bottom());
+    CHECK(at(separator).bottom() < at(tabs).top());
+    CHECK(at(tabs).bottom() < at(input_label).top());
+    CHECK(std::abs(at(auto_button).center().y() - at(input_label).center().y()) <= 4);
+    CHECK(at(auto_button).left() > at(input_label).right());
+    CHECK(std::abs(at(auto_button).right() - at(cancel).right()) <= 1);
+    CHECK(at(ok).top() > at(white_output).bottom() && at(cancel).left() > at(ok).right());
+    CHECK(std::abs(at(preview).center().y() - at(ok).center().y()) <= 4);
+    CHECK(at(preview).right() < at(ok).left() && at(preview).left() < at(black_output).left() + 8);
+    CHECK(dialog->width() - at(cancel).right() < 24 && dialog->height() - at(cancel).bottom() < 24);
+    // Tab order follows the layout.
+    const std::vector<QWidget*> order{presets,     save,       remove, child<QPushButton>(*dialog, "levelsImportPresetButton"),
+                                      export_button, tabs,     auto_button, black,
+                                      black_pick,  gamma,      gray_pick,   white,
+                                      white_pick,  black_output, white_output, preview,
+                                      ok};
+    const auto order_chain = focus_chain(presets, static_cast<int>(order.size()));
+    if (order_chain != order) {
+      std::cerr << "levels tab order:";
+      for (auto* widget : order_chain) {
+        std::cerr << ' ' << widget->metaObject()->className() << ':' << widget->objectName().toStdString();
+      }
+      std::cerr << '\n';
+    }
+    CHECK(order_chain == order);
+    // No channel has changed values: no asterisks.
+    CHECK(tabs->tabText(0) == QStringLiteral("RGB") && tabs->tabText(1) == QStringLiteral("Red") &&
+          tabs->tabText(2) == QStringLiteral("Green") && tabs->tabText(3) == QStringLiteral("Blue"));
     capture_both_schemes(*dialog, "ui_levels_presets_dialog");
+
+    // A channel whose values change shows an asterisk on its tab; back at the defaults it
+    // goes away. The swatches stay.
+    tabs->setCurrentIndex(1);
+    white->setValue(230);
+    CHECK(tabs->tabText(1) == QStringLiteral("Red*") && tabs->tabText(0) == QStringLiteral("RGB"));
+    tabs->setCurrentIndex(0);
+    gamma->setValue(120);
+    CHECK(tabs->tabText(0) == QStringLiteral("RGB*") && tabs->tabText(1) == QStringLiteral("Red*") &&
+          tabs->tabText(2) == QStringLiteral("Green"));
+    CHECK(!tabs->tabIcon(1).isNull() && tabs->tabIcon(0).isNull());
+    capture_both_schemes(*dialog, "ui_levels_tab_asterisks");
+    gamma->setValue(100);
+    CHECK(tabs->tabText(0) == QStringLiteral("RGB"));
+    tabs->setCurrentIndex(1);
+    white->setValue(255);
+    CHECK(tabs->tabText(1) == QStringLiteral("Red"));
+    // A preset sets the RGB record only.
+    choose(*presets, QStringLiteral("levels.deep_blacks"));
+    CHECK(tabs->tabText(0) == QStringLiteral("RGB*") && tabs->tabText(1) == QStringLiteral("Red"));
+    tabs->setCurrentIndex(0);
+    choose(*presets, QStringLiteral("levels.default"));
+    CHECK(tabs->tabText(0) == QStringLiteral("RGB"));
 
     // An output-level preset.
     choose(*presets, QStringLiteral("levels.faded_medium"));
@@ -614,6 +715,8 @@ void ui_adjustment_presets_curves_layout_and_user_presets() {
     for (auto* button : {remove, import, export_button}) {
       CHECK(geometry_in(*button, *dialog).center().y() == save_box.center().y());
     }
+    // The four share the strip's width, as under the preset combos (#588 follow-up 2).
+    check_preset_button_row_spans(*dialog, "curves", *list);
     CHECK(geometry_in(*separator, *dialog).top() > save_box.bottom());
     CHECK(geometry_in(*target, *dialog).top() > geometry_in(*separator, *dialog).bottom());
     CHECK(geometry_in(*both, *dialog).center().y() == geometry_in(*target, *dialog).center().y());
