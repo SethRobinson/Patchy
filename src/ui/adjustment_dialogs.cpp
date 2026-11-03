@@ -414,6 +414,21 @@ QHBoxLayout* track_aligned_row(QWidget* field, QWidget* trailing = nullptr) {
   return row;
 }
 
+// The caption column the preset dialogs indent their Preset combo and its buttons past: as
+// wide as the widest Hue/Saturation caption, so the Levels combo starts where the
+// Hue/Saturation one does (#589 follow-up 2). Measured on a label polished like `dialog`'s.
+int preset_caption_column_width(QWidget& dialog) {
+  QLabel probe(&dialog);
+  probe.ensurePolished();
+  int width = 0;
+  for (const auto& caption : {QObject::tr("Preset:"), QObject::tr("Edit:"), QObject::tr("Hue:"),
+                              QObject::tr("Saturation:"), QObject::tr("Lightness:")}) {
+    probe.setText(caption);
+    width = std::max(width, probe.sizeHint().width());
+  }
+  return width;
+}
+
 // Inserts a "label: field" form row with the field indented to the tracks; the label's buddy
 // is the field.
 void insert_track_aligned_form_row(QFormLayout* form, int index, const QString& label, QWidget* field) {
@@ -1002,9 +1017,10 @@ std::optional<LevelsSettings> request_levels_settings(
   dialog.setObjectName(QStringLiteral("patchyLevelsDialog"));
   dialog.setWindowTitle(QObject::tr("Levels"));
   // Top to bottom, as the other preset dialogs (#589 follow-up): the preset combo indented
-  // past a label column, Save/Delete/Import/Export under it sharing its width, a separator,
-  // the channel tabs (an asterisk on a changed channel), "Input Levels:" with Auto at the
-  // right, the input and output controls, then Preview on the OK/Cancel line.
+  // past the Hue/Saturation caption column (follow-up 2), Save/Delete/Import/Export under it
+  // sharing its width, a separator, the channel tabs (an asterisk on a changed channel),
+  // "Input Levels:" with Auto at the right, the input and output controls, then Preview on
+  // the OK/Cancel line.
   auto* root = new QVBoxLayout(&dialog);
   auto* controls = new QVBoxLayout();
   controls->setSpacing(6);
@@ -1018,6 +1034,7 @@ std::optional<LevelsSettings> request_levels_settings(
   auto* preset_label = new QLabel(QObject::tr("Preset:"), &dialog);
   preset_label->setObjectName(QStringLiteral("levelsPresetLabel"));
   preset_label->setBuddy(preset);
+  preset_label->setMinimumWidth(preset_caption_column_width(dialog));
   preset_form->addRow(preset_label, track_aligned_row(preset));
   controls->addLayout(preset_form);
   auto* preset_buttons_area = new QWidget(&dialog);
@@ -1058,10 +1075,6 @@ std::optional<LevelsSettings> request_levels_settings(
   input_row->addWidget(auto_button);
   controls->addLayout(input_row);
   auto* output_label = new QLabel(QObject::tr("Output Levels:"), &dialog);
-  // The label column is as wide as the widest caption on the left, so the combo starts
-  // inside the dialog as the Hue/Saturation one does.
-  preset_label->setMinimumWidth(std::max({preset_label->sizeHint().width(), input_label->sizeHint().width(),
-                                          output_label->sizeHint().width()}));
 
   auto* input_graph = new LevelsInputGraph(&dialog);
   input_graph->set_histogram(histogram_for_channel(initial.channel));
@@ -2175,6 +2188,10 @@ std::optional<HueSaturationSettings> request_hue_saturation_settings(
         preset_layout->setContentsMargins(0, 0, 0, 0);
         form->insertRow(0, QString(), track_aligned_row(preset_area));
         insert_track_aligned_form_row(form, 0, QObject::tr("Preset:"), preset_combo);
+        // The caption column the Levels preset row shares (#589 follow-up 2).
+        if (auto* item = form->itemAt(0, QFormLayout::LabelRole); item != nullptr && item->widget() != nullptr) {
+          item->widget()->setMinimumWidth(preset_caption_column_width(dialog));
+        }
         std::vector<AdjustmentPresetCombo<HueSaturationAdjustment>::Shipped> shipped;
         for (const auto& preset : builtin_hue_saturation_presets()) {
           shipped.push_back({QString::fromLatin1(preset.id), QCoreApplication::translate("QObject", preset.name),
