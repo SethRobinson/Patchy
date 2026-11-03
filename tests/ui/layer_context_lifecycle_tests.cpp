@@ -657,9 +657,9 @@ void ui_move_layer_menu_preserves_pan_and_cancels_stale_clicks() {
   }
 }
 
-void ui_layer_style_color_overlay_patch_double_click_opens_picker() {
-  // The Color Overlay page's color patch is a passive QLabel next to the Choose
-  // Color... button; double-clicking the patch must open the same picker.
+void ui_layer_style_color_overlay_swatch_opens_picker() {
+  // The Color Overlay page's color swatch is a button beside the R/G/B fields
+  // (GitHub issue 606); clicking it opens the color picker.
   auto&& [window, canvas] = ShownWindowFixture{};
   auto* blending_options = require_action(window, "layerBlendingOptionsAction");
 
@@ -671,7 +671,7 @@ void ui_layer_style_color_overlay_patch_double_click_opens_picker() {
       }
       saw_dialog = true;
       auto* dialog = qobject_cast<QDialog*>(widget);
-      auto* patch = dialog->findChild<QLabel*>(QStringLiteral("layerStyleColorOverlayColorPreview"));
+      auto* patch = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleColorOverlayColorPreview"));
       auto* red = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleColorOverlayRedSpin"));
       auto* green = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleColorOverlayGreenSpin"));
       auto* blue = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleColorOverlayBlueSpin"));
@@ -694,10 +694,7 @@ void ui_layer_style_color_overlay_patch_double_click_opens_picker() {
         }
         CHECK(false);
       });
-      const auto patch_center = patch->rect().center();
-      QMouseEvent double_click(QEvent::MouseButtonDblClick, QPointF(patch_center),
-                               patch->mapToGlobal(patch_center), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
-      QApplication::sendEvent(patch, &double_click);
+      patch->click();
       QApplication::processEvents();
       CHECK(saw_picker);
       CHECK(red->value() == 12);
@@ -4656,8 +4653,7 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
        ui_stroke_selection_from_context_menu_survives_following_mouse_input},
       {"ui_move_context_menu_offers_free_transform_on_raster_layer",
        ui_move_context_menu_offers_free_transform_on_raster_layer},
-      {"ui_layer_style_color_overlay_patch_double_click_opens_picker",
-       ui_layer_style_color_overlay_patch_double_click_opens_picker},
+      {"ui_layer_style_color_overlay_swatch_opens_picker", ui_layer_style_color_overlay_swatch_opens_picker},
       {"ui_layer_context_menu_exposes_blending_options_dialog",
        ui_layer_context_menu_exposes_blending_options_dialog},
       {"ui_layer_context_menu_names_groups_as_groups", ui_layer_context_menu_names_groups_as_groups},

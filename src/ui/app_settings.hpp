@@ -174,6 +174,10 @@ void set_stored_preferences_dialog_size(QSize size);
 // compatibility contract); invalid when never resized. An invalid size removes the key.
 [[nodiscard]] QSize stored_layer_style_dialog_size();
 void set_stored_layer_style_dialog_size(QSize size);
+// Layer Style > Style Presets shows the grid (true, the default) or the list
+// (GitHub issue 606), under layerStyle/stylesGridView.
+[[nodiscard]] bool stored_layer_style_styles_grid_view();
+void set_stored_layer_style_styles_grid_view(bool grid);
 // The id of the Preferences page the dialog was last closed on (key `preferences/lastPage`,
 // a compatibility contract, as are the page ids); empty when never stored.
 [[nodiscard]] QString stored_preferences_last_page();

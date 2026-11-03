@@ -5683,10 +5683,6 @@
         <translation>색상을 선택하세요...</translation>
     </message>
     <message>
-        <source>Color RGB</source>
-        <translation>색상 RGB</translation>
-    </message>
-    <message>
         <source>Preset...</source>
         <translation>사전 설정...</translation>
     </message>
@@ -5697,10 +5693,6 @@
     <message>
         <source>Solid</source>
         <translation>단색</translation>
-    </message>
-    <message>
-        <source>Gradient Type</source>
-        <translation>그레이디언트 유형</translation>
     </message>
     <message>
         <source>Gradient</source>
@@ -5715,24 +5707,12 @@
         <translation>불투명도</translation>
     </message>
     <message>
-        <source>Midpoint</source>
-        <translation>중간점</translation>
-    </message>
-    <message>
         <source>Add Stop</source>
         <translation>중지점 추가</translation>
     </message>
     <message>
         <source>Remove Stop</source>
         <translation>중지점 제거</translation>
-    </message>
-    <message>
-        <source>Roughness</source>
-        <translation>거칠기</translation>
-    </message>
-    <message>
-        <source>Color Model</source>
-        <translation>컬러 모델</translation>
     </message>
     <message>
         <source>Add Transparency</source>
@@ -5745,10 +5725,6 @@
     <message>
         <source>to</source>
         <translation>~</translation>
-    </message>
-    <message>
-        <source>Channel %1 Range</source>
-        <translation>채널 %1 범위</translation>
     </message>
     <message>
         <source>Dither</source>
@@ -5797,20 +5773,8 @@
         <translation>스타일</translation>
     </message>
     <message>
-        <source>Horizontal Offset</source>
-        <translation>수평 오프셋</translation>
-    </message>
-    <message>
-        <source>Vertical Offset</source>
-        <translation>수직 오프셋</translation>
-    </message>
-    <message>
         <source>Reset Alignment</source>
         <translation>정렬 재설정</translation>
-    </message>
-    <message>
-        <source>Click a preset to replace the current effects. Right-click a folder or style to export it as a Photoshop .asl file.</source>
-        <translation>현재 효과를 바꾸려면 사전 설정을 클릭하세요. 폴더나 스타일을 마우스 오른쪽 버튼으로 클릭하여 Photoshop .asl 파일로 내보냅니다.</translation>
     </message>
     <message>
         <source>New Style…</source>
@@ -5835,14 +5799,6 @@
     <message>
         <source>Blending Options</source>
         <translation>혼합 옵션</translation>
-    </message>
-    <message>
-        <source>Blend Mode</source>
-        <translation>혼합 모드</translation>
-    </message>
-    <message>
-        <source>Fill Opacity</source>
-        <translation>칠 불투명도</translation>
     </message>
     <message>
         <source>An unchecked channel keeps the layers below instead of compositing</source>
@@ -5957,20 +5913,8 @@
         <translation>부드러운 조각</translation>
     </message>
     <message>
-        <source>Technique</source>
-        <translation>기법</translation>
-    </message>
-    <message>
-        <source>Soften</source>
-        <translation>부드럽게</translation>
-    </message>
-    <message>
         <source>Depth</source>
         <translation>깊이</translation>
-    </message>
-    <message>
-        <source>Altitude</source>
-        <translation>고도</translation>
     </message>
     <message>
         <source>Up</source>
@@ -5989,10 +5933,6 @@
         <translation>앤티앨리어싱</translation>
     </message>
     <message>
-        <source>Gloss Contour</source>
-        <translation>광택 윤곽선</translation>
-    </message>
-    <message>
         <source>Highlight</source>
         <translation>밝은 영역</translation>
     </message>
@@ -6003,10 +5943,6 @@
     <message>
         <source>Contour</source>
         <translation>윤곽선</translation>
-    </message>
-    <message>
-        <source>Range</source>
-        <translation>범위</translation>
     </message>
     <message>
         <source>Texture</source>
@@ -6057,10 +5993,6 @@
         <translation>중앙</translation>
     </message>
     <message>
-        <source>Position</source>
-        <translation>위치</translation>
-    </message>
-    <message>
         <source>Overprint</source>
         <translation>중복 인쇄</translation>
     </message>
@@ -6081,20 +6013,12 @@
         <translation>내부 그림자</translation>
     </message>
     <message>
-        <source>Choke</source>
-        <translation>초크</translation>
-    </message>
-    <message>
         <source>Add Inner Shadow</source>
         <translation>내부 그림자 추가</translation>
     </message>
     <message>
         <source>Remove Inner Shadow</source>
         <translation>내부 그림자 제거</translation>
-    </message>
-    <message>
-        <source>Instances</source>
-        <translation>인스턴스</translation>
     </message>
     <message>
         <source>Inner Glow</source>
@@ -6139,10 +6063,6 @@
     <message>
         <source>Outer Glow</source>
         <translation>외부 광선</translation>
-    </message>
-    <message>
-        <source>Spread</source>
-        <translation>확산</translation>
     </message>
     <message>
         <source>Drop Shadow</source>
@@ -14816,6 +14736,150 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Set the values the sliders show back to their defaults</source>
         <translation>슬라이더 값을 기본값으로 되돌립니다</translation>
+    </message>
+    <message>
+        <source>No Style (remove all effects)</source>
+        <translation>스타일 없음(모든 효과 제거)</translation>
+    </message>
+    <message>
+        <source>Right-click a folder or style to export it as a Photoshop .asl file.</source>
+        <translation>폴더나 스타일을 마우스 오른쪽 단추로 클릭하면 Photoshop .asl 파일로 내보낼 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Show the styles as a list with their names</source>
+        <translation>스타일을 이름과 함께 목록으로 표시합니다</translation>
+    </message>
+    <message>
+        <source>Show the styles as a grid of thumbnails</source>
+        <translation>스타일을 축소판 그리드로 표시합니다</translation>
+    </message>
+    <message>
+        <source>Blend Mode:</source>
+        <translation>혼합 모드:</translation>
+    </message>
+    <message>
+        <source>Black:</source>
+        <translation>검정:</translation>
+    </message>
+    <message>
+        <source>White:</source>
+        <translation>흰색:</translation>
+    </message>
+    <message>
+        <source>This Layer:</source>
+        <translation>이 레이어:</translation>
+    </message>
+    <message>
+        <source>Underlying Layer:</source>
+        <translation>아래 레이어:</translation>
+    </message>
+    <message>
+        <source>Make Default</source>
+        <translation>기본값으로 설정</translation>
+    </message>
+    <message>
+        <source>Use these settings whenever this effect is added</source>
+        <translation>이 효과를 추가할 때마다 이 설정을 사용합니다</translation>
+    </message>
+    <message>
+        <source>Put back the default settings of this effect</source>
+        <translation>이 효과의 설정을 기본값으로 되돌립니다</translation>
+    </message>
+    <message>
+        <source>R:</source>
+        <translation>R:</translation>
+    </message>
+    <message>
+        <source>Technique:</source>
+        <translation>기법:</translation>
+    </message>
+    <message>
+        <source>Depth:</source>
+        <translation>깊이:</translation>
+    </message>
+    <message>
+        <source>Soften:</source>
+        <translation>부드럽게:</translation>
+    </message>
+    <message>
+        <source>Shading</source>
+        <translation>음영</translation>
+    </message>
+    <message>
+        <source>Gloss Contour:</source>
+        <translation>광택 윤곽선:</translation>
+    </message>
+    <message>
+        <source>Contour:</source>
+        <translation>윤곽선:</translation>
+    </message>
+    <message>
+        <source>Range:</source>
+        <translation>범위:</translation>
+    </message>
+    <message>
+        <source>Position:</source>
+        <translation>위치:</translation>
+    </message>
+    <message>
+        <source>Fill:</source>
+        <translation>채우기:</translation>
+    </message>
+    <message>
+        <source>Distance:</source>
+        <translation>거리:</translation>
+    </message>
+    <message>
+        <source>Choke:</source>
+        <translation>초크:</translation>
+    </message>
+    <message>
+        <source>Instances:</source>
+        <translation>인스턴스:</translation>
+    </message>
+    <message>
+        <source>Spread:</source>
+        <translation>확산:</translation>
+    </message>
+    <message>
+        <source>Fade:</source>
+        <translation>페이드:</translation>
+    </message>
+    <message>
+        <source>Gradient Type:</source>
+        <translation>그레이디언트 유형:</translation>
+    </message>
+    <message>
+        <source>Midpoint:</source>
+        <translation>중간점:</translation>
+    </message>
+    <message>
+        <source>Smoothness:</source>
+        <translation>부드러움:</translation>
+    </message>
+    <message>
+        <source>Seed:</source>
+        <translation>시드:</translation>
+    </message>
+    <message>
+        <source>Roughness:</source>
+        <translation>거칠기:</translation>
+    </message>
+    <message>
+        <source>Color Model:</source>
+        <translation>컬러 모델:</translation>
+    </message>
+    <message>
+        <source>Channel %1 Range:</source>
+        <translation>채널 %1 범위:</translation>
+    </message>
+    <message>
+        <source>Horizontal Offset:</source>
+        <translation>수평 오프셋:</translation>
+    </message>
+    <message>
+        <source>Vertical Offset:</source>
+        <translation>수직 오프셋:</translation>
     </message>
 </context>
 <context>

@@ -5705,10 +5705,6 @@
         <translation>Выберите цвет...</translation>
     </message>
     <message>
-        <source>Color RGB</source>
-        <translation>Цвет RGB</translation>
-    </message>
-    <message>
         <source>Preset...</source>
         <translation>Набор...</translation>
     </message>
@@ -5719,10 +5715,6 @@
     <message>
         <source>Solid</source>
         <translation>Непрерывный</translation>
-    </message>
-    <message>
-        <source>Gradient Type</source>
-        <translation>Тип градиента</translation>
     </message>
     <message>
         <source>Gradient</source>
@@ -5737,24 +5729,12 @@
         <translation>Непрозрачность</translation>
     </message>
     <message>
-        <source>Midpoint</source>
-        <translation>Средняя точка</translation>
-    </message>
-    <message>
         <source>Add Stop</source>
         <translation>Добавить контрольную точку</translation>
     </message>
     <message>
         <source>Remove Stop</source>
         <translation>Удалить контрольную точку</translation>
-    </message>
-    <message>
-        <source>Roughness</source>
-        <translation>Шероховатость</translation>
-    </message>
-    <message>
-        <source>Color Model</source>
-        <translation>Цветовая модель</translation>
     </message>
     <message>
         <source>Add Transparency</source>
@@ -5767,10 +5747,6 @@
     <message>
         <source>to</source>
         <translation>к</translation>
-    </message>
-    <message>
-        <source>Channel %1 Range</source>
-        <translation>Канал %1 Диапазон</translation>
     </message>
     <message>
         <source>Dither</source>
@@ -5819,20 +5795,8 @@
         <translation>Стиль</translation>
     </message>
     <message>
-        <source>Horizontal Offset</source>
-        <translation>Горизонтальное смещение</translation>
-    </message>
-    <message>
-        <source>Vertical Offset</source>
-        <translation>Вертикальное смещение</translation>
-    </message>
-    <message>
         <source>Reset Alignment</source>
         <translation>Сбросить выравнивание</translation>
-    </message>
-    <message>
-        <source>Click a preset to replace the current effects. Right-click a folder or style to export it as a Photoshop .asl file.</source>
-        <translation>Щелкните пресет, чтобы заменить текущие эффекты. Щелкните правой кнопкой мыши папку или стиль, чтобы экспортировать его как файл Photoshop .asl.</translation>
     </message>
     <message>
         <source>New Style…</source>
@@ -5857,14 +5821,6 @@
     <message>
         <source>Blending Options</source>
         <translation>Параметры наложения</translation>
-    </message>
-    <message>
-        <source>Blend Mode</source>
-        <translation>Режим наложения</translation>
-    </message>
-    <message>
-        <source>Fill Opacity</source>
-        <translation>Непрозрачность заливки</translation>
     </message>
     <message>
         <source>An unchecked channel keeps the layers below instead of compositing</source>
@@ -5979,20 +5935,8 @@
         <translation>Мягкая огранка</translation>
     </message>
     <message>
-        <source>Technique</source>
-        <translation>Техника</translation>
-    </message>
-    <message>
-        <source>Soften</source>
-        <translation>Смягчить</translation>
-    </message>
-    <message>
         <source>Depth</source>
         <translation>Глубина</translation>
-    </message>
-    <message>
-        <source>Altitude</source>
-        <translation>Высота</translation>
     </message>
     <message>
         <source>Up</source>
@@ -6011,10 +5955,6 @@
         <translation>Сглаженный</translation>
     </message>
     <message>
-        <source>Gloss Contour</source>
-        <translation>Контур глянца</translation>
-    </message>
-    <message>
         <source>Highlight</source>
         <translation>Свет</translation>
     </message>
@@ -6025,10 +5965,6 @@
     <message>
         <source>Contour</source>
         <translation>Контур</translation>
-    </message>
-    <message>
-        <source>Range</source>
-        <translation>Диапазон</translation>
     </message>
     <message>
         <source>Texture</source>
@@ -6079,10 +6015,6 @@
         <translation>По центру</translation>
     </message>
     <message>
-        <source>Position</source>
-        <translation>Позиция</translation>
-    </message>
-    <message>
         <source>Overprint</source>
         <translation>Надпечатка</translation>
     </message>
@@ -6103,20 +6035,12 @@
         <translation>Внутренняя тень</translation>
     </message>
     <message>
-        <source>Choke</source>
-        <translation>Стягивание</translation>
-    </message>
-    <message>
         <source>Add Inner Shadow</source>
         <translation>Добавьте внутреннюю тень</translation>
     </message>
     <message>
         <source>Remove Inner Shadow</source>
         <translation>Удалить внутреннюю тень</translation>
-    </message>
-    <message>
-        <source>Instances</source>
-        <translation>Экземпляры</translation>
     </message>
     <message>
         <source>Inner Glow</source>
@@ -6161,10 +6085,6 @@
     <message>
         <source>Outer Glow</source>
         <translation>Внешнее свечение</translation>
-    </message>
-    <message>
-        <source>Spread</source>
-        <translation>Размах</translation>
     </message>
     <message>
         <source>Drop Shadow</source>
@@ -14906,6 +14826,150 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Set the values the sliders show back to their defaults</source>
         <translation>Возвращает ползункам значения по умолчанию</translation>
+    </message>
+    <message>
+        <source>No Style (remove all effects)</source>
+        <translation>Без стиля (удалить все эффекты)</translation>
+    </message>
+    <message>
+        <source>Right-click a folder or style to export it as a Photoshop .asl file.</source>
+        <translation>Щёлкните папку или стиль правой кнопкой мыши, чтобы экспортировать их в файл Photoshop .asl.</translation>
+    </message>
+    <message>
+        <source>Show the styles as a list with their names</source>
+        <translation>Показать стили списком с названиями</translation>
+    </message>
+    <message>
+        <source>Show the styles as a grid of thumbnails</source>
+        <translation>Показать стили сеткой миниатюр</translation>
+    </message>
+    <message>
+        <source>Blend Mode:</source>
+        <translation>Режим наложения:</translation>
+    </message>
+    <message>
+        <source>Black:</source>
+        <translation>Черный:</translation>
+    </message>
+    <message>
+        <source>White:</source>
+        <translation>Белый:</translation>
+    </message>
+    <message>
+        <source>This Layer:</source>
+        <translation>Этот слой:</translation>
+    </message>
+    <message>
+        <source>Underlying Layer:</source>
+        <translation>Подлежащий слой:</translation>
+    </message>
+    <message>
+        <source>Make Default</source>
+        <translation>Сделать по умолчанию</translation>
+    </message>
+    <message>
+        <source>Use these settings whenever this effect is added</source>
+        <translation>Использовать эти настройки при каждом добавлении этого эффекта</translation>
+    </message>
+    <message>
+        <source>Put back the default settings of this effect</source>
+        <translation>Вернуть настройки этого эффекта по умолчанию</translation>
+    </message>
+    <message>
+        <source>R:</source>
+        <translation>R:</translation>
+    </message>
+    <message>
+        <source>Technique:</source>
+        <translation>Техника:</translation>
+    </message>
+    <message>
+        <source>Depth:</source>
+        <translation>Глубина:</translation>
+    </message>
+    <message>
+        <source>Soften:</source>
+        <translation>Смягчить:</translation>
+    </message>
+    <message>
+        <source>Shading</source>
+        <translation>Затенение</translation>
+    </message>
+    <message>
+        <source>Gloss Contour:</source>
+        <translation>Контур глянца:</translation>
+    </message>
+    <message>
+        <source>Contour:</source>
+        <translation>Контур:</translation>
+    </message>
+    <message>
+        <source>Range:</source>
+        <translation>Диапазон:</translation>
+    </message>
+    <message>
+        <source>Position:</source>
+        <translation>Позиция:</translation>
+    </message>
+    <message>
+        <source>Fill:</source>
+        <translation>Заливка:</translation>
+    </message>
+    <message>
+        <source>Distance:</source>
+        <translation>Расстояние:</translation>
+    </message>
+    <message>
+        <source>Choke:</source>
+        <translation>Стягивание:</translation>
+    </message>
+    <message>
+        <source>Instances:</source>
+        <translation>Экземпляры:</translation>
+    </message>
+    <message>
+        <source>Spread:</source>
+        <translation>Размах:</translation>
+    </message>
+    <message>
+        <source>Fade:</source>
+        <translation>Переход:</translation>
+    </message>
+    <message>
+        <source>Gradient Type:</source>
+        <translation>Тип градиента:</translation>
+    </message>
+    <message>
+        <source>Midpoint:</source>
+        <translation>Средняя точка:</translation>
+    </message>
+    <message>
+        <source>Smoothness:</source>
+        <translation>Гладкость:</translation>
+    </message>
+    <message>
+        <source>Seed:</source>
+        <translation>Начальное число:</translation>
+    </message>
+    <message>
+        <source>Roughness:</source>
+        <translation>Шероховатость:</translation>
+    </message>
+    <message>
+        <source>Color Model:</source>
+        <translation>Цветовая модель:</translation>
+    </message>
+    <message>
+        <source>Channel %1 Range:</source>
+        <translation>Канал %1 Диапазон:</translation>
+    </message>
+    <message>
+        <source>Horizontal Offset:</source>
+        <translation>Горизонтальное смещение:</translation>
+    </message>
+    <message>
+        <source>Vertical Offset:</source>
+        <translation>Вертикальное смещение:</translation>
     </message>
 </context>
 <context>

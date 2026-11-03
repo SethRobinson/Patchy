@@ -103,11 +103,11 @@ QString StyleBrowserWidget::export_suggested_name() const {
 }
 
 bool StyleBrowserWidget::export_selection_to(const QString& path) {
-  if (library_ == nullptr) {
-    return false;
-  }
-  const auto ids = selected_storage_ids();
-  if (ids.isEmpty()) {
+  return export_ids_to(selected_storage_ids(), path);
+}
+
+bool StyleBrowserWidget::export_ids_to(const QStringList& ids, const QString& path) {
+  if (library_ == nullptr || ids.isEmpty()) {
     return false;
   }
   QString error;
@@ -119,10 +119,14 @@ bool StyleBrowserWidget::export_selection_to(const QString& path) {
 }
 
 void StyleBrowserWidget::export_selection() {
-  if (library_ == nullptr || selected_storage_ids().isEmpty()) {
+  export_ids(selected_storage_ids(), export_suggested_name());
+}
+
+void StyleBrowserWidget::export_ids(const QStringList& ids, const QString& suggested_name) {
+  if (library_ == nullptr || ids.isEmpty()) {
     return;
   }
-  const auto suggested = export_suggested_name() + QStringLiteral(".asl");
+  const auto suggested = suggested_name + QStringLiteral(".asl");
   auto path = get_save_file_name(this, tr("Export Styles"), suggested,
                                  tr("Photoshop Styles (*.asl)"), nullptr,
                                  QStringLiteral("styleBrowserExportFileDialog"));
@@ -132,8 +136,8 @@ void StyleBrowserWidget::export_selection() {
   if (!path.endsWith(QStringLiteral(".asl"), Qt::CaseInsensitive)) {
     path += QStringLiteral(".asl");
   }
-  const auto count = static_cast<int>(selected_storage_ids().size());
-  if (export_selection_to(path)) {
+  const auto count = static_cast<int>(ids.size());
+  if (export_ids_to(ids, path)) {
     offer_browser_download_for_saved_file(path);
     QMessageBox::information(this, tr("Export Styles"),
                              tr("Exported %n style(s) to \"%1\".", nullptr, count)
@@ -153,13 +157,30 @@ void StyleBrowserWidget::show_context_menu(const QPoint& position) {
   if (ids.isEmpty()) {
     return;
   }
+  const bool folder_row = item->data(0, kFolderMarkerRole).toBool();
+  exec_export_menu(viewport()->mapToGlobal(position), ids, folder_row,
+                   folder_row ? item->data(0, Qt::UserRole).toString() : QString());
+}
+
+void StyleBrowserWidget::exec_export_menu(const QPoint& global_position, const QStringList& ids, bool folder_row,
+                                          const QString& folder) {
+  if (ids.isEmpty()) {
+    return;
+  }
+  QString suggested = folder;
+  if (suggested.isEmpty() && ids.size() == 1 && library_ != nullptr) {
+    if (const auto* entry = library_->find_entry(ids.front()); entry != nullptr) {
+      suggested = entry->folder.isEmpty() ? style_library_entry_display_name(*entry) : entry->folder;
+    }
+  }
+  if (suggested.isEmpty()) {
+    suggested = tr("Styles");
+  }
   QMenu menu(this);
-  auto* export_action = menu.addAction(
-      item->data(0, kFolderMarkerRole).toBool() ? tr("Export Folder to .asl…")
-                                                : tr("Export to .asl…"));
+  auto* export_action = menu.addAction(folder_row ? tr("Export Folder to .asl…") : tr("Export to .asl…"));
   export_action->setObjectName(QStringLiteral("styleBrowserExportAction"));
-  connect(export_action, &QAction::triggered, this, &StyleBrowserWidget::export_selection);
-  menu.exec(viewport()->mapToGlobal(position));
+  connect(export_action, &QAction::triggered, this, [this, ids, suggested] { export_ids(ids, suggested); });
+  menu.exec(global_position);
 }
 
 }  // namespace patchy::ui

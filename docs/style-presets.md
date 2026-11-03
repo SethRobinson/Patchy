@@ -8,7 +8,7 @@ Layer Style supports selected-layer property edits, ordered effect operations,
 and explicit full replacement. See [batch appearance](batch-appearance.md) for
 matching, mixed values, preview transactions, native-data safeguards, and history.
 
-- **Style Presets page** (Layer Style dialog): a non-checkable "Style Presets" row sits FIRST in the category list, above Blending Options; the dialog still opens on Blending Options (the row carries the selection marker `kStylesCategoryIndex = -2` because it shares `LayerStyleEffectKind::None` with Blending Options, and `LayerStyleCategoryPage::Styles` is appended to the enum so the stacked-widget indices of the older pages never move). Clicking a preset REPLACES the working effects (Photoshop behavior), forces `effects_visible` on, and keeps `layer_mask_hides_effects`, `vector_mask_hides_effects` and the layer's opacity/blend mode/Blend If unless the preset carries blending options. A "No Style" first entry clears all effects and keeps blending options. "New Style…" saves the current dialog state (checkbox opts into capturing opacity/blend mode/Blend If); "Manage Styles…" opens the Style Manager and applies its "Use Style" pick.
+- **Style Presets page** (Layer Style dialog): a non-checkable "Style Presets" row sits FIRST in the category list, above Blending Options; the dialog still opens on Blending Options (the row carries the selection marker `kStylesCategoryIndex = -2` because it shares `LayerStyleEffectKind::None` with Blending Options, and `LayerStyleCategoryPage::Styles` is appended to the enum so the stacked-widget indices of the older pages never move). Clicking a preset REPLACES the working effects (Photoshop behavior), forces `effects_visible` on, and keeps `layer_mask_hides_effects`, `vector_mask_hides_effects` and the layer's opacity/blend mode/Blend If unless the preset carries blending options. A "No Style" first entry clears all effects and keeps blending options. The presets show as a thumbnail grid (`layerStyleStylesGrid`, a `PresetGridWidget` whose first cell is No Style) or as the folder tree (`StyleBrowserWidget`); the List/Grid buttons switch them and `layerStyle/stylesGridView` remembers the choice (Grid by default, GitHub issue 606). Both share the tree's .asl export menu (`StyleBrowserWidget::exec_export_menu`); the info icon beside Manage Styles says so. The views' minimum height is half the screen's available height, clamped to 240..500 px. "New Style…" saves the current dialog state (checkbox opts into capturing opacity/blend mode/Blend If); "Manage Styles…" opens the Style Manager and applies its "Use Style" pick.
 - **Style Manager** (`request_style_manager`, src/ui/style_manager_dialog.cpp): the Pattern Manager's style twin. Tree + large rendered preview + name/folder edits + Import .asl / Export / Duplicate / Delete / Restore Default Styles / Use Style. Library edits apply immediately (no undo, matching patterns). Opened from Edit > Presets it runs with `offer_use` false (no Use Style: there is no layer to style).
 - **Edit > Presets** (`editPresetsMenu`, GitHub issues 485 and 486): Styles Manager, Brush Tips, Saved Brushes, Gradient Manager, Pattern Manager, Shapes Manager (`edit.presets_custom_shapes`), Stroke Presets (`edit.presets_stroke_presets`, grouped with Shapes), in three separated groups; hotkey ids `edit.presets_*`, no default keys, `QAction::NoRole`, no document needed. Menu and page both read `MainWindow::preset_manager_entries()` (labels, order, groups, hotkey ids, open function). Preferences > Presets, the last page of the list, shows one button per entry, in one grid so they share a width, with a line of description; each calls the same open function with Preferences as the parent, so the manager opens over it. Edit > Define New Preset (`editDefineMenu`, right above Presets) holds Define Brush Tip from Selection and Define Custom Shape from Path / from SVG File under their full names, because the shape context menu and the Hotkeys page show the same QActions. Use from the menu goes to the matching tool (Gradient tool, Pattern Stamp, the Custom Shape picker). The Shapes Manager imports Photoshop `.csh` and SVG files ([vector-tools.md](vector-tools.md#photoshop-csh-files)). The options bar and Layer Style buttons still open the same dialogs. Pinned by `ui_edit_presets_menu_lists_the_managers_in_order`.
 - **StyleBrowserWidget** (src/ui/style_browser.cpp) is the shared folder tree (48 px icons on the Styles page, 40 px in the manager). Its context menu's "Export to .asl…" exports the selection; a folder row exports its children and supplies the default filename. `export_selection_to(path)` is the prompt-free half tests drive.
@@ -29,7 +29,38 @@ screen leaves (available height minus 40, measured before the dialog shows), so 
 tall screen opens and grows the dialog exactly as before and a short one scrolls
 the pane with OK/Cancel in view. The first Show takes any overflow left (height,
 or width on a screen narrower than the dialog's minimum) out of the pane. `ui_layer_style_dialog_fits_a_short_screen` pins
-it on the 800 x 800 offscreen screen.
+it on the 800 x 800 offscreen screen. With no remembered size the dialog opens at most
+three quarters of the available height (at least 520 px), scrolling the rest; the user
+can drag it up to the cap (GitHub issue 606).
+
+Page layout (GitHub issue 606): every form label ends in a colon and
+`align_page_label_columns` gives all page forms one label width, so every field
+starts at one indent; a page's sub-sections (Bevel's Shading, Highlight, Shadow) are
+`add_form_section` lines and bold titles inside the page's one form, not nested group
+boxes. Page titles go through `page_title`, which escapes "&" (a QGroupBox reads it as
+a mnemonic). Color rows are a swatch button plus R/G/B fields; two-choice settings are
+radio pairs (`make_two_choice_radios`). Blend If sits inside the Blending Options
+section with its values on the This Layer / Underlying Layer lines (no step buttons:
+the fields step with the arrow keys and the wheel; Alt-drag still splits a handle),
+and `CheckBoxColumns` moves the mask and Show Effects boxes into a second column
+when the section is wide enough.
+
+## Make Default and Reset to Default
+
+Every effect page except Style Presets, Blending Options, Contour and Texture ends
+with Make Default and Reset to Default. Make Default stores that page's values for
+the effect under `layerStyle/effectDefaults/<token>` (bevelEmboss, stroke,
+innerShadow, innerGlow, satin, colorOverlay, gradientOverlay, patternOverlay,
+outerGlow, dropShadow; persisted identifiers) as a one-style .asl blob; the drop
+shadow's Patchy-only long-shadow fields, which .asl cannot carry, sit beside it in
+`dropShadowContinuous` and `dropShadowFade`. Bevel & Emboss stores its own page
+only: Contour and Texture stay built-in. The dialog loads the stored values when it
+opens; `default_<effect>()` returns them (enabled) or the built-in values, so a newly
+ticked or added effect starts from them. Reset to Default puts them (or the built-in
+values) back on the current instance and keeps whether it is on. Nothing is stored
+until the user presses Make Default, so PSD output and settings are unchanged
+otherwise. `clear_stored_layer_style_effect_defaults` forgets them all. Pinned by
+`ui_layer_style_make_default_and_reset_to_default`.
 
 ## StyleLibrary (src/ui/style_library.*)
 

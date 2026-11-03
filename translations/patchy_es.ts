@@ -5511,10 +5511,6 @@
         <translation>Elegir color...</translation>
     </message>
     <message>
-        <source>Color RGB</source>
-        <translation>Color RGB</translation>
-    </message>
-    <message>
         <source>Preset...</source>
         <translation>Ajuste preestablecido...</translation>
     </message>
@@ -5525,10 +5521,6 @@
     <message>
         <source>Solid</source>
         <translation>Sólido</translation>
-    </message>
-    <message>
-        <source>Gradient Type</source>
-        <translation>Tipo de degradado</translation>
     </message>
     <message>
         <source>Gradient</source>
@@ -5543,24 +5535,12 @@
         <translation>Opacidad</translation>
     </message>
     <message>
-        <source>Midpoint</source>
-        <translation>Punto medio</translation>
-    </message>
-    <message>
         <source>Add Stop</source>
         <translation>Añadir detención</translation>
     </message>
     <message>
         <source>Remove Stop</source>
         <translation>Eliminar detención</translation>
-    </message>
-    <message>
-        <source>Roughness</source>
-        <translation>Rugosidad</translation>
-    </message>
-    <message>
-        <source>Color Model</source>
-        <translation>Modelo de color</translation>
     </message>
     <message>
         <source>Add Transparency</source>
@@ -5573,10 +5553,6 @@
     <message>
         <source>to</source>
         <translation>a</translation>
-    </message>
-    <message>
-        <source>Channel %1 Range</source>
-        <translation>Rango del canal %1</translation>
     </message>
     <message>
         <source>Reverse</source>
@@ -5629,20 +5605,8 @@
         <translation>Estilo</translation>
     </message>
     <message>
-        <source>Horizontal Offset</source>
-        <translation>Desplazamiento horizontal</translation>
-    </message>
-    <message>
-        <source>Vertical Offset</source>
-        <translation>Desplazamiento vertical</translation>
-    </message>
-    <message>
         <source>Reset Alignment</source>
         <translation>Restablecer alineación</translation>
-    </message>
-    <message>
-        <source>Click a preset to replace the current effects. Right-click a folder or style to export it as a Photoshop .asl file.</source>
-        <translation>Haga clic en un ajuste preestablecido para reemplazar los efectos actuales. Haga clic con el botón derecho en una carpeta o un estilo para exportarlo como archivo .asl de Photoshop.</translation>
     </message>
     <message>
         <source>New Style…</source>
@@ -5667,14 +5631,6 @@
     <message>
         <source>Blending Options</source>
         <translation>Opciones de fusión</translation>
-    </message>
-    <message>
-        <source>Blend Mode</source>
-        <translation>Modo de fusión</translation>
-    </message>
-    <message>
-        <source>Fill Opacity</source>
-        <translation>Opacidad de relleno</translation>
     </message>
     <message>
         <source>An unchecked channel keeps the layers below instead of compositing</source>
@@ -5789,20 +5745,8 @@
         <translation>Cincel suave</translation>
     </message>
     <message>
-        <source>Technique</source>
-        <translation>Técnica</translation>
-    </message>
-    <message>
-        <source>Soften</source>
-        <translation>Suavizar</translation>
-    </message>
-    <message>
         <source>Depth</source>
         <translation>Profundidad</translation>
-    </message>
-    <message>
-        <source>Altitude</source>
-        <translation>Altitud</translation>
     </message>
     <message>
         <source>Up</source>
@@ -5821,10 +5765,6 @@
         <translation>Suavizado</translation>
     </message>
     <message>
-        <source>Gloss Contour</source>
-        <translation>Contorno de resplandor</translation>
-    </message>
-    <message>
         <source>Highlight</source>
         <translation>Iluminación</translation>
     </message>
@@ -5835,10 +5775,6 @@
     <message>
         <source>Contour</source>
         <translation>Contorno</translation>
-    </message>
-    <message>
-        <source>Range</source>
-        <translation>Rango</translation>
     </message>
     <message>
         <source>Texture</source>
@@ -5889,10 +5825,6 @@
         <translation>Centro</translation>
     </message>
     <message>
-        <source>Position</source>
-        <translation>Posición</translation>
-    </message>
-    <message>
         <source>Overprint</source>
         <translation>Sobreimprimir</translation>
     </message>
@@ -5913,20 +5845,12 @@
         <translation>Sombra interior</translation>
     </message>
     <message>
-        <source>Choke</source>
-        <translation>Retraer</translation>
-    </message>
-    <message>
         <source>Add Inner Shadow</source>
         <translation>Añadir sombra interior</translation>
     </message>
     <message>
         <source>Remove Inner Shadow</source>
         <translation>Quitar sombra interior</translation>
-    </message>
-    <message>
-        <source>Instances</source>
-        <translation>Instancias</translation>
     </message>
     <message>
         <source>Inner Glow</source>
@@ -5971,10 +5895,6 @@
     <message>
         <source>Outer Glow</source>
         <translation>Resplandor exterior</translation>
-    </message>
-    <message>
-        <source>Spread</source>
-        <translation>Extensión</translation>
     </message>
     <message>
         <source>Drop Shadow</source>
@@ -14861,6 +14781,150 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Set the values the sliders show back to their defaults</source>
         <translation>Devuelve los valores de los deslizadores a sus valores predeterminados</translation>
+    </message>
+    <message>
+        <source>No Style (remove all effects)</source>
+        <translation>Sin estilo (quitar todos los efectos)</translation>
+    </message>
+    <message>
+        <source>Right-click a folder or style to export it as a Photoshop .asl file.</source>
+        <translation>Haga clic con el botón derecho en una carpeta o un estilo para exportarlo como archivo .asl de Photoshop.</translation>
+    </message>
+    <message>
+        <source>Show the styles as a list with their names</source>
+        <translation>Mostrar los estilos como una lista con sus nombres</translation>
+    </message>
+    <message>
+        <source>Show the styles as a grid of thumbnails</source>
+        <translation>Mostrar los estilos como una cuadrícula de miniaturas</translation>
+    </message>
+    <message>
+        <source>Blend Mode:</source>
+        <translation>Modo de fusión:</translation>
+    </message>
+    <message>
+        <source>Black:</source>
+        <translation>Negro:</translation>
+    </message>
+    <message>
+        <source>White:</source>
+        <translation>Blanco:</translation>
+    </message>
+    <message>
+        <source>This Layer:</source>
+        <translation>Esta capa:</translation>
+    </message>
+    <message>
+        <source>Underlying Layer:</source>
+        <translation>Capa subyacente:</translation>
+    </message>
+    <message>
+        <source>Make Default</source>
+        <translation>Establecer como predeterminado</translation>
+    </message>
+    <message>
+        <source>Use these settings whenever this effect is added</source>
+        <translation>Usar estos ajustes cada vez que se añada este efecto</translation>
+    </message>
+    <message>
+        <source>Put back the default settings of this effect</source>
+        <translation>Restaurar los ajustes predeterminados de este efecto</translation>
+    </message>
+    <message>
+        <source>R:</source>
+        <translation>R:</translation>
+    </message>
+    <message>
+        <source>Technique:</source>
+        <translation>Técnica:</translation>
+    </message>
+    <message>
+        <source>Depth:</source>
+        <translation>Profundidad:</translation>
+    </message>
+    <message>
+        <source>Soften:</source>
+        <translation>Suavizar:</translation>
+    </message>
+    <message>
+        <source>Shading</source>
+        <translation>Sombreado</translation>
+    </message>
+    <message>
+        <source>Gloss Contour:</source>
+        <translation>Contorno de resplandor:</translation>
+    </message>
+    <message>
+        <source>Contour:</source>
+        <translation>Contorno:</translation>
+    </message>
+    <message>
+        <source>Range:</source>
+        <translation>Rango:</translation>
+    </message>
+    <message>
+        <source>Position:</source>
+        <translation>Posición:</translation>
+    </message>
+    <message>
+        <source>Fill:</source>
+        <translation>Relleno:</translation>
+    </message>
+    <message>
+        <source>Distance:</source>
+        <translation>Distancia:</translation>
+    </message>
+    <message>
+        <source>Choke:</source>
+        <translation>Retraer:</translation>
+    </message>
+    <message>
+        <source>Instances:</source>
+        <translation>Instancias:</translation>
+    </message>
+    <message>
+        <source>Spread:</source>
+        <translation>Extensión:</translation>
+    </message>
+    <message>
+        <source>Fade:</source>
+        <translation>Desvanecer:</translation>
+    </message>
+    <message>
+        <source>Gradient Type:</source>
+        <translation>Tipo de degradado:</translation>
+    </message>
+    <message>
+        <source>Midpoint:</source>
+        <translation>Punto medio:</translation>
+    </message>
+    <message>
+        <source>Smoothness:</source>
+        <translation>Suavidad:</translation>
+    </message>
+    <message>
+        <source>Seed:</source>
+        <translation>Semilla:</translation>
+    </message>
+    <message>
+        <source>Roughness:</source>
+        <translation>Rugosidad:</translation>
+    </message>
+    <message>
+        <source>Color Model:</source>
+        <translation>Modelo de color:</translation>
+    </message>
+    <message>
+        <source>Channel %1 Range:</source>
+        <translation>Rango del canal %1:</translation>
+    </message>
+    <message>
+        <source>Horizontal Offset:</source>
+        <translation>Desplazamiento horizontal:</translation>
+    </message>
+    <message>
+        <source>Vertical Offset:</source>
+        <translation>Desplazamiento vertical:</translation>
     </message>
 </context>
 <context>

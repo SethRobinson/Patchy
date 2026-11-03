@@ -30,7 +30,7 @@ struct BevelPageControls {
   QSpinBox* bevel_depth{};
   QSpinBox* bevel_angle{};
   QSpinBox* bevel_altitude{};
-  QComboBox* bevel_direction{};
+  TwoChoiceRadios bevel_direction{};
   QComboBox* bevel_gloss_contour{};
   QCheckBox* bevel_gloss_anti_aliased{};
   RgbColor bevel_highlight_color{};
@@ -113,7 +113,7 @@ struct InnerGlowPageControls {
   QSpinBox* inner_glow_size{};
   QSpinBox* inner_glow_choke{};
   QSpinBox* inner_glow_range{};
-  QComboBox* inner_glow_source{};
+  TwoChoiceRadios inner_glow_source{};
   RgbColorRowWidgets inner_glow_rows{};
   QSpinBox* inner_glow_red{};
   QSpinBox* inner_glow_green{};

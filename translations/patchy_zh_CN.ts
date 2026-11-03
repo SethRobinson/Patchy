@@ -5501,10 +5501,6 @@
         <translation>选择颜色...</translation>
     </message>
     <message>
-        <source>Color RGB</source>
-        <translation>颜色 RGB</translation>
-    </message>
-    <message>
         <source>Preset...</source>
         <translation>预设...</translation>
     </message>
@@ -5515,10 +5511,6 @@
     <message>
         <source>Solid</source>
         <translation>实色</translation>
-    </message>
-    <message>
-        <source>Gradient Type</source>
-        <translation>渐变类型</translation>
     </message>
     <message>
         <source>Gradient</source>
@@ -5533,24 +5525,12 @@
         <translation>不透明度</translation>
     </message>
     <message>
-        <source>Midpoint</source>
-        <translation>中点</translation>
-    </message>
-    <message>
         <source>Add Stop</source>
         <translation>添加色标</translation>
     </message>
     <message>
         <source>Remove Stop</source>
         <translation>删除色标</translation>
-    </message>
-    <message>
-        <source>Roughness</source>
-        <translation>粗糙度</translation>
-    </message>
-    <message>
-        <source>Color Model</source>
-        <translation>颜色模型</translation>
     </message>
     <message>
         <source>Add Transparency</source>
@@ -5563,10 +5543,6 @@
     <message>
         <source>to</source>
         <translation>到</translation>
-    </message>
-    <message>
-        <source>Channel %1 Range</source>
-        <translation>通道 %1 范围</translation>
     </message>
     <message>
         <source>Reverse</source>
@@ -5619,20 +5595,8 @@
         <translation>样式</translation>
     </message>
     <message>
-        <source>Horizontal Offset</source>
-        <translation>水平偏移</translation>
-    </message>
-    <message>
-        <source>Vertical Offset</source>
-        <translation>垂直偏移</translation>
-    </message>
-    <message>
         <source>Reset Alignment</source>
         <translation>重置对齐</translation>
-    </message>
-    <message>
-        <source>Click a preset to replace the current effects. Right-click a folder or style to export it as a Photoshop .asl file.</source>
-        <translation>单击预设可替换当前效果。右键单击文件夹或样式可将其导出为 Photoshop .asl 文件。</translation>
     </message>
     <message>
         <source>New Style…</source>
@@ -5657,14 +5621,6 @@
     <message>
         <source>Blending Options</source>
         <translation>混合选项</translation>
-    </message>
-    <message>
-        <source>Blend Mode</source>
-        <translation>混合模式</translation>
-    </message>
-    <message>
-        <source>Fill Opacity</source>
-        <translation>填充不透明度</translation>
     </message>
     <message>
         <source>An unchecked channel keeps the layers below instead of compositing</source>
@@ -5779,20 +5735,8 @@
         <translation>雕刻柔和</translation>
     </message>
     <message>
-        <source>Technique</source>
-        <translation>方法</translation>
-    </message>
-    <message>
-        <source>Soften</source>
-        <translation>软化</translation>
-    </message>
-    <message>
         <source>Depth</source>
         <translation>深度</translation>
-    </message>
-    <message>
-        <source>Altitude</source>
-        <translation>高度</translation>
     </message>
     <message>
         <source>Up</source>
@@ -5811,10 +5755,6 @@
         <translation>消除锯齿</translation>
     </message>
     <message>
-        <source>Gloss Contour</source>
-        <translation>光泽等高线</translation>
-    </message>
-    <message>
         <source>Highlight</source>
         <translation>高光</translation>
     </message>
@@ -5825,10 +5765,6 @@
     <message>
         <source>Contour</source>
         <translation>等高线</translation>
-    </message>
-    <message>
-        <source>Range</source>
-        <translation>范围</translation>
     </message>
     <message>
         <source>Texture</source>
@@ -5879,10 +5815,6 @@
         <translation>居中</translation>
     </message>
     <message>
-        <source>Position</source>
-        <translation>位置</translation>
-    </message>
-    <message>
         <source>Overprint</source>
         <translation>叠印</translation>
     </message>
@@ -5903,20 +5835,12 @@
         <translation>内阴影</translation>
     </message>
     <message>
-        <source>Choke</source>
-        <translation>阻塞</translation>
-    </message>
-    <message>
         <source>Add Inner Shadow</source>
         <translation>添加内阴影</translation>
     </message>
     <message>
         <source>Remove Inner Shadow</source>
         <translation>移除内阴影</translation>
-    </message>
-    <message>
-        <source>Instances</source>
-        <translation>实例</translation>
     </message>
     <message>
         <source>Inner Glow</source>
@@ -5961,10 +5885,6 @@
     <message>
         <source>Outer Glow</source>
         <translation>外发光</translation>
-    </message>
-    <message>
-        <source>Spread</source>
-        <translation>扩展</translation>
     </message>
     <message>
         <source>Drop Shadow</source>
@@ -14816,6 +14736,150 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Set the values the sliders show back to their defaults</source>
         <translation>将滑块的值恢复为默认值</translation>
+    </message>
+    <message>
+        <source>No Style (remove all effects)</source>
+        <translation>无样式（移除所有效果）</translation>
+    </message>
+    <message>
+        <source>Right-click a folder or style to export it as a Photoshop .asl file.</source>
+        <translation>右键单击文件夹或样式，可将其导出为 Photoshop .asl 文件。</translation>
+    </message>
+    <message>
+        <source>Show the styles as a list with their names</source>
+        <translation>以带名称的列表显示样式</translation>
+    </message>
+    <message>
+        <source>Show the styles as a grid of thumbnails</source>
+        <translation>以缩略图网格显示样式</translation>
+    </message>
+    <message>
+        <source>Blend Mode:</source>
+        <translation>混合模式:</translation>
+    </message>
+    <message>
+        <source>Black:</source>
+        <translation>黑色:</translation>
+    </message>
+    <message>
+        <source>White:</source>
+        <translation>白场:</translation>
+    </message>
+    <message>
+        <source>This Layer:</source>
+        <translation>本图层:</translation>
+    </message>
+    <message>
+        <source>Underlying Layer:</source>
+        <translation>下一图层:</translation>
+    </message>
+    <message>
+        <source>Make Default</source>
+        <translation>设为默认值</translation>
+    </message>
+    <message>
+        <source>Use these settings whenever this effect is added</source>
+        <translation>每次添加此效果时都使用这些设置</translation>
+    </message>
+    <message>
+        <source>Put back the default settings of this effect</source>
+        <translation>将此效果的设置恢复为默认值</translation>
+    </message>
+    <message>
+        <source>R:</source>
+        <translation>R：</translation>
+    </message>
+    <message>
+        <source>Technique:</source>
+        <translation>方法:</translation>
+    </message>
+    <message>
+        <source>Depth:</source>
+        <translation>深度:</translation>
+    </message>
+    <message>
+        <source>Soften:</source>
+        <translation>软化:</translation>
+    </message>
+    <message>
+        <source>Shading</source>
+        <translation>阴影</translation>
+    </message>
+    <message>
+        <source>Gloss Contour:</source>
+        <translation>光泽等高线:</translation>
+    </message>
+    <message>
+        <source>Contour:</source>
+        <translation>等高线:</translation>
+    </message>
+    <message>
+        <source>Range:</source>
+        <translation>范围:</translation>
+    </message>
+    <message>
+        <source>Position:</source>
+        <translation>位置:</translation>
+    </message>
+    <message>
+        <source>Fill:</source>
+        <translation>填充:</translation>
+    </message>
+    <message>
+        <source>Distance:</source>
+        <translation>距离:</translation>
+    </message>
+    <message>
+        <source>Choke:</source>
+        <translation>阻塞:</translation>
+    </message>
+    <message>
+        <source>Instances:</source>
+        <translation>实例:</translation>
+    </message>
+    <message>
+        <source>Spread:</source>
+        <translation>扩展:</translation>
+    </message>
+    <message>
+        <source>Fade:</source>
+        <translation>褪色:</translation>
+    </message>
+    <message>
+        <source>Gradient Type:</source>
+        <translation>渐变类型:</translation>
+    </message>
+    <message>
+        <source>Midpoint:</source>
+        <translation>中点:</translation>
+    </message>
+    <message>
+        <source>Smoothness:</source>
+        <translation>平滑度:</translation>
+    </message>
+    <message>
+        <source>Seed:</source>
+        <translation>种子:</translation>
+    </message>
+    <message>
+        <source>Roughness:</source>
+        <translation>粗糙度:</translation>
+    </message>
+    <message>
+        <source>Color Model:</source>
+        <translation>颜色模型:</translation>
+    </message>
+    <message>
+        <source>Channel %1 Range:</source>
+        <translation>通道 %1 范围:</translation>
+    </message>
+    <message>
+        <source>Horizontal Offset:</source>
+        <translation>水平偏移:</translation>
+    </message>
+    <message>
+        <source>Vertical Offset:</source>
+        <translation>垂直偏移:</translation>
     </message>
 </context>
 <context>

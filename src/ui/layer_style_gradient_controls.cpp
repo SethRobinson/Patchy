@@ -132,7 +132,7 @@ std::unique_ptr<LayerStyleGradientControls> make_gradient_controls(
     auto *preset_button = new QPushButton(QObject::tr("Preset..."),parent_widget);
     preset_button->setObjectName(object_prefix + QStringLiteral("PresetButton"));
     preset_button->setEnabled(gradient_library != nullptr);
-    form->addRow(QObject::tr("Preset"), preset_button);
+    form->addRow(QObject::tr("Preset:"), preset_button);
     if (gradient_library != nullptr) {
       const auto apply_preset = [state, foreground, background, mark_ramp_edit](
                                     const GradientLibraryEntry &entry) {
@@ -166,7 +166,7 @@ std::unique_ptr<LayerStyleGradientControls> make_gradient_controls(
                                static_cast<int>(GradientDefinitionForm::Solid));
     state->form_combo->addItem(QObject::tr("Noise"),
                                static_cast<int>(GradientDefinitionForm::Noise));
-    form->addRow(QObject::tr("Gradient Type"), state->form_combo);
+    form->addRow(QObject::tr("Gradient Type:"), state->form_combo);
 
     state->solid_controls = new QWidget(parent_widget);
     auto *solid_layout = new QVBoxLayout(state->solid_controls);
@@ -176,27 +176,27 @@ std::unique_ptr<LayerStyleGradientControls> make_gradient_controls(
     state->editor->setObjectName(object_prefix + QStringLiteral("StopsEditor"));
     state->editor->set_opacity_track_enabled(true);
     solid_layout->addWidget(state->editor);
-    form->addRow(QObject::tr("Gradient"), state->solid_controls);
+    form->addRow(QObject::tr("Gradient:"), state->solid_controls);
 
     auto *selected_row = new QWidget(parent_widget);
     state->selected_stop_controls = selected_row;selected_row->setObjectName(object_prefix + QStringLiteral("SelectedStopRow"));
     auto *selected_layout = new QHBoxLayout(selected_row);
     selected_layout->setContentsMargins(0, 0, 0, 0);
     selected_layout->setSpacing(8);
-    auto *location_label = new QLabel(QObject::tr("Location"), selected_row);
+    auto *location_label = new QLabel(QObject::tr("Location:"), selected_row);
     state->stop_location = new QSpinBox(selected_row);
     state->stop_location->setObjectName(object_prefix + QStringLiteral("StopLocationSpin"));
     state->stop_location->setRange(0, 100);
     state->stop_location->setSuffix(percent_suffix());
     configure_dialog_spinbox(state->stop_location, 64);
-    state->stop_color_label = new QLabel(QObject::tr("Color"), selected_row);
+    state->stop_color_label = new QLabel(QObject::tr("Color:"), selected_row);
     state->stop_hex = new QLineEdit(selected_row);
     state->stop_hex->setObjectName(object_prefix + QStringLiteral("StopHexEdit"));state->stop_hex->setFixedWidth(72);
     state->stop_hex->setMaxLength(7);state->stop_swatch = new QPushButton( selected_row);
     state->stop_swatch->setObjectName(object_prefix + QStringLiteral("StopSwatchButton"));
     state->stop_swatch->setFixedSize(34, 24);
     state->stop_swatch->setToolTip(QObject::tr("Choose Color..."));
-    state->stop_opacity_label = new QLabel(QObject::tr("Opacity"), selected_row);
+    state->stop_opacity_label = new QLabel(QObject::tr("Opacity:"), selected_row);
     state->stop_opacity = new QSpinBox(selected_row);
     state->stop_opacity->setObjectName(object_prefix + QStringLiteral("StopOpacitySpin"));
     state->stop_opacity->setRange(0, 100);
@@ -218,7 +218,7 @@ std::unique_ptr<LayerStyleGradientControls> make_gradient_controls(
     midpoint_layout->setContentsMargins(0, 0, 0, 0);
     midpoint_layout->setSpacing(8);
     state->stop_midpoint_label =
-        new QLabel(QObject::tr("Midpoint"), midpoint_row);
+        new QLabel(QObject::tr("Midpoint:"), midpoint_row);
     state->stop_midpoint = new QSpinBox(midpoint_row);
     state->stop_midpoint->setObjectName(object_prefix + QStringLiteral("StopMidpointSpin"));
     state->stop_midpoint->setRange(5, 95);
@@ -245,7 +245,7 @@ std::unique_ptr<LayerStyleGradientControls> make_gradient_controls(
     form->addRow(QString(), midpoint_row);
 
     state->smoothness = add_slider_spin_row(
-        form, parent_widget,QObject::tr("Smoothness"),
+        form, parent_widget,QObject::tr("Smoothness:"),
                                        object_prefix + QStringLiteral("SmoothnessSpin"), 0, 100,
                                        static_cast<int>(std::lround(initial_gradient.smoothness * 100.0 / 4096.0)),
         QStringLiteral("%"));
@@ -258,14 +258,14 @@ std::unique_ptr<LayerStyleGradientControls> make_gradient_controls(
                                        object_prefix + QStringLiteral("NoiseSeedSpin"));
     state->noise_seed->setRange(0, std::numeric_limits<int>::max());
     configure_dialog_spinbox(state->noise_seed);
-    noise_form->addRow(QObject::tr("Seed"), state->noise_seed);
+    noise_form->addRow(QObject::tr("Seed:"), state->noise_seed);
     state->noise_roughness = new QSpinBox(state->noise_controls);
     state->noise_roughness->setObjectName(object_prefix +
                                           QStringLiteral("NoiseRoughnessSpin"));
     state->noise_roughness->setRange(0, 100);
     state->noise_roughness->setSuffix(percent_suffix());
     configure_dialog_spinbox(state->noise_roughness);
-    noise_form->addRow(QObject::tr("Roughness"), state->noise_roughness);
+    noise_form->addRow(QObject::tr("Roughness:"), state->noise_roughness);
     state->noise_color_model = new QComboBox(state->noise_controls);
     state->noise_color_model->setObjectName(
         object_prefix + QStringLiteral("NoiseColorModelCombo"));
@@ -275,7 +275,7 @@ std::unique_ptr<LayerStyleGradientControls> make_gradient_controls(
         QStringLiteral("HSB"), static_cast<int>(GradientNoiseColorModel::HSB));
     state->noise_color_model->addItem(
         QStringLiteral("Lab"), static_cast<int>(GradientNoiseColorModel::Lab));
-    noise_form->addRow(QObject::tr("Color Model"), state->noise_color_model);
+    noise_form->addRow(QObject::tr("Color Model:"), state->noise_color_model);
     state->noise_transparency =
         new QCheckBox(QObject::tr("Add Transparency"), state->noise_controls);
     state->noise_transparency->setObjectName(
@@ -313,7 +313,7 @@ std::unique_ptr<LayerStyleGradientControls> make_gradient_controls(
       range_layout->addWidget(range_to);
       range_layout->addWidget(state->noise_maximum[channel]);
       range_layout->addStretch(1);
-      noise_form->addRow(QObject::tr("Channel %1 Range").arg(channel + 1U),
+      noise_form->addRow(QObject::tr("Channel %1 Range:").arg(channel + 1U),
                          range_row);
     }
     form->addRow(QString(), state->noise_controls);
@@ -349,7 +349,7 @@ std::unique_ptr<LayerStyleGradientControls> make_gradient_controls(
     state->interpolation->addItem(
         QObject::tr("Linear", "gradient interpolation"),
         static_cast<int>(GradientInterpolationMethod::Linear));
-    form->addRow(QObject::tr("Method"), state->interpolation);
+    form->addRow(QObject::tr("Method:"), state->interpolation);
     state->style_combo = new QComboBox(parent_widget);
     state->style_combo->setObjectName(object_prefix +
                                       QStringLiteral("StyleCombo"));
@@ -374,23 +374,23 @@ std::unique_ptr<LayerStyleGradientControls> make_gradient_controls(
           QObject::tr("Shape Burst"),
           static_cast<int>(LayerStyleGradientType::ShapeBurst));
     }
-    form->addRow(QObject::tr("Style"), state->style_combo);
+    form->addRow(QObject::tr("Style:"), state->style_combo);
     state->angle = add_slider_spin_row(
-        form, parent_widget, QObject::tr("Angle"),
+        form, parent_widget, QObject::tr("Angle:"),
         object_prefix + QStringLiteral("AngleSpin"), -180, 180,
         static_cast<int>(std::round(initial_gradient.angle_degrees)));
     state->scale = add_slider_spin_row(
-        form, parent_widget, QObject::tr("Scale"),
+        form, parent_widget, QObject::tr("Scale:"),
         object_prefix + QStringLiteral("ScaleSpin"), 1, 1000,
                                        static_cast<int>(std::round(initial_gradient.scale * 100.0F)),
                                        QStringLiteral("%"));
     state->offset_x = add_slider_spin_row(
-        form, parent_widget, QObject::tr("Horizontal Offset"),
+        form, parent_widget, QObject::tr("Horizontal Offset:"),
         object_prefix + QStringLiteral("OffsetXSpin"), -100, 100,
         static_cast<int>(std::round(initial_gradient.offset_x_percent)),
         QStringLiteral("%"));
     state->offset_y = add_slider_spin_row(
-        form, parent_widget, QObject::tr("Vertical Offset"),
+        form, parent_widget, QObject::tr("Vertical Offset:"),
         object_prefix + QStringLiteral("OffsetYSpin"), -100, 100,
         static_cast<int>(std::round(initial_gradient.offset_y_percent)),
         QStringLiteral("%"));

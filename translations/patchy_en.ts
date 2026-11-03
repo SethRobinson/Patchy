@@ -5511,10 +5511,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Color RGB</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Preset...</source>
         <translation type="unfinished"></translation>
     </message>
@@ -5524,10 +5520,6 @@
     </message>
     <message>
         <source>Solid</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Gradient Type</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -5543,23 +5535,11 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Midpoint</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Add Stop</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Remove Stop</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Roughness</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Color Model</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -5572,10 +5552,6 @@
     </message>
     <message>
         <source>to</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Channel %1 Range</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -5629,19 +5605,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Horizontal Offset</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Vertical Offset</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Reset Alignment</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Click a preset to replace the current effects. Right-click a folder or style to export it as a Photoshop .asl file.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -5666,14 +5630,6 @@
     </message>
     <message>
         <source>Blending Options</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Blend Mode</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Fill Opacity</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -5789,19 +5745,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Technique</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Soften</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Depth</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Altitude</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -5821,10 +5765,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Gloss Contour</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Highlight</source>
         <translation type="unfinished"></translation>
     </message>
@@ -5834,10 +5774,6 @@
     </message>
     <message>
         <source>Contour</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Range</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -5889,10 +5825,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Position</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Overprint</source>
         <translation type="unfinished"></translation>
     </message>
@@ -5913,19 +5845,11 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Choke</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Add Inner Shadow</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Remove Inner Shadow</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Instances</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -5970,10 +5894,6 @@
     </message>
     <message>
         <source>Outer Glow</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Spread</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -14843,6 +14763,150 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Set the values the sliders show back to their defaults</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No Style (remove all effects)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Right-click a folder or style to export it as a Photoshop .asl file.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show the styles as a list with their names</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show the styles as a grid of thumbnails</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend Mode:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Black:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>White:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This Layer:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Underlying Layer:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make Default</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use these settings whenever this effect is added</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Put back the default settings of this effect</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>R:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Technique:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Depth:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Soften:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shading</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gloss Contour:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Contour:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Range:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Position:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Distance:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Choke:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Instances:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Spread:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fade:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gradient Type:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Midpoint:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Smoothness:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Seed:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Roughness:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color Model:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Channel %1 Range:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Horizontal Offset:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vertical Offset:</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

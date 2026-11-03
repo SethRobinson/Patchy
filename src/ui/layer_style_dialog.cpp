@@ -19,10 +19,13 @@
 #include "ui/pattern_library.hpp"
 #include "ui/pattern_manager_dialog.hpp"
 #include "ui/photo_pattern_presets.hpp"
+#include "ui/preset_grid_widget.hpp"
+#include "psd/asl_io.hpp"
 #include "ui/style_browser.hpp"
 #include "ui/style_library.hpp"
 #include "ui/ui_profile.hpp"
 #include "ui/style_manager_dialog.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/localization.hpp"
 #include "ui/measurement_units.hpp"
@@ -55,6 +58,8 @@
 #include <QPointer>
 #include <QPolygonF>
 #include <QPushButton>
+#include <QRadioButton>
+#include <QResizeEvent>
 #include <QScreen>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -67,6 +72,7 @@
 #include <QString>
 #include <QStyle>
 #include <QTimer>
+#include <QToolButton>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -168,10 +174,12 @@ private:
 // scrolls; `restored_size` (the size the user last left it at) applies then.
 class OptionsPaneScreenCap final : public QObject {
 public:
+  // `open_height` (0: none) caps the height the dialog first opens at below the
+  // screen cap (GitHub issue 606); the user can still drag it up to `max_size`.
   OptionsPaneScreenCap(QDialog& dialog, QScrollArea& scroll, QWidget& pages, int budget, QSize max_size,
-                       QSize restored_size)
+                       QSize restored_size, int open_height = 0)
       : QObject(&scroll), dialog_(dialog), scroll_(scroll), pages_(pages), budget_(budget),
-        max_size_(max_size), restored_size_(restored_size) {
+        max_size_(max_size), restored_size_(restored_size), open_height_(open_height) {
     pages.installEventFilter(this);
     dialog.installEventFilter(this);
     sync();
@@ -263,7 +271,9 @@ private:
       return;
     }
     dialog_.layout()->activate();
-    const auto height_overflow = dialog_.height() - max_size_.height();
+    const auto height_cap =
+        open_height_ > 0 ? std::min(open_height_, max_size_.height()) : max_size_.height();
+    const auto height_overflow = dialog_.height() - height_cap;
     const auto width_overflow = dialog_.width() - max_size_.width();
     if (height_overflow <= 0 && width_overflow <= 0) {
       return;
@@ -278,7 +288,7 @@ private:
     sync();
     refresh_dialog_minimum();
     dialog_.resize(width_overflow > 0 ? std::max(max_size_.width(), dialog_.minimumWidth()) : dialog_.width(),
-                   height_overflow > 0 ? std::max(max_size_.height(), dialog_.minimumHeight())
+                   height_overflow > 0 ? std::max(height_cap, dialog_.minimumHeight())
                                        : dialog_.height());
   }
 
@@ -310,13 +320,14 @@ private:
   int width_budget_{0};  // 0 until a too-narrow screen sets one
   QSize max_size_;
   QSize restored_size_;
+  int open_height_{0};
   QSize own_size_;
   int shown_pages_height_{0};
   bool fitted_{false};
   bool resizable_{false};
 };
 
-LayerDropShadow default_drop_shadow() {
+LayerDropShadow builtin_default_drop_shadow() {
   LayerDropShadow shadow;
   shadow.enabled = true;
   shadow.color = RgbColor{0, 0, 0};
@@ -328,7 +339,7 @@ LayerDropShadow default_drop_shadow() {
   return shadow;
 }
 
-LayerInnerShadow default_inner_shadow() {
+LayerInnerShadow builtin_default_inner_shadow() {
   LayerInnerShadow shadow;
   shadow.enabled = true;
   shadow.color = RgbColor{0, 0, 0};
@@ -340,7 +351,7 @@ LayerInnerShadow default_inner_shadow() {
   return shadow;
 }
 
-LayerOuterGlow default_outer_glow() {
+LayerOuterGlow builtin_default_outer_glow() {
   LayerOuterGlow glow;
   glow.enabled = true;
   glow.blend_mode = BlendMode::Normal;
@@ -351,7 +362,7 @@ LayerOuterGlow default_outer_glow() {
   return glow;
 }
 
-LayerInnerGlow default_inner_glow() {
+LayerInnerGlow builtin_default_inner_glow() {
   LayerInnerGlow glow;
   glow.enabled = true;
   glow.blend_mode = BlendMode::Screen;
@@ -363,7 +374,7 @@ LayerInnerGlow default_inner_glow() {
   return glow;
 }
 
-LayerColorOverlay default_color_overlay() {
+LayerColorOverlay builtin_default_color_overlay() {
   LayerColorOverlay overlay;
   overlay.enabled = true;
   overlay.blend_mode = BlendMode::Normal;
@@ -372,7 +383,7 @@ LayerColorOverlay default_color_overlay() {
   return overlay;
 }
 
-LayerGradientFill default_gradient_fill() {
+LayerGradientFill builtin_default_gradient_fill() {
   LayerGradientFill fill;
   fill.enabled = true;
   fill.blend_mode = BlendMode::Normal;
@@ -381,7 +392,7 @@ LayerGradientFill default_gradient_fill() {
   return fill;
 }
 
-LayerStroke default_stroke() {
+LayerStroke builtin_default_stroke() {
   LayerStroke stroke;
   stroke.enabled = true;
   stroke.blend_mode = BlendMode::Normal;
@@ -392,7 +403,7 @@ LayerStroke default_stroke() {
   return stroke;
 }
 
-LayerBevelEmboss default_bevel_emboss() {
+LayerBevelEmboss builtin_default_bevel_emboss() {
   LayerBevelEmboss bevel;
   bevel.enabled = true;
   bevel.highlight_blend_mode = BlendMode::Screen;
@@ -409,13 +420,13 @@ LayerBevelEmboss default_bevel_emboss() {
   return bevel;
 }
 
-LayerSatin default_satin() {
+LayerSatin builtin_default_satin() {
   LayerSatin satin;
   satin.enabled = true;
   return satin;
 }
 
-LayerPatternOverlay default_pattern_overlay() {
+LayerPatternOverlay builtin_default_pattern_overlay() {
   LayerPatternOverlay overlay;
   overlay.enabled = true;
   const auto presets = builtin_pattern_presets();
@@ -425,6 +436,35 @@ LayerPatternOverlay default_pattern_overlay() {
   }
   return overlay;
 }
+
+// The values Make Default stored for each effect (GitHub issue 606): one
+// instance per effect list, loaded when the dialog opens. An empty list means
+// the built-in default above.
+LayerStyle& stored_effect_defaults() {
+  static LayerStyle defaults;
+  return defaults;
+}
+
+template <typename Effect>
+Effect stored_or_builtin(const std::vector<Effect>& stored, Effect (*builtin)()) {
+  if (stored.empty()) {
+    return builtin();
+  }
+  auto effect = stored.front();
+  effect.enabled = true;
+  return effect;
+}
+
+LayerDropShadow default_drop_shadow() { return stored_or_builtin(stored_effect_defaults().drop_shadows, builtin_default_drop_shadow); }
+LayerInnerShadow default_inner_shadow() { return stored_or_builtin(stored_effect_defaults().inner_shadows, builtin_default_inner_shadow); }
+LayerOuterGlow default_outer_glow() { return stored_or_builtin(stored_effect_defaults().outer_glows, builtin_default_outer_glow); }
+LayerInnerGlow default_inner_glow() { return stored_or_builtin(stored_effect_defaults().inner_glows, builtin_default_inner_glow); }
+LayerColorOverlay default_color_overlay() { return stored_or_builtin(stored_effect_defaults().color_overlays, builtin_default_color_overlay); }
+LayerGradientFill default_gradient_fill() { return stored_or_builtin(stored_effect_defaults().gradient_fills, builtin_default_gradient_fill); }
+LayerStroke default_stroke() { return stored_or_builtin(stored_effect_defaults().strokes, builtin_default_stroke); }
+LayerBevelEmboss default_bevel_emboss() { return stored_or_builtin(stored_effect_defaults().bevels, builtin_default_bevel_emboss); }
+LayerSatin default_satin() { return stored_or_builtin(stored_effect_defaults().satins, builtin_default_satin); }
+LayerPatternOverlay default_pattern_overlay() { return stored_or_builtin(stored_effect_defaults().pattern_overlays, builtin_default_pattern_overlay); }
 
 // Thumbnail of a pattern tile for picker items (small tiles repeat 2x2 so they
 // still read at icon size).
@@ -644,6 +684,23 @@ private:
   QPointer<QFrame> popup_;
 };
 
+// The Styles grid's "No Style" cell (the list's No Style row); never a library id.
+constexpr char kNoStyleGridId[] = "patchy.layerStyle.noStyle";
+
+// The No Style cell's thumbnail: an empty card crossed out, drawn in the theme's text role.
+QIcon no_style_grid_icon(int extent) {
+  QPixmap pixmap(extent, extent);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  const auto color = theme().text_primary;
+  painter.setPen(QPen(color, 2));
+  const QRectF card(extent * 0.18, extent * 0.18, extent * 0.64, extent * 0.64);
+  painter.drawRoundedRect(card, 4, 4);
+  painter.drawLine(card.bottomLeft(), card.topRight());
+  return QIcon(pixmap);
+}
+
 enum class LayerStyleCategoryPage {
   Blending = 0,
   BevelEmboss,
@@ -701,6 +758,309 @@ std::string effect_property_prefix(LayerStyleEffectKind kind, int index) {
     case LayerStyleEffectKind::None: return {};
   }
   return std::string(name) + "." + std::to_string(std::max(0, index));
+}
+
+// Make Default's settings keys, layerStyle/effectDefaults/<token> (persisted
+// identifiers: never rename). Each value is a one-style .asl blob holding the
+// one effect; the drop shadow's Patchy-only long-shadow fields, which .asl
+// cannot carry, sit in their own keys beside it.
+const char* effect_defaults_token(LayerStyleEffectKind kind) {
+  switch (kind) {
+    case LayerStyleEffectKind::BevelEmboss: return "bevelEmboss";
+    case LayerStyleEffectKind::Stroke: return "stroke";
+    case LayerStyleEffectKind::InnerShadow: return "innerShadow";
+    case LayerStyleEffectKind::InnerGlow: return "innerGlow";
+    case LayerStyleEffectKind::Satin: return "satin";
+    case LayerStyleEffectKind::ColorOverlay: return "colorOverlay";
+    case LayerStyleEffectKind::GradientOverlay: return "gradientOverlay";
+    case LayerStyleEffectKind::PatternOverlay: return "patternOverlay";
+    case LayerStyleEffectKind::OuterGlow: return "outerGlow";
+    case LayerStyleEffectKind::DropShadow: return "dropShadow";
+    case LayerStyleEffectKind::BevelContour:
+    case LayerStyleEffectKind::BevelTexture:
+    case LayerStyleEffectKind::None:
+      break;
+  }
+  return nullptr;
+}
+
+QString effect_defaults_key(const char* token) {
+  return QStringLiteral("layerStyle/effectDefaults/%1").arg(QLatin1String(token));
+}
+
+constexpr std::array kEffectDefaultKinds{
+    LayerStyleEffectKind::BevelEmboss,  LayerStyleEffectKind::Stroke,         LayerStyleEffectKind::InnerShadow,
+    LayerStyleEffectKind::InnerGlow,    LayerStyleEffectKind::Satin,          LayerStyleEffectKind::ColorOverlay,
+    LayerStyleEffectKind::GradientOverlay, LayerStyleEffectKind::PatternOverlay, LayerStyleEffectKind::OuterGlow,
+    LayerStyleEffectKind::DropShadow};
+
+template <typename Effect>
+void adopt_front(std::vector<Effect>& target, const std::vector<Effect>& source) {
+  if (!source.empty()) {
+    target.assign(1, source.front());
+  }
+}
+
+void adopt_effect_defaults(LayerStyle& target, const LayerStyle& source) {
+  adopt_front(target.bevels, source.bevels);
+  adopt_front(target.strokes, source.strokes);
+  adopt_front(target.inner_shadows, source.inner_shadows);
+  adopt_front(target.inner_glows, source.inner_glows);
+  adopt_front(target.satins, source.satins);
+  adopt_front(target.color_overlays, source.color_overlays);
+  adopt_front(target.gradient_fills, source.gradient_fills);
+  adopt_front(target.pattern_overlays, source.pattern_overlays);
+  adopt_front(target.outer_glows, source.outer_glows);
+  adopt_front(target.drop_shadows, source.drop_shadows);
+}
+
+template <typename Effect>
+void keep_only(std::vector<Effect>& effects, bool keep, std::size_t index) {
+  if (!keep || index >= effects.size()) {
+    effects.clear();
+    return;
+  }
+  auto effect = effects[index];
+  effect.enabled = true;
+  effects.assign(1, effect);
+}
+
+// `source` reduced to its one `kind` effect at `index`.
+LayerStyle single_effect_style(const LayerStyle& source, LayerStyleEffectKind kind, std::size_t index) {
+  LayerStyle single;
+  single.bevels = source.bevels;
+  single.strokes = source.strokes;
+  single.inner_shadows = source.inner_shadows;
+  single.inner_glows = source.inner_glows;
+  single.satins = source.satins;
+  single.color_overlays = source.color_overlays;
+  single.gradient_fills = source.gradient_fills;
+  single.pattern_overlays = source.pattern_overlays;
+  single.outer_glows = source.outer_glows;
+  single.drop_shadows = source.drop_shadows;
+  keep_only(single.bevels, kind == LayerStyleEffectKind::BevelEmboss, index);
+  keep_only(single.strokes, kind == LayerStyleEffectKind::Stroke, index);
+  keep_only(single.inner_shadows, kind == LayerStyleEffectKind::InnerShadow, index);
+  keep_only(single.inner_glows, kind == LayerStyleEffectKind::InnerGlow, index);
+  keep_only(single.satins, kind == LayerStyleEffectKind::Satin, index);
+  keep_only(single.color_overlays, kind == LayerStyleEffectKind::ColorOverlay, index);
+  keep_only(single.gradient_fills, kind == LayerStyleEffectKind::GradientOverlay, index);
+  keep_only(single.pattern_overlays, kind == LayerStyleEffectKind::PatternOverlay, index);
+  keep_only(single.outer_glows, kind == LayerStyleEffectKind::OuterGlow, index);
+  keep_only(single.drop_shadows, kind == LayerStyleEffectKind::DropShadow, index);
+  // The Bevel & Emboss page's defaults leave its Contour and Texture
+  // sub-options (their own pages) at the built-in values.
+  for (auto& bevel : single.bevels) {
+    const auto builtin = builtin_default_bevel_emboss();
+    bevel.contour = builtin.contour;
+    bevel.texture = builtin.texture;
+  }
+  return single;
+}
+
+void load_stored_effect_defaults() {
+  auto& defaults = stored_effect_defaults();
+  defaults = LayerStyle{};
+  auto settings = app_settings();
+  for (const auto kind : kEffectDefaultKinds) {
+    const auto bytes = settings.value(effect_defaults_key(effect_defaults_token(kind))).toByteArray();
+    if (bytes.isEmpty()) {
+      continue;
+    }
+    std::string error;
+    const auto parsed = psd::read_asl(
+        std::span(reinterpret_cast<const std::uint8_t*>(bytes.constData()), static_cast<std::size_t>(bytes.size())),
+        error);
+    if (!parsed.has_value() || parsed->styles.empty()) {
+      continue;
+    }
+    auto single = single_effect_style(parsed->styles.front().style, kind, 0);
+    if (kind == LayerStyleEffectKind::DropShadow && !single.drop_shadows.empty()) {
+      auto& shadow = single.drop_shadows.front();
+      shadow.continuous = settings.value(effect_defaults_key("dropShadowContinuous"), false).toBool();
+      shadow.fade = static_cast<float>(settings.value(effect_defaults_key("dropShadowFade"), 0.0).toDouble());
+    }
+    adopt_effect_defaults(defaults, single);
+  }
+}
+
+void store_effect_default(LayerStyleEffectKind kind, const LayerStyle& source, std::size_t index) {
+  const auto* token = effect_defaults_token(kind);
+  if (token == nullptr) {
+    return;
+  }
+  const auto single = single_effect_style(source, kind, index);
+  const std::array styles{psd::AslStyle{{}, {}, single, std::nullopt}};
+  const auto bytes = psd::write_asl(styles, {});
+  auto settings = app_settings();
+  settings.setValue(effect_defaults_key(token),
+                    QByteArray(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size())));
+  if (kind == LayerStyleEffectKind::DropShadow && !single.drop_shadows.empty()) {
+    settings.setValue(effect_defaults_key("dropShadowContinuous"), single.drop_shadows.front().continuous);
+    settings.setValue(effect_defaults_key("dropShadowFade"), static_cast<double>(single.drop_shadows.front().fade));
+  }
+  adopt_effect_defaults(stored_effect_defaults(), single);
+}
+
+template <typename Effect>
+void reset_effect(std::vector<Effect>& effects, std::size_t index, Effect (*make_default)()) {
+  if (index < effects.size()) {
+    const auto enabled = effects[index].enabled;
+    effects[index] = make_default();
+    effects[index].enabled = enabled;
+  }
+}
+
+// Puts the stored (or built-in) default in place of the `kind` effect at
+// `index`, keeping whether it is on (Reset to Default).
+void reset_effect_to_default(LayerStyle& style, LayerStyleEffectKind kind, std::size_t index) {
+  switch (kind) {
+    case LayerStyleEffectKind::BevelEmboss:
+      if (index < style.bevels.size()) {
+        auto& bevel = style.bevels[index];
+        auto reset = default_bevel_emboss();
+        reset.enabled = bevel.enabled;
+        reset.contour = bevel.contour;
+        reset.texture = bevel.texture;
+        bevel = reset;
+      }
+      break;
+    case LayerStyleEffectKind::Stroke: reset_effect(style.strokes, index, default_stroke); break;
+    case LayerStyleEffectKind::InnerShadow: reset_effect(style.inner_shadows, index, default_inner_shadow); break;
+    case LayerStyleEffectKind::InnerGlow: reset_effect(style.inner_glows, index, default_inner_glow); break;
+    case LayerStyleEffectKind::Satin: reset_effect(style.satins, index, default_satin); break;
+    case LayerStyleEffectKind::ColorOverlay: reset_effect(style.color_overlays, index, default_color_overlay); break;
+    case LayerStyleEffectKind::GradientOverlay: reset_effect(style.gradient_fills, index, default_gradient_fill); break;
+    case LayerStyleEffectKind::PatternOverlay:
+      reset_effect(style.pattern_overlays, index, default_pattern_overlay);
+      break;
+    case LayerStyleEffectKind::OuterGlow: reset_effect(style.outer_glows, index, default_outer_glow); break;
+    case LayerStyleEffectKind::DropShadow: reset_effect(style.drop_shadows, index, default_drop_shadow); break;
+    case LayerStyleEffectKind::BevelContour:
+    case LayerStyleEffectKind::BevelTexture:
+    case LayerStyleEffectKind::None:
+      break;
+  }
+}
+
+// Blending Options' check boxes: `left` in one column and `right` beside it
+// when the row is wide enough for both, all in one column otherwise (GitHub
+// issue 606). The widget places its boxes itself, so its minimum stays the
+// one-column width and a narrow dialog never has to grow for the second column.
+class CheckBoxColumns final : public QWidget {
+public:
+  CheckBoxColumns(QWidget* parent, std::vector<QCheckBox*> left, std::vector<QCheckBox*> right)
+      : QWidget(parent), left_(std::move(left)), right_(std::move(right)) {
+    for (auto* box : left_) {
+      box->setParent(this);
+    }
+    for (auto* box : right_) {
+      box->setParent(this);
+    }
+    QSizePolicy policy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+    policy.setHeightForWidth(true);
+    setSizePolicy(policy);
+  }
+
+  [[nodiscard]] bool two_columns() const { return fits_two_columns(width()); }
+  [[nodiscard]] bool hasHeightForWidth() const override { return true; }
+  [[nodiscard]] int heightForWidth(int width) const override {
+    return fits_two_columns(width) ? std::max(column_height(left_), column_height(right_))
+                                   : column_height(left_) + kSpacing + column_height(right_);
+  }
+  // The height follows the current width: the forms these sit in size rows
+  // from the hints, so the hints say how tall the boxes are at this width
+  // (resizeEvent asks for a new layout when the column count changes).
+  [[nodiscard]] QSize sizeHint() const override {
+    const auto width = std::max(this->width(), column_width(left_) + kGap + column_width(right_));
+    return {column_width(left_) + kGap + column_width(right_), heightForWidth(width)};
+  }
+  [[nodiscard]] QSize minimumSizeHint() const override {
+    return {std::max(column_width(left_), column_width(right_)), heightForWidth(width())};
+  }
+
+protected:
+  void resizeEvent(QResizeEvent* event) override {
+    QWidget::resizeEvent(event);
+    if (const auto two = fits_two_columns(width()); two != placed_two_columns_) {
+      placed_two_columns_ = two;
+      updateGeometry();
+    }
+    place();
+  }
+  bool event(QEvent* event) override {
+    if (event->type() == QEvent::LayoutRequest || event->type() == QEvent::StyleChange ||
+        event->type() == QEvent::FontChange) {
+      updateGeometry();
+      place();
+    }
+    return QWidget::event(event);
+  }
+
+private:
+  static constexpr int kSpacing = 6;
+  static constexpr int kGap = 24;
+
+  [[nodiscard]] static int column_width(const std::vector<QCheckBox*>& boxes) {
+    int width = 0;
+    for (const auto* box : boxes) {
+      width = std::max(width, box->sizeHint().width());
+    }
+    return width;
+  }
+  [[nodiscard]] static int column_height(const std::vector<QCheckBox*>& boxes) {
+    int height = 0;
+    for (const auto* box : boxes) {
+      height += box->sizeHint().height();
+    }
+    return height + kSpacing * std::max(0, static_cast<int>(boxes.size()) - 1);
+  }
+  [[nodiscard]] bool fits_two_columns(int width) const {
+    return width >= column_width(left_) + kGap + column_width(right_);
+  }
+  void place_column(const std::vector<QCheckBox*>& boxes, int x, int y) const {
+    for (auto* box : boxes) {
+      const auto hint = box->sizeHint();
+      box->setGeometry(x, y, std::max(hint.width(), 0), hint.height());
+      y += hint.height() + kSpacing;
+    }
+  }
+  void place() const {
+    if (fits_two_columns(width())) {
+      place_column(left_, 0, 0);
+      place_column(right_, column_width(left_) + kGap, 0);
+    } else {
+      place_column(left_, 0, 0);
+      place_column(right_, 0, column_height(left_) + kSpacing);
+    }
+  }
+
+  std::vector<QCheckBox*> left_;
+  std::vector<QCheckBox*> right_;
+  bool placed_two_columns_{false};
+};
+
+// Every form label on every page shares the widest label's width, so all the
+// fields start at one indent (GitHub issue 606). Run again once shown: the
+// theme sheet's text size only reaches the labels then.
+void align_page_label_columns(QWidget& pages) {
+  std::vector<QWidget*> labels;
+  int widest = 0;
+  for (auto* form : pages.findChildren<QFormLayout*>()) {
+    for (int row = 0; row < form->rowCount(); ++row) {
+      auto* item = form->itemAt(row, QFormLayout::LabelRole);
+      auto* label = item != nullptr ? item->widget() : nullptr;
+      if (label == nullptr) {
+        continue;
+      }
+      label->setMinimumWidth(0);
+      labels.push_back(label);
+      widest = std::max(widest, label->sizeHint().width());
+    }
+  }
+  for (auto* label : labels) {
+    label->setMinimumWidth(widest);
+  }
 }
 
 constexpr int kLayerStylePageRole = Qt::UserRole + 1;
@@ -844,6 +1204,11 @@ QListWidgetItem* add_layer_style_category(QListWidget* list, const QString& text
 
 }  // namespace
 
+void clear_stored_layer_style_effect_defaults() {
+  app_settings().remove(QStringLiteral("layerStyle/effectDefaults"));
+  stored_effect_defaults() = LayerStyle{};
+}
+
 std::optional<LayerStyleSettings> request_layer_style_settings(
     QWidget* parent, const Layer& layer, std::function<void(const LayerStyleSettings&)> preview_changed,
     PatternStore* document_patterns, PatternLibrary* pattern_library, StyleLibrary* style_library,
@@ -852,6 +1217,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     RgbColor background, const AppearanceDialogContext<LayerStyleSettings>* batch, BitDepth document_depth,
     std::optional<LayerStyleEffect> start_effect, std::size_t start_effect_index, bool enable_start_effect) {
   const auto request_started = std::chrono::steady_clock::now();
+  load_stored_effect_defaults();
   const LayerStyleSettings original_settings{
       static_cast<int>(std::round(layer.opacity() * 100.0F)),
       layer.blend_mode(),
@@ -1154,19 +1520,64 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* styles_layout = make_page(QStringLiteral("layerStyleStylesPage"));
 
   // --- Styles page: the preset browser -------------------------------------
-  auto* styles_hint = new QLabel(
-      QObject::tr("Click a preset to replace the current effects. "
-                             "Right-click a folder or style "
-                  "to export it as a Photoshop .asl file."),
-      &dialog);
-  styles_hint->setObjectName(QStringLiteral("layerStyleStylesHint"));
-  styles_hint->setWordWrap(true);
-  styles_layout->addWidget(styles_hint);
-  auto* styles_browser = new StyleBrowserWidget(style_library, &dialog);
+  // List (the folder tree with names) or Grid (thumbnails, the name in the
+  // tooltip), remembered under layerStyle/stylesGridView; Grid by default.
+  const QScreen* list_screen = parent != nullptr ? parent->screen() : QGuiApplication::primaryScreen();
+  const auto available_height = list_screen != nullptr ? list_screen->availableGeometry().height() : 800;
+  auto* styles_views = new QStackedWidget(&dialog);
+  styles_views->setObjectName(QStringLiteral("layerStyleStylesViews"));
+  // About 500 px of presets where the screen has room; a short screen gets less
+  // so the dialog still fits it (GitHub issue 190).
+  styles_views->setMinimumHeight(std::clamp(available_height / 2, 240, 500));
+  auto* styles_browser = new StyleBrowserWidget(style_library, styles_views);
   styles_browser->setObjectName(QStringLiteral("layerStyleStylesBrowser"));
   styles_browser->set_icon_extent(48);
   styles_browser->set_show_no_style_entry(true);
-  styles_layout->addWidget(styles_browser, 1);
+  styles_views->addWidget(styles_browser);
+  auto* styles_grid = new PresetGridWidget(styles_views);
+  styles_grid->setObjectName(QStringLiteral("layerStyleStylesGrid"));
+  styles_grid->setIconSize(QSize(48, 48));
+  styles_grid->set_cell_extent(56);
+  styles_grid->set_folder_click_toggles(true);
+  styles_grid->setSelectionMode(QAbstractItemView::ExtendedSelection);
+  styles_grid->setContextMenuPolicy(Qt::CustomContextMenu);
+  styles_grid->set_folder_label_callback(
+      [](const QString& folder, int count) { return QObject::tr("%1 (%2)").arg(folder).arg(count); });
+  styles_grid->set_entries_callback([style_library] {
+    std::vector<PresetTreeEntry> rows;
+    rows.push_back({QString::fromLatin1(kNoStyleGridId), QObject::tr("No Style (remove all effects)"),
+                    no_style_grid_icon(48), QObject::tr("No Style (remove all effects)"), QString()});
+    if (style_library != nullptr) {
+      for (const auto& entry : style_library->entries()) {
+        const auto name = style_library_entry_display_name(entry);
+        rows.push_back({entry.storage_id, name, QIcon(entry.thumbnail), name, entry.folder});
+      }
+    }
+    return rows;
+  });
+  styles_views->addWidget(styles_grid);
+  styles_grid->reload();
+  if (style_library != nullptr) {
+    QObject::connect(style_library, &StyleLibrary::changed, styles_grid,
+                     [styles_grid] { styles_grid->reload(styles_grid->current_id()); });
+  }
+  QObject::connect(styles_grid, &QWidget::customContextMenuRequested, styles_grid,
+                   [styles_grid, styles_browser](const QPoint& position) {
+                     auto* item = styles_grid->itemAt(position);
+                     if (item == nullptr || PresetGridWidget::item_entry_id(item) == QLatin1String(kNoStyleGridId)) {
+                       return;
+                     }
+                     if (!item->isSelected()) {
+                       styles_grid->setCurrentItem(item);
+                     }
+                     auto ids = styles_grid->selected_ids();
+                     ids.removeAll(QString::fromLatin1(kNoStyleGridId));
+                     const auto folder = PresetGridWidget::is_folder_item(item) ? item->data(Qt::UserRole).toString()
+                                                                                : QString();
+                     styles_browser->exec_export_menu(styles_grid->viewport()->mapToGlobal(position), ids,
+                                                      !folder.isEmpty(), folder);
+                   });
+  styles_layout->addWidget(styles_views, 1);
   auto* styles_buttons = new QHBoxLayout();
   auto* new_style_button = new QPushButton(QObject::tr("New Style…"), &dialog);
   new_style_button->setObjectName(QStringLiteral("layerStyleNewStyleButton"));
@@ -1177,8 +1588,41 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   manage_styles_button->setObjectName(QStringLiteral("layerStyleManageStylesButton"));
   styles_buttons->addWidget(new_style_button);
   styles_buttons->addWidget(manage_styles_button);
+  auto* styles_info = new QLabel(&dialog);
+  styles_info->setObjectName(QStringLiteral("layerStyleStylesInfoIcon"));
+  styles_info->setPixmap(dialog.style()->standardIcon(QStyle::SP_MessageBoxInformation).pixmap(16, 16));
+  styles_info->setToolTip(QObject::tr("Right-click a folder or style to export it as a Photoshop .asl file."));
+  styles_info->setAccessibleName(styles_info->toolTip());
+  styles_buttons->addWidget(styles_info);
   styles_buttons->addStretch(1);
+  auto* styles_list_view = new QToolButton(&dialog);
+  styles_list_view->setObjectName(QStringLiteral("layerStyleStylesListViewButton"));
+  styles_list_view->setText(QObject::tr("List"));
+  styles_list_view->setToolTip(QObject::tr("Show the styles as a list with their names"));
+  styles_list_view->setCheckable(true);
+  auto* styles_grid_view = new QToolButton(&dialog);
+  styles_grid_view->setObjectName(QStringLiteral("layerStyleStylesGridViewButton"));
+  styles_grid_view->setText(QObject::tr("Grid"));
+  styles_grid_view->setToolTip(QObject::tr("Show the styles as a grid of thumbnails"));
+  styles_grid_view->setCheckable(true);
+  styles_buttons->addWidget(styles_list_view);
+  styles_buttons->addWidget(styles_grid_view);
   styles_layout->addLayout(styles_buttons);
+  const auto show_styles_view = [styles_views, styles_browser, styles_grid, styles_list_view,
+                                 styles_grid_view](bool grid) {
+    styles_views->setCurrentWidget(grid ? static_cast<QWidget*>(styles_grid) : styles_browser);
+    styles_list_view->setChecked(!grid);
+    styles_grid_view->setChecked(grid);
+  };
+  show_styles_view(stored_layer_style_styles_grid_view());
+  QObject::connect(styles_list_view, &QToolButton::clicked, &dialog, [show_styles_view] {
+    show_styles_view(false);
+    set_stored_layer_style_styles_grid_view(false);
+  });
+  QObject::connect(styles_grid_view, &QToolButton::clicked, &dialog, [show_styles_view] {
+    show_styles_view(true);
+    set_stored_layer_style_styles_grid_view(true);
+  });
   new_style_button->setEnabled(style_library != nullptr);
   manage_styles_button->setEnabled(style_library != nullptr);
   styles_browser->reload();
@@ -1318,12 +1762,13 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   set_non_photoshop_blend_modes_offered(blend, {layer.blend_mode()});
   enable_blend_mode_items_for_depth(blend, document_depth);
   blend->setCurrentIndex(std::max(0, blend->findData(static_cast<int>(layer.blend_mode()))));
-  blending_form->addRow(QObject::tr("Blend Mode"), blend);
-  auto* opacity = add_slider_spin_row(blending_form, blending_group, QObject::tr("Opacity"),
+  blending_form->addRow(QObject::tr("Blend Mode:"), blend);
+  auto* opacity = add_slider_spin_row(blending_form, blending_group, QObject::tr("Opacity:"),
                                       QStringLiteral("layerStyleOpacitySpin"), 0, 100,
                                       static_cast<int>(std::round(layer.opacity() * 100.0F)), QStringLiteral("%"));
+  add_form_section(blending_form, blending_group, QString(), QStringLiteral("layerStyleOpacitySection"));
   auto* fill_opacity = add_slider_spin_row(
-      blending_form, blending_group, QObject::tr("Fill Opacity"),
+      blending_form, blending_group, QObject::tr("Fill Opacity:"),
       QStringLiteral("layerStyleFillOpacitySpin"), 0, 100,
       static_cast<int>(std::round(layer.fill_opacity() * 100.0F)), QStringLiteral("%"));
   fill_opacity->setEnabled(layer.kind() != LayerKind::Group);
@@ -1393,48 +1838,39 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* show_effects = new QCheckBox(QObject::tr("Show Effects"), blending_group);
   show_effects->setObjectName(QStringLiteral("layerStyleShowEffectsCheck"));
   show_effects->setChecked(style.effects_visible);
-  blending_form->addRow(QString(), show_effects);
   auto* mask_hides_effects = new QCheckBox(QObject::tr("Layer Mask Hides Effects"), blending_group);
   mask_hides_effects->setObjectName(QStringLiteral("layerStyleMaskHidesEffectsCheck"));
   mask_hides_effects->setChecked(style.layer_mask_hides_effects);
   mask_hides_effects->setToolTip(
       QObject::tr("Clip drop shadows, glows, and strokes with the layer mask "
                   "instead of only shaping them"));
-  blending_form->addRow(QString(), mask_hides_effects);
   auto* vector_mask_hides_effects = new QCheckBox(QObject::tr("Vector Mask Hides Effects"), blending_group);
   vector_mask_hides_effects->setObjectName(QStringLiteral("layerStyleVectorMaskHidesEffectsCheck"));
   vector_mask_hides_effects->setChecked(style.vector_mask_hides_effects);
   vector_mask_hides_effects->setToolTip(
       QObject::tr("Hide drop shadows, glows, and strokes where the vector mask hides the layer, "
                   "instead of letting the vector mask shape them"));
-  blending_form->addRow(QString(), vector_mask_hides_effects);
   auto* blend_interior = new QCheckBox(QObject::tr("Blend Interior Effects as Group"), blending_group);
   blend_interior->setObjectName(QStringLiteral("layerStyleBlendInteriorCheck"));
   blend_interior->setChecked(style.blend_interior_elements);
   blend_interior->setToolTip(
       QObject::tr("Put the layer's blend mode over its overlays, satin, and inner glow "
                   "instead of letting them blend with their own modes"));
-  blending_form->addRow(QString(), blend_interior);
   auto* blend_clipped = new QCheckBox(QObject::tr("Blend Clipped Layers as Group"), blending_group);
   blend_clipped->setObjectName(QStringLiteral("layerStyleBlendClippedCheck"));
   blend_clipped->setChecked(style.blend_clipped_elements);
   blend_clipped->setToolTip(
       QObject::tr("Keep the layers clipped to this one under its interior effects; turn this off "
                   "together with Blend Interior Effects as Group to draw them over the overlays instead"));
-  blending_form->addRow(QString(), blend_clipped);
+  auto* blending_checks = new CheckBoxColumns(blending_group, {blend_interior, blend_clipped},
+                                              {mask_hides_effects, vector_mask_hides_effects, show_effects});
+  blending_checks->setObjectName(QStringLiteral("layerStyleBlendingChecks"));
+  blending_form->addRow(QString(), blending_checks);
   blending_layout->addWidget(blending_group);
 
   struct BlendIfRowWidgets {
     struct SpinControl {
-      QWidget* container{nullptr};
       QSpinBox* spin{nullptr};
-      QPushButton* decrease{nullptr};
-      QPushButton* increase{nullptr};
-
-      void sync_buttons() const {
-        decrease->setEnabled(spin->value() > spin->minimum());
-        increase->setEnabled(spin->value() < spin->maximum());
-      }
     };
 
     BlendIfRangeEditorWidget* editor{nullptr};
@@ -1444,9 +1880,13 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     SpinControl white_high;
   };
 
-  auto* blend_if_group = new QGroupBox(QObject::tr("Blend If"), controls);
+  // Blend If is part of the Blending Options section (GitHub issue 606): a
+  // line above it, then its rows across the whole section width.
+  add_form_section(blending_form, blending_group, QString(), QStringLiteral("layerStyleBlendIfSection"));
+  auto* blend_if_group = new QWidget(blending_group);
   blend_if_group->setObjectName(QStringLiteral("layerStyleBlendIfGroup"));
   auto* blend_if_layout = new QVBoxLayout(blend_if_group);
+  blend_if_layout->setContentsMargins(0, 0, 0, 0);
   blend_if_layout->setSpacing(4);
   auto* blend_if_channel_row = new QHBoxLayout();
   auto* blend_if_channel_label = new QLabel(QObject::tr("Blend If:"), blend_if_group);
@@ -1481,33 +1921,27 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto make_blend_if_spin = [&](QWidget* parent_widget, const QString& object_name,
                                 const QString& accessible_name) {
     BlendIfRowWidgets::SpinControl control;
-    control.container = new QWidget(parent_widget);
-    auto* layout = new QHBoxLayout(control.container);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(2);
-
-    auto* spin = new QSpinBox(control.container);
+    auto* spin = new QSpinBox(parent_widget);
     spin->setObjectName(object_name);
     spin->setRange(0, 255);
     spin->setAccessibleName(accessible_name);
     configure_dialog_spinbox(spin, 48);
     spin->setFixedWidth(48);
     set_themed_style(*spin, blend_if_value_style);
-
-    layout->addWidget(spin);
     control.spin = spin;
-    const auto buttons = add_spin_step_buttons(spin, layout, accessible_name);
-    control.decrease = buttons.decrease;
-    control.increase = buttons.increase;
     return control;
   };
 
-  auto make_blend_if_row = [&](const QString& title, const QString& object_prefix,
+  // "This Layer:   Black: [ ] to [ ]   White: [ ] to [ ]", then the ramp.
+  auto make_blend_if_row = [&](const QString& title, const QString& label_text, const QString& object_prefix,
                                const QString& editor_object_name) {
     BlendIfRowWidgets row;
-    auto* title_label = new QLabel(title, blend_if_group);
+    auto* values = new QHBoxLayout();
+    values->setSpacing(5);
+    auto* title_label = new QLabel(label_text, blend_if_group);
     title_label->setStyleSheet(QStringLiteral("font-weight: 600;"));
-    blend_if_layout->addWidget(title_label);
+    values->addWidget(title_label);
+    values->addStretch(1);
     row.editor = new BlendIfRangeEditorWidget(blend_if_group);
     row.editor->setObjectName(editor_object_name);
     row.editor->set_accessibility_text(
@@ -1515,11 +1949,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         resolve_modifier_names(QObject::tr("Use Page Up or Page Down to select a handle, arrow keys "
                                            "to move it, and %ALT%-drag to "
                                            "split a joined handle.")));
-    blend_if_layout->addWidget(row.editor);
-
-    auto* values = new QHBoxLayout();
-    values->setSpacing(5);
-    auto* black_label = new QLabel(QObject::tr("Black"), blend_if_group);
+    auto* black_label = new QLabel(QObject::tr("Black:"), blend_if_group);
     values->addWidget(black_label);
     row.black_low = make_blend_if_spin(
         blend_if_group, object_prefix + QStringLiteral("BlackLowSpin"),
@@ -1528,11 +1958,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         blend_if_group, object_prefix + QStringLiteral("BlackHighSpin"),
         QObject::tr("%1 black transition end").arg(title));
     black_label->setBuddy(row.black_low.spin);
-    values->addWidget(row.black_low.container);
+    values->addWidget(row.black_low.spin);
     values->addWidget(new QLabel(QObject::tr("to"), blend_if_group));
-    values->addWidget(row.black_high.container);
-    values->addStretch(1);
-    auto* white_label = new QLabel(QObject::tr("White"), blend_if_group);
+    values->addWidget(row.black_high.spin);
+    values->addSpacing(14);
+    auto* white_label = new QLabel(QObject::tr("White:"), blend_if_group);
     values->addWidget(white_label);
     row.white_low = make_blend_if_spin(
         blend_if_group, object_prefix + QStringLiteral("WhiteLowSpin"),
@@ -1541,20 +1971,23 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         blend_if_group, object_prefix + QStringLiteral("WhiteHighSpin"),
         QObject::tr("%1 white transition end").arg(title));
     white_label->setBuddy(row.white_low.spin);
-    values->addWidget(row.white_low.container);
+    values->addWidget(row.white_low.spin);
     values->addWidget(new QLabel(QObject::tr("to"), blend_if_group));
-    values->addWidget(row.white_high.container);
+    values->addWidget(row.white_high.spin);
     blend_if_layout->addLayout(values);
+    blend_if_layout->addWidget(row.editor);
     return row;
   };
 
-  auto blend_if_this = make_blend_if_row(QObject::tr("This Layer"), QStringLiteral("layerStyleBlendIfThis"),
+  auto blend_if_this = make_blend_if_row(QObject::tr("This Layer"), QObject::tr("This Layer:"),
+                                         QStringLiteral("layerStyleBlendIfThis"),
                                          QStringLiteral("layerStyleBlendIfThisEditor"));
   auto blend_if_underlying =
-      make_blend_if_row(QObject::tr("Underlying Layer"), QStringLiteral("layerStyleBlendIfUnderlying"),
+      make_blend_if_row(QObject::tr("Underlying Layer"), QObject::tr("Underlying Layer:"),
+                        QStringLiteral("layerStyleBlendIfUnderlying"),
                         QStringLiteral("layerStyleBlendIfUnderlyingEditor"));
   blend_if_group->setEnabled(blend_if_payload_status != BlendIfPayloadStatus::Unsupported);
-  blending_layout->addWidget(blend_if_group);
+  blending_form->addRow(blend_if_group);
 
   bool loading_blend_if_controls = false;
   const auto current_blend_if_channel_index = [&] {
@@ -1576,10 +2009,6 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     row.black_high.spin->setRange(thresholds.black_low, thresholds.white_low);
     row.white_low.spin->setRange(thresholds.black_high, thresholds.white_high);
     row.white_high.spin->setRange(thresholds.white_low, 255);
-    row.black_low.sync_buttons();
-    row.black_high.sync_buttons();
-    row.white_low.sync_buttons();
-    row.white_high.sync_buttons();
     row.editor->set_thresholds(thresholds);
   };
   const auto load_blend_if_controls = [&] {
@@ -1755,6 +2184,42 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto& shadow_green = shadow_page.shadow_green;
   auto& shadow_blue = shadow_page.shadow_blue;
 
+  // Make Default / Reset to Default at the foot of each effect page (GitHub
+  // issue 606); Style Presets, Blending Options, Contour and Texture have none.
+  struct DefaultButtons {
+    LayerStyleEffectKind kind;
+    QPushButton* make;
+    QPushButton* reset;
+  };
+  std::vector<DefaultButtons> default_buttons;
+  const auto add_default_buttons = [&](QVBoxLayout* layout, LayerStyleEffectKind kind, const QString& object_prefix) {
+    auto* row = new QHBoxLayout();
+    row->setContentsMargins(0, 4, 0, 0);
+    row->addStretch(1);
+    auto* make = new QPushButton(QObject::tr("Make Default"), layout->parentWidget());
+    make->setObjectName(object_prefix + QStringLiteral("MakeDefaultButton"));
+    make->setToolTip(QObject::tr("Use these settings whenever this effect is added"));
+    auto* reset = new QPushButton(QObject::tr("Reset to Default"), layout->parentWidget());
+    reset->setObjectName(object_prefix + QStringLiteral("ResetToDefaultButton"));
+    reset->setToolTip(QObject::tr("Put back the default settings of this effect"));
+    row->addWidget(make);
+    row->addWidget(reset);
+    layout->addLayout(row);
+    default_buttons.push_back({kind, make, reset});
+  };
+  add_default_buttons(bevel_layout, LayerStyleEffectKind::BevelEmboss, QStringLiteral("layerStyleBevel"));
+  add_default_buttons(stroke_layout, LayerStyleEffectKind::Stroke, QStringLiteral("layerStyleStroke"));
+  add_default_buttons(inner_shadow_layout, LayerStyleEffectKind::InnerShadow, QStringLiteral("layerStyleInnerShadow"));
+  add_default_buttons(inner_glow_layout, LayerStyleEffectKind::InnerGlow, QStringLiteral("layerStyleInnerGlow"));
+  add_default_buttons(satin_layout, LayerStyleEffectKind::Satin, QStringLiteral("layerStyleSatin"));
+  add_default_buttons(color_overlay_layout, LayerStyleEffectKind::ColorOverlay,
+                      QStringLiteral("layerStyleColorOverlay"));
+  add_default_buttons(gradient_layout, LayerStyleEffectKind::GradientOverlay, QStringLiteral("layerStyleGradient"));
+  add_default_buttons(pattern_overlay_layout, LayerStyleEffectKind::PatternOverlay,
+                      QStringLiteral("layerStylePatternOverlay"));
+  add_default_buttons(outer_glow_layout, LayerStyleEffectKind::OuterGlow, QStringLiteral("layerStyleOuterGlow"));
+  add_default_buttons(shadow_layout, LayerStyleEffectKind::DropShadow, QStringLiteral("layerStyleDropShadow"));
+
   auto item_page = [](const QListWidgetItem* item) {
     return item == nullptr ? LayerStyleCategoryPage::Blending
                            : static_cast<LayerStyleCategoryPage>(item->data(kLayerStylePageRole).toInt());
@@ -1884,7 +2349,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         target.depth = static_cast<float>(bevel_depth->value()) / 100.0F;
         target.angle_degrees = static_cast<float>(bevel_angle->value());
         target.altitude_degrees = static_cast<float>(bevel_altitude->value());
-        target.direction_up = bevel_direction->currentData().toBool();
+        target.direction_up = bevel_direction.first->isChecked();
         target.highlight_blend_mode =
             static_cast<BlendMode>(bevel_highlight_blend->currentData().toInt());
         target.highlight_color = bevel_highlight_color;
@@ -1978,7 +2443,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         target.choke = static_cast<float>(inner_glow_choke->value());
         target.technique = static_cast<LayerGlowTechnique>(inner_glow_technique->currentData().toInt());
         target.range = static_cast<float>(inner_glow_range->value());
-        target.source = static_cast<LayerInnerGlowSource>(inner_glow_source->currentData().toInt());
+        target.source = inner_glow_source.first->isChecked() ? LayerInnerGlowSource::Center : LayerInnerGlowSource::Edge;
         target.color = RgbColor{static_cast<std::uint8_t>(inner_glow_red->value()),
                                 static_cast<std::uint8_t>(inner_glow_green->value()),
                                 static_cast<std::uint8_t>(inner_glow_blue->value())};
@@ -2136,7 +2601,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         bevel_depth->setValue(static_cast<int>(std::round(value.depth * 100.0F)));
         bevel_angle->setValue(static_cast<int>(std::round(value.angle_degrees)));
         bevel_altitude->setValue(static_cast<int>(std::round(value.altitude_degrees)));
-        bevel_direction->setCurrentIndex(value.direction_up ? 0 : 1);
+        bevel_direction.set_first(value.direction_up);
         set_combo_data(bevel_highlight_blend, static_cast<int>(value.highlight_blend_mode));
         bevel_highlight_color = value.highlight_color;
         bevel_highlight_opacity->setValue(static_cast<int>(std::round(value.highlight_opacity * 100.0F)));
@@ -2217,7 +2682,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         inner_glow_choke->setValue(static_cast<int>(std::round(value.choke)));
         set_combo_data(inner_glow_technique, static_cast<int>(value.technique));
         inner_glow_range->setValue(std::clamp(static_cast<int>(std::round(value.range)), 1, 100));
-        set_combo_data(inner_glow_source, static_cast<int>(value.source));
+        inner_glow_source.set_first(value.source == LayerInnerGlowSource::Center);
         inner_glow_red->setValue(value.color.red);
         inner_glow_green->setValue(value.color.green);
         inner_glow_blue->setValue(value.color.blue);
@@ -2795,8 +3260,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), &dialog,
                      [&emit_preview](int) { emit_preview(false); });
   }
-  QObject::connect(bevel_direction, &QComboBox::currentIndexChanged, &dialog,
-                   [&emit_preview](int) { emit_preview(true); });
+  QObject::connect(bevel_direction.first, &QRadioButton::toggled, &dialog,
+                   [&emit_preview](bool) { emit_preview(true); });
   QObject::connect(bevel_style, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
   QObject::connect(bevel_technique, &QComboBox::currentIndexChanged, &dialog,
@@ -2999,7 +3464,15 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                    apply_style_library_entry);
   QObject::connect(styles_browser, &StyleBrowserWidget::style_double_clicked, &dialog,
                    apply_style_library_entry);
-  QObject::connect(styles_browser, &StyleBrowserWidget::no_style_clicked, &dialog, [&] {
+  std::function<void()> clear_all_styles;
+  styles_grid->set_entry_clicked_callback([&](const QString& id) {
+    if (id == QLatin1String(kNoStyleGridId)) {
+      clear_all_styles();
+    } else {
+      apply_style_library_entry(id);
+    }
+  });
+  clear_all_styles = [&] {
     LayerStyle cleared;
     cleared.effects_visible = show_effects->isChecked();
     cleared.layer_mask_hides_effects = mask_hides_effects->isChecked();
@@ -3019,7 +3492,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     rebuild_category_list(LayerStyleEffectKind::None, kStylesCategoryIndex);
     load_controls_from_style(categories->currentItem());
     emit_preview(true);
-  });
+  };
+  QObject::connect(styles_browser, &StyleBrowserWidget::no_style_clicked, &dialog, [&] { clear_all_styles(); });
   QObject::connect(manage_styles_button, &QPushButton::clicked, &dialog, [&] {
     if (style_library == nullptr) {
       return;
@@ -3027,6 +3501,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     const auto storage_id = request_style_manager(&dialog, *style_library);
     if (!storage_id.isEmpty()) {
       styles_browser->reload(storage_id);
+      styles_grid->reload(storage_id);
       apply_style_library_entry(storage_id);
     }
   });
@@ -3139,8 +3614,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
                    [&emit_preview](int) { emit_preview(true); });
   QObject::connect(inner_glow_technique, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
-  QObject::connect(inner_glow_source, &QComboBox::currentIndexChanged, &dialog,
-                    [&emit_preview](int) { emit_preview(true); });
+  QObject::connect(inner_glow_source.first, &QRadioButton::toggled, &dialog,
+                   [&emit_preview](bool) { emit_preview(true); });
   QObject::connect(satin_blend, &QComboBox::currentIndexChanged, &dialog,
                    [&emit_preview](int) { emit_preview(true); });
   QObject::connect(satin_invert, &QCheckBox::toggled, &dialog,
@@ -3273,7 +3748,76 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   });
   QObject::connect(remove_inner_glow, &QPushButton::clicked, &dialog, remove_selected_stackable_instance);
   QObject::connect(remove_selected_instance, &QPushButton::clicked, &dialog, remove_selected_stackable_instance);
+  for (const auto& buttons_for_page : default_buttons) {
+    const auto kind = buttons_for_page.kind;
+    QObject::connect(buttons_for_page.make, &QPushButton::clicked, &dialog, [&, kind] {
+      const auto* current = categories->currentItem();
+      if (item_kind(current) != kind) {
+        return;
+      }
+      // The page's values even while the effect is off and not in the style yet.
+      auto snapshot = build_current_settings().style;
+      const auto index = std::max(0, item_effect_index(current));
+      switch (kind) {
+        case LayerStyleEffectKind::BevelEmboss: ensure_bevel(snapshot, index); break;
+        case LayerStyleEffectKind::Stroke: ensure_effect(snapshot.strokes, index, default_stroke); break;
+        case LayerStyleEffectKind::InnerShadow: ensure_effect(snapshot.inner_shadows, index, default_inner_shadow); break;
+        case LayerStyleEffectKind::InnerGlow: ensure_effect(snapshot.inner_glows, index, default_inner_glow); break;
+        case LayerStyleEffectKind::Satin: ensure_effect(snapshot.satins, index, default_satin); break;
+        case LayerStyleEffectKind::ColorOverlay:
+          ensure_effect(snapshot.color_overlays, index, default_color_overlay);
+          break;
+        case LayerStyleEffectKind::GradientOverlay:
+          ensure_effect(snapshot.gradient_fills, index, default_gradient_fill);
+          break;
+        case LayerStyleEffectKind::PatternOverlay:
+          ensure_effect(snapshot.pattern_overlays, index, default_pattern_overlay);
+          break;
+        case LayerStyleEffectKind::OuterGlow: ensure_effect(snapshot.outer_glows, index, default_outer_glow); break;
+        case LayerStyleEffectKind::DropShadow: ensure_effect(snapshot.drop_shadows, index, default_drop_shadow); break;
+        case LayerStyleEffectKind::BevelContour:
+        case LayerStyleEffectKind::BevelTexture:
+        case LayerStyleEffectKind::None:
+          break;
+      }
+      save_controls_to_style(snapshot, current);
+      store_effect_default(kind, snapshot, static_cast<std::size_t>(index));
+    });
+    QObject::connect(buttons_for_page.reset, &QPushButton::clicked, &dialog, [&, kind] {
+      auto* current = categories->currentItem();
+      if (item_kind(current) != kind) {
+        return;
+      }
+      const auto index = std::max(0, item_effect_index(current));
+      style = build_current_settings().style;
+      reset_effect_to_default(style, kind, static_cast<std::size_t>(index));
+      load_controls_from_style(current);
+      if (batch) {
+        // Every field of the effect counts as edited on each selected layer.
+        const auto prefix = effect_property_prefix(kind, index) + ".";
+        explicit_fields.clear();
+        for (const auto& property : layer_style_properties(build_current_settings())) {
+          if (property.key.starts_with(prefix) && !property.key.ends_with(".enabled")) {
+            explicit_fields.push_back(property.key);
+          }
+        }
+      }
+      emit_preview(true);
+    });
+  }
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  // OK as wide as Cancel (GitHub issue 606), whatever the language makes either.
+  const auto equalize_buttons = [buttons] {
+    int widest = 0;
+    for (auto* button : buttons->buttons()) {
+      button->setMinimumWidth(0);
+      widest = std::max(widest, button->sizeHint().width());
+    }
+    for (auto* button : buttons->buttons()) {
+      button->setMinimumWidth(widest);
+    }
+  };
+  equalize_buttons();
   auto* footer = new QHBoxLayout();
   footer->addWidget(preview_check);
   if (batch && batch->selected_count > 1) {
@@ -3373,7 +3917,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     effect(bevel_depth, LayerStyleEffectKind::BevelEmboss, "depth");
     effect(bevel_angle, LayerStyleEffectKind::BevelEmboss, "angle_degrees");
     effect(bevel_altitude, LayerStyleEffectKind::BevelEmboss, "altitude_degrees");
-    effect(bevel_direction, LayerStyleEffectKind::BevelEmboss, "direction_up");
+    effect(bevel_direction.first, LayerStyleEffectKind::BevelEmboss, "direction_up");
+    effect(bevel_direction.second, LayerStyleEffectKind::BevelEmboss, "direction_up");
     effect(bevel_highlight_blend, LayerStyleEffectKind::BevelEmboss, "highlight_blend_mode");
     effect(bevel_highlight_opacity, LayerStyleEffectKind::BevelEmboss, "highlight_opacity");
     effect(bevel_shadow_blend, LayerStyleEffectKind::BevelEmboss, "shadow_blend_mode");
@@ -3412,7 +3957,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     effect(outer_glow_range, LayerStyleEffectKind::OuterGlow, "range");
     effect(inner_glow_blend, LayerStyleEffectKind::InnerGlow, "blend_mode");
     effect(inner_glow_technique, LayerStyleEffectKind::InnerGlow, "technique");
-    effect(inner_glow_source, LayerStyleEffectKind::InnerGlow, "source");
+    effect(inner_glow_source.first, LayerStyleEffectKind::InnerGlow, "source");
+    effect(inner_glow_source.second, LayerStyleEffectKind::InnerGlow, "source");
     effect(inner_glow_opacity, LayerStyleEffectKind::InnerGlow, "opacity");
     effect(inner_glow_size, LayerStyleEffectKind::InnerGlow, "size");
     effect(inner_glow_choke, LayerStyleEffectKind::InnerGlow, "choke");
@@ -3585,6 +4131,13 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     }
   }
 
+  align_page_label_columns(*controls);
+  // The theme sheet reaches the labels and buttons once the dialog shows.
+  QTimer::singleShot(0, &dialog, [controls, equalize_buttons] {
+    align_page_label_columns(*controls);
+    equalize_buttons();
+  });
+
   // GitHub issue 190: measure what the dialog needs around the settings pane
   // with the pane at its full height, then give the pane what the screen
   // leaves (the Shape Appearance recipe: available height minus 40). The
@@ -3609,6 +4162,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   int pane_budget = pages_minimum;
   int max_height = 0;
   int max_width = 0;
+  int open_height = 0;
   if (screen != nullptr) {
     const auto available = screen->availableGeometry();
     max_height = std::max(320, available.height() - 40);
@@ -3620,11 +4174,15 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     if (dialog.layout()->hasHeightForWidth()) {
       natural_height = std::max(natural_height, dialog.layout()->totalMinimumHeightForWidth(width));
     }
-    pane_budget = std::max(120, pages_minimum - std::max(0, natural_height - max_height));
-    dialog.resize(width, std::min(dialog.height(), max_height));
+    // GitHub issue 606: it opens no taller than three quarters of the screen
+    // (the pane scrolls the rest); the user can still drag it up to the cap.
+    open_height = std::min(max_height, std::max(520, available.height() * 3 / 4));
+    pane_budget = std::max(120, pages_minimum - std::max(0, natural_height - open_height));
+    dialog.resize(width, std::min(dialog.height(), open_height));
   }
   const auto* pane_cap = new OptionsPaneScreenCap(dialog, *options_scroll, *controls, pane_budget,
-                                                  QSize(max_width, max_height), stored_layer_style_dialog_size());
+                                                  QSize(max_width, max_height), stored_layer_style_dialog_size(),
+                                                  open_height);
 
   log_ui_profile("layer_style_dialog_build",
                  std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() -

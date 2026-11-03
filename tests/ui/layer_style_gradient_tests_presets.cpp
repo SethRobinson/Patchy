@@ -1,4 +1,5 @@
 #include <QLayout>
+#include <QToolButton>
 #include <QStatusBar>
 
 #include "core/contour_presets.hpp"
@@ -18,6 +19,8 @@
 #include "ui/pattern_manager_dialog.hpp"
 #include "ui/photo_pattern_presets.hpp"
 #include "ui/style_browser.hpp"
+#include "ui/preset_grid_widget.hpp"
+#include "ui/app_settings.hpp"
 #include "ui/style_library.hpp"
 #include "ui/style_manager_dialog.hpp"
 #include "ui/stroke_preset_manager_dialog.hpp"
@@ -1287,14 +1290,17 @@ void ui_layer_style_styles_page_applies_preset_and_previews() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   patchy::Layer layer(document.allocate_layer_id(), "Styled",
                       solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  // The grid shows by default (GitHub issue 606); a click on a cell applies.
+  patchy::ui::set_stored_layer_style_styles_grid_view(true);
 
   QTimer::singleShot(0, [&] {
     auto* dialog =
         qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
-    auto* browser =
-        dialog->findChild<patchy::ui::StyleBrowserWidget*>(QStringLiteral("layerStyleStylesBrowser"));
+    // PresetGridWidget has no Q_OBJECT: find it as its QListWidget base.
+    auto* browser = dynamic_cast<patchy::ui::PresetGridWidget*>(
+        dialog->findChild<QListWidget*>(QStringLiteral("layerStyleStylesGrid")));
     auto* opacity = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleOpacitySpin"));
     auto* blend = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleBlendModeCombo"));
     CHECK(categories != nullptr && browser != nullptr && opacity != nullptr && blend != nullptr);
@@ -1307,7 +1313,15 @@ void ui_layer_style_styles_page_applies_preset_and_previews() {
     QApplication::processEvents();
     CHECK(!browser->visibleRegion().isEmpty());
 
-    click_style_tree_item(*browser, style_tree_item_for_storage_id(*browser, storage_id));
+    auto* cell = browser->entry_item(storage_id);
+    CHECK(cell != nullptr);
+    if (cell != nullptr) {
+      browser->scrollToItem(cell);
+      QApplication::processEvents();
+      const auto center = browser->visualItemRect(cell).center();
+      send_mouse(*browser->viewport(), QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+      send_mouse(*browser->viewport(), QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+    }
     QApplication::processEvents();
     // The preset's effects land in the category list and its blending options
     // land in the master controls.
@@ -1348,6 +1362,7 @@ void ui_layer_style_no_style_entry_clears_effects() {
                       solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
   layer.layer_style() = style_test_shadow_recipe();
   layer.set_opacity(0.4F);
+  patchy::ui::set_stored_layer_style_styles_grid_view(true);
 
   QTimer::singleShot(0, [&] {
     auto* dialog =
@@ -1356,11 +1371,16 @@ void ui_layer_style_no_style_entry_clears_effects() {
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
     auto* browser =
         dialog->findChild<patchy::ui::StyleBrowserWidget*>(QStringLiteral("layerStyleStylesBrowser"));
-    CHECK(categories != nullptr && browser != nullptr);
+    auto* list_button = dialog->findChild<QToolButton*>(QStringLiteral("layerStyleStylesListViewButton"));
+    CHECK(categories != nullptr && browser != nullptr && list_button != nullptr);
     const auto styles_items = categories->findItems(QStringLiteral("Style Presets"), Qt::MatchExactly);
     CHECK(!styles_items.empty());
     categories->setCurrentItem(styles_items.front());
     QApplication::processEvents();
+    // The list view keeps the No Style row (the grid has a No Style cell).
+    list_button->click();
+    QApplication::processEvents();
+    CHECK(!browser->visibleRegion().isEmpty());
     CHECK(browser->topLevelItemCount() >= 1);
     auto* no_style = browser->topLevelItem(0);
     CHECK(no_style->text(0).contains(QStringLiteral("No Style")));
@@ -1379,6 +1399,7 @@ void ui_layer_style_no_style_entry_clears_effects() {
   CHECK(settings->style.strokes.empty());
   // Blending options survive No Style.
   CHECK(settings->opacity == 40);
+  patchy::ui::set_stored_layer_style_styles_grid_view(true);
 }
 
 void ui_layer_style_new_style_saves_current_settings() {

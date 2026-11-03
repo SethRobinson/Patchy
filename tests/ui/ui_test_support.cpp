@@ -2458,15 +2458,12 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       auto* add_inner_shadow_instance =
           dialog->findChild<QPushButton*>(QStringLiteral("layerStyleAddInnerShadowInstanceButton"));
       auto* shadow_red = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleDropShadowRedSpin"));
-      auto* shadow_red_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleDropShadowRedSlider"));
       auto* shadow_green = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleDropShadowGreenSpin"));
       auto* shadow_blue = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleDropShadowBlueSpin"));
       auto* bevel_size = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBevelSizeSpin"));
       auto* bevel_size_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleBevelSizeSlider"));
       auto* stroke_red = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleStrokeRedSpin"));
-      auto* stroke_red_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleStrokeRedSlider"));
       auto* outer_glow_blue = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleOuterGlowBlueSpin"));
-      auto* outer_glow_blue_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleOuterGlowBlueSlider"));
       CHECK(categories != nullptr);
       CHECK(blend != nullptr);
       CHECK(opacity != nullptr);
@@ -2513,15 +2510,12 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       CHECK(remove_inner_shadow != nullptr);
       CHECK(add_inner_shadow_instance != nullptr);
       CHECK(shadow_red != nullptr);
-      CHECK(shadow_red_slider != nullptr);
       CHECK(shadow_green != nullptr);
       CHECK(shadow_blue != nullptr);
       CHECK(bevel_size != nullptr);
       CHECK(bevel_size_slider != nullptr);
       CHECK(stroke_red != nullptr);
-      CHECK(stroke_red_slider != nullptr);
       CHECK(outer_glow_blue != nullptr);
-      CHECK(outer_glow_blue_slider != nullptr);
       const auto check_compact_symbol_button = [](QPushButton* button) {
         CHECK(button != nullptr);
         CHECK(button->property("compactSymbolButton").toBool());
@@ -2587,7 +2581,7 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       categories->setCurrentItem(stroke_item);
       stroke_size_slider->setValue(6);
       CHECK(stroke_size->value() == 6);
-      stroke_red_slider->setValue(32);
+      stroke_red->setValue(32);
       CHECK(stroke_red->value() == 32);
       categories->setCurrentItem(bevel_item);
       bevel_size_slider->setValue(7);
@@ -2595,7 +2589,7 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       categories->setCurrentItem(outer_glow_item);
       patchy::ui::set_slider_to_value(*outer_glow_size_slider, 8);
       CHECK(outer_glow_size->value() == 8);
-      outer_glow_blue_slider->setValue(210);
+      outer_glow_blue->setValue(210);
       CHECK(outer_glow_blue->value() == 210);
       categories->setCurrentItem(inner_glow_item);
       patchy::ui::set_slider_to_value(*inner_glow_size_slider, 9);
@@ -2606,7 +2600,7 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       categories->setCurrentItem(shadow_item);
       shadow_blend->setCurrentIndex(std::max(0, shadow_blend->findData(static_cast<int>(patchy::BlendMode::Normal))));
       CHECK(shadow_blend->currentData().toInt() == static_cast<int>(patchy::BlendMode::Normal));
-      shadow_red_slider->setValue(245);
+      shadow_red->setValue(245);
       CHECK(shadow_red->value() == 245);
       shadow_green->setValue(246);
       shadow_blue->setValue(247);

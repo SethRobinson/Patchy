@@ -2804,16 +2804,8 @@ RGB: %2, %3, %4</translation>
         <translation>テクスチャ</translation>
     </message>
     <message>
-        <source>Gloss Contour</source>
-        <translation>光沢輪郭</translation>
-    </message>
-    <message>
         <source>Anti-aliased</source>
         <translation>アンチエイリアス</translation>
-    </message>
-    <message>
-        <source>Range</source>
-        <translation>適用範囲</translation>
     </message>
     <message>
         <source>Pattern</source>
@@ -3088,10 +3080,6 @@ RGB: %2, %3, %4</translation>
         <translation>境界線のエンボス</translation>
     </message>
     <message>
-        <source>Technique</source>
-        <translation>テクニック</translation>
-    </message>
-    <message>
         <source>Softer</source>
         <translation>さらにソフトに</translation>
     </message>
@@ -3106,10 +3094,6 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Chisel Soft</source>
         <translation>シゼルソフト</translation>
-    </message>
-    <message>
-        <source>Soften</source>
-        <translation>ソフト</translation>
     </message>
     <message>
         <source>Stroke</source>
@@ -3148,16 +3132,8 @@ RGB: %2, %3, %4</translation>
         <translation>パターンオーバーレイ</translation>
     </message>
     <message>
-        <source>Blend Mode</source>
-        <translation>描画モード</translation>
-    </message>
-    <message>
         <source>Opacity</source>
         <translation>不透明度</translation>
-    </message>
-    <message>
-        <source>Midpoint</source>
-        <translation>中間点</translation>
     </message>
     <message>
         <source>Size</source>
@@ -3166,10 +3142,6 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Depth</source>
         <translation>深さ</translation>
-    </message>
-    <message>
-        <source>Altitude</source>
-        <translation>高度</translation>
     </message>
     <message>
         <source>Up</source>
@@ -3204,10 +3176,6 @@ RGB: %2, %3, %4</translation>
         <translation>B</translation>
     </message>
     <message>
-        <source>Color RGB</source>
-        <translation>カラー RGB</translation>
-    </message>
-    <message>
         <source>Outside</source>
         <translation>外側</translation>
     </message>
@@ -3218,10 +3186,6 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Center</source>
         <translation>中央</translation>
-    </message>
-    <message>
-        <source>Position</source>
-        <translation>位置</translation>
     </message>
     <message>
         <source>Choose Color...</source>
@@ -3240,14 +3204,6 @@ RGB: %2, %3, %4</translation>
         <translation>ストップを削除</translation>
     </message>
     <message>
-        <source>Spread</source>
-        <translation>スプレッド</translation>
-    </message>
-    <message>
-        <source>Choke</source>
-        <translation>チョーク</translation>
-    </message>
-    <message>
         <source>Distance</source>
         <translation>距離</translation>
     </message>
@@ -3258,10 +3214,6 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Source</source>
         <translation>ソース</translation>
-    </message>
-    <message>
-        <source>Instances</source>
-        <translation>インスタンス</translation>
     </message>
     <message>
         <source>Remove Selected Instance</source>
@@ -5156,10 +5108,6 @@ Mixed selection</source>
         <translation>スタイルプリセット</translation>
     </message>
     <message>
-        <source>Click a preset to replace the current effects. Right-click a folder or style to export it as a Photoshop .asl file.</source>
-        <translation>プリセットをクリックすると現在の効果が置き換わります。フォルダーやスタイルを右クリックすると Photoshop の .asl ファイルとして書き出せます。</translation>
-    </message>
-    <message>
         <source>New Style…</source>
         <translation>新規スタイル…</translation>
     </message>
@@ -5540,10 +5488,6 @@ Mixed selection</source>
         <translation>ひび割れた砂漠</translation>
     </message>
     <message>
-        <source>Fill Opacity</source>
-        <translation>塗りの不透明度</translation>
-    </message>
-    <message>
         <source>Dodge</source>
         <translation>覆い焼き</translation>
     </message>
@@ -5828,28 +5772,12 @@ Mixed selection</source>
         <translation>プリセット...</translation>
     </message>
     <message>
-        <source>Gradient Type</source>
-        <translation>グラデーションタイプ</translation>
-    </message>
-    <message>
         <source>Solid</source>
         <translation>ソリッド</translation>
     </message>
     <message>
         <source>Noise</source>
         <translation>ノイズ</translation>
-    </message>
-    <message>
-        <source>Roughness</source>
-        <translation>粗さ</translation>
-    </message>
-    <message>
-        <source>Color Model</source>
-        <translation>カラーモデル</translation>
-    </message>
-    <message>
-        <source>Channel %1 Range</source>
-        <translation>チャンネル %1 の範囲</translation>
     </message>
     <message>
         <source>Add Transparency</source>
@@ -5874,14 +5802,6 @@ Mixed selection</source>
     <message>
         <source>Perceptual</source>
         <translation>知覚的</translation>
-    </message>
-    <message>
-        <source>Horizontal Offset</source>
-        <translation>水平オフセット</translation>
-    </message>
-    <message>
-        <source>Vertical Offset</source>
-        <translation>垂直オフセット</translation>
     </message>
     <message>
         <source>Reset Alignment</source>
@@ -14816,6 +14736,150 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Set the values the sliders show back to their defaults</source>
         <translation>スライダーの値を既定値に戻します</translation>
+    </message>
+    <message>
+        <source>No Style (remove all effects)</source>
+        <translation>スタイルなし(すべての効果を削除)</translation>
+    </message>
+    <message>
+        <source>Right-click a folder or style to export it as a Photoshop .asl file.</source>
+        <translation>フォルダーまたはスタイルを右クリックすると、Photoshop の .asl ファイルとして書き出せます。</translation>
+    </message>
+    <message>
+        <source>Show the styles as a list with their names</source>
+        <translation>スタイルを名前付きのリストで表示します</translation>
+    </message>
+    <message>
+        <source>Show the styles as a grid of thumbnails</source>
+        <translation>スタイルをサムネールのグリッドで表示します</translation>
+    </message>
+    <message>
+        <source>Blend Mode:</source>
+        <translation>描画モード:</translation>
+    </message>
+    <message>
+        <source>Black:</source>
+        <translation>ブラック:</translation>
+    </message>
+    <message>
+        <source>White:</source>
+        <translation>白:</translation>
+    </message>
+    <message>
+        <source>This Layer:</source>
+        <translation>このレイヤー:</translation>
+    </message>
+    <message>
+        <source>Underlying Layer:</source>
+        <translation>下のレイヤー:</translation>
+    </message>
+    <message>
+        <source>Make Default</source>
+        <translation>デフォルトに設定</translation>
+    </message>
+    <message>
+        <source>Use these settings whenever this effect is added</source>
+        <translation>この効果を追加するたびにこの設定を使用します</translation>
+    </message>
+    <message>
+        <source>Put back the default settings of this effect</source>
+        <translation>この効果の設定をデフォルトに戻します</translation>
+    </message>
+    <message>
+        <source>R:</source>
+        <translation>R:</translation>
+    </message>
+    <message>
+        <source>Technique:</source>
+        <translation>テクニック:</translation>
+    </message>
+    <message>
+        <source>Depth:</source>
+        <translation>深さ:</translation>
+    </message>
+    <message>
+        <source>Soften:</source>
+        <translation>ソフト:</translation>
+    </message>
+    <message>
+        <source>Shading</source>
+        <translation>陰影</translation>
+    </message>
+    <message>
+        <source>Gloss Contour:</source>
+        <translation>光沢輪郭:</translation>
+    </message>
+    <message>
+        <source>Contour:</source>
+        <translation>輪郭:</translation>
+    </message>
+    <message>
+        <source>Range:</source>
+        <translation>範囲:</translation>
+    </message>
+    <message>
+        <source>Position:</source>
+        <translation>位置:</translation>
+    </message>
+    <message>
+        <source>Fill:</source>
+        <translation>塗り:</translation>
+    </message>
+    <message>
+        <source>Distance:</source>
+        <translation>距離:</translation>
+    </message>
+    <message>
+        <source>Choke:</source>
+        <translation>チョーク:</translation>
+    </message>
+    <message>
+        <source>Instances:</source>
+        <translation>インスタンス:</translation>
+    </message>
+    <message>
+        <source>Spread:</source>
+        <translation>スプレッド:</translation>
+    </message>
+    <message>
+        <source>Fade:</source>
+        <translation>フェード:</translation>
+    </message>
+    <message>
+        <source>Gradient Type:</source>
+        <translation>グラデーションタイプ:</translation>
+    </message>
+    <message>
+        <source>Midpoint:</source>
+        <translation>中間点:</translation>
+    </message>
+    <message>
+        <source>Smoothness:</source>
+        <translation>滑らかさ:</translation>
+    </message>
+    <message>
+        <source>Seed:</source>
+        <translation>シード:</translation>
+    </message>
+    <message>
+        <source>Roughness:</source>
+        <translation>粗さ:</translation>
+    </message>
+    <message>
+        <source>Color Model:</source>
+        <translation>カラーモデル:</translation>
+    </message>
+    <message>
+        <source>Channel %1 Range:</source>
+        <translation>チャンネル %1 の範囲:</translation>
+    </message>
+    <message>
+        <source>Horizontal Offset:</source>
+        <translation>水平オフセット:</translation>
+    </message>
+    <message>
+        <source>Vertical Offset:</source>
+        <translation>垂直オフセット:</translation>
     </message>
 </context>
 <context>

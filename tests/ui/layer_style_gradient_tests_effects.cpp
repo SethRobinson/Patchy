@@ -21,6 +21,7 @@
 #include <QDialogButtonBox>
 #include <QElapsedTimer>
 #include <QEventLoop>
+#include <QFormLayout>
 #include <QGroupBox>
 #include <QLabel>
 #include <QLineEdit>
@@ -28,13 +29,17 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPushButton>
+#include <QRadioButton>
+#include <QRegularExpression>
 #include <QScreen>
 #include <QScrollBar>
 #include <QScrollArea>
 #include <QSpinBox>
 #include <QSlider>
+#include <QStackedWidget>
 #include <QTest>
 #include <QTimer>
+#include <QToolButton>
 #include <QWidget>
 #include <algorithm>
 #include <atomic>
@@ -147,7 +152,7 @@ void ui_layer_style_blend_if_controls_load_channels_and_map_settings() {
   QTimer::singleShot(0, [&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
-    auto* group = dialog->findChild<QGroupBox*>(QStringLiteral("layerStyleBlendIfGroup"));
+    auto* group = dialog->findChild<QWidget*>(QStringLiteral("layerStyleBlendIfGroup"));
     auto* channel = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleBlendIfChannelCombo"));
     auto* reset_channel =
         dialog->findChild<QPushButton*>(QStringLiteral("layerStyleBlendIfResetChannelButton"));
@@ -206,46 +211,27 @@ void ui_layer_style_blend_if_controls_load_channels_and_map_settings() {
     CHECK(this_black_high->value() == 20);
     CHECK(underlying_white_low->value() == 190);
 
-    auto* low_minus = dialog->findChild<QPushButton*>(
-        QStringLiteral("layerStyleBlendIfThisBlackLowSpinDecreaseButton"));
-    auto* low_plus = dialog->findChild<QPushButton*>(
-        QStringLiteral("layerStyleBlendIfThisBlackLowSpinIncreaseButton"));
-    auto* high_minus = dialog->findChild<QPushButton*>(
-        QStringLiteral("layerStyleBlendIfThisBlackHighSpinDecreaseButton"));
-    auto* high_plus = dialog->findChild<QPushButton*>(
-        QStringLiteral("layerStyleBlendIfThisBlackHighSpinIncreaseButton"));
-    CHECK(low_minus != nullptr && low_plus != nullptr);
-    CHECK(high_minus != nullptr && high_plus != nullptr);
-    for (auto* button : {low_minus, low_plus, high_minus, high_plus}) {
-      CHECK(button->width() >= 20 && button->height() >= 20);
-      CHECK(!button->icon().isNull());
-    }
-    const auto click_step_button = [](QPushButton* button) {
-      send_mouse(*button, QEvent::MouseButtonPress, button->rect().center(), Qt::LeftButton,
-                 Qt::LeftButton);
-      send_mouse(*button, QEvent::MouseButtonRelease, button->rect().center(), Qt::LeftButton,
-                 Qt::NoButton);
-    };
-
-    // Reproduce the joined-handle case from the UI: the first field's minus
-    // moves the left half down, while the second field's plus moves the right
-    // half up. The visible controls must not swap either direction.
+    // GitHub issue 606: the fields have no - / + buttons; the arrow keys step
+    // them. A joined handle still splits: the first field steps the left half
+    // down and the second the right half up, never swapping.
+    CHECK(dialog->findChild<QPushButton*>(QStringLiteral("layerStyleBlendIfThisBlackLowSpinDecreaseButton")) ==
+          nullptr);
     this_black_high->setValue(74);
     this_black_low->setValue(74);
-    CHECK(low_minus->isEnabled());
-    CHECK(!low_plus->isEnabled());
-    click_step_button(low_minus);
+    this_black_low->stepBy(-1);
     CHECK(this_black_low->value() == 73);
-    CHECK(low_plus->isEnabled());
-    click_step_button(low_plus);
-    CHECK(this_black_low->value() == 74);
-    CHECK(!high_minus->isEnabled());
-    CHECK(high_plus->isEnabled());
-    click_step_button(high_plus);
-    CHECK(this_black_high->value() == 75);
-    CHECK(high_minus->isEnabled());
-    click_step_button(high_minus);
     CHECK(this_black_high->value() == 74);
+    this_black_low->stepBy(1);
+    CHECK(this_black_low->value() == 74);
+    this_black_high->stepBy(-1);
+    CHECK(this_black_high->value() == 74);
+    this_black_high->stepBy(1);
+    CHECK(this_black_high->value() == 75);
+    this_black_high->stepBy(-1);
+    CHECK(this_black_high->value() == 74);
+    // Both values share the This Layer line.
+    CHECK(std::abs(this_black_low->mapTo(dialog, QPoint(0, 0)).y() -
+                   this_white_high->mapTo(dialog, QPoint(0, 0)).y()) <= 2);
     this_black_low->setValue(10);
     this_black_high->setValue(20);
     auto* white_value_edit = this_white_low->findChild<QLineEdit*>();
@@ -388,7 +374,7 @@ void ui_layer_style_blend_if_unsupported_requires_explicit_replace() {
 
   run_style_dialog([](QDialog& dialog) {
     auto* warning = dialog.findChild<QLabel*>(QStringLiteral("layerStyleBlendIfUnsupportedWarning"));
-    auto* group = dialog.findChild<QGroupBox*>(QStringLiteral("layerStyleBlendIfGroup"));
+    auto* group = dialog.findChild<QWidget*>(QStringLiteral("layerStyleBlendIfGroup"));
     auto* replace = dialog.findChild<QPushButton*>(QStringLiteral("layerStyleBlendIfReplaceButton"));
     CHECK(warning != nullptr && warning->isVisible());
     CHECK(warning->text().contains(QStringLiteral("unsupported color mode or payload shape")));
@@ -404,7 +390,7 @@ void ui_layer_style_blend_if_unsupported_requires_explicit_replace() {
 
   run_style_dialog([](QDialog& dialog) {
     auto* warning = dialog.findChild<QLabel*>(QStringLiteral("layerStyleBlendIfUnsupportedWarning"));
-    auto* group = dialog.findChild<QGroupBox*>(QStringLiteral("layerStyleBlendIfGroup"));
+    auto* group = dialog.findChild<QWidget*>(QStringLiteral("layerStyleBlendIfGroup"));
     auto* replace = dialog.findChild<QPushButton*>(QStringLiteral("layerStyleBlendIfReplaceButton"));
     auto* black_high = dialog.findChild<QSpinBox*>(QStringLiteral("layerStyleBlendIfThisBlackHighSpin"));
     auto* black_low = dialog.findChild<QSpinBox*>(QStringLiteral("layerStyleBlendIfThisBlackLowSpin"));
@@ -428,7 +414,7 @@ void ui_layer_style_blend_if_unsupported_requires_explicit_replace() {
         std::vector<std::uint8_t>(unsupported_payload.begin(), unsupported_payload.end()));
 
   run_style_dialog([](QDialog& dialog) {
-    auto* group = dialog.findChild<QGroupBox*>(QStringLiteral("layerStyleBlendIfGroup"));
+    auto* group = dialog.findChild<QWidget*>(QStringLiteral("layerStyleBlendIfGroup"));
     auto* replace = dialog.findChild<QPushButton*>(QStringLiteral("layerStyleBlendIfReplaceButton"));
     auto* black_high = dialog.findChild<QSpinBox*>(QStringLiteral("layerStyleBlendIfThisBlackHighSpin"));
     auto* black_low = dialog.findChild<QSpinBox*>(QStringLiteral("layerStyleBlendIfThisBlackLowSpin"));
@@ -459,7 +445,7 @@ void ui_layer_style_blend_if_unsupported_requires_explicit_replace() {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* warning = dialog->findChild<QLabel*>(QStringLiteral("layerStyleBlendIfUnsupportedWarning"));
-    auto* group = dialog->findChild<QGroupBox*>(QStringLiteral("layerStyleBlendIfGroup"));
+    auto* group = dialog->findChild<QWidget*>(QStringLiteral("layerStyleBlendIfGroup"));
     CHECK(warning != nullptr && warning->isVisible());
     CHECK(group != nullptr && !group->isEnabled());
     dialog->reject();
@@ -1560,6 +1546,11 @@ void ui_layer_style_gradient_stroke_controls_map_to_settings() {
     auto* stroke_scroll = dialog->findChild<QScrollArea*>(QStringLiteral("layerStyleStrokeScroll"));
     CHECK(stroke_scroll != nullptr);
     stroke_scroll->ensureWidgetVisible(scale);
+    // The settings pane scrolls too when the dialog opens shorter than the
+    // tallest page (GitHub issue 606).
+    if (auto* pane = dialog->findChild<QScrollArea*>(QStringLiteral("layerStyleOptionsScroll")); pane != nullptr) {
+      pane->ensureWidgetVisible(scale);
+    }
     QApplication::processEvents();
     CHECK(!scale->visibleRegion().isEmpty());
     CHECK(!midpoint->isEnabled());
@@ -1706,7 +1697,19 @@ void ui_layer_style_bevel_lighting_controls_map_to_settings() {
     CHECK(style->currentData().toInt() == static_cast<int>(patchy::BevelEmbossStyleKind::OuterBevel));
     CHECK(technique->currentData().toInt() == static_cast<int>(patchy::BevelTechnique::ChiselHard));
     CHECK(soften->value() == 3);
+    // The dialog opens shorter than the Bevel page on the offscreen screen
+    // (GitHub issue 606): scroll each swatch into view first.
+    auto* pane = dialog->findChild<QScrollArea*>(QStringLiteral("layerStyleOptionsScroll"));
+    CHECK(pane != nullptr);
+    if (pane != nullptr) {
+      pane->ensureWidgetVisible(highlight_color);
+      QApplication::processEvents();
+    }
     CHECK(!highlight_color->visibleRegion().isEmpty());
+    if (pane != nullptr) {
+      pane->ensureWidgetVisible(shadow_color);
+      QApplication::processEvents();
+    }
     CHECK(!shadow_color->visibleRegion().isEmpty());
     highlight_blend->setCurrentIndex(
         std::max(0, highlight_blend->findData(static_cast<int>(patchy::BlendMode::ColorDodge))));
@@ -2449,10 +2452,11 @@ void ui_layer_style_dialog_resizes_below_its_tallest_page() {
                 natural.height(), dialog.minimumWidth(), dialog.minimumHeight(), pages_height,
                 scroll.viewport()->height());
     save_image_artifact("ui_layer_style_dialog_natural_size", dialog.grab().toImage());
-    // The plain layer's tallest page fits the 800 px offscreen screen: the
-    // dialog opens showing all of it, nothing to scroll.
-    CHECK(scroll.verticalScrollBar()->maximum() == 0);
-    CHECK(scroll.viewport()->height() >= pages_height);
+    // GitHub issue 606: it opens no taller than three quarters of the screen;
+    // a taller page scrolls.
+    const auto available = dialog.screen()->availableGeometry();
+    CHECK(natural.height() <= std::max(520, available.height() * 3 / 4));
+    CHECK(scroll.viewport()->height() >= pages_height || scroll.verticalScrollBar()->maximum() > 0);
     CHECK(dialog.minimumHeight() < natural.height() - 200);
 
     dialog.resize(600, 400);
@@ -2501,6 +2505,422 @@ void ui_layer_style_dialog_resizes_below_its_tallest_page() {
   patchy::ui::set_stored_layer_style_dialog_size({});
   open_dialog([&](QDialog& dialog, QScrollArea&) { CHECK(dialog.size() == natural); });
   CHECK(!patchy::ui::stored_layer_style_dialog_size().isValid());
+}
+
+void ui_layer_style_page_captures_issue_606() {
+  // GitHub issue 606: one capture per reworked page (Style Presets, Blending
+  // Options, Bevel & Emboss, a color page, Inner Glow), opened from the main
+  // window so the theme sheet and the style library apply as in the app.
+  patchy::ui::set_stored_layer_style_dialog_size({});
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Captures",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  patchy::LayerBevelEmboss bevel;
+  bevel.enabled = true;
+  layer.layer_style().bevels.push_back(bevel);
+  patchy::LayerInnerGlow glow;
+  glow.enabled = true;
+  glow.color = patchy::RgbColor{255, 255, 190};
+  layer.layer_style().inner_glows.push_back(glow);
+  patchy::LayerColorOverlay overlay;
+  overlay.enabled = true;
+  overlay.color = patchy::RgbColor{220, 40, 40};
+  layer.layer_style().color_overlays.push_back(overlay);
+  const auto layer_id = layer.id();
+  document.add_layer(std::move(layer));
+  document.set_active_layer(layer_id);
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Captures"));
+  show_window(window);
+  bool inspected = false;
+  QTimer::singleShot(0, &window, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    QApplication::processEvents();
+    std::printf("layer style dialog opens %dx%d (minimum %dx%d)\n", dialog->width(), dialog->height(),
+                dialog->minimumWidth(), dialog->minimumHeight());
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    CHECK(categories != nullptr);
+    const std::array<std::pair<const char*, const char*>, 5> pages{{
+        {"Style Presets", "ui_layer_style_606_style_presets"},
+        {"Blending Options", "ui_layer_style_606_blending_options"},
+        {"Bevel & Emboss", "ui_layer_style_606_bevel_emboss"},
+        {"Color Overlay", "ui_layer_style_606_color_overlay"},
+        {"Inner Glow", "ui_layer_style_606_inner_glow"},
+    }};
+    for (const auto& [title, artifact] : pages) {
+      for (int row = 0; categories != nullptr && row < categories->count(); ++row) {
+        if (categories->item(row)->text() == QString::fromLatin1(title)) {
+          categories->setCurrentRow(row);
+          break;
+        }
+      }
+      QApplication::processEvents();
+      save_image_artifact(artifact, dialog->grab().toImage());
+    }
+    inspected = true;
+    dialog->reject();
+  });
+  require_action(window, "layerBlendingOptionsAction")->trigger();
+  QApplication::processEvents();
+  CHECK(inspected);
+}
+
+QListWidgetItem* layer_style_category(QDialog& dialog, const QString& text) {
+  auto* categories = dialog.findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+  CHECK(categories != nullptr);
+  for (int row = 0; categories != nullptr && row < categories->count(); ++row) {
+    if (categories->item(row)->text() == text) {
+      return categories->item(row);
+    }
+  }
+  CHECK(false);
+  return nullptr;
+}
+
+void select_layer_style_category(QDialog& dialog, const QString& text) {
+  if (auto* item = layer_style_category(dialog, text); item != nullptr) {
+    item->listWidget()->setCurrentItem(item);
+  }
+  QApplication::processEvents();
+}
+
+void ui_layer_style_page_titles_show_ampersands() {
+  // GitHub issue 606: a QGroupBox title reads "&" as a mnemonic, so the Bevel &
+  // Emboss page title showed an underlined space instead of the ampersand.
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Titles",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    bool saw_bevel = false;
+    for (auto* group : dialog->findChildren<QGroupBox*>()) {
+      auto title = group->title();
+      if (title == QStringLiteral("Bevel && Emboss")) {
+        saw_bevel = true;
+      }
+      // Every ampersand left is an escaped one: none turns into a mnemonic.
+      title.replace(QStringLiteral("&&"), QString());
+      CHECK(!title.contains(QLatin1Char('&')));
+    }
+    CHECK(saw_bevel);
+    // The category list draws the name in a plain label, which keeps the "&".
+    auto* bevel_item = layer_style_category(*dialog, QStringLiteral("Bevel & Emboss"));
+    CHECK(bevel_item != nullptr);
+    if (bevel_item != nullptr) {
+      auto* row = bevel_item->listWidget()->itemWidget(bevel_item);
+      auto* label = row != nullptr ? row->findChild<QLabel*>() : nullptr;
+      CHECK(label != nullptr && label->text() == QStringLiteral("Bevel & Emboss"));
+    }
+    inspected = true;
+    dialog->reject();
+  });
+  (void)patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(inspected);
+}
+
+void ui_layer_style_make_default_and_reset_to_default() {
+  // GitHub issue 606: Make Default stores a page's values as that effect's
+  // defaults; Reset to Default loads them back (the built-in ones when none
+  // are stored); an effect added later starts from them.
+  patchy::ui::clear_stored_layer_style_effect_defaults();
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Defaults",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  const auto click = [](QDialog& dialog, const char* name) {
+    auto* button = dialog.findChild<QPushButton*>(QString::fromLatin1(name));
+    CHECK(button != nullptr);
+    if (button != nullptr) {
+      button->click();
+    }
+    QApplication::processEvents();
+  };
+  const auto spin = [](QDialog& dialog, const char* name) {
+    auto* field = dialog.findChild<QSpinBox*>(QString::fromLatin1(name));
+    CHECK(field != nullptr);
+    return field;
+  };
+
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    // Pages without the pair.
+    for (const auto* name : {"layerStyleBevelContourMakeDefaultButton", "layerStyleBevelTextureMakeDefaultButton",
+                             "layerStyleBlendingMakeDefaultButton", "layerStyleStylesMakeDefaultButton"}) {
+      CHECK(dialog->findChild<QPushButton*>(QString::fromLatin1(name)) == nullptr);
+    }
+    CHECK(dialog->findChildren<QPushButton*>(QRegularExpression(QStringLiteral("MakeDefaultButton$"))).size() == 10);
+    CHECK(dialog->findChildren<QPushButton*>(QRegularExpression(QStringLiteral("ResetToDefaultButton$"))).size() ==
+          10);
+
+    // Nothing stored: Reset to Default gives the built-in values.
+    select_layer_style_category(*dialog, QStringLiteral("Drop Shadow"));
+    auto* size = spin(*dialog, "layerStyleDropShadowSizeSpin");
+    auto* distance = spin(*dialog, "layerStyleDropShadowDistanceSpin");
+    auto* red = spin(*dialog, "layerStyleDropShadowRedSpin");
+    auto* continuous = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleDropShadowContinuousCheck"));
+    CHECK(size != nullptr && distance != nullptr && red != nullptr && continuous != nullptr);
+    if (size == nullptr || distance == nullptr || red == nullptr || continuous == nullptr) {
+      return;
+    }
+    size->setValue(40);
+    click(*dialog, "layerStyleDropShadowResetToDefaultButton");
+    CHECK(size->value() == 5);
+    CHECK(distance->value() == 5);
+
+    // Store new values, change them, and reset back to the stored ones.
+    size->setValue(17);
+    distance->setValue(9);
+    red->setValue(200);
+    continuous->setChecked(true);
+    click(*dialog, "layerStyleDropShadowMakeDefaultButton");
+    size->setValue(30);
+    red->setValue(10);
+    continuous->setChecked(false);
+    click(*dialog, "layerStyleDropShadowResetToDefaultButton");
+    CHECK(size->value() == 17);
+    CHECK(distance->value() == 9);
+    CHECK(red->value() == 200);
+    CHECK(continuous->isChecked());
+    inspected = true;
+    dialog->reject();
+  });
+  (void)patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(inspected);
+
+  // Reopened, a drop shadow turned on starts from the stored values; the page
+  // shows them before it is ticked.
+  inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    select_layer_style_category(*dialog, QStringLiteral("Drop Shadow"));
+    auto* size = spin(*dialog, "layerStyleDropShadowSizeSpin");
+    CHECK(size != nullptr && size->value() == 17);
+    if (auto* item = layer_style_category(*dialog, QStringLiteral("Drop Shadow")); item != nullptr) {
+      item->setCheckState(Qt::Checked);
+    }
+    QApplication::processEvents();
+    inspected = true;
+    dialog->accept();
+  });
+  const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(inspected);
+  CHECK(settings.has_value());
+  if (settings.has_value()) {
+    CHECK(settings->style.drop_shadows.size() == 1U);
+    if (!settings->style.drop_shadows.empty()) {
+      const auto& shadow = settings->style.drop_shadows.front();
+      CHECK(shadow.enabled);
+      CHECK(std::abs(shadow.size - 17.0F) < 0.01F);
+      CHECK(std::abs(shadow.distance - 9.0F) < 0.01F);
+      CHECK(shadow.color.red == 200);
+      CHECK(shadow.continuous);
+    }
+    // Effects without stored values keep the built-in defaults.
+    CHECK(settings->style.strokes.empty());
+  }
+
+  // Bevel & Emboss: the page's values only; Reset keeps the effect's state.
+  patchy::LayerBevelEmboss bevel;
+  bevel.enabled = true;
+  bevel.size = 12.0F;
+  bevel.direction_up = true;
+  bevel.contour.enabled = true;
+  layer.layer_style().bevels.push_back(bevel);
+  inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    select_layer_style_category(*dialog, QStringLiteral("Bevel & Emboss"));
+    auto* size = spin(*dialog, "layerStyleBevelSizeSpin");
+    auto* down = dialog->findChild<QRadioButton*>(QStringLiteral("layerStyleBevelDirectionDownRadio"));
+    CHECK(size != nullptr && down != nullptr);
+    if (size == nullptr || down == nullptr) {
+      return;
+    }
+    CHECK(size->value() == 12);
+    size->setValue(21);
+    down->setChecked(true);
+    click(*dialog, "layerStyleBevelMakeDefaultButton");
+    size->setValue(3);
+    click(*dialog, "layerStyleBevelResetToDefaultButton");
+    CHECK(size->value() == 21);
+    CHECK(down->isChecked());
+    inspected = true;
+    dialog->accept();
+  });
+  const auto bevel_settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(inspected);
+  CHECK(bevel_settings.has_value());
+  if (bevel_settings.has_value() && !bevel_settings->style.bevels.empty()) {
+    const auto& result = bevel_settings->style.bevels.front();
+    CHECK(result.enabled);
+    CHECK(std::abs(result.size - 21.0F) < 0.01F);
+    CHECK(!result.direction_up);
+    // The Contour sub-option is its own page and keeps its state.
+    CHECK(result.contour.enabled);
+  }
+  patchy::ui::clear_stored_layer_style_effect_defaults();
+}
+
+void ui_layer_style_issue_606_layout() {
+  // GitHub issue 606: a smaller opening size, OK as wide as Cancel, radio
+  // buttons for two-choice settings, colons on labels, one label column, the
+  // Blending Options check boxes in two columns when wide, and the Style
+  // Presets grid with its List/Grid buttons (Grid by default, remembered).
+  patchy::ui::set_stored_layer_style_dialog_size({});
+  patchy::ui::set_stored_layer_style_styles_grid_view(true);
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Layout",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  const auto layer_id = layer.id();
+  document.add_layer(std::move(layer));
+  document.set_active_layer(layer_id);
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Layout"));
+  show_window(window);
+
+  const auto open_dialog = [&window](const std::function<void(QDialog&)>& inspect) {
+    bool inspected = false;
+    QTimer::singleShot(0, &window, [&] {
+      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      QApplication::processEvents();
+      inspect(*dialog);
+      inspected = true;
+      dialog->reject();
+    });
+    require_action(window, "layerBlendingOptionsAction")->trigger();
+    QApplication::processEvents();
+    CHECK(inspected);
+  };
+
+  open_dialog([](QDialog& dialog) {
+    const auto available = dialog.screen()->availableGeometry();
+    std::printf("layer style dialog opens %dx%d on %dx%d\n", dialog.width(), dialog.height(), available.width(),
+                available.height());
+    CHECK(dialog.height() <= std::max(520, available.height() * 3 / 4));
+
+    auto* buttons = dialog.findChild<QDialogButtonBox*>();
+    CHECK(buttons != nullptr);
+    if (buttons != nullptr) {
+      auto* ok = buttons->button(QDialogButtonBox::Ok);
+      auto* cancel = buttons->button(QDialogButtonBox::Cancel);
+      CHECK(ok != nullptr && cancel != nullptr && ok->width() == cancel->width());
+    }
+
+    // Two-choice settings are radio buttons.
+    for (const auto* name : {"layerStyleBevelDirectionUpRadio", "layerStyleBevelDirectionDownRadio",
+                             "layerStyleInnerGlowSourceCenterRadio", "layerStyleInnerGlowSourceEdgeRadio"}) {
+      CHECK(dialog.findChild<QRadioButton*>(QString::fromLatin1(name)) != nullptr);
+    }
+    CHECK(dialog.findChild<QComboBox*>(QStringLiteral("layerStyleBevelDirectionCombo")) == nullptr);
+    CHECK(dialog.findChild<QComboBox*>(QStringLiteral("layerStyleInnerGlowSourceCombo")) == nullptr);
+
+    // Color pages: a swatch button and number fields, no R/G/B sliders.
+    CHECK(dialog.findChild<QPushButton*>(QStringLiteral("layerStyleDropShadowColorPreview")) != nullptr);
+    CHECK(dialog.findChild<QSlider*>(QStringLiteral("layerStyleDropShadowRedSlider")) == nullptr);
+    CHECK(dialog.findChild<QSlider*>(QStringLiteral("layerStyleColorOverlayRedSlider")) == nullptr);
+
+    // Every form label ends in a colon and every page's fields start at one x.
+    auto* stack = dialog.findChild<QStackedWidget*>(QStringLiteral("layerStyleOptionsStack"));
+    CHECK(stack != nullptr);
+    if (stack != nullptr) {
+      int label_width = -1;
+      for (auto* form : stack->findChildren<QFormLayout*>()) {
+        for (int row = 0; row < form->rowCount(); ++row) {
+          auto* item = form->itemAt(row, QFormLayout::LabelRole);
+          auto* label = item != nullptr ? qobject_cast<QLabel*>(item->widget()) : nullptr;
+          if (label == nullptr || label->text().isEmpty()) {
+            continue;
+          }
+          if (!label->text().endsWith(QLatin1Char(':'))) {
+            std::printf("label without a colon: %s\n", qPrintable(label->text()));
+          }
+          CHECK(label->text().endsWith(QLatin1Char(':')));
+          if (label_width < 0) {
+            label_width = label->minimumWidth();
+          }
+          CHECK(label->minimumWidth() == label_width);
+        }
+      }
+    }
+
+    // Blending Options: the mask and Show Effects boxes move beside the others
+    // when wide and below them when narrow.
+    select_layer_style_category(dialog, QStringLiteral("Blending Options"));
+    auto* interior = dialog.findChild<QCheckBox*>(QStringLiteral("layerStyleBlendInteriorCheck"));
+    auto* clipped = dialog.findChild<QCheckBox*>(QStringLiteral("layerStyleBlendClippedCheck"));
+    auto* mask = dialog.findChild<QCheckBox*>(QStringLiteral("layerStyleMaskHidesEffectsCheck"));
+    auto* show = dialog.findChild<QCheckBox*>(QStringLiteral("layerStyleShowEffectsCheck"));
+    CHECK(interior != nullptr && clipped != nullptr && mask != nullptr && show != nullptr);
+    if (interior != nullptr && clipped != nullptr && mask != nullptr && show != nullptr) {
+      dialog.resize(std::min(available.width(), 1200), dialog.height());
+      QApplication::processEvents();
+      save_image_artifact("ui_layer_style_606_blending_options_wide", dialog.grab().toImage());
+      CHECK(mask->x() > interior->x());
+      CHECK(mask->y() == interior->y());
+      CHECK(show->y() > mask->y());
+      dialog.resize(dialog.minimumWidth(), dialog.height());
+      QApplication::processEvents();
+      save_image_artifact("ui_layer_style_606_blending_options_narrow", dialog.grab().toImage());
+      CHECK(mask->x() == interior->x());
+      CHECK(mask->y() > clipped->y());
+      CHECK(!mask->visibleRegion().isEmpty() || mask->isVisible());
+    }
+
+    // Style Presets: no hint text, the grid shown, an info icon with the export tip.
+    select_layer_style_category(dialog, QStringLiteral("Style Presets"));
+    CHECK(dialog.findChild<QLabel*>(QStringLiteral("layerStyleStylesHint")) == nullptr);
+    auto* views = dialog.findChild<QStackedWidget*>(QStringLiteral("layerStyleStylesViews"));
+    auto* grid = dialog.findChild<QWidget*>(QStringLiteral("layerStyleStylesGrid"));
+    auto* list_button = dialog.findChild<QToolButton*>(QStringLiteral("layerStyleStylesListViewButton"));
+    auto* grid_button = dialog.findChild<QToolButton*>(QStringLiteral("layerStyleStylesGridViewButton"));
+    auto* info = dialog.findChild<QLabel*>(QStringLiteral("layerStyleStylesInfoIcon"));
+    CHECK(views != nullptr && grid != nullptr && list_button != nullptr && grid_button != nullptr);
+    CHECK(info != nullptr && info->toolTip() ==
+                                 QStringLiteral("Right-click a folder or style to export it as a Photoshop .asl file."));
+    if (views != nullptr && list_button != nullptr && grid_button != nullptr) {
+      CHECK(views->currentWidget() == grid);
+      CHECK(grid_button->isChecked() && !list_button->isChecked());
+      CHECK(views->height() >= std::min(500, std::max(240, available.height() / 2)) - 2);
+      list_button->click();
+      QApplication::processEvents();
+      CHECK(views->currentWidget() != grid);
+      CHECK(list_button->isChecked());
+    }
+  });
+  CHECK(!patchy::ui::stored_layer_style_styles_grid_view());
+  // The choice is remembered.
+  open_dialog([](QDialog& dialog) {
+    auto* views = dialog.findChild<QStackedWidget*>(QStringLiteral("layerStyleStylesViews"));
+    auto* grid = dialog.findChild<QWidget*>(QStringLiteral("layerStyleStylesGrid"));
+    CHECK(views != nullptr && views->currentWidget() != grid);
+  });
+  patchy::ui::set_stored_layer_style_styles_grid_view(true);
+  patchy::ui::set_stored_layer_style_dialog_size({});
 }
 
 void ui_layer_style_knockout_and_vector_mask_hides_effects_commit() {
@@ -2589,6 +3009,10 @@ std::vector<patchy::test::TestCase> layer_style_gradient_tests_part1() {
   return {
       {"ui_layer_style_dialog_fits_a_short_screen", ui_layer_style_dialog_fits_a_short_screen},
       {"ui_layer_style_dialog_resizes_below_its_tallest_page", ui_layer_style_dialog_resizes_below_its_tallest_page},
+      {"ui_layer_style_page_captures_issue_606", ui_layer_style_page_captures_issue_606},
+      {"ui_layer_style_page_titles_show_ampersands", ui_layer_style_page_titles_show_ampersands},
+      {"ui_layer_style_make_default_and_reset_to_default", ui_layer_style_make_default_and_reset_to_default},
+      {"ui_layer_style_issue_606_layout", ui_layer_style_issue_606_layout},
       {"ui_layer_style_knockout_and_vector_mask_hides_effects_commit",
        ui_layer_style_knockout_and_vector_mask_hides_effects_commit},
       {"ui_layer_style_shadow_distances_accept_photoshop_30000",

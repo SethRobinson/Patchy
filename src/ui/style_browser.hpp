@@ -2,6 +2,7 @@
 
 #include "ui/preset_tree_widget.hpp"
 
+#include <QPoint>
 #include <QString>
 #include <QStringList>
 
@@ -38,6 +39,10 @@ public:
   // The prompt-free half (public so offscreen tests can drive the selection
   // expansion + export without a modal file dialog).
   bool export_selection_to(const QString& path);
+  // The export context menu for `ids` (the Styles grid shares it with this
+  // list); `folder` names the folder row it was opened on, empty for a style.
+  void exec_export_menu(const QPoint& global_position, const QStringList& ids, bool folder_row,
+                        const QString& folder);
 
 signals:
   // A style row was clicked/activated (the Styles page applies on click).
@@ -48,6 +53,8 @@ signals:
 private:
   void show_context_menu(const QPoint& position);
   [[nodiscard]] QString export_suggested_name() const;
+  bool export_ids_to(const QStringList& ids, const QString& path);
+  void export_ids(const QStringList& ids, const QString& suggested_name);
 
   StyleLibrary* library_{nullptr};
   int icon_extent_{48};

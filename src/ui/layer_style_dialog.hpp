@@ -53,6 +53,10 @@ enum class LayerStyleEffect {
   DropShadow
 };
 
+// Forgets every effect's Make Default values (the layerStyle/effectDefaults
+// settings group), so new effects start from the built-in defaults again.
+void clear_stored_layer_style_effect_defaults();
+
 // document_patterns (optional) lists the document's embedded pattern tiles.
 // pattern_library adds the persistent folder-aware user presets and enables the
 // Pattern Manager buttons. The dialog can add a transient document resource

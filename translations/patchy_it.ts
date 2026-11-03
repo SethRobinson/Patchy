@@ -5511,10 +5511,6 @@
         <translation>Scegli colore...</translation>
     </message>
     <message>
-        <source>Color RGB</source>
-        <translation>Colore RGB</translation>
-    </message>
-    <message>
         <source>Preset...</source>
         <translation>Predefinito...</translation>
     </message>
@@ -5525,10 +5521,6 @@
     <message>
         <source>Solid</source>
         <translation>Uniforme</translation>
-    </message>
-    <message>
-        <source>Gradient Type</source>
-        <translation>Tipo di sfumatura</translation>
     </message>
     <message>
         <source>Gradient</source>
@@ -5543,24 +5535,12 @@
         <translation>Opacità</translation>
     </message>
     <message>
-        <source>Midpoint</source>
-        <translation>Punto medio</translation>
-    </message>
-    <message>
         <source>Add Stop</source>
         <translation>Aggiungi interruzione</translation>
     </message>
     <message>
         <source>Remove Stop</source>
         <translation>Rimuovi interruzione</translation>
-    </message>
-    <message>
-        <source>Roughness</source>
-        <translation>Irregolarità</translation>
-    </message>
-    <message>
-        <source>Color Model</source>
-        <translation>Modello di colore</translation>
     </message>
     <message>
         <source>Add Transparency</source>
@@ -5573,10 +5553,6 @@
     <message>
         <source>to</source>
         <translation>a</translation>
-    </message>
-    <message>
-        <source>Channel %1 Range</source>
-        <translation>Intervallo canale %1</translation>
     </message>
     <message>
         <source>Reverse</source>
@@ -5629,20 +5605,8 @@
         <translation>Stile</translation>
     </message>
     <message>
-        <source>Horizontal Offset</source>
-        <translation>Scostamento orizzontale</translation>
-    </message>
-    <message>
-        <source>Vertical Offset</source>
-        <translation>Scostamento verticale</translation>
-    </message>
-    <message>
         <source>Reset Alignment</source>
         <translation>Ripristina allineamento</translation>
-    </message>
-    <message>
-        <source>Click a preset to replace the current effects. Right-click a folder or style to export it as a Photoshop .asl file.</source>
-        <translation>Fai clic su un predefinito per sostituire gli effetti correnti. Fai clic con il pulsante destro su una cartella o uno stile per esportarlo come file .asl di Photoshop.</translation>
     </message>
     <message>
         <source>New Style…</source>
@@ -5667,14 +5631,6 @@
     <message>
         <source>Blending Options</source>
         <translation>Opzioni di fusione</translation>
-    </message>
-    <message>
-        <source>Blend Mode</source>
-        <translation>Metodo di fusione</translation>
-    </message>
-    <message>
-        <source>Fill Opacity</source>
-        <translation>Opacità riempimento</translation>
     </message>
     <message>
         <source>An unchecked channel keeps the layers below instead of compositing</source>
@@ -5789,20 +5745,8 @@
         <translation>Cesello morbido</translation>
     </message>
     <message>
-        <source>Technique</source>
-        <translation>Tecnica</translation>
-    </message>
-    <message>
-        <source>Soften</source>
-        <translation>Attenua</translation>
-    </message>
-    <message>
         <source>Depth</source>
         <translation>Profondità</translation>
-    </message>
-    <message>
-        <source>Altitude</source>
-        <translation>Altitudine</translation>
     </message>
     <message>
         <source>Up</source>
@@ -5821,10 +5765,6 @@
         <translation>Anti-alias</translation>
     </message>
     <message>
-        <source>Gloss Contour</source>
-        <translation>Contorno lucido</translation>
-    </message>
-    <message>
         <source>Highlight</source>
         <translation>Luce</translation>
     </message>
@@ -5835,10 +5775,6 @@
     <message>
         <source>Contour</source>
         <translation>Contorno</translation>
-    </message>
-    <message>
-        <source>Range</source>
-        <translation>Intervallo</translation>
     </message>
     <message>
         <source>Texture</source>
@@ -5889,10 +5825,6 @@
         <translation>Centro</translation>
     </message>
     <message>
-        <source>Position</source>
-        <translation>Posizione</translation>
-    </message>
-    <message>
         <source>Overprint</source>
         <translation>Sovrastampa</translation>
     </message>
@@ -5913,20 +5845,12 @@
         <translation>Ombra interna</translation>
     </message>
     <message>
-        <source>Choke</source>
-        <translation>Riduzione</translation>
-    </message>
-    <message>
         <source>Add Inner Shadow</source>
         <translation>Aggiungi ombra interna</translation>
     </message>
     <message>
         <source>Remove Inner Shadow</source>
         <translation>Rimuovi ombra interna</translation>
-    </message>
-    <message>
-        <source>Instances</source>
-        <translation>Istanze</translation>
     </message>
     <message>
         <source>Inner Glow</source>
@@ -5971,10 +5895,6 @@
     <message>
         <source>Outer Glow</source>
         <translation>Bagliore esterno</translation>
-    </message>
-    <message>
-        <source>Spread</source>
-        <translation>Estensione</translation>
     </message>
     <message>
         <source>Drop Shadow</source>
@@ -14861,6 +14781,150 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Set the values the sliders show back to their defaults</source>
         <translation>Riporta i valori dei cursori ai valori predefiniti</translation>
+    </message>
+    <message>
+        <source>No Style (remove all effects)</source>
+        <translation>Nessuno stile (rimuovi tutti gli effetti)</translation>
+    </message>
+    <message>
+        <source>Right-click a folder or style to export it as a Photoshop .asl file.</source>
+        <translation>Fai clic con il pulsante destro su una cartella o uno stile per esportarlo come file .asl di Photoshop.</translation>
+    </message>
+    <message>
+        <source>Show the styles as a list with their names</source>
+        <translation>Mostra gli stili come elenco con i loro nomi</translation>
+    </message>
+    <message>
+        <source>Show the styles as a grid of thumbnails</source>
+        <translation>Mostra gli stili come griglia di miniature</translation>
+    </message>
+    <message>
+        <source>Blend Mode:</source>
+        <translation>Metodo di fusione:</translation>
+    </message>
+    <message>
+        <source>Black:</source>
+        <translation>Nero:</translation>
+    </message>
+    <message>
+        <source>White:</source>
+        <translation>Bianco:</translation>
+    </message>
+    <message>
+        <source>This Layer:</source>
+        <translation>Questo livello:</translation>
+    </message>
+    <message>
+        <source>Underlying Layer:</source>
+        <translation>Livello sottostante:</translation>
+    </message>
+    <message>
+        <source>Make Default</source>
+        <translation>Imposta come predefinito</translation>
+    </message>
+    <message>
+        <source>Use these settings whenever this effect is added</source>
+        <translation>Usa queste impostazioni ogni volta che viene aggiunto questo effetto</translation>
+    </message>
+    <message>
+        <source>Put back the default settings of this effect</source>
+        <translation>Ripristina le impostazioni predefinite di questo effetto</translation>
+    </message>
+    <message>
+        <source>R:</source>
+        <translation>R:</translation>
+    </message>
+    <message>
+        <source>Technique:</source>
+        <translation>Tecnica:</translation>
+    </message>
+    <message>
+        <source>Depth:</source>
+        <translation>Profondità:</translation>
+    </message>
+    <message>
+        <source>Soften:</source>
+        <translation>Attenua:</translation>
+    </message>
+    <message>
+        <source>Shading</source>
+        <translation>Ombreggiatura</translation>
+    </message>
+    <message>
+        <source>Gloss Contour:</source>
+        <translation>Contorno lucido:</translation>
+    </message>
+    <message>
+        <source>Contour:</source>
+        <translation>Contorno:</translation>
+    </message>
+    <message>
+        <source>Range:</source>
+        <translation>Intervallo:</translation>
+    </message>
+    <message>
+        <source>Position:</source>
+        <translation>Posizione:</translation>
+    </message>
+    <message>
+        <source>Fill:</source>
+        <translation>Riempimento:</translation>
+    </message>
+    <message>
+        <source>Distance:</source>
+        <translation>Distanza:</translation>
+    </message>
+    <message>
+        <source>Choke:</source>
+        <translation>Riduzione:</translation>
+    </message>
+    <message>
+        <source>Instances:</source>
+        <translation>Istanze:</translation>
+    </message>
+    <message>
+        <source>Spread:</source>
+        <translation>Estensione:</translation>
+    </message>
+    <message>
+        <source>Fade:</source>
+        <translation>Dissolvenza:</translation>
+    </message>
+    <message>
+        <source>Gradient Type:</source>
+        <translation>Tipo di sfumatura:</translation>
+    </message>
+    <message>
+        <source>Midpoint:</source>
+        <translation>Punto medio:</translation>
+    </message>
+    <message>
+        <source>Smoothness:</source>
+        <translation>Uniformità:</translation>
+    </message>
+    <message>
+        <source>Seed:</source>
+        <translation>Seme:</translation>
+    </message>
+    <message>
+        <source>Roughness:</source>
+        <translation>Irregolarità:</translation>
+    </message>
+    <message>
+        <source>Color Model:</source>
+        <translation>Modello di colore:</translation>
+    </message>
+    <message>
+        <source>Channel %1 Range:</source>
+        <translation>Intervallo canale %1:</translation>
+    </message>
+    <message>
+        <source>Horizontal Offset:</source>
+        <translation>Scostamento orizzontale:</translation>
+    </message>
+    <message>
+        <source>Vertical Offset:</source>
+        <translation>Scostamento verticale:</translation>
     </message>
 </context>
 <context>

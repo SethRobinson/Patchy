@@ -2,11 +2,13 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/theme_qss.hpp"
 #include <QAbstractButton>
+#include <QButtonGroup>
+#include <QFrame>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
-#include <QSlider>
+#include <QRadioButton>
 #include <QSpinBox>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -18,6 +20,10 @@ void update_color_preview_label(QWidget* widget, int red, int green, int blue) {
                            .arg(red)
                            .arg(green)
                            .arg(blue));
+}
+
+QString page_title(QString text) {
+  return text.replace(QLatin1Char('&'), QStringLiteral("&&"));
 }
 
 RgbColor RgbColorRowWidgets::value() const {
@@ -60,63 +66,96 @@ QSpinBox* add_size_slider_spin_row(QFormLayout* form, QWidget* parent, const QSt
                                       /*row_spacing=*/8, /*step_buttons=*/true, slider_maximum,
                                       SliderCurve::FineLowEnd);
 }
-QSpinBox* add_color_slider_row(QVBoxLayout* layout, QWidget* parent, const QString& label,
-                                                    const QString& spin_object_name, std::uint8_t value) {
-    auto* row = new QWidget(parent);
-    auto* row_layout = new QHBoxLayout(row);
-    row_layout->setContentsMargins(0, 0, 0, 0);
-    row_layout->setSpacing(8);
-    auto* channel_label = new QLabel(label, row);
-    channel_label->setFixedWidth(18);
-    auto* slider = new QSlider(Qt::Horizontal, row);
-    slider->setObjectName(slider_object_name(spin_object_name));
-    slider->setRange(0, 255);
-    slider->setValue(value);
-    auto* spin = new QSpinBox(row);
-    spin->setObjectName(spin_object_name);
-    spin->setRange(0, 255);
-    spin->setValue(value);
-    configure_dialog_spinbox(spin, 54);
-    row_layout->addWidget(channel_label);
-    row_layout->addWidget(slider, 1);
-    row_layout->addWidget(spin);
-    QObject::connect(slider, &QSlider::valueChanged, spin, &QSpinBox::setValue);
-    QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), slider, &QSlider::setValue);
-    layout->addWidget(row);
-    return spin;
+// A two-choice setting shown as a pair of radio buttons (Bevel Direction, Inner
+// Glow Source). The buttons carry the object names; the row is the form field.
+TwoChoiceRadios make_two_choice_radios(QWidget* parent, const QString& first_text,
+                                       const QString& first_object_name, const QString& second_text,
+                                       const QString& second_object_name, bool first_checked) {
+    TwoChoiceRadios radios;
+    radios.row = new QWidget(parent);
+    auto* layout = new QHBoxLayout(radios.row);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(16);
+    radios.first = new QRadioButton(first_text, radios.row);
+    radios.first->setObjectName(first_object_name);
+    radios.second = new QRadioButton(second_text, radios.row);
+    radios.second->setObjectName(second_object_name);
+    auto* group = new QButtonGroup(radios.row);
+    group->addButton(radios.first);
+    group->addButton(radios.second);
+    (first_checked ? radios.first : radios.second)->setChecked(true);
+    layout->addWidget(radios.first);
+    layout->addWidget(radios.second);
+    layout->addStretch(1);
+    return radios;
 }
-  // The "Color RGB" form row: R/G/B slider rows plus a clickable preview swatch
-  // button below them. Widgets follow the shared naming scheme
+
+void TwoChoiceRadios::set_first(bool first_checked) const {
+    (first_checked ? first : second)->setChecked(true);
+}
+
+// A titled section inside a page's form: a line, then the bold title, both
+// spanning the row, so every field stays in the page's one label column.
+QLabel* add_form_section(QFormLayout* form, QWidget* parent, const QString& title,
+                         const QString& object_name) {
+    auto* separator = new QFrame(parent);
+    separator->setObjectName(object_name + QStringLiteral("Separator"));
+    separator->setFrameShape(QFrame::HLine);
+    separator->setFrameShadow(QFrame::Plain);
+    form->addRow(separator);
+    if (title.isEmpty()) {
+      return nullptr;
+    }
+    auto* label = new QLabel(title, parent);
+    label->setObjectName(object_name);
+    auto font = label->font();
+    font.setBold(true);
+    label->setFont(font);
+    form->addRow(label);
+    return label;
+}
+
+  // The "Color:" form row: a swatch button that opens the color picker, then
+  // R/G/B number fields. Widgets follow the shared naming scheme
   // (<prefix>RedSpin/<prefix>GreenSpin/<prefix>BlueSpin/<prefix>ColorPreview).
 RgbColorRowWidgets make_color_rows(QFormLayout* form, QWidget* group,
                                                  const QString& object_prefix, RgbColor initial) {
     RgbColorRowWidgets rows;
     auto* color_row = new QWidget(group);
-    auto* color_layout = new QVBoxLayout(color_row);
+    auto* color_layout = new QHBoxLayout(color_row);
     color_layout->setContentsMargins(0, 0, 0, 0);
-    color_layout->setSpacing(4);
+    color_layout->setSpacing(6);
     rows.row_container = color_row;
-    rows.red = add_color_slider_row(color_layout, color_row, QObject::tr("R"),
-                                    object_prefix + QStringLiteral("RedSpin"), initial.red);
-    rows.green = add_color_slider_row(color_layout, color_row, QObject::tr("G"),
-                                      object_prefix + QStringLiteral("GreenSpin"), initial.green);
-    rows.blue = add_color_slider_row(color_layout, color_row, QObject::tr("B"),
-                                     object_prefix + QStringLiteral("BlueSpin"), initial.blue);
-    auto* preview_row = new QWidget(color_row);
-    auto* preview_layout = new QHBoxLayout(preview_row);
-    preview_layout->setContentsMargins(26, 0, 0, 0);
-    preview_layout->setSpacing(8);
-    auto* preview = new QPushButton(group);
+    auto* preview = new QPushButton(color_row);
     preview->setObjectName(object_prefix + QStringLiteral("ColorPreview"));
-    preview->setFixedSize(28, 22);
+    preview->setFixedSize(34, 24);
     preview->setToolTip(QObject::tr("Choose Color..."));
-    preview_layout->addWidget(preview);
-    preview_layout->addStretch(1);
-    color_layout->addWidget(preview_row);
+    preview->setAccessibleName(QObject::tr("Choose Color..."));
+    color_layout->addWidget(preview);
+    color_layout->addSpacing(6);
+    const auto add_channel = [&](const QString& label, const QString& accessible, const QString& name,
+                                 std::uint8_t value) {
+      auto* channel_label = new QLabel(label, color_row);
+      auto* spin = new QSpinBox(color_row);
+      spin->setObjectName(object_prefix + name);
+      spin->setRange(0, 255);
+      spin->setValue(value);
+      spin->setAccessibleName(accessible);
+      configure_dialog_spinbox(spin, 54);
+      channel_label->setBuddy(spin);
+      color_layout->addWidget(channel_label);
+      color_layout->addWidget(spin);
+      return spin;
+    };
+    rows.red = add_channel(QObject::tr("R:"), QObject::tr("Red"), QStringLiteral("RedSpin"), initial.red);
+    rows.green =
+        add_channel(QObject::tr("G:"), QObject::tr("Green"), QStringLiteral("GreenSpin"), initial.green);
+    rows.blue = add_channel(QObject::tr("B:"), QObject::tr("Blue"), QStringLiteral("BlueSpin"), initial.blue);
+    color_layout->addStretch(1);
     rows.preview = preview;
     rows.picker = preview;
     rows.update_preview();
-    form->addRow(QObject::tr("Color RGB"), color_row);
+    form->addRow(QObject::tr("Color:"), color_row);
     return rows;
 }
 

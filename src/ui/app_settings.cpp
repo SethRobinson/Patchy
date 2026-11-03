@@ -44,6 +44,7 @@ QString update_skipped_version_key() { return QStringLiteral("updates/skippedVer
 QString appimage_menu_entry_prompt_declined_key() { return QStringLiteral("appimage/menuEntryPromptDeclined"); }
 QString preferences_dialog_size_key() { return QStringLiteral("preferences/dialogSize"); }
 QString layer_style_dialog_size_key() { return QStringLiteral("layerStyle/dialogSize"); }
+QString layer_style_styles_grid_view_key() { return QStringLiteral("layerStyle/stylesGridView"); }
 QString preferences_last_page_key() { return QStringLiteral("preferences/lastPage"); }
 QString system_title_bar_key() { return QStringLiteral("window/systemTitleBar"); }
 QString cmyk_profile_key() { return QStringLiteral("color/cmykProfile"); }
@@ -129,6 +130,14 @@ void set_stored_layer_style_dialog_size(QSize size) {
   } else {
     settings.remove(layer_style_dialog_size_key());
   }
+}
+
+bool stored_layer_style_styles_grid_view() {
+  return app_settings().value(layer_style_styles_grid_view_key(), true).toBool();
+}
+
+void set_stored_layer_style_styles_grid_view(bool grid) {
+  app_settings().setValue(layer_style_styles_grid_view_key(), grid);
 }
 
 QString stored_preferences_last_page() { return app_settings().value(preferences_last_page_key()).toString(); }
