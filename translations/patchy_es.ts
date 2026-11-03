@@ -31985,14 +31985,6 @@ Bloqueada: %1</translation>
         <translation>%1 forma(s) fusionada(s) en un solo contorno</translation>
     </message>
     <message>
-        <source>No shapes overlap, so none were merged</source>
-        <translation>Ninguna forma se superpone, así que no se fusionó ninguna</translation>
-    </message>
-    <message>
-        <source>Merged the shapes that overlap; %1 other shape(s) kept their points</source>
-        <translation>Formas superpuestas fusionadas; %1 forma(s) más conservaron sus puntos</translation>
-    </message>
-    <message>
         <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
         <translation>Unir los dos puntos finales seleccionados con un segmento recto, o cerrar cada trazado abierto que tenga un punto seleccionado</translation>
     </message>
@@ -32267,6 +32259,34 @@ Bloqueada: %1</translation>
     <message>
         <source>Diamond</source>
         <translation>Rombo</translation>
+    </message>
+    <message>
+        <source>Split Shapes</source>
+        <translation>Dividir formas</translation>
+    </message>
+    <message>
+        <source>Break the selected shapes into one shape per separate outline, holes kept with their outline</source>
+        <translation>Divide las formas seleccionadas en una forma por cada contorno separado; los huecos siguen con su contorno</translation>
+    </message>
+    <message>
+        <source>Split Shapes: one shape per separate outline</source>
+        <translation>Dividir formas: una forma por cada contorno separado</translation>
+    </message>
+    <message>
+        <source>Merged %1 shape(s) into one shape; %2 that overlap nothing kept their points</source>
+        <translation>%1 forma(s) fusionada(s) en una sola forma; %2 que no se superponen conservaron sus puntos</translation>
+    </message>
+    <message>
+        <source>The selected shapes have no separate outlines to split</source>
+        <translation>Las formas seleccionadas no tienen contornos separados que dividir</translation>
+    </message>
+    <message>
+        <source>Split shapes</source>
+        <translation>Dividir formas</translation>
+    </message>
+    <message>
+        <source>Split into %1 shape(s)</source>
+        <translation>Dividido en %1 forma(s)</translation>
     </message>
 </context>
 <context>

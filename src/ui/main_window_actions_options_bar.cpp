@@ -4426,6 +4426,15 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   path_merge_shapes_button_->setEnabled(false);
   connect(path_merge_shapes_button_, &QPushButton::clicked, this, [this] { merge_selected_path_components(); });
   add_option_widget(path_merge_shapes_button_, {CanvasTool::PathSelect, CanvasTool::DirectSelect});
+  // Split Shapes undoes a merge of shapes apart (#587): one shape per outer outline.
+  path_split_shapes_button_ = new QPushButton(toolbar);
+  path_split_shapes_button_->setObjectName(QStringLiteral("vectorSplitShapesButton"));
+  path_split_shapes_button_->setText(tr("Split Shapes"));
+  path_split_shapes_button_->setFocusPolicy(Qt::TabFocus);
+  bind_widget_text(path_split_shapes_button_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Split Shapes"));
+  path_split_shapes_button_->setEnabled(false);
+  connect(path_split_shapes_button_, &QPushButton::clicked, this, [this] { split_selected_path_components(); });
+  add_option_widget(path_split_shapes_button_, {CanvasTool::PathSelect, CanvasTool::DirectSelect});
   connect(vector_combine_combo, &QComboBox::currentIndexChanged, this, [this](int index) {
     current_vector_combine_index_ = index;
     // With a path-select selection, the combo edits the selected shapes'

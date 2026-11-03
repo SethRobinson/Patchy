@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <numeric>
 
 namespace patchy {
@@ -681,20 +682,20 @@ std::vector<std::vector<int>> overlapping_component_clusters(const VectorPath& p
   return clusters;
 }
 
-// Merges the listed groups (non-empty, path order) into one component in the first one's place.
-MergeComponentsResult merge_ordered_components(const VectorPath& path, const std::vector<int>& ordered,
-                                               double tolerance) {
-  const auto group_op = [&path](int group) {
-    for (const auto& subpath : path.subpaths) {
-      if (subpath.shape_group == group) {
-        return subpath.op;
-      }
+PathCombineOp component_op(const VectorPath& path, int group) {
+  for (const auto& subpath : path.subpaths) {
+    if (subpath.shape_group == group) {
+      return subpath.op;
     }
-    return PathCombineOp::Add;
-  };
-  const auto first_op = group_op(ordered.front());
-  const bool all_cutters = std::all_of(ordered.begin(), ordered.end(),
-                                       [&](int group) { return group_op(group) == PathCombineOp::Subtract; });
+  }
+  return PathCombineOp::Add;
+}
+
+// The combined fill of the listed groups (non-empty, path order), traced and refit into closed
+// subpaths (group and op still to set): the components alone, the first as the base, or all
+// painting when `all_cutters`.
+std::vector<PathSubpath> traced_components(const VectorPath& path, const std::vector<int>& ordered, bool all_cutters,
+                                           double tolerance) {
   // The listed components alone, consecutive and in order, the first as the base.
   VectorPath subset;
   for (const int group : ordered) {
@@ -726,9 +727,19 @@ MergeComponentsResult merge_ordered_components(const VectorPath& path, const std
       continue;
     }
     subpath.closed = true;
+    merged.push_back(std::move(subpath));
+  }
+  return merged;
+}
+
+// `merged` (group and op set to the first listed one's) becomes the listed groups' one component,
+// in the first one's place; the other listed groups go.
+MergeComponentsResult place_merged_component(const VectorPath& path, const std::vector<int>& ordered,
+                                             std::vector<PathSubpath> merged) {
+  const auto first_op = component_op(path, ordered.front());
+  for (auto& subpath : merged) {
     subpath.shape_group = ordered.front();
     subpath.op = first_op;
-    merged.push_back(std::move(subpath));
   }
   MergeComponentsResult result;
   result.merged_group = ordered.front();
@@ -755,6 +766,15 @@ MergeComponentsResult merge_ordered_components(const VectorPath& path, const std
   return result;
 }
 
+// Merges the listed groups (non-empty, path order) into one traced component in the first one's place.
+MergeComponentsResult merge_ordered_components(const VectorPath& path, const std::vector<int>& ordered,
+                                               double tolerance) {
+  const bool all_cutters = std::all_of(ordered.begin(), ordered.end(), [&path](int group) {
+    return component_op(path, group) == PathCombineOp::Subtract;
+  });
+  return place_merged_component(path, ordered, traced_components(path, ordered, all_cutters, tolerance));
+}
+
 }  // namespace
 
 std::optional<MergeComponentsResult> merge_path_components(const VectorPath& path, const std::vector<int>& groups,
@@ -774,22 +794,220 @@ std::optional<MergeComponentsResult> merge_path_components(const VectorPath& pat
   if (clusters.size() == 1) {
     return merge_ordered_components(path, ordered, tolerance);
   }
-  // Only shapes that overlap merge (#587): each cluster in its first one's place; a shape that
-  // meets none of the others stays exactly as it was.
-  MergeComponentsResult result;
-  result.path = path;
+  // Shapes apart from the others go into the merged shape untouched (#587): only clusters that
+  // overlap are traced. The clusters' fills are apart, so the combined fill is theirs together,
+  // each combined from nothing: a cluster's leading cutters cut nothing and go (the first listed
+  // component is the base and paints, unless every one cuts).
+  const bool all_cutters = std::all_of(ordered.begin(), ordered.end(), [&path](int group) {
+    return component_op(path, group) == PathCombineOp::Subtract;
+  });
+  std::vector<PathSubpath> pieces;
+  std::vector<int> kept;
   for (const auto& cluster : clusters) {
-    if (cluster.size() == 1) {
-      result.kept_groups.push_back(cluster.front());
+    std::vector<int> members = cluster;
+    if (!all_cutters) {
+      const auto first_painting = std::find_if(members.begin(), members.end(), [&](int group) {
+        return group == ordered.front() || component_op(path, group) != PathCombineOp::Subtract;
+      });
+      members.erase(members.begin(), first_painting);
+    }
+    if (members.empty()) {
       continue;
     }
-    auto step = merge_ordered_components(result.path, cluster, tolerance);
-    result.path = std::move(step.path);
-    result.merged_subpaths += step.merged_subpaths;
-    result.merged_groups.insert(result.merged_groups.end(), step.merged_groups.begin(), step.merged_groups.end());
-    result.removed_groups.insert(result.removed_groups.end(), step.removed_groups.begin(), step.removed_groups.end());
+    if (members.size() == 1) {
+      kept.push_back(members.front());
+      for (const auto& subpath : path.subpaths) {
+        if (subpath.shape_group == members.front()) {
+          pieces.push_back(subpath);
+        }
+      }
+      continue;
+    }
+    auto traced = traced_components(path, members, all_cutters, tolerance);
+    std::move(traced.begin(), traced.end(), std::back_inserter(pieces));
   }
-  result.merged_group = result.merged_groups.empty() ? ordered.front() : result.merged_groups.front();
+  auto result = place_merged_component(path, ordered, std::move(pieces));
+  result.kept_groups = std::move(kept);
+  return result;
+}
+
+namespace {
+
+// One subpath's flattened outline (open ones closed by their chord) on the 1/256 lattice.
+ComponentOutline subpath_outline(const PathSubpath& subpath) {
+  ComponentOutline outline;
+  const auto polyline = flatten_subpath_polyline(subpath);
+  if (polyline.empty()) {
+    return outline;
+  }
+  std::vector<ComponentOutline::Point> loop;
+  loop.reserve(polyline.size());
+  for (const auto& point : polyline) {
+    const ComponentOutline::Point lattice{std::llround(point[0] * 256.0), std::llround(point[1] * 256.0)};
+    if (loop.empty()) {
+      outline.min = lattice;
+      outline.max = lattice;
+    }
+    for (std::size_t axis = 0; axis < 2; ++axis) {
+      outline.min[axis] = std::min(outline.min[axis], lattice[axis]);
+      outline.max[axis] = std::max(outline.max[axis], lattice[axis]);
+    }
+    loop.push_back(lattice);
+  }
+  outline.loops.push_back(std::move(loop));
+  return outline;
+}
+
+bool outline_edges_meet(const ComponentOutline& a, const ComponentOutline& b) {
+  if (a.empty() || b.empty() || a.max[0] < b.min[0] || b.max[0] < a.min[0] || a.max[1] < b.min[1] ||
+      b.max[1] < a.min[1]) {
+    return false;
+  }
+  const auto& p = a.loops.front();
+  const auto& q = b.loops.front();
+  for (std::size_t i = 0, j = p.size() - 1; i < p.size(); j = i++) {
+    const auto& p0 = p[j];
+    const auto& p1 = p[i];
+    if (std::max(p0[0], p1[0]) < b.min[0] || std::min(p0[0], p1[0]) > b.max[0] ||
+        std::max(p0[1], p1[1]) < b.min[1] || std::min(p0[1], p1[1]) > b.max[1]) {
+      continue;
+    }
+    for (std::size_t k = 0, l = q.size() - 1; k < q.size(); l = k++) {
+      if (segments_meet(p0, p1, q[l], q[k])) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// The pieces of one component's subpaths (indices into `subpaths`), each piece in subpath order,
+// pieces ordered by their first subpath.
+std::vector<std::vector<std::size_t>> component_pieces(const std::vector<const PathSubpath*>& subpaths) {
+  const auto count = subpaths.size();
+  std::vector<ComponentOutline> outlines;
+  outlines.reserve(count);
+  for (const auto* subpath : subpaths) {
+    outlines.push_back(subpath_outline(*subpath));
+  }
+  std::vector<std::size_t> parent(count);
+  std::iota(parent.begin(), parent.end(), std::size_t{0});
+  const auto root = [&parent](std::size_t index) {
+    while (parent[index] != index) {
+      index = parent[index] = parent[parent[index]];
+    }
+    return index;
+  };
+  const auto join = [&](std::size_t a, std::size_t b) {
+    const auto ra = root(a);
+    const auto rb = root(b);
+    if (ra != rb) {
+      parent[std::max(ra, rb)] = std::min(ra, rb);
+    }
+  };
+  // contains[i][j]: subpath j lies inside subpath i (their outlines do not meet).
+  std::vector<std::vector<bool>> contains(count, std::vector<bool>(count, false));
+  for (std::size_t i = 0; i < count; ++i) {
+    for (std::size_t j = i + 1; j < count; ++j) {
+      if (outline_edges_meet(outlines[i], outlines[j])) {
+        join(i, j);
+        continue;
+      }
+      if (outlines[i].empty() || outlines[j].empty()) {
+        continue;
+      }
+      if (outlines[i].loops.front().size() >= 3 && inside_outline(outlines[i], outlines[j].loops.front().front())) {
+        contains[i][j] = true;
+      } else if (outlines[j].loops.front().size() >= 3 &&
+                 inside_outline(outlines[j], outlines[i].loops.front().front())) {
+        contains[j][i] = true;
+      }
+    }
+  }
+  std::vector<std::size_t> depth(count, 0);
+  for (std::size_t j = 0; j < count; ++j) {
+    for (std::size_t i = 0; i < count; ++i) {
+      depth[j] += contains[i][j] ? 1 : 0;
+    }
+  }
+  // A hole (odd depth) goes with the outline right around it: its deepest container.
+  for (std::size_t j = 0; j < count; ++j) {
+    if (depth[j] % 2 == 0) {
+      continue;
+    }
+    std::size_t around = count;
+    for (std::size_t i = 0; i < count; ++i) {
+      if (contains[i][j] && (around == count || depth[i] > depth[around])) {
+        around = i;
+      }
+    }
+    if (around != count) {
+      join(j, around);
+    }
+  }
+  std::vector<std::vector<std::size_t>> pieces;
+  std::vector<std::size_t> piece_of(count, count);
+  for (std::size_t i = 0; i < count; ++i) {
+    const auto r = root(i);
+    if (piece_of[r] == count) {
+      piece_of[r] = pieces.size();
+      pieces.emplace_back();
+    }
+    pieces[piece_of[r]].push_back(i);
+  }
+  return pieces;
+}
+
+}  // namespace
+
+std::optional<SplitComponentsResult> split_path_components(const VectorPath& path, const std::vector<int>& groups) {
+  SplitComponentsResult result;
+  result.path.fill_rule_value = path.fill_rule_value;
+  result.path.initial_fill_value = path.initial_fill_value;
+  auto next_group = path.next_shape_group();
+  std::set<int> done;
+  for (const auto& subpath : path.subpaths) {
+    const int group = subpath.shape_group;
+    const bool listed = std::find(groups.begin(), groups.end(), group) != groups.end();
+    if (!listed || component_op(path, group) == PathCombineOp::Intersect) {
+      result.path.subpaths.push_back(subpath);
+      continue;
+    }
+    if (!done.insert(group).second) {
+      continue;  // placed with the component's first subpath
+    }
+    std::vector<const PathSubpath*> members;
+    for (const auto& candidate : path.subpaths) {
+      if (candidate.shape_group == group) {
+        members.push_back(&candidate);
+      }
+    }
+    const auto pieces = component_pieces(members);
+    if (pieces.size() >= 2) {
+      result.split_groups.push_back(group);
+    }
+    for (std::size_t piece = 0; piece < pieces.size(); ++piece) {
+      int piece_group = group;
+      if (piece > 0) {
+        piece_group = static_cast<int>(next_group++);
+        result.added_groups.emplace_back(group, piece_group);
+      }
+      if (pieces.size() >= 2) {
+        result.pieces.push_back(piece_group);
+      }
+      for (const auto index : pieces[piece]) {
+        auto copy = *members[index];
+        copy.shape_group = piece_group;
+        if (pieces.size() >= 2) {
+          copy.op = subpath.op;  // the component's op: the rasterizer reads a run's first subpath
+        }
+        result.path.subpaths.push_back(std::move(copy));
+      }
+    }
+  }
+  if (result.split_groups.empty()) {
+    return std::nullopt;
+  }
   return result;
 }
 

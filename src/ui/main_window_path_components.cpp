@@ -7,6 +7,7 @@
 #include "core/path_point_edits.hpp"
 #include "core/shape_combine.hpp"
 #include "core/pattern_resource.hpp"
+#include "core/vector_compound.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/color_panel.hpp"
@@ -97,6 +98,19 @@ void MainWindow::create_path_component_actions(QMenu* layer_shape_menu) {
   register_hotkey(path_merge_shapes_action_, QStringLiteral("path.merge_shapes"));
   connect(path_merge_shapes_action_, &QAction::triggered, this, [this] { merge_selected_path_components(); });
   path_merge_shapes_action_->setEnabled(false);
+  // Split Shapes (#587): one shape per outer outline, the way back from a merge of shapes apart.
+  path_split_shapes_action_ = layer_shape_menu->addAction(tr("Split Shapes"));
+  path_split_shapes_action_->setObjectName(QStringLiteral("pathSplitShapesAction"));
+  path_split_shapes_action_->setProperty("patchy.channelViewBlocked", true);
+  path_split_shapes_action_->setStatusTip(
+      tr("Break the selected shapes into one shape per separate outline, holes kept with their outline"));
+  bind_action_text(path_split_shapes_action_, QT_TR_NOOP("Split Shapes"));
+  bind_status_tip(path_split_shapes_action_,
+                  QT_TR_NOOP("Break the selected shapes into one shape per separate outline, holes kept with their "
+                             "outline"));
+  register_hotkey(path_split_shapes_action_, QStringLiteral("path.split_shapes"));
+  connect(path_split_shapes_action_, &QAction::triggered, this, [this] { split_selected_path_components(); });
+  path_split_shapes_action_->setEnabled(false);
   layer_shape_menu->addSeparator();
   for (std::size_t i = 0; i < path_point_actions_.size(); ++i) {
     const auto& entry = point_entries[i];
@@ -186,6 +200,18 @@ void MainWindow::refresh_path_edit_action_states() {
                                               ? tr("Merge Shapes: turn the selected shapes, combined as they "
                                                    "show, into one outline")
                                               : merge_refusal);
+  }
+  const auto split_refusal = usable ? split_shapes_refusal() : QString(QLatin1String("-"));
+  if (path_split_shapes_action_ != nullptr) {
+    path_split_shapes_action_->setEnabled(split_refusal.isEmpty());
+    path_split_shapes_action_->setProperty(kActionDisabledReasonProperty,
+                                           split_refusal == QLatin1String("-") ? QString() : split_refusal);
+  }
+  if (path_split_shapes_button_ != nullptr) {
+    path_split_shapes_button_->setEnabled(split_refusal.isEmpty());
+    path_split_shapes_button_->setToolTip(split_refusal.isEmpty() || split_refusal == QLatin1String("-")
+                                              ? tr("Split Shapes: one shape per separate outline")
+                                              : split_refusal);
   }
   const auto kind = usable ? canvas_->path_edit_target_kind() : CanvasWidget::PathEditTargetKind::None;
   const auto groups = usable ? canvas_->path_edit_selected_groups() : std::vector<int>{};
@@ -668,15 +694,8 @@ void MainWindow::merge_selected_path_components() {
     merged = merge_path_components(*path, groups);
     return merged.has_value();
   };
-  const auto nothing_overlaps = tr("No shapes overlap, so none were merged");
-  if (!combine_layers) {
-    if (!merge_target()) {
-      return;
-    }
-    if (merged->path == *canvas_->path_edit_target_path()) {
-      statusBar()->showMessage(nothing_overlaps);  // shapes that meet nothing stay as they are (#587)
-      return;
-    }
+  if (!combine_layers && !merge_target()) {
+    return;
   }
   push_undo_snapshot(tr("Merge shapes"));
   if (combine_layers) {
@@ -693,13 +712,8 @@ void MainWindow::merge_selected_path_components() {
       return;
     }
   }
-  // Shapes that met no other keep their live-shape annotations too.
-  std::vector<int> merging;
-  for (const int group : groups) {
-    if (std::find(merged->kept_groups.begin(), merged->kept_groups.end(), group) == merged->kept_groups.end()) {
-      merging.push_back(group);
-    }
-  }
+  // Every merged group loses its live-shape annotation: it is one shape now, kept parts included.
+  const auto& merging = groups;
   const auto kind = canvas_->path_edit_target_kind();
   canvas_->clear_path_edit_selection();
   if (kind == CanvasWidget::PathEditTargetKind::ShapeLayer) {
@@ -716,10 +730,8 @@ void MainWindow::merge_selected_path_components() {
   } else {
     canvas_->replace_path_edit_target(std::move(merged->path), merging);
   }
-  auto selected = merged->merged_groups;
-  selected.insert(selected.end(), merged->kept_groups.begin(), merged->kept_groups.end());
-  if (!selected.empty()) {
-    canvas_->select_path_groups(selected);
+  if (!merged->merged_groups.empty()) {
+    canvas_->select_path_groups(merged->merged_groups);
   }
   refresh_layer_list();
   refresh_layer_controls();
@@ -728,12 +740,89 @@ void MainWindow::merge_selected_path_components() {
   canvas_->document_changed();
   if (merged->kept_groups.empty()) {
     statusBar()->showMessage(tr("Merged %1 shape(s) into one outline").arg(groups.size()));
-  } else if (merged->merged_groups.empty() && merged->removed_groups.empty()) {
-    statusBar()->showMessage(nothing_overlaps);
   } else {
-    statusBar()->showMessage(tr("Merged the shapes that overlap; %1 other shape(s) kept their points")
+    statusBar()->showMessage(tr("Merged %1 shape(s) into one shape; %2 that overlap nothing kept their points")
+                                 .arg(groups.size())
                                  .arg(merged->kept_groups.size()));
   }
+  refresh_path_edit_action_states();
+}
+
+QString MainWindow::split_shapes_refusal() const {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return QStringLiteral("-");
+  }
+  const auto kind = canvas_->path_edit_target_kind();
+  if (kind == CanvasWidget::PathEditTargetKind::None) {
+    return tr("Select a shape layer or a path first");
+  }
+  if (kind == CanvasWidget::PathEditTargetKind::TextArea) {
+    return tr("A text area keeps one outline");
+  }
+  const auto* path = canvas_->path_edit_target_path();
+  if (path == nullptr || path->subpaths.empty()) {
+    return tr("The path has no shapes");
+  }
+  auto groups = canvas_->path_edit_selected_groups();
+  if (groups.empty()) {
+    groups = all_groups(*path);
+  }
+  if (!split_path_components(*path, groups).has_value()) {
+    return tr("The selected shapes have no separate outlines to split");
+  }
+  return {};
+}
+
+void MainWindow::split_selected_path_components() {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  const auto refusal = split_shapes_refusal();
+  if (!refusal.isEmpty()) {
+    show_status_error(refusal == QLatin1String("-") ? tr("Select a shape layer or a path first") : refusal);
+    return;
+  }
+  canvas_->finish_free_transform();
+  const auto* path = canvas_->path_edit_target_path();
+  if (path == nullptr) {
+    return;
+  }
+  auto groups = canvas_->path_edit_selected_groups();
+  if (groups.empty()) {
+    groups = all_groups(*path);
+  }
+  auto split = split_path_components(*path, groups);
+  if (!split.has_value()) {
+    return;
+  }
+  push_undo_snapshot(tr("Split shapes"));
+  const auto kind = canvas_->path_edit_target_kind();
+  canvas_->clear_path_edit_selection();
+  if (kind == CanvasWidget::PathEditTargetKind::ShapeLayer) {
+    auto& doc = document();
+    auto* layer = doc.find_layer(*doc.active_layer_id());
+    auto content = *std::as_const(*layer).vector_shape();
+    content.path = std::move(split->path);
+    drop_live_shape_origination(content, split->split_groups);
+    // On a merged shape each piece keeps its source's paint parts.
+    for (const auto& [source, piece] : split->added_groups) {
+      copy_vector_part_groups(content, {{source, piece}});
+    }
+    write_shape_layer_content(*layer, std::move(content));
+  } else {
+    canvas_->replace_path_edit_target(std::move(split->path), split->split_groups);
+  }
+  canvas_->select_path_groups(split->pieces);
+  refresh_layer_list();
+  refresh_layer_controls();
+  refresh_paths_panel();
+  refresh_layer_thumbnails();
+  canvas_->document_changed();
+  statusBar()->showMessage(tr("Split into %1 shape(s)").arg(split->pieces.size()));
   refresh_path_edit_action_states();
 }
 

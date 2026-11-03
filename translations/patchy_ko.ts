@@ -31901,14 +31901,6 @@ Locked: %1</source>
         <translation>모양 %1개를 하나의 윤곽선으로 병합했습니다</translation>
     </message>
     <message>
-        <source>No shapes overlap, so none were merged</source>
-        <translation>겹치는 모양이 없어 병합하지 않았습니다</translation>
-    </message>
-    <message>
-        <source>Merged the shapes that overlap; %1 other shape(s) kept their points</source>
-        <translation>겹치는 모양을 병합했습니다. 나머지 모양 %1개는 점을 그대로 유지했습니다</translation>
-    </message>
-    <message>
         <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
         <translation>선택한 두 끝점을 직선 세그먼트로 연결하거나, 선택한 점이 있는 열린 패스를 각각 닫습니다</translation>
     </message>
@@ -32183,6 +32175,34 @@ Locked: %1</source>
     <message>
         <source>Diamond</source>
         <translation>다이아몬드</translation>
+    </message>
+    <message>
+        <source>Split Shapes</source>
+        <translation>모양 분할</translation>
+    </message>
+    <message>
+        <source>Break the selected shapes into one shape per separate outline, holes kept with their outline</source>
+        <translation>선택한 모양을 떨어진 윤곽선마다 하나의 모양으로 분할합니다. 구멍은 해당 윤곽선에 남습니다</translation>
+    </message>
+    <message>
+        <source>Split Shapes: one shape per separate outline</source>
+        <translation>모양 분할: 떨어진 윤곽선마다 하나의 모양</translation>
+    </message>
+    <message>
+        <source>Merged %1 shape(s) into one shape; %2 that overlap nothing kept their points</source>
+        <translation>모양 %1개를 하나의 모양으로 병합했습니다. 겹치지 않는 %2개는 점을 유지했습니다</translation>
+    </message>
+    <message>
+        <source>The selected shapes have no separate outlines to split</source>
+        <translation>선택한 모양에 분할할 떨어진 윤곽선이 없습니다</translation>
+    </message>
+    <message>
+        <source>Split shapes</source>
+        <translation>모양 분할</translation>
+    </message>
+    <message>
+        <source>Split into %1 shape(s)</source>
+        <translation>모양 %1개로 분할했습니다</translation>
     </message>
 </context>
 <context>

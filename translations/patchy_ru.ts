@@ -32069,14 +32069,6 @@ Locked: %1</source>
         <translation>Слито фигур в один контур: %1</translation>
     </message>
     <message>
-        <source>No shapes overlap, so none were merged</source>
-        <translation>Фигуры не перекрываются, поэтому ничего не слито</translation>
-    </message>
-    <message>
-        <source>Merged the shapes that overlap; %1 other shape(s) kept their points</source>
-        <translation>Перекрывающиеся фигуры слиты; другие фигуры с прежними точками: %1</translation>
-    </message>
-    <message>
         <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
         <translation>Соединить две выбранные конечные точки прямым сегментом или замкнуть каждый разомкнутый контур с выбранной точкой</translation>
     </message>
@@ -32351,6 +32343,34 @@ Locked: %1</source>
     <message>
         <source>Diamond</source>
         <translation>Ромб</translation>
+    </message>
+    <message>
+        <source>Split Shapes</source>
+        <translation>Разделить фигуры</translation>
+    </message>
+    <message>
+        <source>Break the selected shapes into one shape per separate outline, holes kept with their outline</source>
+        <translation>Разделить выбранные фигуры на отдельную фигуру для каждого отдельного контура; отверстия остаются со своим контуром</translation>
+    </message>
+    <message>
+        <source>Split Shapes: one shape per separate outline</source>
+        <translation>Разделить фигуры: отдельная фигура для каждого отдельного контура</translation>
+    </message>
+    <message>
+        <source>Merged %1 shape(s) into one shape; %2 that overlap nothing kept their points</source>
+        <translation>Слито фигур в одну фигуру: %1; без перекрытия, с сохранёнными точками: %2</translation>
+    </message>
+    <message>
+        <source>The selected shapes have no separate outlines to split</source>
+        <translation>У выбранных фигур нет отдельных контуров для разделения</translation>
+    </message>
+    <message>
+        <source>Split shapes</source>
+        <translation>Разделить фигуры</translation>
+    </message>
+    <message>
+        <source>Split into %1 shape(s)</source>
+        <translation>Получено фигур после разделения: %1</translation>
     </message>
 </context>
 <context>

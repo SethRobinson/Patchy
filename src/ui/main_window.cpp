@@ -6328,7 +6328,8 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     // The selected shapes' clipboard, color and new-layer commands (GitHub #555).
     if (tool == CanvasTool::PathSelect || tool == CanvasTool::DirectSelect) {
       refresh_path_edit_action_states();
-      actions.append({path_merge_shapes_action_, nullptr, path_shapes_cut_action_, path_shapes_copy_action_,
+      actions.append({path_merge_shapes_action_, path_split_shapes_action_, nullptr, path_shapes_cut_action_,
+                      path_shapes_copy_action_,
                       path_shapes_paste_action_, nullptr,
                       path_shapes_color_action_, path_shapes_to_new_layer_action_,
                       path_shapes_copy_to_new_layer_action_, nullptr});

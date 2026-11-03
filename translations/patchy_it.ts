@@ -31985,14 +31985,6 @@ Bloccato: %1</translation>
         <translation>%1 forma/e fusa/e in un unico contorno</translation>
     </message>
     <message>
-        <source>No shapes overlap, so none were merged</source>
-        <translation>Nessuna forma si sovrappone, quindi nessuna è stata fusa</translation>
-    </message>
-    <message>
-        <source>Merged the shapes that overlap; %1 other shape(s) kept their points</source>
-        <translation>Forme sovrapposte fuse; %1 altra/e forma/e hanno mantenuto i loro punti</translation>
-    </message>
-    <message>
         <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
         <translation>Unisci i due punti finali selezionati con un segmento retto, o chiudi ogni tracciato aperto con un punto selezionato</translation>
     </message>
@@ -32267,6 +32259,34 @@ Bloccato: %1</translation>
     <message>
         <source>Diamond</source>
         <translation>Rombo</translation>
+    </message>
+    <message>
+        <source>Split Shapes</source>
+        <translation>Dividi forme</translation>
+    </message>
+    <message>
+        <source>Break the selected shapes into one shape per separate outline, holes kept with their outline</source>
+        <translation>Divide le forme selezionate in una forma per ogni contorno separato, con i fori insieme al loro contorno</translation>
+    </message>
+    <message>
+        <source>Split Shapes: one shape per separate outline</source>
+        <translation>Dividi forme: una forma per ogni contorno separato</translation>
+    </message>
+    <message>
+        <source>Merged %1 shape(s) into one shape; %2 that overlap nothing kept their points</source>
+        <translation>%1 forma/e fusa/e in un’unica forma; %2 senza sovrapposizioni hanno mantenuto i loro punti</translation>
+    </message>
+    <message>
+        <source>The selected shapes have no separate outlines to split</source>
+        <translation>Le forme selezionate non hanno contorni separati da dividere</translation>
+    </message>
+    <message>
+        <source>Split shapes</source>
+        <translation>Dividi forme</translation>
+    </message>
+    <message>
+        <source>Split into %1 shape(s)</source>
+        <translation>Divisa in %1 forma/e</translation>
     </message>
 </context>
 <context>

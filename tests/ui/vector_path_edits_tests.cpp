@@ -627,9 +627,10 @@ void ui_path_merge_shapes_bakes_the_combine() {
   CHECK(shape_of(document, survivor).path.subpaths[0].anchors.size() == 8);
 }
 
-// Merge Shapes merges only the shapes that overlap (#587): the separate ellipse keeps its anchors
-// and handles. With nothing overlapping the command changes nothing and adds no undo step.
-void ui_path_merge_shapes_keeps_shapes_that_overlap_nothing() {
+// Merge Shapes (#587 follow-up): the overlapping squares fuse and the separate ellipse joins the
+// one merged shape with its anchors and handles unchanged. Split Shapes then gives one shape per
+// outline again (ellipse unchanged), from the Layer > Shape action, the path menu and the bar.
+void ui_path_merge_shapes_keeps_separate_shape_points() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
   show_window(window);
@@ -667,7 +668,12 @@ void ui_path_merge_shapes_keeps_shapes_that_overlap_nothing() {
   QApplication::processEvents();
   save_widget_artifact("ui_i587_merge_before", *canvas);
   auto* merge_action = require_action(window, "pathMergeShapesAction");
+  auto* split_action = require_action(window, "pathSplitShapesAction");
+  auto* split_button = window.findChild<QPushButton*>(QStringLiteral("vectorSplitShapesButton"));
+  CHECK(split_button != nullptr && split_button->isVisible());
   CHECK(merge_action->isEnabled());
+  CHECK(split_action->isEnabled() == false);  // three shapes of one outline each: nothing to split
+  CHECK(split_button != nullptr && !split_button->isEnabled());
   const auto undo_before = undo_depth(window);
   merge_action->trigger();
   QApplication::processEvents();
@@ -675,20 +681,66 @@ void ui_path_merge_shapes_keeps_shapes_that_overlap_nothing() {
   CHECK(undo_depth(window) == undo_before + 1);
   const auto merged = shape_of(document, id).path;
   CHECK(merged.subpaths.size() == 2);
-  CHECK(merged.subpaths.size() == 2 && merged.subpaths[0].anchors.size() == 8);  // the fused squares
-  CHECK(merged.subpaths.size() == 2 && merged.subpaths[1] == ellipse);          // untouched
-  CHECK(canvas->path_edit_selected_groups().size() == 2);
+  if (merged.subpaths.size() != 2) {
+    return;
+  }
+  CHECK(merged.subpaths[0].anchors.size() == 8);  // the fused squares
+  CHECK(merged.subpaths[0].shape_group == 0 && merged.subpaths[1].shape_group == 0);  // one shape
+  CHECK(merged.subpaths[1].anchors == ellipse.anchors && merged.subpaths[1].closed == ellipse.closed);
+  CHECK((canvas->path_edit_selected_groups() == std::vector<int>{0}));
   std::cerr << "merge status: " << window.statusBar()->currentMessage().toStdString() << '\n';
-  CHECK(window.statusBar()->currentMessage().startsWith(QStringLiteral("Merged the shapes that overlap")));
-  // Nothing overlaps any more: no change and no undo step.
+  CHECK(window.statusBar()->currentMessage() ==
+        QStringLiteral("Merged 3 shape(s) into one shape; 1 that overlap nothing kept their points"));
+
+  // Split Shapes: one shape per outline again, the ellipse unchanged, one undo step.
   QApplication::processEvents();
-  CHECK(merge_action->isEnabled());
-  const auto undo_after = undo_depth(window);
-  merge_action->trigger();
+  CHECK(split_action->isEnabled());
+  CHECK(split_button != nullptr && split_button->isEnabled());
+  bool menu_listed = false;
+  QTimer::singleShot(0, [&menu_listed] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu == nullptr || menu->objectName() != QStringLiteral("canvasPathContextMenu")) {
+        continue;
+      }
+      for (auto* action : menu->actions()) {
+        menu_listed = menu_listed || (action->objectName() == QStringLiteral("pathSplitShapesAction") &&
+                                      action->isEnabled());
+      }
+      menu->close();
+      return;
+    }
+  });
+  const auto widget_point = canvas->widget_position_for_document_point(QPoint(100, 120));
+  CHECK(canvas->show_path_context_menu(QPointF(widget_point), canvas->mapToGlobal(widget_point)));
   QApplication::processEvents();
-  CHECK(undo_depth(window) == undo_after);
+  CHECK(menu_listed);
+  const auto undo_merged = undo_depth(window);
+  save_widget_artifact("ui_i587_split_button_bar", *split_button->parentWidget());
+  split_button->click();
+  QApplication::processEvents();
+  CHECK(undo_depth(window) == undo_merged + 1);
+  const auto split = shape_of(document, id).path;
+  CHECK(split.subpaths.size() == 2);
+  if (split.subpaths.size() != 2) {
+    return;
+  }
+  CHECK(split.subpaths[0] == merged.subpaths[0]);
+  CHECK(split.subpaths[1].shape_group == 1 && split.subpaths[1].anchors == ellipse.anchors);
+  CHECK((canvas->path_edit_selected_groups() == std::vector<int>{0, 1}));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Split into 2 shape(s)"));
+  QApplication::processEvents();
+  CHECK(!split_action->isEnabled());  // each shape is one outline now
+  CHECK(split_action->property("patchy.disabledReason").toString() ==
+        QStringLiteral("The selected shapes have no separate outlines to split"));
+  // The ellipse is a shape of its own again: picked alone, only its points show.
+  canvas->select_path_groups({1});
+  QApplication::processEvents();
+  save_widget_artifact("ui_i587_split_after", *canvas);
+  // Undo brings the merged shape back.
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
   CHECK(shape_of(document, id).path == merged);
-  CHECK(window.statusBar()->currentMessage() == QStringLiteral("No shapes overlap, so none were merged"));
 }
 
 // Weld while editing: a Direct Select drag of an end point snaps onto the other line's end point
@@ -1111,7 +1163,7 @@ std::vector<patchy::test::TestCase> vector_path_edits_tests() {
       {"ui_path_align_shapes_inside_a_layer", ui_path_align_shapes_inside_a_layer},
       {"ui_path_split_shape_with_break_and_join", ui_path_split_shape_with_break_and_join},
       {"ui_path_merge_shapes_bakes_the_combine", ui_path_merge_shapes_bakes_the_combine},
-      {"ui_path_merge_shapes_keeps_shapes_that_overlap_nothing", ui_path_merge_shapes_keeps_shapes_that_overlap_nothing},
+      {"ui_path_merge_shapes_keeps_separate_shape_points", ui_path_merge_shapes_keeps_separate_shape_points},
       {"ui_path_weld_on_drag_joins_end_points", ui_path_weld_on_drag_joins_end_points},
       {"ui_path_break_several_points_renders_cleanly", ui_path_break_several_points_renders_cleanly},
       {"ui_path_point_commands_edit_menus_and_undo", ui_path_point_commands_edit_menus_and_undo},
