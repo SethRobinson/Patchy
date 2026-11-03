@@ -14751,14 +14751,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Calque de remplissage. Double-cliquez pour modifier ses paramètres.</translation>
     </message>
     <message>
-        <source>Pattern Fill</source>
-        <translation>Fond motif</translation>
-    </message>
-    <message>
-        <source>Color Fill</source>
-        <translation>Fond couleur</translation>
-    </message>
-    <message>
         <source>Manage...</source>
         <translation>Gérer…</translation>
     </message>
@@ -14925,6 +14917,14 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Vertical Offset:</source>
         <translation>Décalage vertical :</translation>
+    </message>
+    <message>
+        <source>Fill layer. Click to edit its fill settings.</source>
+        <translation>Calque de remplissage. Cliquez pour modifier ses paramètres de remplissage.</translation>
+    </message>
+    <message>
+        <source>Fill Layer Settings</source>
+        <translation>Paramètres du calque de remplissage</translation>
     </message>
 </context>
 <context>

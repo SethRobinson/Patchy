@@ -14796,14 +14796,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Warstwa wypełnienia. Kliknij dwukrotnie, aby edytować jej ustawienia.</translation>
     </message>
     <message>
-        <source>Pattern Fill</source>
-        <translation>Wypełnienie wzorkiem</translation>
-    </message>
-    <message>
-        <source>Color Fill</source>
-        <translation>Wypełnienie kolorem</translation>
-    </message>
-    <message>
         <source>Manage...</source>
         <translation>Zarządzaj…</translation>
     </message>
@@ -14970,6 +14962,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Vertical Offset:</source>
         <translation>Przesunięcie pionowe:</translation>
+    </message>
+    <message>
+        <source>Fill layer. Click to edit its fill settings.</source>
+        <translation>Warstwa wypełnienia. Kliknij, aby edytować jej ustawienia wypełnienia.</translation>
+    </message>
+    <message>
+        <source>Fill Layer Settings</source>
+        <translation>Ustawienia warstwy wypełnienia</translation>
     </message>
 </context>
 <context>

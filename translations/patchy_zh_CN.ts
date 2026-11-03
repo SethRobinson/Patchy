@@ -14706,14 +14706,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>填充图层。双击可编辑其设置。</translation>
     </message>
     <message>
-        <source>Pattern Fill</source>
-        <translation>图案填充</translation>
-    </message>
-    <message>
-        <source>Color Fill</source>
-        <translation>纯色填充</translation>
-    </message>
-    <message>
         <source>Manage...</source>
         <translation>管理…</translation>
     </message>
@@ -14880,6 +14872,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Vertical Offset:</source>
         <translation>垂直偏移:</translation>
+    </message>
+    <message>
+        <source>Fill layer. Click to edit its fill settings.</source>
+        <translation>填充图层。单击可编辑其填充设置。</translation>
+    </message>
+    <message>
+        <source>Fill Layer Settings</source>
+        <translation>填充图层设置</translation>
     </message>
 </context>
 <context>

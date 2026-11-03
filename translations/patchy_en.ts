@@ -14734,14 +14734,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Pattern Fill</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Color Fill</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Manage...</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14907,6 +14899,14 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Vertical Offset:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill layer. Click to edit its fill settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill Layer Settings</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

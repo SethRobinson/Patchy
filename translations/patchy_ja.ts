@@ -14706,14 +14706,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>塗りつぶしレイヤー。ダブルクリックで設定を編集します。</translation>
     </message>
     <message>
-        <source>Pattern Fill</source>
-        <translation>パターン塗りつぶし</translation>
-    </message>
-    <message>
-        <source>Color Fill</source>
-        <translation>べた塗り</translation>
-    </message>
-    <message>
         <source>Manage...</source>
         <translation>管理…</translation>
     </message>
@@ -14880,6 +14872,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Vertical Offset:</source>
         <translation>垂直オフセット:</translation>
+    </message>
+    <message>
+        <source>Fill layer. Click to edit its fill settings.</source>
+        <translation>塗りつぶしレイヤー。クリックで塗りつぶしの設定を編集します。</translation>
+    </message>
+    <message>
+        <source>Fill Layer Settings</source>
+        <translation>塗りつぶしレイヤーの設定</translation>
     </message>
 </context>
 <context>

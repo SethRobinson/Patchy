@@ -14751,14 +14751,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Capa de relleno. Haga doble clic para editar su configuración.</translation>
     </message>
     <message>
-        <source>Pattern Fill</source>
-        <translation>Relleno de motivo</translation>
-    </message>
-    <message>
-        <source>Color Fill</source>
-        <translation>Relleno de color</translation>
-    </message>
-    <message>
         <source>Manage...</source>
         <translation>Gestionar…</translation>
     </message>
@@ -14925,6 +14917,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Vertical Offset:</source>
         <translation>Desplazamiento vertical:</translation>
+    </message>
+    <message>
+        <source>Fill layer. Click to edit its fill settings.</source>
+        <translation>Capa de relleno. Haga clic para editar su configuración de relleno.</translation>
+    </message>
+    <message>
+        <source>Fill Layer Settings</source>
+        <translation>Configuración de capa de relleno</translation>
     </message>
 </context>
 <context>

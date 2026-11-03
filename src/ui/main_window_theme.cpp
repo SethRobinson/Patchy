@@ -944,7 +944,7 @@ QString photoshop_style_template() {
     }
     QToolButton#layerMaskLinkButton, QToolButton#layerVectorMaskLinkButton, QToolButton#layerFxBadgeButton,
     QToolButton#layerBlendingBadgeButton, QToolButton#layerSmartObjectBadgeButton,
-    QToolButton#layerVectorBadgeButton, QToolButton#layerClippingBadgeButton {
+    QToolButton#layerVectorBadgeButton, QToolButton#layerFillBadgeButton, QToolButton#layerClippingBadgeButton {
       background: transparent;
       border: 1px solid transparent;
       border-radius: 3px;
@@ -955,13 +955,13 @@ QString photoshop_style_template() {
        would widen both. */
     QToolButton#layerClippingBadgeButton, QToolButton#layerMaskLinkButton, QToolButton#layerVectorMaskLinkButton,
     QToolButton#layerFxBadgeButton, QToolButton#layerBlendingBadgeButton, QToolButton#layerSmartObjectBadgeButton,
-    QToolButton#layerVectorBadgeButton {
+    QToolButton#layerVectorBadgeButton, QToolButton#layerFillBadgeButton {
       min-width: 0;
     }
     QToolButton#layerMaskLinkButton:hover, QToolButton#layerVectorMaskLinkButton:hover,
     QToolButton#layerFxBadgeButton:hover, QToolButton#layerBlendingBadgeButton:hover,
     QToolButton#layerSmartObjectBadgeButton:hover, QToolButton#layerVectorBadgeButton:hover,
-    QToolButton#layerClippingBadgeButton:hover {
+    QToolButton#layerFillBadgeButton:hover, QToolButton#layerClippingBadgeButton:hover {
       background: @layer_button_hover_bg;
       border-color: @layer_button_hover_border;
     }

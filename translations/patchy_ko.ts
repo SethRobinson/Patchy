@@ -14706,14 +14706,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>채우기 레이어. 두 번 클릭하여 설정을 편집합니다.</translation>
     </message>
     <message>
-        <source>Pattern Fill</source>
-        <translation>패턴 채우기</translation>
-    </message>
-    <message>
-        <source>Color Fill</source>
-        <translation>단색 채우기</translation>
-    </message>
-    <message>
         <source>Manage...</source>
         <translation>관리…</translation>
     </message>
@@ -14880,6 +14872,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Vertical Offset:</source>
         <translation>수직 오프셋:</translation>
+    </message>
+    <message>
+        <source>Fill layer. Click to edit its fill settings.</source>
+        <translation>채우기 레이어. 클릭하여 채우기 설정을 편집합니다.</translation>
+    </message>
+    <message>
+        <source>Fill Layer Settings</source>
+        <translation>채우기 레이어 설정</translation>
     </message>
 </context>
 <context>
