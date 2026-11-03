@@ -305,6 +305,7 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {quick_select_sample_all_layers_check_, QT_TR_NOOP("Sample All Layers")},
       {quick_select_enhance_edge_check_, QT_TR_NOOP("Enhance Edge")},
       {object_select_sample_all_layers_check_, QT_TR_NOOP("Sample All Layers")},
+      {content_aware_move_object_selection_check_, QT_TR_NOOP("Object Selection")},
       {select_subject_button_, QT_TR_NOOP("Select Subject")},
       {remove_background_button_, QT_TR_NOOP("Remove Background")},
       {ctx.fill_shapes, QT_TR_NOOP("Fill")},
