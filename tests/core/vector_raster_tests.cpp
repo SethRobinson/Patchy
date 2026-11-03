@@ -1890,8 +1890,10 @@ void gradient_fill_layer_aligns_to_its_mask_bounds() {
 }
 
 // The Gradient tool's Fill Layer mode (GitHub issue 580): the Gradient Fill built from a drag
-// renders what the tool paints for the same drag, Linear and Radial, reversed, with
-// transparent stops, and from drags that start or end off the canvas.
+// renders what the tool paints for the same drag, every style (Angle, Reflected and Diamond since
+// GitHub issue 610), reversed, with transparent stops, and from drags that start or end off the
+// canvas. Angle skips its start pixel and the pixels next to its seam ray, where float and double
+// rounding can put a pixel at the start or the end of the sweep.
 void gradient_fill_from_drag_renders_the_gradient_tool_drag() {
   constexpr int kWidth = 64;
   constexpr int kHeight = 48;
@@ -1914,6 +1916,12 @@ void gradient_fill_from_drag_renders_the_gradient_tool_drag() {
       {patchy::GradientMethod::Linear, false, faded, -20, 5, 90, 9},
       {patchy::GradientMethod::Radial, false, two_stops, 20, 20, 35, 28},
       {patchy::GradientMethod::Radial, true, faded, -10, 50, 30, 10},
+      {patchy::GradientMethod::Reflected, false, two_stops, 30, 20, 45, 30},
+      {patchy::GradientMethod::Reflected, true, faded, -5, 40, 20, 10},
+      {patchy::GradientMethod::Diamond, false, two_stops, 32, 24, 44, 30},
+      {patchy::GradientMethod::Diamond, true, faded, 10, 10, 30, 10},
+      {patchy::GradientMethod::Angle, false, two_stops, 30, 22, 50, 30},
+      {patchy::GradientMethod::Angle, true, faded, 20, 30, 20, 10},
   };
   for (const auto& drag : cases) {
     patchy::Document painted(kWidth, kHeight, patchy::PixelFormat::rgba8());
@@ -1942,15 +1950,24 @@ void gradient_fill_from_drag_renders_the_gradient_tool_drag() {
     int worst_alpha = 0;
     for (int y = 0; y < kHeight; ++y) {
       for (int x = 0; x < kWidth; ++x) {
-        const auto* expected = paint.pixels().pixel(x - paint.bounds().x, y - paint.bounds().y);
-        const auto* actual = fill.pixels().pixel(x - fill.bounds().x, y - fill.bounds().y);
-        worst_alpha = std::max(worst_alpha, std::abs(static_cast<int>(expected[3]) - static_cast<int>(actual[3])));
-        if (expected[3] >= 8) {
-          for (int channel = 0; channel < 3; ++channel) {
-            worst_color = std::max(worst_color, std::abs(static_cast<int>(expected[channel]) -
-                                                         static_cast<int>(actual[channel])));
+        if (drag.method == patchy::GradientMethod::Angle) {
+          const auto t = patchy::gradient_tool_position(drag.method, x - drag.x0, y - drag.y0, drag.x1 - drag.x0,
+                                                        drag.y1 - drag.y0);
+          if ((x == drag.x0 && y == drag.y0) || t < 0.01 || t > 0.99) {
+            continue;
           }
         }
+        const auto* expected = paint.pixels().pixel(x - paint.bounds().x, y - paint.bounds().y);
+        const auto* actual = fill.pixels().pixel(x - fill.bounds().x, y - fill.bounds().y);
+        auto alpha = std::abs(static_cast<int>(expected[3]) - static_cast<int>(actual[3]));
+        int color = 0;
+        if (expected[3] >= 8) {
+          for (int channel = 0; channel < 3; ++channel) {
+            color = std::max(color, std::abs(static_cast<int>(expected[channel]) - static_cast<int>(actual[channel])));
+          }
+        }
+        worst_alpha = std::max(worst_alpha, alpha);
+        worst_color = std::max(worst_color, color);
       }
     }
     if (worst_color > 2 || worst_alpha > 2) {

@@ -21630,10 +21630,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Сохраняйте непрерывность выравнивания рисунка по всем штрихам.</translation>
     </message>
     <message>
-        <source>Method:</source>
-        <translation>Метод:</translation>
-    </message>
-    <message>
         <source>Linear</source>
         <translation>Линейный</translation>
     </message>
@@ -32335,6 +32331,18 @@ Locked: %1</source>
     <message>
         <source>Content-Aware Move: draw around an object, then drag the selection to its new place. Move fills the spot it leaves, Extend keeps the original.</source>
         <translation>Перемещение с учетом содержимого: обведите объект, затем перетащите выделение на новое место. «Перемещение» заполняет оставшееся место, «Расширение» сохраняет оригинал.</translation>
+    </message>
+    <message>
+        <source>Angle</source>
+        <translation>Угол</translation>
+    </message>
+    <message>
+        <source>Reflected</source>
+        <translation>Отраженный</translation>
+    </message>
+    <message>
+        <source>Diamond</source>
+        <translation>Ромб</translation>
     </message>
 </context>
 <context>

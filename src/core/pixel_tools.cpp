@@ -3152,6 +3152,38 @@ Rect clear_rect(Document& document, LayerId layer_id, Rect rect, const EditOptio
   return changed;
 }
 
+double gradient_tool_position(GradientMethod method, double px, double py, double dx, double dy) noexcept {
+  const auto length_squared = dx * dx + dy * dy;
+  if (length_squared <= 0.0) {
+    return 0.0;
+  }
+  // |d| times the offset's component along the drag, and across it (positive clockwise on
+  // screen, where y grows downward).
+  const auto along = (px * dx) + (py * dy);
+  const auto across = (py * dx) - (px * dy);
+  switch (method) {
+    case GradientMethod::Radial:
+      return std::sqrt(px * px + py * py) / std::sqrt(length_squared);
+    case GradientMethod::Angle: {
+      if (along == 0.0 && across == 0.0) {
+        return 0.25;  // the start pixel takes the quarter-sweep color, like gradient_position's Angle
+      }
+      auto position = std::atan2(across, along) / (2.0 * 3.14159265358979323846);
+      if (position < 0.0) {
+        position += 1.0;
+      }
+      return position;
+    }
+    case GradientMethod::Reflected:
+      return std::abs(along) / length_squared;
+    case GradientMethod::Diamond:
+      return (std::abs(along) + std::abs(across)) / length_squared;
+    case GradientMethod::Linear:
+      break;
+  }
+  return along / length_squared;
+}
+
 Rect draw_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0, std::int32_t x1,
                    std::int32_t y1, const EditOptions& options, const GradientOptions& gradient) {
   auto* layer = paintable_layer(document, layer_id);
@@ -3182,8 +3214,6 @@ Rect draw_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::i
 
   const auto dx = static_cast<double>(x1 - x0);
   const auto dy = static_cast<double>(y1 - y0);
-  const auto length_squared = dx * dx + dy * dy;
-  const auto radius = std::sqrt(length_squared);
   auto stops = normalized_gradient_stops(gradient.stops.empty()
                                              ? std::vector<GradientStop>{
                                                    GradientStop{0.0F, options.primary,
@@ -3199,20 +3229,8 @@ Rect draw_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::i
       if (selected_coverage <= 0.0F) {
         continue;
       }
-      double t = 0.0;
-      switch (gradient.method) {
-        case GradientMethod::Radial:
-          t = radius <= 0.0 ? 0.0
-                            : std::sqrt(static_cast<double>(x - x0) * static_cast<double>(x - x0) +
-                                        static_cast<double>(y - y0) * static_cast<double>(y - y0)) /
-                                  radius;
-          break;
-        case GradientMethod::Linear:
-          t = length_squared <= 0.0
-                  ? 0.0
-                  : (((static_cast<double>(x - x0) * dx) + (static_cast<double>(y - y0) * dy)) / length_squared);
-          break;
-      }
+      const double t = gradient_tool_position(gradient.method, static_cast<double>(x - x0),
+                                              static_cast<double>(y - y0), dx, dy);
       if (deep) {
         const auto color = gradient_color_at_deep(stops, gradient.opacity, gradient.reverse, t, linear);
         if (color[3] <= 0.0F) {

@@ -21232,10 +21232,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Conserver l&apos;alignement du motif d&apos;un tracé à l&apos;autre</translation>
     </message>
     <message>
-        <source>Method:</source>
-        <translation>Méthode :</translation>
-    </message>
-    <message>
         <source>Linear</source>
         <translation>Linéaire</translation>
     </message>
@@ -32251,6 +32247,18 @@ Verrouillé : %1</translation>
     <message>
         <source>Content-Aware Move: draw around an object, then drag the selection to its new place. Move fills the spot it leaves, Extend keeps the original.</source>
         <translation>Déplacement de contenu : entourez un objet, puis faites glisser la sélection à sa nouvelle place. Déplacer remplit l&apos;emplacement qu&apos;il laisse, Étendre garde l&apos;original.</translation>
+    </message>
+    <message>
+        <source>Angle</source>
+        <translation>Angle</translation>
+    </message>
+    <message>
+        <source>Reflected</source>
+        <translation>Réfléchi</translation>
+    </message>
+    <message>
+        <source>Diamond</source>
+        <translation>Losange</translation>
     </message>
 </context>
 <context>

@@ -21186,10 +21186,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>讓圖樣的對齊在各次筆畫之間保持連續</translation>
     </message>
     <message>
-        <source>Method:</source>
-        <translation>方式:</translation>
-    </message>
-    <message>
         <source>Linear</source>
         <translation>線性</translation>
     </message>
@@ -32167,6 +32163,18 @@ Locked: %1</source>
     <message>
         <source>Content-Aware Move: draw around an object, then drag the selection to its new place. Move fills the spot it leaves, Extend keeps the original.</source>
         <translation>內容感知移動：圈選物件，然後將選取範圍拖曳到新位置。「移動」會填滿留下的位置，「延伸」會保留原件。</translation>
+    </message>
+    <message>
+        <source>Angle</source>
+        <translation>角度</translation>
+    </message>
+    <message>
+        <source>Reflected</source>
+        <translation>反射</translation>
+    </message>
+    <message>
+        <source>Diamond</source>
+        <translation>菱形</translation>
     </message>
 </context>
 <context>

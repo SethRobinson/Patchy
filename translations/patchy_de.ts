@@ -21232,10 +21232,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Musterausrichtung über Striche hinweg beibehalten</translation>
     </message>
     <message>
-        <source>Method:</source>
-        <translation>Methode:</translation>
-    </message>
-    <message>
         <source>Linear</source>
         <translation>Linear</translation>
     </message>
@@ -32251,6 +32247,18 @@ Fixiert: %1</translation>
     <message>
         <source>Content-Aware Move: draw around an object, then drag the selection to its new place. Move fills the spot it leaves, Extend keeps the original.</source>
         <translation>Inhaltsbasiert verschieben: Umranden Sie ein Objekt und ziehen Sie die Auswahl an seinen neuen Platz. Verschieben füllt die frei werdende Stelle, Erweitern behält das Original.</translation>
+    </message>
+    <message>
+        <source>Angle</source>
+        <translation>Winkel</translation>
+    </message>
+    <message>
+        <source>Reflected</source>
+        <translation>Reflektiert</translation>
+    </message>
+    <message>
+        <source>Diamond</source>
+        <translation>Raute</translation>
     </message>
 </context>
 <context>

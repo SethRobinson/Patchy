@@ -21540,10 +21540,6 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
         <translation>不透明度:</translation>
     </message>
     <message>
-        <source>Method:</source>
-        <translation>方式:</translation>
-    </message>
-    <message>
         <source>Linear</source>
         <translation>線形</translation>
     </message>
@@ -32167,6 +32163,18 @@ Locked: %1</source>
     <message>
         <source>Content-Aware Move: draw around an object, then drag the selection to its new place. Move fills the spot it leaves, Extend keeps the original.</source>
         <translation>コンテンツに応じた移動：オブジェクトを囲み、選択範囲を新しい位置へドラッグします。移動は元の場所を塗りつぶし、拡張は元を残します。</translation>
+    </message>
+    <message>
+        <source>Angle</source>
+        <translation>角度</translation>
+    </message>
+    <message>
+        <source>Reflected</source>
+        <translation>反射形</translation>
+    </message>
+    <message>
+        <source>Diamond</source>
+        <translation>菱形</translation>
     </message>
 </context>
 <context>

@@ -174,7 +174,7 @@ void ui_startup_restores_stored_brush_and_gradient_settings() {
     settings.setValue(QStringLiteral("tools/eraserSize"), 77);
     settings.setValue(QStringLiteral("tools/eraserOpacity"), 15);
     settings.setValue(QStringLiteral("tools/eraserSoftness"), 95);
-    settings.setValue(QStringLiteral("tools/gradientMethod"), static_cast<int>(patchy::GradientMethod::Radial));
+    settings.setValue(QStringLiteral("tools/gradientMethod"), static_cast<int>(patchy::GradientMethod::Diamond));
     settings.setValue(QStringLiteral("tools/gradientMode"), QStringLiteral("fillLayer"));
     settings.setValue(QStringLiteral("tools/gradientReverse"), true);
     settings.setValue(QStringLiteral("tools/gradientOpacity"), 66);
@@ -233,12 +233,12 @@ void ui_startup_restores_stored_brush_and_gradient_settings() {
   require_action_by_text(window, QStringLiteral("Brush"))->trigger();
   CHECK(canvas->brush_size() == 56);
   CHECK(canvas->brush_opacity() == 12);
-  CHECK(canvas->gradient_method() == patchy::GradientMethod::Radial);
+  CHECK(canvas->gradient_method() == patchy::GradientMethod::Diamond);
   CHECK(canvas->gradient_reverse());
   CHECK(canvas->gradient_opacity() == 66);
   CHECK(canvas->gradient_stops().has_value());
   CHECK(canvas->gradient_stops()->size() == 2);
-  CHECK(gradient_method->currentData().toInt() == static_cast<int>(patchy::GradientMethod::Radial));
+  CHECK(gradient_method->currentData().toInt() == static_cast<int>(patchy::GradientMethod::Diamond));
   CHECK(gradient_opacity->value() == 66);
   CHECK(gradient_reverse->isChecked());
 }

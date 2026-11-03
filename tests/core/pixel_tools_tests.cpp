@@ -1199,6 +1199,85 @@ void tool_gradient_supports_custom_stops_radial_reverse_and_alpha() {
   }
 }
 
+// GitHub issue 610: the Gradient tool's Angle, Reflected and Diamond styles. The saved values
+// (tools/gradientMethod) are the enum's, so they are pinned here; red to blue from (32, 24) to
+// (48, 24) probes each ramp.
+void tool_gradient_styles_render_angle_reflected_and_diamond() {
+  static_assert(static_cast<int>(patchy::GradientMethod::Linear) == 0);
+  static_assert(static_cast<int>(patchy::GradientMethod::Radial) == 1);
+  static_assert(static_cast<int>(patchy::GradientMethod::Angle) == 2);
+  static_assert(static_cast<int>(patchy::GradientMethod::Reflected) == 3);
+  static_assert(static_cast<int>(patchy::GradientMethod::Diamond) == 4);
+
+  // The ramp function itself, for a drag of 16 to the right.
+  const auto position = [](patchy::GradientMethod method, double px, double py) {
+    return patchy::gradient_tool_position(method, px, py, 16.0, 0.0);
+  };
+  const auto close_to = [](double actual, double expected) { return std::abs(actual - expected) < 1e-9; };
+  CHECK(close_to(position(patchy::GradientMethod::Linear, -8.0, 5.0), -0.5));
+  CHECK(close_to(position(patchy::GradientMethod::Radial, 0.0, 8.0), 0.5));
+  CHECK(close_to(position(patchy::GradientMethod::Reflected, -8.0, 5.0), 0.5));
+  CHECK(close_to(position(patchy::GradientMethod::Diamond, 4.0, -4.0), 0.5));
+  CHECK(close_to(position(patchy::GradientMethod::Diamond, 8.0, 8.0), 1.0));
+  CHECK(close_to(position(patchy::GradientMethod::Angle, 0.0, 0.0), 0.25));  // the start pixel
+  CHECK(close_to(position(patchy::GradientMethod::Angle, 5.0, 0.0), 0.0));
+  CHECK(close_to(position(patchy::GradientMethod::Angle, 0.0, 5.0), 0.25));  // below: clockwise on screen
+  CHECK(close_to(position(patchy::GradientMethod::Angle, -5.0, 0.0), 0.5));
+  CHECK(close_to(position(patchy::GradientMethod::Angle, 0.0, -5.0), 0.75));
+  // A zero-length drag is position 0 for every style.
+  CHECK(patchy::gradient_tool_position(patchy::GradientMethod::Diamond, 3.0, 4.0, 0.0, 0.0) == 0.0);
+  // The frame turns with the drag: Diamond's corner sits at the end of a diagonal drag.
+  CHECK(close_to(patchy::gradient_tool_position(patchy::GradientMethod::Diamond, 10.0, 10.0, 10.0, 10.0), 1.0));
+  CHECK(close_to(patchy::gradient_tool_position(patchy::GradientMethod::Reflected, -5.0, -5.0, 10.0, 10.0), 0.5));
+
+  struct Probe {
+    std::int32_t x;
+    std::int32_t y;
+    std::array<int, 3> rgb;
+  };
+  const std::array<int, 3> red{255, 0, 0};
+  const std::array<int, 3> blue{0, 0, 255};
+  const std::array<int, 3> purple{128, 0, 128};
+  const auto paint = [](patchy::GradientMethod method, bool reverse, const std::vector<Probe>& probes) {
+    auto document = make_tool_document();
+    const auto layer_id = active_tool_layer(document);
+    patchy::GradientOptions gradient;
+    gradient.method = method;
+    gradient.reverse = reverse;
+    gradient.stops = {
+        patchy::GradientStop{0.0F, patchy::EditColor{255, 0, 0, 255}},
+        patchy::GradientStop{1.0F, patchy::EditColor{0, 0, 255, 255}},
+    };
+    CHECK(!patchy::draw_gradient(document, layer_id, 32, 24, 48, 24, tool_options(), gradient).empty());
+    const auto& layer = *std::as_const(document).find_layer(layer_id);
+    for (const auto& probe : probes) {
+      const auto* px = layer.pixels().pixel(probe.x - layer.bounds().x, probe.y - layer.bounds().y);
+      bool close = px[3] == 255;
+      for (int channel = 0; channel < 3; ++channel) {
+        close = close && std::abs(static_cast<int>(px[channel]) - probe.rgb[static_cast<std::size_t>(channel)]) <= 1;
+      }
+      if (!close) {
+        std::cerr << "style " << static_cast<int>(method) << " at " << probe.x << ',' << probe.y << " is "
+                  << static_cast<int>(px[0]) << ',' << static_cast<int>(px[1]) << ',' << static_cast<int>(px[2])
+                  << ',' << static_cast<int>(px[3]) << '\n';
+      }
+      CHECK(close);
+    }
+    return document;
+  };
+  const auto angle = paint(patchy::GradientMethod::Angle, false,
+                           {{32, 24, {191, 0, 64}}, {40, 24, red}, {16, 24, purple}, {32, 40, {191, 0, 64}}, {32, 8, {64, 0, 191}}});
+  write_bmp_artifact("tool_gradient_angle", angle);
+  paint(patchy::GradientMethod::Angle, true, {{32, 40, {64, 0, 191}}, {16, 24, purple}});
+  const auto reflected = paint(patchy::GradientMethod::Reflected, false,
+                               {{32, 24, red}, {40, 24, purple}, {24, 24, purple}, {8, 24, blue}, {32, 40, red}});
+  write_bmp_artifact("tool_gradient_reflected", reflected);
+  const auto diamond = paint(patchy::GradientMethod::Diamond, false,
+                             {{32, 24, red}, {40, 24, purple}, {36, 28, purple}, {40, 32, blue}, {32, 16, purple}});
+  write_bmp_artifact("tool_gradient_diamond", diamond);
+  paint(patchy::GradientMethod::Diamond, true, {{32, 24, blue}, {40, 32, red}});
+}
+
 void tool_fill_selection_draws_only_selection_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
@@ -2088,6 +2167,8 @@ std::vector<patchy::test::TestCase> pixel_tools_tests() {
        tool_gradient_draws_foreground_to_background_and_writes_artifact},
       {"tool_gradient_supports_custom_stops_radial_reverse_and_alpha",
        tool_gradient_supports_custom_stops_radial_reverse_and_alpha},
+      {"tool_gradient_styles_render_angle_reflected_and_diamond",
+       tool_gradient_styles_render_angle_reflected_and_diamond},
       {"tool_fill_selection_draws_only_selection_and_writes_artifact", tool_fill_selection_draws_only_selection_and_writes_artifact},
       {"tool_clear_selection_erases_only_selection_and_writes_artifact", tool_clear_selection_erases_only_selection_and_writes_artifact},
       {"tool_clear_transparent_selection_is_noop", tool_clear_transparent_selection_is_noop},

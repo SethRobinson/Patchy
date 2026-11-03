@@ -3197,6 +3197,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   gradient_mode_combo_->addItem(tr("Pixels"), static_cast<int>(GradientToolMode::Pixels));
   gradient_mode_combo_->addItem(tr("Fill Layer"), static_cast<int>(GradientToolMode::FillLayer));
   gradient_mode_combo_->setFixedWidth(ui_text_length(86));
+  use_scrolling_list_popup(*gradient_mode_combo_, 2);
   bind_tooltip(gradient_mode_combo_,
                QT_TR_NOOP("What a drag makes: painted pixels, or a Gradient Fill layer (a new one, or the "
                           "selected Gradient Fill layer redrawn)"));
@@ -3220,22 +3221,36 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     save_tool_settings();
   });
 
-  add_option_label(QT_TR_NOOP("Method:"), {CanvasTool::Gradient});
+  // Style (GitHub issue 610): the Gradient Fill dialog's five styles in its order. Like the
+  // Mode list, it opens as a list below the box, never as a menu with the current row over it.
+  add_option_label(QT_TR_NOOP("Style:"), {CanvasTool::Gradient});
   gradient_method_combo_ = new QComboBox(toolbar);
   gradient_method_combo_->setObjectName(QStringLiteral("gradientMethodCombo"));
-  gradient_method_combo_->addItem(tr("Linear"), static_cast<int>(GradientMethod::Linear));
-  gradient_method_combo_->addItem(tr("Radial"), static_cast<int>(GradientMethod::Radial));
+  static constexpr std::array<std::pair<const char*, GradientMethod>, 5> kGradientStyles{{
+      {QT_TR_NOOP("Linear"), GradientMethod::Linear},
+      {QT_TR_NOOP("Radial"), GradientMethod::Radial},
+      {QT_TR_NOOP("Angle"), GradientMethod::Angle},
+      {QT_TR_NOOP("Reflected"), GradientMethod::Reflected},
+      {QT_TR_NOOP("Diamond"), GradientMethod::Diamond},
+  }};
+  for (const auto& [name, method] : kGradientStyles) {
+    gradient_method_combo_->addItem(tr(name), static_cast<int>(method));
+  }
   gradient_method_combo_->setFixedWidth(ui_text_length(86));
+  use_scrolling_list_popup(*gradient_method_combo_, static_cast<int>(kGradientStyles.size()));
   add_option_widget(gradient_method_combo_, {CanvasTool::Gradient});
   add_option_separator({CanvasTool::Gradient});
   QPointer<QComboBox> gradient_method_combo(gradient_method_combo_);
   register_retranslation([gradient_method_combo] {
-    if (gradient_method_combo == nullptr || gradient_method_combo->count() < 2) {
+    if (gradient_method_combo == nullptr || gradient_method_combo->count() < static_cast<int>(kGradientStyles.size())) {
       return;
     }
     const QSignalBlocker blocker(gradient_method_combo);
-    gradient_method_combo->setItemText(0, QCoreApplication::translate(kMainWindowTranslationContext, "Linear"));
-    gradient_method_combo->setItemText(1, QCoreApplication::translate(kMainWindowTranslationContext, "Radial"));
+    for (int index = 0; index < static_cast<int>(kGradientStyles.size()); ++index) {
+      gradient_method_combo->setItemText(
+          index, QCoreApplication::translate(kMainWindowTranslationContext,
+                                             kGradientStyles[static_cast<std::size_t>(index)].first));
+    }
   });
 
   add_option_label(QT_TR_NOOP("Opacity:"), {CanvasTool::Gradient});

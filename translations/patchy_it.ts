@@ -21232,10 +21232,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Mantiene continuo l&apos;allineamento del pattern tra i tratti</translation>
     </message>
     <message>
-        <source>Method:</source>
-        <translation>Metodo:</translation>
-    </message>
-    <message>
         <source>Linear</source>
         <translation>Lineare</translation>
     </message>
@@ -32251,6 +32247,18 @@ Bloccato: %1</translation>
     <message>
         <source>Content-Aware Move: draw around an object, then drag the selection to its new place. Move fills the spot it leaves, Extend keeps the original.</source>
         <translation>Sposta in base al contenuto: contornate un oggetto, poi trascinate la selezione nella nuova posizione. Sposta riempie il punto che lascia, Estendi mantiene l&apos;originale.</translation>
+    </message>
+    <message>
+        <source>Angle</source>
+        <translation>Angolo</translation>
+    </message>
+    <message>
+        <source>Reflected</source>
+        <translation>Riflessa</translation>
+    </message>
+    <message>
+        <source>Diamond</source>
+        <translation>Rombo</translation>
     </message>
 </context>
 <context>
