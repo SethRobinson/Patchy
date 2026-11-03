@@ -18,7 +18,7 @@
 
 ## Painting, selections, and retouching
 
-- Raster editing tools: Brush with Flow and timed Airbrush buildup, Healing Brush, Spot Healing, Patch, Content-Aware Move, Red Eye, Clone Stamp, Remove Object, Dodge, Burn, Sponge, Blur, Sharpen, Smudge, Eraser, selections, transforms, gradients (5 styles, pixels or fill layers), shapes, and Edit > Fill (color, mode, opacity, Content-Aware)
+- Raster editing tools: Brush with Flow and timed Airbrush buildup, Healing Brush, Spot Healing, Patch, Content-Aware Move (current or new layer), Red Eye, Clone Stamp, Remove Object, Dodge, Burn, Sponge, Blur, Sharpen, Smudge, Eraser, gradients (5 styles, pixels or fill layers), shapes, and Edit > Fill (color, mode, opacity, Content-Aware)
 - With a selection, Move drags, Free Transform, Skew, Distort and Perspective act on the selected pixels and the selection follows; Select > Transform Selection reshapes the outline
 - Ctrl-drag a transform box's corner or side to distort it (Ctrl mid-drag toggles); right-click a transform, crop or text edit for its menu
 - Retouch sampling from Current Layer, Current & Below, or All Layers, with Ignore Adjustment Layers. Healing Brush heals the stroke on release and offers Replace and blend modes; Red Eye takes a click or a box

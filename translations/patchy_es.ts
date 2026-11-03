@@ -14934,6 +14934,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Fill Layer Settings</source>
         <translation>Configuración de capa de relleno</translation>
     </message>
+    <message>
+        <source>Current Layer</source>
+        <translation>Capa actual</translation>
+    </message>
+    <message>
+        <source>New Layer</source>
+        <translation>Nueva capa</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -32335,6 +32343,10 @@ Bloqueada: %1</translation>
     <message>
         <source>Scale, rotate or distort the selection outline without moving pixels</source>
         <translation>Escalar, girar o distorsionar el contorno de la selección sin mover píxeles</translation>
+    </message>
+    <message>
+        <source>Current Layer edits the active layer; New Layer leaves it untouched and puts the filled spot and the moved object on a new layer above it</source>
+        <translation>Capa actual edita la capa activa; Nueva capa la deja intacta y coloca la zona rellenada y el objeto movido en una capa nueva encima</translation>
     </message>
 </context>
 <context>

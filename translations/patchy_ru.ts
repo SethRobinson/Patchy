@@ -14979,6 +14979,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Fill Layer Settings</source>
         <translation>Параметры слоя заливки</translation>
     </message>
+    <message>
+        <source>Current Layer</source>
+        <translation>Текущий слой</translation>
+    </message>
+    <message>
+        <source>New Layer</source>
+        <translation>Новый слой</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -32419,6 +32427,10 @@ Locked: %1</source>
     <message>
         <source>Scale, rotate or distort the selection outline without moving pixels</source>
         <translation>Масштабировать, поворачивать или искажать контур выделения, не сдвигая пиксели</translation>
+    </message>
+    <message>
+        <source>Current Layer edits the active layer; New Layer leaves it untouched and puts the filled spot and the moved object on a new layer above it</source>
+        <translation>Текущий слой изменяет активный слой; Новый слой оставляет его без изменений и помещает заполненное место и перемещённый объект на новый слой над ним</translation>
     </message>
 </context>
 <context>

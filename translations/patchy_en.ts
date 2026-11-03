@@ -14917,6 +14917,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Fill Layer Settings</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Current Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -32253,6 +32261,10 @@ Locked: %1</source>
     </message>
     <message>
         <source>Scale, rotate or distort the selection outline without moving pixels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Current Layer edits the active layer; New Layer leaves it untouched and puts the filled spot and the moved object on a new layer above it</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

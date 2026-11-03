@@ -14889,6 +14889,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Fill Layer Settings</source>
         <translation>채우기 레이어 설정</translation>
     </message>
+    <message>
+        <source>Current Layer</source>
+        <translation>현재 레이어</translation>
+    </message>
+    <message>
+        <source>New Layer</source>
+        <translation>새 레이어</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -32251,6 +32259,10 @@ Locked: %1</source>
     <message>
         <source>Scale, rotate or distort the selection outline without moving pixels</source>
         <translation>픽셀을 옮기지 않고 선택 영역 윤곽을 크기 조절, 회전 또는 왜곡합니다</translation>
+    </message>
+    <message>
+        <source>Current Layer edits the active layer; New Layer leaves it untouched and puts the filled spot and the moved object on a new layer above it</source>
+        <translation>현재 레이어는 활성 레이어를 편집합니다. 새 레이어는 원본을 그대로 두고 채운 부분과 이동한 개체를 위쪽의 새 레이어에 놓습니다</translation>
     </message>
 </context>
 <context>

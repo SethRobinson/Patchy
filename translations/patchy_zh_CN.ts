@@ -14889,6 +14889,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Fill Layer Settings</source>
         <translation>填充图层设置</translation>
     </message>
+    <message>
+        <source>Current Layer</source>
+        <translation>当前图层</translation>
+    </message>
+    <message>
+        <source>New Layer</source>
+        <translation>新建图层</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -32251,6 +32259,10 @@ Locked: %1</source>
     <message>
         <source>Scale, rotate or distort the selection outline without moving pixels</source>
         <translation>缩放、旋转或扭曲选区轮廓，不移动像素</translation>
+    </message>
+    <message>
+        <source>Current Layer edits the active layer; New Layer leaves it untouched and puts the filled spot and the moved object on a new layer above it</source>
+        <translation>当前图层：编辑活动图层；新建图层：保持原图层不变，将填充的区域和移动的对象放到上方的新图层</translation>
     </message>
 </context>
 <context>

@@ -255,6 +255,14 @@ enum class ContentAwareMoveMode {
   Extend
 };
 
+// Where Content-Aware Move writes (GitHub issue 599 follow-up): the active layer, or a new
+// layer above it holding only the pixels the move changed (the original stays as it was).
+// Values are stored as tokens (tools/contentAwareMoveDestination); append only.
+enum class ContentAwareMoveDestination {
+  CurrentLayer,
+  NewLayer
+};
+
 // The Healing Brush's Mode (GitHub issue 381; docs/healing.md). Normal is the classic
 // heal; Replace writes the source texture as sampled, without the tone transfer (Clone's
 // write, keeping grain); the rest blend the healed color into the layer with that layer

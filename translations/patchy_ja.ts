@@ -14889,6 +14889,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Fill Layer Settings</source>
         <translation>塗りつぶしレイヤーの設定</translation>
     </message>
+    <message>
+        <source>Current Layer</source>
+        <translation>現在のレイヤー</translation>
+    </message>
+    <message>
+        <source>New Layer</source>
+        <translation>新規レイヤー</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -32251,6 +32259,10 @@ Locked: %1</source>
     <message>
         <source>Scale, rotate or distort the selection outline without moving pixels</source>
         <translation>ピクセルを動かさずに選択範囲の境界を拡大・縮小、回転、または変形します</translation>
+    </message>
+    <message>
+        <source>Current Layer edits the active layer; New Layer leaves it untouched and puts the filled spot and the moved object on a new layer above it</source>
+        <translation>現在のレイヤーはアクティブなレイヤーを編集します。新規レイヤーは元のレイヤーをそのままにし、埋めた部分と移動したオブジェクトを上の新しいレイヤーに置きます</translation>
     </message>
 </context>
 <context>
