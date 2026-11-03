@@ -1080,8 +1080,15 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
   QApplication::processEvents();
   styled_item->setCheckState(Qt::Checked);
   QApplication::processEvents();
-  const auto after_visibility_toggle = canvas_pixel(*canvas, QPoint(80, 80));
-  CHECK(color_close(after, after_visibility_toggle, 8));
+  // The visibility toggles re-render asynchronously, like the cancel above.
+  (void)process_events_until([&] { return color_close(canvas_pixel(*canvas, QPoint(80, 80)), after, 8); }, 5000);
+  if (const auto after_visibility_toggle = canvas_pixel(*canvas, QPoint(80, 80));
+      !color_close(after, after_visibility_toggle, 8)) {
+    std::printf("blending options visibility toggle: accepted %s, after toggle %s\n", qPrintable(after.name()),
+                qPrintable(after_visibility_toggle.name()));
+    save_widget_artifact("ui_blending_options_after_visibility_toggle", *canvas);
+    CHECK(false);
+  }
 
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
   canvas->set_show_transform_controls(false);

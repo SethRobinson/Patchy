@@ -1323,8 +1323,8 @@ void ui_language_catalog_covers_dialog_status_and_properties() {
   CHECK(update_failed == QStringLiteral("更新確認に失敗しました: 更新マニフェストが無効です。"));
   const auto show_effects = QCoreApplication::translate("QObject", "Show Effects");
   CHECK(show_effects == QStringLiteral("効果を表示"));
-  const auto gloss_contour = QCoreApplication::translate("QObject", "Gloss Contour");
-  CHECK(gloss_contour == QStringLiteral("光沢輪郭"));
+  const auto gloss_contour = QCoreApplication::translate("QObject", "Gloss Contour:");
+  CHECK(gloss_contour == QStringLiteral("光沢輪郭:"));
   const auto link_with_layer = QCoreApplication::translate("QObject", "Link with Layer");
   CHECK(link_with_layer == QStringLiteral("レイヤーにリンク"));
   const auto pattern_basketweave = QCoreApplication::translate("QObject", "Basketweave");

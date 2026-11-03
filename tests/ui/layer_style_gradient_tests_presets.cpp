@@ -1721,11 +1721,16 @@ void ui_style_preset_pattern_apply_cancel_restores_document_store() {
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
     auto* browser =
         dialog->findChild<patchy::ui::StyleBrowserWidget*>(QStringLiteral("layerStyleStylesBrowser"));
-    CHECK(categories != nullptr && browser != nullptr);
+    auto* list_button = dialog->findChild<QToolButton*>(QStringLiteral("layerStyleStylesListViewButton"));
+    CHECK(categories != nullptr && browser != nullptr && list_button != nullptr);
     const auto styles_items = categories->findItems(QStringLiteral("Style Presets"), Qt::MatchExactly);
     CHECK(!styles_items.empty());
     categories->setCurrentItem(styles_items.front());
     QApplication::processEvents();
+    // The grid shows by default (GitHub issue 606); this test drives the list view.
+    list_button->click();
+    QApplication::processEvents();
+    CHECK(!browser->visibleRegion().isEmpty());
     click_style_tree_item(*browser, style_tree_item_for_storage_id(*browser, storage_id));
     QApplication::processEvents();
     // The collision produced a document-local alias with the preset pixels.
