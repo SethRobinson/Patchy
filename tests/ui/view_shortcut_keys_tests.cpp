@@ -15,7 +15,9 @@
 #include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
+#include <QDialog>
 #include <QDir>
+#include <QDoubleSpinBox>
 #include <QFileInfo>
 #include <QKeySequence>
 #include <QLineEdit>
@@ -23,10 +25,12 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QStatusBar>
+#include <QSlider>
 #include <QTabWidget>
 #include <QTest>
 #include <QToolBar>
 #include <QUrl>
+#include <QVBoxLayout>
 
 #include <cmath>
 #include <filesystem>
@@ -225,6 +229,81 @@ bool near(QPointF a, QPointF b) {
   return std::abs(a.x() - b.x()) <= 1.0 && std::abs(a.y() - b.y()) <= 1.0;
 }
 
+// GitHub issue 608: hotkeys are application shortcuts, so Tab reached a non-modal filter
+// dialog (run_non_modal_dialog) and hid the panels instead of moving to the next field.
+// Whatever has the keyboard in a dialog keeps Tab and the Home/End/Page keys; the canvas
+// still takes them once the dialog is gone.
+void ui_issue_608_tab_moves_focus_in_non_modal_dialogs() {
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* hide_panels = require_action(window, "viewHidePanelsAction");
+  auto* column = MainWindowTestAccess::panel_column(window);
+  auto* tool_palette = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
+  CHECK(hide_panels != nullptr && column != nullptr && tool_palette != nullptr);
+  if (hide_panels == nullptr || column == nullptr || tool_palette == nullptr) {
+    return;
+  }
+  canvas->set_view_zoom_centered(8.0);
+  QApplication::processEvents();
+  const auto view_before = widget_point(*canvas, QPoint());
+
+  {
+    // Shaped like a filter dialog: number fields, a text field and a slider.
+    QDialog dialog(&window);
+    dialog.setObjectName(QStringLiteral("issue608Dialog"));
+    dialog.setModal(false);
+    dialog.setWindowModality(Qt::NonModal);
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* first = new QDoubleSpinBox(&dialog);
+    auto* second = new QDoubleSpinBox(&dialog);
+    auto* text = new QLineEdit(&dialog);
+    auto* slider = new QSlider(Qt::Horizontal, &dialog);
+    slider->setRange(0, 100);
+    slider->setValue(50);
+    layout->addWidget(first);
+    layout->addWidget(second);
+    layout->addWidget(text);
+    layout->addWidget(slider);
+    dialog.show();
+    dialog.raise();
+    dialog.activateWindow();
+    CHECK(process_events_until([&dialog] { return dialog.isActiveWindow(); }));
+
+    first->setFocus();
+    QApplication::processEvents();
+    CHECK(first->hasFocus());
+    QTest::keyClick(first, Qt::Key_Tab);
+    process_events_for(50);
+    CHECK(second->hasFocus());
+    QTest::keyClick(second, Qt::Key_Tab);
+    process_events_for(50);
+    CHECK(text->hasFocus());
+    QTest::keyClick(text, Qt::Key_Tab);
+    process_events_for(50);
+    CHECK(slider->hasFocus());
+    CHECK(!window.panels_hidden() && !hide_panels->isChecked() && tool_palette->isVisible() && column->isVisible());
+
+    // The slider takes Home and Page Up itself; the canvas view stays put.
+    QTest::keyClick(slider, Qt::Key_Home);
+    QTest::keyClick(slider, Qt::Key_PageUp);
+    process_events_for(50);
+    CHECK(slider->value() == slider->pageStep());
+    CHECK(near(widget_point(*canvas, QPoint()), view_before));
+    dialog.reject();
+  }
+  QApplication::processEvents();
+
+  window.activateWindow();
+  CHECK(process_events_until([&window] { return window.isActiveWindow(); }));
+  canvas->setFocus();
+  QTest::keyClick(canvas, Qt::Key_Tab);
+  process_events_for(50);
+  CHECK(window.panels_hidden() && hide_panels->isChecked() && tool_palette->isHidden() && column->isHidden());
+  canvas->setFocus();
+  QTest::keyClick(canvas, Qt::Key_Tab);
+  process_events_for(50);
+  CHECK(!window.panels_hidden() && tool_palette->isVisible() && column->isVisible());
+}
+
 void ui_issue_584_home_end_and_page_keys_scroll_the_view() {
   auto&& [window, canvas] = ShownWindowFixture{};
   const auto& document = std::as_const(MainWindowTestAccess::document(window));
@@ -290,5 +369,6 @@ std::vector<patchy::test::TestCase> view_shortcut_keys_tests() {
       {"ui_issue_584_revert_reloads_the_saved_file", ui_issue_584_revert_reloads_the_saved_file},
       {"ui_issue_584_tab_hides_and_restores_panels", ui_issue_584_tab_hides_and_restores_panels},
       {"ui_issue_584_home_end_and_page_keys_scroll_the_view", ui_issue_584_home_end_and_page_keys_scroll_the_view},
+      {"ui_issue_608_tab_moves_focus_in_non_modal_dialogs", ui_issue_608_tab_moves_focus_in_non_modal_dialogs},
   };
 }

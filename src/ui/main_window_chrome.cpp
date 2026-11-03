@@ -1423,6 +1423,9 @@ void MainWindow::refresh_hide_panels_action() {
 // Tab and the Home/End/Page keys are view commands only while the canvas has the keyboard:
 // a focused field, list, slider or other key-taking control in the window keeps them, as
 // it keeps the letters it types. Answered from the ShortcutOverride in eventFilter.
+// Hotkeys are application shortcuts, so they reach a non-modal dialog (a filter dialog, the
+// script editor) too: anything focused in a dialog keeps these keys, so Tab moves to its
+// next field there (GitHub issue 608). A modal dialog never sees them.
 bool MainWindow::canvas_key_command_yields(const QKeyEvent& event) const {
   const QKeySequence pressed(QKeyCombination(event.modifiers() & ~Qt::KeypadModifier, Qt::Key(event.key())));
   const bool canvas_key = std::any_of(canvas_key_actions_.begin(), canvas_key_actions_.end(), [&](const auto& action) {
@@ -1438,7 +1441,13 @@ bool MainWindow::canvas_key_command_yields(const QKeyEvent& event) const {
     return false;
   }
   const auto* focus = QApplication::focusWidget();
-  if (focus == nullptr || focus->isWindow() || qobject_cast<const QDialog*>(focus->window()) != nullptr) {
+  if (focus == nullptr || qobject_cast<const CanvasWidget*>(focus) != nullptr) {
+    return false;
+  }
+  if (qobject_cast<const QDialog*>(focus->window()) != nullptr) {
+    return true;
+  }
+  if (focus->isWindow()) {
     return false;
   }
   return qobject_cast<const CanvasWidget*>(focus) == nullptr && qobject_cast<const QAbstractButton*>(focus) == nullptr &&
