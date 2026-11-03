@@ -11,6 +11,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QFrame>
 #include <QJsonArray>
@@ -3104,7 +3105,8 @@ void ui_new_guide_layout_user_presets_save_apply_delete() {
 }
 
 // Select > Smooth and Select > Feather (GitHub issue 614): grayed without a selection, their
-// dialogs remember the radius and step ten with Shift+Up, and each is one undo step.
+// dialogs remember the radius and step ten with Shift+Up, OK is as wide as Cancel, and each is one
+// undo step.
 void ui_select_smooth_and_feather_commands_are_one_undo_step() {
   SettingsValueRestorer smooth_key{QString::fromLatin1(patchy::ui::kSelectionSmoothRadiusKey)};
   SettingsValueRestorer feather_key{QString::fromLatin1(patchy::ui::kSelectionFeatherRadiusKey)};
@@ -3154,6 +3156,14 @@ void ui_select_smooth_and_feather_commands_are_one_undo_step() {
       if (spin == nullptr) {
         dialog->reject();
         return;
+      }
+      // OK as wide as Cancel (#614 follow-up).
+      if (auto* box = dialog->findChild<QDialogButtonBox*>(); box != nullptr) {
+        auto* ok = box->button(QDialogButtonBox::Ok);
+        auto* cancel = box->button(QDialogButtonBox::Cancel);
+        CHECK(ok != nullptr && cancel != nullptr && ok->width() == cancel->width());
+      } else {
+        CHECK(false);
       }
       const auto current = [spin] {
         if (auto* integer = qobject_cast<QSpinBox*>(spin)) {

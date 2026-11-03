@@ -137,6 +137,8 @@ void install_scrub_labels_in(QWidget* container);
 [[nodiscard]] int menu_item_text_indent(QMenu& menu, QAction& reference);
 void configure_dialog_spinbox(QSpinBox* spin, int width = 92);
 void configure_dialog_spinbox(QDoubleSpinBox* spin, int width = 92);
+// Gives a dialog's OK and Cancel one width, the wider of the two (#591, #614).
+void match_ok_cancel_widths(QDialogButtonBox& buttons);
 // Large-button spin box styling (24px - / + buttons with readable glyphs; decrement left,
 // increment far right). Append to a dialog's stylesheet AFTER all child widgets exist, and keep
 // the selectors unprefixed: Qt ignores ::up-button/::down-button geometry under a descendant

@@ -1368,6 +1368,7 @@ std::optional<int> request_integer_input(QWidget* parent, const QString& object_
   form->addRow(label, spin);
   layout->addLayout(form);
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  match_ok_cancel_widths(*buttons);
   layout->addWidget(buttons);
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
