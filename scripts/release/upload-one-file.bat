@@ -65,10 +65,11 @@ if errorlevel 1 (
 
 rem sha256sum prints "<hash>  <path>"; take the first token rather than piping to
 rem cut. A missing file writes to stderr and prints nothing, so REMOTE_HASH stays
-rem undefined and the check below fires.
+rem undefined and the check below fires. -n: without it ssh can wait on an inherited
+rem piped stdin after the hash is printed (the 1.25 upload stalled 16 minutes here).
 echo Verifying the uploaded copy on the server ...
 set "REMOTE_HASH="
-for /f "usebackq tokens=1" %%H in (`ssh rtsoft@rtsoft.com "sha256sum www/%REMOTE_DIR%/%REMOTE_NAME%"`) do set "REMOTE_HASH=%%H"
+for /f "usebackq tokens=1" %%H in (`ssh -n rtsoft@rtsoft.com "sha256sum www/%REMOTE_DIR%/%REMOTE_NAME%"`) do set "REMOTE_HASH=%%H"
 if not defined REMOTE_HASH (
   echo.
   echo ERROR: could not read back a SHA-256 for www/%REMOTE_DIR%/%REMOTE_NAME%.
