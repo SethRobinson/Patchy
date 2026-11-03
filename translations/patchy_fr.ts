@@ -9,7 +9,7 @@
     </message>
     <message>
         <source>Click or drag to set the angle. The distance from the center sets the altitude: 90° at the center, 0° at the edge. Arrow keys: Left and Right turn, Up and Down change the altitude.</source>
-        <translation>Cliquez ou faites glisser pour définir l'angle. La distance au centre définit l'altitude : 90° au centre, 0° au bord. Touches fléchées : Gauche et Droite font tourner, Haut et Bas changent l'altitude.</translation>
+        <translation>Cliquez ou faites glisser pour définir l&apos;angle. La distance au centre définit l&apos;altitude : 90° au centre, 0° au bord. Touches fléchées : Gauche et Droite font tourner, Haut et Bas changent l&apos;altitude.</translation>
     </message>
     <message>
         <source>Angle</source>
@@ -17,7 +17,7 @@
     </message>
     <message>
         <source>Click or drag to set the angle. Arrow keys turn it; hold Shift for 15° steps.</source>
-        <translation>Cliquez ou faites glisser pour définir l'angle. Les touches fléchées le font tourner ; maintenez Maj pour des pas de 15°.</translation>
+        <translation>Cliquez ou faites glisser pour définir l&apos;angle. Les touches fléchées le font tourner ; maintenez Maj pour des pas de 15°.</translation>
     </message>
 </context>
 <context>
