@@ -747,6 +747,9 @@ private:
   // that the drag's moves left for it (GitHub issue 464).
   void finish_color_panel_drag();
   [[nodiscard]] bool color_drag_in_progress() const;
+  // A drag in a Foreground, Background or Text Color window's field, hue strip or wheel
+  // counts as a color drag until its release or the window closing (GitHub issue 609).
+  void track_color_window_drag(QDialog& dialog);
   // The foreground change every color control shares (GitHub issue 371): the canvas
   // foreground, an open text session's selection, and the live shape paint, exactly what the
   // Foreground Color window has always done.
@@ -3950,6 +3953,7 @@ private:
   // gradient preview's restyle to its release; per move they made the drag lag (GitHub
   // issue 464).
   bool color_settings_save_pending_{false};
+  bool color_window_drag_active_{false};
   bool gradient_controls_refresh_pending_{false};
   // Full paint mirrors (None/Solid/Gradient/Pattern) for the options-bar
   // fill/stroke pickers; VectorFill's defaults are solid black, matching the

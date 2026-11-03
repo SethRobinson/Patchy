@@ -45,6 +45,7 @@
 #include <QPen>
 #include <QPixmap>
 #include <QPointer>
+#include <QHideEvent>
 #include <QShowEvent>
 #include <QPushButton>
 #include <QScreen>
@@ -333,9 +334,20 @@ public:
       return false;
     }
     field_picks_background_ = alt_picks_background(modifiers);
+    if (!field_drag_active_) {
+      field_drag_active_ = true;
+      emit owner_.color_drag_started();
+    }
     return true;
   }
-  void end_field_pick() override { field_picks_background_ = false; }
+  void end_field_pick() override {
+    field_picks_background_ = false;
+    if (field_drag_active_) {
+      field_drag_active_ = false;
+      emit owner_.color_drag_finished();
+    }
+  }
+  [[nodiscard]] bool field_drag_active() const noexcept { return field_drag_active_; }
   // Reacts to a MainWindow palette push: refreshes the "Current palette" swatches
   // and switches the dropdown to them when palette mode just turned on.
   void document_palette_changed(bool palette_mode_turned_on);
@@ -436,6 +448,9 @@ private:
   std::function<void(QColor)> background_pick_handler_;
   // Set by an Alt press on the field, hue strip or wheel, for that press's whole drag.
   bool field_picks_background_{false};
+  // From an accepted press on the field, hue strip or wheel to its release
+  // (PatchyColorPicker::color_drag_active).
+  bool field_drag_active_{false};
 };
 
 namespace {
@@ -2203,6 +2218,16 @@ void PatchyColorPicker::focus_hex_field() {
 
 void PatchyColorPicker::set_background_pick_handler(std::function<void(QColor)> handler) {
   impl_->set_background_pick_handler(std::move(handler));
+}
+
+bool PatchyColorPicker::color_drag_active() const noexcept {
+  return impl_->field_drag_active();
+}
+
+void PatchyColorPicker::hideEvent(QHideEvent* event) {
+  // A window closed mid-drag gets no release: the drag ends here.
+  impl_->end_field_pick();
+  QWidget::hideEvent(event);
 }
 
 void PatchyColorPicker::showEvent(QShowEvent* event) {

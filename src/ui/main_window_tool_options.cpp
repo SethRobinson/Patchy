@@ -2132,6 +2132,7 @@ void MainWindow::choose_text_color() {
       // Live like the Foreground Color window, but this window reads OK (GitHub issue 371).
       QDialogButtonBox::Ok);
   dialog->setProperty("patchy.colorTarget", QStringLiteral("text"));
+  track_color_window_drag(*dialog);
   color_dialog_ = dialog;
   connect(dialog, &QObject::destroyed, this, [this, dialog] {
     if (color_dialog_ == dialog) {
@@ -2185,6 +2186,7 @@ void MainWindow::show_color_panel(bool foreground) {
         refresh_color_buttons();
       });
   dialog->setProperty("patchy.colorTarget", color_target);
+  track_color_window_drag(*dialog);
   // The 32-bit controls (docs/high-bit-depth.md, "Color choice at 32 bits"), shown by
   // refresh_hdr_exposure_control while the active document is 32-bit.
   auto* hdr = add_hdr_color_controls(*dialog);
@@ -3684,11 +3686,29 @@ void MainWindow::load_color_settings() {
 }
 
 bool MainWindow::color_drag_in_progress() const {
-  // A drag through the Color panel's picker or a held canvas pick (GitHub #478) reports a
-  // color per move; the settings write (a file flush) and the gradient refresh wait for
-  // its end (finish_color_panel_drag).
-  return (color_dock_panel_ != nullptr && color_dock_panel_->picking()) ||
+  // A drag through the Color panel's picker, a color window's field (GitHub #609) or a held
+  // canvas pick (GitHub #478) reports a color per move; the settings write (a file flush)
+  // and the gradient refresh wait for its end (finish_color_panel_drag).
+  return (color_dock_panel_ != nullptr && color_dock_panel_->picking()) || color_window_drag_active_ ||
          (canvas_ != nullptr && canvas_->color_pick_active());
+}
+
+void MainWindow::track_color_window_drag(QDialog& dialog) {
+  auto* picker = dialog.findChild<PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
+  if (picker == nullptr) {
+    return;
+  }
+  connect(picker, &PatchyColorPicker::color_drag_started, this, [this] { color_window_drag_active_ = true; });
+  connect(picker, &PatchyColorPicker::color_drag_finished, this, [this] {
+    color_window_drag_active_ = false;
+    finish_color_panel_drag();
+  });
+  connect(picker, &QObject::destroyed, this, [this] {
+    if (color_window_drag_active_) {
+      color_window_drag_active_ = false;
+      finish_color_panel_drag();
+    }
+  });
 }
 
 void MainWindow::save_color_settings() const {
