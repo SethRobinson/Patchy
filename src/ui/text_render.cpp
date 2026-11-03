@@ -640,8 +640,14 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
       constexpr qreal kHorizontalBleed = 2.0;
       constexpr qreal kLineGateTolerance = 0.01;
       auto united_rect = gate_rect;
+      const auto frame_bottom = local_rect.bottom();
+      bool first_line = true;
       for (auto& item : photoshop_plan.lines) {
         const auto positioned = item.line.rect().translated(item.block_origin);
+        if (box_text_line_overflows_frame(positioned.top(), item.line.ascent(), frame_bottom, first_line)) {
+          break;  // hidden overflow, every later line included
+        }
+        first_line = false;
         if (positioned.top() >= gate_rect.bottom() - kLineGateTolerance ||
             positioned.bottom() <= gate_rect.top() - kLineGateTolerance) {
           continue;

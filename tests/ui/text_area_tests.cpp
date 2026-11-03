@@ -43,6 +43,7 @@
 #include "ui/text_area_layout.hpp"
 #include "core/text_area.hpp"
 #include "core/pixel_depth.hpp"
+#include "core/layer_render_utils.hpp"
 #include "core/document_depth.hpp"
 #include "ui/qt_paths.hpp"
 #include "psd/psd_document_io.hpp"
@@ -461,6 +462,101 @@ void ui_text_area_type_tool_creation_cancel_and_boundary_edit() {
   MainWindowTestAccess::undo(window);
   CHECK(text_area_for_layer(*doc.find_layer(*id))==before_drag);
 }
+// Document row just below a layer's lowest opaque pixel, or nullopt for an empty raster.
+std::optional<int> layer_ink_bottom(const Layer& layer) {
+  const auto ink = visible_alpha_local_bounds(layer.pixels());
+  if (!ink) return std::nullopt;
+  return layer.bounds().y + ink->y + ink->height;
+}
+
+std::string layer_story(const Layer& layer) {
+  const auto found = layer.metadata().find(kLayerMetadataText);
+  return found == layer.metadata().end() ? std::string() : found->second;
+}
+
+// GitHub issue 621: a box one line tall holding two lines drew the second line whole below the
+// box, because a line was kept while its TOP was above the frame bottom. Photoshop keeps a line
+// only while its baseline fits (docs/area-text.md, "Box text overflow"). Arial 40 px:
+// the second line starts about 46 px down (inside the 70 px frame) with its baseline near 82.
+void ui_box_text_overflow_hides_lines_below_the_frame() {
+  MainWindow window; show_window_empty(window);
+  window.set_cli_automation_mode(true);  // Match --run-script's missing-font substitution on Linux.
+  run(window,R"JS(
+    var d=app.newDocument(1100,300);
+    var t=d.addTextLayer("Let's give this a try\nMy name is Yousuf",{font:'Arial',size:40,x:20,y:20,box:{width:500,height:70}});
+    t.name='Short Box';
+    var tall=d.addTextLayer("Let's give this a try\nMy name is Yousuf",{font:'Arial',size:40,x:20,y:160,box:{width:500,height:120}});
+    tall.name='Tall Box';
+    var mid=d.addTextLayer("Let's give this a try\nMy name is Yousuf",{font:'Arial',size:40,x:540,y:20,box:{width:500,height:86}});
+    mid.name='Mid Box';
+  )JS");
+  auto& doc = MainWindowTestAccess::document(window);
+  const auto* short_box = layer_named(doc, "Short Box");
+  const auto* tall_box = layer_named(doc, "Tall Box");
+  CHECK(short_box && tall_box); if (!short_box || !tall_box) return;
+  const auto short_bottom = layer_ink_bottom(*short_box);
+  const auto tall_bottom = layer_ink_bottom(*tall_box);
+  CHECK(short_bottom.has_value() && tall_bottom.has_value()); if (!short_bottom || !tall_bottom) return;
+  std::fprintf(stderr, "i621 ink bottoms: short %d (frame 90), tall %d (frame 280)\n", *short_bottom, *tall_bottom);
+  CHECK(*short_bottom <= 20 + 70);                // only the first line draws
+  CHECK(*tall_bottom - 160 > *short_bottom - 20 + 30);  // both lines fit the taller box
+  CHECK(layer_story(*short_box).find("My name is Yousuf") != std::string::npos);  // hiding is render-only
+  // The 86 px frame holds the second baseline (about 82) but not the "y" below it: that line
+  // keeps its place and draws whole, descender past the frame included.
+  const auto* mid_box = layer_named(doc, "Mid Box");
+  CHECK(mid_box != nullptr);
+  if (mid_box) {
+    const auto mid_bottom = layer_ink_bottom(*mid_box);
+    CHECK(mid_bottom.has_value() && *mid_bottom > 20 + 86 && *mid_bottom - 20 == *tall_bottom - 160);
+  }
+  save_widget_artifact("ui_box_text_overflow_hides_lines_below_the_frame", *require_canvas(window));
+
+  // An older raster that baked the overflow line in must not keep it on the next edit: the
+  // re-edit renders into the old ink's rect, but only the frame decides which lines show.
+  auto* stale = doc.find_layer(tall_box->id());
+  CHECK(stale != nullptr); if (!stale) return;
+  stale->metadata()[kLayerMetadataTextBoxHeight] = "70";
+  run(window,"var t=app.activeDocument.findLayer('Tall Box');t.text=t.text+'.';");
+  const auto* reedited = layer_named(doc, "Tall Box");
+  CHECK(reedited != nullptr); if (!reedited) return;
+  const auto reedited_bottom = layer_ink_bottom(*reedited);
+  CHECK(reedited_bottom.has_value() && *reedited_bottom <= 160 + 70);
+  CHECK(layer_story(*reedited).find("My name is Yousuf.") != std::string::npos);
+}
+
+// Photoshop 2026 box text, Arial 24 px in a 300 x 40 box at (10, 10): the second line's
+// baseline (55.98) is past the frame, so Photoshop drew only the first line (ink rows 9..31).
+// Patchy keeps the hidden line in the story through an edit and a PSD round trip, and its own
+// render hides it the same way.
+void ui_box_text_overflow_photoshop_story_survives_edit_and_round_trip() {
+  const auto fixture = patchy::test::committed_psd_fixture_path("photoshop-box-text-overflow.psd");
+  const auto imported = psd::DocumentIo::read_file(fixture);
+  const auto* original = layer_named(imported, "Overflow Box");
+  CHECK(original != nullptr); if (!original) return;
+  CHECK(layer_story(*original).find("My name is Yousuf") != std::string::npos);
+  const auto photoshop_bottom = layer_ink_bottom(*original);
+  CHECK(photoshop_bottom.has_value() && *photoshop_bottom <= 10 + 40);
+
+  MainWindow window; show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  const auto quoted = QString::fromUtf8(QJsonDocument(QJsonArray{to_qstring(fixture)}).toJson(QJsonDocument::Compact));
+  run(window, QStringLiteral("var d=app.open(%1[0]);var t=d.findLayer('Overflow Box');"
+                             "t.text=t.text.replace('try','try now');check(t.text.indexOf('My name is Yousuf')>0);")
+                  .arg(quoted));
+  const auto& doc = MainWindowTestAccess::document(window);
+  const auto* edited = layer_named(doc, "Overflow Box");
+  CHECK(edited != nullptr); if (!edited) return;
+  const auto edited_bottom = layer_ink_bottom(*edited);
+  CHECK(edited_bottom.has_value() && *edited_bottom <= 10 + 40);
+  const auto bytes = psd::DocumentIo::write_layered_rgb8(doc);
+  const auto reopened = psd::DocumentIo::read(bytes);
+  const auto* round_trip = layer_named(reopened, "Overflow Box");
+  CHECK(round_trip != nullptr); if (!round_trip) return;
+  CHECK(layer_story(*round_trip).find("try now") != std::string::npos);
+  CHECK(layer_story(*round_trip).find("My name is Yousuf") != std::string::npos);
+  const auto round_trip_bottom = layer_ink_bottom(*round_trip);
+  CHECK(round_trip_bottom.has_value() && *round_trip_bottom <= 10 + 40);
+}
 }  // namespace
 
 std::vector<patchy::test::TestCase> text_area_tests() {
@@ -471,5 +567,8 @@ std::vector<patchy::test::TestCase> text_area_tests() {
           {"ui_text_area_depth_edit_transform_and_roundtrip",ui_text_area_depth_edit_transform_and_roundtrip},
           {"ui_text_area_empty_and_large_frames",ui_text_area_empty_and_large_frames},
           {"ui_text_area_psd_uses_postscript_font_names",ui_text_area_psd_uses_postscript_font_names},
-          {"ui_text_area_type_tool_creation_cancel_and_boundary_edit",ui_text_area_type_tool_creation_cancel_and_boundary_edit}};
+          {"ui_text_area_type_tool_creation_cancel_and_boundary_edit",ui_text_area_type_tool_creation_cancel_and_boundary_edit},
+          {"ui_box_text_overflow_hides_lines_below_the_frame",ui_box_text_overflow_hides_lines_below_the_frame},
+          {"ui_box_text_overflow_photoshop_story_survives_edit_and_round_trip",
+           ui_box_text_overflow_photoshop_story_survives_edit_and_round_trip}};
 }
