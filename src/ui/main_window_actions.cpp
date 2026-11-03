@@ -366,6 +366,10 @@ void MainWindow::sync_tool_option_controls_from_canvas() {
         std::max(0, content_aware_move_destination_combo_->findData(
                         static_cast<int>(canvas_->content_aware_move_destination()))));
   }
+  if (content_aware_move_object_selection_check_ != nullptr) {
+    const QSignalBlocker blocker(content_aware_move_object_selection_check_);
+    content_aware_move_object_selection_check_->setChecked(canvas_->content_aware_move_object_selection());
+  }
   if (crop_ratio_w_spin_ != nullptr && crop_ratio_h_spin_ != nullptr) {
     const QSignalBlocker w_blocker(crop_ratio_w_spin_);
     const QSignalBlocker h_blocker(crop_ratio_h_spin_);

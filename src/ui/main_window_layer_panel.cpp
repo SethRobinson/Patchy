@@ -3,6 +3,7 @@
 // and the layer-list drag/visibility plumbing. Pure function moves from
 // main_window.cpp; behavior must stay identical.
 
+#include "ai/segmentation_engine.hpp"
 #include "core/artboard.hpp"
 #include "core/layer.hpp"
 #include "core/pixel_buffer.hpp"
@@ -5575,6 +5576,9 @@ void MainWindow::refresh_document_info() {
                     ? tr("New Layer")
                     : tr("Current Layer"))
             << retouch_sample_info_text();
+      if (canvas_->content_aware_move_object_selection() && patchy::ai::segmentation_available()) {
+        lines << tr("Object Selection");
+      }
       lines << tr("Selection: feather %1 px, %2")
                    .arg(current_selection_feather_radius_)
                    .arg(current_selection_antialias_ ? tr("anti-aliased") : tr("hard edge"));

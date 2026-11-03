@@ -17078,6 +17078,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Feathered selection by %1 px</source>
         <translation>선택 영역을 %1픽셀만큼 페더했습니다</translation>
     </message>
+    <message>
+        <source>Object Selection found no object in the outline; the outline is kept</source>
+        <translation>개체 선택이 윤곽선 안에서 개체를 찾지 못했습니다. 윤곽선은 그대로 유지됩니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -32331,6 +32335,10 @@ Locked: %1</source>
     <message>
         <source>Feat&amp;her...</source>
         <translation>페더(&amp;H)...</translation>
+    </message>
+    <message>
+        <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
+        <translation>새 윤곽선을 다 그리면 그 안의 개체를 선택하고 몇 픽셀 확장한 뒤 페더를 적용한 다음 드래그합니다</translation>
     </message>
 </context>
 <context>

@@ -2777,6 +2777,12 @@ void MainWindow::load_tool_settings() {
         std::max(0, content_aware_move_destination_combo_->findData(
                         static_cast<int>(canvas_->content_aware_move_destination()))));
   }
+  canvas_->set_content_aware_move_object_selection(
+      settings.value(QStringLiteral("tools/contentAwareMoveObjectSelection"), false).toBool());
+  if (content_aware_move_object_selection_check_ != nullptr) {
+    const QSignalBlocker blocker(content_aware_move_object_selection_check_);
+    content_aware_move_object_selection_check_->setChecked(canvas_->content_aware_move_object_selection());
+  }
   current_crop_ratio_w_ =
       std::clamp(settings.value(QStringLiteral("tools/cropRatioWidth"), 0.0).toDouble(), 0.0, 10000.0);
   current_crop_ratio_h_ =
@@ -3460,6 +3466,8 @@ void MainWindow::save_tool_settings() const {
                     canvas_->content_aware_move_destination() == ContentAwareMoveDestination::NewLayer
                         ? QStringLiteral("newLayer")
                         : QStringLiteral("currentLayer"));
+  settings.setValue(QStringLiteral("tools/contentAwareMoveObjectSelection"),
+                    canvas_->content_aware_move_object_selection());
   // The remembered ratio, not the canvas's: Size mode runs the canvas unconstrained.
   settings.setValue(QStringLiteral("tools/cropRatioWidth"), current_crop_ratio_w_);
   settings.setValue(QStringLiteral("tools/cropRatioHeight"), current_crop_ratio_h_);

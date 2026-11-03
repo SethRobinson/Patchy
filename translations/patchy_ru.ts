@@ -17168,6 +17168,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Feathered selection by %1 px</source>
         <translation>Выделение растушевано на %1&#xa0;пкс.</translation>
     </message>
+    <message>
+        <source>Object Selection found no object in the outline; the outline is kept</source>
+        <translation>Выделение объектов не нашло объект внутри контура; контур сохранён</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -32499,6 +32503,10 @@ Locked: %1</source>
     <message>
         <source>Feat&amp;her...</source>
         <translation>Р&amp;астушевка...</translation>
+    </message>
+    <message>
+        <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
+        <translation>После рисования нового контура выделяет объект внутри него, расширяет выделение на несколько пикселей и применяет растушёвку перед перетаскиванием</translation>
     </message>
 </context>
 <context>

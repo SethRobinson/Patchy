@@ -3562,6 +3562,14 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
                              : tool_ == CanvasTool::ContentAwareMove ? tr("Content-Aware Move Selection")
                                                                      : tr("Lasso"),
                              selection_snapshot_before_edit());
+    clear_selection_before_edit();
+    // Object Selection (GitHub issue 599 follow-up): a New outline becomes the object inside
+    // it, as its own undo step after the outline's; a failure keeps the outline and says so.
+    bool object_pass_failed = false;
+    if (tool_ == CanvasTool::ContentAwareMove && content_aware_move_object_selection_ &&
+        selection_operation_ == SelectionMode::Replace && !selection_.isEmpty() && lasso_points_.size() >= 3) {
+      object_pass_failed = !content_aware_move_object_pass(lasso_points_.boundingRect());
+    }
     if (tool_ == CanvasTool::PatchTool && !selection_.isEmpty() && status_callback_) {
       // The patch workflow's second step is not discoverable on its own; say
       // what to do with the freshly drawn region.
@@ -3569,12 +3577,12 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
                            ? tr("Drag the selection to where the copy should go")
                            : tr("Drag the selection to a clean area to sample from, or press Enter to "
                                 "remove the object automatically"));
-    } else if (tool_ == CanvasTool::ContentAwareMove && !selection_.isEmpty() && status_callback_) {
+    } else if (tool_ == CanvasTool::ContentAwareMove && !selection_.isEmpty() && !object_pass_failed &&
+               status_callback_) {
       status_callback_(content_aware_move_mode_ == ContentAwareMoveMode::Extend
                            ? tr("Drag the selection to where the copy should go")
                            : tr("Drag the selection to where the object should go"));
     }
-    clear_selection_before_edit();
     lasso_points_.clear();
     emit_info_for_widget_position(event->pos());
     update();

@@ -519,6 +519,10 @@ public:
   [[nodiscard]] ContentAwareMoveMode content_aware_move_mode() const noexcept;
   void set_content_aware_move_destination(ContentAwareMoveDestination destination) noexcept;
   [[nodiscard]] ContentAwareMoveDestination content_aware_move_destination() const noexcept;
+  // Object Selection (GitHub issue 599 follow-up, tools/contentAwareMoveObjectSelection):
+  // a New outline drawn with the tool becomes the object inside it on release.
+  void set_content_aware_move_object_selection(bool enabled) noexcept;
+  [[nodiscard]] bool content_aware_move_object_selection() const noexcept;
   // Content-Aware Move's edge band for a selection of `bounds`: a quarter of its smaller
   // side, 6 to 48 px. Only that band along the outline takes the new surroundings' tone.
   [[nodiscard]] static int content_aware_move_edge_band(QRect bounds);
@@ -601,7 +605,10 @@ public:
   // the selection as one undo entry. `operation` is the plain boolean (Replace, Add,
   // Subtract, Intersect); the current Feather applies, and Anti-alias off thresholds the
   // mask at 50%. Used by Select > Subject, Object Selection and the script API.
-  void apply_automatic_selection_mask(QRect bounds, QImage alpha, SelectionMode operation, QString history_label);
+  // `grow_pixels` > 0 thresholds the mask at 50% and grows it that far, as Select > Modify >
+  // Expand does, before the Feather (Content-Aware Move's Object Selection).
+  void apply_automatic_selection_mask(QRect bounds, QImage alpha, SelectionMode operation, QString history_label,
+                                      int grow_pixels = 0);
   // Select Object (selection right-click menu): the selection's bounding box as one Object
   // Selection box prompt; the object found replaces the selection. False on failure.
   bool select_object_in_selection();
@@ -2647,7 +2654,14 @@ private:
   // region at release instead (solve_object_select).
   void ensure_object_select_embedding();
   void invalidate_object_select_embedding() noexcept;
-  bool solve_object_select(bool is_click, QPoint point, QRect box, SelectionMode operation, QString history_label);
+  // `grow_pixels` goes to apply_automatic_selection_mask; `no_object_message`, when set,
+  // replaces the status line for an empty result. A non-empty `must_overlap` also counts a
+  // result whose half-coverage pixels miss it as empty (nothing is applied).
+  bool solve_object_select(bool is_click, QPoint point, QRect box, SelectionMode operation, QString history_label,
+                           int grow_pixels = 0, QString no_object_message = {}, const QRegion& must_overlap = {});
+  // Content-Aware Move's Object Selection pass on the outline just drawn (`box`, its
+  // bounds): one box prompt, grown and feathered; the outline stays when nothing usable comes back.
+  bool content_aware_move_object_pass(QRect box);
   void mark_object_select_embedding_unverified() noexcept;
   // Spot Healing stroke lifecycle (canvas_widget_spot_healing.cpp). The drag
   // only accumulates the soft brush footprint (mask + overlay polyline); the
@@ -3775,6 +3789,7 @@ private:
   bool patch_tool_transparent_{false};
   ContentAwareMoveMode content_aware_move_mode_{ContentAwareMoveMode::Move};
   ContentAwareMoveDestination content_aware_move_destination_{ContentAwareMoveDestination::CurrentLayer};
+  bool content_aware_move_object_selection_{false};
   bool patch_tool_dragging_{false};
   // Latched at the press: the drag belongs to Content-Aware Move, not Patch.
   bool patch_tool_drag_content_aware_move_{false};

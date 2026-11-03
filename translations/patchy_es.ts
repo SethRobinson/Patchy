@@ -17123,6 +17123,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Feathered selection by %1 px</source>
         <translation>Selección calada %1 px</translation>
     </message>
+    <message>
+        <source>Object Selection found no object in the outline; the outline is kept</source>
+        <translation>La selección de objetos no encontró ningún objeto en el contorno; se conserva el contorno</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -32415,6 +32419,10 @@ Bloqueada: %1</translation>
     <message>
         <source>Feat&amp;her...</source>
         <translation>Ca&amp;lar...</translation>
+    </message>
+    <message>
+        <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
+        <translation>Al terminar de dibujar un contorno nuevo, selecciona el objeto que contiene, lo amplía unos píxeles y aplica el calado antes de arrastrar</translation>
     </message>
 </context>
 <context>
