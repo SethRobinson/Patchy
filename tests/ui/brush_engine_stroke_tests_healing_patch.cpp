@@ -2,6 +2,7 @@
 #include <atomic>
 #include <array>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <exception>
 #include <filesystem>
@@ -38,6 +39,7 @@
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
 #include "remove_object_fixture.hpp"
+#include "local_psd_fixtures.hpp"
 #include <QApplication>
 #include <functional>
 #include <memory>
@@ -2331,6 +2333,182 @@ void ui_content_aware_move_gallery() {
   run(patchy::ui::CanvasWidget::ContentAwareMoveMode::Extend, nullptr, nullptr, "ui_content_aware_move_extend");
 }
 
+// Real photos for Content-Aware Move (local-test-fixtures/content-aware-move, README.md
+// there lists each source and licence): a loose rectangle around an ordinary object and
+// a drop offset onto the surroundings.
+struct ContentAwareMovePhotoCase {
+  const char* name;
+  QRect object;
+  QPoint delta;
+};
+
+constexpr std::array<ContentAwareMovePhotoCase, 9> kContentAwareMovePhotoCases{{
+    {"chair-pear-room", QRect(QPoint(232, 108), QPoint(457, 534)), QPoint(250, 0)},
+    {"chairs-room", QRect(QPoint(664, 186), QPoint(779, 296)), QPoint(-520, -20)},
+    {"lawn-chair-cat", QRect(QPoint(208, 58), QPoint(508, 390)), QPoint(-195, 100)},
+    {"wall-lamp", QRect(QPoint(218, 294), QPoint(394, 496)), QPoint(0, 250)},
+    {"wall-sconce", QRect(QPoint(230, 28), QPoint(364, 248)), QPoint(0, 215)},
+    {"ceiling-lamp", QRect(QPoint(172, 28), QPoint(568, 392)), QPoint(220, 0)},
+    {"living-room", QRect(QPoint(574, 18), QPoint(658, 278)), QPoint(-370, 0)},
+    {"beach-person", QRect(QPoint(280, 282), QPoint(352, 432)), QPoint(260, 30)},
+    {"lawn-bowls", QRect(QPoint(312, 340), QPoint(460, 488)), QPoint(250, 60)},
+}};
+
+std::filesystem::path content_aware_move_photo_path(const char* name) {
+  return patchy::test::source_root_path() / "local-test-fixtures" / "content-aware-move" /
+         (std::string(name) + ".jpg");
+}
+
+// One run on a fresh copy of the photo: `run` drives the canvas, the result is saved as
+// cam_<photo>_<label>.png.
+void run_content_aware_move_photo(const ContentAwareMovePhotoCase& photo, const char* label,
+                                  const std::function<void(patchy::ui::CanvasWidget&)>& run) {
+  QImage image(patchy::ui::to_qstring(content_aware_move_photo_path(photo.name)));
+  CHECK(!image.isNull());
+  if (image.isNull()) {
+    return;
+  }
+  auto document = patchy::ui::document_from_qimage(image.convertToFormat(QImage::Format_RGBA8888), "Photo");
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(document.width() + 80, document.height() + 80);
+  canvas.set_document(&document);
+  canvas.show();
+  canvas.set_zoom(1.0);
+  QApplication::processEvents();
+  run(canvas);
+  QApplication::processEvents();
+  save_image_artifact(std::string("cam_") + photo.name + "_" + label,
+                      patchy::ui::qimage_from_document(document, false));
+}
+
+// Comparison sheets on real photos: Content-Aware Move (Move, Extend), the Patch tool
+// (Destination; Source over the old spot, sampling the drop area) and Remove Object on
+// the old spot, all from the same loose rectangle. Artifacts only; the quality checks
+// are in ui_content_aware_move_photo_fill_has_no_object_pixels.
+void ui_content_aware_move_real_photo_sheets() {
+  if (!std::filesystem::exists(content_aware_move_photo_path("wall-lamp"))) {
+    patchy::test::skip("no local-test-fixtures/content-aware-move photos");
+  }
+  for (const auto& photo : kContentAwareMovePhotoCases) {
+    const auto center = photo.object.center();
+    const auto select = [&photo](patchy::ui::CanvasWidget& canvas) { select_document_rect(canvas, photo.object); };
+    run_content_aware_move_photo(photo, "original", [](patchy::ui::CanvasWidget&) {});
+    run_content_aware_move_photo(photo, "move", [&](patchy::ui::CanvasWidget& canvas) {
+      canvas.set_tool(patchy::ui::CanvasTool::ContentAwareMove);
+      select(canvas);
+      drag_patch_region(canvas, center, center + photo.delta);
+    });
+    run_content_aware_move_photo(photo, "extend", [&](patchy::ui::CanvasWidget& canvas) {
+      canvas.set_tool(patchy::ui::CanvasTool::ContentAwareMove);
+      canvas.set_content_aware_move_mode(patchy::ui::CanvasWidget::ContentAwareMoveMode::Extend);
+      select(canvas);
+      drag_patch_region(canvas, center, center + photo.delta);
+    });
+    run_content_aware_move_photo(photo, "patch_destination", [&](patchy::ui::CanvasWidget& canvas) {
+      canvas.set_tool(patchy::ui::CanvasTool::PatchTool);
+      canvas.set_patch_tool_mode(patchy::ui::CanvasWidget::PatchToolMode::Destination);
+      select(canvas);
+      drag_patch_region(canvas, center, center + photo.delta);
+    });
+    run_content_aware_move_photo(photo, "patch_source", [&](patchy::ui::CanvasWidget& canvas) {
+      canvas.set_tool(patchy::ui::CanvasTool::PatchTool);
+      canvas.set_patch_tool_mode(patchy::ui::CanvasWidget::PatchToolMode::Source);
+      select(canvas);
+      drag_patch_region(canvas, center, center + photo.delta);
+    });
+    run_content_aware_move_photo(photo, "remove_object", [&](patchy::ui::CanvasWidget& canvas) {
+      canvas.set_tool(patchy::ui::CanvasTool::Marquee);
+      select(canvas);
+      CHECK(canvas.remove_object_in_selection().applied);
+    });
+
+  }
+}
+
+// Quality on committed real photos (test-fixtures/content-aware-move, CC0 crops; README.md
+// there): after a Move the old spot holds no object pixels (dark pixels in the old box drop
+// below a fifth of what the object had; logs and shadows on the beach keep a few), the object lands at the drop point, and the
+// middle of the moved object keeps its own colours (the edge band, not the whole-region
+// tone shift of Patch Destination).
+void ui_content_aware_move_photo_fill_has_no_object_pixels() {
+  struct Case {
+    const char* file;
+    QRect object;
+    QPoint delta;
+    int dark;  // luminance below this counts as object
+  };
+  const std::array<Case, 2> cases{{
+      {"beach-person.jpg", QRect(QPoint(130, 82), QPoint(202, 232)), QPoint(260, 30), 40},
+      {"wall-sconce.jpg", QRect(QPoint(110, 28), QPoint(244, 248)), QPoint(0, 215), 100},
+  }};
+  for (const auto& photo : cases) {
+    const auto path =
+        patchy::test::source_root_path() / "test-fixtures" / "content-aware-move" / std::string(photo.file);
+    QImage image(patchy::ui::to_qstring(path));
+    CHECK(!image.isNull());
+    if (image.isNull()) {
+      continue;
+    }
+    auto document = patchy::ui::document_from_qimage(image.convertToFormat(QImage::Format_RGBA8888), "Photo");
+    const auto before = patchy::ui::qimage_from_document(document, false).convertToFormat(QImage::Format_RGBA8888);
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(document.width() + 80, document.height() + 80);
+    canvas.set_document(&document);
+    canvas.set_tool(patchy::ui::CanvasTool::ContentAwareMove);
+    canvas.show();
+    canvas.set_zoom(1.0);
+    QApplication::processEvents();
+    select_document_rect(canvas, photo.object);
+    const auto center = photo.object.center();
+    drag_patch_region(canvas, center, center + photo.delta);
+    const auto after = patchy::ui::qimage_from_document(document, false).convertToFormat(QImage::Format_RGBA8888);
+    save_image_artifact(std::string("ui_content_aware_move_photo_") + photo.file, after);
+
+    const auto dark_count = [&photo](const QImage& frame, QRect box) {
+      int count = 0;
+      for (int y = box.top(); y <= box.bottom(); ++y) {
+        for (int x = box.left(); x <= box.right(); ++x) {
+          const auto c = frame.pixelColor(x, y);
+          count += (c.red() * 77 + c.green() * 150 + c.blue() * 29) / 256 < photo.dark ? 1 : 0;
+        }
+      }
+      return count;
+    };
+    const auto core = photo.object.adjusted(4, 4, -4, -4);
+    const auto object_dark = dark_count(before, core);
+    const auto left_dark = dark_count(after, core);
+    const auto moved_dark = dark_count(after, core.translated(photo.delta));
+    std::printf("[INFO] %s: dark pixels in the old box %d -> %d, at the drop %d\n", photo.file, object_dark, left_dark,
+                moved_dark);
+    CHECK(object_dark > 500);
+    CHECK(left_dark * 5 < object_dark);
+    CHECK(moved_dark * 10 > object_dark * 7);
+
+    // The middle of the moved object keeps its colours: mean RGB of the box shrunk past
+    // the edge band, before and after the move, within 6 levels per channel.
+    const auto band = patchy::ui::CanvasWidget::content_aware_move_edge_band(photo.object);
+    const auto middle = photo.object.adjusted(band + 2, band + 2, -band - 2, -band - 2);
+    const auto mean = [](const QImage& frame, QRect box) {
+      std::array<std::int64_t, 3> sum{};
+      for (int y = box.top(); y <= box.bottom(); ++y) {
+        for (int x = box.left(); x <= box.right(); ++x) {
+          const auto c = frame.pixelColor(x, y);
+          sum[0] += c.red();
+          sum[1] += c.green();
+          sum[2] += c.blue();
+        }
+      }
+      const auto n = std::max<std::int64_t>(1, static_cast<std::int64_t>(box.width()) * box.height());
+      return std::array<std::int64_t, 3>{sum[0] / n, sum[1] / n, sum[2] / n};
+    };
+    const auto original_mean = mean(before, middle);
+    const auto moved_mean = mean(after, middle.translated(photo.delta));
+    for (std::size_t channel = 0; channel < 3; ++channel) {
+      CHECK(std::abs(original_mean[channel] - moved_mean[channel]) <= 6);
+    }
+  }
+}
+
 void ui_patch_options_sync_canvas_and_persist() {
   SettingsValueRestorer mode_restorer(QStringLiteral("tools/patchMode"));
   SettingsValueRestorer transparent_restorer(QStringLiteral("tools/patchTransparent"));
@@ -2655,5 +2833,7 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part2() {
       {"ui_content_aware_move_tool_in_flyout_escape_and_undo",
        ui_content_aware_move_tool_in_flyout_escape_and_undo},
       {"ui_content_aware_move_gallery", ui_content_aware_move_gallery},
+      {"ui_content_aware_move_real_photo_sheets", ui_content_aware_move_real_photo_sheets},
+      {"ui_content_aware_move_photo_fill_has_no_object_pixels", ui_content_aware_move_photo_fill_has_no_object_pixels},
   };
 }

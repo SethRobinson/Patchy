@@ -52,6 +52,12 @@ struct ExemplarInpaintOptions {
   // left unchanged and the result reports `cancelled`). Lets a host run the
   // fill on a worker thread and drop it when the settings change.
   const std::atomic<bool>* cancel{nullptr};
+  // Optional cells that may not be sampled (row-major 8-bit over `excluded_bounds`,
+  // non-zero = excluded): a source patch touching one is not a candidate, exactly like
+  // one touching the hole. The pixels stay known for the target distances. Content-Aware
+  // Move passes the drop region so the old spot never fills from where the object goes.
+  const std::uint8_t* excluded{nullptr};
+  Rect excluded_bounds{};
 };
 
 struct ExemplarInpaintResult {
@@ -86,5 +92,30 @@ struct ExemplarInpaintResult {
 // change.
 void exemplar_match_tone(std::uint8_t* filled, std::int32_t width, std::int32_t height, const std::uint8_t* hole,
                          Rect bounds, std::int32_t blur_radius, std::int32_t strength_percent = 100);
+
+// Content-Aware Move's fill of the spot an object leaves: ONE exemplar search for the
+// whole hole. The hole plus a `ring`-cell band around it is a single target patch; every
+// translation within `search_radius` is scored by an exhaustive scan in a fixed order
+// (integer L1 over the band's known pixels on a fixed sample grid, plus a fixed penalty
+// on the offset; the first smallest wins). Admissible offsets keep the shifted block on
+// the image and off the hole, and the shifted hole off `excluded` (optional, 8-bit over
+// `excluded_bounds`). The caller copies the hole from that offset and heals it with the
+// membrane (the Patch tool's Source heal with the offset found here instead of dragged).
+// Same legal form as exemplar_inpaint: exhaustive and independent, no offset field,
+// propagation, perturbation, stored candidates or coarse map (docs/legal-constraints.md).
+struct ExemplarBlockMatch {
+  bool found{false};
+  std::int32_t dx{0};
+  std::int32_t dy{0};
+  std::int64_t distance{0};
+  std::int64_t samples{0};     // band samples compared
+  std::int64_t difference{0};  // their summed L1 (RGB) at the winner, without the offset penalty
+  std::int64_t texture{0};     // summed L1 (RGB) from each sample to its right and lower neighbours
+};
+[[nodiscard]] ExemplarBlockMatch exemplar_block_match(const std::uint8_t* image, std::int32_t width,
+                                                      std::int32_t height, const std::uint8_t* hole, Rect bounds,
+                                                      std::int32_t ring, std::int32_t search_radius,
+                                                      const std::uint8_t* excluded = nullptr,
+                                                      Rect excluded_bounds = {});
 
 }  // namespace patchy

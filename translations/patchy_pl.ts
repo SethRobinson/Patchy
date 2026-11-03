@@ -17088,6 +17088,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Content-Aware Move</source>
         <translation>Przesunięcie z uwzględnieniem zawartości</translation>
     </message>
+    <message>
+        <source>Moving object...</source>
+        <translation>Przesuwanie obiektu...</translation>
+    </message>
+    <message>
+        <source>Moving object... %1%</source>
+        <translation>Przesuwanie obiektu... %1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>

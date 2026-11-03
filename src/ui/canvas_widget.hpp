@@ -516,6 +516,9 @@ public:
   [[nodiscard]] bool patch_tool_transparent() const noexcept;
   void set_content_aware_move_mode(ContentAwareMoveMode mode) noexcept;
   [[nodiscard]] ContentAwareMoveMode content_aware_move_mode() const noexcept;
+  // Content-Aware Move's edge band for a selection of `bounds`: a quarter of its smaller
+  // side, 6 to 48 px. Only that band along the outline takes the new surroundings' tone.
+  [[nodiscard]] static int content_aware_move_edge_band(QRect bounds);
   // Red Eye tool (canvas_widget_red_eye.cpp, core/red_eye.hpp): Pupil Size and Darken
   // Amount, 1..100 each.
   void set_red_eye_pupil_size(int percent) noexcept;
@@ -2642,8 +2645,11 @@ private:
   // to the edit target. `clip_to_selection` multiplies in the selection
   // coverage (a stroke); Remove Object's mask IS the selection. Returns the
   // written rect (empty when nothing was written).
+  // `edge_band` > 0 fades the solved offsets to none that many pixels inside the region
+  // (Content-Aware Move's fill of the old spot; core/heal_membrane.hpp).
   QRect heal_mask_from_surroundings(QRect bounds, const std::vector<std::uint8_t>& mask, const QImage& snapshot,
-                                    const SpotHealSourceMap& source_map, Layer& layer, bool clip_to_selection);
+                                    const SpotHealSourceMap& source_map, Layer& layer, bool clip_to_selection,
+                                    int edge_band = 0);
   void cancel_spot_heal_stroke();
   void stamp_spot_heal_segment(QPoint from, QPoint to);
   void draw_spot_heal_stroke_overlay(QPainter& painter) const;
@@ -2776,9 +2782,26 @@ private:
   // `bounds`, written at `bounds` + `destination_offset` with texture read from
   // `source_snapshot` at `source_offset` and the boundary tone from `tone_snapshot`.
   // The caller holds begin_edit and a processing operation.
+  // `edge_band` > 0 (Content-Aware Move) fades the solved tone offsets from the selection
+  // edge to none that many pixels inside it, so the moved object keeps its colours; 0 is
+  // the Patch tool's full membrane.
   void write_patch_heal(Layer& layer, QRect bounds, const std::vector<std::uint8_t>& mask,
                         std::int64_t mask_area, QPoint destination_offset, QPoint source_offset,
-                        const QImage& source_snapshot, const QImage& tone_snapshot, bool transparent);
+                        const QImage& source_snapshot, const QImage& tone_snapshot, bool transparent,
+                        int edge_band = 0);
+  // Content-Aware Move's fill of the old spot: the exhaustive exemplar fill of
+  // core/exemplar_inpaint.hpp on a copy of `snapshot` (the drop region excluded from the
+  // sources), then its tone match. Runs on a worker under the progress overlay; a null
+  // image when no clean source patch is in reach.
+  struct ContentAwareMoveHoleFill {
+    bool block{false};  // heal the hole in from `offset` (the whole-hole block match)
+    QPoint offset;
+    QImage filled;  // otherwise the exemplar fill (null: neither found a clean source)
+  };
+  [[nodiscard]] ContentAwareMoveHoleFill content_aware_move_hole_fill(QRect hole_bounds,
+                                                                      const std::vector<std::uint8_t>& hole_mask,
+                                                                      const QImage& snapshot, QRect drop_bounds,
+                                                                      const std::vector<std::uint8_t>& drop_mask);
   // The selection follows a dropped copy, as its own history step after the pixel step.
   void move_selection_with_patch_drop(QPoint delta, const QString& history_label);
   void draw_patch_tool_drag_preview(QPainter& painter) const;

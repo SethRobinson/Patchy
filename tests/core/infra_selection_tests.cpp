@@ -1210,6 +1210,134 @@ void exemplar_inpaint_banner_tone_match_stays_dark_and_varies_by_attempt() {
   CHECK(std::abs(stats2.band_mean - band) <= 20.0);
 }
 
+// Content-Aware Move's whole-hole search: on a periodic stripe image with a block hole the
+// best offset re-aligns the stripes (a multiple of the period), the excluded region and
+// the hole are never chosen, a rerun gives the same offset, and a hole wider than the
+// free space finds nothing.
+void exemplar_block_match_finds_an_aligned_clean_offset() {
+  constexpr std::int32_t width = 160;
+  constexpr std::int32_t height = 96;
+  std::vector<std::uint8_t> image(static_cast<std::size_t>(width) * height * 4U);
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      auto* p = image.data() + (static_cast<std::size_t>(y) * width + x) * 4U;
+      const bool stripe = (x % 12) < 4;
+      p[0] = stripe ? 200 : 40;
+      p[1] = stripe ? 180 : 60;
+      p[2] = stripe ? 160 : 80;
+      p[3] = 255;
+    }
+  }
+  const patchy::Rect bounds{60, 30, 24, 24};
+  std::vector<std::uint8_t> hole(static_cast<std::size_t>(bounds.width) * bounds.height, 0U);
+  for (std::int32_t y = 2; y < 22; ++y) {
+    for (std::int32_t x = 2; x < 22; ++x) {
+      hole[static_cast<std::size_t>(y) * bounds.width + x] = 255U;
+      // Something that is not stripes inside the hole: it must not matter.
+      auto* p = image.data() + (static_cast<std::size_t>(bounds.y + y) * width + bounds.x + x) * 4U;
+      p[0] = 255;
+      p[1] = 0;
+      p[2] = 0;
+    }
+  }
+  const auto match = patchy::exemplar_block_match(image.data(), width, height, hole.data(), bounds, 6, 96);
+  CHECK(match.found);
+  CHECK(match.dx % 12 == 0);
+  CHECK(match.samples > 0 && match.texture > 0 && match.difference == 0);
+  // The shifted hole (62..81, 32..51) clears the hole's box.
+  CHECK(std::abs(match.dx) >= 20 || std::abs(match.dy) >= 20);
+  const auto again = patchy::exemplar_block_match(image.data(), width, height, hole.data(), bounds, 6, 96);
+  CHECK(again.found && again.dx == match.dx && again.dy == match.dy && again.distance == match.distance);
+  // Exclude the region the first answer used: the next pick avoids it.
+  std::vector<std::uint8_t> excluded(static_cast<std::size_t>(width) * height, 0U);
+  for (std::int32_t y = 32 + match.dy; y < 52 + match.dy; ++y) {
+    for (std::int32_t x = 62 + match.dx; x < 82 + match.dx; ++x) {
+      excluded[static_cast<std::size_t>(y) * width + x] = 255U;
+    }
+  }
+  const auto other = patchy::exemplar_block_match(image.data(), width, height, hole.data(), bounds, 6, 96,
+                                                  excluded.data(), patchy::Rect{0, 0, width, height});
+  CHECK(other.found);
+  CHECK(other.dx != match.dx || other.dy != match.dy);
+  CHECK(other.dx % 12 == 0);
+  // A hole spanning all but a few columns has nowhere to come from.
+  const patchy::Rect wide{2, 2, width - 4, height - 4};
+  const std::vector<std::uint8_t> wide_hole(static_cast<std::size_t>(wide.width) * wide.height, 255U);
+  CHECK(!patchy::exemplar_block_match(image.data(), width, height, wide_hole.data(), wide, 6, 96).found);
+}
+
+// The exemplar fill's excluded cells: a source patch touching one is never copied. With
+// the only clean stripe phase excluded on one side the fill still completes from the
+// other side, and no filled pixel comes from the excluded block (marked blue).
+void exemplar_inpaint_skips_excluded_sources() {
+  constexpr std::int32_t width = 96;
+  constexpr std::int32_t height = 64;
+  std::vector<std::uint8_t> image(static_cast<std::size_t>(width) * height * 4U);
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      auto* p = image.data() + (static_cast<std::size_t>(y) * width + x) * 4U;
+      const bool blue = x >= 56;
+      p[0] = blue ? 0 : 120;
+      p[1] = blue ? 0 : 120;
+      p[2] = blue ? 255 : 120;
+      p[3] = 255;
+    }
+  }
+  const patchy::Rect bounds{40, 20, 20, 20};
+  std::vector<std::uint8_t> hole(static_cast<std::size_t>(bounds.width) * bounds.height, 0U);
+  for (std::int32_t y = 4; y < 16; ++y) {
+    for (std::int32_t x = 4; x < 16; ++x) {
+      hole[static_cast<std::size_t>(y) * bounds.width + x] = 255U;
+    }
+  }
+  std::vector<std::uint8_t> excluded(static_cast<std::size_t>(width - 56) * height, 255U);
+  patchy::ExemplarInpaintOptions options;
+  options.excluded = excluded.data();
+  options.excluded_bounds = patchy::Rect{56, 0, width - 56, height};
+  options.single_threaded = true;
+  auto filled = image;
+  const auto result = patchy::exemplar_inpaint(filled.data(), width, height, hole.data(), bounds, options);
+  CHECK(result.filled);
+  for (std::int32_t y = 24; y < 36; ++y) {
+    for (std::int32_t x = 44; x < 56; ++x) {
+      const auto* p = filled.data() + (static_cast<std::size_t>(y) * width + x) * 4U;
+      CHECK(p[2] == 120 && p[0] == 120);
+    }
+  }
+}
+
+// The edge band: offsets keep their solved value next to the boundary and fall to 0 at
+// the band's depth, monotonically in between.
+void heal_membrane_edge_band_fades_offsets() {
+  constexpr std::int32_t width = 41;
+  constexpr std::int32_t height = 41;
+  std::vector<std::uint8_t> interior(static_cast<std::size_t>(width) * height, 0U);
+  std::vector<std::int16_t> offsets(static_cast<std::size_t>(width) * height * 3U, 0);
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto index = static_cast<std::size_t>(y) * width + x;
+      interior[index] = x > 0 && y > 0 && x < width - 1 && y < height - 1 ? 1U : 0U;
+      for (std::size_t c = 0; c < 3; ++c) {
+        offsets[index * 3U + c] = 100;
+      }
+    }
+  }
+  patchy::fade_heal_offsets_to_edge_band(interior.data(), width, height, offsets.data(), 10);
+  const auto at = [&](std::int32_t x, std::int32_t y) {
+    return offsets[(static_cast<std::size_t>(y) * width + x) * 3U];
+  };
+  CHECK(at(0, 20) == 100);  // boundary cells untouched
+  CHECK(at(1, 20) == 100);  // first interior cell: full
+  CHECK(at(20, 20) == 0);   // deeper than the band: none
+  std::int16_t previous = 101;
+  for (std::int32_t x = 1; x <= 12; ++x) {
+    CHECK(at(x, 20) <= previous);
+    previous = at(x, 20);
+  }
+  CHECK(at(6, 20) > 0 && at(6, 20) < 100);
+  CHECK(at(11, 20) == 0);
+}
+
 void heal_membrane_interpolates_boundary_offsets() {
   constexpr std::int32_t size = 32;
   // Interior disc; Dirichlet cells everywhere else.
@@ -1445,6 +1573,9 @@ std::vector<patchy::test::TestCase> infra_selection_tests() {
       {"exemplar_inpaint_banner_tone_match_stays_dark_and_varies_by_attempt",
        exemplar_inpaint_banner_tone_match_stays_dark_and_varies_by_attempt},
       {"heal_membrane_interpolates_boundary_offsets", heal_membrane_interpolates_boundary_offsets},
+      {"heal_membrane_edge_band_fades_offsets", heal_membrane_edge_band_fades_offsets},
+      {"exemplar_block_match_finds_an_aligned_clean_offset", exemplar_block_match_finds_an_aligned_clean_offset},
+      {"exemplar_inpaint_skips_excluded_sources", exemplar_inpaint_skips_excluded_sources},
       {"cli_headless_flag_matches_exact_token", cli_headless_flag_matches_exact_token},
       {"cli_startup_benchmark_flag_reads_value", cli_startup_benchmark_flag_reads_value},
       {"cli_mcp_connector_flag_is_first_argument_only", cli_mcp_connector_flag_is_first_argument_only},
