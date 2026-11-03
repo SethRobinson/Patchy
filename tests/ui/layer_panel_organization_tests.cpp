@@ -34,6 +34,7 @@
 #include <QByteArray>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QGroupBox>
 #include <QImage>
 #include <QItemSelectionModel>
 #include <QLabel>
@@ -4296,7 +4297,7 @@ void ui_layer_vector_badge_double_click_opens_shape_appearance() {
 // Fill layers are not shapes in the UI (GitHub issue 580 follow-up): a Gradient Fill layer from
 // Layer > New Fill Layer or the Gradient tool's Fill Layer mode has no vector badge, its content
 // thumbnail opens its fill settings, and that dialog shows no Stroke or Edge controls, keeps a
-// stroke the layer already carries, and is titled like the layer.
+// stroke the layer already carries, and is titled "Fill Layer Settings" (#582 follow-up).
 void ui_fill_layer_row_opens_fill_settings_without_shape_controls() {
   VectorSettingsGuard settings_guard;
   SettingsValueRestorer saved_gradient_mode(QStringLiteral("tools/gradientMode"));
@@ -4340,7 +4341,7 @@ void ui_fill_layer_row_opens_fill_settings_without_shape_controls() {
   QTimer::singleShot(0, inspect_and(true));
   require_action(window, "layerNewGradientFillAction")->trigger();
   QApplication::processEvents();
-  CHECK(title == QStringLiteral("Gradient Fill"));
+  CHECK(title == QStringLiteral("Fill Layer Settings"));
   CHECK(fill_only);
   CHECK(!stroke_shown);
   CHECK(!edge_shown);
@@ -4359,6 +4360,7 @@ void ui_fill_layer_row_opens_fill_settings_without_shape_controls() {
   auto* row = row_for(fill_id);
   CHECK(row != nullptr);
   CHECK(row != nullptr && row->findChild<QToolButton*>(QStringLiteral("layerVectorBadgeButton")) == nullptr);
+  CHECK(row != nullptr && row->findChild<QToolButton*>(QStringLiteral("layerFillBadgeButton")) != nullptr);
 
   // A stroke the layer carries (a PSD can) stays as it is through the fill settings.
   {
@@ -4389,7 +4391,7 @@ void ui_fill_layer_row_opens_fill_settings_without_shape_controls() {
   for (int spin = 0; spin < 10 && title.isEmpty(); ++spin) {
     QApplication::processEvents();
   }
-  CHECK(title == QStringLiteral("Gradient Fill"));
+  CHECK(title == QStringLiteral("Fill Layer Settings"));
   CHECK(fill_only);
   CHECK(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")) == nullptr);
   const auto* kept = std::as_const(document).find_layer(fill_id)->vector_shape();
@@ -4412,6 +4414,182 @@ void ui_fill_layer_row_opens_fill_settings_without_shape_controls() {
     save_widget_artifact("ui_fill_layer_rows", *layers_dock);
   }
   canvas->set_gradient_tool_mode(patchy::ui::GradientToolMode::Pixels);
+}
+
+// GitHub #582 follow-up: the fill-only dialog has one fixed title, "Fill Layer Settings", for
+// every fill type, and its section shows no "Fill" heading; a shape layer's dialog keeps the
+// "Shape Appearance" title and its "Fill" section heading.
+void ui_fill_layer_settings_title_and_fill_label_by_mode() {
+  VectorSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+
+  QString title;
+  QString fill_heading = QStringLiteral("unset");
+  bool fill_group_shown = false;
+  bool fill_only = false;
+  const auto inspect = [&](bool switch_to_pattern) {
+    return [&, switch_to_pattern] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      auto* group = dialog->findChild<QGroupBox*>(QStringLiteral("shapeFillGroup"));
+      CHECK(group != nullptr);
+      fill_only = dialog->property("fillLayerSettings").toBool();
+      fill_heading = group != nullptr ? group->title() : QStringLiteral("missing");
+      fill_group_shown = group != nullptr && group->isVisibleTo(dialog);
+      if (switch_to_pattern) {
+        // The title stays put when the fill type changes.
+        auto* kind = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillKindCombo"));
+        CHECK(kind != nullptr);
+        if (kind != nullptr) {
+          kind->setCurrentIndex(kind->findText(QStringLiteral("Pattern")));
+        }
+        QApplication::processEvents();
+        save_widget_artifact("ui_fill_layer_settings_title_and_no_fill_label", *dialog);
+      }
+      title = dialog->windowTitle();
+      dialog->reject();
+    };
+  };
+
+  // New Gradient Fill stages the layer and opens the fill-only dialog: accept it.
+  QTimer::singleShot(0, [] {
+    if (auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog")); dialog != nullptr) {
+      dialog->accept();
+    }
+  });
+  require_action(window, "layerNewGradientFillAction")->trigger();
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(patchy::layer_is_fill_layer(*std::as_const(document).find_layer(*document.active_layer_id())));
+
+  QTimer::singleShot(0, inspect(true));
+  require_action(window, "layerShapeAppearanceAction")->trigger();
+  QApplication::processEvents();
+  CHECK(title == QStringLiteral("Fill Layer Settings"));
+  CHECK(fill_only);
+  CHECK(fill_heading.isEmpty());
+  CHECK(fill_group_shown);
+
+  // A shape layer drawn over the fill keeps the Shape Appearance title and the Fill heading.
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+       canvas->widget_position_for_document_point(QPoint(400, 300)));
+  QApplication::processEvents();
+  CHECK(!patchy::layer_is_fill_layer(*std::as_const(document).find_layer(*document.active_layer_id())));
+  title.clear();
+  QTimer::singleShot(0, inspect(false));
+  require_action(window, "layerShapeAppearanceAction")->trigger();
+  QApplication::processEvents();
+  CHECK(title == QStringLiteral("Shape Appearance"));
+  CHECK(!fill_only);
+  CHECK(fill_heading == QStringLiteral("Fill"));
+  CHECK(fill_group_shown);
+}
+
+// GitHub #607: a fill layer's row double-click and its fill badge open the fill settings, as an
+// adjustment row opens its own dialog; a double-click on the name still renames the layer.
+void ui_fill_layer_row_double_click_and_badge_open_fill_settings() {
+  VectorSettingsGuard settings_guard;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+
+  QTimer::singleShot(0, [] {
+    if (auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog")); dialog != nullptr) {
+      dialog->accept();
+    }
+  });
+  require_action(window, "layerNewGradientFillAction")->trigger();
+  QApplication::processEvents();
+  const auto fill_id = *document.active_layer_id();
+  CHECK(patchy::layer_is_fill_layer(*std::as_const(document).find_layer(fill_id)));
+  const auto fill_row = [&]() -> QWidget* {
+    for (int row = 0; row < layer_list->count(); ++row) {
+      auto* item = layer_list->item(row);
+      if (item->data(patchy::ui::kLayerIdRole).toULongLong() == fill_id) {
+        return layer_list->itemWidget(item);
+      }
+    }
+    return nullptr;
+  };
+  CHECK(fill_row() != nullptr);
+  if (fill_row() == nullptr) {
+    return;
+  }
+  CHECK(fill_row()->findChild<QToolButton*>(QStringLiteral("layerVectorBadgeButton")) == nullptr);
+  if (auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock")); layers_dock != nullptr) {
+    save_widget_artifact("ui_fill_layer_row_fill_badge", *layers_dock);
+  }
+
+  // Polls for the dialog: the badge opens it one tick after its click.
+  bool saw_fill_settings = false;
+  bool saw_style_dialog = false;
+  int attempts = 0;
+  std::function<void()> close_fill_settings = [&] {
+    if (auto* style = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")); style != nullptr) {
+      saw_style_dialog = true;
+      style->reject();
+      return;
+    }
+    if (auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog")); dialog != nullptr) {
+      saw_fill_settings = dialog->property("fillLayerSettings").toBool() &&
+                          dialog->windowTitle() == QStringLiteral("Fill Layer Settings");
+      dialog->reject();
+      return;
+    }
+    if (++attempts < 20) {
+      QTimer::singleShot(0, close_fill_settings);
+    }
+  };
+
+  auto* details = fill_row()->findChild<QLabel*>(QStringLiteral("layerRowDetails"));
+  CHECK(details != nullptr);
+  if (details != nullptr) {
+    QTimer::singleShot(0, close_fill_settings);
+    send_double_click(*details, details->rect().center());
+    for (int spin = 0; spin < 10 && !saw_fill_settings && !saw_style_dialog; ++spin) {
+      QApplication::processEvents();
+    }
+  }
+  CHECK(saw_fill_settings);
+  CHECK(!saw_style_dialog);
+
+  saw_fill_settings = false;
+  saw_style_dialog = false;
+  attempts = 0;
+  auto* badge = fill_row()->findChild<QToolButton*>(QStringLiteral("layerFillBadgeButton"));
+  CHECK(badge != nullptr);
+  if (badge != nullptr) {
+    const auto center = badge->rect().center();
+    send_mouse(*badge, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    CHECK(badge->isDown());
+    QTimer::singleShot(0, close_fill_settings);
+    send_mouse(*badge, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    for (int spin = 0; spin < 10 && !saw_fill_settings && !saw_style_dialog; ++spin) {
+      QApplication::processEvents();
+    }
+  }
+  CHECK(saw_fill_settings);
+  CHECK(!saw_style_dialog);
+
+  // The name keeps renaming in place.
+  auto* name = fill_row()->findChild<QLabel*>(QStringLiteral("layerRowName"));
+  CHECK(name != nullptr);
+  if (name != nullptr) {
+    send_double_click(*name, name_text_center(*name));
+    auto* edit = find_inline_rename_edit(*layer_list);
+    CHECK(edit != nullptr);
+    if (edit != nullptr) {
+      send_key(*edit, Qt::Key_Escape);
+    }
+    QApplication::processEvents();
+  }
+  CHECK(find_top_level_dialog(QStringLiteral("shapeAppearanceDialog")) == nullptr);
+  CHECK(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")) == nullptr);
 }
 
 // Layer ids restart per document: a commit whose focus loss went to another
@@ -6982,6 +7160,9 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_layer_row_badges_center_on_the_row", ui_layer_row_badges_center_on_the_row},
       {"ui_fill_layer_row_opens_fill_settings_without_shape_controls",
        ui_fill_layer_row_opens_fill_settings_without_shape_controls},
+      {"ui_fill_layer_settings_title_and_fill_label_by_mode", ui_fill_layer_settings_title_and_fill_label_by_mode},
+      {"ui_fill_layer_row_double_click_and_badge_open_fill_settings",
+       ui_fill_layer_row_double_click_and_badge_open_fill_settings},
       {"ui_layer_vector_badge_double_click_opens_shape_appearance",
        ui_layer_vector_badge_double_click_opens_shape_appearance},
       {"ui_layer_eye_alt_click_isolates_and_restores", ui_layer_eye_alt_click_isolates_and_restores},

@@ -40,7 +40,7 @@
 
 ## Vectors and typography
 
-- Vector tools: Pen paths, shape layers (Rectangle, Ellipse, Line, Polygon, Custom Shape) with solid, gradient or pattern paint, editable dash and stroke presets with offsets, path-edited vector masks, point edits (add by click, break, join, weld or merge by drag, delete segment), Merge Shapes (overlapping ones to one outline), per-shape cut, copy, paste, color, align, new layer, editable radius, sides, star inset, a Paths panel (fill, stroke, selection), switchable fill layers, in PSDs Photoshop opens
+- Vector tools: Pen paths, shape layers (Rectangle, Ellipse, Line, Polygon, Custom Shape) with solid, gradient or pattern paint, editable dash and stroke presets with offsets, path-edited vector masks, point edits (add by click, break, join, weld or merge by drag, delete segment), Merge Shapes (overlapping ones to one outline), per-shape cut, copy, paste, color, align, new layer, editable radius, sides, star inset, a Paths panel (fill, stroke, selection), switchable fill layers (badge or double-click opens settings), in PSDs Photoshop opens
 - Dynamic Vector Preview keeps shapes and vector masks sharp at any zoom. Merge Layers keeps vectors and bitmap runs apart, merges within groups or makes a merged copy (Ctrl+Alt+E: selected layers only). Merge Visible bakes a layer's mask or effects
 - Trace Image to Shapes: turns a pixel layer into editable shape layers, one per color, with presets, color, gray and black-and-white modes, abutting or overlapping shapes, noise removal, live preview
 - Point text, paragraph (box) text and area text that flows inside a closed shape or path, saved as native Photoshop text frames
@@ -124,8 +124,8 @@ Photoshop features not supported yet, or only partly:
 - True CMYK and Lab editing, CMYK saves of edited PSD files, editable spot separations and RGB component channels, multi-channel overlays, and full color-management parity (Patchy edits in RGB and converts the other modes on open; for print output see [Color and print](#color-and-print))
 - OpenEXR imports single-part scanline or tiled RGB/RGBA or luminance images with supported compression; multipart, deep, and some compression types are unsupported. AVIF is desktop-only and exports still images, although sequences can be imported
 - 16 and 32-bit gaps: filters without a deep version run on an 8-bit copy at 16 bits (unchanged pixels keep full precision) and are disabled at 32 bits, as are Liquify and the Filter Gallery; Smart Object contents and their Smart Filters render at 8 bits; Spot Healing, Remove Object, and Patch heal at 8-bit precision
-- Layer comps, timeline/video editing, generative tools (animated GIF, WebP, and PNG import, preview, and export are supported)
-- Photoshop's own automation surfaces: Actions (.atn), UXP/JSX panels, and scripts written for Photoshop (Patchy has its own JavaScript scripting and batch processing instead, see above)
+- Layer comps, timeline/video editing, generative tools (animated GIF, WebP and PNG are supported)
+- Photoshop's own automation surfaces: Actions (.atn), UXP/JSX panels, and scripts written for Photoshop (Patchy has its own JavaScript scripting and batch processing)
 - High-fidelity PSD/PSB edge cases and byte-perfect preservation of every Photoshop-only metadata block
 - Patchy is slower than Photoshop, especially on large documents and it doesn't support any GPU acceleration. (Like, layer styles being done in pixel shaders, etc) However, being CPU only helps with porting, consistent output, and stability so kind of a trade-off that makes sense, for now. That said, certain operations have been optimized for multicore - canvas compositing and image flattening are multithreaded, splitting large images (4 Mpx+) into strips rendered on all CPU cores.
 

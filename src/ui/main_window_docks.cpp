@@ -1548,6 +1548,11 @@ void MainWindow::create_docks() {
       edit_active_adjustment_layer();
       return;
     }
+    // A fill layer's row opens its fill settings, like an adjustment's (GitHub #607).
+    if (layer != nullptr && layer_is_fill_layer(*layer)) {
+      edit_active_shape_appearance();
+      return;
+    }
     // Smart objects and shape layers deliberately fall through to the layer
     // styles dialog too: their contents / appearance open via the row's
     // smart-object or vector badge button (or the menus), and layer styles

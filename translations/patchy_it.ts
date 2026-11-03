@@ -14751,14 +14751,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Livello di riempimento. Fai doppio clic per modificarne le impostazioni.</translation>
     </message>
     <message>
-        <source>Pattern Fill</source>
-        <translation>Riempimento pattern</translation>
-    </message>
-    <message>
-        <source>Color Fill</source>
-        <translation>Riempimento colore</translation>
-    </message>
-    <message>
         <source>Manage...</source>
         <translation>Gestisci…</translation>
     </message>
@@ -14933,6 +14925,14 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Content-Aware Move</source>
         <translation>Sposta in base al contenuto</translation>
+    </message>
+    <message>
+        <source>Fill layer. Click to edit its fill settings.</source>
+        <translation>Livello di riempimento. Fai clic per modificarne le impostazioni di riempimento.</translation>
+    </message>
+    <message>
+        <source>Fill Layer Settings</source>
+        <translation>Impostazioni livello di riempimento</translation>
     </message>
 </context>
 <context>

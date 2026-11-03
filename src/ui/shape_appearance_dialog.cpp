@@ -778,7 +778,10 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   }
 
   // --- Fill ---
-  auto* fill_group = new QGroupBox(QObject::tr("Fill"), right_widget);
+  // The fill-only dialog is all Fill, so its section carries no "Fill" heading (GitHub #582
+  // follow-up); the group keeps its frame.
+  auto* fill_group = new QGroupBox(fill_layer_only ? QString() : QObject::tr("Fill"), right_widget);
+  fill_group->setObjectName(QStringLiteral("shapeFillGroup"));
   auto* fill_layout = new QVBoxLayout(fill_group);
   fill_layout->setContentsMargins(10, 8, 10, 8);
   fill_layout->setSpacing(4);
@@ -2235,19 +2238,11 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     state->settings.edits = std::make_shared<AppearanceEdits<ShapeAppearanceSettings>>(*edits);
   }
 
-  // The Fill-only dialog is that fill layer's settings (GitHub issue 580 follow-up): titled
-  // like the layer, which also has no shape badge or Shape menu wording.
+  // The Fill-only dialog is that fill layer's settings (GitHub issue 580 follow-up), with one
+  // fixed title for every fill type and layer name (GitHub #582 follow-up).
   if (fill_layer_only) {
     dialog.setProperty("fillLayerSettings", true);
-    const auto set_fill_title = [&dialog](VectorFillKind kind) {
-      dialog.setWindowTitle(kind == VectorFillKind::Gradient ? QObject::tr("Gradient Fill")
-                            : kind == VectorFillKind::Pattern ? QObject::tr("Pattern Fill")
-                                                              : QObject::tr("Color Fill"));
-    };
-    set_fill_title(state->settings.fill.kind);
-    QObject::connect(fill_kind_combo, &QComboBox::currentIndexChanged, &dialog, [fill_kind_combo, set_fill_title](int) {
-      set_fill_title(static_cast<VectorFillKind>(fill_kind_combo->currentData().toInt()));
-    });
+    dialog.setWindowTitle(QObject::tr("Fill Layer Settings"));
   }
 
   // Value spins commit on Enter/arrows/focus-out only: per-keystroke preview

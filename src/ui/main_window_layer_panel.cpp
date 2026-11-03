@@ -2170,11 +2170,16 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
         std::move(open_smart_object));
     smart_badge->setProperty("smartObjectLinked", linked);
   }
-  if (layer_is_vector_shape(layer) && !layer_is_fill_layer(layer)) {
+  if (layer_is_fill_layer(layer)) {
+    // A fill layer has no shape to show (GitHub issue 580 follow-up): its badge is a fill
+    // glyph that opens the fill settings, as the row's double-click does (GitHub #607).
+    add_badge_button(QStringLiteral("layerFillBadgeButton"), QStringLiteral("badge-fill"),
+                     QObject::tr("Fill layer. Click to edit its fill settings."),
+                     std::move(open_shape_appearance));
+  } else if (layer_is_vector_shape(layer)) {
     // Shape layers bake their pixels, so the thumbnail alone cannot
     // reveal the vector content; the badge makes it explicit (and opens the
-    // appearance editor, mirroring the fx badge). A fill layer has no shape to
-    // show: its content thumbnail opens its settings (GitHub issue 580 follow-up).
+    // appearance editor, mirroring the fx badge).
     add_badge_button(QStringLiteral("layerVectorBadgeButton"), QStringLiteral("badge-vector"),
                      QObject::tr("Vector shape layer. Click to edit its appearance."),
                      std::move(open_shape_appearance));

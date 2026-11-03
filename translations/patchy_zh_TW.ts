@@ -14706,14 +14706,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>填滿圖層。按兩下可編輯其設定。</translation>
     </message>
     <message>
-        <source>Pattern Fill</source>
-        <translation>圖樣填色</translation>
-    </message>
-    <message>
-        <source>Color Fill</source>
-        <translation>純色填色</translation>
-    </message>
-    <message>
         <source>Manage...</source>
         <translation>管理…</translation>
     </message>
@@ -14888,6 +14880,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Content-Aware Move</source>
         <translation>內容感知移動</translation>
+    </message>
+    <message>
+        <source>Fill layer. Click to edit its fill settings.</source>
+        <translation>填滿圖層。按一下可編輯其填滿設定。</translation>
+    </message>
+    <message>
+        <source>Fill Layer Settings</source>
+        <translation>填滿圖層設定</translation>
     </message>
 </context>
 <context>

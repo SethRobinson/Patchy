@@ -14751,14 +14751,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Camada de preenchimento. Clique duas vezes para editar as configurações.</translation>
     </message>
     <message>
-        <source>Pattern Fill</source>
-        <translation>Preenchimento de Padrão</translation>
-    </message>
-    <message>
-        <source>Color Fill</source>
-        <translation>Preenchimento de Cor</translation>
-    </message>
-    <message>
         <source>Manage...</source>
         <translation>Gerenciar…</translation>
     </message>
@@ -14933,6 +14925,14 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Content-Aware Move</source>
         <translation>Movimento sensível a conteúdo</translation>
+    </message>
+    <message>
+        <source>Fill layer. Click to edit its fill settings.</source>
+        <translation>Camada de preenchimento. Clique para editar as configurações de preenchimento.</translation>
+    </message>
+    <message>
+        <source>Fill Layer Settings</source>
+        <translation>Configurações da camada de preenchimento</translation>
     </message>
 </context>
 <context>

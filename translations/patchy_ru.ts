@@ -14796,14 +14796,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Слой заливки. Дважды щёлкните, чтобы изменить его параметры.</translation>
     </message>
     <message>
-        <source>Pattern Fill</source>
-        <translation>Заливка узором</translation>
-    </message>
-    <message>
-        <source>Color Fill</source>
-        <translation>Заливка цветом</translation>
-    </message>
-    <message>
         <source>Manage...</source>
         <translation>Управлять…</translation>
     </message>
@@ -14978,6 +14970,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Content-Aware Move</source>
         <translation>Перемещение с учетом содержимого</translation>
+    </message>
+    <message>
+        <source>Fill layer. Click to edit its fill settings.</source>
+        <translation>Слой заливки. Щёлкните, чтобы изменить параметры заливки.</translation>
+    </message>
+    <message>
+        <source>Fill Layer Settings</source>
+        <translation>Параметры слоя заливки</translation>
     </message>
 </context>
 <context>

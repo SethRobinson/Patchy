@@ -14751,14 +14751,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Füllebene. Doppelklicken, um die Einstellungen zu bearbeiten.</translation>
     </message>
     <message>
-        <source>Pattern Fill</source>
-        <translation>Musterfüllung</translation>
-    </message>
-    <message>
-        <source>Color Fill</source>
-        <translation>Farbfüllung</translation>
-    </message>
-    <message>
         <source>Manage...</source>
         <translation>Verwalten…</translation>
     </message>
@@ -14933,6 +14925,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Content-Aware Move</source>
         <translation>Inhaltsbasiert verschieben</translation>
+    </message>
+    <message>
+        <source>Fill layer. Click to edit its fill settings.</source>
+        <translation>Füllebene. Klicken, um die Fülleinstellungen zu bearbeiten.</translation>
+    </message>
+    <message>
+        <source>Fill Layer Settings</source>
+        <translation>Füllebenen-Einstellungen</translation>
     </message>
 </context>
 <context>
