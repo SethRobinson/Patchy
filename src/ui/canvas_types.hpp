@@ -381,6 +381,12 @@ struct CanvasRenderCacheDiagnostics {
   std::uint64_t vector_preview_peak_raster_bytes{0};
   double vector_preview_elapsed_ms{0.0};
   int full_refreshes{0};
+  // Background refreshes that finished while a newer one was already pending and
+  // were shown as an intermediate frame (the cache stays dirty; GitHub #601).
+  int intermediate_refreshes{0};
+  // Document changes under an open preview dialog that refreshed in the
+  // background instead of patching the canvas on the GUI thread (GitHub #601).
+  int live_preview_async_refreshes{0};
   int partial_patches{0};
   // Times a zoomed-out paint built the composite's display mip chain from the
   // full-resolution image. Partial patches update the chain in place, so a

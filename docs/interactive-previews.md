@@ -33,6 +33,21 @@ hover preview, #367) still renders at once. Pinned by
 `ui_layer_blend_mode_fast_steps_render_only_the_landing_mode` (2400x1600: about 140 ms per
 press before, 1 to 6 ms after, on a 12th-gen i7).
 
+## Dialog slider drags
+
+GitHub #601: a slider dragged in a preview dialog (Layer Style, adjustments, filters) on a large image left its handle behind the pointer and froze the canvas preview until the drag paused. The shared pieces that keep it live:
+
+- `CoalescedPreviewEmitter` (coalesced_preview_emitter.hpp) throttles: a change while its 33 ms timer runs only replaces the pending settings, so a continuous drag previews about 30 times a second instead of once it pauses.
+- The async pixel previews (`make_destructive_adjustment_preview_state`, the filter and Smart Filter edit previews in main_window_filters.cpp, main_window_smart_filter_adjustments.cpp) land a finished render even when a newer request waits, then start that one. An identity request (Preview off, no effect) bumps the generation, so a render it overtook never lands. The commit path recomputes from the accepted settings; previews never feed it.
+- Under an open preview dialog (canvas `edit_locked_`), a document change covering at least `live_preview_async_refresh_min_area()` (1 M pixels; `PATCHY_LIVE_PREVIEW_ASYNC_MIN_AREA` overrides) takes `document_changed_async_preview` instead of a GUI-thread region patch (`live_preview_change_should_refresh_async`, counted in `live_preview_async_refreshes`). Mask display, Smart Filter mask targets and non-Immediate reasons keep the patch.
+- When a background full refresh finishes while a newer one is pending under the explicit hold, its frame is installed anyway (`intermediate_refreshes`): the cache stays dirty, so exact-pixel readers still render the current document and only the settled render clears it.
+- `ensure_slider_drag_coalescing` (dialog_utils.cpp, installed by `exec_dialog`, `run_non_modal_dialog` and the MainWindow constructor) coalesces window-system mouse moves to a pressed `QAbstractSlider` per event-loop pass, like the canvas's drag-move coalescing below: Wayland delivers every motion, and each ran the dialog's whole valueChanged chain. Presses, releases and keys flush the pending move first.
+- Per-move work must stay small: `set_themed_style` skips an identical sheet (re-setting one repolishes the subtree; swatches refresh on every move) and `set_appearance_mixed` returns when the state is unchanged (its label search walks the dialog). The Layer Style dialog passes a batch context even for one layer, so both ran on every move: about 6 ms a move before, 0.6 ms after. Each landed preview also refreshes the Layers panel thumbnail, whose content zoom reads `visible_alpha_local_bounds` on the GUI thread; its 16/32-bit scan reads rows from both ends like the 8-bit one (54 ms to about 1 ms for a 2400x1800 16-bit layer).
+
+Measured on metroid (i9-11900KF), worst GUI-thread stall during the test drag, before and after: Levels 8000x6000 48 to 22 ms, Levels 4000x3000 16-bit 122 to 14 ms, Gaussian Blur 4000x3000 16-bit 118 to 12 ms; the canvas now follows the drag instead of updating once it stops.
+
+Pinned by `ui_layer_style_stroke_size_drag_stays_responsive_on_large_image`, `ui_levels_drag_stays_responsive_on_large_image`, `ui_gaussian_blur_drag_stays_responsive_on_large_image` (no awaited render, the canvas follows mid-drag, the settled frame equals a fresh render; `PATCHY_TEST_601_SIZE=8000x6000` and `PATCHY_TEST_601_DEEP=1` time bigger and 16-bit documents) and `ui_slider_drag_moves_coalesce_to_the_latest_position`. Not on the shared path: the filter dialog's own proxy preview (a 35 ms debounce that cancels the render in flight, so it updates once a drag pauses) and the G'MIC preview's run state.
+
 ## Move-drag proxy preview
 
 Heavy Move-tool drags latch onto a translated-snapshot proxy (canvas_widget_move.cpp / canvas_widget_events.cpp):

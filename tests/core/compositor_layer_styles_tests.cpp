@@ -2,6 +2,7 @@
 #include "core/blend_math.hpp"
 #include "core/document.hpp"
 #include "core/layer_render_utils.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "formats/acv_curves_io.hpp"
@@ -889,6 +890,73 @@ void layer_style_spread_dilation_keeps_circular_radius() {
       const auto inside_circle = dx * dx + dy * dy <= 4;
       const auto value = dilated[static_cast<std::size_t>(y * width + x)];
       CHECK(inside_circle ? value == 1.0F : value == 0.0F);
+    }
+  }
+}
+
+// The 16/32-bit scan reads each row from both ends (GitHub #601); it must find
+// what a full per-pixel scan finds, including float alpha that is negative,
+// NaN or infinite (none of which counts as visible).
+void visible_alpha_bounds_match_a_full_scan_at_16_and_32_bit() {
+  const auto full_scan = [](const patchy::PixelBuffer& pixels) -> std::optional<patchy::Rect> {
+    std::int32_t min_x = pixels.width();
+    std::int32_t min_y = pixels.height();
+    std::int32_t max_x = -1;
+    std::int32_t max_y = -1;
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        if (patchy::pixel_alpha_at(pixels, x, y) > 0.0F) {
+          min_x = std::min(min_x, x);
+          max_x = std::max(max_x, x);
+          min_y = std::min(min_y, y);
+          max_y = std::max(max_y, y);
+        }
+      }
+    }
+    if (max_x < min_x) {
+      return std::nullopt;
+    }
+    return patchy::Rect{min_x, min_y, max_x - min_x + 1, max_y - min_y + 1};
+  };
+  const auto same = [](const std::optional<patchy::Rect>& a, const std::optional<patchy::Rect>& b) {
+    return a.has_value() == b.has_value() &&
+           (!a.has_value() ||
+            (a->x == b->x && a->y == b->y && a->width == b->width && a->height == b->height));
+  };
+  for (int pattern = 0; pattern < 6; ++pattern) {
+    auto pixels = solid_rgba(23, 17, 10, 20, 30, 0);
+    if (pattern == 1) {
+      pixels.pixel(4, 3)[3] = 1;
+    } else if (pattern == 2) {
+      pixels.pixel(0, 16)[3] = 200;
+      pixels.pixel(22, 0)[3] = 9;
+    } else if (pattern == 3) {
+      for (int y = 5; y < 12; ++y) {
+        pixels.pixel(7 + y % 3, y)[3] = 255;
+        pixels.pixel(18 - y % 2, y)[3] = 40;
+      }
+    } else if (pattern == 4) {
+      for (int y = 0; y < 17; ++y) {
+        for (int x = 0; x < 23; ++x) {
+          pixels.pixel(x, y)[3] = static_cast<std::uint8_t>(((x * 7 + y * 13) % 11) == 0 ? 90 : 0);
+        }
+      }
+    } else if (pattern == 5) {
+      pixels.pixel(11, 8)[3] = 255;
+    }
+    for (const auto depth : {patchy::BitDepth::UInt16, patchy::BitDepth::Float32}) {
+      auto deep = patchy::convert_pixel_buffer_depth(pixels, depth, patchy::SampleKind::Color);
+      if (depth == patchy::BitDepth::Float32 && pattern == 5) {
+        // Invisible float alpha around the one visible pixel.
+        const auto write_alpha = [&deep](int x, int y, float value) {
+          std::memcpy(deep.pixel(x, y) + 3 * sizeof(float), &value, sizeof(float));
+        };
+        write_alpha(0, 0, -0.5F);
+        write_alpha(22, 16, std::numeric_limits<float>::quiet_NaN());
+        write_alpha(3, 14, std::numeric_limits<float>::infinity());
+        write_alpha(20, 2, -std::numeric_limits<float>::infinity());
+      }
+      CHECK(same(patchy::visible_alpha_local_bounds(deep), full_scan(deep)));
     }
   }
 }
@@ -1973,6 +2041,8 @@ std::vector<patchy::test::TestCase> compositor_layer_styles_tests() {
       {"layer_style_spread_dilation_keeps_circular_radius",
        layer_style_spread_dilation_keeps_circular_radius},
       {"visible_alpha_bounds_track_sparse_rgba_pixels", visible_alpha_bounds_track_sparse_rgba_pixels},
+      {"visible_alpha_bounds_match_a_full_scan_at_16_and_32_bit",
+       visible_alpha_bounds_match_a_full_scan_at_16_and_32_bit},
       {"layer_style_preview_marks_large_or_broad_effects_expensive",
        layer_style_preview_marks_large_or_broad_effects_expensive},
       {"compositor_renders_sparse_outer_glow_from_visible_alpha_bounds",

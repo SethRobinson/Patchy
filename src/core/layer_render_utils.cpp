@@ -370,20 +370,36 @@ std::optional<Rect> visible_alpha_local_bounds(const PixelBuffer& pixels) {
     return Rect::from_size(pixels.width(), pixels.height());
   }
   if (pixels.format().bit_depth != BitDepth::UInt8) {
-    // 16/32-bit layers (docs/high-bit-depth.md): any nonzero alpha.
+    // 16/32-bit layers (docs/high-bit-depth.md): any nonzero alpha. Each row is
+    // read from both ends up to its first visible pixel, like the 8-bit scan
+    // below, not every pixel: the Layers panel's content-zoomed thumbnail runs
+    // this on the GUI thread whenever a dialog preview lands (GitHub #601).
     std::int32_t min_x = pixels.width();
     std::int32_t min_y = pixels.height();
     std::int32_t max_x = -1;
     std::int32_t max_y = -1;
     for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      std::int32_t first = -1;
       for (std::int32_t x = 0; x < pixels.width(); ++x) {
         if (pixel_alpha_at(pixels, x, y) > 0.0F) {
-          min_x = std::min(min_x, x);
-          max_x = std::max(max_x, x);
-          min_y = std::min(min_y, y);
-          max_y = y;
+          first = x;
+          break;
         }
       }
+      if (first < 0) {
+        continue;
+      }
+      auto last = first;
+      for (std::int32_t x = pixels.width() - 1; x > first; --x) {
+        if (pixel_alpha_at(pixels, x, y) > 0.0F) {
+          last = x;
+          break;
+        }
+      }
+      min_x = std::min(min_x, first);
+      max_x = std::max(max_x, last);
+      min_y = std::min(min_y, y);
+      max_y = y;
     }
     if (max_x < min_x || max_y < min_y) {
       return std::nullopt;

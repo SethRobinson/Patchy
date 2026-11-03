@@ -327,6 +327,20 @@ void mark_dialog_always_centered(QDialog& dialog);
 void remember_dialog_position(QDialog& dialog);
 int exec_dialog(QDialog& dialog);
 int run_non_modal_dialog(QDialog& dialog);
+// Coalesces the mouse moves of a slider drag app-wide (GitHub #601): the first
+// move of an event-loop pass reaches the slider at once, later ones in the same
+// pass only replace a pending move that a queued call delivers once the queued
+// input has been read, and a press, release or key flushes it first. Wayland
+// delivers every pointer motion uncompressed, so without this each one ran the
+// dialog's whole valueChanged chain and a fast drag left the handle seconds
+// behind the pointer. Only window-system (spontaneous) moves coalesce unless
+// the testing switch says otherwise. exec_dialog, run_non_modal_dialog and the
+// MainWindow constructor install it; idempotent.
+void ensure_slider_drag_coalescing();
+// Tests: also coalesce posted (non-spontaneous) moves; returns the number of
+// moves coalesced so far.
+void set_slider_drag_coalescing_all_moves_for_testing(bool all_moves);
+[[nodiscard]] int slider_drag_moves_coalesced_for_testing();
 // The X glyph the dark dialog chrome's title bar uses, for a frameless dialog
 // that draws its own corner close button (About).
 QIcon dialog_chrome_close_icon();

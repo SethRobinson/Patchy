@@ -1257,6 +1257,8 @@ public:
   // text; negative (the default, restored when the last preview ends) shows none.
   void set_preview_render_progress(int percent);
   [[nodiscard]] int preview_render_progress() const noexcept { return preview_render_progress_; }
+  // Dialog preview renders begun and not yet ended (begin/end_preview_render).
+  [[nodiscard]] int preview_renders_in_flight() const noexcept { return preview_renders_in_flight_; }
   // True while the preview in flight replaces a draft already on screen: the badge reads
   // "Refining preview..." (reset when the last preview ends).
   void set_preview_render_refining(bool refining);
@@ -2928,6 +2930,8 @@ private:
   [[nodiscard]] QRegion move_active_layer_by(QPoint delta);
   void document_changed_impl(QRegion document_region, bool includes_effect_bounds,
                              DocumentChangeReason reason = DocumentChangeReason::Immediate);
+  [[nodiscard]] bool live_preview_change_should_refresh_async(const QRegion& document_region,
+                                                              DocumentChangeReason reason) const;
   void active_edit_target_changed_impl(QRegion document_region,
                                        DocumentChangeReason reason = DocumentChangeReason::Immediate);
   void notify_document_changed(DocumentChangeReason reason = DocumentChangeReason::Immediate);
