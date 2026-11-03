@@ -32051,6 +32051,14 @@ Locked: %1</source>
         <source>Made a work path from the text.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>The zoom level from which View &gt; Show &gt; Pixel Grid draws lines between pixels.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show pixel grid from:</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -4027,6 +4027,9 @@ private:
   bool view_grid_visible_{false};
   bool view_guides_visible_{true};
   bool view_pixel_grid_visible_{true};
+  // view/pixelGridMinZoom (GitHub issue 600): the pixel grid threshold in view-zoom percent.
+  // Persisted identifier.
+  int view_pixel_grid_min_zoom_percent_{kDefaultPixelGridMinZoomPercent};
   // Photoshop's View > Show > Target Path (Ctrl+Shift+H). Deliberately NOT
   // persisted: every launch starts visible, like Photoshop.
   bool view_target_path_visible_{true};

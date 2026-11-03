@@ -32048,6 +32048,14 @@ Locked: %1</source>
         <source>Made a work path from the text.</source>
         <translation>テキストから作業用パスを作成しました。</translation>
     </message>
+    <message>
+        <source>The zoom level from which View &gt; Show &gt; Pixel Grid draws lines between pixels.</source>
+        <translation>表示 &gt; 表示・非表示 &gt; ピクセルグリッドがピクセル間に線を描き始めるズームレベル。</translation>
+    </message>
+    <message>
+        <source>Show pixel grid from:</source>
+        <translation>ピクセルグリッドを表示する倍率:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -32048,6 +32048,14 @@ Locked: %1</source>
         <source>Made a work path from the text.</source>
         <translation>텍스트에서 작업 패스를 만들었습니다.</translation>
     </message>
+    <message>
+        <source>The zoom level from which View &gt; Show &gt; Pixel Grid draws lines between pixels.</source>
+        <translation>보기 &gt; 표시 &gt; 픽셀 격자가 픽셀 사이에 선을 그리기 시작하는 확대 수준입니다.</translation>
+    </message>
+    <message>
+        <source>Show pixel grid from:</source>
+        <translation>픽셀 격자 표시 시작:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

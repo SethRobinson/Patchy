@@ -32216,6 +32216,14 @@ Zablokowano: %1</translation>
         <source>Made a work path from the text.</source>
         <translation>Utworzono ścieżkę roboczą z tekstu.</translation>
     </message>
+    <message>
+        <source>The zoom level from which View &gt; Show &gt; Pixel Grid draws lines between pixels.</source>
+        <translation>Poziom powiększenia, od którego Widok &gt; Pokaż &gt; Siatka pikseli rysuje linie między pikselami.</translation>
+    </message>
+    <message>
+        <source>Show pixel grid from:</source>
+        <translation>Pokaż siatkę pikseli od:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

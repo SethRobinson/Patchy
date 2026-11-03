@@ -32048,6 +32048,14 @@ Locked: %1</source>
         <source>Made a work path from the text.</source>
         <translation>已從文字建立工作路徑。</translation>
     </message>
+    <message>
+        <source>The zoom level from which View &gt; Show &gt; Pixel Grid draws lines between pixels.</source>
+        <translation>檢視 &gt; 顯示 &gt; 像素格線開始在像素之間繪製線條的縮放比例。</translation>
+    </message>
+    <message>
+        <source>Show pixel grid from:</source>
+        <translation>像素格線顯示起點:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

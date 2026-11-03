@@ -19,6 +19,7 @@
 #include <QMenuBar>
 #include <QStatusBar>
 #include "ui/canvas_widget.hpp"
+#include "ui/canvas_widget_shared.hpp"
 #include "ui/main_window_shared.hpp"
 
 #include "core/smart_object.hpp"
@@ -1741,6 +1742,16 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   grid_style_combo->addItem(tr("Lines"), 0);
   grid_style_combo->addItem(tr("Dots"), 1);
   grid_style_combo->setCurrentIndex(std::clamp(view_grid_style_, 0, 1));
+  // GitHub issue 600: the zoom from which View > Show > Pixel Grid draws.
+  auto* pixel_grid_zoom_combo = new QComboBox(view_group);
+  pixel_grid_zoom_combo->setObjectName(QStringLiteral("preferencesPixelGridZoomCombo"));
+  for (const int percent : kPixelGridMinZoomPercentChoices) {
+    pixel_grid_zoom_combo->addItem(QString::number(percent) + percent_suffix(), percent);
+  }
+  pixel_grid_zoom_combo->setCurrentIndex(
+      std::max(0, pixel_grid_zoom_combo->findData(view_pixel_grid_min_zoom_percent_)));
+  pixel_grid_zoom_combo->setToolTip(
+      tr("The zoom level from which View > Show > Pixel Grid draws lines between pixels."));
 
   auto selected_grid_color = view_grid_color_;
   auto selected_guide_color = view_guide_color_;
@@ -1853,6 +1864,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   view_form->addRow(tr("Grid spacing:"), grid_spacing_spin);
   view_form->addRow(tr("Grid subdivisions:"), grid_subdivisions_spin);
   view_form->addRow(tr("Grid style:"), grid_style_combo);
+  view_form->addRow(tr("Show pixel grid from:"), pixel_grid_zoom_combo);
   const auto overlay_color_row = [view_group](QPushButton* button, QSpinBox* opacity) {
     auto* row = new QWidget(view_group);
     // As compact as the other fields (issue 451): the color button grows only this far.
@@ -2447,6 +2459,8 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     view_grid_spacing_32_ = new_grid_spacing_32;
     view_grid_subdivisions_ = grid_subdivisions_spin->value();
     view_grid_style_ = grid_style_combo->currentData().toInt();
+    view_pixel_grid_min_zoom_percent_ =
+        valid_pixel_grid_min_zoom_percent(pixel_grid_zoom_combo->currentData().toInt());
     view_grid_color_ = selected_grid_color;
     view_guide_color_ = selected_guide_color;
     if (canvas_ != nullptr && (document().grid_settings().horizontal_cycle_32 != new_grid_spacing_32 ||
@@ -3131,6 +3145,7 @@ void MainWindow::apply_canvas_aid_settings(CanvasWidget* canvas) const {
   canvas->set_ruler_unit(ruler_unit_);
   canvas->set_grid_visible(view_grid_visible_);
   canvas->set_pixel_grid_visible(view_pixel_grid_visible_);
+  canvas->set_pixel_grid_min_zoom_percent(view_pixel_grid_min_zoom_percent_);
   canvas->set_guides_visible(view_guides_visible_);
   canvas->set_guides_locked(view_guides_locked_);
   canvas->set_snap_enabled(view_snap_enabled_);
@@ -3398,6 +3413,8 @@ void MainWindow::load_view_settings() {
   apply_ruler_unit_to_fields();  // the options-bar fields exist by now; the docks enroll themselves
   view_grid_visible_ = settings.value(QStringLiteral("view/gridVisible"), view_grid_visible_).toBool();
   view_pixel_grid_visible_ = settings.value(QStringLiteral("view/pixelGrid"), view_pixel_grid_visible_).toBool();
+  view_pixel_grid_min_zoom_percent_ = valid_pixel_grid_min_zoom_percent(
+      settings.value(QStringLiteral("view/pixelGridMinZoom"), kDefaultPixelGridMinZoomPercent).toInt());
   view_guides_visible_ = settings.value(QStringLiteral("view/guidesVisible"), view_guides_visible_).toBool();
   view_extras_covered_ = load_view_extras_covered();
   view_guides_locked_ = settings.value(QStringLiteral("view/guidesLocked"), view_guides_locked_).toBool();
@@ -3485,6 +3502,7 @@ void MainWindow::save_view_settings() const {
   settings.setValue(QStringLiteral("view/rulerUnits"), measurement_unit_settings_token(ruler_unit_));
   settings.setValue(QStringLiteral("view/gridVisible"), view_grid_visible_);
   settings.setValue(QStringLiteral("view/pixelGrid"), view_pixel_grid_visible_);
+  settings.setValue(QStringLiteral("view/pixelGridMinZoom"), view_pixel_grid_min_zoom_percent_);
   settings.setValue(QStringLiteral("view/guidesVisible"), view_guides_visible_);
   settings.setValue(QStringLiteral("view/guidesLocked"), view_guides_locked_);
   settings.setValue(QStringLiteral("view/snapEnabled"), view_snap_enabled_);

@@ -1349,10 +1349,19 @@ public:
   [[nodiscard]] bool grid_visible() const noexcept;
   void set_guides_visible(bool visible) noexcept;
   [[nodiscard]] bool guides_visible() const noexcept;
-  // View > Pixel Grid (GitHub issue 239): lines between pixels wherever the deep-zoom
-  // renderer draws (600% and up), each tinted from its own pixel. On by default.
+  // View > Pixel Grid (GitHub issue 239): lines between pixels, each tinted from its own
+  // pixel, from the pixel grid threshold up. On by default.
   void set_pixel_grid_visible(bool visible) noexcept;
   [[nodiscard]] bool pixel_grid_visible() const noexcept;
+  // The pixel grid threshold in view-zoom percent (GitHub issue 600; Preferences > Units &
+  // Grids, view/pixelGridMinZoom): one of kPixelGridMinZoomPercentChoices, default 600.
+  void set_pixel_grid_min_zoom_percent(int percent) noexcept;
+  [[nodiscard]] int pixel_grid_min_zoom_percent() const noexcept;
+  // Whether the pixel grid draws at the current view zoom (toggle, Extras and threshold).
+  [[nodiscard]] bool pixel_grid_drawn() const noexcept;
+  // Whether the composite draws through the deep-zoom raster: from 600%, or from the pixel
+  // grid threshold while the grid draws below that, so its lines sit on the raster's cells.
+  [[nodiscard]] bool deep_zoom_pixels_active() const noexcept;
   void set_guides_locked(bool locked) noexcept;
   [[nodiscard]] bool guides_locked() const noexcept;
   void set_snap_enabled(bool enabled) noexcept;
@@ -3798,6 +3807,7 @@ private:
   std::function<void()> custom_backdrop_color_requested_callback_;
   bool grid_visible_{false};
   bool pixel_grid_visible_{true};
+  int pixel_grid_min_zoom_percent_{kDefaultPixelGridMinZoomPercent};
   bool guides_visible_{true};
   bool guides_locked_{false};
   bool snap_enabled_{true};

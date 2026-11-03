@@ -32132,6 +32132,14 @@ Bloqueada: %1</translation>
         <source>Made a work path from the text.</source>
         <translation>Se ha creado un trazado de trabajo a partir del texto.</translation>
     </message>
+    <message>
+        <source>The zoom level from which View &gt; Show &gt; Pixel Grid draws lines between pixels.</source>
+        <translation>El nivel de zoom a partir del cual Vista &gt; Mostrar &gt; Cuadrícula de píxeles dibuja líneas entre los píxeles.</translation>
+    </message>
+    <message>
+        <source>Show pixel grid from:</source>
+        <translation>Mostrar cuadrícula de píxeles desde:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -32132,6 +32132,14 @@ Fixiert: %1</translation>
         <source>Made a work path from the text.</source>
         <translation>Arbeitspfad aus dem Text erstellt.</translation>
     </message>
+    <message>
+        <source>The zoom level from which View &gt; Show &gt; Pixel Grid draws lines between pixels.</source>
+        <translation>Die Zoomstufe, ab der Ansicht &gt; Einblenden &gt; Pixelraster Linien zwischen den Pixeln zeichnet.</translation>
+    </message>
+    <message>
+        <source>Show pixel grid from:</source>
+        <translation>Pixelraster anzeigen ab:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

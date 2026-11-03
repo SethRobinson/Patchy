@@ -32216,6 +32216,14 @@ Locked: %1</source>
         <source>Made a work path from the text.</source>
         <translation>Из текста создан рабочий контур.</translation>
     </message>
+    <message>
+        <source>The zoom level from which View &gt; Show &gt; Pixel Grid draws lines between pixels.</source>
+        <translation>Масштаб, начиная с которого Вид &gt; Показать &gt; Пиксельная сетка рисует линии между пикселями.</translation>
+    </message>
+    <message>
+        <source>Show pixel grid from:</source>
+        <translation>Показывать пиксельную сетку от:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
