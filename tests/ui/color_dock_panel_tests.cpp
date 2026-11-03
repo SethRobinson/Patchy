@@ -29,12 +29,14 @@
 #include <QContextMenuEvent>
 #include <QDataStream>
 #include <QDialog>
+#include <QElapsedTimer>
 #include <QEnterEvent>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QSpinBox>
 #include <QSplitter>
 #include <QTabBar>
@@ -47,6 +49,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <memory>
 #include <vector>
 #include "scripting_test_support.hpp"
@@ -1234,6 +1237,140 @@ void ui_color_panel_field_drag_keeps_per_move_work_small() {
   CHECK(field->plane_render_count() == renders + 1);
 }
 
+// GitHub issue 609: a drag in the Foreground Color window's Square field or hue strip sets
+// the foreground on every move, like the Color panel's field (issue 464), but no move writes
+// the settings file or restyles the gradient preview, and a field drag never renders the
+// field's gradient again; the release writes the pair once. Prints the time per move.
+void ui_color_picker_window_drag_keeps_per_move_work_small() {
+  const QString foreground_key = QStringLiteral("tools/foregroundColor");
+  SettingsValueRestorer foreground_setting(foreground_key);
+  SettingsValueRestorer custom_stops_setting(QStringLiteral("tools/gradientUseCustomStops"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("tools/gradientUseCustomStops"), false);
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* dialog = open_color_window(window, "foregroundColorButton");
+  if (dialog == nullptr) {
+    return;
+  }
+  auto* plane = dynamic_cast<patchy::ui::ColorPlaneWidget*>(dialog->findChild<QWidget*>(QStringLiteral("patchyColorPlane")));
+  auto* strip = dialog->findChild<QWidget*>(QStringLiteral("patchyHueSlider"));
+  auto* gradient_preview = window.findChild<QWidget*>(QStringLiteral("gradientPreviewButton"));
+  CHECK(plane != nullptr && strip != nullptr && gradient_preview != nullptr);
+  if (plane == nullptr || strip == nullptr || gradient_preview == nullptr) {
+    return;
+  }
+  click(*strip, QPoint(4, strip->height() / 3));
+  click(*plane, QPoint(plane->width() / 2, plane->height() / 2));
+  (void)plane->grab();
+  CHECK(patchy::ui::app_settings().value(foreground_key).toString() == canvas->primary_color().name(QColor::HexRgb));
+
+  // Drags `surface` from `from` to `to` in kMoves moves: did every move reach the
+  // foreground, was nothing stored or restyled before the release, and did the release
+  // store the pair and restyle the preview. Checked once the window is closed (a failed
+  // CHECK with the window open would tear it down inside MainWindow's destructor).
+  constexpr int kMoves = 60;
+  struct DragResult {
+    bool every_move_applied{true};
+    bool nothing_stored{true};
+    bool release_stored{false};
+    bool release_restyled{false};
+  };
+  const auto drag = [&](QWidget& surface, QPoint from, QPoint to, const char* label) {
+    DragResult result;
+    const auto stored_before = patchy::ui::app_settings().value(foreground_key).toString();
+    const auto preview_style_before = gradient_preview->styleSheet();
+    send_mouse(surface, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::processEvents();
+    QElapsedTimer timer;
+    timer.start();
+    QColor previous = canvas->primary_color();
+    for (int step = 1; step <= kMoves; ++step) {
+      const QPoint point(from.x() + (to.x() - from.x()) * step / kMoves, from.y() + (to.y() - from.y()) * step / kMoves);
+      send_mouse(surface, QEvent::MouseMove, point, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+      QApplication::processEvents();
+      (void)surface.grab();
+      result.every_move_applied = result.every_move_applied && canvas->primary_color().rgb() != previous.rgb();
+      previous = canvas->primary_color();
+      result.nothing_stored = result.nothing_stored &&
+                              patchy::ui::app_settings().value(foreground_key).toString() == stored_before &&
+                              gradient_preview->styleSheet() == preview_style_before;
+    }
+    const auto elapsed_ms = static_cast<double>(timer.nsecsElapsed()) / 1.0e6;
+    std::printf("[INFO] %s drag: %.3f ms per move (%d moves)\n", label, elapsed_ms / kMoves, kMoves);
+    std::fflush(stdout);
+    send_mouse(surface, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::processEvents();
+    result.release_stored =
+        patchy::ui::app_settings().value(foreground_key).toString() == canvas->primary_color().name(QColor::HexRgb);
+    // The default gradient runs from the foreground, so its preview follows at the release.
+    result.release_restyled = gradient_preview->styleSheet() != preview_style_before;
+    return result;
+  };
+
+  const auto renders = plane->plane_render_count();
+  const auto field_drag = drag(*plane, QPoint(plane->width() / 6, plane->height() / 6),
+                               QPoint(plane->width() * 5 / 6, plane->height() * 5 / 6), "Square field");
+  (void)plane->grab();
+  const auto field_renders = plane->plane_render_count() - renders;
+  const auto strip_drag =
+      drag(*strip, QPoint(strip->width() / 2, 4), QPoint(strip->width() / 2, strip->height() - 5), "Hue strip");
+  dialog->close();
+  QApplication::processEvents();
+  for (const auto& result : {field_drag, strip_drag}) {
+    CHECK(result.every_move_applied);
+    CHECK(result.nothing_stored);
+    CHECK(result.release_stored);
+    CHECK(result.release_restyled);
+  }
+  CHECK(field_renders == 0);
+
+  // The picker alone, in a CMYK profile where the saturated corner is out of gamut (the
+  // warning shows on most moves): what the picker itself costs per move.
+  const auto previous_space = patchy::working_cmyk_space();
+  const auto restore_space = qScopeGuard([&previous_space] {
+    patchy::set_working_cmyk_space(previous_space);
+    patchy::ui::refresh_color_picker_cmyk_fields();
+  });
+  patchy::set_working_cmyk_space(patchy::CmykWorkingSpace::from_icc_profile(
+      patchy::ui::bundled_cmyk_profile(), patchy::RenderingIntent::RelativeColorimetric, true));
+  {
+    patchy::ui::PatchyColorPicker picker(QColor(40, 40, 200));
+    picker.resize(640, 400);
+    picker.show();
+    QApplication::processEvents();
+    auto* own_plane = dynamic_cast<patchy::ui::ColorPlaneWidget*>(picker.findChild<QWidget*>(QStringLiteral("patchyColorPlane")));
+    auto* warning = picker.findChild<QPushButton*>(QStringLiteral("patchyColorGamutWarningButton"));
+    CHECK(own_plane != nullptr && warning != nullptr);
+    if (own_plane != nullptr && warning != nullptr) {
+      const QPoint from(own_plane->width() / 2, own_plane->height() / 8);
+      const QPoint to(own_plane->width() - 4, own_plane->height() / 3);
+      send_mouse(*own_plane, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+      QApplication::processEvents();
+      QElapsedTimer timer;
+      timer.start();
+      int warned = 0;
+      for (int step = 1; step <= kMoves; ++step) {
+        const QPoint point(from.x() + (to.x() - from.x()) * step / kMoves, from.y() + (to.y() - from.y()) * step / kMoves);
+        send_mouse(*own_plane, QEvent::MouseMove, point, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+        QApplication::processEvents();
+        (void)picker.grab();
+        warned += warning->isVisible() ? 1 : 0;
+      }
+      std::printf("[INFO] Picker alone, Square field drag: %.3f ms per move (%d moves, %d with the gamut warning)\n",
+                  static_cast<double>(timer.nsecsElapsed()) / 1.0e6 / kMoves, kMoves, warned);
+      std::fflush(stdout);
+      CHECK(warned > 0);
+      send_mouse(*own_plane, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+      QApplication::processEvents();
+    }
+  }
+}
+
 // GitHub issue 577: the hex field takes typed and pasted values ("#RRGGBB" or "RRGGBB"),
 // short forms and names on Return, and the R, G, B boxes take numbers; each sets the
 // foreground once and leaves the background alone. A "#" label sits before the field,
@@ -1483,6 +1620,7 @@ std::vector<patchy::test::TestCase> color_dock_panel_tests() {
       {"ui_color_panel_view_persists", ui_color_panel_view_persists},
       {"ui_color_panel_cmyk_sliders_set_foreground", ui_color_panel_cmyk_sliders_set_foreground},
       {"ui_color_panel_field_drag_keeps_per_move_work_small", ui_color_panel_field_drag_keeps_per_move_work_small},
+      {"ui_color_picker_window_drag_keeps_per_move_work_small", ui_color_picker_window_drag_keeps_per_move_work_small},
       {"ui_color_panel_hex_and_rgb_fields_set_foreground", ui_color_panel_hex_and_rgb_fields_set_foreground},
       {"ui_color_panel_hex_and_rgb_fields_follow_the_foreground",
        ui_color_panel_hex_and_rgb_fields_follow_the_foreground},

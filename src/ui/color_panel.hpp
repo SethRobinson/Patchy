@@ -12,6 +12,7 @@
 #include <string>
 
 class QDialog;
+class QHideEvent;
 class QShowEvent;
 class QWidget;
 
@@ -51,6 +52,10 @@ public:
   // The Sliders tab has no Alt pick. Set once, right after construction; no handler
   // (the default) means Alt clicks act like plain clicks.
   void set_background_pick_handler(std::function<void(QColor)> handler);
+  // True from a press on the Square field, the hue strip or the Wheel to its release (or
+  // the picker hiding). The moves between report a color each; MainWindow holds the
+  // settings write and the gradient refresh for color_drag_finished (GitHub issue 609).
+  [[nodiscard]] bool color_drag_active() const noexcept;
 
 public slots:
   void setCurrentColor(QColor color);
@@ -59,9 +64,12 @@ signals:
   void currentColorChanged(QColor color);
   // A deliberate choice, including picking the already displayed color.
   void colorSelected(QColor color);
+  void color_drag_started();
+  void color_drag_finished();
 
 protected:
   void showEvent(QShowEvent* event) override;
+  void hideEvent(QHideEvent* event) override;
 
 private:
   std::unique_ptr<PatchyColorPickerPrivate> impl_;
