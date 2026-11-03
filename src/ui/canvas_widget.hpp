@@ -734,6 +734,9 @@ public:
   // Turns off the hard round brush's covered-disk skip (GitHub issue 135) so a test can paint
   // the same stroke both ways and compare the bytes.
   void set_hard_round_skip_enabled_for_testing(bool enabled) noexcept { hard_round_skip_enabled_ = enabled; }
+  // Turns off the Clone/Healing stamp's row spans and continued-segment skip (GitHub issue
+  // 597) so a test can paint the same stroke both ways and compare the bytes.
+  void set_clone_stamp_skip_enabled_for_testing(bool enabled) noexcept { clone_stamp_skip_enabled_ = enabled; }
   // Drag move coalescing for tests and timing runs: Default coalesces window-system
   // moves only, AllMoves also posted ones (a test can queue a burst), Off none (the
   // before-the-fix baseline of `patchy_perf_tests textdrag`).
@@ -2264,6 +2267,11 @@ private:
   [[nodiscard]] bool begin_pattern_stamp_stroke(QPoint point);
   [[nodiscard]] QRect clone_brush_segment(QPoint from, QPoint to);
   [[nodiscard]] QRect clone_brush_stamp_segment(QPoint from, QPoint to);
+  // Whether a stamp segment from `from` continues the stroke's previous one with the same
+  // round brush (CloneSegmentRows, GitHub issue 597).
+  [[nodiscard]] bool clone_stamp_continues_previous_segment(QPoint from, int radius,
+                                                            const EffectiveBrushInput& brush) const noexcept;
+  void remember_clone_stroke_segment_end(QPoint to, int radius, const EffectiveBrushInput& brush) noexcept;
   // The Healing Brush's heal, once on release (docs/healing.md "Classic Healing Brush"):
   // the stroke footprint (the per-pixel coverage the stamp recorded) is healed from the
   // gesture snapshot through the stroke's source offset plus the healing membrane of the
@@ -3905,6 +3913,17 @@ private:
   };
   std::optional<HardRoundSegmentEnd> brush_stroke_hard_round_end_;
   bool hard_round_skip_enabled_{true};
+  // Where this stroke's last Clone/Healing stamp segment ended and the round brush it used.
+  // The next segment from that point skips the pixels it cannot change (CloneSegmentRows,
+  // GitHub issue 597).
+  struct CloneSegmentEnd {
+    QPoint point;
+    int radius{0};
+    int softness{0};
+    int opacity{0};
+  };
+  std::optional<CloneSegmentEnd> clone_stroke_segment_end_;
+  bool clone_stamp_skip_enabled_{true};
   double brush_stroke_distance_since_last_stamp_{0.0};
   patchy::SmudgeState smudge_state_;
   QImage clone_source_cache_{};
