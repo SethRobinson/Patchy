@@ -9,6 +9,7 @@
 #include "ui/web_export.hpp"
 #include "ui/tool_palette_customization.hpp"
 #include "ui/fill_dialog.hpp"
+#include "ui/selection_modify_dialogs.hpp"
 #include "ui/layer_lock_dialog.hpp"
 #include "ui/mask_properties_dialog.hpp"
 #include "ui/perspective_planes_dialog.hpp"
@@ -1586,6 +1587,10 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     }
     grab_dialog(QStringLiteral("patchyFillDialog"), "edit_fill");
     (void)patchy::ui::request_fill_settings(nullptr, QColor(20, 140, 230), Qt::white);
+    grab_dialog(QStringLiteral("patchySmoothSelectionDialog"), "smooth_selection");
+    (void)patchy::ui::request_selection_smooth_radius(nullptr, 1);
+    grab_dialog(QStringLiteral("patchyFeatherSelectionDialog"), "feather_selection");
+    (void)patchy::ui::request_selection_feather_radius(nullptr, 5.0);
     grab_dialog(QStringLiteral("layerLocksDialog"), "layer_locks");
     (void)patchy::ui::request_layer_locks(
         nullptr, {patchy::ui::LayerLockChoice::On, patchy::ui::LayerLockChoice::Off, patchy::ui::LayerLockChoice::Mixed,
@@ -1632,7 +1637,7 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     animation_preview.close();
     QApplication::processEvents();
   }
-  CHECK(captured == 36);
+  CHECK(captured == 40);
 }
 
 void ui_style_manager_lists_renames_and_uses_styles() {

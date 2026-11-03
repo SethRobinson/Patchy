@@ -14942,6 +14942,22 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>New Layer</source>
         <translation>Nuovo livello</translation>
     </message>
+    <message>
+        <source>Smooth Selection</source>
+        <translation>Smussa selezione</translation>
+    </message>
+    <message>
+        <source>Sample radius</source>
+        <translation>Raggio campione</translation>
+    </message>
+    <message>
+        <source>Feather Selection</source>
+        <translation>Sfuma selezione</translation>
+    </message>
+    <message>
+        <source>Feather radius</source>
+        <translation>Raggio sfumatura</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17095,6 +17111,18 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Warp works on layers. Apply the selection transform first.</source>
         <translation>Altera funziona sui livelli. Applica prima la trasformazione della selezione.</translation>
     </message>
+    <message>
+        <source>Smoothing removed the whole selection</source>
+        <translation>Lo smussamento ha rimosso l&apos;intera selezione</translation>
+    </message>
+    <message>
+        <source>Smoothed selection by %1 px</source>
+        <translation>Selezione smussata di %1 px</translation>
+    </message>
+    <message>
+        <source>Feathered selection by %1 px</source>
+        <translation>Selezione sfumata di %1 px</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19212,6 +19240,14 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Resize, rotate or skew the selection outline</source>
         <translation>Ridimensiona, ruota o inclina il contorno della selezione</translation>
+    </message>
+    <message>
+        <source>Round off corners and remove specks</source>
+        <translation>Arrotonda gli angoli e rimuovi le macchioline</translation>
+    </message>
+    <message>
+        <source>Soften the selection edge</source>
+        <translation>Ammorbidisci il bordo della selezione</translation>
     </message>
 </context>
 <context>
@@ -32348,6 +32384,38 @@ Bloccato: %1</translation>
         <source>Current Layer edits the active layer; New Layer leaves it untouched and puts the filled spot and the moved object on a new layer above it</source>
         <translation>Livello attivo modifica il livello attivo; Nuovo livello lo lascia invariato e mette la zona riempita e l&apos;oggetto spostato su un nuovo livello sopra</translation>
     </message>
+    <message>
+        <source>S&amp;mooth...</source>
+        <translation>S&amp;mussa...</translation>
+    </message>
+    <message>
+        <source>Round off the selection&apos;s corners and drop small specks and holes</source>
+        <translation>Arrotonda gli angoli della selezione e rimuove piccole macchie e buchi</translation>
+    </message>
+    <message>
+        <source>Soften the selection&apos;s edge</source>
+        <translation>Ammorbidisce il bordo della selezione</translation>
+    </message>
+    <message>
+        <source>Make a selection before smoothing</source>
+        <translation>Crea una selezione prima di smussare</translation>
+    </message>
+    <message>
+        <source>Smooth Selection</source>
+        <translation>Smussa selezione</translation>
+    </message>
+    <message>
+        <source>Make a selection before feathering</source>
+        <translation>Crea una selezione prima di sfumare</translation>
+    </message>
+    <message>
+        <source>Feather Selection</source>
+        <translation>Sfuma selezione</translation>
+    </message>
+    <message>
+        <source>Feat&amp;her...</source>
+        <translation>S&amp;fuma...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34595,6 +34663,14 @@ Bloccato: %1</translation>
     <message>
         <source>createWorkPath: the text has no outlines</source>
         <translation>createWorkPath: il testo non ha contorni</translation>
+    </message>
+    <message>
+        <source>smooth needs a whole radius from %1 to %2.</source>
+        <translation>smooth richiede un raggio intero compreso tra %1 e %2.</translation>
+    </message>
+    <message>
+        <source>feather needs a radius from %1 to %2.</source>
+        <translation>feather richiede un raggio compreso tra %1 e %2.</translation>
     </message>
 </context>
 <context>

@@ -2370,6 +2370,8 @@ private:
   void expand_selection_dialog();
   void contract_selection_dialog();
   void border_selection_dialog();
+  void smooth_selection_dialog();
+  void feather_selection_dialog();
   void toggle_quick_mask_mode();
   void refresh_quick_mask_ui();
   void flip_active_layer_horizontal();

@@ -210,6 +210,7 @@ add_library(patchy_core
   src/core/hdr_color.cpp
   src/core/pixel_tools.cpp
   src/core/quick_select.cpp
+  src/core/selection_modify.cpp
   src/core/rect_utils.cpp
   src/core/smart_filter_adjustment.cpp
   src/core/smart_filter_effects.cpp
@@ -1438,6 +1439,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/spin_box_edit_field_fix.cpp
       src/ui/main_window_history.cpp
       src/ui/main_window_layer_ops.cpp
+      src/ui/selection_modify_dialogs.hpp
+      src/ui/selection_modify_dialogs.cpp
       src/ui/main_window_ai_selection.cpp
       src/ui/main_window_watermarks.cpp
       src/ui/main_window_save_metadata.cpp

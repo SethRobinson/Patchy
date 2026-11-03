@@ -14987,6 +14987,22 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>New Layer</source>
         <translation>Nowa warstwa</translation>
     </message>
+    <message>
+        <source>Smooth Selection</source>
+        <translation>Wygładź zaznaczenie</translation>
+    </message>
+    <message>
+        <source>Sample radius</source>
+        <translation>Promień próbkowania</translation>
+    </message>
+    <message>
+        <source>Feather Selection</source>
+        <translation>Wtapianie zaznaczenia</translation>
+    </message>
+    <message>
+        <source>Feather radius</source>
+        <translation>Promień wtapiania</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17140,6 +17156,18 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Warp works on layers. Apply the selection transform first.</source>
         <translation>Wypaczenie działa na warstwach. Najpierw zastosuj przekształcenie zaznaczenia.</translation>
     </message>
+    <message>
+        <source>Smoothing removed the whole selection</source>
+        <translation>Wygładzenie usunęło całe zaznaczenie</translation>
+    </message>
+    <message>
+        <source>Smoothed selection by %1 px</source>
+        <translation>Wygładzono zaznaczenie o %1 px</translation>
+    </message>
+    <message>
+        <source>Feathered selection by %1 px</source>
+        <translation>Wtopiono krawędź zaznaczenia o %1 px</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19257,6 +19285,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Resize, rotate or skew the selection outline</source>
         <translation>Zmień rozmiar, obróć lub pochyl obrys zaznaczenia</translation>
+    </message>
+    <message>
+        <source>Round off corners and remove specks</source>
+        <translation>Zaokrągl narożniki i usuń drobne plamki</translation>
+    </message>
+    <message>
+        <source>Soften the selection edge</source>
+        <translation>Zmiękcz krawędź zaznaczenia</translation>
     </message>
 </context>
 <context>
@@ -32432,6 +32468,38 @@ Zablokowano: %1</translation>
         <source>Current Layer edits the active layer; New Layer leaves it untouched and puts the filled spot and the moved object on a new layer above it</source>
         <translation>Bieżąca warstwa edytuje aktywną warstwę; Nowa warstwa pozostawia ją bez zmian i umieszcza wypełnione miejsce oraz przeniesiony obiekt na nowej warstwie powyżej</translation>
     </message>
+    <message>
+        <source>S&amp;mooth...</source>
+        <translation>Wy&amp;gładź...</translation>
+    </message>
+    <message>
+        <source>Round off the selection&apos;s corners and drop small specks and holes</source>
+        <translation>Zaokrągla narożniki zaznaczenia i usuwa drobne plamki i dziury</translation>
+    </message>
+    <message>
+        <source>Soften the selection&apos;s edge</source>
+        <translation>Zmiękcza krawędź zaznaczenia</translation>
+    </message>
+    <message>
+        <source>Make a selection before smoothing</source>
+        <translation>Utwórz zaznaczenie przed wygładzeniem</translation>
+    </message>
+    <message>
+        <source>Smooth Selection</source>
+        <translation>Wygładź zaznaczenie</translation>
+    </message>
+    <message>
+        <source>Make a selection before feathering</source>
+        <translation>Utwórz zaznaczenie przed wtapianiem</translation>
+    </message>
+    <message>
+        <source>Feather Selection</source>
+        <translation>Wtapianie zaznaczenia</translation>
+    </message>
+    <message>
+        <source>Feat&amp;her...</source>
+        <translation>&amp;Wtapianie...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34680,6 +34748,14 @@ Zablokowano: %1</translation>
     <message>
         <source>createWorkPath: the text has no outlines</source>
         <translation>createWorkPath: tekst nie ma konturów</translation>
+    </message>
+    <message>
+        <source>smooth needs a whole radius from %1 to %2.</source>
+        <translation>smooth wymaga całkowitego promienia od %1 do %2.</translation>
+    </message>
+    <message>
+        <source>feather needs a radius from %1 to %2.</source>
+        <translation>feather wymaga promienia od %1 do %2.</translation>
     </message>
 </context>
 <context>

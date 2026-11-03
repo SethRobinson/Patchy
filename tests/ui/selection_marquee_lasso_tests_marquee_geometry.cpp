@@ -4,6 +4,7 @@
 #include "ui/measurement_units.hpp"
 #include "ui/main_window.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/selection_modify_dialogs.hpp"
 #include "test_harness.hpp"
 #include <QAbstractButton>
 #include <QAbstractSpinBox>
@@ -19,6 +20,8 @@
 #include <QImage>
 #include <QLabel>
 #include <QLineEdit>
+#include <QKeySequence>
+#include <QMenu>
 #include <QPainter>
 #include <QPushButton>
 #include <QSpinBox>
@@ -3100,6 +3103,153 @@ void ui_new_guide_layout_user_presets_save_apply_delete() {
   CHECK(!patchy::ui::app_settings().contains(QStringLiteral("view/guideLayoutUserPresets")));
 }
 
+// Select > Smooth and Select > Feather (GitHub issue 614): grayed without a selection, their
+// dialogs remember the radius and step ten with Shift+Up, and each is one undo step.
+void ui_select_smooth_and_feather_commands_are_one_undo_step() {
+  SettingsValueRestorer smooth_key{QString::fromLatin1(patchy::ui::kSelectionSmoothRadiusKey)};
+  SettingsValueRestorer feather_key{QString::fromLatin1(patchy::ui::kSelectionFeatherRadiusKey)};
+  patchy::ui::app_settings().remove(QString::fromLatin1(patchy::ui::kSelectionSmoothRadiusKey));
+  patchy::ui::app_settings().remove(QString::fromLatin1(patchy::ui::kSelectionFeatherRadiusKey));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* smooth = require_action(window, "selectSmoothAction");
+  auto* feather = require_action(window, "selectFeatherAction");
+  CHECK(feather->shortcut() == QKeySequence(Qt::SHIFT | Qt::Key_F6));
+  QMenu* select_menu = nullptr;
+  for (auto* object : smooth->associatedObjects()) {
+    if (auto* menu = qobject_cast<QMenu*>(object); menu != nullptr) {
+      select_menu = menu;
+    }
+  }
+  CHECK(select_menu != nullptr);
+  if (select_menu == nullptr) {
+    return;
+  }
+  CHECK(!canvas->has_selection());
+  emit select_menu->aboutToShow();
+  CHECK(!smooth->isEnabled());
+  CHECK(!feather->isEnabled());
+  emit select_menu->aboutToHide();
+
+  patchy::ui::SelectionSnapshot snapshot;
+  snapshot.selection = QRegion(40, 30, 60, 50);
+  snapshot.display_region = snapshot.selection;
+  canvas->apply_selection_snapshot(snapshot);
+  emit select_menu->aboutToShow();
+  CHECK(smooth->isEnabled());
+  CHECK(feather->isEnabled());
+  emit select_menu->aboutToHide();
+
+  const auto arm_dialog = [](const QString& dialog_name, double expected_initial, double expected_after_shift_up,
+                             double value) {
+    QTimer::singleShot(0, [=] {
+      auto* dialog = find_top_level_dialog(dialog_name);
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      auto* spin = dialog->findChild<QAbstractSpinBox*>();
+      CHECK(spin != nullptr);
+      if (spin == nullptr) {
+        dialog->reject();
+        return;
+      }
+      const auto current = [spin] {
+        if (auto* integer = qobject_cast<QSpinBox*>(spin)) {
+          return static_cast<double>(integer->value());
+        }
+        return qobject_cast<QDoubleSpinBox*>(spin)->value();
+      };
+      CHECK(std::abs(current() - expected_initial) < 1e-9);
+      QTest::keyClick(spin, Qt::Key_Up, Qt::ShiftModifier);
+      CHECK(std::abs(current() - expected_after_shift_up) < 1e-9);
+      if (auto* integer = qobject_cast<QSpinBox*>(spin)) {
+        integer->setValue(static_cast<int>(value));
+      } else {
+        qobject_cast<QDoubleSpinBox*>(spin)->setValue(value);
+      }
+      dialog->accept();
+    });
+  };
+
+  arm_dialog(QStringLiteral("patchySmoothSelectionDialog"), 1.0, 11.0, 6.0);
+  smooth->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->selected_document_region().contains(QPoint(40, 30)));  // corner rounded
+  CHECK(canvas->selected_document_region().contains(QPoint(70, 55)));
+  CHECK(canvas->selected_document_region().contains(QPoint(40, 55)));  // edge kept
+  CHECK(patchy::ui::app_settings().value(QString::fromLatin1(patchy::ui::kSelectionSmoothRadiusKey)).toInt() == 6);
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->selected_document_region().contains(QPoint(40, 30)));
+
+  arm_dialog(QStringLiteral("patchyFeatherSelectionDialog"), 5.0, 6.0, 4.5);
+  feather->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->selection_has_partial_alpha());
+  const auto coverage = canvas->selection_coverage_buffer(QRect(0, 0, 120, 100));
+  const auto at = [&coverage](int x, int y) { return static_cast<int>(*coverage.pixel(x, y)); };
+  CHECK(at(70, 55) == 255);
+  CHECK(at(40, 55) > 100 && at(40, 55) < 230);
+  CHECK(at(25, 55) == 0);
+  CHECK(std::abs(patchy::ui::app_settings().value(QString::fromLatin1(patchy::ui::kSelectionFeatherRadiusKey)).toDouble() - 4.5) <
+        1e-9);
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->selection_has_partial_alpha());
+  CHECK(canvas->selected_document_region() == QRegion(40, 30, 60, 50));
+  save_widget_artifact("ui_select_smooth_and_feather", *canvas);
+}
+
+// The visible result of Select > Smooth and Select > Feather (GitHub issue 614): one shape with
+// a notch, a hole and specks, filled through the selection as it is, smoothed and feathered.
+// The three artifacts are the card's before/after images.
+void ui_select_smooth_and_feather_fill_results() {
+  QRegion shape(QRect(60, 40, 200, 150));
+  shape = shape.subtracted(QRegion(QRect(60, 100, 30, 6)));   // a thin notch in the left edge
+  shape = shape.subtracted(QRegion(QRect(150, 110, 4, 4)));   // a small hole
+  shape = shape.united(QRegion(QRect(280, 60, 3, 3)));        // specks outside
+  shape = shape.united(QRegion(QRect(30, 200, 4, 4)));
+  shape = shape.united(QRegion(QRect(290, 180, 2, 2)));
+  const auto run = [&shape](const std::string& name, const std::function<void(patchy::ui::CanvasWidget&)>& modify) {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    patchy::ui::SelectionSnapshot snapshot;
+    snapshot.selection = shape;
+    snapshot.display_region = shape;
+    canvas->apply_selection_snapshot(snapshot);
+    modify(*canvas);
+    canvas->set_primary_color(QColor(30, 110, 220));
+    use_solid_fill_settings(canvas);
+    require_action(window, "layerFillForegroundAction")->trigger();
+    QApplication::processEvents();
+    canvas->clear_selection();
+    QApplication::processEvents();
+    save_widget_artifact(name, *canvas);
+    return std::array<QColor, 5>{canvas_pixel(*canvas, QPoint(281, 61)), canvas_pixel(*canvas, QPoint(151, 111)),
+                                 canvas_pixel(*canvas, QPoint(61, 41)), canvas_pixel(*canvas, QPoint(160, 41)),
+                                 canvas_pixel(*canvas, QPoint(160, 39))};
+  };
+  const QColor blue(30, 110, 220);
+  const auto before = run("ui_select_smooth_feather_before", [](patchy::ui::CanvasWidget&) {});
+  CHECK(color_close(before[0], blue, 8));         // speck filled
+  CHECK(color_close(before[1], Qt::white, 8));    // hole left
+  CHECK(color_close(before[2], blue, 8));         // sharp corner
+  const auto smoothed = run("ui_select_smooth_feather_after_smooth",
+                            [](patchy::ui::CanvasWidget& canvas) { canvas.smooth_selection(8); });
+  CHECK(color_close(smoothed[0], Qt::white, 8));  // speck gone
+  CHECK(color_close(smoothed[1], blue, 8));       // hole filled
+  CHECK(color_close(smoothed[2], Qt::white, 8));  // corner rounded
+  CHECK(color_close(smoothed[3], blue, 8));       // straight edge kept
+  CHECK(color_close(smoothed[4], Qt::white, 8));
+  const auto feathered = run("ui_select_smooth_feather_after_feather",
+                             [](patchy::ui::CanvasWidget& canvas) { canvas.feather_selection(10.0); });
+  CHECK(!color_close(feathered[3], blue, 20));      // the edge is soft on both sides
+  CHECK(!color_close(feathered[4], Qt::white, 20));
+}
+
 }  // namespace
 
 // A typed physical unit in a pixel-only field (Feather, the Rectangle tool's
@@ -3154,6 +3304,9 @@ std::vector<patchy::test::TestCase> selection_marquee_lasso_tests_part1() {
       {"ui_marquee_drag_keeps_minimum_one_pixel", ui_marquee_drag_keeps_minimum_one_pixel},
       {"ui_selection_toolbar_modes_work", ui_selection_toolbar_modes_work},
       {"ui_ctrl_a_selects_entire_canvas", ui_ctrl_a_selects_entire_canvas},
+      {"ui_select_smooth_and_feather_commands_are_one_undo_step",
+       ui_select_smooth_and_feather_commands_are_one_undo_step},
+      {"ui_select_smooth_and_feather_fill_results", ui_select_smooth_and_feather_fill_results},
       {"ui_alt_backspace_fills_selection_with_foreground", ui_alt_backspace_fills_selection_with_foreground},
       {"ui_feathered_marquee_fill_uses_soft_selection_alpha",
        ui_feathered_marquee_fill_uses_soft_selection_alpha},

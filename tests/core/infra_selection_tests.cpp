@@ -7,6 +7,7 @@
 #include "core/exemplar_inpaint.hpp"
 #include "core/heal_membrane.hpp"
 #include "core/quick_select.hpp"
+#include "core/selection_modify.hpp"
 #include "core/spot_heal.hpp"
 #include "render/tile_cache.hpp"
 #include "support/cli_flags.hpp"
@@ -1538,6 +1539,132 @@ void startup_trace_records_nested_phases_and_reports() {
   CHECK(trace::mark_time("test.after_stop") < 0.0);
 }
 
+// Select > Smooth and Select > Feather (GitHub issue 614, src/core/selection_modify.cpp).
+patchy::PixelBuffer selection_modify_mask(std::int32_t width, std::int32_t height,
+                                          std::initializer_list<patchy::Rect> rects) {
+  patchy::PixelBuffer mask(width, height, patchy::PixelFormat::gray8());
+  mask.clear(0);
+  for (const auto& rect : rects) {
+    for (std::int32_t y = rect.y; y < rect.y + rect.height; ++y) {
+      for (std::int32_t x = rect.x; x < rect.x + rect.width; ++x) {
+        *mask.pixel(x, y) = 255;
+      }
+    }
+  }
+  return mask;
+}
+
+std::uint8_t selection_modify_at(const patchy::PixelBuffer& mask, std::int32_t x, std::int32_t y) {
+  return *mask.pixel(x, y);
+}
+
+void selection_smooth_rounds_corners_and_drops_specks_and_holes() {
+  // A 40 px square with a 2 px hole inside, and a 2 px speck outside it.
+  auto mask = selection_modify_mask(80, 80, {patchy::Rect{10, 10, 40, 40}, patchy::Rect{65, 5, 2, 2}});
+  *mask.pixel(30, 30) = 0;
+  *mask.pixel(31, 30) = 0;
+  *mask.pixel(30, 31) = 0;
+  *mask.pixel(31, 31) = 0;
+  const auto smoothed = patchy::smooth_selection_mask(mask, patchy::Rect{0, 0, 80, 80}, 80, 80, 4);
+  CHECK(selection_modify_at(smoothed, 30, 30) == 255);  // hole filled
+  CHECK(selection_modify_at(smoothed, 65, 5) == 0);     // speck gone
+  CHECK(selection_modify_at(smoothed, 66, 6) == 0);
+  CHECK(selection_modify_at(smoothed, 10, 10) < 128);  // corner rounded off
+  CHECK(selection_modify_at(smoothed, 11, 11) < 128);
+  CHECK(selection_modify_at(smoothed, 16, 16) == 255);
+  // Straight edges stay put and hard.
+  CHECK(selection_modify_at(smoothed, 10, 30) == 255);
+  CHECK(selection_modify_at(smoothed, 9, 30) == 0);
+  CHECK(selection_modify_at(smoothed, 49, 30) == 255);
+  CHECK(selection_modify_at(smoothed, 50, 30) == 0);
+  // The rounded corner is symmetric on all four sides.
+  for (int d = 0; d < 6; ++d) {
+    const auto top_left = selection_modify_at(smoothed, 10 + d, 10 + d);
+    CHECK(selection_modify_at(smoothed, 49 - d, 10 + d) == top_left);
+    CHECK(selection_modify_at(smoothed, 10 + d, 49 - d) == top_left);
+    CHECK(selection_modify_at(smoothed, 49 - d, 49 - d) == top_left);
+  }
+}
+
+void selection_smooth_radius_one_cleans_single_pixels_only() {
+  auto mask = selection_modify_mask(30, 30, {patchy::Rect{5, 5, 20, 20}, patchy::Rect{2, 28, 1, 1}});
+  *mask.pixel(15, 15) = 0;
+  const auto smoothed = patchy::smooth_selection_mask(mask, patchy::Rect{0, 0, 30, 30}, 30, 30, 1);
+  CHECK(selection_modify_at(smoothed, 2, 28) == 0);     // single-pixel speck
+  CHECK(selection_modify_at(smoothed, 15, 15) == 255);  // single-pixel hole
+  CHECK(selection_modify_at(smoothed, 5, 5) < 128);     // the corner pixel goes
+  CHECK(selection_modify_at(smoothed, 6, 5) == 255);    // its neighbours stay
+  CHECK(selection_modify_at(smoothed, 5, 6) == 255);
+  for (int y = 6; y < 24; ++y) {
+    CHECK(selection_modify_at(smoothed, 5, y) == 255);
+    CHECK(selection_modify_at(smoothed, 4, y) == 0);
+  }
+}
+
+void selection_smooth_keeps_the_canvas_edge_and_offsets() {
+  // Select All stays selected: the window never counts pixels beyond the canvas.
+  const auto all = selection_modify_mask(40, 30, {patchy::Rect{0, 0, 40, 30}});
+  const auto smoothed = patchy::smooth_selection_mask(all, patchy::Rect{0, 0, 40, 30}, 40, 30, 10);
+  bool every = true;
+  for (std::int32_t y = 0; y < 30; ++y) {
+    for (std::int32_t x = 0; x < 40; ++x) {
+      every = every && selection_modify_at(smoothed, x, y) == 255;
+    }
+  }
+  CHECK(every);
+  // A work area that is part of a larger canvas gives the same pixels as the whole canvas.
+  const auto full = selection_modify_mask(60, 60, {patchy::Rect{20, 20, 15, 12}});
+  const auto whole = patchy::smooth_selection_mask(full, patchy::Rect{0, 0, 60, 60}, 60, 60, 3);
+  const auto part = selection_modify_mask(21, 18, {patchy::Rect{3, 3, 15, 12}});
+  const auto partial = patchy::smooth_selection_mask(part, patchy::Rect{17, 17, 21, 18}, 60, 60, 3);
+  bool same = true;
+  for (std::int32_t y = 0; y < 18; ++y) {
+    for (std::int32_t x = 0; x < 21; ++x) {
+      same = same && selection_modify_at(partial, x, y) == selection_modify_at(whole, x + 17, y + 17);
+    }
+  }
+  CHECK(same);
+  // The largest radius runs and removes a selection far smaller than its window.
+  const auto small = selection_modify_mask(300, 200, {patchy::Rect{100, 50, 60, 60}});
+  const auto gone = patchy::smooth_selection_mask(small, patchy::Rect{0, 0, 300, 200}, 300, 200, 500);
+  CHECK(selection_modify_at(gone, 130, 80) == 0);
+}
+
+void selection_feather_softens_by_radius() {
+  CHECK(patchy::selection_feather_pass_radius(5.0) == 3.0);  // the marquee Feather rule at odd radii
+  CHECK(patchy::selection_feather_pass_radius(0.5) == 0.5);
+  CHECK(patchy::selection_feather_pass_radius(0.0) == 0.0);
+  const auto source = selection_modify_mask(120, 40, {patchy::Rect{40, 0, 40, 40}});
+  const auto profile = [&](double radius) {
+    auto mask = source;
+    patchy::feather_selection_mask(mask, radius);
+    return mask;
+  };
+  const auto five = profile(5.0);
+  const auto ten = profile(10.0);
+  const auto tiny = profile(0.1);
+  // A ramp centred on the edge, flat far inside and far outside.
+  CHECK(selection_modify_at(five, 60, 20) == 255);
+  CHECK(selection_modify_at(five, 20, 20) == 0);
+  CHECK(std::abs(static_cast<int>(selection_modify_at(five, 40, 20)) + selection_modify_at(five, 39, 20) - 255) <= 2);
+  bool monotonic = true;
+  for (std::int32_t x = 20; x < 60; ++x) {
+    monotonic = monotonic && selection_modify_at(five, x, 20) <= selection_modify_at(five, x + 1, 20);
+  }
+  CHECK(monotonic);
+  // A larger radius spreads further; 0.1 px barely touches the edge.
+  CHECK(selection_modify_at(ten, 34, 20) > selection_modify_at(five, 34, 20));
+  CHECK(selection_modify_at(five, 40 - patchy::selection_feather_padding(5.0), 20) == 0);
+  CHECK(selection_modify_at(tiny, 40, 20) >= 190);
+  CHECK(selection_modify_at(tiny, 39, 20) > 0);
+  CHECK(selection_modify_at(tiny, 39, 20) <= 65);
+  CHECK(selection_modify_at(tiny, 41, 20) >= 240);
+  CHECK(selection_modify_at(tiny, 37, 20) == 0);
+  // Deterministic: the same input gives the same bytes.
+  const auto again = profile(5.0);
+  CHECK(std::equal(again.data().begin(), again.data().end(), five.data().begin()));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> infra_selection_tests() {
@@ -1545,6 +1672,11 @@ std::vector<patchy::test::TestCase> infra_selection_tests() {
       {"plugin_host_and_legacy_probe_work", plugin_host_and_legacy_probe_work},
       {"tile_cache_stores_and_invalidates", tile_cache_stores_and_invalidates},
       {"color_manager_assigns_profiles", color_manager_assigns_profiles},
+      {"selection_smooth_rounds_corners_and_drops_specks_and_holes",
+       selection_smooth_rounds_corners_and_drops_specks_and_holes},
+      {"selection_smooth_radius_one_cleans_single_pixels_only", selection_smooth_radius_one_cleans_single_pixels_only},
+      {"selection_smooth_keeps_the_canvas_edge_and_offsets", selection_smooth_keeps_the_canvas_edge_and_offsets},
+      {"selection_feather_softens_by_radius", selection_feather_softens_by_radius},
       {"quick_select_maxflow_solves_tiny_grid", quick_select_maxflow_solves_tiny_grid},
       {"quick_select_maxflow_matches_reference_on_random_grids",
        quick_select_maxflow_matches_reference_on_random_grids},

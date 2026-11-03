@@ -1428,6 +1428,8 @@ public:
   void expand_selection(int pixels);
   void contract_selection(int pixels);
   void border_selection(int pixels);
+  void smooth_selection(int radius);
+  void feather_selection(double radius);
   void select_layer_opaque_pixels(LayerId layer_id);
   void select_layer_mask_pixels(LayerId layer_id);
   void select_active_layer_opaque_pixels();

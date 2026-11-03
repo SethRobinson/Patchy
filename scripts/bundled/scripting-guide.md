@@ -585,6 +585,7 @@ doc.exportArtboards("out", {format: "png"});
 | `doc.selection.exists` / `doc.selection.bounds` | Whether something is selected, and its box. |
 | `selectAll()` / `deselect()` | The classics. On a layer inside an artboard, All is that artboard. |
 | `selectRect(x, y, w, h)` / `selectEllipse(x, y, w, h)` | Shape selections (sides up to 30000). |
+| `smooth(radius)` / `feather(radius)` | Select > Smooth (whole radius 1 to 500: rounds corners, removes specks and holes) and Select > Feather (0.1 to 1000 px: softens the edge). Nothing happens without a selection. |
 | `selectSubject(options?)` | Select > Subject: the main subject from the bundled model, one pass over the merged document (several seconds on the CPU). Options: `operation` (`"replace"`, `"add"`, `"subtract"`, `"intersect"`), `feather`, `antialias`. |
 | `selectBackground(options?)` | Select > Select Background: everything `selectSubject` would not select. Same options. `selectSubject`, `selectBackground` and `layer.removeBackground` also take `sampleAllLayers` (default true; false analyzes the active layer alone). |
 | `objectSelect(options)` | The Object Selection tool: `{rect: {x, y, width, height}}` selects the object in the box, `{point: {x, y}}` the object under the point (exactly one of the two). Also `operation` (`"replace"`, `"add"`, `"subtract"`), `sampleAllLayers` (default true), `feather`, `antialias`. A rect that is small against the image is analyzed with its surroundings at full resolution, like the tool. |

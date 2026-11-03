@@ -14925,6 +14925,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>New Layer</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Smooth Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sample radius</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Feather Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Feather radius</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17078,6 +17094,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Warp works on layers. Apply the selection transform first.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Smoothing removed the whole selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Smoothed selection by %1 px</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Feathered selection by %1 px</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19194,6 +19222,14 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Resize, rotate or skew the selection outline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Round off corners and remove specks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Soften the selection edge</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -32267,6 +32303,38 @@ Locked: %1</source>
         <source>Current Layer edits the active layer; New Layer leaves it untouched and puts the filled spot and the moved object on a new layer above it</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>S&amp;mooth...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Round off the selection&apos;s corners and drop small specks and holes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Soften the selection&apos;s edge</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make a selection before smoothing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Smooth Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make a selection before feathering</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Feather Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Feat&amp;her...</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34513,6 +34581,14 @@ Locked: %1</source>
     </message>
     <message>
         <source>createWorkPath: the text has no outlines</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>smooth needs a whole radius from %1 to %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>feather needs a radius from %1 to %2.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -305,6 +305,8 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"select.expand", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make the selection larger")},
     {"select.contract", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make the selection smaller")},
     {"select.border", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Select a band along the edge")},
+    {"select.smooth", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Round off corners and remove specks")},
+    {"select.feather", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Soften the selection edge")},
     {"select.grow", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add neighboring similar colors")},
     {"select.similar", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add similar colors anywhere")},
     {"select.quick_mask", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Paint a selection as a mask")},

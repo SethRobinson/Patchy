@@ -31,6 +31,7 @@
 #include "core/layer_tree.hpp"
 #include "core/vector_shape.hpp"
 #include "core/vector_raster.hpp"
+#include "core/selection_modify.hpp"
 #include "core/shape_combine.hpp"
 #include "core/path_simplify.hpp"
 
@@ -1882,6 +1883,30 @@ void ScriptSelectionObject::selectRect(int x, int y, int width, int height) {
     return;
   }
   host_.select_region(session_id_, QRegion(x, y, width, height));
+}
+
+void ScriptSelectionObject::smooth(double radius) {
+  const ScriptApiCall api_call(host_);
+  if (!std::isfinite(radius) || radius != std::floor(radius) || radius < kMinSelectionSmoothRadius ||
+      radius > kMaxSelectionSmoothRadius) {
+    host_.throw_js_error(ScriptEngineHost::tr("smooth needs a whole radius from %1 to %2.")
+                             .arg(kMinSelectionSmoothRadius)
+                             .arg(kMaxSelectionSmoothRadius));
+    return;
+  }
+  host_.smooth_selection(session_id_, static_cast<int>(radius));
+}
+
+void ScriptSelectionObject::feather(double radius) {
+  const ScriptApiCall api_call(host_);
+  if (!std::isfinite(radius) || radius < kMinSelectionFeatherCommandRadius ||
+      radius > kMaxSelectionFeatherCommandRadius) {
+    host_.throw_js_error(ScriptEngineHost::tr("feather needs a radius from %1 to %2.")
+                             .arg(kMinSelectionFeatherCommandRadius)
+                             .arg(kMaxSelectionFeatherCommandRadius));
+    return;
+  }
+  host_.feather_selection(session_id_, radius);
 }
 
 void ScriptSelectionObject::selectEllipse(int x, int y, int width, int height) {

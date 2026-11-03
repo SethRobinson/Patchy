@@ -14942,6 +14942,22 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>New Layer</source>
         <translation>Nova camada</translation>
     </message>
+    <message>
+        <source>Smooth Selection</source>
+        <translation>Suavizar seleção</translation>
+    </message>
+    <message>
+        <source>Sample radius</source>
+        <translation>Raio de amostra</translation>
+    </message>
+    <message>
+        <source>Feather Selection</source>
+        <translation>Difundir seleção</translation>
+    </message>
+    <message>
+        <source>Feather radius</source>
+        <translation>Raio de difusão</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17095,6 +17111,18 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Warp works on layers. Apply the selection transform first.</source>
         <translation>Distorcer funciona em camadas. Aplique primeiro a transformação da seleção.</translation>
     </message>
+    <message>
+        <source>Smoothing removed the whole selection</source>
+        <translation>A suavização removeu toda a seleção</translation>
+    </message>
+    <message>
+        <source>Smoothed selection by %1 px</source>
+        <translation>Seleção suavizada em %1 px</translation>
+    </message>
+    <message>
+        <source>Feathered selection by %1 px</source>
+        <translation>Seleção difundida em %1 px</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19212,6 +19240,14 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Resize, rotate or skew the selection outline</source>
         <translation>Redimensionar, girar ou inclinar o contorno da seleção</translation>
+    </message>
+    <message>
+        <source>Round off corners and remove specks</source>
+        <translation>Arredondar cantos e remover pontinhos</translation>
+    </message>
+    <message>
+        <source>Soften the selection edge</source>
+        <translation>Suavizar a borda da seleção</translation>
     </message>
 </context>
 <context>
@@ -32348,6 +32384,38 @@ Bloqueado: %1</translation>
         <source>Current Layer edits the active layer; New Layer leaves it untouched and puts the filled spot and the moved object on a new layer above it</source>
         <translation>Camada atual edita a camada ativa; Nova camada a mantém intacta e coloca a área preenchida e o objeto movido em uma nova camada acima</translation>
     </message>
+    <message>
+        <source>S&amp;mooth...</source>
+        <translation>S&amp;uavizar...</translation>
+    </message>
+    <message>
+        <source>Round off the selection&apos;s corners and drop small specks and holes</source>
+        <translation>Arredonda os cantos da seleção e remove pontinhos e furos pequenos</translation>
+    </message>
+    <message>
+        <source>Soften the selection&apos;s edge</source>
+        <translation>Suaviza a borda da seleção</translation>
+    </message>
+    <message>
+        <source>Make a selection before smoothing</source>
+        <translation>Faça uma seleção antes de suavizar</translation>
+    </message>
+    <message>
+        <source>Smooth Selection</source>
+        <translation>Suavizar seleção</translation>
+    </message>
+    <message>
+        <source>Make a selection before feathering</source>
+        <translation>Faça uma seleção antes de difundir</translation>
+    </message>
+    <message>
+        <source>Feather Selection</source>
+        <translation>Difundir seleção</translation>
+    </message>
+    <message>
+        <source>Feat&amp;her...</source>
+        <translation>&amp;Difundir...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34595,6 +34663,14 @@ Bloqueado: %1</translation>
     <message>
         <source>createWorkPath: the text has no outlines</source>
         <translation>createWorkPath: o texto não tem contornos</translation>
+    </message>
+    <message>
+        <source>smooth needs a whole radius from %1 to %2.</source>
+        <translation>smooth precisa de um raio inteiro de %1 a %2.</translation>
+    </message>
+    <message>
+        <source>feather needs a radius from %1 to %2.</source>
+        <translation>feather precisa de um raio de %1 a %2.</translation>
     </message>
 </context>
 <context>

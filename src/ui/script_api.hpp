@@ -232,6 +232,9 @@ public:
   Q_INVOKABLE void deselect();
   Q_INVOKABLE void selectRect(int x, int y, int width, int height);
   Q_INVOKABLE void selectEllipse(int x, int y, int width, int height);
+  // Select > Smooth (radius 1..500) and Select > Feather (0.1..1000); no-ops without a selection.
+  Q_INVOKABLE void smooth(double radius);
+  Q_INVOKABLE void feather(double radius);
   Q_INVOKABLE void fromPath(const QJSValue& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE QJSValue toPath(const QJSValue& options = QJSValue()) const;
   // The selection as an 8-bit coverage plane, and back (script_pixel_io.cpp).

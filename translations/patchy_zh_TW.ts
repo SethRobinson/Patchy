@@ -14897,6 +14897,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>New Layer</source>
         <translation>新增圖層</translation>
     </message>
+    <message>
+        <source>Smooth Selection</source>
+        <translation>平滑選取範圍</translation>
+    </message>
+    <message>
+        <source>Sample radius</source>
+        <translation>取樣半徑</translation>
+    </message>
+    <message>
+        <source>Feather Selection</source>
+        <translation>羽化選取範圍</translation>
+    </message>
+    <message>
+        <source>Feather radius</source>
+        <translation>羽化半徑</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17050,6 +17066,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Warp works on layers. Apply the selection transform first.</source>
         <translation>彎曲作用於圖層。請先套用選取範圍變形。</translation>
     </message>
+    <message>
+        <source>Smoothing removed the whole selection</source>
+        <translation>平滑後選取範圍已全部消失</translation>
+    </message>
+    <message>
+        <source>Smoothed selection by %1 px</source>
+        <translation>已將選取範圍平滑 %1 px</translation>
+    </message>
+    <message>
+        <source>Feathered selection by %1 px</source>
+        <translation>已將選取範圍羽化 %1 px</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19167,6 +19195,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Resize, rotate or skew the selection outline</source>
         <translation>調整選取範圍外框的大小、旋轉或傾斜</translation>
+    </message>
+    <message>
+        <source>Round off corners and remove specks</source>
+        <translation>圓化轉角並移除雜點</translation>
+    </message>
+    <message>
+        <source>Soften the selection edge</source>
+        <translation>柔化選取範圍邊緣</translation>
     </message>
 </context>
 <context>
@@ -32264,6 +32300,38 @@ Locked: %1</source>
         <source>Current Layer edits the active layer; New Layer leaves it untouched and puts the filled spot and the moved object on a new layer above it</source>
         <translation>目前圖層：編輯作用中圖層；新增圖層：保持原圖層不變，將填補的區域與移動的物件放到上方的新圖層</translation>
     </message>
+    <message>
+        <source>S&amp;mooth...</source>
+        <translation>平滑(&amp;M)...</translation>
+    </message>
+    <message>
+        <source>Round off the selection&apos;s corners and drop small specks and holes</source>
+        <translation>圓化選取範圍的轉角，並移除小雜點和小孔</translation>
+    </message>
+    <message>
+        <source>Soften the selection&apos;s edge</source>
+        <translation>柔化選取範圍的邊緣</translation>
+    </message>
+    <message>
+        <source>Make a selection before smoothing</source>
+        <translation>請先建立選取範圍再平滑</translation>
+    </message>
+    <message>
+        <source>Smooth Selection</source>
+        <translation>平滑選取範圍</translation>
+    </message>
+    <message>
+        <source>Make a selection before feathering</source>
+        <translation>請先建立選取範圍再羽化</translation>
+    </message>
+    <message>
+        <source>Feather Selection</source>
+        <translation>羽化選取範圍</translation>
+    </message>
+    <message>
+        <source>Feat&amp;her...</source>
+        <translation>羽化(&amp;H)...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34510,6 +34578,14 @@ Locked: %1</source>
     <message>
         <source>createWorkPath: the text has no outlines</source>
         <translation>createWorkPath：文字沒有外框</translation>
+    </message>
+    <message>
+        <source>smooth needs a whole radius from %1 to %2.</source>
+        <translation>smooth 需要介於 %1 和 %2 之間的整數半徑。</translation>
+    </message>
+    <message>
+        <source>feather needs a radius from %1 to %2.</source>
+        <translation>feather 需要介於 %1 和 %2 之間的半徑。</translation>
     </message>
 </context>
 <context>

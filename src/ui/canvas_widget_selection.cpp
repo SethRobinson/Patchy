@@ -14,6 +14,7 @@
 #include "core/pixel_buffer.hpp"
 #include "core/pixel_depth.hpp"
 #include "core/pixel_tools.hpp"
+#include "core/selection_modify.hpp"
 #include "core/smart_object.hpp"
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget_shared.hpp"
@@ -23,6 +24,7 @@
 #include <QApplication>
 #include <QColor>
 #include <QImage>
+#include <QLocale>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPen>
@@ -493,6 +495,50 @@ void CanvasWidget::border_selection(int pixels) {
   set_selection_from_region(outside.subtracted(inside));
   if (status_callback_) {
     status_callback_(tr("Selected %1 px border").arg(pixels));
+  }
+  update();
+}
+
+// Select > Smooth (GitHub issue 614): a majority vote over a square window on the coverage,
+// docs/selection-modify.md. Soft selections go in with their coverage.
+void CanvasWidget::smooth_selection(int radius) {
+  if (document_ == nullptr || selection_.isEmpty() || radius <= 0) {
+    return;
+  }
+  radius = std::clamp(radius, kMinSelectionSmoothRadius, kMaxSelectionSmoothRadius);
+  const QRect canvas_rect(0, 0, document_->width(), document_->height());
+  const auto area = selection_.boundingRect().adjusted(-radius, -radius, radius, radius).intersected(canvas_rect);
+  if (area.isEmpty()) {
+    return;
+  }
+  const auto coverage = selection_coverage_buffer(area);
+  const auto smoothed =
+      smooth_selection_mask(coverage, to_core_rect(area), document_->width(), document_->height(), radius);
+  set_selection_from_coverage(area, smoothed);
+  if (status_callback_) {
+    status_callback_(selection_.isEmpty() ? tr("Smoothing removed the whole selection")
+                                          : tr("Smoothed selection by %1 px").arg(radius));
+  }
+  update();
+}
+
+// Select > Feather (GitHub issue 614): the selection's edge softened by `radius` px (decimal).
+void CanvasWidget::feather_selection(double radius) {
+  if (document_ == nullptr || selection_.isEmpty() || !(radius > 0.0)) {
+    return;
+  }
+  radius = std::clamp(radius, kMinSelectionFeatherCommandRadius, kMaxSelectionFeatherCommandRadius);
+  const QRect canvas_rect(0, 0, document_->width(), document_->height());
+  const auto padding = selection_feather_padding(radius);
+  const auto area = selection_.boundingRect().adjusted(-padding, -padding, padding, padding).intersected(canvas_rect);
+  if (area.isEmpty()) {
+    return;
+  }
+  auto coverage = selection_coverage_buffer(area);
+  feather_selection_mask(coverage, radius);
+  set_selection_from_coverage(area, coverage);
+  if (status_callback_) {
+    status_callback_(tr("Feathered selection by %1 px").arg(QLocale().toString(radius, 'g', 6)));
   }
   update();
 }

@@ -14987,6 +14987,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>New Layer</source>
         <translation>Новый слой</translation>
     </message>
+    <message>
+        <source>Smooth Selection</source>
+        <translation>Сгладить выделение</translation>
+    </message>
+    <message>
+        <source>Sample radius</source>
+        <translation>Радиус выборки</translation>
+    </message>
+    <message>
+        <source>Feather Selection</source>
+        <translation>Растушевать выделение</translation>
+    </message>
+    <message>
+        <source>Feather radius</source>
+        <translation>Радиус растушевки</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17140,6 +17156,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Warp works on layers. Apply the selection transform first.</source>
         <translation>Деформация работает со слоями. Сначала примените трансформацию выделения.</translation>
     </message>
+    <message>
+        <source>Smoothing removed the whole selection</source>
+        <translation>Сглаживание удалило всё выделение</translation>
+    </message>
+    <message>
+        <source>Smoothed selection by %1 px</source>
+        <translation>Выделение сглажено на %1&#xa0;пкс.</translation>
+    </message>
+    <message>
+        <source>Feathered selection by %1 px</source>
+        <translation>Выделение растушевано на %1&#xa0;пкс.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19257,6 +19285,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Resize, rotate or skew the selection outline</source>
         <translation>Изменить размер, повернуть или наклонить контур выделения</translation>
+    </message>
+    <message>
+        <source>Round off corners and remove specks</source>
+        <translation>Скруглить углы и убрать мелкие точки</translation>
+    </message>
+    <message>
+        <source>Soften the selection edge</source>
+        <translation>Смягчить край выделения</translation>
     </message>
 </context>
 <context>
@@ -32432,6 +32468,38 @@ Locked: %1</source>
         <source>Current Layer edits the active layer; New Layer leaves it untouched and puts the filled spot and the moved object on a new layer above it</source>
         <translation>Текущий слой изменяет активный слой; Новый слой оставляет его без изменений и помещает заполненное место и перемещённый объект на новый слой над ним</translation>
     </message>
+    <message>
+        <source>S&amp;mooth...</source>
+        <translation>С&amp;гладить...</translation>
+    </message>
+    <message>
+        <source>Round off the selection&apos;s corners and drop small specks and holes</source>
+        <translation>Скругляет углы выделения и убирает мелкие точки и дыры</translation>
+    </message>
+    <message>
+        <source>Soften the selection&apos;s edge</source>
+        <translation>Смягчает край выделения</translation>
+    </message>
+    <message>
+        <source>Make a selection before smoothing</source>
+        <translation>Сделайте выделение, прежде чем сглаживать</translation>
+    </message>
+    <message>
+        <source>Smooth Selection</source>
+        <translation>Сгладить выделение</translation>
+    </message>
+    <message>
+        <source>Make a selection before feathering</source>
+        <translation>Сделайте выделение, прежде чем растушевывать</translation>
+    </message>
+    <message>
+        <source>Feather Selection</source>
+        <translation>Растушевать выделение</translation>
+    </message>
+    <message>
+        <source>Feat&amp;her...</source>
+        <translation>Р&amp;астушевка...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34680,6 +34748,14 @@ Locked: %1</source>
     <message>
         <source>createWorkPath: the text has no outlines</source>
         <translation>createWorkPath: у текста нет контуров</translation>
+    </message>
+    <message>
+        <source>smooth needs a whole radius from %1 to %2.</source>
+        <translation>smooth требует целого радиуса от %1 до %2.</translation>
+    </message>
+    <message>
+        <source>feather needs a radius from %1 to %2.</source>
+        <translation>feather требует радиуса от %1 до %2.</translation>
     </message>
 </context>
 <context>
