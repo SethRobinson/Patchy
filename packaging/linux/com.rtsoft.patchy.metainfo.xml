@@ -150,7 +150,7 @@
     <release version="1.25" date="2026-11-03">
       <description>
         <ul>
-          <li>Companion apps under Plugins, such as OpenFill for local generative fill</li>
+          <li>Companion apps under Plugins, preparing for OpenFill's local generative fill</li>
           <li>117 GEGL filters with live preview under Filter, GEGL Filters</li>
           <li>Presets, eyedroppers and clearer layouts in the adjustment dialogs</li>
           <li>Gradient Fill layers from the Gradient tool and a Content-Aware Fill option</li>
