@@ -4418,7 +4418,8 @@ void ui_fill_layer_row_opens_fill_settings_without_shape_controls() {
 
 // GitHub #582 follow-up: the fill-only dialog has one fixed title, "Fill Layer Settings", for
 // every fill type, and its section shows no "Fill" heading; a shape layer's dialog keeps the
-// "Shape Appearance" title and its "Fill" section heading.
+// "Shape Appearance" title and its "Fill" section heading. In both, Preview sits in the button
+// row, left of Reset.
 void ui_fill_layer_settings_title_and_fill_label_by_mode() {
   VectorSettingsGuard settings_guard;
   auto&& [window, canvas] = ShownWindowFixture{};
@@ -4427,6 +4428,7 @@ void ui_fill_layer_settings_title_and_fill_label_by_mode() {
   QString fill_heading = QStringLiteral("unset");
   bool fill_group_shown = false;
   bool fill_only = false;
+  bool preview_left_of_reset = false;
   const auto inspect = [&](bool switch_to_pattern) {
     return [&, switch_to_pattern] {
       auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
@@ -4439,6 +4441,20 @@ void ui_fill_layer_settings_title_and_fill_label_by_mode() {
       fill_only = dialog->property("fillLayerSettings").toBool();
       fill_heading = group != nullptr ? group->title() : QStringLiteral("missing");
       fill_group_shown = group != nullptr && group->isVisibleTo(dialog);
+      // Preview sits in the button row, left of Reset (#582 follow-up).
+      auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("shapeAppearancePreviewCheck"));
+      auto* reset = dialog->findChild<QPushButton*>(QStringLiteral("shapeAppearanceResetButton"));
+      CHECK(preview != nullptr);
+      CHECK(reset != nullptr);
+      if (preview != nullptr && reset != nullptr) {
+        const QRect preview_rect(preview->mapTo(dialog, QPoint(0, 0)), preview->size());
+        const QRect reset_rect(reset->mapTo(dialog, QPoint(0, 0)), reset->size());
+        preview_left_of_reset = preview_rect.right() < reset_rect.left() &&
+                                std::abs(preview_rect.center().y() - reset_rect.center().y()) <= 4;
+      }
+      if (!switch_to_pattern) {
+        save_widget_artifact("ui_shape_appearance_preview_in_button_row", *dialog);
+      }
       if (switch_to_pattern) {
         // The title stays put when the fill type changes.
         auto* kind = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillKindCombo"));
@@ -4472,6 +4488,8 @@ void ui_fill_layer_settings_title_and_fill_label_by_mode() {
   CHECK(fill_only);
   CHECK(fill_heading.isEmpty());
   CHECK(fill_group_shown);
+  CHECK(preview_left_of_reset);
+  preview_left_of_reset = false;
 
   // A shape layer drawn over the fill keeps the Shape Appearance title and the Fill heading.
   canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
@@ -4487,6 +4505,7 @@ void ui_fill_layer_settings_title_and_fill_label_by_mode() {
   CHECK(!fill_only);
   CHECK(fill_heading == QStringLiteral("Fill"));
   CHECK(fill_group_shown);
+  CHECK(preview_left_of_reset);
 }
 
 // GitHub #607: a fill layer's row double-click and its fill badge open the fill settings, as an

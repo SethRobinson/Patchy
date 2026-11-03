@@ -1309,11 +1309,15 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   reset_button->setToolTip(QObject::tr("Restore the default fill, stroke, opacity, and edge (the geometry stays)"));
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-  dialog_layout->addWidget(buttons);
   auto* preview_check = new QCheckBox(QObject::tr("Preview"), &dialog);
   preview_check->setObjectName(QStringLiteral("shapeAppearancePreviewCheck"));
   preview_check->setChecked(true);
-  dialog_layout->insertWidget(dialog_layout->count() - 1, preview_check);
+  // Preview sits at the left of the button row, before Reset, as in the other
+  // preview dialogs (#582). The box keeps its own stretch between Reset and OK.
+  auto* footer = new QHBoxLayout();
+  footer->addWidget(preview_check);
+  footer->addWidget(buttons, 1);
+  dialog_layout->addLayout(footer);
   QObject::connect(preview_check, &QCheckBox::toggled, &dialog, [=](bool checked) {
     state->settings.preview_enabled = checked;
     notify();
@@ -1603,11 +1607,10 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     const auto margins = dialog_layout->contentsMargins();
     int page_width = page_hint.width();
     // The dialog layout's own hint counts every row under the page (the Preview
-    // checkbox, the button box) with their spacings and margins; only its scroll
-    // area entry is wrong (the capped QScrollArea hint), so swap that for the
-    // page's hint. Summing the rows by hand missed the Preview row and opened
-    // the dialog one row short, with a scrollbar on a tall screen (Seth,
-    // October 2026).
+    // and button row) with their spacings and margins; only its scroll area
+    // entry is wrong (the capped QScrollArea hint), so swap that for the page's
+    // hint. Summing the rows by hand once missed a row and opened the dialog one
+    // row short, with a scrollbar on a tall screen (Seth, October 2026).
     int height = dialog_layout->sizeHint().height() - scroll->sizeHint().height() + page_hint.height();
     int max_width = std::numeric_limits<int>::max();
     if (screen != nullptr) {
