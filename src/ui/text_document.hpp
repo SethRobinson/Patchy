@@ -44,6 +44,9 @@ struct TextToolSettings {
   // columns that advance right to left. See ui/text_layout.hpp.
   bool vertical{false};
   std::optional<VectorPath> area{std::nullopt};
+  // Box text normally hides the lines whose baseline is past the frame (GitHub issue 621). The
+  // imported-text metric calibration keeps them: a too-wide substituted font shows as extra lines.
+  bool keep_overflow_lines{false};
 };
 
 

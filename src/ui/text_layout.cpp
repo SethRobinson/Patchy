@@ -306,7 +306,7 @@ std::vector<BoxTextLineRenderItem> boxed_text_line_render_items(const QTextDocum
 }
 
 BoxTextRenderPlan boxed_text_render_plan(const QTextDocument& document, const QFont& font, QRectF frame_rect,
-                                         std::optional<QRectF> requested_local_rect) {
+                                         std::optional<QRectF> requested_local_rect, bool keep_overflow_lines) {
   frame_rect = frame_rect.normalized();
   QRectF gate_rect = frame_rect;
   if (requested_local_rect.has_value()) {
@@ -321,7 +321,9 @@ BoxTextRenderPlan boxed_text_render_plan(const QTextDocument& document, const QF
 
   // The requested rect (a re-edit's old raster) only widens the buffer and the top gate: lines
   // are kept by the FRAME, or an overflow line baked into an older raster would keep itself.
-  BoxTextRenderPlan plan{gate_rect, boxed_text_line_render_items(document, gate_rect, frame_rect.bottom(), top_bleed,
+  // A non-finite frame bottom keeps every line (box_text_line_overflows_frame).
+  const auto frame_bottom = keep_overflow_lines ? std::numeric_limits<qreal>::infinity() : frame_rect.bottom();
+  BoxTextRenderPlan plan{gate_rect, boxed_text_line_render_items(document, gate_rect, frame_bottom, top_bleed,
                                                                  bottom_bleed, kHorizontalBleed)};
   if (plan.lines.empty()) {
     return plan;

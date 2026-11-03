@@ -193,9 +193,11 @@ struct PhotoshopLineMetrics {
                                                                              qreal top_bleed, qreal bottom_bleed,
                                                                              qreal horizontal_bleed);
 
+// `keep_overflow_lines` keeps the lines past the frame too (TextToolSettings::keep_overflow_lines).
 [[nodiscard]] BoxTextRenderPlan boxed_text_render_plan(const QTextDocument& document, const QFont& font,
                                                        QRectF frame_rect,
-                                                       std::optional<QRectF> requested_local_rect);
+                                                       std::optional<QRectF> requested_local_rect,
+                                                       bool keep_overflow_lines = false);
 
 // Lay the document's lines out with Photoshop's leading model: the first line keeps Qt's
 // natural position for point text (the anchor machinery aligns rasters by the first line) or

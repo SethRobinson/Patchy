@@ -85,6 +85,9 @@ editor, Photoshop-layout and metadata re-render paths share this in
 width and grows only the bottom (pixels-only callers place the buffer at the frame corner).
 `test-fixtures/psd/photoshop-box-text-overflow.psd` (BMP flatten beside it) is a Photoshop box
 whose second line overflows; its story keeps that line.
+The imported-text metric calibration (`calibrated_box_text_metric_scale`) renders with
+`TextToolSettings::keep_overflow_lines`: a substituted font that runs long shows as extra lines,
+which is what starts its scale search (`ui_tips_psd_speed_mode_line_clip_if_available`, Linux).
 Known gap: an imported PSD frame's commit crops the last line's descenders at the frame bottom
 (the live render draws them; `ui_imported_psd_box_text_line_clip_renders_full_visible_line_after_edit`).
 

@@ -640,7 +640,8 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
       constexpr qreal kHorizontalBleed = 2.0;
       constexpr qreal kLineGateTolerance = 0.01;
       auto united_rect = gate_rect;
-      const auto frame_bottom = local_rect.bottom();
+      const auto frame_bottom =
+          settings.keep_overflow_lines ? std::numeric_limits<qreal>::infinity() : local_rect.bottom();
       bool first_line = true;
       for (auto& item : photoshop_plan.lines) {
         const auto positioned = item.line.rect().translated(item.block_origin);
@@ -660,7 +661,8 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
       }
       local_rect = united_rect;
     } else if (requested_local_rect.has_value()) {
-      auto plan = boxed_text_render_plan(document, font, local_rect, requested_local_rect);
+      auto plan = boxed_text_render_plan(document, font, local_rect, requested_local_rect,
+                                         settings.keep_overflow_lines);
       local_rect = plan.local_rect;
       line_render_items = std::move(plan.lines);
     } else {
@@ -669,7 +671,7 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
       // draws whole (Affinity and Photoshop both do), never a mid-glyph raster cut. Callers
       // of the pixels-only wrapper place the buffer at the frame corner, so the origin and
       // width stay the frame's; only the bottom may grow to hold the straddler's bleed.
-      auto plan = boxed_text_render_plan(document, font, local_rect, std::nullopt);
+      auto plan = boxed_text_render_plan(document, font, local_rect, std::nullopt, settings.keep_overflow_lines);
       line_render_items = std::move(plan.lines);
       local_rect.setBottom(std::max(local_rect.bottom(), plan.local_rect.bottom()));
     }

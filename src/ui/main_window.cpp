@@ -2422,7 +2422,11 @@ std::optional<double> calibrated_box_text_metric_scale(const Layer& source_layer
     return std::nullopt;
   }
 
-  const auto baseline = render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs,
+  // Measure the whole story: the overflow lines a too-wide font pushes past the frame are what
+  // tell the scale search to run.
+  auto measured = settings;
+  measured.keep_overflow_lines = true;
+  const auto baseline = render_text_pixels_with_local_rect(measured, text_color, text_width, paragraph_runs,
                                                            rich_text_runs, render_local_rect, 1.0, QTransform(),
                                                            layout_scale);
   const auto baseline_bands = alpha_row_bands(baseline.pixels);
@@ -2446,7 +2450,7 @@ std::optional<double> calibrated_box_text_metric_scale(const Layer& source_layer
     if (scale < 0.65) {
       break;
     }
-    const auto candidate = render_text_pixels_with_local_rect(settings, text_color, text_width, paragraph_runs,
+    const auto candidate = render_text_pixels_with_local_rect(measured, text_color, text_width, paragraph_runs,
                                                               rich_text_runs, render_local_rect, scale,
                                                               QTransform(), layout_scale);
     const auto candidate_bands = alpha_row_bands(candidate.pixels);
