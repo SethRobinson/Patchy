@@ -73,6 +73,21 @@ grapheme model with rotated flow geometry. All iteration is bounded.
 Sparse stories in frames larger than 16 million square pixels allocate their
 visible ink bounds rather than the full contour rectangle.
 
+## Box text overflow
+
+Boxed render paths gate whole LINES, never raster rows (`box_text_line_overflows_frame`): a line
+shows while its baseline is inside the frame (PS 2026, Arial 24 px: baseline 45.98 shows in a
+46 px box, hides in 45) and draws whole, descenders included; later lines hide with it. The
+story's first line always draws (no overflow marker; an empty layer cannot be clicked). Only the
+frame gates: a re-edit's old raster rect widens the buffer, never the gate (issue 621). The
+editor, Photoshop-layout and metadata re-render paths share this in
+`render_text_pixels_with_local_rect`; the metadata path keeps the frame's buffer origin and
+width and grows only the bottom (pixels-only callers place the buffer at the frame corner).
+`test-fixtures/psd/photoshop-box-text-overflow.psd` (BMP flatten beside it) is a Photoshop box
+whose second line overflows; its story keeps that line.
+Known gap: an imported PSD frame's commit crops the last line's descenders at the frame bottom
+(the live render draws them; `ui_imported_psd_box_text_line_clip_renders_full_visible_line_after_edit`).
+
 ## PSD and PSB
 
 The boundary is in `Txt2`, frame set `/0/8/0[]`, addressed through the object's

@@ -177,11 +177,20 @@ struct PhotoshopLineMetrics {
 // nullopt for an empty document. Calibrated on 45 Windows fonts in docs/warp.md.
 [[nodiscard]] std::optional<QRectF> photoshop_warp_box(const QTextDocument& document, bool boxed, QRectF frame);
 
-// Every line intersecting `gate_rect`, clipped with the given bleeds. Whole LINES are gated,
-// never raster rows: a line straddling the frame bottom draws completely.
+// Box text keeps a line only while its BASELINE is inside the frame (Photoshop 2026, Arial
+// 24 px: the second line, baseline 45.98 px below the box top, shows in a 46 px box and hides
+// in a 45 px one; descenders overhang). Every later line hides with it, as the overflow does.
+// Patchy deviates for the story's first line, which always draws: it has no overflow marker,
+// and a text layer with no pixels could not be clicked again (GitHub issue 621).
+[[nodiscard]] bool box_text_line_overflows_frame(qreal line_top, qreal line_ascent, qreal frame_bottom,
+                                                 bool first_line);
+
+// Every visible line (box_text_line_overflows_frame against `frame_bottom`) that intersects
+// `gate_rect` from above, clipped with the given bleeds. Whole LINES are gated, never raster
+// rows: a line whose baseline fits draws completely, descenders past the frame included.
 [[nodiscard]] std::vector<BoxTextLineRenderItem> boxed_text_line_render_items(const QTextDocument& document,
-                                                                             QRectF gate_rect, qreal top_bleed,
-                                                                             qreal bottom_bleed,
+                                                                             QRectF gate_rect, qreal frame_bottom,
+                                                                             qreal top_bleed, qreal bottom_bleed,
                                                                              qreal horizontal_bleed);
 
 [[nodiscard]] BoxTextRenderPlan boxed_text_render_plan(const QTextDocument& document, const QFont& font,

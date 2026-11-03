@@ -150,12 +150,7 @@ the session mid-call (`configure()` runs on every cursor move). Real-click tests
 
 ## Boxed-text render clipping
 
-Every boxed render path gates whole LINES against the frame, never raster rows: a line straddling
-the frame bottom draws whole (clip band extended by the descent bleed); lines past it stay hidden. The editor, Photoshop-layout and metadata re-render
-paths share this rule in `render_text_pixels_with_local_rect` (skipping the line plan cuts the
-straddling line mid-glyph; Affinity and Photoshop draw it whole). The metadata path keeps the
-buffer origin and width at the frame's and grows only the bottom: pixels-only callers place
-the buffer at the frame corner.
+Which lines a rectangular box shows and how they clip: [area-text.md](area-text.md#box-text-overflow).
 
 ## The style picker
 

@@ -240,9 +240,19 @@ PhotoshopLineMetrics photoshop_line_metrics(const QTextBlock& block, const QText
   return metrics;
 }
 
+bool box_text_line_overflows_frame(qreal line_top, qreal line_ascent, qreal frame_bottom, bool first_line) {
+  // Half a pixel: Photoshop's cut is sharp (0.98 px past the bottom hides the line), and
+  // Patchy's Qt-natural baselines carry sub-pixel noise a frame typed to fit should absorb.
+  constexpr qreal kBaselineTolerance = 0.5;
+  if (first_line || !std::isfinite(line_top) || !std::isfinite(line_ascent) || !std::isfinite(frame_bottom)) {
+    return false;
+  }
+  return line_top + line_ascent > frame_bottom + kBaselineTolerance;
+}
+
 std::vector<BoxTextLineRenderItem> boxed_text_line_render_items(const QTextDocument& document, QRectF gate_rect,
-                                                                qreal top_bleed, qreal bottom_bleed,
-                                                                qreal horizontal_bleed) {
+                                                                qreal frame_bottom, qreal top_bleed,
+                                                                qreal bottom_bleed, qreal horizontal_bleed) {
   gate_rect = gate_rect.normalized();
   std::vector<BoxTextLineRenderItem> items;
   if (!std::isfinite(gate_rect.left()) || !std::isfinite(gate_rect.top()) ||
@@ -256,6 +266,7 @@ std::vector<BoxTextLineRenderItem> boxed_text_line_render_items(const QTextDocum
     return items;
   }
 
+  bool first_line = true;
   for (auto block = document.begin(); block.isValid(); block = block.next()) {
     auto* text_layout = block.layout();
     if (text_layout == nullptr) {
@@ -273,6 +284,10 @@ std::vector<BoxTextLineRenderItem> boxed_text_line_render_items(const QTextDocum
       if (!std::isfinite(line_top) || !std::isfinite(line_bottom)) {
         continue;
       }
+      if (box_text_line_overflows_frame(line_top, line.ascent(), frame_bottom, first_line)) {
+        return items;  // hidden overflow, every later line included
+      }
+      first_line = false;
       if (line_top >= gate_rect.bottom() - kLineGateTolerance ||
           line_bottom <= gate_rect.top() - kLineGateTolerance) {
         continue;
@@ -304,8 +319,10 @@ BoxTextRenderPlan boxed_text_render_plan(const QTextDocument& document, const QF
       std::max<qreal>(2.0, std::ceil(std::max<qreal>(metrics.descent(), metrics.leading())) + 2.0);
   constexpr qreal kHorizontalBleed = 2.0;
 
-  BoxTextRenderPlan plan{gate_rect, boxed_text_line_render_items(document, gate_rect, top_bleed, bottom_bleed,
-                                                                 kHorizontalBleed)};
+  // The requested rect (a re-edit's old raster) only widens the buffer and the top gate: lines
+  // are kept by the FRAME, or an overflow line baked into an older raster would keep itself.
+  BoxTextRenderPlan plan{gate_rect, boxed_text_line_render_items(document, gate_rect, frame_rect.bottom(), top_bleed,
+                                                                 bottom_bleed, kHorizontalBleed)};
   if (plan.lines.empty()) {
     return plan;
   }
