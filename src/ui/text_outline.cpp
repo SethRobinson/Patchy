@@ -490,8 +490,11 @@ std::optional<VectorShapeContent> shape_content_from_text_outlines(const std::ve
 void convert_text_layer_to_shape(Layer& layer, VectorShapeContent content, Rect canvas, const PatternStore* patterns) {
   clear_layer_text_metadata(layer);
   layer.set_vector_shape(std::move(content));
-  layer.metadata()[kLayerMetadataVectorShape] = "1";
-  layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
+  // Whole strings, not char* assignment: inlined after the text-key erase above, GCC 12
+  // reports a false -Wstringop-overflow in basic_string::assign(const char*).
+  auto& metadata = layer.metadata();
+  metadata.insert_or_assign(kLayerMetadataVectorShape, std::string("1"));
+  metadata.insert_or_assign(kLayerMetadataVectorRasterStatus, std::string(kVectorRasterStatusPatchy));
   mark_layer_vector_block_dirty(layer);
   update_vector_shape_raster(layer, canvas, patterns);
 }

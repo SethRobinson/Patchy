@@ -19,6 +19,7 @@ d7827ce82dff1295 4f9d639a6c4e7af3 photoshop-bevel-gloss.psd
 86ec0d2699db84b9 abc80a7d26e2245d photoshop-blend-if-4b-roundtrip.psd
 dff91f04e9037b1d f85231cf2f579c75 photoshop-both-masks-params.psd
 30c03537c75a263d 221cbe3ada552953 photoshop-both-masks.psd
+844ae82f21e62744 46f38eb955511090 photoshop-box-text-overflow.psd
 0407e7f5209e8df5 01f79d9a7acab8f5 photoshop-brightness-contrast-legacy.psd
 b0b3f988dd6a07cd b7070b9de475b945 photoshop-brightness-contrast-modern.psd
 dbe44fcc955c8025 241f758e61704165 photoshop-channel-restrictions.psd

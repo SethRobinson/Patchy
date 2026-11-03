@@ -19,6 +19,7 @@ e7fc2129dee6f178 photoshop-bevel-smooth.psd
 abc80a7d26e2245d photoshop-blend-if-4b-roundtrip.psd
 f85231cf2f579c75 photoshop-both-masks-params.psd
 221cbe3ada552953 photoshop-both-masks.psd
+46f38eb955511090 photoshop-box-text-overflow.psd
 01f79d9a7acab8f5 photoshop-brightness-contrast-legacy.psd
 b7070b9de475b945 photoshop-brightness-contrast-modern.psd
 241f758e61704165 photoshop-channel-restrictions.psd
