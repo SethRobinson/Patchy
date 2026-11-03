@@ -2371,6 +2371,229 @@ void ui_content_aware_move_tool_in_flyout_escape_and_undo() {
   CHECK((pixel(70, 25) == std::array<int, 3>{40, 80, 120}));
 }
 
+// Feather (GitHub issue 599 follow-up): the tool's own outline takes its Feather, and the
+// soft coverage softens the copy's edge where it lands. A striped object (columns of 230 and
+// 130) on a plain base, copied with Extend: with no feather the base two pixels outside the
+// drop's outline stays exact and the stripes run at full strength up to the outline; with
+// a 4 px feather the edge spreads outside and the stripes fade at the outline.
+void ui_content_aware_move_feather_softens_drop_edge() {
+  constexpr std::array<int, 3> kBase{40, 80, 120};
+  const auto run = [&](int feather, bool& soft_outline) {
+    patchy::Document document(96, 32, patchy::PixelFormat::rgba8());
+    auto pixels = solid_pixels(96, 32, patchy::PixelFormat::rgba8(), QColor(kBase[0], kBase[1], kBase[2], 255));
+    for (std::int32_t y = 4; y <= 27; ++y) {
+      for (std::int32_t x = 4; x <= 35; ++x) {
+        auto* px = pixels.pixel(x, y);
+        const auto value = static_cast<std::uint8_t>(x % 2 == 0 ? 230 : 130);
+        px[0] = value;
+        px[1] = value;
+        px[2] = value;
+      }
+    }
+    auto& layer = document.add_pixel_layer("Stripes", std::move(pixels));
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(400, 140);
+    canvas.set_document(&document);
+    canvas.set_tool(patchy::ui::CanvasTool::ContentAwareMove);
+    canvas.set_content_aware_move_mode(patchy::ui::CanvasWidget::ContentAwareMoveMode::Extend);
+    canvas.set_selection_feather_radius(feather);
+    canvas.set_selection_antialias(true);
+    canvas.show();
+    canvas.set_zoom(4.0);
+    QApplication::processEvents();
+    draw_patch_outline(canvas, QPoint(10, 10), QPoint(26, 22));
+    soft_outline = canvas.selection_alpha_at(QPoint(8, 16)) > 0U && canvas.selection_alpha_at(QPoint(8, 16)) < 255U;
+    // A wide feather lowers even the middle of this small outline a little.
+    CHECK(canvas.selection_alpha_at(QPoint(18, 16)) > 200U);
+    drag_patch_region(canvas, QPoint(18, 16), QPoint(66, 16));
+    return std::as_const(layer).pixels();
+  };
+  bool hard_soft_outline = true;
+  bool feathered_soft_outline = false;
+  const auto hard = run(0, hard_soft_outline);
+  const auto feathered = run(4, feathered_soft_outline);
+  CHECK(!hard_soft_outline);
+  CHECK(feathered_soft_outline);
+  // The drop's outline is at x = 58 (10 + 48).
+  const auto off_base = [&](const patchy::PixelBuffer& pixels, int x) {
+    const auto* px = pixels.pixel(x, 16);
+    return std::abs(px[0] - kBase[0]) + std::abs(px[1] - kBase[1]) + std::abs(px[2] - kBase[2]);
+  };
+  const auto stripe_strength = [&](const patchy::PixelBuffer& pixels, int x) {
+    return std::abs(static_cast<int>(pixels.pixel(x, 16)[0]) - static_cast<int>(pixels.pixel(x + 1, 16)[0]));
+  };
+  int hard_outside = 0;
+  int feathered_outside = 0;
+  for (int x = 55; x <= 56; ++x) {
+    hard_outside += off_base(hard, x);
+    feathered_outside += off_base(feathered, x);
+  }
+  CHECK(hard_outside == 0);
+  CHECK(feathered_outside > 0);
+  const auto hard_edge = stripe_strength(hard, 58) + stripe_strength(hard, 59);
+  const auto feathered_edge = stripe_strength(feathered, 58) + stripe_strength(feathered, 59);
+  CHECK(feathered_edge < hard_edge);
+  // Well inside, both carry the stripes.
+  CHECK(stripe_strength(feathered, 66) > 40);
+}
+
+// Content-Aware Move's Feather, Anti-alias and Destination (GitHub issue 599 follow-up):
+// shown for the tool, its own Feather/Anti-alias slot and keys, Destination stored as a
+// token and read by the next window; New Layer leaves the active layer untouched, puts
+// the filled spot and the moved object on one new layer above it, selects that layer, and
+// one Undo of the pixel step takes the layer away again.
+void ui_content_aware_move_options_persist_and_new_layer_destination() {
+  SettingsValueRestorer feather_restorer(QStringLiteral("tools/contentAwareMoveFeather"));
+  SettingsValueRestorer anti_alias_restorer(QStringLiteral("tools/contentAwareMoveAntiAlias"));
+  SettingsValueRestorer destination_restorer(QStringLiteral("tools/contentAwareMoveDestination"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("tools/contentAwareMoveFeather"));
+    settings.remove(QStringLiteral("tools/contentAwareMoveAntiAlias"));
+    settings.remove(QStringLiteral("tools/contentAwareMoveDestination"));
+  }
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    require_action(window, "toolContentAwareMoveAction")->trigger();
+    QApplication::processEvents();
+    auto* feather = window.findChild<QSpinBox*>(QStringLiteral("selectionFeatherSpin"));
+    auto* anti_alias = window.findChild<QCheckBox*>(QStringLiteral("selectionAntiAliasCheck"));
+    auto* destination = window.findChild<QComboBox*>(QStringLiteral("contentAwareMoveDestinationCombo"));
+    CHECK(feather != nullptr && feather->isVisible());
+    CHECK(anti_alias != nullptr && anti_alias->isVisible());
+    CHECK(destination != nullptr && destination->isVisible() && destination->count() == 2);
+    if (feather == nullptr || anti_alias == nullptr || destination == nullptr) {
+      return;
+    }
+    CHECK(feather->value() == 0);
+    CHECK(anti_alias->isChecked());
+    CHECK(destination->itemText(0) == QStringLiteral("Current Layer"));
+    CHECK(destination->itemText(1) == QStringLiteral("New Layer"));
+    CHECK(canvas->content_aware_move_destination() ==
+          patchy::ui::CanvasWidget::ContentAwareMoveDestination::CurrentLayer);
+    if (auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options")); options_bar != nullptr) {
+      save_widget_artifact("ui_content_aware_move_options_bar_feather_destination", *options_bar);
+    }
+    feather->setValue(3);
+    anti_alias->setChecked(false);
+    destination->setCurrentIndex(1);
+    QApplication::processEvents();
+    CHECK(canvas->selection_feather_radius() == 3);
+    CHECK(!canvas->selection_antialias());
+    CHECK(canvas->content_aware_move_destination() == patchy::ui::CanvasWidget::ContentAwareMoveDestination::NewLayer);
+    // The Lasso keeps its own slot; coming back restores the tool's values.
+    require_action(window, "toolLassoAction")->trigger();
+    QApplication::processEvents();
+    require_action(window, "toolContentAwareMoveAction")->trigger();
+    QApplication::processEvents();
+    CHECK(feather->value() == 3);
+    CHECK(!anti_alias->isChecked());
+    auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("tools/contentAwareMoveFeather")).toInt() == 3);
+    CHECK(!settings.value(QStringLiteral("tools/contentAwareMoveAntiAlias")).toBool());
+    CHECK(settings.value(QStringLiteral("tools/contentAwareMoveDestination")).toString() == QStringLiteral("newLayer"));
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  CHECK(canvas->content_aware_move_destination() == patchy::ui::CanvasWidget::ContentAwareMoveDestination::NewLayer);
+  require_action(window, "toolContentAwareMoveAction")->trigger();
+  QApplication::processEvents();
+  auto* feather = window.findChild<QSpinBox*>(QStringLiteral("selectionFeatherSpin"));
+  auto* anti_alias = window.findChild<QCheckBox*>(QStringLiteral("selectionAntiAliasCheck"));
+  auto* destination = window.findChild<QComboBox*>(QStringLiteral("contentAwareMoveDestinationCombo"));
+  CHECK(feather != nullptr && feather->value() == 3);
+  CHECK(anti_alias != nullptr && !anti_alias->isChecked());
+  CHECK(destination != nullptr && destination->currentIndex() == 1);
+  if (feather == nullptr || anti_alias == nullptr) {
+    return;
+  }
+  // Hard edges for exact pixels below.
+  feather->setValue(0);
+  anti_alias->setChecked(true);
+  QApplication::processEvents();
+
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto active = document.active_layer_id();
+  auto* active_layer = active.has_value() ? document.find_layer(*active) : nullptr;
+  CHECK(active_layer != nullptr && active_layer->pixels().width() > 90 && active_layer->pixels().height() > 40);
+  if (active_layer == nullptr || active_layer->pixels().width() <= 90 || active_layer->pixels().height() <= 40) {
+    return;
+  }
+  {
+    auto& pixels = active_layer->pixels();
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        const bool object = x >= 20 && x <= 29 && y >= 20 && y <= 29;
+        px[0] = object ? 220 : 40;
+        px[1] = object ? 220 : 80;
+        px[2] = object ? 220 : 120;
+        if (pixels.format().channels >= 4) {
+          px[3] = 255;
+        }
+      }
+    }
+  }
+  const auto source_id = active_layer->id();
+  const auto source_bytes = std::vector<std::uint8_t>(std::as_const(*active_layer).pixels().data().begin(),
+                                                      std::as_const(*active_layer).pixels().data().end());
+  const auto layer_count = document.layers().size();
+  canvas->document_changed();
+  QApplication::processEvents();
+  canvas->set_zoom(2.0);
+  QApplication::processEvents();
+  draw_patch_outline(*canvas, QPoint(16, 16), QPoint(34, 34));
+  const auto depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  drag_patch_region(*canvas, QPoint(25, 25), QPoint(70, 25));
+
+  const auto source_unchanged = [&] {
+    const auto* source = std::as_const(document).find_layer(source_id);
+    if (source == nullptr) {
+      return false;
+    }
+    const auto bytes = source->pixels().data();
+    return std::equal(bytes.begin(), bytes.end(), source_bytes.begin(), source_bytes.end());
+  };
+  CHECK(source_unchanged());
+  CHECK(document.layers().size() == layer_count + 1U);
+  const auto new_id = std::as_const(document).active_layer_id();
+  CHECK(new_id.has_value() && *new_id != source_id);
+  const auto* result = new_id.has_value() ? std::as_const(document).find_layer(*new_id) : nullptr;
+  CHECK(result != nullptr);
+  if (result == nullptr) {
+    return;
+  }
+  CHECK(result->name() == "Content-Aware Move");
+  CHECK(document.layers().back().id() == *new_id);
+  const auto result_pixel = [&](int x, int y) {
+    const auto bounds = result->bounds();
+    if (x < bounds.x || y < bounds.y || x >= bounds.x + bounds.width || y >= bounds.y + bounds.height) {
+      return std::array<int, 4>{0, 0, 0, 0};
+    }
+    const auto* px = result->pixels().pixel(x - bounds.x, y - bounds.y);
+    return std::array<int, 4>{px[0], px[1], px[2], px[3]};
+  };
+  // The filled old spot and the moved object, nothing else.
+  CHECK((result_pixel(25, 25) == std::array<int, 4>{40, 80, 120, 255}));
+  CHECK((result_pixel(70, 25) == std::array<int, 4>{220, 220, 220, 255}));
+  CHECK(result_pixel(5, 5)[3] == 0);
+  CHECK(result_pixel(50, 25)[3] == 0);
+  CHECK(canvas->selected_document_region().contains(QPoint(70, 25)));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 2);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(document.layers().size() == layer_count);
+  CHECK(source_unchanged());
+  destination->setCurrentIndex(0);
+  QApplication::processEvents();
+}
+
 // Shots for review: a pebble on a textured ground moved with Move (before, the
 // mid-drag ghost, after) and copied with Extend.
 void ui_content_aware_move_gallery() {
@@ -2951,6 +3174,9 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part2() {
       {"ui_content_aware_move_fill_skips_the_drop_region", ui_content_aware_move_fill_skips_the_drop_region},
       {"ui_content_aware_move_tool_in_flyout_escape_and_undo",
        ui_content_aware_move_tool_in_flyout_escape_and_undo},
+      {"ui_content_aware_move_feather_softens_drop_edge", ui_content_aware_move_feather_softens_drop_edge},
+      {"ui_content_aware_move_options_persist_and_new_layer_destination",
+       ui_content_aware_move_options_persist_and_new_layer_destination},
       {"ui_content_aware_move_gallery", ui_content_aware_move_gallery},
       {"ui_content_aware_move_real_photo_sheets", ui_content_aware_move_real_photo_sheets},
       {"ui_content_aware_move_photo_fill_has_no_object_pixels", ui_content_aware_move_photo_fill_has_no_object_pixels},

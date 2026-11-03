@@ -14934,6 +14934,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Fill Layer Settings</source>
         <translation>Füllebenen-Einstellungen</translation>
     </message>
+    <message>
+        <source>Current Layer</source>
+        <translation>Aktuelle Ebene</translation>
+    </message>
+    <message>
+        <source>New Layer</source>
+        <translation>Neue Ebene</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -32335,6 +32343,10 @@ Fixiert: %1</translation>
     <message>
         <source>Copied to &quot;%1&quot;</source>
         <translation>Nach &quot;%1&quot; kopiert</translation>
+    </message>
+    <message>
+        <source>Current Layer edits the active layer; New Layer leaves it untouched and puts the filled spot and the moved object on a new layer above it</source>
+        <translation>Aktuelle Ebene bearbeitet die aktive Ebene; Neue Ebene lässt sie unverändert und legt die gefüllte Stelle und das verschobene Objekt auf eine neue Ebene darüber</translation>
     </message>
 </context>
 <context>

@@ -136,6 +136,7 @@ public:
   // region is dragged to a new spot and healed in there.
   using PatchToolMode = patchy::ui::PatchToolMode;
   using ContentAwareMoveMode = patchy::ui::ContentAwareMoveMode;
+  using ContentAwareMoveDestination = patchy::ui::ContentAwareMoveDestination;
   using HealingMode = patchy::ui::HealingMode;
 
   // The shape a Rectangular or Elliptical Marquee drag-out committed, kept so
@@ -516,6 +517,8 @@ public:
   [[nodiscard]] bool patch_tool_transparent() const noexcept;
   void set_content_aware_move_mode(ContentAwareMoveMode mode) noexcept;
   [[nodiscard]] ContentAwareMoveMode content_aware_move_mode() const noexcept;
+  void set_content_aware_move_destination(ContentAwareMoveDestination destination) noexcept;
+  [[nodiscard]] ContentAwareMoveDestination content_aware_move_destination() const noexcept;
   // Content-Aware Move's edge band for a selection of `bounds`: a quarter of its smaller
   // side, 6 to 48 px. Only that band along the outline takes the new surroundings' tone.
   [[nodiscard]] static int content_aware_move_edge_band(QRect bounds);
@@ -2796,6 +2799,10 @@ private:
   // writes anything in the old spot during the drag (US 9575641 / US 10332291).
   void commit_content_aware_move(QPoint delta, QRect bounds, const std::vector<std::uint8_t>& mask,
                                  std::int64_t mask_area, const QImage& snapshot);
+  // Destination New Layer: moves every pixel of `source_id` that differs from
+  // `before_pixels` at `before_bounds` onto a new layer above it, restores the source,
+  // and selects the new layer.
+  void split_content_aware_move_to_new_layer(LayerId source_id, const PixelBuffer& before_pixels, Rect before_bounds);
   // The membrane heal shared by Patch and Content-Aware Move: the region `mask` over
   // `bounds`, written at `bounds` + `destination_offset` with texture read from
   // `source_snapshot` at `source_offset` and the boundary tone from `tone_snapshot`.
@@ -3765,6 +3772,7 @@ private:
   PatchToolMode patch_tool_mode_{PatchToolMode::Source};
   bool patch_tool_transparent_{false};
   ContentAwareMoveMode content_aware_move_mode_{ContentAwareMoveMode::Move};
+  ContentAwareMoveDestination content_aware_move_destination_{ContentAwareMoveDestination::CurrentLayer};
   bool patch_tool_dragging_{false};
   // Latched at the press: the drag belongs to Content-Aware Move, not Patch.
   bool patch_tool_drag_content_aware_move_{false};

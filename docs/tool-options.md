@@ -40,7 +40,7 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Free Transform | Pivot, link, Apply/Cancel, Warp style/bend | none | no | no (session) |
 | Free Transform | Interpolation (`freeTransformInterpolationCombo`) | `transformInterpolation` | yes | yes |
 | Marquee, Lasso, Polygonal, Wand, Quick, Object | selection mode (`selection*ModeAction`) | none | no | no (session) |
-| Marquee, Elliptical, Lasso, Polygonal, Magnetic, Wand, Quick, Object | Feather (`selectionFeatherSpin`) | `<tool>Feather` per tool | yes | yes |
+| Marquee, Elliptical, Lasso, Polygonal, Magnetic, Wand, Quick, Object, Content-Aware Move | Feather (`selectionFeatherSpin`) | `<tool>Feather` per tool | yes (Content-Aware Move: new, issue 599) | yes |
 | same, Quick Select aside | Anti-alias (`selectionAntiAliasCheck`) | `<tool>AntiAlias` per tool | yes | yes |
 | Marquee | Radius (`selectionCornerRadiusSpin`) | `marqueeCornerRadius` | no | yes |
 | Marquee, Elliptical | Style, W, H (`selectionStyleCombo`, `selectionRatio*`, `selectionFixed*`) | none | no | no (session) |
@@ -78,6 +78,7 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Healing | Mode (`healingModeCombo`) | `healingMode` (token) | yes | yes |
 | Patch | Mode, Transparent | retired keys | no | no (session) |
 | Content-Aware Move | Mode (`contentAwareMoveModeCombo`) | none | no | no (session) |
+| Content-Aware Move | Destination (`contentAwareMoveDestinationCombo`: Current Layer, New Layer) | `contentAwareMoveDestination` (token) | new (issue 599) | yes |
 | Red Eye | Pupil Size, Darken Amount (`redEyePupilSizeSpin`/`Slider`, `redEyeDarkenAmountSpin`/`Slider`) | `redEyePupilSize`, `redEyeDarkenAmount` | new (issue 370) | yes |
 | Dodge, Burn | Strength, Range, Protect Tones | `localAdjustmentStrength`, `localToneRange`, `localProtectTones` | yes | yes |
 | Sponge | Mode, Vibrance | `spongeMode`, `spongeVibrance` | yes | yes |

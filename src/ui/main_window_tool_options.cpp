@@ -2482,7 +2482,7 @@ struct SelectionEdgeSettingKeys {
   const char* anti_alias;
 };
 
-constexpr std::array<SelectionEdgeSettingKeys, 8> kSelectionEdgeSettingKeys{{
+constexpr std::array<SelectionEdgeSettingKeys, 9> kSelectionEdgeSettingKeys{{
     {CanvasTool::Marquee, "tools/marqueeFeather", "tools/marqueeAntiAlias"},
     {CanvasTool::EllipticalMarquee, "tools/ellipticalMarqueeFeather", "tools/ellipticalMarqueeAntiAlias"},
     {CanvasTool::Lasso, "tools/lassoFeather", "tools/lassoAntiAlias"},
@@ -2491,6 +2491,7 @@ constexpr std::array<SelectionEdgeSettingKeys, 8> kSelectionEdgeSettingKeys{{
     {CanvasTool::QuickSelect, "tools/quickSelectFeather", nullptr},
     {CanvasTool::ObjectSelect, "tools/objectSelectFeather", "tools/objectSelectAntiAlias"},
     {CanvasTool::PolygonLasso, "tools/polygonalLassoFeather", "tools/polygonalLassoAntiAlias"},
+    {CanvasTool::ContentAwareMove, "tools/contentAwareMoveFeather", "tools/contentAwareMoveAntiAlias"},
 }};
 
 // A stored number, clamped to the control's range; a missing key or one that does not
@@ -2765,6 +2766,17 @@ void MainWindow::load_tool_settings() {
   canvas_->set_healing_mode(
       healing_mode_from_token(settings.value(QStringLiteral("tools/healingMode")).toString().toStdString())
           .value_or(HealingMode::Normal));
+  // Content-Aware Move's Destination: a token, Current Layer when missing or unknown.
+  canvas_->set_content_aware_move_destination(
+      settings.value(QStringLiteral("tools/contentAwareMoveDestination")).toString() == QLatin1String("newLayer")
+          ? ContentAwareMoveDestination::NewLayer
+          : ContentAwareMoveDestination::CurrentLayer);
+  if (content_aware_move_destination_combo_ != nullptr) {
+    const QSignalBlocker blocker(content_aware_move_destination_combo_);
+    content_aware_move_destination_combo_->setCurrentIndex(
+        std::max(0, content_aware_move_destination_combo_->findData(
+                        static_cast<int>(canvas_->content_aware_move_destination()))));
+  }
   current_crop_ratio_w_ =
       std::clamp(settings.value(QStringLiteral("tools/cropRatioWidth"), 0.0).toDouble(), 0.0, 10000.0);
   current_crop_ratio_h_ =
@@ -3444,6 +3456,10 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/retouchIgnoreAdjustments"), canvas_->retouch_ignore_adjustments());
   settings.setValue(QStringLiteral("tools/healingMode"),
                     QString::fromLatin1(healing_mode_token(canvas_->healing_mode())));
+  settings.setValue(QStringLiteral("tools/contentAwareMoveDestination"),
+                    canvas_->content_aware_move_destination() == ContentAwareMoveDestination::NewLayer
+                        ? QStringLiteral("newLayer")
+                        : QStringLiteral("currentLayer"));
   // The remembered ratio, not the canvas's: Size mode runs the canvas unconstrained.
   settings.setValue(QStringLiteral("tools/cropRatioWidth"), current_crop_ratio_w_);
   settings.setValue(QStringLiteral("tools/cropRatioHeight"), current_crop_ratio_h_);
@@ -4456,6 +4472,12 @@ void MainWindow::refresh_options_bar() {
     const QSignalBlocker blocker(content_aware_move_mode_combo_);
     content_aware_move_mode_combo_->setCurrentIndex(std::max(
         0, content_aware_move_mode_combo_->findData(static_cast<int>(canvas_->content_aware_move_mode()))));
+  }
+  if (content_aware_move_destination_combo_ != nullptr && canvas_ != nullptr) {
+    const QSignalBlocker blocker(content_aware_move_destination_combo_);
+    content_aware_move_destination_combo_->setCurrentIndex(
+        std::max(0, content_aware_move_destination_combo_->findData(
+                        static_cast<int>(canvas_->content_aware_move_destination()))));
   }
   if (pattern_stamp_pattern_combo_ != nullptr) {
     const QSignalBlocker blocker(pattern_stamp_pattern_combo_);

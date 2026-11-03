@@ -14889,6 +14889,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Fill Layer Settings</source>
         <translation>填滿圖層設定</translation>
     </message>
+    <message>
+        <source>Current Layer</source>
+        <translation>目前圖層</translation>
+    </message>
+    <message>
+        <source>New Layer</source>
+        <translation>新增圖層</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -32251,6 +32259,10 @@ Locked: %1</source>
     <message>
         <source>Copied to &quot;%1&quot;</source>
         <translation>已複製到 &quot;%1&quot;</translation>
+    </message>
+    <message>
+        <source>Current Layer edits the active layer; New Layer leaves it untouched and puts the filled spot and the moved object on a new layer above it</source>
+        <translation>目前圖層：編輯作用中圖層；新增圖層：保持原圖層不變，將填補的區域與移動的物件放到上方的新圖層</translation>
     </message>
 </context>
 <context>

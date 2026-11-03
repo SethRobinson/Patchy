@@ -14979,6 +14979,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Fill Layer Settings</source>
         <translation>Ustawienia warstwy wypełnienia</translation>
     </message>
+    <message>
+        <source>Current Layer</source>
+        <translation>Bieżąca warstwa</translation>
+    </message>
+    <message>
+        <source>New Layer</source>
+        <translation>Nowa warstwa</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -32419,6 +32427,10 @@ Zablokowano: %1</translation>
     <message>
         <source>Copied to &quot;%1&quot;</source>
         <translation>Skopiowano do &quot;%1&quot;</translation>
+    </message>
+    <message>
+        <source>Current Layer edits the active layer; New Layer leaves it untouched and puts the filled spot and the moved object on a new layer above it</source>
+        <translation>Bieżąca warstwa edytuje aktywną warstwę; Nowa warstwa pozostawia ją bez zmian i umieszcza wypełnione miejsce oraz przeniesiony obiekt na nowej warstwie powyżej</translation>
     </message>
 </context>
 <context>

@@ -14934,6 +14934,14 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Fill Layer Settings</source>
         <translation>Impostazioni livello di riempimento</translation>
     </message>
+    <message>
+        <source>Current Layer</source>
+        <translation>Livello attivo</translation>
+    </message>
+    <message>
+        <source>New Layer</source>
+        <translation>Nuovo livello</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -32335,6 +32343,10 @@ Bloccato: %1</translation>
     <message>
         <source>Copied to &quot;%1&quot;</source>
         <translation>Copiato in &quot;%1&quot;</translation>
+    </message>
+    <message>
+        <source>Current Layer edits the active layer; New Layer leaves it untouched and puts the filled spot and the moved object on a new layer above it</source>
+        <translation>Livello attivo modifica il livello attivo; Nuovo livello lo lascia invariato e mette la zona riempita e l&apos;oggetto spostato su un nuovo livello sopra</translation>
     </message>
 </context>
 <context>

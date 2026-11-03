@@ -14934,6 +14934,14 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Fill Layer Settings</source>
         <translation>Configurações da camada de preenchimento</translation>
     </message>
+    <message>
+        <source>Current Layer</source>
+        <translation>Camada atual</translation>
+    </message>
+    <message>
+        <source>New Layer</source>
+        <translation>Nova camada</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -32335,6 +32343,10 @@ Bloqueado: %1</translation>
     <message>
         <source>Copied to &quot;%1&quot;</source>
         <translation>Copiado para &quot;%1&quot;</translation>
+    </message>
+    <message>
+        <source>Current Layer edits the active layer; New Layer leaves it untouched and puts the filled spot and the moved object on a new layer above it</source>
+        <translation>Camada atual edita a camada ativa; Nova camada a mantém intacta e coloca a área preenchida e o objeto movido em uma nova camada acima</translation>
     </message>
 </context>
 <context>

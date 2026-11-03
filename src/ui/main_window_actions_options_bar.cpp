@@ -1601,9 +1601,12 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // A plain label and field like every other option. Feather used to share one
   // nested group widget, whose height clipped the field's bottom edge on some
   // desktops (GitHub issue 160).
+  // Content-Aware Move shows them for its own outline (GitHub issue 599 follow-up): the
+  // feathered coverage is what softens the moved object's edge where it lands.
   add_option_label(QT_TR_NOOP("Feather:"), {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
                                             CanvasTool::PolygonLasso, CanvasTool::MagneticLasso, CanvasTool::MagicWand,
-                                            CanvasTool::QuickSelect, CanvasTool::ObjectSelect})
+                                            CanvasTool::QuickSelect, CanvasTool::ObjectSelect,
+                                            CanvasTool::ContentAwareMove})
       ->setObjectName(QStringLiteral("selectionFeatherLabel"));
   auto* feather = new UnitIntSpinBox(SpinUnit::Pixels, options_content);
   feather->setObjectName(QStringLiteral("selectionFeatherSpin"));
@@ -1614,7 +1617,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   configure_toolbar_spinbox(feather, 64);
   add_option_widget(feather, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
                               CanvasTool::PolygonLasso, CanvasTool::MagneticLasso, CanvasTool::MagicWand,
-                              CanvasTool::QuickSelect, CanvasTool::ObjectSelect});
+                              CanvasTool::QuickSelect, CanvasTool::ObjectSelect, CanvasTool::ContentAwareMove});
   // Quick Select has no Anti-alias, so its checkboxes stand apart from Feather (GitHub
   // issue 291); everywhere else Anti-alias stays beside Feather.
   add_option_separator({CanvasTool::QuickSelect});
@@ -1624,7 +1627,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   anti_alias->setChecked(current_selection_antialias_);
   add_option_widget(anti_alias,
                     {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
-                     CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::ObjectSelect});
+                     CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::ObjectSelect,
+                     CanvasTool::ContentAwareMove});
   // Feather and Anti-alias are one group. The Lassos and the Magic Wand get their separator
   // after the marquee fields below, which they do not show. Object Selection runs Feather,
   // Anti-alias and Sample All Layers together up to Model (GitHub issue 292).
@@ -1812,7 +1816,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   });
   apply_marquee_settings();
   add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
-                        CanvasTool::MagneticLasso, CanvasTool::MagicWand});
+                        CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::ContentAwareMove});
 
   // Crop: Style picks what the fields mean, like the marquee's Style combo.
   // Ratio shows the preset combo and the unitless W : H pair; Size shows unit
@@ -3474,6 +3478,43 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
     canvas_->set_content_aware_move_mode(
         static_cast<CanvasWidget::ContentAwareMoveMode>(content_aware_move_mode_combo_->itemData(index).toInt()));
+  });
+
+  // Destination (GitHub issue 599 follow-up): the active layer, or a new layer above it
+  // holding the filled spot and the moved object. Stored (tools/contentAwareMoveDestination).
+  add_option_label(QT_TR_NOOP("Destination:"), {CanvasTool::ContentAwareMove});
+  content_aware_move_destination_combo_ = new QComboBox(toolbar);
+  content_aware_move_destination_combo_->setObjectName(QStringLiteral("contentAwareMoveDestinationCombo"));
+  content_aware_move_destination_combo_->addItem(
+      tr("Current Layer"), static_cast<int>(CanvasWidget::ContentAwareMoveDestination::CurrentLayer));
+  content_aware_move_destination_combo_->addItem(
+      tr("New Layer"), static_cast<int>(CanvasWidget::ContentAwareMoveDestination::NewLayer));
+  content_aware_move_destination_combo_->setCurrentIndex(
+      std::max(0, content_aware_move_destination_combo_->findData(
+                      static_cast<int>(canvas_defaults->content_aware_move_destination()))));
+  content_aware_move_destination_combo_->setFixedWidth(ui_text_length(120));
+  bind_tooltip(content_aware_move_destination_combo_,
+               QT_TR_NOOP("Current Layer edits the active layer; New Layer leaves it untouched and puts the "
+                          "filled spot and the moved object on a new layer above it"));
+  {
+    QPointer<QComboBox> destination_combo(content_aware_move_destination_combo_);
+    register_retranslation([destination_combo] {
+      if (destination_combo == nullptr || destination_combo->count() < 2) {
+        return;
+      }
+      QSignalBlocker blocker(destination_combo);
+      destination_combo->setItemText(0, QObject::tr("Current Layer"));
+      destination_combo->setItemText(1, QObject::tr("New Layer"));
+    });
+  }
+  add_option_widget(content_aware_move_destination_combo_, {CanvasTool::ContentAwareMove});
+  connect(content_aware_move_destination_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (index < 0 || content_aware_move_destination_combo_ == nullptr || canvas_ == nullptr) {
+      return;
+    }
+    canvas_->set_content_aware_move_destination(static_cast<CanvasWidget::ContentAwareMoveDestination>(
+        content_aware_move_destination_combo_->itemData(index).toInt()));
+    save_tool_settings();
   });
 
   // Sample (GitHub issue 382): which layers the retouch tools read. Item data is the

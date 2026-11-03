@@ -5571,7 +5571,13 @@ void MainWindow::refresh_document_info() {
     } else if (current_tool_ == CanvasTool::ContentAwareMove) {
       lines << (canvas_->content_aware_move_mode() == CanvasWidget::ContentAwareMoveMode::Extend ? tr("Extend")
                                                                                               : tr("Move"))
+            << (canvas_->content_aware_move_destination() == CanvasWidget::ContentAwareMoveDestination::NewLayer
+                    ? tr("New Layer")
+                    : tr("Current Layer"))
             << retouch_sample_info_text();
+      lines << tr("Selection: feather %1 px, %2")
+                   .arg(current_selection_feather_radius_)
+                   .arg(current_selection_antialias_ ? tr("anti-aliased") : tr("hard edge"));
     } else if (current_tool_ == CanvasTool::PerspectiveCrop) {
       if (const auto quad = canvas_->perspective_crop_quad(); quad.has_value()) {
         const std::array<double, 8> corners{(*quad)[0].x(), (*quad)[0].y(), (*quad)[1].x(), (*quad)[1].y(),

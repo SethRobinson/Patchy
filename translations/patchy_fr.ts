@@ -14934,6 +14934,14 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Fill Layer Settings</source>
         <translation>Paramètres du calque de remplissage</translation>
     </message>
+    <message>
+        <source>Current Layer</source>
+        <translation>Calque actif</translation>
+    </message>
+    <message>
+        <source>New Layer</source>
+        <translation>Nouveau calque</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -32335,6 +32343,10 @@ Verrouillé : %1</translation>
     <message>
         <source>Copied to &quot;%1&quot;</source>
         <translation>Copié dans &quot;%1&quot;</translation>
+    </message>
+    <message>
+        <source>Current Layer edits the active layer; New Layer leaves it untouched and puts the filled spot and the moved object on a new layer above it</source>
+        <translation>Calque actif modifie le calque actif ; Nouveau calque le laisse intact et place la zone remplie et l&apos;objet déplacé sur un nouveau calque au-dessus</translation>
     </message>
 </context>
 <context>

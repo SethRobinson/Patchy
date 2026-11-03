@@ -3365,6 +3365,7 @@ private:
   QCheckBox* mixer_sample_all_layers_check_{nullptr};
   QComboBox* patch_mode_combo_{nullptr};
   QComboBox* content_aware_move_mode_combo_{nullptr};
+  QComboBox* content_aware_move_destination_combo_{nullptr};
   QComboBox* mixer_combination_combo_{nullptr};
   // The Smoothing gear button and its four checkable menu actions.
   QToolButton* brush_smoothing_options_button_{nullptr};

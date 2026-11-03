@@ -21,6 +21,7 @@
 #include "core/blend_math.hpp"
 #include "core/exemplar_inpaint.hpp"
 #include "core/heal_membrane.hpp"
+#include "core/layer.hpp"
 #include "core/palette.hpp"
 #include "core/pixel_buffer.hpp"
 #include "core/pixel_tools.hpp"
@@ -29,6 +30,7 @@
 #include "ui/background_workers.hpp"
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget_shared.hpp"
+#include "ui/main_window_shared.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/selection_outline.hpp"
 
@@ -104,6 +106,75 @@ void grow_hole_mask(std::vector<std::uint8_t>& mask, int width, int height, int 
   }
 }
 
+// Content-Aware Move's New Layer destination: the pixels of `after` that differ from
+// `before` (the same layer before the move; a pixel outside `before`'s bounds was
+// transparent), on an RGBA buffer of the same depth cropped to the changed pixels.
+// Unchanged pixels stay transparent, so the result over the untouched original shows
+// exactly the moved state on an opaque layer. False when nothing changed.
+bool changed_pixels_of_layer(const PixelBuffer& before, Rect before_bounds, const PixelBuffer& after,
+                             Rect after_bounds, PixelBuffer& out, Rect& out_bounds) {
+  const auto format = after.format();
+  if (before.format() != format || after.empty()) {
+    return false;
+  }
+  const auto pixel_bytes = bytes_per_pixel(format);
+  const auto channel_bytes = bytes_per_channel(format.bit_depth);
+  const auto changed = [&](std::int32_t x, std::int32_t y) {
+    const auto* now = after.pixel(x, y);
+    const auto bx = after_bounds.x + x - before_bounds.x;
+    const auto by = after_bounds.y + y - before_bounds.y;
+    if (bx >= 0 && by >= 0 && bx < before.width() && by < before.height()) {
+      return std::memcmp(now, before.pixel(bx, by), pixel_bytes) != 0;
+    }
+    return std::any_of(now, now + pixel_bytes, [](std::uint8_t byte) { return byte != 0U; });
+  };
+  std::int32_t left = after.width();
+  std::int32_t top = after.height();
+  std::int32_t right = -1;
+  std::int32_t bottom = -1;
+  for (std::int32_t y = 0; y < after.height(); ++y) {
+    for (std::int32_t x = 0; x < after.width(); ++x) {
+      if (changed(x, y)) {
+        left = std::min(left, x);
+        right = std::max(right, x);
+        top = std::min(top, y);
+        bottom = std::max(bottom, y);
+      }
+    }
+  }
+  if (right < left || bottom < top) {
+    return false;
+  }
+  auto out_format = format;
+  out_format.channels = 4;
+  out = PixelBuffer(right - left + 1, bottom - top + 1, out_format);
+  out.clear(0);
+  out_bounds = Rect{after_bounds.x + left, after_bounds.y + top, right - left + 1, bottom - top + 1};
+  const auto color_bytes = channel_bytes * 3U;
+  for (std::int32_t y = top; y <= bottom; ++y) {
+    for (std::int32_t x = left; x <= right; ++x) {
+      if (!changed(x, y)) {
+        continue;
+      }
+      const auto* now = after.pixel(x, y);
+      auto* dst = out.pixel(x - left, y - top);
+      if (format.channels >= 4) {
+        std::memcpy(dst, now, channel_bytes * 4U);
+        continue;
+      }
+      // An alpha-less layer is opaque everywhere.
+      std::memcpy(dst, now, color_bytes);
+      if (format.bit_depth == BitDepth::Float32) {
+        const float one = 1.0F;
+        std::memcpy(dst + color_bytes, &one, sizeof(one));
+      } else {
+        std::memset(dst + color_bytes, 0xFF, channel_bytes);
+      }
+    }
+  }
+  return true;
+}
+
 }  // namespace
 
 void CanvasWidget::set_patch_tool_mode(PatchToolMode mode) noexcept {
@@ -128,6 +199,14 @@ void CanvasWidget::set_content_aware_move_mode(ContentAwareMoveMode mode) noexce
 
 CanvasWidget::ContentAwareMoveMode CanvasWidget::content_aware_move_mode() const noexcept {
   return content_aware_move_mode_;
+}
+
+void CanvasWidget::set_content_aware_move_destination(ContentAwareMoveDestination destination) noexcept {
+  content_aware_move_destination_ = destination;
+}
+
+CanvasWidget::ContentAwareMoveDestination CanvasWidget::content_aware_move_destination() const noexcept {
+  return content_aware_move_destination_;
 }
 
 bool CanvasWidget::begin_patch_tool_drag(QPoint document_point) {
@@ -382,6 +461,13 @@ void CanvasWidget::commit_content_aware_move(QPoint delta, QRect bounds, const s
   if (layer == nullptr) {
     return;
   }
+  // New Layer (docs/content-aware-move.md#destination): the move runs on the active layer
+  // as always, then every pixel it changed goes to a new layer above and the layer gets
+  // its pixels back, inside this one history step.
+  const bool to_new_layer = content_aware_move_destination_ == ContentAwareMoveDestination::NewLayer;
+  const auto source_layer_id = layer->id();
+  const auto before_pixels = to_new_layer ? std::as_const(*layer).pixels() : PixelBuffer{};
+  const auto before_bounds = std::as_const(*layer).bounds();
   auto tone_snapshot = snapshot;
   if (!extend) {
     // The hole first: the moved object is not on the canvas yet, and the map skips the
@@ -436,9 +522,39 @@ void CanvasWidget::commit_content_aware_move(QPoint delta, QRect bounds, const s
                      /*transparent=*/false, content_aware_move_edge_band(bounds));
     end_processing_operation();
   }
+  if (to_new_layer) {
+    split_content_aware_move_to_new_layer(source_layer_id, before_pixels, before_bounds);
+  }
   move_selection_with_patch_drop(delta, tr("Content-Aware Move"));
   active_edit_target_changed_impl(QRegion(destination_bounds), DocumentChangeReason::BrushStrokeFinished);
   update();
+}
+
+void CanvasWidget::split_content_aware_move_to_new_layer(LayerId source_id, const PixelBuffer& before_pixels,
+                                                         Rect before_bounds) {
+  auto* source = document_->find_layer(source_id);
+  if (source == nullptr) {
+    return;
+  }
+  PixelBuffer changed;
+  Rect changed_bounds{};
+  if (!changed_pixels_of_layer(before_pixels, before_bounds, std::as_const(*source).pixels(),
+                               std::as_const(*source).bounds(), changed, changed_bounds)) {
+    return;
+  }
+  // Back to the untouched original (set_pixels bumps every revision).
+  source->set_pixels(before_pixels);
+  source->set_bounds(before_bounds);
+  Layer result(document_->allocate_layer_id(), tr("Content-Aware Move").toStdString(), std::move(changed));
+  result.set_bounds(changed_bounds);
+  const auto result_id = result.id();
+  insert_layer_after_anchor(*document_, std::move(result), source_id);
+  document_->set_active_layer(result_id);
+  if (layers_moved_callback_) {
+    layers_moved_callback_({result_id});  // the host refreshes its panels for the new row
+  }
+  request_layer_selection({result_id}, result_id);
+  document_changed(to_qrect(before_bounds).united(to_qrect(changed_bounds)));
 }
 
 // Photoshop parity for Patch Destination (and Content-Aware Move): the selection follows

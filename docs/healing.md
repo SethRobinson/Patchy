@@ -95,7 +95,7 @@ Writes follow the clone conventions: selection coverage from the drag mask, tran
 
 ## Content-Aware Move
 
-Patch's drag, then a move or a copy on release: [content-aware-move.md](content-aware-move.md).
+Patch's drag, then a move or a copy on release, with Feather and Anti-alias for its outline and a Destination (Current Layer or a new layer above): [content-aware-move.md](content-aware-move.md).
 
 ## Red Eye
 
