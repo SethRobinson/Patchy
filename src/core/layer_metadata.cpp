@@ -226,6 +226,19 @@ const Layer* background_layer(const std::vector<Layer>& layers, std::int32_t can
   return &bottom;
 }
 
+void clear_background_locks(Layer& layer) {
+  set_layer_lock_flags(
+      layer, layer_lock_flags(layer) & ~(kLayerLockPosition | kLayerLockTransparentPixels | kLayerLockArtboardAutonest));
+}
+
+void clear_background_locks_if_copy_of_background(Layer& copy, LayerId source_id, const std::vector<Layer>& layers,
+                                                  std::int32_t canvas_width, std::int32_t canvas_height) {
+  const auto* background = background_layer(layers, canvas_width, canvas_height);
+  if (background != nullptr && background->id() == source_id) {
+    clear_background_locks(copy);
+  }
+}
+
 bool layer_stack_keeps_background(const std::vector<Layer>& before, const std::vector<Layer>& after,
                                   std::int32_t canvas_width, std::int32_t canvas_height) {
   const auto* background = background_layer(before, canvas_width, canvas_height);

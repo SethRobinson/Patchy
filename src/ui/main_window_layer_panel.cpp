@@ -3399,6 +3399,7 @@ void MainWindow::duplicate_layers_for_drop(const LayerDropRequest& request) {
       show_status_error(tr("Smart Filter cache data could not be duplicated safely"));
       return;
     }
+    clear_background_locks_if_copy_of_background(*clone, id, std::as_const(doc).layers(), doc.width(), doc.height());
     clone->set_name(next_duplicate_name(source->name(), existing_names));
     existing_names.insert(clone->name());
     const auto clone_id = clone->id();
