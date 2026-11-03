@@ -16,6 +16,7 @@
 #include "ui/brush_tip_library.hpp"
 #include "ui/brush_tip_picker.hpp"
 #include "ui/blend_mode_ui.hpp"
+#include "core/clone_source_transform.hpp"
 #include "core/document_depth.hpp"
 #include "core/pixel_depth.hpp"
 #include "formats/acv_curves_io.hpp"
@@ -47,6 +48,7 @@
 #include <QPixmap>
 #include <QAbstractItemView>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QSpinBox>
 #include <QStringList>
 #include <QSlider>
@@ -60,6 +62,7 @@
 #include <array>
 #include <cstdint>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <exception>
 #include <filesystem>
@@ -4601,6 +4604,142 @@ void ui_hard_round_stroke_skip_keeps_bytes() {
   }
 }
 
+// GitHub issue 597: a big Clone Stamp segment visits only its capsule's row spans, one
+// continuing the previous segment skips the half-plane behind its start and the fully covered
+// disk there, and big segments fan out over 64-row bands. The bytes must match the full
+// bounding-box walk on one thread for hard, soft, partial-opacity,
+// oval, feathered-selection, transformed-source, 16-bit and Healing Brush strokes, with folded
+// mouse samples, repeated points and reversals.
+void ui_clone_stamp_large_brush_skip_keeps_bytes() {
+  struct Case {
+    const char* name;
+    patchy::ui::CanvasTool tool;
+    int size;
+    int softness;
+    int opacity;
+    int roundness;
+    bool feathered_selection;
+    bool transformed;
+    bool deep;
+  };
+  const std::vector<Case> cases{
+      {"hard", patchy::ui::CanvasTool::Clone, 301, 0, 100, 100, false, false, false},
+      {"soft_60", patchy::ui::CanvasTool::Clone, 301, 100, 60, 100, false, false, false},
+      {"medium_oval", patchy::ui::CanvasTool::Clone, 251, 40, 100, 55, false, false, false},
+      {"feathered", patchy::ui::CanvasTool::Clone, 201, 30, 80, 100, true, false, false},
+      {"transformed", patchy::ui::CanvasTool::Clone, 221, 50, 100, 100, false, true, false},
+      {"deep_16", patchy::ui::CanvasTool::Clone, 181, 70, 75, 100, false, false, true},
+      {"healing", patchy::ui::CanvasTool::Healing, 161, 20, 100, 100, false, false, false},
+  };
+  patchy::set_deep_editing_override(true);
+  for (const auto& test_case : cases) {
+    const auto paint = [&test_case](bool skip, bool single_threaded) {
+      if (single_threaded) {
+        qputenv("PATCHY_RENDER_SINGLE_THREADED", "1");
+      }
+      const auto restore_threads = qScopeGuard([single_threaded] {
+        if (single_threaded) {
+          qunsetenv("PATCHY_RENDER_SINGLE_THREADED");
+        }
+      });
+      constexpr int kWidth = 700;
+      constexpr int kHeight = 520;
+      auto pixels = solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 255));
+      for (int y = 0; y < kHeight; ++y) {
+        for (int x = 0; x < kWidth; ++x) {
+          auto* px = pixels.pixel(x, y);
+          px[0] = static_cast<std::uint8_t>((x * 7 + y * 3) % 256);
+          px[1] = static_cast<std::uint8_t>((y * 5) % 256);
+          px[2] = static_cast<std::uint8_t>(((x ^ y) * 11) % 256);
+          px[3] = static_cast<std::uint8_t>(x < 60 ? 128 : 255);
+        }
+      }
+      patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+      const auto layer_id = document.add_pixel_layer("Photo", std::move(pixels)).id();
+      if (test_case.deep) {
+        patchy::convert_document_depth(document, patchy::BitDepth::UInt16);
+      }
+      patchy::ui::CanvasWidget canvas;
+      canvas.resize(520, 420);
+      canvas.set_document(&document);
+      canvas.set_zoom(0.5);
+      canvas.set_clone_stamp_skip_enabled_for_testing(skip);
+      canvas.show();
+      QApplication::processEvents();
+      const auto widget_point = [&canvas](QPoint document_point) {
+        return canvas.widget_position_for_document_point(document_point);
+      };
+      if (test_case.feathered_selection) {
+        canvas.set_tool(patchy::ui::CanvasTool::EllipticalMarquee);
+        canvas.set_selection_feather_radius(25);
+        drag(canvas, widget_point(QPoint(200, 90)), widget_point(QPoint(640, 470)));
+        QApplication::processEvents();
+      }
+      canvas.set_tool(test_case.tool);
+      canvas.set_brush_size(test_case.size);
+      canvas.set_brush_softness(test_case.softness);
+      canvas.set_brush_opacity(test_case.opacity);
+      canvas.set_brush_base_shape(30.0, test_case.roundness);
+      if (test_case.transformed) {
+        canvas.set_clone_source_transform(patchy::CloneSourceTransform{125.0, 15.0});
+      }
+      send_mouse(canvas, QEvent::MouseButtonPress, widget_point(QPoint(150, 260)), Qt::LeftButton, Qt::LeftButton,
+                 Qt::AltModifier);
+      send_mouse(canvas, QEvent::MouseButtonRelease, widget_point(QPoint(150, 260)), Qt::LeftButton, Qt::NoButton,
+                 Qt::AltModifier);
+      // Every fourth move folds three extra samples into it (GitHub issue 165), every
+      // seventh repeats the previous point, and the path turns back on itself.
+      std::vector<QPoint> path;
+      for (int index = 0; index <= 90; ++index) {
+        const auto t = static_cast<double>(index);
+        path.emplace_back(static_cast<int>(std::lround(400.0 + 160.0 * std::sin(t * 0.05))),
+                          static_cast<int>(std::lround(260.0 + 120.0 * std::sin(t * 0.11) + (index % 5) * 2)));
+        if (index % 7 == 3) {
+          path.push_back(path.back());
+        }
+      }
+      std::vector<QPointF> folded;
+      canvas.set_coalesced_mouse_positions_provider(
+          [&folded](const QMouseEvent&) -> std::vector<QPointF> { return folded; });
+      const auto layer_bytes = [&document, layer_id] {
+        const auto bytes = std::as_const(*document.find_layer(layer_id)).pixels().data();
+        return std::vector<std::uint8_t>(bytes.begin(), bytes.end());
+      };
+      const auto before = layer_bytes();
+      send_mouse(canvas, QEvent::MouseButtonPress, widget_point(path.front()), Qt::LeftButton, Qt::LeftButton);
+      for (std::size_t index = 1; index < path.size();) {
+        const auto extra = index % 4 == 0 ? std::min<std::size_t>(3, path.size() - 1 - index) : 0;
+        folded.clear();
+        for (std::size_t sample = 0; sample < extra; ++sample) {
+          folded.emplace_back(widget_point(path[index + sample]));
+        }
+        const auto event_point = widget_point(path[index + extra]);
+        QMouseEvent event(QEvent::MouseMove, event_point, canvas.mapToGlobal(event_point), Qt::NoButton,
+                          Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(&canvas, &event);
+        index += extra + 1;
+      }
+      folded.clear();
+      send_mouse(canvas, QEvent::MouseButtonRelease, widget_point(path.back()), Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+      const auto after = layer_bytes();
+      CHECK(after != before);
+      return after;
+    };
+    // The full walk on one thread is the stamp as it was before the issue.
+    const auto full = paint(false, true);
+    const auto skipped = paint(true, true);
+    const auto parallel = paint(true, false);
+    if (skipped != full || parallel != full) {
+      std::printf("[INFO] clone stamp case %s: skip %s, strips %s\n", test_case.name,
+                  skipped == full ? "same" : "changed", parallel == full ? "same" : "changed");
+    }
+    CHECK(skipped == full);
+    CHECK(parallel == full);
+  }
+  patchy::set_deep_editing_override(std::nullopt);
+}
+
 void ui_coalesced_pointer_history_keeps_points_after_previous_sample() {
   using patchy::ui::PointerHistoryPoint;
   const std::vector<PointerHistoryPoint> history{
@@ -4936,6 +5075,7 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
       {"ui_brush_stroke_paints_every_coalesced_mouse_sample",
        ui_brush_stroke_paints_every_coalesced_mouse_sample},
       {"ui_hard_round_stroke_skip_keeps_bytes", ui_hard_round_stroke_skip_keeps_bytes},
+      {"ui_clone_stamp_large_brush_skip_keeps_bytes", ui_clone_stamp_large_brush_skip_keeps_bytes},
       {"ui_coalesced_pointer_history_keeps_points_after_previous_sample",
        ui_coalesced_pointer_history_keeps_points_after_previous_sample},
       {"ui_zoomed_out_brush_stroke_patches_display_mips_in_place",

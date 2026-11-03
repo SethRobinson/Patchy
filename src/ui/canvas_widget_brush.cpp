@@ -20,6 +20,7 @@
 #include "core/pixel_tools.hpp"
 #include "core/smart_object.hpp"
 #include "core/stroke_stabilizer.hpp"
+#include "core/worker_budget.hpp"
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget_shared.hpp"
 #include "ui/dialog_utils.hpp"
@@ -58,6 +59,7 @@
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <future>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -162,6 +164,212 @@ float brush_shape_coverage(double distance_x, double distance_y, int radius, int
       (major_axis * major_axis) / (major_radius * major_radius) +
       (minor_axis * minor_axis) / (minor_radius * minor_radius);
   return brush_coverage(normalized_distance_squared * major_radius * major_radius, radius, softness);
+}
+
+// The columns a Clone/Healing stamp segment visits in each row (GitHub issue 597: a 529 px
+// brush walked its whole bounding box for every mouse sample). The capsule of radius r
+// around from..to is convex, so a row meets it in one run, padded a pixel as
+// paint_brush_segment pads it; pixels outside have coverage 0. When the segment continues
+// the previous one from its end with the same round brush (radius, softness and opacity
+// equal, roundness at least 99), two parts of that run cannot change: the half-plane behind
+// `from`, where `from` is every pixel's closest point, so it gets exactly the coverage the
+// previous segment's end gave it, and the disk around `from` the brush covers fully
+// (shrunk a pixel against rounding). The stroke's alpha cap already holds those targets,
+// so capped_stroke_coverage would return 0 there without touching the cap; the bytes, the
+// caps and the dirty rect are the same as the full walk's.
+class CloneSegmentRows {
+ public:
+  struct Run {
+    int first{0};
+    int end{0};  // exclusive
+  };
+  static constexpr std::size_t kMaxRuns = 3;
+
+  CloneSegmentRows(QPoint from, QPoint to, int radius, bool walk_spans, bool continues_previous,
+                   double full_coverage_radius)
+      : from_(from), to_(to), dx_(to.x() - from.x()), dy_(to.y() - from.y()), radius_(static_cast<double>(radius)),
+        walk_spans_(walk_spans), continues_previous_(continues_previous),
+        covered_radius_(full_coverage_radius - 1.0) {
+    const auto length = std::sqrt(static_cast<double>(dx_ * dx_ + dy_ * dy_));
+    has_band_ = length > std::numeric_limits<double>::epsilon();
+    const auto normal_x = has_band_ ? -static_cast<double>(dy_) / length * radius_ : 0.0;
+    const auto normal_y = has_band_ ? static_cast<double>(dx_) / length * radius_ : 0.0;
+    const auto x0 = static_cast<double>(from.x());
+    const auto y0 = static_cast<double>(from.y());
+    const auto x1 = static_cast<double>(to.x());
+    const auto y1 = static_cast<double>(to.y());
+    band_ = {std::pair{x0 + normal_x, y0 + normal_y}, std::pair{x1 + normal_x, y1 + normal_y},
+             std::pair{x1 - normal_x, y1 - normal_y}, std::pair{x0 - normal_x, y0 - normal_y}};
+  }
+
+  // The runs of row y within columns [left, right]; returns how many were written.
+  std::size_t runs(int y, int left, int right, std::array<Run, kMaxRuns>& out) const {
+    int first = left;
+    int end = right + 1;
+    if (walk_spans_) {
+      const auto row_y = static_cast<double>(y);
+      auto span_low = std::numeric_limits<double>::infinity();
+      auto span_high = -std::numeric_limits<double>::infinity();
+      const auto radius_squared = radius_ * radius_;
+      const auto add_disk = [&](QPoint center) {
+        const auto row_offset = row_y - static_cast<double>(center.y());
+        if (std::abs(row_offset) > radius_ + 1.0) {
+          return;
+        }
+        const auto half_width = std::sqrt(std::max(0.0, radius_squared - row_offset * row_offset));
+        span_low = std::min(span_low, static_cast<double>(center.x()) - half_width);
+        span_high = std::max(span_high, static_cast<double>(center.x()) + half_width);
+      };
+      add_disk(from_);
+      add_disk(to_);
+      if (has_band_) {
+        for (std::size_t edge = 0; edge < band_.size(); ++edge) {
+          const auto [from_x, from_y] = band_[edge];
+          const auto [to_x, to_y] = band_[(edge + 1) % band_.size()];
+          if ((from_y - row_y) * (to_y - row_y) > 0.0) {
+            continue;
+          }
+          if (from_y == to_y) {
+            span_low = std::min({span_low, from_x, to_x});
+            span_high = std::max({span_high, from_x, to_x});
+            continue;
+          }
+          const auto crossing = from_x + (row_y - from_y) * (to_x - from_x) / (to_y - from_y);
+          span_low = std::min(span_low, crossing);
+          span_high = std::max(span_high, crossing);
+        }
+      }
+      if (span_low > span_high) {
+        return 0;
+      }
+      first = std::max(left, static_cast<int>(std::floor(span_low)) - 1);
+      end = std::min(right + 1, static_cast<int>(std::ceil(span_high)) + 2);
+    }
+    if (first >= end) {
+      return 0;
+    }
+    if (!continues_previous_) {
+      out[0] = Run{first, end};
+      return 1;
+    }
+
+    // Closed column intervals that cannot change, at most two, in ascending order of start.
+    std::array<std::pair<std::int64_t, std::int64_t>, 2> skips{};
+    std::size_t skip_count = 0;
+    constexpr auto kFar = std::int64_t{1} << 40;
+    const auto row_offset = static_cast<std::int64_t>(y) - from_.y();
+    // Behind `from`: (x - from.x) * dx + (y - from.y) * dy <= 0.
+    if (dx_ == 0) {
+      if (row_offset * dy_ <= 0) {
+        return 0;  // the whole row (a repeated point: the whole segment)
+      }
+    } else {
+      const auto bound = static_cast<std::int64_t>(from_.x()) * dx_ - row_offset * dy_;
+      if (dx_ > 0) {
+        skips[skip_count++] = {-kFar, floor_div(bound, dx_)};
+      } else {
+        skips[skip_count++] = {ceil_div(bound, dx_), kFar};
+      }
+    }
+    if (covered_radius_ > 0.0) {
+      const auto remaining = covered_radius_ * covered_radius_ - static_cast<double>(row_offset * row_offset);
+      if (remaining >= 0.0) {
+        const auto half_width = std::sqrt(remaining);
+        const auto low = static_cast<std::int64_t>(std::ceil(static_cast<double>(from_.x()) - half_width));
+        const auto high = static_cast<std::int64_t>(std::floor(static_cast<double>(from_.x()) + half_width));
+        if (low <= high) {
+          skips[skip_count++] = {low, high};
+        }
+      }
+    }
+    if (skip_count == 2 && skips[1].first < skips[0].first) {
+      std::swap(skips[0], skips[1]);
+    }
+    std::size_t count = 0;
+    std::int64_t cursor = first;
+    for (std::size_t index = 0; index < skip_count; ++index) {
+      const auto [low, high] = skips[index];
+      if (high < cursor) {
+        continue;
+      }
+      if (low > cursor) {
+        const auto run_end = std::min<std::int64_t>(low, end);
+        if (run_end > cursor) {
+          out[count++] = Run{static_cast<int>(cursor), static_cast<int>(run_end)};
+        }
+      }
+      cursor = std::max(cursor, high + 1);
+      if (cursor >= end) {
+        return count;
+      }
+    }
+    if (cursor < end) {
+      out[count++] = Run{static_cast<int>(cursor), end};
+    }
+    return count;
+  }
+
+ private:
+  static std::int64_t floor_div(std::int64_t value, std::int64_t divisor) noexcept {
+    auto quotient = value / divisor;
+    if ((value % divisor != 0) && ((value < 0) != (divisor < 0))) {
+      --quotient;
+    }
+    return quotient;
+  }
+  static std::int64_t ceil_div(std::int64_t value, std::int64_t divisor) noexcept {
+    auto quotient = value / divisor;
+    if ((value % divisor != 0) && ((value < 0) == (divisor < 0))) {
+      ++quotient;
+    }
+    return quotient;
+  }
+
+  QPoint from_;
+  QPoint to_;
+  std::int64_t dx_{0};
+  std::int64_t dy_{0};
+  double radius_{0.0};
+  bool walk_spans_{true};
+  bool continues_previous_{false};
+  double covered_radius_{0.0};
+  bool has_band_{false};
+  std::array<std::pair<double, double>, 4> band_{};
+};
+
+// capped_stroke_coverage on the cap `cap_at()` returns, called only once the target is
+// known to be positive (as the map entry was created only then). Shared by the member and
+// the parallel Clone stamp's workers.
+template <typename CapAt>
+float capped_alpha_coverage(CapAt&& cap_at, float coverage, float source_alpha) {
+  if (source_alpha <= 0.0F) {
+    return 0.0F;  // Opacity 0: nothing to cap toward, and no division below
+  }
+  source_alpha = std::clamp(source_alpha, 1.0F / 255.0F, 1.0F);
+  const auto target_alpha = std::clamp(source_alpha * std::clamp(coverage, 0.0F, 1.0F), 0.0F, 1.0F);
+  if (target_alpha <= 0.0F) {
+    return 0.0F;
+  }
+
+  float& previous_alpha = cap_at();
+  if (target_alpha <= previous_alpha + 0.0005F) {
+    return 0.0F;
+  }
+
+  const auto incremental_alpha = (target_alpha - previous_alpha) / std::max(0.0005F, 1.0F - previous_alpha);
+  previous_alpha = target_alpha;
+  return std::clamp(incremental_alpha / source_alpha, 0.0F, 1.0F);
+}
+
+// The radius inside which a round brush of this radius and softness has coverage 1
+// (brush_coverage): all of it when hard, the inner core when soft.
+double full_coverage_radius(int radius, int softness) noexcept {
+  softness = std::clamp(softness, 0, 100);
+  if (softness <= 0) {
+    return static_cast<double>(radius);
+  }
+  const auto edge_width = std::max(1.0, static_cast<double>(radius) * static_cast<double>(softness) / 100.0);
+  return std::max(0.0, static_cast<double>(radius) - edge_width);
 }
 
 }  // namespace
@@ -972,6 +1180,7 @@ void CanvasWidget::clear_brush_stroke_tracking() noexcept {
   brush_stroke_paint_mode_ = {};
   brush_stroke_last_stamp_position_.reset();
   brush_stroke_hard_round_end_.reset();
+  clone_stroke_segment_end_.reset();
   brush_stroke_distance_since_last_stamp_ = 0.0;
   mixer_brush_state_ = {};
   mixer_composite_snapshot_ = QImage();
@@ -1437,23 +1646,7 @@ QRect CanvasWidget::draw_brush_segment_with_dabs(QPointF from, QPointF to, bool 
 }
 
 float CanvasWidget::capped_stroke_coverage(std::int32_t x, std::int32_t y, float coverage, float source_alpha) {
-  if (source_alpha <= 0.0F) {
-    return 0.0F;  // Opacity 0: nothing to cap toward, and no division below
-  }
-  source_alpha = std::clamp(source_alpha, 1.0F / 255.0F, 1.0F);
-  const auto target_alpha = std::clamp(source_alpha * std::clamp(coverage, 0.0F, 1.0F), 0.0F, 1.0F);
-  if (target_alpha <= 0.0F) {
-    return 0.0F;
-  }
-
-  auto& previous_alpha = brush_stroke_alpha_caps_(x, y);
-  if (target_alpha <= previous_alpha + 0.0005F) {
-    return 0.0F;
-  }
-
-  const auto incremental_alpha = (target_alpha - previous_alpha) / std::max(0.0005F, 1.0F - previous_alpha);
-  previous_alpha = target_alpha;
-  return std::clamp(incremental_alpha / source_alpha, 0.0F, 1.0F);
+  return capped_alpha_coverage([&]() -> float& { return brush_stroke_alpha_caps_(x, y); }, coverage, source_alpha);
 }
 
 float CanvasWidget::accumulating_stroke_coverage(std::int32_t x, std::int32_t y,
@@ -3334,6 +3527,23 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
   return dirty;
 }
 
+bool CanvasWidget::clone_stamp_continues_previous_segment(QPoint from, int radius,
+                                                          const EffectiveBrushInput& brush) const noexcept {
+  const auto& end = clone_stroke_segment_end_;
+  return clone_stamp_skip_enabled_ && end.has_value() && end->point == from && end->radius == radius &&
+         end->softness == brush.softness && end->opacity == brush.opacity &&
+         std::clamp(brush.roundness, 1, 100) >= 99;
+}
+
+void CanvasWidget::remember_clone_stroke_segment_end(QPoint to, int radius,
+                                                     const EffectiveBrushInput& brush) noexcept {
+  if (radius <= 0 || std::clamp(brush.roundness, 1, 100) < 99) {
+    clone_stroke_segment_end_.reset();
+    return;
+  }
+  clone_stroke_segment_end_ = CloneSegmentEnd{to, radius, brush.softness, brush.opacity};
+}
+
 // The Clone stamp, also the Healing Brush's live preview: the source as sampled,
 // written by opacity and coverage. The Healing Brush heals on release instead of per
 // dab (finish_healing_brush_stroke, docs/healing.md), so nothing here is tone matched.
@@ -3342,6 +3552,8 @@ QRect CanvasWidget::clone_brush_stamp_segment(QPoint from, QPoint to) {
   if (document_ != nullptr && layer != nullptr && std::as_const(*layer).pixels().format().bit_depth != BitDepth::UInt8) {
     return clone_brush_segment_deep(from, to);
   }
+  // Any return before the walk below ends the chain of continued segments.
+  auto continued_from_end = std::exchange(clone_stroke_segment_end_, std::nullopt);
   if (document_ == nullptr || layer == nullptr || clone_source_cache_.isNull() ||
       layer->pixels().format().bit_depth != BitDepth::UInt8 || layer->pixels().format().channels < 3) {
     return {};
@@ -3350,9 +3562,11 @@ QRect CanvasWidget::clone_brush_stamp_segment(QPoint from, QPoint to) {
   // The source pixel a destination pixel takes, or nullptr outside the source. At the
   // identity transform it is the plain offset read (byte-identical to before GitHub
   // issue 424); otherwise a bilinear sample through the stroke's mapping.
+  // A transformed sample lands in `sample` (each worker has its own).
   const auto& mapping = clone_stroke_mapping_;
   std::array<std::uint8_t, 4> transformed_sample{};
-  const auto source_pixel = [&](QPoint document_point) -> const std::uint8_t* {
+  const auto source_pixel = [&](QPoint document_point,
+                                std::array<std::uint8_t, 4>& sample) -> const std::uint8_t* {
     if (mapping.identity()) {
       const auto source_point = document_point + clone_source_offset_;
       if (source_point.x() < 0 || source_point.y() < 0 || source_point.x() >= clone_source_cache_.width() ||
@@ -3367,9 +3581,9 @@ QRect CanvasWidget::clone_brush_stamp_segment(QPoint from, QPoint to) {
     if (!taps.has_value()) {
       return nullptr;
     }
-    transformed_sample = patchy::sample_clone_source_rgba8(
+    sample = patchy::sample_clone_source_rgba8(
         clone_source_cache_.constBits(), static_cast<std::size_t>(clone_source_cache_.bytesPerLine()), *taps);
-    return transformed_sample.data();
+    return sample.data();
   };
 
   const auto brush = effective_brush_input();
@@ -3409,7 +3623,7 @@ QRect CanvasWidget::clone_brush_stamp_segment(QPoint from, QPoint to) {
         }
         coverage = 1.0F;
       }
-      const auto* src = source_pixel(document_point);
+      const auto* src = source_pixel(document_point, transformed_sample);
       if (src == nullptr) {
         return;
       }
@@ -3475,81 +3689,198 @@ QRect CanvasWidget::clone_brush_stamp_segment(QPoint from, QPoint to) {
   const auto segment_length_squared = static_cast<double>(dx) * static_cast<double>(dx) +
                                       static_cast<double>(dy) * static_cast<double>(dy);
   const auto opacity = static_cast<float>(brush.opacity) / 100.0F;
+  clone_stroke_segment_end_ = std::move(continued_from_end);
+  const CloneSegmentRows rows(from, to, radius, clone_stamp_skip_enabled_,
+                              clone_stamp_continues_previous_segment(from, radius, brush),
+                              full_coverage_radius(radius, brush.softness));
 
-  QRect dirty;
-  for (int y = stroke_rect.top(); y <= stroke_rect.bottom(); ++y) {
-    auto row = pixels.row(y - bounds.y);
-    for (int x = stroke_rect.left(); x <= stroke_rect.right(); ++x) {
-      const auto along =
-          segment_length_squared <= 0.0
-              ? 0.0
-              : std::clamp((static_cast<double>(x - from.x()) * static_cast<double>(dx) +
-                            static_cast<double>(y - from.y()) * static_cast<double>(dy)) /
-                               segment_length_squared,
-                           0.0, 1.0);
-      const auto closest_x = static_cast<double>(from.x()) + static_cast<double>(dx) * along;
-      const auto closest_y = static_cast<double>(from.y()) + static_cast<double>(dy) * along;
-      const auto distance_x = static_cast<double>(x) - closest_x;
-      const auto distance_y = static_cast<double>(y) - closest_y;
-      auto coverage = brush_shape_coverage(distance_x, distance_y, radius, brush.softness, brush.roundness,
-                                           brush.angle_degrees);
-      if (coverage <= 0.0F) {
-        continue;
-      }
-      const QPoint document_point(x, y);
+  // One pixel of the stamp: `dst` is its layer bytes, `cap_at(x, y)` its stroke alpha cap.
+  // True when it was written.
+  const auto selection_active = has_selection();
+  const auto stamp_pixel = [&](int x, int y, std::uint8_t* dst, std::array<std::uint8_t, 4>& sample,
+                               auto& cap_at) -> bool {
+    const auto along =
+        segment_length_squared <= 0.0
+            ? 0.0
+            : std::clamp((static_cast<double>(x - from.x()) * static_cast<double>(dx) +
+                          static_cast<double>(y - from.y()) * static_cast<double>(dy)) /
+                             segment_length_squared,
+                         0.0, 1.0);
+    const auto closest_x = static_cast<double>(from.x()) + static_cast<double>(dx) * along;
+    const auto closest_y = static_cast<double>(from.y()) + static_cast<double>(dy) * along;
+    const auto distance_x = static_cast<double>(x) - closest_x;
+    const auto distance_y = static_cast<double>(y) - closest_y;
+    auto coverage = brush_shape_coverage(distance_x, distance_y, radius, brush.softness, brush.roundness,
+                                         brush.angle_degrees);
+    if (coverage <= 0.0F) {
+      return false;
+    }
+    const QPoint document_point(x, y);
+    // Without a selection selection_allows() is always true.
+    if (selection_active) {
       if (!selection_allows(document_point)) {
-        continue;
+        return false;
       }
-      if (has_selection()) {
-        coverage *= static_cast<float>(selection_alpha_at(document_point)) / 255.0F;
-        if (coverage <= 0.0F) {
-          continue;
-        }
-      }
-      if (palette_snap != nullptr) {
-        if (coverage < palette_snap->coverage_threshold) {
-          continue;
-        }
-        coverage = 1.0F;
-      }
-
-      const auto* src = source_pixel(document_point);
-      if (src == nullptr) {
-        continue;
-      }
-
-      const auto local_x = x - bounds.x;
-      auto* dst = row.data() + static_cast<std::size_t>(local_x) * channels;
-      if (lock_transparent_pixels && channels >= 4 && dst[3] == 0) {
-        continue;
-      }
-      coverage = capped_stroke_coverage(document_point.x(), document_point.y(), coverage, opacity);
+      coverage *= static_cast<float>(selection_alpha_at(document_point)) / 255.0F;
       if (coverage <= 0.0F) {
-        continue;
+        return false;
       }
+    }
+    if (palette_snap != nullptr) {
+      if (coverage < palette_snap->coverage_threshold) {
+        return false;
+      }
+      coverage = 1.0F;
+    }
 
-      const auto covered_opacity = opacity * coverage;
-      if (channels >= 4 && !lock_transparent_pixels) {
-        blend_straight_rgba(dst, src, covered_opacity);
-      } else {
-        const auto effective_opacity = covered_opacity * (static_cast<float>(src[3]) / 255.0F);
-        if (effective_opacity <= 0.0F) {
-          continue;
+    const auto* src = source_pixel(document_point, sample);
+    if (src == nullptr) {
+      return false;
+    }
+    if (lock_transparent_pixels && channels >= 4 && dst[3] == 0) {
+      return false;
+    }
+    coverage = capped_alpha_coverage([&]() -> float& { return cap_at(x, y); }, coverage, opacity);
+    if (coverage <= 0.0F) {
+      return false;
+    }
+
+    const auto covered_opacity = opacity * coverage;
+    if (channels >= 4 && !lock_transparent_pixels) {
+      blend_straight_rgba(dst, src, covered_opacity);
+    } else {
+      const auto effective_opacity = covered_opacity * (static_cast<float>(src[3]) / 255.0F);
+      if (effective_opacity <= 0.0F) {
+        return false;
+      }
+      dst[0] = clamp_byte(static_cast<float>(src[0]) * effective_opacity +
+                          static_cast<float>(dst[0]) * (1.0F - effective_opacity));
+      dst[1] = clamp_byte(static_cast<float>(src[1]) * effective_opacity +
+                          static_cast<float>(dst[1]) * (1.0F - effective_opacity));
+      dst[2] = clamp_byte(static_cast<float>(src[2]) * effective_opacity +
+                          static_cast<float>(dst[2]) * (1.0F - effective_opacity));
+    }
+    if (palette_snap != nullptr) {
+      patchy::snap_pixel_to_palette(dst, channels, *palette_snap);
+    }
+    return true;
+  };
+
+  struct RowRuns {
+    int y{0};
+    std::size_t count{0};
+    std::array<CloneSegmentRows::Run, CloneSegmentRows::kMaxRuns> runs{};
+  };
+  // The dirty columns of one row's runs, stamped through `cap_at`.
+  const auto stamp_row = [&](const RowRuns& row_runs, std::uint8_t* row_bytes, std::array<std::uint8_t, 4>& sample,
+                             auto& cap_at) -> QRect {
+    auto row_dirty_left = std::numeric_limits<int>::max();
+    auto row_dirty_right = std::numeric_limits<int>::min();
+    for (std::size_t run = 0; run < row_runs.count; ++run) {
+      for (int x = row_runs.runs[run].first; x < row_runs.runs[run].end; ++x) {
+        auto* dst = row_bytes + static_cast<std::size_t>(x - bounds.x) * channels;
+        if (stamp_pixel(x, row_runs.y, dst, sample, cap_at)) {
+          row_dirty_left = std::min(row_dirty_left, x);
+          row_dirty_right = std::max(row_dirty_right, x);
         }
-        dst[0] = clamp_byte(static_cast<float>(src[0]) * effective_opacity +
-                            static_cast<float>(dst[0]) * (1.0F - effective_opacity));
-        dst[1] = clamp_byte(static_cast<float>(src[1]) * effective_opacity +
-                            static_cast<float>(dst[1]) * (1.0F - effective_opacity));
-        dst[2] = clamp_byte(static_cast<float>(src[2]) * effective_opacity +
-                            static_cast<float>(dst[2]) * (1.0F - effective_opacity));
       }
-      if (palette_snap != nullptr) {
-        patchy::snap_pixel_to_palette(dst, channels, *palette_snap);
+    }
+    return row_dirty_left <= row_dirty_right
+               ? QRect(row_dirty_left, row_runs.y, row_dirty_right - row_dirty_left + 1, 1)
+               : QRect();
+  };
+
+  std::vector<RowRuns> segment_rows;
+  segment_rows.reserve(static_cast<std::size_t>(stroke_rect.height()));
+  std::int64_t segment_pixels = 0;
+  for (int y = stroke_rect.top(); y <= stroke_rect.bottom(); ++y) {
+    RowRuns row_runs;
+    row_runs.y = y;
+    row_runs.count = rows.runs(y, stroke_rect.left(), stroke_rect.right(), row_runs.runs);
+    for (std::size_t run = 0; run < row_runs.count; ++run) {
+      segment_pixels += row_runs.runs[run].end - row_runs.runs[run].first;
+    }
+    if (row_runs.count > 0) {
+      segment_rows.push_back(row_runs);
+    }
+  }
+
+  // A big segment (a soft 529 px brush tests about 110,000 pixels per mouse sample, a 204 px
+  // one about 16,000; GitHub issue 597) fans out over strips of whole 64-row bands, so no two
+  // workers share a tile of the stroke's alpha caps (StrokePixelMap::Cursor). Each pixel
+  // depends only on its own bytes, cap and the frozen source, so the strips give the
+  // sequential walk's bytes. The layer bytes are detached here, on the launching thread,
+  // before any worker writes.
+  constexpr std::int64_t kCloneParallelPixels = 8192;
+  const auto band_of = [](int y) { return y >> StrokePixelMap<float>::kTileRowsShift; };
+  const auto bands = segment_rows.empty() ? 0 : band_of(segment_rows.back().y) - band_of(segment_rows.front().y) + 1;
+  const auto workers = segment_pixels >= kCloneParallelPixels && bands >= 2
+                           ? patchy::max_blocking_fanout_workers(
+                                 std::clamp(std::min(bands, patchy::hardware_worker_threads()), 1, 16))
+                           : 1;
+  QRect dirty;
+  if (workers >= 2 && !qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED")) {
+    // Strips: runs of rows cut only where a band starts, each about an equal share of pixels.
+    std::vector<std::pair<std::size_t, std::size_t>> strips;
+    const auto share = (segment_pixels + workers - 1) / workers;
+    std::size_t strip_start = 0;
+    std::int64_t strip_pixels = 0;
+    auto band_left = std::numeric_limits<int>::max();
+    auto band_right = std::numeric_limits<int>::min();
+    for (std::size_t index = 0; index < segment_rows.size(); ++index) {
+      const auto& row_runs = segment_rows[index];
+      band_left = std::min(band_left, row_runs.runs[0].first);
+      band_right = std::max(band_right, row_runs.runs[row_runs.count - 1].end);
+      for (std::size_t run = 0; run < row_runs.count; ++run) {
+        strip_pixels += row_runs.runs[run].end - row_runs.runs[run].first;
       }
-      dirty = dirty.united(QRect(document_point, QSize(1, 1)));
+      const auto last = index + 1 == segment_rows.size();
+      if (last || band_of(segment_rows[index + 1].y) != band_of(row_runs.y)) {
+        // The band ends here: its tiles exist before any worker runs.
+        const auto band_top = band_of(row_runs.y) << StrokePixelMap<float>::kTileRowsShift;
+        brush_stroke_alpha_caps_.reserve_tiles(band_left, band_top, band_right,
+                                               band_top + (1 << StrokePixelMap<float>::kTileRowsShift));
+        band_left = std::numeric_limits<int>::max();
+        band_right = std::numeric_limits<int>::min();
+        if (last || strip_pixels >= share) {
+          strips.emplace_back(strip_start, index + 1);
+          strip_start = index + 1;
+          strip_pixels = 0;
+        }
+      }
+    }
+    auto* layer_bytes = pixels.data().data();  // detaches shared storage on this thread
+    const auto stride = pixels.stride_bytes();
+    std::vector<std::future<QRect>> futures;
+    futures.reserve(strips.size());
+    for (const auto& strip : strips) {
+      const auto first_row = strip.first;
+      const auto end_row = strip.second;
+      futures.push_back(std::async(std::launch::async, [&, first_row, end_row] {
+        StrokePixelMap<float>::Cursor caps(brush_stroke_alpha_caps_);
+        std::array<std::uint8_t, 4> sample{};
+        QRect strip_dirty;
+        for (auto index = first_row; index < end_row; ++index) {
+          const auto& row_runs = segment_rows[index];
+          auto* row_bytes = layer_bytes + static_cast<std::size_t>(row_runs.y - bounds.y) * stride;
+          strip_dirty = strip_dirty.united(stamp_row(row_runs, row_bytes, sample, caps));
+        }
+        return strip_dirty;
+      }));
+    }
+    for (auto& future : futures) {
+      dirty = dirty.united(future.get());
     }
     tick_processing_operation();
+  } else {
+    auto& caps = brush_stroke_alpha_caps_;
+    for (const auto& row_runs : segment_rows) {
+      auto row = pixels.row(row_runs.y - bounds.y);
+      dirty = dirty.united(stamp_row(row_runs, row.data(), transformed_sample, caps));
+      tick_processing_operation();
+    }
   }
+  remember_clone_stroke_segment_end(to, radius, brush);
   return dirty;
 }
 
@@ -3558,6 +3889,8 @@ QRect CanvasWidget::clone_brush_stamp_segment(QPoint from, QPoint to) {
 QRect CanvasWidget::clone_brush_segment_deep(QPoint from, QPoint to) {
   auto* layer = active_pixel_layer();
   const auto& source = clone_source_deep_;
+  // Any return before the walk below ends the chain of continued segments.
+  auto continued_from_end = std::exchange(clone_stroke_segment_end_, std::nullopt);
   if (document_ == nullptr || layer == nullptr || source.empty() || std::as_const(*layer).pixels().format().channels < 3) {
     return {};
   }
@@ -3617,85 +3950,100 @@ QRect CanvasWidget::clone_brush_segment_deep(QPoint from, QPoint to) {
   const auto dx = static_cast<double>(to.x() - from.x());
   const auto dy = static_cast<double>(to.y() - from.y());
   const auto segment_length_squared = dx * dx + dy * dy;
+  clone_stroke_segment_end_ = std::move(continued_from_end);
+  const CloneSegmentRows rows(from, to, radius, clone_stamp_skip_enabled_,
+                              clone_stamp_continues_previous_segment(from, radius, brush),
+                              full_coverage_radius(radius, brush.softness));
   QRect dirty;
+  std::array<CloneSegmentRows::Run, CloneSegmentRows::kMaxRuns> runs{};
   for (int y = stroke_rect.top(); y <= stroke_rect.bottom(); ++y) {
-    for (int x = stroke_rect.left(); x <= stroke_rect.right(); ++x) {
-      const auto along = segment_length_squared <= 0.0
-                             ? 0.0
-                             : std::clamp((static_cast<double>(x - from.x()) * dx + static_cast<double>(y - from.y()) * dy) /
-                                              segment_length_squared,
-                                          0.0, 1.0);
-      auto coverage = brush_shape_coverage(static_cast<double>(x) - (static_cast<double>(from.x()) + dx * along),
-                                           static_cast<double>(y) - (static_cast<double>(from.y()) + dy * along),
-                                           radius, brush.softness, brush.roundness, brush.angle_degrees);
-      const QPoint document_point(x, y);
-      if (coverage <= 0.0F || !selection_allows(document_point)) {
-        continue;
-      }
-      if (has_selection()) {
-        coverage *= static_cast<float>(selection_alpha_at(document_point)) / 255.0F;
+    const auto run_count = rows.runs(y, stroke_rect.left(), stroke_rect.right(), runs);
+    auto row_dirty_left = std::numeric_limits<int>::max();
+    auto row_dirty_right = std::numeric_limits<int>::min();
+    for (std::size_t run = 0; run < run_count; ++run) {
+      for (int x = runs[run].first; x < runs[run].end; ++x) {
+        const auto along = segment_length_squared <= 0.0
+                               ? 0.0
+                               : std::clamp((static_cast<double>(x - from.x()) * dx + static_cast<double>(y - from.y()) * dy) /
+                                                segment_length_squared,
+                                            0.0, 1.0);
+        auto coverage = brush_shape_coverage(static_cast<double>(x) - (static_cast<double>(from.x()) + dx * along),
+                                             static_cast<double>(y) - (static_cast<double>(from.y()) + dy * along),
+                                             radius, brush.softness, brush.roundness, brush.angle_degrees);
+        const QPoint document_point(x, y);
+        if (coverage <= 0.0F || !selection_allows(document_point)) {
+          continue;
+        }
+        if (has_selection()) {
+          coverage *= static_cast<float>(selection_alpha_at(document_point)) / 255.0F;
+          if (coverage <= 0.0F) {
+            continue;
+          }
+        }
+        std::array<float, 4> src{};
+        if (mapping.identity()) {
+          const auto source_point = document_point + clone_source_offset_;
+          if (source_point.x() < 0 || source_point.y() < 0 || source_point.x() >= source.width() ||
+              source_point.y() >= source.height()) {
+            continue;
+          }
+          src = sample(source_point.x(), source_point.y());
+        } else {
+          const auto position = mapping.map_q8(x, y);
+          const auto taps = patchy::clone_source_taps(position[0], position[1], source.width(), source.height());
+          if (!taps.has_value()) {
+            continue;
+          }
+          src = sample_transformed(*taps);
+        }
+        auto* dst = pixels.pixel(x - bounds.x, y - bounds.y);
+        const auto before = load_pixel(format, dst);
+        if (lock_transparent_pixels && format.channels >= 4 && before[3] <= 0.0F) {
+          continue;
+        }
+        coverage = capped_stroke_coverage(x, y, coverage, opacity);
         if (coverage <= 0.0F) {
           continue;
         }
-      }
-      std::array<float, 4> src{};
-      if (mapping.identity()) {
-        const auto source_point = document_point + clone_source_offset_;
-        if (source_point.x() < 0 || source_point.y() < 0 || source_point.x() >= source.width() ||
-            source_point.y() >= source.height()) {
-          continue;
-        }
-        src = sample(source_point.x(), source_point.y());
-      } else {
-        const auto position = mapping.map_q8(x, y);
-        const auto taps = patchy::clone_source_taps(position[0], position[1], source.width(), source.height());
-        if (!taps.has_value()) {
-          continue;
-        }
-        src = sample_transformed(*taps);
-      }
-      auto* dst = pixels.pixel(x - bounds.x, y - bounds.y);
-      const auto before = load_pixel(format, dst);
-      if (lock_transparent_pixels && format.channels >= 4 && before[3] <= 0.0F) {
-        continue;
-      }
-      coverage = capped_stroke_coverage(x, y, coverage, opacity);
-      if (coverage <= 0.0F) {
-        continue;
-      }
-      const auto amount = std::clamp(opacity * coverage, 0.0F, 1.0F);
-      auto value = before;
-      if (format.channels >= 4 && !lock_transparent_pixels) {
-        // blend_straight_rgba in float.
-        const auto source_alpha = src[3] / 255.0F;
-        const auto destination_alpha = before[3] / 255.0F;
-        const auto out_alpha = source_alpha * amount + destination_alpha * (1.0F - amount);
-        if (amount >= 0.999F) {
-          value = src;
-        } else if (out_alpha <= 0.0F) {
-          value = {src[0], src[1], src[2], 0.0F};
-        } else {
-          for (std::size_t c = 0; c < 3U; ++c) {
-            value[c] = (src[c] * source_alpha * amount + before[c] * destination_alpha * (1.0F - amount)) / out_alpha;
+        const auto amount = std::clamp(opacity * coverage, 0.0F, 1.0F);
+        auto value = before;
+        if (format.channels >= 4 && !lock_transparent_pixels) {
+          // blend_straight_rgba in float.
+          const auto source_alpha = src[3] / 255.0F;
+          const auto destination_alpha = before[3] / 255.0F;
+          const auto out_alpha = source_alpha * amount + destination_alpha * (1.0F - amount);
+          if (amount >= 0.999F) {
+            value = src;
+          } else if (out_alpha <= 0.0F) {
+            value = {src[0], src[1], src[2], 0.0F};
+          } else {
+            for (std::size_t c = 0; c < 3U; ++c) {
+              value[c] = (src[c] * source_alpha * amount + before[c] * destination_alpha * (1.0F - amount)) / out_alpha;
+            }
+            value[3] = out_alpha * 255.0F;
           }
-          value[3] = out_alpha * 255.0F;
+        } else {
+          const auto effective = amount * (src[3] / 255.0F);
+          if (effective <= 0.0F) {
+            continue;
+          }
+          for (std::size_t c = 0; c < 3U; ++c) {
+            value[c] = src[c] * effective + before[c] * (1.0F - effective);
+          }
         }
-      } else {
-        const auto effective = amount * (src[3] / 255.0F);
-        if (effective <= 0.0F) {
-          continue;
-        }
-        for (std::size_t c = 0; c < 3U; ++c) {
-          value[c] = src[c] * effective + before[c] * (1.0F - effective);
+        store_pixel(format, dst, value);
+        if (load_pixel(format, dst) != before) {
+          row_dirty_left = std::min(row_dirty_left, x);
+          row_dirty_right = std::max(row_dirty_right, x);
         }
       }
-      store_pixel(format, dst, value);
-      if (load_pixel(format, dst) != before) {
-        dirty = dirty.united(QRect(document_point, QSize(1, 1)));
-      }
+    }
+    if (row_dirty_left <= row_dirty_right) {
+      dirty = dirty.united(QRect(row_dirty_left, y, row_dirty_right - row_dirty_left + 1, 1));
     }
     tick_processing_operation();
   }
+  remember_clone_stroke_segment_end(to, radius, brush);
   return dirty;
 }
 

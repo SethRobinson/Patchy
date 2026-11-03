@@ -59,10 +59,63 @@ class StrokePixelMap {
     cached_tile_ = nullptr;
   }
 
+  // Creates every tile under columns [x0, x1) of rows [y0, y1) without making any entry
+  // present, so Cursors can reach them.
+  void reserve_tiles(std::int32_t x0, std::int32_t y0, std::int32_t x1, std::int32_t y1) {
+    if (x0 >= x1 || y0 >= y1) {
+      return;
+    }
+    for (auto tile_y = y0 >> kTileShift; tile_y <= (y1 - 1) >> kTileShift; ++tile_y) {
+      for (auto tile_x = x0 >> kTileShift; tile_x <= (x1 - 1) >> kTileShift; ++tile_x) {
+        const auto key = tile_key(tile_x * kTileSize, tile_y * kTileSize);
+        if (tiles_.find(key) == tiles_.end()) {
+          tiles_.emplace(key, std::make_unique<Tile>());
+        }
+      }
+    }
+  }
+
+ private:
+  struct Tile;
+
+ public:
+  // One worker's view of reserved tiles (the parallel Clone stamp, GitHub issue 597): its
+  // own one-tile cache and no tile creation. Several may run at once while nothing else
+  // touches the map, as long as no two reach the same tile: give each worker whole 64-row
+  // bands (y >> 6).
+  class Cursor {
+   public:
+    explicit Cursor(StrokePixelMap& map) noexcept : map_(&map) {}
+
+    // operator() of the map, for an entry whose tile reserve_tiles created.
+    T& operator()(std::int32_t x, std::int32_t y) {
+      const auto key = tile_key(x, y);
+      if (tile_ == nullptr || key_ != key) {
+        tile_ = map_->tiles_.at(key).get();
+        key_ = key;
+      }
+      const auto index = index_in_tile(x, y);
+      if (!tile_->present[index]) {
+        tile_->present[index] = true;
+        tile_->values[index] = T{};
+      }
+      return tile_->values[index];
+    }
+
+   private:
+    StrokePixelMap* map_;
+    std::uint64_t key_{0};
+    Tile* tile_{nullptr};
+  };
+
+  // A Cursor's band is y >> kTileRowsShift: one row of tiles.
+  static constexpr int kTileRowsShift = 6;
+
   [[nodiscard]] bool empty() const noexcept { return tiles_.empty(); }
 
  private:
   static constexpr int kTileShift = 6;
+  static_assert(kTileShift == kTileRowsShift);
   static constexpr int kTileSize = 1 << kTileShift;
   static constexpr std::size_t kTilePixels = static_cast<std::size_t>(kTileSize) * kTileSize;
 
