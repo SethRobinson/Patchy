@@ -32416,6 +32416,14 @@ Bloqueada: %1</translation>
         <source>Feat&amp;her...</source>
         <translation>Ca&amp;lar...</translation>
     </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation>Co&amp;locar</translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation>M&amp;etadatos</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

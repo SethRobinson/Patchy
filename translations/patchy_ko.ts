@@ -32332,6 +32332,14 @@ Locked: %1</source>
         <source>Feat&amp;her...</source>
         <translation>페더(&amp;H)...</translation>
     </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation>배치(&amp;L)</translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation>메타데이터(&amp;E)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

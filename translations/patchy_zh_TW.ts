@@ -32332,6 +32332,14 @@ Locked: %1</source>
         <source>Feat&amp;her...</source>
         <translation>羽化(&amp;H)...</translation>
     </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation>置入(&amp;L)</translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation>中繼資料(&amp;E)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

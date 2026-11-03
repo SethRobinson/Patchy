@@ -32416,6 +32416,14 @@ Bloccato: %1</translation>
         <source>Feat&amp;her...</source>
         <translation>S&amp;fuma...</translation>
     </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation>Inse&amp;risci</translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation>M&amp;etadati</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

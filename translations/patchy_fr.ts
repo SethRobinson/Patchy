@@ -32416,6 +32416,14 @@ Verrouillé : %1</translation>
         <source>Feat&amp;her...</source>
         <translation>Contour &amp;progressif...</translation>
     </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation>Pl&amp;acer</translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation>Mé&amp;tadonnées</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -32332,6 +32332,14 @@ Locked: %1</source>
         <source>Feat&amp;her...</source>
         <translation>ぼかし(&amp;H)...</translation>
     </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation>配置(&amp;L)</translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation>メタデータ(&amp;E)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
