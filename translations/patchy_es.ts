@@ -25293,8 +25293,8 @@ Y: %2
         <translation>¿Guardar los cambios?</translation>
     </message>
     <message>
-        <source>Save changes to %1 before closing?</source>
-        <translation>¿Guardar los cambios de %1 antes de cerrar?</translation>
+        <source>Save changes to &quot;%1&quot; before closing?</source>
+        <translation>¿Guardar los cambios de &quot;%1&quot; antes de cerrar?</translation>
     </message>
     <message>
         <source>Rasterize Smart Filters before changing document geometry</source>

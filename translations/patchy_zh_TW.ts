@@ -25235,8 +25235,8 @@ Y：%2
         <translation>要儲存變更嗎？</translation>
     </message>
     <message>
-        <source>Save changes to %1 before closing?</source>
-        <translation>關閉前要儲存對 %1 的變更嗎？</translation>
+        <source>Save changes to &quot;%1&quot; before closing?</source>
+        <translation>關閉前要儲存對「%1」的變更嗎？</translation>
     </message>
     <message>
         <source>Rasterize Smart Filters before changing document geometry</source>

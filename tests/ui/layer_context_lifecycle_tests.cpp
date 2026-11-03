@@ -1912,7 +1912,8 @@ void ui_close_last_tab_with_active_text_edit_commits_editor_first() {
 // and Discard roles. Bare key presses (no Alt) answer it like native Windows message
 // boxes: Y, N and C, plus S and D as aliases from the Save / Don't Save days. Qt itself
 // only wires the Alt+mnemonic; show_warning_message adds the plain letters, so both the
-// button set and the accelerators are pinned here.
+// button set and the accelerators are pinned here. The file name is quoted and the three
+// buttons share one width (GitHub issue 605).
 void ui_save_prompt_uses_yes_no_cancel_with_letter_hotkeys() {
   std::filesystem::create_directories("test-artifacts");
   const auto path = QFileInfo(QDir(QStringLiteral("test-artifacts"))
@@ -1956,10 +1957,14 @@ void ui_save_prompt_uses_yes_no_cancel_with_letter_hotkeys() {
   bool prompt_seen = false;
   bool buttons_are_yes_no_cancel = false;
   bool prompt_is_inside_screen = false;
+  bool name_is_quoted = false;
+  bool buttons_share_width = false;
   const auto dismiss_prompt_with_key = [&](int key) {
     prompt_seen = false;
     buttons_are_yes_no_cancel = false;
     prompt_is_inside_screen = false;
+    name_is_quoted = false;
+    buttons_share_width = false;
     auto* dismiss_timer = new QTimer(&window);
     dismiss_timer->setInterval(10);
     // The placement filter re-clamps the box one event-loop turn after each Show and
@@ -2002,6 +2007,18 @@ void ui_save_prompt_uses_yes_no_cancel_with_letter_hotkeys() {
           dialog->defaultButton() == save && save->text() == QStringLiteral("&Yes") &&
           discard->text() == QStringLiteral("&No") && cancel->text() == QStringLiteral("&Cancel") &&
           dialog->text().endsWith(QLatin1Char('?'));
+      name_is_quoted =
+          dialog->text() == QStringLiteral("Save changes to \"ui_save_prompt_yes_no.tga\" before closing?");
+      if (!name_is_quoted) {
+        std::cerr << "  save prompt text: " << dialog->text().toStdString() << '\n';
+      }
+      buttons_share_width = buttons_are_yes_no_cancel && save->width() == discard->width() &&
+                            discard->width() == cancel->width() &&
+                            save->width() >= cancel->sizeHint().width();
+      if (!buttons_share_width && buttons_are_yes_no_cancel) {
+        std::cerr << "  save prompt button widths " << save->width() << ' ' << discard->width() << ' '
+                  << cancel->width() << '\n';
+      }
       dismiss_timer->stop();
       dismiss_timer->deleteLater();
       if (key == Qt::Key_D) {
@@ -2026,6 +2043,8 @@ void ui_save_prompt_uses_yes_no_cancel_with_letter_hotkeys() {
     QApplication::processEvents();
     CHECK(prompt_seen);
     CHECK(buttons_are_yes_no_cancel);
+    CHECK(name_is_quoted);
+    CHECK(buttons_share_width);
     CHECK(prompt_is_inside_screen);
     // C cancels: the tab stays open with its changes.
     CHECK(closed == (key != Qt::Key_C));

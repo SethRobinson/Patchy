@@ -1161,7 +1161,7 @@ void add_modified_untitled_document(patchy::ui::MainWindow& window, const QStrin
 }
 
 QString save_prompt_text(const QString& title) {
-  return QStringLiteral("Save changes to %1 before closing?").arg(title);
+  return QStringLiteral("Save changes to \"%1\" before closing?").arg(title);
 }
 
 // Quit asks about each modified document newest first. No closes that document at once

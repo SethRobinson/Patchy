@@ -26315,8 +26315,8 @@ Y: %2
         <translation>변경사항을 저장하시겠습니까?</translation>
     </message>
     <message>
-        <source>Save changes to %1 before closing?</source>
-        <translation>닫기 전에 %1의 변경 사항을 저장하시겠습니까?</translation>
+        <source>Save changes to &quot;%1&quot; before closing?</source>
+        <translation>닫기 전에 &quot;%1&quot;의 변경 사항을 저장하시겠습니까?</translation>
     </message>
     <message>
         <source>Rasterize Smart Filters before changing document geometry</source>
