@@ -65,7 +65,8 @@ struct LevelsPreset {
 // Import adds a preset file to the user's presets; Export writes the current settings to a
 // file of the kind's format. Object names: <prefix>SavePresetButton, ...DeletePresetButton,
 // ...ImportPresetButton, ...ExportPresetButton. The four share one width; a Row fills the
-// width its layout gives it, split evenly (place it under the preset combo, #588).
+// width its layout gives it, split evenly (place it under the preset combo, #588), unless
+// set_button_width() fixed the buttons' width.
 class AdjustmentPresetButtons final : public QWidget {
 public:
   enum class Arrangement { Row, Column, Grid };
@@ -87,6 +88,9 @@ public:
 
   // Call after the dialog's selection changes: Delete is enabled only on a user preset.
   void refresh();
+  // Gives each button `width` (at least the widest label needs); a Row then keeps that
+  // size instead of filling its layout, so the dialog can center it (Curves, #592).
+  void set_button_width(int width);
 
   [[nodiscard]] QSize sizeHint() const override;
   [[nodiscard]] QSize minimumSizeHint() const override;
@@ -112,6 +116,7 @@ private:
   QPushButton* delete_{nullptr};
   QPushButton* import_{nullptr};
   QPushButton* export_{nullptr};
+  int button_width_{0};
 };
 
 }  // namespace patchy::ui

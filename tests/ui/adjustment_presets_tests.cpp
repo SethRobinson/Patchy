@@ -746,12 +746,32 @@ void ui_adjustment_presets_curves_layout_and_user_presets() {
     }
     const auto list_box = geometry_in(*list, *dialog);
     const auto save_box = geometry_in(*save, *dialog);
-    CHECK(save_box.top() > list_box.bottom() && save_box.left() == list_box.left());
+    CHECK(save_box.top() > list_box.bottom());
     for (auto* button : {remove, import, export_button}) {
       CHECK(geometry_in(*button, *dialog).center().y() == save_box.center().y());
     }
-    // The four share the strip's width, as under the preset combos (#588 follow-up 2).
-    check_preset_button_row_spans(*dialog, "curves", *list);
+    // #592 follow-up 2: each of the four is as wide as Highlights, and the row is centered
+    // under the strip.
+    auto* highlights = child<QPushButton>(*dialog, "curvesHighlightClippingButton");
+    if (highlights == nullptr) {
+      dialog->reject();
+      return;
+    }
+    const auto check_preset_buttons = [&] {
+      const auto strip = geometry_in(*list, *dialog);
+      const auto first = geometry_in(*save, *dialog);
+      const auto last = geometry_in(*export_button, *dialog);
+      std::cerr << "curves preset buttons: highlights " << highlights->width() << ", buttons " << save->width() << ' '
+                << remove->width() << ' ' << import->width() << ' ' << export_button->width() << ", row "
+                << first.left() << ".." << last.right() << ", strip " << strip.left() << ".." << strip.right()
+                << '\n';
+      for (auto* button : {save, remove, import, export_button}) {
+        CHECK(button->width() == highlights->width());
+        CHECK(geometry_in(*button, *dialog).top() == first.top());
+      }
+      CHECK(std::abs((first.left() + last.right()) - (strip.left() + strip.right())) <= 2);
+    };
+    check_preset_buttons();
     CHECK(geometry_in(*separator, *dialog).top() > save_box.bottom());
     CHECK(geometry_in(*target, *dialog).top() > geometry_in(*separator, *dialog).bottom());
     CHECK(geometry_in(*both, *dialog).center().y() == geometry_in(*target, *dialog).center().y());
@@ -802,9 +822,33 @@ void ui_adjustment_presets_curves_layout_and_user_presets() {
     std::cerr << "curves dialog size " << dialog->width() << 'x' << dialog->height() << ", strip "
               << list->height() << " (min " << list->minimumHeight() << "), graph " << graph->height() << '\n';
     CHECK(dialog->width() < 560);
-    // Nothing is squeezed: the strip keeps its fixed 92 px height, the graph its minimum.
-    CHECK(list->height() == 92);
     CHECK(graph->height() >= graph->minimumHeight());
+    // The strip has one size at every dialog size (#592 follow-up 2): it shows whole cells
+    // only, spans the column at the opening size and stays whole at the minimum size.
+    const auto strip_size = list->size();
+    const auto check_strip = [&] {
+      CHECK(list->size() == strip_size);
+      CHECK(list->minimumSize() == list->maximumSize());
+      const auto cell = list->gridSize().width();
+      const auto viewport_width = list->viewport()->width();
+      std::cerr << "curves strip " << list->width() << 'x' << list->height() << ", viewport " << viewport_width
+                << 'x' << list->viewport()->height() << ", cell " << cell << ", dialog " << dialog->width() << 'x'
+                << dialog->height() << '\n';
+      CHECK(cell >= 98 && viewport_width % cell == 0);
+      CHECK(list->viewport()->height() >= list->gridSize().height());
+      CHECK(geometry_in(*list, *dialog).left() >= 0 && geometry_in(*list, *dialog).right() < dialog->width());
+      check_preset_buttons();
+    };
+    check_strip();
+    CHECK(list->width() <= editor->width() && list->width() > editor->width() - list->gridSize().width());
+    dialog->resize(dialog->minimumSizeHint());
+    process_events_for(60);
+    check_strip();
+    dialog->resize(dialog->sizeHint() + QSize(240, 160));
+    process_events_for(60);
+    check_strip();
+    dialog->resize(dialog->sizeHint());
+    process_events_for(60);
     capture_both_schemes(*dialog, "ui_curves_presets_dialog");
 
     // Save a shipped curve as a user preset: it joins the strip and stays selected.
