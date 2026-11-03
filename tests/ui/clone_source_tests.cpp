@@ -13,6 +13,7 @@
 #include "ui/theme_palette.hpp"
 #include <QAction>
 #include <QApplication>
+#include <QButtonGroup>
 #include <QCheckBox>
 #include <QColor>
 #include <QDoubleSpinBox>
@@ -525,12 +526,13 @@ void ui_clone_source_gear_popup_drives_canvas() {
   CHECK(!panel->slot_button(0)->toolTip().contains(QStringLiteral("60")));
   CHECK(menu->isVisible());  // the popup stays open for the next edit
 
-  // On the Healing Brush the transform fields are off.
+  // On the Healing Brush the transform fields are hidden (GitHub issue 596).
   require_action_by_text(window, QStringLiteral("Healing Brush"))->trigger();
   QApplication::processEvents();
   CHECK(canvas->tool() == CanvasTool::Healing);
-  CHECK(!panel->scale_spin()->isEnabled());
-  CHECK(!panel->flip_horizontal_button()->isEnabled() && !panel->flip_vertical_button()->isEnabled());
+  CHECK(panel->scale_spin()->isHidden() && panel->rotation_spin()->isHidden());
+  CHECK(panel->flip_horizontal_button()->isHidden() && panel->flip_vertical_button()->isHidden());
+  CHECK(panel->reset_button()->isHidden());
   menu->close();
   QApplication::processEvents();
 }
@@ -779,13 +781,12 @@ void ui_clone_source_overlay_screenshot() {
   save_image_artifact("ui_clone_source_overlay_in_use", shot.copy(crop));
 }
 
-// The popup with a source set and Aligned off (GitHub issue 515): the "Aligned is off" note
-// wraps under the Offset fields at the width the fields set and the popup is tall enough for
-// it, also in a wide font (the reporter's Linux desktop: the theme pins the size, the family
-// sets the width) and when the note comes and goes while the popup is open. The Offset
-// fields start where Scale's does, X and Y sit beside their fields. The issue shots are the
-// popup in both fonts.
-void ui_clone_source_popup_fits_the_aligned_note() {
+// GitHub issue 574 (second follow-up): the offset's state note ("Aligned is off..." or "Your
+// next stroke sets the offset.") is the tooltip of an info mark right of the X field, not a
+// wrapped line under the fields (issue 515 had to make room for that line). The mark shows
+// only while there is something to say, sits between the X field and "Y:" without touching
+// either, and the popup keeps its height with or without it; in the suite font and a wide one.
+void ui_clone_source_offset_info_mark_carries_the_note() {
   SettingsValueRestorer saved_aligned(QStringLiteral("tools/cloneAligned"));
   const QFont base_font = QApplication::font();
   struct AppFontRestorer {
@@ -810,9 +811,10 @@ void ui_clone_source_popup_fits_the_aligned_note() {
     if (aligned == nullptr || gear == nullptr || menu == nullptr || panel == nullptr) {
       return;
     }
-    auto* note = panel->findChild<QLabel*>(QStringLiteral("cloneSourceOffsetNote"));
-    CHECK(note != nullptr);
-    if (note == nullptr) {
+    auto* info = panel->offset_info_button();
+    CHECK(info != nullptr && info->objectName() == QStringLiteral("cloneSourceOffsetInfoButton"));
+    CHECK(panel->findChild<QLabel*>(QStringLiteral("cloneSourceOffsetNote")) == nullptr);
+    if (info == nullptr) {
       return;
     }
     const auto label_named = [panel](const QString& text) -> QLabel* {
@@ -823,88 +825,102 @@ void ui_clone_source_popup_fits_the_aligned_note() {
       }
       return nullptr;
     };
+    // No label anywhere carries either note any more.
+    const auto no_note_label = [&] {
+      for (auto* label : panel->findChildren<QLabel*>()) {
+        CHECK(!label->text().startsWith(QStringLiteral("Aligned is off")));
+        CHECK(label->text() != QStringLiteral("Your next stroke sets the offset."));
+      }
+    };
     const auto rect_in_panel = [panel](const QWidget* widget) {
       return QRect(widget->mapTo(panel, QPoint(0, 0)), widget->size());
     };
-    const auto check_fits = [&](const char* when) {
+    auto* x_label = label_named(QStringLiteral("X:"));
+    auto* y_label = label_named(QStringLiteral("Y:"));
+    auto* rotation_label = label_named(QStringLiteral("Rotation:"));
+    CHECK(x_label != nullptr && y_label != nullptr && rotation_label != nullptr);
+    if (x_label == nullptr || y_label == nullptr || rotation_label == nullptr) {
+      return;
+    }
+    const auto caption_gap = [&](const QLabel* label, const QRect& field) {
+      const auto text_right = rect_in_panel(label).left() +
+                              (label->alignment() & Qt::AlignRight ? label->width()
+                                                                   : label->fontMetrics().horizontalAdvance(label->text()));
+      return field.left() - text_right;
+    };
+    const auto check_mark = [&](const char* when, const QString& tooltip) {
       QApplication::processEvents();
-      const auto note_rect = rect_in_panel(note);
-      const int needed = note->heightForWidth(note->width());
-      std::printf("  %s (%s), %s: panel %dx%d in menu %dx%d, note %dx%d (needs %d)\n",
-                  wide_font ? "wide font" : "default font",
-                  QFontInfo(note->font()).family().toStdString().c_str(), when, panel->width(), panel->height(),
-                  menu->width(), menu->height(), note->width(), note->height(), needed);
-      CHECK(note->isVisible());
-      CHECK(note->height() >= needed);
-      CHECK(panel->height() >= panel->layout()->totalHeightForWidth(panel->width()));
-      CHECK(rect_in_panel(panel->offset_x_spin()).bottom() < note_rect.top());
-      CHECK(note_rect.bottom() < rect_in_panel(panel->scale_spin()).top());
-      CHECK(QRect(QPoint(0, 0), panel->size()).contains(note_rect));
+      const auto mark = rect_in_panel(info);
+      const auto x_spin = rect_in_panel(panel->offset_x_spin());
+      const auto y_spin = rect_in_panel(panel->offset_y_spin());
+      const auto y_caption = rect_in_panel(y_label);
+      const int y_text_left = y_caption.right() + 1 - y_label->fontMetrics().horizontalAdvance(y_label->text());
+      std::printf("  %s (%s), %s: panel %dx%d in menu %dx%d, mark %d,%d %dx%d, X field ends %d, Y: starts %d\n",
+                  wide_font ? "wide font" : "default font", QFontInfo(info->font()).family().toStdString().c_str(),
+                  when, panel->width(), panel->height(), menu->width(), menu->height(), mark.x(), mark.y(),
+                  mark.width(), mark.height(), x_spin.right(), y_text_left);
+      CHECK(menu->isVisible());
+      CHECK(info->isVisible());
+      CHECK(info->toolTip() == tooltip);
+      CHECK(!info->icon().isNull());
+      no_note_label();
+      // Right of the X field, left of the "Y:" text, on the offset row.
+      CHECK(mark.left() > x_spin.right());
+      CHECK(mark.right() < y_text_left);
+      CHECK(std::abs(mark.center().y() - x_spin.center().y()) <= 1);
+      // The field columns stay as they were (GitHub issue 515).
+      CHECK(x_spin.left() == rect_in_panel(panel->scale_spin()).left());
+      CHECK(y_spin.left() == rect_in_panel(panel->rotation_spin()).left());
+      CHECK(caption_gap(x_label, x_spin) <= 12);
+      CHECK(caption_gap(y_label, y_spin) <= 12);
+      CHECK(caption_gap(rotation_label, rect_in_panel(panel->rotation_spin())) <= 12);
+      CHECK(rect_in_panel(panel->reset_button()).left() == y_spin.left());
+      CHECK(panel->height() >= (panel->layout()->hasHeightForWidth()
+                                    ? panel->layout()->totalHeightForWidth(panel->width())
+                                    : panel->layout()->totalSizeHint().height()));
       CHECK(QRect(QPoint(0, 0), menu->size()).contains(QRect(panel->mapTo(menu, QPoint(0, 0)), panel->size())));
     };
 
+    // No source: nothing to say, no mark.
     aligned->setChecked(true);
+    open_gear_popup(*gear, *menu);
+    CHECK(info->isHidden());
+    const int no_source_height = menu->height();
+    menu->close();
+    QApplication::processEvents();
+
+    // The reporter's state: a source and Aligned off.
     canvas->set_brush_size(30);
     alt_click(*canvas, QPoint(60, 60));
     QApplication::processEvents();
     aligned->setChecked(false);
     QApplication::processEvents();
     open_gear_popup(*gear, *menu);
-    save_window_popup_artifact(wide_font ? "issue515_aligned_off_popup_wide_font" : "issue515_aligned_off_popup",
-                               window, *gear, *menu);
-    CHECK(menu->isVisible());
+    save_window_popup_artifact(wide_font ? "issue574_offset_info_mark_wide_font" : "issue574_offset_info_mark", window,
+                               *gear, *menu);
     CHECK(!panel->offset_x_spin()->isEnabled());
-    CHECK(note->text().startsWith(QStringLiteral("Aligned is off")));
-    check_fits("first open");
+    const auto aligned_off = QStringLiteral("Aligned is off: every stroke starts at the source point.");
+    check_mark("Aligned off", aligned_off);
+    // The mark costs no height: the popup is as tall as with no source.
+    CHECK(menu->height() == no_source_height);
 
-    // Two clean field columns: Offset X under nothing but its caption, lined up with Scale;
-    // Y and Rotation on the second column; each caption right beside its field.
-    auto* x_label = label_named(QStringLiteral("X:"));
-    auto* y_label = label_named(QStringLiteral("Y:"));
-    auto* rotation_label = label_named(QStringLiteral("Rotation:"));
-    CHECK(x_label != nullptr && y_label != nullptr && rotation_label != nullptr);
-    if (x_label != nullptr && y_label != nullptr && rotation_label != nullptr) {
-      const auto x_spin = rect_in_panel(panel->offset_x_spin());
-      const auto y_spin = rect_in_panel(panel->offset_y_spin());
-      CHECK(x_spin.left() == rect_in_panel(panel->scale_spin()).left());
-      CHECK(y_spin.left() == rect_in_panel(panel->rotation_spin()).left());
-      CHECK(x_spin.width() == rect_in_panel(panel->scale_spin()).width());
-      CHECK(rect_in_panel(note).left() == x_spin.left());
-      const auto caption_gap = [&](const QLabel* label, const QRect& field) {
-        const auto text_right = rect_in_panel(label).left() +
-                                (label->alignment() & Qt::AlignRight ? label->width()
-                                                                     : label->fontMetrics().horizontalAdvance(label->text()));
-        return field.left() - text_right;
-      };
-      CHECK(caption_gap(x_label, x_spin) <= 12);
-      CHECK(caption_gap(y_label, y_spin) <= 12);
-      CHECK(caption_gap(rotation_label, rect_in_panel(panel->rotation_spin())) <= 12);
-      CHECK(rect_in_panel(panel->reset_button()).left() == y_spin.left());
-    }
-
-    // An empty slot drops the note and the popup shrinks; back on the set slot it returns.
-    const int tall = menu->height();
+    // An empty slot hides the mark and keeps the height; back on the set slot it returns.
     panel->slot_button(1)->click();
     QApplication::processEvents();
-    CHECK(note->isHidden());
-    CHECK(menu->height() < tall);
+    CHECK(info->isHidden());
+    CHECK(menu->height() == no_source_height);
     panel->slot_button(0)->click();
-    check_fits("note back while open");
-    CHECK(menu->height() == tall);
+    check_mark("mark back while open", aligned_off);
+    // A click shows the text at once too (no hover on pens and touch screens).
+    info->click();
+    QApplication::processEvents();
     menu->close();
     QApplication::processEvents();
 
-    // Closed with Aligned on (the offset note until a stroke sets it), then opened with it
-    // off again.
+    // Aligned on: the offset is set by the next stroke.
     aligned->setChecked(true);
     open_gear_popup(*gear, *menu);
-    CHECK(note->text() == QStringLiteral("Your next stroke sets the offset."));
-    check_fits("Aligned on");
-    menu->close();
-    QApplication::processEvents();
-    aligned->setChecked(false);
-    open_gear_popup(*gear, *menu);
-    check_fits("reopened");
+    check_mark("Aligned on", QStringLiteral("Your next stroke sets the offset."));
     menu->close();
     QApplication::processEvents();
   }
@@ -1342,95 +1358,322 @@ void ui_clone_source_overlay_resize_screenshot() {
   }
 }
 
-// GitHub issue 574 follow-up: a line under the Point and Offset rows (Clear's section) and
-// one under the scale, rotation and flip rows (Reset's section), above the overlay. Each
-// spans the field columns and draws in the menu separator's color.
+// GitHub issue 574 follow-ups: a line under the Point row (Clear's), one under the Offset row
+// and one under the scale, rotation and flip rows (Reset's section), above the overlay. Each
+// spans the field columns and draws in the dialog divider's color, which stands clear of the
+// popup in both schemes (the menu separator's color all but vanished there).
 void ui_clone_source_popup_divides_its_sections() {
   SettingsValueRestorer saved_aligned(QStringLiteral("tools/cloneAligned"));
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const char* scheme_name = scheme == patchy::ui::ColorSchemePreference::Light ? "Light" : "Dark";
+    auto&& [window, canvas] = ShownWindowFixture{};
+    require_action_by_text(window, QStringLiteral("Clone"))->trigger();
+    QApplication::processEvents();
+    auto* aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck"));
+    auto* gear = window.findChild<QToolButton*>(QStringLiteral("cloneSourceOptionsButton"));
+    auto* menu = window.findChild<QMenu*>(QStringLiteral("cloneSourceMenu"));
+    auto* panel = window.findChild<patchy::ui::CloneSourcePanel*>(QStringLiteral("cloneSourcePanel"));
+    CHECK(aligned != nullptr && gear != nullptr && menu != nullptr && panel != nullptr);
+    if (aligned == nullptr || gear == nullptr || menu == nullptr || panel == nullptr) {
+      return;
+    }
+    auto* point_divider = panel->findChild<QFrame*>(QStringLiteral("cloneSourcePointDivider"));
+    auto* offset_divider = panel->findChild<QFrame*>(QStringLiteral("cloneSourceOffsetDivider"));
+    auto* transform_divider = panel->findChild<QFrame*>(QStringLiteral("cloneSourceTransformDivider"));
+    auto* overlay_check = panel->findChild<QCheckBox*>(QStringLiteral("cloneSourceOverlayCheck"));
+    CHECK(point_divider != nullptr && offset_divider != nullptr && transform_divider != nullptr &&
+          overlay_check != nullptr);
+    if (point_divider == nullptr || offset_divider == nullptr || transform_divider == nullptr ||
+        overlay_check == nullptr) {
+      return;
+    }
+    const auto rect_in_panel = [panel](const QWidget* widget) {
+      return QRect(widget->mapTo(panel, QPoint(0, 0)), widget->size());
+    };
+    const auto lowest = [&](std::initializer_list<const QWidget*> widgets) {
+      int bottom = -1;
+      for (const auto* widget : widgets) {
+        if (widget->isVisible()) {
+          bottom = std::max(bottom, rect_in_panel(widget).bottom());
+        }
+      }
+      return bottom;
+    };
+    const auto topmost = [&](std::initializer_list<const QWidget*> widgets) {
+      int top = 100000;
+      for (const auto* widget : widgets) {
+        if (widget->isVisible()) {
+          top = std::min(top, rect_in_panel(widget).top());
+        }
+      }
+      return top;
+    };
+    const auto check_dividers = [&](const char* when) {
+      QApplication::processEvents();
+      const auto point_line = rect_in_panel(point_divider);
+      const auto offset_line = rect_in_panel(offset_divider);
+      const auto transform_line = rect_in_panel(transform_divider);
+      std::printf("  %s, %s: Point line %d,%d %dx%d, Offset line %d,%d, transform line %d,%d\n", scheme_name, when,
+                  point_line.x(), point_line.y(), point_line.width(), point_line.height(), offset_line.x(),
+                  offset_line.y(), transform_line.x(), transform_line.y());
+      CHECK(menu->isVisible());
+      CHECK(point_divider->isVisible() && offset_divider->isVisible() && transform_divider->isVisible());
+      for (const auto* divider : {point_divider, offset_divider, transform_divider}) {
+        CHECK(divider->frameShape() == QFrame::HLine);
+      }
+      for (const auto& line : {point_line, offset_line, transform_line}) {
+        CHECK(line.height() == 1);
+        // From the row captions to the right edge of the second field column.
+        CHECK(line.left() <= rect_in_panel(panel->source_label()).left() - 8);
+        CHECK(line.right() >= rect_in_panel(panel->offset_y_spin()).right());
+      }
+      // Point and Clear, the line, then the Offset row.
+      CHECK(lowest({panel->source_label(), panel->clear_source_button()}) < point_line.top());
+      CHECK(point_line.bottom() < topmost({panel->offset_x_spin(), panel->offset_y_spin(), panel->offset_info_button()}));
+      // Offset, the line, then Scale and Rotation.
+      CHECK(lowest({panel->offset_x_spin(), panel->offset_y_spin(), panel->offset_info_button()}) < offset_line.top());
+      CHECK(offset_line.bottom() < rect_in_panel(panel->scale_spin()).top());
+      CHECK(offset_line.bottom() < rect_in_panel(panel->rotation_spin()).top());
+      // Flip and Reset, the line, then the overlay.
+      CHECK(lowest({panel->flip_horizontal_button(), panel->reset_button()}) < transform_line.top());
+      CHECK(transform_line.bottom() < rect_in_panel(overlay_check).top());
+      // Drawn in the dialog divider's color, unlike the popup around it, and clearly apart
+      // from it: at least 40 levels of lightness either way.
+      const auto shot = panel->grab().toImage();
+      const auto divider_color = patchy::ui::theme().dlg_divider;
+      for (const auto& line : {point_line, offset_line, transform_line}) {
+        const QPoint on_line(line.center().x(), line.top());
+        const auto around = shot.pixelColor(on_line - QPoint(0, 3));
+        CHECK(color_close(shot.pixelColor(on_line), divider_color, 8));
+        CHECK(!color_close(around, divider_color, 8));
+        CHECK(std::abs(divider_color.lightness() - around.lightness()) >= 40);
+      }
+    };
+
+    // No source yet, then the reporter's state: a source with Aligned off.
+    aligned->setChecked(true);
+    open_gear_popup(*gear, *menu);
+    check_dividers("no source");
+    menu->close();
+    QApplication::processEvents();
+    canvas->set_brush_size(30);
+    alt_click(*canvas, QPoint(60, 60));
+    QApplication::processEvents();
+    aligned->setChecked(false);
+    QApplication::processEvents();
+    open_gear_popup(*gear, *menu);
+    save_window_popup_artifact(std::string("issue574_popup_dividers_") + scheme_name, window, *gear, *menu);
+    CHECK(panel->offset_info_button()->isVisible());
+    check_dividers("source set, Aligned off");
+    menu->close();
+    QApplication::processEvents();
+  }
+}
+
+// GitHub issue 574 (second follow-up): Sources 1 to 4 read as buttons. Each is a checkable
+// button in one exclusive group with a visible border and fill; the active source is filled
+// with the accent, in both schemes, and clicking another moves the check.
+void ui_clone_source_slots_read_as_buttons() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    auto&& [window, canvas] = ShownWindowFixture{};
+    require_action_by_text(window, QStringLiteral("Clone"))->trigger();
+    QApplication::processEvents();
+    auto* gear = window.findChild<QToolButton*>(QStringLiteral("cloneSourceOptionsButton"));
+    auto* menu = window.findChild<QMenu*>(QStringLiteral("cloneSourceMenu"));
+    auto* panel = window.findChild<patchy::ui::CloneSourcePanel*>(QStringLiteral("cloneSourcePanel"));
+    CHECK(gear != nullptr && menu != nullptr && panel != nullptr);
+    if (gear == nullptr || menu == nullptr || panel == nullptr) {
+      return;
+    }
+    open_gear_popup(*gear, *menu);
+    CHECK(menu->isVisible());
+    const auto& palette = patchy::ui::theme();
+    for (int slot = 0; slot < patchy::ui::CloneSourcePanel::kSlotCount; ++slot) {
+      auto* button = panel->slot_button(slot);
+      CHECK(button != nullptr);
+      if (button == nullptr) {
+        return;
+      }
+      CHECK(button->isCheckable());
+      CHECK(button->group() != nullptr && button->group()->exclusive());
+      CHECK(button->isChecked() == (slot == canvas->clone_source_slot()));
+      // As tall as the popup's 24 px fields, and wider than tall.
+      CHECK(button->height() == 24);
+      CHECK(button->width() >= button->height());
+    }
+    const auto look = [&](int slot) {
+      auto* button = panel->slot_button(slot);
+      const auto image = button->grab().toImage();
+      const QColor border = image.pixelColor(0, image.height() / 2);
+      const QColor fill = image.pixelColor(3, 3);
+      return std::pair{border, fill};
+    };
+    panel->slot_button(0)->click();
+    QApplication::processEvents();
+    const auto [checked_border, checked_fill] = look(0);
+    const auto [plain_border, plain_fill] = look(2);
+    CHECK(color_close(checked_fill, palette.accent_checked_bg, 8));
+    CHECK(color_close(checked_border, palette.accent_checked_border, 8));
+    CHECK(color_close(plain_fill, palette.button_bg, 8));
+    CHECK(color_close(plain_border, palette.button_border, 8));
+    // The border stands apart from the popup behind it.
+    CHECK(!color_close(plain_border, panel->grab().toImage().pixelColor(2, 2), 8));
+    panel->slot_button(2)->click();
+    QApplication::processEvents();
+    CHECK(canvas->clone_source_slot() == 2);
+    CHECK(panel->slot_button(2)->isChecked() && !panel->slot_button(0)->isChecked());
+    CHECK(color_close(look(2).second, palette.accent_checked_bg, 8));
+    CHECK(color_close(look(0).second, palette.button_bg, 8));
+    panel->slot_button(0)->click();
+    menu->close();
+    QApplication::processEvents();
+  }
+}
+
+// GitHub issue 596: on the Healing Brush, Scale, Rotation, Flip, Reset and their line are
+// hidden (no "apply to the Clone Stamp" note), and the popup shrinks to what is left with no
+// blank band; back on the Clone Stamp they return at the old size. Both while the popup is
+// open (a tool hotkey) and across closing and reopening it.
+void ui_clone_source_healing_hides_transform_rows() {
   auto&& [window, canvas] = ShownWindowFixture{};
   require_action_by_text(window, QStringLiteral("Clone"))->trigger();
   QApplication::processEvents();
-  auto* aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck"));
   auto* gear = window.findChild<QToolButton*>(QStringLiteral("cloneSourceOptionsButton"));
   auto* menu = window.findChild<QMenu*>(QStringLiteral("cloneSourceMenu"));
   auto* panel = window.findChild<patchy::ui::CloneSourcePanel*>(QStringLiteral("cloneSourcePanel"));
-  CHECK(aligned != nullptr && gear != nullptr && menu != nullptr && panel != nullptr);
-  if (aligned == nullptr || gear == nullptr || menu == nullptr || panel == nullptr) {
+  CHECK(gear != nullptr && menu != nullptr && panel != nullptr);
+  if (gear == nullptr || menu == nullptr || panel == nullptr) {
     return;
   }
-  auto* point_divider = panel->findChild<QFrame*>(QStringLiteral("cloneSourcePointDivider"));
   auto* transform_divider = panel->findChild<QFrame*>(QStringLiteral("cloneSourceTransformDivider"));
-  auto* offset_note = panel->findChild<QLabel*>(QStringLiteral("cloneSourceOffsetNote"));
-  auto* transform_note = panel->findChild<QLabel*>(QStringLiteral("cloneSourceTransformNote"));
-  auto* overlay_check = panel->findChild<QCheckBox*>(QStringLiteral("cloneSourceOverlayCheck"));
-  CHECK(point_divider != nullptr && transform_divider != nullptr && offset_note != nullptr &&
-        transform_note != nullptr && overlay_check != nullptr);
-  if (point_divider == nullptr || transform_divider == nullptr || offset_note == nullptr || transform_note == nullptr ||
-      overlay_check == nullptr) {
+  auto* offset_divider = panel->findChild<QFrame*>(QStringLiteral("cloneSourceOffsetDivider"));
+  CHECK(transform_divider != nullptr && offset_divider != nullptr);
+  if (transform_divider == nullptr || offset_divider == nullptr) {
     return;
   }
+  const auto label_named = [panel](const QString& text) -> QLabel* {
+    for (auto* label : panel->findChildren<QLabel*>()) {
+      if (label->text() == text) {
+        return label;
+      }
+    }
+    return nullptr;
+  };
+  auto* scale_label = label_named(QStringLiteral("Scale:"));
+  auto* rotation_label = label_named(QStringLiteral("Rotation:"));
+  auto* flip_label = label_named(QStringLiteral("Flip:"));
+  CHECK(scale_label != nullptr && rotation_label != nullptr && flip_label != nullptr);
+  if (scale_label == nullptr || rotation_label == nullptr || flip_label == nullptr) {
+    return;
+  }
+  const std::vector<QWidget*> transform_widgets{scale_label,
+                                                panel->scale_spin(),
+                                                rotation_label,
+                                                panel->rotation_spin(),
+                                                flip_label,
+                                                panel->flip_horizontal_button(),
+                                                panel->flip_vertical_button(),
+                                                panel->reset_button(),
+                                                transform_divider};
   const auto rect_in_panel = [panel](const QWidget* widget) {
     return QRect(widget->mapTo(panel, QPoint(0, 0)), widget->size());
   };
-  const auto lowest = [&](std::initializer_list<const QWidget*> widgets) {
-    int bottom = -1;
-    for (const auto* widget : widgets) {
-      if (widget->isVisible()) {
-        bottom = std::max(bottom, rect_in_panel(widget).bottom());
-      }
-    }
-    return bottom;
-  };
-  const auto check_dividers = [&](const char* when) {
+  const auto check_tool = [&](bool healing, const char* when) {
     QApplication::processEvents();
-    const auto point_line = rect_in_panel(point_divider);
-    const auto transform_line = rect_in_panel(transform_divider);
-    std::printf("  %s: Point line %d,%d %dx%d, transform line %d,%d %dx%d\n", when, point_line.x(), point_line.y(),
-                point_line.width(), point_line.height(), transform_line.x(), transform_line.y(), transform_line.width(),
-                transform_line.height());
+    const int needed = panel->layout()->hasHeightForWidth() ? panel->layout()->totalHeightForWidth(panel->width())
+                                                            : panel->layout()->totalSizeHint().height();
+    std::printf("  %s: panel %dx%d (needs %d) in menu %dx%d (hint %dx%d)\n", when, panel->width(), panel->height(),
+                needed, menu->width(), menu->height(), menu->sizeHint().width(), menu->sizeHint().height());
     CHECK(menu->isVisible());
-    CHECK(point_divider->isVisible() && transform_divider->isVisible());
-    CHECK(point_divider->frameShape() == QFrame::HLine && transform_divider->frameShape() == QFrame::HLine);
-    for (const auto& line : {point_line, transform_line}) {
-      CHECK(line.height() == 1);
-      // From the row captions to the right edge of the second field column.
-      CHECK(line.left() <= rect_in_panel(panel->source_label()).left() - 8);
-      CHECK(line.right() >= rect_in_panel(panel->offset_y_spin()).right());
+    for (auto* widget : transform_widgets) {
+      CHECK(widget->isVisible() == !healing);
     }
-    // Point, Offset (and its note), then the line, then Scale and Rotation.
-    CHECK(lowest({panel->source_label(), panel->clear_source_button(), panel->offset_x_spin(),
-                  panel->offset_y_spin(), offset_note}) < point_line.top());
-    CHECK(point_line.bottom() < rect_in_panel(panel->scale_spin()).top());
-    CHECK(point_line.bottom() < rect_in_panel(panel->rotation_spin()).top());
-    // Flip and Reset (and the transform note), then the line, then the overlay.
-    CHECK(lowest({panel->flip_horizontal_button(), panel->reset_button(), transform_note}) < transform_line.top());
-    CHECK(transform_line.bottom() < rect_in_panel(overlay_check).top());
-    // Drawn in the menu separator's color, unlike the popup around it.
-    const auto shot = panel->grab().toImage();
-    const QPoint on_line(point_line.center().x(), point_line.top());
-    CHECK(color_close(shot.pixelColor(on_line), patchy::ui::theme().menu_separator, 8));
-    CHECK(!color_close(shot.pixelColor(on_line - QPoint(0, 3)), patchy::ui::theme().menu_separator, 8));
-    const QPoint on_transform_line(transform_line.center().x(), transform_line.top());
-    CHECK(color_close(shot.pixelColor(on_transform_line), patchy::ui::theme().menu_separator, 8));
+    for (auto* label : panel->findChildren<QLabel*>()) {
+      CHECK(!label->text().contains(QStringLiteral("apply to the Clone Stamp")));
+    }
+    // No blank band: the panel is as tall as its rows need and the menu as its hint.
+    CHECK(panel->height() >= needed && panel->height() <= needed + 2);
+    CHECK(menu->size() == menu->sizeHint());
+    // On the Healing Brush the overlay row follows the Offset line directly.
+    if (healing) {
+      const int gap = rect_in_panel(panel->overlay_check()).top() - rect_in_panel(offset_divider).bottom();
+      CHECK(gap > 0 && gap <= 16);
+    }
   };
 
-  // No source yet, then the reporter's state: a source with the offset note shown.
-  aligned->setChecked(true);
-  open_gear_popup(*gear, *menu);
-  check_dividers("no source");
-  menu->close();
-  QApplication::processEvents();
   canvas->set_brush_size(30);
   alt_click(*canvas, QPoint(60, 60));
-  QApplication::processEvents();
-  aligned->setChecked(false);
-  QApplication::processEvents();
   open_gear_popup(*gear, *menu);
-  save_window_popup_artifact("issue574_popup_dividers", window, *gear, *menu);
-  CHECK(offset_note->isVisible());
-  check_dividers("source set, Aligned off");
+  check_tool(false, "Clone Stamp");
+  const auto clone_size = menu->size();
+
+  // Switched while open, both ways.
+  require_action_by_text(window, QStringLiteral("Healing Brush"))->trigger();
+  check_tool(true, "Healing Brush, switched while open");
+  const auto healing_size = menu->size();
+  CHECK(healing_size.height() < clone_size.height());
+  require_action_by_text(window, QStringLiteral("Clone"))->trigger();
+  check_tool(false, "Clone Stamp, switched back while open");
+  CHECK(menu->size() == clone_size);
   menu->close();
   QApplication::processEvents();
+
+  // Switched while closed, both ways.
+  require_action_by_text(window, QStringLiteral("Healing Brush"))->trigger();
+  QApplication::processEvents();
+  open_gear_popup(*gear, *menu);
+  check_tool(true, "Healing Brush, reopened");
+  CHECK(menu->size() == healing_size);
+  menu->close();
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Clone"))->trigger();
+  QApplication::processEvents();
+  open_gear_popup(*gear, *menu);
+  check_tool(false, "Clone Stamp, reopened");
+  CHECK(menu->size() == clone_size);
+  menu->close();
+  QApplication::processEvents();
+}
+
+// The issue shots for GitHub issues 574 and 596: the popup with a source set and Aligned off,
+// on the Clone Stamp in both schemes and on the Healing Brush in Dark.
+void ui_clone_source_popup_issue_shots() {
+  SettingsValueRestorer saved_aligned(QStringLiteral("tools/cloneAligned"));
+  struct Shot {
+    patchy::ui::ColorSchemePreference scheme;
+    const char* tool;
+    const char* name;
+  };
+  for (const auto& shot : {Shot{patchy::ui::ColorSchemePreference::Dark, "Clone", "issue574_popup_clone_dark"},
+                           Shot{patchy::ui::ColorSchemePreference::Light, "Clone", "issue574_popup_clone_light"},
+                           Shot{patchy::ui::ColorSchemePreference::Dark, "Healing Brush", "issue596_popup_healing_dark"}}) {
+    ColorSchemeRestorer restore_scheme(shot.scheme);
+    auto&& [window, canvas] = ShownWindowFixture{};
+    require_action_by_text(window, QStringLiteral("Clone"))->trigger();
+    QApplication::processEvents();
+    auto* aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck"));
+    auto* gear = window.findChild<QToolButton*>(QStringLiteral("cloneSourceOptionsButton"));
+    auto* menu = window.findChild<QMenu*>(QStringLiteral("cloneSourceMenu"));
+    CHECK(aligned != nullptr && gear != nullptr && menu != nullptr);
+    if (aligned == nullptr || gear == nullptr || menu == nullptr) {
+      return;
+    }
+    canvas->set_brush_size(30);
+    alt_click(*canvas, QPoint(60, 60));
+    aligned->setChecked(false);
+    require_action_by_text(window, QString::fromLatin1(shot.tool))->trigger();
+    QApplication::processEvents();
+    if (auto* tool_aligned = window.findChild<QCheckBox*>(QStringLiteral("cloneAlignedCheck")); tool_aligned != nullptr) {
+      tool_aligned->setChecked(false);
+    }
+    open_gear_popup(*gear, *menu);
+    CHECK(menu->isVisible());
+    save_window_popup_artifact(shot.name, window, *gear, *menu);
+    menu->close();
+    QApplication::processEvents();
+  }
 }
 
 }  // namespace
@@ -1456,8 +1699,11 @@ std::vector<patchy::test::TestCase> clone_source_tests() {
        ui_clone_source_no_source_bracket_resize_keeps_brush_outline},
       {"ui_clone_source_alt_click_outside_canvas_clears_source", ui_clone_source_alt_click_outside_canvas_clears_source},
       {"ui_clone_source_flip_buttons_center_on_their_label", ui_clone_source_flip_buttons_center_on_their_label},
-      {"ui_clone_source_popup_fits_the_aligned_note", ui_clone_source_popup_fits_the_aligned_note},
+      {"ui_clone_source_offset_info_mark_carries_the_note", ui_clone_source_offset_info_mark_carries_the_note},
       {"ui_clone_source_popup_reopen_gets_full_height", ui_clone_source_popup_reopen_gets_full_height},
       {"ui_clone_source_popup_divides_its_sections", ui_clone_source_popup_divides_its_sections},
+      {"ui_clone_source_popup_issue_shots", ui_clone_source_popup_issue_shots},
+      {"ui_clone_source_slots_read_as_buttons", ui_clone_source_slots_read_as_buttons},
+      {"ui_clone_source_healing_hides_transform_rows", ui_clone_source_healing_hides_transform_rows},
   };
 }

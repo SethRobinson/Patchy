@@ -2,8 +2,8 @@
 
 // The clone source settings (GitHub issue 424, docs/healing.md "Clone source settings"):
 // four source slots, the active source's point (with Clear, issue 574) and offset, the Clone Stamp's scale,
-// rotation and Flip Horizontal/Vertical with a Reset, and the overlay preview with its
-// opacity. It shows what MainWindow hands it through set_state (signals blocked) and
+// rotation and Flip Horizontal/Vertical with a Reset (hidden on the Healing Brush, issue 596),
+// and the overlay preview with its opacity. It shows what MainWindow hands it through set_state (signals blocked) and
 // reports each edit through its signals; MainWindow applies them to the active canvas.
 // The options bar's gear popup is the only place that shows it.
 
@@ -57,6 +57,8 @@ public:
   [[nodiscard]] QPushButton* clear_source_button() const noexcept { return clear_source_button_; }
   [[nodiscard]] QSpinBox* offset_x_spin() const noexcept { return offset_x_spin_; }
   [[nodiscard]] QSpinBox* offset_y_spin() const noexcept { return offset_y_spin_; }
+  // The info mark right of X whose tooltip says why the offset is off or not set yet (issue 574).
+  [[nodiscard]] QToolButton* offset_info_button() const noexcept { return offset_info_button_; }
   [[nodiscard]] QDoubleSpinBox* scale_spin() const noexcept { return scale_spin_; }
   [[nodiscard]] QDoubleSpinBox* rotation_spin() const noexcept { return rotation_spin_; }
   [[nodiscard]] QToolButton* flip_horizontal_button() const noexcept { return flip_horizontal_button_; }
@@ -96,7 +98,7 @@ private:
   QLabel* offset_y_label_{nullptr};
   QSpinBox* offset_x_spin_{nullptr};
   QSpinBox* offset_y_spin_{nullptr};
-  QLabel* offset_note_{nullptr};
+  QToolButton* offset_info_button_{nullptr};
   QLabel* scale_label_{nullptr};
   QDoubleSpinBox* scale_spin_{nullptr};
   QLabel* rotation_label_{nullptr};
@@ -105,7 +107,7 @@ private:
   QToolButton* flip_horizontal_button_{nullptr};
   QToolButton* flip_vertical_button_{nullptr};
   QPushButton* reset_button_{nullptr};
-  QLabel* transform_note_{nullptr};
+  QWidget* transform_divider_{nullptr};
   QCheckBox* overlay_check_{nullptr};
   QLabel* overlay_opacity_label_{nullptr};
   QSpinBox* overlay_opacity_spin_{nullptr};

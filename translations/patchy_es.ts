@@ -17130,10 +17130,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Voltear vertical</translation>
     </message>
     <message>
-        <source>Scale, rotation and flip apply to the Clone Stamp.</source>
-        <translation>La escala, la rotación y el volteo se aplican al Tampón de clonar.</translation>
-    </message>
-    <message>
         <source>Clear</source>
         <translation>Borrar</translation>
     </message>

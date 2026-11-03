@@ -17130,10 +17130,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Inverter vertical</translation>
     </message>
     <message>
-        <source>Scale, rotation and flip apply to the Clone Stamp.</source>
-        <translation>A escala, a rotação e a inversão valem para o Carimbo.</translation>
-    </message>
-    <message>
         <source>Clear</source>
         <translation>Limpar</translation>
     </message>

@@ -17085,10 +17085,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>수직으로 뒤집기</translation>
     </message>
     <message>
-        <source>Scale, rotation and flip apply to the Clone Stamp.</source>
-        <translation>비율, 회전, 뒤집기는 복제 도장에 적용됩니다.</translation>
-    </message>
-    <message>
         <source>Clear</source>
         <translation>지우기</translation>
     </message>

@@ -17175,10 +17175,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Odbij w pionie</translation>
     </message>
     <message>
-        <source>Scale, rotation and flip apply to the Clone Stamp.</source>
-        <translation>Skala, obrót i odbicie dotyczą Stempla.</translation>
-    </message>
-    <message>
         <source>Clear</source>
         <translation>Wyczyść</translation>
     </message>
