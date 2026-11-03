@@ -86,6 +86,10 @@
 #include <QSlider>
 #include <QStandardItemModel>
 #include <QStyle>
+#include <QSet>
+#include <QSignalBlocker>
+#include <QStyleFactory>
+#include <QStyleOptionComboBox>
 #include <QStyleOptionSlider>
 #include <QTabBar>
 #include <QTabWidget>
@@ -1687,6 +1691,183 @@ void ui_options_menu_buttons_show_the_gear() {
   for (std::size_t i = 0; i < std::min(icon_pixmaps[0].size(), icon_pixmaps[1].size()); ++i) {
     CHECK(icon_pixmaps[0][i] != icon_pixmaps[1][i]);
   }
+}
+
+// The options bar and the open list of `combo` where they sit, cropped to the bar's strip
+// and the list (GitHub issue 613 review shots).
+void save_options_bar_list_artifact(const std::string& name, QWidget& window, QComboBox& combo,
+                                    QWidget& popup_window) {
+  auto* popup = &popup_window;
+  ensure_capture_themed(window);
+  ensure_capture_themed(*popup);
+  const auto origin = window.mapToGlobal(QPoint(0, 0));
+  const QRect popup_rect(popup->mapToGlobal(QPoint(0, 0)) - origin, popup->size());
+  const QRect box(combo.mapTo(&window, QPoint(0, 0)), combo.size());
+  auto* bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+  const int bar_top = bar != nullptr ? bar->mapTo(&window, QPoint(0, 0)).y() : 0;
+  QImage shot(window.size().expandedTo(QSize(popup_rect.right() + 1, popup_rect.bottom() + 1)),
+              QImage::Format_ARGB32_Premultiplied);
+  shot.fill(QColor(96, 96, 104));
+  QPainter painter(&shot);
+  painter.drawPixmap(0, 0, window.grab());
+  painter.drawPixmap(popup_rect.topLeft(), popup->grab());
+  painter.end();
+  const int left = std::max(0, std::min(box.left(), popup_rect.left()) - 220);
+  const int right = std::min(shot.width() - 1, std::max(box.right(), popup_rect.right()) + 120);
+  const int top = std::max(0, std::min(bar_top, popup_rect.top()) - 4);
+  const int bottom = std::min(shot.height() - 1, std::max(box.bottom(), popup_rect.bottom()) + 24);
+  save_image_artifact(name, shot.copy(QRect(QPoint(left, top), QPoint(right, bottom))));
+}
+
+// GitHub issue 613: Fusion (the Linux desktop style) and the macOS style open a combo box's
+// list as a menu placed so the chosen entry covers the box, so with a later entry chosen an
+// options-bar list (the retouch tools' Sample: Current Layer, Current & Below, All Layers)
+// ran up over the bar (the Windows style too). Every list on the bar opens below its box on
+// every style, at least as wide as the box: each combo the bar shows for some tool is opened
+// with its last entry chosen, under Fusion and the platform style, in both schemes. A picker
+// with its own popup (the font picker) must open below too; the custom shape picker is left
+// out: opening it loads the bundled pack into the shape library and seeds its folder
+// settings, which its own tests (ui_custom_shape_picker_*) start without, and it places its
+// popup with position_popup_below. Captures
+// options_bar_list_clone_sample_<style>_<scheme>.
+void ui_options_bar_lists_open_below_their_box() {
+  patchy::ai::set_downloaded_model_directory(std::filesystem::current_path() / "ai-models-none");
+  patchy::ui::configure_automatic_selection_models();
+  // Outlives the windows: a combo still carrying it when a CHECK unwinds must not crash.
+  std::unique_ptr<QStyle> fusion(QStyleFactory::create(QStringLiteral("Fusion")));
+  CHECK(fusion != nullptr);
+  std::vector<std::string> problems;
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    auto&& [window, canvas] = ShownWindowFixture{};
+    window.resize(1366, 738);
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    CHECK(options_bar != nullptr);
+    const auto settle = [] {
+      QApplication::processEvents();
+      process_events_for(20);
+    };
+    // Opens `combo`'s list with its last entry chosen (signals blocked: the bar must not
+    // act on it) under `style` and checks where the list sits.
+    const auto open_last_entry = [&](QComboBox& combo, QStyle* style, const std::string& label,
+                                     const std::string& artifact) {
+      const auto name = label + (style != nullptr ? " (Fusion)" : " (platform style)") + suffix;
+      combo.setStyle(style);
+      const int previous = combo.currentIndex();
+      const auto selectable = [&combo](int row) {
+        const auto index = combo.model()->index(row, combo.modelColumn(), combo.rootModelIndex());
+        return !combo.itemText(row).isEmpty() && (combo.model()->flags(index) & Qt::ItemIsEnabled);
+      };
+      int last = combo.count() - 1;
+      while (last > 0 && !selectable(last)) {
+        --last;
+      }
+      {
+        const QSignalBlocker blocker(&combo);
+        combo.setCurrentIndex(last);
+      }
+      settle();
+      combo.showPopup();
+      settle();
+      // The combo's own list, or the popup of a picker that replaces it.
+      auto* popup = QApplication::activePopupWidget();
+      const bool own_picker = popup != nullptr && popup != combo.view()->window();
+      if (popup == nullptr || !popup->isVisible()) {
+        problems.push_back(name + ": the list did not open");
+      } else {
+        if (popup == combo.view()->window()) {
+          QStyleOptionComboBox option;
+          option.initFrom(&combo);
+          option.editable = combo.isEditable();
+          if (combo.style()->styleHint(QStyle::SH_ComboBox_Popup, &option, &combo) != 0) {
+            problems.push_back(name + ": opens its list as a menu over the box");
+          }
+        }
+        if (!artifact.empty()) {
+          save_options_bar_list_artifact(artifact, window, combo, *popup);
+        }
+        const QRect box(combo.mapToGlobal(QPoint(0, 0)), combo.size());
+        const auto list = popup->geometry();
+        if (list.top() < box.bottom()) {
+          problems.push_back(name + ": the list starts " + std::to_string(box.bottom() - list.top()) +
+                             " px above the box's bottom edge");
+        }
+        if (list.width() < box.width()) {
+          problems.push_back(name + ": the list is narrower than the box");
+        }
+      }
+      combo.hidePopup();
+      if (auto* still_open = QApplication::activePopupWidget(); still_open != nullptr) {
+        still_open->close();
+      }
+      settle();
+      if (own_picker) {
+        // The pickers take a reopen just after a close for the click that closed them.
+        process_events_for(320);
+      }
+      {
+        const QSignalBlocker blocker(&combo);
+        combo.setCurrentIndex(previous);
+      }
+      combo.setStyle(nullptr);
+      settle();
+    };
+
+    // The reported list first, for the review shots: the Clone Stamp's Sample on All Layers.
+    require_action(window, "toolCloneAction")->trigger();
+    settle();
+    auto* sample = window.findChild<QComboBox*>(QStringLiteral("retouchSampleLayersCombo"));
+    CHECK(sample != nullptr && sample->isVisible());
+    CHECK(sample->count() == 3);
+    // The offscreen screen is narrower than the window: bring the box onto it, so the list
+    // opens under it rather than pushed back inside the screen's right edge.
+    const auto window_pos = window.pos();
+    window.move(window_pos - QPoint(sample->mapToGlobal(QPoint(0, 0)).x() - 320, 0));
+    settle();
+    open_last_entry(*sample, fusion.get(), "retouchSampleLayersCombo",
+                    "options_bar_list_clone_sample_fusion" + suffix);
+    open_last_entry(*sample, nullptr, "retouchSampleLayersCombo", "options_bar_list_clone_sample_native" + suffix);
+    window.move(window_pos);
+    settle();
+
+    // Then every list any tool's bar shows.
+    const auto combos = options_bar->findChildren<QComboBox*>();
+    QSet<QComboBox*> opened{sample};
+    if (auto* custom_shape = window.findChild<QComboBox*>(QStringLiteral("customShapeCombo"))) {
+      opened.insert(custom_shape);
+    }
+    for (auto* action : options_bar_test_tool_actions(window)) {
+      action->trigger();
+      settle();
+      for (auto* combo : combos) {
+        if (opened.contains(combo) || !combo->isVisible() || !combo->isEnabled() || combo->count() < 1) {
+          continue;
+        }
+        opened.insert(combo);
+        const auto label = action->objectName().toStdString() + " " +
+                           (combo->objectName().isEmpty() ? std::string("(unnamed combo)")
+                                                          : combo->objectName().toStdString());
+        for (auto* style : {fusion.get(), static_cast<QStyle*>(nullptr)}) {
+          open_last_entry(*combo, style, label, "");
+        }
+      }
+    }
+    std::printf("  %s: opened %d of the bar's %d lists\n", suffix.c_str() + 1, static_cast<int>(opened.size()),
+                static_cast<int>(combos.size()));
+    // A spread of kinds must be among them.
+    for (const auto* name : {"brushModeCombo", "vectorCombineCombo", "eyedropperSampleSizeCombo",
+                             "wandSampleSizeCombo"}) {
+      auto* combo = window.findChild<QComboBox*>(QString::fromLatin1(name));
+      if (combo == nullptr || !opened.contains(combo)) {
+        problems.push_back(std::string(name) + suffix + ": not opened");
+      }
+    }
+  }
+  for (const auto& problem : problems) {
+    std::printf("  [problem] %s\n", problem.c_str());
+  }
+  CHECK(problems.empty());
 }
 
 // The options-bar separator rules (docs/options-bar.md, "Grouping rules"): on every tool's
@@ -11983,6 +12164,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_pick_options_bar_groups_its_controls", ui_pick_options_bar_groups_its_controls},
       {"ui_retouch_options_bars_show_sample_and_mode", ui_retouch_options_bars_show_sample_and_mode},
       {"ui_text_options_bar_groups_its_controls", ui_text_options_bar_groups_its_controls},
+      {"ui_options_bar_lists_open_below_their_box", ui_options_bar_lists_open_below_their_box},
       {"ui_options_bars_follow_the_separator_rules", ui_options_bars_follow_the_separator_rules},
       {"ui_options_bar_separators_sit_centered_in_their_gaps",
        ui_options_bar_separators_sit_centered_in_their_gaps},

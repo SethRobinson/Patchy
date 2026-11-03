@@ -245,6 +245,8 @@ void refresh_cursor_under_pointer();
 // Tests: ui_shape_pattern_list_popup_fits_the_screen, ui_blend_mode_lists_fit_a_small_screen.
 inline constexpr int kLongListPopupRows = 14;
 void use_scrolling_list_popup(QComboBox& combo, int max_rows = kLongListPopupRows);
+// Whether use_scrolling_list_popup already set `combo` up.
+[[nodiscard]] bool uses_scrolling_list_popup(const QComboBox& combo);
 // Moves and shortens `combo`'s open list window `popup` so it sits inside the available
 // geometry of the combo's screen: below the box, else above it, else on the taller side.
 void fit_combo_popup_to_screen(const QComboBox& combo, QWidget& popup);

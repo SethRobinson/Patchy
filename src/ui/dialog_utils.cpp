@@ -2394,6 +2394,10 @@ void fit_combo_popup_to_screen(const QComboBox& combo, QWidget& popup) {
   popup.setGeometry(rect);
 }
 
+bool uses_scrolling_list_popup(const QComboBox& combo) {
+  return combo.property(kScrollingListPopupProperty).toBool();
+}
+
 void use_scrolling_list_popup(QComboBox& combo, int max_rows) {
   combo.setMaxVisibleItems(max_rows);
   if (combo.property(kScrollingListPopupProperty).toBool()) {
