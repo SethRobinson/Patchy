@@ -19008,6 +19008,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Show the folder of companion app manifests on disk</source>
         <translation>在磁盘上显示配套应用清单所在的文件夹</translation>
     </message>
+    <message>
+        <source>Turn text into editable vector outlines</source>
+        <translation>将文字转换为可编辑的矢量轮廓</translation>
+    </message>
+    <message>
+        <source>Outline the letters as a path</source>
+        <translation>将字母轮廓生成路径</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -31988,6 +31996,58 @@ Locked: %1</source>
         <source>About GEGL...</source>
         <translation>关于 GEGL...</translation>
     </message>
+    <message>
+        <source>Convert to Shape</source>
+        <translation>转换为形状</translation>
+    </message>
+    <message>
+        <source>Create Work Path</source>
+        <translation>创建工作路径</translation>
+    </message>
+    <message>
+        <source>Select a text layer first.</source>
+        <translation>请先选择文字图层。</translation>
+    </message>
+    <message>
+        <source>Could not convert &quot;%1&quot; to a shape.</source>
+        <translation>无法将“%1”转换为形状。</translation>
+    </message>
+    <message>
+        <source>Convert to Shapes</source>
+        <translation>转换为形状</translation>
+    </message>
+    <message>
+        <source>Converted the text layer to a shape.</source>
+        <translation>已将文字图层转换为形状。</translation>
+    </message>
+    <message>
+        <source>Converted %1 text layers to shapes.</source>
+        <translation>已将 %1 个文字图层转换为形状。</translation>
+    </message>
+    <message>
+        <source>A missing font was drawn in a substitute.</source>
+        <translation>缺失的字体已用替代字体绘制。</translation>
+    </message>
+    <message>
+        <source>Color emoji have no outlines and were left out.</source>
+        <translation>彩色表情符号没有轮廓，已略去。</translation>
+    </message>
+    <message>
+        <source>Could not outline &quot;%1&quot;.</source>
+        <translation>无法为“%1”生成轮廓。</translation>
+    </message>
+    <message>
+        <source>The text has no outlines.</source>
+        <translation>文字没有轮廓。</translation>
+    </message>
+    <message>
+        <source>Create work path</source>
+        <translation>创建工作路径</translation>
+    </message>
+    <message>
+        <source>Made a work path from the text.</source>
+        <translation>已从文字创建工作路径。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34222,6 +34282,18 @@ Locked: %1</source>
     <message>
         <source>writeImage: could not write %1.</source>
         <translation>writeImage：无法写入 %1。</translation>
+    </message>
+    <message>
+        <source>%1 needs a text layer.</source>
+        <translation>%1 需要文字图层。</translation>
+    </message>
+    <message>
+        <source>convertToShape: the text has no outlines</source>
+        <translation>convertToShape：文字没有轮廓</translation>
+    </message>
+    <message>
+        <source>createWorkPath: the text has no outlines</source>
+        <translation>createWorkPath：文字没有轮廓</translation>
     </message>
 </context>
 <context>

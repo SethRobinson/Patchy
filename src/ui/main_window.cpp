@@ -4182,6 +4182,81 @@ bool text_layer_name_is_auto(const Layer& layer) {
 
 }  // namespace
 
+std::optional<TextLayerOutlines> text_layer_outlines(const Layer& layer, std::string* error) {
+  const auto fail = [error](std::string reason) -> std::optional<TextLayerOutlines> {
+    if (error != nullptr) {
+      *error = std::move(reason);
+    }
+    return std::nullopt;
+  };
+  if (error != nullptr) {
+    error->clear();
+  }
+  if (!layer_is_text(layer)) {
+    return fail("not a text layer");
+  }
+  if (const auto status = layer.metadata().find(kLayerMetadataTextRasterStatus);
+      status != layer.metadata().end() && status->second == "placeholder") {
+    return fail("the layer has no type to convert");
+  }
+  TextLayerOutlines result;
+  OutlineRecordingDevice device;
+  const auto warp = text_warp_from_layer(layer);
+  if (warp.has_value() && !text_warp_is_identity(*warp)) {
+    // The raster path (render_warped_text_pixels_for_layer) resamples the unwarped render,
+    // laid out in plan-local space, through the warp surface over the warp box composed with
+    // the text-local -> document transform. The outlines take the same route point by point.
+    const auto inputs = text_render_inputs_from_layer(layer);
+    if (!inputs.has_value()) {
+      return fail("the text could not be laid out");
+    }
+    const auto text_to_document = warped_text_session_transform(layer);
+    TextWarp effective = *warp;
+    if (!render_warped_text_pixels_for_layer(*inputs, *warp, text_to_document, &effective).has_value()) {
+      return fail("the warp could not be applied");
+    }
+    const auto mesh = generate_text_warp_mesh(effective);
+    const double box_width = effective.bounds_right - effective.bounds_left;
+    const double box_height = effective.bounds_bottom - effective.bounds_top;
+    if (!mesh.has_value() || !(box_width > 0.0) || !(box_height > 0.0)) {
+      return fail("the warp could not be applied");
+    }
+    auto plan = build_text_render_plan(inputs->settings, inputs->color, inputs->max_width, inputs->paragraph_runs,
+                                       inputs->rich_text_runs, std::nullopt, 1.0, QTransform(), 1.0);
+    if (plan.built.document == nullptr) {
+      return fail("the text could not be laid out");
+    }
+    plan.strong_stroke = 0.0;
+    {
+      QPainter painter(&device);
+      draw_text_render_plan(plan, painter);
+    }
+    const auto map = [&](QPointF point) {
+      const auto surface = evaluate_warp_mesh(*mesh, (point.x() - effective.bounds_left) / box_width,
+                                              (point.y() - effective.bounds_top) / box_height);
+      return text_to_document.map(QPointF(surface[0], surface[1]));
+    };
+    for (const auto& paint : device.paints()) {
+      result.paints.push_back(TextOutlinePaint{map_outline_path(paint.path, map, 4.0), paint.color});
+    }
+  } else {
+    std::string note;
+    {
+      QPainter painter(&device);
+      if (!draw_text_layer_to_painter(layer, painter, false, &note)) {
+        return fail(note.empty() ? std::string("the text could not be laid out") : note);
+      }
+    }
+    result.note = std::move(note);
+    result.paints = device.paints();
+  }
+  result.skipped_glyph_images = device.skipped_images();
+  if (result.paints.empty()) {
+    return fail("the text has no outlines");
+  }
+  return result;
+}
+
 // Re-rasterize a text layer through its stored (already composed) transform. Shared by the
 // free-transform commit callback and the Image Size re-render pass, so both land the same
 // pixels for the same transform. Returns false when the layer keeps whatever raster the caller
@@ -6218,7 +6293,17 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
   });
   // A Move-tool right-click on any other active leaf layer (pixel, text, smart
   // object): Free Transform, as the shape section offers it.
-  canvas->set_layer_context_actions_callback([this] { return QList<QAction*>{free_transform_action_}; });
+  // A text layer adds the Type menu's outline commands (GitHub issue 598).
+  canvas->set_layer_context_actions_callback([this] {
+    QList<QAction*> actions{free_transform_action_};
+    const auto& doc = std::as_const(document());
+    const auto active_id = doc.active_layer_id();
+    const auto* active = active_id.has_value() ? doc.find_layer(*active_id) : nullptr;
+    if (active != nullptr && layer_is_text(*active)) {
+      actions.append({nullptr, type_convert_to_shape_action_, type_create_work_path_action_});
+    }
+    return actions;
+  });
   // A path-tool right-click on a path: the Paths panel's commands for that path
   // (GitHub issue 396; docs/vector-commands.md, "Path context menu").
   canvas->set_path_context_actions_callback([this, canvas] {

@@ -19053,6 +19053,14 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Show the folder of companion app manifests on disk</source>
         <translation>Mostra su disco la cartella dei manifest delle app complementari</translation>
     </message>
+    <message>
+        <source>Turn text into editable vector outlines</source>
+        <translation>Trasforma il testo in contorni vettoriali modificabili</translation>
+    </message>
+    <message>
+        <source>Outline the letters as a path</source>
+        <translation>Ricalca le lettere come tracciato</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32072,6 +32080,58 @@ Bloccato: %1</translation>
         <source>About GEGL...</source>
         <translation>Informazioni su GEGL...</translation>
     </message>
+    <message>
+        <source>Convert to Shape</source>
+        <translation>Converti in forma</translation>
+    </message>
+    <message>
+        <source>Create Work Path</source>
+        <translation>Crea tracciato di lavoro</translation>
+    </message>
+    <message>
+        <source>Select a text layer first.</source>
+        <translation>Seleziona prima un livello di testo.</translation>
+    </message>
+    <message>
+        <source>Could not convert &quot;%1&quot; to a shape.</source>
+        <translation>Impossibile convertire &quot;%1&quot; in una forma.</translation>
+    </message>
+    <message>
+        <source>Convert to Shapes</source>
+        <translation>Converti in forme</translation>
+    </message>
+    <message>
+        <source>Converted the text layer to a shape.</source>
+        <translation>Livello di testo convertito in forma.</translation>
+    </message>
+    <message>
+        <source>Converted %1 text layers to shapes.</source>
+        <translation>%1 livelli di testo convertiti in forme.</translation>
+    </message>
+    <message>
+        <source>A missing font was drawn in a substitute.</source>
+        <translation>Un font mancante è stato disegnato con un sostituto.</translation>
+    </message>
+    <message>
+        <source>Color emoji have no outlines and were left out.</source>
+        <translation>Le emoji a colori non hanno contorni e sono state omesse.</translation>
+    </message>
+    <message>
+        <source>Could not outline &quot;%1&quot;.</source>
+        <translation>Impossibile ricavare i contorni di &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>The text has no outlines.</source>
+        <translation>Il testo non ha contorni.</translation>
+    </message>
+    <message>
+        <source>Create work path</source>
+        <translation>Crea tracciato di lavoro</translation>
+    </message>
+    <message>
+        <source>Made a work path from the text.</source>
+        <translation>Tracciato di lavoro creato dal testo.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34307,6 +34367,18 @@ Bloccato: %1</translation>
     <message>
         <source>writeImage: could not write %1.</source>
         <translation>writeImage: impossibile scrivere %1.</translation>
+    </message>
+    <message>
+        <source>%1 needs a text layer.</source>
+        <translation>%1 richiede un livello di testo.</translation>
+    </message>
+    <message>
+        <source>convertToShape: the text has no outlines</source>
+        <translation>convertToShape: il testo non ha contorni</translation>
+    </message>
+    <message>
+        <source>createWorkPath: the text has no outlines</source>
+        <translation>createWorkPath: il testo non ha contorni</translation>
     </message>
 </context>
 <context>

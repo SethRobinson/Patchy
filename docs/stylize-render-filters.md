@@ -108,8 +108,8 @@ re-pinned deliberately.
   colors: `FilterRegistry::normalize` keeps them, `scale` scales them with the preview proxy,
   Last Filter re-reads the current path, and recipes and Saved Looks keep none. Without a path
   the dialog shows `filterDialogNotice` and OK refuses with a status message; the kernel itself
-  draws nothing. Patchy has no Type > Create Work Path: to burn text, Ctrl-click the text
-  layer's thumbnail and use Make Work Path from Selection.
+  draws nothing. To burn text, use Type > Create Work Path on the text layer
+  ([text-outlines.md](text-outlines.md)), which makes the work path from its glyph outlines.
 - Cost: the noise fields cover only the box the tongues, smoke and sparks reach; the dialog
   preview runs on the bounded proxy.
 

@@ -19008,6 +19008,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Show the folder of companion app manifests on disk</source>
         <translation>디스크에서 컴패니언 앱 매니페스트 폴더를 표시합니다</translation>
     </message>
+    <message>
+        <source>Turn text into editable vector outlines</source>
+        <translation>텍스트를 편집 가능한 벡터 윤곽선으로 변환</translation>
+    </message>
+    <message>
+        <source>Outline the letters as a path</source>
+        <translation>글자 윤곽선을 패스로 만들기</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -31988,6 +31996,58 @@ Locked: %1</source>
         <source>About GEGL...</source>
         <translation>GEGL 정보...</translation>
     </message>
+    <message>
+        <source>Convert to Shape</source>
+        <translation>모양으로 변환</translation>
+    </message>
+    <message>
+        <source>Create Work Path</source>
+        <translation>작업 패스 만들기</translation>
+    </message>
+    <message>
+        <source>Select a text layer first.</source>
+        <translation>먼저 텍스트 레이어를 선택하세요.</translation>
+    </message>
+    <message>
+        <source>Could not convert &quot;%1&quot; to a shape.</source>
+        <translation>&quot;%1&quot;을(를) 모양으로 변환할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Convert to Shapes</source>
+        <translation>모양으로 변환</translation>
+    </message>
+    <message>
+        <source>Converted the text layer to a shape.</source>
+        <translation>텍스트 레이어를 모양으로 변환했습니다.</translation>
+    </message>
+    <message>
+        <source>Converted %1 text layers to shapes.</source>
+        <translation>텍스트 레이어 %1개를 모양으로 변환했습니다.</translation>
+    </message>
+    <message>
+        <source>A missing font was drawn in a substitute.</source>
+        <translation>없는 글꼴은 대체 글꼴로 그렸습니다.</translation>
+    </message>
+    <message>
+        <source>Color emoji have no outlines and were left out.</source>
+        <translation>컬러 이모지는 윤곽선이 없어 제외했습니다.</translation>
+    </message>
+    <message>
+        <source>Could not outline &quot;%1&quot;.</source>
+        <translation>&quot;%1&quot;의 윤곽선을 만들 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>The text has no outlines.</source>
+        <translation>텍스트에 윤곽선이 없습니다.</translation>
+    </message>
+    <message>
+        <source>Create work path</source>
+        <translation>작업 패스 만들기</translation>
+    </message>
+    <message>
+        <source>Made a work path from the text.</source>
+        <translation>텍스트에서 작업 패스를 만들었습니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34222,6 +34282,18 @@ Locked: %1</source>
     <message>
         <source>writeImage: could not write %1.</source>
         <translation>writeImage: %1을(를) 쓸 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>%1 needs a text layer.</source>
+        <translation>%1에는 텍스트 레이어가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>convertToShape: the text has no outlines</source>
+        <translation>convertToShape: 텍스트에 윤곽선이 없습니다</translation>
+    </message>
+    <message>
+        <source>createWorkPath: the text has no outlines</source>
+        <translation>createWorkPath: 텍스트에 윤곽선이 없습니다</translation>
     </message>
 </context>
 <context>

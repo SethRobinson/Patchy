@@ -138,7 +138,7 @@ Read these before acting in the named area:
 - **Themes (.patchytheme files, packages, ThemeManager apply):** [theme-files.md](docs/theme-files.md) over [ui-conventions.md](docs/ui-conventions.md)'s Dark/Light; bundled: [bundled-themes.md](docs/bundled-themes.md).
 - **Layer-style and pattern presets:** [style-presets.md](docs/style-presets.md).
 - **Gradients and GRD:** [gradients.md](docs/gradients.md).
-- **Text tool, Character panel and Paragraph panel:** [text-tool.md](docs/text-tool.md), text inside shapes in [area-text.md](docs/area-text.md), with the Photoshop layout/measurement calibration in [text-render-calibration.md](docs/text-render-calibration.md).
+- **Text tool, Character panel and Paragraph panel:** [text-tool.md](docs/text-tool.md), text inside shapes in [area-text.md](docs/area-text.md), Convert to Shape and Create Work Path in [text-outlines.md](docs/text-outlines.md) (glyph outlines, never a trace), with the Photoshop layout/measurement calibration in [text-render-calibration.md](docs/text-render-calibration.md).
 - **Photoshop's Txt2 text engine block:** [txt2.md](docs/txt2.md), read before any Txt2, text-run or list-style work. Photoshop trusts Txt2 over the TySh: a new TySh key needs its Txt2 twin. Vertical type and paragraph direction are in both text docs.
 - **Bundled, wasm-aliased and user-added fonts:** [fonts.md](docs/fonts.md).
 - **Selection tools** *(legal)*: [selection-tools.md](docs/selection-tools.md). ML Select Subject and Object Selection: [ai-selection.md](docs/ai-selection.md); one prompt per solve, no negative points or mask feedback. Select Subject/Background and Remove Background are held back (CMake `PATCHY_ENABLE_SELECT_SUBJECT`, default off) pending patent review of US 12051225.

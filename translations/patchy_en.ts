@@ -19036,6 +19036,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Show the folder of companion app manifests on disk</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Turn text into editable vector outlines</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Outline the letters as a path</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -31991,6 +31999,58 @@ Locked: %1</source>
         <source>About GEGL...</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Convert to Shape</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Create Work Path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a text layer first.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not convert &quot;%1&quot; to a shape.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Convert to Shapes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Converted the text layer to a shape.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Converted %1 text layers to shapes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A missing font was drawn in a substitute.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color emoji have no outlines and were left out.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not outline &quot;%1&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The text has no outlines.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Create work path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Made a work path from the text.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34225,6 +34285,18 @@ Locked: %1</source>
     </message>
     <message>
         <source>writeImage: could not write %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 needs a text layer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>convertToShape: the text has no outlines</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>createWorkPath: the text has no outlines</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

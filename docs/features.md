@@ -12,8 +12,8 @@
 - Non-destructive adjustment layers (Levels, Curves, Hue/Saturation, Color Balance, Brightness/Contrast, Invert, Posterize, Threshold, Exposure, Channel Mixer, Photo Filter, Gradient Map, Black & White, Color Lookup (.cube, .3dl or embedded), Selective Color, and Vibrance) with live preview, editable settings, native PSD data, presets with .acv, .ahu, .alv and .blw import/export; each also applies from Image > Adjustments
 - One-step Image > Adjustments with no dialog: Invert (Ctrl+I), Auto Tone, Auto Contrast, Auto Color and Auto All
 - Smart Objects: place or convert layers to embedded or linked smart objects, edit or replace their contents, transform them non-destructively, and build editable native Smart Filter stacks (blur, sharpen, noise, distort, stylize, pixelate and render filters plus Image > Adjustments commands) with paintable shared masks and per-filter blending
-- Photoshop-compatible layer style, pattern and gradient preset libraries with .asl, .pat and .grd import/export, 39 built-in styles, and 20 bundled CC0 photo textures; Edit > Presets (or Preferences) opens all managers, Shapes Manager (.csh, grids, resizable picker, 878 game-icons.net shapes)
-- Continuous long shadows for type and shapes. This Patchy-specific layer-style setting falls back to a normal drop shadow in Photoshop; see the [example](screenshots.md).
+- Photoshop-compatible layer style, pattern and gradient preset libraries with .asl, .pat and .grd import/export, 39 built-in styles, and 20 bundled CC0 photo textures; Edit > Presets opens all managers, Shapes Manager (.csh, grids, resizable picker, 878 game-icons.net shapes)
+- Continuous long shadows for type and shapes. Photoshop shows a normal drop shadow instead; see the [example](screenshots.md).
 - Warp Transform tool and Warp Text with all 15 Photoshop warp styles and live preview
 
 ## Painting, selections, and retouching
@@ -42,10 +42,11 @@
 
 - Vector tools: Pen paths, shape layers (Rectangle, Ellipse, Line, Polygon, Custom Shape) with solid, gradient or pattern paint, editable dash and stroke presets with offsets, path-edited vector masks, point edits (add by click, break, join, weld or merge by drag, delete segment), Merge Shapes (overlapping ones to one outline), per-shape cut, copy, paste, color, align, new layer, editable radius, sides, star inset, a Paths panel (fill, stroke, selection), switchable fill layers, in PSDs Photoshop opens
 - Dynamic Vector Preview keeps shapes and vector masks sharp at any zoom. Merge Layers keeps vectors and bitmap runs apart, merges within groups or makes a merged copy (Ctrl+Alt+E: selected layers only). Merge Visible bakes a layer's mask or effects
-- Trace Image to Shapes: turns a pixel layer into editable shape layers, one per color, with Illustrator-style presets, color, gray and black-and-white modes, abutting or overlapping shapes, noise removal and a live preview
+- Trace Image to Shapes: turns a pixel layer into editable shape layers, one per color, with presets, color, gray and black-and-white modes, abutting or overlapping shapes, noise removal and a live preview
 - Point text, paragraph (box) text and area text that flows inside a closed shape or path, saved as native Photoshop text frames
 - Rich text with per-run color, font, size and style, a searchable font picker (recent fonts, style/language filters), stand-ins for missing fonts, and Character controls (leading, tracking, glyph scale, caps, super/subscript, underline, strikethrough, OpenType features) that edit selected layers
-- Paragraph alignment and justification, first-line and left/right indents, spacing before and after paragraphs, vertical text, and left-to-right or right-to-left paragraph direction
+- Paragraph alignment and justification, first-line and left/right indents, spacing before and after paragraphs, vertical text, and left-to-right or right-to-left paragraphs
+- Type > Convert to Shape and Create Work Path turn any text, warped too, into vector outlines
 
 ## Pixel art and game assets
 

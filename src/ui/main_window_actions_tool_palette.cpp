@@ -1936,6 +1936,23 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   register_hotkey(resolve_fonts_action, "type.resolve_missing_fonts");
   connect(resolve_fonts_action, &QAction::triggered, this, [this] { show_resolve_missing_fonts_dialog(); });
   register_document_action(resolve_fonts_action);
+  // Text as vector outlines (GitHub issue 598; docs/text-tool.md, "Convert to Shape"). The
+  // Layers panel's text-layer menu and the Move tool's canvas menu share these actions.
+  ctx.type_menu->addSeparator();
+  type_convert_to_shape_action_ = ctx.type_menu->addAction(QString());
+  bind_action_text(type_convert_to_shape_action_, QT_TR_NOOP("Convert to Shape"));
+  type_convert_to_shape_action_->setObjectName(QStringLiteral("typeConvertToShapeAction"));
+  type_convert_to_shape_action_->setMenuRole(QAction::NoRole);
+  register_hotkey(type_convert_to_shape_action_, "type.convert_to_shape");
+  connect(type_convert_to_shape_action_, &QAction::triggered, this, [this] { convert_text_layers_to_shapes(); });
+  register_document_action(type_convert_to_shape_action_);
+  type_create_work_path_action_ = ctx.type_menu->addAction(QString());
+  bind_action_text(type_create_work_path_action_, QT_TR_NOOP("Create Work Path"));
+  type_create_work_path_action_->setObjectName(QStringLiteral("typeCreateWorkPathAction"));
+  type_create_work_path_action_->setMenuRole(QAction::NoRole);
+  register_hotkey(type_create_work_path_action_, "type.create_work_path");
+  connect(type_create_work_path_action_, &QAction::triggered, this, [this] { create_work_path_from_text(); });
+  register_document_action(type_create_work_path_action_);
 
   // The color well and Quick Mask live in a footer pinned to the bar's bottom,
   // outside the toolbar layout, so they never fold into the extension and stay
