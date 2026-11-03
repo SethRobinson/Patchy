@@ -319,11 +319,13 @@ AdjustmentPresetButtons::AdjustmentPresetButtons(AdjustmentPresetKind kind, cons
 
 QSize AdjustmentPresetButtons::row_size() const {
   // Read when the layout asks, after the style sheet has polished the buttons.
-  int width = 0;
+  int width = button_width_;
   int height = 0;
   for (const auto* button : {save_, delete_, import_, export_}) {
     const auto hint = button->sizeHint();
-    width = std::max(width, hint.width());
+    if (button_width_ == 0) {
+      width = std::max(width, hint.width());
+    }
     height = std::max(height, hint.height());
   }
   const auto spacing = layout() != nullptr ? layout()->spacing() : 0;
@@ -336,6 +338,18 @@ QSize AdjustmentPresetButtons::sizeHint() const {
 
 QSize AdjustmentPresetButtons::minimumSizeHint() const {
   return arrangement_ == Arrangement::Row ? row_size() : QWidget::minimumSizeHint();
+}
+
+void AdjustmentPresetButtons::set_button_width(int width) {
+  for (const auto* button : {save_, delete_, import_, export_}) {
+    width = std::max(width, button->sizeHint().width());
+  }
+  button_width_ = width;
+  for (auto* button : {save_, delete_, import_, export_}) {
+    button->setSizePolicy(QSizePolicy::Fixed, button->sizePolicy().verticalPolicy());
+    button->setFixedWidth(width);
+  }
+  updateGeometry();
 }
 
 void AdjustmentPresetButtons::refresh() {
