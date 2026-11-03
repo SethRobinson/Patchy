@@ -12699,10 +12699,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Certains calques de texte n&apos;ont pas pu être lus comme du texte ; ils ont donc été ouverts comme calques de pixels.</translation>
     </message>
     <message>
-        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
-        <translation>Certains effets de calque de GIMP n&apos;ont pas d&apos;équivalent dans Patchy et n&apos;ont pas été appliqués ; ces calques montrent leurs pixels sans l&apos;effet.</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>Les calques liés de GIMP ont été ouverts comme calques de pixels ; ils ne suivent plus leurs fichiers liés.</translation>
     </message>
@@ -12721,10 +12717,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
         <translation>Certains calques n&apos;apparaissent que là où se trouve le calque en dessous, comme GIMP les compose ; ils ont été ouverts comme masques d&apos;écrêtage sur celui-ci.</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>Les effets de calque de GIMP que Patchy sait reproduire (Flou gaussien et filtres de couleur comme Niveaux, Teinte-Saturation et Désaturer) ont été appliqués aux pixels de leurs calques.</translation>
     </message>
     <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
@@ -14957,6 +14949,15 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Feather radius</source>
         <translation>Rayon du contour progressif</translation>
+    </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
+        <translation>Les effets de calque de GIMP que Patchy sait reproduire (Flou gaussien, filtres de couleur comme Niveaux et Teinte-Saturation, et les filtres GEGL fournis avec Patchy, comme Masque flou, Bloom et Bruit) ont été appliqués aux pixels de leurs calques.</translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their pixels without them.</source>
+        <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
+        <translation>Certains effets de calque de GIMP que Patchy ne sait pas reproduire ont été omis (%1) ; ces calques montrent leurs pixels sans eux.</translation>
     </message>
 </context>
 <context>

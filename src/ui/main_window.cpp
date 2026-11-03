@@ -157,6 +157,9 @@
 #include "ui/wasm_event_guard.hpp"
 #include "ui/wasm_memory_telemetry.hpp"
 #endif
+#ifndef Q_OS_WASM
+#include "ui/gegl_filters.hpp"
+#endif
 #include "ui/document_float_window.hpp"
 #include "ui/font_picker.hpp"
 #include "ui/hotkey_editor.hpp"
@@ -4597,6 +4600,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   });
 #endif
 #ifndef Q_OS_WASM
+  // GIMP files bake their layer effects through Patchy's GEGL (docs/xcf.md, "Layer effects").
+  install_xcf_effect_runner();
   // The GEGL filter scan (docs/gegl-filters.md) reuses its cached list unless GEGL or the
   // helper changed; like the legacy scan it never delays the first paint. Offscreen runs
   // (the UI tests, --headless) scan on first use instead (ensure_gegl_filters_scanned).

@@ -12664,10 +12664,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>部分文字圖層無法作為文字讀取，因此已作為像素圖層開啟。</translation>
     </message>
     <message>
-        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
-        <translation>部分 GIMP 圖層效果在 Patchy 中沒有對應功能，未予套用；這些圖層顯示未加效果的像素。</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>GIMP 連結圖層已作為像素圖層開啟，不再跟隨所連結的檔案。</translation>
     </message>
@@ -12686,10 +12682,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
         <translation>部分圖層只在其下方圖層所在之處顯示（與 GIMP 的合成方式一致），已作為該圖層的剪裁遮色片開啟。</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>Patchy 能夠重現的 GIMP 圖層效果（高斯模糊，以及色階、色相-飽和度、去色等顏色濾鏡）已套用到其圖層的像素上。</translation>
     </message>
     <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
@@ -14912,6 +14904,15 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Feather radius</source>
         <translation>羽化半徑</translation>
+    </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
+        <translation>Patchy 能夠重現的 GIMP 圖層效果（高斯模糊、色階和色相-飽和度等顏色濾鏡，以及 Patchy 內含的 GEGL 濾鏡，如遮色片銳利化、泛光和雜訊）已套用到其圖層的像素上。</translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their pixels without them.</source>
+        <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
+        <translation>部分 Patchy 無法重現的 GIMP 圖層效果已略過（%1）；這些圖層顯示未加這些效果的像素。</translation>
     </message>
 </context>
 <context>

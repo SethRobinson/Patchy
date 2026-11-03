@@ -12734,10 +12734,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Некоторые текстовые слои не удалось прочитать как текст, поэтому они открыты как пиксельные слои.</translation>
     </message>
     <message>
-        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
-        <translation>Некоторые эффекты слоёв GIMP не имеют аналога в Patchy и не применены; эти слои показывают свои пиксели без эффекта.</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>Связанные слои GIMP открыты как пиксельные слои; они больше не следуют за связанными файлами.</translation>
     </message>
@@ -12756,10 +12752,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
         <translation>Некоторые слои видны только там, где есть слой под ними, как их составляет GIMP; они открыты как обтравочные маски на нём.</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>Эффекты слоя GIMP, которые Patchy может воспроизвести («Гауссово размытие» и цветовые фильтры, такие как «Уровни», «Тон-Насыщенность» и «Обесцвечивание»), применены к пикселям их слоёв.</translation>
     </message>
     <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
@@ -15002,6 +14994,15 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Feather radius</source>
         <translation>Радиус растушевки</translation>
+    </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
+        <translation>Эффекты слоя GIMP, которые Patchy может воспроизвести («Гауссово размытие», цветовые фильтры, такие как «Уровни» и «Тон-Насыщенность», и фильтры GEGL, входящие в Patchy, например «Нерезкая маска», «Свечение» и «Шум»), применены к пикселям их слоёв.</translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their pixels without them.</source>
+        <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
+        <translation>Некоторые эффекты слоёв GIMP, которые Patchy не может воспроизвести, пропущены (%1); эти слои показывают свои пиксели без них.</translation>
     </message>
 </context>
 <context>

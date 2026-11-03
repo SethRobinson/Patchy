@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -33,6 +34,35 @@ namespace patchy::xcf {
 // The untranslated notice a read gives when text layers were painted on in GIMP; the open
 // path replaces it when it turns them into text (docs/xcf.md, "Text layers").
 [[nodiscard]] const char* painted_text_layers_notice() noexcept;
+
+// GIMP 3 layer effects (GEGL filters stored on a layer) that the reader has no code of its
+// own for run through an effect runner when one is set (docs/xcf.md, "Layer effects (GIMP 3
+// filters)"): the app sets one that runs Patchy's own GEGL. The reader picks the effects from
+// its table (effect_runner_operations) and passes each stored argument by name with the
+// helper's setting kind: 'i' int, 'u' unsigned (seeds), 'd' number, 'b' boolean (0 or 1),
+// 'e' enum value, 'c' color ("r g b a", display-encoded sRGB, 0..1).
+struct EffectSetting {
+  std::string name;
+  char kind{'d'};
+  std::string value;
+};
+struct EffectRun {
+  std::string operation;  // "gegl:bloom"
+  std::vector<EffectSetting> settings;
+};
+// Runs the operation on `pixels` (RGBA at the document's depth: display-encoded 8 and 16
+// bits, linear 32-bit floats) in place. Returns false, leaving the pixels alone, when it
+// cannot. Called from the thread that reads the file.
+using EffectRunner = std::function<bool(const EffectRun&, PixelBuffer& pixels)>;
+// Sets (or, with an empty function, clears) the process-wide runner.
+void set_effect_runner(EffectRunner runner);
+[[nodiscard]] bool has_effect_runner();
+// The GIMP effect operations the reader hands to the runner.
+[[nodiscard]] std::vector<std::string> effect_runner_operations();
+// The untranslated notice naming the GIMP layer effects a read left out: the
+// prefix, then the names joined by ", ", then the suffix (the UI translates it whole).
+[[nodiscard]] const char* skipped_effects_notice_prefix() noexcept;
+[[nodiscard]] const char* skipped_effects_notice_suffix() noexcept;
 
 class DocumentIo {
 public:

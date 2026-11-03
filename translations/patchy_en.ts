@@ -12683,10 +12683,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -12704,10 +12700,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -14939,6 +14931,15 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Feather radius</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their pixels without them.</source>
+        <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
         <translation type="unfinished"></translation>
     </message>
 </context>

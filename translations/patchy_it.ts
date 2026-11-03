@@ -12699,10 +12699,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Alcuni livelli di testo non sono stati letti come testo, quindi sono stati aperti come livelli di pixel.</translation>
     </message>
     <message>
-        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
-        <translation>Alcuni effetti di livello di GIMP non hanno un equivalente in Patchy e non sono stati applicati; quei livelli mostrano i loro pixel senza l&apos;effetto.</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>I livelli collegati di GIMP sono stati aperti come livelli di pixel; non seguono più i file collegati.</translation>
     </message>
@@ -12721,10 +12717,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
         <translation>Alcuni livelli compaiono solo dove c&apos;è il livello sottostante, come li compone GIMP; sono stati aperti come maschere di ritaglio su di esso.</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>Gli effetti di livello di GIMP che Patchy sa riprodurre (Sfocatura gaussiana e filtri di colore come Livelli, Tonalità-Saturazione e Desatura) sono stati applicati ai pixel dei rispettivi livelli.</translation>
     </message>
     <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
@@ -14957,6 +14949,15 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Feather radius</source>
         <translation>Raggio sfumatura</translation>
+    </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
+        <translation>Gli effetti di livello di GIMP che Patchy sa riprodurre (Sfocatura gaussiana, filtri di colore come Livelli e Tonalità-Saturazione, e i filtri GEGL inclusi in Patchy, come Maschera di contrasto, Bagliore e Rumore) sono stati applicati ai pixel dei rispettivi livelli.</translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their pixels without them.</source>
+        <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
+        <translation>Alcuni effetti di livello di GIMP che Patchy non sa riprodurre sono stati tralasciati (%1); quei livelli mostrano i loro pixel senza di essi.</translation>
     </message>
 </context>
 <context>

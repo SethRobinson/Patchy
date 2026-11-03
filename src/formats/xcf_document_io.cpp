@@ -16,6 +16,7 @@
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cctype>
@@ -26,6 +27,8 @@
 #include <future>
 #include <limits>
 #include <map>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <set>
 #include <string_view>
@@ -131,6 +134,7 @@ enum : std::uint32_t {
   kPropFloatColor = 38,
   kPropFilterRegion = 44,
   kPropFilterArgument = 45,
+  kPropFilterClip = 46,
   kPropVectorLayer = 47,
   kPropLinkLayer = 48,
 };
@@ -476,6 +480,7 @@ struct EffectRecord {
   std::uint32_t mode{28};        // PROP_MODE: how the filter's result mixes with the layer
   std::int32_t blend_space{0};   // PROP_BLEND_SPACE, 0 or negative for Auto
   std::uint32_t region{1};  // 0: the selection at the time (the mask below), 1: the whole drawable
+  bool adjust{false};       // FILTER_CLIP 0 (Adjust): the result may reach past the layer's bounds
   std::vector<EffectArgument> arguments;
   std::uint64_t mask{0};    // a channel record: where the effect applies
 };
@@ -648,6 +653,9 @@ struct PathRecord {
         break;
       case kPropFilterRegion:
         effect.region = payload_u32(reader, property, 1);
+        break;
+      case kPropFilterClip:
+        effect.adjust = payload_u32(reader, property, 1) == 0;
         break;
       case kPropMode:
         effect.mode = payload_u32(reader, property, 28);
@@ -1593,7 +1601,6 @@ enum class Notice : std::uint8_t {
   FloatingDropped,
   TextModified,
   TextUnreadable,
-  EffectsNotApplied,
   VectorLayers,
   LinkLayers,
   DepthNarrowedForModes,
@@ -1607,6 +1614,11 @@ enum class Notice : std::uint8_t {
   TextOutlineRedrawn,
   TextOutlineKept,
 };
+
+// The skipped-effects notice is built from these around the effect names
+// (skipped_effects_notice_prefix); the UI translates it as one sentence.
+constexpr char kSkippedEffectsPrefix[] = "Some GIMP layer effects Patchy cannot reproduce were left out (";
+constexpr char kSkippedEffectsSuffix[] = "); those layers show their pixels without them.";
 
 [[nodiscard]] const char* notice_text(Notice notice) {
   switch (notice) {
@@ -1645,11 +1657,6 @@ enum class Notice : std::uint8_t {
           "QObject",
           "Some text layers have a GIMP outline drawn with a pattern or dashes, which a Stroke effect cannot show, so "
           "they opened as pixel layers.");
-    case Notice::EffectsNotApplied:
-      return PATCHY_TRANSLATE_NOOP(
-          "QObject",
-          "Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels "
-          "without the effect.");
     case Notice::VectorLayers:
       return PATCHY_TRANSLATE_NOOP(
           "QObject",
@@ -1678,8 +1685,9 @@ enum class Notice : std::uint8_t {
     case Notice::EffectsBaked:
       return PATCHY_TRANSLATE_NOOP(
           "QObject",
-          "GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation "
-          "and Desaturate) were applied to their layers' pixels.");
+          "GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and "
+          "the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers' "
+          "pixels.");
     case Notice::EraseAsMask:
       return PATCHY_TRANSLATE_NOOP(
           "QObject",
@@ -1699,8 +1707,45 @@ enum class Notice : std::uint8_t {
 
 }  // namespace
 
+namespace {
+
+std::mutex& effect_runner_mutex() {
+  static std::mutex mutex;
+  return mutex;
+}
+
+std::shared_ptr<const EffectRunner>& effect_runner_slot() {
+  static std::shared_ptr<const EffectRunner> runner;
+  return runner;
+}
+
+[[nodiscard]] std::shared_ptr<const EffectRunner> current_effect_runner() {
+  const std::lock_guard lock(effect_runner_mutex());
+  return effect_runner_slot();
+}
+
+}  // namespace
+
+void set_effect_runner(EffectRunner runner) {
+  auto next = runner ? std::make_shared<const EffectRunner>(std::move(runner)) : nullptr;
+  const std::lock_guard lock(effect_runner_mutex());
+  effect_runner_slot() = std::move(next);
+}
+
+bool has_effect_runner() {
+  return current_effect_runner() != nullptr;
+}
+
 const char* painted_text_layers_notice() noexcept {
   return notice_text(Notice::TextModified);
+}
+
+const char* skipped_effects_notice_prefix() noexcept {
+  return kSkippedEffectsPrefix;
+}
+
+const char* skipped_effects_notice_suffix() noexcept {
+  return kSkippedEffectsSuffix;
 }
 
 namespace {
@@ -1726,6 +1771,10 @@ struct Build {
   std::set<LayerId> erasers;
   // The image's paths by tattoo, for vector layers.
   std::unordered_map<std::uint32_t, const PathRecord*> paths_by_tattoo;
+  // Names of the layer effects left out, for the notice.
+  std::set<std::string> skipped_effects;
+  // The effect runner for this read (effect_runner at the start), if any.
+  std::shared_ptr<const EffectRunner> runner;
 };
 
 // The composite mode a layer renders with: PROP_COMPOSITE_MODE's absolute value (a negative
@@ -2603,6 +2652,287 @@ void bake_point_operation(Layer& layer, const EffectRecord& effect, const PixelB
   return std::nullopt;
 }
 
+// --- effects run through the effect runner (Patchy's GEGL) --------------------------------
+//
+// GIMP stores a GEGL filter's arguments under GEGL's own property names, so an operation in
+// this table runs with its arguments passed through by name and type (effect_run). Each
+// entry was checked against GIMP 3.2's render of test-fixtures/xcf/gegl-effects.xcf
+// (scripts/dev/xcf/make_gegl_effect_fixture.py); add an operation there before adding it
+// here. Only operations Patchy's GEGL offers as filters belong here (docs/gegl-filters.md,
+// "What is offered" and "Legal review").
+struct RunnerEffect {
+  std::string_view operation;
+  // How far the result reaches past the layer when the filter's clipping is Adjust (GIMP
+  // grows the layer): the largest of the named arguments, rounded up, plus `extra` pixels.
+  std::array<std::string_view, 2> reach{};
+  std::int32_t extra{0};
+};
+
+constexpr RunnerEffect kRunnerEffects[] = {
+    {"gegl:antialias"},
+    {"gegl:bloom"},
+    {"gegl:cartoon"},
+    {"gegl:channel-mixer"},
+    {"gegl:color-enhance"},
+    {"gegl:color-temperature"},
+    {"gegl:color-to-alpha"},
+    {"gegl:cubism"},
+    {"gegl:difference-of-gaussians"},
+    {"gegl:edge"},
+    {"gegl:edge-sobel", {}, 1},
+    {"gegl:emboss"},
+    {"gegl:high-pass"},
+    {"gegl:lens-distortion"},
+    {"gegl:mean-curvature-blur"},
+    {"gegl:motion-blur-linear", {"length"}, 1},
+    {"gegl:noise-cie-lch"},
+    {"gegl:noise-hsv"},
+    {"gegl:noise-hurl"},
+    {"gegl:noise-pick"},
+    {"gegl:noise-reduction"},
+    {"gegl:noise-rgb"},
+    {"gegl:noise-slur"},
+    {"gegl:noise-spread"},
+    {"gegl:photocopy"},
+    {"gegl:pixelize"},
+    {"gegl:ripple"},
+    {"gegl:sepia"},
+    {"gegl:shadows-highlights"},
+    {"gegl:snn-mean"},
+    {"gegl:softglow"},
+    {"gegl:stretch-contrast"},
+    {"gegl:unsharp-mask"},
+    {"gegl:value-invert"},
+    {"gegl:vignette"},
+    {"gegl:waves", {"amplitude"}, 1},
+    {"gegl:whirl-pinch"},
+    {"gegl:wind"},
+};
+
+[[nodiscard]] const RunnerEffect* runner_effect(std::string_view operation) {
+  for (const auto& entry : kRunnerEffects) {
+    if (entry.operation == operation) {
+      return &entry;
+    }
+  }
+  return nullptr;
+}
+
+// The name the skipped-effects notice gives an effect: GIMP's name for it, else the
+// operation without its "gegl:" or "gimp:" prefix.
+[[nodiscard]] std::string effect_display_name(const EffectRecord& effect) {
+  if (!effect.name.empty()) {
+    return effect.name;
+  }
+  const auto colon = effect.operation.find(':');
+  return colon == std::string::npos ? effect.operation : effect.operation.substr(colon + 1);
+}
+
+[[nodiscard]] std::uint32_t argument_u32(const EffectArgument& argument) {
+  return (static_cast<std::uint32_t>(argument.data[0]) << 24U) | (static_cast<std::uint32_t>(argument.data[1]) << 16U) |
+         (static_cast<std::uint32_t>(argument.data[2]) << 8U) | argument.data[3];
+}
+
+// The effect's stored arguments as runner settings. PROP_FILTER_ARGUMENT types (seen in the
+// files GIMP 3.2 writes): 1 int, 2 boolean, 3 number (a float), 5 enum, 6 string (GIMP's
+// own operations' config), 7 unsigned (seeds), 8 GeglColor. Strings and unreadable colors
+// stay at GEGL's default.
+[[nodiscard]] EffectRun effect_run(const EffectRecord& effect) {
+  EffectRun run;
+  run.operation = effect.operation;
+  for (const auto& argument : effect.arguments) {
+    if (argument.name.empty() || argument.data.size() < 4) {
+      continue;
+    }
+    EffectSetting setting;
+    setting.name = argument.name;
+    const auto bits = argument_u32(argument);
+    switch (argument.type) {
+      case 1:
+        setting.kind = 'i';
+        setting.value = std::to_string(static_cast<std::int32_t>(bits));
+        break;
+      case 2:
+        setting.kind = 'b';
+        setting.value = bits != 0 ? "1" : "0";
+        break;
+      case 3: {
+        float value = 0.0F;
+        std::memcpy(&value, &bits, sizeof(value));
+        if (!std::isfinite(value)) {
+          continue;
+        }
+        char text[48];
+        std::snprintf(text, sizeof(text), "%.9g", static_cast<double>(value));
+        setting.kind = 'd';
+        setting.value = text;
+        break;
+      }
+      case 5:
+        setting.kind = 'e';
+        setting.value = std::to_string(static_cast<std::int32_t>(bits));
+        break;
+      case 7:
+        setting.kind = 'u';
+        setting.value = std::to_string(bits);
+        break;
+      case 8: {
+        Reader nested(argument.data, 0);
+        Cursor cursor(nested, 0, argument.data.size());
+        try {
+          const auto format = cursor.string();
+          const auto size = cursor.u32();
+          const auto bytes = cursor.bytes(size);
+          const auto rgba = detail::gegl_color_to_srgb(format, bytes);
+          if (!rgba.has_value()) {
+            continue;
+          }
+          char text[128];
+          std::snprintf(text, sizeof(text), "%.9g %.9g %.9g %.9g", (*rgba)[0], (*rgba)[1], (*rgba)[2], (*rgba)[3]);
+          setting.kind = 'c';
+          setting.value = text;
+        } catch (const ImportError&) {
+          continue;
+        }
+        break;
+      }
+      default:
+        continue;
+    }
+    run.settings.push_back(std::move(setting));
+  }
+  return run;
+}
+
+// An effect run through the runner, baked into the layer's pixels: the runner gets the
+// layer as RGBA at the document's depth, and its result mixes with the original in
+// premultiplied linear light by the effect's opacity and selection mask, as the Gaussian
+// blur does. False when the runner could not run it (the layer is unchanged).
+[[nodiscard]] bool bake_runner_effect(const EffectRunner& runner, Layer& layer, const EffectRecord& effect,
+                                      const PixelBuffer* mask) {
+  const auto& source = std::as_const(layer).pixels();
+  if (source.width() <= 0 || source.height() <= 0) {
+    return true;
+  }
+  // With Adjust clipping the layer gets a transparent margin the result may spread into;
+  // what stays transparent is trimmed again below.
+  std::int32_t pad = 0;
+  if (const auto* entry = runner_effect(effect.operation); entry != nullptr && effect.adjust) {
+    double reach = 0.0;
+    for (const auto name : entry->reach) {
+      if (!name.empty()) {
+        reach = std::max(reach, std::abs(float_argument(effect, name).value_or(0.0)));
+      }
+    }
+    pad = entry->extra + static_cast<std::int32_t>(std::ceil(std::min(reach, 1000.0)));
+  }
+  const auto width = source.width() + pad * 2;
+  const auto height = source.height() + pad * 2;
+  const auto source_format = source.format();
+  PixelFormat format = source_format;
+  format.channels = 4;
+  PixelBuffer filtered(width, height, format);
+  {
+    auto bytes = filtered.data();
+    const auto pixel_bytes = bytes_per_pixel(format);
+    run_in_parallel(static_cast<std::size_t>(source.height()), [&](std::size_t row) {
+      const auto y = static_cast<std::int32_t>(row);
+      for (std::int32_t x = 0; x < source.width(); ++x) {
+        store_pixel(format,
+                    bytes.data() + (static_cast<std::size_t>(y + pad) * static_cast<std::size_t>(width) +
+                                    static_cast<std::size_t>(x + pad)) * pixel_bytes,
+                    load_pixel(source_format, source.pixel(x, y)));
+      }
+    });
+  }
+  const PixelBuffer original = filtered;
+  bool ran = false;
+  try {
+    ran = runner(effect_run(effect), filtered);
+  } catch (const std::exception& error) {
+    trace(std::string("effect runner: ") + error.what());
+    ran = false;
+  }
+  if (!ran || filtered.width() != width || filtered.height() != height || filtered.format() != format) {
+    trace("the effect runner did not run " + effect.operation);
+    return false;
+  }
+  const float opacity = std::clamp(effect.opacity, 0.0F, 1.0F);
+  if (opacity < 1.0F || mask != nullptr) {
+    const bool linear_domain = format.bit_depth == BitDepth::Float32;
+    auto bytes = filtered.data();
+    const auto pixel_bytes = bytes_per_pixel(format);
+    // Premultiplied linear light, as GEGL mixes.
+    const auto premultiplied = [linear_domain](const std::array<float, 4>& value, float* out) {
+      const float alpha = std::clamp(value[3] / 255.0F, 0.0F, 1.0F);
+      for (int c = 0; c < 3; ++c) {
+        const float unit = value[static_cast<std::size_t>(c)] / 255.0F;
+        out[c] = (linear_domain ? unit : decode_fast(unit)) * alpha;
+      }
+      out[3] = alpha;
+    };
+    run_in_parallel(static_cast<std::size_t>(height), [&](std::size_t row) {
+      const auto y = static_cast<std::int32_t>(row);
+      for (std::int32_t x = 0; x < width; ++x) {
+        float amount = opacity;
+        if (mask != nullptr) {
+          const auto mx = x - pad;
+          const auto my = y - pad;
+          amount *= mx >= 0 && my >= 0 && mx < mask->width() && my < mask->height() ? coverage_at(*mask, mx, my) : 0.0F;
+        }
+        if (amount >= 1.0F) {
+          continue;
+        }
+        auto* px = bytes.data() + (static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
+                                   static_cast<std::size_t>(x)) * pixel_bytes;
+        float a[4];
+        float b[4];
+        premultiplied(load_pixel(format, original.pixel(x, y)), a);
+        premultiplied(load_pixel(format, px), b);
+        std::array<float, 4> stored{0.0F, 0.0F, 0.0F, 0.0F};
+        const float alpha = std::clamp(a[3] + (b[3] - a[3]) * amount, 0.0F, 1.0F);
+        if (alpha > 0.0F) {
+          for (int c = 0; c < 3; ++c) {
+            const float linear = (a[c] + (b[c] - a[c]) * amount) / alpha;
+            stored[static_cast<std::size_t>(c)] = (linear_domain ? linear : encode_fast(linear)) * 255.0F;
+          }
+        }
+        stored[3] = alpha * 255.0F;
+        store_pixel(format, px, stored);
+      }
+    });
+  }
+  const auto bounds = layer.bounds();
+  if (pad > 0) {
+    // Keep the layer's own rectangle and whatever the result covers outside it.
+    std::int32_t left = pad;
+    std::int32_t top = pad;
+    std::int32_t right = pad + source.width();
+    std::int32_t bottom = pad + source.height();
+    for (std::int32_t y = 0; y < height; ++y) {
+      for (std::int32_t x = 0; x < width; ++x) {
+        if (load_pixel(format, std::as_const(filtered).pixel(x, y))[3] > 0.0F) {
+          left = std::min(left, x);
+          top = std::min(top, y);
+          right = std::max(right, x + 1);
+          bottom = std::max(bottom, y + 1);
+        }
+      }
+    }
+    PixelBuffer trimmed(right - left, bottom - top, format);
+    const auto row_bytes = static_cast<std::size_t>(right - left) * bytes_per_pixel(format);
+    for (std::int32_t y = top; y < bottom; ++y) {
+      std::memcpy(trimmed.pixel(0, y - top), std::as_const(filtered).pixel(left, y), row_bytes);
+    }
+    layer.set_pixels(std::move(trimmed));
+    layer.set_bounds(Rect{bounds.x - pad + left, bounds.y - pad + top, right - left, bottom - top});
+    return true;
+  }
+  layer.set_pixels(std::move(filtered));
+  layer.set_bounds(bounds);
+  return true;
+}
+
 void apply_effects(Build& build, const LayerRecord& record, Layer& layer) {
   // GIMP lists a layer's effects top first, like its filter stack; the bottom one runs first.
   for (auto it = record.effects.rbegin(); it != record.effects.rend(); ++it) {
@@ -2638,8 +2968,19 @@ void apply_effects(Build& build, const LayerRecord& record, Layer& layer) {
         continue;
       }
     }
+    if (layer.kind() == LayerKind::Pixel && build.runner != nullptr && runner_effect(effect.operation) != nullptr) {
+      const auto mask = effect_mask(build, effect, layer);
+      if (bake_runner_effect(*build.runner, layer, effect, mask.has_value() ? &*mask : nullptr)) {
+        if (layer_is_text(layer)) {
+          clear_layer_text_metadata(layer);
+          build.notices.insert(Notice::TextModified);
+        }
+        build.notices.insert(Notice::EffectsBaked);
+        continue;
+      }
+    }
     trace("effect " + effect.operation + " on layer '" + record.name + "' is not applied");
-    build.notices.insert(Notice::EffectsNotApplied);
+    build.skipped_effects.insert(effect_display_name(effect));
   }
 }
 
@@ -3549,7 +3890,8 @@ private:
   document.guides() = std::move(guides);
 
   Build build{reader, PixelLayout{static_cast<BaseType>(base), true, precision}, depth, compression,
-              std::move(colormap), print.horizontal_ppi, document, {}, {}, 0, std::nullopt, {}, {}, {}};
+              std::move(colormap), print.horizontal_ppi, document, {}, {}, 0, std::nullopt, {}, {}, {}, {},
+              current_effect_runner()};
   for (const auto& path : paths) {
     if (path.tattoo != 0) {
       build.paths_by_tattoo.emplace(path.tattoo, &path);
@@ -3719,10 +4061,25 @@ private:
   for (const auto notice : build.notices) {
     notices.emplace_back(notice_text(notice));
   }
+  if (!build.skipped_effects.empty()) {
+    std::string names;
+    for (const auto& name : build.skipped_effects) {
+      names += (names.empty() ? "" : ", ") + name;
+    }
+    notices.push_back(kSkippedEffectsPrefix + names + kSkippedEffectsSuffix);
+  }
   return document;
 }
 
 }  // namespace
+
+std::vector<std::string> effect_runner_operations() {
+  std::vector<std::string> operations;
+  for (const auto& entry : kRunnerEffects) {
+    operations.emplace_back(entry.operation);
+  }
+  return operations;
+}
 
 bool sniff(std::span<const std::uint8_t> bytes) noexcept {
   if (bytes.size() >= 9 && std::memcmp(bytes.data(), "gimp xcf ", 9) == 0) {

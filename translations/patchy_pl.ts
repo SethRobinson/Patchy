@@ -12734,10 +12734,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Niektórych warstw tekstowych nie udało się odczytać jako tekstu, więc otwarto je jako warstwy pikselowe.</translation>
     </message>
     <message>
-        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
-        <translation>Niektóre efekty warstw GIMP nie mają odpowiednika w Patchy i nie zostały zastosowane; te warstwy pokazują swoje piksele bez efektu.</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>Warstwy połączone GIMP otwarto jako warstwy pikselowe; nie śledzą już połączonych plików.</translation>
     </message>
@@ -12756,10 +12752,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
         <translation>Niektóre warstwy są widoczne tylko tam, gdzie jest warstwa pod nimi, tak jak składa je GIMP; otwarto je jako maski przycinające na niej.</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>Efekty warstw GIMP, które Patchy potrafi odtworzyć (Rozmycie gaussowskie i filtry koloru, takie jak Poziomy, Barwa-Nasycenie i Desaturacja), zastosowano do pikseli ich warstw.</translation>
     </message>
     <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
@@ -15002,6 +14994,15 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Feather radius</source>
         <translation>Promień wtapiania</translation>
+    </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
+        <translation>Efekty warstw GIMP, które Patchy potrafi odtworzyć (Rozmycie gaussowskie, filtry koloru, takie jak Poziomy i Barwa-Nasycenie, oraz filtry GEGL dołączone do Patchy, takie jak Maska wyostrzająca, Poświata i Szum), zastosowano do pikseli ich warstw.</translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their pixels without them.</source>
+        <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
+        <translation>Pominięto niektóre efekty warstw GIMP, których Patchy nie potrafi odtworzyć (%1); te warstwy pokazują swoje piksele bez nich.</translation>
     </message>
 </context>
 <context>

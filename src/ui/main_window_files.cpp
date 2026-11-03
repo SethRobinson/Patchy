@@ -1124,6 +1124,15 @@ QString translated_file_message(const std::string& message) {
       !note.isEmpty()) {
     return note;
   }
+  // The GIMP layer effects an XCF read left out, named (docs/xcf.md, "Layer effects").
+  if (const auto prefix = QString::fromLatin1(xcf::skipped_effects_notice_prefix()),
+      suffix = QString::fromLatin1(xcf::skipped_effects_notice_suffix());
+      text.startsWith(prefix) && text.endsWith(suffix) && text.size() > prefix.size() + suffix.size()) {
+    //: %1 lists the names of GIMP layer effects (filters), separated by commas.
+    return QObject::tr("Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their "
+                       "pixels without them.")
+        .arg(text.mid(prefix.size(), text.size() - prefix.size() - suffix.size()));
+  }
   // Core readers are Qt-free; localize their fixed diagnostic text at the UI boundary.
   return translate_data_text(message);
 }
