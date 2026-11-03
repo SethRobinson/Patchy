@@ -2292,6 +2292,137 @@ void ui_marquee_drag_after_antialiased_lasso_is_fast() {
   CHECK(canvas->selection_alpha_at(QPoint(3950, 150)) == 0U);
 }
 
+// GitHub issue 603: on a 3332 x 4998 image, dragging a big freehand Lasso
+// selection with a selection tool crawled. Each move rebuilt the region from the
+// whole soft mask and retraced the marching ants from scratch; a drag now moves
+// the press-time outline and mask and rebuilds once, on release, to the same
+// selection a single move by the total offset gives.
+void ui_selection_drag_of_large_lasso_is_fast() {
+  constexpr int kWidth = 3332;
+  constexpr int kHeight = 4998;
+  constexpr int kLassoPoints = 1500;
+  constexpr double kPi = 3.14159265358979323846;
+  const auto lasso_point = [](int i) {
+    const auto angle = 2.0 * kPi * i / kLassoPoints;
+    const auto wobble = 1.0 + 0.06 * std::sin(angle * 41.0) + 0.03 * std::sin(angle * 173.0);
+    return QPointF(1666.0 + 1300.0 * wobble * std::cos(angle), 2499.0 + 2000.0 * wobble * std::sin(angle));
+  };
+  for (const bool antialias : {true, false}) {
+    for (const double zoom : {0.0, 1.0}) {
+      patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+      document.add_pixel_layer("Pixels", solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), Qt::white));
+      patchy::ui::MainWindow window;
+      window.add_document_session(std::move(document), QStringLiteral("Issue 603"));
+      show_window(window);
+      auto* canvas = require_canvas(window);
+      canvas->fit_to_view();
+      QApplication::processEvents();
+      const auto widget_point = [canvas](QPointF document_point) {
+        return canvas->widget_position_for_document_point(document_point.toPoint());
+      };
+      canvas->set_tool(patchy::ui::CanvasTool::Lasso);
+      canvas->set_selection_mode(patchy::ui::CanvasWidget::SelectionMode::Replace);
+      canvas->set_selection_feather_radius(0);
+      canvas->set_selection_antialias(antialias);
+      // The lasso is drawn at Fit; the 100% pass then zooms in on its middle.
+      send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(lasso_point(0)), Qt::LeftButton, Qt::LeftButton);
+      for (int i = 1; i < kLassoPoints; ++i) {
+        send_mouse(*canvas, QEvent::MouseMove, widget_point(lasso_point(i)), Qt::NoButton, Qt::LeftButton);
+      }
+      send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(lasso_point(kLassoPoints - 1)), Qt::LeftButton,
+                 Qt::NoButton);
+      QApplication::processEvents();
+      if (zoom > 0.0) {
+        canvas->set_view_zoom_centered(zoom);
+        QApplication::processEvents();
+      }
+      CHECK(canvas->selection_has_partial_alpha() == antialias);
+      canvas->repaint();
+
+      // The reference: the same selection moved once by the total offset, which
+      // keeps the lasso inside the canvas.
+      canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+      const QPoint grab_document(1666, 2499);
+      const QPoint total(-150, 120);
+      const auto grab = widget_point(grab_document);
+      const auto drop = widget_point(grab_document + total);
+      drag(*canvas, grab, drop);
+      QApplication::processEvents();
+      const auto reference_selection = canvas->selected_document_region();
+      const auto bounds = reference_selection.boundingRect();
+      const auto sample_alpha = [canvas, bounds]() {
+        std::vector<std::uint8_t> samples;
+        for (int y = bounds.top(); y <= bounds.bottom(); y += 7) {
+          for (int x = bounds.left(); x <= bounds.right(); x += 3) {
+            samples.push_back(canvas->selection_alpha_at(QPoint(x, y)));
+          }
+        }
+        return samples;
+      };
+      const auto reference_alpha = sample_alpha();
+      auto* undo_action = require_action_by_text(window, QStringLiteral("Undo"));
+      undo_action->trigger();
+      QApplication::processEvents();
+      const auto original_selection = canvas->selected_document_region();
+      CHECK(original_selection != reference_selection);
+      canvas->repaint();
+
+      // The same drag in many small steps, each painted as the event loop would.
+      constexpr int kMoves = 30;
+      const auto traces_before = canvas->selection_outline_trace_count_for_testing();
+      QElapsedTimer timer;
+      timer.start();
+      send_mouse(*canvas, QEvent::MouseButtonPress, grab, Qt::LeftButton, Qt::LeftButton);
+      for (int i = 1; i <= kMoves; ++i) {
+        send_mouse(*canvas, QEvent::MouseMove, widget_point(grab_document + total * i / kMoves), Qt::NoButton,
+                   Qt::LeftButton);
+        canvas->repaint();
+      }
+      const auto drag_ms = timer.elapsed();
+      const auto drag_traces = canvas->selection_outline_trace_count_for_testing() - traces_before;
+      // Mid-drag the live selection is already the moved one.
+      CHECK(canvas->selected_document_region() == reference_selection);
+      CHECK(sample_alpha() == reference_alpha);
+      send_mouse(*canvas, QEvent::MouseButtonRelease, drop, Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+      canvas->repaint();
+      std::cout << "  " << kMoves << " painted selection-drag moves, " << (antialias ? "anti-aliased" : "hard")
+                << " lasso, zoom " << canvas->zoom() << ": " << drag_ms << " ms, " << drag_traces
+                << " outline traces\n";
+      // The outline is moved, not retraced: one trace at most, never one per move.
+      CHECK(drag_traces <= 1);
+      CHECK(drag_ms < 3000);
+      CHECK(canvas->selected_document_region() == reference_selection);
+      CHECK(canvas->selection_has_partial_alpha() == antialias);
+      CHECK(sample_alpha() == reference_alpha);
+      // The drag is one undo step back to the lasso.
+      undo_action->trigger();
+      QApplication::processEvents();
+      CHECK(canvas->selected_document_region() == original_selection);
+
+      // Partway off the canvas and back: cut mid-drag, whole again on release.
+      send_mouse(*canvas, QEvent::MouseButtonPress, grab, Qt::LeftButton, Qt::LeftButton);
+      for (const auto offset : {QPoint(400, 0), QPoint(900, 700), QPoint(300, 300), total}) {
+        send_mouse(*canvas, QEvent::MouseMove, widget_point(grab_document + offset), Qt::NoButton, Qt::LeftButton);
+        canvas->repaint();
+        if (offset == QPoint(900, 700)) {
+          const auto cut = canvas->selected_document_region().boundingRect();
+          CHECK(cut.right() == kWidth - 1);
+          CHECK(cut.bottom() == kHeight - 1);
+        }
+      }
+      send_mouse(*canvas, QEvent::MouseButtonRelease, drop, Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+      CHECK(canvas->selected_document_region() == reference_selection);
+      CHECK(canvas->selection_has_partial_alpha() == antialias);
+      CHECK(sample_alpha() == reference_alpha);
+      undo_action->trigger();
+      QApplication::processEvents();
+      CHECK(canvas->selected_document_region() == original_selection);
+    }
+  }
+}
+
 void ui_lasso_drag_moves_selection() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2777,6 +2908,7 @@ std::vector<patchy::test::TestCase> selection_marquee_lasso_tests_part2() {
       {"ui_marquee_handle_click_keeps_selection_and_hint_shows",
        ui_marquee_handle_click_keeps_selection_and_hint_shows},
       {"ui_selection_tool_hints_name_modifier_combinations", ui_selection_tool_hints_name_modifier_combinations},
+      {"ui_selection_drag_of_large_lasso_is_fast", ui_selection_drag_of_large_lasso_is_fast},
       {"ui_lasso_drag_moves_selection", ui_lasso_drag_moves_selection},
       {"ui_lasso_tools_and_wand_drag_inside_moves_selection", ui_lasso_tools_and_wand_drag_inside_moves_selection},
       {"ui_object_select_pasteboard_click_deselects", ui_object_select_pasteboard_click_deselects},

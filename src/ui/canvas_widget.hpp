@@ -729,6 +729,8 @@ public:
   // Pins the marching-ants dash phase and stops its animation timer so tests
   // can grab deterministic frames at chosen phases.
   void set_selection_dash_offset_for_testing(int offset);
+  // Marching-ants outline traces so far (document or device space; GitHub issue 603).
+  [[nodiscard]] int selection_outline_trace_count_for_testing() const noexcept { return selection_outline_trace_count_; }
   // Turns off the hard round brush's covered-disk skip (GitHub issue 135) so a test can paint
   // the same stroke both ways and compare the bytes.
   void set_hard_round_skip_enabled_for_testing(bool enabled) noexcept { hard_round_skip_enabled_ = enabled; }
@@ -2824,6 +2826,9 @@ private:
   // that writes selection_ / selection_display_region_ directly instead of
   // going through the setters above.
   void invalidate_selection_outline() noexcept;
+  // Moves the cached marching-ants loops by `step` document pixels instead of
+  // retracing them, for a selection translated as a whole (GitHub issue 603).
+  void shift_selection_outline(QPoint step) noexcept;
   // The rasterized-selection lookup behind selection_alpha_at (see
   // selection_lookup_bits_): drops it, builds it, and answers one query.
   void invalidate_selection_lookup() noexcept;
@@ -2843,6 +2848,10 @@ private:
   void refresh_active_marquee_selection();
   [[nodiscard]] bool can_move_selection_at(QPoint document_point, Qt::KeyboardModifiers modifiers) const;
   void apply_selection_move(QPoint delta);
+  // The per-move half of a selection drag (GitHub issue 603): translates the
+  // press-time selection without rescanning its mask or retracing its outline.
+  // Release still runs apply_selection_move for the exact result.
+  void preview_selection_move(QPoint delta);
   void nudge_selection(QPoint delta);
   [[nodiscard]] SelectionMode selection_operation(Qt::KeyboardModifiers modifiers) const noexcept;
   [[nodiscard]] QRegion combine_selection(const QRegion& candidate) const;
@@ -3308,6 +3317,8 @@ private:
   QPoint selection_current_{};
   QPoint selection_press_widget_position_{};
   QPoint selection_move_origin_document_{};
+  QPoint selection_move_preview_delta_{};
+  bool selection_move_preview_clipped_{false};
   bool selection_shift_at_press_{false};
   bool selection_shift_released_since_press_{false};
   bool selection_alt_at_press_{false};
@@ -3814,6 +3825,18 @@ private:
   // built for the zoom/pan/viewport key stored alongside them.
   mutable std::vector<OutlineLoop> selection_outline_loops_;
   mutable bool selection_outline_dirty_{true};
+  mutable int selection_outline_trace_count_{0};
+  // Offset of the current selection from the region the loops were traced
+  // from, set by shift_selection_outline during a selection drag (issue 603).
+  mutable QPoint selection_outline_offset_;
+  // Below 100%: the last device-resolution trace, kept only when it covers the
+  // whole selection (it lay inside the viewport), so a drag can move it; it is
+  // valid for the zoom and pan it was traced at.
+  mutable std::vector<OutlineLoop> selection_outline_device_loops_;
+  mutable bool selection_outline_device_valid_{false};
+  mutable double selection_outline_device_zoom_{0.0};
+  mutable QPointF selection_outline_device_pan_;
+  mutable QPoint selection_outline_device_offset_;
   mutable SelectionOutlineScreenPaths selection_outline_screen_paths_;
   mutable bool selection_outline_screen_valid_{false};
   mutable double selection_outline_screen_zoom_{0.0};

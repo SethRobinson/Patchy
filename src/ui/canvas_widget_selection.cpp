@@ -1146,6 +1146,17 @@ void stroke_marching_ants(QPainter& painter, const QPolygon& polyline, int dash_
 void CanvasWidget::invalidate_selection_outline() noexcept {
   selection_outline_dirty_ = true;
   selection_outline_screen_valid_ = false;
+  selection_outline_offset_ = {};
+  selection_outline_device_valid_ = false;
+  selection_outline_device_loops_.clear();
+  selection_outline_device_offset_ = {};
+  invalidate_selection_lookup();
+}
+
+void CanvasWidget::shift_selection_outline(QPoint step) noexcept {
+  selection_outline_offset_ += step;
+  selection_outline_device_offset_ += step;
+  selection_outline_screen_valid_ = false;
   invalidate_selection_lookup();
 }
 
@@ -1160,17 +1171,40 @@ void CanvasWidget::ensure_selection_outline_screen_path() const {
   if (zoom_ < 1.0) {
     // Below 100% the outline is resolved at device resolution like the artwork
     // itself, so it is retraced whenever zoom/pan/viewport change and the
-    // document-space loop cache stays untouched (and stays dirty).
-    const auto device_loops = trace_device_selection_outlines(outline_region, zoom_, pan_, padded_viewport);
-    selection_outline_screen_paths_ =
-        build_selection_outline_screen_paths(device_loops, 1.0, QPointF(0.0, 0.0), padded_viewport);
+    // document-space loop cache stays untouched (and stays dirty). The one
+    // exception is a selection drag (GitHub issue 603): a trace that covered
+    // the whole selection moves with it while zoom and pan hold.
+    if (selection_outline_device_valid_ && selection_outline_device_zoom_ == zoom_ &&
+        selection_outline_device_pan_ == pan_) {
+      const QPointF shift(selection_outline_device_offset_.x() * zoom_, selection_outline_device_offset_.y() * zoom_);
+      selection_outline_screen_paths_ =
+          build_selection_outline_screen_paths(selection_outline_device_loops_, 1.0, shift, padded_viewport);
+    } else {
+      auto device_loops = trace_device_selection_outlines(outline_region, zoom_, pan_, padded_viewport);
+      ++selection_outline_trace_count_;
+      selection_outline_screen_paths_ =
+          build_selection_outline_screen_paths(device_loops, 1.0, QPointF(0.0, 0.0), padded_viewport);
+      const auto bounds = outline_region.boundingRect();
+      const QRectF device_bounds(pan_.x() + bounds.x() * zoom_, pan_.y() + bounds.y() * zoom_,
+                                 bounds.width() * zoom_, bounds.height() * zoom_);
+      selection_outline_device_valid_ = padded_viewport.contains(device_bounds);
+      selection_outline_device_loops_ =
+          selection_outline_device_valid_ ? std::move(device_loops) : std::vector<OutlineLoop>{};
+      selection_outline_device_zoom_ = zoom_;
+      selection_outline_device_pan_ = pan_;
+      selection_outline_device_offset_ = {};
+    }
   } else {
     if (selection_outline_dirty_) {
       selection_outline_loops_ = trace_selection_outlines(outline_region);
+      ++selection_outline_trace_count_;
       selection_outline_dirty_ = false;
+      selection_outline_offset_ = {};
     }
+    const QPointF pan(pan_.x() + selection_outline_offset_.x() * zoom_,
+                      pan_.y() + selection_outline_offset_.y() * zoom_);
     selection_outline_screen_paths_ =
-        build_selection_outline_screen_paths(selection_outline_loops_, zoom_, pan_, padded_viewport);
+        build_selection_outline_screen_paths(selection_outline_loops_, zoom_, pan, padded_viewport);
   }
   selection_outline_screen_zoom_ = zoom_;
   selection_outline_screen_pan_ = pan_;
@@ -1814,6 +1848,69 @@ void CanvasWidget::apply_selection_move(QPoint delta) {
                             selection_mask_before_edit_alpha_);
   }
   // A moved marquee stays resizable: its handles travel with it.
+  if (marquee_shape_before_edit_.has_value() && !selection_.isEmpty()) {
+    marquee_shape_ = *marquee_shape_before_edit_;
+    marquee_shape_->rect.translate(delta);
+  }
+}
+
+void CanvasWidget::preview_selection_move(QPoint delta) {
+  // GitHub issue 603: rebuilding the display region from a large soft mask and
+  // retracing the marching ants on every move made dragging a big Lasso
+  // selection crawl. Mid-drag the press-time state is translated instead: the
+  // regions shift, the mask image is shared (cropped only where the canvas edge
+  // cuts it, as the setter does) and the ants loops move by the step. This
+  // builds the same selection as set_selection_from_mask; where the canvas
+  // edge cuts it the outline is retraced. Release runs apply_selection_move
+  // for the committed result.
+  const auto step = delta - selection_move_preview_delta_;
+  selection_move_preview_delta_ = delta;
+  if (step.isNull()) {
+    return;
+  }
+  auto moved = selection_before_edit_.translated(delta);
+  auto display = (selection_display_region_before_edit_.isEmpty() ? selection_before_edit_
+                                                                   : selection_display_region_before_edit_)
+                     .translated(delta);
+  auto mask = selection_mask_before_edit_alpha_;
+  auto mask_bounds = mask.isNull() ? QRect() : selection_mask_before_edit_bounds_.translated(delta);
+  bool clipped = false;
+  if (document_ != nullptr) {
+    const QRect canvas_rect(0, 0, document_->width(), document_->height());
+    clipped = !canvas_rect.contains(moved.boundingRect()) || (!mask.isNull() && !canvas_rect.contains(mask_bounds));
+    if (clipped) {
+      moved = moved.intersected(canvas_rect);
+      display = display.intersected(canvas_rect);
+      if (!mask.isNull()) {
+        const auto clipped_bounds = mask_bounds.intersected(canvas_rect);
+        if (clipped_bounds.isEmpty()) {
+          mask = QImage();
+        } else {
+          mask = mask.copy(clipped_bounds.translated(-mask_bounds.topLeft()));
+          mask_bounds = clipped_bounds;
+        }
+      }
+    }
+  }
+  // Loops traced from a cut selection would carry the cut along, so moving
+  // into or out of the canvas edge retraces.
+  if (clipped || selection_move_preview_clipped_) {
+    invalidate_selection_outline();
+  } else {
+    shift_selection_outline(step);
+  }
+  selection_move_preview_clipped_ = clipped;
+  selection_ = std::move(moved);
+  if (selection_.isEmpty() || mask.isNull() || (clipped && !mask_has_partial_alpha(mask))) {
+    selection_display_region_ = selection_;
+    selection_mask_bounds_ = {};
+    selection_mask_alpha_ = QImage();
+  } else {
+    selection_display_region_ = display.isEmpty() ? selection_ : std::move(display);
+    selection_mask_bounds_ = mask_bounds;
+    selection_mask_alpha_ = std::move(mask);
+  }
+  marquee_shape_.reset();
   if (marquee_shape_before_edit_.has_value() && !selection_.isEmpty()) {
     marquee_shape_ = *marquee_shape_before_edit_;
     marquee_shape_->rect.translate(delta);

@@ -1442,6 +1442,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     selection_edges_visible_ = true;
     selection_press_widget_position_ = event->pos();
     selection_move_origin_document_ = document_point;
+    selection_move_preview_delta_ = {};
+    selection_move_preview_clipped_ = false;
     capture_selection_before_edit();
     selection_operation_ = SelectionMode::Replace;
     setCursor(Qt::SizeAllCursor);
@@ -2453,7 +2455,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     }
   } else if (moving_selection_) {
     clear_move_hover_outline();
-    apply_selection_move(document_point - selection_move_origin_document_);
+    preview_selection_move(document_point - selection_move_origin_document_);
     setCursor(Qt::SizeAllCursor);
     emit_info_for_widget_position(event->pos());
     update();
