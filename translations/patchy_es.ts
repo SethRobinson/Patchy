@@ -32416,6 +32416,38 @@ Bloqueada: %1</translation>
         <source>Feat&amp;her...</source>
         <translation>Ca&amp;lar...</translation>
     </message>
+    <message>
+        <source>Patchy can&apos;t edit %1 contents itself.</source>
+        <translation>Patchy no puede editar por sí mismo el contenido %1.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App opens a copy in the app your system uses for this file type. Each time you save it there, Patchy updates the smart object.</source>
+        <translation>Editar en la aplicación predeterminada abre una copia en la aplicación que tu sistema usa para este tipo de archivo. Cada vez que la guardes allí, Patchy actualiza el objeto inteligente.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App</source>
+        <translation>Editar en la aplicación predeterminada</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>Exportar...</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary folder for the contents</source>
+        <translation>No se pudo crear una carpeta temporal para el contenido</translation>
+    </message>
+    <message>
+        <source>No app opened %1. Open the copy at %2 in any editor; saving it updates the smart object</source>
+        <translation>Ninguna aplicación abrió %1. Abre la copia en %2 con cualquier editor; al guardarla se actualiza el objeto inteligente</translation>
+    </message>
+    <message>
+        <source>Opened %1 in its default app. Each save there updates the smart object</source>
+        <translation>%1 abierto en su aplicación predeterminada. Cada vez que guardes allí se actualiza el objeto inteligente</translation>
+    </message>
+    <message>
+        <source>Updated the smart object from %1</source>
+        <translation>Objeto inteligente actualizado desde %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

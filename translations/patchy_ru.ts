@@ -32500,6 +32500,38 @@ Locked: %1</source>
         <source>Feat&amp;her...</source>
         <translation>Р&amp;астушевка...</translation>
     </message>
+    <message>
+        <source>Patchy can&apos;t edit %1 contents itself.</source>
+        <translation>Patchy не может сам редактировать содержимое %1.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App opens a copy in the app your system uses for this file type. Each time you save it there, Patchy updates the smart object.</source>
+        <translation>«Изменить в приложении по умолчанию» открывает копию в приложении, которое система использует для этого типа файлов. При каждом сохранении в нём Patchy обновляет смарт-объект.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App</source>
+        <translation>Изменить в приложении по умолчанию</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>Экспорт...</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary folder for the contents</source>
+        <translation>Не удалось создать временную папку для содержимого</translation>
+    </message>
+    <message>
+        <source>No app opened %1. Open the copy at %2 in any editor; saving it updates the smart object</source>
+        <translation>Ни одно приложение не открыло %1. Откройте копию по пути %2 в любом редакторе; при сохранении смарт-объект обновится</translation>
+    </message>
+    <message>
+        <source>Opened %1 in its default app. Each save there updates the smart object</source>
+        <translation>%1 открыт в приложении по умолчанию. Каждое сохранение в нём обновляет смарт-объект</translation>
+    </message>
+    <message>
+        <source>Updated the smart object from %1</source>
+        <translation>Смарт-объект обновлён из %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

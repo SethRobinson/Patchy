@@ -32332,6 +32332,38 @@ Locked: %1</source>
         <source>Feat&amp;her...</source>
         <translation>ぼかし(&amp;H)...</translation>
     </message>
+    <message>
+        <source>Patchy can&apos;t edit %1 contents itself.</source>
+        <translation>Patchy では %1 のコンテンツを直接編集できません。</translation>
+    </message>
+    <message>
+        <source>Edit in Default App opens a copy in the app your system uses for this file type. Each time you save it there, Patchy updates the smart object.</source>
+        <translation>「既定のアプリで編集」は、このファイル形式に対してシステムが使うアプリでコピーを開きます。そのアプリで保存するたびに、Patchy がスマートオブジェクトを更新します。</translation>
+    </message>
+    <message>
+        <source>Edit in Default App</source>
+        <translation>既定のアプリで編集</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>書き出し...</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary folder for the contents</source>
+        <translation>コンテンツ用の一時フォルダーを作成できませんでした</translation>
+    </message>
+    <message>
+        <source>No app opened %1. Open the copy at %2 in any editor; saving it updates the smart object</source>
+        <translation>%1 を開いたアプリがありません。%2 にあるコピーを任意のエディターで開いてください。保存するとスマートオブジェクトが更新されます</translation>
+    </message>
+    <message>
+        <source>Opened %1 in its default app. Each save there updates the smart object</source>
+        <translation>%1 を既定のアプリで開きました。そこで保存するたびにスマートオブジェクトが更新されます</translation>
+    </message>
+    <message>
+        <source>Updated the smart object from %1</source>
+        <translation>%1 からスマートオブジェクトを更新しました</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

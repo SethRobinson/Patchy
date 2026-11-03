@@ -664,6 +664,8 @@ bool MainWindow::close_document_session(DocumentSession& target_session, CloseCo
   // phantom document after a later crash).
   discard_recovery_for_session(target_id);
 #endif
+  // Edit in Default App copies of this document's smart objects have nowhere to go now.
+  stop_external_smart_object_edits_for_session(target_id);
   auto* canvas = live_session->canvas;
   auto* float_window = live_session->float_window;
   live_session->float_window = nullptr;

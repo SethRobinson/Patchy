@@ -299,6 +299,12 @@ QString default_file_dialog_directory();
 QString last_save_directory();
 void remember_save_directory_for_path(const QString& path);
 QString file_dialog_initial_path(const QString& existing_path, const QString& filename);
+// The folder File > Open starts in (settings key lastOpenDirectory), Documents before the first open.
+QString last_open_directory();
+// File > Place Embedded and Place Linked share their own remembered folder (settings key
+// lastPlaceDirectory, a persisted identifier); before the first pick they start in File > Open's.
+QString last_place_directory();
+void remember_place_directory_for_path(const QString& path);
 
 // Layer-tree duplication with fresh document layer ids, rekeyed smart-object
 // placed uuids, and fresh native Photoshop layer ids, shared by the paste and

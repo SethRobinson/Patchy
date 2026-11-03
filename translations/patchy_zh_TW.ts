@@ -32332,6 +32332,38 @@ Locked: %1</source>
         <source>Feat&amp;her...</source>
         <translation>羽化(&amp;H)...</translation>
     </message>
+    <message>
+        <source>Patchy can&apos;t edit %1 contents itself.</source>
+        <translation>Patchy 無法自行編輯 %1 內容。</translation>
+    </message>
+    <message>
+        <source>Edit in Default App opens a copy in the app your system uses for this file type. Each time you save it there, Patchy updates the smart object.</source>
+        <translation>「在預設應用程式中編輯」會在系統用於此檔案類型的應用程式中開啟一份副本。每次在那裡儲存，Patchy 都會更新智慧型物件。</translation>
+    </message>
+    <message>
+        <source>Edit in Default App</source>
+        <translation>在預設應用程式中編輯</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>匯出...</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary folder for the contents</source>
+        <translation>無法為內容建立暫存資料夾</translation>
+    </message>
+    <message>
+        <source>No app opened %1. Open the copy at %2 in any editor; saving it updates the smart object</source>
+        <translation>沒有應用程式開啟 %1。請在任何編輯器中開啟位於 %2 的副本；儲存後會更新智慧型物件</translation>
+    </message>
+    <message>
+        <source>Opened %1 in its default app. Each save there updates the smart object</source>
+        <translation>已在預設應用程式中開啟 %1。每次在那裡儲存都會更新智慧型物件</translation>
+    </message>
+    <message>
+        <source>Updated the smart object from %1</source>
+        <translation>已從 %1 更新智慧型物件</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

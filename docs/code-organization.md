@@ -19,7 +19,7 @@ Read this before moving functions, adding members to the large UI classes, split
 - `main_window_layer_panel.cpp` - layer-row widgets, thumbnails, summaries, refresh, drag, and visibility plumbing.
 - `main_window_layer_thumbnails.cpp` - Layers panel thumbnail gestures: Ctrl-click selection loads, the layer and mask thumbnail menus, the fx and smart object badge menus, and the footer Delete on a targeted mask ([layer-panel.md](layer-panel.md)).
 - `main_window_files.cpp` - the single `file_format_entries()` definition, open/save/export/print/import, and recent files/folders.
-- `main_window_smart_objects.cpp` - smart-object export, commit, refresh, relink, embed, replace, convert, and place flows.
+- `main_window_smart_objects.cpp` - smart-object export, commit, refresh, relink, embed, replace, convert, and place flows; `main_window_smart_object_external_edit.cpp` - Edit in Default App for contents Patchy can't re-encode.
 - `main_window_sessions.cpp` - document sessions, tabs, close paths, float windows, and `update_start_panel_visibility()`.
 - `main_window_preferences.cpp` - Preferences, guides, and pen/view settings.
 - `main_window_preferences_themes.cpp` - the Preferences Colors and Themes page (theme list, details, theme file buttons).

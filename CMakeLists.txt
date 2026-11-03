@@ -1475,6 +1475,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/font_face_name_index.hpp
       src/ui/font_face_name_index.cpp
       src/ui/main_window_smart_objects.cpp
+      src/ui/main_window_smart_object_external_edit.cpp
       src/ui/main_window_stress_test.cpp
       src/ui/main_window_theme.cpp
       src/ui/main_window_theme_extras.cpp

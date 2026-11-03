@@ -246,7 +246,8 @@ emit native `<rect>`/`<ellipse>`/`<line>` (round-trips back to live).
   status message. Test: `ui_svg_copy_as_svg_round_trips_shape_layer`.
 - File > Place Embedded, File > Place Linked, Layer > Smart Objects >
   Relink to File, and `doc.addSmartObject` accept svg: it becomes a smart object with Photoshop's `SVG ` filetype and
-  Type 1 (vector) placement, classified ReadOnly for editing and rasterized
+  Type 1 (vector) placement, classified ReadOnly for editing (embedded, Edit
+  Contents offers Edit in Default App) and rasterized
   through the qsvg plugin at the placement's own scale, so every size stays
   sharp (`render_smart_object_vector_contents`; see
   [smart-object-editing.md](smart-object-editing.md)).

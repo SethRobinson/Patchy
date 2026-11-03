@@ -32416,6 +32416,38 @@ Bloqueado: %1</translation>
         <source>Feat&amp;her...</source>
         <translation>&amp;Difundir...</translation>
     </message>
+    <message>
+        <source>Patchy can&apos;t edit %1 contents itself.</source>
+        <translation>O Patchy não consegue editar sozinho o conteúdo %1.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App opens a copy in the app your system uses for this file type. Each time you save it there, Patchy updates the smart object.</source>
+        <translation>Editar no aplicativo padrão abre uma cópia no aplicativo que o sistema usa para este tipo de arquivo. Sempre que você salvar lá, o Patchy atualiza o objeto inteligente.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App</source>
+        <translation>Editar no aplicativo padrão</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>Exportar...</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary folder for the contents</source>
+        <translation>Não foi possível criar uma pasta temporária para o conteúdo</translation>
+    </message>
+    <message>
+        <source>No app opened %1. Open the copy at %2 in any editor; saving it updates the smart object</source>
+        <translation>Nenhum aplicativo abriu %1. Abra a cópia em %2 em qualquer editor; salvá-la atualiza o objeto inteligente</translation>
+    </message>
+    <message>
+        <source>Opened %1 in its default app. Each save there updates the smart object</source>
+        <translation>%1 aberto no aplicativo padrão. Cada vez que você salvar lá, o objeto inteligente é atualizado</translation>
+    </message>
+    <message>
+        <source>Updated the smart object from %1</source>
+        <translation>Objeto inteligente atualizado de %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

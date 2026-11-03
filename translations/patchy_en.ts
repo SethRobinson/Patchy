@@ -32335,6 +32335,38 @@ Locked: %1</source>
         <source>Feat&amp;her...</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Patchy can&apos;t edit %1 contents itself.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit in Default App opens a copy in the app your system uses for this file type. Each time you save it there, Patchy updates the smart object.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit in Default App</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not create a temporary folder for the contents</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No app opened %1. Open the copy at %2 in any editor; saving it updates the smart object</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opened %1 in its default app. Each save there updates the smart object</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Updated the smart object from %1</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

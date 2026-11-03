@@ -115,6 +115,7 @@ class QToolBar;
 class QIcon;
 class QToolButton;
 class QTimer;
+class QFileSystemWatcher;
 
 namespace patchy {
 struct BrushTip;
@@ -2123,6 +2124,25 @@ private:
   // consumed by the canvas, so Rasterize leaves the user to stroke again.
   void prompt_paint_on_smart_object(CanvasWidget* canvas, LayerId layer_id);
   bool commit_smart_object_child_session(DocumentSession& child_session);
+  // Edit in Default App (GitHub issue 620; docs/smart-object-editing.md): embedded contents
+  // Patchy can't re-encode (SVG and the like) open as a temp copy in the system's app for
+  // that file type, and every save there re-embeds the bytes as one undo step.
+  // Edit Contents' question box for such contents: Edit in Default App, Export, or Cancel.
+  void offer_external_smart_object_edit(const std::string& source_uuid);
+  // Writes the current bytes of `source_uuid` (an embedded element of `target`) to
+  // the document's patchy-so-edit-* temp folder under the element's file name and
+  // watches that file; `launch` opens it with QDesktopServices. The file path, or
+  // nullopt with a status error.
+  std::optional<QString> start_external_smart_object_edit(DocumentSession& target, const std::string& source_uuid,
+                                                          bool launch);
+  // Re-embeds the watched file at `path` into its document: a fresh element uuid,
+  // every layer sharing it re-rendered, one "Edit Smart Object Contents" undo step.
+  // False when nothing changed (same bytes) or the update failed (status error).
+  bool apply_external_smart_object_edit(const QString& path);
+  void external_smart_object_edit_file_changed(const QString& path);
+  void apply_pending_external_smart_object_edits();
+  // Stops watching the session's edits and deletes their temp files (document close).
+  void stop_external_smart_object_edits_for_session(std::int64_t session_id);
   void refresh_external_smart_object_after_save(DocumentSession& child_session);
   void update_smart_object_content();
   // The Update Smart Object Content core, shared with layer.updateSmartObject():
@@ -3843,6 +3863,19 @@ private:
   // The folder of the last successful Relink to File, the next relink dialog's starting
   // folder for this app session only (in memory, never a settings key; GitHub issue 257).
   QString last_relink_directory_;
+  // Edit in Default App watches (GitHub issue 620). source_uuids holds every uuid the
+  // element had since the edit started (an update gives it a fresh one, undo brings an
+  // older one back); the newest one still in the document is the edit's target.
+  struct ExternalSmartObjectEdit {
+    std::int64_t session_id = 0;
+    std::vector<std::string> source_uuids;
+    QString path;
+    QString folder;
+  };
+  std::vector<ExternalSmartObjectEdit> external_smart_object_edits_;
+  QFileSystemWatcher* external_edit_watcher_{nullptr};
+  QTimer* external_edit_timer_{nullptr};
+  QSet<QString> external_edit_pending_paths_;
   std::optional<QByteArray> patchy_system_clipboard_signature_;
   std::vector<LayerId> pending_layer_opacity_ids_;
   std::vector<LayerId> pending_layer_fill_opacity_ids_;

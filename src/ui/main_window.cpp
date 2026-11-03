@@ -5951,6 +5951,10 @@ MainWindow::~MainWindow() {
   // down; the commit path must see this flag and bail before touching any member
   // container (observed as an uncaught "No active document" on macOS teardown).
   shutting_down_ = true;
+  // Delete the Edit in Default App temp copies (best effort: a bounded quit can skip this).
+  while (!external_smart_object_edits_.empty()) {
+    stop_external_smart_object_edits_for_session(external_smart_object_edits_.front().session_id);
+  }
 #ifndef Q_OS_WASM
   // Reaching the destructor means the process is exiting on purpose (a crash never
   // gets here): the recovery folder is deleted by whichever owner releases it last,

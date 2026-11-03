@@ -882,18 +882,6 @@ QString export_image_filter() {
   return filters.join(QStringLiteral(";;"));
 }
 
-QString last_open_directory() {
-  auto settings = app_settings();
-  const auto path = settings.value(QStringLiteral("lastOpenDirectory")).toString();
-  if (!path.isEmpty()) {
-    const QFileInfo info(path);
-    if (info.isDir()) {
-      return info.absoluteFilePath();
-    }
-  }
-  return default_file_dialog_directory();
-}
-
 // The Open dialog reopens on the format row picked last time instead of the
 // all-formats row (GitHub issue 114). A cancelled dialog keeps the old pick; a
 // row that no longer exists (language switch) falls back to the default.

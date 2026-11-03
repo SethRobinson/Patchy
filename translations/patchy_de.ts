@@ -32416,6 +32416,38 @@ Fixiert: %1</translation>
         <source>Feat&amp;her...</source>
         <translation>&amp;Weiche Kante...</translation>
     </message>
+    <message>
+        <source>Patchy can&apos;t edit %1 contents itself.</source>
+        <translation>Patchy kann %1-Inhalte nicht selbst bearbeiten.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App opens a copy in the app your system uses for this file type. Each time you save it there, Patchy updates the smart object.</source>
+        <translation>„In Standard-App bearbeiten“ öffnet eine Kopie in der App, die Ihr System für diesen Dateityp verwendet. Bei jedem Speichern dort aktualisiert Patchy das Smartobjekt.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App</source>
+        <translation>In Standard-App bearbeiten</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>Exportieren...</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary folder for the contents</source>
+        <translation>Temporärer Ordner für den Inhalt konnte nicht erstellt werden</translation>
+    </message>
+    <message>
+        <source>No app opened %1. Open the copy at %2 in any editor; saving it updates the smart object</source>
+        <translation>Keine App hat %1 geöffnet. Öffnen Sie die Kopie unter %2 in einem beliebigen Editor; beim Speichern wird das Smartobjekt aktualisiert</translation>
+    </message>
+    <message>
+        <source>Opened %1 in its default app. Each save there updates the smart object</source>
+        <translation>%1 in der Standard-App geöffnet. Jedes Speichern dort aktualisiert das Smartobjekt</translation>
+    </message>
+    <message>
+        <source>Updated the smart object from %1</source>
+        <translation>Smartobjekt aus %1 aktualisiert</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

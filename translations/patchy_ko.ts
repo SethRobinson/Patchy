@@ -32332,6 +32332,38 @@ Locked: %1</source>
         <source>Feat&amp;her...</source>
         <translation>페더(&amp;H)...</translation>
     </message>
+    <message>
+        <source>Patchy can&apos;t edit %1 contents itself.</source>
+        <translation>Patchy에서는 %1 콘텐츠를 직접 편집할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App opens a copy in the app your system uses for this file type. Each time you save it there, Patchy updates the smart object.</source>
+        <translation>기본 앱에서 편집은 시스템이 이 파일 형식에 사용하는 앱에서 사본을 엽니다. 그 앱에서 저장할 때마다 Patchy가 스마트 개체를 업데이트합니다.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App</source>
+        <translation>기본 앱에서 편집</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>내보내기...</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary folder for the contents</source>
+        <translation>콘텐츠용 임시 폴더를 만들 수 없습니다</translation>
+    </message>
+    <message>
+        <source>No app opened %1. Open the copy at %2 in any editor; saving it updates the smart object</source>
+        <translation>%1을(를) 연 앱이 없습니다. %2에 있는 사본을 아무 편집기에서나 여세요. 저장하면 스마트 개체가 업데이트됩니다</translation>
+    </message>
+    <message>
+        <source>Opened %1 in its default app. Each save there updates the smart object</source>
+        <translation>%1을(를) 기본 앱에서 열었습니다. 그 앱에서 저장할 때마다 스마트 개체가 업데이트됩니다</translation>
+    </message>
+    <message>
+        <source>Updated the smart object from %1</source>
+        <translation>%1에서 스마트 개체를 업데이트했습니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

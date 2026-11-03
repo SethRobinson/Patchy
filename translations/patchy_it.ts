@@ -32416,6 +32416,38 @@ Bloccato: %1</translation>
         <source>Feat&amp;her...</source>
         <translation>S&amp;fuma...</translation>
     </message>
+    <message>
+        <source>Patchy can&apos;t edit %1 contents itself.</source>
+        <translation>Patchy non può modificare da solo il contenuto %1.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App opens a copy in the app your system uses for this file type. Each time you save it there, Patchy updates the smart object.</source>
+        <translation>Modifica nell&apos;app predefinita apre una copia nell&apos;app che il sistema usa per questo tipo di file. Ogni volta che la salvi lì, Patchy aggiorna l&apos;oggetto avanzato.</translation>
+    </message>
+    <message>
+        <source>Edit in Default App</source>
+        <translation>Modifica nell&apos;app predefinita</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>Esporta...</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary folder for the contents</source>
+        <translation>Impossibile creare una cartella temporanea per il contenuto</translation>
+    </message>
+    <message>
+        <source>No app opened %1. Open the copy at %2 in any editor; saving it updates the smart object</source>
+        <translation>Nessuna app ha aperto %1. Apri la copia in %2 con un editor qualsiasi; salvandola si aggiorna l&apos;oggetto avanzato</translation>
+    </message>
+    <message>
+        <source>Opened %1 in its default app. Each save there updates the smart object</source>
+        <translation>%1 aperto nella sua app predefinita. Ogni salvataggio lì aggiorna l&apos;oggetto avanzato</translation>
+    </message>
+    <message>
+        <source>Updated the smart object from %1</source>
+        <translation>Oggetto avanzato aggiornato da %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
