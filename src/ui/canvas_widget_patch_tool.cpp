@@ -209,6 +209,14 @@ CanvasWidget::ContentAwareMoveDestination CanvasWidget::content_aware_move_desti
   return content_aware_move_destination_;
 }
 
+void CanvasWidget::set_content_aware_move_object_selection(bool enabled) noexcept {
+  content_aware_move_object_selection_ = enabled;
+}
+
+bool CanvasWidget::content_aware_move_object_selection() const noexcept {
+  return content_aware_move_object_selection_;
+}
+
 bool CanvasWidget::begin_patch_tool_drag(QPoint document_point) {
   if (document_ == nullptr || selection_.isEmpty()) {
     return false;

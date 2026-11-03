@@ -305,6 +305,7 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {quick_select_sample_all_layers_check_, QT_TR_NOOP("Sample All Layers")},
       {quick_select_enhance_edge_check_, QT_TR_NOOP("Enhance Edge")},
       {object_select_sample_all_layers_check_, QT_TR_NOOP("Sample All Layers")},
+      {content_aware_move_object_selection_check_, QT_TR_NOOP("Object Selection")},
       {select_subject_button_, QT_TR_NOOP("Select Subject")},
       {remove_background_button_, QT_TR_NOOP("Remove Background")},
       {ctx.fill_shapes, QT_TR_NOOP("Fill")},
@@ -365,6 +366,10 @@ void MainWindow::sync_tool_option_controls_from_canvas() {
     content_aware_move_destination_combo_->setCurrentIndex(
         std::max(0, content_aware_move_destination_combo_->findData(
                         static_cast<int>(canvas_->content_aware_move_destination()))));
+  }
+  if (content_aware_move_object_selection_check_ != nullptr) {
+    const QSignalBlocker blocker(content_aware_move_object_selection_check_);
+    content_aware_move_object_selection_check_->setChecked(canvas_->content_aware_move_object_selection());
   }
   if (crop_ratio_w_spin_ != nullptr && crop_ratio_h_spin_ != nullptr) {
     const QSignalBlocker w_blocker(crop_ratio_w_spin_);

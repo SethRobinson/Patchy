@@ -17106,6 +17106,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Feathered selection by %1 px</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Object Selection found no object in the outline; the outline is kept</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -32373,6 +32377,10 @@ Locked: %1</source>
     </message>
     <message>
         <source>M&amp;etadata</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

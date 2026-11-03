@@ -17123,6 +17123,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Feathered selection by %1 px</source>
         <translation>Auswahlkante um %1 px weichgezeichnet</translation>
     </message>
+    <message>
+        <source>Object Selection found no object in the outline; the outline is kept</source>
+        <translation>Die Objektauswahl hat in der Kontur kein Objekt gefunden; die Kontur bleibt erhalten</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -32455,6 +32459,10 @@ Fixiert: %1</translation>
     <message>
         <source>M&amp;etadata</source>
         <translation>M&amp;etadaten</translation>
+    </message>
+    <message>
+        <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
+        <translation>Nach dem Zeichnen einer neuen Kontur das Objekt darin auswählen, um einige Pixel erweitern und die weiche Kante anwenden, bevor Sie ziehen</translation>
     </message>
 </context>
 <context>

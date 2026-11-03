@@ -16,6 +16,7 @@
 #include "ui/background_workers.hpp"
 #include "ui/canvas_widget_shared.hpp"
 #include "ui/image_document_io.hpp"
+#include "ui/qt_geometry.hpp"
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -26,6 +27,7 @@
 #include <QPointF>
 #include <QRect>
 #include <QRectF>
+#include <QRegion>
 #include <QString>
 #include <Qt>
 #include <QtGlobal>
@@ -46,6 +48,32 @@ namespace {
 
 // A release within this many widget pixels of the press is a click (point prompt).
 constexpr int kObjectSelectClickSlop = 4;
+
+// Content-Aware Move's Object Selection grows the object this far (Select > Modify > Expand)
+// before its Feather, so the move takes the object's edge pixels and a little of its fringe.
+constexpr int kContentAwareMoveObjectGrow = 4;
+
+// The pixels of `alpha` (placed at `bounds`) at or above 50% coverage.
+QRegion region_at_half_coverage(const QImage& alpha, QRect bounds) {
+  QRegion region;
+  for (int y = 0; y < alpha.height(); ++y) {
+    const auto* row = alpha.constScanLine(y);
+    int x = 0;
+    while (x < alpha.width()) {
+      while (x < alpha.width() && row[x] < 128U) {
+        ++x;
+      }
+      const int start = x;
+      while (x < alpha.width() && row[x] >= 128U) {
+        ++x;
+      }
+      if (x > start) {
+        region += QRect(bounds.x() + start, bounds.y() + y, x - start, 1);
+      }
+    }
+  }
+  return region;
+}
 
 // A 64-bit signature of the sampled pixels (RGBA8888 rows are 4-byte aligned, so the
 // whole buffer is the pixels): decides whether a stale-marked embedding still matches.
@@ -336,7 +364,8 @@ void CanvasWidget::finish_object_select(QPoint widget_position) {
 // with a zoom-to-box region (patchy::ai::sam_box_region: fixed geometry from the box alone)
 // encodes that region first, once, and decodes the box once against it.
 bool CanvasWidget::solve_object_select(bool is_click, QPoint point, QRect box, SelectionMode operation,
-                                       QString history_label) {
+                                       QString history_label, int grow_pixels, QString no_object_message,
+                                       const QRegion& must_overlap) {
   if (document_ == nullptr) {
     return false;
   }
@@ -438,15 +467,21 @@ bool CanvasWidget::solve_object_select(bool is_click, QPoint point, QRect box, S
     update();
     return false;
   }
-  if (mask.empty()) {
+  auto alpha = mask.empty() ? QImage() : grayscale_image_from_mask(mask);
+  const auto mask_bounds = QRect(mask.bounds.x, mask.bounds.y, mask.bounds.width, mask.bounds.height);
+  if (!alpha.isNull() && !must_overlap.isEmpty() &&
+      region_at_half_coverage(alpha, mask_bounds).intersected(must_overlap).isEmpty()) {
+    alpha = QImage();
+  }
+  if (alpha.isNull()) {
     if (status_callback_) {
-      status_callback_(tr("Object Selection found no object there"));
+      status_callback_(no_object_message.isEmpty() ? tr("Object Selection found no object there")
+                                                   : no_object_message);
     }
     update();
     return false;
   }
-  apply_automatic_selection_mask(QRect(mask.bounds.x, mask.bounds.y, mask.bounds.width, mask.bounds.height),
-                                 grayscale_image_from_mask(mask), operation, std::move(history_label));
+  apply_automatic_selection_mask(mask_bounds, std::move(alpha), operation, std::move(history_label), grow_pixels);
   return true;
 }
 
@@ -480,8 +515,38 @@ bool CanvasWidget::select_object_in_selection() {
   return solve_object_select(false, QPoint(), box, SelectionMode::Replace, tr("Select Object"));
 }
 
+// Content-Aware Move's Object Selection (GitHub issue 599 follow-up; docs/content-aware-move.md).
+// The same one box prompt as Select Object, from the outline the user just drew, on that
+// release: nothing segmented shows before it, and the mask is only grown and feathered as
+// plain selection edits (the "Automatic selection" bullet in docs/legal-constraints.md).
+// Any failure or an empty result leaves the drawn outline as the selection.
+bool CanvasWidget::content_aware_move_object_pass(QRect box) {
+  if (document_ == nullptr || !patchy::ai::segmentation_available()) {
+    return false;
+  }
+  box = box.intersected(QRect(0, 0, document_->width(), document_->height()));
+  if (box.isEmpty()) {
+    return false;
+  }
+  const auto keeping_outline = tr("Object Selection found no object in the outline; the outline is kept");
+  if (!patchy::ai::sam_box_region(Rect{box.x(), box.y(), box.width(), box.height()}, document_->width(),
+                                  document_->height())
+           .has_value()) {
+    ensure_object_select_embedding();
+    if (!object_select_embedding_.valid()) {
+      report_status_error(object_select_source_error_.isEmpty() ? tr("Object Selection could not read the document")
+                                                                : object_select_source_error_);
+      return false;
+    }
+  }
+  // A result that misses the outline entirely is not the object the user drew around.
+  const auto outline = selection_;
+  return solve_object_select(false, QPoint(), box, SelectionMode::Replace, tr("Object Selection"),
+                             kContentAwareMoveObjectGrow, keeping_outline, outline);
+}
+
 void CanvasWidget::apply_automatic_selection_mask(QRect bounds, QImage alpha, SelectionMode operation,
-                                                  QString history_label) {
+                                                  QString history_label, int grow_pixels) {
   if (document_ == nullptr || alpha.isNull() || bounds.isEmpty()) {
     return;
   }
@@ -498,6 +563,23 @@ void CanvasWidget::apply_automatic_selection_mask(QRect bounds, QImage alpha, Se
     }
   }
   const auto document_rect = QRect(0, 0, document_->width(), document_->height());
+  if (grow_pixels > 0) {
+    // Select > Modify > Expand's growth (expanded_region) of the half-coverage mask.
+    const auto grown = expanded_region(region_at_half_coverage(alpha, bounds), grow_pixels, document_rect);
+    if (grown.isEmpty()) {
+      selection_operation_ = previous_operation;
+      clear_selection_before_edit();
+      return;
+    }
+    bounds = grown.boundingRect();
+    alpha = QImage(bounds.size(), QImage::Format_Grayscale8);
+    alpha.fill(0);
+    for (const auto& run : grown) {
+      for (int y = run.top(); y <= run.bottom(); ++y) {
+        std::fill_n(alpha.scanLine(y - bounds.y()) + (run.left() - bounds.x()), run.width(), std::uint8_t{255});
+      }
+    }
+  }
   if (selection_feather_radius_ > 0) {
     const auto feather = selection_feather_radius_;
     const auto padding = feather_mask_padding(feather);

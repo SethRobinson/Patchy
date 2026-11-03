@@ -3388,6 +3388,8 @@ private:
   QComboBox* patch_mode_combo_{nullptr};
   QComboBox* content_aware_move_mode_combo_{nullptr};
   QComboBox* content_aware_move_destination_combo_{nullptr};
+  // Null in builds without automatic selection (the option is left out there).
+  QCheckBox* content_aware_move_object_selection_check_{nullptr};
   QComboBox* mixer_combination_combo_{nullptr};
   // The Smoothing gear button and its four checkable menu actions.
   QToolButton* brush_smoothing_options_button_{nullptr};

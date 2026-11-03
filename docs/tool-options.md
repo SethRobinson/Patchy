@@ -79,6 +79,7 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Patch | Mode, Transparent | retired keys | no | no (session) |
 | Content-Aware Move | Mode (`contentAwareMoveModeCombo`) | none | no | no (session) |
 | Content-Aware Move | Destination (`contentAwareMoveDestinationCombo`: Current Layer, New Layer) | `contentAwareMoveDestination` (token) | new (issue 599) | yes |
+| Content-Aware Move | Object Selection (`contentAwareMoveObjectSelectionCheck`; builds with the Object Selection model only) | `contentAwareMoveObjectSelection` (default off) | new (issue 599) | yes |
 | Red Eye | Pupil Size, Darken Amount (`redEyePupilSizeSpin`/`Slider`, `redEyeDarkenAmountSpin`/`Slider`) | `redEyePupilSize`, `redEyeDarkenAmount` | new (issue 370) | yes |
 | Dodge, Burn | Strength, Range, Protect Tones | `localAdjustmentStrength`, `localToneRange`, `localProtectTones` | yes | yes |
 | Sponge | Mode, Vibrance | `spongeMode`, `spongeVibrance` | yes | yes |

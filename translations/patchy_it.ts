@@ -17123,6 +17123,10 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Feathered selection by %1 px</source>
         <translation>Selezione sfumata di %1 px</translation>
     </message>
+    <message>
+        <source>Object Selection found no object in the outline; the outline is kept</source>
+        <translation>La selezione oggetto non ha trovato alcun oggetto nel contorno; il contorno resta</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -32455,6 +32459,10 @@ Bloccato: %1</translation>
     <message>
         <source>M&amp;etadata</source>
         <translation>M&amp;etadati</translation>
+    </message>
+    <message>
+        <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
+        <translation>Quando finite di tracciare un nuovo contorno, seleziona l&apos;oggetto al suo interno, lo espande di qualche pixel e applica la sfumatura prima del trascinamento</translation>
     </message>
 </context>
 <context>

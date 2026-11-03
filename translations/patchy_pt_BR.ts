@@ -17123,6 +17123,10 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Feathered selection by %1 px</source>
         <translation>Seleção difundida em %1 px</translation>
     </message>
+    <message>
+        <source>Object Selection found no object in the outline; the outline is kept</source>
+        <translation>A seleção de objeto não encontrou nenhum objeto no contorno; o contorno é mantido</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -32455,6 +32459,10 @@ Bloqueado: %1</translation>
     <message>
         <source>M&amp;etadata</source>
         <translation>M&amp;etadados</translation>
+    </message>
+    <message>
+        <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
+        <translation>Ao terminar de desenhar um novo contorno, seleciona o objeto dentro dele, expande alguns pixels e aplica a difusão antes de arrastar</translation>
     </message>
 </context>
 <context>

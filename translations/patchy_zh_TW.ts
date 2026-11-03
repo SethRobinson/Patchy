@@ -17078,6 +17078,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Feathered selection by %1 px</source>
         <translation>已將選取範圍羽化 %1 px</translation>
     </message>
+    <message>
+        <source>Object Selection found no object in the outline; the outline is kept</source>
+        <translation>物件選取未在輪廓內找到物件；保留輪廓</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -32371,6 +32375,10 @@ Locked: %1</source>
     <message>
         <source>M&amp;etadata</source>
         <translation>中繼資料(&amp;E)</translation>
+    </message>
+    <message>
+        <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
+        <translation>畫完新輪廓後，選取其中的物件，擴張幾個像素並套用羽化，然後再拖曳</translation>
     </message>
 </context>
 <context>

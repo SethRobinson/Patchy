@@ -17078,6 +17078,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Feathered selection by %1 px</source>
         <translation>選択範囲を %1 px ぼかしました</translation>
     </message>
+    <message>
+        <source>Object Selection found no object in the outline; the outline is kept</source>
+        <translation>オブジェクト選択で輪郭内にオブジェクトが見つかりませんでした。輪郭はそのまま残ります</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -32371,6 +32375,10 @@ Locked: %1</source>
     <message>
         <source>M&amp;etadata</source>
         <translation>メタデータ(&amp;E)</translation>
+    </message>
+    <message>
+        <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
+        <translation>新しい輪郭を描き終えたとき、その中のオブジェクトを選択し、数ピクセル拡張してぼかしを適用してからドラッグします</translation>
     </message>
 </context>
 <context>

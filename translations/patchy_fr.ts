@@ -17123,6 +17123,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Feathered selection by %1 px</source>
         <translation>Contour progressif de %1 px appliqué</translation>
     </message>
+    <message>
+        <source>Object Selection found no object in the outline; the outline is kept</source>
+        <translation>La sélection d&apos;objet n&apos;a trouvé aucun objet dans le contour ; le contour est conservé</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -32455,6 +32459,10 @@ Verrouillé : %1</translation>
     <message>
         <source>M&amp;etadata</source>
         <translation>Mé&amp;tadonnées</translation>
+    </message>
+    <message>
+        <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
+        <translation>Une fois un nouveau contour tracé, sélectionne l&apos;objet qu&apos;il contient, l&apos;agrandit de quelques pixels et applique le contour progressif avant le glissement</translation>
     </message>
 </context>
 <context>

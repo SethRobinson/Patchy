@@ -17168,6 +17168,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Feathered selection by %1 px</source>
         <translation>Wtopiono krawędź zaznaczenia o %1 px</translation>
     </message>
+    <message>
+        <source>Object Selection found no object in the outline; the outline is kept</source>
+        <translation>Zaznaczanie obiektu nie znalazło obiektu w obrysie; obrys pozostaje</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -32539,6 +32543,10 @@ Zablokowano: %1</translation>
     <message>
         <source>M&amp;etadata</source>
         <translation>M&amp;etadane</translation>
+    </message>
+    <message>
+        <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
+        <translation>Po narysowaniu nowego obrysu zaznacza obiekt w jego wnętrzu, rozszerza go o kilka pikseli i stosuje wtapianie, zanim zaczniesz przeciągać</translation>
     </message>
 </context>
 <context>

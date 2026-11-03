@@ -3534,6 +3534,26 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     save_tool_settings();
   });
 
+  // Object Selection (GitHub issue 599 follow-up): a New outline becomes the object inside it
+  // on release, grown a little and feathered. Stored (tools/contentAwareMoveObjectSelection);
+  // left out of builds without the Object Selection model.
+  configure_automatic_selection_models();
+  if (patchy::ai::segmentation_available()) {
+    content_aware_move_object_selection_check_ = new CheckGlyphBox(tr("Object Selection"), toolbar);
+    content_aware_move_object_selection_check_->setObjectName(QStringLiteral("contentAwareMoveObjectSelectionCheck"));
+    content_aware_move_object_selection_check_->setChecked(canvas_defaults->content_aware_move_object_selection());
+    bind_tooltip(content_aware_move_object_selection_check_,
+                 QT_TR_NOOP("When you finish drawing a new outline, select the object inside it, grow that a few "
+                            "pixels and apply the Feather, before you drag"));
+    add_option_widget(content_aware_move_object_selection_check_, {CanvasTool::ContentAwareMove});
+    connect(content_aware_move_object_selection_check_, &QCheckBox::toggled, this, [this](bool checked) {
+      if (canvas_ != nullptr) {
+        canvas_->set_content_aware_move_object_selection(checked);
+        save_tool_settings();
+      }
+    });
+  }
+
   // Sample (GitHub issue 382): which layers the retouch tools read. Item data is the
   // settings token; the texts are the Pick tool's Sample texts.
   const std::initializer_list<CanvasTool> retouch_tools{CanvasTool::Clone, CanvasTool::Healing,
