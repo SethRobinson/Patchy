@@ -195,6 +195,11 @@ public:
   // {tolerance, cornerAngle, snapCurvesToLines}; returns {anchorsBefore,
   // anchorsAfter}. Unknown option names throw.
   Q_INVOKABLE QJSValue simplifyPath(const QJSValue& options = QJSValue());
+  // Type > Convert to Shape on this text layer, in place (same id); returns this layer.
+  Q_INVOKABLE QJSValue convertToShape();
+  // Type > Create Work Path from this text layer's glyph outlines (the text is kept); returns
+  // the work path.
+  Q_INVOKABLE QJSValue createWorkPath();
 
   [[nodiscard]] LayerId layer_id() const noexcept { return layer_id_; }
   [[nodiscard]] std::int64_t session_id() const noexcept { return session_id_; }

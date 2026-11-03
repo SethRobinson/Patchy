@@ -1909,7 +1909,8 @@ void ui_close_last_tab_with_active_text_edit_commits_editor_first() {
 // and Discard roles. Bare key presses (no Alt) answer it like native Windows message
 // boxes: Y, N and C, plus S and D as aliases from the Save / Don't Save days. Qt itself
 // only wires the Alt+mnemonic; show_warning_message adds the plain letters, so both the
-// button set and the accelerators are pinned here.
+// button set and the accelerators are pinned here. The file name is quoted and the three
+// buttons share one width (GitHub issue 605).
 void ui_save_prompt_uses_yes_no_cancel_with_letter_hotkeys() {
   std::filesystem::create_directories("test-artifacts");
   const auto path = QFileInfo(QDir(QStringLiteral("test-artifacts"))
@@ -1953,10 +1954,14 @@ void ui_save_prompt_uses_yes_no_cancel_with_letter_hotkeys() {
   bool prompt_seen = false;
   bool buttons_are_yes_no_cancel = false;
   bool prompt_is_inside_screen = false;
+  bool name_is_quoted = false;
+  bool buttons_share_width = false;
   const auto dismiss_prompt_with_key = [&](int key) {
     prompt_seen = false;
     buttons_are_yes_no_cancel = false;
     prompt_is_inside_screen = false;
+    name_is_quoted = false;
+    buttons_share_width = false;
     auto* dismiss_timer = new QTimer(&window);
     dismiss_timer->setInterval(10);
     // The placement filter re-clamps the box one event-loop turn after each Show and
@@ -1999,6 +2004,18 @@ void ui_save_prompt_uses_yes_no_cancel_with_letter_hotkeys() {
           dialog->defaultButton() == save && save->text() == QStringLiteral("&Yes") &&
           discard->text() == QStringLiteral("&No") && cancel->text() == QStringLiteral("&Cancel") &&
           dialog->text().endsWith(QLatin1Char('?'));
+      name_is_quoted =
+          dialog->text() == QStringLiteral("Save changes to \"ui_save_prompt_yes_no.tga\" before closing?");
+      if (!name_is_quoted) {
+        std::cerr << "  save prompt text: " << dialog->text().toStdString() << '\n';
+      }
+      buttons_share_width = buttons_are_yes_no_cancel && save->width() == discard->width() &&
+                            discard->width() == cancel->width() &&
+                            save->width() >= cancel->sizeHint().width();
+      if (!buttons_share_width && buttons_are_yes_no_cancel) {
+        std::cerr << "  save prompt button widths " << save->width() << ' ' << discard->width() << ' '
+                  << cancel->width() << '\n';
+      }
       dismiss_timer->stop();
       dismiss_timer->deleteLater();
       if (key == Qt::Key_D) {
@@ -2023,6 +2040,8 @@ void ui_save_prompt_uses_yes_no_cancel_with_letter_hotkeys() {
     QApplication::processEvents();
     CHECK(prompt_seen);
     CHECK(buttons_are_yes_no_cancel);
+    CHECK(name_is_quoted);
+    CHECK(buttons_share_width);
     CHECK(prompt_is_inside_screen);
     // C cancels: the tab stays open with its changes.
     CHECK(closed == (key != Qt::Key_C));
@@ -3731,6 +3750,147 @@ void ui_background_layer_stays_at_bottom_and_takes_no_styles() {
   CHECK(std::as_const(doc).find_layer(background_id)->layer_style().empty());
 }
 
+// GitHub issue 604: a copy of the Background (Duplicate Layer, the Layers panel's Alt-drop,
+// Duplicate Layer to Document) is an ordinary layer: no position or transparency lock, no
+// padlock badge, layer styles allowed. The original stays the Background, an ordinary
+// layer's own locks survive its duplicate, undo takes each copy back out, and the copy that
+// becomes the only layer of a new document stays that document's Background.
+void ui_duplicate_background_layer_makes_unlocked_copy() {
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* styles_button = window.findChild<QWidget*>(QStringLiteral("layerStylesButton"));
+  CHECK(layer_list != nullptr && styles_button != nullptr);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* background = patchy::background_layer(std::as_const(doc).layers(), doc.width(), doc.height());
+  CHECK(background != nullptr);
+  const auto background_id = background->id();
+  const auto background_locks = patchy::layer_lock_flags(*background);
+  CHECK((background_locks & patchy::kLayerLockPosition) != patchy::kLayerLockNone);
+  CHECK(std::as_const(doc).layers().size() == 2U);
+  const auto paint_id = std::as_const(doc).layers().back().id();
+  const auto background_only_locks =
+      patchy::kLayerLockPosition | patchy::kLayerLockTransparentPixels | patchy::kLayerLockArtboardAutonest;
+  const auto select_row = [&](const char* name) {
+    auto* item = require_layer_item(*layer_list, QString::fromLatin1(name));
+    layer_list->clearSelection();
+    layer_list->setCurrentItem(item);
+    item->setSelected(true);
+    QApplication::processEvents();
+  };
+  const auto has_background_badge = [&](const char* name) {
+    auto* row = layer_list->itemWidget(require_layer_item(*layer_list, QString::fromLatin1(name)));
+    CHECK(row != nullptr);
+    const auto badges = row->findChildren<QLabel*>(QStringLiteral("layerLockBadge"));
+    return std::any_of(badges.begin(), badges.end(),
+                       [](const QLabel* badge) { return badge->property("layerBackgroundBadge").toBool(); });
+  };
+  const auto original_unchanged = [&] {
+    const auto* now = patchy::background_layer(std::as_const(doc).layers(), doc.width(), doc.height());
+    return now != nullptr && now->id() == background_id && patchy::layer_lock_flags(*now) == background_locks;
+  };
+  const auto find_copy = [](const patchy::Document& in, std::initializer_list<patchy::LayerId> known) {
+    const patchy::Layer* found = nullptr;
+    for (const auto& layer : in.layers()) {
+      if (std::find(known.begin(), known.end(), layer.id()) == known.end()) {
+        found = &layer;
+      }
+    }
+    return found;
+  };
+  const auto unlocked = [&](const patchy::Layer* layer) {
+    return layer != nullptr && (patchy::layer_lock_flags(*layer) & background_only_locks) == patchy::kLayerLockNone;
+  };
+
+  // Layer > Duplicate Layer: "Background copy" directly above it, unlocked, styles allowed.
+  select_row("Background");
+  CHECK(!styles_button->isEnabled());
+  require_action(window, "layerDuplicateAction")->trigger();
+  QApplication::processEvents();
+  CHECK(std::as_const(doc).layers().size() == 3U);
+  {
+    const auto& copy = std::as_const(doc).layers()[1];
+    CHECK(copy.name() == "Background copy");
+    CHECK(unlocked(&copy));
+    CHECK(!patchy::layer_effectively_locks_position(std::as_const(doc).layers(), copy.id()));
+    CHECK(doc.active_layer_id() == copy.id());
+  }
+  CHECK(original_unchanged());
+  CHECK(!has_background_badge("Background copy"));
+  CHECK(has_background_badge("Background"));
+  CHECK(styles_button->isEnabled());
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(std::as_const(doc).layers().size() == 2U);
+  CHECK(original_unchanged());
+
+  // The Layers panel's Alt-drop duplicate.
+  patchy::ui::MainWindowTestAccess::duplicate_layers_for_drop_above(window, {background_id}, paint_id);
+  QApplication::processEvents();
+  CHECK(std::as_const(doc).layers().size() == 3U);
+  {
+    const auto* copy = find_copy(std::as_const(doc), {background_id, paint_id});
+    CHECK(copy != nullptr && copy->name() == "Background copy");
+    CHECK(unlocked(copy));
+    CHECK(copy != nullptr && std::as_const(doc).layers().back().id() == copy->id());
+  }
+  CHECK(original_unchanged());
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(std::as_const(doc).layers().size() == 2U);
+
+  // An ordinary layer's own locks are the user's: its duplicate keeps them.
+  const auto user_locks = patchy::kLayerLockPosition | patchy::kLayerLockImagePixels;
+  patchy::set_layer_lock_flags(*doc.find_layer(paint_id), user_locks);
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  select_row("Paint Layer");
+  require_action(window, "layerDuplicateAction")->trigger();
+  QApplication::processEvents();
+  {
+    const auto* copy = find_copy(std::as_const(doc), {background_id, paint_id});
+    CHECK(copy != nullptr && copy->name() == "Paint Layer copy");
+    CHECK(copy != nullptr && patchy::layer_lock_flags(*copy) == user_locks);
+  }
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  patchy::set_layer_lock_flags(*doc.find_layer(paint_id), patchy::kLayerLockNone);
+
+  // Duplicate Layer to Document: an ordinary layer in a document that has layers; the
+  // first layer of an empty new document stays its Background.
+  const auto source_session = patchy::ui::MainWindowTestAccess::session_id_for_canvas(window, canvas);
+  patchy::Document target(doc.width(), doc.height(), patchy::PixelFormat::rgba8());
+  target.add_pixel_layer("Base", solid_pixels(doc.width(), doc.height(), patchy::PixelFormat::rgba8(),
+                                              QColor(20, 20, 20)));
+  window.add_document_session(std::move(target), QStringLiteral("Target"));
+  QApplication::processEvents();
+  auto* target_canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  auto* target_document = patchy::ui::MainWindowTestAccess::document_for_canvas(window, target_canvas);
+  CHECK(target_document != nullptr);
+  const auto base_id = std::as_const(*target_document).layers().front().id();
+  CHECK(patchy::ui::MainWindowTestAccess::duplicate_layers_to_session(
+      window, source_session, {background_id},
+      patchy::ui::MainWindowTestAccess::session_id_for_canvas(window, target_canvas)));
+  QApplication::processEvents();
+  {
+    const auto* copy = find_copy(std::as_const(*target_document), {base_id});
+    CHECK(unlocked(copy));
+    CHECK(std::as_const(*target_document).layers().front().id() == base_id);
+  }
+  patchy::Document fresh(doc.width(), doc.height(), doc.format());
+  window.add_document_session(std::move(fresh), QStringLiteral("Fresh"));
+  QApplication::processEvents();
+  auto* fresh_canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  auto* fresh_document = patchy::ui::MainWindowTestAccess::document_for_canvas(window, fresh_canvas);
+  CHECK(fresh_document != nullptr && std::as_const(*fresh_document).layers().empty());
+  CHECK(patchy::ui::MainWindowTestAccess::duplicate_layers_to_session(
+      window, source_session, {background_id},
+      patchy::ui::MainWindowTestAccess::session_id_for_canvas(window, fresh_canvas)));
+  QApplication::processEvents();
+  CHECK(fresh_document != nullptr && patchy::background_layer(std::as_const(*fresh_document).layers(),
+                                                              fresh_document->width(),
+                                                              fresh_document->height()) != nullptr);
+  CHECK(original_unchanged());
+}
+
 // GitHub issue 274: the Background's row shows one padlock that names it (Seth: no italic
 // name), and its shorter right-click menu offers Layer from Background, which makes it an
 // ordinary "Layer 0" in one undo step. Delete Layer and Merge Visible need another layer.
@@ -4701,6 +4861,7 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
       {"ui_background_layer_stays_at_bottom_and_takes_no_styles",
        ui_background_layer_stays_at_bottom_and_takes_no_styles},
       {"ui_background_layer_marker_and_short_menu", ui_background_layer_marker_and_short_menu},
+      {"ui_duplicate_background_layer_makes_unlocked_copy", ui_duplicate_background_layer_makes_unlocked_copy},
       {"ui_new_layer_dialog_applies_each_field_and_cancel_adds_nothing",
        ui_new_layer_dialog_applies_each_field_and_cancel_adds_nothing},
       {"ui_new_layer_dialog_and_merge_visible_retranslate", ui_new_layer_dialog_and_merge_visible_retranslate},

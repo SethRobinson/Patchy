@@ -113,6 +113,37 @@ void layer_background_rule_matches_photoshop_background() {
   CHECK(patchy::layer_stack_keeps_background(with_alpha, reordered, 4, 3));
 }
 
+// GitHub issue 604: a copy of the Background loses only the locks that status carries
+// (position, transparent pixels, artboard auto-nest); a copy of any other layer, and every
+// other lock, is left alone.
+void layer_copy_of_background_clears_background_locks() {
+  using patchy::test::solid_rgb;
+  std::vector<patchy::Layer> layers;
+  layers.emplace_back(1, "Background", solid_rgb(4, 3, 255, 255, 255));
+  patchy::set_layer_lock_flags(layers.back(), patchy::kLayerLockPosition | patchy::kLayerLockTransparentPixels |
+                                                  patchy::kLayerLockArtboardAutonest |
+                                                  patchy::kLayerLockImagePixels);
+  layers.emplace_back(2, "Layer 1", solid_rgb(4, 3, 10, 20, 30));
+  patchy::set_layer_lock_flags(layers.back(), patchy::kLayerLockPosition | patchy::kLayerLockTransparentPixels);
+  CHECK(patchy::background_layer(layers, 4, 3) == &layers.front());
+
+  auto background_copy = layers.front();
+  patchy::clear_background_locks_if_copy_of_background(background_copy, 1, layers, 4, 3);
+  CHECK(patchy::layer_lock_flags(background_copy) == patchy::kLayerLockImagePixels);
+  auto ordinary_copy = layers.back();
+  patchy::clear_background_locks_if_copy_of_background(ordinary_copy, 2, layers, 4, 3);
+  CHECK(patchy::layer_lock_flags(ordinary_copy) == patchy::layer_lock_flags(layers.back()));
+  // Without a Background (position lock cleared) nothing is a copy of one.
+  auto no_background = layers;
+  patchy::set_layer_locks_position(no_background.front(), false);
+  auto plain_copy = no_background.front();
+  patchy::clear_background_locks_if_copy_of_background(plain_copy, 1, no_background, 4, 3);
+  CHECK(patchy::layer_lock_flags(plain_copy) == patchy::layer_lock_flags(no_background.front()));
+  patchy::clear_background_locks(layers.front());
+  CHECK(patchy::layer_lock_flags(layers.front()) == patchy::kLayerLockImagePixels);
+  CHECK(patchy::background_layer(layers, 4, 3) == nullptr);
+}
+
 void layer_lock_flags_and_inheritance_work() {
   patchy::Layer folder(1, "Folder", patchy::LayerKind::Group);
   patchy::Layer child(2, "Child", solid_rgba(2, 2, 20, 40, 60, 255));
@@ -423,6 +454,7 @@ std::vector<patchy::test::TestCase> layer_metadata_tests() {
        layer_affine_transform_serialization_round_trips_every_double},
       {"layer_lock_flags_and_inheritance_work", layer_lock_flags_and_inheritance_work},
       {"layer_background_rule_matches_photoshop_background", layer_background_rule_matches_photoshop_background},
+      {"layer_copy_of_background_clears_background_locks", layer_copy_of_background_clears_background_locks},
       {"moved_layer_metadata_translates_linked_masks_and_vector_paths",
        moved_layer_metadata_translates_linked_masks_and_vector_paths},
       {"moved_layer_metadata_leaves_unlinked_masks_stationary",

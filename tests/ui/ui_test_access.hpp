@@ -332,6 +332,13 @@ public:
 
   static void undo(MainWindow& window);
 
+  // The Layers panel's Alt-drop duplicate: copies `ids` and drops the copies above `target`.
+  static void duplicate_layers_for_drop_above(MainWindow& window, std::vector<LayerId> ids, LayerId target);
+
+  // Duplicate Layer to Document's copy (source coordinates kept) from one session to another.
+  static bool duplicate_layers_to_session(MainWindow& window, std::int64_t source_session_id,
+                                          std::vector<LayerId> ids, std::int64_t target_session_id);
+
   // Color Selected Shapes without its color picker (GitHub #555).
   static bool set_selected_path_components_color(MainWindow& window, QColor color);
 

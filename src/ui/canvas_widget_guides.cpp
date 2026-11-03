@@ -278,6 +278,31 @@ bool CanvasWidget::pixel_grid_visible() const noexcept {
   return pixel_grid_visible_;
 }
 
+void CanvasWidget::set_pixel_grid_min_zoom_percent(int percent) noexcept {
+  percent = valid_pixel_grid_min_zoom_percent(percent);
+  if (pixel_grid_min_zoom_percent_ == percent) {
+    return;
+  }
+  pixel_grid_min_zoom_percent_ = percent;
+  update();
+}
+
+int CanvasWidget::pixel_grid_min_zoom_percent() const noexcept {
+  return pixel_grid_min_zoom_percent_;
+}
+
+bool CanvasWidget::pixel_grid_drawn() const noexcept {
+  // The tolerance keeps a zoom set to exactly the threshold at a fractional device pixel
+  // ratio (4 / 1.5 * 1.5) on the grid side.
+  constexpr double kThresholdTolerance = 1e-9;
+  return pixel_grid_visible_ && extra_shown(ViewExtra::PixelGrid) &&
+         view_zoom() >= pixel_grid_min_zoom_percent_ / 100.0 - kThresholdTolerance;
+}
+
+bool CanvasWidget::deep_zoom_pixels_active() const noexcept {
+  return uses_deep_zoom_pixel_renderer(view_zoom()) || pixel_grid_drawn();
+}
+
 void CanvasWidget::set_guides_visible(bool visible) noexcept {
   if (guides_visible_ == visible) {
     return;

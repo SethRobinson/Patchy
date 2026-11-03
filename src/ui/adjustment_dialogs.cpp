@@ -1001,21 +1001,31 @@ std::optional<LevelsSettings> request_levels_settings(
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyLevelsDialog"));
   dialog.setWindowTitle(QObject::tr("Levels"));
-  auto* root = new QHBoxLayout(&dialog);
-
+  // Top to bottom, as the other preset dialogs (#589 follow-up): the preset combo indented
+  // past a label column, Save/Delete/Import/Export under it sharing its width, a separator,
+  // the channel tabs (an asterisk on a changed channel), "Input Levels:" with Auto at the
+  // right, the input and output controls, then Preview on the OK/Cancel line.
+  auto* root = new QVBoxLayout(&dialog);
   auto* controls = new QVBoxLayout();
   controls->setSpacing(6);
   root->addLayout(controls, 1);
 
-  auto* preset_row = new QHBoxLayout();
-  preset_row->setSpacing(10);
+  auto* preset_form = new QFormLayout();
+  preset_form->setContentsMargins(0, 0, 0, 0);
+  preset_form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
   auto* preset = new QComboBox(&dialog);
   preset->setObjectName(QStringLiteral("levelsPresetCombo"));
   auto* preset_label = new QLabel(QObject::tr("Preset:"), &dialog);
+  preset_label->setObjectName(QStringLiteral("levelsPresetLabel"));
   preset_label->setBuddy(preset);
-  preset_row->addWidget(preset_label);
-  preset_row->addWidget(preset, 1);
-  controls->addLayout(preset_row);
+  preset_form->addRow(preset_label, track_aligned_row(preset));
+  controls->addLayout(preset_form);
+  auto* preset_buttons_area = new QWidget(&dialog);
+  preset_buttons_area->setObjectName(QStringLiteral("levelsPresetArea"));
+  auto* preset_buttons_layout = new QHBoxLayout(preset_buttons_area);
+  preset_buttons_layout->setContentsMargins(0, 0, 0, 0);
+  preset_form->addRow(QString(), track_aligned_row(preset_buttons_area));
+  controls->addWidget(preset_section_separator(&dialog, QStringLiteral("levelsPresetSeparator")));
   std::vector<AdjustmentPresetCombo<LevelsAdjustment>::Shipped> shipped_presets;
   for (const auto& entry : builtin_levels_presets()) {
     shipped_presets.push_back(
@@ -1030,15 +1040,28 @@ std::optional<LevelsSettings> request_levels_settings(
   channel->setObjectName(QStringLiteral("levelsChannelTabs"));
   channel->setDrawBase(false);
   channel->setExpanding(true);
-  channel->addTab(QObject::tr("RGB"));
-  channel->addTab(QObject::tr("Red"));
-  channel->addTab(QObject::tr("Green"));
-  channel->addTab(QObject::tr("Blue"));
+  const QStringList channel_names{QObject::tr("RGB"), QObject::tr("Red"), QObject::tr("Green"), QObject::tr("Blue")};
+  for (const auto& name : channel_names) {
+    channel->addTab(name);
+  }
   set_channel_tab_swatches(*channel);
   controls->addWidget(channel);
 
+  auto* input_row = new QHBoxLayout();
   auto* input_label = new QLabel(QObject::tr("Input Levels:"), &dialog);
-  controls->addWidget(input_label);
+  input_label->setObjectName(QStringLiteral("levelsInputLabel"));
+  auto* auto_button = new QPushButton(QObject::tr("Auto"), &dialog);
+  auto_button->setObjectName(QStringLiteral("levelsAutoButton"));
+  auto_button->setAutoDefault(false);
+  input_row->addWidget(input_label);
+  input_row->addStretch(1);
+  input_row->addWidget(auto_button);
+  controls->addLayout(input_row);
+  auto* output_label = new QLabel(QObject::tr("Output Levels:"), &dialog);
+  // The label column is as wide as the widest caption on the left, so the combo starts
+  // inside the dialog as the Hue/Saturation one does.
+  preset_label->setMinimumWidth(std::max({preset_label->sizeHint().width(), input_label->sizeHint().width(),
+                                          output_label->sizeHint().width()}));
 
   auto* input_graph = new LevelsInputGraph(&dialog);
   input_graph->set_histogram(histogram_for_channel(initial.channel));
@@ -1090,7 +1113,6 @@ std::optional<LevelsSettings> request_levels_settings(
   add_input_field(QObject::tr("W:"), white_input, white_pick, QStringLiteral("levelsWhiteInputLabel"));
   controls->addLayout(input_values);
 
-  auto* output_label = new QLabel(QObject::tr("Output Levels:"), &dialog);
   controls->addWidget(output_label);
 
   auto* output_range = new LevelsOutputRange(&dialog);
@@ -1111,21 +1133,28 @@ std::optional<LevelsSettings> request_levels_settings(
   output_values->addWidget(white_output);
   controls->addLayout(output_values);
 
-  auto* side = new QVBoxLayout();
-  side->setSpacing(10);
-  root->addLayout(side);
-
-  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, Qt::Vertical, &dialog);
-  side->addWidget(buttons);
-
-  auto* auto_button = new QPushButton(QObject::tr("Auto"), &dialog);
-  auto_button->setObjectName(QStringLiteral("levelsAutoButton"));
-  side->addWidget(auto_button);
-  side->addSpacing(8);
-
+  auto* footer = new QHBoxLayout();
   auto* preview = new QCheckBox(QObject::tr("Preview"), &dialog);
   preview->setObjectName(QStringLiteral("levelsPreviewCheck"));
   preview->setChecked(true);
+  footer->addWidget(preview);
+  footer->addStretch(1);
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  footer->addWidget(buttons);
+  root->addSpacing(4);
+  root->addLayout(footer);
+  {
+    // OK, Cancel and Auto share one width (#589).
+    const std::array<QPushButton*, 3> same{buttons->button(QDialogButtonBox::Ok),
+                                           buttons->button(QDialogButtonBox::Cancel), auto_button};
+    int width = 0;
+    for (auto* button : same) {
+      width = std::max(width, button->sizeHint().width());
+    }
+    for (auto* button : same) {
+      button->setMinimumWidth(width);
+    }
+  }
 
   bool updating = false;
   LevelsSettings dialog_settings = clamp_levels_settings(initial);
@@ -1165,6 +1194,15 @@ std::optional<LevelsSettings> request_levels_settings(
     input_graph->set_channel(visible_channel);
     input_graph->set_levels(record.black_input, record.white_input, record.gamma_percent);
     output_range->set_levels(record.black_output, record.white_output);
+    // A channel whose values are off their defaults shows an asterisk after its name (text
+    // only: the swatch icons and tab indices stay).
+    for (int index = 0; index < channel->count() && index < channel_names.size(); ++index) {
+      const bool changed = levels_record_for_channel(settings, levels_channel_from_tab_index(index)) != LevelsRecord{};
+      const auto text = changed ? channel_names[index] + QLatin1Char('*') : channel_names[index];
+      if (channel->tabText(index) != text) {
+        channel->setTabText(index, text);
+      }
+    }
     updating = false;
   };
 
@@ -1180,8 +1218,8 @@ std::optional<LevelsSettings> request_levels_settings(
   auto schedule_preview = [&] { preview_emitter.schedule(preview_request()); };
   auto flush_preview = [&] { preview_emitter.flush(preview_request()); };
 
-  // Presets (#589): the combo follows the settings; Save, Delete, Import and Export sit in
-  // the button column, all as wide as OK.
+  // Presets (#589): the combo follows the settings; Save, Delete, Import and Export sit
+  // under it and share its width.
   AdjustmentPresetButtons* preset_buttons = nullptr;
   const auto sync_preset = [&] {
     presets.select_matching(committed_settings());
@@ -1214,22 +1252,32 @@ std::optional<LevelsSettings> request_levels_settings(
     sync_preset();
   };
   preset_buttons = new AdjustmentPresetButtons(AdjustmentPresetKind::Levels, QStringLiteral("levels"),
-                                               AdjustmentPresetButtons::Arrangement::Column, preset_hooks, &dialog);
-  side->addWidget(preset_buttons);
-  side->addWidget(preset_section_separator(&dialog, QStringLiteral("levelsPresetSeparator")));
-  side->addStretch(1);
-  side->addWidget(preview);
+                                               AdjustmentPresetButtons::Arrangement::Row, preset_hooks,
+                                               preset_buttons_area);
+  preset_buttons_layout->addWidget(preset_buttons, 1);
   {
-    // OK, Cancel, Auto and the preset buttons share one width.
-    std::vector<QPushButton*> column{buttons->button(QDialogButtonBox::Ok), buttons->button(QDialogButtonBox::Cancel),
-                                     auto_button, preset_buttons->save_button(), preset_buttons->delete_button(),
-                                     preset_buttons->import_button(), preset_buttons->export_button()};
-    int width = 0;
-    for (auto* button : column) {
-      width = std::max(width, button->sizeHint().width());
-    }
-    for (auto* button : column) {
-      button->setMinimumWidth(width);
+    // Tab order follows the layout: presets and their buttons, the tabs, Auto, the input
+    // fields and eyedroppers, the output fields, Preview, then OK and Cancel.
+    const std::vector<QWidget*> order{preset,
+                                      preset_buttons->save_button(),
+                                      preset_buttons->delete_button(),
+                                      preset_buttons->import_button(),
+                                      preset_buttons->export_button(),
+                                      channel,
+                                      auto_button,
+                                      black_input,
+                                      black_pick,
+                                      gamma,
+                                      gray_pick,
+                                      white_input,
+                                      white_pick,
+                                      black_output,
+                                      white_output,
+                                      preview,
+                                      buttons->button(QDialogButtonBox::Ok),
+                                      buttons->button(QDialogButtonBox::Cancel)};
+    for (std::size_t index = 1; index < order.size(); ++index) {
+      QWidget::setTabOrder(order[index - 1], order[index]);
     }
   }
   QObject::connect(preset, &QComboBox::activated, &dialog, [&](int index) {
@@ -1828,8 +1876,8 @@ std::optional<CurvesSettings> request_curves_settings(
   };
   preset_buttons = new AdjustmentPresetButtons(AdjustmentPresetKind::Curves, QStringLiteral("curves"),
                                                AdjustmentPresetButtons::Arrangement::Row, preset_hooks, &dialog);
-  preset_buttons_row->addWidget(preset_buttons);
-  preset_buttons_row->addStretch(1);
+  // The four buttons share the strip's width (#588).
+  preset_buttons_row->addWidget(preset_buttons, 1);
   {
     // Tab order follows the layout: the presets and their buttons, the canvas tools, the
     // editor and its column, Preview, then OK and Cancel.
@@ -2115,7 +2163,8 @@ std::optional<HueSaturationSettings> request_hue_saturation_settings(
         form->addRow(QString(), track_aligned_row(colorize_box, reset));
 
         // Presets on top (#588): the combo, Save, Delete, Import and Export, then a separator
-        // and the Edit combo. The combos line up with the tracks.
+        // and the Edit combo. The combos line up with the tracks; the four buttons sit under
+        // the preset combo and share its width.
         auto* preset_combo = new QComboBox(&dialog);
         preset_combo->setObjectName(QStringLiteral("hueSaturationPresetCombo"));
         insert_track_aligned_form_row(form, 0, QObject::tr("Edit:"), combo);
@@ -2124,7 +2173,7 @@ std::optional<HueSaturationSettings> request_hue_saturation_settings(
         preset_area->setObjectName(QStringLiteral("hueSaturationPresetArea"));
         auto* preset_layout = new QHBoxLayout(preset_area);
         preset_layout->setContentsMargins(0, 0, 0, 0);
-        form->insertRow(0, preset_area);
+        form->insertRow(0, QString(), track_aligned_row(preset_area));
         insert_track_aligned_form_row(form, 0, QObject::tr("Preset:"), preset_combo);
         std::vector<AdjustmentPresetCombo<HueSaturationAdjustment>::Shipped> shipped;
         for (const auto& preset : builtin_hue_saturation_presets()) {
@@ -2234,8 +2283,7 @@ std::optional<HueSaturationSettings> request_hue_saturation_settings(
                                                     QStringLiteral("hueSaturation"),
                                                     AdjustmentPresetButtons::Arrangement::Row, hooks, preset_area);
         *preset_buttons = buttons;
-        preset_layout->addWidget(buttons);
-        preset_layout->addStretch(1);
+        preset_layout->addWidget(buttons, 1);
         refresh();
 
         // Reset sets whatever the sliders edit back to its defaults: the Edit entry's zeros, or

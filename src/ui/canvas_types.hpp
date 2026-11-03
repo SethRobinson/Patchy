@@ -25,6 +25,13 @@ inline constexpr std::size_t kSelectionToolCount = 9;
 inline constexpr int kMaxBrushSize = 1024;
 inline constexpr int kMaxQuickSelectSize = 512;
 
+// The pixel grid's threshold (GitHub issue 600): the view zoom, in percent, from which View >
+// Show > Pixel Grid draws. Preferences > Units & Grids offers these choices; the setting is
+// view/pixelGridMinZoom. Below 600% the grid brings the deep-zoom renderer with it, so its
+// lines land on the raster's cell edges (CanvasWidget::deep_zoom_pixels_active).
+inline constexpr int kDefaultPixelGridMinZoomPercent = 600;
+inline constexpr std::array<int, 7> kPixelGridMinZoomPercentChoices{400, 500, 600, 800, 1200, 1600, 3200};
+
 // Edit > Transform modes for a Free Transform session (GitHub issue 225): plain corner
 // and edge drags skew, distort, or apply perspective. Scale and Rotate (GitHub issue
 // 299) narrow the box to one kind of drag: handles only scale, or every handle

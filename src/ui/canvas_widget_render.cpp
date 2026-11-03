@@ -798,7 +798,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
     draw_tiling_preview(painter, target_rect, pixel_aligned_view, exposed_rect);
   }
 
-  const bool deep_pixel_renderer = uses_deep_zoom_pixel_renderer(view_zoom());
+  const bool deep_pixel_renderer = deep_zoom_pixels_active();
   const auto draw_scaled_image = [&painter, &target_rect, pixel_aligned_view,
                                   &pixel_aligned_target_rect, this, exposed_rect](const QImage& image) {
     if (!image.isNull()) {
@@ -817,7 +817,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
       // The clipping preview is a diagnostic picture of the composite, not artwork.
       const QImage& display_image =
           &image == &curves_clipping_preview_image_ ? unproofed_image : proof_display_image(unproofed_image);
-      if (uses_deep_zoom_pixel_renderer(view_zoom())) {
+      if (deep_zoom_pixels_active()) {
         draw_deep_zoom_image(painter, display_image, exposed_rect);
       } else if (pixel_aligned_view) {
         painter.drawImage(pixel_aligned_target_rect, display_image, display_image.rect());
@@ -858,7 +858,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
     if (clear_under_patch) {
       draw_canvas_backdrop(painter, target_rect, patch_exposed);
     }
-    if (uses_deep_zoom_pixel_renderer(view_zoom())) {
+    if (deep_zoom_pixels_active()) {
       draw_deep_zoom_pixels(painter, patch.image, QRect(patch.document_rect.topLeft(), patch.image.size()),
                             patch_exposed);
       return;
@@ -2226,7 +2226,7 @@ void CanvasWidget::draw_tiling_preview(QPainter& painter, const QRectF& target_r
   const auto aligned_center = target_rect.toAlignedRect();
   painter.save();
   painter.setRenderHint(QPainter::SmoothPixmapTransform,
-                        uses_smooth_display_scaling(view_zoom(), uses_deep_zoom_pixel_renderer(view_zoom())));
+                        uses_smooth_display_scaling(view_zoom(), deep_zoom_pixels_active()));
   // Keep ghosts strictly outside the center tile (the document draw stays untouched), but
   // let them overlap its outermost pixel: the center draws after us and covers it, and at
   // fractional zooms that overlap fills what would otherwise be a background hairline
@@ -2286,7 +2286,7 @@ void CanvasWidget::draw_tiling_preview(QPainter& painter, const QRectF& target_r
 }
 
 void CanvasWidget::draw_deep_zoom_image(QPainter& painter, const QImage& image, QRect exposed_rect) const {
-  if (document_ == nullptr || image.isNull() || !uses_deep_zoom_pixel_renderer(view_zoom())) {
+  if (document_ == nullptr || image.isNull() || !deep_zoom_pixels_active()) {
     return;
   }
   draw_deep_zoom_pixels(painter, image, QRect(0, 0, image.width(), image.height()), exposed_rect);
@@ -2295,7 +2295,7 @@ void CanvasWidget::draw_deep_zoom_image(QPainter& painter, const QImage& image, 
 void CanvasWidget::draw_deep_zoom_pixels(QPainter& painter, const QImage& image, QRect document_rect,
                                          QRect exposed_rect, bool grid_only) const {
   if (image.isNull() || document_rect.isEmpty() || image.size() != document_rect.size() || zoom_ <= 0.0 ||
-      (grid_only && !(pixel_grid_visible_ && extra_shown(ViewExtra::PixelGrid)))) {
+      (grid_only && !pixel_grid_drawn())) {
     return;
   }
   const auto top_left = widget_position(document_rect.topLeft());
@@ -2333,7 +2333,7 @@ void CanvasWidget::draw_deep_zoom_pixels(QPainter& painter, const QImage& image,
   auto raster = deep_zoom_raster(
       image.copy(first_x - document_rect.x(), first_y - document_rect.y(), end_x - first_x, end_y - first_y),
       QPoint(first_x, first_y), edges_x, edges_y, ratio,
-      pixel_grid_visible_ && extra_shown(ViewExtra::PixelGrid), device_origin, grid_only);
+      pixel_grid_drawn(), device_origin, grid_only);
   if (raster.isNull()) {
     return;
   }
@@ -2361,7 +2361,7 @@ void CanvasWidget::draw_grid_overlay(QPainter& painter, const QRectF& target_rec
   const auto subdivisions = std::max(1, grid_subdivisions_);
   const auto minor_x = major_x / static_cast<double>(subdivisions);
   const auto minor_y = major_y / static_cast<double>(subdivisions);
-  const bool deep_pixel_grid = uses_deep_zoom_pixel_renderer(view_zoom());
+  const bool deep_pixel_grid = deep_zoom_pixels_active();
   const auto displayed_major_x = deep_pixel_grid ? std::max(1.0, std::round(major_x)) : major_x;
   const auto displayed_major_y = deep_pixel_grid ? std::max(1.0, std::round(major_y)) : major_y;
 

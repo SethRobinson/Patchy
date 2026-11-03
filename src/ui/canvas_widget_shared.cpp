@@ -563,9 +563,10 @@ QImage feather_blur_mask(QImage mask, int feather_radius) {
 }
 
 constexpr double kPixelAlignedZoom = 1.0;
-// The deep-zoom renderer, and with it the pixel grid (GitHub issue 239), starts at 600%:
-// there each document pixel spans at least six screen pixels, so a one-pixel line between
-// pixels separates them without hiding them.
+// The deep-zoom renderer starts at 600%, the pixel grid's default threshold (GitHub issue
+// 239): there each document pixel spans at least six screen pixels, so a one-pixel line
+// between pixels separates them without hiding them. A lower grid threshold (issue 600)
+// starts the renderer with the grid (CanvasWidget::deep_zoom_pixels_active).
 constexpr double kDeepZoomPixelRendererZoom = 6.0;
 
 double grid_cycle_pixels(std::int32_t cycle_32) noexcept {
@@ -578,6 +579,13 @@ bool uses_pixel_aligned_view(double zoom) noexcept {
 
 bool uses_deep_zoom_pixel_renderer(double zoom) noexcept {
   return zoom >= kDeepZoomPixelRendererZoom;
+}
+
+int valid_pixel_grid_min_zoom_percent(int percent) noexcept {
+  return std::find(kPixelGridMinZoomPercentChoices.begin(), kPixelGridMinZoomPercentChoices.end(), percent) !=
+                 kPixelGridMinZoomPercentChoices.end()
+             ? percent
+             : kDefaultPixelGridMinZoomPercent;
 }
 
 bool zoom_trace_enabled() {

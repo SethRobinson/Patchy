@@ -12,8 +12,8 @@
 - Non-destructive adjustment layers (Levels, Curves, Hue/Saturation, Color Balance, Brightness/Contrast, Invert, Posterize, Threshold, Exposure, Channel Mixer, Photo Filter, Gradient Map, Black & White, Color Lookup (.cube, .3dl or embedded), Selective Color, and Vibrance) with live preview, editable settings, native PSD data, presets with .acv, .ahu, .alv and .blw import/export; each also applies from Image > Adjustments
 - One-step Image > Adjustments with no dialog: Invert (Ctrl+I), Auto Tone, Auto Contrast, Auto Color and Auto All
 - Smart Objects: place or convert layers to embedded or linked smart objects, edit or replace their contents, transform them non-destructively, and build editable native Smart Filter stacks (blur, sharpen, noise, distort, stylize, pixelate and render filters plus Image > Adjustments commands) with paintable shared masks and per-filter blending
-- Photoshop-compatible layer style, pattern and gradient preset libraries with .asl, .pat and .grd import/export, 39 built-in styles (grid or list view; per-effect Make Default), and 20 bundled CC0 photo textures; Edit > Presets (or Preferences) opens all managers, Shapes Manager (.csh, grids, resizable picker, 878 game-icons.net shapes)
-- Continuous long shadows for type and shapes (Patchy-only; Photoshop shows a normal drop shadow; [example](screenshots.md))
+- Photoshop-compatible layer style, pattern and gradient preset libraries with .asl, .pat and .grd import/export, 39 built-in styles (grid or list; Make Default per effect), and 20 bundled CC0 photo textures; Edit > Presets opens all managers, Shapes Manager (.csh, grids, resizable picker, 878 game-icons.net shapes)
+- Continuous long shadows for type and shapes (a normal drop shadow in Photoshop; [example](screenshots.md))
 - Warp Transform tool and Warp Text with all 15 Photoshop warp styles and live preview
 
 ## Painting, selections, and retouching
@@ -29,7 +29,7 @@
 - Rectangular and elliptical marquees, lassos including Magnetic Lasso, Magic Wand (Sample can average a square around the click), Quick Select, and paintable Quick Mask selections, with feathering and selection adjustments; a drag inside a selection moves its outline; it can be redrawn while a built-in or GEGL filter dialog is open
 - Object Selection tool: drag a loose box around an object, or click it, to select that object. Shift adds, Alt subtracts; a click outside the canvas deselects. It runs locally on the CPU; on desktop a High Quality model (234 MB download) is much more accurate. Right-click inside a selection and choose Select Object to tighten it to its object
 - Move tool layer selection: drag a box over layers, Shift-click to toggle one, or right-click to choose among the layers under the pointer (status bar count); Select > All Layers (Ctrl+Alt+A); Alt+[ and Alt+] cycle through the layers (Shift adds)
-- Guides, grids, snapping, and layer alignment/distribution (New Guide Layout: column and row guides with gutters and margins), interactive cropping with aspect-ratio presets and straightening, Trim (plain or transparent edges, with a tolerance), and a Ruler tool that measures distances and angles and straightens a layer or image
+- Guides, grids, a pixel grid from a zoom you set (400 to 3200%), snapping, layer alignment/distribution (New Guide Layout: columns, rows, gutters, margins), cropping with aspect-ratio presets and straightening, Trim (plain or transparent edges, with tolerance), and a Ruler that measures distances and angles, straightens a layer or image
 - View > Extras (Ctrl+H) toggles selection edges, paths, guides, grids, alignment lines and artboard names at once; Show Extras Options picks which
 - G'MIC Filter Library on desktop: nearly 400 standard G'MIC filters, with controls built from each filter's own description, live preview on the layer, multi-layer input and output, draggable point markers on the canvas, and script access
 - Filter > Last Filter (Ctrl+Alt+F) repeats the last filter with its settings on the current layer and selection, for built-in filters, Filter Gallery looks, G'MIC filters, and plug-ins
@@ -42,16 +42,17 @@
 
 - Vector tools: Pen paths, shape layers (Rectangle, Ellipse, Line, Polygon, Custom Shape) with solid, gradient or pattern paint, editable dash and stroke presets with offsets, path-edited vector masks, point edits (add by click, break, join, weld or merge by drag, delete segment), Merge Shapes (overlapping ones to one outline), per-shape cut, copy, paste, color, align, new layer, editable radius, sides, star inset, a Paths panel (fill, stroke, selection), switchable fill layers, in PSDs Photoshop opens
 - Dynamic Vector Preview keeps shapes and vector masks sharp at any zoom. Merge Layers keeps vectors and bitmap runs apart, merges within groups or makes a merged copy (Ctrl+Alt+E: selected layers only). Merge Visible bakes a layer's mask or effects
-- Trace Image to Shapes: turns a pixel layer into editable shape layers, one per color, with Illustrator-style presets, color, gray and black-and-white modes, abutting or overlapping shapes, noise removal and a live preview
+- Trace Image to Shapes: turns a pixel layer into editable shape layers, one per color, with presets, color, gray and black-and-white modes, abutting or overlapping shapes, noise removal, live preview
 - Point text, paragraph (box) text and area text that flows inside a closed shape or path, saved as native Photoshop text frames
 - Rich text with per-run color, font, size and style, a searchable font picker (recent fonts, style/language filters), stand-ins for missing fonts, and Character controls (leading, tracking, glyph scale, caps, super/subscript, underline, strikethrough, OpenType features) that edit selected layers
-- Paragraph alignment and justification, first-line and left/right indents, spacing before and after paragraphs, vertical text, and left-to-right or right-to-left paragraph direction
+- Paragraph alignment and justification, first-line and left/right indents, spacing before and after paragraphs, vertical text, and left-to-right or right-to-left paragraphs
+- Type > Convert to Shape and Create Work Path turn any text, warped too, into vector outlines
 
 ## Pixel art and game assets
 
 - Palettized (indexed color) editing mode for pixel art: paint constrained to a palette, quantize with optional dithering, built-in retro palettes (NES, C64, Game Boy, PICO-8, and more), palette files (.pal/.gpl/.hex/.act/.aco/.ase), and exact indexed PNG-8 and 2/4/8-bit BMP export. Layers, styles and effects keep working, unlike Photoshop's indexed mode
 - Named palette colors appear in the Palette panel, color picker, Info panel and eyedropper readout. Rename swatches, preserve names through GPL, PSD, and indexed PNG round trips, and manage palettes through scripts
-- Pixel-art and game-dev extras: seamless texture authoring (live tile preview, in-canvas tiling, seam shifting), sprite sheet export/import, numbered image sequence export/import, animated GIF, WebP and PNG import/export (frames become layers with timings in their names, visible layers save as a looping animation, previewed by the film button or Image > Animation Preview, with delay presets), and flat and web exports with pixel scaling, resizing, edge trimming and background fill
+- Pixel-art and game-dev extras: seamless texture authoring (live tile preview, in-canvas tiling, seam shifting), sprite sheet and numbered image sequence export/import, animated GIF, WebP and PNG import/export (frames become layers with timings in their names, visible layers save as a looping animation, previewed by the film button or Image > Animation Preview, with delay presets), and flat and web exports with pixel scaling, resizing, edge trimming and background fill
 
 ## Color and print
 
@@ -70,7 +71,7 @@
 - Scan and Divide Photos splits prints into images with editable crop regions, straightening and perspective correction. Divide an existing scan or photo too; scanner acquisition and the scanner-to-printer Photocopy command are available on Windows and macOS
 - Automatic document recovery saves copies of modified documents at a set interval and reopens them after a crash
 - Export for Web: JPEG, JPEG XL, WebP, AVIF, PNG/APNG, GIF, live sizes, 4-up view, presets
-- Reads and writes many formats: PSD/PSB, [PDF](#pdf-documents), PNG, JPEG (12-bit files open at 16 bits), TIFF, WebP, BMP, TGA, GIF, PCX, Amiga IFF/LBM, Windows icons and cursors (ICO/CUR), OpenRaster (.ora), Aseprite files, JPEG XL (.jxl, 16/32-bit stills and animation), JPEG 2000 (.jp2), OpenEXR (.exr), Radiance HDR (.hdr/.rgbe), AVIF (desktop), JPEG XR (.jxr, Windows), Proton SDK textures (.rttex), DDS textures (.dds: reads BC1 to BC7, cubemaps, arrays and mipmaps; writes uncompressed, DXT1, DXT5, BC4, BC5 or BC7, mipmaps optional), and SVG (opens as editable shapes, exports vectors)
+- Reads and writes PSD/PSB, [PDF](#pdf-documents), PNG, JPEG (12-bit files open at 16 bits), TIFF, WebP, BMP, TGA, GIF, PCX, Amiga IFF/LBM, Windows icons and cursors (ICO/CUR), OpenRaster (.ora), Aseprite files, JPEG XL (.jxl, 16/32-bit stills and animation), JPEG 2000 (.jp2), OpenEXR (.exr), Radiance HDR (.hdr/.rgbe), AVIF (desktop), JPEG XR (.jxr, Windows), Proton SDK textures (.rttex), DDS textures (.dds: reads BC1 to BC7, cubemaps, arrays and mipmaps; writes uncompressed, DXT1, DXT5, BC4, BC5 or BC7, mipmaps optional), and SVG (opens as editable shapes, exports vectors)
 - Import notes (what a file could not keep) flash yellow in the status bar or in a popup with "Don't show this again"
 - Imports Affinity, Paint.NET, Krita and GIMP (.xcf) documents, and reads and writes OpenRaster, layered TIFF, and Aseprite documents. See [layered format interchange](#layered-format-interchange) for what stays editable and what each format cannot preserve
 - Opens camera raw files (CR2/CR3/NEF/ARW/RAF/DNG and more) with 16-bit development processing, a Natural rendering profile, ISO-based noise reduction, and per-photo settings saved beside the original. The resulting document is currently 8-bit. HEIC/HEIF photos open through platform codecs, with supported high-bit-depth and HDR input depending on the decoder
@@ -126,7 +127,7 @@ Photoshop features not supported yet, or only partly:
 - Layer comps, timeline/video editing, generative tools (animated GIF, WebP, and PNG import, preview, and export are supported)
 - Photoshop's own automation surfaces: Actions (.atn), UXP/JSX panels, and scripts written for Photoshop (Patchy has its own JavaScript scripting and batch processing instead, see above)
 - High-fidelity PSD/PSB edge cases and byte-perfect preservation of every Photoshop-only metadata block
-- Patchy is slower than Photoshop, especially on large documents and it doesn't support any GPU acceleration. (Like, layer styles being done in pixel shaders, etc)  However, being CPU only helps with porting, consistent output, and stability so kind of a trade-off that makes sense, for now.  That said, certain operations have been optimized for multicore - canvas compositing and image flattening are multithreaded, splitting large images (4 Mpx+) into strips rendered on all CPU cores.
+- Patchy is slower than Photoshop, especially on large documents and it doesn't support any GPU acceleration. (Like, layer styles being done in pixel shaders, etc) However, being CPU only helps with porting, consistent output, and stability so kind of a trade-off that makes sense, for now. That said, certain operations have been optimized for multicore - canvas compositing and image flattening are multithreaded, splitting large images (4 Mpx+) into strips rendered on all CPU cores.
 
 ## Layered format interchange
 

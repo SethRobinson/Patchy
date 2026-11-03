@@ -2072,6 +2072,11 @@ private:
   void stroke_active_path();
   void make_selection_from_path();
   void make_work_path_from_selection();
+  // Type > Convert to Shape: every selected text layer becomes a shape layer made from its
+  // glyph outlines, in place (one undo step); Type > Create Work Path: the same outlines as the
+  // work path, the text kept (GitHub issue 598; main_window_text_outlines.cpp).
+  void convert_text_layers_to_shapes();
+  void create_work_path_from_text();
   // Trace Image to Shapes: the active pixel layer through the image-trace
   // dialog into a group of shape layers above it (the source is hidden).
   void trace_image_to_shapes();
@@ -3625,6 +3630,8 @@ private:
   StatusSelectionInfoLabel* status_selection_info_label_{nullptr};
   QAction* move_tool_action_{nullptr};
   QAction* type_tool_action_{nullptr};
+  QAction* type_convert_to_shape_action_{nullptr};
+  QAction* type_create_work_path_action_{nullptr};
   QActionGroup* tool_action_group_{nullptr};
   QAction* float_document_action_{nullptr};
   QAction* window_panels_separator_{nullptr};
@@ -4020,6 +4027,9 @@ private:
   bool view_grid_visible_{false};
   bool view_guides_visible_{true};
   bool view_pixel_grid_visible_{true};
+  // view/pixelGridMinZoom (GitHub issue 600): the pixel grid threshold in view-zoom percent.
+  // Persisted identifier.
+  int view_pixel_grid_min_zoom_percent_{kDefaultPixelGridMinZoomPercent};
   // Photoshop's View > Show > Target Path (Ctrl+Shift+H). Deliberately NOT
   // persisted: every launch starts visible, like Photoshop.
   bool view_target_path_visible_{true};

@@ -3433,6 +3433,16 @@ QMessageBox::StandardButton show_warning_message(QWidget* parent, const QString&
     if (auto* cancel = dialog.button(QMessageBox::Cancel); cancel != nullptr) {
       cancel->setText(QObject::tr("&Cancel"));
     }
+    // Yes, No and Cancel share the widest button's width, so the short answers do not
+    // shrink next to Cancel in any language (GitHub issue 605).
+    const auto answer_buttons = dialog.buttons();
+    int widest = 0;
+    for (auto* button : answer_buttons) {
+      widest = std::max(widest, std::max(button->sizeHint().width(), button->minimumWidth()));
+    }
+    for (auto* button : answer_buttons) {
+      button->setMinimumWidth(widest);
+    }
   }
   dialog.installEventFilter(new MessageBoxLetterKeyFilter(dialog));
   fire_theme_event(ThemeSoundEvent::Warning);

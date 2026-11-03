@@ -1265,8 +1265,8 @@ void ui_language_catalog_covers_dialog_status_and_properties() {
   const auto save_title = QCoreApplication::translate("patchy::ui::MainWindow", "Save changes?");
   CHECK(save_title == QStringLiteral("変更を保存しますか?"));
   const auto save_prompt =
-      QCoreApplication::translate("patchy::ui::MainWindow", "Save changes to %1 before closing?");
-  CHECK(save_prompt == QStringLiteral("閉じる前に %1 への変更を保存しますか?"));
+      QCoreApplication::translate("patchy::ui::MainWindow", "Save changes to \"%1\" before closing?");
+  CHECK(save_prompt == QStringLiteral("閉じる前に「%1」への変更を保存しますか?"));
 
   const auto no_layer = QCoreApplication::translate("patchy::ui::MainWindow", "Layer: No active layer");
   CHECK(no_layer == QStringLiteral("レイヤー: アクティブレイヤーなし"));

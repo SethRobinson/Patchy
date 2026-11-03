@@ -615,7 +615,7 @@ void CanvasWidget::draw_zoom_preview(QPainter& painter) const {
 QPoint CanvasWidget::document_position(const QPoint& widget_position) const {
   const auto coordinate_from_widget = [this](int widget_coordinate, double pan, int limit) {
     auto coordinate = static_cast<int>(std::floor((static_cast<double>(widget_coordinate) - pan) / zoom_));
-    if (document_ == nullptr || !uses_deep_zoom_pixel_renderer(view_zoom())) {
+    if (document_ == nullptr || !deep_zoom_pixels_active()) {
       return coordinate;
     }
     const auto edge = [pan, this](int document_coordinate) {

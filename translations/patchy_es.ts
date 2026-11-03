@@ -19117,6 +19117,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Show the folder of companion app manifests on disk</source>
         <translation>Muestra en el disco la carpeta de manifiestos de aplicaciones complementarias</translation>
     </message>
+    <message>
+        <source>Turn text into editable vector outlines</source>
+        <translation>Convertir el texto en contornos vectoriales editables</translation>
+    </message>
+    <message>
+        <source>Outline the letters as a path</source>
+        <translation>Contornear las letras como un trazado</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -25357,8 +25365,8 @@ Y: %2
         <translation>¿Guardar los cambios?</translation>
     </message>
     <message>
-        <source>Save changes to %1 before closing?</source>
-        <translation>¿Guardar los cambios de %1 antes de cerrar?</translation>
+        <source>Save changes to &quot;%1&quot; before closing?</source>
+        <translation>¿Guardar los cambios de &quot;%1&quot; antes de cerrar?</translation>
     </message>
     <message>
         <source>Rasterize Smart Filters before changing document geometry</source>
@@ -32136,6 +32144,66 @@ Bloqueada: %1</translation>
         <source>About GEGL...</source>
         <translation>Acerca de GEGL...</translation>
     </message>
+    <message>
+        <source>Convert to Shape</source>
+        <translation>Convertir en forma</translation>
+    </message>
+    <message>
+        <source>Create Work Path</source>
+        <translation>Crear trazado de trabajo</translation>
+    </message>
+    <message>
+        <source>Select a text layer first.</source>
+        <translation>Seleccione primero una capa de texto.</translation>
+    </message>
+    <message>
+        <source>Could not convert &quot;%1&quot; to a shape.</source>
+        <translation>No se pudo convertir &quot;%1&quot; en una forma.</translation>
+    </message>
+    <message>
+        <source>Convert to Shapes</source>
+        <translation>Convertir en formas</translation>
+    </message>
+    <message>
+        <source>Converted the text layer to a shape.</source>
+        <translation>Se ha convertido la capa de texto en una forma.</translation>
+    </message>
+    <message>
+        <source>Converted %1 text layers to shapes.</source>
+        <translation>Se han convertido %1 capas de texto en formas.</translation>
+    </message>
+    <message>
+        <source>A missing font was drawn in a substitute.</source>
+        <translation>Una fuente que falta se ha dibujado con una sustituta.</translation>
+    </message>
+    <message>
+        <source>Color emoji have no outlines and were left out.</source>
+        <translation>Los emoji en color no tienen contornos y se han omitido.</translation>
+    </message>
+    <message>
+        <source>Could not outline &quot;%1&quot;.</source>
+        <translation>No se pudo contornear &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>The text has no outlines.</source>
+        <translation>El texto no tiene contornos.</translation>
+    </message>
+    <message>
+        <source>Create work path</source>
+        <translation>Crear trazado de trabajo</translation>
+    </message>
+    <message>
+        <source>Made a work path from the text.</source>
+        <translation>Se ha creado un trazado de trabajo a partir del texto.</translation>
+    </message>
+    <message>
+        <source>The zoom level from which View &gt; Show &gt; Pixel Grid draws lines between pixels.</source>
+        <translation>El nivel de zoom a partir del cual Vista &gt; Mostrar &gt; Cuadrícula de píxeles dibuja líneas entre los píxeles.</translation>
+    </message>
+    <message>
+        <source>Show pixel grid from:</source>
+        <translation>Mostrar cuadrícula de píxeles desde:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34371,6 +34439,18 @@ Bloqueada: %1</translation>
     <message>
         <source>writeImage: could not write %1.</source>
         <translation>writeImage: no se pudo escribir %1.</translation>
+    </message>
+    <message>
+        <source>%1 needs a text layer.</source>
+        <translation>%1 necesita una capa de texto.</translation>
+    </message>
+    <message>
+        <source>convertToShape: the text has no outlines</source>
+        <translation>convertToShape: el texto no tiene contornos</translation>
+    </message>
+    <message>
+        <source>createWorkPath: the text has no outlines</source>
+        <translation>createWorkPath: el texto no tiene contornos</translation>
     </message>
 </context>
 <context>

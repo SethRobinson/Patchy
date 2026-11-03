@@ -19072,6 +19072,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Show the folder of companion app manifests on disk</source>
         <translation>在磁碟上顯示配套應用程式資訊清單所在的資料夾</translation>
     </message>
+    <message>
+        <source>Turn text into editable vector outlines</source>
+        <translation>將文字轉換為可編輯的向量外框</translation>
+    </message>
+    <message>
+        <source>Outline the letters as a path</source>
+        <translation>將字母外框製作成路徑</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -25299,8 +25307,8 @@ Y：%2
         <translation>要儲存變更嗎？</translation>
     </message>
     <message>
-        <source>Save changes to %1 before closing?</source>
-        <translation>關閉前要儲存對 %1 的變更嗎？</translation>
+        <source>Save changes to &quot;%1&quot; before closing?</source>
+        <translation>關閉前要儲存對「%1」的變更嗎？</translation>
     </message>
     <message>
         <source>Rasterize Smart Filters before changing document geometry</source>
@@ -32052,6 +32060,66 @@ Locked: %1</source>
         <source>About GEGL...</source>
         <translation>關於 GEGL...</translation>
     </message>
+    <message>
+        <source>Convert to Shape</source>
+        <translation>轉換為形狀</translation>
+    </message>
+    <message>
+        <source>Create Work Path</source>
+        <translation>建立工作路徑</translation>
+    </message>
+    <message>
+        <source>Select a text layer first.</source>
+        <translation>請先選取文字圖層。</translation>
+    </message>
+    <message>
+        <source>Could not convert &quot;%1&quot; to a shape.</source>
+        <translation>無法將「%1」轉換為形狀。</translation>
+    </message>
+    <message>
+        <source>Convert to Shapes</source>
+        <translation>轉換為形狀</translation>
+    </message>
+    <message>
+        <source>Converted the text layer to a shape.</source>
+        <translation>已將文字圖層轉換為形狀。</translation>
+    </message>
+    <message>
+        <source>Converted %1 text layers to shapes.</source>
+        <translation>已將 %1 個文字圖層轉換為形狀。</translation>
+    </message>
+    <message>
+        <source>A missing font was drawn in a substitute.</source>
+        <translation>缺少的字型已改用替代字型繪製。</translation>
+    </message>
+    <message>
+        <source>Color emoji have no outlines and were left out.</source>
+        <translation>彩色表情符號沒有外框，已略過。</translation>
+    </message>
+    <message>
+        <source>Could not outline &quot;%1&quot;.</source>
+        <translation>無法為「%1」建立外框。</translation>
+    </message>
+    <message>
+        <source>The text has no outlines.</source>
+        <translation>文字沒有外框。</translation>
+    </message>
+    <message>
+        <source>Create work path</source>
+        <translation>建立工作路徑</translation>
+    </message>
+    <message>
+        <source>Made a work path from the text.</source>
+        <translation>已從文字建立工作路徑。</translation>
+    </message>
+    <message>
+        <source>The zoom level from which View &gt; Show &gt; Pixel Grid draws lines between pixels.</source>
+        <translation>檢視 &gt; 顯示 &gt; 像素格線開始在像素之間繪製線條的縮放比例。</translation>
+    </message>
+    <message>
+        <source>Show pixel grid from:</source>
+        <translation>像素格線顯示起點:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34286,6 +34354,18 @@ Locked: %1</source>
     <message>
         <source>writeImage: could not write %1.</source>
         <translation>writeImage：無法寫入 %1。</translation>
+    </message>
+    <message>
+        <source>%1 needs a text layer.</source>
+        <translation>%1 需要文字圖層。</translation>
+    </message>
+    <message>
+        <source>convertToShape: the text has no outlines</source>
+        <translation>convertToShape：文字沒有外框</translation>
+    </message>
+    <message>
+        <source>createWorkPath: the text has no outlines</source>
+        <translation>createWorkPath：文字沒有外框</translation>
     </message>
 </context>
 <context>

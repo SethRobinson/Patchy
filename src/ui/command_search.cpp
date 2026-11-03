@@ -294,6 +294,8 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"layer.blend_mode.luminosity", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Take only the layer's brightness")},
     // Type
     {"type.resolve_missing_fonts", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Replace fonts that are not installed")},
+    {"type.convert_to_shape", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Turn text into editable vector outlines")},
+    {"type.create_work_path", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Outline the letters as a path")},
     // Select
     {"select.all", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Select the whole image")},
     {"select.deselect", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Clear the selection")},

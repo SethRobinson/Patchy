@@ -939,6 +939,9 @@ bool MainWindow::copy_selected_pixels(bool cutting) {
     payload.layers_top_to_bottom.reserve(selected_layers.size());
     for (const auto* layer : selected_layers) {
       payload.layers_top_to_bottom.push_back(*layer);
+      clear_background_locks_if_copy_of_background(payload.layers_top_to_bottom.back(), layer->id(),
+                                                   std::as_const(document()).layers(), document().width(),
+                                                   document().height());
       collect_referenced_smart_object_sources(*layer, document().metadata().smart_objects,
                                               payload.smart_object_sources);
       collect_referenced_smart_filter_records(
@@ -1843,8 +1846,7 @@ void MainWindow::layer_from_background() {
   const auto id = background->id();
   push_undo_snapshot(tr("Layer from Background"));
   auto* layer = document().find_layer(id);
-  set_layer_lock_flags(*layer, layer_lock_flags(*layer) & ~(kLayerLockPosition | kLayerLockTransparentPixels |
-                                                            kLayerLockArtboardAutonest));
+  clear_background_locks(*layer);
   layer->set_name(QObject::tr("Layer %1").arg(0).toStdString());
   refresh_layer_list();
   refresh_layer_controls();
@@ -2290,6 +2292,8 @@ std::vector<LayerId> MainWindow::duplicate_layers(std::vector<LayerId> ids) {
           tr("Smart Filter cache data could not be duplicated safely"));
       return {};
     }
+    clear_background_locks_if_copy_of_background(*duplicate, (*it)->id(), std::as_const(doc).layers(), doc.width(),
+                                                 doc.height());
     duplicate->set_name(next_duplicate_name((*it)->name(), existing_names));
     existing_names.insert(duplicate->name());
     clones_bottom_to_top.push_back(std::move(*duplicate));
@@ -2414,8 +2418,16 @@ std::vector<LayerId> MainWindow::copy_layers_between_documents(const Document& s
   // resource they reference, adopted into the target below.
   ClipboardPayload payload;
   payload.layers_top_to_bottom.reserve(roots.size());
+  // A copy of the Background is an ordinary layer in a document that has layers; as the
+  // first layer of an empty one (Duplicate Layer to a New Document) it stays its Background.
+  const bool target_has_layers = !std::as_const(target_document).layers().empty();
   for (const auto* layer : roots) {
     payload.layers_top_to_bottom.push_back(*layer);
+    if (target_has_layers) {
+      clear_background_locks_if_copy_of_background(payload.layers_top_to_bottom.back(), layer->id(),
+                                                   source_document.layers(), source_document.width(),
+                                                   source_document.height());
+    }
     collect_referenced_smart_object_sources(*layer, source_document.metadata().smart_objects,
                                             payload.smart_object_sources);
     collect_referenced_smart_filter_records(*layer, source_document.metadata().smart_filter_effects,
@@ -3860,6 +3872,14 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   if (layer_trace_image_action_ != nullptr) {
     rasterize_menu->addSeparator();
     rasterize_menu->addAction(layer_trace_image_action_);  // its own guards report non-pixel layers
+  }
+  // Text layers: the Type menu's outline commands (GitHub issue 598). They sit with the other
+  // conversions because the menu's top level is at its row bound (#461).
+  if (active_layer != nullptr && layer_is_text(*active_layer) && type_convert_to_shape_action_ != nullptr &&
+      type_create_work_path_action_ != nullptr) {
+    rasterize_menu->addSeparator();
+    rasterize_menu->addAction(type_convert_to_shape_action_);
+    rasterize_menu->addAction(type_create_work_path_action_);
   }
   {
     refresh_smart_object_action_states();

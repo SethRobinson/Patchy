@@ -10,9 +10,11 @@
 #include <QFileInfo>
 #include <QGridLayout>
 #include <QInputDialog>
+#include <QLayout>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QSizePolicy>
 #include <QStandardPaths>
 
 #include <algorithm>
@@ -249,7 +251,11 @@ bool levels_presets_match(const LevelsAdjustment& left, const LevelsAdjustment& 
 
 AdjustmentPresetButtons::AdjustmentPresetButtons(AdjustmentPresetKind kind, const QString& object_prefix,
                                                  Arrangement arrangement, Hooks hooks, QWidget* parent)
-    : QWidget(parent), kind_(kind), object_prefix_(object_prefix), hooks_(std::move(hooks)) {
+    : QWidget(parent),
+      kind_(kind),
+      arrangement_(arrangement),
+      object_prefix_(object_prefix),
+      hooks_(std::move(hooks)) {
   setObjectName(object_prefix + QStringLiteral("PresetButtons"));
   const auto make_button = [this](const QString& text, const QString& role, const QString& tip) {
     auto* button = new QPushButton(text, this);
@@ -277,8 +283,15 @@ AdjustmentPresetButtons::AdjustmentPresetButtons(AdjustmentPresetKind kind, cons
                                this);
     box->setContentsMargins(0, 0, 0, 0);
     box->setSpacing(4);
+    // A row splits the width it is given evenly (#588): under a preset combo it spans the
+    // combo, edge to edge. Its buttons ignore their own widths; sizeHint() below keeps each
+    // at least as wide as the widest needs.
+    const bool row = arrangement == Arrangement::Row;
     for (auto* button : buttons) {
-      box->addWidget(button);
+      if (row) {
+        button->setSizePolicy(QSizePolicy::Ignored, button->sizePolicy().verticalPolicy());
+      }
+      box->addWidget(button, row ? 1 : 0);
     }
     if (arrangement == Arrangement::Column) {
       box->addStretch(1);
@@ -302,6 +315,27 @@ AdjustmentPresetButtons::AdjustmentPresetButtons(AdjustmentPresetKind kind, cons
   save_->setEnabled(has_folder);
   import_->setEnabled(has_folder);
   refresh();
+}
+
+QSize AdjustmentPresetButtons::row_size() const {
+  // Read when the layout asks, after the style sheet has polished the buttons.
+  int width = 0;
+  int height = 0;
+  for (const auto* button : {save_, delete_, import_, export_}) {
+    const auto hint = button->sizeHint();
+    width = std::max(width, hint.width());
+    height = std::max(height, hint.height());
+  }
+  const auto spacing = layout() != nullptr ? layout()->spacing() : 0;
+  return {4 * width + 3 * spacing, height};
+}
+
+QSize AdjustmentPresetButtons::sizeHint() const {
+  return arrangement_ == Arrangement::Row ? row_size() : QWidget::sizeHint();
+}
+
+QSize AdjustmentPresetButtons::minimumSizeHint() const {
+  return arrangement_ == Arrangement::Row ? row_size() : QWidget::minimumSizeHint();
 }
 
 void AdjustmentPresetButtons::refresh() {

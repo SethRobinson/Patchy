@@ -123,6 +123,7 @@
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
+#include "app_shell_test_support.hpp"
 #include "scripting_test_support.hpp"
 #if PATCHY_HAVE_QT_DBUS
 #include "ui/portal_color_pick.hpp"
@@ -4630,9 +4631,9 @@ void ui_canvas_pixel_grid_lands_on_pixel_boundaries() {
   CHECK(passed);
 }
 
-// Issue 239's before/after images: a light and a dark area of a varied image at 800%, with
-// View > Pixel Grid off (what Patchy drew before) and on.
-void ui_canvas_pixel_grid_capture_light_and_dark_areas() {
+// A 32 x 12 image, light on the left half and dark on the right, with deterministic noise:
+// the pixel grid screenshots' subject.
+patchy::Document pixel_grid_photo_document() {
   patchy::Document document(32, 12, patchy::PixelFormat::rgb8());
   auto pixels = solid_pixels(32, 12, patchy::PixelFormat::rgb8(), Qt::white);
   std::uint64_t state = 0x239239239ULL;
@@ -4651,6 +4652,13 @@ void ui_canvas_pixel_grid_capture_light_and_dark_areas() {
     }
   }
   document.add_pixel_layer("Photo", std::move(pixels));
+  return document;
+}
+
+// Issue 239's before/after images: a light and a dark area of a varied image at 800%, with
+// View > Pixel Grid off (what Patchy drew before) and on.
+void ui_canvas_pixel_grid_capture_light_and_dark_areas() {
+  auto document = pixel_grid_photo_document();
   patchy::ui::CanvasWidget canvas;
   canvas.resize(320, 240);
   canvas.set_document(&document);
@@ -4672,6 +4680,126 @@ void ui_canvas_pixel_grid_capture_light_and_dark_areas() {
     save_image_artifact(grid ? "ui_pixel_grid_800_dark_after" : "ui_pixel_grid_800_dark_before", dark);
   }
   CHECK(non_document_colors(canvas, document) > 0);
+}
+
+// The pixel grid threshold (GitHub issue 600): 600% by default; set to 400% or 500% the grid
+// draws there, on the deep-zoom raster's cells; set to 800% it stays off at 600% and 700%
+// while the pixels keep the deep-zoom cells. A value outside the choices reads as 600%.
+void ui_canvas_pixel_grid_threshold_follows_setting() {
+  auto document = pixel_grid_document();
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(300, 240);
+  canvas.set_document(&document);
+  canvas.show();
+  CHECK(canvas.pixel_grid_min_zoom_percent() == 600);
+  canvas.set_view_zoom_centered(5.0);
+  CHECK(!canvas.pixel_grid_drawn());
+  CHECK(non_document_colors(canvas, document) == 0);
+
+  const auto expect_grid = [&](int threshold, double zoom, bool grid) {
+    canvas.set_pixel_grid_min_zoom_percent(threshold);
+    canvas.set_view_zoom_centered(zoom);
+    const auto check = check_pixel_grid_cells(canvas, document, grid);
+    const auto stray = grid ? 0 : non_document_colors(canvas, document);
+    if (canvas.pixel_grid_drawn() != grid || check.mismatches != 0 || (grid && check.line_pixels == 0) ||
+        stray != 0) {
+      std::cerr << "threshold " << threshold << " at " << zoom << ": drawn " << canvas.pixel_grid_drawn()
+                << ", " << check.mismatches << " mismatches, " << check.line_pixels << " line pixels, " << stray
+                << " stray\n";
+      save_image_artifact("ui_canvas_pixel_grid_threshold_" + std::to_string(threshold), canvas.grab().toImage());
+      CHECK(false);
+    }
+  };
+  expect_grid(400, 4.0, true);
+  expect_grid(400, 5.0, true);
+  expect_grid(400, 4.5, true);
+  expect_grid(500, 4.0, false);
+  expect_grid(500, 5.0, true);
+  expect_grid(800, 6.0, false);
+  expect_grid(800, 7.0, false);
+  expect_grid(800, 8.0, true);
+  expect_grid(1200, 8.0, false);
+  expect_grid(1200, 12.0, true);
+
+  // The View toggle stays the on/off switch below 600% too.
+  canvas.set_pixel_grid_min_zoom_percent(400);
+  canvas.set_view_zoom_centered(4.0);
+  canvas.set_pixel_grid_visible(false);
+  CHECK(!canvas.pixel_grid_drawn() && !canvas.deep_zoom_pixels_active());
+  CHECK(non_document_colors(canvas, document) == 0);
+  canvas.set_pixel_grid_visible(true);
+  CHECK(canvas.pixel_grid_drawn());
+
+  canvas.set_pixel_grid_min_zoom_percent(700);
+  CHECK(canvas.pixel_grid_min_zoom_percent() == 600);
+  CHECK(patchy::ui::valid_pixel_grid_min_zoom_percent(3200) == 3200);
+  CHECK(patchy::ui::valid_pixel_grid_min_zoom_percent(0) == 600);
+
+  // Issue 600's screenshot: the grid at 400% with the threshold set to 400%.
+  auto photo = pixel_grid_photo_document();
+  patchy::ui::CanvasWidget photo_canvas;
+  photo_canvas.resize(320, 240);
+  photo_canvas.set_document(&photo);
+  photo_canvas.show();
+  photo_canvas.set_view_zoom_centered(4.0);
+  // Before: the default 600% threshold leaves 400% without a grid, as Patchy drew it before.
+  for (const int threshold : {600, 400}) {
+    photo_canvas.set_pixel_grid_min_zoom_percent(threshold);
+    QApplication::processEvents();
+    const auto top_left = photo_canvas.widget_position_for_document_point(QPoint(0, 0));
+    const auto bottom_right =
+        photo_canvas.widget_position_for_document_point(QPoint(photo.width(), photo.height()));
+    const QRect area(QPoint(top_left.x() - 12, top_left.y() - 12),
+                     QPoint(bottom_right.x() + 11, bottom_right.y() + 11));
+    save_image_artifact(threshold == 600 ? "ui_pixel_grid_400_before" : "ui_pixel_grid_400_after",
+                        render_widget_image(photo_canvas).copy(area.intersected(canvas_content_rect(photo_canvas))));
+    CHECK((non_document_colors(photo_canvas, photo) > 0) == (threshold == 400));
+  }
+}
+
+// Preferences > Units & Grids > Show pixel grid from (GitHub issue 600): offers 400% to 3200%,
+// starts at 600%, saves view/pixelGridMinZoom, reaches open canvases at once and a new window.
+void ui_pixel_grid_min_zoom_preference_persists_and_reaches_canvas() {
+  SettingsValueRestorer saved(QStringLiteral("view/pixelGridMinZoom"));
+  SettingsValueRestorer saved_page(QStringLiteral("preferences/lastPage"));
+  patchy::ui::app_settings().remove(QStringLiteral("view/pixelGridMinZoom"));
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    CHECK(canvas->pixel_grid_min_zoom_percent() == 600);
+    patchy::test::ui::app_shell_support::run_preferences_dialog(window, true, [&](QDialog& dialog) {
+      auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("preferencesPixelGridZoomCombo"));
+      CHECK(combo != nullptr);
+      if (combo == nullptr) {
+        return;
+      }
+      QList<int> offered;
+      for (int index = 0; index < combo->count(); ++index) {
+        offered.append(combo->itemData(index).toInt());
+      }
+      CHECK((offered == QList<int>{400, 500, 600, 800, 1200, 1600, 3200}));
+      CHECK(combo->currentData().toInt() == 600);
+      combo->setCurrentIndex(combo->findData(400));
+      // The Units & Grids page with the new row, for the issue's screenshot.
+      if (auto* list = dialog.findChild<QListWidget*>(QStringLiteral("preferencesPageList")); list != nullptr) {
+        for (int row = 0; row < list->count(); ++row) {
+          if (list->item(row)->data(Qt::UserRole).toString() == QStringLiteral("unitsAndGrids")) {
+            list->setCurrentRow(row);
+          }
+        }
+        QApplication::processEvents();
+        save_image_artifact("ui_pixel_grid_preference_after", dialog.grab().toImage());
+      }
+    });
+    CHECK(canvas->pixel_grid_min_zoom_percent() == 400);
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("view/pixelGridMinZoom")).toInt() == 400);
+  }
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    CHECK(require_canvas(window)->pixel_grid_min_zoom_percent() == 400);
+  }
 }
 
 // View > Pixel Grid is on by default, saved as view/pixelGrid, read by a new window, and
@@ -11736,6 +11864,9 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_canvas_pixel_grid_lands_on_pixel_boundaries", ui_canvas_pixel_grid_lands_on_pixel_boundaries},
       {"ui_canvas_pixel_grid_capture_light_and_dark_areas", ui_canvas_pixel_grid_capture_light_and_dark_areas},
       {"ui_pixel_grid_toggle_persists_and_scripts", ui_pixel_grid_toggle_persists_and_scripts},
+      {"ui_canvas_pixel_grid_threshold_follows_setting", ui_canvas_pixel_grid_threshold_follows_setting},
+      {"ui_pixel_grid_min_zoom_preference_persists_and_reaches_canvas",
+       ui_pixel_grid_min_zoom_preference_persists_and_reaches_canvas},
       {"ui_view_extras_hides_covered_overlays_and_restores_them",
        ui_view_extras_hides_covered_overlays_and_restores_them},
       {"ui_view_extras_menu_options_dialog_and_settings", ui_view_extras_menu_options_dialog_and_settings},

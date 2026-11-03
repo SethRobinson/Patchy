@@ -654,7 +654,7 @@ void ui_message_boxes_stay_inside_screen_with_offscreen_parent() {
     QApplication::processEvents();
     for (const auto icon : {QMessageBox::Warning, QMessageBox::Information, QMessageBox::Critical}) {
       QMessageBox box(icon, QStringLiteral("Save changes?"),
-                      QStringLiteral("Save changes to Untitled-1 before closing?"),
+                      QStringLiteral("Save changes to \"Untitled-1\" before closing?"),
                       QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel, &parent);
       patchy::ui::remember_dialog_position(box);
       box.show();

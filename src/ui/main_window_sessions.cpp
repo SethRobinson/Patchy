@@ -1346,9 +1346,10 @@ bool MainWindow::confirm_close_session(DocumentSession& target_session) {
     const auto title = live_session->title.isEmpty() ? tr("Untitled") : live_session->title;
     // The helper labels Save / Discard / Cancel as Yes / No / Cancel with Y, N and C
     // underlined, and keeps S and D as aliases (GitHub issues 70 and 240). Yes is the
-    // default; the text stays a yes/no question.
+    // default; the text stays a yes/no question. The name is quoted so it reads apart
+    // from the question (GitHub issue 605).
     const auto answer = show_warning_message(this, tr("Save changes?"),
-                                             tr("Save changes to %1 before closing?").arg(title),
+                                             tr("Save changes to \"%1\" before closing?").arg(title),
                                              QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
                                              QMessageBox::Save, QStringLiteral("saveChangesMessageBox"));
     if (answer == QMessageBox::Cancel) {

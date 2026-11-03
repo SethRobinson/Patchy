@@ -19162,6 +19162,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Show the folder of companion app manifests on disk</source>
         <translation>Показывает на диске папку с манифестами сопутствующих приложений</translation>
     </message>
+    <message>
+        <source>Turn text into editable vector outlines</source>
+        <translation>Преобразовать текст в редактируемые векторные контуры</translation>
+    </message>
+    <message>
+        <source>Outline the letters as a path</source>
+        <translation>Обвести буквы контуром</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -26515,8 +26523,8 @@ Y: %2
         <translation>Сохранить изменения?</translation>
     </message>
     <message>
-        <source>Save changes to %1 before closing?</source>
-        <translation>Сохранить изменения в %1 перед закрытием?</translation>
+        <source>Save changes to &quot;%1&quot; before closing?</source>
+        <translation>Сохранить изменения в «%1» перед закрытием?</translation>
     </message>
     <message>
         <source>Rasterize Smart Filters before changing document geometry</source>
@@ -32220,6 +32228,66 @@ Locked: %1</source>
         <source>About GEGL...</source>
         <translation>О GEGL...</translation>
     </message>
+    <message>
+        <source>Convert to Shape</source>
+        <translation>Преобразовать в фигуру</translation>
+    </message>
+    <message>
+        <source>Create Work Path</source>
+        <translation>Создать рабочий контур</translation>
+    </message>
+    <message>
+        <source>Select a text layer first.</source>
+        <translation>Сначала выберите текстовый слой.</translation>
+    </message>
+    <message>
+        <source>Could not convert &quot;%1&quot; to a shape.</source>
+        <translation>Не удалось преобразовать &quot;%1&quot; в фигуру.</translation>
+    </message>
+    <message>
+        <source>Convert to Shapes</source>
+        <translation>Преобразовать в фигуры</translation>
+    </message>
+    <message>
+        <source>Converted the text layer to a shape.</source>
+        <translation>Текстовый слой преобразован в фигуру.</translation>
+    </message>
+    <message>
+        <source>Converted %1 text layers to shapes.</source>
+        <translation>Текстовых слоёв преобразовано в фигуры: %1.</translation>
+    </message>
+    <message>
+        <source>A missing font was drawn in a substitute.</source>
+        <translation>Отсутствующий шрифт заменён другим.</translation>
+    </message>
+    <message>
+        <source>Color emoji have no outlines and were left out.</source>
+        <translation>У цветных эмодзи нет контуров, они пропущены.</translation>
+    </message>
+    <message>
+        <source>Could not outline &quot;%1&quot;.</source>
+        <translation>Не удалось построить контуры &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>The text has no outlines.</source>
+        <translation>У текста нет контуров.</translation>
+    </message>
+    <message>
+        <source>Create work path</source>
+        <translation>Создать рабочий контур</translation>
+    </message>
+    <message>
+        <source>Made a work path from the text.</source>
+        <translation>Из текста создан рабочий контур.</translation>
+    </message>
+    <message>
+        <source>The zoom level from which View &gt; Show &gt; Pixel Grid draws lines between pixels.</source>
+        <translation>Масштаб, начиная с которого Вид &gt; Показать &gt; Пиксельная сетка рисует линии между пикселями.</translation>
+    </message>
+    <message>
+        <source>Show pixel grid from:</source>
+        <translation>Показывать пиксельную сетку от:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34456,6 +34524,18 @@ Locked: %1</source>
     <message>
         <source>writeImage: could not write %1.</source>
         <translation>writeImage: не удалось записать %1.</translation>
+    </message>
+    <message>
+        <source>%1 needs a text layer.</source>
+        <translation>%1 требует текстовый слой.</translation>
+    </message>
+    <message>
+        <source>convertToShape: the text has no outlines</source>
+        <translation>convertToShape: у текста нет контуров</translation>
+    </message>
+    <message>
+        <source>createWorkPath: the text has no outlines</source>
+        <translation>createWorkPath: у текста нет контуров</translation>
     </message>
 </context>
 <context>

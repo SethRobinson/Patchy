@@ -19162,6 +19162,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Show the folder of companion app manifests on disk</source>
         <translation>Pokazuje na dysku folder z manifestami aplikacji towarzyszących</translation>
     </message>
+    <message>
+        <source>Turn text into editable vector outlines</source>
+        <translation>Zamień tekst na edytowalne kontury wektorowe</translation>
+    </message>
+    <message>
+        <source>Outline the letters as a path</source>
+        <translation>Obrysuj litery jako ścieżkę</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -26515,8 +26523,8 @@ Y: %2
         <translation>Zapisać zmiany?</translation>
     </message>
     <message>
-        <source>Save changes to %1 before closing?</source>
-        <translation>Zapisać zmiany w %1 przed zamknięciem?</translation>
+        <source>Save changes to &quot;%1&quot; before closing?</source>
+        <translation>Zapisać zmiany w „%1” przed zamknięciem?</translation>
     </message>
     <message>
         <source>Rasterize Smart Filters before changing document geometry</source>
@@ -32220,6 +32228,66 @@ Zablokowano: %1</translation>
         <source>About GEGL...</source>
         <translation>O GEGL...</translation>
     </message>
+    <message>
+        <source>Convert to Shape</source>
+        <translation>Konwertuj na kształt</translation>
+    </message>
+    <message>
+        <source>Create Work Path</source>
+        <translation>Utwórz ścieżkę roboczą</translation>
+    </message>
+    <message>
+        <source>Select a text layer first.</source>
+        <translation>Najpierw zaznacz warstwę tekstową.</translation>
+    </message>
+    <message>
+        <source>Could not convert &quot;%1&quot; to a shape.</source>
+        <translation>Nie udało się przekonwertować &quot;%1&quot; na kształt.</translation>
+    </message>
+    <message>
+        <source>Convert to Shapes</source>
+        <translation>Konwertuj na kształty</translation>
+    </message>
+    <message>
+        <source>Converted the text layer to a shape.</source>
+        <translation>Przekonwertowano warstwę tekstową na kształt.</translation>
+    </message>
+    <message>
+        <source>Converted %1 text layers to shapes.</source>
+        <translation>Przekonwertowano warstwy tekstowe na kształty: %1.</translation>
+    </message>
+    <message>
+        <source>A missing font was drawn in a substitute.</source>
+        <translation>Brakującą czcionkę narysowano czcionką zastępczą.</translation>
+    </message>
+    <message>
+        <source>Color emoji have no outlines and were left out.</source>
+        <translation>Kolorowe emoji nie mają konturów i zostały pominięte.</translation>
+    </message>
+    <message>
+        <source>Could not outline &quot;%1&quot;.</source>
+        <translation>Nie udało się utworzyć konturów &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>The text has no outlines.</source>
+        <translation>Tekst nie ma konturów.</translation>
+    </message>
+    <message>
+        <source>Create work path</source>
+        <translation>Utwórz ścieżkę roboczą</translation>
+    </message>
+    <message>
+        <source>Made a work path from the text.</source>
+        <translation>Utworzono ścieżkę roboczą z tekstu.</translation>
+    </message>
+    <message>
+        <source>The zoom level from which View &gt; Show &gt; Pixel Grid draws lines between pixels.</source>
+        <translation>Poziom powiększenia, od którego Widok &gt; Pokaż &gt; Siatka pikseli rysuje linie między pikselami.</translation>
+    </message>
+    <message>
+        <source>Show pixel grid from:</source>
+        <translation>Pokaż siatkę pikseli od:</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34456,6 +34524,18 @@ Zablokowano: %1</translation>
     <message>
         <source>writeImage: could not write %1.</source>
         <translation>writeImage: nie można zapisać %1.</translation>
+    </message>
+    <message>
+        <source>%1 needs a text layer.</source>
+        <translation>%1 wymaga warstwy tekstowej.</translation>
+    </message>
+    <message>
+        <source>convertToShape: the text has no outlines</source>
+        <translation>convertToShape: tekst nie ma konturów</translation>
+    </message>
+    <message>
+        <source>createWorkPath: the text has no outlines</source>
+        <translation>createWorkPath: tekst nie ma konturów</translation>
     </message>
 </context>
 <context>
