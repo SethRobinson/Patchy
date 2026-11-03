@@ -304,8 +304,14 @@ void path_merge_components_keeps_the_rest_and_handles_cutters() {
 }
 
 
-// Only shapes that overlap merge (#587): a curved shape that touches nothing keeps its exact
-// anchors and handles in its own place, the overlapping rectangles fuse in the first one's place.
+// The subpath with another group number: what a shape kept by Merge Shapes looks like.
+PathSubpath regrouped(PathSubpath subpath, int group) {
+  subpath.shape_group = group;
+  return subpath;
+}
+
+// Only shapes that overlap are traced (#587): the overlapping rectangles fuse, and a curved shape
+// that touches nothing joins the merged shape with its exact anchors and handles.
 void path_merge_components_keeps_isolated_component_points() {
   VectorPath path;
   path.subpaths = {polygon({{20, 20}, {120, 20}, {120, 100}, {20, 100}}), circle(300, 110, 50, 1),
@@ -315,32 +321,35 @@ void path_merge_components_keeps_isolated_component_points() {
   if (!merged.has_value()) {
     return;
   }
-  CHECK((groups_of(merged->path) == std::vector<int>{0, 1}));
+  CHECK((groups_of(merged->path) == std::vector<int>{0}));  // one shape
   CHECK(merged->path.subpaths.size() == 2);
   CHECK(merged->path.subpaths[0].anchors.size() == 8);  // the fused rectangles
-  CHECK(merged->path.subpaths[1] == path.subpaths[1]);  // the ellipse, byte for byte
+  CHECK(merged->path.subpaths[1] == regrouped(path.subpaths[1], 0));  // the circle, byte for byte
+  CHECK(merged->path.subpaths[1].anchors == path.subpaths[1].anchors);
   CHECK((merged->merged_groups == std::vector<int>{0}));
   CHECK((merged->kept_groups == std::vector<int>{1}));
-  CHECK((merged->removed_groups == std::vector<int>{2}));
-  CHECK(merged->merged_group == 0 && merged->merged_subpaths == 1);
+  CHECK((merged->removed_groups == std::vector<int>{1, 2}));
+  CHECK(merged->merged_group == 0 && merged->merged_subpaths == 2);
   CHECK(coverage_mismatch(path, merged->path, {0, 0, 380, 220}, 40) <= 6);
-  // Picked alone, the overlapping pair still merges and the ellipse is not touched.
+  // Picked alone, the overlapping pair still merges and the circle is not touched.
   const auto pair = patchy::merge_path_components(path, {2, 0});
   CHECK(pair.has_value() && pair->kept_groups.empty() && pair->path.subpaths[1] == path.subpaths[1]);
+  CHECK((groups_of(pair->path) == std::vector<int>{0, 1}));
   // Deterministic.
   CHECK(patchy::merge_path_components(path, groups_of(path))->path == merged->path);
 }
 
 // A shape inside another counts as overlapping and merges into it; a shape inside another one's
-// hole touches nothing and stays, and so does the ring around it.
+// hole touches nothing: both join the merged shape unchanged.
 void path_merge_components_merges_nested_and_keeps_shapes_in_holes() {
   VectorPath nested;
   nested.subpaths = {polygon({{20, 20}, {200, 20}, {200, 200}, {20, 200}}), circle(110, 110, 30, 1),
                      polygon({{260, 20}, {320, 20}, {320, 80}, {260, 80}}, true, 2)};
   const auto merged = patchy::merge_path_components(nested, groups_of(nested));
-  CHECK(merged.has_value() && (groups_of(merged->path) == std::vector<int>{0, 2}));
+  CHECK(merged.has_value() && (groups_of(merged->path) == std::vector<int>{0}));
+  CHECK(merged->path.subpaths.size() == 2);
   CHECK(merged->path.subpaths[0].anchors.size() == 4);  // the circle adds nothing
-  CHECK(merged->path.subpaths[1] == nested.subpaths[2]);
+  CHECK(merged->path.subpaths[1] == regrouped(nested.subpaths[2], 0));
   CHECK((merged->kept_groups == std::vector<int>{2}));
 
   VectorPath ring;  // one component: an outer square and its even-odd hole, a square in the hole
@@ -348,28 +357,118 @@ void path_merge_components_merges_nested_and_keeps_shapes_in_holes() {
                    polygon({{60, 60}, {160, 60}, {160, 160}, {60, 160}}),
                    polygon({{90, 90}, {130, 90}, {130, 130}, {90, 130}}, true, 1)};
   const auto apart = patchy::merge_path_components(ring, groups_of(ring));
-  CHECK(apart.has_value() && apart->path == ring);
-  CHECK((apart->kept_groups == std::vector<int>{0, 1}) && apart->merged_groups.empty());
+  CHECK(apart.has_value() && apart->path.subpaths.size() == 3);
+  for (std::size_t i = 0; i < 3 && apart.has_value(); ++i) {
+    CHECK(apart->path.subpaths[i] == regrouped(ring.subpaths[i], 0));
+  }
+  CHECK((apart->kept_groups == std::vector<int>{0, 1}) && (apart->merged_groups == std::vector<int>{0}));
+  CHECK(coverage_mismatch(ring, apart->path, {0, 0, 220, 220}, 0) == 0);
   // Grown to cross the hole's edge, the inner square merges with the ring.
   ring.subpaths[2] = polygon({{50, 90}, {130, 90}, {130, 130}, {50, 130}}, true, 1);
   const auto crossing = patchy::merge_path_components(ring, groups_of(ring));
   CHECK(crossing.has_value() && crossing->kept_groups.empty() && groups_of(crossing->path).size() == 1);
 }
 
-// Shapes that all miss each other: the path comes back unchanged, nothing merged or removed.
-void path_merge_components_leaves_disjoint_shapes_unchanged() {
+// Shapes that all miss each other become one shape with every point unchanged; a cutter that cuts
+// nothing goes, as it showed nothing; a cutter ahead of the shape it overlaps cuts nothing either.
+void path_merge_components_joins_disjoint_shapes_unchanged() {
   VectorPath path;
   path.subpaths = {polygon({{0, 0}, {40, 0}, {40, 40}, {0, 40}}), circle(100, 20, 15, 1),
                    polygon({{150, 0}, {190, 0}, {190, 40}, {150, 40}}, true, 2, PathCombineOp::Subtract),
                    polygon({{0, 100}, {40, 140}, {0, 140}}, true, 3, PathCombineOp::Xor)};
   const auto merged = patchy::merge_path_components(path, groups_of(path));
-  CHECK(merged.has_value() && merged->path == path);
-  CHECK((merged->kept_groups == std::vector<int>{0, 1, 2, 3}));
-  CHECK(merged->merged_groups.empty() && merged->removed_groups.empty() && merged->merged_subpaths == 0);
+  CHECK(merged.has_value());
+  if (!merged.has_value()) {
+    return;
+  }
+  CHECK((groups_of(merged->path) == std::vector<int>{0}) && merged->path.subpaths.size() == 3);
+  CHECK(merged->path.subpaths.size() == 3 && merged->path.subpaths[0] == path.subpaths[0] &&
+        merged->path.subpaths[1] == regrouped(path.subpaths[1], 0) &&
+        merged->path.subpaths[2].anchors == path.subpaths[3].anchors &&
+        merged->path.subpaths[2].op == PathCombineOp::Add);
+  CHECK((merged->kept_groups == std::vector<int>{0, 1, 3}));
+  CHECK((merged->removed_groups == std::vector<int>{1, 2, 3}) && merged->merged_subpaths == 3);
+  CHECK(coverage_mismatch(path, merged->path, {0, 0, 200, 160}, 2) == 0);
   // A single picked shape still bakes on its own (a self-crossing outline cleans up).
   CHECK(patchy::merge_path_components(path, {1})->path.subpaths[1] != path.subpaths[1]);
+
+  VectorPath ahead;  // the cutter comes before the square it overlaps, so it cuts nothing
+  ahead.subpaths = {polygon({{0, 0}, {40, 0}, {40, 40}, {0, 40}}),
+                    polygon({{100, 0}, {140, 0}, {140, 40}, {100, 40}}, true, 1, PathCombineOp::Subtract),
+                    polygon({{120, 0}, {200, 0}, {200, 40}, {120, 40}}, true, 2)};
+  const auto joined = patchy::merge_path_components(ahead, groups_of(ahead));
+  CHECK(joined.has_value() && (groups_of(joined->path) == std::vector<int>{0}));
+  CHECK((joined->kept_groups == std::vector<int>{0, 2}));
+  CHECK(joined->path.subpaths.size() == 2 && joined->path.subpaths[1] == regrouped(ahead.subpaths[2], 0));
+  CHECK(coverage_mismatch(ahead, joined->path, {0, 0, 220, 60}, 0) == 0);
 }
 
+// Split Shapes (#587): one shape per outer outline, holes staying with theirs, points unchanged,
+// the render unchanged; Merge Shapes of shapes apart and then Split gives the shapes back.
+void path_split_components_one_shape_per_outline() {
+  VectorPath two;  // a square and a circle apart, one component
+  two.subpaths = {polygon({{20, 20}, {100, 20}, {100, 100}, {20, 100}}, true, 3), circle(200, 60, 40, 3),
+                  polygon({{0, 150}, {30, 150}, {30, 180}}, true, 5)};
+  const auto split = patchy::split_path_components(two, {3});
+  CHECK(split.has_value());
+  if (!split.has_value()) {
+    return;
+  }
+  CHECK((groups_of(split->path) == std::vector<int>{3, 6, 5}));
+  CHECK(split->path.subpaths[0] == two.subpaths[0]);
+  CHECK(split->path.subpaths[1] == regrouped(two.subpaths[1], 6));
+  CHECK(split->path.subpaths[2] == two.subpaths[2]);
+  CHECK((split->split_groups == std::vector<int>{3}) && (split->pieces == std::vector<int>{3, 6}));
+  CHECK((split->added_groups == std::vector<std::pair<int, int>>{{3, 6}}));
+  CHECK(coverage_mismatch(two, split->path, {0, 0, 260, 200}, 2) == 0);
+  CHECK(!patchy::split_path_components(two, {5}).has_value());   // one outline
+  CHECK(!patchy::split_path_components(two, {9}).has_value());   // not in the path
+  CHECK(patchy::split_path_components(two, {3})->path == split->path);  // deterministic
+
+  // An outline with its hole, a square apart, then an island in the hole with its own hole.
+  VectorPath rings;
+  rings.subpaths = {polygon({{0, 0}, {300, 0}, {300, 300}, {0, 300}}),
+                    polygon({{400, 0}, {460, 0}, {460, 60}, {400, 60}}),
+                    polygon({{20, 20}, {280, 20}, {280, 280}, {20, 280}}),
+                    polygon({{60, 60}, {240, 60}, {240, 240}, {60, 240}}),
+                    polygon({{100, 100}, {200, 100}, {200, 200}, {100, 200}})};
+  const auto pieces = patchy::split_path_components(rings, {0});
+  CHECK(pieces.has_value());
+  if (!pieces.has_value()) {
+    return;
+  }
+  CHECK((pieces->pieces == std::vector<int>{0, 1, 2}));
+  CHECK(pieces->path.subpaths.size() == 5);
+  CHECK(pieces->path.subpaths[0] == rings.subpaths[0] && pieces->path.subpaths[1] == rings.subpaths[2]);
+  CHECK(pieces->path.subpaths[2] == regrouped(rings.subpaths[1], 1));
+  CHECK(pieces->path.subpaths[3] == regrouped(rings.subpaths[3], 2) &&
+        pieces->path.subpaths[4] == regrouped(rings.subpaths[4], 2));
+  CHECK(coverage_mismatch(rings, pieces->path, {0, 0, 480, 320}, 2) == 0);
+
+  // Outlines that cross stay one shape; an outline and its hole alone have nothing to split.
+  VectorPath crossing;
+  crossing.subpaths = {polygon({{0, 0}, {100, 0}, {100, 100}, {0, 100}}),
+                       polygon({{50, 50}, {150, 50}, {150, 150}, {50, 150}})};
+  CHECK(!patchy::split_path_components(crossing, {0}).has_value());
+  VectorPath holed;
+  holed.subpaths = {polygon({{0, 0}, {100, 0}, {100, 100}, {0, 100}}), polygon({{30, 30}, {70, 30}, {70, 70}, {30, 70}})};
+  CHECK(!patchy::split_path_components(holed, {0}).has_value());
+  // Intersect pieces would clear each other: an Intersect component does not split.
+  VectorPath cut = two;
+  for (auto& subpath : cut.subpaths) {
+    subpath.op = subpath.shape_group == 3 ? PathCombineOp::Intersect : subpath.op;
+  }
+  cut.subpaths.insert(cut.subpaths.begin(), polygon({{0, 0}, {300, 0}, {300, 200}, {0, 200}}, true, 0));
+  CHECK(!patchy::split_path_components(cut, {3}).has_value());
+
+  // Merge then Split: the shapes apart come back with their points.
+  VectorPath apart;
+  apart.subpaths = {polygon({{0, 0}, {40, 0}, {40, 40}, {0, 40}}), circle(100, 20, 15, 1)};
+  const auto merged = patchy::merge_path_components(apart, {0, 1});
+  CHECK(merged.has_value() && groups_of(merged->path).size() == 1);
+  const auto back = patchy::split_path_components(merged->path, {0});
+  CHECK(back.has_value() && back->path == apart);
+}
 
 // A seeded sweep (#555 follow-up): random convex and concave polygons, some with curved handles,
 // random point selections, every point command; the results render inside the source's hull
@@ -512,7 +611,8 @@ std::vector<patchy::test::TestCase> path_edits_tests() {
       {"path_merge_components_keeps_isolated_component_points", path_merge_components_keeps_isolated_component_points},
       {"path_merge_components_merges_nested_and_keeps_shapes_in_holes",
        path_merge_components_merges_nested_and_keeps_shapes_in_holes},
-      {"path_merge_components_leaves_disjoint_shapes_unchanged", path_merge_components_leaves_disjoint_shapes_unchanged},
+      {"path_merge_components_joins_disjoint_shapes_unchanged", path_merge_components_joins_disjoint_shapes_unchanged},
+      {"path_split_components_one_shape_per_outline", path_split_components_one_shape_per_outline},
       {"path_break_at_points_renders_without_spikes", path_break_at_points_renders_without_spikes},
   };
 }

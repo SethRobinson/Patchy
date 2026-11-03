@@ -31893,14 +31893,6 @@ Locked: %1</source>
         <translation>%1 個のシェイプを 1 つの輪郭に統合しました</translation>
     </message>
     <message>
-        <source>No shapes overlap, so none were merged</source>
-        <translation>重なっているシェイプがないため、統合しませんでした</translation>
-    </message>
-    <message>
-        <source>Merged the shapes that overlap; %1 other shape(s) kept their points</source>
-        <translation>重なっているシェイプを統合しました。ほかの %1 個のシェイプはポイントをそのまま保ちました</translation>
-    </message>
-    <message>
         <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
         <translation>選択した 2 つの端点を直線セグメントで連結するか、選択したポイントを含む開いたパスをそれぞれ閉じます</translation>
     </message>
@@ -32175,6 +32167,34 @@ Locked: %1</source>
     <message>
         <source>Diamond</source>
         <translation>菱形</translation>
+    </message>
+    <message>
+        <source>Split Shapes</source>
+        <translation>シェイプを分割</translation>
+    </message>
+    <message>
+        <source>Break the selected shapes into one shape per separate outline, holes kept with their outline</source>
+        <translation>選択したシェイプを、離れた輪郭ごとに 1 つのシェイプに分割します（穴はその輪郭に残ります）</translation>
+    </message>
+    <message>
+        <source>Split Shapes: one shape per separate outline</source>
+        <translation>シェイプを分割：離れた輪郭ごとに 1 つのシェイプ</translation>
+    </message>
+    <message>
+        <source>Merged %1 shape(s) into one shape; %2 that overlap nothing kept their points</source>
+        <translation>%1 個のシェイプを 1 つのシェイプに統合しました。重ならない %2 個はポイントを保持しました</translation>
+    </message>
+    <message>
+        <source>The selected shapes have no separate outlines to split</source>
+        <translation>選択したシェイプには分割できる離れた輪郭がありません</translation>
+    </message>
+    <message>
+        <source>Split shapes</source>
+        <translation>シェイプを分割</translation>
+    </message>
+    <message>
+        <source>Split into %1 shape(s)</source>
+        <translation>%1 個のシェイプに分割しました</translation>
     </message>
 </context>
 <context>

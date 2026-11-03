@@ -31977,14 +31977,6 @@ Verrouillé : %1</translation>
         <translation>%1 forme(s) fusionnée(s) en un seul contour</translation>
     </message>
     <message>
-        <source>No shapes overlap, so none were merged</source>
-        <translation>Aucune forme ne se chevauche, rien n’a été fusionné</translation>
-    </message>
-    <message>
-        <source>Merged the shapes that overlap; %1 other shape(s) kept their points</source>
-        <translation>Formes qui se chevauchent fusionnées ; %1 autre(s) forme(s) gardent leurs points</translation>
-    </message>
-    <message>
         <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
         <translation>Joindre les deux extrémités sélectionnées par un segment droit, ou fermer chaque tracé ouvert qui a un point sélectionné</translation>
     </message>
@@ -32259,6 +32251,34 @@ Verrouillé : %1</translation>
     <message>
         <source>Diamond</source>
         <translation>Losange</translation>
+    </message>
+    <message>
+        <source>Split Shapes</source>
+        <translation>Séparer les formes</translation>
+    </message>
+    <message>
+        <source>Break the selected shapes into one shape per separate outline, holes kept with their outline</source>
+        <translation>Séparer les formes sélectionnées en une forme par contour distinct, les trous restant avec leur contour</translation>
+    </message>
+    <message>
+        <source>Split Shapes: one shape per separate outline</source>
+        <translation>Séparer les formes : une forme par contour distinct</translation>
+    </message>
+    <message>
+        <source>Merged %1 shape(s) into one shape; %2 that overlap nothing kept their points</source>
+        <translation>%1 forme(s) fusionnée(s) en une seule forme ; %2 sans chevauchement ont gardé leurs points</translation>
+    </message>
+    <message>
+        <source>The selected shapes have no separate outlines to split</source>
+        <translation>Les formes sélectionnées n’ont pas de contours distincts à séparer</translation>
+    </message>
+    <message>
+        <source>Split shapes</source>
+        <translation>Séparer les formes</translation>
+    </message>
+    <message>
+        <source>Split into %1 shape(s)</source>
+        <translation>Séparé en %1 forme(s)</translation>
     </message>
 </context>
 <context>

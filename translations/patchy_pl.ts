@@ -32061,14 +32061,6 @@ Zablokowano: %1</translation>
         <translation>Kształty scalone w jeden kontur: %1</translation>
     </message>
     <message>
-        <source>No shapes overlap, so none were merged</source>
-        <translation>Żadne kształty nie nachodzą na siebie, więc nic nie scalono</translation>
-    </message>
-    <message>
-        <source>Merged the shapes that overlap; %1 other shape(s) kept their points</source>
-        <translation>Scalono nachodzące kształty; pozostałe kształty z zachowanymi punktami: %1</translation>
-    </message>
-    <message>
         <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
         <translation>Połącz dwa wybrane punkty końcowe prostym segmentem albo zamknij każdą otwartą ścieżkę z wybranym punktem</translation>
     </message>
@@ -32343,6 +32335,34 @@ Zablokowano: %1</translation>
     <message>
         <source>Diamond</source>
         <translation>Romb</translation>
+    </message>
+    <message>
+        <source>Split Shapes</source>
+        <translation>Podziel kształty</translation>
+    </message>
+    <message>
+        <source>Break the selected shapes into one shape per separate outline, holes kept with their outline</source>
+        <translation>Podziel zaznaczone kształty na osobny kształt dla każdego oddzielnego konturu; otwory zostają ze swoim konturem</translation>
+    </message>
+    <message>
+        <source>Split Shapes: one shape per separate outline</source>
+        <translation>Podziel kształty: osobny kształt dla każdego oddzielnego konturu</translation>
+    </message>
+    <message>
+        <source>Merged %1 shape(s) into one shape; %2 that overlap nothing kept their points</source>
+        <translation>Kształty scalone w jeden kształt: %1; bez nakładania się, z zachowanymi punktami: %2</translation>
+    </message>
+    <message>
+        <source>The selected shapes have no separate outlines to split</source>
+        <translation>Zaznaczone kształty nie mają oddzielnych konturów do podzielenia</translation>
+    </message>
+    <message>
+        <source>Split shapes</source>
+        <translation>Podziel kształty</translation>
+    </message>
+    <message>
+        <source>Split into %1 shape(s)</source>
+        <translation>Liczba kształtów po podziale: %1</translation>
     </message>
 </context>
 <context>

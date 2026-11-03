@@ -1878,12 +1878,17 @@ private:
   // Merge Shapes (GitHub #555): the selected components (all of the target path's when none are
   // selected; two or more selected shape layers combine first) become one outline.
   void merge_selected_path_components();
+  // Split Shapes (#587): each selected component (every one of the target path's when none are
+  // selected) becomes one component per outer outline, its holes with it.
+  void split_selected_path_components();
   // Layer > Arrange > Align on two or more shapes picked with Path Select or Direct Select: they
   // align inside their layer or path, to their joint bounds (or the canvas with Align to Canvas).
   // False when there are not two such shapes (the layer alignment runs instead).
   bool align_selected_path_components(AlignEdge edge);
   // Why Merge Shapes cannot run now (empty: it can; "-": no document or canvas).
   [[nodiscard]] QString merge_shapes_refusal() const;
+  // Why Split Shapes cannot run now (empty: it can; "-": no document or canvas).
+  [[nodiscard]] QString split_shapes_refusal() const;
   bool set_selected_path_components_color(QColor color);
   void selected_path_components_to_new_layer(bool keep_originals);
   // Removes `groups` from the target path inside an open undo step; a shape layer left empty goes.
@@ -3130,6 +3135,8 @@ private:
   QAction* path_shapes_color_action_{nullptr};
   QAction* path_merge_shapes_action_{nullptr};
   QPushButton* path_merge_shapes_button_{nullptr};  // the options bar's Merge Shapes
+  QAction* path_split_shapes_action_{nullptr};
+  QPushButton* path_split_shapes_button_{nullptr};  // the options bar's Split Shapes
   QAction* path_shapes_to_new_layer_action_{nullptr};
   QAction* path_shapes_copy_to_new_layer_action_{nullptr};
   QAction* path_shapes_cut_action_{nullptr};

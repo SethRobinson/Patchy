@@ -31977,14 +31977,6 @@ Fixiert: %1</translation>
         <translation>%1 Form(en) zu einer Kontur zusammengeführt</translation>
     </message>
     <message>
-        <source>No shapes overlap, so none were merged</source>
-        <translation>Keine Formen überlappen sich, daher wurde nichts zusammengeführt</translation>
-    </message>
-    <message>
-        <source>Merged the shapes that overlap; %1 other shape(s) kept their points</source>
-        <translation>Überlappende Formen zusammengeführt; %1 andere Form(en) behielten ihre Punkte</translation>
-    </message>
-    <message>
         <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
         <translation>Die beiden ausgewählten Endpunkte mit einem geraden Segment verbinden oder jeden offenen Pfad mit einem ausgewählten Punkt schließen</translation>
     </message>
@@ -32259,6 +32251,34 @@ Fixiert: %1</translation>
     <message>
         <source>Diamond</source>
         <translation>Raute</translation>
+    </message>
+    <message>
+        <source>Split Shapes</source>
+        <translation>Formen teilen</translation>
+    </message>
+    <message>
+        <source>Break the selected shapes into one shape per separate outline, holes kept with their outline</source>
+        <translation>Die ausgewählten Formen in eine Form je getrennter Kontur aufteilen, Löcher bleiben bei ihrer Kontur</translation>
+    </message>
+    <message>
+        <source>Split Shapes: one shape per separate outline</source>
+        <translation>Formen teilen: eine Form je getrennter Kontur</translation>
+    </message>
+    <message>
+        <source>Merged %1 shape(s) into one shape; %2 that overlap nothing kept their points</source>
+        <translation>%1 Form(en) zu einer Form zusammengeführt; %2 ohne Überlappung behielten ihre Punkte</translation>
+    </message>
+    <message>
+        <source>The selected shapes have no separate outlines to split</source>
+        <translation>Die ausgewählten Formen haben keine getrennten Konturen zum Teilen</translation>
+    </message>
+    <message>
+        <source>Split shapes</source>
+        <translation>Formen teilen</translation>
+    </message>
+    <message>
+        <source>Split into %1 shape(s)</source>
+        <translation>In %1 Form(en) geteilt</translation>
     </message>
 </context>
 <context>

@@ -8,7 +8,7 @@ canvas side: `src/ui/canvas_widget_path_edits.cpp`; MainWindow side:
 `src/ui/main_window_path_components.cpp`. Tests: `path_break_*`, `path_join_*`,
 `path_delete_segment_*`, `path_merge_points_*`, `path_components_*` in
 `tests/core/vector_shape_tests.cpp`; `path_*` in `tests/core/path_edits_tests.cpp` (rendered
-checks, a seeded sweep of every point command, Merge Shapes); `tests/ui/vector_path_edits_tests.cpp`.
+checks, a seeded sweep of every point command, Merge and Split Shapes); `tests/ui/vector_path_edits_tests.cpp`.
 
 Classic bezier path editing (Illustrator 88 era, expired); no legal boundary applies beyond
 [vector-tools.md](vector-tools.md#patents-and-trademarks-assessed-july-2026).
@@ -162,19 +162,44 @@ the merged component stays selected. Deterministic: lattice coordinates, fixed-o
 `std::atan2` turn choice as the stroker already uses. Vector booleans are expired prior art
 ([vector-tools.md](vector-tools.md#patents-and-trademarks-assessed-july-2026)).
 
-Only shapes that overlap merge (#587). With two or more picked and none of them Intersect
-(Intersect clears everything outside it, so it acts on shapes it misses), the picked components
-first group into clusters whose own fills overlap or touch: each component's fill outline
+Only shapes that overlap are traced (#587); shapes apart still join the merged shape with their
+points unchanged (the reporter's follow-up: separate shapes belong in the one shape, only their
+points must not change). With two or more picked and none of them Intersect (Intersect clears
+everything outside it, so it acts on shapes it misses), the picked components first group into
+clusters whose own fills overlap or touch: each component's fill outline
 (`vector_path_fill_contours` of it alone, as integers on the 1/256 lattice) is tested against
 the others by bounds, then edge crossings or contact, then one loop inside the other's fill
-(nested shapes count; a shape in another's hole does not). Each cluster of two or more merges as
-above in its first one's place; a component that meets none of the others keeps its subpaths
-exactly (anchors, handles, live-shape annotation). When nothing meets, the command changes
-nothing, adds no undo step and says "No shapes overlap, so none were merged". One picked
-component still bakes on its own (a self-crossing outline cleans up). Everything picked stays
-selected afterwards.
+(nested shapes count; a shape in another's hole does not). Each cluster of two or more is traced
+as above; a component that meets none of the others is copied subpath for subpath (anchors and
+handles exact). All of them become the one merged component in the first one's place, group
+and op. The clusters' fills are apart, so their union under the component's even-odd fill is
+the combined fill: each cluster combines from nothing, so a cluster's leading cutters (and a
+lone cutter) cut nothing and go, unless every picked component cuts. Live-shape annotations of
+every picked group drop. One picked component still bakes on its own (a self-crossing outline
+cleans up). The merged shape stays selected.
 Tests: `path_merge_components_*`, `ui_path_merge_shapes_bakes_the_combine`,
-`ui_path_merge_shapes_keeps_shapes_that_overlap_nothing`.
+`ui_path_merge_shapes_keeps_separate_shape_points`.
+
+## Split Shapes
+
+Layer > Shape > Split Shapes (`path.split_shapes`, `pathSplitShapesAction`, after Merge Shapes),
+the path menu under Path Select and Direct Select (after Merge Shapes) and a Split Shapes button
+after Merge Shapes on the options bar (`vectorSplitShapesButton`) break each selected component,
+else every component of the target path, into one component per outer outline
+(`split_path_components`, #587). Each subpath is flattened (`flatten_subpath_polyline`, lattice
+integers): subpaths whose outlines cross or touch stay together; otherwise one inside an odd
+number of the component's other subpaths is a hole and goes with its deepest container, so a
+ring keeps its hole and an island in that hole (depth 2) is a piece of its own with its own
+holes. Anchors, handles and subpath order are kept; the first piece keeps the group number, the
+rest take new numbers (`next_shape_group`) right after it, with the component's op. The pieces'
+fills are apart, so the render does not change, except for Intersect components, which do not
+split (each piece would clear the others). On a merged shape layer each new piece joins its
+source's paint parts (`copy_vector_part_groups`); live-shape annotations of split groups drop.
+Disabled (reason in the tooltip) when no selected component has two pieces; not for text areas.
+One "Split shapes" undo step; the pieces stay selected. Merge Shapes of shapes apart, then Split
+Shapes, gives back the original shapes. Search Commands describes it with its status tip.
+Tests: `path_split_components_one_shape_per_outline`,
+`ui_path_merge_shapes_keeps_separate_shape_points`.
 
 ## Aligning shapes inside a layer
 

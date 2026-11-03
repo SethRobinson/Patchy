@@ -31893,14 +31893,6 @@ Locked: %1</source>
         <translation>已將 %1 個形狀融合為一個輪廓</translation>
     </message>
     <message>
-        <source>No shapes overlap, so none were merged</source>
-        <translation>沒有重疊的形狀，因此未融合任何形狀</translation>
-    </message>
-    <message>
-        <source>Merged the shapes that overlap; %1 other shape(s) kept their points</source>
-        <translation>已融合重疊的形狀；其餘 %1 個形狀保留了原有的點</translation>
-    </message>
-    <message>
         <source>Join the two selected end points with a straight segment, or close each open path with a selected point</source>
         <translation>以直線段連接兩個選取的端點，或封閉每條含有選取錨點的開放路徑</translation>
     </message>
@@ -32175,6 +32167,34 @@ Locked: %1</source>
     <message>
         <source>Diamond</source>
         <translation>菱形</translation>
+    </message>
+    <message>
+        <source>Split Shapes</source>
+        <translation>分割形狀</translation>
+    </message>
+    <message>
+        <source>Break the selected shapes into one shape per separate outline, holes kept with their outline</source>
+        <translation>將所選形狀依每個分離的輪廓分割為一個形狀，孔洞保留在其輪廓中</translation>
+    </message>
+    <message>
+        <source>Split Shapes: one shape per separate outline</source>
+        <translation>分割形狀：每個分離的輪廓一個形狀</translation>
+    </message>
+    <message>
+        <source>Merged %1 shape(s) into one shape; %2 that overlap nothing kept their points</source>
+        <translation>已將 %1 個形狀融合為一個形狀；%2 個不重疊的形狀保留了其錨點</translation>
+    </message>
+    <message>
+        <source>The selected shapes have no separate outlines to split</source>
+        <translation>所選形狀沒有可分割的分離輪廓</translation>
+    </message>
+    <message>
+        <source>Split shapes</source>
+        <translation>分割形狀</translation>
+    </message>
+    <message>
+        <source>Split into %1 shape(s)</source>
+        <translation>已分割為 %1 個形狀</translation>
     </message>
 </context>
 <context>

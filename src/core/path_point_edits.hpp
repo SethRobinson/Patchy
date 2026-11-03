@@ -76,19 +76,36 @@ struct PathPointEditResult {
 // The render is unchanged when the merged components start the path; a run in the middle is
 // combined on its own first. nullopt when no listed group is in the path.
 // With two or more listed and none intersecting, only components whose fills overlap or touch
-// (one inside another counts) merge, each such cluster on its own as above; a component that
-// meets none of the others keeps its subpaths exactly (#587). None meeting leaves `path` as it was.
+// (one inside another counts) are traced, each such cluster on its own as above; a component that
+// meets none of the others keeps its subpaths exactly, anchors and handles (#587). Every traced
+// cluster and kept component then goes into the one merged component; a cutter that cuts nothing
+// there goes, as it does in the combined fill.
 struct MergeComponentsResult {
   VectorPath path;
-  int merged_group{0};              // the first merged cluster's group
-  std::size_t merged_subpaths{0};   // over every merged cluster
+  int merged_group{0};              // the merged component's group (the first listed)
+  std::size_t merged_subpaths{0};   // subpaths of the merged component
   std::vector<int> removed_groups;  // the other listed groups, gone from the path
-  std::vector<int> merged_groups;   // one per merged cluster that left area, path order
-  std::vector<int> kept_groups;     // listed groups that met no other, unchanged
+  std::vector<int> merged_groups;   // {merged_group} when the merge left area, else empty
+  std::vector<int> kept_groups;     // listed groups whose subpaths went in unchanged
 };
 [[nodiscard]] std::optional<MergeComponentsResult> merge_path_components(const VectorPath& path,
                                                                          const std::vector<int>& groups,
                                                                          double tolerance = 0.25);
+
+// Split Shapes: each listed component becomes one component per outer outline, its holes (a
+// subpath inside an odd number of the component's others) going with the outline right around
+// them; subpaths whose outlines cross or touch stay together. Anchors, handles, order and op are
+// kept; the first piece keeps the group number, the others take new ones from next_shape_group,
+// in the component's place. Intersect components do not split (each piece would clear the
+// others). nullopt when no listed component has two pieces.
+struct SplitComponentsResult {
+  VectorPath path;
+  std::vector<int> split_groups;                  // listed groups that split, path order
+  std::vector<std::pair<int, int>> added_groups;  // (source group, new group) per new piece
+  std::vector<int> pieces;                        // every piece of a split group, path order
+};
+[[nodiscard]] std::optional<SplitComponentsResult> split_path_components(const VectorPath& path,
+                                                                         const std::vector<int>& groups);
 
 // The subpaths of `groups`, in path order, groups and ops kept.
 [[nodiscard]] VectorPath path_components(const VectorPath& path, const std::vector<int>& groups);
