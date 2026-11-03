@@ -32532,6 +32532,14 @@ Locked: %1</source>
         <source>Updated the smart object from %1</source>
         <translation>Смарт-объект обновлён из %1</translation>
     </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation>&amp;Поместить</translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation>&amp;Метаданные</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

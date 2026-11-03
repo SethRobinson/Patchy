@@ -32532,6 +32532,14 @@ Zablokowano: %1</translation>
         <source>Updated the smart object from %1</source>
         <translation>Zaktualizowano inteligentny obiekt z %1</translation>
     </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation>&amp;Umieść</translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation>M&amp;etadane</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -32364,6 +32364,14 @@ Locked: %1</source>
         <source>Updated the smart object from %1</source>
         <translation>已從 %1 更新智慧型物件</translation>
     </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation>置入(&amp;L)</translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation>中繼資料(&amp;E)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

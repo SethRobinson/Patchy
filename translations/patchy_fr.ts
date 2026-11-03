@@ -32448,6 +32448,14 @@ Verrouillé : %1</translation>
         <source>Updated the smart object from %1</source>
         <translation>Objet dynamique mis à jour depuis %1</translation>
     </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation>Pl&amp;acer</translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation>Mé&amp;tadonnées</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

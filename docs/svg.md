@@ -244,7 +244,7 @@ emit native `<rect>`/`<ellipse>`/`<line>` (round-trips back to live).
   text (the Illustrator/Figma/Inkscape convention); the internal layer
   clipboard is dropped so Paste reads it back in place. Notices ride the
   status message. Test: `ui_svg_copy_as_svg_round_trips_shape_layer`.
-- File > Place Embedded, File > Place Linked, Layer > Smart Objects >
+- File > Place > Place Embedded and Place Linked, Layer > Smart Objects >
   Relink to File, and `doc.addSmartObject` accept svg: it becomes a smart object with Photoshop's `SVG ` filetype and
   Type 1 (vector) placement, classified ReadOnly for editing (embedded, Edit
   Contents offers Edit in Default App) and rasterized

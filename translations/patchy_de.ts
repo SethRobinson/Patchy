@@ -32448,6 +32448,14 @@ Fixiert: %1</translation>
         <source>Updated the smart object from %1</source>
         <translation>Smartobjekt aus %1 aktualisiert</translation>
     </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation>P&amp;latzieren</translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation>M&amp;etadaten</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

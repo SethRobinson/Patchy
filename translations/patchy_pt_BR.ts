@@ -32448,6 +32448,14 @@ Bloqueado: %1</translation>
         <source>Updated the smart object from %1</source>
         <translation>Objeto inteligente atualizado de %1</translation>
     </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation>Inse&amp;rir</translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation>M&amp;etadados</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

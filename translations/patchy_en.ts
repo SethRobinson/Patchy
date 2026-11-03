@@ -32367,6 +32367,14 @@ Locked: %1</source>
         <source>Updated the smart object from %1</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>P&amp;lace</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>M&amp;etadata</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
