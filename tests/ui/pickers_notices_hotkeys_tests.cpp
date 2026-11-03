@@ -4795,8 +4795,15 @@ void ui_command_search_lists_tools_keys_and_descriptions() {
     };
     // A build without ONNX Runtime or the model has no Object Selection tool.
     const bool object_select_built = patchy::ai::segmentation_available();
+    // "Empty the list of recent files" is added to the File menu only while the list is not
+    // empty (main_window_files.cpp), so a run with no recent files has no action for it.
+    const bool clear_recent_built =
+        window.findChild<QAction*>(QStringLiteral("fileClearRecentAction")) != nullptr;
     for (const auto& id : patchy::ui::command_search_described_ids()) {
       if (!object_select_built && id == QStringLiteral("tools.object_select")) {
+        continue;
+      }
+      if (!clear_recent_built && id == QStringLiteral("fileClearRecentAction")) {
         continue;
       }
       if (!listed_ids.contains(id) && !other_platforms.contains(id)) {
