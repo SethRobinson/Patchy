@@ -18,6 +18,10 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QImage>
+#include <QLabel>
+#include <QPainter>
+#include <QScrollBar>
+#include <QAbstractItemView>
 #include <QListWidget>
 #include <QMenu>
 #include <QSpinBox>
@@ -113,6 +117,195 @@ void ui_radial_gradient_tool_renders_custom_transparency() {
   CHECK(color_close(QColor(image.pixel(160, 140)), QColor(255, 0, 0), 35));
   CHECK(color_close(QColor(image.pixel(220, 140)), Qt::white, 35));
   save_widget_artifact("ui_radial_gradient_transparency", *canvas);
+}
+
+// GitHub issue 610: the Gradient tool's Style list holds the Gradient Fill dialog's five styles
+// in its order under a "Style" label, sets the canvas and the saved setting, and opens as a list
+// below the box (it opened as a menu with the current row over the box, so upward).
+void ui_gradient_style_combo_lists_five_styles() {
+  SettingsValueRestorer saved_gradient_method(QStringLiteral("tools/gradientMethod"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action(window, "toolGradientAction")->trigger();
+  QApplication::processEvents();
+  auto* combo = window.findChild<QComboBox*>(QStringLiteral("gradientMethodCombo"));
+  CHECK(combo != nullptr);
+  if (combo == nullptr) {
+    return;
+  }
+  CHECK(combo->isVisible());
+  const std::array<std::pair<const char*, patchy::GradientMethod>, 5> expected{{
+      {"Linear", patchy::GradientMethod::Linear},
+      {"Radial", patchy::GradientMethod::Radial},
+      {"Angle", patchy::GradientMethod::Angle},
+      {"Reflected", patchy::GradientMethod::Reflected},
+      {"Diamond", patchy::GradientMethod::Diamond},
+  }};
+  CHECK(combo->count() == static_cast<int>(expected.size()));
+  for (int index = 0; index < std::min(combo->count(), static_cast<int>(expected.size())); ++index) {
+    const auto& [name, method] = expected[static_cast<std::size_t>(index)];
+    CHECK(combo->itemText(index) == QString::fromLatin1(name));
+    CHECK(combo->itemData(index).toInt() == static_cast<int>(method));
+  }
+  // The visible option label nearest the box on its left reads Style.
+  QLabel* nearest = nullptr;
+  int nearest_right = 0;
+  const auto combo_left = combo->mapTo(&window, QPoint(0, 0)).x();
+  for (auto* label : window.findChildren<QLabel*>()) {
+    if (!label->isVisible() || !label->property("optionLabel").toBool() ||
+        label->parentWidget() != combo->parentWidget()) {
+      continue;
+    }
+    const auto right = label->mapTo(&window, QPoint(label->width(), 0)).x();
+    if (right <= combo_left && (nearest == nullptr || right > nearest_right)) {
+      nearest = label;
+      nearest_right = right;
+    }
+  }
+  CHECK(nearest != nullptr);
+  if (nearest != nullptr) {
+    CHECK(nearest->text().startsWith(QStringLiteral("Style")));
+  }
+
+  combo->setCurrentIndex(4);
+  QApplication::processEvents();
+  CHECK(canvas->gradient_method() == patchy::GradientMethod::Diamond);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/gradientMethod")).toInt() ==
+        static_cast<int>(patchy::GradientMethod::Diamond));
+
+  // With the last style current the list still opens below the box, all five rows shown.
+  const QRect box(combo->mapToGlobal(QPoint(0, 0)), combo->size());
+  combo->showPopup();
+  QApplication::processEvents();
+  auto* popup = combo->view()->window();
+  CHECK(popup->isVisible());
+  CHECK(popup->geometry().top() >= box.bottom());
+  CHECK(!combo->view()->verticalScrollBar()->isVisible());
+  {
+    ensure_artifact_dir();
+    ensure_capture_themed(window);
+    ensure_capture_themed(*popup);
+    const auto popup_rect = popup->geometry();
+    const auto window_origin = window.mapToGlobal(QPoint(0, 0));
+    QRect area = box.united(popup_rect).adjusted(-260, -40, 160, 40);
+    area = area.intersected(QRect(window_origin, window.size()).united(popup_rect));
+    QImage shot(area.size(), QImage::Format_ARGB32_Premultiplied);
+    shot.fill(QColor(96, 96, 104));
+    QPainter painter(&shot);
+    painter.drawPixmap(window_origin - area.topLeft(), window.grab());
+    painter.drawPixmap(popup_rect.topLeft() - area.topLeft(), popup->grab());
+    painter.end();
+    CHECK(shot.save(QString::fromStdString(
+        (std::filesystem::path("test-artifacts") / "issue_610_gradient_style_list.png").string())));
+  }
+  combo->hidePopup();
+  QApplication::processEvents();
+}
+
+// GitHub issue 610: Angle, Reflected and Diamond paint the layer, and the drag preview shows the
+// same ramp. Red to blue from (120, 80) to (180, 80) on a white 240x160 document.
+void ui_gradient_tool_draws_angle_reflected_and_diamond() {
+  SettingsValueRestorer saved_gradient_mode(QStringLiteral("tools/gradientMode"));
+  SettingsValueRestorer saved_gradient_method(QStringLiteral("tools/gradientMethod"));
+  SettingsValueRestorer saved_gradient_reverse(QStringLiteral("tools/gradientReverse"));
+  SettingsValueRestorer saved_gradient_opacity(QStringLiteral("tools/gradientOpacity"));
+  SettingsValueRestorer saved_gradient_use_custom(QStringLiteral("tools/gradientUseCustomStops"));
+  SettingsValueRestorer saved_gradient_stops(QStringLiteral("tools/gradientStops"));
+  patchy::Document seed(240, 160, patchy::PixelFormat::rgba8());
+  seed.add_pixel_layer("Paper", solid_pixels(240, 160, patchy::PixelFormat::rgba8(), QColor(255, 255, 255, 255)));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(seed), QStringLiteral("Gradient Styles"));
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  require_action(window, "toolGradientAction")->trigger();
+  QApplication::processEvents();
+  auto* mode = window.findChild<QComboBox*>(QStringLiteral("gradientModeCombo"));
+  auto* style = window.findChild<QComboBox*>(QStringLiteral("gradientMethodCombo"));
+  CHECK(mode != nullptr && style != nullptr);
+  if (mode == nullptr || style == nullptr) {
+    return;
+  }
+  mode->setCurrentIndex(0);
+  canvas->set_gradient_reverse(false);
+  canvas->set_gradient_opacity(100);
+  canvas->set_gradient_stops(std::vector<patchy::GradientStop>{
+      patchy::GradientStop{0.0F, patchy::EditColor{255, 0, 0, 255}},
+      patchy::GradientStop{1.0F, patchy::EditColor{0, 0, 255, 255}},
+  });
+  const auto to_widget = [canvas](QPoint document_point) {
+    return canvas->widget_position_for_document_point(document_point);
+  };
+  const auto layer_color = [&document](int x, int y) {
+    const auto& layer = std::as_const(document).layers().front();
+    const auto* px = layer.pixels().pixel(x - layer.bounds().x, y - layer.bounds().y);
+    return QColor(px[0], px[1], px[2], px[3]);
+  };
+  const QColor red(255, 0, 0);
+  const QColor blue(0, 0, 255);
+  const QColor purple(128, 0, 128);
+  struct Probe {
+    QPoint point;
+    QColor color;
+  };
+  struct StyleCase {
+    const char* name;
+    patchy::GradientMethod method;
+    std::vector<Probe> probes;
+  };
+  const std::vector<StyleCase> cases{
+      // Angle: position 0.25 straight below the start (clockwise), 0.5 behind it, 0.75 above;
+      // just below the drag line the sweep has only begun.
+      {"angle", patchy::GradientMethod::Angle,
+       {{QPoint(170, 84), QColor(252, 0, 3)},
+        {QPoint(90, 80), purple},
+        {QPoint(120, 110), QColor(191, 0, 64)},
+        {QPoint(120, 50), QColor(64, 0, 191)}}},
+      // Reflected: the ramp mirrors behind the start.
+      {"reflected", patchy::GradientMethod::Reflected,
+       {{QPoint(120, 80), red}, {QPoint(150, 80), purple}, {QPoint(90, 80), purple}, {QPoint(40, 80), blue}}},
+      // Diamond: L1 distance, so the point 30 along and 30 across is as far out as the drag end.
+      {"diamond", patchy::GradientMethod::Diamond,
+       {{QPoint(120, 80), red}, {QPoint(150, 80), purple}, {QPoint(150, 110), blue}, {QPoint(120, 50), purple}}},
+  };
+  for (const auto& style_case : cases) {
+    const auto index = style->findData(static_cast<int>(style_case.method));
+    CHECK(index >= 0);
+    style->setCurrentIndex(index);
+    QApplication::processEvents();
+    CHECK(canvas->gradient_method() == style_case.method);
+    const auto from = to_widget(QPoint(120, 80));
+    const auto to = to_widget(QPoint(180, 80));
+    send_mouse(*canvas, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseMove, (from + to) / 2, Qt::NoButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton);
+    QApplication::processEvents();
+    // The live preview shows the style's ramp (sampled on a grid, so a wide tolerance).
+    const auto preview = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+    const auto preview_scale = preview.devicePixelRatio();
+    for (const auto& probe : style_case.probes) {
+      const auto at = (QPointF(to_widget(probe.point)) * preview_scale).toPoint();
+      const QColor seen(preview.pixel(at));
+      if (!color_close(seen, probe.color, 40)) {
+        std::cerr << style_case.name << " preview at " << probe.point.x() << ',' << probe.point.y() << " is "
+                  << seen.red() << ',' << seen.green() << ',' << seen.blue() << '\n';
+      }
+      CHECK(color_close(seen, probe.color, 40));
+    }
+    send_mouse(*canvas, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    for (const auto& probe : style_case.probes) {
+      const auto painted = layer_color(probe.point.x(), probe.point.y());
+      if (!color_close(painted, probe.color, 4)) {
+        std::cerr << style_case.name << " paint at " << probe.point.x() << ',' << probe.point.y() << " is "
+                  << painted.red() << ',' << painted.green() << ',' << painted.blue() << '\n';
+      }
+      CHECK(color_close(painted, probe.color, 4));
+    }
+    save_widget_artifact(std::string("issue_610_gradient_") + style_case.name, *canvas);
+  }
 }
 
 // The Gradient tool's Fill Layer mode (GitHub issue 580): a drag on a pixel layer adds a Gradient
@@ -2297,6 +2490,8 @@ std::vector<patchy::test::TestCase> selection_engines_tests() {
       {"ui_gradient_and_magic_wand_render_visually", ui_gradient_and_magic_wand_render_visually},
       {"ui_radial_gradient_tool_renders_custom_transparency",
        ui_radial_gradient_tool_renders_custom_transparency},
+      {"ui_gradient_style_combo_lists_five_styles", ui_gradient_style_combo_lists_five_styles},
+      {"ui_gradient_tool_draws_angle_reflected_and_diamond", ui_gradient_tool_draws_angle_reflected_and_diamond},
       {"ui_gradient_tool_fill_layer_mode_makes_and_edits_gradient_fills",
        ui_gradient_tool_fill_layer_mode_makes_and_edits_gradient_fills},
       {"ui_magic_wand_contiguous_and_sample_all_layers_options_work",

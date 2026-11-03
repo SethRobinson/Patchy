@@ -21186,10 +21186,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>在多次描边之间保持图案对齐连续</translation>
     </message>
     <message>
-        <source>Method:</source>
-        <translation>方法:</translation>
-    </message>
-    <message>
         <source>Linear</source>
         <translation>线性</translation>
     </message>
@@ -32167,6 +32163,18 @@ Locked: %1</source>
     <message>
         <source>Content-Aware Move: draw around an object, then drag the selection to its new place. Move fills the spot it leaves, Extend keeps the original.</source>
         <translation>内容感知移动：圈出对象，然后将选区拖到新位置。移动会填充留下的位置，扩展保留原对象。</translation>
+    </message>
+    <message>
+        <source>Angle</source>
+        <translation>角度</translation>
+    </message>
+    <message>
+        <source>Reflected</source>
+        <translation>对称</translation>
+    </message>
+    <message>
+        <source>Diamond</source>
+        <translation>菱形</translation>
     </message>
 </context>
 <context>

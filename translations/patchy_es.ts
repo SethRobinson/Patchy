@@ -21232,10 +21232,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Mantener la alineación del motivo continua entre trazos</translation>
     </message>
     <message>
-        <source>Method:</source>
-        <translation>Método:</translation>
-    </message>
-    <message>
         <source>Linear</source>
         <translation>Lineal</translation>
     </message>
@@ -32251,6 +32247,18 @@ Bloqueada: %1</translation>
     <message>
         <source>Content-Aware Move: draw around an object, then drag the selection to its new place. Move fills the spot it leaves, Extend keeps the original.</source>
         <translation>Movimiento con reconocimiento de contenido: rodee un objeto y arrastre la selección a su nuevo lugar. Mover rellena el hueco que deja, Ampliar conserva el original.</translation>
+    </message>
+    <message>
+        <source>Angle</source>
+        <translation>Ángulo</translation>
+    </message>
+    <message>
+        <source>Reflected</source>
+        <translation>Reflejado</translation>
+    </message>
+    <message>
+        <source>Diamond</source>
+        <translation>Rombo</translation>
     </message>
 </context>
 <context>

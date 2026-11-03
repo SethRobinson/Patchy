@@ -21630,10 +21630,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Zachowaj ciągłe wyrównanie wzorka we wszystkich pociągnięciach</translation>
     </message>
     <message>
-        <source>Method:</source>
-        <translation>Metoda:</translation>
-    </message>
-    <message>
         <source>Linear</source>
         <translation>Liniowy</translation>
     </message>
@@ -32335,6 +32331,18 @@ Zablokowano: %1</translation>
     <message>
         <source>Content-Aware Move: draw around an object, then drag the selection to its new place. Move fills the spot it leaves, Extend keeps the original.</source>
         <translation>Przesunięcie z uwzględnieniem zawartości: obrysuj obiekt, a potem przeciągnij zaznaczenie w nowe miejsce. Przesunięcie wypełnia miejsce, które zostawia, Rozszerz zachowuje oryginał.</translation>
+    </message>
+    <message>
+        <source>Angle</source>
+        <translation>Kąt</translation>
+    </message>
+    <message>
+        <source>Reflected</source>
+        <translation>Odbity</translation>
+    </message>
+    <message>
+        <source>Diamond</source>
+        <translation>Romb</translation>
     </message>
 </context>
 <context>

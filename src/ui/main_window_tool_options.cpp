@@ -3086,8 +3086,12 @@ void MainWindow::load_tool_settings() {
   const auto gradient_method = settings.value(QStringLiteral("tools/gradientMethod"),
                                               static_cast<int>(canvas_->gradient_method()))
                                    .toInt();
-  canvas_->set_gradient_method(gradient_method == static_cast<int>(GradientMethod::Radial) ? GradientMethod::Radial
-                                                                                           : GradientMethod::Linear);
+  // Saved as the GradientMethod value (append-only; Angle, Reflected and Diamond since issue 610).
+  // A value this build does not know falls back to Linear.
+  canvas_->set_gradient_method(gradient_method >= static_cast<int>(GradientMethod::Linear) &&
+                                       gradient_method <= static_cast<int>(GradientMethod::Diamond)
+                                   ? static_cast<GradientMethod>(gradient_method)
+                                   : GradientMethod::Linear);
   canvas_->set_gradient_reverse(settings.value(QStringLiteral("tools/gradientReverse"), canvas_->gradient_reverse()).toBool());
   // A token (GitHub issue 580): "pixels" (the default) or "fillLayer".
   canvas_->set_gradient_tool_mode(

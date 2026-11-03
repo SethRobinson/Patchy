@@ -138,10 +138,24 @@ struct ShapeCoverageParams {
 // overlay previews it (GitHub issue 517).
 [[nodiscard]] float brush_dab_coverage(double offset_x, double offset_y, const EditOptions& options);
 
+// The Gradient tool's Style (options bar), saved as tools/gradientMethod: append only. The
+// order matches LayerStyleGradientType's first five (the Gradient Fill dialog's Style list).
 enum class GradientMethod {
   Linear,
-  Radial
+  Radial,
+  Angle,      // GitHub issue 610
+  Reflected,  // GitHub issue 610
+  Diamond     // GitHub issue 610
 };
+
+// The Gradient tool's ramp position (before Reverse) at offset (px, py) from the drag start,
+// for a drag of (dx, dy). Linear and Reflected project onto the drag, Radial and Diamond
+// measure the circle and the L1 diamond whose radius is the drag, Angle sweeps one ramp per
+// turn from the drag direction, clockwise on screen (the start pixel is 0.25). The same math as gradient_position's
+// Gradient Fill types, so a Fill Layer drag renders what Pixels paints (docs/gradients.md).
+// A zero-length drag is position 0.
+[[nodiscard]] double gradient_tool_position(GradientMethod method, double px, double py, double dx,
+                                            double dy) noexcept;
 
 struct GradientStop {
   float location{0.0F};

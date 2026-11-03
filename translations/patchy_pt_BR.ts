@@ -21584,10 +21584,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Manter o alinhamento do padrão entre pinceladas</translation>
     </message>
     <message>
-        <source>Method:</source>
-        <translation>Método:</translation>
-    </message>
-    <message>
         <source>Linear</source>
         <translation>Linear</translation>
     </message>
@@ -32251,6 +32247,18 @@ Bloqueado: %1</translation>
     <message>
         <source>Content-Aware Move: draw around an object, then drag the selection to its new place. Move fills the spot it leaves, Extend keeps the original.</source>
         <translation>Movimento sensível a conteúdo: contorne um objeto e arraste a seleção para o novo lugar. Mover preenche o espaço que ele deixa, Estender mantém o original.</translation>
+    </message>
+    <message>
+        <source>Angle</source>
+        <translation>Ângulo</translation>
+    </message>
+    <message>
+        <source>Reflected</source>
+        <translation>Refletido</translation>
+    </message>
+    <message>
+        <source>Diamond</source>
+        <translation>Diamante</translation>
     </message>
 </context>
 <context>

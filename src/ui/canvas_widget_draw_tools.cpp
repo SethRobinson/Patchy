@@ -77,6 +77,48 @@ std::uint8_t channel_from_color(QColor color, int channel) {
   }
 }
 
+// The Gradient tool's drag preview for the styles Qt has no gradient for (Angle, Reflected,
+// Diamond; GitHub issue 610): gradient_tool_position, the core's own math, sampled at cell
+// centers over `area` (widget coordinates, the drag from `a` to `b`) and drawn scaled up as a
+// texture. The cell grows with the area so a repaint samples at most kMaxSamples points.
+// `grayscale` previews a mask or channel edit as its gray value.
+QBrush sampled_gradient_preview_brush(GradientMethod method, QPointF a, QPointF b,
+                                      const std::vector<GradientStop>& stops, float opacity, bool reverse,
+                                      QRectF area, bool grayscale) {
+  constexpr double kMaxSamples = 160000.0;
+  if (area.width() <= 0.0 || area.height() <= 0.0) {
+    return QBrush(Qt::NoBrush);
+  }
+  const auto cell = std::max(1.0, std::ceil(std::sqrt(area.width() * area.height() / kMaxSamples)));
+  const auto columns = std::max(1, static_cast<int>(std::ceil(area.width() / cell)));
+  const auto rows = std::max(1, static_cast<int>(std::ceil(area.height() / cell)));
+  QImage image(columns, rows, QImage::Format_ARGB32);
+  const auto normalized = normalized_gradient_stops(stops);
+  const auto dx = b.x() - a.x();
+  const auto dy = b.y() - a.y();
+  for (int row = 0; row < rows; ++row) {
+    auto* line = reinterpret_cast<QRgb*>(image.scanLine(row));
+    const auto py = area.top() + (static_cast<double>(row) + 0.5) * cell - a.y();
+    for (int column = 0; column < columns; ++column) {
+      const auto px = area.left() + (static_cast<double>(column) + 0.5) * cell - a.x();
+      const auto color =
+          gradient_color_at(normalized, opacity, reverse, gradient_tool_position(method, px, py, dx, dy));
+      if (grayscale) {
+        const auto value = mask_value_from_color(QColor(color.r, color.g, color.b));
+        line[column] = qRgba(value, value, value, color.a);
+      } else {
+        line[column] = qRgba(color.r, color.g, color.b, color.a);
+      }
+    }
+  }
+  QBrush brush(image);
+  QTransform transform;
+  transform.translate(area.left(), area.top());
+  transform.scale(cell, cell);
+  brush.setTransform(transform);
+  return brush;
+}
+
 }  // namespace
 
 void CanvasWidget::set_fill_shapes(bool fill_shapes) noexcept {
@@ -338,7 +380,15 @@ void CanvasWidget::draw_shape_preview(QPainter& painter, QRect exposed_rect) {
         }
         source_painter.setRenderHint(QPainter::Antialiasing, true);
 
-        if (tool_ == CanvasTool::Gradient) {
+        if (tool_ == CanvasTool::Gradient && gradient_method_ != GradientMethod::Linear &&
+            gradient_method_ != GradientMethod::Radial) {
+          source_painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+          source_painter.fillRect(target_rect,
+                                  sampled_gradient_preview_brush(
+                                      gradient_method_, QPointF(a), QPointF(b), effective_gradient_stops(),
+                                      static_cast<float>(gradient_opacity_) / 100.0F, gradient_reverse_,
+                                      target_rect, true));
+        } else if (tool_ == CanvasTool::Gradient) {
           QLinearGradient linear_gradient(a, b);
           const auto radius =
               std::max(1.0, std::hypot(static_cast<double>(b.x() - a.x()), static_cast<double>(b.y() - a.y())));
@@ -531,7 +581,15 @@ void CanvasWidget::draw_shape_preview(QPainter& painter, QRect exposed_rect) {
         }
         painter.setClipRegion(widget_selection, Qt::IntersectClip);
       }
-      painter.fillRect(fill_rect, QBrush(*raw_gradient));
+      if (gradient_method_ == GradientMethod::Linear || gradient_method_ == GradientMethod::Radial) {
+        painter.fillRect(fill_rect, QBrush(*raw_gradient));
+      } else {
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+        painter.fillRect(fill_rect, sampled_gradient_preview_brush(
+                                        gradient_method_, QPointF(a), QPointF(b), stops,
+                                        static_cast<float>(gradient_opacity_) / 100.0F, gradient_reverse_,
+                                        fill_rect, false));
+      }
       painter.restore();
     }
 
@@ -1177,8 +1235,6 @@ QRect CanvasWidget::draw_mask_gradient(QPoint from, QPoint to) {
   const auto stops = normalized_gradient_stops(gradient.stops);
   const auto dx = static_cast<double>(to.x() - from.x());
   const auto dy = static_cast<double>(to.y() - from.y());
-  const auto length_squared = dx * dx + dy * dy;
-  const auto radius = std::sqrt(length_squared);
 
   QRect dirty;
   for (int y = affected.top(); y <= affected.bottom(); ++y) {
@@ -1187,21 +1243,8 @@ QRect CanvasWidget::draw_mask_gradient(QPoint from, QPoint to) {
       if (!selection_allows(document_point)) {
         continue;
       }
-      double t = 0.0;
-      switch (gradient.method) {
-        case GradientMethod::Radial:
-          t = radius <= 0.0 ? 0.0
-                            : std::sqrt(static_cast<double>(x - from.x()) * static_cast<double>(x - from.x()) +
-                                        static_cast<double>(y - from.y()) * static_cast<double>(y - from.y())) /
-                                  radius;
-          break;
-        case GradientMethod::Linear:
-          t = length_squared <= 0.0
-                  ? 0.0
-                  : ((static_cast<double>(x - from.x()) * dx + static_cast<double>(y - from.y()) * dy) /
-                     length_squared);
-          break;
-      }
+      const auto t = gradient_tool_position(gradient.method, static_cast<double>(x - from.x()),
+                                            static_cast<double>(y - from.y()), dx, dy);
       const auto color = gradient_color_at(stops, gradient.opacity, gradient.reverse, t);
       auto coverage = static_cast<float>(color.a) / 255.0F;
       if (clip_selection) {

@@ -25,6 +25,22 @@ float center_chord_span(float angle_degrees, Rect bounds) {
                                                  : std::numeric_limits<float>::infinity()));
 }
 
+LayerStyleGradientType fill_type_for(GradientMethod method) {
+  switch (method) {
+    case GradientMethod::Radial:
+      return LayerStyleGradientType::Radial;
+    case GradientMethod::Angle:
+      return LayerStyleGradientType::Angle;
+    case GradientMethod::Reflected:
+      return LayerStyleGradientType::Reflected;
+    case GradientMethod::Diamond:
+      return LayerStyleGradientType::Diamond;
+    case GradientMethod::Linear:
+      break;
+  }
+  return LayerStyleGradientType::Linear;
+}
+
 }  // namespace
 
 LayerStyleGradient gradient_fill_from_drag(const std::vector<GradientStop>& stops, GradientMethod method,
@@ -42,7 +58,7 @@ LayerStyleGradient gradient_fill_from_drag(const std::vector<GradientStop>& stop
     gradient.alpha_stops.push_back(
         GradientAlphaStop{stop.location, static_cast<float>(stop.color.a) / 255.0F, 0.5F});
   }
-  gradient.type = method == GradientMethod::Radial ? LayerStyleGradientType::Radial : LayerStyleGradientType::Linear;
+  gradient.type = fill_type_for(method);
   gradient.reverse = reverse;
   gradient.dither = false;
   gradient.interpolation = GradientInterpolationMethod::Classic;
@@ -57,16 +73,21 @@ LayerStyleGradient gradient_fill_from_drag(const std::vector<GradientStop>& stop
   // gradient_position's ramp runs along (cos a, -sin a): angles grow counterclockwise on screen.
   gradient.angle_degrees = static_cast<float>(std::atan2(-dy, dx) * 180.0 / 3.14159265358979323846);
   const auto span = static_cast<double>(center_chord_span(gradient.angle_degrees, canvas));
-  // Both ramps sample each pixel at its top-left corner, so the drag points map straight on.
+  // Linear, Reflected and Radial fills sample each pixel at its top-left corner like the
+  // tool, so the drag points map straight on; Angle and Diamond fills sample pixel centers,
+  // so their center moves half a pixel to land on the tool's drag start.
   // Linear: position = 0.5 + along / (span * scale) about the center, and the tool's
-  // (p - from) . d / |d|^2 is 0.5 + along / |d| about the drag's midpoint. Radial: distance /
-  // (span * scale / 2) about the center against distance / |d| about the drag start.
+  // (p - from) . d / |d|^2 is 0.5 + along / |d| about the drag's midpoint. Reflected, Radial and
+  // Diamond: |along|, distance or L1 distance / (span * scale / 2) about the center against the
+  // same over |d| about the drag start. Angle ignores Scale; it keeps the Radial value.
   double center_x = 0.0;
   double center_y = 0.0;
   double scale = 1.0;
-  if (gradient.type == LayerStyleGradientType::Radial) {
-    center_x = static_cast<double>(x0);
-    center_y = static_cast<double>(y0);
+  if (gradient.type != LayerStyleGradientType::Linear) {
+    const auto center_sampled =
+        gradient.type == LayerStyleGradientType::Angle || gradient.type == LayerStyleGradientType::Diamond;
+    center_x = static_cast<double>(x0) + (center_sampled ? 0.5 : 0.0);
+    center_y = static_cast<double>(y0) + (center_sampled ? 0.5 : 0.0);
     scale = 2.0 * length / span;
   } else {
     center_x = (static_cast<double>(x0) + static_cast<double>(x1)) * 0.5;

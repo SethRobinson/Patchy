@@ -21538,10 +21538,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>모든 스트로크에서 패턴 정렬을 연속적으로 유지</translation>
     </message>
     <message>
-        <source>Method:</source>
-        <translation>방법:</translation>
-    </message>
-    <message>
         <source>Linear</source>
         <translation>선형</translation>
     </message>
@@ -32167,6 +32163,18 @@ Locked: %1</source>
     <message>
         <source>Content-Aware Move: draw around an object, then drag the selection to its new place. Move fills the spot it leaves, Extend keeps the original.</source>
         <translation>내용 인식 이동: 개체 주위를 그린 다음 선택 항목을 새 위치로 드래그합니다. 이동은 남은 자리를 채우고, 확장은 원본을 유지합니다.</translation>
+    </message>
+    <message>
+        <source>Angle</source>
+        <translation>각도</translation>
+    </message>
+    <message>
+        <source>Reflected</source>
+        <translation>반사형</translation>
+    </message>
+    <message>
+        <source>Diamond</source>
+        <translation>다이아몬드</translation>
     </message>
 </context>
 <context>
