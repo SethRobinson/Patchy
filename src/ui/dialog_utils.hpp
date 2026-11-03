@@ -32,6 +32,7 @@ class QFormLayout;
 class QLabel;
 class QLineEdit;
 class QMenu;
+class QDialogButtonBox;
 class QPushButton;
 class QSlider;
 class QSpinBox;
@@ -142,6 +143,9 @@ void configure_dialog_spinbox(QDoubleSpinBox* spin, int width = 92);
 // prefix, and applies sub-control rules unreliably to children created after the stylesheet.
 [[nodiscard]] ThemedQss dialog_spinbox_button_style();
 void configure_compact_symbol_button(QPushButton* button);
+// Gives every button in the box the widest button's size hint, so OK is as wide as Cancel in
+// every language and theme (#544, #575, #606). Safe to call again after a retranslation or restyle.
+void equalize_dialog_button_widths(QDialogButtonBox* buttons);
 // A chevron drop-down of preset values against a spin box (Preferences > Interface scale,
 // File > Export for Web's Quality fields). Picking a preset sets the field; the preset the
 // field holds is ticked when the list opens, a value off the list ticks none. Put the button

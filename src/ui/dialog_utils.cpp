@@ -27,6 +27,7 @@
 #include <QCursor>
 #include <QDateTime>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QDir>
 #include <QElapsedTimer>
@@ -2551,6 +2552,20 @@ ThemedQss spin_presets_button_style() {
       width: 0;
     }
   )"));
+}
+
+void equalize_dialog_button_widths(QDialogButtonBox* buttons) {
+  if (buttons == nullptr) {
+    return;
+  }
+  int widest = 0;
+  for (auto* button : buttons->buttons()) {
+    button->setMinimumWidth(0);
+    widest = std::max(widest, button->sizeHint().width());
+  }
+  for (auto* button : buttons->buttons()) {
+    button->setMinimumWidth(widest);
+  }
 }
 
 void configure_compact_symbol_button(QPushButton* button) {

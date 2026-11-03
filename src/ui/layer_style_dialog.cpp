@@ -3807,16 +3807,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   }
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
   // OK as wide as Cancel (GitHub issue 606), whatever the language makes either.
-  const auto equalize_buttons = [buttons] {
-    int widest = 0;
-    for (auto* button : buttons->buttons()) {
-      button->setMinimumWidth(0);
-      widest = std::max(widest, button->sizeHint().width());
-    }
-    for (auto* button : buttons->buttons()) {
-      button->setMinimumWidth(widest);
-    }
-  };
+  const auto equalize_buttons = [buttons] { equalize_dialog_button_widths(buttons); };
   equalize_buttons();
   auto* footer = new QHBoxLayout();
   footer->addWidget(preview_check);

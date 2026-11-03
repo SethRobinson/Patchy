@@ -44,6 +44,7 @@
 #include <QComboBox>
 #include <QContextMenuEvent>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QFontInfo>
 #include <QFormLayout>
@@ -6958,6 +6959,42 @@ void accept_edit_fill_dialog(const QString& contents, const QString& mode, int o
   });
 }
 
+// Edit > Fill's OK is as wide as Cancel (GitHub issue 575 follow-up 2), in English and in German,
+// where Abbrechen makes Cancel much wider than OK.
+void ui_edit_fill_dialog_ok_matches_cancel_width() {
+  LanguageRestorer language_restorer;
+  for (const auto* language : {"en", "de"}) {
+    CHECK(patchy::ui::LocalizationManager::instance().set_language(QString::fromLatin1(language), false));
+    QApplication::processEvents();
+    bool checked = false;
+    QTimer::singleShot(0, [&checked, language] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("patchyFillDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      QApplication::processEvents();
+      auto* button_box = dialog->findChild<QDialogButtonBox*>();
+      CHECK(button_box != nullptr);
+      if (button_box != nullptr) {
+        auto* ok = button_box->button(QDialogButtonBox::Ok);
+        auto* cancel = button_box->button(QDialogButtonBox::Cancel);
+        CHECK(ok != nullptr && cancel != nullptr);
+        if (ok != nullptr && cancel != nullptr) {
+          CHECK(ok->width() == cancel->width());
+          CHECK(ok->width() >= std::max(ok->sizeHint().width(), cancel->sizeHint().width()));
+          checked = true;
+        }
+      }
+      save_widget_artifact(std::string("issue_575_fill_dialog_buttons_") + language, *dialog);
+      dialog->reject();
+    });
+    const auto settings = patchy::ui::request_fill_settings(nullptr, QColor(Qt::black), QColor(Qt::white));
+    CHECK(!settings.has_value());
+    CHECK(checked);
+  }
+}
+
 // Edit > Fill... (GitHub issue 530): every Contents choice, Mode and Opacity on a selection, the
 // whole layer with no selection, Preserve Transparency, one undo step each, and the shortcuts.
 void ui_edit_fill_dialog_fills_contents_with_mode_and_opacity() {
@@ -11917,6 +11954,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_fill_opacity_accepts_zero_and_fills_nothing", ui_fill_opacity_accepts_zero_and_fills_nothing},
       {"ui_edit_fill_dialog_fills_contents_with_mode_and_opacity",
        ui_edit_fill_dialog_fills_contents_with_mode_and_opacity},
+      {"ui_edit_fill_dialog_ok_matches_cancel_width", ui_edit_fill_dialog_ok_matches_cancel_width},
       {"ui_edit_fill_dialog_content_aware_fills_selection", ui_edit_fill_dialog_content_aware_fills_selection},
       {"ui_fill_tool_click_honors_tolerance_contiguous_and_opacity",
        ui_fill_tool_click_honors_tolerance_contiguous_and_opacity},

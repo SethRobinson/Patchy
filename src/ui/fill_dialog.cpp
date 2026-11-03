@@ -350,6 +350,8 @@ std::optional<FillDialogSettings> request_fill_settings(QWidget* parent, QColor 
                    [update_content_aware](bool) { update_content_aware(); });
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  // OK as wide as Cancel (#575 follow-up 2), whatever the language makes either.
+  equalize_dialog_button_widths(buttons);
   layout->addWidget(buttons);
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);

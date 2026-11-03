@@ -188,14 +188,8 @@ std::optional<LayerLockChoices> request_layer_locks(QWidget* parent, const Layer
   });
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-  // OK as wide as Cancel (#544 follow-up 2): both take the wider hint, in every language and theme.
-  int button_width = 0;
-  for (auto* button : buttons->buttons()) {
-    button_width = std::max(button_width, button->sizeHint().width());
-  }
-  for (auto* button : buttons->buttons()) {
-    button->setMinimumWidth(button_width);
-  }
+  // OK as wide as Cancel (#544 follow-up 2).
+  equalize_dialog_button_widths(buttons);
   layout->addWidget(buttons);
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
