@@ -7,7 +7,6 @@
 #include "core/adjustment_layer.hpp"
 #include "core/contour_presets.hpp"
 #include "core/gradient_presets.hpp"
-#include "core/layer_metadata.hpp"
 #include "core/layer_tree.hpp"
 #include "core/pattern_presets.hpp"
 #include "core/smart_filter.hpp"
@@ -99,7 +98,6 @@
 #include <QScrollArea>
 #include <QSplitter>
 #include <QScrollBar>
-#include <QScopeGuard>
 #include <QSettings>
 #include <QSlider>
 #include <QStandardItemModel>
