@@ -38,6 +38,7 @@
 #include <QToolButton>
 #include <QWidget>
 
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <functional>
@@ -192,6 +193,32 @@ void check_preset_button_row_spans(QDialog& dialog, const char* prefix, const QW
       CHECK(gap >= 0 && gap <= 8);
     }
   }
+}
+
+constexpr std::array<patchy::ui::ColorSchemePreference, 2> kBothSchemes{patchy::ui::ColorSchemePreference::Dark,
+                                                                        patchy::ui::ColorSchemePreference::Light};
+
+// The Hue/Saturation preset combo's left edge in its dialog, Dark then Light: the indent the
+// Levels preset combo shares (#589 follow-up 2).
+std::array<int, 2> hue_saturation_preset_left_edges(QWidget& parent) {
+  std::array<int, 2> lefts{-1, -1};
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyHueSaturationDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* presets = child<QComboBox>(*dialog, "hueSaturationPresetCombo");
+    CHECK(presets != nullptr);
+    for (std::size_t index = 0; presets != nullptr && index < kBothSchemes.size(); ++index) {
+      ColorSchemeRestorer restore(kBothSchemes[index]);
+      process_events_for(60);
+      lefts[index] = geometry_in(*presets, *dialog).left();
+    }
+    dialog->reject();
+  });
+  CHECK(!patchy::ui::request_hue_saturation_settings(&parent, {}).has_value());
+  return lefts;
 }
 
 void ui_adjustment_presets_store_names_and_listing() {
@@ -491,6 +518,7 @@ void ui_adjustment_presets_levels_presets_fields_and_eyedroppers() {
   auto& parent = *themed_parent;
   parent.show();
   QApplication::processEvents();
+  const auto hue_saturation_lefts = hue_saturation_preset_left_edges(parent);
   bool checked = false;
   QTimer::singleShot(0, [&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyLevelsDialog"));
@@ -536,10 +564,10 @@ void ui_adjustment_presets_levels_presets_fields_and_eyedroppers() {
     auto* cancel = buttons->button(QDialogButtonBox::Cancel);
     const auto ok_width = ok->width();
     CHECK(cancel->width() == ok_width && auto_button->width() == ok_width);
-    // Layout as the other preset dialogs (#589 follow-up): the combo indented past a label
-    // column, the four preset buttons under it sharing its width, a separator under them,
-    // then the tabs; Auto on the "Input Levels:" line at the right; Preview at the left of
-    // the OK/Cancel line, which is the bottom right.
+    // Layout as the other preset dialogs (#589 follow-up): the combo indented as far as the
+    // Hue/Saturation one (follow-up 2), the four preset buttons under it sharing its width, a
+    // separator under them, then the tabs; Auto on the "Input Levels:" line at the right;
+    // Preview at the left of the OK/Cancel line, which is the bottom right.
     auto* separator = child<QWidget>(*dialog, "levelsPresetSeparator");
     auto* export_button = child<QPushButton>(*dialog, "levelsExportPresetButton");
     auto* preset_label = child<QLabel>(*dialog, "levelsPresetLabel");
@@ -552,7 +580,14 @@ void ui_adjustment_presets_levels_presets_fields_and_eyedroppers() {
     }
     const auto at = [&](const QWidget* widget) { return geometry_in(*widget, *dialog); };
     CHECK(at(presets).left() > at(preset_label).left() + preset_label->sizeHint().width() + 8);
-    CHECK(at(presets).left() >= at(input_label).left() + input_label->sizeHint().width());
+    for (std::size_t index = 0; index < kBothSchemes.size(); ++index) {
+      ColorSchemeRestorer restore(kBothSchemes[index]);
+      process_events_for(60);
+      std::cerr << "preset combo left: levels " << at(presets).left() << ", hue/saturation "
+                << hue_saturation_lefts[index] << '\n';
+      CHECK(hue_saturation_lefts[index] > 0);
+      CHECK(std::abs(at(presets).left() - hue_saturation_lefts[index]) <= 1);
+    }
     check_preset_button_row_spans(*dialog, "levels", *presets);
     CHECK(at(separator).top() > at(export_button).bottom());
     CHECK(at(separator).bottom() < at(tabs).top());
