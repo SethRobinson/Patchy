@@ -14881,6 +14881,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Vertical Offset:</source>
         <translation>垂直偏移:</translation>
     </message>
+    <message>
+        <source>Extend</source>
+        <translation>扩展</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>内容感知移动</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -16969,6 +16977,26 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
         <translation>单击添加锚点，拖动调整形状，Shift+单击选择线段</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move is unavailable while editing a grayscale channel</source>
+        <translation>编辑灰度通道时无法使用内容感知移动</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move Selection</source>
+        <translation>内容感知移动选区</translation>
+    </message>
+    <message>
+        <source>Drag the selection to where the object should go</source>
+        <translation>将选区拖到对象应放置的位置</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move needs unselected pixels around the selection to fill from</source>
+        <translation>内容感知移动需要选区周围有未选中的像素用于填充</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>内容感知移动</translation>
     </message>
 </context>
 <context>
@@ -19079,6 +19107,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Outline the letters as a path</source>
         <translation>将字母轮廓生成路径</translation>
+    </message>
+    <message>
+        <source>Move or copy a selected object and fill the spot it leaves</source>
+        <translation>移动或复制所选对象，并填充其留下的位置</translation>
     </message>
 </context>
 <context>
@@ -32119,6 +32151,22 @@ Locked: %1</source>
     <message>
         <source>Show pixel grid from:</source>
         <translation>像素网格显示起点:</translation>
+    </message>
+    <message>
+        <source>Extend</source>
+        <translation>扩展</translation>
+    </message>
+    <message>
+        <source>Move fills the spot the selection leaves; Extend keeps the original and adds a copy</source>
+        <translation>移动会填充选区留下的位置；扩展保留原对象并添加副本</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>内容感知移动</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move: draw around an object, then drag the selection to its new place. Move fills the spot it leaves, Extend keeps the original.</source>
+        <translation>内容感知移动：圈出对象，然后将选区拖到新位置。移动会填充留下的位置，扩展保留原对象。</translation>
     </message>
 </context>
 <context>

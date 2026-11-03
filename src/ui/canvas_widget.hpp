@@ -135,6 +135,7 @@ public:
   // region is healed with the dragged-TO pixels. Destination: a copy of the
   // region is dragged to a new spot and healed in there.
   using PatchToolMode = patchy::ui::PatchToolMode;
+  using ContentAwareMoveMode = patchy::ui::ContentAwareMoveMode;
   using HealingMode = patchy::ui::HealingMode;
 
   // The shape a Rectangular or Elliptical Marquee drag-out committed, kept so
@@ -513,6 +514,8 @@ public:
   [[nodiscard]] PatchToolMode patch_tool_mode() const noexcept;
   void set_patch_tool_transparent(bool enabled) noexcept;
   [[nodiscard]] bool patch_tool_transparent() const noexcept;
+  void set_content_aware_move_mode(ContentAwareMoveMode mode) noexcept;
+  [[nodiscard]] ContentAwareMoveMode content_aware_move_mode() const noexcept;
   // Red Eye tool (canvas_widget_red_eye.cpp, core/red_eye.hpp): Pupil Size and Darken
   // Amount, 1..100 each.
   void set_red_eye_pupil_size(int percent) noexcept;
@@ -2763,6 +2766,21 @@ private:
   void release_patch_tool_drag(QPoint document_point);
   void cancel_patch_tool_drag();
   void commit_patch_tool_drag();
+  // Content-Aware Move's release (docs/content-aware-move.md): Move fills the old spot
+  // with the shape-derived map (spot_heal_source_map, the drop region excluded) and then
+  // heals the copy in at the drop point; Extend only heals the copy in. Never shows or
+  // writes anything in the old spot during the drag (US 9575641 / US 10332291).
+  void commit_content_aware_move(QPoint delta, QRect bounds, const std::vector<std::uint8_t>& mask,
+                                 std::int64_t mask_area, const QImage& snapshot);
+  // The membrane heal shared by Patch and Content-Aware Move: the region `mask` over
+  // `bounds`, written at `bounds` + `destination_offset` with texture read from
+  // `source_snapshot` at `source_offset` and the boundary tone from `tone_snapshot`.
+  // The caller holds begin_edit and a processing operation.
+  void write_patch_heal(Layer& layer, QRect bounds, const std::vector<std::uint8_t>& mask,
+                        std::int64_t mask_area, QPoint destination_offset, QPoint source_offset,
+                        const QImage& source_snapshot, const QImage& tone_snapshot, bool transparent);
+  // The selection follows a dropped copy, as its own history step after the pixel step.
+  void move_selection_with_patch_drop(QPoint delta, const QString& history_label);
   void draw_patch_tool_drag_preview(QPainter& painter) const;
   void draw_patch_tool_drag_outline(QPainter& painter) const;
   [[nodiscard]] QCursor quick_select_cursor(SelectionMode mode) const;
@@ -3460,7 +3478,7 @@ private:
   std::array<SelectionMode, kSelectionToolCount> selection_modes_per_tool_{
       SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace,
       SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace,
-      SelectionMode::Replace};
+      SelectionMode::Replace, SelectionMode::Replace};
   // Set when a marquee drag begins with Alt held and no existing selection: the
   // press point is the center and the rectangle grows symmetrically.
   bool marquee_from_center_{false};
@@ -3705,7 +3723,10 @@ private:
   // preview blits the snapshot translated by the cumulative delta.
   PatchToolMode patch_tool_mode_{PatchToolMode::Source};
   bool patch_tool_transparent_{false};
+  ContentAwareMoveMode content_aware_move_mode_{ContentAwareMoveMode::Move};
   bool patch_tool_dragging_{false};
+  // Latched at the press: the drag belongs to Content-Aware Move, not Patch.
+  bool patch_tool_drag_content_aware_move_{false};
   QPoint patch_tool_drag_origin_;
   QPoint patch_tool_drag_delta_;
   QImage patch_tool_source_image_;

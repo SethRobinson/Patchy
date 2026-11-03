@@ -14926,6 +14926,14 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Vertical Offset:</source>
         <translation>Scostamento verticale:</translation>
     </message>
+    <message>
+        <source>Extend</source>
+        <translation>Estendi</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>Sposta in base al contenuto</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17014,6 +17022,26 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
         <translation>Fai clic per aggiungere un punto, trascina per rimodellare, Maiusc+clic per selezionare il segmento</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move is unavailable while editing a grayscale channel</source>
+        <translation>Sposta in base al contenuto non è disponibile durante la modifica di un canale in scala di grigio</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move Selection</source>
+        <translation>Selezione per Sposta in base al contenuto</translation>
+    </message>
+    <message>
+        <source>Drag the selection to where the object should go</source>
+        <translation>Trascinate la selezione nel punto in cui deve andare l&apos;oggetto</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move needs unselected pixels around the selection to fill from</source>
+        <translation>Sposta in base al contenuto richiede pixel non selezionati attorno alla selezione da cui riempire</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>Sposta in base al contenuto</translation>
     </message>
 </context>
 <context>
@@ -19124,6 +19152,10 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Outline the letters as a path</source>
         <translation>Ricalca le lettere come tracciato</translation>
+    </message>
+    <message>
+        <source>Move or copy a selected object and fill the spot it leaves</source>
+        <translation>Sposta o copia un oggetto selezionato e riempie il punto che lascia</translation>
     </message>
 </context>
 <context>
@@ -32203,6 +32235,22 @@ Bloccato: %1</translation>
     <message>
         <source>Show pixel grid from:</source>
         <translation>Mostra griglia di pixel da:</translation>
+    </message>
+    <message>
+        <source>Extend</source>
+        <translation>Estendi</translation>
+    </message>
+    <message>
+        <source>Move fills the spot the selection leaves; Extend keeps the original and adds a copy</source>
+        <translation>Sposta riempie il punto lasciato dalla selezione; Estendi mantiene l&apos;originale e aggiunge una copia</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>Sposta in base al contenuto</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move: draw around an object, then drag the selection to its new place. Move fills the spot it leaves, Extend keeps the original.</source>
+        <translation>Sposta in base al contenuto: contornate un oggetto, poi trascinate la selezione nella nuova posizione. Sposta riempie il punto che lascia, Estendi mantiene l&apos;originale.</translation>
     </message>
 </context>
 <context>

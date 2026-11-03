@@ -275,6 +275,7 @@ bool CanvasWidget::apply_selection_cursor_for_mode(SelectionMode mode) {
     case CanvasTool::PolygonLasso:
     case CanvasTool::MagneticLasso:
     case CanvasTool::PatchTool:
+    case CanvasTool::ContentAwareMove:
       // Same drawn crosshair in every mode (only the badge differs), so toggling
       // Shift/Alt never makes the crosshair jump or change weight.
       setCursor(selection_tool_cursor(mode));

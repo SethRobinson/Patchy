@@ -14881,6 +14881,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Vertical Offset:</source>
         <translation>垂直オフセット:</translation>
     </message>
+    <message>
+        <source>Extend</source>
+        <translation>拡張</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>コンテンツに応じた移動</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -16969,6 +16977,26 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
         <translation>クリックでポイントを追加、ドラッグで変形、Shift+クリックでセグメントを選択</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move is unavailable while editing a grayscale channel</source>
+        <translation>グレースケールチャンネルの編集中はコンテンツに応じた移動ツールを使用できません</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move Selection</source>
+        <translation>コンテンツに応じた移動の選択範囲</translation>
+    </message>
+    <message>
+        <source>Drag the selection to where the object should go</source>
+        <translation>選択範囲をオブジェクトの移動先へドラッグしてください</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move needs unselected pixels around the selection to fill from</source>
+        <translation>コンテンツに応じた移動で塗りつぶすには、選択範囲の周囲に選択されていないピクセルが必要です</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>コンテンツに応じた移動</translation>
     </message>
 </context>
 <context>
@@ -19079,6 +19107,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Outline the letters as a path</source>
         <translation>文字の輪郭をパスにする</translation>
+    </message>
+    <message>
+        <source>Move or copy a selected object and fill the spot it leaves</source>
+        <translation>選択したオブジェクトを移動または複製し、元の場所を塗りつぶします</translation>
     </message>
 </context>
 <context>
@@ -32119,6 +32151,22 @@ Locked: %1</source>
     <message>
         <source>Show pixel grid from:</source>
         <translation>ピクセルグリッドを表示する倍率:</translation>
+    </message>
+    <message>
+        <source>Extend</source>
+        <translation>拡張</translation>
+    </message>
+    <message>
+        <source>Move fills the spot the selection leaves; Extend keeps the original and adds a copy</source>
+        <translation>移動は選択範囲が抜けた場所を塗りつぶし、拡張は元を残して複製を追加します</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>コンテンツに応じた移動</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move: draw around an object, then drag the selection to its new place. Move fills the spot it leaves, Extend keeps the original.</source>
+        <translation>コンテンツに応じた移動：オブジェクトを囲み、選択範囲を新しい位置へドラッグします。移動は元の場所を塗りつぶし、拡張は元を残します。</translation>
     </message>
 </context>
 <context>

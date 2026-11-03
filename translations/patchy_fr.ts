@@ -14926,6 +14926,14 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Vertical Offset:</source>
         <translation>Décalage vertical :</translation>
     </message>
+    <message>
+        <source>Extend</source>
+        <translation>Étendre</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>Déplacement de contenu</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17014,6 +17022,26 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
         <translation>Cliquez pour ajouter un point, faites glisser pour remodeler, Maj+clic pour sélectionner le segment</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move is unavailable while editing a grayscale channel</source>
+        <translation>L&apos;outil Déplacement de contenu n&apos;est pas disponible pendant la modification d&apos;une couche en niveaux de gris</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move Selection</source>
+        <translation>Sélection du déplacement de contenu</translation>
+    </message>
+    <message>
+        <source>Drag the selection to where the object should go</source>
+        <translation>Faites glisser la sélection à l&apos;endroit où placer l&apos;objet</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move needs unselected pixels around the selection to fill from</source>
+        <translation>Le déplacement de contenu a besoin de pixels non sélectionnés autour de la sélection pour remplir</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>Déplacement de contenu</translation>
     </message>
 </context>
 <context>
@@ -19124,6 +19152,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Outline the letters as a path</source>
         <translation>Tracer le contour des lettres sous forme de tracé</translation>
+    </message>
+    <message>
+        <source>Move or copy a selected object and fill the spot it leaves</source>
+        <translation>Déplacer ou copier un objet sélectionné et remplir l&apos;emplacement qu&apos;il laisse</translation>
     </message>
 </context>
 <context>
@@ -32203,6 +32235,22 @@ Verrouillé : %1</translation>
     <message>
         <source>Show pixel grid from:</source>
         <translation>Afficher la grille de pixels à partir de :</translation>
+    </message>
+    <message>
+        <source>Extend</source>
+        <translation>Étendre</translation>
+    </message>
+    <message>
+        <source>Move fills the spot the selection leaves; Extend keeps the original and adds a copy</source>
+        <translation>Déplacer remplit l&apos;emplacement que laisse la sélection ; Étendre garde l&apos;original et ajoute une copie</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>Déplacement de contenu</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move: draw around an object, then drag the selection to its new place. Move fills the spot it leaves, Extend keeps the original.</source>
+        <translation>Déplacement de contenu : entourez un objet, puis faites glisser la sélection à sa nouvelle place. Déplacer remplit l&apos;emplacement qu&apos;il laisse, Étendre garde l&apos;original.</translation>
     </message>
 </context>
 <context>

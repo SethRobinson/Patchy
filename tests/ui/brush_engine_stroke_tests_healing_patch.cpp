@@ -32,6 +32,7 @@
 #include "ui/main_window.hpp"
 #include "ui/modifier_names.hpp"
 #include "ui/theme_palette.hpp"
+#include "ui/tool_palette_layout.hpp"
 #include "test_harness.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
@@ -45,6 +46,7 @@
 #include <QMenu>
 #include <QSlider>
 #include <QTest>
+#include <QToolBar>
 #include <QToolButton>
 #include <QLabel>
 #include <QAction>
@@ -1978,6 +1980,357 @@ void ui_spot_healing_and_patch_texture_gallery() {
   canvas.clear_selection();
 }
 
+// The canvas as drawn, read at a document pixel (zoom 4: inside its 4 px cell).
+QColor canvas_color_at(const QImage& frame, const patchy::ui::CanvasWidget& canvas, QPoint document_point) {
+  const auto position = canvas.widget_position_for_document_point(document_point) + QPoint(1, 1);
+  return frame.pixelColor(position);
+}
+
+// Patch Source shows only the moving outline while dragging (US 10332291 claim 1,
+// docs/legal-constraints.md): the original spot keeps its own pixels on screen until
+// release, and nothing is drawn at the dragged-to area either.
+void ui_patch_tool_source_drag_preview_leaves_original_spot() {
+  patchy::Document document(64, 24, patchy::PixelFormat::rgba8());
+  auto pixels = solid_pixels(64, 24, patchy::PixelFormat::rgba8(), QColor(40, 80, 120, 255));
+  for (std::int32_t y = 8; y <= 11; ++y) {
+    for (std::int32_t x = 8; x <= 11; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = 220;
+      px[1] = 220;
+      px[2] = 220;
+    }
+  }
+  document.add_pixel_layer("Patch", std::move(pixels));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(256, 96);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::PatchTool);
+  canvas.show();
+  canvas.set_zoom(4.0);
+  QApplication::processEvents();
+  draw_patch_outline(canvas, QPoint(5, 5), QPoint(14, 15));
+  const auto before = render_widget_image(canvas);
+
+  const auto to_widget = [&canvas](QPoint point) {
+    return canvas.widget_position_for_document_point(point);
+  };
+  send_mouse(canvas, QEvent::MouseButtonPress, to_widget(QPoint(10, 10)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, to_widget(QPoint(26, 10)), Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, to_widget(QPoint(42, 10)), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  const auto during = render_widget_image(canvas);
+  for (const auto point : {QPoint(8, 8), QPoint(9, 9), QPoint(11, 11)}) {
+    CHECK(canvas_color_at(during, canvas, point) == canvas_color_at(before, canvas, point));
+  }
+  CHECK(canvas_color_at(during, canvas, QPoint(41, 9)) == canvas_color_at(before, canvas, QPoint(41, 9)));
+  save_image_artifact("ui_patch_tool_source_drag_outline_only", during);
+  send_mouse(canvas, QEvent::MouseButtonRelease, to_widget(QPoint(42, 10)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+}
+
+// A 64 x 24 base with a 4 x 4 bright object at 8..11, outlined with the tool.
+struct ContentAwareMoveScene {
+  patchy::Document document{64, 24, patchy::PixelFormat::rgba8()};
+  patchy::Layer* layer{nullptr};
+  patchy::ui::CanvasWidget canvas;
+
+  ContentAwareMoveScene() {
+    auto pixels = solid_pixels(64, 24, patchy::PixelFormat::rgba8(), QColor(40, 80, 120, 255));
+    for (std::int32_t y = 8; y <= 11; ++y) {
+      for (std::int32_t x = 8; x <= 11; ++x) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = 220;
+        px[1] = 220;
+        px[2] = 220;
+      }
+    }
+    layer = &document.add_pixel_layer("Object", std::move(pixels));
+    canvas.resize(256, 96);
+    canvas.set_document(&document);
+    canvas.set_tool(patchy::ui::CanvasTool::ContentAwareMove);
+    canvas.show();
+    canvas.set_zoom(4.0);
+    QApplication::processEvents();
+    draw_patch_outline(canvas, QPoint(5, 5), QPoint(14, 15));
+  }
+
+  [[nodiscard]] std::array<int, 4> pixel(int x, int y) const {
+    const auto* px = std::as_const(*layer).pixels().pixel(x, y);
+    return {px[0], px[1], px[2], px[3]};
+  }
+};
+
+constexpr std::array<int, 4> kContentAwareMoveBase{40, 80, 120, 255};
+constexpr std::array<int, 4> kContentAwareMoveObject{220, 220, 220, 255};
+
+// Move: the ghost follows the pointer while the original spot stays exactly as it was
+// on screen and in the layer; on release the old spot is filled from its surroundings
+// and the object lands healed at the drop point, with the selection following it.
+void ui_content_aware_move_move_fills_old_spot_and_places_copy() {
+  ContentAwareMoveScene scene;
+  auto& canvas = scene.canvas;
+  CHECK(canvas.content_aware_move_mode() == patchy::ui::CanvasWidget::ContentAwareMoveMode::Move);
+  CHECK(canvas.selected_document_region().contains(QPoint(10, 10)));
+  const auto before = render_widget_image(canvas);
+  const auto to_widget = [&canvas](QPoint point) {
+    return canvas.widget_position_for_document_point(point);
+  };
+  send_mouse(canvas, QEvent::MouseButtonPress, to_widget(QPoint(10, 10)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, to_widget(QPoint(26, 10)), Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, to_widget(QPoint(42, 10)), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  const auto during = render_widget_image(canvas);
+  // Nothing is written or shown in the old spot mid-drag (US 9575641 / US 10332291).
+  CHECK((scene.pixel(9, 9) == kContentAwareMoveObject));
+  for (const auto point : {QPoint(8, 8), QPoint(9, 9), QPoint(11, 11)}) {
+    CHECK(canvas_color_at(during, canvas, point) == canvas_color_at(before, canvas, point));
+  }
+  // The raw ghost is at the drop point.
+  CHECK(canvas_color_at(during, canvas, QPoint(41, 9)) != canvas_color_at(before, canvas, QPoint(41, 9)));
+  CHECK(canvas_color_at(during, canvas, QPoint(41, 9)) == canvas_color_at(before, canvas, QPoint(9, 9)));
+  send_mouse(canvas, QEvent::MouseButtonRelease, to_widget(QPoint(42, 10)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  // Uniform surroundings on both sides: the fill and the copy are exact.
+  for (const auto point : {QPoint(8, 8), QPoint(10, 10), QPoint(11, 11)}) {
+    CHECK((scene.pixel(point.x(), point.y()) == kContentAwareMoveBase));
+  }
+  for (const auto point : {QPoint(40, 8), QPoint(42, 10), QPoint(43, 11)}) {
+    CHECK((scene.pixel(point.x(), point.y()) == kContentAwareMoveObject));
+  }
+  CHECK((scene.pixel(46, 10) == kContentAwareMoveBase));
+  CHECK(canvas.selected_document_region().contains(QPoint(42, 10)));
+  CHECK(!canvas.selected_document_region().contains(QPoint(10, 10)));
+}
+
+// Extend copies the object and leaves the original where it was.
+void ui_content_aware_move_extend_keeps_original() {
+  ContentAwareMoveScene scene;
+  scene.canvas.set_content_aware_move_mode(patchy::ui::CanvasWidget::ContentAwareMoveMode::Extend);
+  drag_patch_region(scene.canvas, QPoint(10, 10), QPoint(42, 10));
+  for (const auto point : {QPoint(8, 8), QPoint(11, 11), QPoint(40, 8), QPoint(43, 11)}) {
+    CHECK((scene.pixel(point.x(), point.y()) == kContentAwareMoveObject));
+  }
+  CHECK((scene.pixel(6, 6) == kContentAwareMoveBase));
+  CHECK(scene.canvas.selected_document_region().contains(QPoint(42, 10)));
+}
+
+// The old spot's shape-derived fill skips the drop region: the nearest-edge mirror
+// above the object would read the red band the object is dropped into, so the fill
+// takes the next clean candidate (the plain area below) and stays the base color.
+void ui_content_aware_move_fill_skips_the_drop_region() {
+  patchy::Document document(48, 48, patchy::PixelFormat::rgba8());
+  auto pixels = solid_pixels(48, 48, patchy::PixelFormat::rgba8(), QColor(90, 90, 90, 255));
+  for (std::int32_t y = 0; y <= 14; ++y) {
+    for (std::int32_t x = 12; x <= 33; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = 200;
+      px[1] = 30;
+      px[2] = 30;
+    }
+  }
+  for (std::int32_t y = 20; y <= 25; ++y) {
+    for (std::int32_t x = 20; x <= 25; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = 250;
+      px[1] = 250;
+      px[2] = 250;
+    }
+  }
+  auto& layer = document.add_pixel_layer("Object", std::move(pixels));
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(220, 220);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::ContentAwareMove);
+  canvas.show();
+  canvas.set_zoom(4.0);
+  QApplication::processEvents();
+  draw_patch_outline(canvas, QPoint(17, 17), QPoint(28, 28));
+  drag_patch_region(canvas, QPoint(22, 22), QPoint(22, 8));
+  for (const auto point : {QPoint(20, 20), QPoint(22, 22), QPoint(25, 25)}) {
+    const auto* px = std::as_const(layer).pixels().pixel(point.x(), point.y());
+    CHECK(px[0] == 90 && px[1] == 90 && px[2] == 90);
+  }
+}
+
+// In the window: the tool sits after Patch in the Healing flyout with no shortcut of
+// its own, shows its Mode on the options bar, Escape cancels a drag with no history,
+// and the move is one pixel step plus the selection step, both undoable.
+void ui_content_aware_move_tool_in_flyout_escape_and_undo() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* healing_button = window.findChild<QToolButton*>(QStringLiteral("healingToolButton"));
+  auto* action = require_action(window, "toolContentAwareMoveAction");
+  CHECK(healing_button != nullptr && healing_button->menu() != nullptr);
+  if (healing_button == nullptr || healing_button->menu() == nullptr) {
+    return;
+  }
+  const auto menu_actions = healing_button->menu()->actions();
+  CHECK(menu_actions.indexOf(action) == menu_actions.indexOf(require_action(window, "toolPatchAction")) + 1);
+  CHECK(action->shortcut().isEmpty());
+  CHECK(action->property(patchy::ui::kToolPaletteToolIdProperty).toString() ==
+        QStringLiteral("tools.content_aware_move"));
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::ContentAwareMove);
+  auto* mode_combo = window.findChild<QComboBox*>(QStringLiteral("contentAwareMoveModeCombo"));
+  auto* sample_combo = window.findChild<QComboBox*>(QStringLiteral("retouchSampleLayersCombo"));
+  CHECK(mode_combo != nullptr && mode_combo->isVisible() && mode_combo->count() == 2);
+  CHECK(sample_combo != nullptr && sample_combo->isVisible());
+  CHECK(window.findChild<QWidget*>(QStringLiteral("patchModeCombo"))->isVisible() == false);
+  if (mode_combo == nullptr) {
+    return;
+  }
+  mode_combo->setCurrentIndex(1);
+  CHECK(canvas->content_aware_move_mode() == patchy::ui::CanvasWidget::ContentAwareMoveMode::Extend);
+  mode_combo->setCurrentIndex(0);
+  CHECK(canvas->content_aware_move_mode() == patchy::ui::CanvasWidget::ContentAwareMoveMode::Move);
+  if (auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options")); options_bar != nullptr) {
+    save_widget_artifact("ui_content_aware_move_options_bar", *options_bar);
+  }
+
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto active = document.active_layer_id();
+  auto* active_layer = active.has_value() ? document.find_layer(*active) : nullptr;
+  CHECK(active_layer != nullptr && active_layer->pixels().width() > 90 && active_layer->pixels().height() > 40);
+  if (active_layer == nullptr || active_layer->pixels().width() <= 90 || active_layer->pixels().height() <= 40) {
+    return;
+  }
+  {
+    auto& pixels = active_layer->pixels();
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        const bool object = x >= 20 && x <= 29 && y >= 20 && y <= 29;
+        px[0] = object ? 220 : 40;
+        px[1] = object ? 220 : 80;
+        px[2] = object ? 220 : 120;
+        if (pixels.format().channels >= 4) {
+          px[3] = 255;
+        }
+      }
+    }
+  }
+  const auto layer_id = active_layer->id();
+  canvas->document_changed();
+  QApplication::processEvents();
+  const auto pixel = [&](int x, int y) {
+    const auto* px = std::as_const(*document.find_layer(layer_id)).pixels().pixel(x, y);
+    return std::array<int, 3>{px[0], px[1], px[2]};
+  };
+  canvas->set_zoom(2.0);
+  QApplication::processEvents();
+  draw_patch_outline(*canvas, QPoint(16, 16), QPoint(34, 34));
+  CHECK(canvas->selected_document_region().contains(QPoint(25, 25)));
+  const auto depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  const auto to_widget = [canvas](QPoint point) { return canvas->widget_position_for_document_point(point); };
+
+  send_mouse(*canvas, QEvent::MouseButtonPress, to_widget(QPoint(25, 25)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, to_widget(QPoint(70, 25)), Qt::NoButton, Qt::LeftButton);
+  send_key(*canvas, Qt::Key_Escape);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, to_widget(QPoint(70, 25)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK((pixel(25, 25) == std::array<int, 3>{220, 220, 220}));
+  CHECK((pixel(70, 25) == std::array<int, 3>{40, 80, 120}));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth);
+  CHECK(canvas->selected_document_region().contains(QPoint(25, 25)));
+
+  drag_patch_region(*canvas, QPoint(25, 25), QPoint(70, 25));
+  CHECK((pixel(25, 25) == std::array<int, 3>{40, 80, 120}));
+  CHECK((pixel(70, 25) == std::array<int, 3>{220, 220, 220}));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth + 2);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(canvas->selected_document_region().contains(QPoint(25, 25)));
+  CHECK((pixel(70, 25) == std::array<int, 3>{220, 220, 220}));
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK((pixel(25, 25) == std::array<int, 3>{220, 220, 220}));
+  CHECK((pixel(70, 25) == std::array<int, 3>{40, 80, 120}));
+}
+
+// Shots for review: a pebble on a textured ground moved with Move (before, the
+// mid-drag ghost, after) and copied with Extend.
+void ui_content_aware_move_gallery() {
+  static constexpr std::int32_t width = 256;
+  static constexpr std::int32_t height = 160;
+  const auto make_document = [] {
+    auto document = std::make_unique<patchy::Document>(width, height, patchy::PixelFormat::rgba8());
+    auto pixels = solid_pixels(width, height, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 255));
+    for (std::int32_t y = 0; y < height; ++y) {
+      for (std::int32_t x = 0; x < width; ++x) {
+        // A sandy ground: a soft diagonal light falloff plus a fine deterministic grain.
+        const auto ramp = static_cast<double>(x) / width * 30.0 + static_cast<double>(y) / height * 45.0;
+        const auto grain = 7.0 * std::sin(x * 1.3 + y * 0.4) * std::sin(y * 0.9 - x * 0.2);
+        auto* px = pixels.pixel(x, y);
+        px[0] = static_cast<std::uint8_t>(std::clamp(205.0 - ramp + grain, 0.0, 255.0));
+        px[1] = static_cast<std::uint8_t>(std::clamp(180.0 - ramp + grain, 0.0, 255.0));
+        px[2] = static_cast<std::uint8_t>(std::clamp(140.0 - ramp * 0.8 + grain, 0.0, 255.0));
+      }
+    }
+    // A shaded pebble with a highlight.
+    const QPoint center(70, 70);
+    for (std::int32_t y = center.y() - 18; y <= center.y() + 18; ++y) {
+      for (std::int32_t x = center.x() - 24; x <= center.x() + 24; ++x) {
+        const auto dx = static_cast<double>(x - center.x()) / 22.0;
+        const auto dy = static_cast<double>(y - center.y()) / 16.0;
+        const auto r2 = dx * dx + dy * dy;
+        if (r2 > 1.0) {
+          continue;
+        }
+        const auto light = std::clamp(1.0 - 0.9 * ((dx + 0.35) * (dx + 0.35) + (dy + 0.4) * (dy + 0.4)), 0.0, 1.0);
+        auto* px = pixels.pixel(x, y);
+        px[0] = static_cast<std::uint8_t>(std::clamp(60.0 + 120.0 * light, 0.0, 255.0));
+        px[1] = static_cast<std::uint8_t>(std::clamp(70.0 + 110.0 * light, 0.0, 255.0));
+        px[2] = static_cast<std::uint8_t>(std::clamp(85.0 + 100.0 * light, 0.0, 255.0));
+      }
+    }
+    document->add_pixel_layer("Ground", std::move(pixels));
+    return document;
+  };
+  const auto run = [&](patchy::ui::CanvasWidget::ContentAwareMoveMode mode, const char* before_name,
+                       const char* during_name, const char* after_name) {
+    auto document = make_document();
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(width + 72, height + 72);
+    canvas.set_document(document.get());
+    canvas.set_tool(patchy::ui::CanvasTool::ContentAwareMove);
+    canvas.set_content_aware_move_mode(mode);
+    canvas.show();
+    canvas.set_zoom(1.0);
+    QApplication::processEvents();
+    draw_patch_outline(canvas, QPoint(42, 50), QPoint(98, 90));
+    if (before_name != nullptr) {
+      save_widget_artifact(before_name, canvas);
+    }
+    const auto to_widget = [&canvas](QPoint point) {
+      return canvas.widget_position_for_document_point(point);
+    };
+    send_mouse(canvas, QEvent::MouseButtonPress, to_widget(QPoint(70, 70)), Qt::LeftButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseMove, to_widget(QPoint(130, 90)), Qt::NoButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseMove, to_widget(QPoint(180, 100)), Qt::NoButton, Qt::LeftButton);
+    QApplication::processEvents();
+    if (during_name != nullptr) {
+      save_widget_artifact(during_name, canvas);
+    }
+    send_mouse(canvas, QEvent::MouseButtonRelease, to_widget(QPoint(180, 100)), Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    canvas.clear_selection();
+    QApplication::processEvents();
+    save_widget_artifact(after_name, canvas);
+    // The old spot no longer holds the dark pebble (Move) or still does (Extend).
+    const auto* old_spot = std::as_const(*document).layers().back().pixels().pixel(70, 74);
+    CHECK((old_spot[0] > 150) == (mode == patchy::ui::CanvasWidget::ContentAwareMoveMode::Move));
+    const auto* new_spot = std::as_const(*document).layers().back().pixels().pixel(180, 104);
+    CHECK(new_spot[0] < 150);
+  };
+  run(patchy::ui::CanvasWidget::ContentAwareMoveMode::Move, "ui_content_aware_move_before",
+      "ui_content_aware_move_during", "ui_content_aware_move_after");
+  run(patchy::ui::CanvasWidget::ContentAwareMoveMode::Extend, nullptr, nullptr, "ui_content_aware_move_extend");
+}
+
 void ui_patch_options_sync_canvas_and_persist() {
   SettingsValueRestorer mode_restorer(QStringLiteral("tools/patchMode"));
   SettingsValueRestorer transparent_restorer(QStringLiteral("tools/patchTransparent"));
@@ -2293,5 +2646,14 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part2() {
        ui_patch_and_lasso_closed_loop_outline_still_selects},
       {"ui_spot_healing_and_patch_texture_gallery", ui_spot_healing_and_patch_texture_gallery},
       {"ui_patch_options_sync_canvas_and_persist", ui_patch_options_sync_canvas_and_persist},
+      {"ui_patch_tool_source_drag_preview_leaves_original_spot",
+       ui_patch_tool_source_drag_preview_leaves_original_spot},
+      {"ui_content_aware_move_move_fills_old_spot_and_places_copy",
+       ui_content_aware_move_move_fills_old_spot_and_places_copy},
+      {"ui_content_aware_move_extend_keeps_original", ui_content_aware_move_extend_keeps_original},
+      {"ui_content_aware_move_fill_skips_the_drop_region", ui_content_aware_move_fill_skips_the_drop_region},
+      {"ui_content_aware_move_tool_in_flyout_escape_and_undo",
+       ui_content_aware_move_tool_in_flyout_escape_and_undo},
+      {"ui_content_aware_move_gallery", ui_content_aware_move_gallery},
   };
 }

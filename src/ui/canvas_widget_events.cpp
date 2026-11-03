@@ -164,6 +164,7 @@ bool tool_sets_layer_opacity_with_digit_keys(CanvasTool tool) noexcept {
     case CanvasTool::Polygon:
     case CanvasTool::CustomShape:
     case CanvasTool::PatchTool:
+    case CanvasTool::ContentAwareMove:
     case CanvasTool::RedEye:
       return true;
     default:
@@ -924,6 +925,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       case CanvasTool::Healing:
       case CanvasTool::SpotHealing:
       case CanvasTool::PatchTool:
+      case CanvasTool::ContentAwareMove:
       case CanvasTool::Smudge:
       case CanvasTool::MixerBrush:
       case CanvasTool::Dodge:
@@ -990,7 +992,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   if (event->button() == Qt::LeftButton && channel_view_active &&
       (effective_tool == CanvasTool::Move || effective_tool == CanvasTool::Clone ||
        effective_tool == CanvasTool::Healing || effective_tool == CanvasTool::SpotHealing ||
-       effective_tool == CanvasTool::PatchTool || effective_tool == CanvasTool::PatternStamp ||
+       uses_patch_drag(effective_tool) || effective_tool == CanvasTool::PatternStamp ||
        effective_tool == CanvasTool::Smudge || effective_tool == CanvasTool::MixerBrush ||
        is_local_adjustment_tool(effective_tool) ||
        effective_tool == CanvasTool::Text || effective_tool == CanvasTool::Crop ||
@@ -1024,7 +1026,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
                                          tool_ == CanvasTool::MagneticLasso ||
                                          tool_ == CanvasTool::QuickSelect ||
                                          tool_ == CanvasTool::ObjectSelect ||
-                                         tool_ == CanvasTool::PatchTool ||
+                                         uses_patch_drag(tool_) ||
                                          tool_ == CanvasTool::Crop ||
                                          tool_ == CanvasTool::Zoom ||
                                          tool_ == CanvasTool::Rectangle ||
@@ -1491,9 +1493,11 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
-  if (tool_ == CanvasTool::PatchTool && event->button() == Qt::LeftButton) {
+  if (uses_patch_drag(tool_) && event->button() == Qt::LeftButton) {
     if (editing_grayscale_target()) {
-      report_status_error(tr("Patch is unavailable while editing a grayscale channel"));
+      report_status_error(tool_ == CanvasTool::ContentAwareMove
+                              ? tr("Content-Aware Move is unavailable while editing a grayscale channel")
+                              : tr("Patch is unavailable while editing a grayscale channel"));
       return;
     }
     // A press inside the existing selection starts the heal drag; Shift/Alt
@@ -1536,7 +1540,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     return;
   }
 
-  if (tool_ == CanvasTool::Lasso || tool_ == CanvasTool::PatchTool) {
+  if (tool_ == CanvasTool::Lasso || uses_patch_drag(tool_)) {
     lassoing_ = true;
     lasso_alt_at_press_ = event->modifiers().testFlag(Qt::AltModifier);
     lasso_alt_released_since_press_ = false;
@@ -2608,7 +2612,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       } else if (can_move_selection_at(document_point, event->modifiers())) {
         // Signal that grabbing here drags the selection outline.
         setCursor(Qt::SizeAllCursor);
-      } else if (tool_ == CanvasTool::PatchTool &&
+      } else if (uses_patch_drag(tool_) &&
                  selection_operation(event->modifiers()) == SelectionMode::Replace &&
                  !selection_.isEmpty() && selection_.contains(document_point)) {
         // Signal that grabbing here drags the patch region to its source.
@@ -3555,7 +3559,9 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         restore_selection_before_edit();
       }
     }
-    record_selection_history(tool_ == CanvasTool::PatchTool ? tr("Patch Selection") : tr("Lasso"),
+    record_selection_history(tool_ == CanvasTool::PatchTool          ? tr("Patch Selection")
+                             : tool_ == CanvasTool::ContentAwareMove ? tr("Content-Aware Move Selection")
+                                                                     : tr("Lasso"),
                              selection_snapshot_before_edit());
     if (tool_ == CanvasTool::PatchTool && !selection_.isEmpty() && status_callback_) {
       // The patch workflow's second step is not discoverable on its own; say
@@ -3564,6 +3570,10 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
                            ? tr("Drag the selection to where the copy should go")
                            : tr("Drag the selection to a clean area to sample from, or press Enter to "
                                 "remove the object automatically"));
+    } else if (tool_ == CanvasTool::ContentAwareMove && !selection_.isEmpty() && status_callback_) {
+      status_callback_(content_aware_move_mode_ == ContentAwareMoveMode::Extend
+                           ? tr("Drag the selection to where the copy should go")
+                           : tr("Drag the selection to where the object should go"));
     }
     clear_selection_before_edit();
     lasso_points_.clear();
@@ -3923,6 +3933,13 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     return;
   }
 
+  if (tool_ == CanvasTool::ContentAwareMove && patch_tool_dragging_ && event->modifiers() == Qt::NoModifier &&
+      (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter)) {
+    // Enter commits a live Content-Aware Move drag like a release.
+    release_patch_tool_drag(document_position(last_mouse_position_));
+    event->accept();
+    return;
+  }
   if (tool_ == CanvasTool::PatchTool && event->modifiers() == Qt::NoModifier &&
       (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter)) {
     // Enter is the Patch tool's keyboard path: commit a live drag the way the

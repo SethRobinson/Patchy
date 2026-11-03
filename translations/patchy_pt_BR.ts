@@ -14926,6 +14926,14 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Vertical Offset:</source>
         <translation>Deslocamento vertical:</translation>
     </message>
+    <message>
+        <source>Extend</source>
+        <translation>Estender</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>Movimento sensível a conteúdo</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17014,6 +17022,26 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
         <translation>Clique para adicionar um ponto, arraste para remodelar, Shift+clique para selecionar o segmento</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move is unavailable while editing a grayscale channel</source>
+        <translation>Movimento sensível a conteúdo não está disponível durante a edição de um canal em tons de cinza</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move Selection</source>
+        <translation>Seleção de movimento sensível a conteúdo</translation>
+    </message>
+    <message>
+        <source>Drag the selection to where the object should go</source>
+        <translation>Arraste a seleção para onde o objeto deve ir</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move needs unselected pixels around the selection to fill from</source>
+        <translation>Movimento sensível a conteúdo precisa de pixels não selecionados ao redor da seleção para preencher</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>Movimento sensível a conteúdo</translation>
     </message>
 </context>
 <context>
@@ -19124,6 +19152,10 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Outline the letters as a path</source>
         <translation>Contornar as letras como demarcador</translation>
+    </message>
+    <message>
+        <source>Move or copy a selected object and fill the spot it leaves</source>
+        <translation>Mover ou copiar um objeto selecionado e preencher o espaço que ele deixa</translation>
     </message>
 </context>
 <context>
@@ -32203,6 +32235,22 @@ Bloqueado: %1</translation>
     <message>
         <source>Show pixel grid from:</source>
         <translation>Mostrar grade de pixels a partir de:</translation>
+    </message>
+    <message>
+        <source>Extend</source>
+        <translation>Estender</translation>
+    </message>
+    <message>
+        <source>Move fills the spot the selection leaves; Extend keeps the original and adds a copy</source>
+        <translation>Mover preenche o espaço que a seleção deixa; Estender mantém o original e adiciona uma cópia</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>Movimento sensível a conteúdo</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move: draw around an object, then drag the selection to its new place. Move fills the spot it leaves, Extend keeps the original.</source>
+        <translation>Movimento sensível a conteúdo: contorne um objeto e arraste a seleção para o novo lugar. Mover preenche o espaço que ele deixa, Estender mantém o original.</translation>
     </message>
 </context>
 <context>

@@ -19,7 +19,7 @@ Anything a user would read as "the tool is broken" on a fresh launch starts from
 
 - An in-progress Free Transform, Warp, Crop box or text edit (the Free Transform fields, pivot, link, interpolation mode aside, the Warp style and bend, the Crop W/H size fields).
 - Quick Mask mode and a temporary tool (the spacebar Hand, the Alt eyedropper, the Zoom modifier): canvas state, never written.
-- The selection combine mode (New/Add/Subtract/Intersect), the vector Combine operation (New Layer/Add/Subtract/...), the Patch tool's Mode and Transparent (retired keys `tools/patchMode` and `tools/patchTransparent`, [healing.md](healing.md)), the Align To choice (retired `tools/alignTo`, [alignment.md](alignment.md)).
+- The selection combine mode (New/Add/Subtract/Intersect), the vector Combine operation (New Layer/Add/Subtract/...), the Patch tool's Mode and Transparent (retired keys `tools/patchMode` and `tools/patchTransparent`, [healing.md](healing.md)), Content-Aware Move's Mode (never stored, [content-aware-move.md](content-aware-move.md)), the Align To choice (retired `tools/alignTo`, [alignment.md](alignment.md)).
 - The Marquee and shape Style rows (Normal/Fixed Ratio/Fixed Size with their W/H): a persisted Fixed Size silently resizes the first drag.
 - Round and Square brush dynamics (session values, [brushes.md](brushes.md)), the Mixer "useful combinations" row (derived from Wet/Load/Mix).
 - The Type tool's font, style, size, color, alignment and orientation: they mirror the selected text layer; a new layer takes the application font, as the installed face it resolves to (never a generic name such as Linux's "Sans Serif"). Remembering the last-used type style is a separate feature.
@@ -72,11 +72,12 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Mixer Brush | Wet, Load, Mix, Flow, Sample All Layers | `mixerWet`, `mixerLoad`, `mixerMix`, `mixerFlow`, `mixerSampleAllLayers` | yes | yes |
 | Pattern Stamp | Pattern (by pattern id), Aligned | `patternStampPatternId`, `patternStampAligned` | yes | yes |
 | Clone | Aligned | `cloneAligned` | yes | yes |
-| Clone, Healing, Spot Healing, Patch | Sample (`retouchSampleLayersCombo`: Current Layer, Current & Below, All Layers) | `retouchSampleLayers` (token; the older bool `retouchSampleAllLayers` is still written and maps on first read) | yes | yes |
-| Clone, Healing, Spot Healing, Patch | Ignore Adjustment Layers (`retouchIgnoreAdjustmentsCheck`) | `retouchIgnoreAdjustments` | yes | yes |
+| Clone, Healing, Spot Healing, Patch, Content-Aware Move | Sample (`retouchSampleLayersCombo`: Current Layer, Current & Below, All Layers) | `retouchSampleLayers` (token; the older bool `retouchSampleAllLayers` is still written and maps on first read) | yes | yes |
+| Clone, Healing, Spot Healing, Patch, Content-Aware Move | Ignore Adjustment Layers (`retouchIgnoreAdjustmentsCheck`) | `retouchIgnoreAdjustments` | yes | yes |
 | Healing | Diffusion | `healingDiffusion` | yes | yes |
 | Healing | Mode (`healingModeCombo`) | `healingMode` (token) | yes | yes |
 | Patch | Mode, Transparent | retired keys | no | no (session) |
+| Content-Aware Move | Mode (`contentAwareMoveModeCombo`) | none | no | no (session) |
 | Red Eye | Pupil Size, Darken Amount (`redEyePupilSizeSpin`/`Slider`, `redEyeDarkenAmountSpin`/`Slider`) | `redEyePupilSize`, `redEyeDarkenAmount` | new (issue 370) | yes |
 | Dodge, Burn | Strength, Range, Protect Tones | `localAdjustmentStrength`, `localToneRange`, `localProtectTones` | yes | yes |
 | Sponge | Mode, Vibrance | `spongeMode`, `spongeVibrance` | yes | yes |

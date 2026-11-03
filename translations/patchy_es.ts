@@ -14926,6 +14926,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Vertical Offset:</source>
         <translation>Desplazamiento vertical:</translation>
     </message>
+    <message>
+        <source>Extend</source>
+        <translation>Ampliar</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>Movimiento con reconocimiento de contenido</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17014,6 +17022,26 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
         <translation>Haga clic para añadir un punto, arrastre para remodelar, Mayús+clic para seleccionar el segmento</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move is unavailable while editing a grayscale channel</source>
+        <translation>El movimiento con reconocimiento de contenido no está disponible mientras se edita un canal en escala de grises</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move Selection</source>
+        <translation>Selección de movimiento con reconocimiento de contenido</translation>
+    </message>
+    <message>
+        <source>Drag the selection to where the object should go</source>
+        <translation>Arrastre la selección hasta donde deba ir el objeto</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move needs unselected pixels around the selection to fill from</source>
+        <translation>El movimiento con reconocimiento de contenido necesita píxeles sin seleccionar alrededor de la selección para rellenar</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>Movimiento con reconocimiento de contenido</translation>
     </message>
 </context>
 <context>
@@ -19124,6 +19152,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Outline the letters as a path</source>
         <translation>Contornear las letras como un trazado</translation>
+    </message>
+    <message>
+        <source>Move or copy a selected object and fill the spot it leaves</source>
+        <translation>Mover o copiar un objeto seleccionado y rellenar el hueco que deja</translation>
     </message>
 </context>
 <context>
@@ -32203,6 +32235,22 @@ Bloqueada: %1</translation>
     <message>
         <source>Show pixel grid from:</source>
         <translation>Mostrar cuadrícula de píxeles desde:</translation>
+    </message>
+    <message>
+        <source>Extend</source>
+        <translation>Ampliar</translation>
+    </message>
+    <message>
+        <source>Move fills the spot the selection leaves; Extend keeps the original and adds a copy</source>
+        <translation>Mover rellena el hueco que deja la selección; Ampliar conserva el original y añade una copia</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>Movimiento con reconocimiento de contenido</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move: draw around an object, then drag the selection to its new place. Move fills the spot it leaves, Extend keeps the original.</source>
+        <translation>Movimiento con reconocimiento de contenido: rodee un objeto y arrastre la selección a su nuevo lugar. Mover rellena el hueco que deja, Ampliar conserva el original.</translation>
     </message>
 </context>
 <context>

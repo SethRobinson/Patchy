@@ -256,7 +256,7 @@ bool CanvasWidget::show_canvas_context_menu(QPoint widget_point, QPoint global_p
   }
   const bool inside_selection = has_selection() && selection_alpha_at(document_point) != 0U;
   const bool selection_tool_on_document =
-      tool_ != CanvasTool::PatchTool && selection_tool_index(tool_) >= 0 && document_contains(document_point);
+      !uses_patch_drag(tool_) && selection_tool_index(tool_) >= 0 && document_contains(document_point);
   if (inside_selection && selection_context_actions_callback_) {
     append_section(selection_context_actions_callback_());
   } else if (!inside_selection && selection_tool_on_document) {

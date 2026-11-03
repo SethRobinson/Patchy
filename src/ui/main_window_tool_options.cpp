@@ -4426,6 +4426,11 @@ void MainWindow::refresh_options_bar() {
     QSignalBlocker blocker(patch_transparent_check_);
     patch_transparent_check_->setChecked(canvas_->patch_tool_transparent());
   }
+  if (content_aware_move_mode_combo_ != nullptr && canvas_ != nullptr) {
+    const QSignalBlocker blocker(content_aware_move_mode_combo_);
+    content_aware_move_mode_combo_->setCurrentIndex(std::max(
+        0, content_aware_move_mode_combo_->findData(static_cast<int>(canvas_->content_aware_move_mode()))));
+  }
   if (pattern_stamp_pattern_combo_ != nullptr) {
     const QSignalBlocker blocker(pattern_stamp_pattern_combo_);
     pattern_stamp_pattern_combo_->setCurrentIndex(
@@ -4593,7 +4598,7 @@ void MainWindow::apply_selection_modes_to_canvas(CanvasWidget* canvas) {
   const std::array<CanvasTool, CanvasWidget::kSelectionToolCount> tools{
       CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagneticLasso,
       CanvasTool::MagicWand, CanvasTool::QuickSelect, CanvasTool::PatchTool, CanvasTool::ObjectSelect,
-      CanvasTool::PolygonLasso};
+      CanvasTool::PolygonLasso, CanvasTool::ContentAwareMove};
   for (const auto tool : tools) {
     if (const auto index = CanvasWidget::selection_tool_index(tool); index >= 0) {
       canvas->set_selection_mode_for_tool(tool, selection_modes_[static_cast<std::size_t>(index)]);

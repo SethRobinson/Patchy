@@ -5141,7 +5141,7 @@ void ui_stamp_and_gradient_flyouts_swap_tools() {
   auto* healing_button = window.findChild<QToolButton*>(QStringLiteral("healingToolButton"));
   CHECK(healing_button != nullptr);
   CHECK(healing_button->menu() != nullptr);
-  CHECK(healing_button->menu()->actions().size() == 6);
+  CHECK(healing_button->menu()->actions().size() == 7);
   CHECK(healing_button->defaultAction() == require_action(window, "toolHealingBrushAction"));
   require_action(window, "toolSpotHealingAction")->trigger();
   QApplication::processEvents();
@@ -5151,6 +5151,10 @@ void ui_stamp_and_gradient_flyouts_swap_tools() {
   QApplication::processEvents();
   CHECK(canvas->tool() == patchy::ui::CanvasTool::PatchTool);
   CHECK(healing_button->defaultAction() == require_action(window, "toolPatchAction"));
+  require_action(window, "toolContentAwareMoveAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::ContentAwareMove);
+  CHECK(healing_button->defaultAction() == require_action(window, "toolContentAwareMoveAction"));
   require_action(window, "toolRedEyeAction")->trigger();
   QApplication::processEvents();
   CHECK(canvas->tool() == patchy::ui::CanvasTool::RedEye);
@@ -5203,6 +5207,10 @@ void ui_tool_cycle_hotkeys_walk_each_flyout() {
   QApplication::processEvents();
   CHECK(canvas->tool() == patchy::ui::CanvasTool::PatchTool);
   CHECK(healing_button->defaultAction() == require_action(window, "toolPatchAction"));
+  QTest::keyClick(canvas, Qt::Key_J, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::ContentAwareMove);
+  CHECK(healing_button->defaultAction() == require_action(window, "toolContentAwareMoveAction"));
   QTest::keyClick(canvas, Qt::Key_J, Qt::ShiftModifier);
   QApplication::processEvents();
   CHECK(canvas->tool() == patchy::ui::CanvasTool::RedEye);
@@ -6736,6 +6744,7 @@ void ui_tool_palette_icons_render_sheet() {
       {"toolHealingBrushAction", "Healing Brush"},
       {"toolSpotHealingAction", "Spot Healing"},
       {"toolPatchAction", "Patch"},
+      {"toolContentAwareMoveAction", "Content-Aware Move"},
       {"toolRedEyeAction", "Red Eye"},
       {"toolSmudgeAction", "Smudge"},
       {"toolMixerBrushAction", "Mixer Brush"},

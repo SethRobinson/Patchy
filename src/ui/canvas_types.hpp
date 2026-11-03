@@ -20,7 +20,7 @@
 
 namespace patchy::ui {
 
-inline constexpr std::size_t kSelectionToolCount = 9;
+inline constexpr std::size_t kSelectionToolCount = 10;
 
 inline constexpr int kMaxBrushSize = 1024;
 inline constexpr int kMaxQuickSelectSize = 512;
@@ -94,8 +94,16 @@ enum class CanvasTool {
   // October 2026 Red Eye (append-only: values ride persisted settings).
   RedEye,
   // October 2026 Ruler (append-only: values ride persisted settings).
-  Ruler
+  Ruler,
+  // November 2026 Content-Aware Move (append-only: values ride persisted settings).
+  ContentAwareMove
 };
+
+// The tools that draw a lasso outline and drag the selected region (the Patch tool's
+// machinery in canvas_widget_patch_tool.cpp): Patch and Content-Aware Move.
+[[nodiscard]] constexpr bool uses_patch_drag(CanvasTool tool) noexcept {
+  return tool == CanvasTool::PatchTool || tool == CanvasTool::ContentAwareMove;
+}
 
 // What the Artboard tool (and the artboard labels any tool can click) asks MainWindow to do;
 // the canvas never edits the document itself (docs/artboards.md).
@@ -238,6 +246,13 @@ enum class MarqueeStyle {
 enum class PatchToolMode {
   Source,
   Destination
+};
+
+// Content-Aware Move (docs/content-aware-move.md): Move fills the spot the region left,
+// Extend keeps it; both heal the copy into the drop point.
+enum class ContentAwareMoveMode {
+  Move,
+  Extend
 };
 
 // The Healing Brush's Mode (GitHub issue 381; docs/healing.md). Normal is the classic

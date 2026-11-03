@@ -1494,24 +1494,25 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       simple_icon(QStringLiteral("N")), QT_TR_NOOP("New Selection"),
       {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
        CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::QuickSelect, CanvasTool::PatchTool,
-       CanvasTool::ObjectSelect});
+       CanvasTool::ContentAwareMove, CanvasTool::ObjectSelect});
   selection_new->setObjectName(QStringLiteral("selectionNewModeAction"));
   auto* selection_add = add_option_action(
       simple_icon(QStringLiteral("+")), QT_TR_NOOP("Add to Selection"),
       {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
        CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::QuickSelect, CanvasTool::PatchTool,
-       CanvasTool::ObjectSelect});
+       CanvasTool::ContentAwareMove, CanvasTool::ObjectSelect});
   selection_add->setObjectName(QStringLiteral("selectionAddModeAction"));
   auto* selection_subtract = add_option_action(
       simple_icon(QStringLiteral("-")), QT_TR_NOOP("Subtract from Selection"),
       {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
        CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::QuickSelect, CanvasTool::PatchTool,
-       CanvasTool::ObjectSelect});
+       CanvasTool::ContentAwareMove, CanvasTool::ObjectSelect});
   selection_subtract->setObjectName(QStringLiteral("selectionSubtractModeAction"));
   auto* selection_intersect = add_option_action(simple_icon(QStringLiteral("Ix")), QT_TR_NOOP("Intersect Selection"),
                                                 {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
                                                  CanvasTool::PolygonLasso, CanvasTool::MagneticLasso,
-                                                 CanvasTool::MagicWand, CanvasTool::PatchTool});
+                                                 CanvasTool::MagicWand, CanvasTool::PatchTool,
+                                                 CanvasTool::ContentAwareMove});
   selection_intersect->setObjectName(QStringLiteral("selectionIntersectModeAction"));
   selection_new_mode_action_ = selection_new;
   selection_add_mode_action_ = selection_add;
@@ -1549,7 +1550,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
           [set_selection_mode] { set_selection_mode(CanvasWidget::SelectionMode::Intersect); });
   add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
                         CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::QuickSelect,
-                        CanvasTool::ObjectSelect, CanvasTool::PatchTool});
+                        CanvasTool::ObjectSelect, CanvasTool::PatchTool, CanvasTool::ContentAwareMove});
 
   // The Magic Wand's Sample (GitHub issue 435): the seed color averages this square
   // around the click. The sizes are the Pick tool's, but the setting is the wand's own
@@ -3427,11 +3428,46 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
 
+  // Content-Aware Move (docs/content-aware-move.md): Move fills the spot the region
+  // left, Extend keeps it. Session-only like the Patch tool's Mode: every start is Move.
+  add_option_label(QT_TR_NOOP("Mode:"), {CanvasTool::ContentAwareMove});
+  content_aware_move_mode_combo_ = new QComboBox(toolbar);
+  content_aware_move_mode_combo_->setObjectName(QStringLiteral("contentAwareMoveModeCombo"));
+  content_aware_move_mode_combo_->addItem(tr("Move"), static_cast<int>(CanvasWidget::ContentAwareMoveMode::Move));
+  content_aware_move_mode_combo_->addItem(tr("Extend"),
+                                          static_cast<int>(CanvasWidget::ContentAwareMoveMode::Extend));
+  content_aware_move_mode_combo_->setCurrentIndex(std::max(
+      0, content_aware_move_mode_combo_->findData(static_cast<int>(canvas_defaults->content_aware_move_mode()))));
+  content_aware_move_mode_combo_->setFixedWidth(ui_text_length(104));
+  bind_tooltip(content_aware_move_mode_combo_,
+               QT_TR_NOOP("Move fills the spot the selection leaves; Extend keeps the original and adds a copy"));
+  {
+    QPointer<QComboBox> mode_combo(content_aware_move_mode_combo_);
+    register_retranslation([mode_combo] {
+      if (mode_combo == nullptr || mode_combo->count() < 2) {
+        return;
+      }
+      QSignalBlocker blocker(mode_combo);
+      mode_combo->setItemText(0, QObject::tr("Move"));
+      mode_combo->setItemText(1, QObject::tr("Extend"));
+    });
+  }
+  add_option_widget(content_aware_move_mode_combo_, {CanvasTool::ContentAwareMove});
+  connect(content_aware_move_mode_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (index < 0 || content_aware_move_mode_combo_ == nullptr || canvas_ == nullptr) {
+      return;
+    }
+    canvas_->set_content_aware_move_mode(
+        static_cast<CanvasWidget::ContentAwareMoveMode>(content_aware_move_mode_combo_->itemData(index).toInt()));
+  });
+
   // Sample (GitHub issue 382): which layers the retouch tools read. Item data is the
   // settings token; the texts are the Pick tool's Sample texts.
   const std::initializer_list<CanvasTool> retouch_tools{CanvasTool::Clone, CanvasTool::Healing,
-                                                        CanvasTool::SpotHealing, CanvasTool::PatchTool};
-  add_option_separator({CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::PatchTool});
+                                                        CanvasTool::SpotHealing, CanvasTool::PatchTool,
+                                                        CanvasTool::ContentAwareMove};
+  add_option_separator({CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::PatchTool,
+                        CanvasTool::ContentAwareMove});
   add_option_label(QT_TR_NOOP("Sample:"), retouch_tools);
   retouch_sample_layers_combo_ = new QComboBox(toolbar);
   retouch_sample_layers_combo_->setObjectName(QStringLiteral("retouchSampleLayersCombo"));

@@ -3334,6 +3334,7 @@ private:
   QCheckBox* retouch_ignore_adjustments_check_{nullptr};
   QCheckBox* mixer_sample_all_layers_check_{nullptr};
   QComboBox* patch_mode_combo_{nullptr};
+  QComboBox* content_aware_move_mode_combo_{nullptr};
   QComboBox* mixer_combination_combo_{nullptr};
   // The Smoothing gear button and its four checkable menu actions.
   QToolButton* brush_smoothing_options_button_{nullptr};
@@ -3871,7 +3872,7 @@ private:
       SelectionMode::Replace, SelectionMode::Replace,
       SelectionMode::Replace, SelectionMode::Replace,
       SelectionMode::Replace, SelectionMode::Replace,
-      SelectionMode::Replace};
+      SelectionMode::Replace, SelectionMode::Replace};
   MarqueeStyle current_marquee_style_{MarqueeStyle::Normal};
   int current_marquee_width_{1024};
   int current_marquee_height_{768};
@@ -3887,7 +3888,7 @@ private:
   // the active selection tool's slot, which is what the canvas and the options bar hold.
   std::array<int, kSelectionToolCount> selection_feather_by_tool_{};
   std::array<bool, kSelectionToolCount> selection_antialias_by_tool_{true, true, true, true, true,
-                                                                    true, true, true, true};
+                                                                    true, true, true, true, true};
   int current_selection_feather_radius_{0};
   bool current_selection_antialias_{true};
   double current_crop_ratio_w_{0.0};

@@ -5563,6 +5563,10 @@ void MainWindow::refresh_document_info() {
       if (canvas_->patch_tool_transparent()) {
         lines << tr("Transparent");
       }
+    } else if (current_tool_ == CanvasTool::ContentAwareMove) {
+      lines << (canvas_->content_aware_move_mode() == CanvasWidget::ContentAwareMoveMode::Extend ? tr("Extend")
+                                                                                              : tr("Move"))
+            << retouch_sample_info_text();
     } else if (current_tool_ == CanvasTool::PerspectiveCrop) {
       if (const auto quad = canvas_->perspective_crop_quad(); quad.has_value()) {
         const std::array<double, 8> corners{(*quad)[0].x(), (*quad)[0].y(), (*quad)[1].x(), (*quad)[1].y(),

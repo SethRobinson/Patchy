@@ -918,6 +918,53 @@ void spot_heal_source_map_attempt_cycles_valid_candidates() {
         best_effort_again.map(10, 10) == best_effort.map(10, 10));
 }
 
+// Content-Aware Move's exclusion: cells of the excluded shape count as violations, so
+// the map steps past a candidate that would read them, and a map that never meets the
+// excluded shape is unchanged by it.
+void spot_heal_source_map_skips_excluded_cells() {
+  constexpr std::int32_t canvas = 128;
+  const patchy::Rect bounds{40, 40, 48, 48};
+  const auto disc = spot_heal_disc_mask(bounds.width, bounds.height, 24, 24, 10);
+  const auto plain = patchy::spot_heal_source_map(disc.data(), bounds, canvas, canvas);
+  CHECK(plain.valid);
+  // Exclude exactly the cells the plain pick reads.
+  std::vector<std::uint8_t> excluded(static_cast<std::size_t>(canvas) * canvas, 0U);
+  for (std::int32_t y = 0; y < bounds.height; ++y) {
+    for (std::int32_t x = 0; x < bounds.width; ++x) {
+      if (disc[static_cast<std::size_t>(y) * bounds.width + x] == 0U) {
+        continue;
+      }
+      const auto [sx, sy] = plain.map(bounds.x + x, bounds.y + y);
+      if (sx >= 0 && sy >= 0 && sx < canvas && sy < canvas) {
+        excluded[static_cast<std::size_t>(sy) * canvas + sx] = 255U;
+      }
+    }
+  }
+  const patchy::Rect canvas_rect{0, 0, canvas, canvas};
+  const auto skipped =
+      patchy::spot_heal_source_map(disc.data(), bounds, canvas, canvas, 2, 0, excluded.data(), canvas_rect);
+  CHECK(skipped.valid);
+  CHECK(skipped.candidate_count >= 1 && skipped.candidate_count < plain.candidate_count);
+  std::int64_t reads_excluded = 0;
+  for (std::int32_t y = 0; y < bounds.height; ++y) {
+    for (std::int32_t x = 0; x < bounds.width; ++x) {
+      if (disc[static_cast<std::size_t>(y) * bounds.width + x] == 0U) {
+        continue;
+      }
+      const auto [sx, sy] = skipped.map(bounds.x + x, bounds.y + y);
+      reads_excluded += excluded[static_cast<std::size_t>(sy) * canvas + sx] != 0U ? 1 : 0;
+    }
+  }
+  CHECK(reads_excluded == 0);
+  CHECK(spot_heal_map_violations(disc, bounds, skipped, canvas, canvas) == 0);
+  // An excluded shape far from every candidate changes nothing.
+  std::vector<std::uint8_t> far(4U * 4U, 255U);
+  const auto unchanged = patchy::spot_heal_source_map(disc.data(), bounds, canvas, canvas, 2, 0, far.data(),
+                                                      patchy::Rect{0, 0, 4, 4});
+  CHECK(unchanged.mirrored == plain.mirrored && unchanged.map(60, 60) == plain.map(60, 60));
+  CHECK(unchanged.candidate_count == plain.candidate_count);
+}
+
 // The exhaustive exemplar fill on a periodic texture: exact source patches
 // exist, so the hole is restored to the pattern byte for byte, the result is
 // identical across runs (fixed scan orders, first-index tie-breaks), pixels
@@ -1392,6 +1439,7 @@ std::vector<patchy::test::TestCase> infra_selection_tests() {
       {"spot_heal_source_map_stays_in_canvas_at_edges", spot_heal_source_map_stays_in_canvas_at_edges},
       {"spot_heal_source_map_attempt_cycles_valid_candidates",
        spot_heal_source_map_attempt_cycles_valid_candidates},
+      {"spot_heal_source_map_skips_excluded_cells", spot_heal_source_map_skips_excluded_cells},
       {"exemplar_inpaint_restores_periodic_stripes_deterministically",
        exemplar_inpaint_restores_periodic_stripes_deterministically},
       {"exemplar_inpaint_banner_tone_match_stays_dark_and_varies_by_attempt",

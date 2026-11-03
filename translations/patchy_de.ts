@@ -14926,6 +14926,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Vertical Offset:</source>
         <translation>Vertikaler Versatz:</translation>
     </message>
+    <message>
+        <source>Extend</source>
+        <translation>Erweitern</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>Inhaltsbasiert verschieben</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17014,6 +17022,26 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
         <translation>Klicken fügt einen Punkt hinzu, Ziehen formt um, Umschalt+Klick wählt das Segment aus</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move is unavailable while editing a grayscale channel</source>
+        <translation>Inhaltsbasiert verschieben ist beim Bearbeiten eines Graustufenkanals nicht verfügbar</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move Selection</source>
+        <translation>Auswahl für Inhaltsbasiert verschieben</translation>
+    </message>
+    <message>
+        <source>Drag the selection to where the object should go</source>
+        <translation>Ziehen Sie die Auswahl dorthin, wo das Objekt hin soll</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move needs unselected pixels around the selection to fill from</source>
+        <translation>Inhaltsbasiert verschieben benötigt nicht ausgewählte Pixel um die Auswahl, aus denen gefüllt wird</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>Inhaltsbasiert verschieben</translation>
     </message>
 </context>
 <context>
@@ -19124,6 +19152,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Outline the letters as a path</source>
         <translation>Die Buchstaben als Pfad nachzeichnen</translation>
+    </message>
+    <message>
+        <source>Move or copy a selected object and fill the spot it leaves</source>
+        <translation>Ein ausgewähltes Objekt verschieben oder kopieren und die frei werdende Stelle füllen</translation>
     </message>
 </context>
 <context>
@@ -32203,6 +32235,22 @@ Fixiert: %1</translation>
     <message>
         <source>Show pixel grid from:</source>
         <translation>Pixelraster anzeigen ab:</translation>
+    </message>
+    <message>
+        <source>Extend</source>
+        <translation>Erweitern</translation>
+    </message>
+    <message>
+        <source>Move fills the spot the selection leaves; Extend keeps the original and adds a copy</source>
+        <translation>Verschieben füllt die Stelle, die die Auswahl verlässt; Erweitern behält das Original und fügt eine Kopie hinzu</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>Inhaltsbasiert verschieben</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move: draw around an object, then drag the selection to its new place. Move fills the spot it leaves, Extend keeps the original.</source>
+        <translation>Inhaltsbasiert verschieben: Umranden Sie ein Objekt und ziehen Sie die Auswahl an seinen neuen Platz. Verschieben füllt die frei werdende Stelle, Erweitern behält das Original.</translation>
     </message>
 </context>
 <context>

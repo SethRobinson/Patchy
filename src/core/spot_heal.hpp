@@ -49,8 +49,15 @@ struct SpotHealSourceMap {
 // result, so callers that never pass it are unchanged). Deterministic:
 // integer centroid/extent math plus IEEE sqrt of integer inputs, fixed
 // candidate order, first-fewest-violations tie-break.
+// `excluded` (optional, row-major 8-bit over `excluded_bounds`, non-zero = excluded)
+// marks cells that must not be sampled either: a covered cell mapping onto one counts as
+// a violation, like one mapping back into the footprint. Content-Aware Move passes the
+// drop region, so the hole left behind never fills from where the object is going.
+// Still geometry only: the excluded mask is a shape, its pixels are never read.
 [[nodiscard]] SpotHealSourceMap spot_heal_source_map(const std::uint8_t* mask, Rect bounds,
                                                      std::int32_t canvas_width, std::int32_t canvas_height,
-                                                     std::int32_t margin = 2, std::int32_t attempt = 0);
+                                                     std::int32_t margin = 2, std::int32_t attempt = 0,
+                                                     const std::uint8_t* excluded = nullptr,
+                                                     Rect excluded_bounds = {});
 
 }  // namespace patchy
