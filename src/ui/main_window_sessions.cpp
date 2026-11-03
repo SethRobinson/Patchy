@@ -146,6 +146,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
     session->canvas->set_crop_ratio(canvas_->crop_ratio_width(), canvas_->crop_ratio_height());
     session->canvas->set_patch_tool_mode(canvas_->patch_tool_mode());
     session->canvas->set_patch_tool_transparent(canvas_->patch_tool_transparent());
+    session->canvas->set_content_aware_move_mode(canvas_->content_aware_move_mode());
     session->canvas->set_healing_diffusion(current_healing_diffusion_);
     session->canvas->set_local_adjustment_strength(current_local_adjustment_strength_);
     session->canvas->set_local_tone_range(current_local_tone_range_);
@@ -207,6 +208,10 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   }
   if (patch_transparent_check_ != nullptr) {
     session->canvas->set_patch_tool_transparent(patch_transparent_check_->isChecked());
+  }
+  if (content_aware_move_mode_combo_ != nullptr) {
+    session->canvas->set_content_aware_move_mode(
+        static_cast<CanvasWidget::ContentAwareMoveMode>(content_aware_move_mode_combo_->currentData().toInt()));
   }
   session->canvas->set_healing_diffusion(current_healing_diffusion_);
   session->canvas->set_local_adjustment_strength(current_local_adjustment_strength_);

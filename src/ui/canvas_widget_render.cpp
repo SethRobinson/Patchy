@@ -1003,9 +1003,9 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
       }
     }
   } else if (patch_tool_dragging_ && !patch_tool_source_image_.isNull()) {
-    // Patch drag: the untouched composite plus a raw translated blit of the
-    // frozen snapshot (Photoshop also previews unhealed pixels; the heal is
-    // one-shot at release).
+    // Patch / Content-Aware Move drag: the untouched composite plus, for Patch
+    // Destination and Content-Aware Move, a raw ghost of the region at the pointer
+    // offset (Patch Source shows only the outline); the heal is one-shot at release.
     draw_scaled_image(render_cache_);
     draw_patch_tool_drag_preview(painter);
   } else {

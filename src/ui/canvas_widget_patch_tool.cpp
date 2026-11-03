@@ -1,10 +1,12 @@
-// CanvasWidget's Patch tool: draw a freehand outline (the shared lasso
-// machinery in the events TU) or use an existing selection, then drag the
-// region and commit a heal on release. The tool is strictly user-directed:
-// the dragged offset is the ONLY source choice, the drag preview is a raw
-// translated copy of a frozen snapshot, and all healing runs ONCE on release
-// using the classic healing membrane of the expired US 6587592
-// (core/heal_membrane.hpp): boundary tone differences interpolated across the
+// CanvasWidget's Patch tool and Content-Aware Move: draw a freehand outline (the
+// shared lasso machinery in the events TU) or use an existing selection, then
+// drag the region and commit a heal on release. Both are strictly user-directed:
+// the dragged offset is the ONLY source choice for the dragged region, the drag
+// shows at most a raw ghost of the frozen snapshot at the pointer offset (never
+// anything inside the original spot: Adobe US 9575641 / US 10332291, to 2033),
+// Content-Aware Move's hole fill is the shape-derived map of core/spot_heal.hpp,
+// and all healing runs ONCE on release using the classic healing membrane of
+// the expired US 6587592 (core/heal_membrane.hpp): boundary tone differences interpolated across the
 // interior, plus the dragged source texture. No PatchMatch-style offset
 // propagation or perturbation, no reshuffling, no gradient-domain compositing
 // of source gradients, and no live per-move classification may be added:
@@ -21,6 +23,7 @@
 #include "core/palette.hpp"
 #include "core/pixel_buffer.hpp"
 #include "core/pixel_tools.hpp"
+#include "core/spot_heal.hpp"
 #include "core/worker_budget.hpp"
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget_shared.hpp"
@@ -80,6 +83,14 @@ bool CanvasWidget::patch_tool_transparent() const noexcept {
   return patch_tool_transparent_;
 }
 
+void CanvasWidget::set_content_aware_move_mode(ContentAwareMoveMode mode) noexcept {
+  content_aware_move_mode_ = mode;
+}
+
+CanvasWidget::ContentAwareMoveMode CanvasWidget::content_aware_move_mode() const noexcept {
+  return content_aware_move_mode_;
+}
+
 bool CanvasWidget::begin_patch_tool_drag(QPoint document_point) {
   if (document_ == nullptr || selection_.isEmpty()) {
     return false;
@@ -117,7 +128,8 @@ bool CanvasWidget::begin_patch_tool_drag(QPoint document_point) {
     patch_tool_outline_path_.closeSubpath();
   }
 
-  // Destination-mode preview proxy: the snapshot cut to the soft mask.
+  // The ghost Patch Destination and Content-Aware Move draw at the pointer offset: the
+  // snapshot cut to the soft mask.
   patch_tool_drag_proxy_image_ = QImage(bounds.size(), QImage::Format_RGBA8888);
   patch_tool_drag_proxy_image_.fill(Qt::transparent);
   for (int y = 0; y < bounds.height(); ++y) {
@@ -141,6 +153,7 @@ bool CanvasWidget::begin_patch_tool_drag(QPoint document_point) {
   patch_tool_drag_origin_ = document_point;
   patch_tool_drag_delta_ = QPoint(0, 0);
   patch_tool_dragging_ = true;
+  patch_tool_drag_content_aware_move_ = tool_ == CanvasTool::ContentAwareMove;
   selection_edges_visible_ = true;
   setCursor(Qt::SizeAllCursor);
   return true;
@@ -181,6 +194,7 @@ void CanvasWidget::release_patch_tool_drag(QPoint document_point) {
 
 void CanvasWidget::cancel_patch_tool_drag() {
   patch_tool_dragging_ = false;
+  patch_tool_drag_content_aware_move_ = false;
   patch_tool_drag_delta_ = QPoint(0, 0);
   patch_tool_source_image_ = QImage();
   patch_tool_drag_mask_ = QImage();
@@ -200,16 +214,10 @@ void CanvasWidget::commit_patch_tool_drag() {
   const auto snapshot = patch_tool_source_image_;
   const auto mode = patch_tool_mode_;
   const auto transparent = patch_tool_transparent_;
+  const auto content_aware_move = patch_tool_drag_content_aware_move_;
   cancel_patch_tool_drag();
   if (document_ == nullptr || snapshot.isNull() || mask_image.isNull() || bounds.isEmpty() ||
       delta.isNull()) {
-    update();
-    return;
-  }
-  const QRect canvas_rect(0, 0, document_->width(), document_->height());
-  const auto destination_offset = mode == PatchToolMode::Destination ? delta : QPoint(0, 0);
-  const auto destination_bounds = bounds.translated(destination_offset).intersected(canvas_rect);
-  if (destination_bounds.isEmpty()) {
     update();
     return;
   }
@@ -230,7 +238,18 @@ void CanvasWidget::commit_patch_tool_drag() {
     update();
     return;
   }
+  if (content_aware_move) {
+    commit_content_aware_move(delta, bounds, mask, mask_area, snapshot);
+    return;
+  }
 
+  const QRect canvas_rect(0, 0, document_->width(), document_->height());
+  const auto destination_offset = mode == PatchToolMode::Destination ? delta : QPoint(0, 0);
+  const auto destination_bounds = bounds.translated(destination_offset).intersected(canvas_rect);
+  if (destination_bounds.isEmpty()) {
+    update();
+    return;
+  }
   if (!begin_edit(tr("Patch"))) {
     update();
     return;
@@ -249,12 +268,130 @@ void CanvasWidget::commit_patch_tool_drag() {
   }
 
   begin_processing_operation();
+  const auto source_offset = mode == PatchToolMode::Destination ? -delta : delta;
+  write_patch_heal(*layer, bounds, mask, mask_area, destination_offset, source_offset, snapshot, snapshot,
+                   transparent);
+  if (mode == PatchToolMode::Destination) {
+    move_selection_with_patch_drop(delta, tr("Patch"));
+  }
+  end_processing_operation();
+  active_edit_target_changed_impl(QRegion(destination_bounds), DocumentChangeReason::BrushStrokeFinished);
+  update();
+}
+
+// Content-Aware Move's release, run once (docs/content-aware-move.md). Nothing was
+// written or shown in the old spot during the drag; only the ghost followed the pointer.
+// That keeps the tool outside every independent claim of Adobe US 9575641 and its
+// continuation US 10332291 (to 2033), which need the original spot updated with the
+// content of the current selection location during the drag. The hole is filled only
+// by the shape-derived rigid map (spot_heal_source_map) plus the membrane: no patch or
+// exemplar search, no structure or color adaptation settings (docs/legal-constraints.md).
+void CanvasWidget::commit_content_aware_move(QPoint delta, QRect bounds, const std::vector<std::uint8_t>& mask,
+                                             std::int64_t mask_area, const QImage& snapshot) {
+  const QRect canvas_rect(0, 0, document_->width(), document_->height());
+  const auto destination_bounds = bounds.translated(delta).intersected(canvas_rect);
+  if (destination_bounds.isEmpty()) {
+    update();
+    return;
+  }
+  const bool extend = content_aware_move_mode_ == ContentAwareMoveMode::Extend;
+
+  // Move: the hole's mask padded by one uncovered cell (the source map's boundary and
+  // the membrane's Dirichlet ring), and the drop region passed as an excluded shape so
+  // the fill never samples where the object is going.
+  QRect hole_bounds;
+  std::vector<std::uint8_t> hole_mask;
+  SpotHealSourceMap hole_map;
+  if (!extend) {
+    hole_bounds = bounds.adjusted(-1, -1, 1, 1).intersected(canvas_rect);
+    hole_mask.assign(static_cast<std::size_t>(hole_bounds.width()) * static_cast<std::size_t>(hole_bounds.height()),
+                     0U);
+    for (int y = 0; y < bounds.height(); ++y) {
+      const auto hole_y = bounds.top() + y - hole_bounds.top();
+      std::memcpy(hole_mask.data() + static_cast<std::size_t>(hole_y) * static_cast<std::size_t>(hole_bounds.width()) +
+                      static_cast<std::size_t>(bounds.left() - hole_bounds.left()),
+                  mask.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(bounds.width()),
+                  static_cast<std::size_t>(bounds.width()));
+    }
+    hole_map = spot_heal_source_map(hole_mask.data(), to_core_rect(hole_bounds), document_->width(),
+                                    document_->height(), 2, 0, mask.data(), to_core_rect(bounds.translated(delta)));
+    if (!hole_map.valid) {
+      report_status_error(tr("Content-Aware Move needs unselected pixels around the selection to fill from"));
+      update();
+      return;
+    }
+  }
+
+  if (!begin_edit(tr("Content-Aware Move"))) {
+    update();
+    return;
+  }
+  auto* layer = active_pixel_layer();
+  if (layer == nullptr) {
+    return;
+  }
+  auto tone_snapshot = snapshot;
+  if (!extend) {
+    // The hole first: the moved object is not on the canvas yet, and the map skips the
+    // drop region. Then the copy's boundary tone comes from the filled document, so a
+    // drop overlapping the old spot blends into the fill, not into the object.
+    heal_mask_from_surroundings(hole_bounds, hole_mask, snapshot, hole_map, *layer, /*clip_to_selection=*/false);
+    tone_snapshot = retouch_source_snapshot();
+    if (tone_snapshot.isNull()) {
+      tone_snapshot = snapshot;
+    }
+    layer = active_pixel_layer();
+    if (layer == nullptr) {
+      return;
+    }
+  }
+  {
+    // 16/32-bit layers heal a narrowed copy, as the Patch tool does.
+    std::optional<NarrowedLayerEdit> narrowed;
+    if (std::as_const(*layer).pixels().format().bit_depth != BitDepth::UInt8) {
+      narrowed.emplace(*layer, [this, destination_bounds] {
+        active_edit_target_changed_impl(QRegion(destination_bounds), DocumentChangeReason::BrushStrokeFinished);
+      });
+    }
+    begin_processing_operation();
+    write_patch_heal(*layer, bounds, mask, mask_area, delta, -delta, snapshot, tone_snapshot,
+                     /*transparent=*/false);
+    end_processing_operation();
+  }
+  move_selection_with_patch_drop(delta, tr("Content-Aware Move"));
+  active_edit_target_changed_impl(QRegion(destination_bounds), DocumentChangeReason::BrushStrokeFinished);
+  update();
+}
+
+// Photoshop parity for Patch Destination (and Content-Aware Move): the selection follows
+// the copy to the drop location, as its own history step after the pixel step.
+// Translates the live selection (the nudge_selection pattern); the before-edit latch was
+// already cleared by the outline gesture that built the selection.
+void CanvasWidget::move_selection_with_patch_drop(QPoint delta, const QString& history_label) {
+  const auto before = capture_selection_snapshot();
+  if (selection_mask_alpha_.isNull()) {
+    set_selection_from_region(selection_.translated(delta));
+  } else {
+    set_selection_from_mask(selection_.translated(delta), selection_mask_bounds_.translated(delta),
+                            selection_mask_alpha_);
+  }
+  record_selection_history(history_label, before);
+}
+
+void CanvasWidget::write_patch_heal(Layer& layer, QRect bounds, const std::vector<std::uint8_t>& mask,
+                                    std::int64_t mask_area, QPoint destination_offset, QPoint source_offset,
+                                    const QImage& source_snapshot, const QImage& tone_snapshot, bool transparent) {
+  const QRect canvas_rect(0, 0, document_->width(), document_->height());
+  const auto destination_bounds = bounds.translated(destination_offset).intersected(canvas_rect);
+  if (destination_bounds.isEmpty()) {
+    return;
+  }
   const auto lock_transparent_pixels = active_layer_locks_transparent_pixels();
   if (!lock_transparent_pixels) {
-    patchy::expand_layer_to_include_rect(*layer, to_core_rect(destination_bounds));
+    patchy::expand_layer_to_include_rect(layer, to_core_rect(destination_bounds));
   }
-  auto& pixels = layer->pixels();
-  const auto layer_bounds = layer->bounds();
+  auto& pixels = layer.pixels();
+  const auto layer_bounds = layer.bounds();
   const auto layer_rect = to_qrect(layer_bounds);
   const auto channels = pixels.format().channels;
   // The rows below write through this span, never through the buffer's
@@ -274,13 +411,14 @@ void CanvasWidget::commit_patch_tool_drag() {
       static_cast<int>(std::lround(2.0 * std::sqrt(static_cast<double>(mask_area) / kPi))), 4, kMaxBrushSize);
   const auto tone_radius = std::max(2, (equivalent_diameter * 4 + 15) / 16);
 
-  const auto source_offset = mode == PatchToolMode::Destination ? -delta : delta;
   const auto mask_offset = destination_offset;
-  const auto snapshot_pixel = [&](std::int32_t x, std::int32_t y) {
+  const auto clamped_pixel = [&](const QImage& image, std::int32_t x, std::int32_t y) {
     const auto clamped_x = std::clamp(x, 0, canvas_rect.width() - 1);
     const auto clamped_y = std::clamp(y, 0, canvas_rect.height() - 1);
-    return snapshot.constScanLine(clamped_y) + static_cast<std::size_t>(clamped_x) * 4U;
+    return image.constScanLine(clamped_y) + static_cast<std::size_t>(clamped_x) * 4U;
   };
+  const auto source_pixel_at = [&](std::int32_t x, std::int32_t y) { return clamped_pixel(source_snapshot, x, y); };
+  const auto tone_pixel_at = [&](std::int32_t x, std::int32_t y) { return clamped_pixel(tone_snapshot, x, y); };
 
   const auto solve_bounds = destination_bounds.adjusted(-1, -1, 1, 1).intersected(canvas_rect);
   const auto solve_width = solve_bounds.width();
@@ -297,8 +435,8 @@ void CanvasWidget::commit_patch_tool_drag() {
     std::vector<std::uint8_t> source_patch(cells * 3U);
     for (int y = 0; y < solve_height; ++y) {
       for (int x = 0; x < solve_width; ++x) {
-        const auto* source = snapshot_pixel(solve_bounds.left() + x + source_offset.x(),
-                                            solve_bounds.top() + y + source_offset.y());
+        const auto* source = source_pixel_at(solve_bounds.left() + x + source_offset.x(),
+                                             solve_bounds.top() + y + source_offset.y());
         const auto index = (static_cast<std::size_t>(y) * static_cast<std::size_t>(solve_width) +
                             static_cast<std::size_t>(x)) *
                            3U;
@@ -393,7 +531,7 @@ void CanvasWidget::commit_patch_tool_drag() {
       if (coverage != 0U) {
         continue;
       }
-      const auto* source = snapshot_pixel(doc_x + source_offset.x(), doc_y + source_offset.y());
+      const auto* source = source_pixel_at(doc_x + source_offset.x(), doc_y + source_offset.y());
       if (transparent) {
         for (int channel = 0; channel < 3; ++channel) {
           membrane[index * 3U + static_cast<std::size_t>(channel)] = static_cast<std::int16_t>(
@@ -401,7 +539,7 @@ void CanvasWidget::commit_patch_tool_drag() {
               static_cast<int>(source[channel]));
         }
       } else {
-        const auto* destination = snapshot_pixel(doc_x, doc_y);
+        const auto* destination = tone_pixel_at(doc_x, doc_y);
         for (int channel = 0; channel < 3; ++channel) {
           membrane[index * 3U + static_cast<std::size_t>(channel)] = static_cast<std::int16_t>(
               static_cast<int>(destination[channel]) - static_cast<int>(source[channel]));
@@ -457,8 +595,8 @@ void CanvasWidget::commit_patch_tool_drag() {
         }
 
         std::array<std::uint8_t, 4> healed{};
-        const auto* source_pixel =
-            snapshot.constScanLine(source_point.y()) + static_cast<std::size_t>(source_point.x()) * 4U;
+        const auto* source_pixel = source_snapshot.constScanLine(source_point.y()) +
+                                   static_cast<std::size_t>(source_point.x()) * 4U;
         if (transparent) {
           // Texture-only transfer: the source's high-pass detail (source
           // minus its box-blurred local mean) over the destination pixel,
@@ -468,7 +606,7 @@ void CanvasWidget::commit_patch_tool_drag() {
               static_cast<std::size_t>(document_point.y() - solve_bounds.top()) *
                   static_cast<std::size_t>(solve_width) +
               static_cast<std::size_t>(document_point.x() - solve_bounds.left());
-          const auto* destination_pixel = snapshot.constScanLine(document_point.y()) +
+          const auto* destination_pixel = tone_snapshot.constScanLine(document_point.y()) +
                                           static_cast<std::size_t>(document_point.x()) * 4U;
           for (std::size_t channel = 0; channel < 3; ++channel) {
             const auto detail =
@@ -536,51 +674,24 @@ void CanvasWidget::commit_patch_tool_drag() {
   } else {
     heal_rows(destination_bounds.top(), destination_bounds.bottom() + 1, true);
   }
-
-  if (mode == PatchToolMode::Destination) {
-    // Photoshop parity: the selection follows the copy to the drop location,
-    // as its own history step after the pixel step. Translates the live
-    // selection (the nudge_selection pattern) - the before-edit latch was
-    // already cleared by the outline gesture that built the selection.
-    const auto before = capture_selection_snapshot();
-    if (selection_mask_alpha_.isNull()) {
-      set_selection_from_region(selection_.translated(delta));
-    } else {
-      set_selection_from_mask(selection_.translated(delta), selection_mask_bounds_.translated(delta),
-                              selection_mask_alpha_);
-    }
-    record_selection_history(tr("Patch"), before);
-  }
-  end_processing_operation();
-  active_edit_target_changed_impl(QRegion(destination_bounds), DocumentChangeReason::BrushStrokeFinished);
-  update();
 }
 
-// Raw translated copy of the frozen snapshot - Photoshop also previews the
-// unhealed pixels while dragging; the heal itself is one-shot at release.
+// The drag shows no heal. Patch Source draws nothing here, only the moving outline
+// (draw_patch_tool_drag_outline): showing the dragged-to content inside the original
+// spot while dragging is a step of Adobe US 10332291 claim 1 (to 2033;
+// docs/legal-constraints.md), so the original spot stays as it is until release.
+// Patch Destination and Content-Aware Move draw a raw ghost of the region (the frozen
+// snapshot cut to the mask) at the pointer offset; the heal is one-shot at release.
 void CanvasWidget::draw_patch_tool_drag_preview(QPainter& painter) const {
-  if (!patch_tool_dragging_ || patch_tool_source_image_.isNull()) {
+  if (!patch_tool_dragging_ || patch_tool_drag_proxy_image_.isNull()) {
+    return;
+  }
+  if (!patch_tool_drag_content_aware_move_ && patch_tool_mode_ == PatchToolMode::Source) {
     return;
   }
   const auto bounds = patch_tool_drag_mask_bounds_;
-  if (patch_tool_mode_ == PatchToolMode::Source) {
-    if (patch_tool_outline_path_.isEmpty()) {
-      return;
-    }
-    painter.save();
-    const auto origin = widget_position_f(QPointF(0.0, 0.0));
-    const QTransform document_to_widget(zoom_, 0.0, 0.0, zoom_, origin.x(), origin.y());
-    painter.setClipPath(document_to_widget.map(patch_tool_outline_path_), Qt::IntersectClip);
-    painter.drawImage(widget_rect_for_document_rect(QRectF(bounds)), patch_tool_source_image_,
-                      QRectF(bounds.translated(patch_tool_drag_delta_)));
-    painter.restore();
-  } else {
-    if (patch_tool_drag_proxy_image_.isNull()) {
-      return;
-    }
-    painter.drawImage(widget_rect_for_document_rect(QRectF(bounds.translated(patch_tool_drag_delta_))),
-                      patch_tool_drag_proxy_image_, QRectF(patch_tool_drag_proxy_image_.rect()));
-  }
+  painter.drawImage(widget_rect_for_document_rect(QRectF(bounds.translated(patch_tool_drag_delta_))),
+                    patch_tool_drag_proxy_image_, QRectF(patch_tool_drag_proxy_image_.rect()));
 }
 
 // The dragged region's outline at its current offset, stroked with the ants

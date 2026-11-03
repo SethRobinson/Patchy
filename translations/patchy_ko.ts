@@ -14817,6 +14817,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Set the values the sliders show back to their defaults</source>
         <translation>슬라이더 값을 기본값으로 되돌립니다</translation>
     </message>
+    <message>
+        <source>Extend</source>
+        <translation>확장</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>내용 인식 이동</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -16905,6 +16913,26 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
         <translation>클릭하면 점 추가, 드래그하면 모양 변경, Shift+클릭하면 세그먼트 선택</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move is unavailable while editing a grayscale channel</source>
+        <translation>회색조 채널을 편집하는 동안 내용 인식 이동을 사용할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move Selection</source>
+        <translation>내용 인식 이동 선택</translation>
+    </message>
+    <message>
+        <source>Drag the selection to where the object should go</source>
+        <translation>선택 항목을 개체가 들어갈 위치로 드래그하세요.</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move needs unselected pixels around the selection to fill from</source>
+        <translation>내용 인식 이동으로 채우려면 선택 영역 주변에 선택되지 않은 픽셀이 필요합니다.</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>내용 인식 이동</translation>
     </message>
 </context>
 <context>
@@ -19007,6 +19035,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Show the folder of companion app manifests on disk</source>
         <translation>디스크에서 컴패니언 앱 매니페스트 폴더를 표시합니다</translation>
+    </message>
+    <message>
+        <source>Move or copy a selected object and fill the spot it leaves</source>
+        <translation>선택한 개체를 이동하거나 복사하고 남은 자리를 채웁니다</translation>
     </message>
 </context>
 <context>
@@ -31987,6 +32019,22 @@ Locked: %1</source>
     <message>
         <source>About GEGL...</source>
         <translation>GEGL 정보...</translation>
+    </message>
+    <message>
+        <source>Extend</source>
+        <translation>확장</translation>
+    </message>
+    <message>
+        <source>Move fills the spot the selection leaves; Extend keeps the original and adds a copy</source>
+        <translation>이동은 선택 영역이 떠난 자리를 채우고, 확장은 원본을 유지하고 복사본을 추가합니다</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>내용 인식 이동</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move: draw around an object, then drag the selection to its new place. Move fills the spot it leaves, Extend keeps the original.</source>
+        <translation>내용 인식 이동: 개체 주위를 그린 다음 선택 항목을 새 위치로 드래그합니다. 이동은 남은 자리를 채우고, 확장은 원본을 유지합니다.</translation>
     </message>
 </context>
 <context>

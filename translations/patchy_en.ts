@@ -14845,6 +14845,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Set the values the sliders show back to their defaults</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Extend</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -16932,6 +16940,26 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Content-Aware Move is unavailable while editing a grayscale channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Content-Aware Move Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag the selection to where the object should go</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Content-Aware Move needs unselected pixels around the selection to fill from</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -19034,6 +19062,10 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Show the folder of companion app manifests on disk</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move or copy a selected object and fill the spot it leaves</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -31989,6 +32021,22 @@ Locked: %1</source>
     </message>
     <message>
         <source>About GEGL...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Extend</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Move fills the spot the selection leaves; Extend keeps the original and adds a copy</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Content-Aware Move: draw around an object, then drag the selection to its new place. Move fills the spot it leaves, Extend keeps the original.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

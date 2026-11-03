@@ -34,7 +34,8 @@ std::pair<std::int32_t, std::int32_t> SpotHealSourceMap::map(std::int32_t x, std
 }
 
 SpotHealSourceMap spot_heal_source_map(const std::uint8_t* mask, Rect bounds, std::int32_t canvas_width,
-                                       std::int32_t canvas_height, std::int32_t margin, std::int32_t attempt) {
+                                       std::int32_t canvas_height, std::int32_t margin, std::int32_t attempt,
+                                       const std::uint8_t* excluded, Rect excluded_bounds) {
   SpotHealSourceMap result;
   if (mask == nullptr || bounds.width <= 0 || bounds.height <= 0 || canvas_width <= 0 ||
       canvas_height <= 0) {
@@ -69,6 +70,15 @@ SpotHealSourceMap spot_heal_source_map(const std::uint8_t* mask, Rect bounds, st
     }
     return mask[static_cast<std::size_t>(doc_y - bounds.y) * static_cast<std::size_t>(width) +
                 static_cast<std::size_t>(doc_x - bounds.x)] != 0U;
+  };
+
+  const auto excluded_at = [&](std::int32_t doc_x, std::int32_t doc_y) {
+    if (excluded == nullptr || !excluded_bounds.contains(doc_x, doc_y)) {
+      return false;
+    }
+    return excluded[static_cast<std::size_t>(doc_y - excluded_bounds.y) *
+                        static_cast<std::size_t>(excluded_bounds.width) +
+                    static_cast<std::size_t>(doc_x - excluded_bounds.x)] != 0U;
   };
 
   // March from the centroid along a direction until the footprint ends; the
@@ -146,7 +156,8 @@ SpotHealSourceMap spot_heal_source_map(const std::uint8_t* mask, Rect bounds, st
           continue;
         }
         const auto [sx, sy] = candidate.map(bounds.x + x, bounds.y + y);
-        if (sx < 0 || sy < 0 || sx >= canvas_width || sy >= canvas_height || covered_at(sx, sy)) {
+        if (sx < 0 || sy < 0 || sx >= canvas_width || sy >= canvas_height || covered_at(sx, sy) ||
+            excluded_at(sx, sy)) {
           ++violations;
         }
       }

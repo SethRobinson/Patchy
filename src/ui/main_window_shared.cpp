@@ -893,6 +893,8 @@ QString tool_name(CanvasTool tool) {
       return QObject::tr("Spot Healing");
     case CanvasTool::PatchTool:
       return QObject::tr("Patch");
+    case CanvasTool::ContentAwareMove:
+      return QObject::tr("Content-Aware Move");
     case CanvasTool::RedEye:
       return QObject::tr("Red Eye");
     case CanvasTool::Crop:

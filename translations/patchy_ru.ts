@@ -14907,6 +14907,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Set the values the sliders show back to their defaults</source>
         <translation>Возвращает ползункам значения по умолчанию</translation>
     </message>
+    <message>
+        <source>Extend</source>
+        <translation>Расширение</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>Перемещение с учетом содержимого</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -16995,6 +17003,26 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
         <translation>Щелчок добавляет точку, перетаскивание меняет форму, Shift+щелчок выбирает сегмент</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move is unavailable while editing a grayscale channel</source>
+        <translation>Инструмент «Перемещение с учетом содержимого» недоступен при редактировании канала в градациях серого</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move Selection</source>
+        <translation>Выделение для перемещения с учетом содержимого</translation>
+    </message>
+    <message>
+        <source>Drag the selection to where the object should go</source>
+        <translation>Перетащите выделение туда, где должен находиться объект.</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move needs unselected pixels around the selection to fill from</source>
+        <translation>Для перемещения с учетом содержимого нужны невыделенные пиксели вокруг выделения, из которых выполняется заливка</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>Перемещение с учетом содержимого</translation>
     </message>
 </context>
 <context>
@@ -19097,6 +19125,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Show the folder of companion app manifests on disk</source>
         <translation>Показывает на диске папку с манифестами сопутствующих приложений</translation>
+    </message>
+    <message>
+        <source>Move or copy a selected object and fill the spot it leaves</source>
+        <translation>Переместить или скопировать выделенный объект и заполнить оставшееся место</translation>
     </message>
 </context>
 <context>
@@ -32155,6 +32187,22 @@ Locked: %1</source>
     <message>
         <source>About GEGL...</source>
         <translation>О GEGL...</translation>
+    </message>
+    <message>
+        <source>Extend</source>
+        <translation>Расширение</translation>
+    </message>
+    <message>
+        <source>Move fills the spot the selection leaves; Extend keeps the original and adds a copy</source>
+        <translation>«Перемещение» заполняет место, которое оставляет выделение; «Расширение» сохраняет оригинал и добавляет копию</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>Перемещение с учетом содержимого</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move: draw around an object, then drag the selection to its new place. Move fills the spot it leaves, Extend keeps the original.</source>
+        <translation>Перемещение с учетом содержимого: обведите объект, затем перетащите выделение на новое место. «Перемещение» заполняет оставшееся место, «Расширение» сохраняет оригинал.</translation>
     </message>
 </context>
 <context>

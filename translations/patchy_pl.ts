@@ -14907,6 +14907,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Set the values the sliders show back to their defaults</source>
         <translation>Przywraca domyślne wartości suwaków</translation>
     </message>
+    <message>
+        <source>Extend</source>
+        <translation>Rozszerz</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>Przesunięcie z uwzględnieniem zawartości</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -16995,6 +17003,26 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Click to add a point, drag to reshape, Shift+click to select the segment</source>
         <translation>Kliknij, aby dodać punkt, przeciągnij, aby zmienić kształt, Shift+klik wybiera segment</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move is unavailable while editing a grayscale channel</source>
+        <translation>Przesunięcie z uwzględnieniem zawartości jest niedostępne podczas edycji kanału w skali szarości</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move Selection</source>
+        <translation>Zaznaczenie przesunięcia z uwzględnieniem zawartości</translation>
+    </message>
+    <message>
+        <source>Drag the selection to where the object should go</source>
+        <translation>Przeciągnij zaznaczenie do miejsca, w którym powinien znaleźć się obiekt</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move needs unselected pixels around the selection to fill from</source>
+        <translation>Przesunięcie z uwzględnieniem zawartości wymaga niezaznaczonych pikseli wokół zaznaczenia do wypełnienia</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>Przesunięcie z uwzględnieniem zawartości</translation>
     </message>
 </context>
 <context>
@@ -19097,6 +19125,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Show the folder of companion app manifests on disk</source>
         <translation>Pokazuje na dysku folder z manifestami aplikacji towarzyszących</translation>
+    </message>
+    <message>
+        <source>Move or copy a selected object and fill the spot it leaves</source>
+        <translation>Przesuń lub skopiuj zaznaczony obiekt i wypełnij miejsce, które zostawia</translation>
     </message>
 </context>
 <context>
@@ -32155,6 +32187,22 @@ Zablokowano: %1</translation>
     <message>
         <source>About GEGL...</source>
         <translation>O GEGL...</translation>
+    </message>
+    <message>
+        <source>Extend</source>
+        <translation>Rozszerz</translation>
+    </message>
+    <message>
+        <source>Move fills the spot the selection leaves; Extend keeps the original and adds a copy</source>
+        <translation>Przesunięcie wypełnia miejsce, które zostawia zaznaczenie; Rozszerz zachowuje oryginał i dodaje kopię</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move</source>
+        <translation>Przesunięcie z uwzględnieniem zawartości</translation>
+    </message>
+    <message>
+        <source>Content-Aware Move: draw around an object, then drag the selection to its new place. Move fills the spot it leaves, Extend keeps the original.</source>
+        <translation>Przesunięcie z uwzględnieniem zawartości: obrysuj obiekt, a potem przeciągnij zaznaczenie w nowe miejsce. Przesunięcie wypełnia miejsce, które zostawia, Rozszerz zachowuje oryginał.</translation>
     </message>
 </context>
 <context>

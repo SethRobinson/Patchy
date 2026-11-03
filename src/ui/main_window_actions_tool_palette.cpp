@@ -174,6 +174,8 @@ const char* tool_action_source(CanvasTool tool) {
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Spot Healing");
     case CanvasTool::PatchTool:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Patch");
+    case CanvasTool::ContentAwareMove:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Content-Aware Move");
     case CanvasTool::RedEye:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Red Eye");
     case CanvasTool::Crop:
@@ -272,6 +274,8 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.spot_healing");
     case CanvasTool::PatchTool:
       return QStringLiteral("tools.patch");
+    case CanvasTool::ContentAwareMove:
+      return QStringLiteral("tools.content_aware_move");
     case CanvasTool::RedEye:
       return QStringLiteral("tools.red_eye");
     case CanvasTool::Crop:
@@ -382,6 +386,9 @@ const char* tool_activation_hint_source(CanvasTool tool) {
              "Pupil Size takes in more of the reddish rim, Darken Amount sets how dark the pupil gets.");
     case CanvasTool::PatchTool:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Patch: draw around the area to fix, then drag the selection to a clean source area, or press Enter to remove the object automatically");
+    case CanvasTool::ContentAwareMove:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Content-Aware Move: draw around an object, then drag the selection to its new place. "
+             "Move fills the spot it leaves, Extend keeps the original.");
     // The selection tools name their Shift / Alt combinations (GitHub issue 192); the
     // cursor already shows the drag, resize and move gestures. Shift+Alt intersects
     // everywhere except Quick Select and Object Selection, which treat it as Add.
@@ -444,6 +451,7 @@ const char* paint_tool_hint_source(CanvasTool tool) {
 QString tool_action_object_name(CanvasTool tool) {
   auto name = QString::fromLatin1(tool_action_source(tool));
   name.remove(QLatin1Char(' '));
+  name.remove(QLatin1Char('-'));  // "Content-Aware Move" -> toolContentAwareMoveAction
   return QStringLiteral("tool") + name + QStringLiteral("Action");
 }
 
@@ -451,6 +459,7 @@ QString tool_action_object_name(CanvasTool tool) {
 QString plain_tool_button_object_name(CanvasTool tool) {
   auto name = QString::fromLatin1(tool_action_source(tool));
   name.remove(QLatin1Char(' '));
+  name.remove(QLatin1Char('-'));
   if (!name.isEmpty()) {
     name[0] = name[0].toLower();
   }
@@ -1436,6 +1445,9 @@ QIcon tool_icon(CanvasTool tool) {
     case CanvasTool::PatchTool:
       name = "tool-patch";
       break;
+    case CanvasTool::ContentAwareMove:
+      name = "tool-content-aware-move";
+      break;
     case CanvasTool::RedEye:
       name = "tool-red-eye";
       break;
@@ -1748,12 +1760,15 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
                                                         QKeySequence());
   auto* patch_action =
       create_flyout_tool_action(healing_menu, tr("Patch"), CanvasTool::PatchTool, QKeySequence());
+  auto* content_aware_move_action = create_flyout_tool_action(healing_menu, tr("Content-Aware Move"),
+                                                              CanvasTool::ContentAwareMove, QKeySequence());
   auto* red_eye_action =
       create_flyout_tool_action(healing_menu, tr("Red Eye"), CanvasTool::RedEye, QKeySequence());
   auto* healing_tool_button = new QToolButton(tool_palette);
   healing_tool_button->setObjectName(QStringLiteral("healingToolButton"));
   configure_tool_flyout(tool_palette, healing_menu, healing_tool_button, healing_action,
-                        {healing_action, spot_healing_action, patch_action, red_eye_action},
+                        {healing_action, spot_healing_action, patch_action, content_aware_move_action,
+                         red_eye_action},
                         QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Cycle Healing Tools"),
                         "toolCycleHealingAction", "tools.cycle.healing", QKeySequence(Qt::SHIFT | Qt::Key_J));
 

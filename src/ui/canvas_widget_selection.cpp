@@ -194,6 +194,8 @@ int CanvasWidget::selection_tool_index(CanvasTool tool) noexcept {
       return 7;
     case CanvasTool::PolygonLasso:
       return 8;
+    case CanvasTool::ContentAwareMove:
+      return 9;
     default:
       return -1;
   }

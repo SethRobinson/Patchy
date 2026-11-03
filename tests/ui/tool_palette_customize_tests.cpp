@@ -238,7 +238,7 @@ void ui_tool_palette_customize_hidden_tools_keep_hotkeys() {
   CHECK(healing_button->menu() != nullptr && !healing_button->menu()->actions().contains(red_eye));
   CHECK(healing_button->menu()->actions().contains(cycle));
   CHECK(healing_button->menu()->actions().last() == cycle);
-  require_action(window, "toolPatchAction")->trigger();
+  require_action(window, "toolContentAwareMoveAction")->trigger();
   QApplication::processEvents();
   QTest::keyClick(canvas, Qt::Key_J, Qt::ShiftModifier);
   QApplication::processEvents();
@@ -250,13 +250,14 @@ void ui_tool_palette_customize_hidden_tools_keep_hotkeys() {
 
   // Every healing member hidden: the slot leaves the palette, Shift+J walks them all.
   customization.hidden_tools << QStringLiteral("tools.healing") << QStringLiteral("tools.spot_healing")
-                             << QStringLiteral("tools.patch");
+                             << QStringLiteral("tools.patch") << QStringLiteral("tools.content_aware_move");
   window.apply_tool_palette_customization(customization);
   settle();
   CHECK(!on_palette(*palette, healing_button));
   QTest::keyClick(canvas, Qt::Key_J, Qt::ShiftModifier);
   QApplication::processEvents();
   CHECK(canvas->tool() == patchy::ui::CanvasTool::Healing);
+  QTest::keyClick(canvas, Qt::Key_J, Qt::ShiftModifier);
   QTest::keyClick(canvas, Qt::Key_J, Qt::ShiftModifier);
   QTest::keyClick(canvas, Qt::Key_J, Qt::ShiftModifier);
   QTest::keyClick(canvas, Qt::Key_J, Qt::ShiftModifier);
@@ -268,7 +269,7 @@ void ui_tool_palette_customize_hidden_tools_keep_hotkeys() {
   settle();
   CHECK(on_palette(*palette, hand_button));
   CHECK(on_palette(*palette, healing_button));
-  CHECK(healing_button->menu()->actions().indexOf(red_eye) == 3);
+  CHECK(healing_button->menu()->actions().indexOf(red_eye) == 4);
   CHECK(palette->sizeHint().height() == full_height);
 }
 

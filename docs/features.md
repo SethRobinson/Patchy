@@ -18,10 +18,10 @@
 
 ## Painting, selections, and retouching
 
-- Raster editing tools: Brush with Flow and timed Airbrush buildup, Healing Brush, Spot Healing, Patch, Red Eye, Clone Stamp, Remove Object, Dodge, Burn, Sponge, Blur, Sharpen, Smudge, Eraser, selections, transforms, gradients (pixels or fill layers), shapes, and Edit > Fill (color, mode, opacity, Content-Aware)
+- Raster editing tools: Brush with Flow and timed Airbrush buildup, Healing Brush, Spot Healing, Patch, Content-Aware Move, Red Eye, Clone Stamp, Remove Object, Dodge, Burn, Sponge, Blur, Sharpen, Smudge, Eraser, selections, transforms, gradients (pixels or fill layers), shapes, and Edit > Fill (color, mode, opacity, Content-Aware)
 - With a selection, a Move drag inside it moves the selected pixels, and Free Transform, Skew, Distort and Perspective transform them; the selection follows
 - Ctrl-drag a corner or side of the Move tool's transform box to distort it; Ctrl mid-drag toggles distort and resize
-- Retouch sampling from Current Layer, Current & Below, or All Layers, with Ignore Adjustment Layers. Healing Brush blends the stroke on release and offers Replace and blend modes; Red Eye works with a click or a box over the eye
+- Retouch sampling from Current Layer, Current & Below, or All Layers, with Ignore Adjustment Layers. Healing Brush heals the stroke on release and offers Replace and blend modes; Red Eye takes a click or a box
 - Clone source settings on the Clone Stamp gear: four saved sources (each clearable), offset, scale, rotation, flips and a source overlay
 - Brush tips (.abr import from the last folder, from selections, a name filter) with texture, dual brush, wet edges and pen-driven size, opacity, flow, scatter and color dynamics; the tip and dynamics windows can stay open; the Brush gear previews the dab or hides the outline
 - Mixer Brush with Wet, Load, Mix, Flow and Sample All Layers controls; stroke smoothing with pulled-string and catch-up options

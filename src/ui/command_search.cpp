@@ -465,6 +465,8 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"tools.healing", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Repair blemishes with sampled pixels")},
     {"tools.spot_healing", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Remove spots with one click")},
     {"tools.patch", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Replace an area with pixels from elsewhere")},
+    {"tools.content_aware_move",
+     QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Move or copy a selected object and fill the spot it leaves")},
     {"tools.red_eye", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Fix red eyes in photos")},
     {"tools.smudge", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Smear paint")},
     {"tools.dodge", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Lighten areas")},
