@@ -14934,6 +14934,22 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Fill Layer Settings</source>
         <translation>Configuración de capa de relleno</translation>
     </message>
+    <message>
+        <source>Smooth Selection</source>
+        <translation>Suavizar selección</translation>
+    </message>
+    <message>
+        <source>Sample radius</source>
+        <translation>Radio de muestra</translation>
+    </message>
+    <message>
+        <source>Feather Selection</source>
+        <translation>Calar selección</translation>
+    </message>
+    <message>
+        <source>Feather radius</source>
+        <translation>Radio de calado</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17087,6 +17103,18 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Warp works on layers. Apply the selection transform first.</source>
         <translation>Deformar funciona sobre capas. Aplique primero la transformación de la selección.</translation>
     </message>
+    <message>
+        <source>Smoothing removed the whole selection</source>
+        <translation>El suavizado eliminó toda la selección</translation>
+    </message>
+    <message>
+        <source>Smoothed selection by %1 px</source>
+        <translation>Selección suavizada %1 px</translation>
+    </message>
+    <message>
+        <source>Feathered selection by %1 px</source>
+        <translation>Selección calada %1 px</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19204,6 +19232,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Resize, rotate or skew the selection outline</source>
         <translation>Cambiar el tamaño, girar o sesgar el contorno de la selección</translation>
+    </message>
+    <message>
+        <source>Round off corners and remove specks</source>
+        <translation>Redondear esquinas y quitar motas</translation>
+    </message>
+    <message>
+        <source>Soften the selection edge</source>
+        <translation>Suavizar el borde de la selección</translation>
     </message>
 </context>
 <context>
@@ -32336,6 +32372,38 @@ Bloqueada: %1</translation>
         <source>Scale, rotate or distort the selection outline without moving pixels</source>
         <translation>Escalar, girar o distorsionar el contorno de la selección sin mover píxeles</translation>
     </message>
+    <message>
+        <source>S&amp;mooth...</source>
+        <translation>S&amp;uavizar...</translation>
+    </message>
+    <message>
+        <source>Round off the selection&apos;s corners and drop small specks and holes</source>
+        <translation>Redondea las esquinas de la selección y quita motas y huecos pequeños</translation>
+    </message>
+    <message>
+        <source>Soften the selection&apos;s edge</source>
+        <translation>Suaviza el borde de la selección</translation>
+    </message>
+    <message>
+        <source>Make a selection before smoothing</source>
+        <translation>Haga una selección antes de suavizar</translation>
+    </message>
+    <message>
+        <source>Smooth Selection</source>
+        <translation>Suavizar selección</translation>
+    </message>
+    <message>
+        <source>Make a selection before feathering</source>
+        <translation>Haga una selección antes de calar</translation>
+    </message>
+    <message>
+        <source>Feather Selection</source>
+        <translation>Calar selección</translation>
+    </message>
+    <message>
+        <source>Feat&amp;her...</source>
+        <translation>Ca&amp;lar...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34583,6 +34651,14 @@ Bloqueada: %1</translation>
     <message>
         <source>createWorkPath: the text has no outlines</source>
         <translation>createWorkPath: el texto no tiene contornos</translation>
+    </message>
+    <message>
+        <source>smooth needs a whole radius from %1 to %2.</source>
+        <translation>smooth necesita un radio entero de %1 a %2.</translation>
+    </message>
+    <message>
+        <source>feather needs a radius from %1 to %2.</source>
+        <translation>feather necesita un radio de %1 a %2.</translation>
     </message>
 </context>
 <context>

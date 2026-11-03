@@ -14889,6 +14889,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Fill Layer Settings</source>
         <translation>채우기 레이어 설정</translation>
     </message>
+    <message>
+        <source>Smooth Selection</source>
+        <translation>선택 영역 매끄럽게</translation>
+    </message>
+    <message>
+        <source>Sample radius</source>
+        <translation>샘플 반경</translation>
+    </message>
+    <message>
+        <source>Feather Selection</source>
+        <translation>선택 영역 페더</translation>
+    </message>
+    <message>
+        <source>Feather radius</source>
+        <translation>페더 반경</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17042,6 +17058,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Warp works on layers. Apply the selection transform first.</source>
         <translation>뒤틀기는 레이어에 적용됩니다. 먼저 선택 영역 변형을 적용하세요.</translation>
     </message>
+    <message>
+        <source>Smoothing removed the whole selection</source>
+        <translation>매끄럽게 하기로 선택 영역이 모두 사라졌습니다</translation>
+    </message>
+    <message>
+        <source>Smoothed selection by %1 px</source>
+        <translation>선택 영역을 %1픽셀만큼 매끄럽게 했습니다</translation>
+    </message>
+    <message>
+        <source>Feathered selection by %1 px</source>
+        <translation>선택 영역을 %1픽셀만큼 페더했습니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19159,6 +19187,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Resize, rotate or skew the selection outline</source>
         <translation>선택 영역 윤곽의 크기 조절, 회전 또는 기울이기</translation>
+    </message>
+    <message>
+        <source>Round off corners and remove specks</source>
+        <translation>모서리를 둥글게 하고 작은 점 제거</translation>
+    </message>
+    <message>
+        <source>Soften the selection edge</source>
+        <translation>선택 영역 가장자리 부드럽게</translation>
     </message>
 </context>
 <context>
@@ -32252,6 +32288,38 @@ Locked: %1</source>
         <source>Scale, rotate or distort the selection outline without moving pixels</source>
         <translation>픽셀을 옮기지 않고 선택 영역 윤곽을 크기 조절, 회전 또는 왜곡합니다</translation>
     </message>
+    <message>
+        <source>S&amp;mooth...</source>
+        <translation>매끄럽게(&amp;M)...</translation>
+    </message>
+    <message>
+        <source>Round off the selection&apos;s corners and drop small specks and holes</source>
+        <translation>선택 영역의 모서리를 둥글게 하고 작은 점과 구멍을 제거합니다</translation>
+    </message>
+    <message>
+        <source>Soften the selection&apos;s edge</source>
+        <translation>선택 영역의 가장자리를 부드럽게 합니다</translation>
+    </message>
+    <message>
+        <source>Make a selection before smoothing</source>
+        <translation>매끄럽게 하기 전에 선택하세요.</translation>
+    </message>
+    <message>
+        <source>Smooth Selection</source>
+        <translation>선택 영역 매끄럽게</translation>
+    </message>
+    <message>
+        <source>Make a selection before feathering</source>
+        <translation>페더하기 전에 선택하세요.</translation>
+    </message>
+    <message>
+        <source>Feather Selection</source>
+        <translation>선택 영역 페더</translation>
+    </message>
+    <message>
+        <source>Feat&amp;her...</source>
+        <translation>페더(&amp;H)...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34498,6 +34566,14 @@ Locked: %1</source>
     <message>
         <source>createWorkPath: the text has no outlines</source>
         <translation>createWorkPath: 텍스트에 윤곽선이 없습니다</translation>
+    </message>
+    <message>
+        <source>smooth needs a whole radius from %1 to %2.</source>
+        <translation>smooth에는 %1에서 %2 사이의 정수 반경이 필요합니다.</translation>
+    </message>
+    <message>
+        <source>feather needs a radius from %1 to %2.</source>
+        <translation>feather에는 %1에서 %2 사이의 반경이 필요합니다.</translation>
     </message>
 </context>
 <context>

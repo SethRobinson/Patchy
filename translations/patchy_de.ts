@@ -14934,6 +14934,22 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Fill Layer Settings</source>
         <translation>Füllebenen-Einstellungen</translation>
     </message>
+    <message>
+        <source>Smooth Selection</source>
+        <translation>Auswahl glätten</translation>
+    </message>
+    <message>
+        <source>Sample radius</source>
+        <translation>Radius</translation>
+    </message>
+    <message>
+        <source>Feather Selection</source>
+        <translation>Weiche Auswahlkante</translation>
+    </message>
+    <message>
+        <source>Feather radius</source>
+        <translation>Radius der weichen Kante</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17087,6 +17103,18 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Warp works on layers. Apply the selection transform first.</source>
         <translation>Verkrümmen wirkt auf Ebenen. Wenden Sie zuerst die Auswahltransformation an.</translation>
     </message>
+    <message>
+        <source>Smoothing removed the whole selection</source>
+        <translation>Das Glätten hat die gesamte Auswahl entfernt</translation>
+    </message>
+    <message>
+        <source>Smoothed selection by %1 px</source>
+        <translation>Auswahl um %1 px geglättet</translation>
+    </message>
+    <message>
+        <source>Feathered selection by %1 px</source>
+        <translation>Auswahlkante um %1 px weichgezeichnet</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19204,6 +19232,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Resize, rotate or skew the selection outline</source>
         <translation>Auswahlkontur skalieren, drehen oder neigen</translation>
+    </message>
+    <message>
+        <source>Round off corners and remove specks</source>
+        <translation>Ecken abrunden und Sprenkel entfernen</translation>
+    </message>
+    <message>
+        <source>Soften the selection edge</source>
+        <translation>Die Auswahlkante weichzeichnen</translation>
     </message>
 </context>
 <context>
@@ -32336,6 +32372,38 @@ Fixiert: %1</translation>
         <source>Scale, rotate or distort the selection outline without moving pixels</source>
         <translation>Auswahlkontur skalieren, drehen oder verzerren, ohne Pixel zu verschieben</translation>
     </message>
+    <message>
+        <source>S&amp;mooth...</source>
+        <translation>&amp;Glätten...</translation>
+    </message>
+    <message>
+        <source>Round off the selection&apos;s corners and drop small specks and holes</source>
+        <translation>Rundet die Ecken der Auswahl ab und entfernt kleine Sprenkel und Löcher</translation>
+    </message>
+    <message>
+        <source>Soften the selection&apos;s edge</source>
+        <translation>Zeichnet die Kante der Auswahl weich</translation>
+    </message>
+    <message>
+        <source>Make a selection before smoothing</source>
+        <translation>Erstellen Sie vor dem Glätten eine Auswahl</translation>
+    </message>
+    <message>
+        <source>Smooth Selection</source>
+        <translation>Auswahl glätten</translation>
+    </message>
+    <message>
+        <source>Make a selection before feathering</source>
+        <translation>Erstellen Sie vor dem Weichzeichnen eine Auswahl</translation>
+    </message>
+    <message>
+        <source>Feather Selection</source>
+        <translation>Weiche Auswahlkante</translation>
+    </message>
+    <message>
+        <source>Feat&amp;her...</source>
+        <translation>&amp;Weiche Kante...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34583,6 +34651,14 @@ Fixiert: %1</translation>
     <message>
         <source>createWorkPath: the text has no outlines</source>
         <translation>createWorkPath: Der Text hat keine Konturen</translation>
+    </message>
+    <message>
+        <source>smooth needs a whole radius from %1 to %2.</source>
+        <translation>smooth benötigt einen ganzzahligen Radius von %1 bis %2.</translation>
+    </message>
+    <message>
+        <source>feather needs a radius from %1 to %2.</source>
+        <translation>feather benötigt einen Radius von %1 bis %2.</translation>
     </message>
 </context>
 <context>

@@ -1855,6 +1855,18 @@ void ScriptEngineHost::select_region(std::int64_t session_id, const QRegion& reg
   canvas->apply_selection_snapshot(snapshot);
 }
 
+void ScriptEngineHost::smooth_selection(std::int64_t session_id, int radius) {
+  if (auto* canvas = session_canvas(session_id)) {
+    canvas->smooth_selection(radius);
+  }
+}
+
+void ScriptEngineHost::feather_selection(std::int64_t session_id, double radius) {
+  if (auto* canvas = session_canvas(session_id)) {
+    canvas->feather_selection(radius);
+  }
+}
+
 QRegion ScriptEngineHost::selection_region(std::int64_t session_id) const {
   auto* canvas = session_canvas(session_id);
   return canvas != nullptr ? canvas->capture_selection_snapshot().selection : QRegion();

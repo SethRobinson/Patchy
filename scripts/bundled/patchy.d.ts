@@ -763,6 +763,14 @@ interface PatchySelection {
   selectRect(x: number, y: number, width: number, height: number): void;
   selectEllipse(x: number, y: number, width: number, height: number): void;
   /**
+   * Select > Smooth: a majority vote over a square window of `radius` px (a whole number, 1..500)
+   * rounds corners and removes specks and holes smaller than about the radius. No-op without a
+   * selection; throws for a radius out of range.
+   */
+  smooth(radius: number): void;
+  /** Select > Feather: softens the selection edge by `radius` px (0.1..1000). Same rules as smooth. */
+  feather(radius: number): void;
+  /**
    * True when this build ships automatic selection (desktop builds with the bundled models,
    * and the web build, whose first objectSelect downloads the models). selectSubject and
    * objectSelect throw when it is false.

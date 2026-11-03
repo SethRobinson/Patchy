@@ -96,6 +96,8 @@
 #include "formats/svg_document_io.hpp"
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/selection_modify_dialogs.hpp"
+#include "core/selection_modify.hpp"
 #include "ui/brush_dynamics_popup.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/image_document_io.hpp"
@@ -6044,6 +6046,39 @@ void MainWindow::border_selection_dialog() {
   if (pixels.has_value()) {
     canvas_->run_selection_command(tr("Border Selection"), [this, pixels] { canvas_->border_selection(*pixels); });
   }
+}
+
+// Select > Smooth and Select > Feather (GitHub issue 614): each remembers its last radius.
+void MainWindow::smooth_selection_dialog() {
+  if (!canvas_->has_selection()) {
+    show_status_error(tr("Make a selection before smoothing"));
+    return;
+  }
+  const auto key = QString::fromLatin1(kSelectionSmoothRadiusKey);
+  const auto remembered = std::clamp(app_settings().value(key, kMinSelectionSmoothRadius).toInt(),
+                                     kMinSelectionSmoothRadius, kMaxSelectionSmoothRadius);
+  const auto radius = request_selection_smooth_radius(this, remembered);
+  if (!radius.has_value() || canvas_ == nullptr || !canvas_->has_selection()) {
+    return;
+  }
+  app_settings().setValue(key, *radius);
+  canvas_->run_selection_command(tr("Smooth Selection"), [this, radius] { canvas_->smooth_selection(*radius); });
+}
+
+void MainWindow::feather_selection_dialog() {
+  if (!canvas_->has_selection()) {
+    show_status_error(tr("Make a selection before feathering"));
+    return;
+  }
+  const auto key = QString::fromLatin1(kSelectionFeatherRadiusKey);
+  const auto remembered = std::clamp(app_settings().value(key, 5.0).toDouble(), kMinSelectionFeatherCommandRadius,
+                                     kMaxSelectionFeatherCommandRadius);
+  const auto radius = request_selection_feather_radius(this, remembered);
+  if (!radius.has_value() || canvas_ == nullptr || !canvas_->has_selection()) {
+    return;
+  }
+  app_settings().setValue(key, *radius);
+  canvas_->run_selection_command(tr("Feather Selection"), [this, radius] { canvas_->feather_selection(*radius); });
 }
 
 bool MainWindow::refuse_layer_alignment_command() {

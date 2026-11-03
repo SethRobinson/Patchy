@@ -1014,10 +1014,31 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(transform_selection_action, &QAction::triggered, this, [this] { transform_selection(); });
   register_document_action(transform_selection_action);
   transform_selection_action_ = transform_selection_action;
+  // Select > Smooth and Select > Feather (GitHub issue 614, docs/selection-modify.md).
+  auto* smooth_selection_action = new QAction(this);
+  smooth_selection_action->setObjectName(QStringLiteral("selectSmoothAction"));
+  smooth_selection_action->setMenuRole(QAction::NoRole);
+  bind_action_text(smooth_selection_action, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "S&mooth..."));
+  bind_translated_status_tip(smooth_selection_action,
+                             QT_TRANSLATE_NOOP("patchy::ui::MainWindow",
+                                               "Round off the selection's corners and drop small specks and holes"));
+  apply_bound_translation(smooth_selection_action);
+  register_hotkey(smooth_selection_action, "select.smooth");
+  connect(smooth_selection_action, &QAction::triggered, this, [this] { smooth_selection_dialog(); });
+  auto* feather_selection_action = new QAction(this);
+  feather_selection_action->setObjectName(QStringLiteral("selectFeatherAction"));
+  feather_selection_action->setMenuRole(QAction::NoRole);
+  bind_action_text(feather_selection_action, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Feat&her..."));
+  bind_translated_status_tip(feather_selection_action,
+                             QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Soften the selection's edge"));
+  apply_bound_translation(feather_selection_action);
+  register_hotkey(feather_selection_action, "select.feather", QKeySequence(Qt::SHIFT | Qt::Key_F6));
+  connect(feather_selection_action, &QAction::triggered, this, [this] { feather_selection_dialog(); });
   for (auto* action : {select_all_action, clear_selection_action, reselect_action, inverse_selection_action,
                        quick_mask_action_,
                        grow_selection_action, similar_selection_action, expand_selection_action,
-                       contract_selection_action, border_selection_action, layer_transparency_action,
+                       contract_selection_action, border_selection_action, smooth_selection_action,
+                       feather_selection_action, layer_transparency_action,
                        stroke_selection_action, remove_object_action, select_subject_action_,
                        select_background_action_, remove_background_action_, select_object_action_}) {
     register_document_action(action);
@@ -1025,7 +1046,8 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   for (auto* action : {select_all_action, clear_selection_action, reselect_action,
                        grow_selection_action, similar_selection_action,
                        expand_selection_action, contract_selection_action,
-                       border_selection_action, layer_transparency_action,
+                       border_selection_action, smooth_selection_action, feather_selection_action,
+                       layer_transparency_action,
                        stroke_selection_action, remove_object_action, select_subject_action_,
                        select_background_action_, remove_background_action_, select_object_action_}) {
     action->setProperty("patchy.quickMaskBlocked", true);
@@ -1048,21 +1070,28 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   select_menu->addAction(expand_selection_action);
   select_menu->addAction(contract_selection_action);
   select_menu->addAction(border_selection_action);
+  select_menu->addAction(smooth_selection_action);
+  select_menu->addAction(feather_selection_action);
   select_menu->addAction(layer_transparency_action);
   select_menu->addSeparator();
   select_menu->addAction(transform_selection_action);
   // Grayed without a selection while the menu is open; the previous state comes back
   // on hide so a bound hotkey is never left disabled by a stale check.
-  connect(select_menu, &QMenu::aboutToShow, this, [this, transform_selection_action] {
-    transform_selection_action->setProperty("patchy.enabledBeforeMenu", transform_selection_action->isEnabled());
-    transform_selection_action->setEnabled(transform_selection_action->isEnabled() && canvas_ != nullptr &&
-                                           canvas_->has_selection());
+  const QList<QAction*> needs_selection_actions{transform_selection_action, smooth_selection_action,
+                                                feather_selection_action};
+  connect(select_menu, &QMenu::aboutToShow, this, [this, needs_selection_actions] {
+    for (auto* action : needs_selection_actions) {
+      action->setProperty("patchy.enabledBeforeMenu", action->isEnabled());
+      action->setEnabled(action->isEnabled() && canvas_ != nullptr && canvas_->has_selection());
+    }
   });
-  connect(select_menu, &QMenu::aboutToHide, this, [transform_selection_action] {
-    const auto before = transform_selection_action->property("patchy.enabledBeforeMenu");
-    if (before.isValid()) {
-      transform_selection_action->setEnabled(before.toBool());
-      transform_selection_action->setProperty("patchy.enabledBeforeMenu", QVariant());
+  connect(select_menu, &QMenu::aboutToHide, this, [needs_selection_actions] {
+    for (auto* action : needs_selection_actions) {
+      const auto before = action->property("patchy.enabledBeforeMenu");
+      if (before.isValid()) {
+        action->setEnabled(before.toBool());
+        action->setProperty("patchy.enabledBeforeMenu", QVariant());
+      }
     }
   });
   select_menu->addAction(stroke_selection_action);

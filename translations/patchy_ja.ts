@@ -14889,6 +14889,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Fill Layer Settings</source>
         <translation>塗りつぶしレイヤーの設定</translation>
     </message>
+    <message>
+        <source>Smooth Selection</source>
+        <translation>選択範囲を滑らかに</translation>
+    </message>
+    <message>
+        <source>Sample radius</source>
+        <translation>サンプル半径</translation>
+    </message>
+    <message>
+        <source>Feather Selection</source>
+        <translation>選択範囲をぼかす</translation>
+    </message>
+    <message>
+        <source>Feather radius</source>
+        <translation>ぼかしの半径</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17042,6 +17058,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Warp works on layers. Apply the selection transform first.</source>
         <translation>ワープはレイヤーに適用されます。先に選択範囲の変形を確定してください。</translation>
     </message>
+    <message>
+        <source>Smoothing removed the whole selection</source>
+        <translation>滑らかにした結果、選択範囲がすべてなくなりました</translation>
+    </message>
+    <message>
+        <source>Smoothed selection by %1 px</source>
+        <translation>選択範囲を %1 px 滑らかにしました</translation>
+    </message>
+    <message>
+        <source>Feathered selection by %1 px</source>
+        <translation>選択範囲を %1 px ぼかしました</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19159,6 +19187,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Resize, rotate or skew the selection outline</source>
         <translation>選択範囲の境界のサイズ変更、回転、または斜めに変形</translation>
+    </message>
+    <message>
+        <source>Round off corners and remove specks</source>
+        <translation>角を丸め、小さな点を取り除く</translation>
+    </message>
+    <message>
+        <source>Soften the selection edge</source>
+        <translation>選択範囲の境界をぼかす</translation>
     </message>
 </context>
 <context>
@@ -32252,6 +32288,38 @@ Locked: %1</source>
         <source>Scale, rotate or distort the selection outline without moving pixels</source>
         <translation>ピクセルを動かさずに選択範囲の境界を拡大・縮小、回転、または変形します</translation>
     </message>
+    <message>
+        <source>S&amp;mooth...</source>
+        <translation>滑らかに(&amp;M)...</translation>
+    </message>
+    <message>
+        <source>Round off the selection&apos;s corners and drop small specks and holes</source>
+        <translation>選択範囲の角を丸め、小さな点や穴を取り除きます</translation>
+    </message>
+    <message>
+        <source>Soften the selection&apos;s edge</source>
+        <translation>選択範囲の境界をぼかします</translation>
+    </message>
+    <message>
+        <source>Make a selection before smoothing</source>
+        <translation>滑らかにする前に選択範囲を作成してください</translation>
+    </message>
+    <message>
+        <source>Smooth Selection</source>
+        <translation>選択範囲を滑らかに</translation>
+    </message>
+    <message>
+        <source>Make a selection before feathering</source>
+        <translation>ぼかす前に選択範囲を作成してください</translation>
+    </message>
+    <message>
+        <source>Feather Selection</source>
+        <translation>選択範囲をぼかす</translation>
+    </message>
+    <message>
+        <source>Feat&amp;her...</source>
+        <translation>ぼかし(&amp;H)...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34498,6 +34566,14 @@ Locked: %1</source>
     <message>
         <source>createWorkPath: the text has no outlines</source>
         <translation>createWorkPath: テキストにアウトラインがありません</translation>
+    </message>
+    <message>
+        <source>smooth needs a whole radius from %1 to %2.</source>
+        <translation>smooth の半径は %1 から %2 の整数で指定してください。</translation>
+    </message>
+    <message>
+        <source>feather needs a radius from %1 to %2.</source>
+        <translation>feather の半径は %1 から %2 の範囲で指定してください。</translation>
     </message>
 </context>
 <context>

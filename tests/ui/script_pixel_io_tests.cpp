@@ -20,6 +20,7 @@
 #include <QStringList>
 
 #include <cmath>
+#include <iostream>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -313,11 +314,54 @@ void ui_script_resize_canvas_anchor_and_offset() {
   CHECK(backlog_contains(window, QStringLiteral("errors=thrown,thrown,thrown,thrown,thrown size=120x70")));
 }
 
+// doc.selection.smooth and feather (GitHub issue 614) on a 16-bit document, and bad radii throw.
+void ui_script_selection_smooth_and_feather() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::set_deep_editing_override(true);
+  const auto restore_deep_editing = qScopeGuard([] { patchy::set_deep_editing_override(std::nullopt); });
+  const bool ran = run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    doc.convertBitDepth(16);
+    var sel = doc.selection;
+    sel.selectRect(10, 10, 30, 30);
+    sel.setMask({x: 60, y: 10, width: 2, height: 2, data: new Uint8Array(4).fill(255).buffer}, {operation: 'add'});
+    sel.smooth(3);
+    var m = new Uint8Array(sel.getMask({x: 0, y: 0, width: 70, height: 50}).data);
+    console.log('smooth depth=' + doc.bitDepth + ' corner=' + m[10 * 70 + 10] + ' edge=' + m[25 * 70 + 10] +
+                ' speck=' + m[10 * 70 + 60] + ' bounds=' + JSON.stringify(sel.bounds));
+    sel.feather(2.5);
+    m = new Uint8Array(sel.getMask({x: 0, y: 0, width: 70, height: 50}).data);
+    console.log('feather inside=' + m[25 * 70 + 25] + ' soft=' + (m[25 * 70 + 10] > 0 && m[25 * 70 + 10] < 255) +
+                ' outside=' + m[25 * 70 + 2]);
+    var errors = [];
+    [function () { sel.smooth(0); }, function () { sel.smooth(1.5); }, function () { sel.smooth(501); },
+     function () { sel.feather(0); }, function () { sel.feather(1000.5); }].forEach(function (f) {
+      try { f(); errors.push('no-throw'); } catch (e) { errors.push(e.message.length > 0 ? 'thrown' : 'empty'); }
+    });
+    sel.deselect();
+    sel.smooth(4);
+    sel.feather(4);
+    console.log('errors=' + errors.join(',') + ' empty=' + sel.exists);
+  )JS"));
+  CHECK(ran);
+  if (!ran) {
+    for (const auto& line : window.script_engine_host().message_backlog()) {
+      std::cout << "  script: " << line.toStdString() << std::endl;
+    }
+  }
+  CHECK(backlog_contains(window, QStringLiteral(
+      R"(smooth depth=16 corner=0 edge=255 speck=0 bounds={"x":10,"y":10,"width":30,"height":30})")));
+  CHECK(backlog_contains(window, QStringLiteral("feather inside=255 soft=true outside=0")));
+  CHECK(backlog_contains(window, QStringLiteral("errors=thrown,thrown,thrown,thrown,thrown empty=false")));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> script_pixel_io_tests() {
   return {
       {"ui_script_selection_mask_reads_and_combines", ui_script_selection_mask_reads_and_combines},
+      {"ui_script_selection_smooth_and_feather", ui_script_selection_smooth_and_feather},
       {"ui_script_layer_mask_set_get_and_remove", ui_script_layer_mask_set_get_and_remove},
       {"ui_script_layer_mask_companion_insert_is_one_undo_step",
        ui_script_layer_mask_companion_insert_is_one_undo_step},

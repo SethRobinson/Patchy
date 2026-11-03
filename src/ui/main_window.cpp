@@ -12516,6 +12516,7 @@ bool MainWindow::document_action_enabled_during_preview_lock(const QAction* acti
         QStringLiteral("selectGrowAction"),      QStringLiteral("selectSimilarAction"),
         QStringLiteral("selectExpandAction"),    QStringLiteral("selectContractAction"),
         QStringLiteral("selectBorderAction"),    QStringLiteral("selectLayerTransparencyAction"),
+        QStringLiteral("selectSmoothAction"),    QStringLiteral("selectFeatherAction"),
     };
     if (selection_actions.contains(object_name)) {
       return true;
@@ -12801,6 +12802,8 @@ void MainWindow::update_document_action_state() {
                QStringLiteral("select.expand"),
                QStringLiteral("select.contract"),
                QStringLiteral("select.border"),
+               QStringLiteral("select.smooth"),
+               QStringLiteral("select.feather"),
                QStringLiteral("select.layer_transparency"),
                QStringLiteral("edit.stroke_selection"),
                QStringLiteral("edit.remove_object")}) {

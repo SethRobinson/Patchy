@@ -340,6 +340,9 @@ public:
   void select_all(std::int64_t session_id);
   void deselect(std::int64_t session_id);
   void select_region(std::int64_t session_id, const QRegion& region);
+  // Select > Smooth and Select > Feather on the session's selection (GitHub issue 614).
+  void smooth_selection(std::int64_t session_id, int radius);
+  void feather_selection(std::int64_t session_id, double radius);
   [[nodiscard]] QRegion selection_region(std::int64_t session_id) const;
   [[nodiscard]] bool has_selection(std::int64_t session_id) const;
   // The selection's gray8 coverage over `rect` (0 outside it), and the selection replaced by a

@@ -14934,6 +14934,22 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Fill Layer Settings</source>
         <translation>Paramètres du calque de remplissage</translation>
     </message>
+    <message>
+        <source>Smooth Selection</source>
+        <translation>Lisser la sélection</translation>
+    </message>
+    <message>
+        <source>Sample radius</source>
+        <translation>Rayon d&apos;échantillonnage</translation>
+    </message>
+    <message>
+        <source>Feather Selection</source>
+        <translation>Contour progressif de la sélection</translation>
+    </message>
+    <message>
+        <source>Feather radius</source>
+        <translation>Rayon du contour progressif</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -17087,6 +17103,18 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Warp works on layers. Apply the selection transform first.</source>
         <translation>La déformation s&apos;applique aux calques. Appliquez d&apos;abord la transformation de la sélection.</translation>
     </message>
+    <message>
+        <source>Smoothing removed the whole selection</source>
+        <translation>Le lissage a supprimé toute la sélection</translation>
+    </message>
+    <message>
+        <source>Smoothed selection by %1 px</source>
+        <translation>Sélection lissée de %1 px</translation>
+    </message>
+    <message>
+        <source>Feathered selection by %1 px</source>
+        <translation>Contour progressif de %1 px appliqué</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19204,6 +19232,14 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Resize, rotate or skew the selection outline</source>
         <translation>Redimensionner, faire pivoter ou incliner le contour de la sélection</translation>
+    </message>
+    <message>
+        <source>Round off corners and remove specks</source>
+        <translation>Arrondir les angles et retirer les petites taches</translation>
+    </message>
+    <message>
+        <source>Soften the selection edge</source>
+        <translation>Adoucir le bord de la sélection</translation>
     </message>
 </context>
 <context>
@@ -32336,6 +32372,38 @@ Verrouillé : %1</translation>
         <source>Scale, rotate or distort the selection outline without moving pixels</source>
         <translation>Mettre à l&apos;échelle, faire pivoter ou déformer le contour de la sélection sans déplacer de pixels</translation>
     </message>
+    <message>
+        <source>S&amp;mooth...</source>
+        <translation>L&amp;isser...</translation>
+    </message>
+    <message>
+        <source>Round off the selection&apos;s corners and drop small specks and holes</source>
+        <translation>Arrondit les angles de la sélection et retire les petites taches et les petits trous</translation>
+    </message>
+    <message>
+        <source>Soften the selection&apos;s edge</source>
+        <translation>Adoucit le bord de la sélection</translation>
+    </message>
+    <message>
+        <source>Make a selection before smoothing</source>
+        <translation>Effectuez une sélection avant de la lisser</translation>
+    </message>
+    <message>
+        <source>Smooth Selection</source>
+        <translation>Lisser la sélection</translation>
+    </message>
+    <message>
+        <source>Make a selection before feathering</source>
+        <translation>Effectuez une sélection avant d&apos;appliquer un contour progressif</translation>
+    </message>
+    <message>
+        <source>Feather Selection</source>
+        <translation>Contour progressif de la sélection</translation>
+    </message>
+    <message>
+        <source>Feat&amp;her...</source>
+        <translation>Contour &amp;progressif...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34583,6 +34651,14 @@ Verrouillé : %1</translation>
     <message>
         <source>createWorkPath: the text has no outlines</source>
         <translation>createWorkPath : le texte n&apos;a pas de contours</translation>
+    </message>
+    <message>
+        <source>smooth needs a whole radius from %1 to %2.</source>
+        <translation>smooth nécessite un rayon entier compris entre %1 et %2.</translation>
+    </message>
+    <message>
+        <source>feather needs a radius from %1 to %2.</source>
+        <translation>feather nécessite un rayon compris entre %1 et %2.</translation>
     </message>
 </context>
 <context>
