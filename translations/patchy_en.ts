@@ -2,6 +2,25 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="en" sourcelanguage="en">
 <context>
+    <name>AngleDial</name>
+    <message>
+        <source>Angle and altitude</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click or drag to set the angle. The distance from the center sets the altitude: 90° at the center, 0° at the edge. Arrow keys: Left and Right turn, Up and Down change the altitude.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Angle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click or drag to set the angle. Arrow keys turn it; hold Shift for 15° steps.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>AppImageMenuEntry</name>
     <message>
         <source>Could not create the folder for %1</source>

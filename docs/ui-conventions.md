@@ -126,18 +126,17 @@ Blocking refusals and failed operations use `MainWindow::show_status_error` or `
 - Canvas scroll bars are direct `CanvasWidget` children with load-bearing objectNames `canvasHorizontalScrollBar`/`canvasVerticalScrollBar` (theme QSS and UI tests find them by name). Their range mirrors the 10%-minimum-visible pan clamp (`pan_axis_range` in `canvas_widget_view.cpp`), so bar scrolling and hand-tool panning can never disagree, and the bars stay live even when the document fits the view.
 - Every scroll bar is styled by `photoshop_style()`; none stays native (once QSS touches a scroll bar `QStyleSheetStyle` owns it, and without subcontrol rules its groove fills with the window background). Canvas bars follow `canvas_backdrop`, not the window surface, and carry the opaque `scroll-dither` texture authored around `canvas_backdrop`/`canvas_scrollbar_track` so gutter, corner square and pasteboard read as one surface (moving that role means re-authoring `src/ui/icons/light/scroll-dither.svg`). One handle fill (`scrollbar_handle_bg`) serves both families and must clear the darker track (`ui_light_scheme_panel_scroll_bar_handle_reads_against_track`). The `margin: 0` on the `QScrollBar` widget rules is load-bearing: without box properties on the widget rule the native style reserves room for the removed arrow buttons, a short bar's groove ends up smaller than the handle and every drag snaps to the minimum; a `::groove` rule never affects geometry (`ui_short_panel_scroll_bar_drags_by_handle`).
 
-The Preferences dialog (page list, page order, which settings go on which page, the
-remembered page and size) is described in [preferences-dialog.md](preferences-dialog.md).
+The Preferences dialog: [preferences-dialog.md](preferences-dialog.md).
 Settings pages keep fields compact (a combo as wide as its longest entry, capped; its open list
 fits every entry, `fit_combo_popup_to_entries`) and let option text wrap.
 `install_wheel_scroll_guard` (`dialog_utils.hpp`) makes combo boxes, spin boxes and sliders
 in scrolling pages take the wheel only with keyboard focus (issue 92); use it for any dialog
-whose pages scroll.
+whose pages scroll. Angle fields get a round `AngleDial` (`angle_dial.hpp`, issue 618).
 
 Application-wide fill, quick-selection, interpolation, and vector options transfer
 when the active canvas changes. Language changes apply on OK.
-The color panel accepts named colors and CSS `#RRGGBBAA` (plus `#RGBA`); its stored
-foreground/background colors remain opaque RGB. History navigation is refused
+The color panel accepts named colors and CSS `#RRGGBBAA` (plus `#RGBA`); stored
+colors stay opaque RGB. History navigation is refused
 during a live pointer gesture, and focus loss clears the drag latches.
 
 Recent files and folders record every successful open and save (interactive, scripted,

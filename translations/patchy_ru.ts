@@ -2,6 +2,25 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="ru" sourcelanguage="en">
 <context>
+    <name>AngleDial</name>
+    <message>
+        <source>Angle and altitude</source>
+        <translation>Угол и высота</translation>
+    </message>
+    <message>
+        <source>Click or drag to set the angle. The distance from the center sets the altitude: 90° at the center, 0° at the edge. Arrow keys: Left and Right turn, Up and Down change the altitude.</source>
+        <translation>Щелкните или перетащите, чтобы задать угол. Расстояние от центра задает высоту: 90° в центре, 0° у края. Клавиши со стрелками: влево и вправо поворачивают, вверх и вниз меняют высоту.</translation>
+    </message>
+    <message>
+        <source>Angle</source>
+        <translation>Угол</translation>
+    </message>
+    <message>
+        <source>Click or drag to set the angle. Arrow keys turn it; hold Shift for 15° steps.</source>
+        <translation>Щелкните или перетащите, чтобы задать угол. Клавиши со стрелками поворачивают его; удерживайте Shift для шага 15°.</translation>
+    </message>
+</context>
+<context>
     <name>AppImageMenuEntry</name>
     <message>
         <source>Could not create the folder for %1</source>

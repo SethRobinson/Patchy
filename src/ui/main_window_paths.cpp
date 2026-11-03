@@ -5,6 +5,7 @@
 #include "core/layer.hpp"
 #include "ui/main_window.hpp"
 #include <QStatusBar>
+#include "ui/angle_dial.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/unit_spin_box.hpp"
 #include "ui/vector_operations.hpp"
@@ -715,7 +716,7 @@ void MainWindow::fill_active_path() {
   pattern_angle->setObjectName(QStringLiteral("fillPathPatternAngleSpin"));
   pattern_angle->setRange(-180.0, 180.0);
   pattern_angle->setDecimals(1);
-  form->addRow(tr("Angle:"), pattern_angle);
+  form->addRow(tr("Angle:"), wrap_angle_field_with_dial(pattern_angle, &dialog));
   auto* pattern_offset_x = new UnitSpinBox(SpinUnit::Pixels, &dialog);
   pattern_offset_x->setObjectName(QStringLiteral("fillPathPatternOffsetXSpin"));
   pattern_offset_x->set_context_provider(document_unit_context_provider(true));

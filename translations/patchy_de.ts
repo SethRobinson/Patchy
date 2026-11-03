@@ -2,6 +2,25 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="de" sourcelanguage="en">
 <context>
+    <name>AngleDial</name>
+    <message>
+        <source>Angle and altitude</source>
+        <translation>Winkel und Höhe</translation>
+    </message>
+    <message>
+        <source>Click or drag to set the angle. The distance from the center sets the altitude: 90° at the center, 0° at the edge. Arrow keys: Left and Right turn, Up and Down change the altitude.</source>
+        <translation>Klicken oder ziehen, um den Winkel festzulegen. Der Abstand zur Mitte legt die Höhe fest: 90° in der Mitte, 0° am Rand. Pfeiltasten: Links und Rechts drehen, Auf und Ab ändern die Höhe.</translation>
+    </message>
+    <message>
+        <source>Angle</source>
+        <translation>Winkel</translation>
+    </message>
+    <message>
+        <source>Click or drag to set the angle. Arrow keys turn it; hold Shift for 15° steps.</source>
+        <translation>Klicken oder ziehen, um den Winkel festzulegen. Die Pfeiltasten drehen ihn; mit gedrückter Umschalttaste in 15°-Schritten.</translation>
+    </message>
+</context>
+<context>
     <name>AppImageMenuEntry</name>
     <message>
         <source>Could not create the folder for %1</source>

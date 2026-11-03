@@ -2,6 +2,25 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="zh_CN" sourcelanguage="en">
 <context>
+    <name>AngleDial</name>
+    <message>
+        <source>Angle and altitude</source>
+        <translation>角度和海拔</translation>
+    </message>
+    <message>
+        <source>Click or drag to set the angle. The distance from the center sets the altitude: 90° at the center, 0° at the edge. Arrow keys: Left and Right turn, Up and Down change the altitude.</source>
+        <translation>单击或拖动以设置角度。到中心的距离决定海拔：中心为 90°，边缘为 0°。方向键：左右旋转，上下更改海拔。</translation>
+    </message>
+    <message>
+        <source>Angle</source>
+        <translation>角度</translation>
+    </message>
+    <message>
+        <source>Click or drag to set the angle. Arrow keys turn it; hold Shift for 15° steps.</source>
+        <translation>单击或拖动以设置角度。方向键可旋转；按住 Shift 以 15° 为步长。</translation>
+    </message>
+</context>
+<context>
     <name>AppImageMenuEntry</name>
     <message>
         <source>Could not create the folder for %1</source>

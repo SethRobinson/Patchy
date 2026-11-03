@@ -1,4 +1,5 @@
 #include "ui/layer_style_dialog_controls.hpp"
+#include "ui/angle_dial.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/theme_qss.hpp"
 #include <QAbstractButton>
@@ -66,6 +67,76 @@ QSpinBox* add_size_slider_spin_row(QFormLayout* form, QWidget* parent, const QSt
                                       /*row_spacing=*/8, /*step_buttons=*/true, slider_maximum,
                                       SliderCurve::FineLowEnd);
 }
+namespace {
+// The field and its - / + pair at the right end of `row_layout`, where the
+// slider rows put theirs, so a page's number fields share one column.
+void add_angle_field(QHBoxLayout* row_layout, QSpinBox* spin, const QString& label) {
+    auto* field_layout = new QHBoxLayout();
+    field_layout->setContentsMargins(0, 0, 0, 0);
+    field_layout->setSpacing(2);
+    field_layout->addWidget(spin);
+    row_layout->addLayout(field_layout);
+    // Level with the row's label, not centered on the taller dial.
+    row_layout->setAlignment(field_layout, Qt::AlignTop);
+    add_spin_step_buttons(spin, field_layout, label);
+}
+
+QSpinBox* make_angle_spin(QWidget* row, const QString& object_name, int minimum, int maximum, int value) {
+    auto* spin = new QSpinBox(row);
+    spin->setObjectName(object_name);
+    spin->setRange(minimum, maximum);
+    spin->setValue(value);
+    configure_dialog_spinbox(spin, 72);
+    return spin;
+}
+}  // namespace
+
+QSpinBox* add_angle_spin_row(QFormLayout* form, QWidget* parent, const QString& label,
+                             const QString& spin_object_name, int minimum, int maximum, int value) {
+    auto* row = new QWidget(parent);
+    auto* row_layout = new QHBoxLayout(row);
+    row_layout->setContentsMargins(0, 0, 0, 0);
+    row_layout->setSpacing(8);
+    auto* dial = new AngleDial(AngleDial::Mode::Angle, row);
+    dial->setObjectName(angle_dial_object_name(spin_object_name));
+    auto* spin = make_angle_spin(row, spin_object_name, minimum, maximum, value);
+    row_layout->addWidget(dial);
+    row_layout->addStretch(1);
+    add_angle_field(row_layout, spin, label);
+    bind_angle_dial(*dial, *spin);
+    form->addRow(label, row);
+    return spin;
+}
+
+AngleAltitudeSpins add_angle_altitude_rows(QFormLayout* form, QWidget* parent, const QString& angle_object_name,
+                                           int angle, const QString& altitude_object_name, int altitude) {
+    const auto angle_label = QObject::tr("Angle:");
+    const auto altitude_label = QObject::tr("Altitude:");
+    auto* angle_row = new QWidget(parent);
+    auto* angle_layout = new QHBoxLayout(angle_row);
+    angle_layout->setContentsMargins(0, 0, 0, 0);
+    angle_layout->setSpacing(8);
+    auto* dial = new AngleDial(AngleDial::Mode::AngleAltitude, angle_row);
+    dial->setObjectName(angle_dial_object_name(angle_object_name));
+    AngleAltitudeSpins spins;
+    spins.angle = make_angle_spin(angle_row, angle_object_name, -180, 180, angle);
+    angle_layout->addWidget(dial);
+    angle_layout->addStretch(1);
+    add_angle_field(angle_layout, spins.angle, angle_label);
+    form->addRow(angle_label, angle_row);
+
+    auto* altitude_row = new QWidget(parent);
+    auto* altitude_layout = new QHBoxLayout(altitude_row);
+    altitude_layout->setContentsMargins(0, 0, 0, 0);
+    altitude_layout->setSpacing(8);
+    spins.altitude = make_angle_spin(altitude_row, altitude_object_name, 0, 90, altitude);
+    altitude_layout->addStretch(1);
+    add_angle_field(altitude_layout, spins.altitude, altitude_label);
+    form->addRow(altitude_label, altitude_row);
+    bind_angle_dial(*dial, *spins.angle, spins.altitude);
+    return spins;
+}
+
 // A two-choice setting shown as a pair of radio buttons (Bevel Direction, Inner
 // Glow Source). The buttons carry the object names; the row is the form field.
 TwoChoiceRadios make_two_choice_radios(QWidget* parent, const QString& first_text,

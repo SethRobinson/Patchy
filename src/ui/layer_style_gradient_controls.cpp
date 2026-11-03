@@ -375,7 +375,7 @@ std::unique_ptr<LayerStyleGradientControls> make_gradient_controls(
           static_cast<int>(LayerStyleGradientType::ShapeBurst));
     }
     form->addRow(QObject::tr("Style:"), state->style_combo);
-    state->angle = add_slider_spin_row(
+    state->angle = add_angle_spin_row(
         form, parent_widget, QObject::tr("Angle:"),
         object_prefix + QStringLiteral("AngleSpin"), -180, 180,
         static_cast<int>(std::round(initial_gradient.angle_degrees)));

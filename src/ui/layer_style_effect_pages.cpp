@@ -62,12 +62,12 @@ BevelPageControls build_bevel_page(LayerStylePageContext& context, QVBoxLayout* 
                                            static_cast<int>(std::round(bevel.soften)));
 
   add_form_section(bevel_form, bevel_group, QObject::tr("Shading"), QStringLiteral("layerStyleBevelShadingSection"));
-  auto* bevel_angle = add_slider_spin_row(bevel_form, bevel_group, QObject::tr("Angle:"),
-                                          QStringLiteral("layerStyleBevelAngleSpin"), -180, 180,
-                                          static_cast<int>(std::round(bevel.angle_degrees)));
-  auto* bevel_altitude = add_slider_spin_row(bevel_form, bevel_group, QObject::tr("Altitude:"),
-                                             QStringLiteral("layerStyleBevelAltitudeSpin"), 0, 90,
-                                             static_cast<int>(std::round(bevel.altitude_degrees)));
+  const auto bevel_shading = add_angle_altitude_rows(
+      bevel_form, bevel_group, QStringLiteral("layerStyleBevelAngleSpin"),
+      static_cast<int>(std::round(bevel.angle_degrees)), QStringLiteral("layerStyleBevelAltitudeSpin"),
+      static_cast<int>(std::round(bevel.altitude_degrees)));
+  auto* bevel_angle = bevel_shading.angle;
+  auto* bevel_altitude = bevel_shading.altitude;
   auto* bevel_gloss_row = new QWidget(bevel_group);
   auto* bevel_gloss_layout = new QHBoxLayout(bevel_gloss_row);
   bevel_gloss_layout->setContentsMargins(0, 0, 0, 0);
@@ -225,7 +225,7 @@ PatternOverlayPageControls build_pattern_overlay_page(LayerStylePageContext& con
   pattern_overlay_manage->setToolTip(QObject::tr("Open Pattern Manager"));
   pattern_overlay_pattern_layout->addWidget(pattern_overlay_manage);
   pattern_overlay_form->addRow(QObject::tr("Pattern:"), pattern_overlay_pattern_row);
-  auto* pattern_overlay_angle = add_slider_spin_row(
+  auto* pattern_overlay_angle = add_angle_spin_row(
       pattern_overlay_form, pattern_overlay_group, QObject::tr("Angle:"),
       QStringLiteral("layerStylePatternOverlayAngleSpin"), -180, 180,
       static_cast<int>(std::round(pattern_overlay.angle_degrees)));
@@ -348,7 +348,7 @@ InnerShadowPageControls build_inner_shadow_page(LayerStylePageContext& context, 
                           QStringLiteral("layerStyleInnerShadowOpacitySpin"), 0, 100,
                           static_cast<int>(std::round(inner_shadow.opacity * 100.0F)), QStringLiteral("%"));
   auto* inner_shadow_angle =
-      add_slider_spin_row(inner_shadow_form, inner_shadow_group, QObject::tr("Angle:"),
+      add_angle_spin_row(inner_shadow_form, inner_shadow_group, QObject::tr("Angle:"),
                           QStringLiteral("layerStyleInnerShadowAngleSpin"), -180, 180,
                           static_cast<int>(std::round(inner_shadow.angle_degrees)));
   // Photoshop's 0..30000 px typed range; the slider keeps its 0..1000 reach.
@@ -465,7 +465,7 @@ SatinPageControls build_satin_page(LayerStylePageContext& context, QVBoxLayout* 
                           QStringLiteral("layerStyleSatinOpacitySpin"), 0, 100,
                           static_cast<int>(std::round(satin.opacity * 100.0F)), QStringLiteral("%"));
   auto* satin_angle =
-      add_slider_spin_row(satin_form, satin_group, QObject::tr("Angle:"),
+      add_angle_spin_row(satin_form, satin_group, QObject::tr("Angle:"),
                           QStringLiteral("layerStyleSatinAngleSpin"), -180, 180,
                           static_cast<int>(std::round(satin.angle_degrees)));
   auto* satin_distance =
@@ -595,7 +595,7 @@ ShadowPageControls build_shadow_page(LayerStylePageContext& context, QVBoxLayout
                                              QStringLiteral("layerStyleDropShadowOpacitySpin"), 0, 100,
                                              static_cast<int>(std::round(shadow.opacity * 100.0F)),
                                              QStringLiteral("%"));
-  auto* shadow_angle = add_slider_spin_row(shadow_form, shadow_group, QObject::tr("Angle:"),
+  auto* shadow_angle = add_angle_spin_row(shadow_form, shadow_group, QObject::tr("Angle:"),
                                            QStringLiteral("layerStyleDropShadowAngleSpin"), -180, 180,
                                            static_cast<int>(std::round(shadow.angle_degrees)));
   // Photoshop's 0..30000 px typed range (it round-trips through DrSh); the

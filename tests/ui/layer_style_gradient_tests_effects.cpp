@@ -1,4 +1,5 @@
 #include "ui/curved_slider.hpp"
+#include "ui/angle_dial.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/app_settings.hpp"
@@ -47,6 +48,7 @@
 #include <QTest>
 #include <QTimer>
 #include <QToolButton>
+#include <QWheelEvent>
 #include <QWidget>
 #include <algorithm>
 #include <atomic>
@@ -2886,6 +2888,10 @@ void ui_layer_style_page_captures_issue_606() {
   overlay.enabled = true;
   overlay.color = patchy::RgbColor{220, 40, 40};
   layer.layer_style().color_overlays.push_back(overlay);
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.angle_degrees = 120.0F;
+  layer.layer_style().drop_shadows.push_back(shadow);
   const auto layer_id = layer.id();
   document.add_layer(std::move(layer));
   document.set_active_layer(layer_id);
@@ -2904,12 +2910,13 @@ void ui_layer_style_page_captures_issue_606() {
                 dialog->minimumWidth(), dialog->minimumHeight());
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
     CHECK(categories != nullptr);
-    const std::array<std::pair<const char*, const char*>, 5> pages{{
+    const std::array<std::pair<const char*, const char*>, 6> pages{{
         {"Style Presets", "ui_layer_style_606_style_presets"},
         {"Blending Options", "ui_layer_style_606_blending_options"},
         {"Bevel & Emboss", "ui_layer_style_606_bevel_emboss"},
         {"Color Overlay", "ui_layer_style_606_color_overlay"},
         {"Inner Glow", "ui_layer_style_606_inner_glow"},
+        {"Drop Shadow", "ui_layer_style_618_drop_shadow"},
     }};
     for (const auto& [title, artifact] : pages) {
       for (int row = 0; categories != nullptr && row < categories->count(); ++row) {
@@ -2921,6 +2928,17 @@ void ui_layer_style_page_captures_issue_606() {
       QApplication::processEvents();
       save_image_artifact(artifact, dialog->grab().toImage());
     }
+    // A short dialog: the preset list scrolls, its buttons stay in view (GitHub
+    // issue 606 follow-up).
+    for (int row = 0; categories != nullptr && row < categories->count(); ++row) {
+      if (categories->item(row)->text() == QStringLiteral("Style Presets")) {
+        categories->setCurrentRow(row);
+        break;
+      }
+    }
+    dialog->resize(dialog->width(), dialog->minimumHeight());
+    QApplication::processEvents();
+    save_image_artifact("ui_layer_style_606_style_presets_short", dialog->grab().toImage());
     inspected = true;
     dialog->reject();
   });
@@ -3142,6 +3160,196 @@ void ui_layer_style_make_default_and_reset_to_default() {
   patchy::ui::clear_stored_layer_style_effect_defaults();
 }
 
+void click_widget_at(QWidget& widget, QPointF position) {
+  send_mouse(widget, QEvent::MouseButtonPress, position.toPoint(), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(widget, QEvent::MouseButtonRelease, position.toPoint(), Qt::LeftButton, Qt::NoButton);
+}
+
+void ui_angle_dial_sets_angle_and_altitude_from_clicks() {
+  // GitHub issue 618: the round angle control beside the angle fields. 0 is to
+  // the right and angles turn counterclockwise, as the number fields read.
+  QWidget host;
+  QSpinBox angle(&host);
+  angle.setRange(-180, 180);
+  angle.setValue(30);
+  patchy::ui::AngleDial dial(patchy::ui::AngleDial::Mode::Angle, &host);
+  patchy::ui::bind_angle_dial(dial, angle);
+  CHECK(dial.angle() == 30.0);
+  const auto center = dial.center();
+  const auto r = dial.radius();
+  click_widget_at(dial, center + QPointF(r - 1.0, 0.0));
+  CHECK(angle.value() == 0);
+  click_widget_at(dial, center + QPointF(0.0, -(r - 1.0)));
+  CHECK(angle.value() == 90);
+  click_widget_at(dial, center + QPointF(-(r - 1.0), 0.0));
+  CHECK(angle.value() == 180);
+  click_widget_at(dial, center + QPointF(0.0, r - 1.0));
+  CHECK(angle.value() == -90);
+  CHECK(dial.angle() == -90.0);
+  // A drag follows the pointer and ends where it is released.
+  send_mouse(dial, QEvent::MouseButtonPress, (center + QPointF(r - 1.0, 0.0)).toPoint(), Qt::LeftButton,
+             Qt::LeftButton);
+  send_mouse(dial, QEvent::MouseMove, (center + QPointF(r - 4.0, -(r - 4.0))).toPoint(), Qt::NoButton,
+             Qt::LeftButton);
+  CHECK(std::abs(angle.value() - 45) <= 3);
+  send_mouse(dial, QEvent::MouseButtonRelease, (center + QPointF(0.0, -(r - 1.0))).toPoint(), Qt::LeftButton,
+             Qt::NoButton);
+  CHECK(angle.value() == 90);
+  // The field moves the dial; a load under a signal blocker syncs explicitly.
+  angle.setValue(-45);
+  CHECK(dial.angle() == -45.0);
+  {
+    const QSignalBlocker blocker(&angle);
+    angle.setValue(60);
+  }
+  CHECK(dial.angle() == -45.0);
+  patchy::ui::sync_angle_dial(angle);
+  CHECK(dial.angle() == 60.0);
+  const auto marker = dial.marker_position() - center;
+  CHECK(marker.x() > 0.0 && marker.y() < 0.0);
+  // Keyboard: arrows step 1, Shift 15, and a full-turn range wraps.
+  QTest::keyClick(&dial, Qt::Key_Right);
+  CHECK(angle.value() == 61);
+  QTest::keyClick(&dial, Qt::Key_Left, Qt::ShiftModifier);
+  CHECK(angle.value() == 46);
+  angle.setValue(180);
+  QTest::keyClick(&dial, Qt::Key_Up);
+  CHECK(angle.value() == -179);
+  // The wheel scrolls the page unless the dial has keyboard focus.
+  QWheelEvent wheel(QPointF(center), QPointF(center), QPoint(), QPoint(0, 120), Qt::NoButton, Qt::NoModifier,
+                    Qt::NoScrollPhase, false);
+  QApplication::sendEvent(&dial, &wheel);
+  CHECK(!wheel.isAccepted());
+  CHECK(angle.value() == -179);
+
+  // Angle and altitude (Bevel & Emboss): the distance from the center sets the
+  // altitude, 90 at the center and 0 at the rim.
+  QSpinBox bevel_angle(&host);
+  bevel_angle.setRange(-180, 180);
+  bevel_angle.setValue(120);
+  QSpinBox altitude(&host);
+  altitude.setRange(0, 90);
+  altitude.setValue(30);
+  patchy::ui::AngleDial shading(patchy::ui::AngleDial::Mode::AngleAltitude, &host);
+  patchy::ui::bind_angle_dial(shading, bevel_angle, &altitude);
+  CHECK(shading.altitude() == 30.0);
+  CHECK(shading.width() > dial.width());
+  const auto middle = shading.center();
+  const auto rim = shading.radius();
+  click_widget_at(shading, middle);
+  CHECK(altitude.value() == 90);
+  CHECK(bevel_angle.value() == 120);
+  click_widget_at(shading, middle + QPointF(rim, 0.0));
+  CHECK(altitude.value() == 0);
+  CHECK(bevel_angle.value() == 0);
+  click_widget_at(shading, middle + QPointF(0.0, -rim / 2.0));
+  CHECK(std::abs(altitude.value() - 45) <= 3);
+  CHECK(bevel_angle.value() == 90);
+  altitude.setValue(45);
+  const auto at = shading.marker_position() - middle;
+  CHECK(std::abs(at.x()) < 0.5 && std::abs(at.y() + rim / 2.0) < 0.5);
+  CHECK(patchy::ui::AngleDial::altitude_for_distance(0.0, 30.0) == 90);
+  CHECK(patchy::ui::AngleDial::altitude_for_distance(30.0, 30.0) == 0);
+  CHECK(patchy::ui::AngleDial::altitude_for_distance(90.0, 30.0) == 0);
+  QTest::keyClick(&shading, Qt::Key_Up);
+  CHECK(altitude.value() == 46);
+  QTest::keyClick(&shading, Qt::Key_Right);
+  CHECK(bevel_angle.value() == 91);
+}
+
+void ui_layer_style_angle_dials_drive_the_fields() {
+  // GitHub issue 618: every Layer Style angle row has a dial, Bevel & Emboss
+  // the angle-and-altitude one; a click previews live like the slider did and
+  // OK commits one undo step.
+  patchy::ui::set_stored_layer_style_dialog_size({});
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Dials",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.angle_degrees = 120.0F;
+  layer.layer_style().drop_shadows.push_back(shadow);
+  patchy::LayerBevelEmboss bevel;
+  bevel.enabled = true;
+  layer.layer_style().bevels.push_back(bevel);
+  const auto layer_id = layer.id();
+  document.add_layer(std::move(layer));
+  document.set_active_layer(layer_id);
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Dials"));
+  show_window(window);
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  bool inspected = false;
+  QTimer::singleShot(0, &window, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    QApplication::processEvents();
+    for (const auto* name :
+         {"layerStyleDropShadowAngleDial", "layerStyleInnerShadowAngleDial", "layerStyleSatinAngleDial",
+          "layerStylePatternOverlayAngleDial", "layerStyleGradientAngleDial", "layerStyleStrokeGradientAngleDial"}) {
+      auto* found = dialog->findChild<patchy::ui::AngleDial*>(QLatin1String(name));
+      if (found == nullptr) {
+        std::printf("missing angle dial: %s\n", name);
+      }
+      CHECK(found != nullptr && found->mode() == patchy::ui::AngleDial::Mode::Angle);
+    }
+    CHECK(dialog->findChild<QSlider*>(QStringLiteral("layerStyleDropShadowAngleSlider")) == nullptr);
+    CHECK(dialog->findChild<QSlider*>(QStringLiteral("layerStyleBevelAltitudeSlider")) == nullptr);
+    auto* shading = dialog->findChild<patchy::ui::AngleDial*>(QStringLiteral("layerStyleBevelAngleDial"));
+    auto* bevel_angle = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBevelAngleSpin"));
+    auto* bevel_altitude = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBevelAltitudeSpin"));
+    CHECK(shading != nullptr && shading->mode() == patchy::ui::AngleDial::Mode::AngleAltitude);
+    CHECK(bevel_angle != nullptr && bevel_altitude != nullptr);
+    select_layer_style_category(*dialog, QStringLiteral("Bevel & Emboss"));
+    if (shading != nullptr && bevel_angle != nullptr && bevel_altitude != nullptr) {
+      CHECK(shading->angle() == bevel_angle->value());
+      CHECK(shading->altitude() == bevel_altitude->value());
+      click_widget_at(*shading, shading->center() + QPointF(-shading->radius(), 0.0));
+      CHECK(bevel_angle->value() == 180);
+      CHECK(bevel_altitude->value() == 0);
+      bevel_altitude->setValue(60);
+      CHECK(shading->altitude() == 60.0);
+      // The number fields share the page's field column.
+      const auto left = [dialog](const QWidget* widget) { return widget->mapTo(dialog, QPoint(0, 0)).x(); };
+      CHECK(left(bevel_angle) == left(bevel_altitude));
+    }
+    select_layer_style_category(*dialog, QStringLiteral("Drop Shadow"));
+    auto* dial = dialog->findChild<patchy::ui::AngleDial*>(QStringLiteral("layerStyleDropShadowAngleDial"));
+    auto* angle = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleDropShadowAngleSpin"));
+    CHECK(dial != nullptr && angle != nullptr);
+    if (dial != nullptr && angle != nullptr) {
+      CHECK(angle->value() == 120);
+      CHECK(dial->angle() == 120.0);
+      click_widget_at(*dial, dial->center() + QPointF(0.0, dial->radius() - 1.0));
+      CHECK(angle->value() == -90);
+      QTest::qWait(80);
+      const auto* preview_layer = patchy::ui::MainWindowTestAccess::document(window).find_layer(layer_id);
+      CHECK(preview_layer != nullptr);
+      if (preview_layer != nullptr && !preview_layer->layer_style().drop_shadows.empty()) {
+        CHECK(std::abs(preview_layer->layer_style().drop_shadows.front().angle_degrees + 90.0F) < 0.5F);
+      }
+    }
+    inspected = true;
+    dialog->accept();
+  });
+  require_action(window, "layerBlendingOptionsAction")->trigger();
+  QApplication::processEvents();
+  CHECK(inspected);
+  const auto* committed = patchy::ui::MainWindowTestAccess::document(window).find_layer(layer_id);
+  CHECK(committed != nullptr);
+  if (committed != nullptr) {
+    CHECK(!committed->layer_style().drop_shadows.empty() &&
+          std::abs(committed->layer_style().drop_shadows.front().angle_degrees + 90.0F) < 0.5F);
+    CHECK(!committed->layer_style().bevels.empty() &&
+          std::abs(committed->layer_style().bevels.front().angle_degrees - 180.0F) < 0.5F &&
+          std::abs(committed->layer_style().bevels.front().altitude_degrees - 60.0F) < 0.5F);
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1U);
+}
+
 void ui_layer_style_issue_606_layout() {
   // GitHub issue 606: a smaller opening size, OK as wide as Cancel, radio
   // buttons for two-choice settings, colons on labels, one label column, the
@@ -3250,6 +3458,24 @@ void ui_layer_style_issue_606_layout() {
       CHECK(mask->y() > clipped->y());
       CHECK(!mask->visibleRegion().isEmpty() || mask->isVisible());
     }
+    // Blend If uses the page's label column (GitHub issue 606 follow-up): its
+    // channel combo and ramps start where the other fields do.
+    auto* channel = dialog.findChild<QComboBox*>(QStringLiteral("layerStyleBlendIfChannelCombo"));
+    auto* blend_if = dialog.findChild<QWidget*>(QStringLiteral("layerStyleBlendIfGroup"));
+    auto* knockout = dialog.findChild<QComboBox*>(QStringLiteral("layerStyleKnockoutCombo"));
+    CHECK(channel != nullptr && blend_if != nullptr && knockout != nullptr);
+    if (channel != nullptr && blend_if != nullptr && knockout != nullptr) {
+      const auto left = [&dialog](const QWidget* widget) { return widget->mapTo(&dialog, QPoint(0, 0)).x(); };
+      auto* row = channel->parentWidget();
+      auto* form = qobject_cast<QFormLayout*>(row->parentWidget()->layout());
+      CHECK(form != nullptr);
+      if (form != nullptr) {
+        auto* label = qobject_cast<QLabel*>(form->labelForField(row));
+        CHECK(label != nullptr && label->text() == QStringLiteral("Blend If:"));
+      }
+      CHECK(left(channel) == left(knockout));
+      CHECK(left(blend_if) == left(knockout));
+    }
 
     // Style Presets: no hint text, the grid shown, an info icon with the export tip.
     select_layer_style_category(dialog, QStringLiteral("Style Presets"));
@@ -3266,6 +3492,26 @@ void ui_layer_style_issue_606_layout() {
       CHECK(views->currentWidget() == grid);
       CHECK(grid_button->isChecked() && !list_button->isChecked());
       CHECK(views->height() >= std::min(500, std::max(240, available.height() / 2)) - 2);
+      // GitHub issue 606 follow-up: New Style, Manage Styles and the view
+      // buttons sit outside the scrolling pane, so they show at any height.
+      auto* scroll = dialog.findChild<QScrollArea*>(QStringLiteral("layerStyleOptionsScroll"));
+      auto* new_style = dialog.findChild<QPushButton*>(QStringLiteral("layerStyleNewStyleButton"));
+      auto* manage = dialog.findChild<QPushButton*>(QStringLiteral("layerStyleManageStylesButton"));
+      CHECK(scroll != nullptr && new_style != nullptr && manage != nullptr);
+      if (scroll != nullptr && new_style != nullptr && manage != nullptr && info != nullptr) {
+        const auto saved_size = dialog.size();
+        dialog.resize(dialog.width(), dialog.minimumHeight());
+        QApplication::processEvents();
+        for (QWidget* button : std::initializer_list<QWidget*>{new_style, manage, list_button, grid_button, info}) {
+          CHECK(!scroll->isAncestorOf(button));
+          CHECK(button->isVisible());
+          const QRect in_dialog(button->mapTo(&dialog, QPoint(0, 0)), button->size());
+          CHECK(dialog.rect().contains(in_dialog));
+        }
+        CHECK(views->height() < std::min(500, std::max(240, available.height() / 2)));
+        dialog.resize(saved_size);
+        QApplication::processEvents();
+      }
       list_button->click();
       QApplication::processEvents();
       CHECK(views->currentWidget() != grid);
@@ -3373,6 +3619,8 @@ std::vector<patchy::test::TestCase> layer_style_gradient_tests_part1() {
       {"ui_layer_style_page_titles_show_ampersands", ui_layer_style_page_titles_show_ampersands},
       {"ui_layer_style_make_default_and_reset_to_default", ui_layer_style_make_default_and_reset_to_default},
       {"ui_layer_style_issue_606_layout", ui_layer_style_issue_606_layout},
+      {"ui_angle_dial_sets_angle_and_altitude_from_clicks", ui_angle_dial_sets_angle_and_altitude_from_clicks},
+      {"ui_layer_style_angle_dials_drive_the_fields", ui_layer_style_angle_dials_drive_the_fields},
       {"ui_layer_style_knockout_and_vector_mask_hides_effects_commit",
        ui_layer_style_knockout_and_vector_mask_hides_effects_commit},
       {"ui_layer_style_shadow_distances_accept_photoshop_30000",

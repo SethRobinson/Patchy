@@ -189,6 +189,14 @@ public:
   // it); invalid until shown. A different size at close is the user's.
   [[nodiscard]] QSize own_size() const { return own_size_; }
 
+  // A widget outside the scroll area (the Style Presets list) whose opening
+  // minimum height drops to `shown_minimum` once the dialog is resizable, so
+  // it shrinks with the dialog instead of holding it tall.
+  void set_shrink_after_show(QWidget& widget, int shown_minimum) {
+    shrink_after_show_ = &widget;
+    shrink_after_show_minimum_ = shown_minimum;
+  }
+
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override {
     if (watched == &pages_ && event->type() == QEvent::LayoutRequest) {
@@ -234,6 +242,9 @@ private:
       }
     }
     resizable_ = true;
+    if (shrink_after_show_ != nullptr) {
+      shrink_after_show_->setMinimumHeight(std::min(shrink_after_show_->minimumHeight(), shrink_after_show_minimum_));
+    }
     sync();
     refresh_dialog_minimum();
     if (restored_size_.isValid()) {
@@ -323,6 +334,8 @@ private:
   int open_height_{0};
   QSize own_size_;
   int shown_pages_height_{0};
+  QPointer<QWidget> shrink_after_show_;
+  int shrink_after_show_minimum_{0};
   bool fitted_{false};
   bool resizable_{false};
 };
@@ -1485,7 +1498,20 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* controls = new QStackedWidget(options_scroll);
   controls->setObjectName(QStringLiteral("layerStyleOptionsStack"));
   options_scroll->setWidget(controls);
-  body->addWidget(options_scroll, 1);
+  // Style Presets lives beside the scroll area, not in it (GitHub issue 606
+  // follow-up): only its preset list scrolls, and New Style, Manage Styles and
+  // the view buttons under it always show. Its page in `controls` stays as an
+  // empty placeholder so the stack's current page still names the category.
+  auto* options_pane = new QStackedWidget(&dialog);
+  options_pane->setObjectName(QStringLiteral("layerStyleOptionsPane"));
+  options_pane->addWidget(options_scroll);
+  auto* styles_pane = new QWidget(options_pane);
+  styles_pane->setObjectName(QStringLiteral("layerStyleStylesPane"));
+  auto* styles_layout = new QVBoxLayout(styles_pane);
+  styles_layout->setContentsMargins(0, 0, 0, 0);
+  styles_layout->setSpacing(10);
+  options_pane->addWidget(styles_pane);
+  body->addWidget(options_pane, 1);
   auto make_page = [controls](const QString& object_name) {
     auto* page = new QWidget(controls);
     page->setObjectName(object_name);
@@ -1517,17 +1543,19 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* pattern_overlay_layout = make_page(QStringLiteral("layerStylePatternOverlayPage"));
   auto* bevel_contour_layout = make_page(QStringLiteral("layerStyleBevelContourPage"));
   auto* bevel_texture_layout = make_page(QStringLiteral("layerStyleBevelTexturePage"));
-  auto* styles_layout = make_page(QStringLiteral("layerStyleStylesPage"));
+  auto* styles_placeholder = make_page(QStringLiteral("layerStyleStylesPage"))->parentWidget();
 
   // --- Styles page: the preset browser -------------------------------------
   // List (the folder tree with names) or Grid (thumbnails, the name in the
   // tooltip), remembered under layerStyle/stylesGridView; Grid by default.
   const QScreen* list_screen = parent != nullptr ? parent->screen() : QGuiApplication::primaryScreen();
   const auto available_height = list_screen != nullptr ? list_screen->availableGeometry().height() : 800;
-  auto* styles_views = new QStackedWidget(&dialog);
+  auto* styles_views = new QStackedWidget(styles_pane);
   styles_views->setObjectName(QStringLiteral("layerStyleStylesViews"));
   // About 500 px of presets where the screen has room; a short screen gets less
-  // so the dialog still fits it (GitHub issue 190).
+  // so the dialog still fits it (GitHub issue 190). Once shown the list may
+  // shrink with the dialog (the buttons below it stay put); see
+  // OptionsPaneScreenCap.
   styles_views->setMinimumHeight(std::clamp(available_height / 2, 240, 500));
   auto* styles_browser = new StyleBrowserWidget(style_library, styles_views);
   styles_browser->setObjectName(QStringLiteral("layerStyleStylesBrowser"));
@@ -1881,28 +1909,29 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   };
 
   // Blend If is part of the Blending Options section (GitHub issue 606): a
-  // line above it, then its rows across the whole section width.
+  // line above it, "Blend If:" in the page's label column and its rows in the
+  // field column, like every other row on the page.
   add_form_section(blending_form, blending_group, QString(), QStringLiteral("layerStyleBlendIfSection"));
+  auto* blend_if_channel_widget = new QWidget(blending_group);
+  blend_if_channel_widget->setObjectName(QStringLiteral("layerStyleBlendIfChannelRow"));
+  auto* blend_if_channel_row = new QHBoxLayout(blend_if_channel_widget);
+  blend_if_channel_row->setContentsMargins(0, 0, 0, 0);
   auto* blend_if_group = new QWidget(blending_group);
   blend_if_group->setObjectName(QStringLiteral("layerStyleBlendIfGroup"));
   auto* blend_if_layout = new QVBoxLayout(blend_if_group);
   blend_if_layout->setContentsMargins(0, 0, 0, 0);
   blend_if_layout->setSpacing(4);
-  auto* blend_if_channel_row = new QHBoxLayout();
-  auto* blend_if_channel_label = new QLabel(QObject::tr("Blend If:"), blend_if_group);
-  auto* blend_if_channel = new QComboBox(blend_if_group);
+  auto* blend_if_channel = new QComboBox(blend_if_channel_widget);
   blend_if_channel->setObjectName(QStringLiteral("layerStyleBlendIfChannelCombo"));
   blend_if_channel->addItem(QObject::tr("Gray"), static_cast<int>(BlendIfChannel::Gray));
   blend_if_channel->addItem(QObject::tr("Red"), static_cast<int>(BlendIfChannel::Red));
   blend_if_channel->addItem(QObject::tr("Green"), static_cast<int>(BlendIfChannel::Green));
   blend_if_channel->addItem(QObject::tr("Blue"), static_cast<int>(BlendIfChannel::Blue));
-  blend_if_channel_label->setBuddy(blend_if_channel);
-  blend_if_channel_row->addWidget(blend_if_channel_label);
   blend_if_channel_row->addWidget(blend_if_channel, 1);
-  auto* reset_blend_if_channel = new QPushButton(QObject::tr("Reset Channel"), blend_if_group);
+  auto* reset_blend_if_channel = new QPushButton(QObject::tr("Reset Channel"), blend_if_channel_widget);
   reset_blend_if_channel->setObjectName(QStringLiteral("layerStyleBlendIfResetChannelButton"));
   blend_if_channel_row->addWidget(reset_blend_if_channel);
-  blend_if_layout->addLayout(blend_if_channel_row);
+  blending_form->addRow(QObject::tr("Blend If:"), blend_if_channel_widget);
 
   const auto blend_if_value_style = QStringLiteral(R"(
     QSpinBox {
@@ -1940,8 +1969,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     values->setSpacing(5);
     auto* title_label = new QLabel(label_text, blend_if_group);
     title_label->setStyleSheet(QStringLiteral("font-weight: 600;"));
-    values->addWidget(title_label);
-    values->addStretch(1);
+    // The title gets its own line: in the field column beside it the values
+    // would widen the dialog past an 800 px screen (issue 606 follow-up).
+    blend_if_layout->addWidget(title_label);
     row.editor = new BlendIfRangeEditorWidget(blend_if_group);
     row.editor->setObjectName(editor_object_name);
     row.editor->set_accessibility_text(
@@ -1974,6 +2004,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     values->addWidget(row.white_low.spin);
     values->addWidget(new QLabel(QObject::tr("to"), blend_if_group));
     values->addWidget(row.white_high.spin);
+    values->addStretch(1);
     blend_if_layout->addLayout(values);
     blend_if_layout->addWidget(row.editor);
     return row;
@@ -1986,8 +2017,15 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       make_blend_if_row(QObject::tr("Underlying Layer"), QObject::tr("Underlying Layer:"),
                         QStringLiteral("layerStyleBlendIfUnderlying"),
                         QStringLiteral("layerStyleBlendIfUnderlyingEditor"));
-  blend_if_group->setEnabled(blend_if_payload_status != BlendIfPayloadStatus::Unsupported);
-  blending_form->addRow(blend_if_group);
+  const auto set_blend_if_enabled = [blend_if_group, blend_if_channel_widget, blending_form](bool enabled) {
+    blend_if_group->setEnabled(enabled);
+    blend_if_channel_widget->setEnabled(enabled);
+    if (auto* label = blending_form->labelForField(blend_if_channel_widget); label != nullptr) {
+      label->setEnabled(enabled);
+    }
+  };
+  blending_form->addRow(QString(), blend_if_group);
+  set_blend_if_enabled(blend_if_payload_status != BlendIfPayloadStatus::Unsupported);
 
   bool loading_blend_if_controls = false;
   const auto current_blend_if_channel_index = [&] {
@@ -2585,6 +2623,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   load_controls_from_style = [&](const QListWidgetItem* category) {
     loading_controls = true;
     controls->setCurrentIndex(static_cast<int>(item_page(category)));
+    options_pane->setCurrentWidget(controls->currentWidget() == styles_placeholder
+                                       ? styles_pane
+                                       : static_cast<QWidget*>(options_scroll));
     const auto kind = item_kind(category);
     const auto index = std::max(0, item_effect_index(category));
     const auto* stack_ops = effect_vector_ops_for_kind(kind);
@@ -3187,7 +3228,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     QObject::connect(replace_blend_if_button, &QPushButton::clicked, &dialog, [&] {
       replace_unsupported_blend_if = true;
       blend_if = {};
-      blend_if_group->setEnabled(true);
+      set_blend_if_enabled(true);
       replace_blend_if_button->setEnabled(false);
       if (blend_if_unsupported_warning != nullptr) {
         blend_if_unsupported_warning->setText(
@@ -4171,9 +4212,10 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     pane_budget = std::max(120, pages_minimum - std::max(0, natural_height - open_height));
     dialog.resize(width, std::min(dialog.height(), open_height));
   }
-  const auto* pane_cap = new OptionsPaneScreenCap(dialog, *options_scroll, *controls, pane_budget,
-                                                  QSize(max_width, max_height), stored_layer_style_dialog_size(),
-                                                  open_height);
+  auto* pane_cap = new OptionsPaneScreenCap(dialog, *options_scroll, *controls, pane_budget,
+                                            QSize(max_width, max_height), stored_layer_style_dialog_size(),
+                                            open_height);
+  pane_cap->set_shrink_after_show(*styles_views, 160);
 
   log_ui_profile("layer_style_dialog_build",
                  std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() -

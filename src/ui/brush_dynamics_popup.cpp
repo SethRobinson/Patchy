@@ -1,6 +1,7 @@
 #include "ui/brush_dynamics_popup.hpp"
 
 #include "ui/action_icons.hpp"
+#include "ui/angle_dial.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/brush_stroke_preview.hpp"
 #include "ui/brush_tip_library.hpp"
@@ -396,7 +397,7 @@ BrushDynamicsPanel::BrushDynamicsPanel(QWidget* parent) : QWidget(parent) {
   base_angle_spin_->setObjectName(QStringLiteral("dynamicsBaseAngleSpin"));
   base_angle_spin_->setRange(-180, 180);
   base_angle_spin_->setSuffix(degree_suffix());
-  shape_grid->addWidget(base_angle_spin_, 0, 1, Qt::AlignLeft);
+  shape_grid->addWidget(wrap_angle_field_with_dial(base_angle_spin_, this), 0, 1, Qt::AlignLeft);
   shape_grid->addWidget(new QLabel(tr("Roundness:"), this), 1, 0);
   base_roundness_spin_ = new QSpinBox(this);
   base_roundness_spin_->setObjectName(QStringLiteral("dynamicsBaseRoundnessSpin"));

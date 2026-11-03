@@ -1335,6 +1335,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/visual_filter_gallery_dialog.cpp
       src/ui/filter_gallery_controls.hpp
       src/ui/filter_gallery_controls.cpp
+      src/ui/angle_dial.hpp
+      src/ui/angle_dial.cpp
       src/ui/filter_overlay_sync.hpp
       src/ui/filter_overlay_sync.cpp
       src/ui/filter_parameter_panel.hpp

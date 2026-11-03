@@ -7,6 +7,7 @@
 
 #include "ui/stroke_preset_manager_dialog.hpp"
 #include "ui/appearance_properties.hpp"
+#include "ui/angle_dial.hpp"
 
 #include "core/pattern_resource.hpp"
 #include "ui/color_panel.hpp"
@@ -420,6 +421,25 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     auto* row = wrap_spin_with_step_buttons(spin, form->parentWidget(), label);
     field_rows[spin] = row;
     form->addRow(label, row);
+    return row;
+  };
+  // Angle fields get the round AngleDial after their - / + pair (GitHub
+  // issue 618); the dial follows the field both ways.
+  const auto add_angle_row = [&add_spin_row](QFormLayout* form, const QString& label, auto* spin) {
+    auto* row = add_spin_row(form, label, spin);
+    auto* dial = new AngleDial(AngleDial::Mode::Angle, row);
+    dial->setObjectName(angle_dial_object_name(spin->objectName()));
+    if (auto* layout = qobject_cast<QHBoxLayout*>(row->layout()); layout != nullptr) {
+      // The field and its buttons stay level with the row's label.
+      for (int index = 0; index < layout->count(); ++index) {
+        if (auto* widget = layout->itemAt(index)->widget(); widget != nullptr) {
+          layout->setAlignment(widget, Qt::AlignTop);
+        }
+      }
+      layout->addSpacing(8);
+      layout->addWidget(dial);
+    }
+    bind_angle_dial(*dial, *spin);
     return row;
   };
   // A paint's own settings form a nested block under its picker row (GitHub
@@ -954,7 +974,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   gradient_angle_spin->setObjectName(QStringLiteral("shapeGradientAngleSpin"));
   gradient_angle_spin->setRange(-180, 180);
   configure_dialog_spinbox(gradient_angle_spin, 72);
-  add_spin_row(fill_gradient_form, QObject::tr("Angle:"), gradient_angle_spin);
+  add_angle_row(fill_gradient_form, QObject::tr("Angle:"), gradient_angle_spin);
 
   auto* gradient_scale_spin = new QSpinBox(fill_group);
   gradient_scale_spin->setObjectName(QStringLiteral("shapeGradientScaleSpin"));
@@ -989,7 +1009,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   pattern_angle_spin->setRange(-180.0, 180.0);
   pattern_angle_spin->setDecimals(1);
   configure_dialog_spinbox(pattern_angle_spin, 72);
-  add_spin_row(fill_pattern_form, QObject::tr("Angle:"), pattern_angle_spin);
+  add_angle_row(fill_pattern_form, QObject::tr("Angle:"), pattern_angle_spin);
 
   auto* pattern_offset_x_spin = new UnitSpinBox(SpinUnit::Pixels, fill_group);
   pattern_offset_x_spin->setObjectName(QStringLiteral("shapePatternOffsetXSpin"));
@@ -1132,7 +1152,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   stroke_gradient_angle_spin->setObjectName(QStringLiteral("shapeStrokeGradientAngleSpin"));
   stroke_gradient_angle_spin->setRange(-180, 180);
   configure_dialog_spinbox(stroke_gradient_angle_spin, 72);
-  add_spin_row(stroke_gradient_form, QObject::tr("Angle:"), stroke_gradient_angle_spin);
+  add_angle_row(stroke_gradient_form, QObject::tr("Angle:"), stroke_gradient_angle_spin);
 
   auto* stroke_gradient_scale_spin = new QSpinBox(stroke_group);
   stroke_gradient_scale_spin->setObjectName(QStringLiteral("shapeStrokeGradientScaleSpin"));
@@ -1166,7 +1186,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   stroke_pattern_angle_spin->setRange(-180.0, 180.0);
   stroke_pattern_angle_spin->setDecimals(1);
   configure_dialog_spinbox(stroke_pattern_angle_spin, 72);
-  add_spin_row(stroke_pattern_form, QObject::tr("Angle:"), stroke_pattern_angle_spin);
+  add_angle_row(stroke_pattern_form, QObject::tr("Angle:"), stroke_pattern_angle_spin);
 
   auto* stroke_pattern_offset_x_spin = new UnitSpinBox(SpinUnit::Pixels, stroke_group);
   stroke_pattern_offset_x_spin->setObjectName(QStringLiteral("shapeStrokePatternOffsetXSpin"));
@@ -1430,6 +1450,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     const auto type_index = gradient_type_combo->findData(static_cast<int>(gradient.type));
     gradient_type_combo->setCurrentIndex(std::max(0, type_index));
     gradient_angle_spin->setValue(static_cast<int>(std::lround(gradient.angle_degrees)));
+    sync_angle_dial(*gradient_angle_spin);
     gradient_scale_spin->setValue(
         std::clamp(static_cast<int>(std::lround(gradient.scale * 100.0F)), 10, 1000));
     gradient_reverse_check->setChecked(gradient.reverse);
@@ -1455,6 +1476,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
       stroke_gradient_type_combo->setCurrentIndex(std::max(
           0, stroke_gradient_type_combo->findData(static_cast<int>(gradient.type))));
       stroke_gradient_angle_spin->setValue(static_cast<int>(std::lround(gradient.angle_degrees)));
+      sync_angle_dial(*stroke_gradient_angle_spin);
       stroke_gradient_scale_spin->setValue(
           std::clamp(static_cast<int>(std::lround(gradient.scale * 100.0F)), 10, 1000));
       stroke_gradient_reverse_check->setChecked(gradient.reverse);
@@ -1472,6 +1494,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
           std::clamp(static_cast<int>(std::lround(content.pattern_scale * 100.0)), 1, 1000));
       QSignalBlocker angle_blocker(stroke_pattern_angle_spin);
       stroke_pattern_angle_spin->setValue(content.pattern_angle_degrees);
+      sync_angle_dial(*stroke_pattern_angle_spin);
       QSignalBlocker offset_x_blocker(stroke_pattern_offset_x_spin);
       stroke_pattern_offset_x_spin->setValue(content.pattern_phase_x);
       QSignalBlocker offset_y_blocker(stroke_pattern_offset_y_spin);

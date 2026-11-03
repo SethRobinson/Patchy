@@ -37,6 +37,19 @@ QSpinBox* add_size_slider_spin_row(QFormLayout* form, QWidget* parent, const QSt
                                                         const QString& spin_object_name, int minimum,
                                                         int maximum, int value,
                                                         int slider_maximum = std::numeric_limits<int>::max());
+// An angle row (GitHub issue 618): the round AngleDial in the slider's place,
+// then the number field and its - / + pair, kept in step both ways. The dial
+// is named after the field ("...Spin" -> "...Dial").
+QSpinBox* add_angle_spin_row(QFormLayout* form, QWidget* parent, const QString& label,
+                             const QString& spin_object_name, int minimum, int maximum, int value);
+struct AngleAltitudeSpins {
+  QSpinBox* angle{};
+  QSpinBox* altitude{};
+};
+// Bevel & Emboss shading: an Angle row with the angle-and-altitude dial and an
+// Altitude row below it, both fields in the page's field column.
+AngleAltitudeSpins add_angle_altitude_rows(QFormLayout* form, QWidget* parent, const QString& angle_object_name,
+                                           int angle, const QString& altitude_object_name, int altitude);
 struct TwoChoiceRadios {
   QWidget* row{};
   QRadioButton* first{};

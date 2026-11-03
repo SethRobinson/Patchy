@@ -6,6 +6,7 @@
 #include <QScrollBar>
 #include <QSlider>
 #include <QStatusBar>
+#include "ui/angle_dial.hpp"
 #include "ui/modifier_names.hpp"
 #include "render/compositor.hpp"
 #include <QAbstractItemView>
@@ -3461,6 +3462,22 @@ void ui_shape_appearance_gradient_rows_indent() {
                 "shapeGradientScaleSpin", "shapeGradientReverseCheck");
     check_block(stroke_block, align, "shapeStrokeGradientCombo", "shapeStrokeGradientTypeCombo",
                 "shapeStrokeGradientAngleSpin", "shapeStrokeGradientScaleSpin", "shapeStrokeGradientReverseCheck");
+    // GitHub issue 618: each angle field has its round dial after the - / +
+    // pair, and the dial drives the field.
+    for (const auto* name : {"shapeGradientAngleDial", "shapeStrokeGradientAngleDial", "shapePatternAngleDial",
+                             "shapeStrokePatternAngleDial"}) {
+      CHECK(dialog->findChild<patchy::ui::AngleDial*>(QLatin1String(name)) != nullptr);
+    }
+    if (auto* dial = dialog->findChild<patchy::ui::AngleDial*>(QStringLiteral("shapeGradientAngleDial"));
+        dial != nullptr) {
+      auto* angle = dialog->findChild<QSpinBox*>(QStringLiteral("shapeGradientAngleSpin"));
+      CHECK(angle != nullptr && angle->parentWidget()->isAncestorOf(dial));
+      const auto top = (dial->center() + QPointF(0.0, -(dial->radius() - 1.0))).toPoint();
+      send_mouse(*dial, QEvent::MouseButtonPress, top, Qt::LeftButton, Qt::LeftButton);
+      send_mouse(*dial, QEvent::MouseButtonRelease, top, Qt::LeftButton, Qt::NoButton);
+      CHECK(angle != nullptr && angle->value() == 90);
+      QApplication::processEvents();
+    }
     patchy::test::ui::save_widget_artifact("issue552_shape_appearance_gradient_indent", *dialog);
     // The Fill group down to the stroke's gradient block, for the issue reply.
     auto* fill_group = fill_kind->parentWidget();

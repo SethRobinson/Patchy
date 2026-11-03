@@ -2,6 +2,25 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="ko" sourcelanguage="en">
 <context>
+    <name>AngleDial</name>
+    <message>
+        <source>Angle and altitude</source>
+        <translation>각도 및 고도</translation>
+    </message>
+    <message>
+        <source>Click or drag to set the angle. The distance from the center sets the altitude: 90° at the center, 0° at the edge. Arrow keys: Left and Right turn, Up and Down change the altitude.</source>
+        <translation>클릭하거나 드래그하여 각도를 설정합니다. 중심으로부터의 거리가 고도를 정합니다: 중심은 90°, 가장자리는 0°입니다. 화살표 키: 왼쪽과 오른쪽은 회전, 위와 아래는 고도를 바꿉니다.</translation>
+    </message>
+    <message>
+        <source>Angle</source>
+        <translation>각도</translation>
+    </message>
+    <message>
+        <source>Click or drag to set the angle. Arrow keys turn it; hold Shift for 15° steps.</source>
+        <translation>클릭하거나 드래그하여 각도를 설정합니다. 화살표 키로 회전하며 Shift 키를 누르면 15° 단위로 바뀝니다.</translation>
+    </message>
+</context>
+<context>
     <name>AppImageMenuEntry</name>
     <message>
         <source>Could not create the folder for %1</source>

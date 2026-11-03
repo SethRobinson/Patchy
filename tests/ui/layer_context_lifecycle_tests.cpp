@@ -848,7 +848,7 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
       CHECK(dialog != nullptr);
       auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
       auto* gradient_check = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleGradientOverlayCategoryCheck"));
-      auto* gradient_angle_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleGradientAngleSlider"));
+      auto* gradient_angle_slider = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleGradientAngleSpin"));
       auto* gradient_editor =
           dialog->findChild<patchy::ui::GradientStopsEditorWidget*>(QStringLiteral("layerStyleGradientStopsEditor"));
       auto* gradient_blend = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleGradientBlendModeCombo"));
