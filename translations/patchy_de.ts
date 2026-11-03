@@ -17130,10 +17130,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Vertikal spiegeln</translation>
     </message>
     <message>
-        <source>Scale, rotation and flip apply to the Clone Stamp.</source>
-        <translation>Skalierung, Drehung und Spiegelung gelten für den Kopierstempel.</translation>
-    </message>
-    <message>
         <source>Clear</source>
         <translation>Löschen</translation>
     </message>

@@ -17130,10 +17130,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Symétrie verticale</translation>
     </message>
     <message>
-        <source>Scale, rotation and flip apply to the Clone Stamp.</source>
-        <translation>L&apos;échelle, la rotation et la symétrie s&apos;appliquent au Tampon de duplication.</translation>
-    </message>
-    <message>
         <source>Clear</source>
         <translation>Effacer</translation>
     </message>

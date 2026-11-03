@@ -17175,10 +17175,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Отразить по вертикали</translation>
     </message>
     <message>
-        <source>Scale, rotation and flip apply to the Clone Stamp.</source>
-        <translation>Масштаб, поворот и отражение применяются к Штампу.</translation>
-    </message>
-    <message>
         <source>Clear</source>
         <translation>Очистить</translation>
     </message>

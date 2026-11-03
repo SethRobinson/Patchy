@@ -17130,10 +17130,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Rifletti in verticale</translation>
     </message>
     <message>
-        <source>Scale, rotation and flip apply to the Clone Stamp.</source>
-        <translation>Scala, rotazione e riflesso valgono per il Timbro clone.</translation>
-    </message>
-    <message>
         <source>Clear</source>
         <translation>Cancella</translation>
     </message>

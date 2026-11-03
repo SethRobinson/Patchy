@@ -17085,10 +17085,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>垂直翻轉</translation>
     </message>
     <message>
-        <source>Scale, rotation and flip apply to the Clone Stamp.</source>
-        <translation>縮放、旋轉和翻轉適用於仿製印章。</translation>
-    </message>
-    <message>
         <source>Clear</source>
         <translation>清除</translation>
     </message>

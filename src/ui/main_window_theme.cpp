@@ -183,13 +183,47 @@ QString photoshop_style_template() {
       min-width: 0;
       min-height: 0;
     }
-    /* The clone source popup's section lines (GitHub issue 574), in the menu separator's color. */
-    QFrame#cloneSourcePointDivider, QFrame#cloneSourceTransformDivider {
-      background: @menu_separator;
-      color: @menu_separator;
+    /* The clone source popup's section lines (GitHub issue 574), in the dialog divider's
+       color: the menu separator's all but vanished on the popup. */
+    QFrame#cloneSourcePointDivider, QFrame#cloneSourceOffsetDivider, QFrame#cloneSourceTransformDivider {
+      background: @dlg_divider;
+      color: @dlg_divider;
       min-height: 1px;
       max-height: 1px;
       border: 0;
+    }
+    /* The clone source slots 1 to 4 read as buttons (GitHub issue 574): a push button's
+       border and fill, the accent on the active source. As tall as the popup's fields. */
+    QToolButton[cloneSourceSlot="true"] {
+      background: @button_bg;
+      color: @text_primary;
+      border: 1px solid @button_border;
+      padding: 2px;
+      min-width: 22px;
+      min-height: 18px;
+      max-height: 18px;
+    }
+    QToolButton[cloneSourceSlot="true"]:hover {
+      background: @button_hover_bg;
+      border-color: @button_hover_border_strong;
+    }
+    QToolButton[cloneSourceSlot="true"]:checked {
+      background: @accent_checked_bg;
+      border-color: @accent_checked_border;
+      color: @text_on_accent;
+    }
+    QToolButton[cloneSourceSlot="true"]:disabled {
+      background: @field_bg_disabled;
+      color: @field_text_disabled;
+      border-color: @field_border_disabled;
+    }
+    /* The offset's info mark: a bare 16 px glyph, no box (GitHub issue 574). */
+    QToolButton#cloneSourceOffsetInfoButton, QToolButton#cloneSourceOffsetInfoButton:hover {
+      background: transparent;
+      border: none;
+      padding: 0;
+      min-width: 0;
+      min-height: 0;
     }
     QToolButton#colorPanelSettingsButton::menu-indicator,
     QToolButton#layersPanelSettingsButton::menu-indicator {

@@ -19,7 +19,9 @@
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QSpinBox>
+#include <QPainter>
 #include <QToolButton>
+#include <QToolTip>
 #include <QVBoxLayout>
 #include <QWidgetAction>
 
@@ -32,14 +34,21 @@ namespace {
 constexpr int kOffsetLimit = 1000000;
 // The flip toggles match the 24 px dialog spin boxes (configure_dialog_spinbox).
 constexpr int kFlipButtonSize = 24;
+constexpr int kInfoButtonSize = 18;
 
-// A wrapped note follows the width the fields give the panel: its own width hint (Qt's
-// guess for a word-wrapped label, wider with larger fonts) never widens a column.
-void make_wrapping_note(QLabel* note) {
-  note->setWordWrap(true);
-  QSizePolicy policy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-  policy.setHeightForWidth(true);
-  note->setSizePolicy(policy);
+// A ringed "i" in the theme's icon ink: the offset's info mark (GitHub issue 574).
+QIcon info_mark_icon() {
+  return themed_glyph_icon(QStringLiteral("clone-source-info"), 16.0, &ThemePalette::icon_ink,
+                           [](QPainter& painter, const QColor& ink) {
+                             painter.setRenderHint(QPainter::Antialiasing);
+                             painter.setPen(QPen(ink, 1.3));
+                             painter.setBrush(Qt::NoBrush);
+                             painter.drawEllipse(QRectF(1.15, 1.15, 13.7, 13.7));
+                             painter.setPen(Qt::NoPen);
+                             painter.setBrush(ink);
+                             painter.drawEllipse(QRectF(7.0, 3.6, 2.0, 2.0));
+                             painter.drawRect(QRectF(7.1, 6.6, 1.8, 6.0));
+                           });
 }
 
 }  // namespace
@@ -68,12 +77,14 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
   for (int slot = 0; slot < kSlotCount; ++slot) {
     auto* button = new QToolButton(this);
     button->setObjectName(QStringLiteral("cloneSourceSlotButton%1").arg(slot + 1));
+    // Drawn as bordered buttons with the accent on the checked one (GitHub issue 574,
+    // main_window_theme.cpp).
+    button->setProperty("cloneSourceSlot", true);
     button->setText(QString::number(slot + 1));
     button->setCheckable(true);
     button->setAutoRaise(false);
-    // No fixed size: the theme's QToolButton minimum makes them 34 px squares, and a
-    // fixed 22 px height let the grid plan a 22 px row the buttons then overhung, onto the
-    // Point row (GitHub issue 515).
+    // No fixed size: the theme rule sizes them, and a fixed 22 px height let the grid plan
+    // a 22 px row the buttons then overhung, onto the Point row (GitHub issue 515).
     button->setFocusPolicy(Qt::NoFocus);
     slot_group_->addButton(button, slot);
     slot_row->addWidget(button);
@@ -97,12 +108,25 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
   connect(clear_source_button_, &QPushButton::clicked, this,
           [this] { emit clear_source_requested(state_.slot); });
 
-  // Row 2: the offset, with a note under it while the next stroke still sets it.
+  // Lines between the sections (GitHub issue 574): under Point (Clear's row), under Offset,
+  // and under scale, rotation and flips (Reset's rows).
+  const auto add_divider = [this, layout](int row, const QString& name) {
+    auto* divider = new QFrame(this);
+    divider->setObjectName(name);
+    divider->setFrameShape(QFrame::HLine);
+    divider->setFrameShadow(QFrame::Plain);
+    layout->addWidget(divider, row, 0, 1, 5);
+    return divider;
+  };
+  add_divider(2, QStringLiteral("cloneSourcePointDivider"));
+
+  // Row 3: the offset, with an info mark right of X while the fields are off or the next
+  // stroke still sets it (its tooltip says which; GitHub issue 574).
   offset_label_ = new QLabel(this);
-  layout->addWidget(offset_label_, 2, 0);
+  layout->addWidget(offset_label_, 3, 0);
   offset_x_label_ = new QLabel(this);
   offset_x_label_->setAlignment(kFieldCaption);
-  layout->addWidget(offset_x_label_, 2, 1, kFieldCaption);
+  layout->addWidget(offset_x_label_, 3, 1, kFieldCaption);
   offset_x_spin_ = new QSpinBox(this);
   offset_x_spin_->setObjectName(QStringLiteral("cloneSourceOffsetXSpin"));
   offset_y_label_ = new QLabel(this);
@@ -113,30 +137,40 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
     spin->setRange(-kOffsetLimit, kOffsetLimit);
     configure_dialog_spinbox(spin, 84);
   }
-  layout->addWidget(offset_x_spin_, 2, 2);
-  layout->addWidget(offset_y_label_, 2, 3, kFieldCaption);
-  layout->addWidget(offset_y_spin_, 2, 4);
+  layout->addWidget(offset_x_spin_, 3, 2);
+  // The mark shares the second caption column with "Y:", on the opposite side; one row
+  // layout, so the column is never narrower than both.
+  auto* y_caption_row = new QHBoxLayout();
+  y_caption_row->setContentsMargins(0, 0, 0, 0);
+  y_caption_row->setSpacing(4);
+  offset_info_button_ = new QToolButton(this);
+  offset_info_button_->setObjectName(QStringLiteral("cloneSourceOffsetInfoButton"));
+  offset_info_button_->setIcon(info_mark_icon());
+  offset_info_button_->setFixedSize(kInfoButtonSize, kInfoButtonSize);
+  offset_info_button_->setIconSize(QSize(16, 16));
+  offset_info_button_->setAutoRaise(true);
+  offset_info_button_->setFocusPolicy(Qt::NoFocus);
+  y_caption_row->addWidget(offset_info_button_, 0, Qt::AlignVCenter);
+  y_caption_row->addStretch(1);
+  // A click shows the same text at once, for pens and touch screens that never hover.
+  connect(offset_info_button_, &QToolButton::clicked, this, [this] {
+    QToolTip::showText(offset_info_button_->mapToGlobal(QPoint(0, offset_info_button_->height())),
+                       offset_info_button_->toolTip(), offset_info_button_);
+  });
+  y_caption_row->addWidget(offset_y_label_, 0, kFieldCaption);
+  // Its field is outside the row layout, so the scrub label finds it as the buddy.
+  offset_y_label_->setBuddy(offset_y_spin_);
+  layout->addLayout(y_caption_row, 3, 3);
+  layout->addWidget(offset_y_spin_, 3, 4);
   const auto offset_changed = [this] {
     emit offset_edited(QPoint(offset_x_spin_->value(), offset_y_spin_->value()));
   };
   connect(offset_x_spin_, &QSpinBox::valueChanged, this, offset_changed);
   connect(offset_y_spin_, &QSpinBox::valueChanged, this, offset_changed);
-  offset_note_ = new QLabel(this);
-  offset_note_->setObjectName(QStringLiteral("cloneSourceOffsetNote"));
-  make_wrapping_note(offset_note_);
-  layout->addWidget(offset_note_, 3, 2, 1, 3);
-  // Lines between the sections (GitHub issue 574): Clear acts on Point and Offset above
-  // the first, Reset on scale, rotation and flips above the second.
-  const auto add_divider = [this, layout](int row, const QString& name) {
-    auto* divider = new QFrame(this);
-    divider->setObjectName(name);
-    divider->setFrameShape(QFrame::HLine);
-    divider->setFrameShadow(QFrame::Plain);
-    layout->addWidget(divider, row, 0, 1, 5);
-  };
-  add_divider(4, QStringLiteral("cloneSourcePointDivider"));
+  add_divider(4, QStringLiteral("cloneSourceOffsetDivider"));
 
-  // Rows 5 and 6: the Clone Stamp's scale, rotation and flips, and Reset.
+  // Rows 5 and 6: the Clone Stamp's scale, rotation and flips, and Reset. The Healing Brush
+  // never transforms its source, so they and their line hide there (GitHub issue 596).
   scale_label_ = new QLabel(this);
   layout->addWidget(scale_label_, 5, 0);
   scale_spin_ = new QDoubleSpinBox(this);
@@ -194,25 +228,21 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
   layout->addWidget(reset_button_, 6, 4);
   connect(reset_button_, &QPushButton::clicked, this,
           [this] { emit transform_edited(patchy::CloneSourceTransform{}); });
-  transform_note_ = new QLabel(this);
-  transform_note_->setObjectName(QStringLiteral("cloneSourceTransformNote"));
-  make_wrapping_note(transform_note_);
-  layout->addWidget(transform_note_, 7, 0, 1, 5);
 
-  add_divider(8, QStringLiteral("cloneSourceTransformDivider"));
+  transform_divider_ = add_divider(7, QStringLiteral("cloneSourceTransformDivider"));
 
-  // Row 9: the overlay.
+  // Row 8: the overlay.
   overlay_check_ = new QCheckBox(this);
   overlay_check_->setObjectName(QStringLiteral("cloneSourceOverlayCheck"));
-  layout->addWidget(overlay_check_, 9, 0, 1, 3);
+  layout->addWidget(overlay_check_, 8, 0, 1, 3);
   overlay_opacity_label_ = new QLabel(this);
   overlay_opacity_label_->setAlignment(kFieldCaption);
-  layout->addWidget(overlay_opacity_label_, 9, 3, kFieldCaption);
+  layout->addWidget(overlay_opacity_label_, 8, 3, kFieldCaption);
   overlay_opacity_spin_ = new QSpinBox(this);
   overlay_opacity_spin_->setObjectName(QStringLiteral("cloneSourceOverlayOpacitySpin"));
   overlay_opacity_spin_->setRange(1, 100);
   configure_dialog_spinbox(overlay_opacity_spin_, 84);
-  layout->addWidget(overlay_opacity_spin_, 9, 4);
+  layout->addWidget(overlay_opacity_spin_, 8, 4);
   const auto overlay_changed = [this] { emit overlay_edited(overlay_check_->isChecked(), overlay_opacity_spin_->value()); };
   connect(overlay_check_, &QCheckBox::toggled, this, overlay_changed);
   connect(overlay_opacity_spin_, &QSpinBox::valueChanged, this, overlay_changed);
@@ -225,7 +255,7 @@ CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {
 
 QSize CloneSourcePanel::sizeHint() const {
   // QMenu sizes a QWidgetAction from its size hint alone, never height-for-width: ask the
-  // grid how tall the wrapped notes make it at the hinted width (GitHub issue 515).
+  // grid how tall any wrapping row makes it at the hinted width (GitHub issue 515).
   auto hint = QWidget::sizeHint();
   if (layout() != nullptr && layout()->hasHeightForWidth()) {
     hint.setHeight(std::max(hint.height(), layout()->totalHeightForWidth(hint.width())));
@@ -355,8 +385,9 @@ void CloneSourcePanel::refresh() {
   } else if (source_set && !state_.offset_set) {
     offset_note = tr("Your next stroke sets the offset.");
   }
-  offset_note_->setText(offset_note);
-  offset_note_->setVisible(!offset_note.isEmpty());
+  offset_info_button_->setToolTip(offset_note);
+  offset_info_button_->setAccessibleName(offset_note);
+  offset_info_button_->setVisible(!offset_note.isEmpty());
 
   {
     const QSignalBlocker scale_blocker(scale_spin_);
@@ -375,9 +406,13 @@ void CloneSourcePanel::refresh() {
   flip_horizontal_button_->setEnabled(transform_editable);
   flip_vertical_button_->setEnabled(transform_editable);
   reset_button_->setEnabled(transform_editable && !state_.transform.is_identity());
-  transform_note_->setText(state_.transform_applies ? QString()
-                                                    : tr("Scale, rotation and flip apply to the Clone Stamp."));
-  transform_note_->setVisible(!state_.transform_applies);
+  // Not applicable on the Healing Brush: hidden, not shown off (GitHub issue 596). Their rows
+  // and line collapse, and the hint check below resizes the popup either way.
+  for (QWidget* widget : std::initializer_list<QWidget*>{
+           scale_label_, scale_spin_, rotation_label_, rotation_spin_, flip_label_, flip_horizontal_button_,
+           flip_vertical_button_, reset_button_, transform_divider_}) {
+    widget->setVisible(state_.transform_applies);
+  }
 
   {
     const QSignalBlocker check_blocker(overlay_check_);
@@ -386,8 +421,15 @@ void CloneSourcePanel::refresh() {
     overlay_opacity_spin_->setValue(state_.overlay_opacity);
   }
   overlay_opacity_spin_->setEnabled(state_.overlay_shown);
-  // Any change of the hint (a note shown or hidden, a longer Point text, a language) goes to
-  // the menu, open or closed.
+  // Any change of the hint (rows shown or hidden, a longer Point text, a language) goes to
+  // the menu, open or closed. The layout is redone first, also while the popup is closed:
+  // the hint must count the rows just shown or hidden, and QMenu sizes the panel to at
+  // least its minimum size, which only an activation updates (a Healing Brush popup opened
+  // after a switch made while closed kept the Clone Stamp's taller minimum, issue 596).
+  if (layout() != nullptr) {
+    layout()->invalidate();
+    layout()->activate();
+  }
   if (const auto hint = sizeHint(); hint != reported_hint_) {
     reported_hint_ = hint;
     relayout_popup();
