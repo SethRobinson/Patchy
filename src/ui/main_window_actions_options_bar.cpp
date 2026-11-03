@@ -1683,9 +1683,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   });
   add_option_widget(style_combo, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee});
   add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee});
-  // Fixed Ratio has its own unitless pair (1 : 1 by default, as Photoshop); Normal and
-  // Fixed Size show the pixel fields (GitHub issue 201). marquee_option_widget_visible
-  // swaps the two sets.
+  // Fixed Ratio has its own unitless pair (1 : 1 by default, as Photoshop); Fixed Size
+  // shows the pixel fields (GitHub issue 201) and Normal neither (GitHub issue 602).
+  // marquee_option_widget_visible picks the set.
   marquee_ratio_option_widgets_.push_back(
       add_option_label(QT_TR_NOOP("Width:"), {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
   auto* ratio_width = new TrimmedDoubleSpinBox(toolbar);
@@ -1699,7 +1699,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       add_option_widget(ratio_width, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
   // Width and Height trade places with one click (GitHub issue 286), here and on the Artboard
   // bar: two opposed arrows in the icon ink, an icon button sized like the bar's others.
-  // Each marquee pair has its own button; Normal, whose fields are greyed, shows neither.
+  // Each marquee pair has its own button.
   const auto make_swap_dimensions_button = [toolbar](const char* object_name) {
     auto* button = new QToolButton(toolbar);
     button->setObjectName(QLatin1String(object_name));
@@ -1745,7 +1745,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   marquee_size_option_widgets_.push_back(
       add_option_widget(fixed_width, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
   auto* size_swap = make_swap_dimensions_button("selectionFixedSizeSwapButton");
-  marquee_fixed_size_option_widgets_.push_back(
+  marquee_size_option_widgets_.push_back(
       add_option_widget(size_swap, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
   marquee_size_option_widgets_.push_back(label_after_swap_button(
       add_option_label(QT_TR_NOOP("Height:"), {CanvasTool::Marquee, CanvasTool::EllipticalMarquee})));
@@ -1758,8 +1758,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   marquee_size_option_widgets_.push_back(
       add_option_widget(fixed_height, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
   const auto apply_marquee_settings = [this, style_combo, fixed_width, fixed_height, ratio_width, ratio_height] {
-    // Normal ignores the size fields, so they grey out (Fixed Ratio reads
-    // them as the ratio, Fixed Size as the size).
+    // Normal ignores the size fields: they hide (GitHub issue 602), and greying them
+    // also closes a value popup left open on one.
     fixed_width->setEnabled(style_combo->currentIndex() != 0);
     fixed_height->setEnabled(style_combo->currentIndex() != 0);
     switch (style_combo->currentIndex()) {

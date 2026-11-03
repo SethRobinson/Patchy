@@ -3874,7 +3874,6 @@ private:
   std::vector<QWidget*> marquee_ratio_option_widgets_;
   std::vector<QWidget*> marquee_size_option_widgets_;
   // Shown for Fixed Size only (the pixel pair's swap button, GitHub issue 286).
-  std::vector<QWidget*> marquee_fixed_size_option_widgets_;
   int current_marquee_corner_radius_{0};
   // Feather and Anti-alias per selection tool (indexed by CanvasWidget::selection_tool_index),
   // persisted as tools/<tool>Feather and tools/<tool>AntiAlias. current_selection_* mirror
