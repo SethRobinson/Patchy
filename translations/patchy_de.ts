@@ -12699,10 +12699,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Einige Textebenen konnten nicht als Text gelesen werden und wurden deshalb als Pixelebenen geöffnet.</translation>
     </message>
     <message>
-        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
-        <translation>Einige GIMP-Ebeneneffekte haben in Patchy keine Entsprechung und wurden nicht angewendet; diese Ebenen zeigen ihre Pixel ohne den Effekt.</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>GIMP-Verknüpfungsebenen wurden als Pixelebenen geöffnet; sie folgen ihren verknüpften Dateien nicht mehr.</translation>
     </message>
@@ -12721,10 +12717,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
         <translation>Einige Ebenen erscheinen nur dort, wo die Ebene darunter ist, so wie GIMP sie zusammensetzt; sie wurden als Schnittmasken auf ihr geöffnet.</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>GIMP-Ebeneneffekte, die Patchy nachbilden kann (Gaußscher Weichzeichner und Farbfilter wie Tonwertkorrektur, Farbton/Sättigung und Entsättigen), wurden auf die Pixel ihrer Ebenen angewendet.</translation>
     </message>
     <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
@@ -14957,6 +14949,15 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Feather radius</source>
         <translation>Radius der weichen Kante</translation>
+    </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
+        <translation>GIMP-Ebeneneffekte, die Patchy nachbilden kann (Gaußscher Weichzeichner, Farbfilter wie Tonwertkorrektur und Farbton/Sättigung sowie die GEGL-Filter, die Patchy mitbringt, etwa Unscharf maskieren, Bloom und Rauschen), wurden auf die Pixel ihrer Ebenen angewendet.</translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their pixels without them.</source>
+        <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
+        <translation>Einige GIMP-Ebeneneffekte, die Patchy nicht nachbilden kann, wurden weggelassen (%1); diese Ebenen zeigen ihre Pixel ohne sie.</translation>
     </message>
 </context>
 <context>

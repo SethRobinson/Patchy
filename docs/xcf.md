@@ -261,8 +261,32 @@ size and color follow the first run, since a span can restyle all of the text.
 - Every applied effect mixes with the original in linear light by the effect's opacity and,
   when its region is the selection, by its mask (when that mask has the layer's size; an empty one, no selection at the time, means the whole layer). One
   notice covers them. Text layers lose their text when an effect changes their pixels.
-- Everything else (per-range hue-saturation, color balance, curves, noise, bloom, ...) is
-  left out with a notice; hidden effects are ignored.
+- GEGL operations the reader has no code of its own for run through Patchy's own GEGL (#616;
+  [gegl-filters.md](gegl-filters.md)) when the operation is in `kRunnerEffects`. The reader is
+  Qt-free, so it calls an effect runner (`xcf::set_effect_runner`) that `MainWindow` installs
+  at startup (`install_xcf_effect_runner`: one `patchy-gegl-host` run per effect, none in a
+  build without the bundle or on the web). GIMP stores a GEGL filter's arguments under GEGL's
+  property names, so each passes through by name and PROP_FILTER_ARGUMENT type (1 int, 2
+  boolean, 3 number as a float, 5 enum, 7 unsigned for seeds, 8 GeglColor as encoded sRGB;
+  6, the string config of GIMP's own `gimp:` operations, is not sent). The layer goes over as
+  RGBA at the document's depth and comes back the same size; the result mixes as above.
+  With the filter's Clipping on Adjust (FILTER_CLIP 0) an entry's `reach` (Motion Blur's
+  length, Waves' amplitude, a pixel for Sobel) adds a transparent margin the result spreads
+  into, then trimmed to what it covers, as GIMP grows the layer. Spread, Pick, Slur and
+  Ripple get none: GIMP 3.2 draws what they move across the edge a few pixels away from
+  GEGL's own result, and a margin moves their seeded noise (GEGL's random numbers follow the
+  pixel position). An entry needs an operation Patchy offers as a GEGL filter (its legal
+  review) and a tile in `test-fixtures/xcf/gegl-effects.xcf`
+  (`scripts/dev/xcf/make_gegl_effect_fixture.py`: one 48-pixel tile layer per effect over
+  gray, GIMP 3.2's render beside it). Against that render (November 3, 2026): Cubism 0.84
+  levels mean, Lens Distortion and Waves under 0.4 (edges), Color to Alpha 7.4 (the
+  composite-space difference of its partly transparent pixels), the five edge cases above
+  identical inside the tile, every other tile identical or within a level.
+- Everything else is left out with a notice naming the effects (GIMP's name for each):
+  GIMP's own `gimp:` operations without a fitted formula (curves, color balance, per-range
+  hue-saturation), operations Patchy's GEGL lacks (median blur) or that are not in the table,
+  and every runner effect in a build without GEGL or when a run fails. Hidden effects are
+  ignored.
 
 ## Other content
 
@@ -315,8 +339,8 @@ values. A malformed list yields nothing.
 (`manifest.txt` lists what each covers); `render_with_gimp.py` renders any folder of .xcf files
 the same way; `tile_report.py` breaks a mode fixture's difference down per mode;
 `xcf_dump.py` prints a file's structure. The small GIMP-made files in `test-fixtures/xcf/`
-(text, structure, modes, modes-legacy, groups, indexed, vector-layers, the compressed trio)
-are committed.
+(text, structure, modes, modes-legacy, groups, indexed, vector-layers, gegl-effects, the
+compressed trio) are committed.
 
 Differences in 8-bit levels on premultiplied RGBA (mean over the canvas, worst pixel),
 October 25, 2026: legacy modes 0.37 (worst 45 at soft tile edges); default modes 3.8 (the
@@ -358,7 +382,11 @@ channels, paths, guides and metadata, the wrappers, hostile input, the registry 
 open-by-content, a Unicode path, the committed GIMP files against GIMP's renders, the local
 fixture set and corpus when present, every local file's layer tree against GIMP's, the #487
 samples (Erase and Split layers, an active Split layer), the #547 bottom layer's locks, vector
-layers as shapes and their fallbacks (#548); `blend_math_gimp_*` pin the GIMP mode kernels. UI
-(`tests/ui/xcf_ui_tests.cpp`, filter `ui_xcf_`): opening by name, compressed name and content,
-GIMP modes in the Layers panel, editable text and its PSD save, outlined text redrawn with a
-Stroke style that an edit keeps.
+layers as shapes and their fallbacks (#548), the effect runner's settings, mixing and notice with
+a stand-in runner (`xcf_effect_runner_gets_gegl_arguments_and_mixes_by_opacity`);
+`blend_math_gimp_*` pin the GIMP mode kernels. UI (`tests/ui/xcf_ui_tests.cpp`, filter
+`ui_xcf_`): opening by name, compressed name and content, GIMP modes in the Layers panel,
+editable text and its PSD save, outlined text redrawn with a Stroke style that an edit keeps;
+`ui_xcf_gegl_layer_effects_match_gimp` (tests/ui/gegl_filter_tests.cpp, skips without the
+GEGL bundle): every table operation offered, each gegl-effects.xcf tile against GIMP's render
+(saves `test-artifacts/xcf-gegl-effects/{before,after,gimp}.png`).

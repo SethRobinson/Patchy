@@ -4,6 +4,9 @@
 
 #include "core/pixel_depth.hpp"
 #include "filters/filter_engine.hpp"
+#include "formats/document_flatten.hpp"
+#include "formats/xcf_document_io.hpp"
+#include "local_psd_fixtures.hpp"
 #include "ui/command_search.hpp"
 #include "ui/filter_parameter_panel.hpp"
 #include "ui/filter_workflows.hpp"
@@ -25,6 +28,7 @@
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QFileInfo>
+#include <QImage>
 #include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
@@ -42,7 +46,12 @@
 #include <cstdio>
 #include <cstring>
 #include <exception>
+#include <filesystem>
+#include <system_error>
 #include <iostream>
+#include <map>
+#include <string>
+#include <vector>
 #include <string_view>
 #include <utility>
 
@@ -601,11 +610,147 @@ void ui_gegl_sliders_cover_their_practical_range() {
   }
 }
 
+// GIMP 3 layer effects through Patchy's GEGL (docs/xcf.md, "Layer effects (GIMP 3 filters)"):
+// test-fixtures/xcf/gegl-effects.xcf (scripts/dev/xcf/make_gegl_effect_fixture.py) holds one
+// 48 x 48 tile layer per effect over a gray background, with GIMP 3.2's render beside it.
+// Each tile, with a margin for effects that reach past it, is compared with GIMP's render;
+// effects outside the reader's table are left out and named in the notice. Saves
+// test-artifacts/xcf-gegl-effects/{before,after,gimp}.png (before: the read without a runner).
+void ui_xcf_gegl_layer_effects_match_gimp() {
+  if (patchy::ui::bundled_gegl_library().isEmpty()) {
+    patchy::test::skip("this build has no GEGL of its own");
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(patchy::xcf::has_effect_runner());  // MainWindow installs it
+  // Every operation the reader hands over is one Patchy offers as a GEGL filter.
+  patchy::ui::MainWindowTestAccess::ensure_gegl_filters_scanned(window);
+  const auto registry =
+      patchy::ui::MainWindowTestAccess::gegl_filter_registry(window, QStringLiteral("gegl.gaussian-blur"));
+  CHECK(registry != nullptr);
+  if (registry == nullptr) {
+    return;
+  }
+  QStringList not_offered;
+  for (const auto& operation : patchy::xcf::effect_runner_operations()) {
+    const auto id = "gegl." + operation.substr(operation.find(':') + 1);
+    if (registry->find(id) == nullptr) {
+      not_offered << QString::fromStdString(id);
+    }
+  }
+  if (!not_offered.isEmpty()) {
+    std::cerr << "  not offered: " << not_offered.join(QStringLiteral(", ")).toStdString() << '\n';
+  }
+
+  const auto path = patchy::test::committed_format_fixture_path("xcf", "gegl-effects.xcf");
+  std::vector<std::string> notices;
+  const auto after = patchy::xcf::DocumentIo::read_file(path, &notices);
+  patchy::xcf::set_effect_runner({});
+  std::vector<std::string> before_notices;
+  const auto before = patchy::xcf::DocumentIo::read_file(path, &before_notices);
+  CHECK(patchy::ui::install_xcf_effect_runner());
+
+  const auto has = [](const std::vector<std::string>& list, std::string_view text) {
+    return std::any_of(list.begin(), list.end(), [&](const std::string& n) { return n.find(text) != std::string::npos; });
+  };
+  CHECK(has(notices, "were applied"));
+  CHECK(has(notices, std::string(patchy::xcf::skipped_effects_notice_prefix()) + "curves, median-blur" +
+                         patchy::xcf::skipped_effects_notice_suffix()));
+  CHECK(has(before_notices, "bloom"));
+
+  const auto after_pixels = patchy::flatten_document_rgba8(after);
+  const auto before_pixels = patchy::flatten_document_rgba8(before);
+  QImage gimp(QString::fromStdWString(patchy::test::committed_format_fixture_path("xcf", "gegl-effects.png").wstring()));
+  gimp = gimp.convertToFormat(QImage::Format_RGBA8888);
+  CHECK(gimp.width() == after_pixels.width() && gimp.height() == after_pixels.height());
+  if (gimp.width() != after_pixels.width() || gimp.height() != after_pixels.height()) {
+    return;
+  }
+  const auto to_image = [](const patchy::PixelBuffer& pixels) {
+    QImage image(pixels.width(), pixels.height(), QImage::Format_RGBA8888);
+    for (int y = 0; y < pixels.height(); ++y) {
+      std::memcpy(image.scanLine(y), pixels.pixel(0, y), static_cast<std::size_t>(pixels.width()) * 4U);
+    }
+    return image;
+  };
+  {
+    std::error_code ignored;
+    std::filesystem::create_directories(std::filesystem::path("test-artifacts") / "xcf-gegl-effects", ignored);
+  }
+  save_image_artifact("xcf-gegl-effects/after", to_image(after_pixels));
+  save_image_artifact("xcf-gegl-effects/before", to_image(before_pixels));
+  save_image_artifact("xcf-gegl-effects/gimp", gimp);
+
+  // Mean and worst difference in 8-bit levels over a tile grown by `margin` pixels (shrunk
+  // when negative).
+  struct Tile {
+    double mean{0.0};
+    int worst{0};
+  };
+  const auto compare = [&](const patchy::PixelBuffer& pixels, const patchy::Rect& bounds, int margin) {
+    Tile tile;
+    double total = 0.0;
+    int count = 0;
+    for (int y = std::max(0, bounds.y - margin); y < std::min(pixels.height(), bounds.y + bounds.height + margin); ++y) {
+      const auto* reference = gimp.constScanLine(y);
+      for (int x = std::max(0, bounds.x - margin); x < std::min(pixels.width(), bounds.x + bounds.width + margin);
+           ++x) {
+        const auto* ours = pixels.pixel(x, y);
+        for (int c = 0; c < 3; ++c) {
+          const int delta = std::abs(static_cast<int>(ours[c]) - static_cast<int>(reference[x * 4 + c]));
+          total += delta;
+          tile.worst = std::max(tile.worst, delta);
+        }
+        ++count;
+      }
+    }
+    tile.mean = count > 0 ? total / (count * 3.0) : 0.0;
+    return tile;
+  };
+  // Each tile with an 8-pixel margin must be within a mean of one level of GIMP's. Exceptions:
+  // Color to Alpha leaves every pixel partly transparent, so its tile shows the composite-space
+  // difference (GIMP mixes over the background in linear light; docs/xcf.md, "Composite modes
+  // and spaces"). GIMP 3.2 draws the pixels that Spread, Pick, Slur, Ripple and Motion Blur
+  // move across the layer's edge a few pixels away from GEGL's own result, so those are
+  // compared inside the tile, away from its edges.
+  struct Bound {
+    double mean;
+    int margin;
+  };
+  const std::map<std::string, Bound> allowed = {
+      {"color-to-alpha", {8.0, 8}},  {"noise-spread", {1.0, -6}}, {"noise-pick", {1.0, -3}},
+      {"noise-slur", {1.0, -3}},     {"ripple", {1.0, -6}},       {"motion-blur-linear", {1.0, -8}},
+  };
+  QStringList failed;
+  for (const auto& layer : before.layers()) {
+    const auto& name = layer.name();
+    if (name == "background" || name == "curves" || name == "median-blur") {
+      continue;
+    }
+    const auto bounds = layer.bounds();
+    const auto bound = allowed.contains(name) ? allowed.at(name) : Bound{1.0, 8};
+    const auto ours = compare(after_pixels, bounds, bound.margin);
+    const auto unfiltered = compare(before_pixels, bounds, bound.margin);
+    const auto limit = bound.mean;
+    std::cerr << "  " << name << ": mean " << ours.mean << " worst " << ours.worst << " (without the effect: mean "
+              << unfiltered.mean << ")\n";
+    if (ours.mean > limit) {
+      failed << QString::fromStdString(name);
+    }
+  }
+  if (!failed.isEmpty()) {
+    std::cerr << "  effects off GIMP's render: " << failed.join(QStringLiteral(", ")).toStdString() << '\n';
+  }
+  CHECK(failed.isEmpty());
+  CHECK(not_offered.isEmpty());
+}
+
 std::vector<patchy::test::TestCase> gegl_filter_tests() {
   return {
       {"ui_gegl_filters_list_and_apply_if_available", ui_gegl_filters_list_and_apply_if_available},
       {"ui_gegl_bundled_filters_all_run", ui_gegl_bundled_filters_all_run},
       {"ui_gegl_script_identifiers_are_pinned", ui_gegl_script_identifiers_are_pinned},
       {"ui_gegl_sliders_cover_their_practical_range", ui_gegl_sliders_cover_their_practical_range},
+      {"ui_xcf_gegl_layer_effects_match_gimp", ui_xcf_gegl_layer_effects_match_gimp},
   };
 }

@@ -12664,10 +12664,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>일부 텍스트 레이어를 텍스트로 읽을 수 없어 픽셀 레이어로 열렸습니다.</translation>
     </message>
     <message>
-        <source>Some GIMP layer effects have no Patchy equivalent and were not applied; those layers show their pixels without the effect.</source>
-        <translation>일부 GIMP 레이어 효과는 Patchy에 대응하는 기능이 없어 적용하지 않았습니다. 해당 레이어는 효과 없이 픽셀을 표시합니다.</translation>
-    </message>
-    <message>
         <source>GIMP link layers opened as pixel layers; they no longer follow their linked files.</source>
         <translation>GIMP 링크 레이어는 픽셀 레이어로 열렸으며 더 이상 연결된 파일을 따르지 않습니다.</translation>
     </message>
@@ -12686,10 +12682,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Some layers show only where the layer below them is, as GIMP composites them; they opened as clipping masks on it.</source>
         <translation>일부 레이어는 GIMP의 합성 방식대로 아래 레이어가 있는 곳에만 보입니다. 그 레이어에 대한 클리핑 마스크로 열렸습니다.</translation>
-    </message>
-    <message>
-        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur and color filters such as Levels, Hue-Saturation and Desaturate) were applied to their layers&apos; pixels.</source>
-        <translation>Patchy가 재현할 수 있는 GIMP 레이어 효과(가우시안 흐림과 레벨, 색조-채도, 채도 감소 같은 색상 필터)를 해당 레이어의 픽셀에 적용했습니다.</translation>
     </message>
     <message>
         <source>Layers in GIMP&apos;s Erase or Split mode became masks: the layers below each one are in a group named after it, masked where it erased.</source>
@@ -14912,6 +14904,15 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Feather radius</source>
         <translation>페더 반경</translation>
+    </message>
+    <message>
+        <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
+        <translation>Patchy가 재현할 수 있는 GIMP 레이어 효과(가우시안 흐림, 레벨과 색조-채도 같은 색상 필터, 그리고 언샤프 마스크, 블룸, 노이즈 같은 Patchy에 포함된 GEGL 필터)를 해당 레이어의 픽셀에 적용했습니다.</translation>
+    </message>
+    <message>
+        <source>Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their pixels without them.</source>
+        <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
+        <translation>Patchy가 재현할 수 없는 일부 GIMP 레이어 효과는 제외했습니다(%1). 해당 레이어는 효과 없이 픽셀을 표시합니다.</translation>
     </message>
 </context>
 <context>
