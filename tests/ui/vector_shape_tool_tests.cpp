@@ -8158,18 +8158,19 @@ void ui_shape_style_row_is_pixel_only_and_greys_size_at_normal() {
   CHECK(!fixed_width->isEnabled());
   mode_combo->setCurrentIndex(0);
 
-  // The marquee's twin row greys its size fields the same way.
+  // The marquee's twin row hides its size fields at Normal instead (GitHub issue 602).
   auto* marquee_style = window.findChild<QComboBox*>(QStringLiteral("selectionStyleCombo"));
   auto* marquee_width = window.findChild<QSpinBox*>(QStringLiteral("selectionFixedWidthSpin"));
   CHECK(marquee_style != nullptr && marquee_width != nullptr);
   require_action(window, "toolMarqueeAction")->trigger();
   QApplication::processEvents();
-  CHECK(marquee_width->isVisible());
-  CHECK(!marquee_width->isEnabled());
+  CHECK(!marquee_width->isVisible());
   marquee_style->setCurrentIndex(2);
-  CHECK(marquee_width->isEnabled());
+  QApplication::processEvents();
+  CHECK(marquee_width->isVisible() && marquee_width->isEnabled());
   marquee_style->setCurrentIndex(0);
-  CHECK(!marquee_width->isEnabled());
+  QApplication::processEvents();
+  CHECK(!marquee_width->isVisible());
 }
 
 class ShowToParentCounter final : public QObject {

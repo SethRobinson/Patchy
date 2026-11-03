@@ -807,7 +807,17 @@ void ui_selection_options_bars_group_their_controls() {
         CHECK(next_to(tokens, QStringLiteral("selectionAntiAliasCheck"), separator));
         const bool rectangular = std::string_view(tool) == "toolMarqueeAction";
         CHECK(separated_before(tokens, rectangular ? QStringLiteral("Radius") : QStringLiteral("Style")));
-        CHECK(separated_before(tokens, QStringLiteral("Width")));
+        if (index == 0) {
+          // Normal hides the whole size section and its separator (GitHub issue 602):
+          // Style's combo ends the row, with no separator left after it.
+          CHECK(at(tokens, QStringLiteral("Width")) < 0 && at(tokens, QStringLiteral("Height")) < 0);
+          CHECK(at(tokens, QStringLiteral("selectionFixedWidthSpin")) < 0);
+          CHECK(at(tokens, QStringLiteral("selectionFixedHeightSpin")) < 0);
+          CHECK(at(tokens, QStringLiteral("selectionRatioWidthSpin")) < 0);
+          CHECK(!tokens.empty() && tokens.back() == QStringLiteral("selectionStyleCombo"));
+        } else {
+          CHECK(separated_before(tokens, QStringLiteral("Width")));
+        }
         auto* ratio_swap = window.findChild<QAbstractButton*>(QStringLiteral("selectionRatioSwapButton"));
         auto* size_swap = window.findChild<QAbstractButton*>(QStringLiteral("selectionFixedSizeSwapButton"));
         CHECK(ratio_swap != nullptr && size_swap != nullptr);

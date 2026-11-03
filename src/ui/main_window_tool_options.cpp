@@ -3988,14 +3988,12 @@ bool MainWindow::marquee_option_widget_visible(QWidget* widget) const {
   const auto in = [widget](const std::vector<QWidget*>& widgets) {
     return std::find(widgets.begin(), widgets.end(), widget) != widgets.end();
   };
-  const bool ratio = current_marquee_style_ == CanvasWidget::MarqueeStyle::FixedRatio;
+  // Normal shows neither pair (GitHub issue 602); the separator before them then has
+  // nothing after it and stray_option_separators drops it.
   if (in(marquee_ratio_option_widgets_)) {
-    return ratio;
+    return current_marquee_style_ == CanvasWidget::MarqueeStyle::FixedRatio;
   }
   if (in(marquee_size_option_widgets_)) {
-    return !ratio;
-  }
-  if (in(marquee_fixed_size_option_widgets_)) {
     return current_marquee_style_ == CanvasWidget::MarqueeStyle::FixedSize;
   }
   return true;
