@@ -13,8 +13,12 @@ Claim-level record behind the Content-Aware Move bullet in [legal-constraints.md
 ## Design that stays outside
 
 - During the drag the original spot stays exactly as it is; only a raw ghost of the moved content follows the pointer with the dashed outline (the drag-and-drop ghost is generic prior art, already used by the Patch tool's Destination mode). Without element (a), no independent claim of either patent is met.
-- On release, once: the copy is healed in with the membrane of the expired US 6587592, and in Move mode the old spot is filled only with Remove Object's shape-derived rigid map (`core/spot_heal.cpp`; geometry only, no pixel content read, no patch or exemplar search), with the drop region excluded as a shape. This also keeps it outside element (b) of US 9575641.
-- Left out pending their own checks: Structure and Color settings, Transform on Drop, any exemplar or patch-search fill of the old spot.
+- On release, once: the copy is healed in with the membrane of the expired US 6587592, and in Move mode the old spot is filled (the first version used only Remove Object's shape-derived rigid map; the fill now follows the section below).
+- Left out pending their own checks: Structure and Color settings, Transform on Drop.
+
+## Fill on release (2026-11-03 follow-up)
+
+Seth found the first version poor on real photos. The fill of the old spot was re-read against the claims: element (a), the original spot showing the current location's content during the drag, is in every independent claim of US 9575641 and US 10332291, and Patchy's drag never does it, so neither patent limits the fill method on release. What still binds is the inpainting boundary ([patent-research-inpainting.md](patent-research-inpainting.md)): the fill now uses (1) one exhaustive exemplar search with the whole hole as the single target patch (every translation in a bounded window scored independently by integer L1 over the band around the hole, fixed scan order, first smallest wins, the drop region and hole excluded: no offset field, propagation, perturbation, stored candidates or coarse map, so none of US 8285055, US 8340463, US 8355592 or US 9396530's claimed elements), healed in with the expired US 6587592 membrane; (2) the existing exhaustive exemplar fill as the fallback; (3) the shape-derived map last. The membrane's offsets fade to an edge band by a fixed distance weight (a feather, no gradients; US 9058699 untouched). Whole-image template matching of this kind is decades-old published practice (block matching, Efros-Leung 1999 used whole-window exhaustive scans).
 
 ## Side finding: the Patch tool's Source preview
 

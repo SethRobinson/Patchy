@@ -562,14 +562,14 @@ CanvasWidget::RemoveObjectResult CanvasWidget::remove_object_in_selection(const 
 // per pixel.
 QRect CanvasWidget::heal_mask_from_surroundings(QRect bounds, const std::vector<std::uint8_t>& mask,
                                                 const QImage& snapshot, const SpotHealSourceMap& source_map,
-                                                Layer& layer, bool clip_to_selection) {
+                                                Layer& layer, bool clip_to_selection, int edge_band) {
   if (std::as_const(layer).pixels().format().bit_depth != BitDepth::UInt8) {
     // 16/32-bit layers heal a narrowed copy; only the healed pixels come back at
     // 8-bit precision (NarrowedLayerEdit).
     QRect healed;
     {
       const NarrowedLayerEdit narrowed(layer, {});
-      healed = heal_mask_from_surroundings(bounds, mask, snapshot, source_map, layer, clip_to_selection);
+      healed = heal_mask_from_surroundings(bounds, mask, snapshot, source_map, layer, clip_to_selection, edge_band);
     }
     if (!healed.isEmpty()) {
       active_edit_target_changed_impl(QRegion(healed), DocumentChangeReason::BrushStrokeFinished);
@@ -629,6 +629,9 @@ QRect CanvasWidget::heal_mask_from_surroundings(QRect bounds, const std::vector<
   }
   tick_processing_operation();
   patchy::solve_heal_membrane(interior.data(), width, height, offsets.data());
+  if (edge_band > 0) {
+    patchy::fade_heal_offsets_to_edge_band(interior.data(), width, height, offsets.data(), edge_band);
+  }
 
   const bool clip = clip_to_selection && has_selection();
   // Pure per-pixel function writing disjoint rows, so the strip fan-out below

@@ -17043,6 +17043,14 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Content-Aware Move</source>
         <translation>Movimento sensível a conteúdo</translation>
     </message>
+    <message>
+        <source>Moving object...</source>
+        <translation>Movendo o objeto...</translation>
+    </message>
+    <message>
+        <source>Moving object... %1%</source>
+        <translation>Movendo o objeto... %1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>

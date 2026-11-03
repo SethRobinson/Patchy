@@ -27,4 +27,12 @@ namespace patchy {
 void solve_heal_membrane(const std::uint8_t* interior, std::int32_t width, std::int32_t height,
                          std::int16_t* offsets_rgb);
 
+// Content-Aware Move's edge band: scales each solved interior offset by a weight that is
+// 1 next to the boundary and falls linearly to 0 `band` cells inside it (an integer 3-4
+// chamfer distance), so only a band along the outline takes the surroundings' tone and
+// the middle keeps its own pixels. A plain distance feather on the membrane above; no
+// gradients are involved. Integer math, deterministic.
+void fade_heal_offsets_to_edge_band(const std::uint8_t* interior, std::int32_t width, std::int32_t height,
+                                    std::int16_t* offsets_rgb, std::int32_t band);
+
 }  // namespace patchy

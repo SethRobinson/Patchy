@@ -19,12 +19,14 @@
 #include "ui/canvas_widget.hpp"
 
 #include "core/blend_math.hpp"
+#include "core/exemplar_inpaint.hpp"
 #include "core/heal_membrane.hpp"
 #include "core/palette.hpp"
 #include "core/pixel_buffer.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/spot_heal.hpp"
 #include "core/worker_budget.hpp"
+#include "ui/background_workers.hpp"
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget_shared.hpp"
 #include "ui/qt_geometry.hpp"
@@ -47,10 +49,13 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <future>
+#include <memory>
 #include <optional>
 #include <span>
 #include <utility>
@@ -64,6 +69,40 @@ namespace {
 // strips; the per-pixel cost (16 snapshot reads through the ring tones) is
 // lower than the transform resampler's, so the gate sits below its 1 Mpx.
 constexpr std::int64_t kPatchToolParallelArea = 262'144;
+
+// Content-Aware Move fills the old spot this many pixels past the selection, so the
+// object's own fringe (a glow, a soft shadow edge, anti-aliased outline pixels a loose
+// selection just misses) is replaced too instead of seeding the fill from the ring.
+constexpr int kContentAwareMoveHoleGrow = 6;
+
+// Grows a coverage mask by `radius` cells (a square max filter, rows then columns): the
+// grown cells become fully covered, the original coverage is kept.
+void grow_hole_mask(std::vector<std::uint8_t>& mask, int width, int height, int radius) {
+  std::vector<std::uint8_t> rows(mask.size(), 0U);
+  for (int y = 0; y < height; ++y) {
+    const auto* in = mask.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(width);
+    auto* out = rows.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(width);
+    for (int x = 0; x < width; ++x) {
+      bool any = false;
+      for (int k = std::max(0, x - radius); k <= std::min(width - 1, x + radius) && !any; ++k) {
+        any = in[k] != 0U;
+      }
+      out[x] = any ? 255U : 0U;
+    }
+  }
+  for (int x = 0; x < width; ++x) {
+    for (int y = 0; y < height; ++y) {
+      bool any = false;
+      for (int k = std::max(0, y - radius); k <= std::min(height - 1, y + radius) && !any; ++k) {
+        any = rows[static_cast<std::size_t>(k) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x)] != 0U;
+      }
+      auto& cell = mask[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x)];
+      if (any && cell == 0U) {
+        cell = 255U;
+      }
+    }
+  }
+}
 
 }  // namespace
 
@@ -303,7 +342,8 @@ void CanvasWidget::commit_content_aware_move(QPoint delta, QRect bounds, const s
   std::vector<std::uint8_t> hole_mask;
   SpotHealSourceMap hole_map;
   if (!extend) {
-    hole_bounds = bounds.adjusted(-1, -1, 1, 1).intersected(canvas_rect);
+    const auto grow = kContentAwareMoveHoleGrow;
+    hole_bounds = bounds.adjusted(-1 - grow, -1 - grow, 1 + grow, 1 + grow).intersected(canvas_rect);
     hole_mask.assign(static_cast<std::size_t>(hole_bounds.width()) * static_cast<std::size_t>(hole_bounds.height()),
                      0U);
     for (int y = 0; y < bounds.height(); ++y) {
@@ -313,6 +353,9 @@ void CanvasWidget::commit_content_aware_move(QPoint delta, QRect bounds, const s
                   mask.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(bounds.width()),
                   static_cast<std::size_t>(bounds.width()));
     }
+    if (grow > 0) {
+      grow_hole_mask(hole_mask, hole_bounds.width(), hole_bounds.height(), grow);
+    }
     hole_map = spot_heal_source_map(hole_mask.data(), to_core_rect(hole_bounds), document_->width(),
                                     document_->height(), 2, 0, mask.data(), to_core_rect(bounds.translated(delta)));
     if (!hole_map.valid) {
@@ -320,6 +363,15 @@ void CanvasWidget::commit_content_aware_move(QPoint delta, QRect bounds, const s
       update();
       return;
     }
+  }
+  // The old spot's fill (docs/content-aware-move.md), computed on a worker under the
+  // progress overlay before the edit opens: the whole-hole block match when it finds a
+  // close match, else Remove Object's exemplar fill plus its tone match, both with the
+  // drop region excluded from the sources; the shape-derived map above is the last
+  // fallback when neither finds a clean source.
+  ContentAwareMoveHoleFill hole_fill;
+  if (!extend) {
+    hole_fill = content_aware_move_hole_fill(hole_bounds, hole_mask, snapshot, bounds.translated(delta), mask);
   }
 
   if (!begin_edit(tr("Content-Aware Move"))) {
@@ -335,7 +387,33 @@ void CanvasWidget::commit_content_aware_move(QPoint delta, QRect bounds, const s
     // The hole first: the moved object is not on the canvas yet, and the map skips the
     // drop region. Then the copy's boundary tone comes from the filled document, so a
     // drop overlapping the old spot blends into the fill, not into the object.
-    heal_mask_from_surroundings(hole_bounds, hole_mask, snapshot, hole_map, *layer, /*clip_to_selection=*/false);
+    if (hole_fill.block) {
+      // The block match's offset, healed in like a Patch Source drag to that offset.
+      const auto dx = static_cast<double>(hole_fill.offset.x());
+      const auto dy = static_cast<double>(hole_fill.offset.y());
+      const auto length = std::sqrt(dx * dx + dy * dy);
+      SpotHealSourceMap translation;
+      translation.valid = true;
+      translation.mirrored = false;
+      translation.direction_x = dx / length;
+      translation.direction_y = dy / length;
+      translation.shift = length;
+      translation.candidate_count = 1;
+      heal_mask_from_surroundings(hole_bounds, hole_mask, snapshot, translation, *layer, /*clip_to_selection=*/false,
+                                  content_aware_move_edge_band(bounds));
+    } else if (!hole_fill.filled.isNull()) {
+      // Identity: the filled copy equals the snapshot outside the hole, so the membrane's
+      // boundary offsets are 0 and the fill lands as computed (Remove Object's write).
+      SpotHealSourceMap identity;
+      identity.valid = true;
+      identity.mirrored = false;
+      identity.shift = 0.0;
+      identity.candidate_count = 1;
+      heal_mask_from_surroundings(hole_bounds, hole_mask, hole_fill.filled, identity, *layer,
+                                  /*clip_to_selection=*/false);
+    } else {
+      heal_mask_from_surroundings(hole_bounds, hole_mask, snapshot, hole_map, *layer, /*clip_to_selection=*/false);
+    }
     tone_snapshot = retouch_source_snapshot();
     if (tone_snapshot.isNull()) {
       tone_snapshot = snapshot;
@@ -355,7 +433,7 @@ void CanvasWidget::commit_content_aware_move(QPoint delta, QRect bounds, const s
     }
     begin_processing_operation();
     write_patch_heal(*layer, bounds, mask, mask_area, delta, -delta, snapshot, tone_snapshot,
-                     /*transparent=*/false);
+                     /*transparent=*/false, content_aware_move_edge_band(bounds));
     end_processing_operation();
   }
   move_selection_with_patch_drop(delta, tr("Content-Aware Move"));
@@ -378,9 +456,94 @@ void CanvasWidget::move_selection_with_patch_drop(QPoint delta, const QString& h
   record_selection_history(history_label, before);
 }
 
+int CanvasWidget::content_aware_move_edge_band(QRect bounds) {
+  return std::clamp(std::min(bounds.width(), bounds.height()) / 4, 6, 48);
+}
+
+CanvasWidget::ContentAwareMoveHoleFill CanvasWidget::content_aware_move_hole_fill(
+    QRect hole_bounds, const std::vector<std::uint8_t>& hole_mask, const QImage& snapshot, QRect drop_bounds,
+    const std::vector<std::uint8_t>& drop_mask) {
+  if (snapshot.isNull() || snapshot.format() != QImage::Format_RGBA8888 ||
+      snapshot.bytesPerLine() != snapshot.width() * 4) {
+    return {};
+  }
+  ExemplarInpaintOptions options;
+  options.patch_size = 9;
+  options.search_radius = std::clamp(std::max(hole_bounds.width(), hole_bounds.height()) / 2 + 32, 48, 96);
+  options.single_threaded = qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED");
+  options.excluded = drop_mask.data();
+  options.excluded_bounds = to_core_rect(drop_bounds);
+  const auto progress = std::make_shared<std::atomic<int>>(-1);
+  const auto compute = [&]() -> ContentAwareMoveHoleFill {
+    ContentAwareMoveHoleFill fill;
+    {
+      const auto search = std::clamp(2 * std::max(hole_bounds.width(), hole_bounds.height()), 96, 320);
+      const auto match = exemplar_block_match(snapshot.constBits(), snapshot.width(), snapshot.height(),
+                                              hole_mask.data(), to_core_rect(hole_bounds), 8, search,
+                                              drop_mask.data(), to_core_rect(drop_bounds));
+      // Take the block only when its band matches about as well as the surroundings vary
+      // (up to three times their own neighbour-to-neighbour difference, plus 8 levels per
+      // channel for plain walls): busy grass differs from any shifted grass, but a block
+      // that brings a curtain into a window does not match. Otherwise the patch-wise fill
+      // below does better.
+      if (match.found && match.difference <= 3 * match.texture + 24 * match.samples) {
+        fill.block = true;
+        fill.offset = QPoint(match.dx, match.dy);
+        return fill;
+      }
+    }
+    auto filled = snapshot.copy();
+    const auto result = exemplar_inpaint(filled.bits(), filled.width(), filled.height(), hole_mask.data(),
+                                         to_core_rect(hole_bounds), options,
+                                         [progress](std::int64_t done, std::int64_t total) {
+                                           progress->store(static_cast<int>(total > 0 ? done * 100 / total : 100),
+                                                           std::memory_order_relaxed);
+                                         });
+    if (!result.filled) {
+      return fill;
+    }
+    exemplar_match_tone(filled.bits(), filled.width(), filled.height(), hole_mask.data(), to_core_rect(hole_bounds),
+                        24, 100);
+    fill.filled = std::move(filled);
+    return fill;
+  };
+  ContentAwareMoveHoleFill filled;
+  begin_processing_operation(tr("Moving object..."));
+  bool run_inline = false;
+#if defined(Q_OS_WASM) && defined(__EMSCRIPTEN_PTHREADS__)
+  // Remove Object's pool contract (worker_budget.hpp, docs/healing.md).
+  const auto idle_pool = patchy::idle_prespawned_pool_workers();
+  run_inline = idle_pool < 1;
+  const patchy::BlockingFanoutBudgetScope fanout_budget(run_inline ? -1 : std::max(0, idle_pool - 3));
+#endif
+  try {
+    if (run_inline) {
+      filled = compute();
+    } else {
+      auto future = launch_async(compute);
+      int last_percent = -1;
+      wait_for_processing_operation([&] {
+        const auto percent = progress->load(std::memory_order_relaxed);
+        if (percent >= 0 && percent != last_percent) {
+          last_percent = percent;
+          set_processing_operation_message(tr("Moving object... %1%").arg(percent));
+        }
+        return future.wait_for(std::chrono::milliseconds(16)) == std::future_status::ready;
+      });
+      filled = future.get();
+    }
+  } catch (...) {
+    end_processing_operation();
+    throw;
+  }
+  end_processing_operation();
+  return filled;
+}
+
 void CanvasWidget::write_patch_heal(Layer& layer, QRect bounds, const std::vector<std::uint8_t>& mask,
                                     std::int64_t mask_area, QPoint destination_offset, QPoint source_offset,
-                                    const QImage& source_snapshot, const QImage& tone_snapshot, bool transparent) {
+                                    const QImage& source_snapshot, const QImage& tone_snapshot, bool transparent,
+                                    int edge_band) {
   const QRect canvas_rect(0, 0, document_->width(), document_->height());
   const auto destination_bounds = bounds.translated(destination_offset).intersected(canvas_rect);
   if (destination_bounds.isEmpty()) {
@@ -550,6 +713,9 @@ void CanvasWidget::write_patch_heal(Layer& layer, QRect bounds, const std::vecto
   tick_processing_operation();
   patchy::solve_heal_membrane(interior.data(), solve_width, solve_height, membrane.data());
   tick_processing_operation();
+  if (edge_band > 0) {
+    patchy::fade_heal_offsets_to_edge_band(interior.data(), solve_width, solve_height, membrane.data(), edge_band);
+  }
 
   // For each destination pixel p: coverage from the mask (at p in Source mode,
   // at p - delta in Destination mode) and source pixel s at the user-dragged

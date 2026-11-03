@@ -17026,6 +17026,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Content-Aware Move</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Moving object...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Moving object... %1%</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>

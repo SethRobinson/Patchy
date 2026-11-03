@@ -5,6 +5,7 @@
 #include "core/worker_budget.hpp"
 
 #include <algorithm>
+#include <cstdlib>
 #include <atomic>
 #include <cstring>
 #include <future>
@@ -143,14 +144,35 @@ ExemplarInpaintResult exemplar_inpaint(std::uint8_t* image, std::int32_t width, 
     result.filled = true;
     return result;
   }
-  // Integral image of the original hole so "is this source patch entirely
-  // known?" is four lookups.
+  // Cells no source patch may touch besides the hole (options.excluded), in window
+  // coordinates; they stay known for the target distances.
+  std::vector<std::uint8_t> excluded_cells;
+  if (options.excluded != nullptr && options.excluded_bounds.width > 0 && options.excluded_bounds.height > 0) {
+    excluded_cells.assign(cells, 0U);
+    const auto& eb = options.excluded_bounds;
+    for (std::int32_t y = 0; y < eb.height; ++y) {
+      const auto ly = eb.y + y - wy0;
+      if (ly < 0 || ly >= lh) {
+        continue;
+      }
+      for (std::int32_t x = 0; x < eb.width; ++x) {
+        const auto lx = eb.x + x - wx0;
+        if (lx < 0 || lx >= lw || options.excluded[static_cast<std::size_t>(y) * eb.width + x] == 0U) {
+          continue;
+        }
+        excluded_cells[static_cast<std::size_t>(ly) * lw + lx] = 1U;
+      }
+    }
+  }
+  // Integral image of the original hole (plus the excluded cells) so "may this
+  // source patch be sampled?" is four lookups.
   const auto iw = static_cast<std::size_t>(lw) + 1U;
   std::vector<std::int32_t> hole_integral((static_cast<std::size_t>(lh) + 1U) * iw, 0);
   for (std::int32_t y = 0; y < lh; ++y) {
     std::int32_t row_sum = 0;
     for (std::int32_t x = 0; x < lw; ++x) {
-      row_sum += unknown[static_cast<std::size_t>(y) * lw + x];
+      const auto cell = static_cast<std::size_t>(y) * lw + x;
+      row_sum += (unknown[cell] != 0U || (!excluded_cells.empty() && excluded_cells[cell] != 0U)) ? 1 : 0;
       hole_integral[(static_cast<std::size_t>(y) + 1U) * iw + x + 1U] =
           hole_integral[static_cast<std::size_t>(y) * iw + x + 1U] + row_sum;
     }
@@ -909,6 +931,197 @@ void exemplar_match_tone(std::uint8_t* filled, std::int32_t width, std::int32_t 
       }
     }
   }
+}
+
+// One exemplar search for the whole hole (Content-Aware Move's fill of the spot it
+// leaves): the hole plus a `ring`-cell band around it is ONE target patch, and every
+// translation within `search_radius` is scored by an exhaustive scan, in a fixed order,
+// with the integer L1 distance over the band's known pixels (sampled on a fixed grid)
+// plus a fixed geometric penalty on the offset; the first smallest distance wins. A
+// candidate is admissible only if the shifted hole stays on the image (band samples off it
+// count as a fixed miss), the shifted block does not touch the hole, and the shifted hole
+// does not touch `excluded`. There is no offset
+// field, no propagation, no perturbation, no stored candidate list and no coarse map:
+// the plain exhaustive form docs/legal-constraints.md allows. Partial sums stop once
+// they exceed the best distance so far, which never changes the winner (ties keep the
+// first in scan order).
+ExemplarBlockMatch exemplar_block_match(const std::uint8_t* image, std::int32_t width, std::int32_t height,
+                                        const std::uint8_t* hole, Rect bounds, std::int32_t ring,
+                                        std::int32_t search_radius, const std::uint8_t* excluded,
+                                        Rect excluded_bounds) {
+  ExemplarBlockMatch result;
+  if (image == nullptr || hole == nullptr || width <= 0 || height <= 0 || bounds.width <= 0 ||
+      bounds.height <= 0 || ring < 1 || search_radius < 1) {
+    return result;
+  }
+  // The hole's tight box (document coordinates, inclusive-exclusive).
+  std::int32_t hx0 = std::numeric_limits<std::int32_t>::max();
+  std::int32_t hy0 = std::numeric_limits<std::int32_t>::max();
+  std::int32_t hx1 = std::numeric_limits<std::int32_t>::min();
+  std::int32_t hy1 = std::numeric_limits<std::int32_t>::min();
+  for (std::int32_t y = 0; y < bounds.height; ++y) {
+    for (std::int32_t x = 0; x < bounds.width; ++x) {
+      if (hole[static_cast<std::size_t>(y) * bounds.width + x] == 0U) {
+        continue;
+      }
+      hx0 = std::min(hx0, bounds.x + x);
+      hy0 = std::min(hy0, bounds.y + y);
+      hx1 = std::max(hx1, bounds.x + x + 1);
+      hy1 = std::max(hy1, bounds.y + y + 1);
+    }
+  }
+  if (hx0 >= hx1 || hy0 >= hy1) {
+    return result;
+  }
+  // The block: the hole's box grown by the band, clipped to the image.
+  const auto bx0 = std::max(0, hx0 - ring);
+  const auto by0 = std::max(0, hy0 - ring);
+  const auto bx1 = std::min(width, hx1 + ring);
+  const auto by1 = std::min(height, hy1 + ring);
+  const auto bw = bx1 - bx0;
+  const auto bh = by1 - by0;
+  const auto hole_at = [&](std::int32_t x, std::int32_t y) {
+    return bounds.contains(x, y) &&
+           hole[static_cast<std::size_t>(y - bounds.y) * bounds.width + (x - bounds.x)] != 0U;
+  };
+  // Band cells: outside the hole, within `ring` (Chebyshev) of it. A square max filter
+  // over the block, rows then columns.
+  std::vector<std::uint8_t> near_rows(static_cast<std::size_t>(bw) * bh, 0U);
+  for (std::int32_t y = 0; y < bh; ++y) {
+    for (std::int32_t x = 0; x < bw; ++x) {
+      bool any = false;
+      for (std::int32_t k = std::max(0, x - ring); k <= std::min(bw - 1, x + ring) && !any; ++k) {
+        any = hole_at(bx0 + k, by0 + y);
+      }
+      near_rows[static_cast<std::size_t>(y) * bw + x] = any ? 1U : 0U;
+    }
+  }
+  std::vector<std::uint8_t> band(static_cast<std::size_t>(bw) * bh, 0U);
+  std::int64_t band_cells = 0;
+  for (std::int32_t x = 0; x < bw; ++x) {
+    for (std::int32_t y = 0; y < bh; ++y) {
+      bool any = false;
+      for (std::int32_t k = std::max(0, y - ring); k <= std::min(bh - 1, y + ring) && !any; ++k) {
+        any = near_rows[static_cast<std::size_t>(k) * bw + x] != 0U;
+      }
+      if (any && !hole_at(bx0 + x, by0 + y)) {
+        band[static_cast<std::size_t>(y) * bw + x] = 1U;
+        ++band_cells;
+      }
+    }
+  }
+  if (band_cells == 0) {
+    return result;
+  }
+  // Sample the band on a fixed grid of step `step`, the smallest that keeps at most
+  // 4096 samples (fixed, so the result depends on the shapes only).
+  std::int32_t step = 1;
+  while (band_cells / (static_cast<std::int64_t>(step) * step) > 4096) {
+    ++step;
+  }
+  std::vector<std::int32_t> samples;  // document x, y pairs
+  for (std::int32_t y = 0; y < bh; y += step) {
+    for (std::int32_t x = 0; x < bw; x += step) {
+      if (band[static_cast<std::size_t>(y) * bw + x] != 0U) {
+        samples.push_back(bx0 + x);
+        samples.push_back(by0 + y);
+      }
+    }
+  }
+  const auto sample_count = static_cast<std::int64_t>(samples.size() / 2U);
+  if (sample_count == 0) {
+    return result;
+  }
+  // The band's own texture: summed L1 (RGB) between each sample and its right and lower
+  // neighbours, so a caller can judge the winner's difference against how busy the
+  // surroundings are (grass differs a lot from any shifted grass; a plain wall should not).
+  std::int64_t texture = 0;
+  for (std::int64_t i = 0; i < sample_count; ++i) {
+    const auto x = samples[static_cast<std::size_t>(i) * 2U];
+    const auto y = samples[static_cast<std::size_t>(i) * 2U + 1U];
+    const auto* a = image + (static_cast<std::size_t>(y) * width + x) * 4U;
+    const auto* right = image + (static_cast<std::size_t>(y) * width + std::min(width - 1, x + 1)) * 4U;
+    const auto* down = image + (static_cast<std::size_t>(std::min(height - 1, y + 1)) * width + x) * 4U;
+    for (int channel = 0; channel < 3; ++channel) {
+      texture += std::abs(static_cast<std::int32_t>(a[channel]) - right[channel]) +
+                 std::abs(static_cast<std::int32_t>(a[channel]) - down[channel]);
+    }
+  }
+  result.texture = texture;
+  // The excluded cells' tight box.
+  std::int32_t ex0 = 0;
+  std::int32_t ey0 = 0;
+  std::int32_t ex1 = 0;
+  std::int32_t ey1 = 0;
+  if (excluded != nullptr && excluded_bounds.width > 0 && excluded_bounds.height > 0) {
+    ex0 = std::numeric_limits<std::int32_t>::max();
+    ey0 = std::numeric_limits<std::int32_t>::max();
+    ex1 = std::numeric_limits<std::int32_t>::min();
+    ey1 = std::numeric_limits<std::int32_t>::min();
+    for (std::int32_t y = 0; y < excluded_bounds.height; ++y) {
+      for (std::int32_t x = 0; x < excluded_bounds.width; ++x) {
+        if (excluded[static_cast<std::size_t>(y) * excluded_bounds.width + x] == 0U) {
+          continue;
+        }
+        ex0 = std::min(ex0, excluded_bounds.x + x);
+        ey0 = std::min(ey0, excluded_bounds.y + y);
+        ex1 = std::max(ex1, excluded_bounds.x + x + 1);
+        ey1 = std::max(ey1, excluded_bounds.y + y + 1);
+      }
+    }
+    if (ex0 >= ex1) {
+      ex0 = ey0 = ex1 = ey1 = 0;
+    }
+  }
+  const auto boxes_meet = [](std::int32_t ax0, std::int32_t ay0, std::int32_t ax1, std::int32_t ay1, std::int32_t cx0,
+                             std::int32_t cy0, std::int32_t cx1, std::int32_t cy1) {
+    return ax0 < cx1 && cx0 < ax1 && ay0 < cy1 && cy0 < ay1;
+  };
+  auto best = std::numeric_limits<std::int64_t>::max();
+  for (std::int32_t dy = -search_radius; dy <= search_radius; ++dy) {
+    if (hy0 + dy < 0 || hy1 + dy > height) {
+      continue;
+    }
+    for (std::int32_t dx = -search_radius; dx <= search_radius; ++dx) {
+      // The shifted hole must lie on the image; band samples that fall off it count as
+      // a fixed miss (a third of the full range per channel).
+      if (hx0 + dx < 0 || hx1 + dx > width) {
+        continue;
+      }
+      // The shifted block may not touch the hole, nor the shifted hole the excluded cells.
+      if (boxes_meet(bx0 + dx, by0 + dy, bx1 + dx, by1 + dy, hx0, hy0, hx1, hy1)) {
+        continue;
+      }
+      if (ex1 > ex0 && boxes_meet(hx0 + dx, hy0 + dy, hx1 + dx, hy1 + dy, ex0, ey0, ex1, ey1)) {
+        continue;
+      }
+      // A fixed geometric preference for nearby sources: 1/8 level per sample per
+      // pixel of Manhattan offset.
+      auto distance = sample_count * (std::abs(dx) + std::abs(dy)) / 8;
+      for (std::int64_t i = 0; i < sample_count && distance < best; ++i) {
+        const auto x = samples[static_cast<std::size_t>(i) * 2U];
+        const auto y = samples[static_cast<std::size_t>(i) * 2U + 1U];
+        if (x + dx < 0 || y + dy < 0 || x + dx >= width || y + dy >= height) {
+          distance += 3 * 85;
+          continue;
+        }
+        const auto* a = image + (static_cast<std::size_t>(y) * width + x) * 4U;
+        const auto* b = image + (static_cast<std::size_t>(y + dy) * width + (x + dx)) * 4U;
+        distance += std::abs(static_cast<std::int32_t>(a[0]) - b[0]) + std::abs(static_cast<std::int32_t>(a[1]) - b[1]) +
+                    std::abs(static_cast<std::int32_t>(a[2]) - b[2]);
+      }
+      if (distance < best) {
+        best = distance;
+        result.found = true;
+        result.dx = dx;
+        result.dy = dy;
+        result.distance = distance;
+        result.samples = sample_count;
+        result.difference = distance - sample_count * (std::abs(dx) + std::abs(dy)) / 8;
+      }
+    }
+  }
+  return result;
 }
 
 }  // namespace patchy

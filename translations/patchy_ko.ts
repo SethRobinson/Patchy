@@ -16998,6 +16998,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Content-Aware Move</source>
         <translation>내용 인식 이동</translation>
     </message>
+    <message>
+        <source>Moving object...</source>
+        <translation>개체 이동 중...</translation>
+    </message>
+    <message>
+        <source>Moving object... %1%</source>
+        <translation>개체 이동 중... %1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>

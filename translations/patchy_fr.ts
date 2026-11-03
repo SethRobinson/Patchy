@@ -17043,6 +17043,14 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Content-Aware Move</source>
         <translation>Déplacement de contenu</translation>
     </message>
+    <message>
+        <source>Moving object...</source>
+        <translation>Déplacement de l&apos;objet...</translation>
+    </message>
+    <message>
+        <source>Moving object... %1%</source>
+        <translation>Déplacement de l&apos;objet... %1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>

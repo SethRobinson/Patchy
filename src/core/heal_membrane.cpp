@@ -199,4 +199,79 @@ void solve_heal_membrane(const std::uint8_t* interior, std::int32_t width, std::
   }
 }
 
+void fade_heal_offsets_to_edge_band(const std::uint8_t* interior, std::int32_t width, std::int32_t height,
+                                    std::int16_t* offsets_rgb, std::int32_t band) {
+  if (interior == nullptr || offsets_rgb == nullptr || width <= 0 || height <= 0 || band <= 0) {
+    return;
+  }
+  const auto cells = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+  // 3-4 chamfer distance (3 per straight step) from the nearest Dirichlet cell; the grid
+  // edge counts as one step away (no ring cell lies beyond it).
+  constexpr std::int32_t kFar = 1 << 28;
+  std::vector<std::int32_t> distance(cells, 0);
+  for (std::size_t index = 0; index < cells; ++index) {
+    distance[index] = interior[index] != 0U ? kFar : 0;
+  }
+  const auto at = [&](std::int32_t x, std::int32_t y) -> std::int32_t& {
+    return distance[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x)];
+  };
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      auto& d = at(x, y);
+      if (d == 0) {
+        continue;
+      }
+      if (x == 0 || y == 0 || x == width - 1 || y == height - 1) {
+        d = std::min(d, 3);
+      }
+      if (x > 0) {
+        d = std::min(d, at(x - 1, y) + 3);
+      }
+      if (y > 0) {
+        d = std::min(d, at(x, y - 1) + 3);
+        if (x > 0) {
+          d = std::min(d, at(x - 1, y - 1) + 4);
+        }
+        if (x + 1 < width) {
+          d = std::min(d, at(x + 1, y - 1) + 4);
+        }
+      }
+    }
+  }
+  for (std::int32_t y = height - 1; y >= 0; --y) {
+    for (std::int32_t x = width - 1; x >= 0; --x) {
+      auto& d = at(x, y);
+      if (d == 0) {
+        continue;
+      }
+      if (x + 1 < width) {
+        d = std::min(d, at(x + 1, y) + 3);
+      }
+      if (y + 1 < height) {
+        d = std::min(d, at(x, y + 1) + 3);
+        if (x + 1 < width) {
+          d = std::min(d, at(x + 1, y + 1) + 4);
+        }
+        if (x > 0) {
+          d = std::min(d, at(x - 1, y + 1) + 4);
+        }
+      }
+    }
+  }
+  const auto span = static_cast<std::int64_t>(band) * 3;
+  for (std::size_t index = 0; index < cells; ++index) {
+    if (interior[index] == 0U) {
+      continue;
+    }
+    // Weight in 1/256: 256 at the first interior cell (distance 3), 0 at the band's end.
+    const auto d = static_cast<std::int64_t>(distance[index]) - 3;
+    const auto weight = d >= span ? 0 : static_cast<std::int32_t>((span - d) * 256 / span);
+    for (std::size_t channel = 0; channel < 3; ++channel) {
+      const auto value = static_cast<std::int32_t>(offsets_rgb[index * 3U + channel]) * weight;
+      offsets_rgb[index * 3U + channel] =
+          static_cast<std::int16_t>(value >= 0 ? (value + 128) / 256 : -((-value + 128) / 256));
+    }
+  }
+}
+
 }  // namespace patchy

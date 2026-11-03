@@ -17043,6 +17043,14 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Content-Aware Move</source>
         <translation>Sposta in base al contenuto</translation>
     </message>
+    <message>
+        <source>Moving object...</source>
+        <translation>Spostamento dell&apos;oggetto...</translation>
+    </message>
+    <message>
+        <source>Moving object... %1%</source>
+        <translation>Spostamento dell&apos;oggetto... %1%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
