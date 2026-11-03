@@ -57,6 +57,7 @@ Coverage: `ui_options_bars_follow_the_separator_rules` walks every tool's bar (a
 
 ## Popups and the cursor
 
+- Every list on the bar opens below its box (above it only when the screen has no room below), at least as wide as the box and widened to its longest entry, on every style. `open_options_bar_lists_below` (main_window_actions_options_bar.cpp) runs once `build_options_bar` is done and gives each `QComboBox` the toolbar owns `use_scrolling_list_popup` (at least `kLongListPopupRows` rows, then it scrolls) and `fit_combo_popup_to_entries`; a combo that already called `use_scrolling_list_popup` keeps its own row count. Without it Fusion (Linux) and the macOS style open a menu with the chosen entry over the box, so a later entry ran the list up over the bar (GitHub issue 613). A combo added to the bar after that pass, or to a popup the toolbar does not own, calls `use_scrolling_list_popup` itself. Coverage: `ui_options_bar_lists_open_below_their_box` opens every list any tool shows, last entry chosen, under Fusion and the platform style in both schemes.
 - A canvas cursor change made while a popup holds the pointer (a slider popup's quick value redraws the brush cursor) is applied by Qt to the whole main window, which then shows it over the options bar until the pointer enters another widget. `MainWindow::eventFilter` calls `refresh_cursor_under_pointer` (dialog_utils) after any `Qt::Popup` hides, so every popup is covered (GitHub issue 293, `ui_slider_popup_close_restores_cursor_under_pointer`).
 
 ## Preset keys

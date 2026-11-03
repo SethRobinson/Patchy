@@ -440,6 +440,23 @@ void widen_combo_popup_to_items(QComboBox* combo) {
   combo->view()->setMinimumWidth(width + 36);
 }
 
+// Gives every combo box on the bar (`toolbar` and the popups it owns) the scrolling list
+// popup, which opens below the box (above it only when the screen has no room below), at
+// least as wide as the box and widened to its longest entry. Fusion and the macOS style
+// otherwise open a menu placed so the current entry covers the box, so with a later entry
+// chosen the list ran up over the bar (GitHub issue 613). A combo that already chose its
+// row count (blend modes, gradients, patterns, the font picker) keeps it. Runs once the bar
+// is built; ui_options_bar_lists_open_below_their_box checks every combo on it.
+void open_options_bar_lists_below(QToolBar& toolbar) {
+  for (auto* combo : toolbar.findChildren<QComboBox*>()) {
+    if (uses_scrolling_list_popup(*combo)) {
+      continue;
+    }
+    use_scrolling_list_popup(*combo, std::max(combo->maxVisibleItems(), kLongListPopupRows));
+    fit_combo_popup_to_entries(*combo);
+  }
+}
+
 // Runs `callback` once, on the first click, key press or wheel turn on `widget`, before the
 // widget handles it. Owned by the widget.
 class FirstUseHook final : public QObject {
@@ -5152,6 +5169,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // (GitHub issue 46; install_scrub_labels_in pairs them by layout order, nested
   // groups such as Feather included, so a new label+field pair opts in by itself).
   install_scrub_labels_in(options_content);
+
+  // Every list on the bar opens below its box (GitHub issue 613), whatever the style.
+  open_options_bar_lists_below(*toolbar);
 
   // Export the cross-phase locals bind_action_translations() still needs.
   ctx.options_toolbar = toolbar;
