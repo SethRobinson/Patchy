@@ -1447,6 +1447,8 @@ private:
   void ungroup_selected_layers();
   void clear_internal_clipboard_on_external_change();
   void transform_active_layer_dialog();
+  // Select > Transform Selection (GitHub issue 323; CanvasWidget::begin_transform_selection).
+  void transform_selection();
   void warp_transform_active_layer();
   // Edit > Transform > Skew/Distort/Perspective (GitHub issue 225).
   void transform_active_layer_mode(TransformDistortMode mode);
@@ -3125,6 +3127,7 @@ private:
   QAction* layer_shape_appearance_action_{nullptr};
   // Edit-menu actions the canvas right-click menu's shape section reuses.
   QAction* free_transform_action_{nullptr};
+  QAction* transform_selection_action_{nullptr};
   QAction* define_custom_shape_action_{nullptr};
   // Unite / Subtract Front / Intersect / Exclude, enabled with a combinable
   // multi-selection (refresh_combine_shapes_action_states).

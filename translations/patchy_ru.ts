@@ -17096,6 +17096,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Moving object... %1%</source>
         <translation>Перемещение объекта... %1%</translation>
     </message>
+    <message>
+        <source>Finish the transform first: press Enter to apply it or Esc to cancel it</source>
+        <translation>Сначала завершите преобразование: нажмите Enter, чтобы применить его, или Esc, чтобы отменить его.</translation>
+    </message>
+    <message>
+        <source>Transform Selection is unavailable in Quick Mask mode</source>
+        <translation>Трансформация выделения недоступна в режиме быстрой маски</translation>
+    </message>
+    <message>
+        <source>Make a selection to transform</source>
+        <translation>Создайте выделение для трансформации</translation>
+    </message>
+    <message>
+        <source>Drag handles to transform the selection. Enter applies, Esc cancels.</source>
+        <translation>Перетащите маркеры, чтобы трансформировать выделение. Enter применяет, Esc отменяет.</translation>
+    </message>
+    <message>
+        <source>Transform Selection cancelled</source>
+        <translation>Трансформация выделения отменена</translation>
+    </message>
+    <message>
+        <source>The selection changed, so Transform Selection was cancelled</source>
+        <translation>Выделение изменилось, поэтому трансформация выделения отменена</translation>
+    </message>
+    <message>
+        <source>Transform Selection</source>
+        <translation>Трансформировать выделение</translation>
+    </message>
+    <message>
+        <source>Transformed selection</source>
+        <translation>Выделение трансформировано</translation>
+    </message>
+    <message>
+        <source>Warp works on layers. Apply the selection transform first.</source>
+        <translation>Деформация работает со слоями. Сначала примените трансформацию выделения.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19209,6 +19245,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Move or copy a selected object and fill the spot it leaves</source>
         <translation>Переместить или скопировать выделенный объект и заполнить оставшееся место</translation>
+    </message>
+    <message>
+        <source>Resize, rotate or skew the selection outline</source>
+        <translation>Изменить размер, повернуть или наклонить контур выделения</translation>
     </message>
 </context>
 <context>
@@ -32371,6 +32411,14 @@ Locked: %1</source>
     <message>
         <source>Split into %1 shape(s)</source>
         <translation>Получено фигур после разделения: %1</translation>
+    </message>
+    <message>
+        <source>Trans&amp;form Selection</source>
+        <translation>Тран&amp;сформировать выделение</translation>
+    </message>
+    <message>
+        <source>Scale, rotate or distort the selection outline without moving pixels</source>
+        <translation>Масштабировать, поворачивать или искажать контур выделения, не сдвигая пиксели</translation>
     </message>
 </context>
 <context>

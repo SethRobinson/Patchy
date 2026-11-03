@@ -1818,9 +1818,11 @@ void CanvasWidget::set_selected_layer_ids(std::vector<LayerId> layer_ids) {
     cancel_path_transform();
   }
   const auto old_transform_controls_rect = move_transform_controls_rect();
+  // Transform Selection does not depend on the layers, so a layer switch keeps it.
   auto keeps_active_transform =
-      transforming_layer_ && transform_layer_id_.has_value() && layer_ids.size() == 1U &&
-      layer_ids.front() == *transform_layer_id_;
+      (transforming_layer_ && transform_selection_only_) ||
+      (transforming_layer_ && transform_layer_id_.has_value() && layer_ids.size() == 1U &&
+       layer_ids.front() == *transform_layer_id_);
   if (transforming_layer_ && !keeps_active_transform && !transform_session_root_ids_.empty()) {
     // Multi-target session: an identical re-selection of the same roots (panel
     // refreshes re-push the selection) keeps the session alive.
@@ -2141,7 +2143,7 @@ void CanvasWidget::activate_layer(Layer& layer) {
       !transform_session_root_ids_.empty() &&
       std::find(transform_session_root_ids_.begin(), transform_session_root_ids_.end(), layer.id()) !=
           transform_session_root_ids_.end();
-  if (transforming_layer_ && !keeps_multi_transform &&
+  if (transforming_layer_ && !keeps_multi_transform && !transform_selection_only_ &&
       (!transform_layer_id_.has_value() || *transform_layer_id_ != layer.id())) {
     finish_free_transform();
   }

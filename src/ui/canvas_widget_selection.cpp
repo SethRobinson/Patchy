@@ -1214,13 +1214,50 @@ void CanvasWidget::ensure_selection_outline_screen_path() const {
   selection_outline_screen_valid_ = true;
 }
 
+// Transform Selection's live ants: the outline traced at the session start, mapped
+// through the session map (box, rotation, flips and the corner quad) to the widget.
+// The cost is the outline's vertex count, never the selection's pixels.
+void CanvasWidget::draw_transform_selection_outline(QPainter& painter) const {
+  if (transform_selection_outline_.empty() || !transform_selection_source_is_current()) {
+    return;
+  }
+  const QTransform document_to_widget(zoom_, 0.0, 0.0, zoom_, pan_.x(), pan_.y());
+  const auto map = transform_session_delta() * document_to_widget;
+  QPainterPath marching;
+  QPainterPath pinpoint;
+  for (const auto& loop : transform_selection_outline_) {
+    const auto polygon = map.map(loop.points);
+    if (polygon.size() < 2) {
+      continue;
+    }
+    double length = 0.0;
+    for (qsizetype i = 0; i < polygon.size(); ++i) {
+      const auto step = polygon[(i + 1) % polygon.size()] - polygon[i];
+      length += std::hypot(step.x(), step.y());
+    }
+    auto& path = length < 8.0 ? pinpoint : marching;
+    path.addPolygon(polygon);
+    path.closeSubpath();
+  }
+  if (!marching.isEmpty()) {
+    stroke_marching_ants(painter, marching, selection_dash_offset_);
+  }
+  if (!pinpoint.isEmpty()) {
+    stroke_marching_ants(painter, pinpoint, selection_dash_offset_, 2.0);
+  }
+}
+
 void CanvasWidget::draw_selection_overlay(QPainter& painter) const {
   // A crop session adopted the selection as its box; the ants would only
   // shadow it (and go stale as the box moves).
   const bool hidden_by_crop = tool_ == CanvasTool::Crop && crop_session_active_ && crop_box_from_selection_;
   // Free Transform of the selected pixels: the box frames them and the outline
   // comes back, moved with them, at commit (or unchanged at cancel).
-  const bool hidden_by_transform = free_transform_floats_selection();
+  // Transform Selection draws the outline through the session map instead.
+  const bool hidden_by_transform = free_transform_floats_selection() || free_transform_targets_selection();
+  if (free_transform_targets_selection() && selection_edges_drawn()) {
+    draw_transform_selection_outline(painter);
+  }
   if (!quick_mask_active_ && !selection_.isEmpty() &&
       selection_edges_drawn() && !hidden_by_crop && !hidden_by_transform) {
     ensure_selection_outline_screen_path();
@@ -1520,7 +1557,7 @@ void CanvasWidget::apply_marquee_shape(const MarqueeShape& shape) {
 std::optional<QRect> CanvasWidget::resizable_marquee_rect() const {
   const bool marquee_tool = tool_ == CanvasTool::Marquee || tool_ == CanvasTool::EllipticalMarquee;
   if (!marquee_tool || !marquee_shape_.has_value() || quick_mask_active_ || selection_.isEmpty() ||
-      selecting_ || moving_selection_ || marquee_resize_handle_ != TransformHandle::None) {
+      selecting_ || moving_selection_ || marquee_resize_handle_ != TransformHandle::None || transforming_layer_) {
     return std::nullopt;
   }
   return marquee_shape_->rect;

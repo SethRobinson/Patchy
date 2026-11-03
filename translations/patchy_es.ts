@@ -17051,6 +17051,42 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Moving object... %1%</source>
         <translation>Moviendo el objeto... %1%</translation>
     </message>
+    <message>
+        <source>Finish the transform first: press Enter to apply it or Esc to cancel it</source>
+        <translation>Termine primero la transformación: Intro la aplica, Esc la cancela</translation>
+    </message>
+    <message>
+        <source>Transform Selection is unavailable in Quick Mask mode</source>
+        <translation>Transformar selección no está disponible en el modo Máscara rápida</translation>
+    </message>
+    <message>
+        <source>Make a selection to transform</source>
+        <translation>Haga una selección para transformarla</translation>
+    </message>
+    <message>
+        <source>Drag handles to transform the selection. Enter applies, Esc cancels.</source>
+        <translation>Arrastre los controles para transformar la selección. Intro aplica, Esc cancela.</translation>
+    </message>
+    <message>
+        <source>Transform Selection cancelled</source>
+        <translation>Transformar selección cancelado</translation>
+    </message>
+    <message>
+        <source>The selection changed, so Transform Selection was cancelled</source>
+        <translation>La selección cambió, así que se canceló Transformar selección</translation>
+    </message>
+    <message>
+        <source>Transform Selection</source>
+        <translation>Transformar selección</translation>
+    </message>
+    <message>
+        <source>Transformed selection</source>
+        <translation>Selección transformada</translation>
+    </message>
+    <message>
+        <source>Warp works on layers. Apply the selection transform first.</source>
+        <translation>Deformar funciona sobre capas. Aplique primero la transformación de la selección.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19164,6 +19200,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Move or copy a selected object and fill the spot it leaves</source>
         <translation>Mover o copiar un objeto seleccionado y rellenar el hueco que deja</translation>
+    </message>
+    <message>
+        <source>Resize, rotate or skew the selection outline</source>
+        <translation>Cambiar el tamaño, girar o sesgar el contorno de la selección</translation>
     </message>
 </context>
 <context>
@@ -32287,6 +32327,14 @@ Bloqueada: %1</translation>
     <message>
         <source>Split into %1 shape(s)</source>
         <translation>Dividido en %1 forma(s)</translation>
+    </message>
+    <message>
+        <source>Trans&amp;form Selection</source>
+        <translation>Trans&amp;formar selección</translation>
+    </message>
+    <message>
+        <source>Scale, rotate or distort the selection outline without moving pixels</source>
+        <translation>Escalar, girar o distorsionar el contorno de la selección sin mover píxeles</translation>
     </message>
 </context>
 <context>

@@ -17006,6 +17006,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Moving object... %1%</source>
         <translation>正在移動物件... %1%</translation>
     </message>
+    <message>
+        <source>Finish the transform first: press Enter to apply it or Esc to cancel it</source>
+        <translation>請先完成變形：按 Enter 套用，按 Esc 取消</translation>
+    </message>
+    <message>
+        <source>Transform Selection is unavailable in Quick Mask mode</source>
+        <translation>快速遮色片模式下無法變形選取範圍</translation>
+    </message>
+    <message>
+        <source>Make a selection to transform</source>
+        <translation>請先建立要變形的選取範圍</translation>
+    </message>
+    <message>
+        <source>Drag handles to transform the selection. Enter applies, Esc cancels.</source>
+        <translation>拖曳控點以變形選取範圍。Enter 套用，Esc 取消。</translation>
+    </message>
+    <message>
+        <source>Transform Selection cancelled</source>
+        <translation>已取消變形選取範圍</translation>
+    </message>
+    <message>
+        <source>The selection changed, so Transform Selection was cancelled</source>
+        <translation>選取範圍已變更，因此已取消變形選取範圍</translation>
+    </message>
+    <message>
+        <source>Transform Selection</source>
+        <translation>變形選取範圍</translation>
+    </message>
+    <message>
+        <source>Transformed selection</source>
+        <translation>已變形選取範圍</translation>
+    </message>
+    <message>
+        <source>Warp works on layers. Apply the selection transform first.</source>
+        <translation>彎曲作用於圖層。請先套用選取範圍變形。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19119,6 +19155,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Move or copy a selected object and fill the spot it leaves</source>
         <translation>移動或複製選取的物件，並填滿它留下的位置</translation>
+    </message>
+    <message>
+        <source>Resize, rotate or skew the selection outline</source>
+        <translation>調整選取範圍外框的大小、旋轉或傾斜</translation>
     </message>
 </context>
 <context>
@@ -32203,6 +32243,14 @@ Locked: %1</source>
     <message>
         <source>Split into %1 shape(s)</source>
         <translation>已分割為 %1 個形狀</translation>
+    </message>
+    <message>
+        <source>Trans&amp;form Selection</source>
+        <translation>變形選取範圍(&amp;F)</translation>
+    </message>
+    <message>
+        <source>Scale, rotate or distort the selection outline without moving pixels</source>
+        <translation>縮放、旋轉或扭曲選取範圍外框，不移動像素</translation>
     </message>
 </context>
 <context>

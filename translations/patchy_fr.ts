@@ -17051,6 +17051,42 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Moving object... %1%</source>
         <translation>Déplacement de l&apos;objet... %1%</translation>
     </message>
+    <message>
+        <source>Finish the transform first: press Enter to apply it or Esc to cancel it</source>
+        <translation>Terminez d&apos;abord la transformation : Entrée l&apos;applique, Échap l&apos;annule</translation>
+    </message>
+    <message>
+        <source>Transform Selection is unavailable in Quick Mask mode</source>
+        <translation>Transformer la sélection n&apos;est pas disponible en mode Masque</translation>
+    </message>
+    <message>
+        <source>Make a selection to transform</source>
+        <translation>Faites une sélection à transformer</translation>
+    </message>
+    <message>
+        <source>Drag handles to transform the selection. Enter applies, Esc cancels.</source>
+        <translation>Faites glisser les poignées pour transformer la sélection. Entrée applique, Échap annule.</translation>
+    </message>
+    <message>
+        <source>Transform Selection cancelled</source>
+        <translation>Transformation de la sélection annulée</translation>
+    </message>
+    <message>
+        <source>The selection changed, so Transform Selection was cancelled</source>
+        <translation>La sélection a changé, la transformation de la sélection a donc été annulée</translation>
+    </message>
+    <message>
+        <source>Transform Selection</source>
+        <translation>Transformer la sélection</translation>
+    </message>
+    <message>
+        <source>Transformed selection</source>
+        <translation>Sélection transformée</translation>
+    </message>
+    <message>
+        <source>Warp works on layers. Apply the selection transform first.</source>
+        <translation>La déformation s&apos;applique aux calques. Appliquez d&apos;abord la transformation de la sélection.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19164,6 +19200,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Move or copy a selected object and fill the spot it leaves</source>
         <translation>Déplacer ou copier un objet sélectionné et remplir l&apos;emplacement qu&apos;il laisse</translation>
+    </message>
+    <message>
+        <source>Resize, rotate or skew the selection outline</source>
+        <translation>Redimensionner, faire pivoter ou incliner le contour de la sélection</translation>
     </message>
 </context>
 <context>
@@ -32287,6 +32327,14 @@ Verrouillé : %1</translation>
     <message>
         <source>Split into %1 shape(s)</source>
         <translation>Séparé en %1 forme(s)</translation>
+    </message>
+    <message>
+        <source>Trans&amp;form Selection</source>
+        <translation>Trans&amp;former la sélection</translation>
+    </message>
+    <message>
+        <source>Scale, rotate or distort the selection outline without moving pixels</source>
+        <translation>Mettre à l&apos;échelle, faire pivoter ou déformer le contour de la sélection sans déplacer de pixels</translation>
     </message>
 </context>
 <context>

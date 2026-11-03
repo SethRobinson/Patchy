@@ -1291,6 +1291,10 @@ TransformedMask resample_transformed_gray8(const PixelBuffer& source, std::uint8
 }
 
 bool CanvasWidget::begin_free_transform() {
+  if (transforming_layer_ && transform_selection_only_) {
+    // Ctrl+T during Transform Selection keeps that session (no pixel session on top).
+    return true;
+  }
   if (layer_edit_target_ == LayerEditTarget::SmartFilterMask) {
     report_status_error(tr("This tool is unavailable while editing a Smart Filter mask"));
     return false;
@@ -1591,6 +1595,10 @@ Document CanvasWidget::floating_selection_preview_document() const {
 
 bool CanvasWidget::free_transform_floats_selection() const noexcept {
   return transforming_layer_ && transform_floating_.has_value();
+}
+
+bool CanvasWidget::free_transform_targets_selection() const noexcept {
+  return transforming_layer_ && transform_selection_only_;
 }
 
 // Resolves the current panel selection to Free Transform targets. Exactly one
@@ -1954,6 +1962,10 @@ void CanvasWidget::reset_free_transform_session_state() {
   transform_floating_.reset();
   transform_move_float_drag_ = false;
   transform_move_float_reused_ = false;
+  transform_selection_only_ = false;
+  transform_selection_outline_.clear();
+  transform_selection_region_ = QRegion();
+  transform_selection_mask_key_ = 0;
 }
 
 void CanvasWidget::clear_pending_warp() {
@@ -2141,6 +2153,9 @@ void CanvasWidget::update_move_transform_controls_dirty(std::optional<QRectF> ol
 bool CanvasWidget::prepare_free_transform_source() {
   if (!transforming_layer_ || document_ == nullptr) {
     return false;
+  }
+  if (transform_selection_only_) {
+    return true;  // the selection outline needs no pixel source or base cache
   }
   if (!transform_targets_.empty()) {
     if (!transform_targets_.front().source_image.isNull()) {
@@ -4127,6 +4142,9 @@ bool CanvasWidget::free_transform_accepts_non_affine() const {
   if (!transforming_layer_ || document_ == nullptr) {
     return false;
   }
+  if (transform_selection_only_) {
+    return true;  // the selection mask resamples through any convex quad
+  }
   const auto& document = std::as_const(*document_);
   // Type stays editable only under affine maps; vector paths and smart object
   // placements (nonAffineTransform) take a perspective quad. Pixels and masks
@@ -4989,6 +5007,10 @@ void CanvasWidget::update_free_transform_preview(QPointF document_point, Qt::Key
 }
 
 void CanvasWidget::commit_free_transform() {
+  if (transforming_layer_ && transform_selection_only_) {
+    commit_transform_selection();
+    return;
+  }
   // Photoshop warns before transforming type whose font is missing (GitHub issue 185); the
   // owner asks before anything is written, and a refusal cancels the session untouched.
   if (transforming_layer_ && document_ != nullptr && missing_font_transform_confirm_callback_) {
@@ -5258,6 +5280,93 @@ void CanvasWidget::commit_free_transform_floating() {
   update();
   if (status_callback_ && !move_drag) {
     status_callback_(tr("Transformed layer"));
+  }
+  notify_transform_controls_changed();
+}
+
+bool CanvasWidget::begin_transform_selection() {
+  if (transforming_layer_ && transform_selection_only_) {
+    return true;
+  }
+  if (document_ == nullptr) {
+    return false;
+  }
+  if (transforming_layer_ || warping_layer_ || path_transform_active_) {
+    report_status_error(tr("Finish the transform first: press Enter to apply it or Esc to cancel it"));
+    return false;
+  }
+  if (quick_mask_active_) {
+    report_status_error(tr("Transform Selection is unavailable in Quick Mask mode"));
+    return false;
+  }
+  const auto bounds = selection_.boundingRect().intersected(QRect(0, 0, document_->width(), document_->height()));
+  if (selection_.isEmpty() || bounds.isEmpty()) {
+    report_status_error(tr("Make a selection to transform"));
+    return false;
+  }
+  reset_free_transform_session_state();
+  transforming_layer_ = true;
+  transform_selection_only_ = true;
+  transform_selection_region_ = selection_;
+  transform_selection_mask_key_ = selection_mask_alpha_.cacheKey();
+  transform_selection_outline_ =
+      trace_selection_outlines(selection_display_region_.isEmpty() ? selection_ : selection_display_region_);
+  set_move_transform_controls_layer(std::nullopt);
+  transform_original_rect_ = QRectF(bounds);
+  transform_current_rect_ = transform_original_rect_;
+  transform_drag_start_rect_ = transform_current_rect_;
+  transform_drag_start_point_ = {};
+  transform_angle_ = 0.0;
+  transform_start_angle_ = 0.0;
+  setCursor(Qt::ArrowCursor);
+  update();
+  notify_transform_controls_changed();
+  if (status_callback_) {
+    status_callback_(tr("Drag handles to transform the selection. Enter applies, Esc cancels."));
+  }
+  return true;
+}
+
+bool CanvasWidget::transform_selection_source_is_current() const {
+  return selection_ == transform_selection_region_ &&
+         selection_mask_alpha_.cacheKey() == transform_selection_mask_key_;
+}
+
+// Transform Selection commit: the selection coverage at the session start, resampled
+// through the session map like the floating commit's selection (soft edges stay
+// partial), recorded as one selection history entry. Pixels are never touched.
+void CanvasWidget::commit_transform_selection() {
+  const bool changed = transform_session_has_changes();
+  const bool current = transform_selection_source_is_current();
+  if (document_ == nullptr || !changed || !current) {
+    reset_free_transform_session_state();
+    update_tool_cursor();
+    update();
+    if (status_callback_) {
+      status_callback_(current ? tr("Transform Selection cancelled")
+                               : tr("The selection changed, so Transform Selection was cancelled"));
+    }
+    notify_transform_controls_changed();
+    return;
+  }
+  const auto coverage_rect = transform_original_rect_.toAlignedRect();
+  const auto coverage = selection_coverage_buffer(coverage_rect);
+  const auto moved = resample_transformed_gray8(
+      coverage, 0U, QTransform::fromTranslate(coverage_rect.x(), coverage_rect.y()) * transform_session_delta(),
+      transform_interpolation_);
+  const auto before = capture_selection_snapshot();
+  reset_free_transform_session_state();
+  if (moved.pixels.empty() || moved.bounds.width <= 0 || moved.bounds.height <= 0) {
+    set_selection_from_region(QRegion());
+  } else {
+    set_selection_from_coverage(to_qrect(moved.bounds), moved.pixels);
+  }
+  selection_edges_visible_ = true;
+  record_selection_history(tr("Transform Selection"), before);
+  update_tool_cursor();
+  update();
+  if (status_callback_) {
+    status_callback_(tr("Transformed selection"));
   }
   notify_transform_controls_changed();
 }
@@ -5581,6 +5690,10 @@ bool CanvasWidget::begin_warp_transform() {
     // Refused BEFORE any teardown so the pending multi-target transform stays
     // alive (the same contract as the per-layer refusals below).
     report_status_error(tr("Warp works on a single layer. Select one layer to warp."));
+    return false;
+  }
+  if (free_transform_targets_selection()) {
+    report_status_error(tr("Warp works on layers. Apply the selection transform first."));
     return false;
   }
   if (free_transform_floats_selection()) {

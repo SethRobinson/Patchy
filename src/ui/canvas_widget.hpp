@@ -1048,6 +1048,13 @@ public:
   // issue 399): the selection was lifted out of the layer, the commit composites the
   // transformed pixels back and the selection follows. Warp refuses such sessions.
   [[nodiscard]] bool free_transform_floats_selection() const noexcept;
+  // Select > Transform Selection (GitHub issue 323): a Free Transform session on the
+  // selection outline itself. The box frames the selection; drags, modes, the options
+  // bar and session steps work as for layers, the marching ants follow the box, and the
+  // commit resamples the selection mask (soft edges stay soft) as one selection history
+  // entry. Pixels are never touched. Refused without a selection or in Quick Mask.
+  bool begin_transform_selection();
+  [[nodiscard]] bool free_transform_targets_selection() const noexcept;
   // Warp Transform: a 4x4 Bezier control cage over the layer (Photoshop's warp
   // tool). Smart objects commit non-destructively (warp metadata + regenerated
   // SoLd); plain pixel layers bake destructively; text layers are refused.
@@ -4283,6 +4290,9 @@ private:
                                                                                 QRect floating_rect);
   [[nodiscard]] Document floating_selection_preview_document() const;
   void commit_free_transform_floating();
+  void commit_transform_selection();
+  [[nodiscard]] bool transform_selection_source_is_current() const;
+  void draw_transform_selection_outline(QPainter& painter) const;
   // The floating session of a Move drag inside the selection (GitHub issue 532): it
   // commits on release as one "Move" step and keeps the options bar on the Move row.
   bool transform_move_float_drag_{false};
@@ -4304,6 +4314,13 @@ private:
   };
   std::optional<MoveFloatMemory> move_float_memory_;
   bool transform_move_float_reused_{false};
+  // Transform Selection session (begin_transform_selection): the selection as it was at
+  // the start, its document-space outline for the live ants, and the coverage the commit
+  // resamples. transform_selection_region_/mask_key_ detect a selection changed meanwhile.
+  bool transform_selection_only_{false};
+  std::vector<OutlineLoop> transform_selection_outline_;
+  QRegion transform_selection_region_;
+  qint64 transform_selection_mask_key_{0};
   [[nodiscard]] std::optional<TransformFloatingSelection> reuse_move_float(const Layer& layer, QRect& floating_rect);
   std::vector<LayerId> transform_mask_only_ids_;
   std::vector<LayerId> transform_session_root_ids_;

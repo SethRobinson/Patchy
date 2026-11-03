@@ -17006,6 +17006,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Moving object... %1%</source>
         <translation>개체 이동 중... %1%</translation>
     </message>
+    <message>
+        <source>Finish the transform first: press Enter to apply it or Esc to cancel it</source>
+        <translation>먼저 변환을 완료하세요. Enter를 눌러 적용하거나 Esc를 눌러 취소하세요.</translation>
+    </message>
+    <message>
+        <source>Transform Selection is unavailable in Quick Mask mode</source>
+        <translation>빠른 마스크 모드에서는 선택 영역 변형을 사용할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Make a selection to transform</source>
+        <translation>변형할 선택 영역을 만드세요</translation>
+    </message>
+    <message>
+        <source>Drag handles to transform the selection. Enter applies, Esc cancels.</source>
+        <translation>핸들을 드래그해 선택 영역을 변형합니다. Enter는 적용, Esc는 취소합니다.</translation>
+    </message>
+    <message>
+        <source>Transform Selection cancelled</source>
+        <translation>선택 영역 변형을 취소했습니다</translation>
+    </message>
+    <message>
+        <source>The selection changed, so Transform Selection was cancelled</source>
+        <translation>선택 영역이 바뀌어 선택 영역 변형을 취소했습니다</translation>
+    </message>
+    <message>
+        <source>Transform Selection</source>
+        <translation>선택 영역 변형</translation>
+    </message>
+    <message>
+        <source>Transformed selection</source>
+        <translation>선택 영역을 변형했습니다</translation>
+    </message>
+    <message>
+        <source>Warp works on layers. Apply the selection transform first.</source>
+        <translation>뒤틀기는 레이어에 적용됩니다. 먼저 선택 영역 변형을 적용하세요.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19119,6 +19155,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Move or copy a selected object and fill the spot it leaves</source>
         <translation>선택한 개체를 이동하거나 복사하고 남은 자리를 채웁니다</translation>
+    </message>
+    <message>
+        <source>Resize, rotate or skew the selection outline</source>
+        <translation>선택 영역 윤곽의 크기 조절, 회전 또는 기울이기</translation>
     </message>
 </context>
 <context>
@@ -32203,6 +32243,14 @@ Locked: %1</source>
     <message>
         <source>Split into %1 shape(s)</source>
         <translation>모양 %1개로 분할했습니다</translation>
+    </message>
+    <message>
+        <source>Trans&amp;form Selection</source>
+        <translation>선택 영역 변형(&amp;F)</translation>
+    </message>
+    <message>
+        <source>Scale, rotate or distort the selection outline without moving pixels</source>
+        <translation>픽셀을 옮기지 않고 선택 영역 윤곽을 크기 조절, 회전 또는 왜곡합니다</translation>
     </message>
 </context>
 <context>

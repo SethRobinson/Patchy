@@ -3,6 +3,7 @@
 // selection, Enter composites the transformed pixels back onto the layer (one undo
 // step, the selection follows), Esc leaves layer and selection untouched, and with
 // no selection the whole layer transforms as before. docs/free-transform.md.
+// Also Select > Transform Selection (GitHub issue 323), which reshapes the outline only.
 #include "core/document.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/pixel_depth.hpp"
@@ -18,6 +19,7 @@
 #include <QColor>
 #include <QImage>
 #include <QList>
+#include <QMenu>
 #include <QPointF>
 #include <QRect>
 #include <QRegion>
@@ -345,6 +347,225 @@ void ui_free_transform_selection_on_background_and_script() {
   CHECK(canvas->selected_document_rect() == std::optional<QRect>(kSelection.translated(40, 30)));
 }
 
+
+// Transform Selection (GitHub issue 323): the session reshapes the selection outline
+// only. A 2x scale and a 45 degree rotation change the mask, the layer bytes never
+// change, Enter is one undo step that brings the old selection back.
+void ui_transform_selection_scales_and_rotates_outline() {
+  patchy::ui::MainWindow window;
+  const auto photo_id = prepare_photo_scene(window);
+  auto* canvas = require_canvas(window);
+  select_rect(*canvas, kSelection);
+  const auto original = layer_by_id(window, photo_id).pixels();
+  const auto depth_before = MainWindowTestAccess::active_session_undo_depth(window);
+
+  require_action(window, "selectTransformSelectionAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(canvas->free_transform_targets_selection());
+  CHECK(!canvas->free_transform_floats_selection());
+  CHECK(quad_equals(canvas->free_transform_quad(), corners_of(kSelection)));
+  // Ctrl+T during the session keeps it; Warp refuses it.
+  CHECK(canvas->begin_free_transform());
+  CHECK(canvas->free_transform_targets_selection());
+  CHECK(!canvas->begin_warp_transform());
+  CHECK(canvas->free_transform_targets_selection());
+
+  const QRect doubled(100, 80, 240, 180);
+  CHECK(canvas->set_free_transform_quad(corners_of(doubled)));
+  QApplication::processEvents();
+  CHECK(canvas->selected_document_rect() == std::optional<QRect>(kSelection));  // nothing written yet
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(rect_near(canvas->selected_document_rect(), doubled));
+  CHECK(canvas->selection_alpha_at(QPoint(300, 240)) == 255U);
+  CHECK(canvas->selection_alpha_at(QPoint(345, 265)) == 0U);
+  CHECK(same_bytes(layer_by_id(window, photo_id).pixels(), original));
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth_before + 1);
+
+  MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(canvas->selected_document_rect() == std::optional<QRect>(kSelection));
+  CHECK(canvas->selection_alpha_at(QPoint(300, 240)) == 0U);
+  MainWindowTestAccess::redo(window);
+  QApplication::processEvents();
+  CHECK(rect_near(canvas->selected_document_rect(), doubled));
+  MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+
+  // 45 degrees about the center through the options-bar path.
+  CHECK(canvas->begin_transform_selection());
+  const auto state = canvas->transform_controls_state();
+  CHECK(state.has_value() && state->active);
+  if (state.has_value()) {
+    CHECK(canvas->set_transform_controls_state(state->reference_position, 100.0, 100.0, 45.0));
+  }
+  QApplication::processEvents();
+  save_stacked_artifact("ui_transform_selection_rotated_outline", {canvas_crop(*canvas, QRect(60, 30, 200, 190))});
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  // The rotated 120 x 90 box spans 148.5 px both ways around the same center.
+  CHECK(rect_near(canvas->selected_document_rect(), QRect(86, 51, 148, 148), 2));
+  CHECK(canvas->selection_alpha_at(QPoint(160, 125)) == 255U);
+  CHECK(canvas->selection_alpha_at(QPoint(102, 82)) == 0U);  // an old corner falls outside
+  CHECK(canvas->selection_alpha_at(QPoint(173, 194)) == 255U ||
+        canvas->selection_alpha_at(QPoint(229, 112)) == 255U);  // beyond the old rect
+  CHECK(same_bytes(layer_by_id(window, photo_id).pixels(), original));
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth_before + 1);
+}
+
+bool is_ant_color(QColor color) {
+  return (color.red() < 32 && color.green() < 32 && color.blue() < 36) ||
+         (color.red() > 242 && color.green() > 242 && color.blue() > 242);
+}
+
+bool ant_near_row(patchy::ui::CanvasWidget& canvas, QPoint document_point) {
+  for (int dy = -1; dy <= 1; ++dy) {
+    if (is_ant_color(canvas_pixel(canvas, document_point + QPoint(0, dy)))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Esc restores the selection and records nothing; the live ants follow the box during
+// the session (a hole's edge moves with it, the old one is gone); a selection changed
+// under the session cancels its commit; a feathered selection stays soft after a scale.
+void ui_transform_selection_cancel_ants_and_soft_mask() {
+  patchy::ui::MainWindow window;
+  const auto photo_id = prepare_photo_scene(window);
+  auto* canvas = require_canvas(window);
+  // A rectangle with a square hole: the hole's outline sits inside the box, away from
+  // the transform controls.
+  {
+    patchy::ui::CanvasWidget::SelectionSnapshot snapshot;
+    snapshot.selection = QRegion(kSelection).subtracted(QRegion(QRect(140, 105, 40, 40)));
+    snapshot.display_region = snapshot.selection;
+    canvas->apply_selection_snapshot(snapshot);
+    QApplication::processEvents();
+  }
+  const auto original = layer_by_id(window, photo_id).pixels();
+  const auto depth_before = MainWindowTestAccess::active_session_undo_depth(window);
+  CHECK(canvas->begin_transform_selection());
+  CHECK(canvas->set_free_transform_quad(corners_of(kSelection.translated(60, 40))));
+  QApplication::processEvents();
+  CHECK(ant_near_row(*canvas, QPoint(220, 145)));   // the moved hole's top edge
+  CHECK(!ant_near_row(*canvas, QPoint(150, 105)));  // the old hole's top edge
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(canvas->selected_document_rect() == std::optional<QRect>(kSelection));
+  CHECK(canvas->selection_alpha_at(QPoint(150, 115)) == 0U);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth_before);
+  CHECK(ant_near_row(*canvas, QPoint(150, 105)));
+
+  // A selection change during the session (Select All) cancels the commit.
+  CHECK(canvas->begin_transform_selection());
+  CHECK(canvas->set_free_transform_quad(corners_of(kSelection.translated(60, 40))));
+  canvas->select_all();
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(canvas->selected_document_rect() == std::optional<QRect>(QRect(0, 0, kWidth, kHeight)));
+
+  // Feathered: a horizontal ramp from 1 to 255 across the rectangle.
+  {
+    QImage alpha(kSelection.size(), QImage::Format_Grayscale8);
+    for (int y = 0; y < alpha.height(); ++y) {
+      auto* row = alpha.scanLine(y);
+      for (int x = 0; x < alpha.width(); ++x) {
+        row[x] = static_cast<std::uint8_t>(1 + (x * 254) / (alpha.width() - 1));
+      }
+    }
+    patchy::ui::CanvasWidget::SelectionSnapshot snapshot;
+    snapshot.selection = QRegion(kSelection);
+    snapshot.display_region = QRegion(kSelection.adjusted(kSelection.width() / 2, 0, 0, 0));
+    snapshot.mask_bounds = kSelection;
+    snapshot.mask_alpha = alpha;
+    canvas->apply_selection_snapshot(snapshot);
+    QApplication::processEvents();
+  }
+  const auto ramp_mid = canvas->selection_alpha_at(QPoint(160, 125));
+  CHECK(ramp_mid > 100U && ramp_mid < 156U);
+  CHECK(canvas->begin_transform_selection());
+  CHECK(canvas->set_free_transform_quad(corners_of(QRect(100, 80, 240, 180))));
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  int partial = 0;
+  for (int x = 100; x < 340; ++x) {
+    const auto value = canvas->selection_alpha_at(QPoint(x, 170));
+    partial += value > 0U && value < 255U ? 1 : 0;
+  }
+  CHECK(partial > 200);  // still a ramp, not a thresholded edge
+  const auto scaled_mid = canvas->selection_alpha_at(QPoint(220, 170));
+  CHECK(scaled_mid > 100U && scaled_mid < 156U);
+  CHECK(same_bytes(layer_by_id(window, photo_id).pixels(), original));
+}
+
+// The canvas right-click menu on a selection lists Free Transform and Transform
+// Selection (once each, also with the Move tool whose layer section has Free
+// Transform too); picking Transform Selection starts the session.
+void ui_selection_context_menu_offers_transform_entries() {
+  patchy::ui::MainWindow window;
+  prepare_photo_scene(window);
+  auto* canvas = require_canvas(window);
+  select_rect(*canvas, kSelection);
+  const auto open_menu = [&](QPoint document_point) -> QMenu* {
+    const auto point = canvas->widget_position_for_document_point(document_point);
+    send_mouse(*canvas, QEvent::MouseButtonPress, point, Qt::RightButton, Qt::RightButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, point, Qt::RightButton, Qt::NoButton);
+    QApplication::processEvents();
+    for (auto* menu : canvas->findChildren<QMenu*>(QStringLiteral("canvasContextMenu"))) {
+      if (menu->isVisible()) {
+        return menu;
+      }
+    }
+    return nullptr;
+  };
+  const auto count = [](QMenu& menu, const QString& name) {
+    int found = 0;
+    for (auto* action : menu.actions()) {
+      found += action->objectName() == name ? 1 : 0;
+    }
+    return found;
+  };
+  for (const auto tool : {patchy::ui::CanvasTool::Marquee, patchy::ui::CanvasTool::Move}) {
+    canvas->set_tool(tool);
+    auto* menu = open_menu(QPoint(160, 125));
+    CHECK(menu != nullptr);
+    if (menu == nullptr) {
+      continue;
+    }
+    CHECK(count(*menu, QStringLiteral("editFreeTransformAction")) == 1);
+    CHECK(count(*menu, QStringLiteral("selectTransformSelectionAction")) == 1);
+    QAction* transform_selection = nullptr;
+    for (auto* action : menu->actions()) {
+      if (action->objectName() == QStringLiteral("selectTransformSelectionAction")) {
+        transform_selection = action;
+      }
+    }
+    if (tool == patchy::ui::CanvasTool::Marquee) {
+      save_widget_artifact("ui_selection_context_menu_transform_entries", *menu);
+    }
+    menu->close();
+    QApplication::processEvents();
+    if (tool == patchy::ui::CanvasTool::Marquee && transform_selection != nullptr) {
+      CHECK(transform_selection->isEnabled());
+      transform_selection->trigger();
+      QApplication::processEvents();
+      CHECK(canvas->free_transform_targets_selection());
+      send_key(*canvas, Qt::Key_Escape);
+      QApplication::processEvents();
+    }
+  }
+  // Without a selection the command refuses.
+  canvas->clear_selection();
+  QApplication::processEvents();
+  CHECK(!canvas->begin_transform_selection());
+  CHECK(!canvas->free_transform_active());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> free_transform_selection_tests() {
@@ -354,5 +575,8 @@ std::vector<patchy::test::TestCase> free_transform_selection_tests() {
       {"ui_free_transform_without_selection_takes_whole_layer", ui_free_transform_without_selection_takes_whole_layer},
       {"ui_free_transform_selection_keeps_16_bit_samples", ui_free_transform_selection_keeps_16_bit_samples},
       {"ui_free_transform_selection_on_background_and_script", ui_free_transform_selection_on_background_and_script},
+      {"ui_transform_selection_scales_and_rotates_outline", ui_transform_selection_scales_and_rotates_outline},
+      {"ui_transform_selection_cancel_ants_and_soft_mask", ui_transform_selection_cancel_ants_and_soft_mask},
+      {"ui_selection_context_menu_offers_transform_entries", ui_selection_context_menu_offers_transform_entries},
   };
 }

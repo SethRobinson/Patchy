@@ -308,6 +308,7 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"select.grow", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add neighboring similar colors")},
     {"select.similar", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add similar colors anywhere")},
     {"select.quick_mask", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Paint a selection as a mask")},
+    {"select.transform_selection", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Resize, rotate or skew the selection outline")},
     {"select.deselect_layers", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Select no layers")},
     {"select.layer_below", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make the next layer down the active one")},
     {"select.layer_above", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Make the next layer up the active one")},

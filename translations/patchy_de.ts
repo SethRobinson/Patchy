@@ -17051,6 +17051,42 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Moving object... %1%</source>
         <translation>Objekt wird verschoben... %1%</translation>
     </message>
+    <message>
+        <source>Finish the transform first: press Enter to apply it or Esc to cancel it</source>
+        <translation>Schließen Sie zuerst die Transformation ab: Eingabetaste übernimmt sie, Esc bricht sie ab</translation>
+    </message>
+    <message>
+        <source>Transform Selection is unavailable in Quick Mask mode</source>
+        <translation>Auswahl transformieren ist im Maskierungsmodus nicht verfügbar</translation>
+    </message>
+    <message>
+        <source>Make a selection to transform</source>
+        <translation>Erstellen Sie eine Auswahl zum Transformieren</translation>
+    </message>
+    <message>
+        <source>Drag handles to transform the selection. Enter applies, Esc cancels.</source>
+        <translation>Ziehen Sie an den Griffen, um die Auswahl zu transformieren. Eingabetaste übernimmt, Esc bricht ab.</translation>
+    </message>
+    <message>
+        <source>Transform Selection cancelled</source>
+        <translation>Auswahl transformieren abgebrochen</translation>
+    </message>
+    <message>
+        <source>The selection changed, so Transform Selection was cancelled</source>
+        <translation>Die Auswahl hat sich geändert, daher wurde Auswahl transformieren abgebrochen</translation>
+    </message>
+    <message>
+        <source>Transform Selection</source>
+        <translation>Auswahl transformieren</translation>
+    </message>
+    <message>
+        <source>Transformed selection</source>
+        <translation>Auswahl transformiert</translation>
+    </message>
+    <message>
+        <source>Warp works on layers. Apply the selection transform first.</source>
+        <translation>Verkrümmen wirkt auf Ebenen. Wenden Sie zuerst die Auswahltransformation an.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19164,6 +19200,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Move or copy a selected object and fill the spot it leaves</source>
         <translation>Ein ausgewähltes Objekt verschieben oder kopieren und die frei werdende Stelle füllen</translation>
+    </message>
+    <message>
+        <source>Resize, rotate or skew the selection outline</source>
+        <translation>Auswahlkontur skalieren, drehen oder neigen</translation>
     </message>
 </context>
 <context>
@@ -32287,6 +32327,14 @@ Fixiert: %1</translation>
     <message>
         <source>Split into %1 shape(s)</source>
         <translation>In %1 Form(en) geteilt</translation>
+    </message>
+    <message>
+        <source>Trans&amp;form Selection</source>
+        <translation>Auswahl trans&amp;formieren</translation>
+    </message>
+    <message>
+        <source>Scale, rotate or distort the selection outline without moving pixels</source>
+        <translation>Auswahlkontur skalieren, drehen oder verzerren, ohne Pixel zu verschieben</translation>
     </message>
 </context>
 <context>

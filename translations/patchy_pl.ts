@@ -17096,6 +17096,42 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Moving object... %1%</source>
         <translation>Przesuwanie obiektu... %1%</translation>
     </message>
+    <message>
+        <source>Finish the transform first: press Enter to apply it or Esc to cancel it</source>
+        <translation>Najpierw zakończ transformację: naciśnij Enter, aby ją zastosować, lub Esc, aby ją anulować</translation>
+    </message>
+    <message>
+        <source>Transform Selection is unavailable in Quick Mask mode</source>
+        <translation>Przekształć zaznaczenie jest niedostępne w trybie szybkiej maski</translation>
+    </message>
+    <message>
+        <source>Make a selection to transform</source>
+        <translation>Utwórz zaznaczenie do przekształcenia</translation>
+    </message>
+    <message>
+        <source>Drag handles to transform the selection. Enter applies, Esc cancels.</source>
+        <translation>Przeciągnij uchwyty, aby przekształcić zaznaczenie. Enter zatwierdza, Esc anuluje.</translation>
+    </message>
+    <message>
+        <source>Transform Selection cancelled</source>
+        <translation>Anulowano przekształcanie zaznaczenia</translation>
+    </message>
+    <message>
+        <source>The selection changed, so Transform Selection was cancelled</source>
+        <translation>Zaznaczenie się zmieniło, więc anulowano przekształcanie zaznaczenia</translation>
+    </message>
+    <message>
+        <source>Transform Selection</source>
+        <translation>Przekształć zaznaczenie</translation>
+    </message>
+    <message>
+        <source>Transformed selection</source>
+        <translation>Przekształcono zaznaczenie</translation>
+    </message>
+    <message>
+        <source>Warp works on layers. Apply the selection transform first.</source>
+        <translation>Wypaczenie działa na warstwach. Najpierw zastosuj przekształcenie zaznaczenia.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19209,6 +19245,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Move or copy a selected object and fill the spot it leaves</source>
         <translation>Przesuń lub skopiuj zaznaczony obiekt i wypełnij miejsce, które zostawia</translation>
+    </message>
+    <message>
+        <source>Resize, rotate or skew the selection outline</source>
+        <translation>Zmień rozmiar, obróć lub pochyl obrys zaznaczenia</translation>
     </message>
 </context>
 <context>
@@ -32371,6 +32411,14 @@ Zablokowano: %1</translation>
     <message>
         <source>Split into %1 shape(s)</source>
         <translation>Liczba kształtów po podziale: %1</translation>
+    </message>
+    <message>
+        <source>Trans&amp;form Selection</source>
+        <translation>Prze&amp;kształć zaznaczenie</translation>
+    </message>
+    <message>
+        <source>Scale, rotate or distort the selection outline without moving pixels</source>
+        <translation>Skaluj, obracaj lub zniekształcaj obrys zaznaczenia bez przesuwania pikseli</translation>
     </message>
 </context>
 <context>

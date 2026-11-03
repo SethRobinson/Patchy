@@ -17051,6 +17051,42 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Moving object... %1%</source>
         <translation>Spostamento dell&apos;oggetto... %1%</translation>
     </message>
+    <message>
+        <source>Finish the transform first: press Enter to apply it or Esc to cancel it</source>
+        <translation>Completa prima la trasformazione: Invio la applica, Esc la annulla</translation>
+    </message>
+    <message>
+        <source>Transform Selection is unavailable in Quick Mask mode</source>
+        <translation>Trasforma selezione non è disponibile in modalità Maschera veloce</translation>
+    </message>
+    <message>
+        <source>Make a selection to transform</source>
+        <translation>Crea una selezione da trasformare</translation>
+    </message>
+    <message>
+        <source>Drag handles to transform the selection. Enter applies, Esc cancels.</source>
+        <translation>Trascina le maniglie per trasformare la selezione. Invio applica, Esc annulla.</translation>
+    </message>
+    <message>
+        <source>Transform Selection cancelled</source>
+        <translation>Trasforma selezione annullato</translation>
+    </message>
+    <message>
+        <source>The selection changed, so Transform Selection was cancelled</source>
+        <translation>La selezione è cambiata, quindi Trasforma selezione è stato annullato</translation>
+    </message>
+    <message>
+        <source>Transform Selection</source>
+        <translation>Trasforma selezione</translation>
+    </message>
+    <message>
+        <source>Transformed selection</source>
+        <translation>Selezione trasformata</translation>
+    </message>
+    <message>
+        <source>Warp works on layers. Apply the selection transform first.</source>
+        <translation>Altera funziona sui livelli. Applica prima la trasformazione della selezione.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19164,6 +19200,10 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Move or copy a selected object and fill the spot it leaves</source>
         <translation>Sposta o copia un oggetto selezionato e riempie il punto che lascia</translation>
+    </message>
+    <message>
+        <source>Resize, rotate or skew the selection outline</source>
+        <translation>Ridimensiona, ruota o inclina il contorno della selezione</translation>
     </message>
 </context>
 <context>
@@ -32287,6 +32327,14 @@ Bloccato: %1</translation>
     <message>
         <source>Split into %1 shape(s)</source>
         <translation>Divisa in %1 forma/e</translation>
+    </message>
+    <message>
+        <source>Trans&amp;form Selection</source>
+        <translation>Tras&amp;forma selezione</translation>
+    </message>
+    <message>
+        <source>Scale, rotate or distort the selection outline without moving pixels</source>
+        <translation>Ridimensiona, ruota o distorci il contorno della selezione senza spostare pixel</translation>
     </message>
 </context>
 <context>

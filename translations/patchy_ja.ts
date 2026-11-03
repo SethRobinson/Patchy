@@ -17006,6 +17006,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Moving object... %1%</source>
         <translation>オブジェクトを移動中... %1%</translation>
     </message>
+    <message>
+        <source>Finish the transform first: press Enter to apply it or Esc to cancel it</source>
+        <translation>先に変形を終了してください: Enter で適用、Esc でキャンセル</translation>
+    </message>
+    <message>
+        <source>Transform Selection is unavailable in Quick Mask mode</source>
+        <translation>クイックマスクモードでは選択範囲を変形できません</translation>
+    </message>
+    <message>
+        <source>Make a selection to transform</source>
+        <translation>変形する選択範囲を作成してください</translation>
+    </message>
+    <message>
+        <source>Drag handles to transform the selection. Enter applies, Esc cancels.</source>
+        <translation>ハンドルをドラッグして選択範囲を変形します。Enterで確定、Escで取り消し。</translation>
+    </message>
+    <message>
+        <source>Transform Selection cancelled</source>
+        <translation>選択範囲の変形を取り消しました</translation>
+    </message>
+    <message>
+        <source>The selection changed, so Transform Selection was cancelled</source>
+        <translation>選択範囲が変わったため、選択範囲の変形を取り消しました</translation>
+    </message>
+    <message>
+        <source>Transform Selection</source>
+        <translation>選択範囲を変形</translation>
+    </message>
+    <message>
+        <source>Transformed selection</source>
+        <translation>選択範囲を変形しました</translation>
+    </message>
+    <message>
+        <source>Warp works on layers. Apply the selection transform first.</source>
+        <translation>ワープはレイヤーに適用されます。先に選択範囲の変形を確定してください。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19119,6 +19155,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Move or copy a selected object and fill the spot it leaves</source>
         <translation>選択したオブジェクトを移動または複製し、元の場所を塗りつぶします</translation>
+    </message>
+    <message>
+        <source>Resize, rotate or skew the selection outline</source>
+        <translation>選択範囲の境界のサイズ変更、回転、または斜めに変形</translation>
     </message>
 </context>
 <context>
@@ -32203,6 +32243,14 @@ Locked: %1</source>
     <message>
         <source>Split into %1 shape(s)</source>
         <translation>%1 個のシェイプに分割しました</translation>
+    </message>
+    <message>
+        <source>Trans&amp;form Selection</source>
+        <translation>選択範囲を変形(&amp;F)</translation>
+    </message>
+    <message>
+        <source>Scale, rotate or distort the selection outline without moving pixels</source>
+        <translation>ピクセルを動かさずに選択範囲の境界を拡大・縮小、回転、または変形します</translation>
     </message>
 </context>
 <context>

@@ -3804,7 +3804,8 @@ void MainWindow::sync_transform_controls_from_canvas() {
   // switch modes (same rule as refresh_options_bar's warp-toggle state).
   // A transform of the selected pixels cannot switch either (Warp takes whole layers).
   const bool multi_target_transform = canvas_ != nullptr && (canvas_->free_transform_is_multi_target() ||
-                                                             canvas_->free_transform_floats_selection());
+                                                             canvas_->free_transform_floats_selection() ||
+                                                             canvas_->free_transform_targets_selection());
   for (auto* button : {transform_warp_mode_button_, transform_apply_button_, transform_cancel_button_}) {
     if (button != nullptr) {
       button->setEnabled(session_active &&
@@ -4326,7 +4327,8 @@ void MainWindow::refresh_options_bar() {
     // Warp works on one layer; a folder/multi-selection transform session
     // cannot switch modes, so gray the toggle instead of letting it refuse.
     if (transform_session_active && canvas_ != nullptr &&
-        (canvas_->free_transform_is_multi_target() || canvas_->free_transform_floats_selection())) {
+        (canvas_->free_transform_is_multi_target() || canvas_->free_transform_floats_selection() ||
+         canvas_->free_transform_targets_selection())) {
       transform_warp_mode_button_->setEnabled(false);
     }
   }

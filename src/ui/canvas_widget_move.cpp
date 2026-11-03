@@ -230,8 +230,12 @@ bool CanvasWidget::show_canvas_context_menu(QPoint widget_point, QPoint global_p
   add_move_layer_menu_entries(*menu, widget_point);
   const auto document_point = document_position(widget_point);
   // The host's QActions, so hotkeys and enable state stay in step; nullptr is
-  // a separator. A section with no real action adds nothing.
-  const auto append_section = [menu](const QList<QAction*>& actions) {
+  // a separator. A section with no real action adds nothing, and an action an
+  // earlier section already holds (Free Transform in the selection and layer
+  // sections) is listed once.
+  const auto append_section = [menu](QList<QAction*> actions) {
+    const auto existing = menu->actions();
+    actions.removeIf([&existing](QAction* action) { return action != nullptr && existing.contains(action); });
     bool any_action = false;
     for (auto* action : actions) {
       any_action = any_action || action != nullptr;

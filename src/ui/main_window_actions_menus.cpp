@@ -995,6 +995,22 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
                                    [this] { canvas_->select_active_layer_opaque_pixels(); });
   });
   connect(stroke_selection_action, &QAction::triggered, this, [this] { stroke_selection(); });
+  // Select > Transform Selection (GitHub issue 323): a Free Transform session on the
+  // selection outline itself (docs/free-transform.md). No default key, as in Photoshop.
+  auto* transform_selection_action = new QAction(this);
+  transform_selection_action->setObjectName(QStringLiteral("selectTransformSelectionAction"));
+  transform_selection_action->setMenuRole(QAction::NoRole);
+  transform_selection_action->setProperty("patchy.channelViewBlocked", true);
+  transform_selection_action->setProperty("patchy.quickMaskBlocked", true);
+  bind_action_text(transform_selection_action, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Trans&form Selection"));
+  bind_translated_status_tip(transform_selection_action,
+                             QT_TRANSLATE_NOOP("patchy::ui::MainWindow",
+                                               "Scale, rotate or distort the selection outline without moving pixels"));
+  apply_bound_translation(transform_selection_action);
+  register_hotkey(transform_selection_action, "select.transform_selection");
+  connect(transform_selection_action, &QAction::triggered, this, [this] { transform_selection(); });
+  register_document_action(transform_selection_action);
+  transform_selection_action_ = transform_selection_action;
   for (auto* action : {select_all_action, clear_selection_action, reselect_action, inverse_selection_action,
                        quick_mask_action_,
                        grow_selection_action, similar_selection_action, expand_selection_action,
@@ -1031,6 +1047,21 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   select_menu->addAction(border_selection_action);
   select_menu->addAction(layer_transparency_action);
   select_menu->addSeparator();
+  select_menu->addAction(transform_selection_action);
+  // Grayed without a selection while the menu is open; the previous state comes back
+  // on hide so a bound hotkey is never left disabled by a stale check.
+  connect(select_menu, &QMenu::aboutToShow, this, [this, transform_selection_action] {
+    transform_selection_action->setProperty("patchy.enabledBeforeMenu", transform_selection_action->isEnabled());
+    transform_selection_action->setEnabled(transform_selection_action->isEnabled() && canvas_ != nullptr &&
+                                           canvas_->has_selection());
+  });
+  connect(select_menu, &QMenu::aboutToHide, this, [transform_selection_action] {
+    const auto before = transform_selection_action->property("patchy.enabledBeforeMenu");
+    if (before.isValid()) {
+      transform_selection_action->setEnabled(before.toBool());
+      transform_selection_action->setProperty("patchy.enabledBeforeMenu", QVariant());
+    }
+  });
   select_menu->addAction(stroke_selection_action);
   select_menu->addAction(remove_object_action);
 
@@ -3094,6 +3125,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   selection_context_actions_ = {remove_object_action, select_object_action_, nullptr,
                                 fill_layer_action,    clear_layer_action,
                                 stroke_selection_action, nullptr,
+                                free_transform_action_, transform_selection_action, nullptr,
                                 clear_selection_action, inverse_selection_action};
   ctx.add_layer_action = add_layer_action;
   ctx.add_folder_action = add_folder_action;

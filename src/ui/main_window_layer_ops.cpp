@@ -1410,6 +1410,17 @@ void MainWindow::transform_active_layer_dialog() {
   }
 }
 
+void MainWindow::transform_selection() {
+  if (canvas_ == nullptr) {
+    return;
+  }
+  if (canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr) {
+    finish_active_text_editor();
+  }
+  canvas_->begin_transform_selection();
+  refresh_options_bar();
+}
+
 void MainWindow::transform_active_layer_mode(TransformDistortMode mode) {
   if (canvas_ == nullptr) {
     show_status_error(tr("Select a pixel layer to transform"));

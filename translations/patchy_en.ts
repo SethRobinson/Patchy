@@ -17034,6 +17034,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Moving object... %1%</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Finish the transform first: press Enter to apply it or Esc to cancel it</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Transform Selection is unavailable in Quick Mask mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make a selection to transform</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag handles to transform the selection. Enter applies, Esc cancels.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Transform Selection cancelled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The selection changed, so Transform Selection was cancelled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Transform Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Transformed selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Warp works on layers. Apply the selection transform first.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19146,6 +19182,10 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Move or copy a selected object and fill the spot it leaves</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Resize, rotate or skew the selection outline</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -32205,6 +32245,14 @@ Locked: %1</source>
     </message>
     <message>
         <source>Split into %1 shape(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Trans&amp;form Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scale, rotate or distort the selection outline without moving pixels</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

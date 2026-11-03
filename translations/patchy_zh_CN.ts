@@ -17006,6 +17006,42 @@ Each item&apos;s own View setting still applies.</source>
         <source>Moving object... %1%</source>
         <translation>正在移动对象... %1%</translation>
     </message>
+    <message>
+        <source>Finish the transform first: press Enter to apply it or Esc to cancel it</source>
+        <translation>请先完成变换：按 Enter 应用，按 Esc 取消</translation>
+    </message>
+    <message>
+        <source>Transform Selection is unavailable in Quick Mask mode</source>
+        <translation>快速蒙版模式下无法变换选区</translation>
+    </message>
+    <message>
+        <source>Make a selection to transform</source>
+        <translation>请先创建要变换的选区</translation>
+    </message>
+    <message>
+        <source>Drag handles to transform the selection. Enter applies, Esc cancels.</source>
+        <translation>拖动手柄变换选区。Enter 应用，Esc 取消。</translation>
+    </message>
+    <message>
+        <source>Transform Selection cancelled</source>
+        <translation>已取消变换选区</translation>
+    </message>
+    <message>
+        <source>The selection changed, so Transform Selection was cancelled</source>
+        <translation>选区已更改，因此已取消变换选区</translation>
+    </message>
+    <message>
+        <source>Transform Selection</source>
+        <translation>变换选区</translation>
+    </message>
+    <message>
+        <source>Transformed selection</source>
+        <translation>已变换选区</translation>
+    </message>
+    <message>
+        <source>Warp works on layers. Apply the selection transform first.</source>
+        <translation>变形作用于图层。请先应用选区变换。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19119,6 +19155,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Move or copy a selected object and fill the spot it leaves</source>
         <translation>移动或复制所选对象，并填充其留下的位置</translation>
+    </message>
+    <message>
+        <source>Resize, rotate or skew the selection outline</source>
+        <translation>调整选区轮廓的大小、旋转或斜切</translation>
     </message>
 </context>
 <context>
@@ -32203,6 +32243,14 @@ Locked: %1</source>
     <message>
         <source>Split into %1 shape(s)</source>
         <translation>已拆分为 %1 个形状</translation>
+    </message>
+    <message>
+        <source>Trans&amp;form Selection</source>
+        <translation>变换选区(&amp;F)</translation>
+    </message>
+    <message>
+        <source>Scale, rotate or distort the selection outline without moving pixels</source>
+        <translation>缩放、旋转或扭曲选区轮廓，不移动像素</translation>
     </message>
 </context>
 <context>
