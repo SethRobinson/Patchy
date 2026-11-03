@@ -526,6 +526,23 @@ void MainWindowTestAccess::undo(MainWindow& window) {
   window.undo();
 }
 
+void MainWindowTestAccess::duplicate_layers_for_drop_above(MainWindow& window, std::vector<LayerId> ids,
+                                                           LayerId target) {
+  LayerDropRequest request;
+  request.layer_ids_top_to_bottom = std::move(ids);
+  request.target_layer_id = target;
+  request.position = LayerDropPosition::AboveItem;
+  request.copy = true;
+  window.duplicate_layers_for_drop(request);
+}
+
+bool MainWindowTestAccess::duplicate_layers_to_session(MainWindow& window, std::int64_t source_session_id,
+                                                       std::vector<LayerId> ids, std::int64_t target_session_id) {
+  MainWindow::CrossDocumentLayerPlacement placement;
+  placement.keep_source_position = true;
+  return window.duplicate_layers_to_session(source_session_id, std::move(ids), target_session_id, placement);
+}
+
 bool MainWindowTestAccess::layer_blend_edit_pending(const MainWindow& window) {
   return window.pending_layer_blend_edit_active_;
 }

@@ -185,6 +185,14 @@ void set_layer_lock_flag(Layer& layer, LayerLockFlags flag, bool locked);
 // an ordinary layer. Null when the stack has none.
 [[nodiscard]] const Layer* background_layer(const std::vector<Layer>& layers, std::int32_t canvas_width,
                                             std::int32_t canvas_height);
+// Clears the locks the Background status carries (position, transparent pixels, artboard
+// auto-nest) and keeps any other lock. Layer from Background uses it, and so does every copy
+// of the Background (Duplicate, Alt-drag, Copy, copy to another document): Photoshop makes
+// the copy an ordinary unlocked layer (GitHub issue 604).
+void clear_background_locks(Layer& layer);
+// clear_background_locks on `copy` when `source_id` is the Background of `layers`.
+void clear_background_locks_if_copy_of_background(Layer& copy, LayerId source_id, const std::vector<Layer>& layers,
+                                                  std::int32_t canvas_width, std::int32_t canvas_height);
 // False when `before` has a Background and `after` no longer has that layer (by id) as its
 // bottom top-level layer: a reorder, nesting or insertion that would move it off the bottom.
 [[nodiscard]] bool layer_stack_keeps_background(const std::vector<Layer>& before, const std::vector<Layer>& after,

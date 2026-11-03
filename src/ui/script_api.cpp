@@ -1160,6 +1160,8 @@ QJSValue ScriptLayerObject::duplicate(const QJSValue& target) {
   }
   auto* parent = find_parent_vector_mutable(*document, layer_id_, &index);
   Layer copy = clone_layer_with_fresh_ids(*document, (*parent)[index]);
+  clear_background_locks_if_copy_of_background(copy, layer_id_, std::as_const(*document).layers(), document->width(),
+                                               document->height());
   copy.set_name(copy.name() + " copy");
   const auto copy_id = copy.id();
   parent->insert(parent->begin() + static_cast<std::ptrdiff_t>(index) + 1, std::move(copy));
