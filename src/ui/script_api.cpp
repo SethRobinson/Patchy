@@ -63,6 +63,10 @@
 #include "ui/script_save_options.hpp"
 #include "ui/web_export.hpp"
 #include "ui/script_vector.hpp"
+#include "ui/text_layer_painter.hpp"
+#include "ui/text_outline.hpp"
+#include "core/document_path.hpp"
+#include "core/rect_utils.hpp"
 #include "ui/watermark_scan_report.hpp"
 #include "core/text_area.hpp"
 
@@ -1585,6 +1589,98 @@ QJSValue ScriptLayerObject::traceToShapes(const QJSValue& options) {
   document->set_active_layer(group_id);
   host_.note_structure_changed(session_id_);
   return make_layer_value(host_, session_id_, group_id);
+}
+
+namespace {
+
+// The text layer's glyph outlines for convertToShape / createWorkPath, or a thrown error.
+std::optional<TextLayerOutlines> script_text_outlines(ScriptEngineHost& host, const Layer* layer,
+                                                      const char* method) {
+  if (layer == nullptr) {
+    return std::nullopt;
+  }
+  if (!layer_is_text(*layer)) {
+    host.throw_js_error(ScriptEngineHost::tr("%1 needs a text layer.").arg(QLatin1String(method)));
+    return std::nullopt;
+  }
+  std::string error;
+  auto outlines = text_layer_outlines(*layer, &error);
+  if (!outlines.has_value()) {
+    host.throw_js_error(QStringLiteral("%1: %2").arg(QLatin1String(method), QString::fromStdString(error)));
+  }
+  return outlines;
+}
+
+}  // namespace
+
+QJSValue ScriptLayerObject::convertToShape() {
+  const ScriptApiCall api_call(host_);
+  const auto* layer = read_layer();
+  const auto outlines = script_text_outlines(host_, layer, "convertToShape");
+  if (!outlines.has_value()) {
+    return QJSValue();
+  }
+  auto content = shape_content_from_text_outlines(outlines->paints);
+  if (!content.has_value()) {
+    host_.throw_js_error(ScriptEngineHost::tr("convertToShape: the text has no outlines"));
+    return QJSValue();
+  }
+  const auto* document = host_.session_document(session_id_);
+  if (document == nullptr || layer_effectively_locks_image_pixels(document->layers(), layer_id_)) {
+    host_.throw_js_error(ScriptEngineHost::tr("Layer pixels are locked."));
+    return QJSValue();
+  }
+  if (!host_.prepare_mutation(session_id_)) {
+    return QJSValue();
+  }
+  auto* writable = host_.session_document(session_id_);
+  auto* target = writable != nullptr ? writable->find_layer(layer_id_) : nullptr;
+  if (target == nullptr) {
+    host_.throw_js_error(ScriptEngineHost::tr("The layer no longer exists."));
+    return QJSValue();
+  }
+  auto dirty = layer_render_bounds(std::as_const(*target));
+  convert_text_layer_to_shape(*target, std::move(*content), Rect::from_size(writable->width(), writable->height()),
+                              &writable->metadata().patterns);
+  dirty = unite_rect(dirty, layer_render_bounds(std::as_const(*target)));
+  host_.note_vector_changed(session_id_, to_qrect(dirty), true);
+  return make_layer_value(host_, session_id_, layer_id_);
+}
+
+QJSValue ScriptLayerObject::createWorkPath() {
+  const ScriptApiCall api_call(host_);
+  const auto outlines = script_text_outlines(host_, read_layer(), "createWorkPath");
+  if (!outlines.has_value()) {
+    return QJSValue();
+  }
+  auto path = vector_path_from_text_outlines(outlines->paints);
+  if (path.subpaths.empty()) {
+    host_.throw_js_error(ScriptEngineHost::tr("createWorkPath: the text has no outlines"));
+    return QJSValue();
+  }
+  if (!host_.prepare_mutation(session_id_)) {
+    return QJSValue();
+  }
+  auto* document = host_.session_document(session_id_);
+  if (document == nullptr) {
+    host_.throw_js_error(ScriptEngineHost::tr("The document is no longer open."));
+    return QJSValue();
+  }
+  DocumentPathId work_id = 0;
+  if (auto* work = document->work_path(); work != nullptr) {
+    path.fill_rule_value = work->path().fill_rule_value;
+    path.initial_fill_value = work->path().initial_fill_value;
+    work->set_path(std::move(path));
+    work_id = work->id();
+  } else {
+    work_id = document->allocate_path_id();
+    DocumentPath created(work_id, ScriptEngineHost::tr("Work Path").toStdString(), DocumentPathKind::Work,
+                         std::move(path));
+    created.mark_dirty();
+    document->add_path(std::move(created));
+  }
+  host_.note_vector_changed(session_id_);
+  return script_vector::path_value(host_, session_id_, work_id);
 }
 
 QJSValue ScriptLayerObject::simplifyPath(const QJSValue& options) {

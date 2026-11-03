@@ -16,6 +16,12 @@ those of 2026-10-20 to 2026-10-21 in
 [scripting-api-changes-2026-10-20-to-21.md](scripting-api-changes-2026-10-20-to-21.md).
 Every entry below is API 1.
 
+2026-11-03 (additive): `layer.convertToShape()` and `layer.createWorkPath()`, Type > Convert to
+Shape and Type > Create Work Path (GitHub issue 598, [text-outlines.md](text-outlines.md)): a text
+layer becomes a shape layer from its glyph outlines in place (returns the layer), or its outlines
+replace the work path with the text kept (returns the work path); both throw for other layers.
+Permanent identifiers: the method names and command ids `type.convert_to_shape` and
+`type.create_work_path`. Pinned by `ui_script_text_convert_to_shape_and_work_path`.
 2026-11-03 (additive and behavioral, companions): a companion started from Plugins > Companions also
 gets `PATCHY_MCP_ARGS`, a JSON array of the arguments that follow `PATCHY_MCP` to attach
 (`["--attach"]`, or `["patchy-mcp","--attach"]` inside an AppImage). A manifest's `command` may name

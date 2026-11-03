@@ -19012,6 +19012,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Show the folder of companion app manifests on disk</source>
         <translation>コンパニオンアプリのマニフェストがあるフォルダーをディスク上で表示します</translation>
     </message>
+    <message>
+        <source>Turn text into editable vector outlines</source>
+        <translation>テキストを編集可能なベクトルのアウトラインに変換</translation>
+    </message>
+    <message>
+        <source>Outline the letters as a path</source>
+        <translation>文字の輪郭をパスにする</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -31992,6 +32000,58 @@ Locked: %1</source>
         <source>About GEGL...</source>
         <translation>GEGL について...</translation>
     </message>
+    <message>
+        <source>Convert to Shape</source>
+        <translation>シェイプに変換</translation>
+    </message>
+    <message>
+        <source>Create Work Path</source>
+        <translation>作業用パスを作成</translation>
+    </message>
+    <message>
+        <source>Select a text layer first.</source>
+        <translation>先にテキストレイヤーを選択してください。</translation>
+    </message>
+    <message>
+        <source>Could not convert &quot;%1&quot; to a shape.</source>
+        <translation>「%1」をシェイプに変換できませんでした。</translation>
+    </message>
+    <message>
+        <source>Convert to Shapes</source>
+        <translation>シェイプに変換</translation>
+    </message>
+    <message>
+        <source>Converted the text layer to a shape.</source>
+        <translation>テキストレイヤーをシェイプに変換しました。</translation>
+    </message>
+    <message>
+        <source>Converted %1 text layers to shapes.</source>
+        <translation>%1 個のテキストレイヤーをシェイプに変換しました。</translation>
+    </message>
+    <message>
+        <source>A missing font was drawn in a substitute.</source>
+        <translation>見つからないフォントは代替フォントで描画されました。</translation>
+    </message>
+    <message>
+        <source>Color emoji have no outlines and were left out.</source>
+        <translation>カラー絵文字にはアウトラインがないため除外されました。</translation>
+    </message>
+    <message>
+        <source>Could not outline &quot;%1&quot;.</source>
+        <translation>「%1」のアウトラインを作成できませんでした。</translation>
+    </message>
+    <message>
+        <source>The text has no outlines.</source>
+        <translation>テキストにアウトラインがありません。</translation>
+    </message>
+    <message>
+        <source>Create work path</source>
+        <translation>作業用パスを作成</translation>
+    </message>
+    <message>
+        <source>Made a work path from the text.</source>
+        <translation>テキストから作業用パスを作成しました。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34226,6 +34286,18 @@ Locked: %1</source>
     <message>
         <source>writeImage: could not write %1.</source>
         <translation>writeImage: %1 を書き込めませんでした。</translation>
+    </message>
+    <message>
+        <source>%1 needs a text layer.</source>
+        <translation>%1 にはテキストレイヤーが必要です。</translation>
+    </message>
+    <message>
+        <source>convertToShape: the text has no outlines</source>
+        <translation>convertToShape: テキストにアウトラインがありません</translation>
+    </message>
+    <message>
+        <source>createWorkPath: the text has no outlines</source>
+        <translation>createWorkPath: テキストにアウトラインがありません</translation>
     </message>
 </context>
 <context>

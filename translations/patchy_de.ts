@@ -19057,6 +19057,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Show the folder of companion app manifests on disk</source>
         <translation>Zeigt den Ordner mit den Manifesten der Begleit-Apps auf dem Datenträger</translation>
     </message>
+    <message>
+        <source>Turn text into editable vector outlines</source>
+        <translation>Text in bearbeitbare Vektorkonturen umwandeln</translation>
+    </message>
+    <message>
+        <source>Outline the letters as a path</source>
+        <translation>Die Buchstaben als Pfad nachzeichnen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32076,6 +32084,58 @@ Fixiert: %1</translation>
         <source>About GEGL...</source>
         <translation>Über GEGL...</translation>
     </message>
+    <message>
+        <source>Convert to Shape</source>
+        <translation>In Form konvertieren</translation>
+    </message>
+    <message>
+        <source>Create Work Path</source>
+        <translation>Arbeitspfad erstellen</translation>
+    </message>
+    <message>
+        <source>Select a text layer first.</source>
+        <translation>Wählen Sie zuerst eine Textebene aus.</translation>
+    </message>
+    <message>
+        <source>Could not convert &quot;%1&quot; to a shape.</source>
+        <translation>&quot;%1&quot; konnte nicht in eine Form konvertiert werden.</translation>
+    </message>
+    <message>
+        <source>Convert to Shapes</source>
+        <translation>In Formen konvertieren</translation>
+    </message>
+    <message>
+        <source>Converted the text layer to a shape.</source>
+        <translation>Die Textebene wurde in eine Form konvertiert.</translation>
+    </message>
+    <message>
+        <source>Converted %1 text layers to shapes.</source>
+        <translation>%1 Textebenen wurden in Formen konvertiert.</translation>
+    </message>
+    <message>
+        <source>A missing font was drawn in a substitute.</source>
+        <translation>Eine fehlende Schrift wurde durch eine Ersatzschrift dargestellt.</translation>
+    </message>
+    <message>
+        <source>Color emoji have no outlines and were left out.</source>
+        <translation>Farbige Emoji haben keine Konturen und wurden ausgelassen.</translation>
+    </message>
+    <message>
+        <source>Could not outline &quot;%1&quot;.</source>
+        <translation>Konturen von &quot;%1&quot; konnten nicht erstellt werden.</translation>
+    </message>
+    <message>
+        <source>The text has no outlines.</source>
+        <translation>Der Text hat keine Konturen.</translation>
+    </message>
+    <message>
+        <source>Create work path</source>
+        <translation>Arbeitspfad erstellen</translation>
+    </message>
+    <message>
+        <source>Made a work path from the text.</source>
+        <translation>Arbeitspfad aus dem Text erstellt.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34311,6 +34371,18 @@ Fixiert: %1</translation>
     <message>
         <source>writeImage: could not write %1.</source>
         <translation>writeImage: %1 konnte nicht geschrieben werden.</translation>
+    </message>
+    <message>
+        <source>%1 needs a text layer.</source>
+        <translation>%1 benötigt eine Textebene.</translation>
+    </message>
+    <message>
+        <source>convertToShape: the text has no outlines</source>
+        <translation>convertToShape: Der Text hat keine Konturen</translation>
+    </message>
+    <message>
+        <source>createWorkPath: the text has no outlines</source>
+        <translation>createWorkPath: Der Text hat keine Konturen</translation>
     </message>
 </context>
 <context>

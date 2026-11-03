@@ -671,6 +671,20 @@ interface PatchyLayer {
    * rectangle/ellipse parameters, like any direct path edit.
    */
   simplifyPath(options?: PatchySimplifyOptions): { anchorsBefore: number; anchorsAfter: number };
+  /**
+   * Type > Convert to Shape: turns this text layer into a shape layer made from
+   * its glyph outlines (warped, area and vertical text included), in place: the
+   * id, name, opacity, blend mode and layer style stay. Text in several colors
+   * keeps them as paint parts (getShape().parts). Returns this layer; throws
+   * for a layer that is not text.
+   */
+  convertToShape(): PatchyLayer;
+  /**
+   * Type > Create Work Path: replaces the work path with this text layer's
+   * glyph outlines and keeps the text. Returns the work path; throws for a
+   * layer that is not text.
+   */
+  createWorkPath(): PatchyDocumentPath;
 }
 
 interface PatchySimplifyOptions {

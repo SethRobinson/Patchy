@@ -1479,6 +1479,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/main_window_paths.cpp
       src/ui/main_window_tool_options.cpp
       src/ui/main_window_vector.cpp
+      src/ui/main_window_text_outlines.cpp
       src/ui/paths_panel.hpp
       src/ui/paths_panel.cpp
       src/ui/custom_shape_library.hpp
@@ -1662,6 +1663,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/text_document.hpp
       src/ui/text_render.cpp
       src/ui/text_render.hpp
+      src/ui/text_outline.cpp
+      src/ui/text_outline.hpp
       src/ui/text_area_layout.cpp
       src/ui/text_area_layout.hpp
       src/ui/tile_preview_window.hpp
@@ -2619,6 +2622,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/xcf_ui_tests.cpp
       tests/ui/kra_ui_tests.cpp
       tests/ui/image_trace_ui_tests.cpp
+      tests/ui/text_outline_tests.cpp
       tests/ui/scripting_tests.cpp
       tests/ui/scripting_test_support.cpp
       tests/ui/scripting_tests_mutations_text.cpp

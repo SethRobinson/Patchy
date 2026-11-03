@@ -88,6 +88,7 @@ std::vector<patchy::test::TestCase> ora_ui_tests();
 std::vector<patchy::test::TestCase> xcf_ui_tests();
 std::vector<patchy::test::TestCase> kra_ui_tests();
 std::vector<patchy::test::TestCase> image_trace_ui_tests();
+std::vector<patchy::test::TestCase> text_outline_tests();
 std::vector<patchy::test::TestCase> scripting_tests();
 std::vector<patchy::test::TestCase> script_move_tests();
 std::vector<patchy::test::TestCase> document_recovery_tests();

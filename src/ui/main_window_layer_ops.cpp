@@ -3861,6 +3861,14 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     rasterize_menu->addSeparator();
     rasterize_menu->addAction(layer_trace_image_action_);  // its own guards report non-pixel layers
   }
+  // Text layers: the Type menu's outline commands (GitHub issue 598). They sit with the other
+  // conversions because the menu's top level is at its row bound (#461).
+  if (active_layer != nullptr && layer_is_text(*active_layer) && type_convert_to_shape_action_ != nullptr &&
+      type_create_work_path_action_ != nullptr) {
+    rasterize_menu->addSeparator();
+    rasterize_menu->addAction(type_convert_to_shape_action_);
+    rasterize_menu->addAction(type_create_work_path_action_);
+  }
   {
     refresh_smart_object_action_states();
     auto* smart_objects_menu = menu.addMenu(tr("Smart Objects"));

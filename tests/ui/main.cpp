@@ -466,6 +466,7 @@ int main(int argc, char* argv[]) {
            xcf_ui_tests,
            kra_ui_tests,
            image_trace_ui_tests,
+           text_outline_tests,
            scripting_tests,
            script_move_tests,
            document_recovery_tests,
