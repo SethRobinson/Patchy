@@ -440,18 +440,6 @@ void insert_track_aligned_form_row(QFormLayout* form, int index, const QString& 
   }
 }
 
-// Gives a dialog's OK and Cancel one width (#591): the wider of the two.
-void match_ok_cancel_widths(QDialogButtonBox& buttons) {
-  auto* ok = buttons.button(QDialogButtonBox::Ok);
-  auto* cancel = buttons.button(QDialogButtonBox::Cancel);
-  if (ok == nullptr || cancel == nullptr) {
-    return;
-  }
-  const auto width = std::max(ok->sizeHint().width(), cancel->sizeHint().width());
-  ok->setMinimumWidth(width);
-  cancel->setMinimumWidth(width);
-}
-
 int levels_channel_tab_index(LevelsChannel channel) {
   switch (channel) {
     case LevelsChannel::Red:

@@ -2082,6 +2082,17 @@ void configure_dialog_spinbox(QDoubleSpinBox* spin, int width) {
   spin->setMinimumHeight(ui_text_length(24));
 }
 
+void match_ok_cancel_widths(QDialogButtonBox& buttons) {
+  auto* ok = buttons.button(QDialogButtonBox::Ok);
+  auto* cancel = buttons.button(QDialogButtonBox::Cancel);
+  if (ok == nullptr || cancel == nullptr) {
+    return;
+  }
+  const auto width = std::max(ok->sizeHint().width(), cancel->sizeHint().width());
+  ok->setMinimumWidth(width);
+  cancel->setMinimumWidth(width);
+}
+
 namespace {
 
 // Shared body of the add_dialog_slider_spin_row overloads: `spin` arrives

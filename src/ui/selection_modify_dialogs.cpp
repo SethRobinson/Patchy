@@ -61,6 +61,7 @@ bool run_radius_dialog(const QString& object_name, const QString& title, const Q
   form->addRow(label, spin);
   layout->addLayout(form);
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  match_ok_cancel_widths(*buttons);
   layout->addWidget(buttons);
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
