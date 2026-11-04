@@ -4,6 +4,17 @@
 # (GLIBCXX_3.4.30), which every newer distro provides. Qt is the aqt 6.8.3 the Windows and
 # macOS builds use (it needs only glibc 2.28). The build context is a scratch folder holding
 # this file and scripts/setup-ai-deps.sh, never the repository.
+# MinGW-w64 13+ headers and CRT, and current Wayland protocol XML, for building Raven
+# (cmake/patchy_raven.cmake; docs/plugins.md,
+# Linux): 22.04 ships MinGW-w64 8 and Raven needs 13. The files are target headers and
+# Windows import libraries, the same on every build host; they replace 22.04's own in
+# /usr/<arch>-w64-mingw32 below, because 22.04's MinGW GCC has no sysroot support.
+FROM --platform=linux/amd64 registry.fedoraproject.org/fedora:45@sha256:ea0998f4c945b85c2134793cda4fac35ee394f0d677a04c5b1fe769e13f959b8 AS mingw-sysroot
+RUN dnf install -y -q --setopt=install_weak_deps=False mingw64-headers mingw64-crt \
+      mingw64-winpthreads mingw64-winpthreads-static mingw32-headers mingw32-crt \
+      mingw32-winpthreads mingw32-winpthreads-static wayland-protocols-devel \
+    && dnf clean all
+
 FROM docker.io/library/ubuntu:22.04@sha256:5ec03bb3441e8b0bf3b4f9cd4629a1ae763010dc3035bb8da3ae6cf026486401
 
 ENV DEBIAN_FRONTEND=noninteractive PYTHONDONTWRITEBYTECODE=1
@@ -73,6 +84,25 @@ RUN mkdir -p /opt/appimage-tools && cd /opt/appimage-tools \
        | grep -- "-$ARCH" | sha256sum -c - \
     && chmod +x linuxdeploy-$ARCH.AppImage linuxdeploy-plugin-qt-$ARCH.AppImage appimagetool-$ARCH.AppImage
 
+# What Raven needs to build (cmake/patchy_raven.cmake): Python 3.11, the 32-bit MinGW
+# compilers for its x86 components, wayland-scanner and protocols, and the development
+# files of the host libraries it links. Raven's runtime libraries (libwayland-client,
+# libxkbcommon, libfreetype, libssl) are on every desktop the AppImage targets; pixman is
+# built static below.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3.11 gcc-mingw-w64-i686-posix g++-mingw-w64-i686-posix \
+      libwayland-dev wayland-protocols libfreetype-dev libssl-dev \
+      libxcb-xkb-dev libxcb-xfixes0-dev libxcb-xinput-dev libxkbcommon-x11-dev \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=mingw-sysroot /usr/x86_64-w64-mingw32/sys-root/mingw/include/ /usr/x86_64-w64-mingw32/include/
+COPY --from=mingw-sysroot /usr/x86_64-w64-mingw32/sys-root/mingw/lib/ /usr/x86_64-w64-mingw32/lib/
+COPY --from=mingw-sysroot /usr/i686-w64-mingw32/sys-root/mingw/include/ /usr/i686-w64-mingw32/include/
+COPY --from=mingw-sysroot /usr/i686-w64-mingw32/sys-root/mingw/lib/ /usr/i686-w64-mingw32/lib/
+# Raven's Wayland desktop uses xdg-shell members 22.04's wayland-protocols 1.25 lacks; the
+# protocol XML is architecture independent, so Fedora 45's replaces it.
+COPY --from=mingw-sysroot /usr/share/wayland-protocols/ /usr/share/wayland-protocols/
+COPY --from=mingw-sysroot /usr/share/pkgconfig/wayland-protocols.pc /usr/share/pkgconfig/wayland-protocols.pc
+
 # What scripts/dev/gegl/build-gegl-appimage.sh needs to build Patchy's own GEGL from source
 # (docs/gegl-filters.md): GLib 2.84 wants Meson 1.4 or newer and Python's packaging module;
 # GEGL's configure requires libjpeg and libpng for file loaders the bundle never ships.
@@ -80,6 +110,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends pkg-config libf
       libjpeg-turbo8-dev libpng-dev \
     && rm -rf /var/lib/apt/lists/* \
     && pip3 install --no-cache-dir "meson==1.7.2" "packaging==24.2"
+
+# Raven needs pixman 0.42 or newer (its const-correct region API); 22.04 ships 0.40. Built
+# static into /usr/local, where pkg-config looks first, so Raven embeds it.
+RUN curl -fL --retry 3 -o /tmp/pixman-0.42.2.tar.gz https://www.cairographics.org/releases/pixman-0.42.2.tar.gz \
+    && echo "ea1480efada2fd948bc75366f7c349e1c96d3297d09a3fe62626e38e234a625e  /tmp/pixman-0.42.2.tar.gz" | sha256sum -c - \
+    && tar xf /tmp/pixman-0.42.2.tar.gz -C /tmp \
+    && CC=gcc-12 meson setup /tmp/pixman-build /tmp/pixman-0.42.2 --prefix=/usr/local --libdir=lib --buildtype=release \
+         -Ddefault_library=static -Db_staticpic=true -Dgtk=disabled -Dlibpng=disabled \
+    && ninja -C /tmp/pixman-build install \
+    && rm -rf /tmp/pixman-0.42.2 /tmp/pixman-0.42.2.tar.gz /tmp/pixman-build
 
 # No FUSE inside the container: the tool AppImages extract themselves to run.
 ENV APPIMAGE_EXTRACT_AND_RUN=1

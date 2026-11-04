@@ -48,6 +48,15 @@ mac desktop 6.8.3 -m qtimageformats qtpdf -O .deps/Qt`, or `linux desktop 6.8.3
 linux_gcc_64` on Linux), then build the matching preset. The `qtpdf` module is optional:
 without it Patchy still exports PDF, it just cannot open one.
 
+On Linux x86-64 the build also compiles Raven, which runs .8bf plug-ins, from the
+`third_party/raven` submodule (docs/plugins.md, Linux). Check it out once with
+`git submodule update --init third_party/raven`. Without it, or without Raven's
+prerequisites, the build skips Raven and says why.
+
+`scripts/build-progress.sh` shows live x/y progress of the build and of Raven inside it
+(`--container` reads the AppImage build container instead, `--once` prints one snapshot);
+`scripts/build-metrics.py` reports where a finished build spent its time and keeps a history.
+
 ```sh
 cmake --preset mac-release      # or linux-release
 cmake --build --preset mac-release

@@ -1,0 +1,4 @@
+[submodule "third_party/raven"]
+	path = third_party/raven
+	url = https://github.com/mirkobrombin/raven.git
+	shallow = true

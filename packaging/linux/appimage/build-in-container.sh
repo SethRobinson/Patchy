@@ -55,7 +55,11 @@ fi
 VERSION="${2:?package needs the version}"
 
 echo "== configure and build (linux-appimage: gcc-12, Qt 6.8.3, glibc 2.35) =="
-cmake --preset "$PRESET"
+# x86_64 builds Raven for the .8bf plug-ins here, against 22.04 (docs/plugins.md, Linux):
+# required, so a missing prerequisite fails the package instead of shipping without it.
+RAVEN_ARGS=()
+[ "$ARCH" != x86_64 ] || RAVEN_ARGS=(-DPATCHY_RAVEN=ON)
+cmake --preset "$PRESET" "${RAVEN_ARGS[@]}"
 nice -n 10 cmake --build --preset "$PRESET" --target patchy_refresh_build_stamp -j "$JOBS"
 nice -n 10 cmake --build --preset "$PRESET" -j "$JOBS"
 
@@ -106,6 +110,8 @@ chmod 755 /tmp/AppRun
 # RUNPATHs: kept out of linuxdeploy's reach, which would copy GLib into usr/lib and rewrite them.
 GEGL_ASIDE=$(mktemp -d /tmp/patchy-appimage-gegl.XXXXXX)
 mv "$APPDIR/usr/lib/patchy/gegl" "$GEGL_ASIDE/gegl"
+# Raven (usr/lib/patchy/raven) stays as built too: linuxdeploy would rewrite its RUNPATH.
+[ ! -d "$APPDIR/usr/lib/patchy/raven" ] || mv "$APPDIR/usr/lib/patchy/raven" "$GEGL_ASIDE/raven"
 # Keep the plug-in's AppImage beside linuxdeploy: that is where linuxdeploy looks.
 "$TOOLS/linuxdeploy-$ARCH.AppImage" --appdir "$APPDIR" \
   --executable "$APPDIR/usr/bin/patchy" \
@@ -116,12 +122,16 @@ mv "$APPDIR/usr/lib/patchy/gegl" "$GEGL_ASIDE/gegl"
   --plugin qt
 unset LD_LIBRARY_PATH
 mv "$GEGL_ASIDE/gegl" "$APPDIR/usr/lib/patchy/gegl"
+[ ! -d "$GEGL_ASIDE/raven" ] || mv "$GEGL_ASIDE/raven" "$APPDIR/usr/lib/patchy/raven"
 case "$GEGL_ASIDE" in /tmp/patchy-appimage-gegl.?*) rmdir "$GEGL_ASIDE" ;; esac
 [ -x "$APPDIR/usr/bin/patchy-gegl-host" ] && [ -f "$APPDIR/usr/lib/patchy/gegl/lib/libgegl-0.4.so.0" ] \
   && [ -f "$APPDIR/usr/lib/patchy/gegl/share/locale/de/LC_MESSAGES/gegl-0.4.mo" ] \
   || { echo "ERROR: the GEGL helper, Patchy's own GEGL or its catalogs are missing from the AppDir" >&2; exit 1; }
 [ "$(uname -m)" != "x86_64" ] || [ -f "$APPDIR/usr/bin/patchy-8bf-host64.exe" ] \
   || { echo "ERROR: the plug-in helper patchy-8bf-host64.exe is missing from the AppDir" >&2; exit 1; }
+[ "$(uname -m)" != "x86_64" ] || { [ -x "$APPDIR/usr/lib/patchy/raven/raven" ] && [ -x "$APPDIR/usr/lib/patchy/raven/raven-bootstrap" ] \
+  && [ -f "$APPDIR/usr/lib/patchy/raven/LICENSE" ] && [ -f "$APPDIR/usr/lib/patchy/raven/RAVEN-SOURCE.txt" ]; } \
+  || { echo "ERROR: Raven (raven, raven-bootstrap, LICENSE, RAVEN-SOURCE.txt) is missing from usr/lib/patchy/raven" >&2; exit 1; }
 
 # linuxdeploy wraps the custom AppRun (as AppRun.wrapped) in one that sources
 # linuxdeploy-plugin-qt's hook, which forces QT_QPA_PLATFORMTHEME=gtk2 on GNOME and XFCE,
