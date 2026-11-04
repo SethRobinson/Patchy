@@ -101,7 +101,12 @@ Patchy; `PatchyLinux.AppImage patchy-mcp [args]` (or a symlink to the AppImage n
 no second binary (GitHub issue 336: a separate `patchy-mcp` was 30.6 MB of the 1.16
 AppImage); the build drops the installed `usr/bin/patchy-mcp` wrapper script, which would
 only name a path inside one launch's mount. The argument is
-`kAppImageConnectorArgument` (`src/ui/appimage_environment.hpp`). The root
+`kAppImageConnectorArgument` (`src/support/cli_flags.hpp`). The patchy binary accepts it
+as its first argument too whenever `APPIMAGE` and `APPDIR` are set (outside a Flatpak), so
+the same command works in an AppImage repackaged with another AppRun, such as the Anylinux
+build (pkgforge-dev, quick-sharun; GitHub issue 535). Outside an AppImage a file named
+`patchy-mcp` still opens as an image. The symlink form stays AppRun's: `ARGV0` is inherited
+by every process the connector starts, and Anylinux's AppRun unsets it. The root
 `.desktop` file and icon are `com.rtsoft.patchy`.
 
 AppRun is the only entry point. linuxdeploy wraps a custom AppRun in its own (the custom
@@ -131,8 +136,11 @@ behind. Wherever a path is shown, stored or compared across launches, use it (or
 - MCP attach socket (`mcp_attachment_endpoint`): the identity is home + `appimage`, not the
   mount, so any Patchy AppImage of the user attaches to any other, including after the
   file is replaced by a newer release.
-- Help > Set up AI Control: the connector is `"<file>" patchy-mcp`; the skill folder and
-  local setup guide are in the mount, flagged as existing only while Patchy runs.
+- Help > Set up AI Control: the connector is `"<file>" patchy-mcp`, which works in any
+  AppImage (the binary takes the argument itself); the skill folder and local setup guide
+  are in the mount, flagged as existing only while Patchy runs. The Anylinux AppImage keeps
+  them at `share/patchy/ai/patchy-control` with its launcher in `bin/`, which the
+  `../share/patchy` lookup finds.
 - Connector freshness watches the `.AppImage` file (replacing it is the update).
 - The Script Manager's command-line example names the `.AppImage` file.
 - Update prompt: with the manifest's pinned AppImage keys and a writable folder, **Update

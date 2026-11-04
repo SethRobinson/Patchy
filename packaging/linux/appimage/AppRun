@@ -7,8 +7,9 @@
 #
 # A symlink to the AppImage named patchy-mcp also starts the connector. The connector is
 # usr/bin/patchy in its connector mode (--mcp-connector); there is no second binary. The
-# connector argument is kAppImageConnectorArgument in src/ui/appimage_environment.hpp;
-# Help > Set up AI Control prints this form.
+# connector argument is kAppImageConnectorArgument in src/support/cli_flags.hpp;
+# Help > Set up AI Control prints this form. The patchy binary accepts it too inside any
+# AppImage, so the form also works in AppImages repackaged with another AppRun.
 HERE="${APPDIR:-$(dirname "$(readlink -f "$0")")}"
 
 if [ "${1:-}" = "patchy-mcp" ]; then
