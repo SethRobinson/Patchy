@@ -14891,6 +14891,22 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Feather radius:</source>
         <translation>Raio de difusão:</translation>
     </message>
+    <message>
+        <source>The TIFF&apos;s image data is damaged</source>
+        <translation>Os dados de imagem do TIFF estão danificados</translation>
+    </message>
+    <message>
+        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <translation>O Patchy não consegue ler a disposição de amostras deste TIFF</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <translation>Os dados de imagem do TIFF estão incompletos ou danificados; a parte ausente foi aberta vazia.</translation>
+    </message>
+    <message>
+        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
+        <translation>Alguns canais extras do TIFF foram omitidos: um documento comporta no máximo 56 canais.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

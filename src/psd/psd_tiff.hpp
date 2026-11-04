@@ -55,4 +55,27 @@ void write_layered_tiff_file(const Document& document, const std::filesystem::pa
 // previews), or 0 when the header or the first directory is unreadable.
 [[nodiscard]] std::size_t tiff_page_count(std::span<const std::uint8_t> bytes) noexcept;
 
+// The directory offsets of those pages, in file order (page 1 first); empty when the
+// header or the first directory is unreadable.
+[[nodiscard]] std::vector<std::uint32_t> tiff_page_directory_offsets(std::span<const std::uint8_t> bytes);
+
+struct FlatTiffReadOptions {
+  // The image file directory to decode; 0 means the first one (page 1).
+  std::uint32_t directory_offset{0};
+  std::string layer_name{"Background"};
+  // Notices about damaged data or extra samples left out (PATCHY_TRANSLATE_NOOP text).
+  std::vector<std::string>* notices{nullptr};
+};
+
+// Flat TIFF fallback (docs/tiff.md, "Flat fallback decoder") for files Qt's TIFF plug-in
+// refuses: little or big endian, chunky or planar, strips or tiles; no compression,
+// PackBits, LZW or Deflate with predictor 1, 2 or 3; gray, RGB or palette color; 8, 16 or
+// 32-bit unsigned integers and 16, 32 or 64-bit floats. 8-bit samples open as an 8-bit
+// document, 16 and 32-bit integers as 16-bit, floats as a 32-bit (linear) one. The first
+// associated or unassociated extra sample becomes the layer's alpha (associated alpha is
+// unpremultiplied); every other extra sample becomes a saved alpha channel. Throws
+// std::runtime_error for layouts outside that set and for damaged structure.
+[[nodiscard]] Document read_flat_tiff(std::span<const std::uint8_t> bytes, const FlatTiffReadOptions& options = {});
+[[nodiscard]] Document read_flat_tiff_file(const std::filesystem::path& path, const FlatTiffReadOptions& options = {});
+
 }  // namespace patchy::psd

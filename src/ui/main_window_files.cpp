@@ -1637,17 +1637,46 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
         image = qimage_from_deep_jpeg(jpeg_deep::read_deep_jpeg(bytes));
       }
     }
-    if (image.isNull()) {
-      throw std::runtime_error(open_failure_reason(reader.errorString(), path, extension).toStdString());
-    }
-    orientation_applied = reader.transformation() != QImageIOHandler::TransformationNone;
     // A multi-page TIFF opens its first page, as in Photoshop; pages are separate images
     // (scans, faxes, GIMP's layers-as-pages export), not a layer stack (docs/tiff.md).
-    if (is_tiff_extension(extension)) {
+    const auto note_tiff_pages = [&] {
       if (const auto pages = psd::tiff_page_count(read_all_file_bytes(path)); pages > 1U) {
         import_notices.push_back(
             QObject::tr("This TIFF holds %1 pages; Patchy opened the first one.").arg(static_cast<qulonglong>(pages)));
       }
+    };
+    if (image.isNull() && is_tiff_extension(extension)) {
+      // Layouts Qt's TIFF plug-in refuses (float samples with extra channels, 32-bit
+      // integers, planar float; GitHub issue 623) go through Patchy's own flat decoder,
+      // which keeps the file's depth and opens unspecified extra samples as alpha channels.
+      std::vector<std::string> tiff_notices;
+      psd::FlatTiffReadOptions tiff_options;
+      tiff_options.layer_name = info.completeBaseName().toStdString();
+      tiff_options.notices = &tiff_notices;
+      QString fallback_error;
+      try {
+        opened = psd::read_flat_tiff(read_all_file_bytes(path), tiff_options);
+      } catch (const std::exception& error) {
+        fallback_error = translated_file_message(error.what());
+      }
+      if (fallback_error.isEmpty()) {
+        if (!deep_editing_enabled() && opened.color_state().bit_depth != BitDepth::UInt8) {
+          convert_document_depth(opened, BitDepth::UInt8);
+        }
+        for (const auto& notice : tiff_notices) {
+          import_notices.push_back(translated_file_message(notice));
+        }
+        note_tiff_pages();
+        return;
+      }
+      throw std::runtime_error(open_failure_reason(fallback_error, path, extension).toStdString());
+    }
+    if (image.isNull()) {
+      throw std::runtime_error(open_failure_reason(reader.errorString(), path, extension).toStdString());
+    }
+    orientation_applied = reader.transformation() != QImageIOHandler::TransformationNone;
+    if (is_tiff_extension(extension)) {
+      note_tiff_pages();
     }
     // Animated GIFs import every frame as a layer, frame 1 on TOP and all layers visible,
     // each frame's delay stamped as a trailing seconds token ("Frame 3 0.4s") that the

@@ -14891,6 +14891,22 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Feather radius:</source>
         <translation>Radio de calado:</translation>
     </message>
+    <message>
+        <source>The TIFF&apos;s image data is damaged</source>
+        <translation>Los datos de imagen del TIFF están dañados</translation>
+    </message>
+    <message>
+        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <translation>Patchy no puede leer la disposición de muestras de este TIFF</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <translation>Los datos de imagen del TIFF están incompletos o dañados; la parte que falta se abrió vacía.</translation>
+    </message>
+    <message>
+        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
+        <translation>Se omitieron algunos canales adicionales del TIFF: un documento admite como máximo 56 canales.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

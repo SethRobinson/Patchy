@@ -14845,6 +14845,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Feather radius:</source>
         <translation>페더 반경:</translation>
     </message>
+    <message>
+        <source>The TIFF&apos;s image data is damaged</source>
+        <translation>TIFF의 이미지 데이터가 손상되었습니다</translation>
+    </message>
+    <message>
+        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <translation>Patchy는 이 TIFF의 샘플 구성을 읽을 수 없습니다</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <translation>TIFF의 이미지 데이터가 잘렸거나 손상되었습니다. 누락된 부분은 빈 상태로 열렸습니다.</translation>
+    </message>
+    <message>
+        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
+        <translation>TIFF의 추가 채널 일부를 제외했습니다. 문서에는 채널을 최대 56개까지 둘 수 있습니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

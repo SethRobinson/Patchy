@@ -1,8 +1,10 @@
 # Layered TIFF
 
-Read before changing TIFF open or save behavior. Flat TIFF decoding is Qt's (libtiff) plus the
-JPEG-in-TIFF reader ([file-formats.md](file-formats.md)); File Info capture is
-[file-info.md](file-info.md). This document covers Photoshop's layers inside a TIFF.
+Read before changing TIFF open or save behavior. Flat TIFF decoding is Qt's (libtiff), the
+JPEG-in-TIFF reader ([file-formats.md](file-formats.md)), and Patchy's own decoder for layouts
+Qt refuses ([flat fallback decoder](#flat-fallback-decoder)); File Info capture is
+[file-info.md](file-info.md). This document covers Photoshop's layers inside a TIFF and that
+fallback.
 
 ## Wire format
 
@@ -91,10 +93,47 @@ Info from the TIFF (`capture_file_info`), not from the PSD resources.
 ### Multi-page TIFF
 
 A multi-page TIFF opens page 1, as in Photoshop, with a note naming the page count
-(`psd::tiff_page_count` skips reduced-resolution previews, NewSubfileType bit 0). Pages are not
+(`psd::tiff_page_count` skips reduced-resolution previews, NewSubfileType bit 0;
+`tiff_page_directory_offsets` lists those pages' directories, which `read_flat_tiff` takes). Pages are not
 imported as layers: pages are usually separate images (scans, faxes, microscopy stacks), GIMP
 itself asks Layers-or-Images on import, and a wrong guess would silently merge documents.
 Revisit only with a clear signal such as GIMP's PageName tags.
+
+## Flat fallback decoder
+
+`psd::read_flat_tiff` (src/psd/psd_tiff_flat.cpp, Qt-free; IFD parsing shared with the
+layered reader through `psd_tiff_internal.hpp`) decodes one directory (`directory_offset`, 0 =
+page 1) of a flat TIFF. `load_via_qt` calls it only when Qt's reader and the JPEG-in-TIFF
+reader both return nothing (GitHub issue 623: 32-bit float RGB with four unspecified extra
+samples). When it throws too, `open_failure_reason` shows the byte diagnosis or, when that
+finds nothing specific, the decoder's own message.
+
+- Structure: either byte order, classic TIFF only (BigTIFF is refused), chunky or planar,
+  strips or tiles, one shared BitsPerSample and SampleFormat, FillOrder 1.
+- Compression: none, PackBits (32773), LZW (5, the TIFF 6.0 MSB-first form; old-style LZW
+  is refused) and Deflate (8, 32946) through miniz; predictor 2 (integer differencing at the
+  sample width) and 3 (floating point: byte planes, most significant first) after LZW or
+  Deflate.
+- Samples: 8, 16, 32-bit unsigned integers and 16, 32, 64-bit floats; Photometric 0/1 gray
+  (WhiteIsZero inverted), 2 RGB, 3 palette (8-bit indexes, ColorMap narrowed to 8 bits).
+  Gray and palette open as RGB, like every other flat import. CMYK, YCbCr, Lab, signed and
+  1/2/4/12-bit samples are refused (Qt reads most of those).
+- Depth: 8-bit samples open as an 8-bit document, 16-bit as 16-bit, 32-bit integers as
+  16-bit (rounded top 16 bits: integer data is display-encoded), and every float width as a
+  32-bit document whose values are linear light (NaN and infinities become 0). Without deep
+  editing (`PATCHY_DEEP_EDITING=0`) the open converts to 8 bits.
+- Extra samples: the first associated (1) or unassociated (2) one becomes the layer's alpha
+  (associated alpha is unpremultiplied; float alpha clamps to 0..1). Every other extra sample,
+  unspecified (0) ones included, becomes a saved alpha channel "Alpha N" at the document's
+  depth, as Photoshop opens them; past the 56-channel cap they are left out with a notice.
+- Resolution from X/YResolution (inch or centimeter), 72 PPI when untagged. File Info and
+  the ICC profile come from `capture_file_info` as for Qt's TIFFs (the pixels are the file's
+  own values).
+- Hostile input: the directory walk's bounds, then `checked_decode_bytes` for the whole image
+  against the file size and `decoded_size_plausible` per compressed segment before it is
+  allocated; tiles are at most 65536 per side, segments the offset list lacks are not
+  iterated, and a sample or segment outside the file is never read. Segments that are
+  missing or end early stay zero and the open says so once ("cut short or damaged").
 
 ## Writing
 
@@ -145,6 +184,12 @@ opened all 15 such files CLEAN, and its layer inventories (`-InventoryDir`: dept
 visibility, bounds) match its inventories of the source PSDs layer for layer.
 
 ## Tests
+
+Core `tiff_flat_*` (tests/core/tiff_flat_tests.cpp) cover the fallback decoder on files from
+`tests/flat_tiff_fixture.hpp` (every layout, compression and predictor in both orders, the
+#623 layout, float widths, 32-bit integers, alpha and channels, gray and palette, refusals,
+damage, pages by directory, Unicode paths); UI
+`ui_flat_tiff_qt_refuses_opens_through_the_fallback_decoder` drives the app open.
 
 Core `tiff_layers_*` (tests/core/tiff_layers_tests.cpp) on synthetic files from
 `tests/layered_tiff_fixture.hpp`: one encoder writes either byte order with big-endian samples,
