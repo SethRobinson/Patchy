@@ -15153,6 +15153,66 @@ Each item&apos;s own View setting still applies.</source>
         <source>Scanning needs SANE (for scanners) or libgphoto2 (for cameras). Install them from your distribution and try again.</source>
         <translation>Для сканирования нужен SANE (для сканеров) или libgphoto2 (для камер). Установите их из своего дистрибутива и повторите попытку.</translation>
     </message>
+    <message>
+        <source>The network scanner does not answer.</source>
+        <translation>Сетевой сканер не отвечает.</translation>
+    </message>
+    <message>
+        <source>The network scanner at %1 does not answer.</source>
+        <translation>Сетевой сканер по адресу %1 не отвечает.</translation>
+    </message>
+    <message>
+        <source>Check that it is switched on and connected to the same network as this computer. If its address changed, correct or remove the old address in the scanner configuration in /etc/sane.d (airscan.conf or escl.conf).</source>
+        <translation>Убедитесь, что он включён и подключён к той же сети, что и этот компьютер. Если его адрес изменился, исправьте или удалите старый адрес в настройках сканера в /etc/sane.d (airscan.conf или escl.conf).</translation>
+    </message>
+    <message>
+        <source>The device stopped responding. Check that it is switched on, the cable is connected and it is not in sleep mode, then try again.</source>
+        <translation>Устройство перестало отвечать. Убедитесь, что оно включено, кабель подключён и устройство не находится в спящем режиме, затем повторите попытку.</translation>
+    </message>
+    <message>
+        <source>The scanner is in use by another program or still finishing a previous job. Close the other program or wait a moment, then try again.</source>
+        <translation>Сканер занят другой программой или ещё завершает предыдущее задание. Закройте другую программу или подождите немного, затем повторите попытку.</translation>
+    </message>
+    <message>
+        <source>This user account is not allowed to use the device. Add your account to the scanner group (often &quot;scanner&quot; or &quot;lp&quot;), or install the device rules from your distribution&apos;s SANE or libgphoto2 package, then log in again.</source>
+        <translation>Этой учётной записи не разрешено использовать устройство. Добавьте свою учётную запись в группу сканера (обычно «scanner» или «lp») или установите правила устройств из пакета SANE или libgphoto2 вашего дистрибутива, затем войдите в систему заново.</translation>
+    </message>
+    <message>
+        <source>Paper is jammed in the scanner. Clear the jam and try again.</source>
+        <translation>В сканере застряла бумага. Устраните замятие и повторите попытку.</translation>
+    </message>
+    <message>
+        <source>The document feeder is empty. Load the pages, or choose the flatbed as the source.</source>
+        <translation>Автоподатчик документов пуст. Загрузите страницы или выберите планшет в качестве источника.</translation>
+    </message>
+    <message>
+        <source>The scanner cover is open. Close it and try again.</source>
+        <translation>Крышка сканера открыта. Закройте её и повторите попытку.</translation>
+    </message>
+    <message>
+        <source>The scanner does not accept these settings. Try another mode, resolution or source.</source>
+        <translation>Сканер не принимает эти настройки. Попробуйте другой режим, разрешение или источник.</translation>
+    </message>
+    <message>
+        <source>There is not enough memory for this scan. Try a lower resolution.</source>
+        <translation>Недостаточно памяти для этого сканирования. Попробуйте более низкое разрешение.</translation>
+    </message>
+    <message>
+        <source>Another program is using the camera, often the file manager, which opens cameras automatically. Eject or unmount the camera there, then try again.</source>
+        <translation>Камеру использует другая программа, чаще всего файловый менеджер, который автоматически открывает камеры. Извлеките или отмонтируйте камеру в нём, затем повторите попытку.</translation>
+    </message>
+    <message>
+        <source>libgphoto2 does not support this camera model. Copy the images with a card reader or the file manager instead.</source>
+        <translation>libgphoto2 не поддерживает эту модель камеры. Скопируйте изображения с помощью кардридера или файлового менеджера.</translation>
+    </message>
+    <message>
+        <source>The camera sent damaged data. Reconnect the camera and try again.</source>
+        <translation>Камера передала повреждённые данные. Переподключите камеру и повторите попытку.</translation>
+    </message>
+    <message>
+        <source>The image is no longer on the camera. Pick the device again to refresh the list.</source>
+        <translation>Этого изображения больше нет на камере. Выберите устройство снова, чтобы обновить список.</translation>
+    </message>
 </context>
 <context>
     <name>ScriptFolders</name>

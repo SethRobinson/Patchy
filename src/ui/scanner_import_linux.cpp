@@ -248,6 +248,79 @@ QString gphoto_status_text(int status) {
   return text != nullptr ? QString::fromUtf8(text) : QString::number(status);
 }
 
+// What the user can do about a failure; empty when the cause is unknown, so the library's
+// own text stays the whole message.
+QString failure_explanation(support::AcquireFailureCause cause, const QString& address) {
+  using Cause = support::AcquireFailureCause;
+  switch (cause) {
+    case Cause::NetworkUnreachable:
+      return (address.isEmpty()
+                  ? QCoreApplication::translate("ScannerImport", "The network scanner does not answer.")
+                  : QCoreApplication::translate("ScannerImport", "The network scanner at %1 does not answer.")
+                        .arg(address)) +
+             QLatin1Char(' ') +
+             QCoreApplication::translate(
+                 "ScannerImport",
+                 "Check that it is switched on and connected to the same network as this computer. If its address "
+                 "changed, correct or remove the old address in the scanner configuration in /etc/sane.d "
+                 "(airscan.conf or escl.conf).");
+    case Cause::ConnectionLost:
+      return QCoreApplication::translate(
+          "ScannerImport",
+          "The device stopped responding. Check that it is switched on, the cable is connected and it is not in "
+          "sleep mode, then try again.");
+    case Cause::Busy:
+      return QCoreApplication::translate(
+          "ScannerImport",
+          "The scanner is in use by another program or still finishing a previous job. Close the other program or "
+          "wait a moment, then try again.");
+    case Cause::AccessDenied:
+      return QCoreApplication::translate(
+          "ScannerImport",
+          "This user account is not allowed to use the device. Add your account to the scanner group (often "
+          "\"scanner\" or \"lp\"), or install the device rules from your distribution's SANE or libgphoto2 package, "
+          "then log in again.");
+    case Cause::Jammed:
+      return QCoreApplication::translate("ScannerImport", "Paper is jammed in the scanner. Clear the jam and try again.");
+    case Cause::FeederEmpty:
+      return QCoreApplication::translate(
+          "ScannerImport", "The document feeder is empty. Load the pages, or choose the flatbed as the source.");
+    case Cause::CoverOpen:
+      return QCoreApplication::translate("ScannerImport", "The scanner cover is open. Close it and try again.");
+    case Cause::UnsupportedSettings:
+      return QCoreApplication::translate(
+          "ScannerImport", "The scanner does not accept these settings. Try another mode, resolution or source.");
+    case Cause::OutOfMemory:
+      return QCoreApplication::translate(
+          "ScannerImport", "There is not enough memory for this scan. Try a lower resolution.");
+    case Cause::CameraClaimed:
+      return QCoreApplication::translate(
+          "ScannerImport",
+          "Another program is using the camera, often the file manager, which opens cameras automatically. Eject "
+          "or unmount the camera there, then try again.");
+    case Cause::CameraNotSupported:
+      return QCoreApplication::translate(
+          "ScannerImport",
+          "libgphoto2 does not support this camera model. Copy the images with a card reader or the file manager "
+          "instead.");
+    case Cause::CorruptedData:
+      return QCoreApplication::translate(
+          "ScannerImport", "The camera sent damaged data. Reconnect the camera and try again.");
+    case Cause::ImageMissing:
+      return QCoreApplication::translate(
+          "ScannerImport", "The image is no longer on the camera. Pick the device again to refresh the list.");
+    case Cause::Unknown:
+      break;
+  }
+  return {};
+}
+
+// "<what failed> (<library text>)" followed by the explanation, when there is one.
+QString describe_failure(const QString& headline, support::AcquireFailureCause cause, const QString& address = {}) {
+  const auto explanation = failure_explanation(cause, address);
+  return explanation.isEmpty() ? headline : headline + QStringLiteral("\n\n") + explanation;
+}
+
 // ---------------------------------------------------------------------------------------
 // Session state shared between the dialog (main thread) and its worker. Library calls only
 // happen on the worker, one task at a time, except sane_cancel, which SANE allows from
@@ -257,6 +330,7 @@ struct DeviceEntry {
   bool camera{false};
   QString id;  // SANE device name, or gphoto2 port path
   QString label;
+  QString address;  // network scanners: the address the backend reports, for error messages
 };
 
 struct ScannerSettings {
@@ -276,6 +350,8 @@ struct CameraImage {
 struct Session {
   bool sane_initialized{false};
   SaneHandle scanner{nullptr};
+  QString scanner_name;     // SANE device name of the open scanner
+  QString scanner_address;  // its network address, when the backend reports one
   GPContext* gphoto_context{nullptr};
   Camera* camera{nullptr};
   std::atomic<SaneHandle> active_scan{nullptr};  // set only while run_scan reads
@@ -289,6 +365,8 @@ struct Session {
       sane_library().close(scanner);
       scanner = nullptr;
     }
+    scanner_name.clear();
+    scanner_address.clear();
     if (camera != nullptr) {
       gphoto_library().camera_exit(camera, gphoto_context);
       gphoto_library().camera_unref(camera);
@@ -325,8 +403,10 @@ std::vector<DeviceEntry> enumerate_devices(Session& session) {
           if (name.isEmpty()) {
             name = QString::fromUtf8(device->name);
           }
+          const auto address = QString::fromStdString(
+              support::network_scanner_address(device->model != nullptr ? device->model : ""));
           devices.push_back({false, QString::fromUtf8(device->name),
-                             QCoreApplication::translate("ScannerImport", "Scanner: %1").arg(name)});
+                             QCoreApplication::translate("ScannerImport", "Scanner: %1").arg(name), address});
         }
       }
     }
@@ -347,7 +427,8 @@ std::vector<DeviceEntry> enumerate_devices(Session& session) {
           }
           devices.push_back({true, QString::fromUtf8(port),
                              QCoreApplication::translate("ScannerImport", "Camera: %1")
-                                 .arg(QString::fromUtf8(model))});
+                                 .arg(QString::fromUtf8(model)),
+                             QString{}});
         }
       }
       gphoto_library().list_free(list);
@@ -507,10 +588,13 @@ OpenResult open_device(Session& session, const DeviceEntry& device) {
     const int status = sane_library().open(name.constData(), &session.scanner);
     if (status != kSaneStatusGood || session.scanner == nullptr) {
       session.scanner = nullptr;
-      result.error =
-          QCoreApplication::translate("ScannerImport", "The scanner could not be opened (%1)").arg(sane_status_text(status));
+      result.error = describe_failure(
+          QCoreApplication::translate("ScannerImport", "The scanner could not be opened (%1)").arg(sane_status_text(status)),
+          support::classify_sane_failure(status, name.constData()), device.address);
       return result;
     }
+    session.scanner_name = device.id;
+    session.scanner_address = device.address;
     read_resolution_choices(session.scanner, result.scanner);
     read_string_choices(session.scanner, "mode", result.scanner.modes, result.scanner.mode);
     read_string_choices(session.scanner, "source", result.scanner.sources, result.scanner.source);
@@ -550,8 +634,9 @@ OpenResult open_device(Session& session, const DeviceEntry& device) {
       gp.camera_unref(session.camera);
       session.camera = nullptr;
     }
-    result.error =
-        QCoreApplication::translate("ScannerImport", "The camera could not be opened (%1)").arg(gphoto_status_text(status));
+    result.error = describe_failure(
+        QCoreApplication::translate("ScannerImport", "The camera could not be opened (%1)").arg(gphoto_status_text(status)),
+        support::classify_gphoto_failure(status));
     return result;
   }
   list_camera_folder(session, QStringLiteral("/"), 0, result.camera_images);
@@ -640,6 +725,12 @@ ScannerAcquireResult failure(const QString& error) {
   return result;
 }
 
+QString scan_failure(const Session& session, int status) {
+  return describe_failure(
+      QCoreApplication::translate("ScannerImport", "The scan could not be completed (%1)").arg(sane_status_text(status)),
+      support::classify_sane_failure(status, session.scanner_name.toStdString()), session.scanner_address);
+}
+
 ScannerAcquireResult run_scan(Session& session, const ScannerSettings& settings) {
   auto* handle = session.scanner;
   session.active_scan = handle;
@@ -667,15 +758,13 @@ ScannerAcquireResult run_scan(Session& session, const ScannerSettings& settings)
       }
       if (status != kSaneStatusGood) {
         sane.cancel(handle);
-        return failure(QCoreApplication::translate("ScannerImport", "The scan could not be completed (%1)")
-                           .arg(sane_status_text(status)));
+        return failure(scan_failure(session, status));
       }
       SaneParameters parameters{};
       status = sane.get_parameters(handle, &parameters);
       if (status != kSaneStatusGood) {
         sane.cancel(handle);
-        return failure(QCoreApplication::translate("ScannerImport", "The scan could not be completed (%1)")
-                           .arg(sane_status_text(status)));
+        return failure(scan_failure(session, status));
       }
       assembler.begin_frame({static_cast<support::ScanFrameFormat>(parameters.format), parameters.last_frame != 0,
                              parameters.bytes_per_line, parameters.pixels_per_line, parameters.lines,
@@ -696,8 +785,7 @@ ScannerAcquireResult run_scan(Session& session, const ScannerSettings& settings)
         }
         if (status != kSaneStatusGood) {
           sane.cancel(handle);
-          return failure(QCoreApplication::translate("ScannerImport", "The scan could not be completed (%1)")
-                             .arg(sane_status_text(status)));
+          return failure(scan_failure(session, status));
         }
         if (length > 0) {
           assembler.append(std::span(buffer.data(), static_cast<std::size_t>(length)));
@@ -770,8 +858,10 @@ ScannerAcquireResult download_camera_image(Session& session, const CameraImage& 
   };
   if (status < kGpOk || data == nullptr || size == 0) {
     release();
-    return failure(QCoreApplication::translate("ScannerImport", "The camera image could not be downloaded (%1)")
-                       .arg(gphoto_status_text(status < kGpOk ? status : -1)));
+    return failure(describe_failure(
+        QCoreApplication::translate("ScannerImport", "The camera image could not be downloaded (%1)")
+            .arg(gphoto_status_text(status < kGpOk ? status : -1)),
+        support::classify_gphoto_failure(status)));
   }
   const auto path = temporary_scan_path(safe_suffix(image.name));
   if (path.isEmpty()) {
