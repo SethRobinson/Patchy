@@ -1989,6 +1989,10 @@ private:
   void schedule_vector_appearance_apply();
   void finish_pending_shape_appearance_edit();
   void apply_selected_shape_corner_radius(double radius);
+  // The Line bar's Weight and arrowhead toggles on the selected line layers (GitHub #622).
+  void apply_selected_line_weight(double weight);
+  void apply_selected_line_arrowhead(bool at_end, bool on);
+  void sync_line_options_from_selection(const std::vector<LayerId>& ids);
   void queue_shape_appearance_edit(const ShapeAppearanceSettings& settings);
   bool commit_shape_appearance_edit(const std::vector<LayerId>& ids,
                                     const ShapeAppearanceSettings& settings);

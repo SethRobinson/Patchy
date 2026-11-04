@@ -131,7 +131,15 @@ session-only: PS's polygon origination is unprobed, so the PSD writer leaves it 
 reopens as a plain path, `live_polygon_regenerates_resolves_and_writes_a_plain_path`) and scripts see no
 live entry for it. The Line tool has
 start/end arrowhead glyph toggles (head width 5x, length 10x the weight, PS's
-proportions) encoded through the probed keyOriginLine arrow keys. The
+proportions) encoded through the probed keyOriginLine arrow keys. Weight and the
+toggles also edit the selected live lines (GitHub #622), as Radius does rectangles:
+the `line.weight` / `line.arrow_start` / `line.arrow_end` appearance properties
+(appearance_properties.cpp; other shapes ignore them), a Weight drag queued as one
+undo step, a toggle committed at once. A weight change re-ties the heads to the
+weight; a head switched on keeps the line's own size if it has one. Selecting a
+line shows its values (`sync_line_options_from_selection`) without changing the
+next-line defaults. Shape Appearance's line rows add Start / End arrowhead
+checkboxes (`shapeGeometryLineArrowStartCheck` / `EndCheck`). The
 custom shape library, the Shapes Manager, the Shape picker, the bundled
 game-icons.net pack and .csh import are in
 [vector-tools-custom-shapes.md](vector-tools-custom-shapes.md).

@@ -797,6 +797,148 @@ void ui_batch_shape_toolbar_undo_selection_and_psd() {
   CHECK(MainWindowTestAccess::active_session_undo_depth(window) == radius_before);
 }
 
+Layer line_layer(LayerId id, double weight, bool arrow_start, bool arrow_end) {
+  Layer layer(id, "Line " + std::to_string(id), PixelBuffer());
+  LiveShapeParams params;
+  params.kind = LiveShapeKind::Line;
+  params.line_start_x = 60; params.line_start_y = 80.0 * static_cast<double>(id);
+  params.line_end_x = 400; params.line_end_y = params.line_start_y;
+  params.line_weight = weight; params.arrow_start = arrow_start; params.arrow_end = arrow_end;
+  tie_line_arrowheads_to_weight(params);
+  params.index = static_cast<int>(id);
+  VectorShapeContent content;
+  content.path.subpaths = generate_live_shape_subpaths(params);
+  if (const auto bounds = content.path.bounds()) {
+    params.left = bounds->left; params.top = bounds->top; params.right = bounds->right; params.bottom = bounds->bottom;
+  }
+  content.origination.push_back(params);
+  content.fill.kind = VectorFillKind::Solid; content.fill.color = {0, 0, 0};
+  layer.set_vector_shape(std::move(content));
+  layer.metadata()[kLayerMetadataVectorShape] = "1";
+  update_vector_shape_raster(layer, Rect::from_size(600, 400), nullptr);
+  return layer;
+}
+
+const LiveShapeParams& line_params(const Document& doc, LayerId id) {
+  return std::as_const(doc).find_layer(id)->vector_shape()->origination.front();
+}
+
+// GitHub #622: the Line bar's Weight and arrowhead toggles edit a selected line, one undo
+// step each, and show the selected line's values.
+void ui_line_options_bar_edits_selected_line() {
+  SettingsValueRestorer arrow_start_setting(QStringLiteral("tools/lineArrowStart"));
+  SettingsValueRestorer arrow_end_setting(QStringLiteral("tools/lineArrowEnd"));
+  VectorSettingsGuard guard;
+  MainWindow window; show_window(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  const auto first = doc.allocate_layer_id(), second = doc.allocate_layer_id();
+  doc.add_layer(line_layer(first, 10, false, false));
+  doc.add_layer(line_layer(second, 12, true, false));
+  require_action_by_text(window, QStringLiteral("Line"))->trigger();
+  auto* weight = field<QDoubleSpinBox>(window, "vectorLineWeightSpin");
+  auto* arrow_start = field<QPushButton>(window, "lineArrowStartButton");
+  auto* arrow_end = field<QPushButton>(window, "lineArrowEndButton");
+  // Selecting a line shows its weight and heads.
+  select_batch_layers(window, {second});
+  CHECK(weight->value() == 12);
+  CHECK(arrow_start->isChecked() && !arrow_end->isChecked());
+  select_batch_layers(window, {first});
+  CHECK(weight->value() == 10);
+  CHECK(!arrow_start->isChecked() && !arrow_end->isChecked());
+
+  const auto before = MainWindowTestAccess::active_session_undo_depth(window);
+  // A spin drag is one undo step.
+  weight->setValue(14);
+  weight->setValue(16);
+  QMetaObject::invokeMethod(weight, "editingFinished", Qt::DirectConnection);
+  CHECK(line_params(doc, first).line_weight == 16);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before + 1);
+  CHECK(line_params(doc, second).line_weight == 12);
+  // The layer's outline follows: a 16 px band around y = 80.
+  const auto bounds = std::as_const(doc).find_layer(first)->vector_shape()->path.bounds();
+  CHECK(bounds && std::abs(bounds->bottom - bounds->top - 16.0) < 1e-6);
+
+  arrow_end->click();
+  CHECK(line_params(doc, first).arrow_end && !line_params(doc, first).arrow_start);
+  CHECK(line_params(doc, first).arrow_width == 80 && line_params(doc, first).arrow_length == 160);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before + 2);
+  // A weight change rescales the heads.
+  weight->setValue(8);
+  QMetaObject::invokeMethod(weight, "editingFinished", Qt::DirectConnection);
+  CHECK(line_params(doc, first).line_weight == 8);
+  CHECK(line_params(doc, first).arrow_width == 40 && line_params(doc, first).arrow_length == 80);
+  arrow_start->click();
+  CHECK(line_params(doc, first).arrow_start && line_params(doc, first).arrow_end);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before + 4);
+  // Saved and reopened, the heads and weight survive in the live-shape data.
+  const auto reopened = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(doc, {}));
+  const auto found = std::find_if(reopened.layers().begin(), reopened.layers().end(),
+                                  [&](const auto& layer) { return layer.name() == "Line " + std::to_string(first); });
+  CHECK(found != reopened.layers().end() && found->vector_shape() && found->vector_shape()->origination.size() == 1);
+  CHECK(found->vector_shape()->origination.front().line_weight == 8);
+  CHECK(found->vector_shape()->origination.front().arrow_start && found->vector_shape()->origination.front().arrow_end);
+
+  MainWindowTestAccess::undo(window);
+  CHECK(!line_params(doc, first).arrow_start && line_params(doc, first).arrow_end);
+  MainWindowTestAccess::undo(window);
+  CHECK(line_params(doc, first).line_weight == 16 && line_params(doc, first).arrow_width == 80);
+  MainWindowTestAccess::undo(window);
+  CHECK(!line_params(doc, first).arrow_end);
+  MainWindowTestAccess::undo(window);
+  CHECK(line_params(doc, first).line_weight == 10);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before);
+  // Two lines: one click sets both.
+  select_batch_layers(window, {first, second});
+  {
+    const QSignalBlocker blocker(arrow_end);
+    arrow_end->setChecked(false);
+  }
+  arrow_end->click();
+  CHECK(line_params(doc, first).arrow_end && line_params(doc, second).arrow_end);
+  CHECK(line_params(doc, second).arrow_start && line_params(doc, second).arrow_width == 60);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before + 1);
+}
+
+// GitHub #622: Shape Appearance has Start and End arrowhead checkboxes for a line; they
+// preview live, Cancel restores the line, OK is one undo step.
+void ui_shape_appearance_line_arrowheads() {
+  VectorSettingsGuard guard;
+  MainWindow window; show_window(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  const auto id = doc.allocate_layer_id();
+  doc.add_layer(line_layer(id, 6, false, true));
+  select_batch_layers(window, {id});
+  const auto before = MainWindowTestAccess::active_session_undo_depth(window);
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    auto* start = field<QCheckBox>(dialog, "shapeGeometryLineArrowStartCheck");
+    auto* end = field<QCheckBox>(dialog, "shapeGeometryLineArrowEndCheck");
+    CHECK(!start->isChecked() && end->isChecked());
+    start->setChecked(true);
+    end->setChecked(false);
+    CHECK(process_events_until([&] { return line_params(doc, id).arrow_start && !line_params(doc, id).arrow_end; }));
+    dialog.reject();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(process_events_until([&] { return !require_canvas(window)->processing_operation_active(); }));
+  CHECK(!line_params(doc, id).arrow_start && line_params(doc, id).arrow_end);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before);
+
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    field<QCheckBox>(dialog, "shapeGeometryLineArrowStartCheck")->setChecked(true);
+    field<QDoubleSpinBox>(dialog, "shapeGeometryLineWeightSpin")->setValue(9);
+    QApplication::processEvents();
+    save_widget_artifact("ui_shape_appearance_line_arrowheads", dialog);
+    dialog.accept();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(line_params(doc, id).arrow_start && line_params(doc, id).arrow_end);
+  CHECK(line_params(doc, id).line_weight == 9);
+  CHECK(line_params(doc, id).arrow_width == 45 && line_params(doc, id).arrow_length == 90);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before + 1);
+  MainWindowTestAccess::undo(window);
+  CHECK(!line_params(doc, id).arrow_start && line_params(doc, id).line_weight == 6);
+}
+
 } // namespace
 
 std::vector<patchy::test::TestCase> batch_appearance_tests() {
@@ -813,5 +955,7 @@ std::vector<patchy::test::TestCase> batch_appearance_tests() {
     {"ui_batch_shape_editor_entries_and_document_switch", ui_batch_shape_editor_entries_and_document_switch},
     {"ui_batch_shape_toolbar_pattern_collision", ui_batch_shape_toolbar_pattern_collision},
     {"ui_batch_shape_toolbar_undo_selection_and_psd", ui_batch_shape_toolbar_undo_selection_and_psd},
+    {"ui_line_options_bar_edits_selected_line", ui_line_options_bar_edits_selected_line},
+    {"ui_shape_appearance_line_arrowheads", ui_shape_appearance_line_arrowheads},
   };
 }

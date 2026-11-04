@@ -12,6 +12,10 @@ namespace patchy::ui {
 [[nodiscard]] bool shape_appearance_equal(const ShapeAppearanceSettings& a, const ShapeAppearanceSettings& b);
 [[nodiscard]] bool layer_style_settings_equal(const LayerStyleSettings& a, const LayerStyleSettings& b);
 [[nodiscard]] bool appearance_has_editable_radii(const ShapeAppearanceSettings& settings);
+// A single live line (its weight and arrowheads are editable).
+[[nodiscard]] bool appearance_has_editable_line(const ShapeAppearanceSettings& settings);
+// Sets the arrowhead width and length from the weight when the line has a head.
+void tie_line_arrowheads_to_weight(LiveShapeParams& params);
 [[nodiscard]] bool shape_vector_appearance_equal(const VectorShapeContent& left, const VectorShapeContent& right);
 [[nodiscard]] VectorShapeContent assemble_shape_appearance(const VectorShapeContent& original,
                                                           const ShapeAppearanceSettings& settings);

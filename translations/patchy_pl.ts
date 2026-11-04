@@ -14925,6 +14925,18 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Not found on %1 either; relink it to a file</source>
         <translation>Nie znaleziono również na %1; połącz go ponownie z plikiem</translation>
     </message>
+    <message>
+        <source>Start</source>
+        <translation>Początek</translation>
+    </message>
+    <message>
+        <source>End</source>
+        <translation>Koniec</translation>
+    </message>
+    <message>
+        <source>Arrowheads:</source>
+        <translation>Groty strzałek:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

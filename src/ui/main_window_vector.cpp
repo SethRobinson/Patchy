@@ -2368,6 +2368,7 @@ void MainWindow::sync_shape_appearance_options_from_active_layer() {
       const QSignalBlocker blocker(spin);
       spin->setValue(current_shape_corner_radius_);
     }
+    sync_line_options_from_selection({});
     return;
   }
   const auto* content = std::as_const(*layer).vector_shape();
@@ -2431,6 +2432,7 @@ void MainWindow::sync_shape_appearance_options_from_active_layer() {
     spin->setValue(radius ? static_cast<int>(std::lround(*radius)) : current_shape_corner_radius_);
     set_appearance_mixed(spin, different);
   }
+  sync_line_options_from_selection(ids);
   update_vector_swatch_icons();
 }
 
@@ -2562,6 +2564,63 @@ void MainWindow::apply_selected_shape_corner_radius(double radius) {
     if (property.key.starts_with("radius.")) edits->append(property.capture(settings));
   settings.edits = std::move(edits);
   queue_shape_appearance_edit(settings);
+}
+
+void MainWindow::apply_selected_line_weight(double weight) {
+  // Queued like Radius: a spin drag or held arrow is one undo step.
+  ShapeAppearanceSettings settings;
+  settings.geometry = LiveShapeParams{};
+  settings.geometry->kind = LiveShapeKind::Line;
+  settings.geometry->line_weight = weight;
+  auto edits = std::make_shared<AppearanceEdits<ShapeAppearanceSettings>>();
+  for (const auto& property : shape_appearance_properties())
+    if (property.key == "line.weight") edits->append(property.capture(settings));
+  settings.edits = std::move(edits);
+  queue_shape_appearance_edit(settings);
+}
+
+void MainWindow::apply_selected_line_arrowhead(bool at_end, bool on) {
+  // A click is one edit: it commits at once, after any pending Weight edit.
+  finish_pending_shape_appearance_edit();
+  if (!has_active_document() || !vector_appearance_controls_live()) return;
+  ShapeAppearanceSettings settings;
+  settings.geometry = LiveShapeParams{};
+  settings.geometry->kind = LiveShapeKind::Line;
+  (at_end ? settings.geometry->arrow_end : settings.geometry->arrow_start) = on;
+  const std::string key = at_end ? "line.arrow_end" : "line.arrow_start";
+  auto edits = std::make_shared<AppearanceEdits<ShapeAppearanceSettings>>();
+  for (const auto& property : shape_appearance_properties())
+    if (property.key == key) edits->append(property.capture(settings));
+  settings.edits = std::move(edits);
+  commit_shape_appearance_edit(editable_selected_shape_layer_ids(), settings);
+}
+
+void MainWindow::sync_line_options_from_selection(const std::vector<LayerId>& ids) {
+  // Like Radius: the fields show the first selected line's values (mixed when the lines
+  // differ) and the tool defaults when no line is selected; the defaults stay as they are.
+  std::optional<LiveShapeParams> line;
+  bool weight_mixed = false;
+  for (const auto id : ids) {
+    const auto* layer = std::as_const(document()).find_layer(id);
+    if (layer == nullptr) continue;
+    const auto value = shape_appearance_settings(*layer);
+    if (!appearance_has_editable_line(value)) continue;
+    if (!line) line = value.geometry;
+    else weight_mixed |= value.geometry->line_weight != line->line_weight;
+  }
+  if (auto* spin = findChild<QDoubleSpinBox*>(QStringLiteral("vectorLineWeightSpin"))) {
+    const QSignalBlocker blocker(spin);
+    spin->setValue(line ? line->line_weight : current_vector_line_weight_);
+    set_appearance_mixed(spin, weight_mixed);
+  }
+  for (const bool at_end : {false, true}) {
+    auto* button = findChild<QAbstractButton*>(at_end ? QStringLiteral("lineArrowEndButton")
+                                                      : QStringLiteral("lineArrowStartButton"));
+    if (button == nullptr) continue;
+    const QSignalBlocker blocker(button);
+    button->setChecked(line ? (at_end ? line->arrow_end : line->arrow_start)
+                            : (at_end ? current_line_arrow_end_ : current_line_arrow_start_));
+  }
 }
 
 MainWindow::VectorOptionModeRules MainWindow::vector_option_mode_rules() {

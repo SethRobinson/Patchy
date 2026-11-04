@@ -14862,6 +14862,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Not found on %1 either; relink it to a file</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Start</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>End</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Arrowheads:</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

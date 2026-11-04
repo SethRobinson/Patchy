@@ -4549,10 +4549,19 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_widget(vector_line_weight, {CanvasTool::Line});
   vector_vector_mode_option_widgets_.push_back(vector_line_weight);
   register_ruler_unit_field(vector_line_weight);
+  // A selected line follows, one undo step per edit like Radius (GitHub #622).
   connect(vector_line_weight, &QDoubleSpinBox::valueChanged, this, [this](double value) {
     current_vector_line_weight_ = value;
+    apply_selected_line_weight(value);
     schedule_save_tool_settings();
   });
+  install_appearance_edit_intent(vector_line_weight, [this, vector_line_weight] {
+    current_vector_line_weight_ = vector_line_weight->value();
+    apply_selected_line_weight(current_vector_line_weight_);
+    schedule_save_tool_settings();
+  });
+  connect(vector_line_weight, &QDoubleSpinBox::editingFinished, this,
+          [this] { finish_pending_shape_appearance_edit(); });
 
   // Photoshop's Pen "Auto Add/Delete": on, a click on the target path edits
   // its anchors (add on a segment, delete on a point); off, every click draws.
@@ -4647,8 +4656,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     button->setFocusPolicy(Qt::NoFocus);
     add_option_widget(button, {CanvasTool::Line});
     vector_vector_mode_option_widgets_.push_back(button);
-    connect(button, &QPushButton::toggled, this, [this, &setting](bool checked) {
+    connect(button, &QPushButton::toggled, this, [this, &setting, at_end](bool checked) {
       setting = checked;
+      apply_selected_line_arrowhead(at_end, checked);  // a selected line follows (GitHub #622)
       schedule_save_tool_settings();
     });
   };

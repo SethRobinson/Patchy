@@ -628,16 +628,47 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
         params.line_start_y = start_y->value();
         params.line_end_x = end_x->value();
         params.line_end_y = end_y->value();
-        params.line_weight = weight->value();
-        if (params.arrow_start || params.arrow_end) {
-          // Keep the default arrowhead proportions tied to the weight.
-          params.arrow_width = params.line_weight * 5.0;
-          params.arrow_length = params.line_weight * 10.0;
+        // The arrowhead proportions stay tied to the weight.
+        if (params.line_weight != weight->value()) {
+          params.line_weight = weight->value();
+          tie_line_arrowheads_to_weight(params);
         }
         notify({"geometry"});
       };
       for (auto* spin : {start_x, start_y, end_x, end_y, weight}) {
         QObject::connect(spin, &QDoubleSpinBox::valueChanged, &dialog, apply_line);
+      }
+      // Start and End arrowheads (GitHub #622), the Line options bar's two toggles.
+      auto* arrows = new QWidget(geometry_group);
+      auto* arrows_layout = new QHBoxLayout(arrows);
+      arrows_layout->setContentsMargins(0, 0, 0, 0);
+      arrows_layout->setSpacing(16);
+      auto* arrow_start = new QCheckBox(QObject::tr("Start"), arrows);
+      arrow_start->setObjectName(QStringLiteral("shapeGeometryLineArrowStartCheck"));
+      arrow_start->setToolTip(QCoreApplication::translate("patchy::ui::MainWindow", "Add an arrowhead at the line start"));
+      arrow_start->setChecked(geometry.arrow_start);
+      auto* arrow_end = new QCheckBox(QObject::tr("End"), arrows);
+      arrow_end->setObjectName(QStringLiteral("shapeGeometryLineArrowEndCheck"));
+      arrow_end->setToolTip(QCoreApplication::translate("patchy::ui::MainWindow", "Add an arrowhead at the line end"));
+      arrow_end->setChecked(geometry.arrow_end);
+      arrows_layout->addWidget(arrow_start);
+      arrows_layout->addWidget(arrow_end);
+      arrows_layout->addStretch(1);
+      const int arrows_row = static_cast<int>(geometry_rows.size());
+      geometry_grid->addWidget(new QLabel(QObject::tr("Arrowheads:"), geometry_group), arrows_row, 0,
+                               Qt::AlignLeft | Qt::AlignVCenter);
+      geometry_grid->addWidget(arrows, arrows_row, 2);
+      geometry_rows.push_back(arrows);
+      for (const bool at_end : {false, true}) {
+        QObject::connect(at_end ? arrow_end : arrow_start, &QCheckBox::toggled, &dialog,
+                         [state, notify, at_end](bool checked) {
+          auto& params = *state->settings.geometry;
+          (at_end ? params.arrow_end : params.arrow_start) = checked;
+          // A new head gets the default size; a head the line already had keeps its own.
+          if (checked && (params.arrow_width <= 0.0 || params.arrow_length <= 0.0))
+            tie_line_arrowheads_to_weight(params);
+          notify({"geometry"});
+        });
       }
     } else {
       auto* x_spin = make_spin("shapeGeometryXSpin", -30000, 30000, geometry.left);

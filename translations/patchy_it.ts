@@ -14879,6 +14879,18 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Not found on %1 either; relink it to a file</source>
         <translation>Non trovato neanche su %1; ricollegalo a un file</translation>
     </message>
+    <message>
+        <source>Start</source>
+        <translation>Inizio</translation>
+    </message>
+    <message>
+        <source>End</source>
+        <translation>Fine</translation>
+    </message>
+    <message>
+        <source>Arrowheads:</source>
+        <translation>Punte di freccia:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

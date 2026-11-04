@@ -533,6 +533,18 @@ bool appearance_has_editable_radii(const ShapeAppearanceSettings& settings) {
                                settings.geometry->kind == LiveShapeKind::RoundedRectangle);
 }
 
+bool appearance_has_editable_line(const ShapeAppearanceSettings& settings) {
+  return settings.geometry && settings.geometry->kind == LiveShapeKind::Line;
+}
+
+void tie_line_arrowheads_to_weight(LiveShapeParams& params) {
+  // Photoshop's default arrowhead proportions: width 5x, length 10x the weight
+  // (the Line tool and the Shape Appearance Weight field use the same rule).
+  if (!params.arrow_start && !params.arrow_end) return;
+  params.arrow_width = params.line_weight * 5.0;
+  params.arrow_length = params.line_weight * 10.0;
+}
+
 std::vector<AppearanceProperty<ShapeAppearanceSettings>> shape_appearance_properties() {
   using Settings = ShapeAppearanceSettings;
   std::vector<AppearanceProperty<Settings>> result;
@@ -572,6 +584,33 @@ std::vector<AppearanceProperty<ShapeAppearanceSettings>> shape_appearance_proper
           if (!appearance_has_editable_radii(target)) return;
           target.geometry->corner_radii[corner] = radius;
           if (radius > 0.0) target.geometry->kind = LiveShapeKind::RoundedRectangle;
+        }));
+  }
+  // Line weight and arrowheads (GitHub #622): the Line options bar edits a selected line
+  // through these, as Radius does a rectangle; other shapes ignore them.
+  result.push_back(appearance_property<Settings, double>(
+      "line.weight",
+      [](const Settings& value) -> const double* {
+        return appearance_has_editable_line(value) ? &value.geometry->line_weight : nullptr;
+      },
+      [](Settings& target, double weight) {
+        if (!appearance_has_editable_line(target)) return;
+        target.geometry->line_weight = weight;
+        tie_line_arrowheads_to_weight(*target.geometry);
+      }));
+  for (const bool at_end : {false, true}) {
+    result.push_back(appearance_property<Settings, bool>(
+        at_end ? "line.arrow_end" : "line.arrow_start",
+        [at_end](const Settings& value) -> const bool* {
+          if (!appearance_has_editable_line(value)) return nullptr;
+          return at_end ? &value.geometry->arrow_end : &value.geometry->arrow_start;
+        },
+        [at_end](Settings& target, bool on) {
+          if (!appearance_has_editable_line(target)) return;
+          auto& params = *target.geometry;
+          (at_end ? params.arrow_end : params.arrow_start) = on;
+          // A head switched on gets the default size; one the line already had keeps its own.
+          if (on && (params.arrow_width <= 0.0 || params.arrow_length <= 0.0)) tie_line_arrowheads_to_weight(params);
         }));
   }
   auto geometry = appearance_property<Settings, std::optional<LiveShapeParams>>(

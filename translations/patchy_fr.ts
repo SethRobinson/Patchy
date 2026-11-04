@@ -14879,6 +14879,18 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Not found on %1 either; relink it to a file</source>
         <translation>Introuvable sur %1 également ; rétablissez le lien vers un fichier</translation>
     </message>
+    <message>
+        <source>Start</source>
+        <translation>Début</translation>
+    </message>
+    <message>
+        <source>End</source>
+        <translation>Fin</translation>
+    </message>
+    <message>
+        <source>Arrowheads:</source>
+        <translation>Pointes de flèche :</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

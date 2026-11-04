@@ -14879,6 +14879,18 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Not found on %1 either; relink it to a file</source>
         <translation>Auch auf %1 nicht gefunden; verknüpfen Sie sie mit einer Datei neu</translation>
     </message>
+    <message>
+        <source>Start</source>
+        <translation>Anfang</translation>
+    </message>
+    <message>
+        <source>End</source>
+        <translation>Ende</translation>
+    </message>
+    <message>
+        <source>Arrowheads:</source>
+        <translation>Pfeilspitzen:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

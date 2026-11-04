@@ -14879,6 +14879,18 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Not found on %1 either; relink it to a file</source>
         <translation>Tampoco se encontró en %1; vuelva a vincularlo a un archivo</translation>
     </message>
+    <message>
+        <source>Start</source>
+        <translation>Inicio</translation>
+    </message>
+    <message>
+        <source>End</source>
+        <translation>Final</translation>
+    </message>
+    <message>
+        <source>Arrowheads:</source>
+        <translation>Puntas de flecha:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

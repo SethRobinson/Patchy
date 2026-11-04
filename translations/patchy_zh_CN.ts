@@ -14833,6 +14833,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Not found on %1 either; relink it to a file</source>
         <translation>在 %1 上也未找到；请将其重新链接到文件</translation>
     </message>
+    <message>
+        <source>Start</source>
+        <translation>起点</translation>
+    </message>
+    <message>
+        <source>End</source>
+        <translation>终点</translation>
+    </message>
+    <message>
+        <source>Arrowheads:</source>
+        <translation>箭头:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

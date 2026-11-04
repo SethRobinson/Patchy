@@ -14833,6 +14833,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Not found on %1 either; relink it to a file</source>
         <translation>%1에서도 찾을 수 없습니다. 파일에 다시 연결하세요</translation>
     </message>
+    <message>
+        <source>Start</source>
+        <translation>시작</translation>
+    </message>
+    <message>
+        <source>End</source>
+        <translation>끝</translation>
+    </message>
+    <message>
+        <source>Arrowheads:</source>
+        <translation>화살촉:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

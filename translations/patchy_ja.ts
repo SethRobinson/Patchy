@@ -14833,6 +14833,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Not found on %1 either; relink it to a file</source>
         <translation>%1 でも見つかりません。ファイルに再リンクしてください</translation>
     </message>
+    <message>
+        <source>Start</source>
+        <translation>始点</translation>
+    </message>
+    <message>
+        <source>End</source>
+        <translation>終点</translation>
+    </message>
+    <message>
+        <source>Arrowheads:</source>
+        <translation>矢じり:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

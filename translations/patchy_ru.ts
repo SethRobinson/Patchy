@@ -14925,6 +14925,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Not found on %1 either; relink it to a file</source>
         <translation>На %1 тоже не найден; свяжите его с файлом заново</translation>
     </message>
+    <message>
+        <source>Start</source>
+        <translation>Начало</translation>
+    </message>
+    <message>
+        <source>End</source>
+        <translation>Конец</translation>
+    </message>
+    <message>
+        <source>Arrowheads:</source>
+        <translation>Наконечники:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
