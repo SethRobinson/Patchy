@@ -424,8 +424,44 @@ QString layer_lock_flag_icon_key(LayerLockFlags flag) {
   return QStringLiteral("all");
 }
 
-QLabel* make_layer_lock_badge(LayerLockFlags flag, bool inherited, QWidget* parent, LayerListWidget* list_parent) {
-  auto* badge = new QLabel(parent);
+// The Background row's padlock (GitHub #629): a click turns the layer into an ordinary one
+// (Layer from Background). It takes the press itself, so the click neither selects the row nor
+// starts a drag (LayerListWidget leaves a plain click on it alone: layer_row_button_owns_clicks).
+class LayerBackgroundBadge final : public QLabel {
+public:
+  LayerBackgroundBadge(QWidget* parent, std::function<void()> unlock) : QLabel(parent), unlock_(std::move(unlock)) {}
+
+protected:
+  void mousePressEvent(QMouseEvent* event) override {
+    if (event->button() == Qt::LeftButton) {
+      pressed_ = true;
+      event->accept();
+      return;
+    }
+    QLabel::mousePressEvent(event);
+  }
+  void mouseReleaseEvent(QMouseEvent* event) override {
+    if (event->button() != Qt::LeftButton || !pressed_) {
+      QLabel::mouseReleaseEvent(event);
+      return;
+    }
+    pressed_ = false;
+    event->accept();
+    if (unlock_ && rect().contains(event->position().toPoint())) {
+      // Deferred: the command rebuilds the layer rows, deleting this badge.
+      QTimer::singleShot(0, window(), unlock_);
+    }
+  }
+  void mouseDoubleClickEvent(QMouseEvent* event) override { event->accept(); }
+
+private:
+  std::function<void()> unlock_;
+  bool pressed_ = false;
+};
+
+QLabel* make_layer_lock_badge(LayerLockFlags flag, bool inherited, QWidget* parent, LayerListWidget* list_parent,
+                              std::function<void()> unlock_background = {}) {
+  auto* badge = unlock_background ? new LayerBackgroundBadge(parent, std::move(unlock_background)) : new QLabel(parent);
   badge->setObjectName(QStringLiteral("layerLockBadge"));
   badge->setFixedSize(18, 18);
   badge->setAlignment(Qt::AlignCenter);
@@ -1837,7 +1873,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                std::function<void(LayerId)> toggle_smart_filters_expanded = {},
                                LayerThumbnailSize thumbnail_size = kDefaultLayerThumbnailSize,
                                bool arrow_column = false,
-                               std::function<void(LayerId, bool)> set_vector_mask_linked = {}) {
+                               std::function<void(LayerId, bool)> set_vector_mask_linked = {},
+                               std::function<void()> unlock_background = {}) {
   // One crop per row for the content and Smart Filter mask previews; the layer
   // and vector mask previews frame the mask itself (raster_mask_thumbnail_crop).
   const auto thumbnail_crop = content_crop ? content_crop(layer) : std::optional<Rect>{};
@@ -2196,11 +2233,15 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   if (background_row) {
     // The Background's mark (GitHub issue 274): one padlock, like Photoshop's, that names the
     // layer; its transparency, position and auto-nest locks (lspf 0xd) need no badges of their own.
-    auto* badge = make_layer_lock_badge(kLayerLockNone, false, row, list_parent);
+    // A click runs Layer from Background (GitHub #629).
+    const bool clickable = static_cast<bool>(unlock_background);
+    auto* badge = make_layer_lock_badge(kLayerLockNone, false, row, list_parent, std::move(unlock_background));
     badge->setProperty("layerBackgroundBadge", true);
+    if (clickable) {
+      badge->setCursor(Qt::PointingHandCursor);
+    }
     badge->setToolTip(QObject::tr("Background: it stays at the bottom of the stack, with no transparency or "
-                                  "layer styles. Right-click it and choose Layer from Background to make it an "
-                                  "ordinary layer."));
+                                  "layer styles. Click to make it an ordinary layer."));
     lock_badges->add_badge(badge);
   }
   for (const auto flag : {kLayerLockTransparentPixels, kLayerLockImagePixels, kLayerLockPosition,
@@ -4617,6 +4658,11 @@ QWidget* MainWindow::make_layer_list_row_widget(const LayerListRowSpec& pending,
       if (auto* layer = document().find_layer(layer_id); layer != nullptr && layer->vector_mask() != nullptr) {
         document().set_active_layer(layer_id);
         set_active_layer_vector_mask_linked(linked);
+      }
+    },
+                                    [this] {
+      if (has_active_document()) {
+        layer_from_background();
       }
     });
   if (session_layer == layer.id() && layer_is_text(layer)) {

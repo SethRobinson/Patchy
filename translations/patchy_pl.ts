@@ -11916,8 +11916,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Wartość:</translation>
     </message>
     <message>
-        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
-        <translation>Tło: pozostaje na samym dole stosu, bez przezroczystości i stylów warstwy. Kliknij je prawym przyciskiem myszy i wybierz Warstwa z tła, aby zmienić je w zwykłą warstwę.</translation>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Click to make it an ordinary layer.</source>
+        <translation>Tło: pozostaje na samym dole stosu, bez przezroczystości i stylów warstwy. Kliknij, aby zmienić je w zwykłą warstwę.</translation>
     </message>
     <message>
         <source>iPhone 16 Pro</source>

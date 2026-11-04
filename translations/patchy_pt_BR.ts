@@ -11881,8 +11881,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Quantidade:</translation>
     </message>
     <message>
-        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
-        <translation>Plano de fundo: fica na base da pilha, sem transparência nem estilos de camada. Clique com o botão direito nele e escolha Camada do plano de fundo para torná-lo uma camada comum.</translation>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Click to make it an ordinary layer.</source>
+        <translation>Plano de fundo: fica na base da pilha, sem transparência nem estilos de camada. Clique para torná-lo uma camada comum.</translation>
     </message>
     <message>
         <source>iPhone 16 Pro</source>

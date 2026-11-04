@@ -11846,8 +11846,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>量:</translation>
     </message>
     <message>
-        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
-        <translation>背景: スタックの一番下にとどまり、透明部分もレイヤースタイルも持てません。右クリックして「背景からレイヤーへ」を選ぶと通常のレイヤーになります。</translation>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Click to make it an ordinary layer.</source>
+        <translation>背景: スタックの一番下にとどまり、透明部分もレイヤースタイルも持てません。クリックすると通常のレイヤーになります。</translation>
     </message>
     <message>
         <source>iPhone 16 Pro</source>
