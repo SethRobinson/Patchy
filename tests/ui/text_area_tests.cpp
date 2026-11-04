@@ -14,6 +14,7 @@
 #include <QFontDatabase>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QDoubleSpinBox>
 #include <QTextEdit>
 #include <QWidget>
 #include <algorithm>
@@ -46,6 +47,7 @@
 #include "core/layer_render_utils.hpp"
 #include "core/document_depth.hpp"
 #include "ui/qt_paths.hpp"
+#include "ui/theme_palette.hpp"
 #include "psd/psd_document_io.hpp"
 #include "local_psd_fixtures.hpp"
 #include <QElapsedTimer>
@@ -402,6 +404,7 @@ void ui_text_area_type_tool_creation_cancel_and_boundary_edit() {
   CHECK(editor!=nullptr);if(!editor)return;
   editor->setPlainText(QStringLiteral("Editable area text with hidden overflow. ").repeated(20));
   process_events_for(150);
+  CHECK(editor->property("patchy.textHiddenLines").toBool());  // issue 631: the overlay's plus
   auto* overlay = canvas->findChild<QWidget*>(QStringLiteral("transformedTextEditOverlay"));
   CHECK(overlay != nullptr && overlay->isVisible()); if (!overlay) return;
   const auto original_area = parse_vector_path(editor->property("patchy.documentTextArea").toString().toStdString());
@@ -557,6 +560,129 @@ void ui_box_text_overflow_photoshop_story_survives_edit_and_round_trip() {
   const auto round_trip_bottom = layer_ink_bottom(*round_trip);
   CHECK(round_trip_bottom.has_value() && *round_trip_bottom <= 10 + 40);
 }
+
+// GitHub issue 631: while the Type tool edits a box that hides lines of its story, its bottom
+// right handle carries a plus. It follows the layout live: dragging the box tall enough or
+// deleting the hidden text clears it, typing past the bottom brings it back, and a box whose
+// story fits never shows it. The handle still resizes the box.
+void ui_box_text_overflow_marker_on_bottom_right_handle() {
+  MainWindow window; show_window_empty(window);
+  window.set_cli_automation_mode(true);  // Match --run-script's missing-font substitution on Linux.
+  run(window, "app.newDocument(640,420);");
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+  auto* text_size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
+  CHECK(text_size != nullptr); if (!text_size) return;
+  const auto bottom_right = [canvas] {
+    return canvas->findChild<QWidget*>(QStringLiteral("textBoxResizeHandleBottomRight"), Qt::FindDirectChildrenOnly);
+  };
+  // The plus is the border role's color through the handle's centre; a plain handle is its fill.
+  const auto centre_shows_plus = [](QWidget& handle) {
+    const auto image = handle.grab().toImage();
+    const auto centre = image.pixelColor(image.width() / 2, image.height() / 2);
+    const auto border = theme().resize_handle_border;
+    return std::abs(centre.red() - border.red()) + std::abs(centre.green() - border.green()) +
+               std::abs(centre.blue() - border.blue()) < 40;
+  };
+  const auto edit_at = [&](QPoint document_point) -> QTextEdit* {
+    require_action_by_text(window, QStringLiteral("Type"))->trigger();
+    const auto click = canvas->widget_position_for_document_point(document_point);
+    send_mouse(*canvas, QEvent::MouseButtonPress, click, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, click, Qt::LeftButton, Qt::NoButton);
+    process_events_for(150);
+    return canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  };
+
+  // A box dragged out with the Type tool, then typed past its bottom.
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  text_size->setValue(12.0);  // no text layer yet, so this only sets the new box's size
+  QApplication::processEvents();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 40)),
+       canvas->widget_position_for_document_point(QPoint(280, 90)));
+  process_events_for(150);
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr); if (!editor) return;
+  CHECK(editor->property("patchy.documentTextFlow").toString() == QStringLiteral("box"));
+  editor->setPlainText(QStringLiteral("One"));
+  process_events_for(150);
+  auto* handle = bottom_right();
+  CHECK(handle != nullptr); if (!handle) return;
+  CHECK(!editor->property("patchy.textHiddenLines").toBool());
+  CHECK(!handle->property("patchy.textOverflowMarker").toBool());
+  CHECK(!centre_shows_plus(*handle));
+  editor->moveCursor(QTextCursor::End);
+  editor->insertPlainText(QStringLiteral("\nTwo\nThree\nFour"));
+  process_events_for(150);
+  handle = bottom_right();
+  CHECK(handle != nullptr); if (!handle) return;
+  CHECK(editor->property("patchy.textHiddenLines").toBool());
+  CHECK(handle->property("patchy.textOverflowMarker").toBool());
+  CHECK(centre_shows_plus(*handle));
+  auto* top_left = canvas->findChild<QWidget*>(QStringLiteral("textBoxResizeHandleTopLeft"), Qt::FindDirectChildrenOnly);
+  CHECK(top_left != nullptr && !top_left->property("patchy.textOverflowMarker").toBool());
+  if (top_left) CHECK(!centre_shows_plus(*top_left));
+  save_widget_artifact("ui_box_text_overflow_marker_shown", *canvas);
+
+  // Dragging the marked handle still resizes the box; once every line fits, the plus goes.
+  const auto height_before = editor->property("patchy.documentTextHeight").toInt();
+  const auto grow = std::max(160, editor->property("patchy.documentTextSize").toInt() * 6);
+  editor->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  const auto handle_center = handle->geometry().center();
+  drag(*canvas, handle_center, handle_center + QPoint(0, grow));
+  process_events_for(150);
+  CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == editor);
+  CHECK(editor->property("patchy.documentTextHeight").toInt() >= height_before + grow - 10);
+  CHECK(!editor->property("patchy.textHiddenLines").toBool());
+  handle = bottom_right();
+  CHECK(handle != nullptr); if (!handle) return;
+  CHECK(!handle->property("patchy.textOverflowMarker").toBool());
+  CHECK(!centre_shows_plus(*handle));
+  save_widget_artifact("ui_box_text_overflow_marker_cleared", *canvas);
+
+  // Typing past the new bottom brings it back; deleting that text clears it again.
+  editor->moveCursor(QTextCursor::End);
+  editor->insertPlainText(QStringLiteral("\nFive\nSix\nSeven\nEight\nNine\nTen\nEleven\nTwelve"));
+  process_events_for(150);
+  CHECK(editor->property("patchy.textHiddenLines").toBool());
+  handle = bottom_right();
+  CHECK(handle != nullptr && handle->property("patchy.textOverflowMarker").toBool());
+  editor->setPlainText(QStringLiteral("Short"));
+  process_events_for(150);
+  CHECK(!editor->property("patchy.textHiddenLines").toBool());
+  handle = bottom_right();
+  CHECK(handle != nullptr && !handle->property("patchy.textOverflowMarker").toBool());
+  send_key(*editor, Qt::Key_Escape);
+  process_events_for(100);
+
+  // Re-editing a scripted box whose second line is hidden marks it from the first frame; one
+  // whose story fits never does. No event loop runs between these sessions, so each finds the
+  // previous session's handles still pending deletion (remove_text_editor_handles).
+  run(window,R"JS(
+    var d=app.activeDocument;
+    d.addTextLayer("Let's give this a try\nMy name is Yousuf",{font:'Arial',size:40,x:330,y:40,box:{width:280,height:70}});
+    d.addTextLayer("This fits",{font:'Arial',size:40,x:330,y:260,box:{width:280,height:120}});
+  )JS");
+  QApplication::processEvents();
+  editor = edit_at(QPoint(350, 60));
+  CHECK(editor != nullptr); if (!editor) return;
+  CHECK(editor->property("patchy.documentTextFlow").toString() == QStringLiteral("box"));
+  CHECK(editor->property("patchy.textHiddenLines").toBool());
+  handle = bottom_right();
+  CHECK(handle != nullptr && handle->property("patchy.textOverflowMarker").toBool());
+  if (handle) CHECK(centre_shows_plus(*handle));
+  save_widget_artifact("ui_box_text_overflow_marker_reedit", *canvas);
+  send_key(*editor, Qt::Key_Escape);
+  process_events_for(100);
+  editor = edit_at(QPoint(350, 280));
+  CHECK(editor != nullptr); if (!editor) return;
+  CHECK(!editor->property("patchy.textHiddenLines").toBool());
+  handle = bottom_right();
+  CHECK(handle != nullptr && !handle->property("patchy.textOverflowMarker").toBool());
+  send_key(*editor, Qt::Key_Escape);
+  process_events_for(100);
+}
 }  // namespace
 
 std::vector<patchy::test::TestCase> text_area_tests() {
@@ -570,5 +696,6 @@ std::vector<patchy::test::TestCase> text_area_tests() {
           {"ui_text_area_type_tool_creation_cancel_and_boundary_edit",ui_text_area_type_tool_creation_cancel_and_boundary_edit},
           {"ui_box_text_overflow_hides_lines_below_the_frame",ui_box_text_overflow_hides_lines_below_the_frame},
           {"ui_box_text_overflow_photoshop_story_survives_edit_and_round_trip",
-           ui_box_text_overflow_photoshop_story_survives_edit_and_round_trip}};
+           ui_box_text_overflow_photoshop_story_survives_edit_and_round_trip},
+          {"ui_box_text_overflow_marker_on_bottom_right_handle", ui_box_text_overflow_marker_on_bottom_right_handle}};
 }

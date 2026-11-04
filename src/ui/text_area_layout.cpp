@@ -246,7 +246,10 @@ PhotoshopTextLayoutPlan area_text_layout_plan(const QTextDocument& document, con
       layout->endLayout();
       overflow = line.isValid();
     } while (retry && rows < kMaxRows);
-    if (overflow) break;  // hidden overflow, including following paragraphs
+    if (overflow) {
+      plan.hidden_lines = true;
+      break;  // hidden overflow, including following paragraphs
+    }
     previous_after = std::max(0.0, format.bottomMargin());
   }
   for (const auto& item : plan.lines) {

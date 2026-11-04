@@ -134,12 +134,15 @@ struct BoxTextLineRenderItem {
 struct BoxTextRenderPlan {
   QRectF local_rect;
   std::vector<BoxTextLineRenderItem> lines;
+  // The frame hid one or more lines of the story (the Type tool's overflow marker, issue 631).
+  bool hidden_lines{false};
 };
 
 struct PhotoshopTextLayoutPlan {
   std::vector<BoxTextLineRenderItem> lines;
   QRectF ink_rect;  // union of the repositioned line rects (line-box based, pre-bleed)
   bool valid{false};
+  bool hidden_lines{false};  // an area contour hid part of the story (area_text_layout_plan only)
 };
 
 struct PhotoshopLineMetrics {
@@ -180,18 +183,21 @@ struct PhotoshopLineMetrics {
 // Box text keeps a line only while its BASELINE is inside the frame (Photoshop 2026, Arial
 // 24 px: the second line, baseline 45.98 px below the box top, shows in a 46 px box and hides
 // in a 45 px one; descenders overhang). Every later line hides with it, as the overflow does.
-// Patchy deviates for the story's first line, which always draws: it has no overflow marker,
-// and a text layer with no pixels could not be clicked again (GitHub issue 621).
+// Patchy deviates for the story's first line, which always draws: a text layer with no pixels
+// could not be clicked again (GitHub issue 621). The Type tool marks a box that hides lines on
+// its bottom right handle instead (issue 631).
 [[nodiscard]] bool box_text_line_overflows_frame(qreal line_top, qreal line_ascent, qreal frame_bottom,
                                                  bool first_line);
 
 // Every visible line (box_text_line_overflows_frame against `frame_bottom`) that intersects
 // `gate_rect` from above, clipped with the given bleeds. Whole LINES are gated, never raster
 // rows: a line whose baseline fits draws completely, descenders past the frame included.
+// `hidden_lines`, when given, is set to whether the frame hid any line.
 [[nodiscard]] std::vector<BoxTextLineRenderItem> boxed_text_line_render_items(const QTextDocument& document,
                                                                              QRectF gate_rect, qreal frame_bottom,
                                                                              qreal top_bleed, qreal bottom_bleed,
-                                                                             qreal horizontal_bleed);
+                                                                             qreal horizontal_bleed,
+                                                                             bool* hidden_lines = nullptr);
 
 // `keep_overflow_lines` keeps the lines past the frame too (TextToolSettings::keep_overflow_lines).
 [[nodiscard]] BoxTextRenderPlan boxed_text_render_plan(const QTextDocument& document, const QFont& font,
