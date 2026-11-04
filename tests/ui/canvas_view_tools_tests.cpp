@@ -893,6 +893,24 @@ void ui_selection_options_bars_group_their_controls() {
 #endif
       shot("issue_292_object_selection_options_bar");
     }
+
+    // Content-Aware Move (GitHub issue 599 follow-up 3): its own Mode, Destination and Object
+    // Selection come first, then Feather and Anti-alias as their own group, then Sample.
+    require_action(window, "toolContentAwareMoveAction")->trigger();
+    {
+      const auto tokens = row("toolContentAwareMoveAction");
+      const QString last_own = at(tokens, QStringLiteral("contentAwareMoveObjectSelectionCheck")) >= 0
+                                   ? QStringLiteral("contentAwareMoveObjectSelectionCheck")
+                                   : QStringLiteral("contentAwareMoveDestinationCombo");
+      CHECK(next_to(tokens, QStringLiteral("selectionIntersectModeAction"), separator));
+      CHECK(at(tokens, QStringLiteral("contentAwareMoveModeCombo")) < at(tokens, QStringLiteral("selectionFeatherLabel")));
+      CHECK(next_to(tokens, last_own, separator));
+      CHECK(separated_before(tokens, QStringLiteral("selectionFeatherLabel")));
+      CHECK(next_to(tokens, QStringLiteral("selectionFeatherSpin"), QStringLiteral("selectionAntiAliasCheck")));
+      CHECK(next_to(tokens, QStringLiteral("selectionAntiAliasCheck"), separator));
+      CHECK(at(tokens, QStringLiteral("retouchSampleLayersCombo")) > at(tokens, QStringLiteral("selectionAntiAliasCheck")));
+      shot("issue_599_content_aware_move_options_bar");
+    }
   }
 }
 

@@ -1084,6 +1084,40 @@ void ui_content_aware_move_object_selection_selects_the_object_before_the_move()
     if (auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options")); options_bar != nullptr) {
       save_widget_artifact("ui_content_aware_move_options_bar_object_selection", *options_bar);
     }
+    // Follow-up 3: the tool's own Mode, Destination and Object Selection come before the shared
+    // Feather and Anti-alias on its bar, while the Lasso's Feather and Anti-alias still follow
+    // its mode buttons directly. Reading order: row first (the bar may wrap), then x.
+    {
+      auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+      CHECK(options != nullptr);
+      const auto left_of = [options, &window](const char* name) {
+        auto* widget = window.findChild<QWidget*>(QString::fromLatin1(name));
+        CHECK(widget != nullptr && widget->isVisible());
+        if (widget == nullptr || options == nullptr) {
+          return -1;
+        }
+        const QPoint center = widget->mapTo(options, widget->rect().center());
+        return (center.y() / 30) * 100000 + widget->mapTo(options, QPoint(0, 0)).x();
+      };
+      const int mode = left_of("contentAwareMoveModeCombo");
+      const int destination = left_of("contentAwareMoveDestinationCombo");
+      const int object_selection = left_of("contentAwareMoveObjectSelectionCheck");
+      const int feather = left_of("selectionFeatherSpin");
+      const int anti_alias = left_of("selectionAntiAliasCheck");
+      CHECK(mode >= 0 && mode < destination);
+      CHECK(destination < object_selection);
+      CHECK(object_selection < feather);
+      CHECK(feather < anti_alias);
+      require_action(window, "toolLassoAction")->trigger();
+      QApplication::processEvents();
+      CHECK(!option->isVisible());
+      const int lasso_feather = left_of("selectionFeatherSpin");
+      const int lasso_anti_alias = left_of("selectionAntiAliasCheck");
+      CHECK(lasso_feather >= 0 && lasso_feather < lasso_anti_alias);
+      CHECK(lasso_feather < feather);  // nothing of Content-Aware Move's sits before it now
+      require_action(window, "toolContentAwareMoveAction")->trigger();
+      QApplication::processEvents();
+    }
     option->setChecked(true);
     QApplication::processEvents();
     CHECK(require_canvas(window)->content_aware_move_object_selection());
