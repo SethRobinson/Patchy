@@ -33,9 +33,7 @@
 #include <cstdio>
 #include <algorithm>
 #include <cstring>
-#include <filesystem>
-#include <fstream>
-#include <iterator>
+#include <type_traits>
 #include <string>
 #include <vector>
 
@@ -398,6 +396,48 @@ int run_tcp_mode(const wchar_t* port_text, const wchar_t* token_text) {
   return status;
 }
 
+// Whole-file reads and writes through the C runtime. No iostreams: libc++'s locale
+// layer imports msvcrt functions Raven (Linux, docs/plugins.md) does not provide.
+bool read_file(const wchar_t* path, std::vector<std::uint8_t>& bytes) {
+  FILE* file = _wfopen(path, L"rb");
+  if (file == nullptr) {
+    return false;
+  }
+  std::uint8_t chunk[65536];
+  for (std::size_t got = 0; (got = std::fread(chunk, 1, sizeof(chunk), file)) > 0;) {
+    bytes.insert(bytes.end(), chunk, chunk + got);
+  }
+  std::fclose(file);
+  return true;
+}
+
+bool write_file(const wchar_t* path, const void* data, std::size_t size) {
+  FILE* file = _wfopen(path, L"wb");
+  if (file == nullptr) {
+    return false;
+  }
+  const bool written = std::fwrite(data, 1, size, file) == size;
+  return std::fclose(file) == 0 && written;
+}
+
+// The screen self-test's report, built as text and written once.
+struct Report {
+  std::string text;
+  Report& operator<<(const char* value) {
+    text += value;
+    return *this;
+  }
+  Report& operator<<(char value) {
+    text += value;
+    return *this;
+  }
+  template <typename Number, typename = std::enable_if_t<std::is_integral_v<Number>>>
+  Report& operator<<(Number value) {
+    text += std::to_string(static_cast<long long>(value));
+    return *this;
+  }
+};
+
 int run_self_test(int argc, wchar_t** argv) {
   if (argc < 9) {
     std::fprintf(stderr, "usage: --self-test <plugin.8bf> <entry|-> <in.raw> <out.raw> <width> <height> <planes>\n");
@@ -423,8 +463,8 @@ int run_self_test(int argc, wchar_t** argv) {
   request.case_input_handling = 1;
   request.case_output_handling = 1;
 
-  std::ifstream input(std::filesystem::path(in_path), std::ios::binary);
-  std::vector<std::uint8_t> in_bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+  std::vector<std::uint8_t> in_bytes;
+  (void)read_file(in_path.c_str(), in_bytes);
   const std::size_t expected = static_cast<std::size_t>(request.width) * static_cast<std::size_t>(request.height) *
                                static_cast<std::size_t>(request.planes);
   if (in_bytes.size() != expected) {
@@ -441,9 +481,12 @@ int run_self_test(int argc, wchar_t** argv) {
   RunnerCallbacks callbacks;
   callbacks.should_abort = [] { return false; };
   // Opened first: run_filter makes the plug-in's folder the working directory.
-  std::ofstream output(std::filesystem::path(out_path), std::ios::binary);
+  FILE* output = _wfopen(out_path.c_str(), L"wb");
   const auto result = run_filter(request, image, callbacks);
-  output.write(reinterpret_cast<const char*>(out_bytes.data()), static_cast<std::streamsize>(out_bytes.size()));
+  if (output != nullptr) {
+    std::fwrite(out_bytes.data(), 1, out_bytes.size(), output);
+    std::fclose(output);
+  }
   std::printf("status %d %s\n", static_cast<int>(result.status), result.message.c_str());
   return result.status == kRunOk ? 0 : 1;
 }
@@ -460,7 +503,7 @@ int run_screen_self_test(int argc, wchar_t** argv) {
                                 nullptr);
   install_screen_shim(anchor, _wtoi(argv[2]), _wtoi(argv[3]), L"Self-test via Patchy", /*include_own_module=*/true);
   const RECT screen = screen_shim_rect();
-  std::ofstream report{std::filesystem::path(std::wstring(argv[4]))};
+  Report report;
   report << "virtual " << screen.left << ' ' << screen.top << ' ' << (screen.right - screen.left) << ' '
          << (screen.bottom - screen.top) << '\n';
   report << "metrics " << GetSystemMetrics(SM_CXSCREEN) << ' ' << GetSystemMetrics(SM_CYSCREEN) << '\n';
@@ -565,7 +608,7 @@ int run_screen_self_test(int argc, wchar_t** argv) {
   if (frame != nullptr) {
     DestroyWindow(frame);
   }
-  return report.good() ? 0 : 3;
+  return write_file(argv[4], report.text.data(), report.text.size()) ? 0 : 3;
 }
 
 }  // namespace
