@@ -282,6 +282,9 @@ void ui_startup_opens_empty_workspace_with_start_panel() {
 // used to fill. Clipboard is File > Open from Clipboard: disabled without an image on the
 // clipboard, and a click opens that image as a new document.
 void ui_start_panel_clipboard_button_follows_open_from_clipboard() {
+  // No recent files: the captures show the buttons without any machine's paths.
+  SettingsValueRestorer restore_recent(QStringLiteral("recentFiles"));
+  patchy::ui::app_settings().remove(QStringLiteral("recentFiles"));
   QApplication::clipboard()->clear();
   patchy::ui::MainWindow window;
   show_window_empty(window);
@@ -308,8 +311,24 @@ void ui_start_panel_clipboard_button_follows_open_from_clipboard() {
   CHECK(clipboard_button->text() == QStringLiteral("Clipboard"));
   CHECK(!clipboard_button->toolTip().isEmpty());
   CHECK(clipboard_button->isVisible());
-  CHECK(new_button->geometry().right() < clipboard_button->geometry().left());
-  CHECK(clipboard_button->geometry().right() < open_button->geometry().left());
+  // The three buttons fit the column side by side; checked again below in every language,
+  // Light theme included.
+  const auto check_button_row = [&](const QString& context) {
+    for (auto* button : {new_button, clipboard_button, open_button}) {
+      const auto fits = button->width() >= button->sizeHint().width() &&
+                        column->rect().contains(QRect(button->mapTo(column, QPoint(0, 0)), button->size()));
+      if (!fits) {
+        std::printf("%s: %s is %d px (hint %d) at x %d in a %d px column\n", qPrintable(context),
+                    qPrintable(button->text()), button->width(), button->sizeHint().width(), button->x(),
+                    column->width());
+      }
+      CHECK(fits);
+    }
+    CHECK(new_button->geometry().right() < clipboard_button->geometry().left());
+    CHECK(clipboard_button->geometry().right() < open_button->geometry().left());
+  };
+  QApplication::processEvents();
+  check_button_row(QStringLiteral("en"));
   CHECK(!action->isEnabled());
   CHECK(!clipboard_button->isEnabled());
 
@@ -325,21 +344,20 @@ void ui_start_panel_clipboard_button_follows_open_from_clipboard() {
   CHECK(!clipboard_button->isEnabled());
   save_widget_artifact("ui_start_panel_clipboard_disabled", *panel);
 
-  // The three buttons fit the column, Light theme and a long translation included.
   {
     ColorSchemeRestorer light(patchy::ui::ColorSchemePreference::Light);
     LanguageRestorer restore_language;
-    patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("de"), false);
     QApplication::clipboard()->setImage(image);
-    QApplication::processEvents();
-    for (auto* button : {new_button, clipboard_button, open_button}) {
-      CHECK(button->width() >= button->sizeHint().width());
-      CHECK(button->fontMetrics().horizontalAdvance(button->text()) < button->width());
-      CHECK(column->rect().contains(QRect(button->mapTo(column, QPoint(0, 0)), button->size())));
+    for (const auto& language : patchy::ui::LocalizationManager::instance().languages()) {
+      patchy::ui::LocalizationManager::instance().set_language(language.code, false);
+      // Each nested layout level posts its own LayoutRequest; let the column settle.
+      process_events_for(50);
+      check_button_row(language.code);
+      if (language.code == QStringLiteral("de")) {
+        CHECK(clipboard_button->text() == QStringLiteral("Zwischenablage"));
+        save_widget_artifact("ui_start_panel_clipboard_light_de", *panel);
+      }
     }
-    CHECK(new_button->geometry().right() < clipboard_button->geometry().left());
-    CHECK(clipboard_button->geometry().right() < open_button->geometry().left());
-    save_widget_artifact("ui_start_panel_clipboard_light_de", *panel);
   }
   {
     ColorSchemeRestorer light(patchy::ui::ColorSchemePreference::Light);

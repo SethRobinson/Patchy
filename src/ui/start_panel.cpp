@@ -412,9 +412,9 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
       border: 1px solid @field_border;
       border-radius: 14px;
       color: @text_bright;
-      min-width: 130px;
+      min-width: 84px;
       min-height: 28px;
-      padding: 0 18px;
+      padding: 0 12px;
     }
     QWidget#startPanel QPushButton:hover {
       background: @neutral_button_hover_bg;
