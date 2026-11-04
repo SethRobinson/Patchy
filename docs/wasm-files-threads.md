@@ -133,6 +133,13 @@ Consequences (do not regress):
   `max_blocking_fanout_workers` also clamps worker-thread callers and the
   awaited compute never needs a lazy spawn mid-wait (chained worker
   fan-outs such as the free-transform release otherwise park the tab).
+  The published budget is one process-wide value whose scopes restore the
+  value they replaced, so only the main thread builds one (a scope on a
+  worker thread is inert). A worker that fans out its own workers limits
+  them with the thread-local `ThreadFanoutBudgetScope` instead
+  (`render_document_rects_parallel` gives each a zero budget); the tighter
+  of the two applies. Every blocking fan-out goes through
+  `max_blocking_fanout_workers`, the editable PDF's band flatten included.
 - Main-thread waits suspend in an event loop.
   `wait_for_processing_operation` (canvas_widget_render.cpp) waits in a
   nested QEventLoop woken by a 100 ms poll QTimer on threaded wasm, so

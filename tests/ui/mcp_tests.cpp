@@ -1170,6 +1170,70 @@ void ui_raw_mcp_open_reads_sidecar_without_writing() {
   CHECK(read(path) == QByteArray(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size())));
   connection.disconnect();
 }
+// CONC-01: a canvas processing wait (here a region refresh whose patch render runs on a
+// worker against the live document) pumps timers and posted events. An MCP edit, an
+// MCP undo or a script timer that fired inside it edited the document under the
+// worker. They must wait until the wait ends, then run (docs/ai-control.md#processing-waits).
+void ui_mcp_and_script_timers_wait_out_processing_waits() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  local_script(window, "var d=app.newDocument(200,200); d.addLayer('Face').fill('#bb8844');");
+  auto* canvas = require_canvas(window);
+  canvas->force_refresh();
+  QApplication::processEvents();
+  (void)canvas->grab();
+  until([&] { return canvas->render_settled(); });
+  auto& host = window.script_engine_host();
+  Connection connection(window);
+
+  EnvironmentVariableRestorer overlay_delay("PATCHY_PROCESSING_OVERLAY_DELAY_MS");
+  EnvironmentVariableRestorer render_delay("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS");
+  qputenv("PATCHY_PROCESSING_OVERLAY_DELAY_MS", "0");
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", "250");
+  // Runs one delayed region refresh. Whatever was posted before it is dispatched by
+  // the wait's pump; returns whether the document stayed unchanged across the wait.
+  const auto refresh_keeps_document = [&] {
+    const auto fingerprint = host.automation_fingerprint(false);
+    const auto awaited = canvas->render_cache_diagnostics().awaited_renders;
+    canvas->document_changed(QRect(10, 10, 20, 20));
+    CHECK(canvas->render_cache_diagnostics().awaited_renders > awaited);
+    CHECK(!canvas->processing_operation_active() && !canvas->processing_render_wait_active());
+    return host.automation_fingerprint(false) == fingerprint;
+  };
+
+  // An MCP edit posted before the wait runs after it.
+  const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+  auto state = connection.state();
+  const int edit_id = connection.send("tools/call", {{"name", "execute_script"}, {"arguments", QJsonObject{
+      {"code", "app.activeDocument.activeLayer.fill('#2266cc');"}, {"expectedState", state["stateToken"]}}}});
+  CHECK(refresh_keeps_document());
+  const auto edited = connection.take(edit_id)["result"].toObject();
+  CHECK(!edited["isError"].toBool());
+  CHECK(edited["structuredContent"].toObject()["status"] == "done");
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+
+  // An MCP undo posted before the wait leaves history alone until the wait ends.
+  state = connection.state();
+  const int undo_id = connection.send("tools/call", {{"name", "undo"}, {"arguments", QJsonObject{
+      {"documentId", state["activeDocumentId"]}, {"expectedState", state["stateToken"]}}}});
+  CHECK(refresh_keeps_document());
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(!connection.take(undo_id)["result"].toObject()["isError"].toBool());
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
+
+  // A script timer that comes due during the wait fires once it ends.
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("Timer edit");
+  options.unattended = true;
+  CHECK(host.run_source("setTimeout(function(){ app.activeDocument.activeLayer.fill('#33aa55'); }, 20);", options));
+  CHECK(host.run_active());
+  CHECK(refresh_keeps_document());
+  const auto before_timer = host.automation_fingerprint(false);
+  until([&] { return !host.run_active(); });
+  CHECK(!host.last_run_had_error());
+  CHECK(host.automation_fingerprint(false) != before_timer);
+  connection.disconnect();
+}
 }  // namespace
 
 std::vector<patchy::test::TestCase> mcp_tests() {
@@ -1191,5 +1255,6 @@ std::vector<patchy::test::TestCase> mcp_tests() {
           {"ui_mcp_layer_rows_stay_bounded_during_long_script", ui_mcp_layer_rows_stay_bounded_during_long_script},
           {"ui_script_visible_unattended_stop_and_resize_processing", ui_script_visible_unattended_stop_and_resize_processing},
           {"ui_mcp_visible_idle_save_prompts_and_window_close", ui_mcp_visible_idle_save_prompts_and_window_close},
-          {"ui_mcp_hidden_workspace_keeps_unattended_policy", ui_mcp_hidden_workspace_keeps_unattended_policy}};
+          {"ui_mcp_hidden_workspace_keeps_unattended_policy", ui_mcp_hidden_workspace_keeps_unattended_policy},
+          {"ui_mcp_and_script_timers_wait_out_processing_waits", ui_mcp_and_script_timers_wait_out_processing_waits}};
 }

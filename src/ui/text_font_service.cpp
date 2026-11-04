@@ -564,16 +564,21 @@ QFontDatabase::WritingSystem writing_system_for_character(QChar character) {
 // Whether the font database holds at least one family that can draw `system`. A "yes" is
 // cached for the process: application fonts are only ever added, never removed, so it cannot go
 // stale, while a "no" is asked again in case a later registration (the registry rescue, a user
-// font) filled the gap.
+// font) filled the gap. Locked: the editable-PDF save worker draws text too.
 bool writing_system_has_any_family(QFontDatabase::WritingSystem system) {
   static QSet<int> covered;
+  static QMutex covered_mutex;
   const auto key = static_cast<int>(system);
-  if (covered.contains(key)) {
-    return true;
+  {
+    const QMutexLocker lock(&covered_mutex);
+    if (covered.contains(key)) {
+      return true;
+    }
   }
   if (QFontDatabase::families(system).isEmpty()) {
     return false;
   }
+  const QMutexLocker lock(&covered_mutex);
   covered.insert(key);
   return true;
 }
@@ -992,17 +997,17 @@ bool ensure_headless_system_fonts_loaded() {
       !qEnvironmentVariableIsSet("PATCHY_HEADLESS")) {
     return false;
   }
-  static bool loaded = false;
-  if (loaded) {
-    return false;
-  }
-  loaded = true;
+  // Once per process, from whichever thread asks first (a PDF save worker can); a concurrent
+  // caller waits for the load, so it never resolves against a half-filled database.
+  static std::once_flag loaded;
   bool added = false;
-  for (const auto& entry : windows_registry_fonts()) {
-    if (QFileInfo::exists(entry.file) && QFontDatabase::addApplicationFont(entry.file) >= 0) {
-      added = true;
+  std::call_once(loaded, [&added] {
+    for (const auto& entry : windows_registry_fonts()) {
+      if (QFileInfo::exists(entry.file) && QFontDatabase::addApplicationFont(entry.file) >= 0) {
+        added = true;
+      }
     }
-  }
+  });
   return added;
 #else
   return false;
@@ -1038,7 +1043,11 @@ bool try_register_missing_system_font_family(const QString& family) {
   if (offscreen) {
     return ensure_headless_system_fonts_loaded();
   }
+  // Held through the registration so a second thread asking for the same family (the PDF save
+  // worker and the GUI thread) waits for it instead of resolving before the files are added.
   static QSet<QString> attempted;
+  static QMutex attempted_mutex;
+  const QMutexLocker lock(&attempted_mutex);
   const auto key = requested.toLower();
   if (attempted.contains(key)) {
     return false;

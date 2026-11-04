@@ -457,6 +457,13 @@ bool ScriptEngineHost::call_script_callback(QJSValue callback, const QJSValueLis
     // arm and interrupt flag.
     return false;
   }
+  if (document_processing_wait_active()) {
+    // A canvas processing wait is pumping events while a worker composites or
+    // copies the live document; a callback edit now would race that worker
+    // (docs/ai-control.md#processing-waits). Frame callbacks simply run on the
+    // next tick; timers re-arm in their own slot.
+    return false;
+  }
   run_->in_callback = true;
   run_->burst_clock.restart();  // busy indicator measures this burst alone
   watchdog_->arm(watchdog_timeout());
@@ -828,6 +835,19 @@ int ScriptEngineHost::scriptSetTimer(const QJSValue& callback, int interval_ms, 
         const auto found = run_->timers.find(id);
         if (found != run_->timers.end()) {
           found->second->start(0);
+        }
+      }
+      return;
+    }
+    if (document_processing_wait_active()) {
+      // A canvas processing wait pumps timers while a worker reads the live
+      // document (docs/ai-control.md#processing-waits): hold this tick until the
+      // wait ends. A single-shot re-arms a frame later so it neither runs inside
+      // the wait nor spins the wait's pump; a repeating timer fires again on schedule.
+      if (!repeat) {
+        const auto found = run_->timers.find(id);
+        if (found != run_->timers.end()) {
+          found->second->start(16);
         }
       }
       return;

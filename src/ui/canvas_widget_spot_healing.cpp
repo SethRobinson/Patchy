@@ -593,7 +593,8 @@ QRect CanvasWidget::heal_mask_from_surroundings(QRect bounds, const std::vector<
   // copy-on-write storage concurrently (the undo snapshot shares it until the
   // first mutation), each strip copying the bytes while another strip's
   // replacement frees them. The span is taken right before the write, after
-  // the last event pump, so nothing pumped can have re-shared the bytes.
+  // the last event pump, and the sequential walk re-takes it after each of its
+  // progress ticks, so nothing pumped can have re-shared the bytes.
   std::span<std::uint8_t> pixel_bytes;
   const auto stride = pixels.stride_bytes();
 
@@ -641,6 +642,10 @@ QRect CanvasWidget::heal_mask_from_surroundings(QRect bounds, const std::vector<
     for (int y = row_begin; y < row_end; ++y) {
       if (allow_ticks) {
         tick_processing_operation();
+        // The tick can pump events, and whatever ran may have copied the document
+        // (a render or recovery snapshot) and re-shared these bytes: re-take the
+        // span, detaching again on this thread. Only the sequential walk ticks.
+        pixel_bytes = pixels.data();
       }
       for (int x = 0; x < width; ++x) {
         const auto index = static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
@@ -902,14 +907,19 @@ QRect CanvasWidget::finish_healing_brush_stroke() {
   const auto stride = pixels.stride_bytes();
   const auto& original_pixels = std::as_const(*original);
   const auto original_rect = to_qrect(original_bounds);
-  // Writes go through this span only (taken after the last event pump; see
-  // heal_mask_from_surroundings for the copy-on-write rule).
+  // Writes go through this span only (taken after the last event pump and
+  // re-taken after each sequential tick; see heal_mask_from_surroundings for
+  // the copy-on-write rule).
   std::span<std::uint8_t> pixel_bytes;
   const auto heal_rows = [&](int row_begin, int row_end, bool allow_ticks) {
     QRect dirty;
     for (int y = row_begin; y < row_end; ++y) {
       if (allow_ticks) {
         tick_processing_operation();
+        // The tick can pump events, and whatever ran may have copied the document
+        // (a render or recovery snapshot) and re-shared these bytes: re-take the
+        // span, detaching again on this thread. Only the sequential walk ticks.
+        pixel_bytes = pixels.data();
       }
       for (int x = footprint.left(); x <= footprint.right(); ++x) {
         const auto index = cell_index(x - grid.left(), y - grid.top());

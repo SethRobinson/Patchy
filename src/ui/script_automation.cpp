@@ -183,6 +183,10 @@ bool ScriptEngineHost::automation_ready() const {
   return !run_active() && !QApplication::activeModalWidget() && !manual_edit_in_progress();
 }
 
+bool ScriptEngineHost::document_processing_wait_active() const {
+  return window_.document_processing_wait_active();
+}
+
 bool ScriptEngineHost::manual_edit_in_progress() const {
   return window_.preview_dialog_edit_locked() || window_.any_canvas_interaction_active();
 }

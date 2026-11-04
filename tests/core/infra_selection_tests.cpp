@@ -9,6 +9,7 @@
 #include "core/quick_select.hpp"
 #include "core/selection_modify.hpp"
 #include "core/spot_heal.hpp"
+#include "core/worker_budget.hpp"
 #include "render/tile_cache.hpp"
 #include "support/cli_flags.hpp"
 #include "support/startup_trace.hpp"
@@ -17,6 +18,7 @@
 #include "remove_object_fixture.hpp"
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <bit>
 #include <cctype>
 #include <chrono>
@@ -38,6 +40,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <tuple>
 #include <unordered_set>
 #include <utility>
@@ -1665,10 +1668,68 @@ void selection_feather_softens_by_radius() {
   CHECK(std::equal(again.data().begin(), again.data().end(), five.data().begin()));
 }
 
+
+// CONC-03: a ThreadFanoutBudgetScope limits only its own thread, so worker threads can build
+// them concurrently without touching the main thread's published BlockingFanoutBudgetScope.
+void worker_budget_thread_scopes_stay_on_their_thread() {
+  CHECK(patchy::current_blocking_fanout_budget() == -1);
+  std::atomic<int> finished{0};
+  std::atomic<int> wrong{0};
+  const auto worker = [&](int budget) {
+    for (int round = 0; round < 5000; ++round) {
+      const patchy::ThreadFanoutBudgetScope outer(budget);
+      {
+        const patchy::ThreadFanoutBudgetScope looser(budget + 4);  // nesting keeps the tighter value
+        if (patchy::current_blocking_fanout_budget() != budget) {
+          ++wrong;
+        }
+      }
+      if (patchy::current_blocking_fanout_budget() != budget) {
+        ++wrong;
+      }
+    }
+    if (patchy::current_blocking_fanout_budget() != -1) {
+      ++wrong;
+    }
+    ++finished;
+  };
+  std::thread first(worker, 0);
+  std::thread second(worker, 2);
+  while (finished.load() < 2) {
+    if (patchy::current_blocking_fanout_budget() != -1) {  // the main thread never sees theirs
+      ++wrong;
+    }
+  }
+  first.join();
+  second.join();
+  CHECK(wrong.load() == 0);
+  CHECK(patchy::current_blocking_fanout_budget() == -1);
+
+  {
+    const patchy::BlockingFanoutBudgetScope published(5);
+    CHECK(patchy::current_blocking_fanout_budget() == 5);
+    int seen_plain = 0;
+    int seen_scoped = 0;
+    std::thread plain([&] { seen_plain = patchy::current_blocking_fanout_budget(); });
+    std::thread scoped([&] {
+      const patchy::ThreadFanoutBudgetScope local(2);
+      seen_scoped = patchy::current_blocking_fanout_budget();
+    });
+    plain.join();
+    scoped.join();
+    CHECK(seen_plain == 5);
+    CHECK(seen_scoped == 2);
+    const patchy::BlockingFanoutBudgetScope inert(-1);
+    CHECK(patchy::current_blocking_fanout_budget() == 5);
+  }
+  CHECK(patchy::current_blocking_fanout_budget() == -1);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> infra_selection_tests() {
   return {
+      {"worker_budget_thread_scopes_stay_on_their_thread", worker_budget_thread_scopes_stay_on_their_thread},
       {"plugin_host_and_legacy_probe_work", plugin_host_and_legacy_probe_work},
       {"tile_cache_stores_and_invalidates", tile_cache_stores_and_invalidates},
       {"color_manager_assigns_profiles", color_manager_assigns_profiles},

@@ -690,7 +690,8 @@ void CanvasWidget::write_patch_heal(Layer& layer, QRect bounds, const std::vecto
   // copy-on-write storage concurrently (the undo snapshot shares it until the
   // first mutation), each strip copying the bytes while another strip's
   // replacement frees them. The span is taken right before the write, after
-  // the last event pump, so nothing pumped can have re-shared the bytes.
+  // the last event pump, and the sequential walk re-takes it after each of its
+  // progress ticks, so nothing pumped can have re-shared the bytes.
   std::span<std::uint8_t> pixel_bytes;
   const auto stride = pixels.stride_bytes();
   const auto* palette_snap = palette_snap_for_edits();
@@ -853,6 +854,10 @@ void CanvasWidget::write_patch_heal(Layer& layer, QRect bounds, const std::vecto
     for (int y = row_begin; y < row_end; ++y) {
       if (allow_ticks) {
         tick_processing_operation();
+        // The tick can pump events, and whatever ran may have copied the document
+        // (a render or recovery snapshot) and re-shared these bytes: re-take the
+        // span, detaching again on this thread. Only the sequential walk ticks.
+        pixel_bytes = pixels.data();
       }
       for (int x = destination_bounds.left(); x <= destination_bounds.right(); ++x) {
         const QPoint document_point(x, y);

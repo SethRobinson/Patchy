@@ -5212,6 +5212,10 @@ void MainWindow::run_save_write(const QString& path, bool on_worker, bool show_p
     }
   });
   Q_UNUSED(close_dialog);
+  // The pump below dispatches timers and posted events mid-write: automation holds off
+  // until the save is done (document_processing_wait_active).
+  ++save_write_pumps_active_;
+  const auto release_pump_hold = qScopeGuard([this] { --save_write_pumps_active_; });
 #if defined(Q_OS_WASM)
   // A browser main thread must not spin on a future (see the open path); write here.
   on_worker = false;

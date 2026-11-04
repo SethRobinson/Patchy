@@ -1202,22 +1202,24 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
 }
 
 // Renders each rect as its own render_document_rect call across a small
-// worker pool (result order preserved by index). The published zero budget
-// stops workers from nesting their own blocking fan-out, which the wasm
-// pthread pool cannot stack (native ignores the budget).
+// worker pool (result order preserved by index). Each worker's thread-local
+// zero budget stops it from nesting its own blocking fan-out, which the wasm
+// pthread pool cannot stack (native ignores the budget). Thread-local because
+// this runs on worker threads too (a processing wait's patch render): a
+// published BlockingFanoutBudgetScope here raced other threads' scopes.
 std::vector<QImage> render_document_rects_parallel(const Document& document, const std::vector<QRect>& rects,
                                                    bool preserve_alpha,
                                                    const std::vector<render_detail::LayerBoundsOverride>* overrides,
                                                    int worker_budget) {
   std::vector<QImage> images(rects.size());
   std::atomic<std::size_t> next_rect{0};
-  BlockingFanoutBudgetScope nested_budget(0);
   const auto worker_count = std::min<std::size_t>(static_cast<std::size_t>(std::max(1, worker_budget)), rects.size());
   std::vector<std::future<void>> jobs;
   jobs.reserve(worker_count);
   for (std::size_t worker = 0; worker < worker_count; ++worker) {
     jobs.push_back(
         std::async(std::launch::async, [&document, &rects, &images, &next_rect, preserve_alpha, overrides] {
+          const ThreadFanoutBudgetScope no_nested_fanout(0);
           while (true) {
             const auto index = next_rect.fetch_add(1, std::memory_order_relaxed);
             if (index >= rects.size()) {

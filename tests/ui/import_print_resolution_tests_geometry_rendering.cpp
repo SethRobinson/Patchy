@@ -4,6 +4,7 @@
 #include "core/layer_metadata.hpp"
 #include "ui/dialog_utils.hpp"
 #include "formats/pdf_file.hpp"
+#include "core/worker_budget.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
 #include "ui/app_settings.hpp"
@@ -49,6 +50,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 #include "ui_test_access.hpp"
@@ -1455,6 +1457,46 @@ void ui_qimage_layer_bounds_override_moves_linked_masks_only() {
   }
 }
 
+
+// CONC-03: a multi-rect region render fans out across workers, and it runs on worker threads
+// too (a processing wait's patch render). It used to publish the process-wide fan-out budget
+// from there, so two overlapping renders restored each other's values out of order and could
+// leave a zero budget published for good. Two threads render at once; afterwards nothing is
+// published, and every patch matches the full render.
+void ui_parallel_region_renders_on_two_threads_leave_no_fanout_budget() {
+  patchy::Document document(1600, 1400, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(1600, 1400, patchy::PixelFormat::rgba8(), QColor(40, 120, 200)));
+  document.add_pixel_layer("Top",
+                           solid_pixels(1600, 1400, patchy::PixelFormat::rgba8(), QColor(220, 60, 30, 160)));
+  // Two rects of 1600x400 each: over the 1 Mpx gate for the parallel per-rect path.
+  QRegion region(QRect(0, 0, 1600, 400));
+  region += QRect(0, 900, 1600, 400);
+  const auto full = patchy::ui::qimage_from_document(document, true);
+  CHECK(patchy::current_blocking_fanout_budget() == -1);
+  std::atomic<int> mismatches{0};
+  const auto render_many = [&] {
+    for (int round = 0; round < 12; ++round) {
+      const auto patches = patchy::ui::qimage_patches_from_document_region(document, region, true);
+      if (patches.size() != 2U) {
+        ++mismatches;
+        continue;
+      }
+      for (const auto& patch : patches) {
+        if (!images_equal_rgba(patch.image, full.copy(patch.document_rect))) {
+          ++mismatches;
+        }
+      }
+    }
+  };
+  std::thread first(render_many);
+  std::thread second(render_many);
+  first.join();
+  second.join();
+  CHECK(mismatches.load() == 0);
+  CHECK(patchy::current_blocking_fanout_budget() == -1);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> import_print_resolution_tests_part3() {
@@ -1479,5 +1521,7 @@ std::vector<patchy::test::TestCase> import_print_resolution_tests_part3() {
       {"ui_qimage_region_render_matches_full_layer_styles", ui_qimage_region_render_matches_full_layer_styles},
       {"ui_qimage_region_render_matches_full_with_clipping", ui_qimage_region_render_matches_full_with_clipping},
       {"ui_qimage_layer_bounds_override_moves_linked_masks_only", ui_qimage_layer_bounds_override_moves_linked_masks_only},
+      {"ui_parallel_region_renders_on_two_threads_leave_no_fanout_budget",
+       ui_parallel_region_renders_on_two_threads_leave_no_fanout_budget},
   };
 }

@@ -1123,6 +1123,75 @@ void ui_remove_object_heals_selection_and_cycles_sources() {
 // corruption at exit). A Document copy stands in for the snapshot; the passes
 // repeat so a racy interleaving gets its chances, and every pass must heal the
 // marked block back to the base color while the copy keeps its own bytes.
+// CONC-05: the sequential heal walk ticks the progress overlay every row, and a tick pumps
+// events. Something pumped can copy the document (a render or recovery snapshot), which
+// re-shares the layer bytes with the copy; a span taken before the tick then wrote the
+// remaining rows into the copy too. A timer copies the document from inside the ticks: every
+// copy must keep the bytes it had when it was taken.
+void ui_remove_object_sequential_heal_detaches_after_each_tick() {
+  EnvironmentVariableRestorer threads("PATCHY_RENDER_SINGLE_THREADED");
+  EnvironmentVariableRestorer overlay_delay("PATCHY_PROCESSING_OVERLAY_DELAY_MS");
+  qputenv("PATCHY_RENDER_SINGLE_THREADED", "1");
+  qputenv("PATCHY_PROCESSING_OVERLAY_DELAY_MS", "0");
+  patchy::Document document(1024, 768, patchy::PixelFormat::rgba8());
+  auto& layer = document.add_pixel_layer(
+      "Object", solid_pixels(1024, 768, patchy::PixelFormat::rgba8(), QColor(40, 80, 120, 255)));
+  for (std::int32_t y = 300; y < 340; ++y) {
+    for (std::int32_t x = 400; x < 460; ++x) {
+      auto* px = layer.pixels().pixel(x, y);
+      px[0] = 230;
+      px[1] = 230;
+      px[2] = 230;
+    }
+  }
+  const auto layer_id = layer.id();
+  const auto layer_bytes = [layer_id](const patchy::Document& from) {
+    const auto& pixels = std::as_const(from).find_layer(layer_id)->pixels();
+    QByteArray bytes;
+    for (int y = 0; y < pixels.height(); ++y) {
+      const auto row = pixels.row(y);
+      bytes.append(reinterpret_cast<const char*>(row.data()), static_cast<qsizetype>(row.size()));
+    }
+    return bytes;
+  };
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(512, 384);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Marquee);
+  canvas.show();
+  QApplication::processEvents();
+  select_document_rect(canvas, QRect(100, 100, 700, 400));
+
+  struct MidHealCopy {
+    std::unique_ptr<patchy::Document> document;
+    QByteArray bytes;
+  };
+  std::vector<MidHealCopy> copies;
+  QTimer copier;
+  copier.setInterval(2);
+  QObject::connect(&copier, &QTimer::timeout, &canvas, [&] {
+    if (!canvas.processing_overlay_visible() || copies.size() >= 6U) {
+      return;
+    }
+    auto copy = std::make_unique<patchy::Document>(document);  // shares the layer bytes
+    auto bytes = layer_bytes(*copy);
+    copies.push_back(MidHealCopy{std::move(copy), std::move(bytes)});
+  });
+  copier.start();
+  const auto result = canvas.remove_object_in_selection(RemoveObjectMethod::NearestEdge, 0);
+  copier.stop();
+  CHECK(result.applied);
+  CHECK(copies.size() >= 2U);
+  for (const auto& copy : copies) {
+    CHECK(layer_bytes(*copy.document) == copy.bytes);
+  }
+  for (const auto point : {QPoint(400, 300), QPoint(430, 320), QPoint(459, 339)}) {
+    const auto* healed = std::as_const(layer).pixels().pixel(point.x(), point.y());
+    CHECK(healed[0] == 40 && healed[1] == 80 && healed[2] == 120 && healed[3] == 255);
+  }
+}
+
 void ui_remove_object_parallel_heal_detaches_shared_pixels() {
   patchy::Document document(1024, 768, patchy::PixelFormat::rgba8());
   auto& layer = document.add_pixel_layer(
@@ -3152,6 +3221,8 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part2() {
       {"ui_remove_object_banner_variations_tone_and_feather", ui_remove_object_banner_variations_tone_and_feather},
       {"ui_remove_object_parallel_heal_detaches_shared_pixels",
        ui_remove_object_parallel_heal_detaches_shared_pixels},
+      {"ui_remove_object_sequential_heal_detaches_after_each_tick",
+       ui_remove_object_sequential_heal_detaches_after_each_tick},
       {"ui_patch_tool_enter_removes_object", ui_patch_tool_enter_removes_object},
       {"ui_patch_tool_source_drag_heals_region_on_release",
        ui_patch_tool_source_drag_heals_region_on_release},
