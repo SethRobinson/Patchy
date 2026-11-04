@@ -3806,7 +3806,7 @@ void MainWindow::import_from_scanner() {
     return;
   }
 
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
   if (scanner_import_active_) {
     return;
   }
@@ -3846,6 +3846,12 @@ void MainWindow::finish_scanner_import(ScannerAcquireResult result, bool delete_
       show_information_message(
           this, tr("Import from Scanner"),
           tr("No scanner or camera was found. Connect a WIA-compatible device and try again."),
+          QStringLiteral("scannerNoDeviceMessageBox"));
+#elif defined(Q_OS_LINUX)
+      show_information_message(
+          this, tr("Import from Scanner"),
+          tr("No scanner or camera was found. Connect a scanner supported by SANE or a camera "
+             "supported by gphoto2 and try again."),
           QStringLiteral("scannerNoDeviceMessageBox"));
 #else
       show_information_message(
@@ -3898,7 +3904,7 @@ void MainWindow::photocopy_from_scanner() {
     return;
   }
 
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
   if (scanner_import_active_) {
     return;
   }
@@ -3938,6 +3944,12 @@ void MainWindow::finish_photocopy_scan(ScannerAcquireResult result, bool delete_
       show_information_message(
           this, tr("Photocopy"),
           tr("No scanner or camera was found. Connect a WIA-compatible device and try again."),
+          QStringLiteral("scannerNoDeviceMessageBox"));
+#elif defined(Q_OS_LINUX)
+      show_information_message(
+          this, tr("Photocopy"),
+          tr("No scanner or camera was found. Connect a scanner supported by SANE or a camera "
+             "supported by gphoto2 and try again."),
           QStringLiteral("scannerNoDeviceMessageBox"));
 #else
       show_information_message(
@@ -3987,7 +3999,7 @@ void MainWindow::import_and_divide_from_scanner() {
     return;
   }
 
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
   if (scanner_import_active_) {
     return;
   }
@@ -4034,6 +4046,12 @@ bool MainWindow::finish_divide_scanner_import(ScannerAcquireResult result, bool 
       show_information_message(
           this, tr("Divide Scanned Photos"),
           tr("No scanner or camera was found. Connect a WIA-compatible device and try again."),
+          QStringLiteral("scannerNoDeviceMessageBox"));
+#elif defined(Q_OS_LINUX)
+      show_information_message(
+          this, tr("Divide Scanned Photos"),
+          tr("No scanner or camera was found. Connect a scanner supported by SANE or a camera "
+             "supported by gphoto2 and try again."),
           QStringLiteral("scannerNoDeviceMessageBox"));
 #else
       show_information_message(

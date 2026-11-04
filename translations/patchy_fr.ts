@@ -15017,6 +15017,82 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Windows Image Acquisition is unavailable (%1)</source>
         <translation>Windows Image Acquisition n&apos;est pas disponible (%1)</translation>
     </message>
+    <message>
+        <source>Scanner: %1</source>
+        <translation>Scanner : %1</translation>
+    </message>
+    <message>
+        <source>Camera: %1</source>
+        <translation>Appareil photo : %1</translation>
+    </message>
+    <message>
+        <source>The scanner could not be opened (%1)</source>
+        <translation>Impossible d&apos;ouvrir le scanner (%1)</translation>
+    </message>
+    <message>
+        <source>The camera could not be opened (%1)</source>
+        <translation>Impossible d&apos;ouvrir l&apos;appareil photo (%1)</translation>
+    </message>
+    <message>
+        <source>The camera image could not be downloaded (%1)</source>
+        <translation>Impossible de télécharger l&apos;image de l&apos;appareil photo (%1)</translation>
+    </message>
+    <message>
+        <source>Device:</source>
+        <translation>Périphérique :</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>Résolution :</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Mode :</translation>
+    </message>
+    <message>
+        <source>Source:</source>
+        <translation>Source :</translation>
+    </message>
+    <message>
+        <source>Searching for scanners and cameras...</source>
+        <translation>Recherche de scanners et d&apos;appareils photo...</translation>
+    </message>
+    <message>
+        <source>Reading the camera...</source>
+        <translation>Lecture de l&apos;appareil photo...</translation>
+    </message>
+    <message>
+        <source>Opening the scanner...</source>
+        <translation>Ouverture du scanner...</translation>
+    </message>
+    <message>
+        <source>No images were found on the camera.</source>
+        <translation>Aucune image n&apos;a été trouvée sur l&apos;appareil photo.</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 ppp</translation>
+    </message>
+    <message>
+        <source>Import</source>
+        <translation>Importer</translation>
+    </message>
+    <message>
+        <source>Scan</source>
+        <translation>Numériser</translation>
+    </message>
+    <message>
+        <source>Downloading from the camera...</source>
+        <translation>Téléchargement depuis l&apos;appareil photo...</translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation>Numérisation...</translation>
+    </message>
+    <message>
+        <source>Scanning needs SANE (for scanners) or libgphoto2 (for cameras). Install them from your distribution and try again.</source>
+        <translation>La numérisation nécessite SANE (pour les scanners) ou libgphoto2 (pour les appareils photo). Installez-les depuis votre distribution et réessayez.</translation>
+    </message>
 </context>
 <context>
     <name>ScriptFolders</name>
@@ -32483,6 +32559,10 @@ Verrouillé : %1</translation>
     <message>
         <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
         <translation>Une fois un nouveau contour tracé, sélectionne l&apos;objet qu&apos;il contient, l&apos;agrandit de quelques pixels et applique le contour progressif avant le glissement</translation>
+    </message>
+    <message>
+        <source>No scanner or camera was found. Connect a scanner supported by SANE or a camera supported by gphoto2 and try again.</source>
+        <translation>Aucun scanner ni appareil photo n&apos;a été trouvé. Connectez un scanner pris en charge par SANE ou un appareil photo pris en charge par gphoto2, puis réessayez.</translation>
     </message>
 </context>
 <context>

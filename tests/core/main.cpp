@@ -169,6 +169,7 @@ int main(int argc, char** argv) {
            flat_formats_bmp_tests,
            raw_heif_tests,
            jxr_tests,
+           scan_frame_tests,
            rttex_tests,
            dds_tests,
            ora_tests,

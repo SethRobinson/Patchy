@@ -172,8 +172,8 @@ void ui_file_import_menu_actions_registered() {
   CHECK(import_menu != nullptr);
   auto* scanner_action = window.findChild<QAction*>(QStringLiteral("fileImportScannerAction"));
   auto* photocopy_action = window.findChild<QAction*>(QStringLiteral("fileImportPhotocopyAction"));
-#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
-  // Native scanner acquisition exists on Windows and macOS and keeps one persisted id.
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS) || defined(Q_OS_LINUX)
+  // Native scanner acquisition exists on Windows, macOS and Linux and keeps one persisted id.
   CHECK(scanner_action != nullptr);
   CHECK(import_menu->actions().contains(scanner_action));
   const auto* scanner_command = window.hotkey_registry().find_command(QStringLiteral("file.import_scanner"));

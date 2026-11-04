@@ -14972,6 +14972,82 @@ Each item&apos;s own View setting still applies.</source>
         <source>Windows Image Acquisition is unavailable (%1)</source>
         <translation>Windows 이미지 획득을 사용할 수 없습니다(%1)</translation>
     </message>
+    <message>
+        <source>Scanner: %1</source>
+        <translation>스캐너: %1</translation>
+    </message>
+    <message>
+        <source>Camera: %1</source>
+        <translation>카메라: %1</translation>
+    </message>
+    <message>
+        <source>The scanner could not be opened (%1)</source>
+        <translation>스캐너를 열 수 없습니다 (%1)</translation>
+    </message>
+    <message>
+        <source>The camera could not be opened (%1)</source>
+        <translation>카메라를 열 수 없습니다 (%1)</translation>
+    </message>
+    <message>
+        <source>The camera image could not be downloaded (%1)</source>
+        <translation>카메라 이미지를 다운로드할 수 없습니다 (%1)</translation>
+    </message>
+    <message>
+        <source>Device:</source>
+        <translation>장치:</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>해상도:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>모드:</translation>
+    </message>
+    <message>
+        <source>Source:</source>
+        <translation>소스:</translation>
+    </message>
+    <message>
+        <source>Searching for scanners and cameras...</source>
+        <translation>스캐너와 카메라를 찾는 중...</translation>
+    </message>
+    <message>
+        <source>Reading the camera...</source>
+        <translation>카메라를 읽는 중...</translation>
+    </message>
+    <message>
+        <source>Opening the scanner...</source>
+        <translation>스캐너를 여는 중...</translation>
+    </message>
+    <message>
+        <source>No images were found on the camera.</source>
+        <translation>카메라에서 이미지를 찾을 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 dpi</translation>
+    </message>
+    <message>
+        <source>Import</source>
+        <translation>가져오기</translation>
+    </message>
+    <message>
+        <source>Scan</source>
+        <translation>스캔</translation>
+    </message>
+    <message>
+        <source>Downloading from the camera...</source>
+        <translation>카메라에서 다운로드하는 중...</translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation>스캔하는 중...</translation>
+    </message>
+    <message>
+        <source>Scanning needs SANE (for scanners) or libgphoto2 (for cameras). Install them from your distribution and try again.</source>
+        <translation>스캔하려면 SANE(스캐너용) 또는 libgphoto2(카메라용)가 필요합니다. 배포판에서 설치한 후 다시 시도하세요.</translation>
+    </message>
 </context>
 <context>
     <name>ScriptFolders</name>
@@ -32399,6 +32475,10 @@ Locked: %1</source>
     <message>
         <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
         <translation>새 윤곽선을 다 그리면 그 안의 개체를 선택하고 몇 픽셀 확장한 뒤 페더를 적용한 다음 드래그합니다</translation>
+    </message>
+    <message>
+        <source>No scanner or camera was found. Connect a scanner supported by SANE or a camera supported by gphoto2 and try again.</source>
+        <translation>스캐너나 카메라를 찾을 수 없습니다. SANE을 지원하는 스캐너나 gphoto2를 지원하는 카메라를 연결한 후 다시 시도하세요.</translation>
     </message>
 </context>
 <context>

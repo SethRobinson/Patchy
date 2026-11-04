@@ -4788,7 +4788,7 @@ void ui_command_search_lists_tools_keys_and_descriptions() {
 #else
         QStringLiteral("pluginsLegacyWindowsOnlyNote"),
 #endif
-#if !defined(Q_OS_WIN) && !defined(Q_OS_MACOS)
+#if !defined(Q_OS_WIN) && !defined(Q_OS_MACOS) && !defined(Q_OS_LINUX)
         QStringLiteral("file.import_scanner"), QStringLiteral("file.import_photocopy"),
         QStringLiteral("file.import_divide_photos"),
 #endif

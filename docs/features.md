@@ -36,7 +36,7 @@
 - Filter Gallery with live full-resolution preview, stacks, favorites and Saved Looks; Stylize and Render add angled Wind, Tiles, Extrude, Solarize, Find Edges, Trace Contour, Diffuse, Fibers, Difference Clouds, Lens Flare and Flame (14 presets, path mode); Liquify with warp, twirl, pucker, bloat and freeze brushes
 - Perspective Planes: put layers, pastes and paint on flat surfaces in perspective
 - Photoshop-compatible document resolution, physical measurement units, rulers, image sizing and printing
-- Pen/stylus pressure and size dynamics, GUI scaling, scanner import (Windows and macOS), camera import (Windows) and command line options
+- Pen/stylus pressure and size dynamics, GUI scaling, scanner import (desktop builds), camera import (Windows, Linux) and command line options
 
 ## Vectors and typography
 
@@ -68,7 +68,7 @@
 - Multiple document interface: tabs that can float in their own windows, Tile and Cascade, a Window menu of open documents, and layers that drag or duplicate between documents. Opening a file that is already open switches to its tab; File > Revert (F12) reloads it. Open a folder of images as tabs (or drop it on the window); export every open document as a numbered image set to a folder
 - New Document templates in seven groups (screens, phones and tablets, social, web and ads, print paper, photo prints, icons and game art) showing paper sizes in mm or inches, a search across groups, a document name, color mode and bit depth (8 by default), an optional empty layer above the Background, and saved presets
 - Import multiple files as layers, preserving a layered file's contents in a group, through File > Import, a drop on the Layers panel, or pasted files. Paste a path copied as text to open it (Paste in Place: as a layer)
-- Scan and Divide Photos splits prints into images with editable crop regions, straightening and perspective correction. Divide an existing scan or photo too; scanner acquisition and the scanner-to-printer Photocopy command are available on Windows and macOS
+- Scan and Divide Photos splits prints into images with editable crop regions, straightening and perspective correction. Divide an existing scan or photo too; scanner acquisition and the scanner-to-printer Photocopy command run on every desktop build
 - Automatic document recovery saves copies of modified documents at a set interval and reopens them after a crash
 - Export for Web: JPEG, JPEG XL, WebP, AVIF, PNG/APNG, GIF, live sizes, 4-up view, presets
 - Reads and writes PSD/PSB, [PDF](#pdf-documents), PNG, JPEG (12-bit files open at 16 bits), TIFF, WebP, BMP, TGA, GIF, PCX, Amiga IFF/LBM, Windows icons and cursors (ICO/CUR), OpenRaster (.ora), Aseprite files, JPEG XL (.jxl, 16/32-bit stills and animation), JPEG 2000 (.jp2), OpenEXR (.exr), Radiance HDR (.hdr/.rgbe), AVIF (desktop), JPEG XR (.jxr, Windows), Proton SDK textures (.rttex), DDS textures (.dds: reads BC1 to BC7, cubemaps, arrays and mipmaps; writes uncompressed, DXT1, DXT5, BC4, BC5 or BC7, mipmaps optional), and SVG (opens as editable shapes, exports vectors)

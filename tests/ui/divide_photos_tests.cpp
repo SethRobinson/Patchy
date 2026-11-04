@@ -166,7 +166,7 @@ void ui_divide_photos_menu_actions_registered() {
   show_window(window);
 
   auto* scan_action = window.findChild<QAction*>(QStringLiteral("fileImportDivideScannedAction"));
-#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS) || defined(Q_OS_LINUX)
   // Rides the same native scanner acquisition as import/photocopy.
   CHECK(scan_action != nullptr);
   auto* import_menu = window.findChild<QMenu*>(QStringLiteral("fileImportMenu"));

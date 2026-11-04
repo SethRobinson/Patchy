@@ -15062,6 +15062,82 @@ Each item&apos;s own View setting still applies.</source>
         <source>Windows Image Acquisition is unavailable (%1)</source>
         <translation>Служба Windows Image Acquisition недоступна (%1)</translation>
     </message>
+    <message>
+        <source>Scanner: %1</source>
+        <translation>Сканер: %1</translation>
+    </message>
+    <message>
+        <source>Camera: %1</source>
+        <translation>Камера: %1</translation>
+    </message>
+    <message>
+        <source>The scanner could not be opened (%1)</source>
+        <translation>Не удалось открыть сканер (%1)</translation>
+    </message>
+    <message>
+        <source>The camera could not be opened (%1)</source>
+        <translation>Не удалось открыть камеру (%1)</translation>
+    </message>
+    <message>
+        <source>The camera image could not be downloaded (%1)</source>
+        <translation>Не удалось загрузить изображение с камеры (%1)</translation>
+    </message>
+    <message>
+        <source>Device:</source>
+        <translation>Устройство:</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>Разрешение:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Режим:</translation>
+    </message>
+    <message>
+        <source>Source:</source>
+        <translation>Источник:</translation>
+    </message>
+    <message>
+        <source>Searching for scanners and cameras...</source>
+        <translation>Поиск сканеров и камер...</translation>
+    </message>
+    <message>
+        <source>Reading the camera...</source>
+        <translation>Чтение камеры...</translation>
+    </message>
+    <message>
+        <source>Opening the scanner...</source>
+        <translation>Открытие сканера...</translation>
+    </message>
+    <message>
+        <source>No images were found on the camera.</source>
+        <translation>На камере не найдено изображений.</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 dpi</translation>
+    </message>
+    <message>
+        <source>Import</source>
+        <translation>Импортировать</translation>
+    </message>
+    <message>
+        <source>Scan</source>
+        <translation>Сканировать</translation>
+    </message>
+    <message>
+        <source>Downloading from the camera...</source>
+        <translation>Загрузка с камеры...</translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation>Сканирование...</translation>
+    </message>
+    <message>
+        <source>Scanning needs SANE (for scanners) or libgphoto2 (for cameras). Install them from your distribution and try again.</source>
+        <translation>Для сканирования нужен SANE (для сканеров) или libgphoto2 (для камер). Установите их из своего дистрибутива и повторите попытку.</translation>
+    </message>
 </context>
 <context>
     <name>ScriptFolders</name>
@@ -32567,6 +32643,10 @@ Locked: %1</source>
     <message>
         <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
         <translation>После рисования нового контура выделяет объект внутри него, расширяет выделение на несколько пикселей и применяет растушёвку перед перетаскиванием</translation>
+    </message>
+    <message>
+        <source>No scanner or camera was found. Connect a scanner supported by SANE or a camera supported by gphoto2 and try again.</source>
+        <translation>Сканер или камера не найдены. Подключите сканер, поддерживаемый SANE, или камеру, поддерживаемую gphoto2, и повторите попытку.</translation>
     </message>
 </context>
 <context>
