@@ -10,6 +10,8 @@ Errors (exit 1):
     docs this way, so a split or rename must keep the label or update the citation.
   - A source, script or CMake file that names `docs/<name>.md` when no such doc exists (a doc
     was renamed, split away or deleted without updating the comment). URLs are ignored.
+  - Conclusion wording in a legal record (legal-constraints*, legal-licensing*, patent-research*):
+    those docs state what a claim requires, what Patchy does and how they differ, never a verdict.
 Warnings (exit 0 unless --strict):
   - A docs/*.md file no other checked document links to (unreachable from the index).
   - AGENTS.md or a docs/*.md file over 27,000 bytes: split it by subtopic now, while there is
@@ -40,6 +42,12 @@ DOC_MENTION = re.compile(r"(?<![\w-])docs/([a-z0-9][a-z0-9-]*\.md)\b")
 SPLIT_FROM = re.compile(r"Split from \[[^\]]*\]\(([a-z0-9][a-z0-9-]*\.md)\)")
 # A split child is found from its parent's top: the parent links it in this many leading bytes.
 PARENT_HEAD = 3000
+# Legal records are engineering comparisons: these conclusion and advice phrasings never appear in them.
+LEGAL_DOCS = re.compile(r"^(legal-constraints|legal-licensing|patent-research)[a-z0-9-]*\.md$")
+LEGAL_WORDING = re.compile(
+    r"infring\w*|design[- ]around|reads? on (?:a |the )?claim|no claim reads|doctrine of equivalents|invalidity|"
+    r"\binvalid\b|\bverdict\b|not legal advice|attorney|\bcounsel\b|lawyer|plausib\w*|residual risk|"
+    r"freedom[- ]to[- ]operate|\bcleared\b|\bexposure\b|\bdefen[cs]e\b", re.I)
 CODE_DIRS = ("src", "tests", "scripts", "cmake", "packaging", "themes", "testy", "agent-kit")
 CODE_SUFFIXES = (".cpp", ".hpp", ".h", ".mm", ".c", ".py", ".ps1", ".sh", ".bat", ".js", ".mjs", ".cmake", ".txt", ".md",
                  ".in", ".ts", ".json")
@@ -199,6 +207,13 @@ def main() -> int:
 
     # Citations of a document label from code, scripts, CMake and other docs.
     doc_names = {d.name: d for d in docs}
+
+    for doc in docs:
+        if LEGAL_DOCS.match(doc.name):
+            for line_no, line in enumerate(doc.read_text(encoding="utf-8").splitlines(), 1):
+                for m in LEGAL_WORDING.finditer(line):
+                    errors.append(f"{doc.relative_to(ROOT)}:{line_no}: legal record says \"{m.group(0)}\": state what the "
+                                  "claim requires, what Patchy does and how they differ instead")
 
     for doc in docs:
         m = SPLIT_FROM.search(doc.read_bytes()[:900].decode("utf-8", errors="ignore"))
