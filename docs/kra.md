@@ -2,10 +2,10 @@
 
 Read-only import of Krita's native documents (and `.krz`, the same container):
 `src/formats/kra_document_io.{hpp,cpp}` (container, tree, pixels, build), `kra_tiles.cpp`
-(LZF and the tile format), `kra_layers.cpp` (filters, fills, vector layers),
-`kra_internal.hpp`. Qt-free. Registry row `patchy.formats.kra`, filter row "Krita Document";
-the open path calls `kra::DocumentIo::read` itself with the file's folder so file layers
-load ([file-formats.md](file-formats.md)).
+(LZF and the tile format), `kra_layers.cpp` (filters, fills, vector layers), `kra_odg.cpp`
+(Krita 2 and 3 OpenDocument vector layers), `kra_internal.hpp`. Qt-free. Registry row
+`patchy.formats.kra`, filter row "Krita Document"; the open path calls `kra::DocumentIo::read`
+itself with the file's folder so file layers load ([file-formats.md](file-formats.md)).
 
 ## Clean-room rule
 
@@ -15,7 +15,7 @@ Krita through `kritarunner` and its Python scripting) and from openly licensed f
 online, unzipped and inspected as data. Never read, search or copy Krita's or libkra's
 source, and never link or ship anything of Krita. Blend mode and filter behavior is measured
 on Krita's own renders. Legal record: [patent-research-formats.md](patent-research-formats.md)
-("Krita .kra read"); binding rule in [legal-constraints.md](legal-constraints.md).
+("Krita .kra read"); binding rule in [legal-licensing.md](legal-licensing.md).
 
 ## Container
 
@@ -104,10 +104,13 @@ Masks and selections are one byte per pixel.
 - Fill layers (`generatorlayer`): `color` becomes a fill layer with the selection as its
   mask; pattern, gradient, screentone, multigrid, simplex noise and SeExpr open as empty
   layers with a notice (Krita stores no pixels for them).
-- Vector layers: `layerN.shapelayer/content.svg`, in points with a matching viewBox. The root
-  is resized to the canvas in pixels and the SVG importer makes shape and text layers
-  ([svg.md](svg.md)); one shape opens as that layer, several as a group. Text renders after
-  the open like SVG text.
+- Vector layers: `layerN.shapelayer/content.svg` (Krita 4 and later), in points with a matching
+  viewBox. The root is resized to the canvas in pixels and the SVG importer makes shape and text
+  layers ([svg.md](svg.md)); one shape opens as that layer, several as a group. Text renders after
+  the open like SVG text. Krita 2 and 3 wrote `layerN.shapelayer/content.xml` instead, an
+  OpenDocument drawing (`kra_odg.cpp`, read only when there is no `content.svg`): its shapes become
+  an SVG document in points for the same importer, its text boxes Patchy box text rendered after
+  the open.
 - Clone layers: a copy of the source layer's pixels at the clone's offset (`clonefromuuid`,
   else `clonefrom`). File layers: the PNG/JPEG at `source` (relative to the .kra) as pixels;
   without the file, or without the folder (registry reads), an empty layer and a notice.

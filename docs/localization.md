@@ -48,9 +48,10 @@ context name identifies the surface.
 
 1. Write the English text through `tr()`, `QCoreApplication::translate`, or one of the
    markers below.
-2. Run `scripts\update-translations.ps1` (or build the `patchy_update_translations` CMake
-   target). It updates the template and every language file; new strings arrive as
-   `type="unfinished"` entries.
+2. Run `scripts\update-translations.ps1 -Preset opt-dev` (or build the `patchy_update_translations`
+   CMake target). It updates the template and every language file; new strings arrive as
+   `type="unfinished"` entries. Each run of the script needs a configured `build\<Preset>`;
+   pass the same `-Preset` to the runs below.
 3. Fill the unfinished entries in every language file. Only the translation text changes;
    the source, context and message order come from lupdate.
 4. Build. Changed translation inputs run the read-only catalog gate before compiling
@@ -267,8 +268,8 @@ quality. Issue 11 on GitHub tracks community translations.
 - `tests/translation_validator_tests.py`: broken catalogs in every language, placeholders,
   plural counts, real lupdate freshness, Unicode paths and a CMake failure-propagation
   fixture. Run through CTest as `patchy_translation_validator_tests`.
-- `tests/ui/app_shell_tests.cpp`: `ui_language_*` (switching, startup preference, system
-  locale matching, combo contents, every catalog loads and translates),
+- `tests/ui/app_shell_tests_language_chrome.cpp`: `ui_language_*` (switching, startup
+  preference, system locale matching, combo contents, every catalog loads and translates),
   `ui_language_catalog_covers_dialog_status_and_properties` (pins Japanese strings),
   `ui_filter_gallery_action_retranslates`.
 - `tests/core/translation_marker_tests.cpp`: `translation_markers_cover_core_messages`.

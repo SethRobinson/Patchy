@@ -333,7 +333,7 @@ void psb_flat_round_trip_reads_composite() {
 }
 
 void psb_photoshop_fixture_round_trips() {
-  // Photoshop 2026-authored PSB (COM script; see docs/file-formats.md). Pins reading a real PS PSB —
+  // Photoshop 2026-authored PSB (COM script; see docs/file-formats-psd.md). Pins reading a real PS PSB —
   // including the 8B64-signature global blocks ('cinf' carries an 8-byte length there).
   const auto document =
       patchy::psd::DocumentIo::read_file(patchy::test::committed_psd_fixture_path("photoshop-basic.psb"));

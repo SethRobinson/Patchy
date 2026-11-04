@@ -2,7 +2,8 @@
 # One-time (idempotent) provisioning of the automatic-selection dependencies on macOS and
 # Linux: the pinned ONNX Runtime CPU package and the pinned segmentation models (plus, with
 # --web, the pinned onnxruntime-web package a wasm build stages), into .deps (gitignored). Every download is checked against the SHA-256 pinned below; a file
-# that fails the check is deleted, never used. See docs/ai-selection.md.
+# that fails the check is deleted, never used. See docs/ai-selection-models.md and, for
+# --web, docs/ai-selection.md ("WebAssembly").
 #
 #   bash scripts/setup-ai-deps.sh            # provisions <main checkout>/.deps
 #   bash scripts/setup-ai-deps.sh /some/deps  # explicit deps folder

@@ -230,7 +230,7 @@ void GmicFilterLibraryDialog::report_points() {
     return;
   }
   // Plain position markers only. Blur [Depth-of-Field] and Blur [Motion] are not offered
-  // at all (docs/legal-constraints.md, "G'MIC engine"); should one ever reach this dialog
+  // at all (docs/legal-constraints-filters.md, "G'MIC engine"); should one ever reach this dialog
   // without that review, it still gets no on-canvas control.
   const bool handles =
       current_ != nullptr && current_->id != "fx_blur_dof" && current_->id != "fx_blur_motion";

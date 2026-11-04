@@ -12,7 +12,7 @@ namespace patchy {
 
 using DocumentPathId = std::uint64_t;
 
-// PSD image-resource homes (docs/vector-tools.md): saved paths occupy
+// PSD image-resource homes (docs/vector-psd-encodings.md): saved paths occupy
 // resources 2000..2997 (name = resource name), the work path is resource 1025
 // (no name), and resource 2999 names the clipping path.
 inline constexpr std::uint16_t kPsdSavedPathResourceFirst = 2000;

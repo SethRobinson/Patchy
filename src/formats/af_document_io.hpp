@@ -17,7 +17,7 @@ namespace patchy::af {
 // files authored with a licensed Affinity install plus the MIT-licensed afread
 // project's notes on the 2020-era format - never from disassembling Affinity.
 // Container layout, verification corpus, and the legal record live in
-// docs/file-formats.md (".af (Affinity)").
+// docs/af-format.md.
 [[nodiscard]] bool sniff(std::span<const std::uint8_t> bytes) noexcept;
 
 class DocumentIo {

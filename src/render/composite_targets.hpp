@@ -18,7 +18,7 @@ namespace patchy {
 
 // RGB8 destination with a float coverage plane: the PSD merged image (Compositor::flatten_rgb8)
 // and its strips. Exposes composite_blended_row, so gate-free layers take the row kernel
-// (docs/performance.md "Float row kernels").
+// (docs/performance-compositor.md "Float row kernels").
 class Rgb8PixelBufferTarget {
 public:
   // origin_x/origin_y let a strip-sized destination receive document-space

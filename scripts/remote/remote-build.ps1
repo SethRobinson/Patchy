@@ -29,7 +29,8 @@ patchy_ui_visual_tests; on mac also patchy_mac_a11y_tests); a suite left out is 
 not built rather than run from a stale binary. -Preset replaces the default preset
 (windows `release`, linux `linux-flatpak-qt` or `linux-release` with -NativeQt, mac
 `mac-release`). `opt-dev` (windows) is optimized without /GL and /LTCG, so a relink takes a
-fraction of the release preset's; the release preset stays the handoff and packaging build.
+fraction of the release preset's; the release preset stays the release-check and packaging
+build, and the handoff is opt-dev.
 The remote half reports the warnings the build printed; with -BuildTarget, another preset, or
 an incremental build that count covers only what this run compiled and linked, so it is not
 the zero-warning verification (docs/platform.md, "Warning verification").
@@ -49,8 +50,9 @@ as the linux-asan sync.
 
 -Target windows offloads a Windows build to another Windows machine, only on explicit
 request. Its work tree comes from the host config (setup-windows.ps1 creates it), the
-remote half is build-and-test.ps1, and the preset is the real `release` preset. The
-local build\release stays the release gate and the packaging source.
+remote half is build-and-test.ps1, and the default preset is the real `release` preset
+(-Preset opt-dev for development). The local build\release stays the release gate and the
+packaging source.
 
 The windows host config may list several machines in order of preference. Each is
 probed over ssh in that order: an unreachable one (switched off) is skipped, one that

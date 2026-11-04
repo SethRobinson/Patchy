@@ -133,7 +133,7 @@ the save is not an export (`export_copy`) and no explicit CMYK color form was as
   `tiffSaveOptionsDialog`, `tiffLayersCheck`, on by default). Unchecked: a flattened copy, as
   for any flat format, without the flatten warning (the dialog's hint says it).
 - Export Flat Image, a script's `exportAs` and `--export` stay flat; a script's `saveAs` takes
-  `layers` (docs/scripting.md, scripting-api-changes.md 2026-10-19).
+  `layers` (docs/scripting.md, [scripting-api-changes-2026-10-01-to-19.md](scripting-api-changes-2026-10-01-to-19.md) 2026-10-19).
 - A TIFF with layers is RGB: `cmyk_form_available` is false for it, so CMYK Proof asks to save
   in RGB, and `layers: true` with `colorMode: "cmyk"` throws.
 

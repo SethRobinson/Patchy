@@ -1021,7 +1021,7 @@ void tool_brush_texture_and_dual_brush_render_deterministically() {
 void mixer_brush_pickup_average_follows_canvas_and_dries_only_at_wet_zero() {
   // Since the 2026-08-14 claim review the mixer runs limited continuous pickup:
   // ONE running canvas-only average, transient foreground lerp, linear mixing
-  // (docs/patent-research.md, docs/brushes.md). This test pins that model.
+  // (docs/patent-research.md, docs/mixer.md). This test pins that model.
   patchy::MixerBrushState state;
   const patchy::EditColor sampled_blue{0, 30, 240, 255};
   const patchy::EditColor canvas_white{255, 255, 255, 255};

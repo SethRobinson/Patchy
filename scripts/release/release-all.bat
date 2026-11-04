@@ -15,7 +15,7 @@ rem Verify its public downloads before committing/pushing the new update manifes
 rem Launch the builders by full path: cmd won't search the current directory for a
 rem bare command name when NoDefaultCurrentDirectoryInExePath is set (non-interactive
 rem shells set it), and the console closes too fast to read the error. See
-rem docs/release-process.md.
+rem docs/release-process-scripts.md.
 rem This script lives in scripts\release, so %~dp0..\remote reaches scripts\remote.
 cd /d "%~dp0..\.."
 rem Preflight (same as release-all-automated.bat): the Linux metainfo must describe this

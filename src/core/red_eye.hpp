@@ -5,7 +5,7 @@
 // or nearest the user's point is grown from there (hysteresis, holes such as the glint
 // filled, a soft edge), and each pixel in it is desaturated and darkened in proportion to
 // its own redness. Nothing here looks for faces or eyes, scans a whole image, or uses a
-// learned model: that is the legal boundary recorded in docs/legal-constraints.md ("Red Eye").
+// learned model: that is the legal boundary recorded in docs/legal-constraints-filters.md ("Red Eye").
 
 #include "core/layer.hpp"
 #include "core/palette.hpp"

@@ -15,7 +15,7 @@
 // pixels() carries the rasterized fill+stroke cache. Photoshop interop encodes
 // this model into the vmsk/vogk/vstk/SoCo/GdFl/PtFl tagged blocks; every
 // encoding fact referenced here was pinned by observation of Photoshop 27.8
-// (docs/vector-tools.md, July 2026).
+// (docs/vector-psd-encodings.md, July 2026).
 namespace patchy {
 
 // One bezier knot. Control points are absolute document-pixel positions:
@@ -133,7 +133,7 @@ enum class VectorStrokeCap : std::uint8_t { Butt, Round, Square };
 enum class VectorStrokeJoin : std::uint8_t { Miter, Round, Bevel };
 
 // Shape stroke (vstk strokeStyle descriptor; 16-item canonical order recorded
-// in docs/vector-tools.md). Dash entries are stored in stroke-width multiples,
+// in docs/vector-psd-encodings.md). Dash entries are stored in stroke-width multiples,
 // matching the descriptor's unitless values.
 struct VectorStroke {
   bool enabled{false};

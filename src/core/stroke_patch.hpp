@@ -5,7 +5,7 @@
 // pixels that rectangle held before the stroke, and, once an undo has run,
 // after it. History keeps one of these instead of a whole-document snapshot
 // for Brush, Eraser, Clone, Healing, Smudge, Dodge/Burn, Mixer and Pattern
-// Stamp strokes (docs/performance.md, "History"). Everything else about the
+// Stamp strokes (docs/performance-strokes.md, "History"). Everything else about the
 // document is unchanged by such a stroke, so the patch is relative to the
 // next newer history state (or the live document).
 

@@ -211,6 +211,7 @@ captures unless noted.
 is the filtered Smart Object; "_source" is a hidden copy of its unfiltered pixels, so
 `psd_photoshop_distort_stylize_smart_filter_fixtures_round_trip_and_render` renders the
 stack from `_source` and compares Photoshop's baked layer (byte-exact for Solarize and
-Find Edges, a documented mean tolerance for ZigZag, repeatability only for Wave and Ripple,
-whose patterns are Patchy's own). Capture scripts write an empty descriptor only for filters without settings;
+Find Edges; a documented mean tolerance for ZigZag, Shear, Twirl, Pinch, Spherize, Polar
+Coordinates and Trace Contour; repeatability only for Wave, Ripple and Diffuse, whose
+patterns are Patchy's own). Capture scripts write an empty descriptor only for filters without settings;
 every other filter passes PS's full recorded key list ([photoshop-com.md](photoshop-com.md)).

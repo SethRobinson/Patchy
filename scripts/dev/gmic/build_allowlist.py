@@ -7,7 +7,7 @@ Reads src/filters/gmic/gmic_stdlib.gmic and writes, beside it:
   patchy_filters_excluded.txt    every other filter with the reason it was left out
 
 A filter is left out when:
-  - it is named below (the legal boundary in docs/legal-constraints.md: inpainting,
+  - it is named below (the legal boundary in docs/legal-constraints-filters.md: inpainting,
     patch-based synthesis and smoothing, content-aware resizing, interactive
     segmentation and colorization, neural networks, gradient-domain compositing);
   - its command, or a command it can reach, runs an external program or a neural
@@ -43,7 +43,7 @@ SEEDS = {
 PREFIX_SEEDS = {
     "neural network": ("nn_",),
 }
-# Left out by name whatever the analysis says (docs/legal-constraints.md).
+# Left out by name whatever the analysis says (docs/legal-constraints-filters.md).
 NAMED = [
     (r"\bInpaint\b", "inpainting"),
     (r"Patch-Based|Patch-PCA|Shuffle Patches", "patch-based algorithm"),

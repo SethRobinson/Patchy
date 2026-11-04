@@ -6,16 +6,19 @@ entries are a permanent record. Entries through 2026-09-30 (the July 2026 API, M
 attachment, palettes, vector automation, brushes, Slow mode and Pause, text direction,
 Remove Object, Align/Distribute and smart objects) are in
 [scripting-api-changes-through-2026-09-30.md](scripting-api-changes-through-2026-09-30.md),
-those of 2026-10-01 to 2026-10-05 in
-[scripting-api-changes-2026-10-01-to-05.md](scripting-api-changes-2026-10-01-to-05.md), and
-those of 2026-10-06 to 2026-10-09 in
-[scripting-api-changes-2026-10-06-to-09.md](scripting-api-changes-2026-10-06-to-09.md), and
-those of 2026-10-10 to 2026-10-19 in
-[scripting-api-changes-2026-10-10-to-19.md](scripting-api-changes-2026-10-10-to-19.md), and
-those of 2026-10-20 to 2026-10-21 in
-[scripting-api-changes-2026-10-20-to-21.md](scripting-api-changes-2026-10-20-to-21.md), and
-those of 2026-10-22 to 2026-10-23 in
-[scripting-api-changes-2026-10-22-to-23.md](scripting-api-changes-2026-10-22-to-23.md).
+those of 2026-10-01 to 2026-10-19 in
+[scripting-api-changes-2026-10-01-to-19.md](scripting-api-changes-2026-10-01-to-19.md), and
+those of 2026-10-20 to 2026-10-23 in
+[scripting-api-changes-2026-10-20-to-23.md](scripting-api-changes-2026-10-20-to-23.md).
+
+Rollover: once this file passes 27,000 bytes, move its oldest entries, unchanged and in order,
+out of it until about 12,000 bytes remain, so the next rollover is weeks away. They go into the
+newest archive (the last one named above) until that archive nears 27,000 bytes, then into a new
+archive. Renaming the newest archive for its new end date changes one link in each file that
+links it. Archives are frozen records: when entries move into one, links to them from other
+documents point at the archive file without a `#anchor`, and an archived file is edited only
+when `python scripts/check-docs.py` reports a broken link in it.
+
 Every entry below is API 1.
 
 2026-11-03 (additive): `doc.selection.smooth(radius)` and `doc.selection.feather(radius)`, Select >
@@ -154,7 +157,7 @@ stroke on the canvas, also usable as theme.json `"events"` keys and `sounds/<id>
 identifiers. Pinned by `ui_theme_script_hears_brush_strokes` and
 `ui_theme_sound_events_resolve_from_the_package`.
 2026-10-26 (additive): the theme script API, a separate engine for theme packages' `scripts/main.js`
-(`scripts/bundled/patchy-theme.d.ts`; [theme-files.md](theme-files.md#theme-scripts)): `patchy.theme`
+(`scripts/bundled/patchy-theme.d.ts`; [theme-files-scripts.md](theme-files-scripts.md#theme-scripts)): `patchy.theme`
 `id`, `name`, `on`, `playSound`, `playEffect`, `showStatus`, `addCommand`, `setToolCursor`,
 `showSplash`, `setPanelBackground`, `log`, plus the timer functions and `console`. User scripts do not
 see it, and theme scripts see nothing else. Permanent identifiers: those names, the event ids, the
@@ -221,7 +224,7 @@ them as `normal` or bakes them. Pinned by `ui_script_gimp_blend_mode_ids`.
 `.pdn`; `doc.importNotes` lists what was approximated ([xcf.md](xcf.md)).
 2026-10-25 (behavioral): `layer.transform` on a pixel layer while the document has a selection
 transforms only the selected pixels, as Free Transform now does (GitHub issue 399,
-[free-transform.md](free-transform.md#transforming-the-selected-pixels-github-issue-399)): the box
+[free-transform-targets.md](free-transform-targets.md#transforming-the-selected-pixels-github-issue-399)): the box
 is the selection bounds clipped to the layer's pixels, the transformed pixels land back on the
 layer, and the selection follows them. Without a selection, and on text, shape and smart object
 layers, it transforms the whole layer as before. Pinned by

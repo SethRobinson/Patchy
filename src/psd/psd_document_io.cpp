@@ -1583,7 +1583,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     }
   }
   const auto format = format_from_header(header);
-  // A 16 or 32-bit file keeps its depth when deep editing is on (docs/high-bit-depth.md).
+  // A 16 or 32-bit file keeps its depth when deep editing is on (docs/high-bit-depth-formats.md).
   const bool keep_depth = (header.depth == 16 || header.depth == 32) && header.color_mode != kColorModeBitmap &&
                           options.keep_bit_depth.value_or(deep_editing_enabled());
   const auto kept_depth = header.depth == 32 ? BitDepth::Float32 : BitDepth::UInt16;
@@ -2720,7 +2720,7 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
     options.progress(0, progress_total, {});
   }
 
-  // 16 and 32-bit documents (docs/high-bit-depth.md): channels at the document's depth,
+  // 16 and 32-bit documents (docs/high-bit-depth-formats.md): channels at the document's depth,
   // the layer records in the Lr16/Lr32 block, descriptor colors linear for 32 bits.
   const auto depth = document_bit_depth(document);
   const bool deep = depth != BitDepth::UInt8;
@@ -3115,7 +3115,7 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
     write_length_prefixed_block(writer, document.metadata().raw_psd_color_mode_data);
   else
     write_color_mode_data(writer, document, depth);
-  // The thumbnail shows the composite as saved, from the RGB form (docs/file-info.md, "Thumbnails").
+  // The thumbnail shows the composite as saved, from the RGB form (docs/file-info-save-stamp.md, "Thumbnails").
   std::optional<std::vector<std::uint8_t>> thumbnail;
   if (options.encode_thumbnail) {
     const auto pixels = thumbnail_pixels(composite_rgb, merged_transparency_channel

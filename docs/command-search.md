@@ -46,8 +46,9 @@ name, so a search by synonym finds it ("resize" finds Image Size).
   layer" adds nothing).
 - Exempt: rows built from data, which no fixed line can describe: recent files and folders,
   the Window menu's open documents, scripts, legacy 8BF plug-ins and that menu's "No plug-ins
-  found" and "Scanning plug-in folders..." notes, and companion apps with Companions' "No companion
-  apps installed" note. Their builders set
+  found" and "Scanning plug-in folders..." notes, GEGL filters with their menu's scan notes and
+  About GEGL..., and companion apps with their Quit entries and Companions' "No companion apps
+  installed" and "Manifests That Could Not Be Read..." entries. Their builders set
   `kCommandSearchDataEntryProperty`; `command_search_exempt` reads it. A new data-built menu
   sets it too. Theme commands and panel commands are not listed, so they need none.
 - The rule: a new command gets its description in the same change, like its translation.

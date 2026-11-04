@@ -45,7 +45,7 @@ endlocal
 exit /b 0
 
 :fail
-rem NO_PAUSE keeps automated runs from blocking here; see docs/release-process.md.
+rem NO_PAUSE keeps automated runs from blocking here; see docs/release-process-scripts.md.
 if not defined NO_PAUSE pause
 endlocal
 exit /b 1

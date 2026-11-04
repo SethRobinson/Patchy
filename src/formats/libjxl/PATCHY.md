@@ -4,7 +4,7 @@ libjxl 0.12.0 with the Highway, Brotli and skcms revisions that release pins (UR
 SHA-256 values in NOTICE-THIRD-PARTY.md). Patchy builds one private static archive,
 `patchy_jxl`, from upstream's own source lists (`lib/jxl_lists.cmake`) in
 `cmake/patchy_jxl.cmake`; upstream's CMake files are not used. Read docs/jxl.md and the
-JPEG XL conditions in docs/legal-constraints.md before changing anything here.
+JPEG XL conditions in docs/legal-licensing.md before changing anything here.
 
 ## What is here
 
@@ -46,6 +46,6 @@ Patchy code that calls libjxl includes the same header before any libjxl header.
    `jxl::`, `hwy::` and `jpegxl::` namespaces may remain without the prefix, apart from CRT and
    standard library inline helpers. Add any newcomer to the script's `extra` list.
 5. A release whose `PATENTS` file changed, or one that exposes a new encoder feature, needs
-   a new legal review before it ships (docs/legal-constraints.md, condition 5).
+   a new legal review before it ships (docs/legal-licensing.md, condition 5).
 6. Re-pin `jxl_writer_bytes_are_stable` only after checking the new output decodes the
    same pixels.

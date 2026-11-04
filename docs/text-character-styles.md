@@ -3,8 +3,8 @@
 The Character panel's style rows (GitHub issue 346): All Caps, Small Caps, Superscript,
 Subscript, Underline, Strikethrough and the OpenType Standard Ligatures, Contextual Alternates,
 Discretionary Ligatures, Swash, Stylistic Alternates, Titling Alternates, Ordinals and
-Fractions. Session and panel plumbing are in [text-tool.md](text-tool.md); the Txt2 keys in
-[txt2.md](txt2.md).
+Fractions. Session plumbing is in [text-tool.md](text-tool.md), panel plumbing in
+[text-tool-panels.md](text-tool-panels.md); the Txt2 keys in [txt2.md](txt2.md).
 
 ## Model
 
@@ -104,7 +104,8 @@ before faux bold and layout; underline and strikethrough are drawn by the plan.
   baseline pair exclude each other. Each
   toggle is one Type step on the selection, the whole object with a bare caret, or every selected
   text layer. A selection's toggle never reaches the runs outside it, on or off, in the runs or
-  the pixels (issue 466; `ui_text_character_styles_apply_only_to_the_selection` covers all ten).
+  the pixels (issue 466; `ui_text_character_styles_apply_only_to_the_selection` covers all but the
+  first six toggles of row 2).
   Nor does the rest of the line move: a re-edit keeps the session-start pen and first baseline
   ("The text on screen is never missing" in [text-tool.md](text-tool.md)), so a superscript or faux bold stroke
   that raises one word's ink leaves the other word on its pixels
@@ -141,5 +142,5 @@ opentype-features, Photoshop 2026 captures of each toggle). UI
 (tests/ui/text_character_styles_tests.cpp): the Photoshop-calibrated bar, script and caps renders
 in both layout modes, ordinals and fractions, the other OpenType toggles and Segoe Script's
 calt-off and calt-on widths against Photoshop (`ui_text_opentype_features_use_the_font_features_if_available`),
-the two centred rows (`ui_text_character_style_rows_are_centred`), the panel toggles, every toggle on a partial selection
+the two centred rows (`ui_text_character_style_rows_are_centred`), the panel toggles, ten of the sixteen toggles on a partial selection
 (`ui_text_character_styles_apply_only_to_the_selection`), and the sample re-render.

@@ -29,7 +29,7 @@ Diffuse hashes document positions, so it advertises none. Fibers fills the canva
 
 ## Patchy's own filters
 
-Patchy's designs from long-public techniques, never another editor's lens or flame presets or dialog layouts ([legal-constraints.md](legal-constraints.md)). None maps to a Photoshop Smart Filter: on a Smart Object they reach the rasterize prompt. All
+Patchy's designs from long-public techniques, never another editor's lens or flame presets or dialog layouts ([legal-constraints-filters.md](legal-constraints-filters.md)). None maps to a Photoshop Smart Filter: on a Smart Object they reach the rasterize prompt. All
 use integer math or `+ - * /` and `sqrt` on doubles and draw randomness from splitmix64 (no
 `std::*_distribution`, no trigonometric or exponential calls; whole-degree angles go through
 `degrees_unit_vector`, fixed Taylor series), so the pinned FNV-1a digests in
@@ -74,15 +74,13 @@ pixels where a parameter says px (scaled for previews), otherwise fractions of t
 
 ## Flame
 
-Rewritten in the October 2026 follow-up to issue 496 (the first version drew one noise field
-per column). Keys: `colors` (the preset; its first four tokens are the version-1 values:
+Keys: `colors` (the preset; its first four tokens are the version-1 values:
 `classic` is Campfire, `blue` Blue Gas, `green` Green Magic, `colors` Foreground to
 Background), `mode` (`base_line`, `follow_path`), `rise` (`up`, `from_path`), length percent
 of the buffer height, width percent of its width (Base Line), turbulence, flicker size,
 density, lean (-60 to 60 degrees), core brightness, glow, smoke, sparks, opacity, seed (with
 Randomize) and the base center crosshair (Base Line). The percentages scale the preset's own
-amounts. Old recipes still open; their pixels changed with the renderer and the digests were
-re-pinned deliberately.
+amounts. Old recipes still open but no longer reproduce their original pixels.
 
 - Presets (Patchy's own looks): Campfire, Candle (one tongue with a blue root), Torch,
   Wildfire, Fire Wall, Fire Line (low and wide), Embers (short, many sparks), Smoky Fire, Soft

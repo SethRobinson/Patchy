@@ -1894,7 +1894,8 @@ void account(Build& build, std::uint64_t width, std::uint64_t height) {
 // values, where the same opacity reads darker. The contour carries the difference so the
 // dialog keeps GIMP's opacity: at each mask level m it holds the display coverage that best
 // gives GEGL's mix of `color` at `opacity * m` over white, 75% and 50% gray (least squares
-// over the three channels and backdrops), divided by `opacity` (docs/xcf.md, "Layer effects").
+// over the three channels and backdrops), divided by `opacity`
+// (docs/xcf-layer-effects.md, "Layer effects").
 [[nodiscard]] StyleContour linear_light_shadow_contour(RgbColor color, double opacity) {
   constexpr int kPoints = 9;
   constexpr std::array<double, 3> kBackdrops{1.0, 0.75, 0.5};
@@ -1922,13 +1923,13 @@ void account(Build& build, std::uint64_t width, std::uint64_t height) {
   return contour;
 }
 
-// GEGL's drop shadow as a Photoshop-style Drop Shadow (docs/xcf.md, "Layer effects"):
-// GEGL's x/y offset becomes the distance and light angle, its blur radius the size, and
-// its color and opacity carry over. The filter's own mode mixes its result (the layer over
-// the shadow) with the layer: Normal, Replace, Behind and Merge show a plain shadow, Dissolve
-// a dissolved one, and every other mode none (the shadow opens switched off with the
-// nearest Photoshop mode). `linear_light` is true for documents Patchy mixes in linear
-// light; the others get linear_light_shadow_contour.
+// GEGL's drop shadow as a Photoshop-style Drop Shadow
+// (docs/xcf-layer-effects.md, "Layer effects"): GEGL's x/y offset becomes the distance and
+// light angle, its blur radius the size, and its color and opacity carry over. The filter's
+// own mode mixes its result (the layer over the shadow) with the layer: Normal, Replace,
+// Behind and Merge show a plain shadow, Dissolve a dissolved one, and every other mode none
+// (the shadow opens switched off with the nearest Photoshop mode). `linear_light` is true for
+// documents Patchy mixes in linear light; the others get linear_light_shadow_contour.
 [[nodiscard]] std::optional<LayerDropShadow> drop_shadow_from_effect(const EffectRecord& effect,
                                                                      bool linear_light) {
   LayerDropShadow shadow;
@@ -2001,8 +2002,8 @@ void account(Build& build, std::uint64_t width, std::uint64_t height) {
   shadow.distance = static_cast<float>(std::min(distance, 30000.0));
   shadow.angle_degrees =
       distance > 0.0 ? static_cast<float>(std::atan2(dy, -dx) * 180.0 / 3.14159265358979323846) : 120.0F;
-  // Fitted on effects.xcf against GIMP 3.2's render (docs/xcf.md, "Layer effects"): a size
-  // of three times GEGL's blur radius plus the grow radius, the grow share as spread.
+  // Fitted on effects.xcf against GIMP 3.2's render (docs/xcf-layer-effects.md, "Layer effects"):
+  // a size of three times GEGL's blur radius plus the grow radius, the grow share as spread.
   const double size = 3.0 * radius + grow;
   shadow.size = static_cast<float>(std::clamp(size, 0.0, 250.0));
   shadow.spread = size > 0.0 ? static_cast<float>(std::clamp(grow / size * 100.0, 0.0, 100.0))
@@ -2276,7 +2277,7 @@ void bake_gaussian_blur(Layer& layer, const EffectRecord& effect, const PixelBuf
 //
 // Point operations on one pixel: `rgb` holds display-encoded values in 0..1 (and may leave
 // that range; the store clamps). Their formulas were fitted on GIMP 3.2's renders of the
-// 4096-color sweep (scripts/dev/xcf/fit_effects.py; docs/xcf.md, "Layer effects").
+// 4096-color sweep (scripts/dev/xcf/fit_effects.py; docs/xcf-layer-effects.md, "Layer effects").
 using PointOperation = std::function<void(float* rgb)>;
 
 constexpr float kLumaRed = 0.2225045F;  // the D50 sRGB luminance row GIMP's luma and luminance use

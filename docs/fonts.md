@@ -37,9 +37,9 @@ Licensing rules for bundled fonts (binding):
   directory keeps its own `OFL.txt`, which ships with the package.
 - Never bundle an Adobe-BRANDED font: Source Sans, Source Serif, Source Code
   Pro and the rest of the Source family are OFL but carry Adobe's name, and
-  [legal-constraints.md](legal-constraints.md) bans Adobe-created assets in
+  [legal-licensing.md](legal-licensing.md#format-copyright-trademarks-and-assets) bans Adobe-created assets in
   the repository or a binary. The Noto CJK families (Noto Sans JP/SC/TC) are
-  the deliberate exception (Seth, September 2026): they are Source Han Sans
+  the deliberate exception (decided September 2026): they are Source Han Sans
   rebuilds and their copyright string still reads "(c) 2014-2021 Adobe, with
   Reserved Font Name 'Source'", but they ship under Google's Noto name, the
   OFL grant is irrevocable, and no comparable non-Adobe open Han sans exists.
@@ -47,7 +47,7 @@ Licensing rules for bundled fonts (binding):
 - Every family needs a `NOTICE-THIRD-PARTY.md` entry with its source and
   fetch date. Fetch static instances, not variable fonts.
 - The missing-font substitute table (`src/core/font_substitutes.cpp`,
-  [font-resolution.md](font-resolution.md#substitute-table)) names fonts and links their project
+  [font-resolution-missing-fonts.md](font-resolution-missing-fonts.md#substitute-table)) names fonts and links their project
   pages only; it never bundles, downloads or installs one. Font names there identify the font a
   document asks for (referential use); UI text says "suggested" and "same character widths", never
   that two fonts are the same. Each pair is written from the substitute's own documentation, not
@@ -75,7 +75,7 @@ carrying none of them registers the first candidate's files, where having a UI f
 Bundled fonts (`load_bundled_fonts`) and user-added fonts are application fonts by
 nature (they are not installed), so text in those families still exports to PDF as
 outlines. That is a Qt limitation with no workaround short of writing the font
-programme into the file ourselves; see [pdf.md](pdf.md).
+programme into the file ourselves; see [pdf-editable-export.md](pdf-editable-export.md).
 
 ## Wasm family aliases and UI font
 
@@ -89,7 +89,7 @@ consumed twice, and the two consumers must stay in sync by construction:
 
 - `QFont::insertSubstitution` at startup (src/app/main.cpp), the
   rendering-level fallback for QFont paths that bypass the text pipeline.
-- `available_text_family_match` (src/ui/main_window.cpp), because substitutions
+- `available_text_family_match` (src/ui/text_font_service.cpp), because substitutions
   never appear in `QFontDatabase::families()` and the text tool's matching,
   the missing-font prompt, and the picker canonicalization all consult the
   database. The alias only applies when the bundled target family actually
@@ -193,9 +193,9 @@ Three per-user folders, all named from the organization name set in `src/app/mai
 
 | Folder | Holds | Windows | macOS | Linux |
 |---|---|---|---|---|
-| AppDataLocation | `user-fonts/`, `scripts/` (`MainWindow::user_scripts_directory()`), `themes/`, `plugins/` | `%APPDATA%\RTsoft\Patchy` | `~/Library/Application Support/RTsoft/Patchy` | `~/.local/share/RTsoft/Patchy` |
+| AppDataLocation | `user-fonts/`, `scripts/` (`MainWindow::user_scripts_directory()`), `themes/`, `plugins/`, `adjustment-presets/`, `companions/`, `gegl-filters/` (the GEGL operation list cache) | `%APPDATA%\RTsoft\Patchy` | `~/Library/Application Support/RTsoft/Patchy` | `~/.local/share/RTsoft/Patchy` |
 | Settings (`app_settings_file_path()`) | `Patchy.ini` and the libraries built beside it: `brushes/`, `brush-presets/`, `gradients/`, `looks/`, `patterns/`, `shapes/`, `styles/` | same as AppDataLocation | same as AppDataLocation | `~/.config/RTsoft/Patchy` |
-| AppLocalDataLocation | machine-specific data: `ai-models/` (downloads), `AutoRecover/`, `stress-reports/`, `updates/` | `%LOCALAPPDATA%\RTsoft\Patchy` | same as AppDataLocation | same as AppDataLocation |
+| AppLocalDataLocation | machine-specific data: `ai-models/` (downloads), `AutoRecover/`, `stress-reports/`, `updates/`, `font-style-cache.txt` | `%LOCALAPPDATA%\RTsoft\Patchy` | same as AppDataLocation | same as AppDataLocation |
 
 Local data stays out of Windows' roaming profile: models are hundreds of MB that download again,
 recovery and timings belong to one machine. The settings root is `<root>/RTsoft/Patchy`, where

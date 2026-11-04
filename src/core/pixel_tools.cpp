@@ -1112,7 +1112,7 @@ namespace {
 
 // Mixer response constants calibrated against Photoshop 2026 COM captures
 // (local-test-fixtures/mixer-calibration, 2026-08-14; method and fitted values
-// recorded in docs/brushes.md). Distances are in brush diameters.
+// recorded in docs/mixer.md). Distances are in brush diameters.
 //
 // Pickup persistence: the running average approaches the canvas color with
 // length constant L = D * (kMixerPickupBase + kMixerPickupWetScale * wet).

@@ -28,7 +28,7 @@ namespace patchy {
 // color adaptation. Those are the claimed elements of Adobe's active
 // US 8285055 / US 8340463 / US 8355592 (into 2031) and US 9396530 (to 2034),
 // which this implementation deliberately does not practice. Read
-// docs/legal-constraints.md ("Content-aware fill and exemplar inpainting")
+// docs/legal-constraints-filters.md ("Content-aware fill and exemplar inpainting")
 // and docs/patent-research-inpainting.md before changing the search, the
 // variation pick, or the fill order. Deterministic across toolchains: integers
 // only, fixed scan orders, SIMD and scalar distance paths that produce the
@@ -102,7 +102,7 @@ void exemplar_match_tone(std::uint8_t* filled, std::int32_t width, std::int32_t 
 // `excluded_bounds`). The caller copies the hole from that offset and heals it with the
 // membrane (the Patch tool's Source heal with the offset found here instead of dragged).
 // Same legal form as exemplar_inpaint: exhaustive and independent, no offset field,
-// propagation, perturbation, stored candidates or coarse map (docs/legal-constraints.md).
+// propagation, perturbation, stored candidates or coarse map (docs/legal-constraints-filters.md).
 struct ExemplarBlockMatch {
   bool found{false};
   std::int32_t dx{0};

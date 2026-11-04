@@ -1158,7 +1158,7 @@ void ui_warp_text_edit_caret_matches_unwarped_preview() {
   CHECK(std::abs(preview->bounds().y - 130) <= 1);
 
   // Click the middle of the rendered ink: the caret must land inside the text (the
-  // probe is derived from the preview render, per docs/text-tool.md -- clicking the
+  // probe is derived from the preview render, per docs/text-tool-layout.md -- clicking the
   // caret alone proves nothing when caret and click share a wrong layout).
   const auto preview_bounds = preview->bounds();
   const QPoint ink_center_doc(preview_bounds.x + preview_bounds.width / 2,

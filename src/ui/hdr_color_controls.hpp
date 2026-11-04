@@ -1,6 +1,6 @@
 #pragma once
 
-// The 32-bit color controls (docs/high-bit-depth.md, "Color choice at 32 bits"): a color's
+// The 32-bit color controls (docs/high-bit-depth-color.md, "Color choice at 32 bits"): a color's
 // linear value, its Intensity in stops and a strip of swatches showing it a few stops
 // darker and brighter, so a color above display white can be judged on an SDR screen.
 // The Foreground and Background Color windows show the full form, the Color panel the

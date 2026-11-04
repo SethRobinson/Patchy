@@ -216,7 +216,7 @@ QString current_update_platform() {
 
 QUrl update_manifest_url() {
   // Test and diagnostics knob: point the startup check at another manifest (a local
-  // server, or an unresolvable host to hold a lookup open; see docs/platform.md).
+  // server, or an unresolvable host to hold a lookup open; see docs/visual-qa.md).
   const auto override_url = qEnvironmentVariable("PATCHY_UPDATE_MANIFEST_URL");
   if (!override_url.isEmpty()) {
     return QUrl(override_url);

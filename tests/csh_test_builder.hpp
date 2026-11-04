@@ -1,7 +1,7 @@
 #pragma once
 
 // Builds small Photoshop .csh custom-shape files for the reader tests (core and
-// UI suites), following the layout recorded in docs/vector-tools.md
+// UI suites), following the layout recorded in docs/vector-tools-custom-shapes.md
 // ("Photoshop .csh files"). Self-authored geometry only.
 
 #include <array>

@@ -444,7 +444,7 @@ QJSValue ScriptDocumentObject::getCompositePixels(const QJSValue& rect) const {
       return {};
     }
   }
-  // 16 and 32-bit documents come back encoded to 8-bit display values (docs/high-bit-depth.md).
+  // 16 and 32-bit documents come back encoded to 8-bit display values (docs/high-bit-depth-formats.md).
   const auto pixels =
       flatten_document_rgba8_rect(*document, Rect{area.x(), area.y(), area.width(), area.height()});
   QByteArray data(static_cast<qsizetype>(area.width()) * area.height() * 4, Qt::Uninitialized);

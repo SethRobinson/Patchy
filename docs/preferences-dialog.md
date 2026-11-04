@@ -20,7 +20,7 @@ Snapping, Hotkeys, Plug-ins (Windows only, [plugins.md](plugins.md)) and Presets
 preset manager, issue 485). Tool and canvas-input
 behavior (the mouse wheel, Free Transform options) goes on Tools; Pen holds only pen and tablet
 settings; Application holds app-level settings (language, interface scale and text size
-([ui-text-size.md](ui-text-size.md)), updates, recovery, open/save policies); Colors and Themes the color scheme and themes ([theme-files.md](theme-files.md#preferences-ui)).
+([ui-text-size.md](ui-text-size.md)), updates, recovery, open/save policies); Colors and Themes the color scheme and themes ([theme-files-preferences.md](theme-files-preferences.md#preferences-ui)).
 
 The pages are listed down the left (issue 451): `preferencesPageList`, a QListWidget, drives
 `preferencesPageStack`, a QStackedWidget, so a new page adds a row instead of widening the
@@ -72,8 +72,8 @@ vertical-only `preferencesTabScroll`, except Hotkeys (below).
 ## Opening speed
 
 The dialog is rebuilt on every open, so its build cost is what the user waits for (local-022:
-a slow open looked like a hang). Measured offscreen on an i9-11900KF, it went from about 190 ms
-per open (650 ms when opening on Hotkeys) to about 95 ms (140 ms on the first open of a session).
+a slow open looked like a hang). Measured offscreen on an i9-11900KF, an open takes about 95 ms
+(140 ms on the first open of a session).
 
 - **One sheet change.** Every `setStyleSheet` on the dialog restyles every widget on every page
   (about 45 ms each), so the preferences rules and `dialog_spinbox_button_style()` go in as one

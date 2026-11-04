@@ -5,7 +5,13 @@ Read this before changing QActions, dialogs, the options bar, list-row widgets, 
 Visible automation permits Preferences, About and AI Setup through the dialog
 helpers. The activity guard permits inspection but explains conflicting actions.
 An editable Pause restores ordinary manual dialog and save-prompt behavior. See
-[automation-feedback.md](automation-feedback.md) for API lifetime and resume rules.
+[automation-feedback.md](automation-feedback.md#api-lifetime-and-history-across-a-pause)
+for API lifetime and resume rules.
+
+Related documents:
+
+- [ui-conventions-dialogs.md](ui-conventions-dialogs.md): dialog chrome, closing, async-work guards, placement and prompts, the field controls that dialogs and the options bar share (scrub labels, spin boxes, unit fields, sliders, the `current_*` tool-state mirror), and settings pages.
+- [ui-conventions-menus.md](ui-conventions-menus.md): menu-bar and context-menu structure, the Open Recent menus and the start panel's recent list, and the recent-file history.
 
 ## Patchy-only options
 
@@ -38,43 +44,15 @@ Standing rules:
 - **Some colors deliberately do not follow the scheme.** The transparency checkerboard depicts alpha and stays light in both themes (`ui/transparency_checkerboard.hpp`). Marching ants, the clone-source marker, tool cursors, the text box outline and the Move tool's layer outline are dark-plus-light pairs that read over any artwork, and the pixel grid tints each line from its pixel; UI colors would vanish over matching pixels. Saved grid and guide colors are user data, as is the pasteboard color picked from the backdrop's right-click menu (presets in `CanvasWidget::add_backdrop_color_menu_entries`; unset, the `canvas_backdrop` role). The app icon and splash art composite against the OS. Adjustment-layer glyphs encode meaning through internal contrast (the Threshold glyph *is* a black/white split).
 - **User-importable theme files** overlay a `base` scheme with role overrides from a `.patchytheme` JSON file, imported/exported in Preferences. Format and the `ThemeManager::set_custom_theme` apply path live in [theme-files.md](theme-files.md); read it before touching either.
 
-Authoring icons: 32x32 viewBox, lowercase hex, drawn from the ten-color vocabulary in `icon_color_roles()` (`icon_ink` plus nine accents). `ui_icon_color_map_covers_every_authored_color` rejects anything outside it. The two paint-swatch icons and the seven referenced from QSS by `url()` are exempt and listed explicitly in `icon_theme.cpp`.
+Authoring icons: 32x32 viewBox, lowercase hex, drawn from the ten-color vocabulary in `icon_color_roles()` (`icon_ink` plus nine accents). `ui_icon_color_map_covers_every_authored_color` rejects anything outside it. Exempt, and listed explicitly in `icon_theme.cpp`: icons whose colors are their subject (the paint swatches and the Quick Mask pair, `literal_color_icon_names()`) and the ones QSS loads by `url()` (`stylesheet_referenced_icon_names()`).
 
 ## Hotkeys
 
-Application-level QAction shortcuts must be registered through `MainWindow::register_hotkey(action, "stable.id", default_seq)`, backed by `HotkeyRegistry` in `src/ui/hotkey_registry.hpp`. Never call `setShortcut` or `setShortcuts` directly on an app-level action. Command ids are persisted and must never be renamed. Two commands must not share a default shortcut; `ui_hotkey_defaults_have_no_conflicts` enforces this. Late registration goes only through `MainWindow::refresh_script_commands` ([scripting.md](scripting.md)). Tools that share a flyout therefore never carry a Shift+letter default of their own: the flyout's "Cycle <Group> Tools" command owns that key (see [tool-palette.md](tool-palette.md)).
+Application-level QAction shortcuts must be registered through `MainWindow::register_hotkey(action, "stable.id", default_seq)`, backed by `HotkeyRegistry` in `src/ui/hotkey_registry.hpp`. Never call `setShortcut` or `setShortcuts` directly on an app-level action. Command ids are persisted and must never be renamed. Two commands must not share a default shortcut; `ui_hotkey_defaults_have_no_conflicts` enforces this. Late registration goes only through `MainWindow::refresh_script_commands` ([scripting.md](scripting.md)). Tools that share a flyout therefore never carry a Shift+letter default of their own: the flyout's "Cycle <Group> Tools" command owns that key (see [tool-flyouts.md](tool-flyouts.md)).
 
-A canvas tool that needs a key owned by an application shortcut must accept the `ShortcutOverride` in `CanvasWidget::event()` while active. Magnetic Lasso Delete/Backspace is the reference pattern; see [selection-tools.md](selection-tools.md).
+A canvas tool that needs a key owned by an application shortcut must accept the `ShortcutOverride` in `CanvasWidget::event()` while active. Magnetic Lasso Delete/Backspace is the reference pattern; see [lasso-tools.md](lasso-tools.md).
 
 Modifier keys are named per platform two ways. The shortcut chip beside an action name comes from `QKeySequence::NativeText` in `refresh_action_tooltip`. A sentence naming a key to hold (status hint, tooltip detail, accessibility description) writes `%CTRL%` and `%ALT%` and resolves through `resolve_modifier_names` (`src/ui/modifier_names.hpp`): Ctrl/Alt on Windows and Linux, Command/Option on macOS. Patchy does not set `AA_MacDontSwapCtrlAndMeta`, so `Qt::ControlModifier` is Command on a Mac. Shift, Delete, and the mouse verbs take no token. Never write a bare "Ctrl" or "Alt" into a user-facing sentence. Not `%1`-style: the tool-hint sources in `main_window_actions_tool_palette.cpp` are translated later and `QString::arg` consumes only `%` plus a digit. Translations keep the tokens; `ui_path_tools_show_activation_hints_and_tooltips` builds the expected sentence through the same helper.
-
-## Dialog lifecycle
-
-Frameless windows (the main window's custom chrome and every `install_dark_dialog_chrome` dialog) draw their only edge themselves: `frameless_window_edge_width()` is 1 px where the window server shadows the window (Windows DWM, macOS) and 2 px on X11, Wayland and wasm, which give a client-decorated window no shadow; `dialog_chrome_style` and `photoshop_style` read it, and the dialog chrome's root margins match it so the title bar never paints over the outline (`ui_dialog_chrome_outline_reads_at_the_dialog_edge`).
-
-Dialogs that react to closing must funnel every path through `done()`. `reject()` hides a dialog without a QCloseEvent, so closeEvent-only cleanup misses the chrome X and Esc. Do not override `reject()` to call `close()`: `QDialog::closeEvent` calls `reject()` and treats a still-visible dialog as vetoing the close.
-
-`patchy::ui::AppStyle` (`src/ui/app_style.cpp`, installed by main.cpp) wraps the platform style: slider and flyout hints, no icons on dialog buttons (Linux desktops add OK/Cancel glyphs drawn for their own scheme, GitHub issue 99), and Patchy's themed chevrons for toolbar overflow buttons. Never take chrome icons from the desktop icon theme.
-
-New non-modal dialogs must use `run_non_modal_dialog`. It rejects child dialogs when their parent finishes and applies the macOS above-parent native anchor. `request_patchy_color` permits one picker at a time, with its own remembered position; OK on its parent keeps the picked color (issue 216). Every choose-a-color prompt goes through it (palettes, color names, hex, live preview), never `QColorDialog`; it returns opaque RGB, so a value with alpha keeps it beside the picker (Preferences pairs grid and guide color buttons with opacity spin boxes).
-
-A dialog function that arms async work must disarm it from a `qScopeGuard` declared after the dialog, not a statement after the nested loop: completion callbacks capture the frame by reference and are posted to `QCoreApplication`, so an exception unwinding the frame skips that statement and the completion runs against destroyed widgets. Guards live in `request_visual_filter_gallery`, `request_filter_settings`, and `run_raw_develop_dialog`; every `close_*` helper they call is null-safe and idempotent. `QObject::destroyed` is no substitute: `QWidget` deletes its children before `~QObject` emits it (`ui_filter_gallery_unwinding_call_disarms_in_flight_renders`). To leave a running `run_non_modal_dialog` loop by exception, catch at the slot boundary and pass `std::current_exception()` to `unwind_non_modal_dialog_loop` (`src/ui/dialog_utils.hpp`), which quits the innermost loop so `run_non_modal_dialog` rethrows on its own frame; throwing through the dispatcher is unsupported (macOS terminates inside CFRunLoop).
-
-Use `exec_dialog` or `run_non_modal_dialog`, never `QDialog::exec`. `place_dialog` centers or restores positions. On wasm, shrink to the canvas and scroll content that cannot fit ([wasm.md](wasm.md)). Desktop tall dialogs cap themselves with `QScrollArea`, page `sizeHint`, and `availableGeometry().height() - 40` (Shape Appearance). Unnamed dialogs have no position memory. `QProgressDialog`, `QMessageBox`, and `mark_dialog_always_centered` dialogs (About, New Document) center on the owner and discard saved positions. Saved positions off the owner's screen also recenter.
-
-A window a modal blocks shows the arrow, whatever sets its cursor (issue 504, `src/ui/blocked_window_cursor.cpp`, [wayland.md](wayland.md)).
-
-Placement clamps the full frame to the screen's available area (no taskbars or docks), again after Show finalizes sizes and margins and on Resize, for unnamed and transient dialogs too. Automatic moves never enter position memory.
-
-`show_warning_message` answers bare letters: Y/N (Yes/No, Save/Discard), S/D, C (Cancel). A Save + Discard box reads "&Yes", "&No", "&Cancel" (same roles, one width), so its text is a yes/no question; close prompt quotes the name, Yes default (issues 70, 240, 605; `ui_save_prompt_uses_yes_no_cancel_with_letter_hotkeys`). The default button has the accent outline.
-
-Fields typing replaces (hex, ratios) call `select_all_on_focus`: select-all on focus-in, queued past the click. The color picker focuses its HTML field on show (Ctrl+V, Return pastes a hex) (GitHub issue 68; `ui_color_picker_opens_with_hex_field_selected_for_paste`).
-
-Dialog spin boxes that retain their minus/plus buttons must append `dialog_spinbox_button_style()` from `src/ui/dialog_utils` to the dialog stylesheet after all children exist. Child dialogs inherit it; the color picker's buttonless fields reset its padding. Sub-control geometry rules (`QSpinBox::up-button { width; subcontrol-position }`) are silently ignored under a descendant-prefixed selector (`QDialog#name QSpinBox::up-button`): write them unprefixed in a stylesheet set on the dialog itself, and set it after the children exist (widgets on initially hidden tab pages miss an earlier one).
-
-A slider row that wants one-unit steppers passes `step_buttons = true` to `add_dialog_slider_spin_row`. The pair comes from `add_spin_step_buttons` (`src/ui/dialog_utils.hpp`): `-` / `+` push buttons that auto-repeat and disable at the range ends, also used by the Blend If fields. `wrap_spin_with_step_buttons` makes a `[spin] - +` form row. The buttons are `<spin objectName>DecreaseButton` / `IncreaseButton`, accessible names `Decrease %1` / `Increase %1` plus the field label.
-
-A font derived from another one goes through `scale_font_size`, `scaled_font`, or `offset_font` in `src/ui/dialog_utils.hpp`. Never write `font.setPointSizeF(font.pointSizeF() * k)`: on a pixel-defined font (macOS) the accessor returns -1, so it is a no-op plus a Qt warning. See the cross-platform rules in [platform.md](platform.md).
 
 ## Item-widget rows and selection
 
@@ -86,20 +64,6 @@ Layers panel rows: [layer-panel.md](layer-panel.md).
 
 `bind_widget_text` on a QLineEdit binds the placeholder text, not `text()`, since line edits carry user data in `text()`.
 
-## Options bar
-
-All options-bar controls share one fixed 26 px row height. QStyleSheetStyle inflates QToolButton size hints: cap options-bar buttons' min/max height. Free-transform and warp sessions own the row and hide per-tool widgets. Option labels (`optionLabel`) are plain text, no chip (issue 76), and show no trailing colon (issue 127): keep the shared "Name:" source strings (dialog forms want the colon) and set `kTranslationStripsTrailingColonProperty` on the label before binding, which drops an ASCII or fullwidth colon. Separators, grouping, bar height, slider collapse: [options-bar.md](options-bar.md).
-
-A field's "Label:", the gap and the field are one scrub zone (issue 46): drags scrub; a field click edits, number selected; while editing, drags select. `exec_dialog`/`run_non_modal_dialog` run `install_scrub_labels_in` on every dialog, `build_options_bar` on the options bar; `FilterParameterPanel::rebuild`, the Properties panel (shape W/H, artboard X/Y/W/H) and the Brush Dynamics popup call it too. Rules, tests: `src/ui/dialog_utils.hpp`; one `editingFinished` per scrub. Layers panel prefixes use `install_prefix_scrub`. Options-bar numeric controls must use `configure_toolbar_spinbox`. Set range, decimals, prefix, and suffix first: the width is a minimum, grown to fit the widest value and chevron. Never duplicate the popup or use a plain spin box. Dialog and transform-session fields without the range popup use `configure_dialog_spinbox`.
-
-A field with a length, percent, or degree suffix is a `UnitSpinBox` or `UnitIntSpinBox` (`src/ui/unit_spin_box.hpp`). The constructor takes the native `SpinUnit` and sets the suffix; `set_context_provider` supplies the document PPI and the percent basis (what 100% means for that field, 0 rejects percent). A typed unit token converts on entry while the display stays native; plain numbers keep the stock rules. Token table and conversion rules: [resolution-units.md](resolution-units.md).
-
-When the typed range exceeds the useful drag range, set `kToolbarSpinboxSliderMaxProperty` (`dialog_utils.hpp`), not a narrower range: Text Size takes 10000 pt, its slider stops at 200.
-
-Size-like sliders (brush, Quick Select and Liquify size, Feather, Line Weight, effect Size and Distance) use `SliderCurve::FineLowEnd` (`src/ui/curved_slider.hpp`): value grows with the position squared. Opt in with `bind_curved_slider`, `kToolbarSpinboxSliderCurvedProperty` (popups), or `add_dialog_slider_spin_row`'s `curve`. `QSlider::value()` is then a position: use `slider_value` and `set_slider_to_value`. Keep percentages, angles and color channels linear.
-
-Application-wide tool state follows the `current_*` mirror pattern in MainWindow: update the member from the control signal, apply it both during new-session setup and `activate_document_tab`, and update the mirror in `load_tool_settings()` under `QSignalBlocker`. Updating only the current canvas desyncs new or reactivated documents.
-
 ## Status bar
 
 QStatusBar hides non-permanent widgets while a message shows, so Patchy's left-side status widgets are positioned children of `ZoomStatusBar`; never use `addWidget()`.
@@ -109,49 +73,18 @@ Blocking refusals and failed operations use `MainWindow::show_status_error` or `
 ## Standing UI rules
 
 - The right panel column (widths, sideways scrolling, collapse, header menu, saved layout): [right-docks.md](right-docks.md).
-- The layer context menu keeps **Edit Layer Styles...** first (`ui_layer_context_menu_keeps_edit_styles_on_top`), except the Background's ([background-layer.md](background-layer.md)).
-- `reserve_menu_icon_column` keeps the check-and-icon column (Qt adds it only for an icon or check) in every menu-bar menu (issue 131). `install_menu_separator_click_guard` (app-wide, from MainWindow) keeps a QMenu open on a separator click (issue 317).
-- A menu-bar command live with no document is listed in `command_works_without_document`; others `register_document_action` (issue 162).
-- Help > Search Commands lists every enabled menu-bar command: a menu that refreshes its commands in `aboutToShow` refreshes them in `show_command_search` too ([command-search.md](command-search.md)).
-- The canvas right button opens context menus and never pans ([tools.md](tools.md), "Canvas right-click menu").
-- The menu-bar Layer menu groups its new-layer, layer-mask, stacking-order, and rotate/flip sets into the `layerNewMenu`, `layerMaskMenu`, `layerArrangeMenu`, and `layerRotateFlipMenu` submenus (Image has its own `imageRotateFlipMenu`) so the menu fits a short wasm browser viewport; `ui_main_window_renders_color_controls` bounds its direct row count at 23, so add new Layer commands inside an existing submenu or group rather than as top-level rows. The Layer Mask submenu mirrors the layer context menu's item order and separators; keep the two in step.
-- New import/export commands go in the `fileImportMenu`/`fileExportMenu` submenus (the title carries the verb), except Export for Web under Save As ([web-export.md](web-export.md)); `ui_file_export_menu_actions_registered` pins both.
-- The recent-files filters (home screen and Open Recent) match each space-separated token against the FILE NAME, extension included; `.jpg` or `*.jpg` filters by extension and a token containing a slash matches the folder path (`recent_path_matches`, issue 158).
-- Open Recent File/Folder are each a filter row (`fileOpenRecent[Folder]FilterEdit`) over one list (`fileOpenRecent[Folder]List`, `build_recent_list_menu`, 12 rows, capped width so it opens beside File). Rebuilds recreate both (filter resets); `aboutToShow` focuses the edit; the MainWindow event filter forwards arrow/page keys to the list; Enter and clicks go through `open_recent_list_path`, deferred by `QTimer::singleShot(0)` (opening rebuilds the menu mid-delivery). Native menu bars keep a plain paged menu ([platform.md](platform.md)). Tests read entries via `recent_menu_paths`. The start panel's `startPanelRecentList` (8 rows) shares the rows, delegate, matching rule (every whitespace-separated token anywhere in the native path) and `show_recent_path_context_menu`; Enter opens its top row; `StartPanel::showEvent` clears the filter and takes focus. No match leaves one placeholder row with an empty `kRecentPathRole` path, which the delegate, click and context-menu handlers test for; never give a real row an empty path.
+- Menu structure, Open Recent and the start panel's recent list: [ui-conventions-menus.md](ui-conventions-menus.md).
 - A QWidget subclass that paints its own content inside a themed container needs `background: transparent` in that container's sheet. The global `QWidget` rule sets `WA_StyledBackground` on it, so the whole slot fills with `window_bg` and a window-colored rectangle appears wherever the widget's own painting leaves a margin. The About dialog's artwork (`splashArtwork`) is the reference case; `ui_light_scheme_about_dialog_reads_as_a_light_surface` pins it.
 - Read modifiers folded from the current event, not `QApplication::keyboardModifiers()` (it lags event filtering).
-- Interface scale is one global `QT_SCALE_FACTOR` on desktop, set by `apply_gui_scale_factor` in `src/app/main.cpp` before `QApplication` exists. On wasm the shell page applies it (a CSS-transformed iframe; see [wasm.md](wasm.md)). Preferences offers a number field (`preferencesGuiScaleSpin`, 5% arrow steps) that takes any whole percent 50 to 300 (out-of-range values clamp), with a presets drop-down beside it (`preferencesGuiScalePresetsButton`, `kGuiScalePresetPercents`); range, default and helpers are in `src/ui/app_settings.hpp`, and the shell page duplicates the range and web default. Applies on the next start (page reload in a browser); the key `preferences/guiScalePercent` is a compatibility contract. The interface text size is separate: UI font sizes are `px` in themed sheets, text-row lengths `@tx(n)` or `ui_text_px` ([ui-text-size.md](ui-text-size.md)).
-- Never fix a QToolBar's size along its perpendicular axis (the width of a vertical bar). The overflow button enlarges that axis to reveal hidden items; a fixed size clips the expansion. Use a minimum size instead; the tool palette's 43 px minimum width is the reference (`ui_tool_palette_extension_button_expands_palette` pins the expansion). `ToolPaletteExpansionReservation` raises the minimum to the measured expanded width while the extension button is checked (so the layout reserves the columns instead of overlaying the canvas) and restores 43 on collapse.
+- Interface scale is one global `QT_SCALE_FACTOR` on desktop, set by `apply_gui_scale_factor` in `src/app/main.cpp` before `QApplication` exists. On wasm the shell page applies it (a CSS-transformed iframe; see [wasm.md](wasm.md)). Preferences offers a number field (`preferencesGuiScaleSpin`, 5% arrow steps) that takes any whole percent 50 to 300 (out-of-range values clamp), with a presets drop-down beside it (`preferencesGuiScalePresetsButton`, `kGuiScalePresetPercents`); range, default and helpers are in `src/ui/app_settings.hpp`, and the shell page duplicates the range and web default. Applies on the next start (page reload in a browser); the key `preferences/guiScalePercent` is a compatibility contract. The interface text size is separate: UI font sizes are `px` in themed sheets, text-row lengths `@tx(n)` in QSS or `ui_text_length(n)` in C++ ([ui-text-size.md](ui-text-size.md)).
+- Never fix a QToolBar's size along its perpendicular axis (the width of a vertical bar). The overflow button enlarges that axis to reveal hidden items; a fixed size clips the expansion. Use a minimum size instead; the tool palette's minimum width (43 px at the Normal icon size, scaled with it) is the reference (`ui_tool_palette_extension_button_expands_palette` pins the expansion). `ToolPaletteExpansionReservation` raises the minimum to the measured expanded width while the extension button is checked (so the layout reserves the columns instead of overlaying the canvas) and restores the collapsed width on collapse.
 - Chrome buttons the style positions itself are exempt from the global QToolButton minimums. QTabBar's overflow arrows take the fixed scroll-button metric, so `QTabBar QToolButton` zeroes the global minimums (they clipped the right arrow) and `QTabBar::scroller` pins the two-button area everywhere. The base styles draw the glyph differently: Windows/Linux paint a fixed-size arrow (padding must stay 0 or it collapses toward a dot), macOS scales it edge-to-edge (a mac-only 2 px padding gives it margins). `suppress_native_tab_bar_base` runs on every platform: the native base still showed as a 1px white line in the scroller area once tabs overflowed. `ui_document_tab_scroll_arrows_render_inside_the_bar` pins all of this.
 - Canvas scroll bars are direct `CanvasWidget` children with load-bearing objectNames `canvasHorizontalScrollBar`/`canvasVerticalScrollBar` (theme QSS and UI tests find them by name). Their range mirrors the 10%-minimum-visible pan clamp (`pan_axis_range` in `canvas_widget_view.cpp`), so bar scrolling and hand-tool panning can never disagree, and the bars stay live even when the document fits the view.
 - Every scroll bar is styled by `photoshop_style()`; none stays native (once QSS touches a scroll bar `QStyleSheetStyle` owns it, and without subcontrol rules its groove fills with the window background). Canvas bars follow `canvas_backdrop`, not the window surface, and carry the opaque `scroll-dither` texture authored around `canvas_backdrop`/`canvas_scrollbar_track` so gutter, corner square and pasteboard read as one surface (moving that role means re-authoring `src/ui/icons/light/scroll-dither.svg`). One handle fill (`scrollbar_handle_bg`) serves both families and must clear the darker track (`ui_light_scheme_panel_scroll_bar_handle_reads_against_track`). The `margin: 0` on the `QScrollBar` widget rules is load-bearing: without box properties on the widget rule the native style reserves room for the removed arrow buttons, a short bar's groove ends up smaller than the handle and every drag snaps to the minimum; a `::groove` rule never affects geometry (`ui_short_panel_scroll_bar_drags_by_handle`).
 
-The Preferences dialog: [preferences-dialog.md](preferences-dialog.md).
-Settings pages keep fields compact (a combo as wide as its longest entry, capped; its open list
-fits every entry, `fit_combo_popup_to_entries`) and let option text wrap.
-`install_wheel_scroll_guard` (`dialog_utils.hpp`) makes combo boxes, spin boxes and sliders
-in scrolling pages take the wheel only with keyboard focus (issue 92); use it for any dialog
-whose pages scroll. Angle fields get a round `AngleDial` (`angle_dial.hpp`, issue 618).
-
 Application-wide fill, quick-selection, interpolation, and vector options transfer
-when the active canvas changes. Language changes apply on OK.
+when the active canvas changes (the `current_*` mirrors in
+[ui-conventions-dialogs.md](ui-conventions-dialogs.md#options-bar)). Language changes apply on OK.
 The color panel accepts named colors and CSS `#RRGGBBAA` (plus `#RGBA`); stored
 colors stay opaque RGB. History navigation is refused
 during a live pointer gesture, and focus loss clears the drag latches.
-
-Recent files and folders record every successful open and save (interactive, scripted,
-headless and MCP, flat copies included); saving records the containing folder too.
-`recent_history_settings()` shares the persistent history with owned MCP workspaces while
-their other preferences stay temporary. Native updates lock the whole read/modify/write
-transaction and merge against the latest stored list, so another process's additions or
-Clear survive. The File menu and Save As refresh before opening; the empty start panel
-refreshes periodically while no popup is active and when it reappears. **A refresh only
-rereads settings and never stats an entry** (a cold, spun-down or unreachable volume would
-stall startup and every File menu open). Existence checks run on a tracked worker
-(`schedule_recent_history_check`) after startup, whenever a stored list changes, and
-otherwise at a throttled interval; a result arriving under an open popup waits for the next
-refresh. Network paths (UNC, and `DRIVE_REMOTE` drive letters on Windows) are never checked,
-and missing entries stay stored so an unplugged drive's entries return. A click on a
-vanished entry reports "Recent file is missing" and removes it. Rebuilds occur only when the
-displayed list changes, preserving a live start-panel filter. A row's context menu and its
-hover x (both lists) drop one entry and keep the list's place (`remove_recent_path`, issue 157).

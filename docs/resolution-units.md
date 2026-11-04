@@ -9,7 +9,8 @@ persisted settings tokens; the tokens ride user settings, never rename them). No
 resamples pixels unless the user explicitly asks (Image Size with Resample on).
 
 What consumes the document PPI: text point sizes (`text_size_ppi`, main_window_shared.cpp),
-smart-object placement and Replace Contents (E2/E5 rules, docs/smart-objects.md), the print
+smart-object placement and Replace Contents (E2/E5 rules, [smart-object-editing.md](smart-object-editing.md);
+the E5 dpi map is in [smart-objects-ground-truth.md](smart-objects-ground-truth.md)), the print
 dialog's physical layout (per-axis: horizontal_ppi for width, vertical_ppi for height, so
 anisotropic scans print at true size), the Image Size / New Document dialogs, unit-mode
 rulers, and the info panel's physical size line.
@@ -35,8 +36,8 @@ logical DPI (96 on Windows, varies with scaling) and indistinguishable from a re
   opens them (psd_document_io.cpp; GitHub issue 272, where 12 px type read as 2.88 pt at 300).
 - Registry formats: BMP maps zero pels-per-meter to 72 (bmp_document_io.cpp); the WIC HEIF
   reader treats WIC's exactly-96x96 "no density" default as untagged -> 72; formats whose
-  containers have no density concept (ico/tga/aseprite/pcx/ilbm/rttex/dds,
-  `kDensitylessFormats`) are stamped 72 in `load_document_from_path`. Clipboard documents are 72 (Photoshop's Clipboard preset).
+  readers record no density (the `kDensitylessFormats` set in `load_document_from_path_as`,
+  main_window_files.cpp) are stamped 72. Clipboard documents are 72 (Photoshop's Clipboard preset).
 - Qt's PNG/JPEG/TIFF writers always embed the density from `apply_document_resolution`,
   so Patchy-saved flat images are tagged and round-trip exactly.
 
@@ -132,7 +133,7 @@ is 100% (actual size) unless that overflows the printable area, then "Scale to f
 pre-checks. "Print Using System Dialog..." hands off to the OS print dialog (Chrome-style),
 prints on accept with Patchy's position, scale, and crop-mark settings, and adopts the
 printer, paper, orientation, and copies chosen there; cancelling returns to Patchy's dialog.
-The OS dialog shows no preview for Win32 apps on Windows 11 (see [platform.md](platform.md));
+The OS dialog shows no preview for Win32 apps on Windows 11 (see [platform-sites.md](platform-sites.md));
 Patchy's own dialog keeps the preview pane. The Paper group (September 2026, issue 19) sets
 the sheet without a printer driver: a size combo (`print_page_size_choices`: Letter, Legal,
 Tabloid, Executive, A3 to A6, B4, B5, Custom), orientation, and custom width/height spins in
@@ -155,7 +156,7 @@ gesture; CanvasWidget shows the menu and reports through
 to every canvas in `apply_canvas_aid_settings`). `CanvasWidget::draw_rulers` picks 1-2-5
 tick steps in unit space via `ruler_tick_steps`; the Pixels unit keeps the plain
 pixel ruler (subdivisions never go below one pixel). Horizontal ruler uses
-horizontal_ppi, vertical uses vertical_ppi. Guides and the grid stay pixel-based; a guide drag's position readout reads in the ruler unit ([tools.md](tools.md)). The doc
+horizontal_ppi, vertical uses vertical_ppi. Guides and the grid stay pixel-based; a guide drag's position readout reads in the ruler unit ([tools-transform-modifiers.md](tools-transform-modifiers.md)). The doc
 info line shows the physical size in the ruler unit (inches while the unit is px/percent).
 
 ## PSD resource 1005 (verified against Photoshop 2026)
@@ -203,7 +204,7 @@ follow each other; a menu pick goes through `pick_display_unit`, which also emit
 native unit widens `decimals()` to `measurement_unit_decimals` (never narrower than the
 field's own) and sets `singleStep()` to one shown unit converted to native
 (`measurement_unit_single_step`: 1 for px/mm/pt/%, 0.1 cm, 0.01 in), so arrow keys and a
-scrubby-label drag ([ui-conventions.md](ui-conventions.md)) move a sensible amount in
+scrubby-label drag ([ui-conventions-dialogs.md](ui-conventions-dialogs.md#options-bar)) move a sensible amount in
 inches; returning to the native unit restores both. The decimals change is silent (no
 `valueChanged`), so a shape W/H handler never resizes the shape for a readout change.
 `refresh_display_metrics` re-derives the step when the PPI changes. Set a field's native
@@ -213,11 +214,12 @@ decimals and step before it shows another unit, never while one is shown.
 
 `view/rulerUnits` is also the display unit of the pixel-native position and size fields,
 Photoshop's Units & Rulers model: the transform X/Y fields, the shape W/H readouts (options
-bar and Properties panel), the vector stroke width and line weight (both fractional px so
-a 0.5 mm hairline survives), the New Guide position, and the Shape Appearance and Create
-Shape dialogs' X/Y/W/H, line start/end, line weight and stroke width. The transform W/H
-pair stays percent-native. MainWindow enrolls its live fields (and the New Guide position
-spin for that dialog's lifetime) with `register_ruler_unit_field`;
+bar and Properties panel), the Properties panel's shape X/Y and live-rectangle Radius, the
+vector stroke width and line weight (both fractional px so a 0.5 mm hairline survives), the
+New Guide position, the New Guide Layout gutters and margins, and the Shape Appearance and
+Create Shape dialogs' X/Y/W/H, line start/end, line weight and stroke width. The transform
+W/H pair stays percent-native. MainWindow enrolls its live fields (and the New Guide and
+New Guide Layout fields for their dialog's lifetime) with `register_ruler_unit_field`;
 `apply_ruler_unit_to_fields` (Preferences OK, the ruler right-click, a field's unit menu,
 startup) resets them all to the preference; `refresh_ruler_unit_field_metrics` runs from
 `refresh_document_info` because the PPI is per document. A unit picked from any field's
@@ -234,8 +236,9 @@ unit shows percent of the document extent on position/size fields and falls back
 native text on thicknesses (no basis). `ui_shape_appearance_unit_pick_sets_ruler_unit`,
 `unit_spin_box_context_menu_pick_emits_picked`.
 
-Deliberately still px: selection Feather, corner radii, pattern offsets, layer-style
-sizes and distances, brush and Liquify sizes, tolerances. They are raster parameters
+Deliberately still px: selection Feather, corner radii (except the Properties panel's
+live-rectangle Radius), pattern offsets, layer-style sizes and distances, brush and Liquify
+sizes, tolerances. They are raster parameters
 Photoshop keeps in px, most are integer fields, and they accept "0.5 mm" at the document
 PPI. Coverage: the `unit_spin_box` UI test group, `ui_transform_fields_accept_unit_tokens`,
 `ui_shape_size_fields_follow_ruler_unit`.

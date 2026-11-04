@@ -208,7 +208,7 @@ VariationRead read_variation(const DescriptorObject& preset, std::string_view ke
       }
       dynamics.texture_style = texture_style_from_name(name);
     }
-    // Deliberate patent design-around: textureDepthDynamics/minimumDepth are observed for
+    // Deliberate patent boundary: textureDepthDynamics/minimumDepth are observed for
     // compatibility but never connected to pressure, velocity, direction, or stylus pose.
   }
   if (const auto* dual = descriptor_object(preset, "dualBrush");

@@ -1124,7 +1124,7 @@ void MainWindow::convert_to_profile_dialog() {
 void MainWindow::refresh_hdr_exposure_control() {
   const bool shown =
       has_active_document() && std::as_const(document()).color_state().bit_depth == BitDepth::Float32;
-  // The 32-bit color controls follow the same document (docs/high-bit-depth.md, "Color
+  // The 32-bit color controls follow the same document (docs/high-bit-depth-color.md, "Color
   // choice at 32 bits"): the Color panel's for the foreground, an open Foreground or
   // Background Color window's for its color.
   const auto intensity = canvas_ != nullptr ? canvas_->paint_intensity() : paint_intensity_;

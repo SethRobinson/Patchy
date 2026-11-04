@@ -1,7 +1,7 @@
 #pragma once
-// Text as vector outlines (GitHub issue 598; docs/text-tool.md, "Convert to Shape"): a paint
-// device that keeps what the text renderer draws as outline paths instead of pixels, and the
-// conversion of those outlines into Patchy path subpaths and shape-layer content.
+// Text as vector outlines (GitHub issue 598; docs/text-outlines.md): a paint device that
+// keeps what the text renderer draws as outline paths instead of pixels, and the conversion
+// of those outlines into Patchy path subpaths and shape-layer content.
 #include "core/pattern_resource.hpp"
 #include "core/vector_shape.hpp"
 

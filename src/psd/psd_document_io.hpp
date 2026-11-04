@@ -25,7 +25,7 @@ struct ReadOptions {
   // When set, the reader appends plain-English import notes (smart-object handling,
   // etc.) for the UI's import-notices dialog.
   std::vector<std::string>* notices{nullptr};
-  // A 16 or 32-bit file keeps its bit depth (docs/high-bit-depth.md) instead of
+  // A 16 or 32-bit file keeps its bit depth (docs/high-bit-depth-formats.md) instead of
   // converting to 8 bits. Unset follows the deep-editing gate (deep_editing_enabled()).
   std::optional<bool> keep_bit_depth{};
 };
@@ -45,7 +45,7 @@ struct WriteOptions {
   // before the composite, (i, total, name) as top-level layer i (an artboard, say) is
   // encoded, (total, total, "") before the bytes are assembled. Never changes the output.
   std::function<void(int done, int total, const std::string& label)> progress{};
-  // Encodes the save's thumbnail (image resource 1036, docs/file-info.md "Thumbnails"):
+  // Encodes the save's thumbnail (image resource 1036, docs/file-info-save-stamp.md "Thumbnails"):
   // called on the writing thread with thumbnail_pixels of the composite, returns JFIF bytes
   // (empty for none). When set, the document's earlier thumbnails (1033, 1036) are never
   // written. Unset (recovery snapshots, the byte canaries), they pass through as before.

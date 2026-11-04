@@ -1081,7 +1081,7 @@ patchy::PixelBuffer reference_photoshop_surface_blur(
 // Pins the histogram-free Surface Blur implementations against the brute
 // force reference on both sides of kSurfaceBlurDirectMaximumRadius: the
 // direct-accumulation path and the per-intensity-level box-sum path used for
-// large radii must produce identical bytes (patent design-around, see
+// large radii must produce identical bytes (patent boundary, see
 // docs/smart-objects.md "Patents and trademarks").
 void surface_blur_direct_and_level_paths_match_reference() {
   patchy::PixelBuffer source(23, 17, patchy::PixelFormat::rgba8());

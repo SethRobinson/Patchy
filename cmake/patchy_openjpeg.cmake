@@ -5,7 +5,7 @@
 # same facts (version, aligned-allocation and fseeko availability, little-endian hosts).
 # Single-threaded: neither MUTEX_win32 nor MUTEX_pthread is defined, so thread.c compiles
 # its no-op fallback and decoding stays deterministic (docs/hdr-formats.md,
-# docs/legal-constraints.md for the licensing record).
+# docs/legal-licensing.md for the licensing record).
 function(patchy_add_openjpeg)
   set(root "${PROJECT_SOURCE_DIR}/src/formats/openjpeg")
   set(gen "${CMAKE_CURRENT_BINARY_DIR}/openjpeg-generated")

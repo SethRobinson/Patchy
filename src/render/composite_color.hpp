@@ -1,6 +1,6 @@
 #pragma once
 
-// The color types the compositor runs on (docs/high-bit-depth.md). An 8-bit target
+// The color types the compositor runs on (docs/high-bit-depth-compositor.md). An 8-bit target
 // composites RgbColor exactly as it always has; a deep target (16 and 32-bit documents)
 // declares `using color_type = DeepRgb;` and receives float colors on the deep scale
 // (core/pixel_depth.hpp: 255 = full scale, Linear-domain values may exceed it). Code

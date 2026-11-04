@@ -1,6 +1,6 @@
 // Type > Resolve Missing Fonts (GitHub issue 169) and the text-session state the layer panel and
-// the options bar read about missing fonts (issues 178 and 180). See docs/font-resolution.md,
-// "Missing fonts".
+// the options bar read about missing fonts (issues 178 and 180). See
+// docs/font-resolution-missing-fonts.md, "Missing fonts".
 #include "core/layer_metadata.hpp"
 #include "core/text_area.hpp"
 #include "ui/app_settings.hpp"

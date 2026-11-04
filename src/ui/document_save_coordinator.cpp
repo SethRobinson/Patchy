@@ -42,7 +42,7 @@ bool is_jpeg_save_extension(const QString& extension) {
          extension == QStringLiteral("jpe") || extension == QStringLiteral("jfif");
 }
 
-// Photoshop's save record in the document's XMP and EXIF (docs/file-info.md, "Save stamp"):
+// Photoshop's save record in the document's XMP and EXIF (docs/file-info-save-stamp.md, "Save stamp"):
 // the save itself, and the file as written: `format` is dc:format, `color_mode` the PSD
 // header mode photoshop:ColorMode names (3 RGB, 4 CMYK).
 void stamp_document_for_save(Document& document, const char* format, int color_mode) {
@@ -239,7 +239,7 @@ std::optional<DocumentSaveResult> DocumentSaveCoordinator::write_prepared(
         QFileInfo(path).absolutePath());
     // Photoshop's save record in the XMP and EXIF: the modify and metadata dates, a new
     // instance, and on the first save the creation date and Patchy as the creator
-    // (docs/file-info.md, "Save stamp").
+    // (docs/file-info-save-stamp.md, "Save stamp").
     const bool psb = extension == QStringLiteral("psb");
     const auto cmyk_proof = effective_image_options.psd_cmyk_proof ? working_cmyk_space() : nullptr;
     if (stamp_save) {
@@ -291,7 +291,7 @@ std::optional<DocumentSaveResult> DocumentSaveCoordinator::write_prepared(
   } else {
     // A JPEG Save or Save As records itself like a PSD save (decided October 25, 2026); its
     // EXIF then also carries a thumbnail (add_jpeg_exif_thumbnail). Copies (a script's
-    // exportAs) and every other flat format stay as they are; File > Export As never comes here.
+    // exportAs) and every other flat format stay as they are; File > Export > Flat Image never comes here.
     if (stamp_save && !export_copy && is_jpeg_save_extension(extension)) {
       stamp_document_for_save(target->document, "image/jpeg", effective_image_options.export_cmyk ? 4 : 3);
     }

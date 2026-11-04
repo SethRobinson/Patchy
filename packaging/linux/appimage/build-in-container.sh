@@ -201,7 +201,7 @@ echo "ABI audit passed."
 
 echo "== pack (appimagetool, static type2 runtime) =="
 # The zsync file names the AppImage it describes, so both are made under their published
-# names (PatchyLinux.AppImage and .zsync, docs/release-process.md) and only renamed to the
+# names (PatchyLinux.AppImage and .zsync, docs/release-process-github.md) and only renamed to the
 # versioned build names afterwards. The update information lets AppImageUpdate, Gear Lever
 # and AppImageLauncher fetch the next release from GitHub.
 STAGE="$ROOT/build/appimage-out"

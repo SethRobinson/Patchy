@@ -82,7 +82,7 @@ preview at reduced resolution: where the Move or Free Transform path would use t
 or a downscaled proxy, use the existing dashed outline preview instead (small to medium effort,
 both outline modes exist; cost: no pixel preview when zoomed out past 50% or on large sets). C:
 full-resolution live previews everywhere (large performance cost; not recommended). The
-"never composite source gradients" rule in legal-constraints.md stays as an engineering boundary
+"never composite source gradients" rule in legal-constraints-filters.md stays as an engineering boundary
 (the gradient-domain field was not surveyed beyond these two patents and the PatchMatch trio), but
 it no longer cites US 9058699 as its source.
 

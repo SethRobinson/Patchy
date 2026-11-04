@@ -11,9 +11,9 @@ namespace patchy::ui {
 // Geometry shared by the spatial-overlay hosts (the gallery and the direct
 // filter dialogs): the active entry's traced input rectangle and the final
 // displayed proxy bounds, both in the proxy's local pixel space. Only the
-// coordinate/sync math lives here — the overlay DRAWING stays in
-// zoomable_image_preview.cpp (the handle-only tilt-shift overlay is a patent
-// design-around; see docs/filters.md).
+// coordinate/sync math lives here: the overlay DRAWING stays in
+// zoomable_image_preview.cpp (the handle-only tilt-shift overlay is a reviewed
+// design; see docs/filters-gallery.md).
 struct FilterOverlayGeometry {
   Rect input_bounds{};
   Rect result_bounds{};

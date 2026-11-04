@@ -17,11 +17,11 @@ namespace patchy {
 // other input is `attempt`, the user's repeat count, which walks the
 // geometrically valid candidates in their fixed order. Any content-driven
 // source search added later must be the exhaustive exemplar search that
-// docs/legal-constraints.md clears ("Content-aware fill and exemplar
+// docs/legal-constraints-filters.md allows ("Content-aware fill and exemplar
 // inpainting"), never PatchMatch-style offset propagation or perturbation
 // (Adobe US 8285055 / US 8340463 / US 8355592, into 2031). The tone blend on
 // top is the classic healing membrane of the expired US 6587592
-// (core/heal_membrane.hpp). See docs/legal-constraints.md before changing
+// (core/heal_membrane.hpp). See docs/legal-constraints-filters.md before changing
 // anything here.
 struct SpotHealSourceMap {
   bool valid{false};

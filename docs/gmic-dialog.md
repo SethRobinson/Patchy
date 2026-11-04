@@ -1,9 +1,11 @@
 # G'MIC Filter Library dialog
 
-Split from [gmic.md](gmic.md) (vendoring, build, code, allowlist, tests). Dialog conventions: [ui-conventions.md](ui-conventions.md).
+Split from [gmic.md](gmic.md) (vendoring, build, code, allowlist, tests). Dialog conventions: [ui-conventions-dialogs.md](ui-conventions-dialogs.md).
 
 Filter > "G'MIC Filter Library..." (`filterGmicLibraryAction`, hotkey id `filter.gmic_library`,
-a document action, created only when `gmic::engine_available()`).
+a document action, created only when `gmic::engine_available()`). The wasm build has no engine and keeps
+a row under the same object name, with no hotkey, that only offers the desktop download
+(`gmicDesktopOnlyMessageBox`, [wasm.md](wasm.md)).
 
 - `src/ui/gmic_library.{hpp,cpp}`: `gmic_library()` loads the embedded text once and keeps the
   allowlisted catalog.
@@ -152,7 +154,7 @@ a document action, created only when `gmic::engine_available()`).
     keeps the pointer's position when its owner echoes the move back. A point the
     filter declares hidden is not one, and the two blur filters that are not offered would
     get none
-    ([legal-constraints.md](legal-constraints.md)).
+    ([legal-constraints-filters.md](legal-constraints-filters.md)).
   - `MainWindow::apply_gmic_filter(id, values, input_mode)` (the active layer, with prompts
     and status text) and the dialog's OK without a matching preview go through
     `render_gmic_with_progress`: the same

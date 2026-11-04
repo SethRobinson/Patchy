@@ -15,7 +15,7 @@
 // appended in stacking order with the chosen op (Unite = Add, Subtract Front
 // Shape = Subtract, Intersect = Intersect, Exclude Overlapping = Xor). Front
 // origination is not carried over (a geometry edit); front layers' own
-// styles and masks vanish with the layers. Semantics: docs/vector-commands.md.
+// styles and masks vanish with the layers. Semantics: docs/vector-commands-shapes.md.
 namespace patchy {
 
 enum class ShapeCombineRefusal : std::uint8_t {

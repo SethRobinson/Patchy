@@ -17,11 +17,11 @@ namespace patchy::ui {
 [[nodiscard]] int thumbnail_click_selection_operation(Qt::KeyboardModifiers modifiers);
 
 // The selection-load hint shared by the Layers panel thumbnails and the Channels rows (GitHub
-// issues 480 and 525; docs/layer-panel.md): while Ctrl (Cmd) is held over a place a click loads
-// as a selection, that widget shows load_selection_pointer_cursor with the combine badge the
-// held Shift and Alt pick. Updated from mouse moves and from Ctrl, Shift and Alt presses and
-// releases (the key folded into the event's modifiers, QCursor::pos() for the place), so the
-// badge follows the keys without a mouse move.
+// issues 480 and 525; docs/layer-panel-selection.md): while Ctrl (Cmd) is held over a place a
+// click loads as a selection, that widget shows load_selection_pointer_cursor with the combine
+// badge the held Shift and Alt pick. Updated from mouse moves and from Ctrl, Shift and Alt
+// presses and releases (the key folded into the event's modifiers, QCursor::pos() for the
+// place), so the badge follows the keys without a mouse move.
 class SelectionLoadCursor final {
 public:
   // The widget under `global_position` that a Ctrl-click there loads, or null. Called only

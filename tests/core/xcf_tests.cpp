@@ -1106,9 +1106,9 @@ void xcf_text_layers_open_as_editable_text_over_gimps_raster() {
 }
 
 // GitHub issue 551: a text layer GIMP marks as painted on opens as GIMP's pixels and keeps the
-// text it would have opened with, outline included, for the open-time choice (docs/xcf.md); a
-// move carries the stored text box along, taking the text puts the editable keys back, and
-// clearing it drops the stored copy.
+// text it would have opened with, outline included, for the open-time choice
+// (docs/xcf-text-layers.md); a move carries the stored text box along, taking the text puts the
+// editable keys back, and clearing it drops the stored copy.
 void xcf_painted_text_layers_keep_gimps_text() {
   builder::Image image;
   image.width = 80;
@@ -1586,7 +1586,7 @@ void xcf_layer_effects_bake_or_become_styles() {
 // Effects with no code of their own go to the effect runner (Patchy's GEGL in the app) when
 // it is set: every stored argument by name and kind, the result mixed by the effect's
 // opacity in linear light; operations outside the table, and runs that fail, are left out
-// with the notice naming them (docs/xcf.md, "Layer effects (GIMP 3 filters)").
+// with the notice naming them (docs/xcf-layer-effects.md, "Layer effects (GIMP 3 filters)").
 void xcf_effect_runner_gets_gegl_arguments_and_mixes_by_opacity() {
   builder::Image image;
   image.version = 22;
@@ -2429,7 +2429,7 @@ void flatten_patchy_tree(const std::vector<patchy::Layer>& layers, int depth,
       problems.push_back(where + " lost its mask");
     }
     // A GIMP effect that grows the layer (Gaussian Blur with clip-extent off) grows Patchy's
-    // pixels too (docs/xcf.md, "Layer effects").
+    // pixels too (docs/xcf-layer-effects.md, "Layer effects").
     const auto& lb = layer->bounds();
     const bool grown = effects_applied && lb.x <= item.bounds.x && lb.y <= item.bounds.y &&
                        lb.x + lb.width >= item.bounds.x + item.bounds.width &&

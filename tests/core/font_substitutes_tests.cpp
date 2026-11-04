@@ -1,5 +1,5 @@
-// The built-in font substitute table (GitHub issue 463). See docs/font-resolution.md,
-// "Substitute table".
+// The built-in font substitute table (GitHub issue 463). See
+// docs/font-resolution-missing-fonts.md, "Substitute table".
 #include "core/font_substitutes.hpp"
 #include "test_harness.hpp"
 

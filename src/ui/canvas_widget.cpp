@@ -2233,5 +2233,5 @@ void CanvasWidget::emit_info_for_widget_position(QPoint widget_position) const {
 }  // namespace patchy::ui
 
 // AUTOMOC generates this here instead of in the shared mocs_compilation.cpp, so a
-// change to this class's header rebuilds this object only (docs/building.md).
+// change to this class's header rebuilds this object only (docs/building-incremental.md).
 #include "moc_canvas_widget.cpp"

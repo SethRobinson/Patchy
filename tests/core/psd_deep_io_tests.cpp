@@ -25,7 +25,7 @@
 #include <tuple>
 #include <unordered_set>
 #include <utility>
-// 16/32-bit PSD/PSB reading and writing at the file's depth (docs/high-bit-depth.md,
+// 16/32-bit PSD/PSB reading and writing at the file's depth (docs/high-bit-depth-formats.md,
 // Phase 2): the reader keeps the samples, the writer emits them back, and the 8-bit
 // reading of the same file is exactly the deep reading narrowed.
 #include "color/color_management.hpp"

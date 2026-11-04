@@ -53,13 +53,12 @@ folder or Smart Object layer among the copied ones, it copies whole layers
 (`layers_top_to_bottom`) and, since GitHub issue 116, also renders those layers by
 themselves (`render_layers_for_system_clipboard`: a scratch document with the copied
 layers and the Smart Object, filter and pattern stores they reference, cropped to the
-layers' bounds and trimmed to painted pixels) onto the system clipboard. It used to clear
-the system clipboard instead, which on Wayland reached the compositor as
-`set_selection(nil)` and left a paste in another program empty. Paste inside Patchy still
-prefers the layer payload because `set_system_clipboard_image` records the image's
-signature as Patchy's own; an image copied elsewhere afterwards wins, as before
-(`ui_external_clipboard_image_paste_overrides_internal_payload`). Hidden copied layers
-render nothing, so the clipboard is cleared as before. Test:
+layers' bounds and trimmed to painted pixels) onto the system clipboard. Clearing it instead
+would reach a Wayland compositor as `set_selection(nil)` and leave a paste in another
+program empty. Paste inside Patchy prefers the layer payload because
+`set_system_clipboard_image` records the image's signature as Patchy's own; an image copied
+elsewhere afterwards wins (`ui_external_clipboard_image_paste_overrides_internal_payload`).
+Hidden copied layers render nothing, so then the clipboard is cleared. Test:
 `ui_whole_layer_copy_puts_its_pixels_on_the_system_clipboard`.
 
 A pixel Copy, Cut or Copy Merged whose selected area holds no visible pixel (a marquee
@@ -122,9 +121,9 @@ the action on the strength of `QClipboard::image()` returning a cached image.
 
 ## Legal review (2026-10-04)
 
-Assessment: low risk for this independently implemented, user-invoked raster
-command and shortcut. This is a scoped engineering review, not a worldwide
-freedom-to-operate opinion or a guarantee about undiscovered claims.
+Scope: this independently implemented, user-invoked raster command and shortcut,
+which lacks an element of every independent claim read below. This is a scoped
+engineering review, not a worldwide search or a guarantee about undiscovered claims.
 
 - Copyright: the U.S. Copyright Office excludes methods of operation and short
   phrases from copyright protection. The functional command/shortcut can be
@@ -137,7 +136,7 @@ freedom-to-operate opinion or a guarantee about undiscovered claims.
 - Patent searches covered clipboard/new-image/new-document and clipboard
   shortcuts, including Serif/Affinity and Adobe terms. No blocking claim was
   identified for this design. Two relevant granted patents were read at the
-  independent-claim level, rather than assuming that copyright also clears patents.
+  independent-claim level, rather than assuming that the copyright review also covers patents.
 - [Dropbox US12099886B2](https://patents.google.com/patent/US12099886B2/en),
   independent claims 1, 17, and 20, require determining a file format from
   clipboard metadata and creating a stored content item in a content management
@@ -159,5 +158,7 @@ The `ui_open_clipboard` tests exercise empty-workspace creation, File-menu
 placement, shortcut dispatch with an existing document, unchanged source history,
 replacement of a private copy with a current external image, exact RGBA bytes and
 high-DPI dimensions, 72 PPI, unsaved/pathless state, and invalid clipboard refusal.
-Run alongside `ui_new_document_presets_and_clipboard`, `ui_hotkey`,
-`ui_no_widget_ships_unresolved_theme_tokens`, and the translation build gate.
+Run alongside `ui_new_document_presets_and_clipboard_work`, plus
+`ui_hotkey_defaults_have_no_conflicts` when the action or its shortcut changes,
+`ui_no_widget_ships_unresolved_theme_tokens` when QSS or theme roles change,
+and the translation build gate.

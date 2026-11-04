@@ -424,7 +424,7 @@ void gmic_engine_cuts_a_long_input_title_cleanly() {
 }
 
 // The Patchy build of the interpreter starts no programs and holds neither the
-// patch correspondence search nor patch-based inpainting (docs/legal-constraints.md).
+// patch correspondence search nor patch-based inpainting (docs/legal-constraints-filters.md).
 void gmic_engine_leaves_out_programs_and_patch_algorithms() {
   const gmic::Engine engine(standard_library());
 

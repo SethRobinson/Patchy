@@ -1575,7 +1575,7 @@ struct TransparentColorExtension {
 }
 
 // Patent design constraint, do not regress (details in docs/smart-objects.md and
-// docs/legal-constraints.md): these window
+// docs/legal-constraints-filters.md): these window
 // filters must never build value histograms that are merged from per-column
 // histograms or slid between windows, and Surface Blur must not use a value
 // histogram AT ALL. Adobe US 7920741 (in force to 2030) claims sliding a

@@ -1,6 +1,6 @@
 #pragma once
 
-// Float blend math for 16 and 32-bit documents (docs/high-bit-depth.md). Values are on
+// Float blend math for 16 and 32-bit documents (docs/high-bit-depth-compositor.md). Values are on
 // the deep scale (core/pixel_depth.hpp: 255 = full scale). The 8-bit kernels in
 // core/blend_math.cpp are calibrated to Photoshop's integer rounding and stay the
 // only path for 8-bit documents; these are the same formulas without the rounding.

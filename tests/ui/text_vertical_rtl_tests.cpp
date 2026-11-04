@@ -24,7 +24,8 @@
 // Vertical (tategaki) type layers and right-to-left paragraphs: the cell layout model in
 // ui/text_layout.hpp, its caret/selection/hit-test geometry, the orientation toggle, PSD
 // round trips, and the committed Photoshop 2026 captures (photoshop-text-vertical-*.psd).
-// See docs/text-tool.md ("Vertical text and paragraph direction").
+// See docs/text-tool.md ("Vertical text and paragraph direction") and, for the layout model
+// and the captures, docs/text-render-calibration-vertical-rtl.md.
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
 #include "psd/psd_document_io.hpp"
@@ -505,7 +506,7 @@ void ui_vertical_text_recommit_keeps_origin_and_round_trips_psd() {
   const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(live_document);
   {
     // Kept as an artifact so Photoshop's read-back of a Patchy-authored vertical layer can be
-    // re-measured by COM (docs/text-render-calibration.md).
+    // re-measured by COM (docs/text-render-calibration-vertical-rtl.md).
     std::filesystem::create_directories("test-artifacts");
     std::ofstream out("test-artifacts/vertical_text_check.psd", std::ios::binary);
     out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));

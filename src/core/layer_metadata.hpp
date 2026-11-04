@@ -60,7 +60,7 @@ inline constexpr const char* kLayerMetadataTextLayoutMode = "patchy.text.layout"
 inline constexpr const char* kTextLayoutModePhotoshop = "photoshop";
 // "vertical" on type layers whose glyphs stack top to bottom in columns that advance right to
 // left (Photoshop's Vertical Type tool, TySh Ornt = Vrtc). Absent means horizontal. The layout
-// model is documented in docs/text-tool.md ("Vertical text").
+// model is documented in docs/text-render-calibration-vertical-rtl.md ("Vertical type").
 inline constexpr const char* kLayerMetadataTextOrientation = "patchy.text.orientation";
 inline constexpr const char* kTextOrientationVertical = "vertical";
 inline constexpr const char* kLayerMetadataTextTransform = "patchy.text.transform";
@@ -71,8 +71,9 @@ inline constexpr const char* kLayerMetadataPsdTextBoxBounds = "patchy.psd.text.b
 inline constexpr const char* kLayerMetadataPsdTextTailBounds = "patchy.psd.text.tail_bounds";
 inline constexpr const char* kLayerMetadataPsdTextIndex = "patchy.psd.text.index";
 // Layout metrics of the raster Patchy drew, recorded by the renderer so the Qt-free PSD writer
-// can place Photoshop's re-layout on the same pixels (docs/text-render-calibration.md, "Patchy
-// text re-renders where Patchy drew it"). All values are text-local units of the render plan.
+// can place Photoshop's re-layout on the same pixels
+// (docs/text-render-calibration-patchy-authored.md, "Patchy text re-renders where Patchy drew it").
+// All values are text-local units of the render plan.
 // - first_baseline: the first line's baseline below the raster's top row; the writer anchors a
 //   point-text transform there (Photoshop treats ty as the first baseline).
 // - box_baseline_inset: Qt's first baseline minus Photoshop's box rule for a Patchy block (cap
@@ -120,15 +121,15 @@ inline constexpr const char* kLayerMetadataAfTextAlign = "patchy.af.text_align";
 // the standard patchy.text.transform. Frame/box text never carries this.
 inline constexpr const char* kLayerMetadataAfTextXfrm = "patchy.af.text_xfrm";
 
-// GIMP text outline handoff (docs/xcf.md, "Text layers"): GIMP's raster of an outlined text
-// layer has the outline baked in, so MainWindow::render_pending_xcf_text_layers redraws the
-// text post-open, adds the outline as a Stroke layer style and drops this key. Value:
-// "<outside|inside|center> <size px> <#rrggbb> <opacity 0..1> <fill|nofill>".
+// GIMP text outline handoff (docs/xcf-text-layers.md, "Text layers"): GIMP's raster of an
+// outlined text layer has the outline baked in, so MainWindow::render_pending_xcf_text_layers
+// redraws the text post-open, adds the outline as a Stroke layer style and drops this key.
+// Value: "<outside|inside|center> <size px> <#rrggbb> <opacity 0..1> <fill|nofill>".
 inline constexpr const char* kLayerMetadataXcfPendingOutline = "patchy.xcf.pending_outline";
 
 // GIMP text layers painted on after their text was set open as pixels and keep the text GIMP
-// stored (docs/xcf.md, "Text layers"): every key the editable layer would have had (the
-// patchy.text.* keys and kLayerMetadataXcfPendingOutline), each under this prefix, and the
+// stored (docs/xcf-text-layers.md, "Text layers"): every key the editable layer would have had
+// (the patchy.text.* keys and kLayerMetadataXcfPendingOutline), each under this prefix, and the
 // box key, GIMP's layer rect "x y width height" where the text box starts. The open-time
 // choice (imports/xcfPaintedTextLayers) moves them back. In memory only: no format writes them.
 inline constexpr const char* kLayerMetadataXcfStoredTextPrefix = "patchy.xcf.stored_text.";
@@ -147,9 +148,9 @@ inline constexpr const char* kLayerMetadataPdfTextXfrm = "patchy.pdf.text_xfrm";
 inline constexpr const char* kLayerMetadataPdfTextIntendedWidth = "patchy.pdf.text_intended_width";
 // A placed image awaiting the Qt-side smart-object render: the reader has already
 // put the bytes in the document's SmartObjectStore and written the placement quad,
-// so this only marks the layer for MainWindow::render_pending_pdf_images.
+// so this only marks the layer for MainWindow::render_pending_pdf_image_layers.
 inline constexpr const char* kLayerMetadataPdfPendingImage = "patchy.pdf.pending_image_render";
-// A PDF import's page group (docs/pdf.md): "x,y,width,height" of the page on the merged
+// A PDF import's page group (docs/pdf-import.md): "x,y,width,height" of the page on the merged
 // canvas, so exporting by groups gives each page its own size again. Patchy-only: never
 // written to PSD.
 inline constexpr const char* kLayerMetadataPdfPageRect = "patchy.pdf.page_rect";

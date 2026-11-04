@@ -942,7 +942,7 @@ void exemplar_match_tone(std::uint8_t* filled, std::int32_t width, std::int32_t 
 // count as a fixed miss), the shifted block does not touch the hole, and the shifted hole
 // does not touch `excluded`. There is no offset
 // field, no propagation, no perturbation, no stored candidate list and no coarse map:
-// the plain exhaustive form docs/legal-constraints.md allows. Partial sums stop once
+// the plain exhaustive form docs/legal-constraints-filters.md allows. Partial sums stop once
 // they exceed the best distance so far, which never changes the winner (ties keep the
 // first in scan order).
 ExemplarBlockMatch exemplar_block_match(const std::uint8_t* image, std::int32_t width, std::int32_t height,

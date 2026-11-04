@@ -4,7 +4,8 @@ Dink Smallwood theme for Patchy
 A theme package built into Patchy (Preferences > Colors and Themes, Included
 themes). This folder is its source: the build compiles every file in it except
 this README into the application. To see edits without rebuilding, start Patchy
-with PATCHY_THEME_SOURCE_DIR set to the themes/bundled folder (docs/theme-files.md).
+with PATCHY_THEME_SOURCE_DIR set to the themes/bundled folder
+(docs/bundled-themes.md, "Editing without a rebuild").
 
 This product includes software developed by Seth A. Robinson ( www.rtsoft.com )
 

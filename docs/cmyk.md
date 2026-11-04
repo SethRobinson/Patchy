@@ -3,8 +3,8 @@
 Read this before touching the color picker's C/M/Y/K fields, the Info panel's CMYK line,
 CMYK swatch import, the Preferences CMYK group, or `CmykWorkingSpace`. It covers GitHub
 issue 90, stages 1 to 3. How imported CMYK files are read, composited and saved is a separate
-subject: [psd-native-color.md](psd-native-color.md), [file-formats.md](file-formats.md)
-and [blend-modes.md](blend-modes.md).
+subject: [psd-native-color.md](psd-native-color.md), [file-formats-psd.md](file-formats-psd.md)
+and [blend-modes-cmyk.md](blend-modes-cmyk.md).
 
 ## What it is, and what it is not
 
@@ -20,8 +20,10 @@ layered CMYK PSD and PSB saves in CMYK Proof mode ("CMYK Proof PSD saves" below)
 
 Not built: CMYK forms of adjustment layers, layer styles, shape and fill layers, Blend If
 and non-Normal blend modes (each makes a CMYK Proof PSD save RGB), a true CMYK document
-mode, opening a CMYK PDF
-into CMYK Proof (Qt PDF renders pages to RGB), Assign or Convert to Profile, a separate Proof
+mode, a CMYK PDF opening in CMYK Proof by itself or keeping its inks (Qt PDF renders pages
+to RGB; the Import PDF dialog's CMYK mode opens every page in CMYK Proof, [pdf-import.md](pdf-import.md)),
+Assign Profile, conversion to a CMYK profile (Edit > Convert to Color Profile converts between
+RGB profiles and refuses CMYK Proof, [rgb-profiles.md](rgb-profiles.md)), a separate Proof
 Setup dialog (the proof uses the working space from Preferences).
 
 Limits to keep stating plainly in user-facing text:
@@ -105,7 +107,7 @@ Licence record (October 14, 2026):
 - The profile's own copyright tag still reads "Copyright (c) 2006-2007 Color Solutions, All
   Rights Reserved": the profiling tool's stamp, and Color Solutions is the same company.
   The licence grant is the announcement and the package files.
-- Rejected: Adobe's profiles (barred by [legal-constraints.md](legal-constraints.md)), and
+- Rejected: Adobe's profiles (barred by [legal-licensing.md](legal-licensing.md#format-copyright-trademarks-and-assets)), and
   the ECI offset and IDEAlliance SWOP/GRACoL profiles, which allow use and embedding but
   restrict sale and need the owner's permission for inclusion in an installer. No freely
   licensed SWOP profile was found.
@@ -120,7 +122,7 @@ Licence record (October 14, 2026):
   value under the cursor. The tooltip names the active profile.
 - **Color panel CMYK Sliders** (`src/ui/color_dock_panel.cpp`, GitHub issue 404): the same
   conversion, rounding and kept inks as the picker, as four tracks and percent boxes
-  ([right-docks.md](right-docks.md#color-panel)).
+  ([right-docks-color-panel.md](right-docks-color-panel.md#color-panel)).
 - **Picker gamut warning** (`patchyColorGamutWarningButton`, under the preview): shown while
   the current color is outside the working space's gamut, filled with the color it prints as
   (`CmykProofTransform::printed`); a click takes that color. Hidden under the formula. The
@@ -302,7 +304,7 @@ session-only, never written to a file, not an undo step. New Document's Color Mo
 - **Painting.** An imported 8-bit CMYK PSD composites on its inks in CMYK Proof and RGB
   mode alike, so its cost per brush dab does not depend on the mode: the dab separates only
   its own rect and the profile's transforms are built once per file
-  ([blend-modes.md](blend-modes.md#imported-cmyk-documents), with the regression test).
+  ([blend-modes-cmyk.md](blend-modes-cmyk.md#imported-cmyk-documents), with the regression test).
 - **Scripting.** `doc.cmykProof` (read/write; refusals throw).
 
 ## CMYK Proof PSD saves

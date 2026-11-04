@@ -2,7 +2,7 @@
 // time (compiled for native Linux builds and the AppImage, see CMakeLists). Patchy links
 // nothing: the library and its HEVC decoder plug-in (libde265 on Debian/Ubuntu, the RPM
 // Fusion build on Fedora) come from the user's package manager, so the binary ships no
-// HEVC decoder and the AppImage must never bundle libheif (docs/legal-constraints.md,
+// HEVC decoder and the AppImage must never bundle libheif (docs/legal-licensing.md,
 // docs/appimage.md). Inside the Flatpak this file still compiles but steps aside:
 // the KDE runtime's kimg_heif plug-in plus the codecs-extra extension decode through the
 // QImageReader fallback instead (heif_document_io.hpp).

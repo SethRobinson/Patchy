@@ -1,7 +1,7 @@
-// Preferences > Colors and Themes (docs/theme-files.md, "Preferences UI"): the theme
-// list with previews, the shown theme's details and per-theme script answer, the theme
-// file buttons, and the theme sound and effect switches. Selecting a theme previews it
-// live; OK keeps it and any other way out puts the entry theme back.
+// Preferences > Colors and Themes (docs/theme-files-preferences.md, "Preferences UI"):
+// the theme list with previews, the shown theme's details and per-theme script answer,
+// the theme file buttons, and the theme sound and effect switches. Selecting a theme
+// previews it live; OK keeps it and any other way out puts the entry theme back.
 
 #include "ui/main_window.hpp"
 #include "ui/preferences_themes_page.hpp"

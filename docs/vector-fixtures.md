@@ -2,7 +2,7 @@
 
 The committed fixtures the vector codec and renderer tests read
 (`tests/core/psd_vector_fixtures_tests.cpp` unless noted). The encodings they
-pin are in [vector-tools.md](vector-tools.md).
+pin are in [vector-psd-encodings.md](vector-psd-encodings.md).
 
 ## Inventory (test-fixtures/psd)
 

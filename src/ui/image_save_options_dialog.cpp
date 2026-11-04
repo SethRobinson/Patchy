@@ -1308,7 +1308,7 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     lossless->setChecked(options.jxl_lossless);
     content->addWidget(lossless);
 
-    // The encoder's patch and dot tools stay off on every save (docs/legal-constraints.md);
+    // The encoder's patch and dot tools stay off on every save (docs/legal-licensing.md);
     // files made elsewhere with them still open normally.
     auto* note = new QLabel(QObject::tr("Patchy does not use JPEG XL's patch and dot coding tools, so images with "
                                         "repeated text or small dots can be somewhat larger than with other encoders."),

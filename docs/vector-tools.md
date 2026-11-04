@@ -5,6 +5,12 @@ References: [scripting](vector-automation.md), [preview](vector-preview.md), [me
 PS 27.8 COM probes: `local-test-fixtures/vector-probe/`.
 Rules: docs/legal-constraints.md.
 
+Related documents:
+
+- [vector-tools-custom-shapes.md](vector-tools-custom-shapes.md): the custom shape library (builtins, seeding, user entries), the Shapes Manager and the options-bar Shape picker, the bundled game-icons.net pack, and Photoshop .csh import.
+- [vector-tools-appearance.md](vector-tools-appearance.md): the Shape Appearance dialog (paint, stroke and dash presets, geometry, opacity, Edge), its worker-thread preview, and fill layers.
+- [vector-psd-encodings.md](vector-psd-encodings.md): the observed PSD encodings of shape and fill layers, vector masks, strokes, live shapes and document paths.
+
 ## Shape tools (Line / Rectangle / Ellipse)
 
 Shape | Path | Pixels persists as `tools/vectorToolMode` (default Shape).
@@ -30,7 +36,7 @@ to the work path; Pixels keeps the raster commit byte-identical.
 Fill/Stroke popups (No Fill / Solid / Gradient / Pattern) use app-wide
 `VectorFill` mirrors. Gradient picks resolve FG/BG stops immediately; patterns
 enter the document store at commit (`ensure_vector_fill_patterns`, honoring
-the Patt-block refusal below). Kind and preset ids persist under
+the [Patt-block refusal](vector-psd-encodings.md#shape-and-fill-layer-structure)). Kind and preset ids persist under
 vectorFill*/vectorStrokePaint* keys; gradient/pattern PLACEMENT resets each
 launch. The controls also serve Path Select / Direct Select and next-shape
 defaults; [width 0 = no stroke](options-bar.md#shape-tool-rows) (bar,
@@ -126,97 +132,9 @@ reopens as a plain path, `live_polygon_regenerates_resolves_and_writes_a_plain_p
 live entry for it. The Line tool has
 start/end arrowhead glyph toggles (head width 5x, length 10x the weight, PS's
 proportions) encoded through the probed keyOriginLine arrow keys. The
-CustomShapeLibrary (JSON sidecars in a `shapes` folder beside the settings
-file, unit-box paths, v1 text codec) ships 17 builtins: ids shape.builtin.*
-are append-only, geometry is code-authoritative (restore_default_shapes
-rewrites drifted builtin sidecars, keeping user renames). Edit > Define New Preset > Define
-Custom Shape from Path adds a user entry. Builtins seed once under the
-`shapes/defaultShapesVersion` stamp (`kDefaultCustomShapesVersion`, each
-builtin's `introduced_version`), so a deleted default stays deleted.
-Edit > Presets > Shapes Manager (`request_custom_shape_manager`, GitHub
-issue 486; the hotkey id stays `edit.presets_custom_shapes`) is the Pattern
-Manager's shape twin: rename, folder, Move to New Folder, Rename Folder,
-drag shapes onto a folder row (`set_drop_callback`; the
-rows never reorder, the library sorts by folder and name, so there is no
-manual order), duplicate, delete, Import of SVG files (`custom_shape_path_from_svg_file`, shared with
-Define Custom Shape from SVG File) and Photoshop `.csh` files
-(`CustomShapeLibrary::import_csh`: one user entry per shape, in a folder
-named after the file, one `changed()`), Restore Default Shapes (re-adds and
-resets builtin names and folders) and Use Shape, which picks it in the bar.
-Every edit reaches the bar's picker at once through `changed()`. The bar's
-Shape picker (`CustomShapePickerCombo`, custom_shape_picker.cpp) stays a
-QComboBox for every caller, but its dropdown is a popup: a search field, the
-library as a folder tree (folders open and close; the closed ones persist in
-`tools/customShapePickerCollapsedFolders`, never rewritten while searching),
-and a Shapes Manager... button that opens the manager on the current shape.
-Both show the library through `PresetBrowserView` (preset_grid_widget.cpp):
-List is the `PresetTreeWidget`, Grid (the default) a `PresetGridWidget`,
-icon-only cells (name in the tooltip and accessible name) wrapping under
-full-width folder header rows that open and close from their arrow, a
-double-click, Enter or Left/Right (in the picker any click on a header). The
-grid matches the tree's selection (a selected header is its folder's shapes),
-filter, collapse memory and drop-onto-folder rules, and lists unfiled shapes
-before the folders. Switching keeps the current shape, the closed folders and
-the search; the view persists in `tools/customShapeManagerGridView` and
-`tools/customShapePickerGridView`. The picker popup resizes from a corner
-`VisibleSizeGrip` (the Brush Tip and Font pickers' grip; a frameless Qt::Popup
-has no border to drag) and the grid reflows to the width; closing stores the size
-in `tools/customShapePickerSize`, and each opening clamps it to the minimum and
-the screen's available geometry (`custom_shape_picker_popup_size`, also the
-popup's maximum).
-
-### Bundled game-icons.net shapes
-
-GitHub #521: 878 curated shapes from game-icons.net (CC BY 3.0; Viscious Speed and Zeromancer
-CC0), all drawn by people, ship inside the app as the Qt resource
-`:/shapes/game-icons.json` (`src/ui/shapes.qrc`, compressed by rcc), so the installer, macOS
-bundle, Flatpak, AppImage and web build carry them with no file to copy. The pick is
-`scripts/dev/gameicons/game_icons_manifest.tsv` (id, source, author, folder, name; edit it by
-hand, never change an id) and `curate_game_icons.py` (`select` was the first pick from the
-site's tags; `extend` applies its REMOVED, MOVES and ADDITIONS lists to the manifest; `build`
-writes the pack from a clone at the pinned commit). Ids `shape.gameicons.<author>.<file>` are
-permanent and append-only (the second pass removed eight never-pushed franchise or violent
-picks). Its arrows and signs join the builtin Arrows and Symbols folders (one folder per name in
-the picker, already translated, still open by default); cards, dice, chess and tarot are in Games. Rules: credited authors only (badges/ and various-artists/ name
-none), no shape tied to another company's property, brand or logo, no gore or game-UI glyphs,
-thinned variant runs, nothing too fine for a thumbnail, and only outlines that fill the same
-even-odd as nonzero (custom shapes fill even-odd).
-`CustomShapeLibrary::ensure_bundled_shapes_loaded` adds them, read-only (`bundled`, no
-sidecar: no rename, move or delete, and a folder holding one cannot be renamed; Duplicate
-makes a user copy), the first time the picker,
-the Shapes Manager or a script asks (`MainWindow::custom_shape_library_with_bundled`; a
-remembered `tools/customShapeId` from the pack loads it at start). Paths are SVG path data
-parsed by `svg::parse_svg_path_data`, one even-odd group, normalized to the unit box.
-Thumbnails draw on first paint (`custom_shape_icon`, a caching icon engine), so only visible
-cells cost anything. The 16 folders only the pack fills start closed in the picker (never-toggled default,
-plus a one-time merge into an existing `tools/customShapePickerCollapsedFolders`) and the
-manager. Folder names are translated (`bundled_custom_shape_folders`); shape names stay the
-authors' English titles (878 names in 11 languages is out of proportion; search runs on them).
-Credits (binding, docs/legal-constraints.md): the author and license in every tooltip
-(`custom_shape_tool_tip`), the authors in the Shapes Manager (`customShapeManagerCreditLabel`)
-and `NOTICE-THIRD-PARTY.md`. A stamped shape is a plain path in documents and PSDs. Tests:
-`ui_custom_shape_bundled_pack_loads_on_request`, `ui_custom_shape_picker_opens_with_the_bundled_pack`.
-
-### Photoshop .csh files
-
-`psd/csh_io.cpp` (`read_csh`) reads them, written from files only (two CC0
-packs and a Photoshop 2026 load-and-draw check, October 2026; never from
-another reader's source). Big-endian: `cush`, u32 version 2, u32 shape
-count; per shape a u32 UTF-16 unit count and the name (terminator
-included), zero padding to a 4-byte file offset, a u32 that is always 1,
-and a u32 block length. The block: a Pascal id string (a GUID or zeros),
-four i32 bounds (top, left, bottom, right; the defining document's pixels),
-then the PSD path-resource record stream (`parse_path_resource_records`,
-points as 8.24 fractions of the bounds box), zero padded to a 4-byte file
-offset. Cut-outs are one compound group (lead op Add, continuation
-contours op 0xFFFF on the same group), filled even-odd. Photoshop draws a
-shape by fitting the outline's exact curve bounds to the drag rectangle
-(Aries, 1128 x 690 px: first anchor at 927.76, 541.91), so the reader
-normalizes by curve bounds, not control points. A damaged shape is skipped
-with a warning; a damaged tail keeps the shapes before it. No .csh writer
-yet: the builtins could be written in this layout as Patchy's own file.
-Tests: `csh_reader_*` (core; the CC0 packs in `local-test-fixtures/csh`)
-and `ui_custom_shape_csh_import_reads_unicode_paths_and_stamps_holes`.
+custom shape library, the Shapes Manager, the Shape picker, the bundled
+game-icons.net pack and .csh import are in
+[vector-tools-custom-shapes.md](vector-tools-custom-shapes.md).
 
 ## Path editing (Path Select / Direct Select)
 
@@ -227,12 +145,13 @@ anchors or knobs (smooth pairs stay colinear; a collapsed handle on its
 corner anchor is not grabbable), Shift adds, arrows
 nudge (1 px, Shift 10 px, coalesced per burst), Delete removes selected
 anchors (subpaths under two anchors disappear;
-[emptied shape layers go](vector-commands.md#deleting-the-last-shape)), Escape deselects. With a
+[emptied shape layers go](vector-commands-selection.md#deleting-the-last-shape)), Escape deselects. With a
 selection, the options-bar Combine box rewrites the selected shapes' op in
 place. The Pen doubles as the point editor (insert by exact de Casteljau
 split, delete, Alt+click converts). Any direct edit drops the touched groups' live-shape
 annotations (PS's keyShapeInvalidated rule) and re-rasterizes; the target is
-the active shape layer (a press picks another), else the work path.
+the active shape layer (a press picks another), else the work path. A layer,
+selection, path or edit-target change cancels a path transform.
 
 ## Vector mask UI
 
@@ -349,68 +268,9 @@ and vector masks (convert to a smart object or rasterize first).
 
 ## Appearance editing and fill layers
 
-The Shape Appearance dialog opens from the vector badge, the layer and
-canvas context menus ([tools.md](tools.md)), the options-bar Appearance gear, Layer >
-Shape > Shape Appearance... (`layer.shape_appearance`), the Properties
-panel's Edit Appearance..., and a Path Select / Direct Select double-click on
-the shape's geometry. Reset restores the factory appearance (geometry stays). Controls: paint kind, width, alignment, caps, joins, dashes
-(`StrokeDashPreset` ids as item data, Custom last). Custom's Dash pattern field
-(`shapeStrokeDashPatternEdit`, `parse_dash_pattern_text`) takes lengths in stroke widths,
-space separated; an odd count repeats once (as SVG) and one length must be above 0.
-It holds any file's array and commits on Enter or focus-out. Zero-length dashes draw only
-through Round or Square caps (nothing draws them with Butt caps), so Dotted is `dotted_dash_pattern(cap)`: {0, 2}, or {1, 1} with Butt caps, the
-same square dots; changing Caps while Dotted is chosen swaps the array (#548).
-The other presets follow the cap the same way (`stroke_dash_preset_pattern`: written for
-Butt caps, each dash one width shorter and each gap one width longer for Round or Square), so
-they look alike on every cap; Dashed alone stays a fixed {2, 2}. A preset also sets
-its caps and corners (`apply_stroke_dash_preset`, shared with the options bar; #548): Dashed, Long dashes and Short dashes set Butt caps; Dotted, Sparse
-dots, Dash dot and Dash dot dot set Round caps and Round corners, so every dot is round; Solid
-sets neither. Caps and Corners stay editable. `stroke_dash_preset_for` maps a file's array to
-its row by its shortest repeating period (GIMP repeats each pattern to fill its dash table), so
-GIMP's Dense dots on Butt caps is Dotted; arrays matching no preset show as Custom.
-Dash offset (`shapeStrokeDashOffsetSpin`, stroke widths; vstk strokeStyleLineDashOffset, SVG
-`stroke-dashoffset`) works only while dashed. Saved stroke presets join the built-ins in one Dashes list (#557):
-[style-presets.md](style-presets.md#shape-appearance-stroke-presets). A gradient's and a pattern's own
-rows are a nested form in their picker row's field column (#552).
-`pattern_linked` anchors at the effects
-reference point when on and document origin when off; offsets add either way
-(PatternTileSampler).
-
-Geometry requires one modeled origination covering every subpath: rect
-bounds and radii, ellipse bounds, or line endpoints/weight. A radius makes a
-rect rounded. Chain buttons sit between labels and fields: `shapeGeometryLinkButton` keeps W/H in the ratio captured when
-switched on; `shapeGeometryRadiusLinkButton` edits all four radii together,
-on by default only when the corners agree. Dialogs are the reviewed route; no on-canvas gizmos. The dialog also edits layer Opacity and Fill opacity,
-the stroke's own opacity (vstk strokeStyleOpacity), and Feather / Density
-(Edge group); all PSD-native, one undo entry.
-
-Edits preview live and restore on cancel or exception; a PSD-read
-gradient/pattern stroke stays untouched unless re-picked. The preview
-rasterizes on a worker: the vector MODEL applies synchronously, baked pixels
-lag, requests coalesce, the pattern anchor rides a scratch layer; accept
-commits the in-flight result (60 s timeout).
-
-Layer > New Fill Layer makes Solid Color, Gradient (FG-to-BG linear) and
-Pattern fill layers: shape layers with an empty path (whole canvas); a
-TARGETED Paths-panel row becomes the shape path (build_fill_layer),
-selections become raster masks. Library patterns join
-the document store on use. New Gradient/Pattern Fill stages the layer;
-one history entry, only on OK; Cancel restores the document, active layer
-and pattern store. On a pathless fill layer (`fill_layer_only`) the dialog,
-titled Fill Layer Settings, shows only Fill (no heading), typed Solid Color,
-Gradient or Pattern (no No Fill) and saved so (#582). Gradient lists open on
-the layer's preset, else Custom ([gradients.md](gradients.md#preset-lists)).
-Such a layer (`layer_is_fill_layer`, #580) has a fill badge, not the vector one;
-the badge, row and thumbnail double-clicks and Edit Fill Settings... open
-the dialog (#607). A layer,
-selection, path or edit-target change cancels a path transform. Sub-lattice
-dash lengths clamp to the raster lattice; excessive boundary counts fall
-back to a solid stroke.
-
-On 16/32-bit documents shape and fill layers keep regenerating their 8-bit
-bake for the deep compositor, except gradient-only fills
-(`deep_gradient_fill_raster`: no stroke, feather, density or parts) that
-render at depth.
+The Shape Appearance dialog (paint, strokes and dash presets, geometry,
+opacity, Edge, the worker preview) and fill layers are in
+[vector-tools-appearance.md](vector-tools-appearance.md).
 
 ## Photoshop file encodings
 

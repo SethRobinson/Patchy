@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One-time (idempotent) build of the patched Qt cocoa platform plugin the macOS app ships
-# (docs/building.md, "Patched Qt cocoa plugin"; GitHub issue 95): libqcocoa.dylib from the
+# (docs/building-qt.md, "Patched Qt cocoa plugin"; GitHub issue 95): libqcocoa.dylib from the
 # pinned qtbase 6.8.3 source with packaging/macos/qt-patches/*.patch applied, built for the
 # host architecture and Patchy's deployment target, into .deps (gitignored). The Qt kit in
 # .deps/Qt is never modified; packaging/macos/make-dmg.sh puts this plugin in the bundle.

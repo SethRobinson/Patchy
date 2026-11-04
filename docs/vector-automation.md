@@ -130,7 +130,7 @@ Validate types, ranges, references, locks, resources, and destinations before
 `prepare_mutation`. Stage multi-layer changes and shape/mask caches before commit.
 The host normally supplies one Undo entry per document per script. Slow mode
 separates undoable edits and presents completed changes; see
-[automation-feedback.md](automation-feedback.md). Later script failures
+[automation-feedback.md](automation-feedback.md#slow-mode). Later script failures
 leave earlier edits undoable. Deferred refresh includes layer/Paths panels,
 thumbnails, active overlays, shape controls, and old/new dirty bounds. Geometry
 edits clear stale anchor selections; removing active paths/masks repairs targets.
@@ -152,6 +152,6 @@ Binding changes also run the scripting, vector, and MCP filters; changes to shar
 core vector code widen to the full core suite (AGENTS.md).
 
 The point-editing commands have their own bindings, documented with the UI in
-[vector-commands.md](vector-commands.md): `layer.simplifyPath`,
+[vector-commands-shapes.md](vector-commands-shapes.md): `layer.simplifyPath`,
 `doc.combineShapes`, and `layer.ungroup`; tracing (`layer.traceToShapes`) is in
 [image-trace.md](image-trace.md).

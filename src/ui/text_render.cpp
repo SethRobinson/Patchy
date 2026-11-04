@@ -491,7 +491,7 @@ VerticalRenderPlan vertical_render_plan(const QTextDocument& document, const Tex
 // unchanged commit). Grow the buffer around the ORIGIN only where the measured ink exceeds it:
 // local (0, 0) stays the line start / first line top, so a raster whose ink fits keeps its exact
 // pinned bytes, and one that overhangs starts left of or above the origin. Every placement adds
-// local_rect.topLeft() to the transform translation (docs/text-tool.md).
+// local_rect.topLeft() to the transform translation (docs/text-tool-layout.md).
 void grow_point_text_rect_to_glyph_ink(QRectF& local_rect, const QRectF& ink) {
   if (ink.isNull() || !std::isfinite(ink.left()) || !std::isfinite(ink.top()) || !std::isfinite(ink.right()) ||
       !std::isfinite(ink.bottom())) {
@@ -532,8 +532,8 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
   // offset, in document space) rounded to a whole pixel, halves up: for left-aligned text that is
   // the anchor itself (tx 100.3 renders exactly like 100.0 and 100.5 like 101.0), while a centered
   // line moves a column for the same .3 fraction because its start sits half a line width to the
-  // left of the anchor (PS 27.9 captures, docs/text-render-calibration.md, "Pixel grid"). The
-  // stored transform keeps its fraction; only the raster phase snaps. Axis-aligned transforms
+  // left of the anchor (PS 27.9 captures, docs/text-render-calibration-pixel-grid.md, "Pixel grid").
+  // The stored transform keeps its fraction; only the raster phase snaps. Axis-aligned transforms
   // round per line below, once the lines are known; rotated or sheared ones keep the anchor
   // rounding, the only rule those captures established. The baseline (dy) always rounds here.
   const bool round_line_starts = !document_transform_in.isIdentity() && document_transform_in.m12() == 0.0 &&
@@ -815,13 +815,13 @@ void draw_document_glyph_run(QPainter& painter, const QPointF& origin, const QGl
 // Photoshop rasterizes each glyph with its absolute x rounded to a whole document pixel,
 // halves up, glyph by glyph rather than once per line: in the PS 27.9 anchor captures "Hg" at
 // x 100.5 moves the H a column while the g (100.5 + 34.67 = 135.17 -> 135) stays where the
-// 100.0 capture had it (docs/text-render-calibration.md, "Pixel grid"). QTextLine::draw places
-// glyphs at their fractional advances, so a Photoshop-layout line is drawn run by run instead,
-// each glyph origin moved onto the grid in DOCUMENT space and converted back through the
-// axis-aligned residual transform the painter already carries (the y rounding is what Qt did
-// anyway for untransformed text; it keeps later lines on whole rows under the residual). Per
-// fragment so the run keeps its own colour, and faux bold fills and strokes glyph paths the way
-// the vertical plan does, because drawGlyphRun ignores the char format's outline.
+// 100.0 capture had it (docs/text-render-calibration-pixel-grid.md, "Pixel grid").
+// QTextLine::draw places glyphs at their fractional advances, so a Photoshop-layout line is drawn
+// run by run instead, each glyph origin moved onto the grid in DOCUMENT space and converted back
+// through the axis-aligned residual transform the painter already carries (the y rounding is
+// what Qt did anyway for untransformed text; it keeps later lines on whole rows under the
+// residual). Per fragment so the run keeps its own colour, and faux bold fills and strokes glyph
+// paths the way the vertical plan does, because drawGlyphRun ignores the char format's outline.
 //
 // `snap` false draws the same runs at their fractional positions: the path a Qt-laid-out line takes
 // when a fragment on it carries OpenType features, which QTextLine::draw cannot apply, or when
@@ -1069,7 +1069,7 @@ void draw_text_render_plan(const TextRenderPlan& plan, QPainter& painter) {
 }
 
 // The metrics the PSD writer needs to put Photoshop's re-layout on the pixels this plan draws
-// (docs/text-render-calibration.md, "Patchy text re-renders where Patchy drew it"):
+// (docs/text-render-calibration-patchy-authored.md, "Patchy text re-renders where Patchy drew it"):
 // - first_baseline: the first drawn line's baseline in the plan's local units, below the
 //   text-local origin for point text (the transform origin; equal to the raster's top row unless
 //   glyph ink overshoots the first line top) and below the raster's top row (the plan's
@@ -1077,9 +1077,9 @@ void draw_text_render_plan(const TextRenderPlan& plan, QPainter& painter) {
 // - box_baseline_inset: Qt's first baseline minus Photoshop's box rule for a Patchy-authored
 //   block (space before + the line's max CAP HEIGHT: PS 27.9 re-renders of the same block with
 //   Arial, Times, Georgia and Verdana at 268 px all put the first baseline at capHeight x size,
-//   docs/text-render-calibration.md), so the writer can move the frame down by it. Qt-natural
-//   box text only. Rounded to 1/64 px (QFixed's own grid) so the writer's shift and the reader's
-//   restore are exact in binary and a reopened file re-saves byte-identically.
+//   docs/text-render-calibration-patchy-authored.md), so the writer can move the frame down by
+//   it. Qt-natural box text only. Rounded to 1/64 px (QFixed's own grid) so the writer's shift
+//   and the reader's restore are exact in binary and a reopened file re-saves byte-identically.
 // - auto_leading: Qt's baseline advance (line 2 minus line 1 of the first paragraph, else the
 //   first line's height, which is what Qt advances by) over the dominant run size, written as the
 //   paragraph /AutoLeading so Photoshop's second line lands where Qt's did. Qt-natural only.

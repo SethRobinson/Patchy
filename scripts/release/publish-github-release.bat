@@ -10,7 +10,7 @@ rem -AssetDir for a backfill). "nopause" as the first argument, or NO_PAUSE, ski
 rem final pause. cd to the repo root (this script lives in scripts\release).
 cd /d "%~dp0..\.."
 rem Windows PowerShell 5.1 module path, so a launch from pwsh 7 does not hand the 5.1
-rem process pwsh's own modules (see docs/release-process.md, agent/non-interactive runs).
+rem process pwsh's own modules (see docs/release-process-scripts.md, agent/non-interactive runs).
 set "PSModulePath=%USERPROFILE%\Documents\WindowsPowerShell\Modules;%ProgramFiles%\WindowsPowerShell\Modules;%SystemRoot%\system32\WindowsPowerShell\v1.0\Modules"
 set "PGR_ARGS=%*"
 if /i "%~1"=="nopause" (

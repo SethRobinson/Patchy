@@ -974,7 +974,7 @@ void ZoomableImagePreview::draw_tilt_shift_overlay(QPainter& painter) const {
 
   const auto& overlay = *tilt_shift_overlay_;
   const auto center = tilt_center_point(overlay);
-  // Patent design constraint (Apple US 8971623; docs/legal-constraints.md):
+  // Patent design constraint (Apple US 8971623; docs/legal-constraints-filters.md):
   // the band boundaries carry no line or bar at all, only their handle dots.
   // Never draw a mark along a boundary, short or spanning;
   // ui_filter_gallery_tilt_shift_overlay_has_no_boundary_marks pins this.

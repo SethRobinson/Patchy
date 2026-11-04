@@ -10,6 +10,11 @@ row adds `*.xcf.gz`, `*.xcf.bz2` and `*.xcf.xz`; their last extension says nothi
 `is_supported_open_path` (drops), `extension_for_path` and the Save guard. Save on an .xcf
 is Save As (no writer), defaulting to `<name>.psd`.
 
+Related documents:
+
+- [xcf-text-layers.md](xcf-text-layers.md): text layers (the `gimp-text-layer` parasite, markup, colors, outlines) and the open-time choice for text painted on in GIMP.
+- [xcf-layer-effects.md](xcf-layer-effects.md): GIMP 3 filters as Drop Shadow styles, pixels filtered by fitted formulas or Patchy's GEGL, and what is left out.
+
 ## Clean-room rule
 
 The format comes only from GIMP's published XCF description
@@ -20,7 +25,7 @@ importers, the GimpFormats Python package) are never read, copied or searched. G
 only as a command-line tool for fixtures and reference renders. The text parasite keys,
 the HSV/LCh mode formulas and the effect parameters were found by observation and fitting
 against GIMP's renders. Legal record: [patent-research-formats.md](patent-research-formats.md),
-binding rule in [legal-constraints.md](legal-constraints.md). bzip2 and xz decoders are
+binding rule in [legal-licensing.md](legal-licensing.md#format-copyright-trademarks-and-assets). bzip2 and xz decoders are
 Patchy's own, written from the published format descriptions.
 
 ## Container
@@ -162,132 +167,6 @@ set to blend in another space than its default opens in its usual form with a no
   light. This is the main remaining difference: soft edges, faded layers and glows differ
   by a few levels on average and up to about 70 at single pixels.
 
-## Text layers
-
-The `gimp-text-layer` parasite (GIMP 2's `(font "Sans Bold")` description and GIMP 3's
-font record with full name, family and style; `(color (color-rgb ...))` and GIMP 3's
-GeglColor with its babl format) becomes patchy.text.* metadata over GIMP's raster, which
-stays until the text is edited. Mapped: text or Pango markup, font family (the full name
-minus its style words when the family is a generic alias; generic names become Qt's), size
-and unit (pixels, points, inches, millimeters, picas at the image resolution), color,
-justification (fill as justify), indent, letter spacing (as tracking), line spacing (added to
-a 1.2 em leading), fixed boxes, right-to-left direction, antialiasing. The layer-wide font,
-size and color follow the first run, since a span can restyle all of the text.
-
-- Markup (#508): `b`, `i`, `u`, `s`, and spans with `foreground`, `weight`, `style`,
-  `underline`, `strikethrough`, `font_family`/`face`, `size` (1024ths of a point at the image
-  resolution: GIMP's 50 px at 300 ppi is `12288`), `rise` and `letter_spacing` (1024ths of a
-  pixel; a rise on all of the text is dropped, since Pango grows the line by it and the glyphs
-  stay put, and a partial rise is a baseline shift), and `font`: GIMP 3 writes an id there that a `(markupfont "font1136" (font ...))`
-  form after the markup string resolves; other writers put a Pango description.
-- Colors (#508): GIMP 3 keeps the model the color was picked in. RGB and gray (perceptual
-  `'` or `~` formats as they are, linear ones encoded), HSV and HSL (textbook models over the
-  encoded values; HSV checked against GIMP's own hex), CIE Lab and LCH(ab) (D50, Bradford to
-  sRGB). Other models (CMYK) fall back to black, visible only after an edit.
-- Outlines (#509): GIMP 3's `outline` (`stroke-only`, `stroke-fill`), `outline-direction`
-  (outer, inner, else centered), `outline-width` and `outline-foreground` become a Stroke
-  style (Outside, Inside, Center; size the width: an outer width-w outline is a band w wide
-  outside the glyphs in GIMP 3.2's renders), with Fill opacity 0 for stroke only. GIMP's raster
-  has the outline baked in, so the reader writes `patchy.xcf.pending_outline` and
-  `MainWindow::render_pending_xcf_text_layers` redraws the text at open (origin at the layer's
-  top-left) and adds the style (notice). Pattern and dashed outlines open as pixels (notice).
-- A layer GIMP marks as painted on (PROP_TEXT_LAYER_FLAGS bit 2) opens as GIMP's pixels
-  (notice) and keeps the text it would have opened with (#551): every key the editable layer
-  gets (outline included) under `patchy.xcf.stored_text.`, plus `patchy.xcf.stored_text_box`,
-  GIMP's layer rect, which a move carries along (`translate_moved_layer_metadata`). Once the
-  file is a tab (Open, Reopen, files opened together), `offer_painted_gimp_text_conversion`
-  asks once per file (`xcfPaintedTextMessageBox`, with the layer count): Keep as Pixel Layers
-  (default), Convert to Text Layers (the keys go back and the text draws from the box's top-left
-  like the outline redraw, dropping the paint as GIMP does on a text edit; locks and the rest
-  stay), or Add Text-Layer Copies (a hidden, unlocked "<name> (text)" layer above each, so the
-  file still looks as GIMP drew it). Don't ask again saves the choice in
-  `imports/xcfPaintedTextLayers` (`ask`, `pixels`, `text`, `copies`; also a Preferences combo).
-  Converting or copying is one undo step that marks the document modified, and the reader's
-  notice gives way to one saying what was done. The question waits until the tab is fit on
-  screen (#593, [file-formats.md](file-formats.md)); once answered, its notes stay out of the
-  Import Notes box (the status bar keeps them), while a saved choice is still listed there. Unattended runs (scripts, MCP, batch, tests)
-  never ask: `ask` keeps the pixels, a saved choice applies. Files as Layers keeps the pixels.
-  The stored text is in memory only: no format writes it (a PSD has no Photoshop-safe place for
-  it), so a saved and reopened file has plain pixels.
-  Patchy's redraw of an edited layer starts within a few pixels of GIMP's
-  (`ui_xcf_text_layers_stay_editable`); its glyphs are Patchy's.
-
-## Layer effects (GIMP 3 filters)
-
-- `gegl:dropshadow` becomes a Drop Shadow style (#507): GEGL's x/y offset as distance and
-  angle, size three times its radius plus the grow radius (spread from the grow share, fitted
-  on effects.xcf), its color in any GeglColor model (`gegl_color_to_srgb`: RGB and gray in
-  any curve, HSV, HSL, CIE Lab and LCH; an embedded profile is read as sRGB), and its opacity
-  times the color's alpha and the filter's opacity (the effect record's FLOAT_OPACITY, the
-  Opacity under the filter's blending options). Layer Knocks Out is off: GEGL draws the
-  layer over its shadow.
-- The filter's Clipping (FILTER_CLIP: 1 Clip, 0 Adjust) is not reproduced: the style always
-  draws past the layer's bounds, as Adjust does. Clip differs only where the shadow reaches
-  past the layer's edge (not in the reporter's blend-* files). A rectangle mask over the layer
-  bounds with Layer Mask Hides Effects would match it, but would also cut later edits off.
-- The filter's own mode mixes its result (the layer over the shadow) with the layer, so GIMP
-  3.2 shows the shadow only in Normal, Replace, Behind and Merge (Patchy Normal) and Dissolve
-  (Dissolve). Every other mode draws no shadow and changes only the layer's own pixels: the
-  shadow opens switched off with the nearest Photoshop mode (GIMP-only modes map to the
-  Photoshop mode of the same family); the change to the layer is not reproduced.
-- GEGL mixes the shadow in linear light, Patchy's 8 and 16-bit documents in display values
-  (85% black over white: 108 against 38). A Normal shadow there gets the contour "GIMP
-  linear light" (`linear_light_shadow_contour`, 9 smooth points): at each mask level the
-  display coverage that best gives GEGL's mix of its color over white, 75% and 50% gray,
-  divided by the opacity, so the dialog keeps GIMP's opacity. Exact for black over white;
-  a colored shadow keeps some difference, since one coverage cannot serve all three
-  channels. 32-bit documents (linear already) and Dissolve (opaque pixels) get none.
-  Against GIMP 3.2 (`xcf_drop_shadow_issue_507_matches_gimp_if_available`, the reporter's
-  file and one file per layer in local-test-fixtures/xcf-issue-507): black shadows within
-  0.1 level on average, a blurred magenta one 3.5, Dissolve 7.6 (its random pattern);
-  effects.xcf 0.21. The blend-* files (filter opacity 50% and 75%): Normal 0.01, Dissolve
-  9.9 with GIMP's dot count (502 against 520).
-- `gegl:gaussian-blur` is applied to the layer's pixels: premultiplied linear light, clamp or
-  transparent edges, the layer grown when clip-extent is off. Sigmas over 3 use three box
-  passes. Within about six levels of GIMP's own blur.
-- Color filters are applied to the pixels with formulas fitted on GIMP 3.2's renders of a
-  4096-color sweep (`scripts/dev/xcf/make_effect_fixtures.py`, `fit_effects.py`; worst
-  difference 1 level unless noted): `gegl:invert-gamma` (1 - x) and `invert-linear`;
-  `gimp:desaturate` (lightness and average on display values, luma with the D50 Y weights on
-  display values, luminance in linear light, value); `gimp:threshold` on the value channel;
-  `gimp:posterize`; `gimp:brightness-contrast` (in linear light: brightness/2 lifts toward
-  white or scales toward black, then contrast pivots at 0.5 with slope tan((c + 1) pi / 4));
-  `gimp:hue-saturation` with only the master range set (HSL on display values: hue in half
-  turns, saturation scaled by 1 + s, lightness toward white or black); `gimp:colorize`
-  (linear luminance as HSL lightness in linear light; the lightness setting is unverified);
-  `gimp:levels` (value then color channels, in linear light or display values by its trc,
-  values below the input black kept linear rather than raised to the gamma; worst 2);
-  `gegl:exposure` (worst 2) and `gegl:mono-mixer` in linear light.
-- Every applied effect mixes with the original in linear light by the effect's opacity and,
-  when its region is the selection, by its mask (when that mask has the layer's size; an empty one, no selection at the time, means the whole layer). One
-  notice covers them. Text layers lose their text when an effect changes their pixels.
-- GEGL operations the reader has no code of its own for run through Patchy's own GEGL (#616;
-  [gegl-filters.md](gegl-filters.md)) when the operation is in `kRunnerEffects`. The reader is
-  Qt-free, so it calls an effect runner (`xcf::set_effect_runner`) that `MainWindow` installs
-  at startup (`install_xcf_effect_runner`: one `patchy-gegl-host` run per effect, none in a
-  build without the bundle or on the web). GIMP stores a GEGL filter's arguments under GEGL's
-  property names, so each passes through by name and PROP_FILTER_ARGUMENT type (1 int, 2
-  boolean, 3 number as a float, 5 enum, 7 unsigned for seeds, 8 GeglColor as encoded sRGB;
-  6, the string config of GIMP's own `gimp:` operations, is not sent). The layer goes over as
-  RGBA at the document's depth and comes back the same size; the result mixes as above.
-  With the filter's Clipping on Adjust (FILTER_CLIP 0) an entry's `reach` (Motion Blur's
-  length, Waves' amplitude, a pixel for Sobel) adds a transparent margin the result spreads
-  into, then trimmed to what it covers, as GIMP grows the layer. Spread, Pick, Slur and
-  Ripple get none: GIMP 3.2 draws what they move across the edge a few pixels away from
-  GEGL's own result, and a margin moves their seeded noise (GEGL's random numbers follow the
-  pixel position). An entry needs an operation Patchy offers as a GEGL filter (its legal
-  review) and a tile in `test-fixtures/xcf/gegl-effects.xcf`
-  (`scripts/dev/xcf/make_gegl_effect_fixture.py`: one 48-pixel tile layer per effect over
-  gray, GIMP 3.2's render beside it). Against that render (November 3, 2026): Cubism 0.84
-  levels mean, Lens Distortion and Waves under 0.4 (edges), Color to Alpha 7.4 (the
-  composite-space difference of its partly transparent pixels), the five edge cases above
-  identical inside the tile, every other tile identical or within a level.
-- Everything else is left out with a notice naming the effects (GIMP's name for each):
-  GIMP's own `gimp:` operations without a fitted formula (curves, color balance, per-range
-  hue-saturation), operations Patchy's GEGL lacks (median blur) or that are not in the table,
-  and every runner effect in a build without GEGL or when a run fails. Hidden effects are
-  ignored.
-
 ## Other content
 
 - Channels open as alpha channels with their color and opacity; the selection opens as a
@@ -339,8 +218,8 @@ values. A malformed list yields nothing.
 (`manifest.txt` lists what each covers); `render_with_gimp.py` renders any folder of .xcf files
 the same way; `tile_report.py` breaks a mode fixture's difference down per mode;
 `xcf_dump.py` prints a file's structure. The small GIMP-made files in `test-fixtures/xcf/`
-(text, structure, modes, modes-legacy, groups, indexed, vector-layers, gegl-effects, the
-compressed trio) are committed.
+(plain-rgba, text, structure, modes, modes-legacy, groups, indexed, vector-layers, gegl-effects,
+the compressed trio) are committed.
 
 Differences in 8-bit levels on premultiplied RGBA (mean over the canvas, worst pixel),
 October 25, 2026: legacy modes 0.37 (worst 45 at soft tile edges); default modes 3.8 (the
@@ -361,8 +240,6 @@ mean of 1 level, 5 within 3, 5 within 6, and 2 beyond: a file whose filters Patc
 out (bloom, shift, canvas texture) and a semi-transparent texture over a background, where
 GIMP's linear-light mixing differs by 17 levels on average. The rest of the differences are
 the same linear-light mixing of faded layers and soft edges, and random noise filters.
-Found and fixed on the corpus: GIMP's own test files ending a tile list early, effect masks
-that are empty when no selection existed, and wrapped files that sniffed as damaged.
 
 Layer trees: `scripts/dev/xcf/dump_gimp_trees.py DIR` writes GIMP 3.2's view of every file's
 tree to `DIR/gimp-trees/` (one tab-separated line per layer: depth, kind, mode, visibility,

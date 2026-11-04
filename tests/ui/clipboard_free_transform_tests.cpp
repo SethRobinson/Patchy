@@ -316,7 +316,7 @@ void ui_layer_via_copy_finds_a_layer_on_an_artboard() {
 }
 
 // A stroke that leaves a small layer (a pasted one) grows it with headroom while it paints
-// (LayerGrowthReserve, docs/performance.md) and ends trimmed to exactly the painted area,
+// (LayerGrowthReserve, docs/performance-strokes.md) and ends trimmed to exactly the painted area,
 // the same bounds per-dab growth gives: no headroom is left behind.
 void ui_brush_stroke_off_a_small_layer_ends_with_exact_bounds() {
   patchy::Document document(400, 200, patchy::PixelFormat::rgba8());

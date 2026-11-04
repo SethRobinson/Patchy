@@ -1480,7 +1480,7 @@ std::optional<QColor> average_sample_color(const QImage& image) {
   return QColor(channel(red), channel(green), channel(blue));
 }
 
-// A 32-bit document's pick (docs/high-bit-depth.md, "Color choice at 32 bits"): the
+// A 32-bit document's pick (docs/high-bit-depth-color.md, "Color choice at 32 bits"): the
 // alpha-weighted mean of a depth render's linear floats, values above 1.0 kept; nothing
 // for another format or a fully transparent square.
 std::optional<LinearRgb> average_linear_sample(const QImage& image) {

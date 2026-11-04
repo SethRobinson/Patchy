@@ -1,7 +1,7 @@
 // GitHub #555: point and segment commands (Break Path at Point, Join End Points, Merge into One
 // Point, Delete Segment) from Layer > Shape and the path context menu, and the component commands:
 // Edit > Cut/Copy/Paste of selected shapes, Color Selected Shapes, Move/Copy Selected Shapes to
-// New Layer (docs/vector-commands.md).
+// New Layer (docs/vector-path-edits.md, "Point and segment commands", "Component commands").
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window.hpp"
 #include "test_harness.hpp"

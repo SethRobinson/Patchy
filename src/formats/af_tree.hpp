@@ -6,7 +6,7 @@
 // layout, so the whole tree parses without knowing any class semantics; the
 // importer then queries fields by their 4-char tag. Derived from observation of
 // Affinity-authored files and the MIT-licensed afread project (see
-// docs/file-formats.md ".af (Affinity)"). Qt-free.
+// docs/af-format.md). Qt-free.
 
 #include <cstdint>
 #include <map>

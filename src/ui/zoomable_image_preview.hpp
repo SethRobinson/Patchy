@@ -74,7 +74,7 @@ public:
   };
   [[nodiscard]] ViewState view_state() const;
   void set_view_state(const ViewState& state);
-  // Scrubby Zoom, the Zoom tool's gesture (docs/view-navigation.md): a left
+  // Scrubby Zoom, the Zoom tool's gesture (docs/view-navigation-zoom-tool.md): a left
   // drag zooms about the press point, right = in, vertical travel ignored; a
   // click without travel steps in, Alt-click out. Space held or the middle
   // button still pans. Off by default (a left drag pans).

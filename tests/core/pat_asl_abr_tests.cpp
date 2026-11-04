@@ -916,7 +916,7 @@ bool csh_near(double a, double b, double tolerance = 1e-6) { return std::abs(a -
 }  // namespace
 
 void csh_reader_reads_names_holes_and_proportions() {
-  // GitHub issue 486: Photoshop .csh import (layout in docs/vector-tools.md).
+  // GitHub issue 486: Photoshop .csh import (layout in docs/vector-tools-custom-shapes.md).
   const auto bytes = patchy::test::make_test_csh(patchy::test::sample_test_csh_shapes());
   std::string error;
   const auto parsed = patchy::psd::read_csh(bytes, error);

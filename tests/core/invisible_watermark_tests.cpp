@@ -1,4 +1,4 @@
-// Invisible watermark detection (docs/file-info.md, "Watermarks"): Patchy's dwtDct
+// Invisible watermark detection (docs/file-info-watermarks.md, "Watermarks"): Patchy's dwtDct
 // decoder against images marked by a reference of the library's embedding algorithm
 // (tests/invisible_watermark_reference.hpp), and clean images that must not match.
 

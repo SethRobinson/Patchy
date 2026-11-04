@@ -1,5 +1,5 @@
 """Writes the GIMP 3 layer-effect fixture for effects Patchy runs through its own GEGL
-(docs/xcf.md, "Layer effects (GIMP 3 filters)").
+(docs/xcf-layer-effects.md, "Layer effects (GIMP 3 filters)").
 
 One image holds a grid of 48 x 48 tiles over a gray background; each tile is its own layer
 with one GIMP filter as a layer effect. GIMP saves the .xcf and exports its render as a PNG

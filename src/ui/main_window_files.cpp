@@ -1124,7 +1124,8 @@ QString translated_file_message(const std::string& message) {
       !note.isEmpty()) {
     return note;
   }
-  // The GIMP layer effects an XCF read left out, named (docs/xcf.md, "Layer effects").
+  // The GIMP layer effects an XCF read left out, named
+  // (docs/xcf-layer-effects.md, "Layer effects").
   if (const auto prefix = QString::fromLatin1(xcf::skipped_effects_notice_prefix()),
       suffix = QString::fromLatin1(xcf::skipped_effects_notice_suffix());
       text.startsWith(prefix) && text.endsWith(suffix) && text.size() > prefix.size() + suffix.size()) {
@@ -3474,7 +3475,7 @@ void MainWindow::merge_imported_pdf_pages(Document& first, const QString& first_
                        : Layer(page.allocate_layer_id(), title.toStdString(), LayerKind::Group);
     if (merge == PdfPagesMerge::Layers) {
       // Every page is a folder, a scan included, and remembers its own size: exporting by
-      // groups gives each page back at that size (docs/pdf.md).
+      // groups gives each page back at that size (docs/pdf-import.md).
       wrapper.set_blend_mode(BlendMode::PassThrough);
       wrapper.set_visible(index == 0);
       const auto origin = origin_of(index);
