@@ -78,7 +78,7 @@ AGENTS.md gives the handoff command and the short rules; these are the details b
 - The version comes from the generated `patchy_version.hpp` (`cmake/patchy_version.hpp.in`), included only where used. Never make it a target-wide define: that recompiles all of `patchy_ui` on every version change.
 - A running `patchy.exe` or `patchy-mcp.exe` in any build folder does not block the link: a PRE_LINK step renames it aside as `<name>.stale-<stamp>.exe`. Never kill either process (Seth may have unsaved work) and never package a `.stale-` file.
 - Batch files compare exit codes against 0, never `if errorlevel 1`: a failed link exits negative.
-- A git worktree has no `.deps`: configure its preset once with `--preset opt-dev -DCMAKE_PREFIX_PATH=<main-checkout>/.deps/Qt/6.8.3/msvc2022_64` (`--preset release` the same way for a release build); the build command is unchanged. The ARM64 cross presets also name a toolchain file under `.deps`, so give such a worktree a `.deps` junction to the main checkout's instead (remove it with plain `rmdir` before `git worktree remove`).
+- A git worktree has no `.deps`: configure its preset once with `--preset opt-dev -DCMAKE_PREFIX_PATH=<main-checkout>/.deps/Qt/6.8.3/msvc2022_64` (`--preset release` the same way for a release build); the build command is unchanged. The ARM64 cross presets also name a toolchain file under `.deps`, so give such a worktree a `.deps` junction to the main checkout's instead (remove the worktree with `scripts\dev\remove-worktree-safely.ps1`, which unlinks junctions first; a plain `git worktree remove` deletes the real `.deps`).
 
 ### Windows ARM64 cross builds
 
