@@ -407,6 +407,50 @@ void kra_unicode_path_reads() {
   CHECK(notices_mention(notices, "File layers whose file was not found"));
 }
 
+// A file layer naming a network server is not read unless the caller allows that server
+// (docs/kra.md, "File layers"): the layer opens empty and the server is reported once, or
+// named in a notice when the caller takes no list. A device path is never read or reported.
+void kra_file_layer_on_a_network_server_needs_permission() {
+  std::string maindoc(kSyntheticMaindoc);
+  const auto at = maindoc.find("   <layer name=\"Background\"");
+  maindoc.insert(at,
+                 "   <layer name=\"Net\" nodetype=\"filelayer\" filename=\"layer9\" "
+                 "source=\"//Patchy-Blocked-Host/share/ref.png\" compositeop=\"normal\" opacity=\"255\" "
+                 "visible=\"1\" x=\"0\" y=\"0\"/>\n"
+                 "   <layer name=\"Net2\" nodetype=\"filelayer\" filename=\"layer10\" "
+                 "source=\"\\\\patchy-blocked-host\\share\\other.png\" compositeop=\"normal\" opacity=\"255\" "
+                 "visible=\"1\" x=\"0\" y=\"0\"/>\n"
+                 "   <layer name=\"Device\" nodetype=\"filelayer\" filename=\"layer11\" "
+                 "source=\"\\\\.\\pipe\\patchy-test\" compositeop=\"normal\" opacity=\"255\" visible=\"1\" "
+                 "x=\"0\" y=\"0\"/>\n");
+  auto entries = synthetic_entries();
+  entries[1].data = bytes_of(maindoc);
+  const auto container = patchy::ora::detail::zip_archive(entries);
+  const auto folder = std::filesystem::current_path() / "test-artifacts";
+
+  std::vector<std::string> asked;
+  std::vector<std::string> blocked;
+  std::vector<std::string> notices;
+  const auto refuse = [&asked](const std::string& server) {
+    asked.push_back(server);
+    return false;
+  };
+  const auto document = kra::DocumentIo::read(container, &notices, folder, refuse, &blocked);
+  for (const auto* name : {"Net", "Net2", "Device"}) {
+    const auto* layer = find_named(document.layers(), name);
+    CHECK(layer != nullptr && layer->pixels().empty());
+  }
+  CHECK(blocked == std::vector<std::string>{"patchy-blocked-host"});
+  CHECK(!asked.empty() && std::all_of(asked.begin(), asked.end(),
+                                      [](const std::string& server) { return server == "patchy-blocked-host"; }));
+  CHECK(!notices_mention(notices, "network server"));
+
+  notices.clear();
+  (void)kra::DocumentIo::read(container, &notices, folder);
+  CHECK(notices_mention(notices, "File layers on a network server"));
+  CHECK(notices_mention(notices, "Net (//Patchy-Blocked-Host/share/ref.png)"));
+}
+
 void kra_reader_refuses_hostile_and_broken_files() {
   const auto good = synthetic_file();
   const auto expect_throw = [](const std::vector<std::uint8_t>& bytes) {
@@ -820,6 +864,7 @@ std::vector<patchy::test::TestCase> kra_tests() {
       {"kra_sniff_and_registry_recognize_krita_files", kra_sniff_and_registry_recognize_krita_files},
       {"kra_unicode_path_reads", kra_unicode_path_reads},
       {"kra_reader_refuses_hostile_and_broken_files", kra_reader_refuses_hostile_and_broken_files},
+      {"kra_file_layer_on_a_network_server_needs_permission", kra_file_layer_on_a_network_server_needs_permission},
       {"kra_reads_krita_fixtures_if_available", kra_reads_krita_fixtures_if_available},
       {"kra_reads_corpus_if_available", kra_reads_corpus_if_available},
       {"kra_krita_blend_modes_match_krita", kra_krita_blend_modes_match_krita},

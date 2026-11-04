@@ -14826,6 +14826,59 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
         <translation>Algunos efectos de capa de GIMP que Patchy no puede reproducir se omitieron (%1); esas capas muestran sus píxeles sin ellos.</translation>
     </message>
+    <message>
+        <source>There is not enough memory available to open this file.</source>
+        <translation>No hay suficiente memoria disponible para abrir este archivo.</translation>
+    </message>
+    <message>
+        <source>Linked file %1 is on network server %2, which Patchy has not been allowed to connect to; allow the server in the Missing Linked Files dialog, or relink the file</source>
+        <translation>El archivo vinculado %1 está en el servidor de red %2, al que Patchy no tiene permiso para conectarse; permita el servidor en el cuadro de diálogo Archivos vinculados que faltan o vuelva a vincular el archivo</translation>
+    </message>
+    <message>
+        <source>Krita file layers on network server %1 opened empty: Patchy has not been allowed to connect to it</source>
+        <extracomment>%1 is a network server name such as \fileserver (//fileserver outside Windows).</extracomment>
+        <translation>Las capas de archivo de Krita del servidor de red %1 se abrieron vacías: Patchy no tiene permiso para conectarse a él</translation>
+    </message>
+    <message>
+        <source>Network Files</source>
+        <translation>Archivos de red</translation>
+    </message>
+    <message numerus="yes">
+        <source>%1 has file layers stored on %n network server(s): %2</source>
+        <translation>
+            <numerusform>%1 tiene capas de archivo en %n servidor de red: %2</numerusform>
+            <numerusform>%1 tiene capas de archivo en %n servidores de red: %2</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Loading them connects Patchy to the server. Allow Patchy to open linked files there from now on?</source>
+        <translation>Al cargarlas, Patchy se conecta al servidor. ¿Permitir que Patchy abra archivos vinculados allí a partir de ahora?</translation>
+    </message>
+    <message>
+        <source>Allow Server</source>
+        <translation>Permitir servidor</translation>
+    </message>
+    <message>
+        <source>Not Now</source>
+        <translation>Ahora no</translation>
+    </message>
+    <message>
+        <source>Let Patchy open linked files on %1 from now on, in this and other documents</source>
+        <translation>Permite que Patchy abra archivos vinculados en %1 a partir de ahora, en este y en otros documentos</translation>
+    </message>
+    <message>
+        <source>On network server %1, which Patchy has not been allowed to connect to. Opening a file there connects to that server.</source>
+        <extracomment>%1 is a network server name such as \fileserver (//fileserver outside Windows).</extracomment>
+        <translation>En el servidor de red %1, al que Patchy no tiene permiso para conectarse. Abrir un archivo allí conecta con ese servidor.</translation>
+    </message>
+    <message>
+        <source>Found on %1</source>
+        <translation>Encontrado en %1</translation>
+    </message>
+    <message>
+        <source>Not found on %1 either; relink it to a file</source>
+        <translation>Tampoco se encontró en %1; vuelva a vincularlo a un archivo</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -32331,6 +32384,10 @@ Bloqueada: %1</translation>
     <message>
         <source>Ungrouped the folder; its opacity, blend mode, mask, or style was discarded</source>
         <translation>Carpeta desagrupada; se descartó su opacidad, modo de fusión, máscara o estilo</translation>
+    </message>
+    <message>
+        <source>Linked files on %1 are allowed now</source>
+        <translation>Ahora se permiten los archivos vinculados de %1</translation>
     </message>
 </context>
 <context>

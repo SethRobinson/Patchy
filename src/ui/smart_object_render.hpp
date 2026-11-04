@@ -83,10 +83,13 @@ enum class SmartObjectContentsFormat {
 
 // Resolves an ExternalFile source to an existing file on disk: the stored relative
 // path against the owning document's folder first (Photoshop's same-folder rule),
-// then the stored absolute path, then the file:// URI. Returns nullopt when none
-// exist (the caller offers Relink to File...).
+// then the bare file name there, then the stored absolute path, then the file:// URI.
+// Returns nullopt when none exist (the caller offers Relink to File...). Candidates on a
+// network server that is not allowed (network_link_trust.hpp) are skipped unread; the
+// first such server lands in `blocked_server` when given.
 [[nodiscard]] std::optional<QString> resolve_smart_object_external_path(const SmartObjectSource& source,
-                                                                        const QString& parent_document_dir);
+                                                                        const QString& parent_document_dir,
+                                                                        QString* blocked_server = nullptr);
 
 // The link-element filetype OSType for a file extension (lower case, no dot), pinned
 // from Photoshop 2026 captures: "8BPB", "8BPS", "JPEG", "TIFF", "BMP ", "SVG ", and
@@ -103,7 +106,8 @@ void stamp_smart_object_link(SmartObjectSource& source, const QFileInfo& file);
 [[nodiscard]] bool smart_object_link_changed_on_disk(const SmartObjectSource& source, const QFileInfo& file);
 // Points an ExternalFile source at `file`: name, filetype, the file:// URI, the native
 // absolute path, the path relative to `document_dir` (the bare file name while the
-// document has no folder yet), and a fresh stamp. Marks the source dirty.
+// document has no folder yet), and a fresh stamp. Marks the source dirty. The file is one
+// the user chose, so its network server (if any) joins the allowed list.
 void set_smart_object_link_target(SmartObjectSource& source, const QFileInfo& file, const QString& document_dir);
 // Photoshop computes each link's relative path against the document's folder when it
 // saves, so a document that had no folder at placement time, or is saved somewhere

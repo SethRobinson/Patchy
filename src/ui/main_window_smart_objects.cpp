@@ -30,6 +30,7 @@
 #include "ui/layer_list_widget.hpp"
 #include "ui/localization.hpp"
 #include "ui/missing_links_dialog.hpp"
+#include "ui/network_link_trust.hpp"
 #include "ui/qt_paths.hpp"
 #include "support/atomic_file_write.hpp"
 #include "ui/smart_object_render.hpp"
@@ -980,8 +981,9 @@ void MainWindow::show_missing_linked_files_dialog(bool on_open) {
   std::vector<MissingLinkEntry> entries;
   for (const auto& block : doc.metadata().smart_objects.blocks) {
     for (const auto& source : block.sources) {
+      QString blocked_server;
       if (source.kind != SmartObjectSourceKind::ExternalFile ||
-          resolve_smart_object_external_path(source, document_dir).has_value()) {
+          resolve_smart_object_external_path(source, document_dir, &blocked_server).has_value()) {
         continue;
       }
       std::vector<const Layer*> layers;
@@ -999,6 +1001,7 @@ void MainWindow::show_missing_linked_files_dialog(bool on_open) {
       for (const auto* layer : layers) {
         entry.layer_names.push_back(QString::fromStdString(layer->name()));
       }
+      entry.blocked_server = blocked_server;
       entries.push_back(std::move(entry));
     }
   }
@@ -1018,12 +1021,23 @@ void MainWindow::show_missing_linked_files_dialog(bool on_open) {
           return std::nullopt;
         }
         return relink_missing_smart_object_source(entry.source_uuid, path);
+      },
+      [](const QString& server) { allow_network_link_server(server); },
+      [this, document_dir](const MissingLinkEntry& entry) {
+        const auto* source = std::as_const(document()).metadata().smart_objects.find(entry.source_uuid);
+        return source != nullptr && resolve_smart_object_external_path(*source, document_dir).has_value();
       });
   if (result.show_on_open != show_on_open) {
     settings.setValue(QLatin1String(kShowMissingLinksDialogKey), result.show_on_open);
   }
   if (result.relinked > 0) {
     statusBar()->showMessage(tr("Relinked %n smart object file(s)", nullptr, result.relinked));
+  } else if (!result.allowed_servers.isEmpty()) {
+    QStringList names;
+    for (const auto& server : result.allowed_servers) {
+      names.push_back(network_link_server_display_name(server));
+    }
+    statusBar()->showMessage(tr("Linked files on %1 are allowed now").arg(names.join(QStringLiteral(", "))));
   }
 }
 

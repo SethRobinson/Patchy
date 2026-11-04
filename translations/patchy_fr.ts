@@ -14826,6 +14826,59 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
         <translation>Certains effets de calque de GIMP que Patchy ne sait pas reproduire ont été omis (%1) ; ces calques montrent leurs pixels sans eux.</translation>
     </message>
+    <message>
+        <source>There is not enough memory available to open this file.</source>
+        <translation>Il n&apos;y a pas assez de mémoire disponible pour ouvrir ce fichier.</translation>
+    </message>
+    <message>
+        <source>Linked file %1 is on network server %2, which Patchy has not been allowed to connect to; allow the server in the Missing Linked Files dialog, or relink the file</source>
+        <translation>Le fichier lié %1 se trouve sur le serveur réseau %2, auquel Patchy n&apos;est pas autorisé à se connecter ; autorisez le serveur dans la boîte de dialogue Fichiers liés manquants ou rétablissez le lien du fichier</translation>
+    </message>
+    <message>
+        <source>Krita file layers on network server %1 opened empty: Patchy has not been allowed to connect to it</source>
+        <extracomment>%1 is a network server name such as \fileserver (//fileserver outside Windows).</extracomment>
+        <translation>Les calques de fichier Krita du serveur réseau %1 ont été ouverts vides : Patchy n&apos;est pas autorisé à s&apos;y connecter</translation>
+    </message>
+    <message>
+        <source>Network Files</source>
+        <translation>Fichiers réseau</translation>
+    </message>
+    <message numerus="yes">
+        <source>%1 has file layers stored on %n network server(s): %2</source>
+        <translation>
+            <numerusform>%1 contient des calques de fichier stockés sur %n serveur réseau : %2</numerusform>
+            <numerusform>%1 contient des calques de fichier stockés sur %n serveurs réseau : %2</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Loading them connects Patchy to the server. Allow Patchy to open linked files there from now on?</source>
+        <translation>Les charger connecte Patchy au serveur. Autoriser Patchy à ouvrir désormais les fichiers liés qui s&apos;y trouvent ?</translation>
+    </message>
+    <message>
+        <source>Allow Server</source>
+        <translation>Autoriser le serveur</translation>
+    </message>
+    <message>
+        <source>Not Now</source>
+        <translation>Plus tard</translation>
+    </message>
+    <message>
+        <source>Let Patchy open linked files on %1 from now on, in this and other documents</source>
+        <translation>Autorise Patchy à ouvrir désormais les fichiers liés sur %1, dans ce document et les autres</translation>
+    </message>
+    <message>
+        <source>On network server %1, which Patchy has not been allowed to connect to. Opening a file there connects to that server.</source>
+        <extracomment>%1 is a network server name such as \fileserver (//fileserver outside Windows).</extracomment>
+        <translation>Sur le serveur réseau %1, auquel Patchy n&apos;est pas autorisé à se connecter. Ouvrir un fichier à cet endroit connecte Patchy à ce serveur.</translation>
+    </message>
+    <message>
+        <source>Found on %1</source>
+        <translation>Trouvé sur %1</translation>
+    </message>
+    <message>
+        <source>Not found on %1 either; relink it to a file</source>
+        <translation>Introuvable sur %1 également ; rétablissez le lien vers un fichier</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -32331,6 +32384,10 @@ Verrouillé : %1</translation>
     <message>
         <source>Ungrouped the folder; its opacity, blend mode, mask, or style was discarded</source>
         <translation>Dossier dissocié ; son opacité, son mode de fusion, son masque ou son style a été abandonné</translation>
+    </message>
+    <message>
+        <source>Linked files on %1 are allowed now</source>
+        <translation>Les fichiers liés sur %1 sont désormais autorisés</translation>
     </message>
 </context>
 <context>

@@ -12,6 +12,7 @@
 #include "formats/image_density_probe.hpp"
 #include "psd/psd_document_io.hpp"
 #include "ui/image_document_io.hpp"
+#include "ui/network_link_trust.hpp"
 
 #include <QBuffer>
 #include <QByteArray>
@@ -293,9 +294,26 @@ std::optional<Document> decode_smart_object_source_document(const SmartObjectSou
 }
 
 std::optional<QString> resolve_smart_object_external_path(const SmartObjectSource& source,
-                                                          const QString& parent_document_dir) {
-  const auto existing = [](const QString& candidate) -> std::optional<QString> {
-    if (!candidate.isEmpty() && QFileInfo::exists(candidate)) {
+                                                          const QString& parent_document_dir,
+                                                          QString* blocked_server) {
+  // A candidate on a server the user has not allowed is never stat'ed: the stat alone
+  // connects to it (docs/smart-object-editing.md, "Network links"). Checked as written and
+  // cleaned, because cleaning may fold a leading "//" or let ".." step to another host.
+  const auto existing = [&](const QString& raw) -> std::optional<QString> {
+    if (raw.isEmpty()) {
+      return std::nullopt;
+    }
+    const auto candidate = QDir::cleanPath(raw);
+    for (const auto& form : {raw, candidate}) {
+      QString server;
+      if (!network_link_path_allowed(form, parent_document_dir, &server)) {
+        if (blocked_server != nullptr && blocked_server->isEmpty()) {
+          *blocked_server = server;
+        }
+        return std::nullopt;
+      }
+    }
+    if (QFileInfo::exists(candidate)) {
       return QFileInfo(candidate).absoluteFilePath();
     }
     return std::nullopt;
@@ -411,6 +429,8 @@ void set_smart_object_link_target(SmartObjectSource& source, const QFileInfo& fi
       (document_dir.isEmpty() ? file.fileName() : QDir(document_dir).relativeFilePath(absolute)).toStdString();
   stamp_smart_object_link(source, file);
   source.dirty = true;
+  // The user chose this file, so its server is one they mean to use.
+  allow_network_link_server(absolute);
 }
 
 bool refresh_smart_object_link_relative_paths(SmartObjectStore& store, const QString& current_document_dir,

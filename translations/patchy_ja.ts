@@ -14781,6 +14781,58 @@ Each item&apos;s own View setting still applies.</source>
         <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
         <translation>Patchy で再現できない GIMP のレイヤー効果は省きました（%1）。それらのレイヤーは効果なしのピクセルを表示します。</translation>
     </message>
+    <message>
+        <source>There is not enough memory available to open this file.</source>
+        <translation>このファイルを開くのに十分なメモリがありません。</translation>
+    </message>
+    <message>
+        <source>Linked file %1 is on network server %2, which Patchy has not been allowed to connect to; allow the server in the Missing Linked Files dialog, or relink the file</source>
+        <translation>リンクファイル %1 はネットワークサーバー %2 にありますが、Patchy はこのサーバーへの接続を許可されていません。[見つからないリンクファイル] ダイアログでサーバーを許可するか、ファイルを再リンクしてください</translation>
+    </message>
+    <message>
+        <source>Krita file layers on network server %1 opened empty: Patchy has not been allowed to connect to it</source>
+        <extracomment>%1 is a network server name such as \fileserver (//fileserver outside Windows).</extracomment>
+        <translation>ネットワークサーバー %1 上の Krita ファイルレイヤーは空のまま開きました: Patchy はこのサーバーへの接続を許可されていません</translation>
+    </message>
+    <message>
+        <source>Network Files</source>
+        <translation>ネットワークファイル</translation>
+    </message>
+    <message numerus="yes">
+        <source>%1 has file layers stored on %n network server(s): %2</source>
+        <translation>
+            <numerusform>%1 には %n 台のネットワークサーバーに保存されたファイルレイヤーがあります: %2</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Loading them connects Patchy to the server. Allow Patchy to open linked files there from now on?</source>
+        <translation>読み込むと Patchy がサーバーに接続します。今後、そこにあるリンクファイルを Patchy が開けるようにしますか?</translation>
+    </message>
+    <message>
+        <source>Allow Server</source>
+        <translation>サーバーを許可</translation>
+    </message>
+    <message>
+        <source>Not Now</source>
+        <translation>今はしない</translation>
+    </message>
+    <message>
+        <source>Let Patchy open linked files on %1 from now on, in this and other documents</source>
+        <translation>今後、このドキュメントと他のドキュメントで %1 上のリンクファイルを Patchy が開けるようにします</translation>
+    </message>
+    <message>
+        <source>On network server %1, which Patchy has not been allowed to connect to. Opening a file there connects to that server.</source>
+        <extracomment>%1 is a network server name such as \fileserver (//fileserver outside Windows).</extracomment>
+        <translation>ネットワークサーバー %1 上にあり、Patchy はこのサーバーへの接続を許可されていません。そこにあるファイルを開くと、そのサーバーに接続します。</translation>
+    </message>
+    <message>
+        <source>Found on %1</source>
+        <translation>%1 で見つかりました</translation>
+    </message>
+    <message>
+        <source>Not found on %1 either; relink it to a file</source>
+        <translation>%1 でも見つかりません。ファイルに再リンクしてください</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -32247,6 +32299,10 @@ Locked: %1</source>
     <message>
         <source>Ungrouped the folder; its opacity, blend mode, mask, or style was discarded</source>
         <translation>フォルダーのグループを解除しました。フォルダーの不透明度、描画モード、マスク、スタイルは破棄されました</translation>
+    </message>
+    <message>
+        <source>Linked files on %1 are allowed now</source>
+        <translation>%1 上のリンクファイルが許可されました</translation>
     </message>
 </context>
 <context>

@@ -3,6 +3,7 @@
 #include "core/pixel_depth.hpp"
 #include "formats/document_flatten.hpp"
 #include "render/compositor.hpp"
+#include "support/decode_budget.hpp"
 #include "support/string_utils.hpp"
 #include "support/translate_noop.hpp"
 
@@ -57,6 +58,57 @@ struct FreeError {
   }
 };
 
+[[nodiscard]] std::runtime_error damaged() {
+  return std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "The OpenEXR file is damaged or truncated"));
+}
+
+// tinyexr sizes its channel buffers from the data window and its offset table from
+// `chunkCount` (single-part scanline files) or the tile grid, before reading any pixel data,
+// so a few header bytes could ask for gigabytes. Reject a header the file cannot back
+// (docs/psd-reader-hardening.md, "Decode budget").
+void check_declared_size(const EXRHeader& header, std::size_t file_bytes) {
+  const auto width = static_cast<std::int64_t>(header.data_window.max_x) - header.data_window.min_x + 1;
+  const auto height = static_cast<std::int64_t>(header.data_window.max_y) - header.data_window.min_y + 1;
+  if (width <= 0 || height <= 0 || header.num_channels <= 0) {
+    throw damaged();
+  }
+  // Every channel at its stored size (subsampled channels count in full: an upper bound).
+  std::uint64_t sample_bytes = 0;
+  for (int c = 0; c < header.num_channels; ++c) {
+    sample_bytes += header.pixel_types[c] == TINYEXR_PIXELTYPE_HALF ? 2U : 4U;
+  }
+  if (!checked_decode_bytes(width, height, sample_bytes, file_bytes).has_value()) {
+    throw damaged();
+  }
+  std::uint64_t blocks = 0;
+  if (header.tiled != 0) {
+    if (header.tile_size_x <= 0 || header.tile_size_y <= 0) {
+      throw damaged();
+    }
+    // The full-resolution level alone; mip and rip levels only add tiles.
+    const auto across = (static_cast<std::uint64_t>(width) + static_cast<std::uint64_t>(header.tile_size_x) - 1U) /
+                        static_cast<std::uint64_t>(header.tile_size_x);
+    const auto down = (static_cast<std::uint64_t>(height) + static_cast<std::uint64_t>(header.tile_size_y) - 1U) /
+                      static_cast<std::uint64_t>(header.tile_size_y);
+    blocks = across * down;  // each at most 2^23 (tinyexr's dimension cap), so no overflow
+  } else {
+    // tinyexr's own lines per block, which it uses to count blocks without `chunkCount`.
+    const std::uint64_t lines = header.compression_type == TINYEXR_COMPRESSIONTYPE_ZIP   ? 16U
+                                : header.compression_type == TINYEXR_COMPRESSIONTYPE_PIZ ? 32U
+                                : header.compression_type == TINYEXR_COMPRESSIONTYPE_ZFP ? 16U
+                                                                                         : 1U;
+    blocks = (static_cast<std::uint64_t>(height) + lines - 1U) / lines;
+    // tinyexr trusts `chunkCount` over the data window for a scanline file; the two must agree.
+    if (header.chunk_count > 0 && static_cast<std::uint64_t>(header.chunk_count) != blocks) {
+      throw damaged();
+    }
+  }
+  // One 8-byte offset per block must fit in the file.
+  if (blocks > file_bytes / 8U) {
+    throw damaged();
+  }
+}
+
 }  // namespace
 
 const std::vector<std::string>& exr_extensions() {
@@ -109,6 +161,7 @@ FormatReadResult read_exr(std::span<const std::uint8_t> bytes) {
     header.requested_pixel_types[c] =
         header.pixel_types[c] == TINYEXR_PIXELTYPE_UINT ? TINYEXR_PIXELTYPE_UINT : TINYEXR_PIXELTYPE_FLOAT;
   }
+  check_declared_size(header, bytes.size());
   int channel_index[4] = {-1, -1, -1, -1};  // R, G, B, A
   int luminance = -1;
   for (int c = 0; c < header.num_channels; ++c) {

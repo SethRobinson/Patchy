@@ -112,8 +112,7 @@ Masks and selections are one byte per pixel.
   an SVG document in points for the same importer, its text boxes Patchy box text rendered after
   the open.
 - Clone layers: a copy of the source layer's pixels at the clone's offset (`clonefromuuid`,
-  else `clonefrom`). File layers: the PNG/JPEG at `source` (relative to the .kra) as pixels;
-  without the file, or without the folder (registry reads), an empty layer and a notice.
+  else `clonefrom`). File layers: see [File layers](#file-layers).
 - Layer styles: `annotations/layerstyles.asl` is Photoshop's ASL; each style's id is the
   `layerstyle` uuid. Read with `psd::read_asl`, patterns adopted into the document; the
   style's blending options give the layer's Fill and Blend If. Effects set to use global
@@ -121,6 +120,18 @@ Masks and selections are one byte per pixel.
   (`annotations/PSD Resource Block: 1037` and `: 1049`, big-endian degrees), else 120 and 30.
   Krita renders effects with its own engine; Patchy renders Photoshop's look, so the
   fixtures made from Patchy's PSDs are judged against Patchy's render of the PSD.
+
+## File layers
+
+A file layer opens as the PNG/JPEG at `source` (relative to the .kra, or absolute) as pixels;
+without the file, or without the folder (registry reads), an empty layer and a notice.
+A `source` on a network server loads only when the .kra was opened from that server or the
+host is allowed ([smart-object-editing.md](smart-object-editing.md#network-links)): the
+path is checked as written and after `lexically_normal`, and a refused one is never read.
+`DocumentIo::read` takes the allowed list as a callback and returns the refused hosts; the
+interactive open then asks once (`networkFileLayersPrompt`): Allow Server stores the hosts
+and reloads, Not Now keeps the empty layers. Without the list the reader names the layers in a
+notice. Device paths never load. Test: `kra_file_layer_on_a_network_server_needs_permission`.
 
 ## Blend modes
 

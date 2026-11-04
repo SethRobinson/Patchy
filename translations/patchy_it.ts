@@ -14826,6 +14826,59 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
         <translation>Alcuni effetti di livello di GIMP che Patchy non sa riprodurre sono stati tralasciati (%1); quei livelli mostrano i loro pixel senza di essi.</translation>
     </message>
+    <message>
+        <source>There is not enough memory available to open this file.</source>
+        <translation>Memoria disponibile insufficiente per aprire questo file.</translation>
+    </message>
+    <message>
+        <source>Linked file %1 is on network server %2, which Patchy has not been allowed to connect to; allow the server in the Missing Linked Files dialog, or relink the file</source>
+        <translation>Il file collegato %1 si trova sul server di rete %2, a cui Patchy non è autorizzato a connettersi; autorizza il server nella finestra File collegati mancanti oppure ricollega il file</translation>
+    </message>
+    <message>
+        <source>Krita file layers on network server %1 opened empty: Patchy has not been allowed to connect to it</source>
+        <extracomment>%1 is a network server name such as \fileserver (//fileserver outside Windows).</extracomment>
+        <translation>I livelli file di Krita sul server di rete %1 sono stati aperti vuoti: Patchy non è autorizzato a connettersi</translation>
+    </message>
+    <message>
+        <source>Network Files</source>
+        <translation>File di rete</translation>
+    </message>
+    <message numerus="yes">
+        <source>%1 has file layers stored on %n network server(s): %2</source>
+        <translation>
+            <numerusform>%1 ha livelli file archiviati su %n server di rete: %2</numerusform>
+            <numerusform>%1 ha livelli file archiviati su %n server di rete: %2</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Loading them connects Patchy to the server. Allow Patchy to open linked files there from now on?</source>
+        <translation>Caricarli connette Patchy al server. Consentire a Patchy di aprire da ora in poi i file collegati che si trovano lì?</translation>
+    </message>
+    <message>
+        <source>Allow Server</source>
+        <translation>Autorizza server</translation>
+    </message>
+    <message>
+        <source>Not Now</source>
+        <translation>Non ora</translation>
+    </message>
+    <message>
+        <source>Let Patchy open linked files on %1 from now on, in this and other documents</source>
+        <translation>Consente a Patchy di aprire da ora in poi i file collegati su %1, in questo e in altri documenti</translation>
+    </message>
+    <message>
+        <source>On network server %1, which Patchy has not been allowed to connect to. Opening a file there connects to that server.</source>
+        <extracomment>%1 is a network server name such as \fileserver (//fileserver outside Windows).</extracomment>
+        <translation>Sul server di rete %1, a cui Patchy non è autorizzato a connettersi. Aprire un file lì connette Patchy a quel server.</translation>
+    </message>
+    <message>
+        <source>Found on %1</source>
+        <translation>Trovato su %1</translation>
+    </message>
+    <message>
+        <source>Not found on %1 either; relink it to a file</source>
+        <translation>Non trovato neanche su %1; ricollegalo a un file</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -32331,6 +32384,10 @@ Bloccato: %1</translation>
     <message>
         <source>Ungrouped the folder; its opacity, blend mode, mask, or style was discarded</source>
         <translation>Cartella separata; opacità, metodo di fusione, maschera o stile sono stati scartati</translation>
+    </message>
+    <message>
+        <source>Linked files on %1 are allowed now</source>
+        <translation>I file collegati su %1 sono ora autorizzati</translation>
     </message>
 </context>
 <context>

@@ -616,6 +616,9 @@ std::vector<std::uint8_t> read_channel_samples(BigEndianReader& reader, std::uin
 // the same depth, in host order (32-bit floats stay linear and unclamped).
 void store_native_plane(PixelBuffer& target, std::size_t channel, std::span<const std::uint8_t> plane,
                         std::uint16_t depth);
+// Rejects a composite whose declared planes `encoded_bytes` of image data cannot describe
+// (docs/psd-reader-hardening.md, "Decode budget"), before anything is sized from the header.
+void require_composite_fits_data(const Header& header, std::uint16_t compression, std::size_t encoded_bytes);
 // keep_native returns each plane's big-endian samples at the file's depth instead of
 // converting them to 8 bits (documents that keep their depth).
 std::vector<std::vector<std::uint8_t>> read_flat_image_channels(BigEndianReader& reader, const Header& header,

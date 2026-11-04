@@ -6,7 +6,7 @@ Related documents:
 
 - [file-formats-psd.md](file-formats-psd.md): PSB wire rules, CMYK, gray and the other non-RGB modes on read, 16 and 32-bit PSD/PSB import, saved PSD channels, and flat-image alpha on open.
 - [psd-layer-blocks.md](psd-layer-blocks.md): PSD per-layer blocks: adjustments, clipping, blending, locks and styles.
-- [psd-reader-hardening.md](psd-reader-hardening.md): damaged PackBits scanlines and the PSD/PSB header, nesting and record limits.
+- [psd-reader-hardening.md](psd-reader-hardening.md): damaged PackBits scanlines, the PSD/PSB header, nesting and record limits, and the decode budget every reader checks before sizing a buffer from declared dimensions.
 - [file-formats-saving.md](file-formats-saving.md): the save guard for layered documents bound for flat formats, the shared flatten and export-transform helpers, and the Saving progress dialog.
 
 ## Registry and dispatch

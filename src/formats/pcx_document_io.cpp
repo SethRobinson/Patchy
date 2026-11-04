@@ -3,11 +3,13 @@
 #include "formats/binary_le.hpp"
 #include "formats/document_flatten.hpp"
 #include "formats/format_file_io.hpp"
+#include "support/decode_budget.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
 #include <fstream>
 #include <iterator>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 
@@ -134,8 +136,15 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
   }
 
   const auto row_bytes = header.bytes_per_line * header.planes;
-  const auto data = decode_rle(bytes, kHeaderSize, row_bytes * static_cast<std::size_t>(header.height),
-                               header.encoding == 1);
+  // Up to 65535 x 3 x 65536 bytes: past a 32-bit size_t (wasm32), where the product would
+  // wrap to a small decode and the row loop below would read past it. Form it with checks
+  // (docs/psd-reader-hardening.md, "Decode budget"); decode_rle then checks the input length.
+  const auto decoded_size = checked_decode_bytes(static_cast<std::int64_t>(row_bytes), header.height, 1U, 0U,
+                                                 kMaxDecodeExpansion, std::numeric_limits<std::uint64_t>::max());
+  if (!decoded_size.has_value()) {
+    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PCX image has invalid dimensions"));
+  }
+  const auto data = decode_rle(bytes, kHeaderSize, *decoded_size, header.encoding == 1);
 
   std::vector<RgbColor> palette;
   if (indexed) {

@@ -1,6 +1,7 @@
 #include "ui/missing_links_dialog.hpp"
 
 #include "ui/dialog_utils.hpp"
+#include "ui/network_link_trust.hpp"
 #include "ui/theme_qss.hpp"
 
 #include <QCheckBox>
@@ -19,7 +20,9 @@ namespace patchy::ui {
 
 MissingLinksDialogResult run_missing_links_dialog(
     QWidget* parent, const std::vector<MissingLinkEntry>& links, bool show_on_open,
-    const std::function<std::optional<QString>(const MissingLinkEntry&)>& relink) {
+    const std::function<std::optional<QString>(const MissingLinkEntry&)>& relink,
+    const std::function<void(const QString& server)>& allow_server,
+    const std::function<bool(const MissingLinkEntry&)>& found) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("missingLinksDialog"));
   dialog.setWindowTitle(QObject::tr("Missing Linked Files"));
@@ -34,6 +37,15 @@ MissingLinksDialogResult run_missing_links_dialog(
   layout->addWidget(intro);
 
   MissingLinksDialogResult result;
+  // The widgets Allow Server updates on every row that names the same server.
+  struct ServerRow {
+    const MissingLinkEntry* entry;
+    QPushButton* relink;
+    QPushButton* allow;
+    QLabel* server;
+    QLabel* path;
+  };
+  std::vector<ServerRow> server_rows;
   auto* rows_widget = new QWidget;
   rows_widget->setObjectName(QStringLiteral("missingLinksRows"));
   auto* grid = new QGridLayout(rows_widget);
@@ -44,7 +56,10 @@ MissingLinksDialogResult run_missing_links_dialog(
     auto* relink_button = new QPushButton(QObject::tr("Relink..."), rows_widget);
     relink_button->setObjectName(QStringLiteral("missingLinkRelinkButton%1").arg(index));
     relink_button->setEnabled(static_cast<bool>(relink));
-    grid->addWidget(relink_button, index, 0, Qt::AlignTop);
+    auto* buttons_column = new QVBoxLayout;
+    buttons_column->setSpacing(4);
+    buttons_column->addWidget(relink_button);
+    grid->addLayout(buttons_column, index, 0, Qt::AlignTop);
 
     auto* name = new QLabel(entry.file_name, rows_widget);
     name->setObjectName(QStringLiteral("missingLinkName%1").arg(index));
@@ -71,10 +86,32 @@ MissingLinksDialogResult run_missing_links_dialog(
     column->addWidget(name);
     column->addWidget(detail);
     column->addWidget(path);
+    QPushButton* allow_button = nullptr;
+    QLabel* server = nullptr;
+    if (!entry.blocked_server.isEmpty()) {
+      const auto server_name = network_link_server_display_name(entry.blocked_server);
+      allow_button = new QPushButton(QObject::tr("Allow Server"), rows_widget);
+      allow_button->setObjectName(QStringLiteral("missingLinkAllowServerButton%1").arg(index));
+      allow_button->setToolTip(
+          QObject::tr("Let Patchy open linked files on %1 from now on, in this and other documents").arg(server_name));
+      allow_button->setEnabled(static_cast<bool>(allow_server));
+      buttons_column->addWidget(allow_button);
+      //: %1 is a network server name such as \\fileserver (//fileserver outside Windows).
+      server = new QLabel(QObject::tr("On network server %1, which Patchy has not been allowed to connect to. "
+                                      "Opening a file there connects to that server.")
+                              .arg(server_name),
+                          rows_widget);
+      server->setObjectName(QStringLiteral("missingLinkServer%1").arg(index));
+      server->setProperty("missingLinkSecondary", true);
+      server->setTextFormat(Qt::PlainText);
+      server->setWordWrap(true);
+      column->addWidget(server);
+      server_rows.push_back({&entry, relink_button, allow_button, server, path});
+    }
     grid->addLayout(column, index, 1, Qt::AlignTop);
 
     QObject::connect(relink_button, &QPushButton::clicked, &dialog,
-                     [&relink, &entry, &result, relink_button, detail, path] {
+                     [&relink, &entry, &result, relink_button, detail, path, allow_button, server] {
       if (!relink) {
         return;
       }
@@ -86,6 +123,37 @@ MissingLinksDialogResult run_missing_links_dialog(
       relink_button->setEnabled(false);
       detail->setText(QObject::tr("Relinked to %1").arg(*relinked));
       path->hide();
+      if (allow_button != nullptr) {
+        allow_button->setEnabled(false);
+        server->hide();
+      }
+    });
+  }
+
+  for (const auto& row : server_rows) {
+    QObject::connect(row.allow, &QPushButton::clicked, &dialog, [&allow_server, &found, &server_rows, &result, row] {
+      if (!allow_server) {
+        return;
+      }
+      const auto server = row.entry->blocked_server;
+      allow_server(server);
+      if (!result.allowed_servers.contains(server)) {
+        result.allowed_servers.push_back(server);
+      }
+      const auto server_name = network_link_server_display_name(server);
+      for (const auto& other : server_rows) {
+        if (other.entry->blocked_server != server || !other.allow->isEnabled()) {
+          continue;
+        }
+        other.allow->setEnabled(false);
+        if (found && found(*other.entry)) {
+          other.relink->setEnabled(false);
+          other.server->setText(QObject::tr("Found on %1").arg(server_name));
+          other.path->hide();
+        } else {
+          other.server->setText(QObject::tr("Not found on %1 either; relink it to a file").arg(server_name));
+        }
+      }
     });
   }
 
