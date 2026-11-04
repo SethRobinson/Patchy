@@ -133,7 +133,8 @@ enum class PlaneStatus { Ok, NeedsOriginal, UnknownCode, Invalid };
                                                const PlaneTags& tags, std::size_t sample_bytes,
                                                bool is_float, std::int64_t plane_width,
                                                std::int64_t plane_height,
-                                               const ChannelPlane* source, ChannelPlane& out) {
+                                               const ChannelPlane* source, ChannelPlane& out,
+                                               std::uint64_t max_plane_bytes) {
   std::int64_t tiles_w = dybm.int_field(tags.tiles_w, 1);
   std::int64_t tiles_h = dybm.int_field(tags.tiles_h, 1);
   if (dybm.field(tags.tiles_w) == nullptr && dybm.field(tags.tiles_h) == nullptr) {
@@ -162,9 +163,17 @@ enum class PlaneStatus { Ok, NeedsOriginal, UnknownCode, Invalid };
       tiles_w * tiles_h > (1LL << 20U)) {
     return PlaneStatus::Invalid;
   }
+  // Up to 2^20 tiles of 64 KiB: 2^36 bytes, which wraps a 32-bit size_t (a 256 x 256 grid
+  // is exactly 2^32). Size the plane in 64 bits before anything is written into it.
+  const auto tile_count = static_cast<std::uint64_t>(tiles_w) * static_cast<std::uint64_t>(tiles_h);
+  const auto plane_bytes =
+      checked_buffer_bytes(tile_count, static_cast<std::uint64_t>(kTileSize) * kTileSize, max_plane_bytes);
+  if (!plane_bytes.has_value()) {
+    return PlaneStatus::Invalid;
+  }
   out.width_bytes = static_cast<std::size_t>(tiles_w) * kTileSize;
   out.rows = static_cast<std::size_t>(tiles_h) * kTileSize;
-  out.bytes.assign(out.width_bytes * out.rows, 0);
+  out.bytes.assign(*plane_bytes, 0);
 
   const auto* sta = dybm.field(tags.status);
   if (sta == nullptr) {
@@ -390,7 +399,7 @@ enum class PlaneStatus { Ok, NeedsOriginal, UnknownCode, Invalid };
   ChannelPlane plane;
   plane.width_bytes = layout.width_bytes;
   plane.rows = layout.rows;
-  plane.bytes.assign(plane.width_bytes * plane.rows, 0);
+  plane.bytes.assign(layout.bytes.size(), 0);  // width_bytes x rows, sized when the layout was
   const int component = std::clamp(channel - 1, 0, 3);
   for (std::int32_t y = 0; y < original.height() && static_cast<std::size_t>(y) < plane.rows; ++y) {
     std::uint8_t* dst_row = plane.bytes.data() + static_cast<std::size_t>(y) * plane.width_bytes;
@@ -423,14 +432,14 @@ enum class PlaneStatus { Ok, NeedsOriginal, UnknownCode, Invalid };
                                      const af::AfClass& dybm, int channel_count,
                                      std::size_t sample_bytes, bool is_float, std::int64_t width,
                                      std::int64_t height, const std::vector<ChannelPlane>& layouts,
-                                     std::vector<ChannelPlane>& out) {
+                                     std::vector<ChannelPlane>& out, std::uint64_t max_plane_bytes) {
   const std::int64_t mip_width = (width + 1) / 2;
   const std::int64_t mip_height = (height + 1) / 2;
   for (int channel = 1; channel <= channel_count; ++channel) {
     ChannelPlane mip;
     const PlaneStatus status =
         decode_channel_plane(bytes, container, dybm, mip_plane_tags(1, channel), sample_bytes,
-                             is_float, mip_width, mip_height, nullptr, mip);
+                             is_float, mip_width, mip_height, nullptr, mip, max_plane_bytes);
     if (status != PlaneStatus::Ok ||
         static_cast<std::size_t>(mip_width) * sample_bytes > mip.width_bytes ||
         static_cast<std::size_t>(mip_height) > mip.rows) {
@@ -440,7 +449,8 @@ enum class PlaneStatus { Ok, NeedsOriginal, UnknownCode, Invalid };
     ChannelPlane scaled;
     scaled.width_bytes = layout.width_bytes;
     scaled.rows = layout.rows;
-    scaled.bytes.assign(scaled.width_bytes * scaled.rows, 0);
+    // The layout's own buffer is width_bytes x rows, sized through checked_buffer_bytes.
+    scaled.bytes.assign(layout.bytes.size(), 0);
     for (std::int64_t y = 0; y < height && static_cast<std::size_t>(y) < scaled.rows; ++y) {
       for (std::int64_t x = 0; x < width; ++x) {
         const std::size_t at = static_cast<std::size_t>(x) * sample_bytes;
@@ -620,7 +630,8 @@ enum class PlaneStatus { Ok, NeedsOriginal, UnknownCode, Invalid };
                                                          const af::AfClass& dybm,
                                                          const std::string& layer_name,
                                                          std::vector<std::string>* notices,
-                                                         std::string* fail_reason) {
+                                                         std::string* fail_reason,
+                                                         std::uint64_t max_plane_bytes) {
   const auto set_reason = [&](const char* reason) {
     if (fail_reason != nullptr) {
       *fail_reason = reason;
@@ -691,19 +702,26 @@ enum class PlaneStatus { Ok, NeedsOriginal, UnknownCode, Invalid };
   bool needs_original = false;
   if (base_planes_absent) {
     needs_original = true;
-    const std::size_t tiles_w =
-        (static_cast<std::size_t>(width) * sample_bytes + kTileSize - 1) / kTileSize;
-    const std::size_t tiles_h = (static_cast<std::size_t>(height) + kTileSize - 1) / kTileSize;
+    // BmpW x BmpH alone sizes these planes (300000 a side): form the size in 64 bits.
+    const std::uint64_t tiles_w =
+        (static_cast<std::uint64_t>(width) * sample_bytes + kTileSize - 1) / kTileSize;
+    const std::uint64_t tiles_h = (static_cast<std::uint64_t>(height) + kTileSize - 1) / kTileSize;
+    const auto plane_bytes = checked_buffer_bytes(
+        tiles_w * tiles_h, static_cast<std::uint64_t>(kTileSize) * kTileSize, max_plane_bytes);
+    if (!plane_bytes.has_value()) {
+      set_reason("has an invalid tile layout");
+      return std::nullopt;
+    }
     for (auto& plane : planes) {
-      plane.width_bytes = tiles_w * kTileSize;
-      plane.rows = tiles_h * kTileSize;
-      plane.bytes.assign(plane.width_bytes * plane.rows, 0);
+      plane.width_bytes = static_cast<std::size_t>(tiles_w) * kTileSize;
+      plane.rows = static_cast<std::size_t>(tiles_h) * kTileSize;
+      plane.bytes.assign(*plane_bytes, 0);
     }
   }
   for (int channel = 1; !base_planes_absent && channel <= channel_count; ++channel) {
     const PlaneStatus status = decode_channel_plane(
         bytes, container, dybm, base_plane_tags(channel), sample_bytes, is_float, width, height,
-        nullptr, planes[static_cast<std::size_t>(channel - 1)]);
+        nullptr, planes[static_cast<std::size_t>(channel - 1)], max_plane_bytes);
     if (status == PlaneStatus::NeedsOriginal) {
       needs_original = true;
       continue;
@@ -764,7 +782,7 @@ enum class PlaneStatus { Ok, NeedsOriginal, UnknownCode, Invalid };
     if (!have_sources) {
       sources.clear();
       if (mip_source_planes(bytes, container, dybm, channel_count, sample_bytes, is_float, width,
-                            height, planes, sources)) {
+                            height, planes, sources, max_plane_bytes)) {
         have_sources = true;
         if (notices != nullptr) {
           notices->push_back("Layer '" + layer_name +
@@ -785,7 +803,7 @@ enum class PlaneStatus { Ok, NeedsOriginal, UnknownCode, Invalid };
         const PlaneStatus status = decode_channel_plane(
             bytes, container, dybm, base_plane_tags(channel), sample_bytes, is_float, width,
             height, &sources[static_cast<std::size_t>(channel - 1)],
-            planes[static_cast<std::size_t>(channel - 1)]);
+            planes[static_cast<std::size_t>(channel - 1)], max_plane_bytes);
         if (status != PlaneStatus::Ok) {
           set_reason("has an invalid tile layout");
           return std::nullopt;

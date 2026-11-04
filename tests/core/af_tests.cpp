@@ -12,6 +12,8 @@
 // cases are byte mutations of the fixtures.
 
 #include "formats/af_document_io.hpp"
+#include "formats/af_raster_internal.hpp"
+#include "support/decode_budget.hpp"
 #include "core/adjustment_layer.hpp"
 #include "formats/document_flatten.hpp"
 #include "formats/format_registry.hpp"
@@ -1875,6 +1877,67 @@ void af_reads_affinity2_wild_files_if_available() {
   }
 }
 
+// A DyBm built in code: RGBA8 (format 0), width x height, and the given int fields.
+[[nodiscard]] patchy::af::AfClass synthetic_dybm(std::int64_t width, std::int64_t height,
+                                                 const std::vector<std::pair<std::string, std::int64_t>>& fields) {
+  patchy::af::AfClass dybm;
+  dybm.fields.push_back({patchy::af::tag4("Frmt"), patchy::af::AfEnum{0, 0}});
+  dybm.fields.push_back({patchy::af::tag4("BmpW"), width});
+  dybm.fields.push_back({patchy::af::tag4("BmpH"), height});
+  for (const auto& [name, value] : fields) {
+    dybm.fields.push_back({patchy::af::detail::tag_of(name), value});
+  }
+  return dybm;
+}
+
+// A channel plane holds tiles_w x tiles_h 256 x 256 tiles: a 256 x 256 grid is 2^32 bytes,
+// which wrapped a 32-bit size_t to an empty plane that every tile then wrote past. Lazy
+// placed images size their planes from BmpW x BmpH alone (300000 a side). Both are refused
+// as an invalid tile layout before allocating (kMaxBufferBytes32 models wasm32).
+void af_plane_sizes_refuse_32_bit_wraps() {
+  const patchy::af::detail::Container container;
+  const std::vector<std::uint8_t> no_bytes;
+  std::vector<std::pair<std::string, std::int64_t>> grid;
+  for (int channel = 1; channel <= 4; ++channel) {
+    grid.emplace_back("TWi" + std::to_string(channel), 256);
+    grid.emplace_back("THi" + std::to_string(channel), 256);
+  }
+  const auto wide = synthetic_dybm(65536, 65536, grid);
+  std::string reason;
+  CHECK(!patchy::af::detail::decode_bitmap(no_bytes, container, wide, "wide", nullptr, &reason,
+                                           patchy::kMaxBufferBytes32)
+             .has_value());
+  CHECK(reason == "has an invalid tile layout");
+  if constexpr (sizeof(std::size_t) < 8) {
+    reason.clear();
+    CHECK(!patchy::af::detail::decode_bitmap(no_bytes, container, wide, "wide", nullptr, &reason).has_value());
+    CHECK(reason == "has an invalid tile layout");
+  }
+
+  // A lazy placed image (a Bckg original, no base-plane fields) 80000 pixels a side.
+  auto lazy = synthetic_dybm(80000, 80000, {});
+  lazy.fields.push_back({patchy::af::tag4("Bckg"), std::int64_t{0}});
+  reason.clear();
+  CHECK(!patchy::af::detail::decode_bitmap(no_bytes, container, lazy, "lazy", nullptr, &reason,
+                                           patchy::kMaxBufferBytes32)
+             .has_value());
+  CHECK(reason == "has an invalid tile layout");
+
+  // One tile per plane and no status codes: a transparent 16 x 16 bitmap under the same cap.
+  std::vector<std::pair<std::string, std::int64_t>> single;
+  for (int channel = 1; channel <= 4; ++channel) {
+    single.emplace_back("TWi" + std::to_string(channel), 1);
+    single.emplace_back("THi" + std::to_string(channel), 1);
+  }
+  const auto small = patchy::af::detail::decode_bitmap(no_bytes, container, synthetic_dybm(16, 16, single), "small",
+                                                       nullptr, &reason, patchy::kMaxBufferBytes32);
+  CHECK(small.has_value());
+  if (small.has_value()) {
+    CHECK(small->rgba.width() == 16 && small->rgba.height() == 16);
+    CHECK(small->rgba.pixel(15, 15)[3] == 0);
+  }
+}
+
 void af_read_rejects_non_affinity_bytes() {
   const std::vector<std::uint8_t> garbage = {'n', 'o', 't', ' ', 'a', 'f', 0, 1, 2, 3};
   bool threw = false;
@@ -1973,5 +2036,6 @@ std::vector<patchy::test::TestCase> af_format_tests() {
       {"af_read_rejects_non_affinity_bytes", af_read_rejects_non_affinity_bytes},
       {"af_read_survives_truncation_sweep", af_read_survives_truncation_sweep},
       {"af_read_survives_mutation_sweep", af_read_survives_mutation_sweep},
+      {"af_plane_sizes_refuse_32_bit_wraps", af_plane_sizes_refuse_32_bit_wraps},
   };
 }

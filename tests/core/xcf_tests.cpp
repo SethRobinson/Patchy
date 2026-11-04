@@ -26,6 +26,8 @@
 #include "formats/ora_document_io.hpp"
 #include "formats/stb/stb_image.h"
 #include "formats/xcf_document_io.hpp"
+#include "formats/xcf_internal.hpp"
+#include "support/decode_budget.hpp"
 #include "psd/psd_document_io.hpp"
 #include "render/compositor.hpp"
 #include "core_test_support.hpp"
@@ -2015,6 +2017,65 @@ void xcf_hostile_input_never_crashes() {
   (void)patchy::xcf::DocumentIo::read(builder::write(nested));
 }
 
+// Float working planes sized from file data wrapped a 32-bit size_t (wasm32): the blur
+// bake's RGBA copy of a padded layer (a 258144 x 96 layer blurred by std-dev 667 is
+// 262144 x 4096, 2^32 floats) and the clip-to-backdrop alpha plane over the whole canvas
+// (65536 x 65537). Both are refused as too large; kMaxBufferBytes32 and kMaxDecodePixels32
+// model wasm32 on a 64-bit host.
+void xcf_float_planes_refuse_32_bit_wraps() {
+  namespace detail = patchy::xcf::detail;
+  const auto refused = [](std::int64_t width, std::int64_t height, std::uint64_t channels, std::uint64_t max_bytes,
+                          std::uint64_t max_pixels) {
+    try {
+      (void)detail::checked_float_plane(width, height, channels, max_bytes, max_pixels);
+    } catch (const detail::SizeLimitError&) {
+      return true;
+    }
+    return false;
+  };
+  CHECK(refused(262144, 4096, 4, patchy::kMaxBufferBytes32, patchy::kMaxDecodePixels32));
+  CHECK(refused(65536, 65537, 1, patchy::kMaxBufferBytes32, patchy::kMaxDecodePixels32));
+  CHECK(refused(300000, 300000, 1, patchy::kMaxBufferBytes, patchy::kMaxDecodePixels64));
+  if constexpr (sizeof(std::size_t) >= 8) {
+    CHECK(detail::checked_float_plane(65536, 65537, 1) == std::size_t{65536} * 65537U);
+  } else {
+    CHECK(refused(65536, 65537, 1, patchy::kMaxBufferBytes, patchy::kMaxDecodePixels));
+    CHECK(refused(262144, 4096, 4, patchy::kMaxBufferBytes, patchy::kMaxDecodePixels));
+  }
+  CHECK(detail::checked_float_plane(1024, 768, 4, patchy::kMaxBufferBytes32, patchy::kMaxDecodePixels32) ==
+        std::size_t{1024} * 768U * 4U);
+
+  const auto too_large = [](const builder::Image& image) {
+    try {
+      (void)patchy::xcf::DocumentIo::read(builder::write(image));
+    } catch (const std::runtime_error& error) {
+      return std::string(error.what()).find("too large") != std::string::npos;
+    }
+    return false;
+  };
+  // The largest canvas the reader takes, with a clip-to-backdrop layer: its alpha plane
+  // (9 x 10^10 pixels) passes even the 64-bit cap, so every build refuses it.
+  builder::Image canvas;
+  canvas.width = 300000;
+  canvas.height = 300000;
+  auto clip = pixel_layer("Clip", builder::solid(1, 1, {10, 20, 30, 255}));
+  clip.properties.push_back(builder::prop_u32(builder::kCompositeMode, 2));
+  canvas.layers.push_back(clip);
+  CHECK(too_large(canvas));
+  // On wasm32 a blur pad of 4500 around a 120000 x 1 layer (129000 x 9001, 2^30 pixels of
+  // RGBA floats) is refused too. A 64-bit build would bake it (18 GB), so only wasm32 runs it.
+  if constexpr (sizeof(std::size_t) < 8) {
+    builder::Image blurred;
+    blurred.version = 22;
+    auto wide = pixel_layer("Wide", builder::solid(120000, 1, {200, 100, 50, 255}));
+    wide.effects.push_back(builder::Effect{
+        "Blur", "gegl:gaussian-blur",
+        {filter_argument("std-dev-x", 3, f32_bytes(1500.0F)), filter_argument("clip-extent", 5, u32_bytes(0))}});
+    blurred.layers.push_back(wide);
+    CHECK(too_large(blurred));
+  }
+}
+
 void xcf_registry_sniff_and_open_by_content() {
   const auto bytes = builder::write(structure_image(11, builder::Compression::Rle));
   for (const char* extension : {".xcf", ".xcfgz", ".xcfbz2", ".xcfxz"}) {
@@ -2951,6 +3012,7 @@ std::vector<patchy::test::TestCase> xcf_tests() {
       {"xcf_effect_fixtures_match_gimp_if_available", xcf_effect_fixtures_match_gimp_if_available},
       {"xcf_unwraps_gzip_bzip2_and_xz", xcf_unwraps_gzip_bzip2_and_xz},
       {"xcf_hostile_input_never_crashes", xcf_hostile_input_never_crashes},
+      {"xcf_float_planes_refuse_32_bit_wraps", xcf_float_planes_refuse_32_bit_wraps},
       {"xcf_registry_sniff_and_open_by_content", xcf_registry_sniff_and_open_by_content},
       {"xcf_unicode_path_opens", xcf_unicode_path_opens},
       {"xcf_committed_gimp_files_match_gimp_renders", xcf_committed_gimp_files_match_gimp_renders},

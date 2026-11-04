@@ -675,6 +675,30 @@ void pdn_size_limits_and_stub_files_explain_themselves() {
   }
 }
 
+// A MemoryBlock's length64 sizes one decode buffer. Past 4 GiB that truncated on a 32-bit
+// size_t (wasm32) and the chunk writes ran off its end; now wasm32 refuses any block over
+// one buffer (2 GiB) as too large (the preview opens with that notice), while a 64-bit build still reads it as a block
+// whose chunks cannot back its claim, so the layer opens transparent.
+void pdn_block_sizes_refuse_32_bit_wraps() {
+  auto spec = three_layer_spec();
+  spec.thumbnail_png = small_png();
+  spec.layers.back().declared_length = std::int64_t{3} << 30U;
+  std::vector<std::string> notices;
+  const auto document = patchy::pdn::DocumentIo::read(build_pdn(spec), &notices);
+  CHECK(notices.size() == 1);
+  if constexpr (sizeof(std::size_t) < 8) {
+    CHECK(document.width() == 2 && document.height() == 2);  // the thumbnail preview
+    CHECK(!notices.empty() && notices[0].find("too large") != std::string::npos);
+  } else {
+    CHECK(document.width() == 5 && document.height() == 3 && document.layers().size() == 3U);
+    CHECK(!notices.empty() && notices[0].find("damaged or missing") != std::string::npos);
+    if (document.layers().size() == 3U) {
+      CHECK(pixel_at(document.layers()[0], 1, 1) == gradient_pixel(1, 1));
+      CHECK(pixel_at(document.layers()[2], 2, 1)[3] == 0);
+    }
+  }
+}
+
 // --- public samples -------------------------------------------------------
 
 std::vector<std::uint8_t> rgba_bytes(const Layer& layer) {
@@ -1772,6 +1796,7 @@ std::vector<patchy::test::TestCase> pdn_tests() {
       {"pdn_damaged_chunks_open_transparent_with_a_notice", pdn_damaged_chunks_open_transparent_with_a_notice},
       {"pdn_mutation_sweep_never_crashes", pdn_mutation_sweep_never_crashes},
       {"pdn_size_limits_and_stub_files_explain_themselves", pdn_size_limits_and_stub_files_explain_themselves},
+      {"pdn_block_sizes_refuse_32_bit_wraps", pdn_block_sizes_refuse_32_bit_wraps},
       {"pdn_registry_sniff_and_open_by_content_detection", pdn_registry_sniff_and_open_by_content_detection},
       {"pdn_unicode_path_opens", pdn_unicode_path_opens},
       {"pdn_public_samples_match_pypdn_if_available", pdn_public_samples_match_pypdn_if_available},

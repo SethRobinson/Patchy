@@ -16,9 +16,11 @@
 #include "formats/format_registry.hpp"
 #include "formats/image_open_diagnosis.hpp"
 #include "formats/kra_document_io.hpp"
+#include "formats/kra_internal.hpp"
 #include "formats/miniz/miniz.h"
 #include "formats/ora_document_io.hpp"
 #include "formats/stb/stb_image.h"
+#include "support/decode_budget.hpp"
 #include "psd/psd_document_io.hpp"
 #include "core_test_support.hpp"
 #include "local_psd_fixtures.hpp"
@@ -36,6 +38,7 @@
 #include <iostream>
 #include <map>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -667,6 +670,86 @@ constexpr FixtureLimit kFixtureLimits[] = {
     {"psd-inner-glow-range", 0.5, 64, true},          {"psd-interior-exterior-blending", 1.0, 160, true},
 };
 
+// Buffer sizes formed from tile positions and the canvas wrapped a 32-bit size_t (wasm32):
+// 2^28 RGBA F32 pixels are 2^32 bytes, a white default pixel over a 32768 x 32768 canvas
+// too. Both are now refused before anything is allocated (kMaxBufferBytes32 models wasm32
+// on a 64-bit host), and honest sizes still decode.
+void kra_buffer_sizes_refuse_32_bit_wraps() {
+  constexpr int kF32Pixel = 16;  // RGBAF32
+  const std::vector<std::uint8_t> tile_pixels(64U * 64U * kF32Pixel, 7);
+  const kra::detail::TileReadLimits wasm_limits{300000, 1ULL << 28U, patchy::kMaxBufferBytes32};
+  // Two tiles 16320 apart: bounds 16384 x 16384, within the pixel cap.
+  const auto spread = tile_file(kF32Pixel, {{0, 0, tile_pixels}, {16320, 16320, tile_pixels}});
+  std::uint64_t budget = 1ULL << 31U;
+  std::string reason;
+  CHECK(!kra::detail::read_tiles(spread, kF32Pixel, {}, 0, 0, wasm_limits, budget, reason).has_value());
+  CHECK(reason == "too large");
+  CHECK(budget == 1ULL << 31U);  // nothing taken from the file's budget
+  if constexpr (sizeof(std::size_t) < 8) {
+    reason.clear();
+    CHECK(!kra::detail::read_tiles(spread, kF32Pixel, {}, 0, 0, kra::detail::TileReadLimits{}, budget, reason)
+               .has_value());
+    CHECK(reason == "too large");
+  }
+  // Tiles 960 apart: a 1024 x 1024 image (16 MiB) passes even under the wasm32 cap.
+  const auto near = tile_file(kF32Pixel, {{0, 0, tile_pixels}, {960, 960, tile_pixels}});
+  const auto read = kra::detail::read_tiles(near, kF32Pixel, {}, 0, 0, wasm_limits, budget, reason);
+  CHECK(read.has_value());
+  if (read.has_value()) {
+    CHECK(read->bounds == rect_of(0, 0, 1024, 1024));
+    CHECK(read->data.size() == std::size_t{1024} * 1024U * kF32Pixel);
+    CHECK(read->data[0] == 7 && read->data.back() == 7);
+  }
+
+  // The canvas fill for a white default pixel.
+  kra::detail::RawImage white;
+  white.pixel_bytes = 4;
+  white.default_pixel = {255, 255, 255, 255};
+  white.default_is_transparent = false;
+  CHECK(!kra::detail::grow_to_canvas(white, 32768, 32768, patchy::kMaxBufferBytes32).has_value());
+  if constexpr (sizeof(std::size_t) < 8) {
+    CHECK(!kra::detail::grow_to_canvas(white, 32768, 32768).has_value());
+  }
+  // Stored pixels keep their place in the grown buffer; the rest holds the default pixel.
+  white.bounds = rect_of(-2, 1, 4, 2);
+  white.data.assign(4U * 2U * 4U, 9);
+  const auto grown = kra::detail::grow_to_canvas(white, 8, 4, patchy::kMaxBufferBytes32);
+  CHECK(grown.has_value());
+  if (grown.has_value()) {
+    CHECK(grown->bounds == rect_of(-2, 0, 10, 4));
+    CHECK(grown->data.size() == 10U * 4U * 4U);
+    const auto at = [&](int x, int y) { return grown->data[(static_cast<std::size_t>(y) * 10U + x) * 4U]; };
+    CHECK(at(0, 0) == 255 && at(0, 1) == 9 && at(3, 2) == 9 && at(4, 1) == 255 && at(9, 3) == 255);
+  }
+
+  // A whole file on wasm32: the white Background over a 32768 x 32768 canvas is refused
+  // cleanly (an open that fails, or the layer named as unreadable), never a short buffer.
+  if constexpr (sizeof(std::size_t) < 8) {
+    std::vector<patchy::ora::detail::ZipEntry> entries;
+    entries.push_back({"mimetype", bytes_of("application/x-krita"), false});
+    entries.push_back({"maindoc.xml",
+                       bytes_of(R"(<?xml version="1.0" encoding="UTF-8"?>
+<DOC xmlns="http://www.calligra.org/DTD/krita" syntaxVersion="2.0" editor="Krita" kritaVersion="5.3.2">
+ <IMAGE colorspacename="RGBA" name="Doc" width="32768" height="32768" mime="application/x-kra">
+  <layers>
+   <layer name="Background" nodetype="paintlayer" filename="layer1" compositeop="normal" opacity="255" visible="1" x="0" y="0" colorspacename="RGBA"/>
+  </layers>
+ </IMAGE>
+</DOC>
+)"),
+                       true});
+    entries.push_back({"Doc/layers/layer1", tile_file(4, {}), true});
+    entries.push_back({"Doc/layers/layer1.defaultpixel", {255, 255, 255, 255}, false});
+    std::vector<std::string> notices;
+    try {
+      (void)kra::DocumentIo::read(patchy::ora::detail::zip_archive(entries), &notices);
+      CHECK(notices_mention(notices, "Background (too large)"));
+    } catch (const std::runtime_error& error) {
+      std::cout << "  refused: " << error.what() << '\n';
+    }
+  }
+}
+
 void kra_reads_krita_fixtures_if_available() {
   DeepEditingScope deep(true);
   const auto dir = patchy::test::local_format_fixture_path("kra", "");
@@ -865,6 +948,7 @@ std::vector<patchy::test::TestCase> kra_tests() {
       {"kra_unicode_path_reads", kra_unicode_path_reads},
       {"kra_reader_refuses_hostile_and_broken_files", kra_reader_refuses_hostile_and_broken_files},
       {"kra_file_layer_on_a_network_server_needs_permission", kra_file_layer_on_a_network_server_needs_permission},
+      {"kra_buffer_sizes_refuse_32_bit_wraps", kra_buffer_sizes_refuse_32_bit_wraps},
       {"kra_reads_krita_fixtures_if_available", kra_reads_krita_fixtures_if_available},
       {"kra_reads_corpus_if_available", kra_reads_corpus_if_available},
       {"kra_krita_blend_modes_match_krita", kra_krita_blend_modes_match_krita},

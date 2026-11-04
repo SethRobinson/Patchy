@@ -39,12 +39,31 @@ inline constexpr std::uint64_t kMaxDecodePixels64 = 1ULL << 36U;
 inline constexpr std::uint64_t kMaxDecodePixels =
     sizeof(std::size_t) >= 8 ? kMaxDecodePixels64 : kMaxDecodePixels32;
 
+// The largest buffer a reader sizes: no std::vector holds more than PTRDIFF_MAX bytes, which
+// is 2 GiB - 1 on a 32-bit size_t (wasm32). Tests pass kMaxBufferBytes32 to model wasm32.
+inline constexpr std::uint64_t kMaxBufferBytes32 = (1ULL << 31U) - 1U;
+inline constexpr std::uint64_t kMaxBufferBytes =
+    static_cast<std::uint64_t>(std::numeric_limits<std::ptrdiff_t>::max());
+
 // a x b, or nothing when the product overflows 64 bits.
 [[nodiscard]] constexpr std::optional<std::uint64_t> checked_multiply(std::uint64_t a, std::uint64_t b) noexcept {
   if (a != 0 && b > std::numeric_limits<std::uint64_t>::max() / a) {
     return std::nullopt;
   }
   return a * b;
+}
+
+// count x element_bytes as a buffer length in bytes, or nothing when the product overflows
+// or passes max_bytes. Readers form every buffer size from file-supplied counts through
+// this rather than multiplying in size_t, which wraps on wasm32 and sizes a short buffer.
+[[nodiscard]] constexpr std::optional<std::size_t> checked_buffer_bytes(
+    std::uint64_t count, std::uint64_t element_bytes, std::uint64_t max_bytes = kMaxBufferBytes) noexcept {
+  const auto bytes = checked_multiply(count, element_bytes);
+  if (!bytes.has_value() || *bytes > max_bytes ||
+      *bytes > static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max())) {
+    return std::nullopt;
+  }
+  return static_cast<std::size_t>(*bytes);
 }
 
 // width x height, or nothing when either side is negative or the count passes max_pixels.

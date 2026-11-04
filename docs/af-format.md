@@ -17,6 +17,7 @@ Container and tree gotchas:
 - The `#FAT`/`#FT2`/`#FT3`/`#FT4` stream-table chain: `#Inf` points at the NEWEST link, next_offset walks OLDER revisions, so resolution is two-phase with the head link winning per stream; a one-pass walk imports an incremental save's OLDEST doc.dat (`af_head_fat_revision_wins`).
 - Stream CRC32 mismatch = notice, not failure. zlib via miniz; zstd via decode-only zstddeclib.c; thumbnails via a minimal Qt-free PNG reader.
 - The doc.dat tree (`af_tree.{hpp,cpp}`) is schema-less: each field's leading type byte determines its layout; the importer queries by 4CC. v3 quirks vs afread: class-type headers carry a u16 version (afread read u32); some formerly mandatory fields are optional. Bounds-checked and capped; mutation sweeps pin no-crash on hostile input.
+- Channel planes (a tile grid of up to 2^20 256 x 256 tiles, or BmpW x BmpH for lazy placed images) are sized through `checked_buffer_bytes` ([psd-reader-hardening.md](psd-reader-hardening.md#decode-budget)); past it the bitmap "has an invalid tile layout" (`af_plane_sizes_refuse_32_bit_wraps`).
 - Tiers: tier 2 parses doc.dat into real Patchy layers; the importer never composites itself. Structural problems fall back to the tier-0 flat render, never a failed open (`PATCHY_AF_TRACE=1` prints why): a `Snap` snapshot render, else the 512px thumbnail. If nothing decodes, tier-0 wins over an all-placeholder canvas.
 
 ## Import mapping

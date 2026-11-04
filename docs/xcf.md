@@ -53,7 +53,9 @@ Patchy's own, written from the published format descriptions.
 
 Refused before allocation with "too large": a canvas or drawable side over 300000, a
 drawable over 2^30 pixels, more than 24 GiB of decoded drawables in a file, 100000 layers,
-channels or paths, an unwrapped size over 16 GiB. Property lists over 100000 entries, group
+channels or paths, an unwrapped size over 16 GiB, and a float working plane (the blur
+bake's padded RGBA copy, the canvas-sized clip-to-backdrop alpha plane) past 2^36 pixels
+(2^28 on wasm32) or one buffer (`checked_float_plane`). Property lists over 100000 entries, group
 nesting past 64 and hostile counts read as damage. Truncated and mutated files are swept by
 `xcf_hostile_input_never_crashes`.
 

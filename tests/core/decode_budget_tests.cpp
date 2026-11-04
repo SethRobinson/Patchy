@@ -15,11 +15,13 @@
 #include "psd_test_support.hpp"
 #include "test_harness.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <exception>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <new>
 #include <optional>
 #include <stdexcept>
@@ -77,6 +79,35 @@ void decode_budget_checks_products_and_the_32_bit_cap() {
   CHECK(allowance.charge(60U));
   CHECK(!allowance.charge(41U));
   CHECK(allowance.remaining() == 40U);
+}
+
+// The buffer sizes the KRA, Affinity, XCF and PDN findings form from file data, under the
+// wasm32 cap (each wrapped a 32-bit size_t to a short buffer) and the 64-bit one.
+void decode_budget_buffer_bytes_refuse_32_bit_wraps() {
+  CHECK(patchy::kMaxBufferBytes == static_cast<std::uint64_t>(std::numeric_limits<std::ptrdiff_t>::max()));
+  if constexpr (sizeof(std::size_t) < 8) {
+    CHECK(patchy::kMaxBufferBytes == patchy::kMaxBufferBytes32);
+  }
+  constexpr auto k32 = patchy::kMaxBufferBytes32;
+  constexpr auto k64 = (std::uint64_t{1} << 62U);
+  CHECK(patchy::checked_buffer_bytes(k32, 1U, k32) == static_cast<std::size_t>(k32));
+  CHECK(!patchy::checked_buffer_bytes(k32 + 1U, 1U, k32).has_value());
+  CHECK(!patchy::checked_buffer_bytes(std::uint64_t{1} << 40U, std::uint64_t{1} << 40U).has_value());
+  CHECK(patchy::checked_buffer_bytes(0U, ~std::uint64_t{0}) == std::size_t{0});
+  // A wasm32 build refuses each; only a 64-bit size_t can hold them.
+  const auto fits_only_on_64_bit = [&](std::uint64_t count, std::uint64_t element_bytes) {
+    CHECK(!patchy::checked_buffer_bytes(count, element_bytes, k32).has_value());
+    const auto wide = patchy::checked_buffer_bytes(count, element_bytes, k64);
+    CHECK(wide.has_value() == (sizeof(std::size_t) >= 8));
+  };
+  fits_only_on_64_bit(std::uint64_t{16384} * 16384U, 16U);        // KRA tiles: 2^28 RGBA F32 pixels
+  fits_only_on_64_bit(std::uint64_t{32768} * 32768U, 4U);         // KRA default pixel over the canvas
+  fits_only_on_64_bit(std::uint64_t{256} * 256U, 256U * 256U);    // Affinity: a 256 x 256 tile grid
+  fits_only_on_64_bit(std::uint64_t{262144} * 4096U * 4U, 4U);    // XCF blur: RGBA floats of the pad
+  fits_only_on_64_bit(std::uint64_t{65536} * 65537U, 4U);         // XCF clip-to-backdrop alpha plane
+  fits_only_on_64_bit(std::uint64_t{9} << 29U, 1U);               // PDN: a 4.5 GiB block
+  // Honest sizes under the cap still pass.
+  CHECK(patchy::checked_buffer_bytes(std::uint64_t{4096} * 4096U, 16U, k32) == std::size_t{256} << 20U);
 }
 
 // ---- PSD -------------------------------------------------------------------------------
@@ -476,6 +507,7 @@ void network_path_classifies_servers_and_devices() {
 std::vector<patchy::test::TestCase> decode_budget_tests() {
   return {
       {"decode_budget_checks_products_and_the_32_bit_cap", decode_budget_checks_products_and_the_32_bit_cap},
+      {"decode_budget_buffer_bytes_refuse_32_bit_wraps", decode_budget_buffer_bytes_refuse_32_bit_wraps},
       {"psd_layer_rect_larger_than_its_channel_data_is_rejected",
        psd_layer_rect_larger_than_its_channel_data_is_rejected},
       {"psd_layers_without_channel_data_share_one_allowance", psd_layers_without_channel_data_share_one_allowance},

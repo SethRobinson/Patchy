@@ -2,10 +2,11 @@
 
 // Internal to the .xcf reader (src/formats/xcf_*.cpp; docs/xcf.md): shared between the
 // structure reader, the text-layer mapping and the container unwrapping. Do not include
-// it elsewhere.
+// it elsewhere (the reader's own tests excepted).
 
 #include "core/layer.hpp"
 #include "formats/xcf_document_io.hpp"
+#include "support/decode_budget.hpp"
 
 #include <array>
 #include <cstdint>
@@ -33,6 +34,21 @@ public:
 };
 
 void trace(const std::string& message);
+
+// The element count of a width x height float plane with `channels` floats per pixel (the
+// blur bake's RGBA working copy, the clip-to-backdrop alpha plane), formed in 64 bits.
+// Throws SizeLimitError past `max_pixels` or `max_bytes` (kMaxDecodePixels32 and
+// kMaxBufferBytes32 model wasm32, where the plain size_t product wraps).
+[[nodiscard]] inline std::size_t checked_float_plane(std::int64_t width, std::int64_t height, std::uint64_t channels,
+                                                     std::uint64_t max_bytes = kMaxBufferBytes,
+                                                     std::uint64_t max_pixels = kMaxDecodePixels) {
+  const auto pixels = checked_pixel_count(width, height, max_pixels);
+  const auto floats = pixels.has_value() ? checked_multiply(*pixels, channels) : std::nullopt;
+  if (!floats.has_value() || !checked_buffer_bytes(*floats, sizeof(float), max_bytes).has_value()) {
+    throw SizeLimitError("a " + std::to_string(width) + " x " + std::to_string(height) + " working plane");
+  }
+  return static_cast<std::size_t>(*floats);
+}
 
 // Decompressed-size ceiling for a wrapped file and for the bzip2/xz decoders.
 inline constexpr std::uint64_t kMaxUnwrappedBytes = 16ULL << 30U;
