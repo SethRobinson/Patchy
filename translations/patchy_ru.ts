@@ -32482,6 +32482,14 @@ Locked: %1</source>
         <source>Contract by:</source>
         <translation>Сжать на:</translation>
     </message>
+    <message>
+        <source>Use Shift for tool switch</source>
+        <translation>Использовать Shift для смены инструмента</translation>
+    </message>
+    <message>
+        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation>Если включено, буква группы инструментов выбирает её первый инструмент, а Shift с буквой перебирает группу. Если выключено, повторное нажатие буквы переключает на следующий инструмент группы.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

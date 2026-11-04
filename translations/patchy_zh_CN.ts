@@ -32312,6 +32312,14 @@ Locked: %1</source>
         <source>Contract by:</source>
         <translation>收缩量:</translation>
     </message>
+    <message>
+        <source>Use Shift for tool switch</source>
+        <translation>使用 Shift 键切换工具</translation>
+    </message>
+    <message>
+        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation>开启时，工具组的字母键选择组内第一个工具，Shift 加字母键在组内依次切换。关闭时，再次按字母键切换到组内下一个工具。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

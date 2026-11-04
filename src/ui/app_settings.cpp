@@ -31,6 +31,7 @@ QString gui_scale_key() { return QStringLiteral("preferences/guiScalePercent"); 
 QString ui_text_size_key() { return QStringLiteral("preferences/uiTextSizePercent"); }
 QString toolbar_icon_size_key() { return QStringLiteral("preferences/toolbarIconSize"); }
 QString tool_flyout_open_mode_key() { return QStringLiteral("preferences/toolFlyoutOpenMode"); }
+QString use_shift_for_tool_switch_key() { return QStringLiteral("preferences/useShiftForToolSwitch"); }
 QString layer_footer_icon_size_key() { return QStringLiteral("layersPanel/footerIconSize"); }
 #ifndef Q_OS_WASM
 QString recovery_enabled_key() { return QStringLiteral("recovery/enabled"); }
@@ -351,6 +352,19 @@ void set_stored_tool_flyout_open_mode(ToolFlyoutOpenMode mode) {
     settings.remove(tool_flyout_open_mode_key());
   } else {
     settings.setValue(tool_flyout_open_mode_key(), tool_flyout_open_mode_token(mode));
+  }
+}
+
+bool stored_use_shift_for_tool_switch() {
+  return app_settings().value(use_shift_for_tool_switch_key(), true).toBool();
+}
+
+void set_stored_use_shift_for_tool_switch(bool use_shift) {
+  auto settings = app_settings();
+  if (use_shift) {
+    settings.remove(use_shift_for_tool_switch_key());
+  } else {
+    settings.setValue(use_shift_for_tool_switch_key(), false);
   }
 }
 

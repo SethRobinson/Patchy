@@ -32397,6 +32397,14 @@ Verrouillé : %1</translation>
         <source>Contract by:</source>
         <translation>Contracter de :</translation>
     </message>
+    <message>
+        <source>Use Shift for tool switch</source>
+        <translation>Utiliser Maj pour changer d&apos;outil</translation>
+    </message>
+    <message>
+        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation>Activé, la lettre d&apos;un groupe d&apos;outils sélectionne son premier outil et Maj avec la lettre parcourt le groupe. Désactivé, appuyer à nouveau sur la lettre passe à l&apos;outil suivant du groupe.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

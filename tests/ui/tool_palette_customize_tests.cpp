@@ -1161,6 +1161,168 @@ void ui_tool_palette_dialog_lists_every_palette_tool() {
   CHECK(ran);
 }
 
+// GitHub issue 628: Preferences > Application > Use Shift for tool switch. On (the default) a
+// group's plain letter selects its first tool and Shift+letter cycles. Off, the plain letter
+// selects the tool the group's button shows when another group's tool is active and then
+// walks the group, wrapping; Shift+letter still cycles, hidden members stay skipped, and a key
+// the user bound to a member still selects that member. The artifact is the Application page
+// with the box, the issue's AFTER shot.
+void ui_tool_group_plain_letter_walks_without_shift() {
+  CustomizationSettingsGuard settings_guard;
+  const auto shift_key = QStringLiteral("preferences/useShiftForToolSwitch");
+  const auto polygon_lasso_key = QStringLiteral("hotkeys/tools.polygonal_lasso");
+  SettingsValueRestorer shift_restorer(shift_key);
+  SettingsValueRestorer polygon_lasso_restorer(polygon_lasso_key);
+  SettingsValueRestorer last_page_restorer(QStringLiteral("preferences/lastPage"));
+  patchy::ui::app_settings().remove(shift_key);
+  patchy::ui::app_settings().remove(polygon_lasso_key);
+  using patchy::ui::CanvasTool;
+  {
+    auto&& [window, canvas] = ShownWindowFixture{};
+    auto* key_target = canvas;
+    auto& main_window = window;
+    const auto press = [key_target](Qt::Key key, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+      QTest::keyClick(key_target, key, modifiers);
+      QApplication::processEvents();
+    };
+    const auto select = [&main_window](const char* name) {
+      require_action(main_window, name)->trigger();
+      QApplication::processEvents();
+    };
+    auto* marquee_button = button_named(window, "marqueeToolButton");
+    CHECK(marquee_button != nullptr);
+    CHECK(window.use_shift_for_tool_switch());
+
+    // On: M selects Marquee, from the group too; Shift+M cycles.
+    select("toolBrushAction");
+    press(Qt::Key_M);
+    CHECK(canvas->tool() == CanvasTool::Marquee);
+    press(Qt::Key_M);
+    CHECK(canvas->tool() == CanvasTool::Marquee);
+    press(Qt::Key_M, Qt::ShiftModifier);
+    CHECK(canvas->tool() == CanvasTool::EllipticalMarquee);
+    press(Qt::Key_M);
+    CHECK(canvas->tool() == CanvasTool::Marquee);
+
+    // Preferences: on the Application page, checked; unchecked and OK applies it at once.
+    bool saw_check = false;
+    QTimer::singleShot(0, guarded([&saw_check] {
+      QDialog* preferences = nullptr;
+      process_events_until([&] {
+        preferences = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+        return preferences != nullptr && preferences->isVisible();
+      });
+      CHECK(preferences != nullptr);
+      if (preferences == nullptr) {
+        return;
+      }
+      if (auto* pages = preferences->findChild<QListWidget*>(QStringLiteral("preferencesPageList")); pages != nullptr) {
+        pages->setCurrentRow(0);
+        QApplication::processEvents();
+      }
+      auto* check = preferences->findChild<QCheckBox*>(QStringLiteral("preferencesUseShiftForToolSwitchCheck"));
+      CHECK(check != nullptr);
+      if (check != nullptr) {
+        saw_check = true;
+        CHECK(check->isChecked());
+        CHECK(check->isVisibleTo(preferences));
+        auto* open_combo = preferences->findChild<QWidget*>(QStringLiteral("preferencesToolFlyoutOpenCombo"));
+        CHECK(open_combo != nullptr &&
+              check->mapTo(preferences, QPoint(0, 0)).y() > open_combo->mapTo(preferences, QPoint(0, 0)).y());
+        check->setChecked(false);
+        settle();
+        (void)capture_widget_artifact("issue_628_preferences_use_shift_for_tool_switch", *preferences);
+      }
+      preferences->accept();
+    }));
+    patchy::ui::MainWindowTestAccess::show_preferences(window);
+    settle();
+    CHECK(saw_check);
+    CHECK(!window.use_shift_for_tool_switch());
+    CHECK(patchy::ui::app_settings().contains(shift_key));
+    CHECK(!patchy::ui::stored_use_shift_for_tool_switch());
+    // The closed dialog leaves no active window offscreen; the keys go to the canvas again.
+    window.activateWindow();
+    canvas->setFocus();
+    settle();
+
+    // Off: from another group M selects the shown tool, then walks the group.
+    select("toolBrushAction");
+    press(Qt::Key_M);
+    CHECK(canvas->tool() == CanvasTool::Marquee);
+    press(Qt::Key_M);
+    CHECK(canvas->tool() == CanvasTool::EllipticalMarquee);
+    CHECK(marquee_button != nullptr &&
+          marquee_button->defaultAction() == require_action(window, "toolEllipticalMarqueeAction"));
+    press(Qt::Key_M);
+    CHECK(canvas->tool() == CanvasTool::Marquee);
+    press(Qt::Key_M);
+    select("toolBrushAction");
+    press(Qt::Key_M);
+    CHECK(canvas->tool() == CanvasTool::EllipticalMarquee);
+    // Shift+M still cycles: from another group it steps past the shown tool.
+    select("toolBrushAction");
+    press(Qt::Key_M, Qt::ShiftModifier);
+    CHECK(canvas->tool() == CanvasTool::Marquee);
+    press(Qt::Key_M, Qt::ShiftModifier);
+    CHECK(canvas->tool() == CanvasTool::EllipticalMarquee);
+
+    // A hidden member stays out of the walk.
+    ToolPaletteCustomization customization;
+    customization.hidden_tools = {QStringLiteral("tools.polygonal_lasso")};
+    window.apply_tool_palette_customization(customization);
+    settle();
+    select("toolBrushAction");
+    press(Qt::Key_L);
+    CHECK(canvas->tool() == CanvasTool::Lasso);
+    press(Qt::Key_L);
+    CHECK(canvas->tool() == CanvasTool::MagneticLasso);
+    press(Qt::Key_L);
+    CHECK(canvas->tool() == CanvasTool::Lasso);
+    press(Qt::Key_L, Qt::ShiftModifier);
+    CHECK(canvas->tool() == CanvasTool::MagneticLasso);
+    window.apply_tool_palette_customization(ToolPaletteCustomization{});
+    settle();
+    // Every member of a bigger group in turn.
+    select("toolBrushAction");
+    const CanvasTool healing_walk[] = {CanvasTool::Healing,          CanvasTool::SpotHealing, CanvasTool::PatchTool,
+                                       CanvasTool::ContentAwareMove, CanvasTool::RedEye,      CanvasTool::Healing};
+    for (const auto expected : healing_walk) {
+      press(Qt::Key_J);
+      CHECK(canvas->tool() == expected);
+    }
+
+    // Back on, at once: the plain letter selects the first tool again.
+    window.set_use_shift_for_tool_switch(true);
+    CHECK(!patchy::ui::app_settings().contains(shift_key));
+    select("toolMagneticLassoAction");
+    press(Qt::Key_L);
+    CHECK(canvas->tool() == CanvasTool::Lasso);
+    press(Qt::Key_L);
+    CHECK(canvas->tool() == CanvasTool::Lasso);
+  }
+
+  // A key the user bound to a member keeps selecting that member.
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(polygon_lasso_key, QStringLiteral("L"));
+    settings.sync();
+  }
+  patchy::ui::set_stored_use_shift_for_tool_switch(false);
+  {
+    auto&& [window, canvas] = ShownWindowFixture{};
+    CHECK(!window.use_shift_for_tool_switch());
+    CHECK(require_action(window, "toolPolygonalLassoAction")->shortcut() == QKeySequence(Qt::Key_L));
+    require_action(window, "toolBrushAction")->trigger();
+    QApplication::processEvents();
+    for (int i = 0; i < 2; ++i) {
+      QTest::keyClick(canvas, Qt::Key_L);
+      QApplication::processEvents();
+      CHECK(canvas->tool() == CanvasTool::PolygonLasso);
+    }
+  }
+}
+
 // Preferences > Application has a Customize Tool Palette... button under Toolbar icon size; the
 // dialog opens as Preferences' child.
 void ui_preferences_opens_customize_tool_palette() {
@@ -3409,6 +3571,7 @@ std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
        ui_tool_palette_settings_from_an_older_version_show_new_tools},
       {"ui_tool_palette_dialog_lists_every_palette_tool", ui_tool_palette_dialog_lists_every_palette_tool},
       {"ui_preferences_opens_customize_tool_palette", ui_preferences_opens_customize_tool_palette},
+      {"ui_tool_group_plain_letter_walks_without_shift", ui_tool_group_plain_letter_walks_without_shift},
       {"ui_tool_palette_footer_items_hide_and_preview", ui_tool_palette_footer_items_hide_and_preview},
       {"ui_tool_flyout_open_modes_click_and_hover", ui_tool_flyout_open_modes_click_and_hover},
       {"ui_layer_footer_optional_buttons_start_hidden", ui_layer_footer_optional_buttons_start_hidden},
