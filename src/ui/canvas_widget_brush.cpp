@@ -3084,6 +3084,7 @@ void CanvasWidget::clear_clone_source() {
   }
   invalidate_clone_overlay();
   clone_source_set_ = false;
+  clone_source_offset_ = QPoint();  // the offset goes with the point (GitHub issue 632)
   clone_aligned_offset_set_ = false;
   update();              // the source marker goes
   update_tool_cursor();  // a press is refused again: the not-allowed cursor returns

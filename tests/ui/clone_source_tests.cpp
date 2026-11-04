@@ -524,7 +524,21 @@ void ui_clone_source_gear_popup_drives_canvas() {
   CHECK(!panel->offset_x_spin()->isEnabled());
   CHECK(panel->source_label()->text() != QStringLiteral("60, 60"));
   CHECK(!panel->slot_button(0)->toolTip().contains(QStringLiteral("60")));
+  // The offset clears with the point (GitHub issue 632).
+  CHECK(canvas->clone_source_slot_state(0).offset == QPoint());
+  CHECK(!canvas->clone_source_slot_state(0).offset_set);
+  CHECK(panel->offset_x_spin()->value() == 0 && panel->offset_y_spin()->value() == 0);
   CHECK(menu->isVisible());  // the popup stays open for the next edit
+  save_window_popup_artifact("ui_clone_source_popup_cleared", window, *gear, *menu);
+  // A new source and a stroke set a fresh offset as usual.
+  alt_click(*canvas, QPoint(50, 50));
+  QApplication::processEvents();
+  CHECK(panel->offset_x_spin()->value() == 0 && panel->offset_y_spin()->value() == 0);
+  click(*canvas, QPoint(90, 70));
+  QApplication::processEvents();
+  CHECK(canvas->clone_source_slot_state(0).offset_set);
+  CHECK(canvas->clone_source_slot_state(0).offset == QPoint(-40, -20));
+  CHECK(panel->offset_x_spin()->value() == -40 && panel->offset_y_spin()->value() == -20);
 
   // On the Healing Brush the transform fields are hidden (GitHub issue 596).
   require_action_by_text(window, QStringLiteral("Healing Brush"))->trigger();
