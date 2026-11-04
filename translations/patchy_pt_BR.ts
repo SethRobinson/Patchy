@@ -34720,10 +34720,6 @@ Bloqueado: %1</translation>
         <translation>Edição de fotos de código aberto. Gratuito para sempre, sem assinaturas.</translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation>Novo documento...</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>Abrir...</translation>
     </message>
@@ -34786,6 +34782,18 @@ Bloqueado: %1</translation>
     <message>
         <source>Remove from Recent Files</source>
         <translation>Remover dos arquivos recentes</translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation>Novo...</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>Área de transferência</translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
+        <translation>Novo documento a partir da imagem na área de transferência</translation>
     </message>
 </context>
 <context>

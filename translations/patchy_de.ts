@@ -34720,10 +34720,6 @@ Fixiert: %1</translation>
         <translation>Open-Source-Bildbearbeitung. Für immer kostenlos, keine Abonnements.</translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation>Neues Dokument...</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>Öffnen...</translation>
     </message>
@@ -34786,6 +34782,18 @@ Fixiert: %1</translation>
     <message>
         <source>Remove from Recent Files</source>
         <translation>Aus zuletzt verwendeten Dateien entfernen</translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation>Neu...</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>Zwischenablage</translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
+        <translation>Neues Dokument aus dem Bild in der Zwischenablage</translation>
     </message>
 </context>
 <context>

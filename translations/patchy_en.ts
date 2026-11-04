@@ -34639,10 +34639,6 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation type="unfinished"></translation>
     </message>
@@ -34704,6 +34700,18 @@ Locked: %1</source>
     </message>
     <message>
         <source>Remove from Recent Files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

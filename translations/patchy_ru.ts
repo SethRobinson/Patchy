@@ -34806,10 +34806,6 @@ Locked: %1</source>
         <translation>Редактирование фотографий с открытым исходным кодом. Бесплатно навсегда, без подписок.</translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation>Новый документ...</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>Открыть...</translation>
     </message>
@@ -34872,6 +34868,18 @@ Locked: %1</source>
     <message>
         <source>Remove from Recent Files</source>
         <translation>Удалить из последних файлов</translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation>Создать...</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>Буфер обмена</translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
+        <translation>Новый документ из изображения в буфере обмена</translation>
     </message>
 </context>
 <context>
