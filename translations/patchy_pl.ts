@@ -14937,6 +14937,22 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Arrowheads:</source>
         <translation>Groty strzałek:</translation>
     </message>
+    <message>
+        <source>The TIFF&apos;s image data is damaged</source>
+        <translation>Dane obrazu w pliku TIFF są uszkodzone</translation>
+    </message>
+    <message>
+        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <translation>Patchy nie może odczytać układu próbek tego pliku TIFF</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <translation>Dane obrazu w pliku TIFF są ucięte lub uszkodzone; brakująca część została otwarta jako pusta.</translation>
+    </message>
+    <message>
+        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
+        <translation>Pominięto część dodatkowych kanałów pliku TIFF: dokument może mieć najwyżej 56 kanałów.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

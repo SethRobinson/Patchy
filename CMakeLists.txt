@@ -458,6 +458,8 @@ add_library(patchy_psd
   src/psd/psd_text_write.cpp
   src/psd/psd_tiff.cpp
   src/psd/psd_tiff.hpp
+  src/psd/psd_tiff_flat.cpp
+  src/psd/psd_tiff_internal.hpp
   src/psd/psd_vector.cpp
 )
 target_link_libraries(patchy_psd PUBLIC patchy_core patchy_render patchy_color)
@@ -2475,6 +2477,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/ai_selection_tests.cpp
     tests/core/gmic_tests.cpp
     tests/core/tiff_layers_tests.cpp
+    tests/core/tiff_flat_tests.cpp
   )
   target_link_libraries(patchy_core_tests PRIVATE patchy_gmic)
   # jxl_tests.cpp builds unusual source files (PQ, gray, premultiplied) straight through libjxl.

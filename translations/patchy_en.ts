@@ -14874,6 +14874,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Arrowheads:</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>The TIFF&apos;s image data is damaged</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

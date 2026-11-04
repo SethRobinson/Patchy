@@ -14891,6 +14891,22 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Arrowheads:</source>
         <translation>Punte di freccia:</translation>
     </message>
+    <message>
+        <source>The TIFF&apos;s image data is damaged</source>
+        <translation>I dati immagine del TIFF sono danneggiati</translation>
+    </message>
+    <message>
+        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <translation>Patchy non può leggere la disposizione dei campioni di questo TIFF</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <translation>I dati immagine del TIFF sono troncati o danneggiati; la parte mancante è stata aperta vuota.</translation>
+    </message>
+    <message>
+        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
+        <translation>Alcuni canali aggiuntivi del TIFF sono stati omessi: un documento contiene al massimo 56 canali.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

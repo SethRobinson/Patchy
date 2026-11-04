@@ -14845,6 +14845,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Arrowheads:</source>
         <translation>箭頭:</translation>
     </message>
+    <message>
+        <source>The TIFF&apos;s image data is damaged</source>
+        <translation>TIFF 的影像資料已損毀</translation>
+    </message>
+    <message>
+        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <translation>Patchy 無法讀取此 TIFF 的取樣配置</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <translation>TIFF 的影像資料不完整或已損毀；缺少的部分以空白開啟。</translation>
+    </message>
+    <message>
+        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
+        <translation>已略過 TIFF 的部分額外色版：一份文件最多保留 56 個色版。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

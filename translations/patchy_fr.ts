@@ -14891,6 +14891,22 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Arrowheads:</source>
         <translation>Pointes de flèche :</translation>
     </message>
+    <message>
+        <source>The TIFF&apos;s image data is damaged</source>
+        <translation>Les données d&apos;image du TIFF sont endommagées</translation>
+    </message>
+    <message>
+        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <translation>Patchy ne peut pas lire la disposition des échantillons de ce TIFF</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <translation>Les données d&apos;image du TIFF sont tronquées ou endommagées ; la partie manquante s&apos;est ouverte vide.</translation>
+    </message>
+    <message>
+        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
+        <translation>Certaines couches supplémentaires du TIFF ont été omises : un document compte au plus 56 couches.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -14891,6 +14891,22 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Arrowheads:</source>
         <translation>Pfeilspitzen:</translation>
     </message>
+    <message>
+        <source>The TIFF&apos;s image data is damaged</source>
+        <translation>Die Bilddaten der TIFF-Datei sind beschädigt</translation>
+    </message>
+    <message>
+        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <translation>Patchy kann den Sample-Aufbau dieser TIFF-Datei nicht lesen</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <translation>Die Bilddaten der TIFF-Datei sind unvollständig oder beschädigt; der fehlende Teil wurde leer geöffnet.</translation>
+    </message>
+    <message>
+        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
+        <translation>Einige Zusatzkanäle der TIFF-Datei wurden ausgelassen: Ein Dokument enthält höchstens 56 Kanäle.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

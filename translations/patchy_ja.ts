@@ -14845,6 +14845,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Arrowheads:</source>
         <translation>矢じり:</translation>
     </message>
+    <message>
+        <source>The TIFF&apos;s image data is damaged</source>
+        <translation>TIFF の画像データが破損しています</translation>
+    </message>
+    <message>
+        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <translation>Patchy はこの TIFF のサンプル構成を読み込めません</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <translation>TIFF の画像データが途中で切れているか破損しています。欠けた部分は空のまま開きました。</translation>
+    </message>
+    <message>
+        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
+        <translation>TIFF の追加チャンネルの一部を除外しました。ドキュメントのチャンネルは最大 56 個です。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
