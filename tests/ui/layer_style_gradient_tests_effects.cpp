@@ -3216,7 +3216,7 @@ void ui_angle_dial_sets_angle_and_altitude_from_clicks() {
   QTest::keyClick(&dial, Qt::Key_Up);
   CHECK(angle.value() == -179);
   // The wheel scrolls the page unless the dial has keyboard focus.
-  QWheelEvent wheel(QPointF(center), QPointF(center), QPoint(), QPoint(0, 120), Qt::NoButton, Qt::NoModifier,
+  QWheelEvent wheel(QPointF{center}, QPointF{center}, QPoint(), QPoint(0, 120), Qt::NoButton, Qt::NoModifier,
                     Qt::NoScrollPhase, false);
   QApplication::sendEvent(&dial, &wheel);
   CHECK(!wheel.isAccepted());
