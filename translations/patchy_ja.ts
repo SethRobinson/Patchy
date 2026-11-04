@@ -2263,16 +2263,8 @@ RGB: %2, %3, %4</translation>
         <translation>シャドウとハイライトのクリッピングを同時に表示</translation>
     </message>
     <message>
-        <source>Curves presets</source>
-        <translation>トーンカーブのプリセット</translation>
-    </message>
-    <message>
         <source>Custom</source>
         <translation>カスタム</translation>
-    </message>
-    <message>
-        <source>Current custom curve</source>
-        <translation>現在のカスタムカーブ</translation>
     </message>
     <message>
         <source>Save...</source>
@@ -13979,20 +13971,12 @@ Each item&apos;s own View setting still applies.</source>
         <translation>%1 と変換後のグレー</translation>
     </message>
     <message>
-        <source>This slider acts on %1% of the image&apos;s color</source>
-        <translation>このスライダーは画像の色の %1% に作用します</translation>
-    </message>
-    <message>
         <source>Black &amp; White presets</source>
         <translation>白黒プリセット</translation>
     </message>
     <message>
         <source>The current slider settings</source>
         <translation>現在のスライダー設定</translation>
-    </message>
-    <message>
-        <source>Bars: how much of this image each slider acts on.</source>
-        <translation>バー：各スライダーがこの画像のどれだけに作用するか。</translation>
     </message>
     <message>
         <source>Hearts and Stars</source>
@@ -14844,6 +14828,34 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Feather radius:</source>
         <translation>ぼかしの半径:</translation>
+    </message>
+    <message>
+        <source>Reds:</source>
+        <translation>レッド系:</translation>
+    </message>
+    <message>
+        <source>Yellows:</source>
+        <translation>イエロー系:</translation>
+    </message>
+    <message>
+        <source>Greens:</source>
+        <translation>グリーン系:</translation>
+    </message>
+    <message>
+        <source>Cyans:</source>
+        <translation>シアン系:</translation>
+    </message>
+    <message>
+        <source>Blues:</source>
+        <translation>ブルー系:</translation>
+    </message>
+    <message>
+        <source>Magentas:</source>
+        <translation>マゼンタ系:</translation>
+    </message>
+    <message>
+        <source>The bar shows how much of this image the slider acts on: %1% of its color</source>
+        <translation>バーは、このスライダーが画像のどれだけに作用するかを示します: 色の %1%</translation>
     </message>
 </context>
 <context>

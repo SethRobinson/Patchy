@@ -3330,16 +3330,8 @@
         <translation>Afficher ensemble l&apos;écrêtage des tons foncés et des tons clairs</translation>
     </message>
     <message>
-        <source>Curves presets</source>
-        <translation>Paramètres prédéfinis de courbes</translation>
-    </message>
-    <message>
         <source>Custom</source>
         <translation>Personnalisée</translation>
-    </message>
-    <message>
-        <source>Current custom curve</source>
-        <translation>Courbe personnalisée actuelle</translation>
     </message>
     <message>
         <source>Save...</source>
@@ -14023,20 +14015,12 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>%1 et le gris qu&apos;ils deviennent</translation>
     </message>
     <message>
-        <source>This slider acts on %1% of the image&apos;s color</source>
-        <translation>Ce curseur agit sur %1% de la couleur de l&apos;image</translation>
-    </message>
-    <message>
         <source>Black &amp; White presets</source>
         <translation>Paramètres prédéfinis Noir et blanc</translation>
     </message>
     <message>
         <source>The current slider settings</source>
         <translation>Les réglages actuels des curseurs</translation>
-    </message>
-    <message>
-        <source>Bars: how much of this image each slider acts on.</source>
-        <translation>Barres : la part de cette image sur laquelle agit chaque curseur.</translation>
     </message>
     <message>
         <source>Hearts and Stars</source>
@@ -14890,6 +14874,34 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Feather radius:</source>
         <translation>Rayon du contour progressif :</translation>
+    </message>
+    <message>
+        <source>Reds:</source>
+        <translation>Rouges :</translation>
+    </message>
+    <message>
+        <source>Yellows:</source>
+        <translation>Jaunes :</translation>
+    </message>
+    <message>
+        <source>Greens:</source>
+        <translation>Verts :</translation>
+    </message>
+    <message>
+        <source>Cyans:</source>
+        <translation>Cyans :</translation>
+    </message>
+    <message>
+        <source>Blues:</source>
+        <translation>Bleus :</translation>
+    </message>
+    <message>
+        <source>Magentas:</source>
+        <translation>Magentas :</translation>
+    </message>
+    <message>
+        <source>The bar shows how much of this image the slider acts on: %1% of its color</source>
+        <translation>La barre indique la part de cette image sur laquelle agit le curseur : %1% de sa couleur</translation>
     </message>
 </context>
 <context>

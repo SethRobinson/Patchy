@@ -3329,16 +3329,8 @@
         <translation>同時顯示陰影與亮部的裁切</translation>
     </message>
     <message>
-        <source>Curves presets</source>
-        <translation>曲線預設集</translation>
-    </message>
-    <message>
         <source>Custom</source>
         <translation>自訂</translation>
-    </message>
-    <message>
-        <source>Current custom curve</source>
-        <translation>目前的自訂曲線</translation>
     </message>
     <message>
         <source>Save...</source>
@@ -13979,20 +13971,12 @@ Each item&apos;s own View setting still applies.</source>
         <translation>%1 及其轉換後的灰色</translation>
     </message>
     <message>
-        <source>This slider acts on %1% of the image&apos;s color</source>
-        <translation>此滑桿作用於影像顏色的 %1%</translation>
-    </message>
-    <message>
         <source>Black &amp; White presets</source>
         <translation>黑白預設集</translation>
     </message>
     <message>
         <source>The current slider settings</source>
         <translation>目前的滑桿設定</translation>
-    </message>
-    <message>
-        <source>Bars: how much of this image each slider acts on.</source>
-        <translation>長條：每個滑桿作用於此影像的程度。</translation>
     </message>
     <message>
         <source>Hearts and Stars</source>
@@ -14844,6 +14828,34 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Feather radius:</source>
         <translation>羽化半徑:</translation>
+    </message>
+    <message>
+        <source>Reds:</source>
+        <translation>紅色:</translation>
+    </message>
+    <message>
+        <source>Yellows:</source>
+        <translation>黃色:</translation>
+    </message>
+    <message>
+        <source>Greens:</source>
+        <translation>綠色:</translation>
+    </message>
+    <message>
+        <source>Cyans:</source>
+        <translation>青色:</translation>
+    </message>
+    <message>
+        <source>Blues:</source>
+        <translation>藍色:</translation>
+    </message>
+    <message>
+        <source>Magentas:</source>
+        <translation>洋紅:</translation>
+    </message>
+    <message>
+        <source>The bar shows how much of this image the slider acts on: %1% of its color</source>
+        <translation>長條顯示此滑桿作用於該影像的多少: 其色彩的 %1%</translation>
     </message>
 </context>
 <context>

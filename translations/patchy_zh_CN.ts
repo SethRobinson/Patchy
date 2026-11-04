@@ -3329,16 +3329,8 @@
         <translation>同时显示阴影和高光的剪切</translation>
     </message>
     <message>
-        <source>Curves presets</source>
-        <translation>曲线预设</translation>
-    </message>
-    <message>
         <source>Custom</source>
         <translation>自定</translation>
-    </message>
-    <message>
-        <source>Current custom curve</source>
-        <translation>当前的自定曲线</translation>
     </message>
     <message>
         <source>Save...</source>
@@ -13979,20 +13971,12 @@ Each item&apos;s own View setting still applies.</source>
         <translation>%1 及其转换后的灰色</translation>
     </message>
     <message>
-        <source>This slider acts on %1% of the image&apos;s color</source>
-        <translation>此滑块作用于图像颜色的 %1%</translation>
-    </message>
-    <message>
         <source>Black &amp; White presets</source>
         <translation>黑白预设</translation>
     </message>
     <message>
         <source>The current slider settings</source>
         <translation>当前滑块设置</translation>
-    </message>
-    <message>
-        <source>Bars: how much of this image each slider acts on.</source>
-        <translation>条形：每个滑块作用于此图像的程度。</translation>
     </message>
     <message>
         <source>Hearts and Stars</source>
@@ -14844,6 +14828,34 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Feather radius:</source>
         <translation>羽化半径:</translation>
+    </message>
+    <message>
+        <source>Reds:</source>
+        <translation>红色:</translation>
+    </message>
+    <message>
+        <source>Yellows:</source>
+        <translation>黄色:</translation>
+    </message>
+    <message>
+        <source>Greens:</source>
+        <translation>绿色:</translation>
+    </message>
+    <message>
+        <source>Cyans:</source>
+        <translation>青色:</translation>
+    </message>
+    <message>
+        <source>Blues:</source>
+        <translation>蓝色:</translation>
+    </message>
+    <message>
+        <source>Magentas:</source>
+        <translation>洋红:</translation>
+    </message>
+    <message>
+        <source>The bar shows how much of this image the slider acts on: %1% of its color</source>
+        <translation>条形显示此滑块作用于该图像的多少: 其颜色的 %1%</translation>
     </message>
 </context>
 <context>

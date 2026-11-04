@@ -3330,16 +3330,8 @@
         <translation>Mostra insieme il taglio delle ombre e delle luci</translation>
     </message>
     <message>
-        <source>Curves presets</source>
-        <translation>Predefiniti Curve</translation>
-    </message>
-    <message>
         <source>Custom</source>
         <translation>Personale</translation>
-    </message>
-    <message>
-        <source>Current custom curve</source>
-        <translation>Curva personale corrente</translation>
     </message>
     <message>
         <source>Save...</source>
@@ -14023,20 +14015,12 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>%1 e il grigio in cui si trasformano</translation>
     </message>
     <message>
-        <source>This slider acts on %1% of the image&apos;s color</source>
-        <translation>Questo cursore agisce sul %1% del colore dell&apos;immagine</translation>
-    </message>
-    <message>
         <source>Black &amp; White presets</source>
         <translation>Predefiniti Bianco e nero</translation>
     </message>
     <message>
         <source>The current slider settings</source>
         <translation>Le impostazioni attuali dei cursori</translation>
-    </message>
-    <message>
-        <source>Bars: how much of this image each slider acts on.</source>
-        <translation>Barre: quanta parte di questa immagine influenza ciascun cursore.</translation>
     </message>
     <message>
         <source>Hearts and Stars</source>
@@ -14890,6 +14874,34 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Feather radius:</source>
         <translation>Raggio sfumatura:</translation>
+    </message>
+    <message>
+        <source>Reds:</source>
+        <translation>Rossi:</translation>
+    </message>
+    <message>
+        <source>Yellows:</source>
+        <translation>Gialli:</translation>
+    </message>
+    <message>
+        <source>Greens:</source>
+        <translation>Verdi:</translation>
+    </message>
+    <message>
+        <source>Cyans:</source>
+        <translation>Cyan:</translation>
+    </message>
+    <message>
+        <source>Blues:</source>
+        <translation>Blu:</translation>
+    </message>
+    <message>
+        <source>Magentas:</source>
+        <translation>Magenta:</translation>
+    </message>
+    <message>
+        <source>The bar shows how much of this image the slider acts on: %1% of its color</source>
+        <translation>La barra mostra quanta parte di questa immagine è interessata dal cursore: %1% del suo colore</translation>
     </message>
 </context>
 <context>

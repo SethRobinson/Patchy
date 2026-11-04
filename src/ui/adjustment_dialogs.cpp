@@ -50,7 +50,6 @@
 #include <QLabel>
 #include <QLinearGradient>
 #include <QListView>
-#include <QListWidget>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -255,9 +254,11 @@ QGradientStops ramp_stops(std::initializer_list<QColor> colors) {
   return stops;
 }
 
-// The Preset combo of the Hue/Saturation and Levels dialogs: Custom (what the sliders hold
-// when it matches no preset), the shipped presets, then the user's own presets after a
-// separator. Item data: the shipped id, or "user:" and the user preset's name.
+// The Preset combo of the Hue/Saturation, Levels and Curves dialogs: Custom (what the
+// sliders hold when it matches no preset), the shipped presets, then the user's own presets
+// after a separator. Item data: the shipped id, or "user:" and the user preset's name. With
+// `icon` (Curves, #592 follow-up 3) every preset shows its settings as an icon, and Custom
+// the current settings (set_custom_icon).
 template <typename Settings>
 class AdjustmentPresetCombo {
 public:
@@ -269,9 +270,15 @@ public:
 
   AdjustmentPresetCombo(QComboBox* combo, AdjustmentPresetKind kind, std::vector<Shipped> shipped,
                         std::function<Settings(const QString& path)> read_user,
-                        std::function<bool(const Settings&, const Settings&)> same)
+                        std::function<bool(const Settings&, const Settings&)> same,
+                        std::function<QIcon(const Settings&)> icon = {})
       : combo_(combo), kind_(kind), shipped_(std::move(shipped)), read_user_(std::move(read_user)),
-        same_(std::move(same)) {
+        same_(std::move(same)), icon_(std::move(icon)) {
+    if (icon_) {
+      for (auto& preset : shipped_) {
+        shipped_icons_.push_back(icon_(preset.settings));
+      }
+    }
     reload();
   }
 
@@ -282,8 +289,14 @@ public:
     combo_->clear();
     user_.clear();
     combo_->addItem(QObject::tr("Custom"), QStringLiteral("custom"));
-    for (const auto& preset : shipped_) {
-      combo_->addItem(preset.name, preset.id);
+    if (icon_) {
+      combo_->setItemIcon(0, custom_icon_);
+    }
+    for (std::size_t index = 0; index < shipped_.size(); ++index) {
+      combo_->addItem(shipped_[index].name, shipped_[index].id);
+      if (index < shipped_icons_.size()) {
+        combo_->setItemIcon(combo_->count() - 1, shipped_icons_[index]);
+      }
     }
     for (const auto& preset : user_adjustment_presets(kind_)) {
       try {
@@ -295,8 +308,20 @@ public:
       combo_->insertSeparator(combo_->count());
       for (const auto& user : user_) {
         combo_->addItem(user.first, QStringLiteral("user:") + user.first);
+        if (icon_) {
+          combo_->setItemIcon(combo_->count() - 1, icon_(user.second));
+        }
       }
     }
+  }
+
+  // Custom's icon shows `current` (only with an icon maker).
+  void set_custom_icon(const Settings& current) {
+    if (!icon_) {
+      return;
+    }
+    custom_icon_ = icon_(current);
+    combo_->setItemIcon(0, custom_icon_);
   }
 
   // Keeps the selected preset while the settings still equal it (a just-saved user preset
@@ -355,6 +380,9 @@ private:
   std::vector<Shipped> shipped_;
   std::function<Settings(const QString& path)> read_user_;
   std::function<bool(const Settings&, const Settings&)> same_;
+  std::function<QIcon(const Settings&)> icon_;
+  std::vector<QIcon> shipped_icons_;
+  QIcon custom_icon_;
   std::vector<std::pair<QString, Settings>> user_;
 };
 
@@ -1459,6 +1487,18 @@ std::optional<LevelsSettings> request_levels_settings(
   return committed_settings();
 }
 
+namespace {
+
+// A Curves preset's entry icon in the Preset combo (#592 follow-up 3): its tone thumbnail,
+// small enough for a combo row.
+constexpr QSize kCurvesPresetIconSize(30, 20);
+
+QIcon curves_preset_icon(const CurvesAdjustment& curves) {
+  return QIcon(QPixmap::fromImage(curves_adjustment_thumbnail(curves, kCurvesPresetIconSize)));
+}
+
+}  // namespace
+
 std::optional<CurvesSettings> request_curves_settings(
     QWidget* parent, std::function<void(bool, const CurvesSettings&)> preview_changed, CurvesSettings initial,
     CurvesHistograms histograms, CurvesDialogHooks hooks) {
@@ -1519,80 +1559,36 @@ std::optional<CurvesSettings> request_curves_settings(
   editor->set_adjustment(initial);
   editor->set_histograms(std::move(histograms));
 
-  constexpr int kPresetIdRole = Qt::UserRole + 1;
-  constexpr QSize kPresetThumbnailSize(72, 48);
-  constexpr QSize kPresetCellSize(98, 78);  // The narrowest cell; fit_preset_strip widens it.
-  auto* preset_list = new QListWidget(&dialog);
-  preset_list->setObjectName(QStringLiteral("curvesPresetList"));
-  preset_list->setAccessibleName(QObject::tr("Curves presets"));
-  preset_list->setViewMode(QListView::IconMode);
-  preset_list->setFlow(QListView::LeftToRight);
-  preset_list->setWrapping(false);
-  preset_list->setResizeMode(QListView::Adjust);
-  preset_list->setMovement(QListView::Static);
-  preset_list->setSelectionMode(QAbstractItemView::SingleSelection);
-  preset_list->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
-  preset_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-  preset_list->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-  preset_list->setIconSize(kPresetThumbnailSize);
-  preset_list->setGridSize(kPresetCellSize);
-  preset_list->setUniformItemSizes(true);
-
-  auto* custom_preset_item = new QListWidgetItem(QObject::tr("Custom"), preset_list);
-  custom_preset_item->setData(kPresetIdRole, QString());
-  custom_preset_item->setToolTip(QObject::tr("Current custom curve"));
-  for (const auto& preset : builtin_curves_presets()) {
-    const auto display_name = curves_preset_display_name(preset);
-    auto* item = new QListWidgetItem(QIcon(QPixmap::fromImage(
-                                         curves_adjustment_thumbnail(preset.adjustment, kPresetThumbnailSize))),
-                                     display_name, preset_list);
-    item->setData(kPresetIdRole, preset.id);
-    item->setToolTip(display_name);
+  // Presets (#592 follow-up 3): the Preset combo the other adjustment dialogs use, each entry
+  // with its curve's thumbnail, and Save/Delete/Import/Export under it sharing its width.
+  auto* preset_form = new QFormLayout();
+  preset_form->setContentsMargins(0, 0, 0, 0);
+  preset_form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+  auto* preset = new QComboBox(&dialog);
+  preset->setObjectName(QStringLiteral("curvesPresetCombo"));
+  preset->setIconSize(kCurvesPresetIconSize);
+  auto* preset_label = new QLabel(QObject::tr("Preset:"), &dialog);
+  preset_label->setObjectName(QStringLiteral("curvesPresetLabel"));
+  preset_label->setBuddy(preset);
+  preset_label->setMinimumWidth(preset_caption_column_width(dialog));
+  preset_form->addRow(preset_label, track_aligned_row(preset));
+  auto* preset_buttons_area = new QWidget(&dialog);
+  preset_buttons_area->setObjectName(QStringLiteral("curvesPresetArea"));
+  auto* preset_buttons_layout = new QHBoxLayout(preset_buttons_area);
+  preset_buttons_layout->setContentsMargins(0, 0, 0, 0);
+  preset_form->addRow(QString(), track_aligned_row(preset_buttons_area));
+  std::vector<AdjustmentPresetCombo<CurvesAdjustment>::Shipped> shipped_presets;
+  for (const auto& entry : builtin_curves_presets()) {
+    shipped_presets.push_back({entry.id, curves_preset_display_name(entry), entry.adjustment});
   }
-  // The user's own presets follow the shipped ones (item id "user:" and the name).
-  std::vector<std::pair<QString, CurvesAdjustment>> user_curves;
-  const auto rebuild_user_items = [&] {
-    const QSignalBlocker blocker(preset_list);
-    for (int row = preset_list->count() - 1; row > 0; --row) {
-      if (preset_list->item(row)->data(kPresetIdRole).toString().startsWith(QStringLiteral("user:"))) {
-        delete preset_list->takeItem(row);
-      }
-    }
-    user_curves.clear();
-    for (const auto& user : user_adjustment_presets(AdjustmentPresetKind::Curves)) {
-      try {
-        auto curves = acv::read_file(to_filesystem_path(user.path));
-        auto* item = new QListWidgetItem(
-            QIcon(QPixmap::fromImage(curves_adjustment_thumbnail(curves, kPresetThumbnailSize))), user.name,
-            preset_list);
-        item->setData(kPresetIdRole, QStringLiteral("user:") + user.name);
-        item->setToolTip(user.name);
-        user_curves.emplace_back(user.name, std::move(curves));
-      } catch (const std::exception&) {
-      }
-    }
-  };
-  rebuild_user_items();
-  const auto preset_curves_for = [&](const QString& id) -> std::optional<CurvesAdjustment> {
-    if (id.startsWith(QStringLiteral("user:"))) {
-      for (const auto& [name, curves] : user_curves) {
-        if (QStringLiteral("user:") + name == id) {
-          return curves;
-        }
-      }
-      return std::nullopt;
-    }
-    if (const auto* builtin = find_curves_preset(id); builtin != nullptr) {
-      return builtin->adjustment;
-    }
-    return std::nullopt;
-  };
+  AdjustmentPresetCombo<CurvesAdjustment> presets(
+      preset, AdjustmentPresetKind::Curves, std::move(shipped_presets),
+      [](const QString& path) { return acv::read_file(to_filesystem_path(path)); },
+      [](const CurvesAdjustment& left, const CurvesAdjustment& right) { return left == right; }, curves_preset_icon);
 
-  // Top to bottom (#592): the preset strip, its buttons, a separator, the canvas tools, the
+  // Top to bottom (#592): the Preset combo, its buttons, a separator, the canvas tools, the
   // editor (Before joins its column beside the graph), then Preview on the OK/Cancel line.
-  root->addWidget(preset_list, 0, Qt::AlignHCenter);
-  auto* preset_buttons_row = new QHBoxLayout();
-  root->addLayout(preset_buttons_row);
+  root->addLayout(preset_form);
   root->addWidget(preset_section_separator(&dialog, QStringLiteral("curvesPresetSeparator")));
   root->addLayout(canvas_tools);
   root->addWidget(editor, 1);
@@ -1761,48 +1757,24 @@ std::optional<CurvesSettings> request_curves_settings(
     }
   };
 
-  auto update_custom_preset_thumbnail = [&] {
-    custom_preset_item->setIcon(
-        QIcon(QPixmap::fromImage(curves_adjustment_thumbnail(dialog_settings, kPresetThumbnailSize))));
-  };
-  auto select_custom_preset = [&] {
-    update_custom_preset_thumbnail();
-    const QSignalBlocker blocker(preset_list);
-    preset_list->setCurrentItem(custom_preset_item);
-  };
+  // The combo follows the curve: the preset it equals, or Custom (whose icon shows it).
   AdjustmentPresetButtons* preset_buttons = nullptr;
   auto sync_curves_preset_selection = [&] {
-    update_custom_preset_thumbnail();
-    QString wanted;
-    const auto* current_item = preset_list->currentItem();
-    const auto current_id = current_item != nullptr ? current_item->data(kPresetIdRole).toString() : QString();
-    if (const auto selected = preset_curves_for(current_id); selected.has_value() && *selected == dialog_settings) {
-      wanted = current_id;
-    } else if (const auto* matching = find_curves_preset(dialog_settings); matching != nullptr) {
-      wanted = matching->id;
-    } else {
-      for (const auto& [name, curves] : user_curves) {
-        if (curves == dialog_settings) {
-          wanted = QStringLiteral("user:") + name;
-          break;
-        }
-      }
-    }
-    QListWidgetItem* selected = custom_preset_item;
-    for (int row = 1; row < preset_list->count() && !wanted.isEmpty(); ++row) {
-      auto* item = preset_list->item(row);
-      if (item != nullptr && item->data(kPresetIdRole).toString() == wanted) {
-        selected = item;
-        break;
-      }
-    }
-    {
-      const QSignalBlocker blocker(preset_list);
-      preset_list->setCurrentItem(selected);
-    }
+    presets.set_custom_icon(dialog_settings);
+    presets.select_matching(dialog_settings);
     if (preset_buttons != nullptr) {
       preset_buttons->refresh();
     }
+  };
+  auto apply_preset = [&](const CurvesAdjustment& curves) {
+    eyedropper_samples = {};
+    dialog_settings = curves;
+    editor->set_adjustment(dialog_settings);
+    presets.set_custom_icon(dialog_settings);
+    if (preset_buttons != nullptr) {
+      preset_buttons->refresh();
+    }
+    flush_preview();
   };
 
   editor->adjustment_changed = [&](const CurvesSettings& settings, bool gesture_finished) {
@@ -1811,82 +1783,45 @@ std::optional<CurvesSettings> request_curves_settings(
     }
     dialog_settings = settings;
     editor->set_adjustment(dialog_settings);
-    select_custom_preset();
-    if (preset_buttons != nullptr) {
-      preset_buttons->refresh();
-    }
+    sync_curves_preset_selection();
     if (gesture_finished) {
       flush_preview();
     } else {
       schedule_preview();
     }
   };
-  QObject::connect(preset_list, &QListWidget::currentItemChanged, &dialog,
-                   [&](QListWidgetItem* current, QListWidgetItem*) {
-                     if (current == nullptr) {
-                       return;
-                     }
-                     const auto id = current->data(kPresetIdRole).toString();
-                     if (preset_buttons != nullptr) {
-                       preset_buttons->refresh();
-                     }
-                     if (id.isEmpty()) {
-                       return;
-                     }
-                     const auto curves = preset_curves_for(id);
-                     if (!curves.has_value()) {
-                       return;
-                     }
-                     eyedropper_samples = {};
-                     dialog_settings = *curves;
-                     editor->set_adjustment(dialog_settings);
-                     update_custom_preset_thumbnail();
-                     flush_preview();
-                   });
+  QObject::connect(preset, &QComboBox::activated, &dialog, [&](int index) {
+    if (const auto chosen = presets.settings_at(index); chosen.has_value()) {
+      apply_preset(*chosen);
+    } else if (preset_buttons != nullptr) {
+      preset_buttons->refresh();
+    }
+  });
 
   // Save..., Delete, Import... and Export... (.acv) for the user's presets (#592).
   AdjustmentPresetButtons::Hooks preset_hooks;
   preset_hooks.write_current = [&](const QString& path) { acv::write_file(to_filesystem_path(path), dialog_settings); };
   preset_hooks.check_file = [](const QString& path) { (void)acv::read_file(to_filesystem_path(path)); };
-  preset_hooks.selected_user_preset = [&]() -> std::optional<QString> {
-    const auto* item = preset_list->currentItem();
-    const auto id = item != nullptr ? item->data(kPresetIdRole).toString() : QString();
-    if (id.startsWith(QStringLiteral("user:"))) {
-      return id.mid(5);
-    }
-    return std::nullopt;
-  };
+  preset_hooks.selected_user_preset = [&] { return presets.selected_user(); };
   preset_hooks.user_presets_changed = [&](const QString& name) {
-    rebuild_user_items();
+    presets.reload();
     if (!name.isEmpty()) {
-      const auto id = QStringLiteral("user:") + name;
-      if (const auto curves = preset_curves_for(id); curves.has_value() && *curves != dialog_settings) {
-        eyedropper_samples = {};
-        dialog_settings = *curves;
-        editor->set_adjustment(dialog_settings);
-        flush_preview();
-      }
-      for (int row = 1; row < preset_list->count(); ++row) {
-        if (preset_list->item(row)->data(kPresetIdRole).toString() == id) {
-          const QSignalBlocker blocker(preset_list);
-          preset_list->setCurrentRow(row);
-          preset_list->scrollToItem(preset_list->item(row));
-          break;
-        }
+      presets.select_user(name);
+      if (const auto chosen = presets.settings_at(preset->currentIndex());
+          chosen.has_value() && *chosen != dialog_settings) {
+        apply_preset(*chosen);
       }
     }
     sync_curves_preset_selection();
   };
   preset_buttons = new AdjustmentPresetButtons(AdjustmentPresetKind::Curves, QStringLiteral("curves"),
-                                               AdjustmentPresetButtons::Arrangement::Row, preset_hooks, &dialog);
-  // Centered under the strip, each as wide as Highlights (#592 follow-up 2; sized below).
-  preset_buttons_row->addStretch(1);
-  preset_buttons_row->addWidget(preset_buttons);
-  preset_buttons_row->addStretch(1);
+                                               AdjustmentPresetButtons::Arrangement::Row, preset_hooks,
+                                               preset_buttons_area);
+  preset_buttons_layout->addWidget(preset_buttons, 1);
   {
     // Tab order follows the layout: the presets and their buttons, the canvas tools, the
     // editor and its column, Preview, then OK and Cancel.
-    std::vector<QWidget*> order{preset_list,
+    std::vector<QWidget*> order{preset,
                                 preset_buttons->save_button(),
                                 preset_buttons->delete_button(),
                                 preset_buttons->import_button(),
@@ -1912,23 +1847,6 @@ std::optional<CurvesSettings> request_curves_settings(
     for (std::size_t index = 1; index < order.size(); ++index) {
       QWidget::setTabOrder(order[index - 1], order[index]);
     }
-  }
-  {
-    // The strip and its buttons keep one size at every dialog size (#592 follow-up 2): the
-    // strip shows whole cells across the width the rest of the dialog asks for, so resizing
-    // never cuts one off, and the four buttons are as wide as Highlights (wider only when a
-    // translated label needs it). Measured after the style sheet has polished everything.
-    dialog.ensurePolished();
-    preset_buttons->set_button_width(highlight_clipping_button->sizeHint().width());
-    const int column_width = std::max({canvas_tools->sizeHint().width(), editor->sizeHint().width(),
-                                       footer->sizeHint().width(), preset_buttons->sizeHint().width()});
-    const int frame = 2 * preset_list->frameWidth();
-    const int available = std::max(kPresetCellSize.width(), column_width - frame);
-    const int cells = std::max(1, available / kPresetCellSize.width());
-    const int cell_width = available / cells;
-    preset_list->setGridSize(QSize(cell_width, kPresetCellSize.height()));
-    const int scroll_bar_height = preset_list->horizontalScrollBar()->sizeHint().height();
-    preset_list->setFixedSize(cells * cell_width + frame, kPresetCellSize.height() + scroll_bar_height + frame);
   }
   sync_curves_preset_selection();
   QObject::connect(before, &QPushButton::pressed, &dialog, [&] {
@@ -3290,12 +3208,13 @@ std::optional<BlackWhiteSettings> request_black_white_settings(
   return request_adjustment_settings_dialog<BlackWhiteSettings>(
       parent, QStringLiteral("patchyBlackWhiteDialog"), QObject::tr("Black & White"),
       QStringLiteral("blackWhitePreviewCheck"),
-      {{QObject::tr("Reds"), QStringLiteral("blackWhiteReds"), -200, 300, start.reds, percent},
-       {QObject::tr("Yellows"), QStringLiteral("blackWhiteYellows"), -200, 300, start.yellows, percent},
-       {QObject::tr("Greens"), QStringLiteral("blackWhiteGreens"), -200, 300, start.greens, percent},
-       {QObject::tr("Cyans"), QStringLiteral("blackWhiteCyans"), -200, 300, start.cyans, percent},
-       {QObject::tr("Blues"), QStringLiteral("blackWhiteBlues"), -200, 300, start.blues, percent},
-       {QObject::tr("Magentas"), QStringLiteral("blackWhiteMagentas"), -200, 300, start.magentas, percent}},
+      // Field labels end with a colon, as in the other dialogs (#528 follow-up 2).
+      {{QObject::tr("Reds:"), QStringLiteral("blackWhiteReds"), -200, 300, start.reds, percent},
+       {QObject::tr("Yellows:"), QStringLiteral("blackWhiteYellows"), -200, 300, start.yellows, percent},
+       {QObject::tr("Greens:"), QStringLiteral("blackWhiteGreens"), -200, 300, start.greens, percent},
+       {QObject::tr("Cyans:"), QStringLiteral("blackWhiteCyans"), -200, 300, start.cyans, percent},
+       {QObject::tr("Blues:"), QStringLiteral("blackWhiteBlues"), -200, 300, start.blues, percent},
+       {QObject::tr("Magentas:"), QStringLiteral("blackWhiteMagentas"), -200, 300, start.magentas, percent}},
       build_settings, std::move(preview_changed), {},
       [state, build_settings, thumbnail_source, influence](
           QDialog& dialog, QFormLayout* form, const std::vector<QSpinBox*>& spins,
@@ -3327,7 +3246,8 @@ std::optional<BlackWhiteSettings> request_black_white_settings(
             const auto share = (*influence)[index];
             auto* meter = new BlackWhiteInfluenceMeter(kBlackWhiteSliderHues[index], share, largest_share, row);
             meter->setObjectName(QStringLiteral("blackWhite") + object_keys[index] + QStringLiteral("Influence"));
-            const auto text = QObject::tr("This slider acts on %1% of the image's color")
+            // The bar's meaning lives here (#528 follow-up 2 dropped the note under the strip).
+            const auto text = QObject::tr("The bar shows how much of this image the slider acts on: %1% of its color")
                                   .arg(static_cast<int>(std::lround(share * 100.0)));
             meter->setToolTip(text);
             meter->setAccessibleName(text);
@@ -3349,30 +3269,31 @@ std::optional<BlackWhiteSettings> request_black_white_settings(
         tint_layout->addWidget(swatch);
         tint_layout->addStretch(1);
         form->addRow(QString(), tint_row);
-        const auto add_ramp_row = [&dialog, form](const QString& label, BlackWhiteRampSlider::Ramp ramp, int maximum,
+        const auto add_ramp_row = [&dialog, form](const QString& label, const QString& accessible_name,
+                                                  BlackWhiteRampSlider::Ramp ramp, int maximum,
                                                   const QString& object_prefix, const QString& suffix) {
           auto* row = new QWidget(&dialog);
           auto* layout = new QHBoxLayout(row);
           layout->setContentsMargins(0, 0, 0, 0);
           auto* slider = new BlackWhiteRampSlider(ramp, maximum, row);
           slider->setObjectName(object_prefix + QStringLiteral("Slider"));
-          slider->setAccessibleName(label);
+          slider->setAccessibleName(accessible_name);
           auto* spin = new QSpinBox(row);
           spin->setObjectName(object_prefix + QStringLiteral("Spin"));
           spin->setRange(0, maximum);
           spin->setSuffix(suffix);
-          spin->setAccessibleName(label);
+          spin->setAccessibleName(accessible_name);
           configure_dialog_spinbox(spin);
           layout->addWidget(slider, 1);
           layout->addWidget(spin);
           form->addRow(label, row);
           return std::pair{slider, spin};
         };
-        const auto hue_row = add_ramp_row(QObject::tr("Hue"), BlackWhiteRampSlider::Ramp::Hue, 359,
+        const auto hue_row = add_ramp_row(QObject::tr("Hue:"), QObject::tr("Hue"), BlackWhiteRampSlider::Ramp::Hue, 359,
                                           QStringLiteral("blackWhiteTintHue"), QString(QChar(0x00B0)));
         const auto saturation_row =
-            add_ramp_row(QObject::tr("Saturation"), BlackWhiteRampSlider::Ramp::Saturation, 100,
-                         QStringLiteral("blackWhiteTintSaturation"), QStringLiteral(" %"));
+            add_ramp_row(QObject::tr("Saturation:"), QObject::tr("Saturation"), BlackWhiteRampSlider::Ramp::Saturation,
+                         100, QStringLiteral("blackWhiteTintSaturation"), QStringLiteral(" %"));
         auto* hue_slider = hue_row.first;
         auto* hue_spin = hue_row.second;
         auto* saturation_slider = saturation_row.first;
@@ -3489,10 +3410,11 @@ std::optional<BlackWhiteSettings> request_black_white_settings(
         content_layout->addStretch(1);
         tiles->front()->setToolTip(QObject::tr("The current slider settings"));
         strip->setWidget(content);
-        // A header and two rows of tiles in view; the rest scrolls.
+        // A header and one row of tiles in view; the rest scrolls (#528 follow-up 2). The
+        // height is set once the button column beside the strip exists, below.
         const auto frame = 2 * strip->frameWidth();
         const auto header_height = first_header->sizeHint().height() + content_layout->spacing();
-        strip->setFixedHeight(frame + 2 + header_height + 2 * cell.height() + 2 + 4);
+        const auto one_row_height = frame + 2 + header_height + cell.height() + 2;
         strip->setMinimumWidth(frame + 8 + kBlackWhitePresetColumns * (cell.width() + 2) +
                                strip->verticalScrollBar()->sizeHint().width());
         // Preset thumbnails never change: each renders its own weights and tint.
@@ -3512,12 +3434,6 @@ std::optional<BlackWhiteSettings> request_black_white_settings(
         strip_row_layout->addWidget(strip, 1);
         if (auto* layout = qobject_cast<QVBoxLayout*>(dialog.layout()); layout != nullptr) {
           layout->insertWidget(0, strip_row);
-          if (influence.has_value()) {
-            auto* note = new QLabel(QObject::tr("Bars: how much of this image each slider acts on."), &dialog);
-            note->setObjectName(QStringLiteral("blackWhiteInfluenceNote"));
-            note->setWordWrap(true);
-            layout->insertWidget(1, note);
-          }
         }
 
         const auto current = [build_settings, spins] { return build_settings(spins); };
@@ -3729,6 +3645,24 @@ std::optional<BlackWhiteSettings> request_black_white_settings(
                                                     AdjustmentPresetButtons::Arrangement::Column, hooks, strip_row);
         *preset_buttons = buttons;
         strip_row_layout->addWidget(buttons);
+        // The strip ends where Export... does: one row of tiles, never shorter than the button
+        // column; when the row is the taller, the buttons spread to its height.
+        {
+          dialog.ensurePolished();
+          const std::array<QPushButton*, 4> column{buttons->save_button(), buttons->delete_button(),
+                                                   buttons->import_button(), buttons->export_button()};
+          int buttons_height = 0;
+          for (auto* button : column) {
+            buttons_height += button->sizeHint().height();
+          }
+          auto* column_layout = buttons->layout();
+          const auto spacing = column_layout != nullptr ? column_layout->spacing() : 0;
+          const auto strip_height = std::max(one_row_height, buttons_height + 3 * spacing);
+          strip->setFixedHeight(strip_height);
+          if (column_layout != nullptr && strip_height > buttons_height + 3 * spacing) {
+            column_layout->setSpacing((strip_height - buttons_height) / 3);
+          }
+        }
         QWidget* previous = tiles->back();
         for (QWidget* next : {static_cast<QWidget*>(buttons->save_button()), static_cast<QWidget*>(buttons->delete_button()),
                               static_cast<QWidget*>(buttons->import_button()),
