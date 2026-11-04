@@ -250,6 +250,10 @@ public:
   // live, and moves the controls of an open Preferences or customize dialog to match.
   void apply_tool_palette_preferences(ToolbarIconSize icon_size, ToolFlyoutOpenMode flyout_open_mode);
   [[nodiscard]] ToolFlyoutOpenMode tool_flyout_open_mode() const noexcept { return tool_flyout_open_mode_; }
+  // Preferences' "Use Shift for tool switch" (GitHub issue 628): stores a change and applies
+  // it at once. Off, a tool group's plain letter walks the group as Shift+letter does.
+  void set_use_shift_for_tool_switch(bool use_shift);
+  [[nodiscard]] bool use_shift_for_tool_switch() const noexcept { return use_shift_for_tool_switch_; }
   // True where Patchy draws its own window frame (Windows, and Linux unless the
   // "Use the system title bar" preference is on): the frameless flag, the chrome buttons
   // in the menu-bar row, and the edge-resize machinery. macOS uses the native frame and
@@ -3279,6 +3283,8 @@ private:
   ToolPaletteCustomization tool_palette_customization_;
   // When tool groups open (Preferences, app_settings.hpp); the flyout buttons' openers follow it.
   ToolFlyoutOpenMode tool_flyout_open_mode_{ToolFlyoutOpenMode::Hold};
+  // Whether a group's plain letter only selects its first tool (Preferences, app_settings.hpp).
+  bool use_shift_for_tool_switch_{true};
   QAction* customize_tool_palette_action_{nullptr};
   struct LayerFooterButton {
     const char* id;

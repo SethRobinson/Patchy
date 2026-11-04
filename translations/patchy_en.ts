@@ -32332,6 +32332,14 @@ Locked: %1</source>
         <source>Contract by:</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Use Shift for tool switch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

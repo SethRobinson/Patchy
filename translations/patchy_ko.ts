@@ -32328,6 +32328,14 @@ Locked: %1</source>
         <source>Contract by:</source>
         <translation>축소량:</translation>
     </message>
+    <message>
+        <source>Use Shift for tool switch</source>
+        <translation>Shift 키로 도구 전환</translation>
+    </message>
+    <message>
+        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation>켜면 도구 그룹의 문자 키는 그룹의 첫 도구를 선택하고, Shift와 문자 키로 그룹 안을 차례로 전환합니다. 끄면 문자 키를 다시 누를 때 그룹의 다음 도구로 넘어갑니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

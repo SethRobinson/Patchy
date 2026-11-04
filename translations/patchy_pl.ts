@@ -32498,6 +32498,14 @@ Zablokowano: %1</translation>
         <source>Contract by:</source>
         <translation>Zawęź o:</translation>
     </message>
+    <message>
+        <source>Use Shift for tool switch</source>
+        <translation>Używaj Shift do przełączania narzędzi</translation>
+    </message>
+    <message>
+        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation>Gdy włączone, litera grupy narzędzi wybiera jej pierwsze narzędzie, a Shift z literą przechodzi przez grupę. Gdy wyłączone, ponowne naciśnięcie litery przechodzi do następnego narzędzia w grupie.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

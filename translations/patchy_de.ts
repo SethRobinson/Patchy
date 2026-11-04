@@ -32413,6 +32413,14 @@ Fixiert: %1</translation>
         <source>Contract by:</source>
         <translation>Verkleinern um:</translation>
     </message>
+    <message>
+        <source>Use Shift for tool switch</source>
+        <translation>Umschalttaste zum Werkzeugwechsel verwenden</translation>
+    </message>
+    <message>
+        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation>Wenn aktiviert, wählt der Buchstabe einer Werkzeuggruppe ihr erstes Werkzeug, und Umschalt mit dem Buchstaben wechselt durch die Gruppe. Wenn deaktiviert, wechselt erneutes Drücken des Buchstabens zum nächsten Werkzeug der Gruppe.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

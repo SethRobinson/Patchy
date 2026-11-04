@@ -727,6 +727,15 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   auto* tool_flyout_open_label = new QLabel(tr("Open tool groups on:"), application_group);
   tool_flyout_open_label->setBuddy(tool_flyout_open_combo);
   application_form->addRow(tool_flyout_open_label, tool_flyout_open_combo);
+  // Whether a tool group's letter needs Shift to walk its tools (GitHub issue 628). On by
+  // default; off, pressing the letter again moves to the group's next tool. Applies on OK.
+  auto* use_shift_tool_switch_check = new WrappingCheckBox(tr("Use Shift for tool switch"), application_group);
+  use_shift_tool_switch_check->setObjectName(QStringLiteral("preferencesUseShiftForToolSwitchCheck"));
+  use_shift_tool_switch_check->setToolTip(
+      tr("When on, a tool group's letter selects its first tool and Shift with the letter moves "
+         "through the group. When off, pressing the letter again moves to the group's next tool."));
+  use_shift_tool_switch_check->setChecked(use_shift_for_tool_switch_);
+  application_form->addRow(new QLabel(application_group), use_shift_tool_switch_check);
   // Customize Tool Palette under the tool palette settings (GitHub issue 213), on a line of
   // its own. It opens as a child of Preferences and applies its own choice on its own OK.
   auto* customize_palette_row = new QWidget(application_group);
@@ -2423,6 +2432,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     // may have changed both meanwhile (and moved these combos to match).
     apply_tool_palette_preferences(toolbar_icon_size_from_token(toolbar_icon_size_combo->currentData().toString()),
                                    tool_flyout_open_mode_from_token(tool_flyout_open_combo->currentData().toString()));
+    set_use_shift_for_tool_switch(use_shift_tool_switch_check->isChecked());
     set_ruler_unit_preference(measurement_unit_from_settings_token(
         ruler_units_combo->currentData().toString(), MeasurementUnit::Pixels));
     settings.setValue(QStringLiteral("view/rulerUnits"), ruler_units_combo->currentData().toString());

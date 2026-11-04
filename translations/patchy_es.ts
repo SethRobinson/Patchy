@@ -32413,6 +32413,14 @@ Bloqueada: %1</translation>
         <source>Contract by:</source>
         <translation>Contraer en:</translation>
     </message>
+    <message>
+        <source>Use Shift for tool switch</source>
+        <translation>Usar Mayús para cambiar de herramienta</translation>
+    </message>
+    <message>
+        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation>Si está activado, la letra de un grupo de herramientas selecciona su primera herramienta y Mayús con la letra recorre el grupo. Si está desactivado, al pulsar de nuevo la letra se pasa a la siguiente herramienta del grupo.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
