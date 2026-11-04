@@ -14937,6 +14937,54 @@ Each item&apos;s own View setting still applies.</source>
         <source>There is not enough memory available to open this file.</source>
         <translation>이 파일을 여는 데 필요한 메모리가 부족합니다.</translation>
     </message>
+    <message>
+        <source>Linked file %1 is on network server %2, which Patchy has not been allowed to connect to; allow the server in the Missing Linked Files dialog, or relink the file</source>
+        <translation>연결된 파일 %1은(는) 네트워크 서버 %2에 있으며, Patchy는 이 서버에 연결하도록 허용되지 않았습니다. 누락된 연결 파일 대화 상자에서 서버를 허용하거나 파일을 다시 연결하세요</translation>
+    </message>
+    <message>
+        <source>Krita file layers on network server %1 opened empty: Patchy has not been allowed to connect to it</source>
+        <extracomment>%1 is a network server name such as \fileserver (//fileserver outside Windows).</extracomment>
+        <translation>네트워크 서버 %1의 Krita 파일 레이어가 빈 상태로 열렸습니다: Patchy는 이 서버에 연결하도록 허용되지 않았습니다</translation>
+    </message>
+    <message>
+        <source>Network Files</source>
+        <translation>네트워크 파일</translation>
+    </message>
+    <message numerus="yes">
+        <source>%1 has file layers stored on %n network server(s): %2</source>
+        <translation>
+            <numerusform>%1에 %n개 네트워크 서버에 저장된 파일 레이어가 있습니다: %2</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Loading them connects Patchy to the server. Allow Patchy to open linked files there from now on?</source>
+        <translation>불러오면 Patchy가 서버에 연결합니다. 이제부터 Patchy가 그곳의 연결된 파일을 열도록 허용할까요?</translation>
+    </message>
+    <message>
+        <source>Allow Server</source>
+        <translation>서버 허용</translation>
+    </message>
+    <message>
+        <source>Not Now</source>
+        <translation>지금은 아님</translation>
+    </message>
+    <message>
+        <source>Let Patchy open linked files on %1 from now on, in this and other documents</source>
+        <translation>이제부터 이 문서와 다른 문서에서 Patchy가 %1의 연결된 파일을 열 수 있게 합니다</translation>
+    </message>
+    <message>
+        <source>On network server %1, which Patchy has not been allowed to connect to. Opening a file there connects to that server.</source>
+        <extracomment>%1 is a network server name such as \fileserver (//fileserver outside Windows).</extracomment>
+        <translation>네트워크 서버 %1에 있으며, Patchy는 이 서버에 연결하도록 허용되지 않았습니다. 그곳의 파일을 열면 해당 서버에 연결합니다.</translation>
+    </message>
+    <message>
+        <source>Found on %1</source>
+        <translation>%1에서 찾음</translation>
+    </message>
+    <message>
+        <source>Not found on %1 either; relink it to a file</source>
+        <translation>%1에서도 찾을 수 없습니다. 파일에 다시 연결하세요</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -32403,6 +32451,10 @@ Locked: %1</source>
     <message>
         <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
         <translation>새 윤곽선을 다 그리면 그 안의 개체를 선택하고 몇 픽셀 확장한 뒤 페더를 적용한 다음 드래그합니다</translation>
+    </message>
+    <message>
+        <source>Linked files on %1 are allowed now</source>
+        <translation>이제 %1의 연결된 파일이 허용됩니다</translation>
     </message>
 </context>
 <context>

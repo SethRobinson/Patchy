@@ -15027,6 +15027,56 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>There is not enough memory available to open this file.</source>
         <translation>Brak wystarczającej ilości pamięci, aby otworzyć ten plik.</translation>
     </message>
+    <message>
+        <source>Linked file %1 is on network server %2, which Patchy has not been allowed to connect to; allow the server in the Missing Linked Files dialog, or relink the file</source>
+        <translation>Połączony plik %1 znajduje się na serwerze sieciowym %2, z którym Patchy nie ma pozwolenia się łączyć; zezwól na serwer w oknie Brakujące połączone pliki lub połącz plik ponownie</translation>
+    </message>
+    <message>
+        <source>Krita file layers on network server %1 opened empty: Patchy has not been allowed to connect to it</source>
+        <extracomment>%1 is a network server name such as \fileserver (//fileserver outside Windows).</extracomment>
+        <translation>Warstwy plików Krita z serwera sieciowego %1 otwarto puste: Patchy nie ma pozwolenia, by się z nim łączyć</translation>
+    </message>
+    <message>
+        <source>Network Files</source>
+        <translation>Pliki sieciowe</translation>
+    </message>
+    <message numerus="yes">
+        <source>%1 has file layers stored on %n network server(s): %2</source>
+        <translation>
+            <numerusform>%1 ma warstwy plików zapisane na %n serwerze sieciowym: %2</numerusform>
+            <numerusform>%1 ma warstwy plików zapisane na %n serwerach sieciowych: %2</numerusform>
+            <numerusform>%1 ma warstwy plików zapisane na %n serwerach sieciowych: %2</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Loading them connects Patchy to the server. Allow Patchy to open linked files there from now on?</source>
+        <translation>Wczytanie ich łączy Patchy z serwerem. Czy od teraz pozwolić Patchy otwierać znajdujące się tam połączone pliki?</translation>
+    </message>
+    <message>
+        <source>Allow Server</source>
+        <translation>Zezwól na serwer</translation>
+    </message>
+    <message>
+        <source>Not Now</source>
+        <translation>Nie teraz</translation>
+    </message>
+    <message>
+        <source>Let Patchy open linked files on %1 from now on, in this and other documents</source>
+        <translation>Od teraz pozwala Patchy otwierać połączone pliki na %1, w tym i innych dokumentach</translation>
+    </message>
+    <message>
+        <source>On network server %1, which Patchy has not been allowed to connect to. Opening a file there connects to that server.</source>
+        <extracomment>%1 is a network server name such as \fileserver (//fileserver outside Windows).</extracomment>
+        <translation>Na serwerze sieciowym %1, z którym Patchy nie ma pozwolenia się łączyć. Otwarcie pliku z tego miejsca łączy z tym serwerem.</translation>
+    </message>
+    <message>
+        <source>Found on %1</source>
+        <translation>Znaleziono na %1</translation>
+    </message>
+    <message>
+        <source>Not found on %1 either; relink it to a file</source>
+        <translation>Nie znaleziono również na %1; połącz go ponownie z plikiem</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -32571,6 +32621,10 @@ Zablokowano: %1</translation>
     <message>
         <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
         <translation>Po narysowaniu nowego obrysu zaznacza obiekt w jego wnętrzu, rozszerza go o kilka pikseli i stosuje wtapianie, zanim zaczniesz przeciągać</translation>
+    </message>
+    <message>
+        <source>Linked files on %1 are allowed now</source>
+        <translation>Połączone pliki na %1 są teraz dozwolone</translation>
     </message>
 </context>
 <context>

@@ -14937,6 +14937,54 @@ Each item&apos;s own View setting still applies.</source>
         <source>There is not enough memory available to open this file.</source>
         <translation>没有足够的可用内存来打开此文件。</translation>
     </message>
+    <message>
+        <source>Linked file %1 is on network server %2, which Patchy has not been allowed to connect to; allow the server in the Missing Linked Files dialog, or relink the file</source>
+        <translation>链接文件 %1 位于网络服务器 %2 上，Patchy 未获允许连接该服务器；请在“缺少的链接文件”对话框中允许该服务器，或重新链接文件</translation>
+    </message>
+    <message>
+        <source>Krita file layers on network server %1 opened empty: Patchy has not been allowed to connect to it</source>
+        <extracomment>%1 is a network server name such as \fileserver (//fileserver outside Windows).</extracomment>
+        <translation>网络服务器 %1 上的 Krita 文件图层以空白打开：Patchy 未获允许连接该服务器</translation>
+    </message>
+    <message>
+        <source>Network Files</source>
+        <translation>网络文件</translation>
+    </message>
+    <message numerus="yes">
+        <source>%1 has file layers stored on %n network server(s): %2</source>
+        <translation>
+            <numerusform>%1 包含存储在 %n 个网络服务器上的文件图层：%2</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Loading them connects Patchy to the server. Allow Patchy to open linked files there from now on?</source>
+        <translation>加载它们会让 Patchy 连接到该服务器。是否从现在起允许 Patchy 打开那里的链接文件？</translation>
+    </message>
+    <message>
+        <source>Allow Server</source>
+        <translation>允许服务器</translation>
+    </message>
+    <message>
+        <source>Not Now</source>
+        <translation>以后再说</translation>
+    </message>
+    <message>
+        <source>Let Patchy open linked files on %1 from now on, in this and other documents</source>
+        <translation>从现在起允许 Patchy 在此文档和其他文档中打开 %1 上的链接文件</translation>
+    </message>
+    <message>
+        <source>On network server %1, which Patchy has not been allowed to connect to. Opening a file there connects to that server.</source>
+        <extracomment>%1 is a network server name such as \fileserver (//fileserver outside Windows).</extracomment>
+        <translation>位于网络服务器 %1 上，Patchy 未获允许连接该服务器。打开那里的文件会连接到该服务器。</translation>
+    </message>
+    <message>
+        <source>Found on %1</source>
+        <translation>已在 %1 上找到</translation>
+    </message>
+    <message>
+        <source>Not found on %1 either; relink it to a file</source>
+        <translation>在 %1 上也未找到；请将其重新链接到文件</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -32403,6 +32451,10 @@ Locked: %1</source>
     <message>
         <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
         <translation>画完新轮廓后，选择其中的对象，扩展几个像素并应用羽化，然后再拖动</translation>
+    </message>
+    <message>
+        <source>Linked files on %1 are allowed now</source>
+        <translation>现已允许 %1 上的链接文件</translation>
     </message>
 </context>
 <context>

@@ -29,6 +29,8 @@
 #include "formats/zip_entry_reader.hpp"
 #include "psd/asl_io.hpp"
 #include "render/compositor.hpp"
+#include "support/network_path.hpp"
+#include "support/path_utils.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -355,6 +357,7 @@ struct ReadState {
   std::vector<std::string> inherit_alpha_flattened;
   std::vector<std::string> clone_layers;
   std::vector<std::string> missing_files;
+  std::vector<std::string> network_files;  // on a server the caller did not allow
   std::vector<std::string> loaded_files;
   std::vector<std::string> vector_notices;
   std::vector<std::string> missing_styles;
@@ -1164,6 +1167,8 @@ struct BuildState {
   BitDepth depth;
   ReadState& read;
   const std::filesystem::path& source_directory;
+  const std::function<bool(const std::string&)>& allow_network_server;
+  std::vector<std::string>* blocked_network_servers;
   std::map<std::string, psd::AslStyle> styles;
   std::map<std::string, const Node*> by_uuid;
   std::map<std::string, const Node*> by_name;
@@ -1370,9 +1375,38 @@ void apply_transparency_masks(Layer& layer, const Node& node, BuildState& state)
   return layer;
 }
 
+// Whether a file layer may read `joined` (the source path, joined to the .kra's folder): not
+// a device path, and not on a network server unless the .kra came from that server or the
+// caller allows it (docs/kra.md, "File layers"). Checked as written and normalized, because a
+// platform may fold a leading "//" or let ".." step to another host. A refused server is
+// recorded once and sets `network`.
+[[nodiscard]] bool file_layer_path_allowed(const std::filesystem::path& joined, BuildState& state, bool& network) {
+  const auto home = classify_path_location(path_to_utf8(state.source_directory));
+  for (const auto& form : {joined, joined.lexically_normal()}) {
+    const auto location = classify_path_location(path_to_utf8(form));
+    if (location.kind == PathLocationKind::Local) {
+      continue;
+    }
+    if (location.kind == PathLocationKind::Device) {
+      return false;
+    }
+    if ((home.kind == PathLocationKind::NetworkServer && home.server == location.server) ||
+        (state.allow_network_server && state.allow_network_server(location.server))) {
+      continue;
+    }
+    if (state.blocked_network_servers != nullptr) {
+      add_unique(*state.blocked_network_servers, location.server);
+    }
+    network = true;
+    return false;
+  }
+  return true;
+}
+
 // A file layer's image beside the .kra, decoded by stb_image (PNG and JPEG only: the
-// other stb formats are compiled out in stb/stb_image_impl.c).
-[[nodiscard]] std::optional<PixelBuffer> load_file_layer(const Node& node, BuildState& state) {
+// other stb formats are compiled out in stb/stb_image_impl.c). `network` is set when the
+// path was refused for naming a server that is not allowed.
+[[nodiscard]] std::optional<PixelBuffer> load_file_layer(const Node& node, BuildState& state, bool& network) {
   if (state.source_directory.empty() || node.file_source.empty()) {
     return std::nullopt;
   }
@@ -1383,7 +1417,11 @@ void apply_transparency_masks(Layer& layer, const Node& node, BuildState& state)
   } catch (const std::exception&) {
     return std::nullopt;
   }
-  const auto path = relative.is_absolute() ? relative : state.source_directory / relative;
+  const auto joined = relative.is_absolute() ? relative : state.source_directory / relative;
+  if (!file_layer_path_allowed(joined, state, network)) {
+    return std::nullopt;
+  }
+  const auto path = joined.lexically_normal();
   std::vector<std::uint8_t> bytes;
   try {
     bytes = formats::read_file_bytes(path, "Krita file layer");
@@ -1464,10 +1502,13 @@ void apply_transparency_masks(Layer& layer, const Node& node, BuildState& state)
           add_unique(state.read.unsupported_nodes, node.name + " (clone of " + node.clone_from_name + ")");
         }
       } else if (node.type == NodeType::File) {
-        pixels = load_file_layer(node, state);
+        bool network = false;
+        pixels = load_file_layer(node, state, network);
         if (pixels.has_value()) {
           bounds = Rect{node.x, node.y, pixels->width(), pixels->height()};
           add_unique(state.read.loaded_files, node.name + " (" + node.file_source + ")");
+        } else if (network) {
+          add_unique(state.read.network_files, node.name + " (" + node.file_source + ")");
         } else {
           add_unique(state.read.missing_files, node.name + " (" + node.file_source + ")");
         }
@@ -1840,7 +1881,9 @@ const std::vector<std::string>& kra_extensions() {
 }
 
 Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::string>* notices,
-                          const std::filesystem::path& source_directory) {
+                          const std::filesystem::path& source_directory,
+                          const std::function<bool(const std::string& server)>& allow_network_server,
+                          std::vector<std::string>* blocked_network_servers) {
   if (bytes.size() < 4 || bytes[0] != 'P' || bytes[1] != 'K') {
     throw read_error(PATCHY_TRANSLATE_NOOP("QObject", "This file is not a Krita document"));
   }
@@ -1923,7 +1966,8 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
     document.color_state().embedded_icc_profile = state.image_icc;
   }
 
-  BuildState build{document, depth, state, source_directory, {}, {}, {}, std::nullopt};
+  BuildState build{document,        depth, state, source_directory, allow_network_server, blocked_network_servers,
+                   {},              {},    {},    std::nullopt};
   read_styles(state, build);
   index_nodes(nodes, build);
   for (auto& layer : build_list(nodes, build)) {
@@ -2012,6 +2056,10 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, std::vector<std::
     note(state.clone_layers, "Clone layers opened as copies of their source layer: ");
     note(state.loaded_files, "File layers were loaded from their files as pixel layers: ");
     note(state.missing_files, "File layers whose file was not found opened empty: ");
+    if (blocked_network_servers == nullptr) {
+      // A caller that takes the server list words this itself (the open's Allow prompt).
+      note(state.network_files, "File layers on a network server Patchy was not allowed to open opened empty: ");
+    }
     note(state.missing_styles, "Layer styles that are missing from the file were left out: ");
     note(state.style_notices, "Layer styles: ");
     note(state.vector_notices, "Vector layers: ");

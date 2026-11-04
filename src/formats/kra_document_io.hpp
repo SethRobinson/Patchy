@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <span>
 #include <string>
 #include <vector>
@@ -27,8 +28,17 @@ public:
   // with a plain message for files that are not Krita documents or are damaged past
   // reading. `source_directory`, when given, is the folder the file sits in: file layers
   // that point at a PNG or JPEG beside it load from there.
-  [[nodiscard]] static Document read(std::span<const std::uint8_t> bytes, std::vector<std::string>* notices = nullptr,
-                                     const std::filesystem::path& source_directory = {});
+  //
+  // A file layer whose path names a network server (support/network_path.hpp) loads only
+  // when `source_directory` is on that same server or `allow_network_server` says yes; the
+  // file is not touched otherwise, and the server (lower case) lands once in
+  // `blocked_network_servers`. Without that list the layers are named in a notice instead.
+  // Device paths never load.
+  [[nodiscard]] static Document read(
+      std::span<const std::uint8_t> bytes, std::vector<std::string>* notices = nullptr,
+      const std::filesystem::path& source_directory = {},
+      const std::function<bool(const std::string& server)>& allow_network_server = {},
+      std::vector<std::string>* blocked_network_servers = nullptr);
   [[nodiscard]] static Document read_file(const std::filesystem::path& path,
                                           std::vector<std::string>* notices = nullptr);
 };

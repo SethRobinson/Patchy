@@ -163,6 +163,7 @@
 #include "ui/layer_list_widget.hpp"
 #include "ui/localization.hpp"
 #include "ui/multipage_pdf_export_dialog.hpp"
+#include "ui/network_link_trust.hpp"
 #include "ui/export_documents_folder_dialog.hpp"
 #include "ui/pdf_export.hpp"
 #include "ui/pdf_import.hpp"
@@ -1209,6 +1210,9 @@ struct OpenDocumentResult {
   // A PDF import whose pages merge into one document (folders or artboards).
   PdfPagesMerge pdf_merge{PdfPagesMerge::None};
   bool pdf_white_background{true};
+  // Network servers a Krita file layer names that are not allowed yet (lower case): the
+  // interactive open offers to allow them and reload (docs/kra.md, "File layers").
+  QStringList blocked_link_servers{};
 };
 
 std::vector<std::uint8_t> read_all_file_bytes(const QString& path) {
@@ -1480,9 +1484,16 @@ void finish_photoshop_layers_import(Document& opened, const QFileInfo& info, QSt
         continue;
       }
       const auto file_name = QString::fromStdString(source.filename);
-      const auto resolved = resolve_smart_object_external_path(source, document_dir);
+      QString blocked_server;
+      const auto resolved = resolve_smart_object_external_path(source, document_dir, &blocked_server);
       if (!resolved.has_value()) {
-        link_notices.push_back(QObject::tr("Linked file %1 was not found").arg(file_name));
+        link_notices.push_back(
+            blocked_server.isEmpty()
+                ? QObject::tr("Linked file %1 was not found").arg(file_name)
+                //: %2 is a network server name such as \\fileserver (//fileserver outside Windows).
+                : QObject::tr("Linked file %1 is on network server %2, which Patchy has not been allowed to "
+                              "connect to; allow the server in the Missing Linked Files dialog, or relink the file")
+                      .arg(file_name, network_link_server_display_name(blocked_server)));
         continue;
       }
       if (smart_object_link_changed_on_disk(source, QFileInfo(*resolved))) {
@@ -1539,6 +1550,7 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
   };
   Document opened;
   QStringList import_notices;
+  QStringList blocked_link_servers;
   bool force_import_notices_popup = false;
   // True when the decoder handed over the file's pixel values untouched (Qt's
   // PNG/JPEG/TIFF/WebP/GIF readers, Patchy's BMP reader): the file's RGB profile then
@@ -1782,10 +1794,20 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
     // Krita documents read here rather than through the registry row: the reader needs the
     // file's folder for file layers (docs/kra.md).
     std::vector<std::string> notices;
-    opened = kra::DocumentIo::read(read_all_file_bytes(path), &notices,
-                                   to_filesystem_path(QFileInfo(path).absolutePath()));
+    std::vector<std::string> blocked_servers;
+    opened = kra::DocumentIo::read(
+        read_all_file_bytes(path), &notices, to_filesystem_path(QFileInfo(path).absolutePath()),
+        [](const std::string& server) { return allowed_network_link_servers().contains(QString::fromStdString(server)); },
+        &blocked_servers);
     for (const auto& notice : notices) {
       import_notices.push_back(translated_file_message(notice));
+    }
+    for (const auto& server : blocked_servers) {
+      blocked_link_servers.push_back(QString::fromStdString(server));
+      //: %1 is a network server name such as \\fileserver (//fileserver outside Windows).
+      import_notices.push_back(QObject::tr("Krita file layers on network server %1 opened empty: Patchy has not been "
+                                           "allowed to connect to it")
+                                   .arg(network_link_server_display_name(blocked_link_servers.back())));
     }
     decode_pending_svg_images(opened.layers(), import_notices);
   } else if (const auto* handler = builtin_format_registry().find_by_extension(extension.toStdString());
@@ -1889,6 +1911,7 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
   OpenDocumentResult result{std::move(opened),         info.fileName(), extension, std::move(import_notices),
                             force_import_notices_popup, {},              {}};
   result.cmyk_source = cmyk_source;
+  result.blocked_link_servers = std::move(blocked_link_servers);
   return result;
 }
 
@@ -2087,8 +2110,8 @@ QString path_with_default_extension(QString path, const QString& selected_filter
 // sidecar. Everything else loads on a worker thread
 // behind a modal progress dialog so big documents keep the UI responsive.
 // Load failures propagate as exceptions.
-std::optional<OpenDocumentResult> load_document_interactive(QWidget* parent, const QString& path,
-                                                          bool interactive, bool allow_raw_dialog) {
+std::optional<OpenDocumentResult> load_document_interactive_once(QWidget* parent, const QString& path,
+                                                               bool interactive, bool allow_raw_dialog) {
   const QFileInfo info(path);
   const auto extension = info.suffix().toLower();
   if (interactive && allow_raw_dialog && raw::is_camera_raw_extension(extension.toStdString()) &&
@@ -2200,6 +2223,43 @@ std::optional<OpenDocumentResult> load_document_interactive(QWidget* parent, con
 
   return open_future.get();
 #endif
+}
+
+// load_document_interactive_once, then, for an interactive open whose Krita file layers name a
+// network server that is not allowed, one question: Allow Server stores the servers and
+// reloads, so the layers load (docs/kra.md, "File layers"). Not Now keeps the empty layers.
+std::optional<OpenDocumentResult> load_document_interactive(QWidget* parent, const QString& path,
+                                                          bool interactive, bool allow_raw_dialog) {
+  auto loaded = load_document_interactive_once(parent, path, interactive, allow_raw_dialog);
+  if (!interactive || !loaded.has_value() || loaded->blocked_link_servers.isEmpty()) {
+    return loaded;
+  }
+  QStringList names;
+  for (const auto& server : std::as_const(loaded->blocked_link_servers)) {
+    names.push_back(network_link_server_display_name(server));
+  }
+  QMessageBox box(parent);
+  box.setObjectName(QStringLiteral("networkFileLayersPrompt"));
+  box.setIcon(QMessageBox::Question);
+  box.setWindowTitle(QObject::tr("Network Files"));
+  box.setText(QObject::tr("%1 has file layers stored on %n network server(s): %2", nullptr,
+                          static_cast<int>(names.size()))
+                  .arg(QFileInfo(path).fileName(), names.join(QStringLiteral(", "))));
+  box.setInformativeText(QObject::tr("Loading them connects Patchy to the server. Allow Patchy to open linked "
+                                     "files there from now on?"));
+  auto* allow = box.addButton(QObject::tr("Allow Server"), QMessageBox::AcceptRole);
+  allow->setObjectName(QStringLiteral("networkFileLayersAllowButton"));
+  auto* not_now = box.addButton(QObject::tr("Not Now"), QMessageBox::RejectRole);
+  not_now->setObjectName(QStringLiteral("networkFileLayersNotNowButton"));
+  box.setDefaultButton(not_now);
+  exec_dialog(box);
+  if (box.clickedButton() != allow) {
+    return loaded;
+  }
+  for (const auto& server : std::as_const(loaded->blocked_link_servers)) {
+    allow_network_link_server(server);
+  }
+  return load_document_interactive_once(parent, path, interactive, allow_raw_dialog);
 }
 
 // The status-message tail for a layer-keeping writer's notices: the first note verbatim,

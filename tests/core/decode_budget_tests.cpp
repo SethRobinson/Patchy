@@ -10,6 +10,7 @@
 #include "psd/psd_document_io.hpp"
 #include "psd/psd_io_internal.hpp"
 #include "support/decode_budget.hpp"
+#include "support/network_path.hpp"
 #include "core_test_support.hpp"
 #include "psd_test_support.hpp"
 #include "test_harness.hpp"
@@ -23,6 +24,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -437,6 +439,38 @@ void pcx_decoded_size_that_wraps_32_bits_is_rejected() {
   CHECK(rejected_cleanly([&] { (void)patchy::pcx::DocumentIo::read(bytes); }));
 }
 
+// Paths a file names are sorted into local, network server and device paths before any
+// reader or link check touches them (docs/smart-object-editing.md, "Network links").
+void network_path_classifies_servers_and_devices() {
+  using patchy::classify_path_location;
+  using patchy::PathLocationKind;
+  const auto server = [](std::string_view path) {
+    const auto location = classify_path_location(path);
+    return location.kind == PathLocationKind::NetworkServer ? location.server : std::string("<not a server>");
+  };
+  const auto kind = [](std::string_view path) { return classify_path_location(path).kind; };
+  CHECK(kind("D:\\art\\logo.psd") == PathLocationKind::Local);
+  CHECK(kind("Z:/mapped/logo.psd") == PathLocationKind::Local);
+  CHECK(kind("/home/seth/art.png") == PathLocationKind::Local);
+  CHECK(kind("art/logo.png") == PathLocationKind::Local);
+  CHECK(kind("\\art\\logo.png") == PathLocationKind::Local);
+  CHECK(kind("") == PathLocationKind::Local);
+  CHECK(kind("\\\\?\\C:\\very\\long\\path.png") == PathLocationKind::Local);
+  CHECK(kind("//?/d:/art.png") == PathLocationKind::Local);
+  CHECK(server("\\\\FileServer\\share\\logo.psd") == "fileserver");
+  CHECK(server("//nas.local/art/logo.psd") == "nas.local");
+  CHECK(server("\\/mixed\\share") == "mixed");
+  CHECK(server("\\\\host") == "host");
+  CHECK(server("\\\\?\\UNC\\Host2\\share\\x.png") == "host2");
+  CHECK(server("//./unc/host3/share") == "host3");
+  CHECK(server("\\\\webdav@SSL\\DavWWWRoot\\x.png") == "webdav@ssl");
+  CHECK(kind("\\\\.\\pipe\\name") == PathLocationKind::Device);
+  CHECK(kind("\\\\?\\Volume{0}\\x.png") == PathLocationKind::Device);
+  CHECK(kind("\\\\?\\GLOBALROOT\\Device\\x") == PathLocationKind::Device);
+  CHECK(kind("\\\\\\x") == PathLocationKind::Device);
+  CHECK(kind("\\\\?\\UNC\\") == PathLocationKind::Device);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> decode_budget_tests() {
@@ -451,5 +485,6 @@ std::vector<patchy::test::TestCase> decode_budget_tests() {
       {"hdr_resolution_larger_than_its_data_is_rejected", hdr_resolution_larger_than_its_data_is_rejected},
       {"exr_declared_size_larger_than_its_data_is_rejected", exr_declared_size_larger_than_its_data_is_rejected},
       {"pcx_decoded_size_that_wraps_32_bits_is_rejected", pcx_decoded_size_that_wraps_32_bits_is_rejected},
+      {"network_path_classifies_servers_and_devices", network_path_classifies_servers_and_devices},
   };
 }

@@ -14982,6 +14982,55 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>There is not enough memory available to open this file.</source>
         <translation>Não há memória suficiente disponível para abrir este arquivo.</translation>
     </message>
+    <message>
+        <source>Linked file %1 is on network server %2, which Patchy has not been allowed to connect to; allow the server in the Missing Linked Files dialog, or relink the file</source>
+        <translation>O arquivo vinculado %1 está no servidor de rede %2, ao qual o Patchy não tem permissão para se conectar; permita o servidor na caixa de diálogo Arquivos vinculados ausentes ou vincule o arquivo novamente</translation>
+    </message>
+    <message>
+        <source>Krita file layers on network server %1 opened empty: Patchy has not been allowed to connect to it</source>
+        <extracomment>%1 is a network server name such as \fileserver (//fileserver outside Windows).</extracomment>
+        <translation>As camadas de arquivo do Krita no servidor de rede %1 foram abertas vazias: o Patchy não tem permissão para se conectar a ele</translation>
+    </message>
+    <message>
+        <source>Network Files</source>
+        <translation>Arquivos de rede</translation>
+    </message>
+    <message numerus="yes">
+        <source>%1 has file layers stored on %n network server(s): %2</source>
+        <translation>
+            <numerusform>%1 tem camadas de arquivo armazenadas em %n servidor de rede: %2</numerusform>
+            <numerusform>%1 tem camadas de arquivo armazenadas em %n servidores de rede: %2</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Loading them connects Patchy to the server. Allow Patchy to open linked files there from now on?</source>
+        <translation>Carregá-las conecta o Patchy ao servidor. Permitir que o Patchy abra arquivos vinculados de lá a partir de agora?</translation>
+    </message>
+    <message>
+        <source>Allow Server</source>
+        <translation>Permitir servidor</translation>
+    </message>
+    <message>
+        <source>Not Now</source>
+        <translation>Agora não</translation>
+    </message>
+    <message>
+        <source>Let Patchy open linked files on %1 from now on, in this and other documents</source>
+        <translation>Permite que o Patchy abra arquivos vinculados em %1 a partir de agora, neste e em outros documentos</translation>
+    </message>
+    <message>
+        <source>On network server %1, which Patchy has not been allowed to connect to. Opening a file there connects to that server.</source>
+        <extracomment>%1 is a network server name such as \fileserver (//fileserver outside Windows).</extracomment>
+        <translation>No servidor de rede %1, ao qual o Patchy não tem permissão para se conectar. Abrir um arquivo de lá conecta a esse servidor.</translation>
+    </message>
+    <message>
+        <source>Found on %1</source>
+        <translation>Encontrado em %1</translation>
+    </message>
+    <message>
+        <source>Not found on %1 either; relink it to a file</source>
+        <translation>Também não encontrado em %1; vincule-o a um arquivo novamente</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -32487,6 +32536,10 @@ Bloqueado: %1</translation>
     <message>
         <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
         <translation>Ao terminar de desenhar um novo contorno, seleciona o objeto dentro dele, expande alguns pixels e aplica a difusão antes de arrastar</translation>
+    </message>
+    <message>
+        <source>Linked files on %1 are allowed now</source>
+        <translation>Os arquivos vinculados em %1 agora são permitidos</translation>
     </message>
 </context>
 <context>

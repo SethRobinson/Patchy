@@ -174,6 +174,7 @@ add_library(patchy_core
   src/support/random_uuid.cpp
   src/support/byte_order.hpp
   src/support/decode_budget.hpp
+  src/support/network_path.hpp
   src/support/startup_trace.cpp
   src/core/environment.cpp
   src/core/hdr_display.cpp
@@ -1549,6 +1550,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/missing_fonts_dialog.cpp
       src/ui/missing_links_dialog.hpp
       src/ui/missing_links_dialog.cpp
+      src/ui/network_link_trust.hpp
+      src/ui/network_link_trust.cpp
       src/ui/text_layer_painter.hpp
       src/ui/pdf_import.hpp
       src/ui/photo_pattern_presets.hpp

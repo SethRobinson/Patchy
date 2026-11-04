@@ -26,3 +26,31 @@ relative link paths, timestamps, and rendered preview. Embedded child links reta
 their source UUID lineage so parent Undo/Redo reconnects an open child to the
 restored source. Convert, Via Copy, and Place prepare changes in a scratch document
 and add history only when the complete result can be installed.
+
+## Network links
+
+A link path that names a network server (`\\host\share`, `//host/share`, `\\?\UNC\host`, a
+`file://host/` URI) is followed only when the server is allowed. On Windows even a stat of
+such a path connects to the host and signs in with the user's Windows credentials, so a
+crafted PSD could otherwise collect them on open. Local paths and mapped drive letters are
+always followed: Photoshop resolves absolute paths, and so does Patchy.
+
+- **Allowed** means the document itself was opened from that server, or the host is on the
+  list in `imports/allowedLinkServers` (a compatibility contract; lower-case host names).
+  Choosing a file on a server (Place Linked, Relink, Edit Contents' Save As:
+  `set_smart_object_link_target`) adds its host. Device paths (`\\.\pipe\x`,
+  `\\?\Volume{...}`) are never followed.
+- **Where it applies**: `resolve_smart_object_external_path` checks every candidate (as
+  written and after `QDir::cleanPath`) with `network_link_path_allowed`
+  (`src/ui/network_link_trust.*`, the classifier in `src/support/network_path.hpp`) before
+  any stat, so open, render, Update, Image Size, save and the script API all share the rule.
+  A refused candidate reports its host through the resolver's `blocked_server`.
+- **Open**: the status bar names the link and server instead of "was not found", and the
+  Missing Linked Files dialog row adds the server line and **Allow Server**, which stores the
+  host and rechecks every row on it ("Found on" disables the row). Unattended opens never ask.
+- Krita file layers follow the same list; their reader takes it as a callback ([kra.md](kra.md#file-layers)).
+
+Tests: `ui_smart_object_network_link_needs_an_allowed_server`,
+`ui_smart_object_open_reports_a_link_on_a_server_that_is_not_allowed`, and the core
+`network_path_classifies_servers_and_devices`. None reaches a real server: every path a test
+would stat is refused first.

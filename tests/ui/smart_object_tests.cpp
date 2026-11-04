@@ -10,6 +10,7 @@
 #include "core/pixel_depth.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/missing_links_dialog.hpp"
+#include "ui/network_link_trust.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/pattern_library.hpp"
@@ -38,6 +39,7 @@
 #include <QCheckBox>
 #include <QDialog>
 #include <QDir>
+#include <QScopeGuard>
 #include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
@@ -3395,6 +3397,161 @@ void ui_smart_object_missing_linked_files_dialog_lists_and_relinks() {
   CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("was not found")));
 }
 
+// Network links (docs/smart-object-editing.md, "Network links"): a linked file on a network
+// server is followed only when the server is allowed or the document came from it; local paths
+// and mapped drives always are. Nothing here reaches a real server: every path that would be
+// stat'ed is refused first.
+void ui_smart_object_network_link_needs_an_allowed_server() {
+  SettingsValueRestorer restorer(QStringLiteral("imports/allowedLinkServers"));
+  const auto previous = patchy::ui::allowed_network_link_servers();
+  const auto restore = qScopeGuard([&previous] { patchy::ui::set_allowed_network_link_servers(previous); });
+  patchy::ui::set_allowed_network_link_servers({});
+
+  QString blocked;
+  CHECK(patchy::ui::network_link_path_allowed(QStringLiteral("D:/art/logo.png"), QString()));
+  CHECK(patchy::ui::network_link_path_allowed(QStringLiteral("Z:/mapped/logo.png"), QStringLiteral("D:/art")));
+  CHECK(!patchy::ui::network_link_path_allowed(QStringLiteral("//Patchy-Test-Nas/share/logo.png"),
+                                               QStringLiteral("D:/art"), &blocked));
+  CHECK(blocked == QStringLiteral("patchy-test-nas"));
+  // A document opened from the server may follow links back to it.
+  CHECK(patchy::ui::network_link_path_allowed(QStringLiteral("//patchy-test-nas/share/logo.png"),
+                                              QStringLiteral("\\\\PATCHY-TEST-NAS\\projects")));
+  blocked.clear();
+  CHECK(!patchy::ui::network_link_path_allowed(QStringLiteral("\\\\.\\pipe\\patchy"), QString(), &blocked));
+  CHECK(blocked.isEmpty());
+
+  // The resolver skips every candidate on the server and reports it.
+  const auto dir = linked_test_dir(QStringLiteral("network-link"));
+  patchy::SmartObjectSource source;
+  source.kind = patchy::SmartObjectSourceKind::ExternalFile;
+  source.filename = "patchy-network-art.png";
+  source.external_rel_path = "//patchy-test-nas/share/patchy-network-art.png";
+  source.external_original_path = "\\\\patchy-test-nas\\share\\patchy-network-art.png";
+  source.external_full_path = "file://patchy-test-nas/share/patchy-network-art.png";
+  blocked.clear();
+  CHECK(!patchy::ui::resolve_smart_object_external_path(source, dir, &blocked).has_value());
+  CHECK(blocked == QStringLiteral("patchy-test-nas"));
+  // A local copy beside the document still resolves through the bare file name.
+  const auto local = write_linked_test_png(dir + QStringLiteral("/patchy-network-art.png"), QColor(10, 20, 30, 255));
+  source.external_rel_path = "//patchy-test-nas/share/patchy-network-art.png";
+  blocked.clear();
+  const auto resolved = patchy::ui::resolve_smart_object_external_path(source, dir, &blocked);
+  CHECK(resolved.has_value() && QFileInfo(*resolved) == QFileInfo(local));
+  CHECK(blocked == QStringLiteral("patchy-test-nas"));
+  CHECK(QFile::remove(local));
+
+  // Allowing stores the server (lower case, once) and lets its paths through.
+  patchy::ui::allow_network_link_server(QStringLiteral("\\\\Patchy-Test-Nas\\share\\x.png"));
+  patchy::ui::allow_network_link_server(QStringLiteral("patchy-test-nas"));
+  patchy::ui::allow_network_link_server(QStringLiteral("D:/local/path.png"));
+  CHECK(patchy::ui::allowed_network_link_servers() == QStringList{QStringLiteral("patchy-test-nas")});
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("imports/allowedLinkServers")).toStringList() ==
+        QStringList{QStringLiteral("patchy-test-nas")});
+  CHECK(patchy::ui::network_link_path_allowed(QStringLiteral("//patchy-test-nas/share/logo.png"), QString()));
+  CHECK(patchy::ui::network_link_server_display_name(QStringLiteral("nas")) ==
+        QDir::toNativeSeparators(QStringLiteral("//nas")));
+
+  // The dialog: Allow Server stores the server once, then rechecks every row on it.
+  {
+    std::vector<patchy::ui::MissingLinkEntry> entries(3);
+    for (int i = 0; i < 3; ++i) {
+      entries[static_cast<std::size_t>(i)].source_uuid = std::string(1, static_cast<char>('a' + i));
+      entries[static_cast<std::size_t>(i)].file_name = QStringLiteral("art%1.png").arg(i);
+      entries[static_cast<std::size_t>(i)].layer_names = {QStringLiteral("Layer %1").arg(i)};
+    }
+    entries[0].blocked_server = QStringLiteral("srv");
+    entries[1].blocked_server = QStringLiteral("srv");
+    entries[2].blocked_server = QStringLiteral("other");
+    QStringList allowed_calls;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("missingLinksDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      auto* server0 = dialog->findChild<QLabel*>(QStringLiteral("missingLinkServer0"));
+      CHECK(server0 != nullptr &&
+            server0->text().contains(patchy::ui::network_link_server_display_name(QStringLiteral("srv"))));
+      auto* allow0 = dialog->findChild<QPushButton*>(QStringLiteral("missingLinkAllowServerButton0"));
+      auto* allow1 = dialog->findChild<QPushButton*>(QStringLiteral("missingLinkAllowServerButton1"));
+      auto* allow2 = dialog->findChild<QPushButton*>(QStringLiteral("missingLinkAllowServerButton2"));
+      CHECK(allow0 != nullptr && allow1 != nullptr && allow2 != nullptr);
+      save_widget_artifact("ui_smart_object_missing_links_network_server", *dialog);
+      if (allow0 != nullptr) {
+        allow0->click();
+      }
+      CHECK(allow0 != nullptr && !allow0->isEnabled());
+      CHECK(allow1 != nullptr && !allow1->isEnabled());
+      CHECK(allow2 != nullptr && allow2->isEnabled());
+      CHECK(server0 != nullptr && server0->text().startsWith(QStringLiteral("Found on")));
+      auto* relink0 = dialog->findChild<QPushButton*>(QStringLiteral("missingLinkRelinkButton0"));
+      auto* relink1 = dialog->findChild<QPushButton*>(QStringLiteral("missingLinkRelinkButton1"));
+      CHECK(relink0 != nullptr && !relink0->isEnabled());
+      CHECK(relink1 != nullptr && relink1->isEnabled());
+      auto* server1 = dialog->findChild<QLabel*>(QStringLiteral("missingLinkServer1"));
+      CHECK(server1 != nullptr && server1->text().startsWith(QStringLiteral("Not found on")));
+      dialog->findChild<QPushButton*>(QStringLiteral("missingLinksContinueButton"))->click();
+    });
+    const auto result = patchy::ui::run_missing_links_dialog(
+        nullptr, entries, true,
+        [](const patchy::ui::MissingLinkEntry&) -> std::optional<QString> { return std::nullopt; },
+        [&allowed_calls](const QString& server) { allowed_calls.push_back(server); },
+        [](const patchy::ui::MissingLinkEntry& entry) { return entry.source_uuid == std::string("a"); });
+    CHECK(allowed_calls == QStringList{QStringLiteral("srv")});
+    CHECK(result.allowed_servers == QStringList{QStringLiteral("srv")});
+    CHECK(result.relinked == 0);
+  }
+}
+
+// Opening a PSD whose link names a server that is not allowed: the file is not looked for
+// there, the status bar names the server, and the Missing Linked Files dialog offers Allow
+// Server for the row.
+void ui_smart_object_open_reports_a_link_on_a_server_that_is_not_allowed() {
+  SettingsValueRestorer show_restorer(QStringLiteral("imports/showMissingLinksDialog"));
+  SettingsValueRestorer servers_restorer(QStringLiteral("imports/allowedLinkServers"));
+  const auto previous = patchy::ui::allowed_network_link_servers();
+  const auto restore = qScopeGuard([&previous] { patchy::ui::set_allowed_network_link_servers(previous); });
+  patchy::ui::set_allowed_network_link_servers({});
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingLinksDialog"), true);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  add_linked_test_document(window, 120, 90);
+  const auto dir = linked_test_dir(QStringLiteral("network-open"));
+  const auto art_path = write_linked_test_png(dir + QStringLiteral("/art.png"), QColor(200, 40, 40, 255));
+  patchy::ui::MainWindowTestAccess::place_linked_file_with_path(window, art_path);
+  QApplication::processEvents();
+  for (auto& block : patchy::ui::MainWindowTestAccess::document(window).metadata().smart_objects.blocks) {
+    for (auto& source : block.sources) {
+      if (source.kind == patchy::SmartObjectSourceKind::ExternalFile) {
+        source.filename = "patchy-network-only.png";
+        source.external_rel_path = "//patchy-test-nas/share/patchy-network-only.png";
+        source.external_original_path = "\\\\patchy-test-nas\\share\\patchy-network-only.png";
+        source.external_full_path = "file://patchy-test-nas/share/patchy-network-only.png";
+        source.dirty = true;
+      }
+    }
+  }
+  const auto psd_path = dir + QStringLiteral("/parent.psd");
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, psd_path));
+  CHECK(QFile::remove(art_path));
+
+  auto seen = std::make_shared<int>(0);
+  handle_missing_links_dialog(
+      [](QDialog& dialog) {
+        auto* allow = dialog.findChild<QPushButton*>(QStringLiteral("missingLinkAllowServerButton0"));
+        auto* server = dialog.findChild<QLabel*>(QStringLiteral("missingLinkServer0"));
+        CHECK(allow != nullptr && allow->isEnabled());
+        CHECK(server != nullptr && server->text().contains(QStringLiteral("patchy-test-nas")));
+        dialog.findChild<QPushButton*>(QStringLiteral("missingLinksContinueButton"))->click();
+      },
+      seen);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, psd_path);
+  process_events_for(100);
+  CHECK(*seen == 1);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("network server")));
+  CHECK(patchy::ui::allowed_network_link_servers().isEmpty());
+}
+
 // GitHub issue 257 follow-up: a successful relink makes the chosen file's folder the next relink
 // dialog's starting folder, for this app session only (a fresh window starts at the usual
 // folder; nothing is written to settings). A refused relink leaves it alone.
@@ -4047,6 +4204,9 @@ std::vector<patchy::test::TestCase> smart_object_tests() {
       {"ui_smart_object_relink_and_embed_linked_work", ui_smart_object_relink_and_embed_linked_work},
       {"ui_smart_object_missing_linked_files_dialog_lists_and_relinks",
        ui_smart_object_missing_linked_files_dialog_lists_and_relinks},
+      {"ui_smart_object_network_link_needs_an_allowed_server", ui_smart_object_network_link_needs_an_allowed_server},
+      {"ui_smart_object_open_reports_a_link_on_a_server_that_is_not_allowed",
+       ui_smart_object_open_reports_a_link_on_a_server_that_is_not_allowed},
       {"ui_unattended_open_skips_the_missing_links_dialog", ui_unattended_open_skips_the_missing_links_dialog},
       {"ui_smart_object_relink_remembers_folder_for_the_session",
        ui_smart_object_relink_remembers_folder_for_the_session},
