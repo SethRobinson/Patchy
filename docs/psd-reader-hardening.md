@@ -17,6 +17,10 @@ normal error (a truncated or damaged-file message), so the open fails cleanly:
 - `checked_pixel_count`/`checked_decode_bytes` form width x height x bytes in 64 bits and cap
   one image or plane at 2^36 pixels (2^28 on a 32-bit `size_t`, wasm32), so later `size_t`
   offsets up to 16 bytes per pixel cannot wrap.
+- `checked_buffer_bytes` forms a buffer length (count x element bytes) in 64 bits and caps it
+  at `kMaxBufferBytes` (PTRDIFF_MAX, 2 GiB - 1 on wasm32), so a product of file-supplied
+  counts can never wrap to a short buffer that later writes run past.
+  `kMaxBufferBytes32`/`kMaxDecodePixels32` model wasm32 in 64-bit tests.
 - Decoded bytes at file precision may exceed the encoded bytes behind them by at most
   1032:1 (deflate's ceiling, above PackBits, PCX and Radiance RLE), or fit the 64 MiB
   allowance (the PSD composite allows raw data no expansion). Honest damaged files pass; a
@@ -30,6 +34,11 @@ rectangle is skipped as damaged (counted in the damaged-row notice). The flat co
 the canvas buffer exists, for the flat path, saved channels and layered TIFF. Radiance HDR
 checks the resolution line, OpenEXR the data window, the tile grid and `chunkCount` (which
 tinyexr trusts for scanline files) before `LoadEXRImageFromMemory`, PCX its decoded size.
+Buffer lengths from file-supplied products go through `checked_buffer_bytes` in KRA (the tile
+buffer and the default-pixel canvas fill), Affinity (each channel plane, lazy placed planes
+too), XCF (`checked_float_plane`: the blur bake's padded copy and the clip-to-backdrop alpha
+plane), Paint.NET (a block's `length64`) and the camera-raw develop size check; the tests
+are named `*_32_bit_wraps` and run under wasm-core for the real 32-bit check.
 A `std::bad_alloc` during a PSD read becomes "There is not enough memory available to open
 this file." rather than a damaged channel.
 

@@ -4,6 +4,7 @@
 #include "core/layer.hpp"
 #include "formats/af_container_internal.hpp"
 #include "formats/af_tree.hpp"
+#include "support/decode_budget.hpp"
 
 #include <memory>
 #include <optional>
@@ -41,12 +42,15 @@ struct PlacedRaster {
 [[nodiscard]] std::optional<EmbeddedOriginal> decode_embedded_original(
     std::span<const std::uint8_t> bytes, const Container& container, const af::AfClass& dybm);
 
+// `max_plane_bytes` caps each channel plane's buffer (kMaxBufferBytes32 models wasm32): a
+// plane past it fails as an invalid tile layout.
 [[nodiscard]] std::optional<DecodedBitmap> decode_bitmap(std::span<const std::uint8_t> bytes,
                                                          const Container& container,
                                                          const af::AfClass& dybm,
                                                          const std::string& layer_name,
                                                          std::vector<std::string>* notices,
-                                                         std::string* fail_reason);
+                                                         std::string* fail_reason,
+                                                         std::uint64_t max_plane_bytes = kMaxBufferBytes);
 
 [[nodiscard]] std::optional<std::pair<std::int32_t, std::int32_t>> layer_origin(
     const std::vector<double>& xfrm);

@@ -82,6 +82,7 @@ namespace {
 
 using detail::ImportError;
 using detail::SizeLimitError;
+using detail::checked_float_plane;
 using detail::trace;
 
 constexpr std::int64_t kMaxSide = 300000;              // the PSB cap every importer shares
@@ -2213,7 +2214,8 @@ void bake_gaussian_blur(Layer& layer, const EffectRecord& effect, const PixelBuf
     return;
   }
   const bool linear_domain = format.bit_depth == BitDepth::Float32;
-  std::vector<float> rgba(static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4U, 0.0F);
+  // The padded layer can pass 2^30 pixels, whose RGBA floats wrap a 32-bit size_t.
+  std::vector<float> rgba(checked_float_plane(width, height, 4U), 0.0F);
   run_in_parallel(static_cast<std::size_t>(source.height()), [&](std::size_t row) {
     const auto y = static_cast<std::int32_t>(row);
     for (std::int32_t x = 0; x < source.width(); ++x) {
@@ -3369,8 +3371,8 @@ struct AlphaPlane {
   std::int32_t height{0};
   std::vector<float> alpha;
 
-  AlphaPlane(std::int32_t w, std::int32_t h)
-      : width(w), height(h), alpha(static_cast<std::size_t>(w) * static_cast<std::size_t>(h), 0.0F) {}
+  // The whole canvas (300000 a side, no area cap): sized in 64 bits, too large is refused.
+  AlphaPlane(std::int32_t w, std::int32_t h) : width(w), height(h), alpha(checked_float_plane(w, h, 1U), 0.0F) {}
   [[nodiscard]] float at(std::int32_t x, std::int32_t y) const noexcept {
     return x < 0 || y < 0 || x >= width || y >= height
                ? 0.0F

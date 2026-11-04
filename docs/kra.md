@@ -28,7 +28,11 @@ on Krita's own renders. Legal record: [patent-research-formats.md](patent-resear
 - Zip reading is the shared `formats::ZipEntryReader` (`zip_entry_reader.{hpp,cpp}`, also
   used by OpenRaster) with the OpenRaster limits ([ora.md](ora.md) "Limits"); every name
   read from the XML goes through `safe_zip_entry_path`. A pixel budget of 2^31 is taken from
-  the tile counts in file order before anything decodes; past it the file is refused.
+  the tile counts in file order before anything decodes; past it the file is refused. A
+  layer's decoded buffer (its tile bounds, or the canvas for a non-transparent default
+  pixel, `grow_to_canvas`) is sized through `checked_buffer_bytes`
+  ([psd-reader-hardening.md](psd-reader-hardening.md#decode-budget)): past it the layer opens
+  empty, named "(too large)" in the unreadable-layers notice.
 - `sniff` and `sniff_openable_image_format` look for `mimetypeapplication/x-krita` at byte 30.
 
 ## maindoc.xml

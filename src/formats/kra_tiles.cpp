@@ -313,11 +313,17 @@ std::optional<RawImage> read_tiles(std::span<const std::uint8_t> file, int expec
     reason = "too large";
     return std::nullopt;
   }
+  // 2^28 pixels of 16 or 20 bytes wrap a 32-bit size_t: size the buffer in 64 bits.
+  const auto data_bytes = checked_buffer_bytes(pixels, static_cast<std::uint64_t>(pixel_bytes), limits.max_bytes);
+  if (!data_bytes.has_value()) {
+    reason = "too large";
+    return std::nullopt;
+  }
   pixel_budget -= pixels;
   image.bounds = Rect{static_cast<std::int32_t>(left), static_cast<std::int32_t>(top),
                       static_cast<std::int32_t>(width), static_cast<std::int32_t>(height)};
   const auto pb = static_cast<std::size_t>(pixel_bytes);
-  image.data.resize(static_cast<std::size_t>(pixels) * pb);
+  image.data.resize(*data_bytes);
   // Fill with the default pixel first: gaps between stored tiles show it.
   if (image.default_is_transparent) {
     std::fill(image.data.begin(), image.data.end(), std::uint8_t{0});
@@ -358,6 +364,45 @@ std::optional<RawImage> read_tiles(std::span<const std::uint8_t> file, int expec
     }
   }
   return image;
+}
+
+std::optional<RawImage> grow_to_canvas(const RawImage& raw, std::int32_t canvas_width, std::int32_t canvas_height,
+                                       std::uint64_t max_bytes) {
+  const bool has_tiles = raw.bounds.width > 0 && raw.bounds.height > 0;
+  const std::int64_t left = std::min<std::int64_t>(has_tiles ? raw.bounds.x : 0, 0);
+  const std::int64_t top = std::min<std::int64_t>(has_tiles ? raw.bounds.y : 0, 0);
+  const std::int64_t right =
+      std::max<std::int64_t>(has_tiles ? std::int64_t{raw.bounds.x} + raw.bounds.width : 0, canvas_width);
+  const std::int64_t bottom =
+      std::max<std::int64_t>(has_tiles ? std::int64_t{raw.bounds.y} + raw.bounds.height : 0, canvas_height);
+  const auto pixels = checked_pixel_count(right - left, bottom - top);
+  const auto pb = static_cast<std::size_t>(raw.pixel_bytes);
+  const auto bytes = pixels.has_value() ? checked_buffer_bytes(*pixels, pb, max_bytes) : std::nullopt;
+  if (!bytes.has_value() || right - left > std::numeric_limits<std::int32_t>::max() ||
+      bottom - top > std::numeric_limits<std::int32_t>::max() || raw.default_pixel.size() != pb) {
+    return std::nullopt;
+  }
+  RawImage grown;
+  grown.pixel_bytes = raw.pixel_bytes;
+  grown.default_pixel = raw.default_pixel;
+  grown.default_is_transparent = false;
+  grown.bounds = Rect{static_cast<std::int32_t>(left), static_cast<std::int32_t>(top),
+                      static_cast<std::int32_t>(right - left), static_cast<std::int32_t>(bottom - top)};
+  grown.data.resize(*bytes);
+  for (std::size_t p = 0; p < grown.data.size(); p += pb) {
+    std::memcpy(grown.data.data() + p, raw.default_pixel.data(), pb);
+  }
+  if (has_tiles) {
+    const auto grown_width = static_cast<std::size_t>(grown.bounds.width);
+    for (std::int32_t y = 0; y < raw.bounds.height; ++y) {
+      std::memcpy(grown.data.data() + (static_cast<std::size_t>(raw.bounds.y - top + y) * grown_width +
+                                       static_cast<std::size_t>(raw.bounds.x - left)) *
+                                          pb,
+                  raw.data.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(raw.bounds.width) * pb,
+                  static_cast<std::size_t>(raw.bounds.width) * pb);
+    }
+  }
+  return grown;
 }
 
 }  // namespace detail

@@ -3,6 +3,7 @@
 #include "formats/raw_tone.hpp"
 
 #include "libraw/libraw.h"
+#include "support/decode_budget.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -473,9 +474,12 @@ DevelopSession::DevelopedImage DevelopSession::develop(const DevelopParams& requ
   image.processing_version = params.processing_version;
   image.profile = params.profile;
   report(95);
-  const auto pixel_count = static_cast<std::size_t>(image.width) * static_cast<std::size_t>(image.height);
+  // In 64 bits: the size_t product wraps on wasm32 and would pass a short image.
+  const auto pixel_count = checked_pixel_count(image.width, image.height);
   const auto channel_count = static_cast<std::size_t>(processed->colors);
-  if (processed->data_size < pixel_count * channel_count * 2) {
+  const auto sample_count = pixel_count.has_value() ? checked_multiply(*pixel_count, channel_count) : std::nullopt;
+  const auto sample_bytes = sample_count.has_value() ? checked_buffer_bytes(*sample_count, 2U) : std::nullopt;
+  if (!sample_bytes.has_value() || processed->data_size < *sample_bytes) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Camera raw develop failed: decoder returned a short image"));
   }
   // libraw_processed_image_t's data payload starts 2-byte aligned (fixed 16-byte header).
@@ -504,7 +508,8 @@ DevelopSession::DevelopedImage DevelopSession::develop(const DevelopParams& requ
       params.half_size ? (impl_->info.output_width + 1) / 2 : impl_->info.output_width;
   image.output_height = options.quality == DevelopQuality::Final ? image.height :
       params.half_size ? (impl_->info.output_height + 1) / 2 : impl_->info.output_height;
-  image.rgb.resize(static_cast<std::size_t>(image.width) * image.height * 3);
+  // The samples checked above fit one buffer, so width x height x 3 cannot wrap size_t.
+  image.rgb.resize(static_cast<std::size_t>(image.width) * static_cast<std::size_t>(image.height) * 3U);
   for (int y = 0; y < image.height; ++y) {
     if (options.cancelled && options.cancelled()) throw DevelopCancelled{};
     report(95 + 4 * y / image.height);

@@ -1118,27 +1118,13 @@ void decode_paint_layers(std::vector<Node>& nodes, BitDepth depth, ReadState& st
     if (!raw.default_is_transparent) {
       // A non-transparent default pixel fills the whole layer (Krita's white Background):
       // cover the canvas as well as the stored tiles.
-      const auto left = std::min(raw.bounds.width > 0 ? raw.bounds.x : 0, 0);
-      const auto top = std::min(raw.bounds.height > 0 ? raw.bounds.y : 0, 0);
-      const auto right = std::max(raw.bounds.width > 0 ? raw.bounds.x + raw.bounds.width : 0, state.width);
-      const auto bottom = std::max(raw.bounds.height > 0 ? raw.bounds.y + raw.bounds.height : 0, state.height);
-      RawImage grown;
-      grown.pixel_bytes = raw.pixel_bytes;
-      grown.default_pixel = raw.default_pixel;
-      grown.default_is_transparent = false;
-      grown.bounds = Rect{left, top, right - left, bottom - top};
-      const auto pb = static_cast<std::size_t>(raw.pixel_bytes);
-      grown.data.resize(static_cast<std::size_t>(grown.bounds.width) * grown.bounds.height * pb);
-      for (std::size_t p = 0; p < grown.data.size(); p += pb) {
-        std::memcpy(grown.data.data() + p, raw.default_pixel.data(), pb);
+      auto grown = grow_to_canvas(raw, state.width, state.height);
+      if (!grown.has_value()) {
+        node.raw.reset();
+        add_unique(state.unreadable, node.name + " (too large)");
+        continue;
       }
-      for (std::int32_t y = 0; y < raw.bounds.height; ++y) {
-        std::memcpy(grown.data.data() +
-                        (static_cast<std::size_t>(raw.bounds.y - top + y) * grown.bounds.width + (raw.bounds.x - left)) * pb,
-                    raw.data.data() + static_cast<std::size_t>(y) * raw.bounds.width * pb,
-                    static_cast<std::size_t>(raw.bounds.width) * pb);
-      }
-      raw = std::move(grown);
+      raw = std::move(*grown);
       node.covers_canvas = node.source.space.model != ColorModel::Unsupported &&
                            raw.default_pixel.size() == static_cast<std::size_t>(raw.pixel_bytes) &&
                            default_alpha_is_full(raw.default_pixel, node.source.space);

@@ -149,6 +149,7 @@ struct LayerSpec {
   std::string blend_op{"Normal"};  // the BitmapLayerProperties blendOp class suffix
   std::vector<std::uint8_t> bgra;  // stride * height bytes
   std::int32_t stride{0};          // 0: width * 4
+  std::int64_t declared_length{-1};  // >= 0: the MemoryBlock's length64 instead of bgra.size()
 };
 
 struct PdnSpec {
@@ -345,7 +346,7 @@ inline std::vector<std::uint8_t> build_graph(const PdnSpec& spec) {
       } else {
         w.class_with_id(base + 5, block_meta);
       }
-      w.i64(static_cast<std::int64_t>(layer.bgra.size()));
+      w.i64(layer.declared_length >= 0 ? layer.declared_length : static_cast<std::int64_t>(layer.bgra.size()));
       w.u8(0);
       w.u8(1);
       block_order.push_back(i);

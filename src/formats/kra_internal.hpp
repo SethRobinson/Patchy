@@ -8,6 +8,7 @@
 #include "core/layer.hpp"
 #include "core/pixel_buffer.hpp"
 #include "core/vector_shape.hpp"
+#include "support/decode_budget.hpp"
 
 #include <cstdint>
 #include <map>
@@ -51,6 +52,7 @@ struct RawImage {
 struct TileReadLimits {
   std::int64_t max_side{300000};
   std::uint64_t max_pixels{1ULL << 28};
+  std::uint64_t max_bytes{kMaxBufferBytes};  // the decoded buffer (kMaxBufferBytes32 models wasm32)
 };
 
 // Reads one tile file ("VERSION 2", the TILEWIDTH/TILEHEIGHT/PIXELSIZE/DATA header, then
@@ -61,6 +63,14 @@ struct TileReadLimits {
                                                  std::vector<std::uint8_t> default_pixel, std::int32_t offset_x,
                                                  std::int32_t offset_y, const TileReadLimits& limits,
                                                  std::uint64_t& pixel_budget, std::string& reason);
+
+// `raw` grown to cover the canvas (0, 0, canvas_width, canvas_height) as well as its stored
+// tiles, the new area holding the default pixel: a layer whose default pixel is not
+// transparent (Krita's white Background) covers the whole canvas. Nullopt when the grown
+// buffer would pass `max_bytes` (kMaxBufferBytes32 models wasm32).
+[[nodiscard]] std::optional<RawImage> grow_to_canvas(const RawImage& raw, std::int32_t canvas_width,
+                                                     std::int32_t canvas_height,
+                                                     std::uint64_t max_bytes = kMaxBufferBytes);
 
 // A filter or fill layer's settings (".filterconfig": a <params> list of named values).
 struct FilterConfig {

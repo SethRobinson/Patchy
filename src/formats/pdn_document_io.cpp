@@ -9,6 +9,7 @@
 #include "formats/nrbf_reader.hpp"
 #include "formats/stb/stb_image.h"
 #include "support/byte_order.hpp"
+#include "support/decode_budget.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -522,6 +523,11 @@ struct BlockData {
     total += block.length;
     if (total > kMaxTotalPixelBytes) {
       throw SizeLimitError("the layers are larger than the total pixel limit");
+    }
+    // decode_block sizes one buffer of `length` bytes: past 4 GiB the size_t cast truncates on
+    // wasm32 and the chunk writes run off its end (and no buffer there holds over 2 GiB).
+    if (!checked_buffer_bytes(block.length, 1U).has_value()) {
+      throw SizeLimitError("a pixel block is larger than one buffer can hold");
     }
     if (!deferred) {
       // Inline data: the first byte array member that covers the block.
