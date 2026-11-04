@@ -19402,6 +19402,34 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
         <translation>Sonstige</translation>
     </message>
+    <message>
+        <source>Favorites</source>
+        <translation>Favoriten</translation>
+    </message>
+    <message>
+        <source>No favorites yet. Click the star beside a font to add it.</source>
+        <translation>Noch keine Favoriten. Klicken Sie auf den Stern neben einer Schrift, um sie hinzuzufügen.</translation>
+    </message>
+    <message>
+        <source>No favorite fonts match the search or filters.</source>
+        <translation>Keine Favoriten passen zur Suche oder zu den Filtern.</translation>
+    </message>
+    <message>
+        <source>Remove from Recent</source>
+        <translation>Aus „Zuletzt verwendet“ entfernen</translation>
+    </message>
+    <message>
+        <source>Remove from favorites</source>
+        <translation>Aus Favoriten entfernen</translation>
+    </message>
+    <message>
+        <source>Add to favorites</source>
+        <translation>Zu Favoriten hinzufügen</translation>
+    </message>
+    <message>
+        <source>Show only favorite fonts</source>
+        <translation>Nur Lieblingsschriften anzeigen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

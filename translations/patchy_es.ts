@@ -19402,6 +19402,34 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
         <translation>Otras</translation>
     </message>
+    <message>
+        <source>Favorites</source>
+        <translation>Favoritos</translation>
+    </message>
+    <message>
+        <source>No favorites yet. Click the star beside a font to add it.</source>
+        <translation>Aún no hay favoritos. Haga clic en la estrella junto a una fuente para añadirla.</translation>
+    </message>
+    <message>
+        <source>No favorite fonts match the search or filters.</source>
+        <translation>Ninguna fuente favorita coincide con la búsqueda o los filtros.</translation>
+    </message>
+    <message>
+        <source>Remove from Recent</source>
+        <translation>Quitar de recientes</translation>
+    </message>
+    <message>
+        <source>Remove from favorites</source>
+        <translation>Quitar de favoritos</translation>
+    </message>
+    <message>
+        <source>Add to favorites</source>
+        <translation>Añadir a favoritos</translation>
+    </message>
+    <message>
+        <source>Show only favorite fonts</source>
+        <translation>Mostrar solo fuentes favoritas</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

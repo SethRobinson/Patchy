@@ -19385,6 +19385,34 @@ Each item&apos;s own View setting still applies.</source>
         <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Favorites</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No favorites yet. Click the star beside a font to add it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No favorite fonts match the search or filters.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove from Recent</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove from favorites</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add to favorites</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show only favorite fonts</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

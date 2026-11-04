@@ -29,7 +29,7 @@ Related documents:
 - Dynamic Vector Preview keeps shapes and vector masks sharp at any zoom. Merge Layers keeps vectors and bitmap runs apart, merges within groups or makes a merged copy (Ctrl+Alt+E: selected layers only). Merge Visible bakes a layer's mask or effects
 - Trace Image to Shapes: turns a pixel layer into editable shape layers, one per color, with presets, color, gray and black-and-white modes, abutting or overlapping shapes, noise removal, live preview
 - Point text, paragraph (box) text and area text that flows inside a closed shape or path, saved as native Photoshop text frames
-- Rich text with per-run color, font, size and style, a searchable font picker (recent fonts, style/language filters), stand-ins for missing fonts, and Character controls (leading, tracking, glyph scale, caps, super/subscript, underline, strikethrough, OpenType features) that edit selected layers
+- Rich text with per-run color, font, size and style, a searchable font picker (recent fonts you can remove one by one, favorite fonts with a Favorites-only view, style/language filters), stand-ins for missing fonts, and Character controls (leading, tracking, glyph scale, caps, super/subscript, underline, strikethrough, OpenType features) that edit selected layers
 - Paragraph alignment and justification, first-line and left/right indents, spacing before and after paragraphs, vertical text, and left-to-right or right-to-left paragraphs
 - Type > Convert to Shape and Create Work Path turn any text, warped too, into vector outlines
 

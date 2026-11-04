@@ -19356,6 +19356,34 @@ Each item&apos;s own View setting still applies.</source>
         <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
         <translation>기타</translation>
     </message>
+    <message>
+        <source>Favorites</source>
+        <translation>즐겨찾기</translation>
+    </message>
+    <message>
+        <source>No favorites yet. Click the star beside a font to add it.</source>
+        <translation>아직 즐겨찾기가 없습니다. 글꼴 옆의 별을 클릭하면 추가됩니다.</translation>
+    </message>
+    <message>
+        <source>No favorite fonts match the search or filters.</source>
+        <translation>검색이나 필터와 일치하는 즐겨찾기 글꼴이 없습니다.</translation>
+    </message>
+    <message>
+        <source>Remove from Recent</source>
+        <translation>최근 사용에서 제거</translation>
+    </message>
+    <message>
+        <source>Remove from favorites</source>
+        <translation>즐겨찾기에서 제거</translation>
+    </message>
+    <message>
+        <source>Add to favorites</source>
+        <translation>즐겨찾기에 추가</translation>
+    </message>
+    <message>
+        <source>Show only favorite fonts</source>
+        <translation>즐겨찾기 글꼴만 표시</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

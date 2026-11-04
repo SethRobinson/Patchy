@@ -149,6 +149,41 @@ void record_recent_font_family(const QString& family) {
   settings.setValue(QString::fromLatin1(kFontPickerRecentFamiliesKey), families.mid(0, kMaxRecentFontFamilies));
 }
 
+void remove_recent_font_family(const QString& family) {
+  auto families = stored_recent_font_families();
+  if (families.removeAll(family) == 0) {
+    return;
+  }
+  auto settings = app_settings();
+  settings.setValue(QString::fromLatin1(kFontPickerRecentFamiliesKey), families);
+}
+
+QStringList stored_favorite_font_families() {
+  auto families = app_settings().value(QString::fromLatin1(kFontPickerFavoriteFamiliesKey)).toStringList();
+  families.removeAll(QString());
+  families.removeDuplicates();
+  return families;
+}
+
+bool set_favorite_font_family(const QString& family, bool favorite) {
+  if (family.trimmed().isEmpty()) {
+    return false;
+  }
+  auto families = stored_favorite_font_families();
+  const bool present = families.contains(family);
+  if (present == favorite) {
+    return favorite;
+  }
+  if (favorite) {
+    families.append(family);
+  } else {
+    families.removeAll(family);
+  }
+  auto settings = app_settings();
+  settings.setValue(QString::fromLatin1(kFontPickerFavoriteFamiliesKey), families);
+  return favorite;
+}
+
 FontStyleIndex& FontStyleIndex::instance() {
   static FontStyleIndex index;
   return index;

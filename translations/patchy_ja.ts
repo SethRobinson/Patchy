@@ -19356,6 +19356,34 @@ Each item&apos;s own View setting still applies.</source>
         <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
         <translation>その他</translation>
     </message>
+    <message>
+        <source>Favorites</source>
+        <translation>お気に入り</translation>
+    </message>
+    <message>
+        <source>No favorites yet. Click the star beside a font to add it.</source>
+        <translation>お気に入りはまだありません。フォントの横の星をクリックすると追加されます。</translation>
+    </message>
+    <message>
+        <source>No favorite fonts match the search or filters.</source>
+        <translation>検索またはフィルターに一致するお気に入りのフォントはありません。</translation>
+    </message>
+    <message>
+        <source>Remove from Recent</source>
+        <translation>最近使用したフォントから削除</translation>
+    </message>
+    <message>
+        <source>Remove from favorites</source>
+        <translation>お気に入りから削除</translation>
+    </message>
+    <message>
+        <source>Add to favorites</source>
+        <translation>お気に入りに追加</translation>
+    </message>
+    <message>
+        <source>Show only favorite fonts</source>
+        <translation>お気に入りのフォントだけを表示</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>
