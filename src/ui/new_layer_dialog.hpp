@@ -32,10 +32,11 @@ struct NewLayerSettings {
   std::optional<NeutralFillColor> neutral_fill;
 };
 
-// One Color entry, in LayerColorLabel order (None first, no swatch).
+// One Color entry, listed in the order given (the Layer Color menu's: None first, no swatch).
 struct NewLayerColorChoice {
   QString name;
   QIcon swatch;
+  LayerColorLabel label{kLayerColorNone};
 };
 
 // The New Layer dialog (objectName newLayerDialog). `clip_available` enables "Use Previous

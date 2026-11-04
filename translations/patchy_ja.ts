@@ -19168,6 +19168,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Recent Folder</source>
         <translation>最近使ったフォルダー</translation>
     </message>
+    <message>
+        <source>Tag the layer seafoam in the Layers panel</source>
+        <translation>レイヤーパネルでレイヤーをシーフォームでタグ付け</translation>
+    </message>
+    <message>
+        <source>Tag the layer indigo in the Layers panel</source>
+        <translation>レイヤーパネルでレイヤーをインディゴでタグ付け</translation>
+    </message>
+    <message>
+        <source>Tag the layer magenta in the Layers panel</source>
+        <translation>レイヤーパネルでレイヤーをマゼンタでタグ付け</translation>
+    </message>
+    <message>
+        <source>Tag the layer fuchsia in the Layers panel</source>
+        <translation>レイヤーパネルでレイヤーをフューシャでタグ付け</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32375,6 +32391,18 @@ Locked: %1</source>
     <message>
         <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
         <translation>オンのとき、ツールグループの文字キーはグループの最初のツールを選択し、Shift と文字キーでグループ内を順に切り替えます。オフのとき、文字キーをもう一度押すとグループの次のツールに切り替わります。</translation>
+    </message>
+    <message>
+        <source>Seafoam</source>
+        <translation>シーフォーム</translation>
+    </message>
+    <message>
+        <source>Indigo</source>
+        <translation>インディゴ</translation>
+    </message>
+    <message>
+        <source>Fuchsia</source>
+        <translation>フューシャ</translation>
     </message>
 </context>
 <context>

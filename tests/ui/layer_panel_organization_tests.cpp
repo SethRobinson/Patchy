@@ -3097,15 +3097,16 @@ void ui_layer_color_labels_menu_undo_and_row_strip() {
     QApplication::processEvents();
   };
 
-  // Layer > Color: None, a separator, then the seven colors in Photoshop's order.
+  // Layer > Color: None, a separator, then the eleven colors in Photoshop's hue order (#635).
   auto* color_menu = window.findChild<QMenu*>(QStringLiteral("layerColorMenu"));
   CHECK(color_menu != nullptr);
   CHECK(color_menu->menuAction()->menuRole() == QAction::NoRole);
-  const std::array<const char*, 8> names{{"layerColorNoneAction", "layerColorRedAction", "layerColorOrangeAction",
-                                          "layerColorYellowAction", "layerColorGreenAction", "layerColorBlueAction",
-                                          "layerColorVioletAction", "layerColorGrayAction"}};
+  const std::array<const char*, 12> names{{"layerColorNoneAction", "layerColorRedAction", "layerColorOrangeAction",
+                                           "layerColorYellowAction", "layerColorGreenAction", "layerColorSeafoamAction",
+                                           "layerColorBlueAction", "layerColorIndigoAction", "layerColorMagentaAction",
+                                           "layerColorFuchsiaAction", "layerColorVioletAction", "layerColorGrayAction"}};
   const auto actions = color_menu->actions();
-  CHECK(actions.size() == 9);
+  CHECK(actions.size() == 13);
   CHECK(actions[1]->isSeparator());
   for (std::size_t index = 0; index < names.size(); ++index) {
     auto* action = actions[static_cast<qsizetype>(index == 0 ? 0 : index + 1)];
@@ -3193,8 +3194,163 @@ void ui_layer_color_labels_menu_undo_and_row_strip() {
   CHECK(label_of("Background") == patchy::kLayerColorBlue);
 }
 
+// GitHub issue 635: Photoshop 2024's Seafoam, Indigo, Magenta and Fuchsia (lclr 8 to 11) show
+// as row strips in their theme roles, check in Layer > Color, and can be set; an index past
+// them still shows as no color.
+void ui_layer_color_labels_photoshop_2024_colors() {
+  struct Entry {
+    const char* name;
+    patchy::LayerColorLabel label;
+    const char* id;
+    const char* action;
+    QColor patchy::ui::ThemePalette::* role;
+  };
+  const std::array<Entry, 4> entries{{
+      {"Seafoam", patchy::kLayerColorSeafoam, "seafoam", "layerColorSeafoamAction",
+       &patchy::ui::ThemePalette::layer_color_seafoam},
+      {"Indigo", patchy::kLayerColorIndigo, "indigo", "layerColorIndigoAction",
+       &patchy::ui::ThemePalette::layer_color_indigo},
+      {"Magenta", patchy::kLayerColorMagenta, "magenta", "layerColorMagentaAction",
+       &patchy::ui::ThemePalette::layer_color_magenta},
+      {"Fuchsia", patchy::kLayerColorFuchsia, "fuchsia", "layerColorFuchsiaAction",
+       &patchy::ui::ThemePalette::layer_color_fuchsia},
+  }};
+  patchy::Document document(96, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(96, 64, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  for (const auto& entry : entries) {
+    document.add_pixel_layer(entry.name, solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(60, 60, 60)))
+        .set_color_label(entry.label);
+  }
+  document.add_pixel_layer("Future", solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(60, 60, 60)))
+      .set_color_label(12U);
+  auto&& [window, canvas] = ShownWindowFixture{};
+  window.add_document_session(std::move(document), QStringLiteral("Photoshop 2024 Colors"));
+  QApplication::processEvents();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* color_menu = window.findChild<QMenu*>(QStringLiteral("layerColorMenu"));
+  CHECK(color_menu != nullptr);
+  if (layer_list == nullptr || color_menu == nullptr) {
+    return;
+  }
+  const auto& doc = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  const auto row_of = [&](const char* name) {
+    return layer_list->itemWidget(require_layer_item(*layer_list, QString::fromLatin1(name)));
+  };
+  const auto label_of = [&](const char* name) {
+    const auto found = std::find_if(doc.layers().begin(), doc.layers().end(),
+                                    [&](const patchy::Layer& layer) { return layer.name() == name; });
+    CHECK(found != doc.layers().end());
+    return found != doc.layers().end() ? found->color_label() : patchy::LayerColorLabel{0xffffU};
+  };
+  const auto select_only = [&](const char* name) {
+    layer_list->clearSelection();
+    auto* item = require_layer_item(*layer_list, QString::fromLatin1(name));
+    layer_list->setCurrentItem(item);
+    item->setSelected(true);
+    QApplication::processEvents();
+  };
+  for (const auto& entry : entries) {
+    auto* row = row_of(entry.name);
+    CHECK(row != nullptr);
+    auto* strip = row != nullptr ? row->findChild<QWidget*>(QStringLiteral("layerRowColorStrip")) : nullptr;
+    CHECK(strip != nullptr);
+    if (strip == nullptr) {
+      continue;
+    }
+    CHECK(strip->property("layerColor").toString() == QLatin1String(entry.id));
+    const auto row_image = row->grab().toImage();
+    const auto painted = row_image.pixelColor(QPoint(1, row->height() / 2) * row_image.devicePixelRatio());
+    CHECK(painted.rgb() == (patchy::ui::theme().*entry.role).rgb());
+    // The menu checks the selected layer's color.
+    select_only(entry.name);
+    emit color_menu->aboutToShow();
+    CHECK(require_action(window, entry.action)->isChecked());
+    CHECK(!require_action(window, "layerColorNoneAction")->isChecked());
+  }
+  // An index past Fuchsia keeps its value but shows no strip and checks None.
+  auto* future_row = row_of("Future");
+  CHECK(future_row != nullptr &&
+        future_row->findChild<QWidget*>(QStringLiteral("layerRowColorStrip")) == nullptr);
+  select_only("Future");
+  emit color_menu->aboutToShow();
+  CHECK(require_action(window, "layerColorNoneAction")->isChecked());
+  CHECK(label_of("Future") == 12U);
+
+  // Each new action sets its label as one undo step.
+  for (const auto& entry : entries) {
+    select_only("Future");
+    const auto undo_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+    require_action(window, entry.action)->trigger();
+    QApplication::processEvents();
+    CHECK(label_of("Future") == entry.label);
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth + 1);
+    auto* row = row_of("Future");
+    auto* strip = row != nullptr ? row->findChild<QWidget*>(QStringLiteral("layerRowColorStrip")) : nullptr;
+    CHECK(strip != nullptr && strip->property("layerColor").toString() == QLatin1String(entry.id));
+  }
+}
+
+// GitHub issue 635's after shot: one layer per color in the Layers panel beside the open
+// Layer > Color menu (artifacts issue635_layers_panel, issue635_color_menu, issue635_after).
+void ui_layer_color_labels_issue_shots() {
+  const std::array<std::pair<const char*, patchy::LayerColorLabel>, 11> layers{{
+      {"Gray", patchy::kLayerColorGray},       {"Violet", patchy::kLayerColorViolet},
+      {"Fuchsia", patchy::kLayerColorFuchsia}, {"Magenta", patchy::kLayerColorMagenta},
+      {"Indigo", patchy::kLayerColorIndigo},   {"Blue", patchy::kLayerColorBlue},
+      {"Seafoam", patchy::kLayerColorSeafoam}, {"Green", patchy::kLayerColorGreen},
+      {"Yellow", patchy::kLayerColorYellow},   {"Orange", patchy::kLayerColorOrange},
+      {"Red", patchy::kLayerColorRed},
+  }};
+  patchy::Document document(240, 160, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(240, 160, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  for (const auto& [name, label] : layers) {
+    document.add_pixel_layer(name, solid_pixels(240, 160, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)))
+        .set_color_label(label);
+  }
+  auto&& [window, canvas] = ShownWindowFixture{};
+  window.resize(1280, 1000);
+  window.add_document_session(std::move(document), QStringLiteral("Layer Colors"));
+  QApplication::processEvents();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* panel = window.findChild<QWidget*>(QStringLiteral("layersPanel"));
+  auto* color_menu = window.findChild<QMenu*>(QStringLiteral("layerColorMenu"));
+  CHECK(layer_list != nullptr && panel != nullptr && color_menu != nullptr);
+  if (layer_list == nullptr || panel == nullptr || color_menu == nullptr) {
+    return;
+  }
+  layer_list->clearSelection();
+  auto* item = require_layer_item(*layer_list, QStringLiteral("Indigo"));
+  layer_list->setCurrentItem(item);
+  item->setSelected(true);
+  QApplication::processEvents();
+  auto panel_image = capture_widget_artifact("issue635_layers_panel", *panel);
+  color_menu->popup(window.mapToGlobal(QPoint(40, 40)));
+  QApplication::processEvents();
+  CHECK(color_menu->isVisible());
+  auto menu_image = capture_widget_artifact("issue635_color_menu", *color_menu);
+  color_menu->close();
+  QApplication::processEvents();
+  CHECK(!panel_image.isNull() && !menu_image.isNull());
+  if (panel_image.isNull() || menu_image.isNull()) {
+    return;
+  }
+  // Side by side: the menu, then the panel, on the window background.
+  constexpr int kGap = 12;
+  panel_image.setDevicePixelRatio(1.0);
+  menu_image.setDevicePixelRatio(1.0);
+  QImage sheet(menu_image.width() + panel_image.width() + kGap * 3,
+               std::max(menu_image.height(), panel_image.height()) + kGap * 2, QImage::Format_ARGB32_Premultiplied);
+  sheet.fill(patchy::ui::theme().window_bg);
+  QPainter painter(&sheet);
+  painter.drawImage(kGap, kGap, menu_image);
+  painter.drawImage(menu_image.width() + kGap * 2, kGap, panel_image);
+  painter.end();
+  CHECK(sheet.save(QString::fromStdString((std::filesystem::path("test-artifacts") / "issue635_after.png").string())));
+}
+
 // GitHub issue 276: a right-click on a row's eye opens Photoshop's short color menu (None,
-// then the seven colors: the Layer > Color actions) instead of the layer menu. It labels
+// then the eleven colors: the Layer > Color actions) instead of the layer menu. It labels
 // the selected layers in one undo step; an unselected row's eye selects that row first.
 void ui_layer_eye_right_click_opens_color_menu() {
   patchy::Document document(96, 64, patchy::PixelFormat::rgba8());
@@ -3285,7 +3441,9 @@ void ui_layer_eye_right_click_opens_color_menu() {
                                     QStringLiteral("layerColorNoneAction"), QStringLiteral("-"),
                                     QStringLiteral("layerColorRedAction"), QStringLiteral("layerColorOrangeAction"),
                                     QStringLiteral("layerColorYellowAction"), QStringLiteral("layerColorGreenAction"),
-                                    QStringLiteral("layerColorBlueAction"), QStringLiteral("layerColorVioletAction"),
+                                    QStringLiteral("layerColorSeafoamAction"), QStringLiteral("layerColorBlueAction"),
+                                    QStringLiteral("layerColorIndigoAction"), QStringLiteral("layerColorMagentaAction"),
+                                    QStringLiteral("layerColorFuchsiaAction"), QStringLiteral("layerColorVioletAction"),
                                     QStringLiteral("layerColorGrayAction")}));
   CHECK(label_of("Top") == patchy::kLayerColorRed);
   CHECK(label_of("Middle") == patchy::kLayerColorRed);
@@ -7157,6 +7315,8 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_panel_footer_buttons_outline_only_on_hover", ui_panel_footer_buttons_outline_only_on_hover},
       {"ui_layer_color_labels_menu_undo_and_row_strip", ui_layer_color_labels_menu_undo_and_row_strip},
       {"ui_layer_eye_right_click_opens_color_menu", ui_layer_eye_right_click_opens_color_menu},
+      {"ui_layer_color_labels_photoshop_2024_colors", ui_layer_color_labels_photoshop_2024_colors},
+      {"ui_layer_color_labels_issue_shots", ui_layer_color_labels_issue_shots},
       {"ui_issue_244_sample_layers_panel_shots_if_available",
        ui_issue_244_sample_layers_panel_shots_if_available},
       {"ui_issue_246_sample_prevent_auto_nesting_if_available",

@@ -1695,9 +1695,10 @@ void MainWindow::add_layer_with_dialog() {
     anchor_id = selected_ids.front();
   }
   std::vector<NewLayerColorChoice> colors;
-  for (auto* action : layer_color_actions_) {
+  for (const auto label : kLayerColorMenuOrder) {
+    const auto* action = layer_color_actions_[label];
     colors.push_back({action != nullptr ? action->text().remove(QLatin1Char('&')) : QString(),
-                      action != nullptr ? action->icon() : QIcon()});
+                      action != nullptr ? action->icon() : QIcon(), label});
   }
   const auto settings = request_new_layer_settings(this, default_new_layer_name(doc),
                                                    new_layer_has_clip_base(doc, anchor_id),
@@ -3455,6 +3456,10 @@ void MainWindow::populate_layer_color_actions(QMenu* menu) {
         {QT_TR_NOOP("Blue"), "layerColorBlueAction", "layer.color_blue", &ThemePalette::layer_color_blue},
         {QT_TR_NOOP("Violet"), "layerColorVioletAction", "layer.color_violet", &ThemePalette::layer_color_violet},
         {QT_TR_NOOP("Gray"), "layerColorGrayAction", "layer.color_gray", &ThemePalette::layer_color_gray},
+        {QT_TR_NOOP("Seafoam"), "layerColorSeafoamAction", "layer.color_seafoam", &ThemePalette::layer_color_seafoam},
+        {QT_TR_NOOP("Indigo"), "layerColorIndigoAction", "layer.color_indigo", &ThemePalette::layer_color_indigo},
+        {QT_TR_NOOP("Magenta"), "layerColorMagentaAction", "layer.color_magenta", &ThemePalette::layer_color_magenta},
+        {QT_TR_NOOP("Fuchsia"), "layerColorFuchsiaAction", "layer.color_fuchsia", &ThemePalette::layer_color_fuchsia},
     }};
     // Optional exclusivity: a mixed selection checks nothing.
     auto* group = new QActionGroup(this);
@@ -3483,9 +3488,11 @@ void MainWindow::populate_layer_color_actions(QMenu* menu) {
       layer_color_actions_[index] = action;
     }
   }
-  for (auto* action : layer_color_actions_) {
+  // Hue order (kLayerColorMenuOrder), not index order: Photoshop 2024 appended 8..11.
+  for (const auto label : kLayerColorMenuOrder) {
+    auto* action = layer_color_actions_[label];
     menu->addAction(action);
-    if (action == layer_color_actions_.front()) {
+    if (label == kLayerColorNone) {
       menu->addSeparator();
     }
   }

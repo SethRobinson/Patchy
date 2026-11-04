@@ -1162,6 +1162,45 @@ void psd_issue_244_sample_layer_colors_if_available() {
   expect_colors(patchy::psd::DocumentIo::read_file(resaved));
 }
 
+// GitHub issue 635's sample (philipzae): one layer per Photoshop 2024 layer color, in the
+// menu's hue order. Seafoam, Indigo, Magenta and Fuchsia are lclr 8 to 11; a resave keeps
+// every index. Copied into local-test-fixtures (never committed).
+void psd_layer_color_labels_photoshop_2024_fixture_if_available() {
+  const auto path = patchy::test::local_fixtures_root() / "psd" / "issue-635" / "layer-colors-ps2024.psd";
+  patchy::test::skip_unless_exists(path);
+  const auto expect_colors = [](const patchy::Document& document) {
+    const std::vector<std::pair<std::string, patchy::LayerColorLabel>> expected{
+        {"Red", patchy::kLayerColorRed},          {"Orange", patchy::kLayerColorOrange},
+        {"Yellow", patchy::kLayerColorYellow},    {"Green", patchy::kLayerColorGreen},
+        {"Seafoam", patchy::kLayerColorSeafoam},  {"Blue", patchy::kLayerColorBlue},
+        {"Indigo", patchy::kLayerColorIndigo},    {"Magenta", patchy::kLayerColorMagenta},
+        {"Fuchsia", patchy::kLayerColorFuchsia},  {"Violet", patchy::kLayerColorViolet},
+        {"Gray", patchy::kLayerColorGray},
+    };
+    for (const auto& [name, label] : expected) {
+      const auto found = std::find_if(document.layers().begin(), document.layers().end(),
+                                      [&](const patchy::Layer& layer) { return layer.name() == name; });
+      CHECK(found != document.layers().end());
+      if (found != document.layers().end()) {
+        CHECK(found->color_label() == label);
+        CHECK(patchy::layer_color_label_id(label) != "none");
+        CHECK(patchy::layer_color_label_from_id(patchy::layer_color_label_id(label)) == label);
+      }
+    }
+  };
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  expect_colors(document);
+  CHECK(patchy::layer_color_label_id(patchy::kLayerColorSeafoam) == "seafoam");
+  CHECK(patchy::layer_color_label_id(patchy::kLayerColorIndigo) == "indigo");
+  CHECK(patchy::layer_color_label_id(patchy::kLayerColorMagenta) == "magenta");
+  CHECK(patchy::layer_color_label_id(patchy::kLayerColorFuchsia) == "fuchsia");
+  // Patchy's resave, kept for the Photoshop acceptance check.
+  std::filesystem::create_directories("test-artifacts");
+  const auto resaved = std::filesystem::path("test-artifacts") / "issue-635-layer-colors-resaved.psd";
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, resaved);
+  expect_colors(patchy::psd::DocumentIo::read_file(resaved));
+}
+
 // Photoshop's lspf (PS 2026 capture, GitHub issues 245 and 246): Lock All is 0x80000000 with
 // the three single locks clear, Prevent Auto Nesting is 0x8. A file's value comes back
 // exactly while the locks are unchanged; an edit keeps the Prevent Auto Nesting bit.
@@ -4019,6 +4058,8 @@ std::vector<patchy::test::TestCase> psd_core_io_tests() {
        psd_opaque_rgb_layers_write_transparency_unless_background},
       {"psd_layer_locks_import_and_export_lspf", psd_layer_locks_import_and_export_lspf},
       {"psd_layer_color_labels_round_trip_lclr", psd_layer_color_labels_round_trip_lclr},
+      {"psd_layer_color_labels_photoshop_2024_fixture_if_available",
+       psd_layer_color_labels_photoshop_2024_fixture_if_available},
       {"psd_issue_244_sample_layer_colors_if_available", psd_issue_244_sample_layer_colors_if_available},
       {"psd_layer_lock_all_and_auto_nesting_bits_round_trip", psd_layer_lock_all_and_auto_nesting_bits_round_trip},
       {"psd_layer_masks_render_and_round_trip", psd_layer_masks_render_and_round_trip},

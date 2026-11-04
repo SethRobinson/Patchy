@@ -19260,6 +19260,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Recent Folder</source>
         <translation>Недавняя папка</translation>
     </message>
+    <message>
+        <source>Tag the layer seafoam in the Layers panel</source>
+        <translation>Пометить слой цветом морской волны на панели слоёв</translation>
+    </message>
+    <message>
+        <source>Tag the layer indigo in the Layers panel</source>
+        <translation>Пометить слой цветом индиго на панели слоёв</translation>
+    </message>
+    <message>
+        <source>Tag the layer magenta in the Layers panel</source>
+        <translation>Пометить слой пурпурным на панели слоёв</translation>
+    </message>
+    <message>
+        <source>Tag the layer fuchsia in the Layers panel</source>
+        <translation>Пометить слой цветом фуксии на панели слоёв</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32545,6 +32561,18 @@ Locked: %1</source>
     <message>
         <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
         <translation>Если включено, буква группы инструментов выбирает её первый инструмент, а Shift с буквой перебирает группу. Если выключено, повторное нажатие буквы переключает на следующий инструмент группы.</translation>
+    </message>
+    <message>
+        <source>Seafoam</source>
+        <translation>Морская волна</translation>
+    </message>
+    <message>
+        <source>Indigo</source>
+        <translation>Индиго</translation>
+    </message>
+    <message>
+        <source>Fuchsia</source>
+        <translation>Фуксия</translation>
     </message>
 </context>
 <context>

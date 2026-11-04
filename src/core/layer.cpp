@@ -259,7 +259,7 @@ LayerLockFlags Layer::lock_flags() const noexcept {
 
 namespace {
 constexpr std::array<std::string_view, kLayerColorLast + 1U> kLayerColorLabelIds{
-    "none", "red", "orange", "yellow", "green", "blue", "violet", "gray"};
+    "none", "red", "orange", "yellow", "green", "blue", "violet", "gray", "seafoam", "indigo", "magenta", "fuchsia"};
 }  // namespace
 
 std::string_view layer_color_label_id(LayerColorLabel label) noexcept {

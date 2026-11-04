@@ -19214,6 +19214,22 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Recent Folder</source>
         <translation>Pasta recente</translation>
     </message>
+    <message>
+        <source>Tag the layer seafoam in the Layers panel</source>
+        <translation>Marcar a camada de verde-água no painel Camadas</translation>
+    </message>
+    <message>
+        <source>Tag the layer indigo in the Layers panel</source>
+        <translation>Marcar a camada de índigo no painel Camadas</translation>
+    </message>
+    <message>
+        <source>Tag the layer magenta in the Layers panel</source>
+        <translation>Marcar a camada de magenta no painel Camadas</translation>
+    </message>
+    <message>
+        <source>Tag the layer fuchsia in the Layers panel</source>
+        <translation>Marcar a camada de fúcsia no painel Camadas</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32460,6 +32476,18 @@ Bloqueado: %1</translation>
     <message>
         <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
         <translation>Quando ativado, a letra de um grupo de ferramentas seleciona a primeira ferramenta e Shift com a letra percorre o grupo. Quando desativado, pressionar a letra novamente passa para a próxima ferramenta do grupo.</translation>
+    </message>
+    <message>
+        <source>Seafoam</source>
+        <translation>Verde-água</translation>
+    </message>
+    <message>
+        <source>Indigo</source>
+        <translation>Índigo</translation>
+    </message>
+    <message>
+        <source>Fuchsia</source>
+        <translation>Fúcsia</translation>
     </message>
 </context>
 <context>

@@ -19260,6 +19260,22 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Recent Folder</source>
         <translation>Ostatni folder</translation>
     </message>
+    <message>
+        <source>Tag the layer seafoam in the Layers panel</source>
+        <translation>Oznacz warstwę kolorem morskim w panelu Warstwy</translation>
+    </message>
+    <message>
+        <source>Tag the layer indigo in the Layers panel</source>
+        <translation>Oznacz warstwę kolorem indygo w panelu Warstwy</translation>
+    </message>
+    <message>
+        <source>Tag the layer magenta in the Layers panel</source>
+        <translation>Oznacz warstwę kolorem magenta w panelu Warstwy</translation>
+    </message>
+    <message>
+        <source>Tag the layer fuchsia in the Layers panel</source>
+        <translation>Oznacz warstwę kolorem fuksji w panelu Warstwy</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32545,6 +32561,18 @@ Zablokowano: %1</translation>
     <message>
         <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
         <translation>Gdy włączone, litera grupy narzędzi wybiera jej pierwsze narzędzie, a Shift z literą przechodzi przez grupę. Gdy wyłączone, ponowne naciśnięcie litery przechodzi do następnego narzędzia w grupie.</translation>
+    </message>
+    <message>
+        <source>Seafoam</source>
+        <translation>Morski</translation>
+    </message>
+    <message>
+        <source>Indigo</source>
+        <translation>Indygo</translation>
+    </message>
+    <message>
+        <source>Fuchsia</source>
+        <translation>Fuksja</translation>
     </message>
 </context>
 <context>

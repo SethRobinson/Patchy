@@ -84,7 +84,7 @@ curve before that conversion.
   active layer, group expanded state. Locks: content to Lock Image Pixels, alpha to Lock
   Transparent Pixels, position to Lock Position; GIMP's visibility lock and linked flags are
   dropped. Color tags map blue, green, yellow, orange, red, violet and gray to the same
-  label, brown to orange.
+  label, brown to orange; GIMP has no tag for Seafoam, Indigo, Magenta or Fuchsia.
 - Layer and group masks become Patchy masks at the layer's bounds; PROP_APPLY_MASK off
   disables the mask.
 - GIMP has no Background layer: an alpha-less bottom layer opens as an ordinary opaque layer

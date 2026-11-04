@@ -19214,6 +19214,22 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Recent Folder</source>
         <translation>Dossier récent</translation>
     </message>
+    <message>
+        <source>Tag the layer seafoam in the Layers panel</source>
+        <translation>Marquer le calque en vert d&apos;eau dans le panneau Calques</translation>
+    </message>
+    <message>
+        <source>Tag the layer indigo in the Layers panel</source>
+        <translation>Marquer le calque en indigo dans le panneau Calques</translation>
+    </message>
+    <message>
+        <source>Tag the layer magenta in the Layers panel</source>
+        <translation>Marquer le calque en magenta dans le panneau Calques</translation>
+    </message>
+    <message>
+        <source>Tag the layer fuchsia in the Layers panel</source>
+        <translation>Marquer le calque en fuchsia dans le panneau Calques</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32460,6 +32476,18 @@ Verrouillé : %1</translation>
     <message>
         <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
         <translation>Activé, la lettre d&apos;un groupe d&apos;outils sélectionne son premier outil et Maj avec la lettre parcourt le groupe. Désactivé, appuyer à nouveau sur la lettre passe à l&apos;outil suivant du groupe.</translation>
+    </message>
+    <message>
+        <source>Seafoam</source>
+        <translation>Vert d&apos;eau</translation>
+    </message>
+    <message>
+        <source>Indigo</source>
+        <translation>Indigo</translation>
+    </message>
+    <message>
+        <source>Fuchsia</source>
+        <translation>Fuchsia</translation>
     </message>
 </context>
 <context>

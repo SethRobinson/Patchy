@@ -19168,6 +19168,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Recent Folder</source>
         <translation>최근 폴더</translation>
     </message>
+    <message>
+        <source>Tag the layer seafoam in the Layers panel</source>
+        <translation>레이어 패널에서 레이어를 시폼으로 태그</translation>
+    </message>
+    <message>
+        <source>Tag the layer indigo in the Layers panel</source>
+        <translation>레이어 패널에서 레이어를 남색으로 태그</translation>
+    </message>
+    <message>
+        <source>Tag the layer magenta in the Layers panel</source>
+        <translation>레이어 패널에서 레이어를 마젠타로 태그</translation>
+    </message>
+    <message>
+        <source>Tag the layer fuchsia in the Layers panel</source>
+        <translation>레이어 패널에서 레이어를 푸시아로 태그</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32375,6 +32391,18 @@ Locked: %1</source>
     <message>
         <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
         <translation>켜면 도구 그룹의 문자 키는 그룹의 첫 도구를 선택하고, Shift와 문자 키로 그룹 안을 차례로 전환합니다. 끄면 문자 키를 다시 누를 때 그룹의 다음 도구로 넘어갑니다.</translation>
+    </message>
+    <message>
+        <source>Seafoam</source>
+        <translation>시폼</translation>
+    </message>
+    <message>
+        <source>Indigo</source>
+        <translation>남색</translation>
+    </message>
+    <message>
+        <source>Fuchsia</source>
+        <translation>푸시아</translation>
     </message>
 </context>
 <context>

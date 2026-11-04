@@ -19168,6 +19168,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Recent Folder</source>
         <translation>最近使用的資料夾</translation>
     </message>
+    <message>
+        <source>Tag the layer seafoam in the Layers panel</source>
+        <translation>在圖層面板中將圖層標為海沫綠</translation>
+    </message>
+    <message>
+        <source>Tag the layer indigo in the Layers panel</source>
+        <translation>在圖層面板中將圖層標為靛藍</translation>
+    </message>
+    <message>
+        <source>Tag the layer magenta in the Layers panel</source>
+        <translation>在圖層面板中將圖層標為洋紅</translation>
+    </message>
+    <message>
+        <source>Tag the layer fuchsia in the Layers panel</source>
+        <translation>在圖層面板中將圖層標為紫紅</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32375,6 +32391,18 @@ Locked: %1</source>
     <message>
         <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
         <translation>開啟時，工具群組的字母鍵選取群組內第一個工具，Shift 加字母鍵在群組內依序切換。關閉時，再按一次字母鍵會切換到群組內下一個工具。</translation>
+    </message>
+    <message>
+        <source>Seafoam</source>
+        <translation>海沫綠</translation>
+    </message>
+    <message>
+        <source>Indigo</source>
+        <translation>靛藍</translation>
+    </message>
+    <message>
+        <source>Fuchsia</source>
+        <translation>紫紅</translation>
     </message>
 </context>
 <context>

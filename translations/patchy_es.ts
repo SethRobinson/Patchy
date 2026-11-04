@@ -19214,6 +19214,22 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Recent Folder</source>
         <translation>Carpeta reciente</translation>
     </message>
+    <message>
+        <source>Tag the layer seafoam in the Layers panel</source>
+        <translation>Marcar la capa en verde agua en el panel Capas</translation>
+    </message>
+    <message>
+        <source>Tag the layer indigo in the Layers panel</source>
+        <translation>Marcar la capa en índigo en el panel Capas</translation>
+    </message>
+    <message>
+        <source>Tag the layer magenta in the Layers panel</source>
+        <translation>Marcar la capa en magenta en el panel Capas</translation>
+    </message>
+    <message>
+        <source>Tag the layer fuchsia in the Layers panel</source>
+        <translation>Marcar la capa en fucsia en el panel Capas</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32460,6 +32476,18 @@ Bloqueada: %1</translation>
     <message>
         <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
         <translation>Si está activado, la letra de un grupo de herramientas selecciona su primera herramienta y Mayús con la letra recorre el grupo. Si está desactivado, al pulsar de nuevo la letra se pasa a la siguiente herramienta del grupo.</translation>
+    </message>
+    <message>
+        <source>Seafoam</source>
+        <translation>Verde agua</translation>
+    </message>
+    <message>
+        <source>Indigo</source>
+        <translation>Índigo</translation>
+    </message>
+    <message>
+        <source>Fuchsia</source>
+        <translation>Fucsia</translation>
     </message>
 </context>
 <context>

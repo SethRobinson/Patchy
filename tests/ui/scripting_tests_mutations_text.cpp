@@ -346,8 +346,8 @@ void ui_script_layer_move_to_rounds_like_photoshop() {
   CHECK(bounds_of().y == -3);
 }
 
-// GitHub issue 244: layer.colorLabel reads and writes the Layers panel color
-// label; an unknown value throws and changes nothing.
+// GitHub issues 244, 635: layer.colorLabel reads and writes the Layers panel color
+// label, Photoshop 2024's four colors included; an unknown value throws and changes nothing.
 void ui_script_layer_color_label() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -355,7 +355,8 @@ void ui_script_layer_color_label() {
   CHECK(run_script(window, QStringLiteral(R"JS(
     var layer = app.activeDocument.addLayer('Tagged');
     if (layer.colorLabel !== 'none') throw Error('default ' + layer.colorLabel);
-    ['red', 'orange', 'yellow', 'green', 'blue', 'violet', 'gray', 'none'].forEach(function (label) {
+    ['red', 'orange', 'yellow', 'green', 'blue', 'violet', 'gray', 'seafoam', 'indigo', 'magenta', 'fuchsia',
+     'none'].forEach(function (label) {
       layer.colorLabel = label;
       if (layer.colorLabel !== label) throw Error('round trip ' + label + ' read ' + layer.colorLabel);
     });
@@ -367,6 +368,9 @@ void ui_script_layer_color_label() {
   CHECK(backlog_contains(window, QStringLiteral("purple")));
   layer = layer_named(document, "Tagged");
   CHECK(layer != nullptr && layer->color_label() == patchy::kLayerColorViolet);
+  CHECK(run_script(window, QStringLiteral("app.activeDocument.activeLayer.colorLabel = 'fuchsia';")));
+  layer = layer_named(document, "Tagged");
+  CHECK(layer != nullptr && layer->color_label() == patchy::kLayerColorFuchsia);
 }
 
 void ui_script_palette_validation_and_history() {
