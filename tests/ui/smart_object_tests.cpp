@@ -3542,7 +3542,7 @@ void ui_smart_object_network_link_needs_an_allowed_server() {
     entries[1].blocked_server = QStringLiteral("srv");
     entries[2].blocked_server = QStringLiteral("other");
     QStringList allowed_calls;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = find_top_level_dialog(QStringLiteral("missingLinksDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -3570,7 +3570,7 @@ void ui_smart_object_network_link_needs_an_allowed_server() {
       auto* server1 = dialog->findChild<QLabel*>(QStringLiteral("missingLinkServer1"));
       CHECK(server1 != nullptr && server1->text().startsWith(QStringLiteral("Not found on")));
       dialog->findChild<QPushButton*>(QStringLiteral("missingLinksContinueButton"))->click();
-    });
+    }));
     const auto result = patchy::ui::run_missing_links_dialog(
         nullptr, entries, true,
         [](const patchy::ui::MissingLinkEntry&) -> std::optional<QString> { return std::nullopt; },
