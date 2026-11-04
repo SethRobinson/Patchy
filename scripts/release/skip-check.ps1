@@ -14,13 +14,19 @@ Test-PatchySkips writes its report to the output and stores the number of unexpe
 in -Unexpected (a [ref]): a skip whose test is not listed fails the step. A listed test that
 ran is reported, not failed (the list is stale). A missing list prints the skips, writes them
 as a candidate list beside the log, and says how to install it; it never fails the step.
-<host> is the ssh host's name up to its first dot, or the computer name, in lower case.
+<host> is the ssh host's name up to its first dot (an IPv4 address whole, dots as dashes), or
+the computer name, in lower case.
 #>
 
 function Get-PatchySkipHostName([string]$name) {
-  # user@mac-build-host.local -> mac-build-host; WINDOWS-PC -> windows-pc.
+  # user@mac-build-host.local -> mac-build-host; WINDOWS-PC -> windows-pc; an IPv4 address
+  # keeps every part (user@10.0.0.5 -> 10-0-0-5), since its first part names no one host.
   $hostPart = ($name -split '@')[-1]
-  $hostPart = ($hostPart -split '\.')[0]
+  if ($hostPart -match '^\d{1,3}(\.\d{1,3}){3}$') {
+    $hostPart = $hostPart -replace '\.', '-'
+  } else {
+    $hostPart = ($hostPart -split '\.')[0]
+  }
   return ($hostPart -replace '[^A-Za-z0-9_-]', '_').ToLowerInvariant()
 }
 

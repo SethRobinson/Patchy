@@ -4007,7 +4007,9 @@ void tool_budgets_perf() {
 
   // A long stroke growing a 64 px pasted layer across a 3000 px canvas, exact and under a
   // LayerGrowthReserve (pixel_tools_tests checks the bytes and the reallocation counts).
-  constexpr std::int32_t kSide = 3000;
+  // Static, so the stroke lambda below may use it uncaptured: from_size takes a reference,
+  // which odr-uses it, and GCC 12 refuses an uncaptured automatic there.
+  static constexpr std::int32_t kSide = 3000;
   const auto growth_setup = [&](bool reserved) {
     auto document = std::make_shared<patchy::Document>(kSide, kSide, patchy::PixelFormat::rgb8());
     auto pixels = blank_rgba(64, 64);

@@ -29,7 +29,7 @@ A test that recorded a failure (`report_failure`, a `guarded()` callback, `when_
 <local fixtures>\expected-skips\<host>-<suite>.txt
 ```
 
-`<local fixtures>` is `PATCHY_LOCAL_FIXTURES_DIR` when set, else the checkout's `local-test-fixtures` (untracked, so each machine keeps its own lists). `<host>` is the computer name for `verify-windows.ps1` and the ssh host's name up to its first dot for `verify-remote.ps1` (`user@mac-build-host.local` gives `mac-build-host`), lower case. `<suite>` is `patchy_core_tests` or `patchy_ui_visual_tests`.
+`<local fixtures>` is `PATCHY_LOCAL_FIXTURES_DIR` when set, else the checkout's `local-test-fixtures` (untracked, so each machine keeps its own lists). `<host>` is the computer name for `verify-windows.ps1` and the ssh host's name up to its first dot for `verify-remote.ps1` (`user@mac-build-host.local` gives `mac-build-host`; an IPv4 address stays whole with dashes for dots, `user@10.0.0.5` gives `10-0-0-5`), lower case. `<suite>` is `patchy_core_tests` or `patchy_ui_visual_tests`.
 
 Format: one test name per line; text after the first tab or space is ignored, as are blank lines and lines starting with `#`. A `skipped-<suite>.txt` record is therefore a valid list as it stands; keep its reasons as the comment column.
 
