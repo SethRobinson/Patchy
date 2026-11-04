@@ -646,6 +646,43 @@ void draw_text_box_outline(QPainter& painter, const QPainterPath& outline) {
   painter.restore();
 }
 
+// GitHub issue 631: a box or area frame that hides lines of its story shows a plus inside its
+// bottom right resize handle while the Type tool edits it. Canvas overlay only: the layer's
+// pixels and the file never carry it. The editor holds the fact (from the render plan's
+// hidden_lines) and the cache key it was computed for (refresh_text_editor_hidden_lines).
+constexpr auto kTextEditorHiddenLinesProperty = "patchy.textHiddenLines";
+constexpr auto kTextEditorHiddenLinesKeyProperty = "patchy.textHiddenLinesKey";
+constexpr auto kTextResizeHandleOverflowProperty = "patchy.textOverflowMarker";
+
+// The plus, in the handle border's theme role, its arms on the handle's centre lines and a
+// pixel clear of the border on each side.
+void draw_text_overflow_marker(QPainter& painter, QRectF handle_rect) {
+  const auto center = handle_rect.center();
+  const auto arm = std::max(1.5, (std::min(handle_rect.width(), handle_rect.height()) - 4.0) / 2.0);
+  painter.save();
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(theme().resize_handle_border);
+  painter.drawRect(QRectF(center.x() - arm, center.y() - 0.5, arm * 2.0, 1.0));
+  painter.drawRect(QRectF(center.x() - 0.5, center.y() - arm, 1.0, arm * 2.0));
+  painter.restore();
+}
+
+// A flat session's resize handle: the style sheet draws the square (WA_StyledBackground), this
+// adds the overflow plus when kTextResizeHandleOverflowProperty is set.
+class TextBoxResizeHandle final : public QWidget {
+public:
+  using QWidget::QWidget;
+
+protected:
+  void paintEvent(QPaintEvent* event) override {
+    QWidget::paintEvent(event);
+    if (property(kTextResizeHandleOverflowProperty).toBool()) {
+      QPainter painter(this);
+      draw_text_overflow_marker(painter, QRectF(rect()));
+    }
+  }
+};
+
 class InlineTextEdit final : public QTextEdit {
 public:
   explicit InlineTextEdit(QWidget* parent = nullptr) : QTextEdit(parent), caret_blink_timer_(this) {
@@ -1827,6 +1864,9 @@ private:
     painter.setBrush(theme().resize_handle_bg);
     for (const auto handle : kResizeHandles) {
       painter.drawRect(resize_handle_rect(handle));
+    }
+    if (editor_->property(kTextEditorHiddenLinesProperty).toBool()) {
+      draw_text_overflow_marker(painter, resize_handle_rect(ResizeHandle::BottomRight));
     }
   }
 
@@ -11108,6 +11148,7 @@ void MainWindow::update_text_editor_handles(QTextEdit* editor) {
   if (canvas_ == nullptr || editor == nullptr) {
     return;
   }
+  refresh_text_editor_hidden_lines(editor);
   if (editor->property(kTextEditorTransformedOverlayProperty).toBool()) {
     remove_text_editor_handles(editor);
     return;
@@ -11130,7 +11171,7 @@ void MainWindow::update_text_editor_handles(QTextEdit* editor) {
   for (const auto& spec : kHandles) {
     auto* handle = canvas_->findChild<QWidget*>(QString::fromLatin1(spec.name), Qt::FindDirectChildrenOnly);
     if (handle == nullptr) {
-      handle = new QWidget(canvas_);
+      handle = new TextBoxResizeHandle(canvas_);
       handle->setObjectName(QString::fromLatin1(spec.name));
       handle->setProperty("patchy.textResizeHandle", true);
       handle->setProperty("patchy.textResizeCorner", QString::fromLatin1(spec.corner));
@@ -11154,9 +11195,120 @@ void MainWindow::update_text_editor_handles(QTextEdit* editor) {
       position = editor_rect.bottomRight() + QPoint(1, 1);
     }
     handle->setGeometry(position.x() - handle_size / 2, position.y() - handle_size / 2, handle_size, handle_size);
+    const bool overflow_marker =
+        corner == QStringLiteral("bottomRight") && editor->property(kTextEditorHiddenLinesProperty).toBool();
+    if (handle->property(kTextResizeHandleOverflowProperty).toBool() != overflow_marker) {
+      handle->setProperty(kTextResizeHandleOverflowProperty, overflow_marker);
+      handle->update();
+    }
     handle->show();
     handle->raise();
   }
+}
+
+namespace {
+
+// Everything the session's layout depends on, so a pan, a repaint or a handle hover does not
+// lay the story out again (refresh_text_editor_hidden_lines).
+QString text_editor_hidden_lines_key(const QTextEdit& editor, double zoom) {
+  QStringList parts{QString::number(editor.document()->revision()),
+                    QString::number(editor.property("patchy.documentTextWidth").toInt()),
+                    QString::number(editor.property("patchy.documentTextHeight").toInt()),
+                    QString::number(editor.property("patchy.documentTextSize").toInt()),
+                    editor.property("patchy.documentTextFamily").toString(),
+                    editor.property("patchy.documentTextFlow").toString(),
+                    editor.property(kTextEditorAreaProperty).toString(),
+                    editor.property(kTextEditorPreeditTextProperty).toString(),
+                    editor.property("patchy.textLayoutMode").toString(),
+                    QString::number(editor.property("patchy.textSizeDisplayScale").toDouble(), 'g', 8),
+                    QString::number(zoom, 'g', 8)};
+  return parts.join(QLatin1Char('|'));
+}
+
+// Whether the session's committed render would hide lines, from the same plan the preview and
+// commit draw (build_text_render_plan; no raster). Point text never hides a line.
+bool text_editor_render_hides_lines(const QTextEdit& editor, double zoom) {
+  const bool boxed = text_flow_is_box(editor.property("patchy.documentTextFlow").toString());
+  const auto area = text_editor_area(editor);
+  if (!boxed && !area) {
+    return false;
+  }
+  auto document_text = document_from_editor_in_document_units(editor, zoom);
+  if (document_text == nullptr || document_text->toPlainText().trimmed().isEmpty()) {
+    return false;
+  }
+  const auto text_width = std::max(kMinimumTextBoxDocumentSize, editor.property("patchy.documentTextWidth").toInt());
+  const auto text_height =
+      std::max(kMinimumTextBoxDocumentSize, editor.property("patchy.documentTextHeight").toInt());
+  auto text_family = editor.property("patchy.documentTextFamily").toString();
+  if (text_family.trimmed().isEmpty()) {
+    text_family = text_display_family_from_format(text_editor_reference_format(editor),
+                                                  display_text_family_from_font(editor.font()));
+  }
+  // Color does not move a line, so the preview's fallback (the primary color) is not needed.
+  const QColor text_color(Qt::black);
+  TextToolSettings settings{document_text->toPlainText(),
+                            QString(),
+                            text_family,
+                            std::max(1, editor.property("patchy.documentTextSize").toInt()),
+                            editor.font().bold(),
+                            editor.font().italic(),
+                            std::clamp(editor.property("patchy.documentTextAntiAlias").toInt(), 0, 16),
+                            boxed,
+                            text_width,
+                            text_height};
+  settings.photoshop_layout = text_editor_uses_photoshop_layout(editor);
+  settings.vertical = text_editor_is_vertical(editor);
+  settings.area = area;
+  const auto paragraph_runs = paragraph_runs_from_document(*document_text);
+  const auto rich_text_runs = rich_text_runs_from_document(*document_text, settings, text_color);
+  settings.html = document_html_from_text_runs(document_text->toPlainText(), rich_text_runs, settings, text_color);
+  const auto frame_layout_scale = settings.photoshop_layout && editor.property("patchy.usesPsdTextFrame").toBool()
+                                      ? text_editor_size_display_scale(editor)
+                                      : 1.0;
+  const auto plan = build_text_render_plan(settings, text_color, text_width, paragraph_runs, rich_text_runs,
+                                           text_editor_render_local_rect(editor), text_editor_metric_scale(editor),
+                                           QTransform(), frame_layout_scale);
+  return plan.hidden_lines;
+}
+
+}  // namespace
+
+void MainWindow::set_text_editor_hidden_lines(QTextEdit* editor, bool hidden) {
+  if (canvas_ == nullptr || editor == nullptr) {
+    return;
+  }
+  editor->setProperty(kTextEditorHiddenLinesKeyProperty, text_editor_hidden_lines_key(*editor, canvas_->zoom()));
+  if (editor->property(kTextEditorHiddenLinesProperty).toBool() == hidden) {
+    return;
+  }
+  editor->setProperty(kTextEditorHiddenLinesProperty, hidden);
+  if (auto* handle = canvas_->findChild<QWidget*>(QStringLiteral("textBoxResizeHandleBottomRight"),
+                                                  Qt::FindDirectChildrenOnly);
+      handle != nullptr) {
+    handle->setProperty(kTextResizeHandleOverflowProperty, hidden);
+    handle->update();
+  }
+  if (auto* overlay = transformed_text_edit_overlay_for_canvas(canvas_); overlay != nullptr) {
+    overlay->update();
+  }
+}
+
+void MainWindow::refresh_text_editor_hidden_lines(QTextEdit* editor) {
+  if (canvas_ == nullptr || editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
+    return;
+  }
+  // A rendered live preview reports the fact itself (update_text_editor_preview); laying the
+  // story out here as well would double every keystroke's layout.
+  if (editor->property(kTextEditorPreviewEnabledProperty).toBool() &&
+      !editor->property(kTextEditorSourceRasterPreviewProperty).toBool()) {
+    return;
+  }
+  const auto key = text_editor_hidden_lines_key(*editor, canvas_->zoom());
+  if (editor->property(kTextEditorHiddenLinesKeyProperty).toString() == key) {
+    return;
+  }
+  set_text_editor_hidden_lines(editor, text_editor_render_hides_lines(*editor, canvas_->zoom()));
 }
 
 QWidget* MainWindow::text_editor_resize_handle_at(QPoint canvas_position) const {
@@ -11416,6 +11568,10 @@ void MainWindow::remove_text_editor_handles(QTextEdit* /*editor*/) {
   const auto handles = canvas_->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);
   for (auto* handle : handles) {
     if (handle != nullptr && handle->property("patchy.textResizeHandle").toBool()) {
+      // Unnamed first: a session started before the deferred delete runs (a script, a test)
+      // would otherwise find this handle by name, show it, and lose it a moment later.
+      handle->setObjectName(QString());
+      handle->setProperty("patchy.textResizeHandle", false);
       handle->hide();
       handle->deleteLater();
     }
@@ -11488,6 +11644,7 @@ void MainWindow::schedule_text_editor_preview(QTextEdit* editor) {
     editor->setProperty(kTextEditorPreviewPaintProperty, false);
     update_text_editor_transform_overlay(editor);
     clear_text_editor_preview_overlays(*editor);
+    refresh_text_editor_hidden_lines(editor);
     editor->setProperty("patchy.textPreviewPending", false);
     remove_text_editor_preview(editor);
     editor->viewport()->update();
@@ -11567,6 +11724,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
     remove_text_editor_preview(editor);
     update_text_editor_preview_caret(*editor, canvas_->zoom());
     update_text_editor_transform_overlay(editor);
+    refresh_text_editor_hidden_lines(editor);
     editor->viewport()->update();
     return;
   }
@@ -11602,6 +11760,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
     editor->setProperty(kTextEditorPreviewPaintProperty, false);
     update_text_editor_transform_overlay(editor);
     clear_text_editor_preview_overlays(*editor);
+    refresh_text_editor_hidden_lines(editor);
     editor->viewport()->update();
     remove_text_editor_preview(editor);
     return;
@@ -11616,6 +11775,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
     if (const auto vacated = hide_text_editor_source_layer(editor); !vacated.isEmpty()) {
       canvas_->document_changed_effect_bounds(vacated);
     }
+    set_text_editor_hidden_lines(editor, false);
     editor->setProperty(kTextEditorPreviewPaintProperty, false);
     update_text_editor_transform_overlay(editor);
     clear_text_editor_preview_overlays(*editor);
@@ -11663,6 +11823,7 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
                                                      rich_text_runs, text_editor_render_local_rect(*editor),
                                                      text_editor_metric_scale(*editor), QTransform(),
                                                      frame_layout_scale);
+  set_text_editor_hidden_lines(editor, rendered.hidden_lines);
   if (rendered.pixels.empty()) {
     editor->setProperty(kTextEditorPreviewPaintProperty, false);
     update_text_editor_transform_overlay(editor);

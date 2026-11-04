@@ -78,7 +78,7 @@ visible ink bounds rather than the full contour rectangle.
 Boxed render paths gate whole LINES, never raster rows (`box_text_line_overflows_frame`): a line
 shows while its baseline is inside the frame (PS 2026, Arial 24 px: baseline 45.98 shows in a
 46 px box, hides in 45) and draws whole, descenders included; later lines hide with it. The
-story's first line always draws (no overflow marker; an empty layer cannot be clicked). Only the
+story's first line always draws (an empty layer cannot be clicked). Only the
 frame gates: a re-edit's old raster rect widens the buffer, never the gate (issue 621). The
 editor, Photoshop-layout and metadata re-render paths share this in
 `render_text_pixels_with_local_rect`; the metadata path keeps the frame's buffer origin and
@@ -90,6 +90,16 @@ The imported-text metric calibration (`calibrated_box_text_metric_scale`) render
 which is what starts its scale search (`ui_tips_psd_speed_mode_line_clip_if_available`, Linux).
 Known gap: an imported PSD frame's commit crops the last line's descenders at the frame bottom
 (the live render draws them; `ui_imported_psd_box_text_line_clip_renders_full_visible_line_after_edit`).
+
+Overflow marker (issue 631): while the Type tool edits a box or area frame that hides lines, its
+bottom right handle shows a plus in the handle border's theme role (`TextBoxResizeHandle` on
+flat sessions, `paint_text_box_controls` on the transformed overlay). Canvas overlay only. The
+fact is `hidden_lines` on the render plan (`BoxTextRenderPlan`, area `PhotoshopTextLayoutPlan`,
+`TextRenderPlan`, `RenderedTextPixels`), set where the gate drops a line and never under
+`keep_overflow_lines`. A live preview reports it from its own render; sessions without one lay
+the story out once per change of `text_editor_hidden_lines_key` (`build_text_render_plan`, no
+raster), so pans and repaints do no layout. Vertical type has no marker. Test:
+`ui_box_text_overflow_marker_on_bottom_right_handle`.
 
 ## PSD and PSB
 

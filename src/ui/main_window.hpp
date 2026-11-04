@@ -2825,6 +2825,10 @@ private:
   void relayout_text_editor(QTextEdit* editor, bool allow_point_auto_expand);
   void update_text_editor_handles(QTextEdit* editor);
   void remove_text_editor_handles(QTextEdit* editor);
+  // The overflow marker on the bottom right handle (GitHub issue 631): set from a render's
+  // hidden_lines, or refreshed from the layout when no live preview renders the session.
+  void set_text_editor_hidden_lines(QTextEdit* editor, bool hidden);
+  void refresh_text_editor_hidden_lines(QTextEdit* editor);
   QWidget* text_editor_resize_handle_at(QPoint canvas_position) const;
   bool handle_text_editor_resize_event(QWidget* handle, QTextEdit* editor, QEvent* event);
   bool handle_text_editor_transform_overlay_event(QTextEdit* editor, QEvent* event);

@@ -612,6 +612,7 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
     const TextAreaGeometry geometry(*settings.area, fold_scale);
     local_rect = geometry.bounds();
     line_render_items = std::move(area_plan.lines);
+    result.hidden_lines = area_plan.hidden_lines;
     // A sparse story in an enormous contour must not allocate a contour-sized
     // bitmap. The frame stays in metadata; only visible glyphs need pixels.
     if (local_rect.width() * local_rect.height() > 16777216.0) {
@@ -646,6 +647,7 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
       for (auto& item : photoshop_plan.lines) {
         const auto positioned = item.line.rect().translated(item.block_origin);
         if (box_text_line_overflows_frame(positioned.top(), item.line.ascent(), frame_bottom, first_line)) {
+          result.hidden_lines = true;
           break;  // hidden overflow, every later line included
         }
         first_line = false;
@@ -665,6 +667,7 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
                                          settings.keep_overflow_lines);
       local_rect = plan.local_rect;
       line_render_items = std::move(plan.lines);
+      result.hidden_lines = plan.hidden_lines;
     } else {
       // Metadata re-renders (Affinity import, reopened documents) must gate lines the same
       // way as the editor and Photoshop-layout paths: a line straddling the frame bottom
@@ -673,6 +676,7 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
       // width stay the frame's; only the bottom may grow to hold the straddler's bleed.
       auto plan = boxed_text_render_plan(document, font, local_rect, std::nullopt, settings.keep_overflow_lines);
       line_render_items = std::move(plan.lines);
+      result.hidden_lines = plan.hidden_lines;
       local_rect.setBottom(std::max(local_rect.bottom(), plan.local_rect.bottom()));
     }
   } else if (photoshop_plan.valid) {
@@ -1213,7 +1217,7 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
                                            requested_local_rect, metric_scale, document_transform_in,
                                            layout_scale_in);
   if (plan.built.document == nullptr) {
-    return RenderedTextPixels{PixelBuffer{}, QRectF(), TextLayoutMetrics{}};
+    return RenderedTextPixels{PixelBuffer{}, QRectF(), TextLayoutMetrics{}, false};
   }
   const auto& local_rect = plan.local_rect;
   const auto& document_transform = plan.document_transform;
@@ -1233,7 +1237,7 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
   const auto image_height = std::clamp(image_bottom - image_top, 1, kMaxTextRasterDimension);
   QImage image(image_width, image_height, QImage::Format_RGBA8888);
   if (image.isNull()) {
-    return RenderedTextPixels{PixelBuffer{}, local_rect, TextLayoutMetrics{}};
+    return RenderedTextPixels{PixelBuffer{}, local_rect, TextLayoutMetrics{}, plan.hidden_lines};
   }
   image.fill(Qt::transparent);
 
@@ -1271,7 +1275,7 @@ RenderedTextPixels render_text_pixels_with_local_rect(const TextToolSettings& se
   return RenderedTextPixels{pixels_from_image_rgba(image),
                             QRectF(static_cast<qreal>(image_left), static_cast<qreal>(image_top),
                                    static_cast<qreal>(image_width), static_cast<qreal>(image_height)),
-                            text_layout_metrics_for_plan(plan, settings, rich_text_runs)};
+                            text_layout_metrics_for_plan(plan, settings, rich_text_runs), plan.hidden_lines};
 }
 
 }  // namespace patchy::ui
