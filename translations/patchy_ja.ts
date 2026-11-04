@@ -14861,6 +14861,51 @@ Each item&apos;s own View setting still applies.</source>
         <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
         <translation>TIFF の追加チャンネルの一部を除外しました。ドキュメントのチャンネルは最大 56 個です。</translation>
     </message>
+    <message>
+        <source>The TIFF has no pages to open</source>
+        <translation>TIFF に開くページがありません</translation>
+    </message>
+    <message>
+        <source>The pages&apos; extra channels were left out: they belong to single pages, not the layered document.</source>
+        <translation>ページの追加チャンネルは省略されました。これらは個々のページに属し、レイヤー付きドキュメントには含まれません。</translation>
+    </message>
+    <message>
+        <source>Multi-Page TIFF</source>
+        <translation>マルチページ TIFF</translation>
+    </message>
+    <message>
+        <source>%1 holds %2 pages. How should Patchy open them?</source>
+        <translation>%1 には %2 ページあります。Patchy でどのように開きますか？</translation>
+    </message>
+    <message>
+        <source>Pages as Layers puts every page on its own layer in one document, page 1 on top. Separate Documents opens every page in its own tab.</source>
+        <translation>「ページをレイヤーに」は各ページを 1 つのドキュメントの個別のレイヤーにし、ページ 1 を最上部に置きます。「個別のドキュメント」は各ページを個別のタブで開きます。</translation>
+    </message>
+    <message>
+        <source>Pages as Layers</source>
+        <translation>ページをレイヤーに</translation>
+    </message>
+    <message>
+        <source>Separate Documents</source>
+        <translation>個別のドキュメント</translation>
+    </message>
+    <message>
+        <source>First Page Only</source>
+        <translation>最初のページのみ</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF: opened %1 pages as layers</source>
+        <translation>マルチページ TIFF: %1 ページをレイヤーとして開きました</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF: opened %1 pages as separate documents</source>
+        <translation>マルチページ TIFF: %1 ページを個別のドキュメントとして開きました</translation>
+    </message>
+    <message>
+        <source>Pages Patchy could not read were left out: %1</source>
+        <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
+        <translation>Patchy が読み込めなかったページは省略されました: %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

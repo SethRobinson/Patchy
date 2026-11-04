@@ -19,16 +19,19 @@
 #include <functional>
 #include <map>
 #include <stdexcept>
+#include <string>
 #include <utility>
 #include <vector>
 
 namespace patchy::test::flat_tiff {
 
-enum class Kind { U8, U16, U32, F16, F32, F64 };
+// U12: 12-bit samples packed most significant bit first (no predictor).
+enum class Kind { U8, U12, U16, U32, F16, F32, F64 };
 
 inline std::size_t kind_bytes(Kind kind) {
   switch (kind) {
     case Kind::U8: return 1;
+    case Kind::U12:
     case Kind::U16:
     case Kind::F16: return 2;
     case Kind::U32:
@@ -64,6 +67,8 @@ struct Spec {
   std::uint32_t rows_per_strip{0};  // 0: one strip
   std::uint32_t tile{0};            // tile side, 0: strips
   std::vector<std::uint16_t> color_map;
+  std::string page_name;            // PageName (285), omitted when empty
+  std::uint32_t subfile_type{0};    // NewSubfileType (254), omitted when 0
   // The sample value: integers at the file's scale, floats as they are.
   std::function<double(std::uint32_t x, std::uint32_t y, std::uint32_t sample)> value;
 };
@@ -89,6 +94,7 @@ inline void encode_sample(std::vector<std::uint8_t>& out, Kind kind, double valu
   std::uint64_t raw = 0;
   switch (kind) {
     case Kind::U8:
+    case Kind::U12:
     case Kind::U16:
     case Kind::U32: raw = static_cast<std::uint64_t>(std::llround(value)); break;
     case Kind::F16: raw = float_to_half(value); break;
@@ -243,6 +249,7 @@ struct Entry {
   std::uint16_t tag;
   std::uint16_t type;
   std::vector<std::uint32_t> values;
+  std::string text{};  // type 2 (ASCII) values, written with their NUL
 };
 
 // One page's data segments and directory entries, appended to `writer`.
@@ -262,11 +269,27 @@ inline std::vector<Entry> append_page(Writer& writer, const Spec& spec) {
         const auto rows = spec.tile != 0U ? segment_height : std::min(segment_height, spec.height - top);
         std::vector<std::uint8_t> data;
         for (std::uint32_t y = top; y < top + rows; ++y) {
+          std::vector<std::uint16_t> packed_row;
           for (std::uint32_t x = column * segment_width; x < column * segment_width + segment_width; ++x) {
             for (std::uint32_t sample = 0; sample < per_segment_samples; ++sample) {
               const auto which = spec.planar ? plane : sample;
               const bool inside = x < spec.width && y < spec.height;
-              encode_sample(data, spec.kind, inside ? spec.value(x, y, which) : 0.0, spec.little);
+              const double value = inside ? spec.value(x, y, which) : 0.0;
+              if (spec.kind == Kind::U12) {
+                packed_row.push_back(static_cast<std::uint16_t>(std::llround(value)) & 0x0FFFU);
+              } else {
+                encode_sample(data, spec.kind, value, spec.little);
+              }
+            }
+          }
+          // 12-bit rows: most significant bit first, each row starting on a byte.
+          for (std::size_t index = 0; index < packed_row.size(); index += 2U) {
+            const auto first = packed_row[index];
+            const auto second = index + 1U < packed_row.size() ? packed_row[index + 1U] : std::uint16_t{0};
+            data.push_back(static_cast<std::uint8_t>(first >> 4U));
+            data.push_back(static_cast<std::uint8_t>(((first & 0x0FU) << 4U) | (second >> 8U)));
+            if (index + 1U < packed_row.size()) {
+              data.push_back(static_cast<std::uint8_t>(second & 0xFFU));
             }
           }
         }
@@ -282,7 +305,7 @@ inline std::vector<Entry> append_page(Writer& writer, const Spec& spec) {
       }
     }
   }
-  const auto bits = static_cast<std::uint32_t>(kind_bytes(spec.kind) * 8U);
+  const auto bits = spec.kind == Kind::U12 ? 12U : static_cast<std::uint32_t>(kind_bytes(spec.kind) * 8U);
   const std::uint32_t format = is_float(spec.kind) ? 3U : 1U;
   std::vector<Entry> entries{
       {256, 4, {spec.width}},
@@ -316,6 +339,12 @@ inline std::vector<Entry> append_page(Writer& writer, const Spec& spec) {
   if (!spec.extra.empty()) {
     entries.push_back({338, 3, std::vector<std::uint32_t>(spec.extra.begin(), spec.extra.end())});
   }
+  if (!spec.page_name.empty()) {
+    entries.push_back({285, 2, {}, spec.page_name});
+  }
+  if (spec.subfile_type != 0U) {
+    entries.push_back({254, 4, {spec.subfile_type}});
+  }
   std::sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) { return a.tag < b.tag; });
   return entries;
 }
@@ -327,12 +356,22 @@ inline std::pair<std::size_t, std::size_t> append_directory(Writer& writer, cons
   std::vector<std::uint32_t> value_offsets;
   for (const auto& entry : entries) {
     const auto width = entry.type == 3 ? 2U : entry.type == 5 ? 8U : 4U;
-    const auto size = entry.type == 5 ? 8U * (entry.values.size() / 2U) : width * entry.values.size();
+    const auto size = entry.type == 2   ? entry.text.size() + 1U
+                      : entry.type == 5 ? 8U * (entry.values.size() / 2U)
+                                        : width * entry.values.size();
     if (size <= 4U) {
       value_offsets.push_back(0);
       continue;
     }
     value_offsets.push_back(static_cast<std::uint32_t>(writer.bytes.size()));
+    if (entry.type == 2) {
+      writer.bytes.insert(writer.bytes.end(), entry.text.begin(), entry.text.end());
+      writer.bytes.push_back(0);
+      if (writer.bytes.size() % 2U != 0U) {
+        writer.bytes.push_back(0);
+      }
+      continue;
+    }
     for (const auto value : entry.values) {
       writer.uint(value, entry.type == 3 ? 2U : 4U);
     }
@@ -343,12 +382,19 @@ inline std::pair<std::size_t, std::size_t> append_directory(Writer& writer, cons
     const auto& entry = entries[index];
     writer.uint(entry.tag, 2);
     writer.uint(entry.type, 2);
-    writer.uint(entry.type == 5 ? entry.values.size() / 2U : entry.values.size(), 4);
+    writer.uint(entry.type == 2   ? entry.text.size() + 1U
+                : entry.type == 5 ? entry.values.size() / 2U
+                                  : entry.values.size(),
+                4);
     if (value_offsets[index] != 0U) {
       writer.uint(value_offsets[index], 4);
       continue;
     }
     std::size_t written = 0;
+    if (entry.type == 2) {
+      writer.bytes.insert(writer.bytes.end(), entry.text.begin(), entry.text.end());
+      written = entry.text.size();
+    }
     for (const auto value : entry.values) {
       writer.uint(value, entry.type == 3 ? 2U : 4U);
       written += entry.type == 3 ? 2U : 4U;

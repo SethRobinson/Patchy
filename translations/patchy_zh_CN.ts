@@ -14861,6 +14861,51 @@ Each item&apos;s own View setting still applies.</source>
         <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
         <translation>已略去 TIFF 的部分额外通道：一个文档最多保留 56 个通道。</translation>
     </message>
+    <message>
+        <source>The TIFF has no pages to open</source>
+        <translation>TIFF 中没有可打开的页面</translation>
+    </message>
+    <message>
+        <source>The pages&apos; extra channels were left out: they belong to single pages, not the layered document.</source>
+        <translation>已省略页面的额外通道：它们属于单个页面，而不属于分层文档。</translation>
+    </message>
+    <message>
+        <source>Multi-Page TIFF</source>
+        <translation>多页 TIFF</translation>
+    </message>
+    <message>
+        <source>%1 holds %2 pages. How should Patchy open them?</source>
+        <translation>%1 包含 %2 页。Patchy 应如何打开它们？</translation>
+    </message>
+    <message>
+        <source>Pages as Layers puts every page on its own layer in one document, page 1 on top. Separate Documents opens every page in its own tab.</source>
+        <translation>“页面作为图层”会将每一页放在一个文档中各自的图层上，第 1 页在最上面。“单独的文档”会在各自的标签页中打开每一页。</translation>
+    </message>
+    <message>
+        <source>Pages as Layers</source>
+        <translation>页面作为图层</translation>
+    </message>
+    <message>
+        <source>Separate Documents</source>
+        <translation>单独的文档</translation>
+    </message>
+    <message>
+        <source>First Page Only</source>
+        <translation>仅第一页</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF: opened %1 pages as layers</source>
+        <translation>多页 TIFF：已将 %1 页作为图层打开</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF: opened %1 pages as separate documents</source>
+        <translation>多页 TIFF：已将 %1 页作为单独的文档打开</translation>
+    </message>
+    <message>
+        <source>Pages Patchy could not read were left out: %1</source>
+        <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
+        <translation>已省略 Patchy 无法读取的页面：%1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

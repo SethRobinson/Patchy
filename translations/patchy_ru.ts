@@ -14953,6 +14953,51 @@ Each item&apos;s own View setting still applies.</source>
         <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
         <translation>Некоторые дополнительные каналы TIFF пропущены: в документе может быть не более 56 каналов.</translation>
     </message>
+    <message>
+        <source>The TIFF has no pages to open</source>
+        <translation>В TIFF нет страниц для открытия</translation>
+    </message>
+    <message>
+        <source>The pages&apos; extra channels were left out: they belong to single pages, not the layered document.</source>
+        <translation>Дополнительные каналы страниц не включены: они относятся к отдельным страницам, а не к многослойному документу.</translation>
+    </message>
+    <message>
+        <source>Multi-Page TIFF</source>
+        <translation>Многостраничный TIFF</translation>
+    </message>
+    <message>
+        <source>%1 holds %2 pages. How should Patchy open them?</source>
+        <translation>Страниц в файле %1: %2. Как открыть их в Patchy?</translation>
+    </message>
+    <message>
+        <source>Pages as Layers puts every page on its own layer in one document, page 1 on top. Separate Documents opens every page in its own tab.</source>
+        <translation>«Страницы как слои» помещает каждую страницу на отдельный слой одного документа, страница 1 сверху. «Отдельные документы» открывает каждую страницу в своей вкладке.</translation>
+    </message>
+    <message>
+        <source>Pages as Layers</source>
+        <translation>Страницы как слои</translation>
+    </message>
+    <message>
+        <source>Separate Documents</source>
+        <translation>Отдельные документы</translation>
+    </message>
+    <message>
+        <source>First Page Only</source>
+        <translation>Только первая страница</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF: opened %1 pages as layers</source>
+        <translation>Многостраничный TIFF: страницы открыты как слои (%1)</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF: opened %1 pages as separate documents</source>
+        <translation>Многостраничный TIFF: страницы открыты как отдельные документы (%1)</translation>
+    </message>
+    <message>
+        <source>Pages Patchy could not read were left out: %1</source>
+        <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
+        <translation>Страницы, которые Patchy не смог прочитать, пропущены: %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

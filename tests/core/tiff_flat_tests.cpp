@@ -3,6 +3,7 @@
 
 #include "core/document.hpp"
 #include "core/document_channel.hpp"
+#include "core/document_depth.hpp"
 #include "core/pixel_depth.hpp"
 #include "psd/psd_tiff.hpp"
 #include "test_harness.hpp"
@@ -21,6 +22,7 @@
 #include <functional>
 #include <iostream>
 #include <map>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -309,7 +311,7 @@ void tiff_flat_unsupported_layouts_throw() {
   spec.value = [](std::uint32_t, std::uint32_t, std::uint32_t) { return 1.0; };
   auto bytes = write_tiff(spec);
   CHECK(!refuses(bytes));
-  // Patch single entries: CMYK, JPEG compression, signed samples, 12-bit samples.
+  // Patch single entries: CMYK, JPEG compression, signed samples, 10-bit samples.
   const auto patch = [&](std::uint16_t tag, std::uint16_t value) {
     auto copy = bytes;
     const auto directory = copy[4] | (copy[5] << 8U) | (copy[6] << 16U) | (copy[7] << 24U);
@@ -335,7 +337,7 @@ void tiff_flat_unsupported_layouts_throw() {
   CHECK(refuses(patch(262, 5)));
   CHECK(refuses(patch(259, 7)));
   CHECK(refuses(patch(339, 2)));
-  CHECK(refuses(patch(258, 12)));
+  CHECK(refuses(patch(258, 10)));
   CHECK(refuses({}));
   CHECK(refuses({'I', 'I', 43, 0, 8, 0, 0, 0}));  // BigTIFF
 }
@@ -406,6 +408,55 @@ void tiff_flat_damaged_data_throws_or_opens() {
   CHECK(stored(layer_pixels(document), 0, 3, 0) == pattern(0, 3, 0, 65535.0));
 }
 
+// 12-bit samples (packed most significant bit first, each row on a byte) open at 16 bits,
+// scaled to the full 16-bit range; chunky and planar, uncompressed and LZW, both orders.
+// Qt's TIFF plug-in refuses them (GitHub issue 625's shapes_multi_color.tif, page 4).
+void tiff_flat_12_bit_samples_open_at_16_bits() {
+  const auto value = [](std::uint32_t x, std::uint32_t y, std::uint32_t sample) {
+    return static_cast<double>((x * 397U + y * 61U + sample * 1201U) % 4096U);
+  };
+  for (const bool little : {true, false}) {
+    for (const bool planar : {false, true}) {
+      for (const std::uint16_t compression : {std::uint16_t{1}, std::uint16_t{5}}) {
+        Spec spec;
+        spec.little = little;
+        spec.planar = planar;
+        spec.compression = compression;
+        spec.kind = Kind::U12;
+        spec.width = 9;  // odd: 27 samples, so chunky rows end on half a byte
+        spec.rows_per_strip = 3;
+        spec.value = value;
+        const auto document = patchy::psd::read_flat_tiff(write_tiff(spec));
+        CHECK(document.color_state().bit_depth == BitDepth::UInt16);
+        const auto& pixels = layer_pixels(document);
+        bool exact = true;
+        for (std::uint32_t y = 0; y < spec.height; ++y) {
+          for (std::uint32_t x = 0; x < spec.width; ++x) {
+            for (std::uint32_t sample = 0; sample < 3U; ++sample) {
+              const auto expected = std::floor((value(x, y, sample) * 65535.0 + 2047.0) / 4095.0);
+              exact = exact && stored(pixels, static_cast<std::int32_t>(x), static_cast<std::int32_t>(y), sample) == expected;
+            }
+          }
+        }
+        CHECK(exact);
+      }
+    }
+  }
+  // Differencing is not defined at 12 bits.
+  Spec predicted;
+  predicted.kind = Kind::U12;
+  predicted.compression = 5;
+  predicted.predictor = 2;
+  predicted.value = value;
+  bool threw = false;
+  try {
+    (void)patchy::psd::read_flat_tiff(write_tiff(predicted));
+  } catch (const std::runtime_error&) {
+    threw = true;
+  }
+  CHECK(threw);
+}
+
 // Pages decode by directory offset (multi-page TIFF, docs/tiff.md).
 void tiff_flat_reads_any_page_by_directory_offset() {
   Spec first;
@@ -426,6 +477,133 @@ void tiff_flat_reads_any_page_by_directory_offset() {
   const auto page_two = patchy::psd::read_flat_tiff(bytes, options);
   CHECK(page_two.width() == 5 && page_two.color_state().bit_depth == BitDepth::Float32);
   CHECK(stored(layer_pixels(page_two), 4, 2, 2) == 0.75);
+}
+
+// The page walk (docs/tiff.md, "Multi-page TIFF"): reduced-resolution directories are not
+// pages but still count in the chain index Qt's jumpToImage takes; PageName is read.
+void tiff_pages_lists_pages_names_and_chain_indexes() {
+  for (const bool little : {true, false}) {
+    Spec first;
+    first.little = little;
+    first.value = [](std::uint32_t, std::uint32_t, std::uint32_t) { return 10.0; };
+    Spec preview = first;
+    preview.width = 3;
+    preview.height = 2;
+    preview.subfile_type = 1;
+    Spec named = first;
+    named.width = 12;
+    named.height = 4;
+    named.page_name = "Scan B \x01 ";
+    Spec short_name = first;
+    short_name.page_name = "abc";  // fits the entry inline
+    const auto bytes = write_tiff(std::vector<Spec>{first, preview, named, short_name});
+    const auto pages = patchy::psd::tiff_pages(bytes);
+    CHECK(pages.size() == 3U);
+    if (pages.size() != 3U) {
+      continue;
+    }
+    CHECK(pages[0].directory_index == 0U && pages[0].name.empty());
+    CHECK(pages[0].width == 9U && pages[0].height == 7U);
+    CHECK(pages[1].directory_index == 2U && pages[1].name == "Scan B");
+    CHECK(pages[1].width == 12U && pages[1].height == 4U);
+    CHECK(pages[2].directory_index == 3U && pages[2].name == "abc");
+    const auto offsets = patchy::psd::tiff_page_directory_offsets(bytes);
+    CHECK(offsets.size() == 3U && offsets[1] == pages[1].directory_offset);
+  }
+  CHECK(patchy::psd::tiff_pages(std::vector<std::uint8_t>{'I', 'I', 42, 0}).empty());
+}
+
+// Assembly: the largest canvas, the highest depth, page 1 on top, every page at the top
+// left, extra channels left out with one notice.
+void tiff_pages_as_layers_stacks_pages_at_the_highest_depth() {
+  Spec small;
+  small.width = 4;
+  small.height = 3;
+  small.value = [](std::uint32_t, std::uint32_t, std::uint32_t sample) { return sample == 0U ? 255.0 : 0.0; };
+  Spec wide;
+  wide.kind = Kind::U16;
+  wide.width = 10;
+  wide.height = 2;
+  wide.value = [](std::uint32_t, std::uint32_t, std::uint32_t) { return 65535.0; };
+  Spec deep;
+  deep.kind = Kind::F32;
+  deep.width = 5;
+  deep.height = 8;
+  deep.samples = 4;
+  deep.extra = std::vector<std::uint16_t>{0};
+  deep.value = [](std::uint32_t, std::uint32_t, std::uint32_t sample) { return sample == 3U ? 0.5 : 1.0; };
+  const auto bytes = write_tiff(std::vector<Spec>{small, wide, deep});
+  const auto offsets = patchy::psd::tiff_page_directory_offsets(bytes);
+  CHECK(offsets.size() == 3U);
+  if (offsets.size() != 3U) {
+    return;
+  }
+  std::vector<patchy::psd::TiffPageDocument> pages;
+  for (std::size_t index = 0; index < offsets.size(); ++index) {
+    patchy::psd::FlatTiffReadOptions options;
+    options.directory_offset = offsets[index];
+    pages.push_back({patchy::psd::read_flat_tiff(bytes, options), "Page " + std::to_string(index + 1U)});
+  }
+  CHECK(std::as_const(pages[2].document).channels().size() == 1U);
+  std::vector<std::string> notices;
+  const auto document = patchy::psd::tiff_pages_as_layers(std::move(pages), &notices);
+  CHECK(document.width() == 10 && document.height() == 8);
+  CHECK(document.color_state().bit_depth == BitDepth::Float32);
+  CHECK(document.format().bit_depth == BitDepth::Float32);
+  CHECK(document.channels().empty());
+  CHECK(notices.size() == 1U);
+  const auto& layers = document.layers();
+  CHECK(layers.size() == 3U);
+  if (layers.size() != 3U) {
+    return;
+  }
+  // Bottom to top: page 3, page 2, page 1; page 1 is the active layer.
+  CHECK(layers[0].name() == "Page 3" && layers[1].name() == "Page 2" && layers[2].name() == "Page 1");
+  CHECK(document.active_layer_id() == layers[2].id());
+  for (const auto& layer : layers) {
+    CHECK(layer.visible());
+    CHECK(layer.bounds().x == 0 && layer.bounds().y == 0);
+    CHECK(layer.pixels().format().channels == 4U);
+    CHECK(layer.pixels().format().bit_depth == BitDepth::Float32);
+  }
+  CHECK(layers[2].bounds().width == 4 && layers[2].bounds().height == 3);
+  CHECK(layers[1].bounds().width == 10 && layers[1].bounds().height == 2);
+  // The 8-bit red decodes to linear 1.0 (255 on the linear deep scale), opaque.
+  std::vector<float> row(4U * 4U);
+  patchy::load_rgba_row(layers[2].pixels(), 0, 0, 4, patchy::DeepDomain::Linear, row);
+  CHECK(std::fabs(row[0] - 255.0F) < 0.01F && std::fabs(row[1]) < 0.01F && std::fabs(row[3] - 255.0F) < 0.01F);
+  CHECK(patchy::document_depth_problems(document).empty());
+}
+
+void tiff_pages_as_layers_of_one_depth_keeps_it() {
+  Spec page;
+  page.value = [](std::uint32_t x, std::uint32_t, std::uint32_t) { return static_cast<double>(x * 20U); };
+  Spec second = page;
+  second.width = 3;
+  const auto bytes = write_tiff(std::vector<Spec>{page, second});
+  const auto offsets = patchy::psd::tiff_page_directory_offsets(bytes);
+  std::vector<patchy::psd::TiffPageDocument> pages;
+  for (const auto offset : offsets) {
+    patchy::psd::FlatTiffReadOptions options;
+    options.directory_offset = offset;
+    pages.push_back({patchy::psd::read_flat_tiff(bytes, options), "Page"});
+  }
+  std::vector<std::string> notices;
+  const auto document = patchy::psd::tiff_pages_as_layers(std::move(pages), &notices);
+  CHECK(document.color_state().bit_depth == BitDepth::UInt8);
+  CHECK(notices.empty());
+  CHECK(document.layers().size() == 2U);
+  if (document.layers().size() == 2U) {
+    CHECK(stored(document.layers()[1].pixels(), 5, 0, 0) == 100.0);
+    CHECK(stored(document.layers()[1].pixels(), 5, 0, 3) == 255.0);
+  }
+  bool threw = false;
+  try {
+    (void)patchy::psd::tiff_pages_as_layers({});
+  } catch (const std::invalid_argument&) {
+    threw = true;
+  }
+  CHECK(threw);
 }
 
 void tiff_flat_unicode_path_opens() {
@@ -460,7 +638,11 @@ std::vector<patchy::test::TestCase> tiff_flat_tests() {
       {"tiff_flat_gray_and_palette_open_as_rgb", tiff_flat_gray_and_palette_open_as_rgb},
       {"tiff_flat_unsupported_layouts_throw", tiff_flat_unsupported_layouts_throw},
       {"tiff_flat_damaged_data_throws_or_opens", tiff_flat_damaged_data_throws_or_opens},
+      {"tiff_flat_12_bit_samples_open_at_16_bits", tiff_flat_12_bit_samples_open_at_16_bits},
       {"tiff_flat_reads_any_page_by_directory_offset", tiff_flat_reads_any_page_by_directory_offset},
       {"tiff_flat_unicode_path_opens", tiff_flat_unicode_path_opens},
+      {"tiff_pages_lists_pages_names_and_chain_indexes", tiff_pages_lists_pages_names_and_chain_indexes},
+      {"tiff_pages_as_layers_stacks_pages_at_the_highest_depth", tiff_pages_as_layers_stacks_pages_at_the_highest_depth},
+      {"tiff_pages_as_layers_of_one_depth_keeps_it", tiff_pages_as_layers_of_one_depth_keeps_it},
   };
 }

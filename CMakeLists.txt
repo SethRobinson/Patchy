@@ -460,6 +460,7 @@ add_library(patchy_psd
   src/psd/psd_tiff.hpp
   src/psd/psd_tiff_flat.cpp
   src/psd/psd_tiff_internal.hpp
+  src/psd/psd_tiff_pages.cpp
   src/psd/psd_vector.cpp
 )
 target_link_libraries(patchy_psd PUBLIC patchy_core patchy_render patchy_color)

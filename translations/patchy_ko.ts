@@ -14861,6 +14861,51 @@ Each item&apos;s own View setting still applies.</source>
         <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
         <translation>TIFF의 추가 채널 일부를 제외했습니다. 문서에는 채널을 최대 56개까지 둘 수 있습니다.</translation>
     </message>
+    <message>
+        <source>The TIFF has no pages to open</source>
+        <translation>TIFF에 열 페이지가 없습니다</translation>
+    </message>
+    <message>
+        <source>The pages&apos; extra channels were left out: they belong to single pages, not the layered document.</source>
+        <translation>페이지의 추가 채널은 제외되었습니다. 이 채널은 레이어 문서가 아니라 개별 페이지에 속합니다.</translation>
+    </message>
+    <message>
+        <source>Multi-Page TIFF</source>
+        <translation>다중 페이지 TIFF</translation>
+    </message>
+    <message>
+        <source>%1 holds %2 pages. How should Patchy open them?</source>
+        <translation>%1에 %2개의 페이지가 있습니다. Patchy에서 어떻게 열까요?</translation>
+    </message>
+    <message>
+        <source>Pages as Layers puts every page on its own layer in one document, page 1 on top. Separate Documents opens every page in its own tab.</source>
+        <translation>&apos;페이지를 레이어로&apos;는 모든 페이지를 한 문서의 각 레이어에 넣고 1페이지를 맨 위에 둡니다. &apos;별도 문서&apos;는 모든 페이지를 각각의 탭에서 엽니다.</translation>
+    </message>
+    <message>
+        <source>Pages as Layers</source>
+        <translation>페이지를 레이어로</translation>
+    </message>
+    <message>
+        <source>Separate Documents</source>
+        <translation>별도 문서</translation>
+    </message>
+    <message>
+        <source>First Page Only</source>
+        <translation>첫 페이지만</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF: opened %1 pages as layers</source>
+        <translation>다중 페이지 TIFF: %1개 페이지를 레이어로 열었습니다</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF: opened %1 pages as separate documents</source>
+        <translation>다중 페이지 TIFF: %1개 페이지를 별도 문서로 열었습니다</translation>
+    </message>
+    <message>
+        <source>Pages Patchy could not read were left out: %1</source>
+        <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
+        <translation>Patchy가 읽을 수 없는 페이지는 제외되었습니다: %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

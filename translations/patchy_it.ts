@@ -14907,6 +14907,51 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
         <translation>Alcuni canali aggiuntivi del TIFF sono stati omessi: un documento contiene al massimo 56 canali.</translation>
     </message>
+    <message>
+        <source>The TIFF has no pages to open</source>
+        <translation>Il TIFF non ha pagine da aprire</translation>
+    </message>
+    <message>
+        <source>The pages&apos; extra channels were left out: they belong to single pages, not the layered document.</source>
+        <translation>I canali aggiuntivi delle pagine sono stati omessi: appartengono alle singole pagine, non al documento a livelli.</translation>
+    </message>
+    <message>
+        <source>Multi-Page TIFF</source>
+        <translation>TIFF multipagina</translation>
+    </message>
+    <message>
+        <source>%1 holds %2 pages. How should Patchy open them?</source>
+        <translation>%1 contiene %2 pagine. Come deve aprirle Patchy?</translation>
+    </message>
+    <message>
+        <source>Pages as Layers puts every page on its own layer in one document, page 1 on top. Separate Documents opens every page in its own tab.</source>
+        <translation>Pagine come livelli mette ogni pagina su un proprio livello in un unico documento, con la pagina 1 in cima. Documenti separati apre ogni pagina in una propria scheda.</translation>
+    </message>
+    <message>
+        <source>Pages as Layers</source>
+        <translation>Pagine come livelli</translation>
+    </message>
+    <message>
+        <source>Separate Documents</source>
+        <translation>Documenti separati</translation>
+    </message>
+    <message>
+        <source>First Page Only</source>
+        <translation>Solo la prima pagina</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF: opened %1 pages as layers</source>
+        <translation>TIFF multipagina: %1 pagine aperte come livelli</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF: opened %1 pages as separate documents</source>
+        <translation>TIFF multipagina: %1 pagine aperte come documenti separati</translation>
+    </message>
+    <message>
+        <source>Pages Patchy could not read were left out: %1</source>
+        <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
+        <translation>Le pagine che Patchy non è riuscito a leggere sono state omesse: %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
