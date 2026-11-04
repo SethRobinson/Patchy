@@ -33,7 +33,7 @@ struct CustomShapeLibraryEntry {
   bool bundled{false};
 };
 
-// The bundled game-icons.net pack (GitHub #521, docs/vector-tools.md): embedded in the app,
+// The bundled game-icons.net pack (GitHub #521, docs/vector-tools-custom-shapes.md): embedded in the app,
 // read only when the picker, the Shapes Manager or a script first needs it.
 inline constexpr const char* kBundledCustomShapesResource = ":/shapes/game-icons.json";
 inline constexpr const char* kBundledCustomShapeIdPrefix = "shape.gameicons.";

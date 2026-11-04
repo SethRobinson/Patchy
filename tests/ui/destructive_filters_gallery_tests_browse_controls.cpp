@@ -1526,7 +1526,7 @@ void ui_filter_gallery_tilt_shift_overlay_syncs_and_freezes_during_drag() {
   CHECK(result.outcome == patchy::ui::VisualFilterGalleryOutcome::Cancelled);
 }
 
-// Patent design constraint (Apple US 8971623; docs/legal-constraints.md):
+// Patent design constraint (Apple US 8971623; docs/legal-constraints-filters.md):
 // the tilt-shift overlay draws no line or bar along either band boundary,
 // short or spanning. The boundaries are shown only by their handle dots.
 // This test fails if anyone reintroduces a boundary mark, and it also keeps

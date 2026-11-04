@@ -1,6 +1,6 @@
 # Built-in Looks
 
-The read-only Looks Patchy ships in the Filter Gallery's Saved Looks combo. The user Look library, recipe format and gallery contracts they build on are in [filters.md](filters.md) ("Saved Looks", "Recipes").
+The read-only Looks Patchy ships in the Filter Gallery's Saved Looks combo. The user Look library, recipe format and gallery contracts they build on are in [filters.md](filters.md) ("Saved Looks", "Recipes") and [filters-gallery.md](filters-gallery.md).
 
 Patchy ships 20 read-only Looks, compiled in (no resource files): `src/filters/builtin_filter_looks.{hpp,cpp}`, Qt-free, each an id, a `PATCHY_TRANSLATE_NOOP("QObject", ...)` name and one-line description, and a recipe of catalog filters only.
 

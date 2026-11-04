@@ -144,7 +144,7 @@ if (d.fileInfo.title !== "" || d.xmp !== "") throw new Error("strip");
   CHECK(!patchy::ui::MainWindowTestAccess::document(window).file_info().has_metadata());
 }
 
-// doc.scanForWatermarks (docs/file-info.md, "Watermarks"): an SD 1.x mark is found,
+// doc.scanForWatermarks (docs/file-info-watermarks.md, "Watermarks"): an SD 1.x mark is found,
 // a clean image and a tiny one report none, and the scan leaves no undo step.
 void ui_script_scan_for_watermarks() {
   constexpr int kSize = 512;

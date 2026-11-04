@@ -22,7 +22,7 @@
 #include <string_view>
 #include <vector>
 #include "ui_test_access.hpp"
-// Vector commands on existing shapes (docs/vector-commands.md): Simplify Path
+// Vector commands on existing shapes (docs/vector-commands-shapes.md): Simplify Path
 // (live-preview dialog, commit, cancel, undo, scripting) and Combine Shapes
 // (Layers-panel multi-selection into the bottom shape layer, undo, scripting).
 #include "ui_test_support.hpp"

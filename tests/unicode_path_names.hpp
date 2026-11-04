@@ -1,9 +1,9 @@
 #pragma once
 
 // Shared file-name fixtures for the Unicode / special-character path tests (core and
-// UI suites). Every name is spelled with \u / \U escapes in u8 literals, never raw
-// non-ASCII bytes: the Qt-free core test binary compiles without -utf-8, so raw
-// bytes would be read through the ANSI code page (and 0x81-style bytes raise C4819).
+// UI suites). Every name is spelled with \u / \U escapes in u8 literals. Every Patchy
+// target, the Qt-free core test binary included, compiles with /utf-8
+// (patchy_configure_target), so raw UTF-8 would read correctly too.
 // u8 literals are UTF-8 whatever the execution charset, and
 // std::filesystem::path(std::u8string_view) decodes them as UTF-8 on every platform.
 

@@ -496,7 +496,7 @@ bool levels_record_has_effect(LevelsRecord record) {
 // x^(1/gamma) has an infinite slope at black; Photoshop replaces it below
 // t = 2^(-gamma - 1/(gamma - 1)) with a cubic Hermite segment that leaves black at slope
 // 2^gamma and meets the power curve in value and slope at t. Fitted on Photoshop 2026
-// ramps at gamma 1.2 to 9.99, 8 and 16-bit (docs/high-bit-depth.md): within 3/65535
+// ramps at gamma 1.2 to 9.99, 8 and 16-bit (docs/high-bit-depth-compositor.md): within 3/65535
 // up to gamma 3, where the plain power is off by up to 9072/65535 near black.
 double photoshop_levels_gamma(double normalized, double gamma) {
   if (gamma <= 1.0) {

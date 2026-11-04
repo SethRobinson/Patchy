@@ -203,7 +203,7 @@ QString gradient_preview_button_style(const std::vector<GradientStop>& stops, in
 // the current colors, then flattens the definition (smoothness, midpoints,
 // Noise) into sampled stops. Shared by the Edit Gradient Stops dialog's
 // Preset... button and the options-bar Presets popup. The foreground and background
-// stops carry the colors' Intensity (docs/high-bit-depth.md, "Color choice at 32 bits"):
+// stops carry the colors' Intensity (docs/high-bit-depth-color.md, "Color choice at 32 bits"):
 // each sample takes it interpolated between the definition's color stops by location.
 [[nodiscard]] std::vector<GradientStop> sampled_gradient_stops_from_definition(
     const GradientDefinition& definition, const QColor& foreground, const QColor& background,
@@ -289,7 +289,7 @@ public:
   }
 };
 
-// A stop's Intensity (docs/high-bit-depth.md, "Color choice at 32 bits") rides on its Color
+// A stop's Intensity (docs/high-bit-depth-color.md, "Color choice at 32 bits") rides on its Color
 // cell; a 32-bit document shows it under the table for the current stop.
 constexpr int kGradientStopIntensityRole = Qt::UserRole + 1;
 
@@ -2187,7 +2187,7 @@ void MainWindow::show_color_panel(bool foreground) {
       });
   dialog->setProperty("patchy.colorTarget", color_target);
   track_color_window_drag(*dialog);
-  // The 32-bit controls (docs/high-bit-depth.md, "Color choice at 32 bits"), shown by
+  // The 32-bit controls (docs/high-bit-depth-color.md, "Color choice at 32 bits"), shown by
   // refresh_hdr_exposure_control while the active document is 32-bit.
   auto* hdr = add_hdr_color_controls(*dialog);
   connect(hdr, &HdrColorControls::intensity_changed, this, [this, foreground](double stops) {

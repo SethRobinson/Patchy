@@ -637,7 +637,7 @@ void configure_encoder(JxlEncoder* enc, const EncodeLayout& layout, const WriteO
 }
 
 // Every frame goes through here. Patches and dots stay off on every encode: they are the
-// encoder's content-classified coding tools, and docs/legal-constraints.md (JPEG XL
+// encoder's content-classified coding tools, and docs/legal-licensing.md (JPEG XL
 // condition 3) forbids them. Do not add an option that turns them back on.
 JxlEncoderFrameSettings* create_frame_settings(JxlEncoder* enc, const WriteOptions& options) {
   auto* settings = JxlEncoderFrameSettingsCreate(enc, nullptr);

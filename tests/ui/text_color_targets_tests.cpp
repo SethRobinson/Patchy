@@ -1,6 +1,6 @@
 // Where a color pick lands while text is being edited (GitHub issue 371): the Text Color
 // window follows the current selection and text layer, and the Color and Swatches panels
-// recolor selected text the way the Foreground Color window does. See docs/text-tool.md.
+// recolor selected text the way the Foreground Color window does. See docs/text-tool-panels.md.
 #include "core/document.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/palette_presets.hpp"

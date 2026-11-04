@@ -1370,7 +1370,7 @@ void apply_imported_image_density(Document& document, std::span<const std::uint8
 
 namespace {
 
-// The depth a decoded image keeps while deep editing is on (docs/high-bit-depth.md):
+// The depth a decoded image keeps while deep editing is on (docs/high-bit-depth-formats.md):
 // 16-bit formats (PNG 16, TIFF 16) open as 16-bit documents, float formats (float TIFF,
 // HDR plug-ins) as 32-bit ones whose values are taken as linear light.
 std::optional<BitDepth> deep_import_depth(const QImage& image) {
@@ -1513,7 +1513,7 @@ bool prepare_flat_image_alpha(Document& document, bool alpha_as_layer_mask) {
     return false;
   }
   if (format.bit_depth != BitDepth::UInt8) {
-    // 16/32-bit imports (docs/high-bit-depth.md): the same promotion with the mask and
+    // 16/32-bit imports (docs/high-bit-depth-formats.md): the same promotion with the mask and
     // the opaque RGB at the document's depth.
     const auto domain = format.bit_depth == BitDepth::Float32 ? DeepDomain::Linear : DeepDomain::Encoded;
     float min_alpha = 1.0F;
@@ -2210,7 +2210,7 @@ void install_rttex_jpeg_codec() {
 
 namespace {
 
-// A 16 or 32-bit document's flatten as a 16-bit image (docs/high-bit-depth.md), for the
+// A 16 or 32-bit document's flatten as a 16-bit image (docs/high-bit-depth-formats.md), for the
 // formats Qt writes at 16 bits (PNG, TIFF): display-encoded, 32-bit values clamped to 0..1
 // and encoded to sRGB (PNG holds no floats). Without alpha it mattes over white in the
 // document's domain, as the 8-bit export does in its.
@@ -2238,7 +2238,7 @@ QImage deep_export_qimage(const Document& document, bool preserve_alpha) {
   return image;
 }
 
-// A 32-bit document's flatten as a float image for TIFF (docs/high-bit-depth.md): the
+// A 32-bit document's flatten as a float image for TIFF (docs/high-bit-depth-formats.md): the
 // linear values as they are, above 1.0 included (Photoshop's 32-bit TIFF). Without alpha
 // it mattes over white in linear light.
 QImage float_export_qimage(const Document& document, bool preserve_alpha) {

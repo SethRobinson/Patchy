@@ -2,6 +2,13 @@
 
 Read before changing wasm presets, emsdk/Qt provisioning, or `scripts/wasm/`.
 
+Related documents:
+
+- [wasm-files-threads.md](wasm-files-threads.md): web file access, threads and blocking.
+- [wasm-memory.md](wasm-memory.md): how the shared memory is built, the memory readouts, in-app relief and the Safari diagnostics.
+- [wasm-input.md](wasm-input.md): browser input delivery, keyboard and dialog focus, and the pending-event queue guard.
+- [release-wasm.md](release-wasm.md): the web release.
+
 ## What exists today
 
 All three use Emscripten 4.0.7:
@@ -77,10 +84,12 @@ Icon and synthetic legacy-fill/mask round trips run on every platform.
   runner catches per test, so catching must be on. Native wasm EH, faster
   than JS-based `-fexceptions`.
 - `-pthread`, `-sPTHREAD_POOL_SIZE=32`, `-sPTHREAD_POOL_SIZE_STRICT=2`: the
-  engine's two `std::async` sites (`compositor.cpp` strip flatten,
-  `psd_channel_data.cpp` CMYK conversion) spawn workers while the caller
-  blocks, so the pool must pre-spawn the largest blocking fan-out; a lazily
-  spawned worker deadlocks there. Both sites cap at 16 workers. STRICT=2
+  engine's `std::async` fan-outs block their caller on the joins, and a worker
+  spawned lazily while the caller blocks deadlocks. Each sizes itself through
+  `max_blocking_fanout_workers` (core/worker_budget.hpp), which on the main
+  thread clamps it to the idle pre-spawned pool
+  ([wasm-files-threads.md](wasm-files-threads.md)); the compositor strips and
+  the PSD CMYK conversion cap at 16 workers. STRICT=2
   makes pool exhaustion a hard error, not a silent hang.
 - `-sNODERAWFS=1`: Node-only host I/O reads fixtures via `PATCHY_SOURCE_DIR`
   and writes `test-artifacts/`. `weakly_canonical` (`fs::relative`,
@@ -147,7 +156,9 @@ then open `http://localhost:8973/patchy.html`; `serve.mjs` sends the
 COOP/COEP headers the threaded build needs. `scripts\release\start-local-wasm-test-server.bat`
 (raw build dir) and `start-local-wasm-server.bat` (staged site) add port cleanup.
 
-Stop every server you started when done (AGENTS.md rule, `free-server-port.ps1`).
+When wasm work is finished, stop every local wasm server you started
+(`scripts\wasm\free-server-port.ps1 -Port <port>` per port); Seth restarts one
+himself when he wants it.
 
 A hidden tab never fires requestAnimationFrame, so Qt stops presenting and
 the tab looks frozen. Keep it foregrounded, or shim requestAnimationFrame
@@ -217,21 +228,22 @@ onto setTimeout before qtloader runs (harness below).
   works, because `pdf_export.cpp` only needs QtGui's QPdfWriter. A picked or
   dropped `.pdf` still enters the open pipeline and gets the stub's
   marker-tagged error, which the open-failed box turns into a "Get the
-  Desktop Version" download button (see [pdf.md](pdf.md)); the G'MIC row is a
+  Desktop Version" download button (see [pdf-import.md](pdf-import.md)); the G'MIC row is a
   stub.
   Deep editing stops at 16 bits (`depth_supported_on_platform`): 32-bit
   files open converted to 16 and Image > Mode and New Document offer no 32
   ([high-bit-depth.md](high-bit-depth.md)). Single-instance QLocalServer
   off. Update check off (the site redeploy is the update mechanism; the
   GitHub fetch would fail CORS). Script sounds no-op. Scanner import off.
-  File > Export > Layers as Image Sequence hidden. Multi-file pickers degrade
-  to one pick. Browser imports stay out of Recents because their source is
+  File > Open Folder, Import > Files as Layers, Place > Place Linked, and
+  Export > Documents to Folder and Layers as Image Sequence hidden. Multi-file
+  pickers degrade to one pick. Browser imports stay out of Recents because their source is
   released after load. Script-editor plain Save downloads nothing (Save As does).
 - **Assets.** `--preload-file` mounts staged copies at `/fonts`,
   `/translations`, `/scripts` inside `patchy.data`; `applicationDirPath()`
   is `/`, so existing directory probes work unchanged. The `qtbase_<code>.qm`
   files are staged from the host kit (the wasm kit ships no `.qm`).
-  `third_party/fonts-web` (~23 MB of OFL fonts, wasm only; [fonts.md](fonts.md))
+  `third_party/fonts-web` (about 62 MiB of OFL fonts, wasm only; [fonts.md](fonts.md))
   merges into the staged fonts; `LINK_DEPENDS` on the fonts stamp makes a
   fonts-only change repack `patchy.data`. The 8.7 MB texture pack stays
   embedded. Object Selection's runtime and models are fetched on first
@@ -295,7 +307,7 @@ File open/save in the browser, the worker threads and the blocking rules are in 
   canvas, `install_dialog_overflow_scroll` moves the content into a
   `QScrollArea` (`dialogOverflowScroll`); dark-chrome dialogs keep the title
   bar fixed. The size clamp runs at initial placement only; the later
-  Show/Resize recheck (every platform, [ui-conventions.md](ui-conventions.md))
+  Show/Resize recheck (every platform, [ui-conventions-dialogs.md](ui-conventions-dialogs.md))
   only moves the frame back on screen. This is also why dialogs
   are shown through `exec_dialog`/`run_non_modal_dialog`, never a bare
   `QDialog::exec`.

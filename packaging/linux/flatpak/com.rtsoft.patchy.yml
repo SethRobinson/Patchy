@@ -24,7 +24,7 @@ cleanup:
   - /lib/cmake
   - /onnxruntime
 modules:
-  # Automatic selection (docs/ai-selection.md): the pinned ONNX Runtime CPU package. The
+  # Automatic selection (docs/ai-selection-models.md): the pinned ONNX Runtime CPU package. The
   # headers and link library stay under /onnxruntime for the patchy build (cleaned up
   # afterwards); the shared library goes to /app/lib, where the loader finds it. Keep the
   # version and checksums in sync with scripts/setup-ai-deps.sh.

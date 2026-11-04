@@ -1,7 +1,7 @@
 // Vector shape/path codec for the PSD reader: vmsk/vsms path records,
 // SoCo/GdFl/PtFl fill content, vstk stroke style, vogk live-shape origination,
 // and the saved-path image resources. Every encoding here was pinned by
-// observation of Photoshop 27.8 (docs/vector-tools.md, July 2026); parse
+// observation of Photoshop 27.8 (docs/vector-psd-encodings.md, July 2026); parse
 // failures leave the layer byte-preserved and locked rather than guessing.
 
 #include "psd/psd_document_io.hpp"
@@ -539,7 +539,7 @@ void append_path_records(std::vector<std::uint8_t>& out, const VectorPath& path,
     // as a separate shape (which fills a donut solid). The lead keeps its op
     // and +6 field 1 (even-odd group; 2 would select nonzero winding), the
     // rule Patchy's renderer applies within a group. Single-subpath groups are
-    // unchanged (docs/vector-tools.md, docs/ps-compat.md).
+    // unchanged (docs/vector-psd-encodings.md, docs/ps-compat.md).
     const bool continuation = previous != nullptr && previous->shape_group == subpath.shape_group;
     const auto length_record = append_record();
     write_u16_at(out, length_record, subpath.closed ? 0 : 3);
@@ -962,7 +962,7 @@ std::vector<std::uint8_t> vector_stroke_block_payload(const VectorStroke& stroke
   const char* alignment = stroke.alignment == VectorStrokeAlignment::Inside    ? "strokeStyleAlignInside"
                           : stroke.alignment == VectorStrokeAlignment::Outside ? "strokeStyleAlignOutside"
                                                                                : "strokeStyleAlignCenter";
-  // The PS 27.8 canonical 16-item order (docs/vector-tools.md).
+  // The PS 27.8 canonical 16-item order (docs/vector-psd-encodings.md).
   put_value(descriptor, "strokeStyleVersion", make_long_value(2));
   put_value(descriptor, "strokeEnabled", make_bool_value(stroke.enabled));
   put_value(descriptor, "fillEnabled", make_bool_value(stroke.fill_enabled));

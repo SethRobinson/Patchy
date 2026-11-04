@@ -292,7 +292,7 @@ constexpr auto kTextEditorSourceVisibleSizeProperty = "patchy.sourceVisibleSize"
 // Fraction (line start minus its whole-pixel rounding, in [-0.5, 0.5)) of the imported layer's
 // Photoshop line start, from the TySh anchor and advance box. The source raster's ink column
 // is already whole, so the anchor pin would otherwise lose it; the re-render needs it because
-// Photoshop rounds every glyph from the UNROUNDED start (docs/text-render-calibration.md).
+// Photoshop rounds every glyph from the UNROUNDED start (docs/text-render-calibration-pixel-grid.md).
 constexpr auto kTextEditorSourceLineStartFractionProperty = "patchy.sourceLineStartFraction";
 // The session-start render's ink offset from its text-local origin (visible top-left plus
 // local_rect.topLeft()) and its first baseline in local units. The anchor pin places the
@@ -2612,7 +2612,7 @@ std::optional<LayerAffineTransform> anchored_text_transform_for_pixels(const QTe
       // whole pixel and this render's ink shares the glyphs' side bearing, so a width that
       // differs by the usual Qt-vs-Photoshop pixel must not slide the raster onto a half-pixel
       // phase (centered "Hg" at tx 100.0 sits on column 72 in Photoshop, and a 0.5 px shift put
-      // it on 73; docs/text-render-calibration.md, "Pixel grid").
+      // it on 73; docs/text-render-calibration-pixel-grid.md, "Pixel grid").
       anchor_x += std::trunc(factor * (source_size->width() - static_cast<double>(visible_bounds->width)));
     }
   }
@@ -3115,9 +3115,10 @@ std::optional<LayerAffineTransform> psd_point_text_local_bounds_transform_for_pi
   // the advance box's left edge (the ink box less Patchy's own side bearing stands in when the
   // TySh carries no `bounds`). Patchy's raster origin (local x 0) is its line start, so for an
   // axis-aligned transform move it onto that rounded column: the re-render lands on Photoshop's
-  // columns (centered "Hg" at tx 100.0 -> column 72, at 100.3 -> 73; docs/text-render-calibration.md,
-  // "Pixel grid") and a translation-only commit copies whole pixels instead of resampling at a
-  // half-pixel phase. Rotated or sheared layers keep the plain pin.
+  // columns (centered "Hg" at tx 100.0 -> column 72, at 100.3 -> 73;
+  // docs/text-render-calibration-pixel-grid.md, "Pixel grid") and a translation-only commit copies
+  // whole pixels instead of resampling at a half-pixel phase. Rotated or sheared layers keep the
+  // plain pin.
   if (std::abs((*transform)[1]) <= 1e-9 && std::abs((*transform)[2]) <= 1e-9 && std::abs(pinned[0]) > 1e-9) {
     const auto advance_rect = psd_text_metadata_local_rect(layer, kLayerMetadataPsdTextBounds);
     const double line_start_psd_x =
@@ -3210,7 +3211,8 @@ std::optional<LayerAffineTransform> psd_point_text_document_bounds_transform_for
   // TySh advance box the start is recovered from the raster: the source ink column less the
   // render's own bearing (scaled), rounded. Put Patchy's raster origin (local x 0, its line
   // start) there instead of on the fractional centre pin, so the Dungeon Scroll buttons re-render
-  // on their own columns (docs/text-render-calibration.md, "Pixel grid"). Axis-aligned only.
+  // on their own columns (docs/text-render-calibration-pixel-grid.md, "Pixel grid").
+  // Axis-aligned only.
   if (std::abs(pinned[1]) <= 1e-9 && std::abs(pinned[2]) <= 1e-9 && std::abs(pinned[0]) > 1e-9) {
     const auto photoshop_start_x = source_doc.left() - render_local.left() * pinned[0];
     // As in the local-bounds variant: keep the pin's justification correction in whole local
@@ -4433,7 +4435,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   filters_phase.end();
   startup_trace::Scope tabs_phase("mw.tabs_start_panel");
   print_page_layout_ = load_stored_print_page_layout();
-  // Diagnostic kill switch for the per-stroke history entries (docs/performance.md).
+  // Diagnostic kill switch for the per-stroke history entries (docs/performance-strokes.md).
   if (bool ok = false; qEnvironmentVariableIntValue("PATCHY_STROKE_PATCH_HISTORY", &ok) == 0 && ok) {
     stroke_patch_history_enabled_ = false;
   }
@@ -4604,7 +4606,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   });
 #endif
 #ifndef Q_OS_WASM
-  // GIMP files bake their layer effects through Patchy's GEGL (docs/xcf.md, "Layer effects").
+  // GIMP files bake their layer effects through Patchy's GEGL
+  // (docs/xcf-layer-effects.md, "Layer effects").
   install_xcf_effect_runner();
   // The GEGL filter scan (docs/gegl-filters.md) reuses its cached list unless GEGL or the
   // helper changed; like the legacy scan it never delays the first paint. Offscreen runs
@@ -4810,7 +4813,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
       canvas_->fit_to_view();
     }
   });
-  // Document info after Fit (GitHub issues 202 and 206; docs/view-navigation.md): the
+  // Document info after Fit (GitHub issues 202 and 206; docs/view-navigation-status-bar.md): the
   // active document's dimensions, resolution, color mode and depth, with the profile
   // and memory use in its tooltip, in a fixed-width field between two separators.
   const auto add_status_separator = [this, zoom_controls_layout] {
@@ -9693,7 +9696,7 @@ void MainWindow::render_pending_af_text_layers(Document& target) {
 namespace {
 
 // Draws a GIMP text layer's text as Patchy's raster, GIMP's text box starting at the layer's
-// top-left (docs/xcf.md, "Text layers"), and adds `outline` (the parts of a
+// top-left (docs/xcf-text-layers.md, "Text layers"), and adds `outline` (the parts of a
 // kLayerMetadataXcfPendingOutline value, or none) as a Stroke style. False, with the layer
 // unchanged, when the text draws nothing.
 bool draw_xcf_text_layer(Layer& layer, const QStringList& outline) {
@@ -12907,5 +12910,5 @@ void MainWindow::show_about() {
 }  // namespace patchy::ui
 
 // AUTOMOC generates this here instead of in the shared mocs_compilation.cpp, so a
-// change to this class's header rebuilds this object only (docs/building.md).
+// change to this class's header rebuilds this object only (docs/building-incremental.md).
 #include "moc_main_window.cpp"

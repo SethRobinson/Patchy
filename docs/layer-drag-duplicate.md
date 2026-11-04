@@ -39,6 +39,9 @@ and `ui_layer_drag_to_float_canvas_centers_at_drop_point` (float_window_tests.cp
 Duplicate Layer (`layerDuplicateAction`, the footer button and its drop target) runs
 `MainWindow::duplicate_layers`: the copies land as one block directly above the topmost
 selected root, in its parent and in source order, and become the selection. `ui_duplicate_layer_inserts_copies_above_source` pins it.
+A copy of the Background is an ordinary layer here, in the Alt-drop, in copies to another document and in
+`layer.duplicate()`: `clear_background_locks_if_copy_of_background` (#604) drops its Background locks, except
+for a copy that becomes a New Document's first layer ([background-layer.md](background-layer.md)).
 
 An Alt-drop in the panel duplicates instead of moving: `LayerListWidget::dropEvent` records `LayerDropRequest::copy` from the event's modifiers
 (enter/move report CopyAction for the badge), and `MainWindow::duplicate_layers_for_drop` clones each dragged root above its source, then

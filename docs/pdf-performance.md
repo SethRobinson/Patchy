@@ -2,13 +2,13 @@
 
 The profiling hooks and measured costs of [pdf.md](pdf.md)'s import and export paths.
 
-`PATCHY_UI_PROFILE=1` prints per-page stage timings to stderr (`ui/ui_profile.hpp`): `pdf_import.{thumbnails,read_file,vector_page,render,raster_fallback,trim,to_document}`, `open.{add_session,fit_to_view}`, `pdf_pages.{pending_layers,add_session,fit,pump}`, and `pdf_export.{page,composite,encode,write_page,new_page,raster_chunk_flatten,raster_chunk_draw,text_merge,finish}`. `patchy_perf_tests.exe pdfopen [file]` and `pdfsave [file]` time the whole flow (file from the argument, else `PATCHY_PERF_PDF`, else `local-test-fixtures/pdf/C2_Kyoto_House_Plans_Compressed.pdf`; `[SKIP]` when absent; `PATCHY_PERF_PDF_PAGES=<n|all>` caps the pages, default 8; `PATCHY_PERF_PDF_KEEP=1` keeps the written files). Both run with isolated settings and are never part of the default perf run.
+`PATCHY_UI_PROFILE=1` prints per-page stage timings to stderr (`ui/ui_profile.hpp`): `pdf_import.{probe,open_reader,probe_pages,thumbnail,read_file,vector_page,render,raster_fallback,trim,to_document}`, `open.{add_session,fit_to_view}`, `pdf_pages.{pending_layers,add_session,pump}`, and `pdf_export.{page,pass_through,composite,encode,write_page,new_page,raster_chunk_flatten,raster_chunk_draw,text_merge,finish}`. `patchy_perf_tests.exe pdfopen [file]` and `pdfsave [file]` time the whole flow (file from the argument, else `PATCHY_PERF_PDF`, else `local-test-fixtures/pdf/C2_Kyoto_House_Plans_Compressed.pdf`; `[SKIP]` when absent; `PATCHY_PERF_PDF_PAGES=<n|all>` caps the pages, default 8; `PATCHY_PERF_PDF_KEEP=1` keeps the written files). Both run with isolated settings and are never part of the default perf run.
 
 Reference file: 86 MB, 85 pages, each one 3496x5019 8-bit gray JPEG 2000 image (about 1 MB per page), imported at 300 ppi. Per page on a 12900KS (September 2026 baseline):
 
 | Step | Time | Note |
 |---|---|---|
-| PDFium render (`QPdfDocument::render`) | 490 ms on a P-core, to 1100 ms at below-normal priority | about 85% of the open. Decode-bound: smoothing flags change nothing, half size still costs 290 ms. PDFium is single-threaded behind Qt PDF's global lock, and no other JPEG 2000 decoder is linked, so this is the in-process floor |
+| PDFium render (`QPdfDocument::render`) | 490 ms on a P-core, to 1100 ms at below-normal priority | about 85% of the open. Decode-bound: smoothing flags change nothing, half size still costs 290 ms. PDFium is single-threaded behind Qt PDF's global lock, and the PDF path never hands JPX streams to the vendored OpenJPEG ([hdr-formats.md](hdr-formats.md)), so this is the floor of the current in-process path |
 | Open the `PageReader` + probe all 85 pages | 2 ms + 3 ms | routes scans straight to the flatten path |
 | Thumbnail | 14 ms each | PDFium decodes JPX at reduced resolution for small targets; the dialog shows in about 50 ms |
 | `document_from_qimage` + source capture (composite + hash) | 32 ms + 60 ms | on a second worker, hidden behind the next page's render |
@@ -20,7 +20,7 @@ Reference file: 86 MB, 85 pages, each one 3496x5019 8-bit gray JPEG 2000 image (
 
 Timing caveat: `run-throttled.bat` runs at below-normal priority, and on a hybrid CPU Windows moves sustained background-priority work to the E-cores after about 3 s, so the same render reads 490 ms early in a run and 1100 ms later. Judge import changes by the non-render stages, or by one real open with `PATCHY_UI_PROFILE=1`.
 
-Editable export of a big canvas: each raster chunk composites only its own render area (`flatten_document_rgba8_rect`, the compositor's clip) in horizontal bands of about 4 Mpx on workers (`flatten_area_in_bands`, pdf_export_editable.cpp). It used to flatten the whole canvas once per layer: on a 25554 x 14296 page grid that was 1.1 s per page image and 14 s for a canvas-sized layer, 41 s for the save. Opening an editable PDF decodes and resamples its page images (`render_pending_pdf_image_layers`) on workers, four at a time to bound memory, behind `pdfPageImagesProgressDialog` once the wait passes 400 ms.
+Editable export of a big canvas: each raster chunk composites only its own render area (`flatten_document_rgba8_rect`, the compositor's clip) in horizontal bands of about 4 Mpx on workers (`flatten_area_in_bands`, pdf_export_editable.cpp). Opening an editable PDF decodes and resamples its page images (`render_pending_pdf_image_layers`) on workers, at most four at a time (half the hardware threads when that is fewer) to bound memory, behind `pdfPageImagesProgressDialog` once the wait passes 400 ms.
 
 Not done, in order of what they would buy on a long scanned PDF:
 - **Multi-process rendering.** PDFium's lock is per process, so N render-worker `patchy.exe` processes would cut the 85-page open from about 45 s to under 10 s here. Needs an early `main()` branch ahead of single-instance forwarding, a password channel off the command line, crash/cancel handling, and an in-process fallback.

@@ -25,7 +25,7 @@ is a folder of https://game-icons.net/tags/<tag>.html pages. Both are untrusted 
 script from the repository (never from inside them) with python -I.
 
 The shapes are CC BY 3.0 (Viscious Speed and Zeromancer: CC0), drawn by people; credits are in
-NOTICE-THIRD-PARTY.md, the rules in docs/vector-tools.md ("Bundled game-icons.net shapes").
+NOTICE-THIRD-PARTY.md, the rules in docs/vector-tools-custom-shapes.md ("Bundled game-icons.net shapes").
 """
 from __future__ import annotations
 

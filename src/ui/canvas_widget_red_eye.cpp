@@ -3,7 +3,7 @@
 // (core/red_eye.hpp) weighs pixels by fixed color rules, grows the red area from the user's
 // point, and desaturates and darkens it by each pixel's redness, once, on release. Nothing here
 // may look for faces or eyes, scan the whole image, or correct every eye at once: that needs
-// a new patent check first (docs/legal-constraints.md, "Red Eye").
+// a new patent check first (docs/legal-constraints-filters.md, "Red Eye").
 
 #include "ui/canvas_widget.hpp"
 

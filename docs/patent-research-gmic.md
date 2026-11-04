@@ -2,7 +2,7 @@
 
 Scan of October 13, 2026. Claim text was read on Google Patents; statuses are Google's
 estimates, unchecked against USPTO fee or assignment records. The binding rules are in
-[legal-constraints.md](legal-constraints.md); the design is in [gmic.md](gmic.md).
+[legal-constraints-filters.md](legal-constraints-filters.md); the design is in [gmic.md](gmic.md).
 
 Question: may the G'MIC Filter Library put its draggable position markers
 (`CanvasWidget::set_preview_point_handles`) on filters named "Blur ...", which

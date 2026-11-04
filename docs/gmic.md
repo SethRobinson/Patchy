@@ -8,6 +8,10 @@ Status: shipped in desktop builds (`PATCHY_ENABLE_GMIC` ON; OFF for the web buil
 compiles the dialog code and its translations but has no engine or Filter menu command).
 Remaining gaps are under "Known gaps".
 
+Related documents:
+
+- [gmic-dialog.md](gmic-dialog.md): the G'MIC Filter Library dialog.
+
 ## What is vendored
 
 `src/filters/gmic/` holds G'MIC 4.0.5 (`gmic_4.0.5.tar.gz` from the GitHub release, sha256
@@ -182,7 +186,7 @@ For 4.0.5 the library declares 440 filters; 394 are allowed and 46 are listed wi
   parameter a path field and a Browse button, and what the filter then reads or writes is the
   path the user chose.
 - The named list is by rule, not a review of each filter. The binding boundary is in
-  [legal-constraints.md](legal-constraints.md).
+  [legal-constraints-filters.md](legal-constraints-filters.md).
 - The catalog is not the execution boundary. `gmic_command_policy.hpp` stubs excluded apply,
   preview, private-helper and algorithm command families at registration, including later
   redefinitions. Nested formula `run()`, aliases and `$$name` body copying get the refusal too.

@@ -4,17 +4,19 @@
 // the dragged offset is the ONLY source choice for the dragged region, the drag
 // shows at most a raw ghost of the frozen snapshot at the pointer offset (never
 // anything inside the original spot: Adobe US 9575641 / US 10332291, to 2033),
-// Content-Aware Move's hole fill is the shape-derived map of core/spot_heal.hpp,
-// and all healing runs ONCE on release using the classic healing membrane of
+// Content-Aware Move fills the hole it leaves with the exhaustive exemplar searches
+// of core/exemplar_inpaint.hpp, falling back to the shape-derived map of
+// core/spot_heal.hpp, and all healing runs ONCE on release using the classic healing membrane of
 // the expired US 6587592 (core/heal_membrane.hpp): boundary tone differences interpolated across the
 // interior, plus the dragged source texture. No PatchMatch-style offset
 // propagation or perturbation, no reshuffling, no gradient-domain compositing
 // of source gradients, and no live per-move classification may be added:
 // those are claimed by Adobe's active patents (US 8285055, US 8340463,
 // US 8355592, into 2031), US 9058699 (to 2029), and US 8050498 (to Nov 3,
-// 2029). A content-driven source search, if ever added, must be the exhaustive
-// exemplar search docs/legal-constraints.md clears; see the dated records in
-// docs/patent-research.md and docs/patent-research-inpainting.md.
+// 2029). Content-driven source search stays the exhaustive exemplar search that
+// docs/legal-constraints-filters.md describes; see the dated records in
+// docs/patent-research.md, docs/patent-research-inpainting.md and
+// docs/patent-research-content-aware-move.md.
 
 #include "ui/canvas_widget.hpp"
 
@@ -409,9 +411,11 @@ void CanvasWidget::commit_patch_tool_drag() {
 // written or shown in the old spot during the drag; only the ghost followed the pointer.
 // That keeps the tool outside every independent claim of Adobe US 9575641 and its
 // continuation US 10332291 (to 2033), which need the original spot updated with the
-// content of the current selection location during the drag. The hole is filled only
-// by the shape-derived rigid map (spot_heal_source_map) plus the membrane: no patch or
-// exemplar search, no structure or color adaptation settings (docs/legal-constraints.md).
+// content of the current selection location during the drag. The hole is filled by
+// content_aware_move_hole_fill (exemplar_block_match's whole-hole block match, else
+// Remove Object's exemplar_inpaint fill) or, when neither finds a clean source, by the
+// shape-derived rigid map (spot_heal_source_map), each healed in through the membrane.
+// No structure or color adaptation settings (docs/legal-constraints-filters.md).
 void CanvasWidget::commit_content_aware_move(QPoint delta, QRect bounds, const std::vector<std::uint8_t>& mask,
                                              std::int64_t mask_area, const QImage& snapshot) {
   const QRect canvas_rect(0, 0, document_->width(), document_->height());
@@ -635,7 +639,7 @@ CanvasWidget::ContentAwareMoveHoleFill CanvasWidget::content_aware_move_hole_fil
   begin_processing_operation(tr("Moving object..."));
   bool run_inline = false;
 #if defined(Q_OS_WASM) && defined(__EMSCRIPTEN_PTHREADS__)
-  // Remove Object's pool contract (worker_budget.hpp, docs/healing.md).
+  // Remove Object's pool contract (worker_budget.hpp, docs/healing-remove-object.md).
   const auto idle_pool = patchy::idle_prespawned_pool_workers();
   run_inline = idle_pool < 1;
   const patchy::BlockingFanoutBudgetScope fanout_budget(run_inline ? -1 : std::max(0, idle_pool - 3));
@@ -969,7 +973,7 @@ void CanvasWidget::write_patch_heal(Layer& layer, QRect bounds, const std::vecto
 // The drag shows no heal. Patch Source draws nothing here, only the moving outline
 // (draw_patch_tool_drag_outline): showing the dragged-to content inside the original
 // spot while dragging is a step of Adobe US 10332291 claim 1 (to 2033;
-// docs/legal-constraints.md), so the original spot stays as it is until release.
+// docs/legal-constraints-filters.md), so the original spot stays as it is until release.
 // Patch Destination and Content-Aware Move draw a raw ghost of the region (the frozen
 // snapshot cut to the mask) at the pointer offset; the heal is one-shot at release.
 void CanvasWidget::draw_patch_tool_drag_preview(QPainter& painter) const {

@@ -91,9 +91,9 @@ struct ThemeLoadResult {
 [[nodiscard]] QString running_patchy_version();
 
 // Desktop persistence directory for imported theme files; empty on wasm (no
-// AppData store there -- the theme buttons are desktop-only, see
-// docs/ui-conventions.md). Honors the PATCHY_THEMES_DIR environment override
-// for test isolation, like PATCHY_RECOVERY_DIR (document_recovery.hpp).
+// AppData store there: the theme buttons are desktop-only, see
+// docs/theme-files-preferences.md). Honors the PATCHY_THEMES_DIR environment
+// override for test isolation, like PATCHY_RECOVERY_DIR (document_recovery.hpp).
 [[nodiscard]] QString user_themes_directory();
 
 // A theme id, the value ThemeManager persists, is either a name within

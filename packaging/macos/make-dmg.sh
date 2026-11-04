@@ -100,7 +100,7 @@ cp "$QT_OFFSCREEN_PLUGIN" "$STAGE/Patchy.app/Contents/PlugIns/platforms/libqoffs
 
 # The kit's cocoa plugin crashes when an accessibility client has read a list that is
 # then reset (GitHub issue 95); the bundle carries the patched build instead
-# (docs/building.md, "Patched Qt cocoa plugin"). Before codesign, like the plugin above.
+# (docs/building-qt.md, "Patched Qt cocoa plugin"). Before codesign, like the plugin above.
 PATCHED_COCOA_PLUGIN=".deps/qt-cocoa-6.8.3-patched/platforms/libqcocoa.dylib"
 BUNDLED_COCOA_PLUGIN="$STAGE/Patchy.app/Contents/PlugIns/platforms/libqcocoa.dylib"
 if [ ! -f "$PATCHED_COCOA_PLUGIN" ]; then

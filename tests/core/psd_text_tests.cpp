@@ -3235,7 +3235,8 @@ void psd_writer_writes_baseline_direction_for_vertical_type() {
 // photoshop-text-anchor-{whole,half}.psd: Photoshop 27.9 point text "Hg" (Arial 48 px, Sharp)
 // placed at x 100.0 and x 100.5. The TySh keeps the fractional anchor, and Photoshop's own
 // raster sits at the ROUNDED anchor: the half layer's record rect starts one column later
-// (its glyph rows are otherwise byte-identical to the whole layer's; docs/text-render-calibration.md).
+// (its glyph rows are otherwise byte-identical to the whole layer's;
+// docs/text-render-calibration-pixel-grid.md).
 void psd_text_anchor_captures_keep_fractional_transform() {
   const auto text_layer_of = [](const patchy::Document& document) -> const patchy::Layer* {
     for (const auto& layer : document.layers()) {

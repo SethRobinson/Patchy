@@ -1,6 +1,6 @@
 #pragma once
 
-// Theme effects (docs/theme-files.md, "Events and effects"): short animations a theme
+// Theme effects (docs/theme-files-scripts.md, "Events and effects"): short animations a theme
 // names for an event or plays from its scripts. They draw in a transparent overlay
 // above the document area that takes no input and never touches the document. The
 // overlay is hidden and its timer stopped whenever nothing plays, so an idle theme

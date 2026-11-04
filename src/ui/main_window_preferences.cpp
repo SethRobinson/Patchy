@@ -1257,8 +1257,8 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   tools_form->addRow(escape_commits_text_check);
   tools_layout->addWidget(tools_group);
 #if !defined(Q_OS_WASM)
-  // Object Selection's downloaded High Quality model (docs/ai-selection.md): its status and a
-  // way to delete it (exactly its own files; Object Selection falls back to Standard).
+  // Object Selection's downloaded High Quality model (docs/ai-selection-models.md): its status
+  // and a way to delete it (exactly its own files; Object Selection falls back to Standard).
   configure_automatic_selection_models();
   if (patchy::ai::segmentation_available()) {
     auto* model_group = new QFrame(tools_page);
@@ -1321,7 +1321,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   tools_layout->addStretch(1);
   add_page(tools_page, tr("Tools"), QStringLiteral("tools"));
 
-  // Metadata and Watermarks: what saves add of Patchy's own and the user's (docs/file-info.md,
+  // Metadata and Watermarks: what saves add of Patchy's own and the user's (docs/file-info-save-stamp.md,
   // "Saved metadata preference"), then the TrustMark text saves add, when they add it, the
   // check on open, and the optional models (docs/watermarks.md, "Preferences").
   auto [watermarks_page, watermarks_layout] = make_tab_page(page_stack);
@@ -2117,7 +2117,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   // below, and creating it after this sheet is what keeps its rows from being
   // repolished. One append: each sheet change restyles every widget on every page
   // (about 45 ms apiece; docs/preferences-dialog.md, "Opening speed"). The spin
-  // sub-control rules go last, the final word (see docs/ui-conventions.md).
+  // sub-control rules go last, the final word (see docs/ui-conventions-dialogs.md).
   append_themed_style(dialog, ThemedQss(QStringLiteral(R"(
     QDialog#patchyPreferencesDialog QStackedWidget#preferencesPageStack {
       border: 1px solid @dialog_tab_border;
@@ -2990,7 +2990,7 @@ void MainWindow::new_guide_layout_dialog() {
   content->addWidget(buttons);
   append_themed_style(dialog, QStringLiteral("QFrame#newGuideLayoutDivider { background: @dlg_divider; color: "
                                              "@dlg_divider; min-height: 1px; max-height: 1px; border: 0; }"));
-  // Last, once every field exists: the fields' -/+ buttons (docs/ui-conventions.md).
+  // Last, once every field exists: the fields' -/+ buttons (docs/ui-conventions-dialogs.md).
   append_themed_style(dialog, dialog_spinbox_button_style());
 
   if (exec_dialog(dialog) != QDialog::Accepted) {

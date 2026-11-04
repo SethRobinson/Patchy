@@ -3,7 +3,7 @@
 # uses its main checkout's .deps. Flatpak and other packagers pass PATCHY_ONNXRUNTIME_DIR
 # and PATCHY_AI_MODELS_DIR explicitly. Without them the stub engine builds and the feature
 # reports itself unavailable; PATCHY_REQUIRE_AI_SELECTION turns that into a configure error
-# (release builds set it).
+# (release builds set it). Provisioning and run-time loading: docs/ai-selection-models.md.
 #
 # The threaded wasm app instead runs MobileSAM in the page's onnxruntime-web
 # (segmentation_engine_web.cpp plus scripts/wasm/ai-host-pre.js): the npm package and the two
@@ -33,7 +33,8 @@ if(PATCHY_ENABLE_SELECT_SUBJECT)
   list(APPEND PATCHY_AI_MODEL_FILES birefnet_lite_general_1024_int8.onnx)
 endif()
 # Object Selection's High quality model (EfficientViT-SAM XL0, 234 MB) is never packaged:
-# desktop users download it on first use into their app-data folder (docs/ai-selection.md).
+# desktop users download it on first use into their app-data folder
+# (docs/ai-selection-models.md).
 # When setup-ai-deps provisioned it, the build stages it into <build>/ai-models-download, the
 # stand-in for that folder that tests point the engine at. Keep in sync with
 # src/ui/object_selection_model_download.cpp, which pins the same files.

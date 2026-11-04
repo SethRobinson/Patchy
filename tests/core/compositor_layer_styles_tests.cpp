@@ -1242,7 +1242,7 @@ patchy::Layer make_stroked_shape_layer(patchy::Document& document, bool fill_ena
 }
 
 void compositor_interior_overlay_stays_under_vector_stroke() {
-  // PS 2026 probes (fx-sofi-center/outside/nofill, docs/vector-tools.md):
+  // PS 2026 probes (fx-sofi-center/outside/nofill, docs/layer-effects-render.md):
   // interior overlays cover a stroked shape layer's FILL only, with the
   // vector stroke composited above; a stroke-only shape's overlay covers the
   // stroke itself.

@@ -8,6 +8,11 @@ Both are undoable (`push_undo_snapshot`) and change the file only on the next sa
 File > Metadata > Scan for Watermarks... (`file.scan_for_watermarks`, no default key; also on the
 document tab's menu) opens File Info on the Watermarks page with the scan run.
 
+Related documents:
+
+- [file-info-save-stamp.md](file-info-save-stamp.md): the save stamp PSD, PSB and JPEG saves record in XMP and EXIF, the fresh PSD and JPEG thumbnails, and the Saved metadata preference (None, Basic, Personal).
+- [file-info-watermarks.md](file-info-watermarks.md): watermarks declared in C2PA metadata and the on-request pixel scan for the open Stable Diffusion invisible watermarks (payloads, decoder, match rule, limits).
+
 ## Model
 
 - `DocumentFileInfo` (`src/core/document_file_info.hpp`, `Document::file_info()`) holds the
@@ -42,9 +47,8 @@ document tab's menu) opens File Info on the Watermarks page with the scan run.
   `extract_file_info_from_path` on the file after the document is built. Files over 512 MB
   are scanned from their first 64 MB.
 - An RGB source profile becomes the embedded profile only when the decoder left the pixels
-  in the file's color space (Qt's PNG/JPEG/TIFF/WebP/GIF readers, the BMP reader, the JPEG XL
-  reader for 8 and 16-bit RGB). WIC
-  HEIF/JPEG XR, LibRaw and the HEIF Qt fallback convert to sRGB, so their profile is
+  in the file's color space (Qt's PNG/JPEG/TIFF/WebP/GIF readers, the BMP and AVIF readers, the
+  JPEG XL reader for 8 and 16-bit RGB). WIC HEIF/JPEG XR, LibRaw and the HEIF Qt fallback convert to sRGB, so their profile is
   display-only, as are gray and CMYK profiles; `source_icc_note` says why. A kept RGB
   profile that is not sRGB then converts to sRGB on open (on by default) and becomes
   display-only too ([rgb-profiles.md](rgb-profiles.md)).
@@ -99,12 +103,13 @@ copyright flag.
 - Save and Save As write everything (`MetadataPolicy::All`). Export's shared section has a
   Metadata combo (`exportMetadataCombo`; None, Basic, Copyright and Contact Info, All), persisted
   as `saveOptions/exportMetadata` with tokens `none`/`basic`/`copyright`/`all` (default `none`) and
-  shown only for JPEG, PNG, TIFF, WebP, GIF and JPEG XL. `reset_export_options` puts every prompt
+  shown only for JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF. `reset_export_options` puts every prompt
   back to All. Scripts pass `metadata: "all" | "copyright" | "basic" | "none"` to `saveAs`/`exportAs`.
   File > Export for Web has its own Metadata combo (`exportForWeb/metadata`, default `none`).
   `MetadataPolicy` is append-only (Basic was added last).
 - Basic (October 27, 2026) means what Preferences "Saved metadata: Basic" means: the save stamp
-  below and nothing else. `prepare_save_metadata` stamps an empty File Info for the file being
+  ([file-info-save-stamp.md](file-info-save-stamp.md#save-stamp)) and nothing else.
+  `prepare_save_metadata` stamps an empty File Info for the file being
   written (`save_stamp_now`, a `SaveStampDocument` with its MIME type as dc:format, mode 3, or 4
   for a CMYK JPEG, the output size and the document's resolution): EXIF IFD0 Orientation,
   resolution, Software and DateTime, Exif IFD version, color space and pixel size; XMP
@@ -115,12 +120,13 @@ copyright flag.
 - `prepare_save_metadata` always writes EXIF Orientation and XMP `tiff:Orientation` as 1,
   sets PixelX/YDimension and XMP pixel sizes where present to the output size, rewrites
   existing X/YResolution from print settings, and drops the EXIF IFD1 thumbnail and
-  `xmp:Thumbnails` (stale after edits; JPEG writes a fresh IFD1, "Thumbnails" below). `CopyrightAndContact` keeps EXIF Artist/Copyright,
+  `xmp:Thumbnails` (stale after edits; JPEG writes a fresh IFD1, "Thumbnails" in
+  [file-info-save-stamp.md](file-info-save-stamp.md#thumbnails)). `CopyrightAndContact` keeps EXIF Artist/Copyright,
   XMP `dc:creator`, `dc:rights`, `xmpRights:*`, `photoshop:AuthorsPosition` and
   `CreatorContactInfo`, and IIM 2:80/2:85/2:116. `None` keeps only the profile.
 - `inject_metadata` replaces what the encoder wrote in the same containers. An empty
   `SaveMetadata` leaves the encoder's bytes untouched, so documents without metadata or a
-  profile save byte-identically to before this feature.
+  profile save exactly the bytes the encoder wrote.
   - JPEG: after the leading APP0 segments, APP1 Exif (a MakerNote is dropped first if the
     block exceeds one segment), APP1 XMP or standard plus Extended XMP split at 60000
     bytes, APP2 ICC chunks, APP13 IPTC with the digest, COM per comment.
@@ -134,106 +140,20 @@ copyright flag.
   - Animated PNG: the PNG rules, after the writer's IHDR (before acTL).
   - GIF: Comment and XMP extensions after the global color table (the header becomes
     GIF89a), also for animated GIF.
-  - JPEG XL: no injection; the writer gets EXIF and XMP from `save_metadata_for` and emits
-    uncompressed `Exif` and `xml ` boxes itself, also for animated JPEG XL (docs/jxl.md).
+  - JPEG XL and AVIF: no injection; the writer gets EXIF and XMP from `save_metadata_for` and emits
+    them itself (JPEG XL as uncompressed `Exif` and `xml ` boxes, also animated; docs/jxl.md, docs/avif.md).
 - PSD: `image_resources_for_document` writes the lifted resources (XMP still goes through
   `repair_xmp_date_timezones`) plus resource 4213 (`'PtcM'`, v1, big-endian: u32 count,
   then per entry u8 FileInfoTextKind and key/value/language as u32 length + UTF-8) for PNG
   text and comments. Patchy-born documents carry none, so the byte-stability canaries are
   unchanged.
-
-### Save stamp
-
-A PSD/PSB or JPEG Save or Save As (`DocumentSaveCoordinator::write_prepared`, also scripts'
-`saveAs` and `--export`; JPEG since October 25, 2026, not a script's `exportAs` copy) records itself in the session's XMP and EXIF before the writer runs, through
-`stamp_file_info_for_save` with `save_stamp_now()` (local time and offset, `"Patchy " +
-PATCHY_VERSION`, a fresh `QUuid`): xmp:ModifyDate and xmp:MetadataDate become the save
-time; xmp:CreateDate and xmp:CreatorTool are set only when absent; xmpMM:History gains a
-stEvt entry ("created" with no prior CreateDate or History, else "saved" with changed "/")
-whose instanceID `xmp.iid:<guid>` is also the new xmpMM:InstanceID; the "created" save
-also sets xmpMM:DocumentID and OriginalDocumentID to `xmp.did:<guid>` when absent. An EXIF
-block gets IFD0 Software (the stamp's software) and DateTime (local `YYYY:MM:DD HH:MM:SS`).
-That is Photoshop's own behavior: a file another application created keeps its creator (a
-Photoshop 23.4 save of pinball_from_photoshop.psd left CreatorTool at "Adobe Photoshop
-21.1" and added a history entry), while a Photoshop 27.11 save rewrites EXIF Software and
-DateTime even in a file another application created and gives every History entry the
-instanceID that xmpMM:InstanceID repeats. Dates are ISO 8601 with the local offset
-(`xmp_date`). An unparseable packet is left alone (the EXIF is still stamped).
-
-The coordinator also passes `SaveStampDocument` (#418, `stamp_document_for_save`), which
-describes the file as Photoshop's own new documents do: XMP dc:format
-(`application/vnd.adobe.photoshop`, or `image/jpeg`) and photoshop:ColorMode (the PSD
-header mode: `layered_save_color_mode` for PSD, 3 or 4 for a CMYK JPEG) on every save;
-EXIF PixelX/YDimension and X/YResolution (from print settings, unit inches) where the block
-has them, and no IFD1 thumbnail (it shows an older image). A document without EXIF gets a
-new big-endian block: IFD0 Orientation 1, X/YResolution, ResolutionUnit, Software and
-DateTime; Exif IFD ExifVersion 0231, ColorSpace (1 for an embedded sRGB profile, else
-65535 "uncalibrated", as Photoshop writes untagged files) and PixelX/YDimension. Photoshop
-also writes an IFD1 with a zero-length thumbnail pointer; Patchy leaves IFD1 out. After
-Strip All Metadata (`DocumentFileInfo::stripped`, set by `strip_file_info`, never saved)
-the next save writes the XMP stamp again (dates, creator, format, mode and ids) but no
-EXIF. Recovery snapshots, File > Export As, flat formats other than JPEG and layered TIFF
-are not stamped; the core writers never stamp, so the canaries hold.
-
-### Thumbnails
-
-- PSD/PSB saves through `write_prepared` set `psd::WriteOptions::encode_thumbnail` (#419):
-  the writer reduces the composite it already made (`psd::thumbnail_pixels`: integer box
-  average to fit 160 pixels, Photoshop's limit, over white where the merged transparency is
-  below 255) and the UI encodes it with Qt's JPEG at quality 75 (`encode_thumbnail_jpeg`).
-  Resource 1036 is `thumbnail_resource`: format 1 (kJpegRGB), width, height, padded row
-  bytes, total size, JFIF size, 24 bits, 1 plane, then RGB JFIF. Resource 1033 (Photoshop
-  4, BGR) and any earlier 1036 are never written then. The thumbnail is the image as saved,
-  so it is written in every Saved metadata mode and after Strip All Metadata.
-- Without the encoder (recovery snapshots, scripts and tests calling the core writer, the
-  byte canaries) the lifted 1033/1036 pass through unchanged.
-- JPEG: when a save writes EXIF, `add_jpeg_exif_thumbnail` adds IFD1 (Compression 6,
-  72 ppi) with a thumbnail of the saved image, as Photoshop does; it is left out when the
-  block would no longer fit one APP1 segment. With the JPEG save stamp a new document's
-  Save As has EXIF, so it gets one too; a save without EXIF (Saved metadata None, after
-  Strip All Metadata, Export As with Metadata None) gets none. `ImageSaveOptions::jpeg_exif_thumbnail`
-  (default true; scripts' `thumbnail`) turns it off: File > Export for Web writes it only when
-  "Include thumbnail" is on ([web-export.md](web-export.md)). That checkbox and a script's explicit
-  `thumbnail: true` also set `jpeg_exif_thumbnail_without_metadata`: a JPEG whose metadata choice
-  writes no EXIF (None) then gets one APP1 Exif holding only IFD0 X/YResolution and
-  ResolutionUnit and the IFD1 thumbnail (`thumbnail_only_exif`), no XMP, IPTC or other tags.
-  Without it None writes no APP1, as before; Save, Save As and Export never set it.
-### Saved metadata preference
-
-Preferences > Metadata and Watermarks, "Saved metadata" (`ui/save_metadata_settings.*`,
-`main_window_save_metadata.cpp`). Settings keys, permanent: `saveMetadata/autoAdd` (`none`,
-`basic` default, `personal`; also the scripting tokens), `saveMetadata/authorName`,
-`saveMetadata/copyrightNotice`, `saveMetadata/contactEmail`, `saveMetadata/contactWebsite`,
-`saveMetadata/askBeforeAdding` (true).
-
-- None: no save stamp (`write_prepared(..., stamp_save = false)`) and nothing personal. What the
-  file already carries is kept; Strip All Metadata removes it.
-- Basic: the save stamp above for PSD, PSB and JPEG Save/Save As. JPEG was added October
-  25, 2026 (Seth), reversing the October 23 rule for JPEG only: the other flat formats stay
-  unstamped, so a document without metadata still saves them byte-identically (the
-  injection rule above), and File > Export As follows only its Metadata combo.
-- Personal: Basic plus `add_personal_save_metadata` before a save to a format that carries
-  metadata (PSD, PSB, JPEG, PNG, TIFF, WebP, GIF, JPEG XL, AVIF, PDF author): the name goes into
-  `dc:creator` beside any creator already there (never replacing one), the copyright notice into
-  `dc:rights` with status Copyrighted, email and website into `Iptc4xmpCore:CreatorContactInfo`,
-  each only where empty, through `apply_fields` (so EXIF Artist/Copyright and IIM By-line/2:116
-  follow only where those blocks exist). It is a save-time File Info change like the stamp, no
-  undo step. With asking on, `savePersonalMetadataPrompt` (Add, Skip, "Always add without
-  asking", which turns asking off) shows the name, copyright and any creator already named. No
-  prompt and no change when the file already names the user (case-insensitive), the name is
-  empty, the format carries no metadata, or Skip was chosen for this document
-  (`DocumentSession::personal_save_metadata_skipped`, until it closes). Scripted and unattended
-  saves never ask: with asking on they add nothing, with it off they add. Exports never add
-  personal info (they follow the Export dialog's Metadata combo, None included), and recovery
-  snapshots never pass through this path.
-
 - PDF: the image-page writer (`pdf::ImageWriter::set_document_info`) writes `/Info` Title,
   Author, Subject (description) and Keywords from the first page's fields as UTF-16 hex
   strings; the Qt PDF paths (editable layers) set the title only.
 - Not carried: C2PA (edits invalidate the signature), MPF secondary images and other
   trailers (Qt writes one image), a source PDF's `/Info` and SVG title/desc entries (only
-  the fields above reach a PDF), JFIF thumbnails. BMP, ICO, TGA, PCX, ILBM, DDS, Proton,
-  JPEG XR and SVG saves write no File Info metadata.
+  the fields above reach a PDF), JFIF thumbnails. Only PSD/PSB, JPEG, PNG, TIFF, WebP, GIF,
+  JPEG XL, AVIF and PDF saves write File Info metadata.
 
 ## Limitations
 
@@ -284,64 +204,6 @@ Preferences > Metadata and Watermarks, "Saved metadata" (`ui/save_metadata_setti
   trained model (`is_ai_digital_source_type`: trainedAlgorithmicMedia,
   compositeWithTrainedAlgorithmicMedia). Any other source type (digitalCapture, digitalArt, ...)
   shows as "Digital source type" on the History and Provenance page with no privacy class.
-
-## Watermarks
-
-Patchy never removes or masks a watermark (docs/legal-constraints.md, "Watermark detection").
-Adobe TrustMark, read by the same Scan for Watermarks once its models are downloaded and added
-by Image > Add Invisible Watermark, is in [watermarks.md](watermarks.md).
-
-- Declared in metadata: a C2PA `c2pa.soft-binding` assertion (its `alg`, such as
-  `com.adobe.trustmark.Q`) or an action named `c2pa.watermarked*` (`summarize_jumbf`) adds the
-  observed item "Watermark declared in Content Credentials", privacy `watermark`. IPTC
-  DigitalSourceType says how an image was made, not that it carries a mark: aiPrompt for a
-  trained-model source, none otherwise.
-- Pixel scan: the Watermarks page's Scan for Watermarks (`fileInfoScanWatermarksButton`,
-  per-kind results in [watermarks.md](watermarks.md#scan-results)) and `doc.scanForWatermarks()`. It runs only on that
-  request, never at open or per repaint: `Compositor::flatten_rgb8` of the document as it is
-  now, then `scan_invisible_watermarks` (`src/core/invisible_watermark.cpp`). A hit adds a
-  "Pixel scan" / "Invisible watermark" row (privacy watermark) to All Metadata and a banner
-  sentence saying stripping metadata does not remove it. Nothing is stored or saved.
-- Known payloads (ids permanent), bits MSB first as `numpy.unpackbits`: `stableDiffusion1`, the
-  17 bytes "StableDiffusionV1" (CompVis/stable-diffusion `scripts/txt2img.py`, `img2img.py`);
-  `stableDiffusion2`, "SDV2" (Stability-AI/stablediffusion scripts); `stableDiffusionXL`, the
-  48-bit 0xB3EC907BB19E (Stability-AI/generative-models `WATERMARK_MESSAGE`, also diffusers'
-  `StableDiffusionXLWatermarker`).
-- Decoder: a Patchy-owned reimplementation of the decode side of ShieldMnt's
-  invisible-watermark (MIT; `imwatermark/maxDct.py` `EmbedMaxDct.decode`, `watermark.py`, read
-  October 2026); no code copied. OpenCV's 8-bit BGR-to-YUV in fixed point (Y = (1868 B + 9617 G
-  + 4899 R + 2^13) >> 14, U = ((B - Y) 8061 + 128 * 2^14 + 2^13) >> 14), the level-1 Haar
-  approximation of U over the top-left (h/4*4) x (w/4*4) pixels, then per 4 x 4 block of
-  coefficients (8 x 8 pixels, row-major) the largest of the 15 non-DC coefficients (first on
-  ties): bit 1 when its value mod 36 exceeds 18. Block n votes for bit n mod L; a bit is 1
-  when ones * 255 > votes * 127, as the library's `mean * 255 > 127`. A coefficient is half a
-  2 x 2 sum of U (never negative), so the test is `sum % 72 > 36` in integers: exact and the
-  same on every toolchain. Only U is read: the library's scales are [0, 36, 36] but it loops
-  `range(2)`. Images under 256 x 256 pixels (the library's minimum) are not scanned.
-- Eight readings per payload (`DwtDctDecodeOptions`): both channel orders (callers that hand
-  the library RGB as BGR); U measured from 0 (the SD scripts embed in 8 bits, U centered on
-  128) or from OpenCV's float chroma zero, |sum - 510| (SDXL embeds in float BGR, where U is
-  centered on 0.5 and coefficients can be negative, so an 8-bit reading flips those blocks);
-  and two bit rules. The library's `mean * 255 > 127` misreads many 0 bits: a marked 1 reads 1
-  in nearly every block, but setting a 0 can lower the block's largest coefficient below
-  another one, which then reads 1 about half the time. Stability's own SDXL `detect.py` allows
-  for this and calls 36 or more of 48 matching bits "very likely watermarked". The second rule
-  (`TwoCluster`) puts the threshold where the per-bit averages split into two groups (largest
-  between-group variance, exact integers). On the test images the library rule leaves 4 to 36
-  bits wrong and the two-group rule none.
-- Match rule: a payload is found when any reading has at most L/12 bits (rounded down)
-  different: 11 of 136, 4 of 48, 2 of 32. On an unmarked image the decoded word is close to
-  random, so it lands that close to a given payload with odds of about 1.2e-7 (32 bits),
-  7.6e-10 (48) and far less (136) per reading; over the eight readings and three payloads the
-  worst case stays near 1e-6 (the 32-bit SD 2.x payload). The core tests check photo-like,
-  flat, gradient, checkerboard, noise and other-payload images. The embedding side exists only
-  as a test reference (`tests/invisible_watermark_reference.hpp`) of both pixel paths.
-- Limits: the 8-pixel block grid must line up with the original, so a crop off that grid, a
-  resize, rotation or heavy repainting removes the mark. JPEG recompression does too: the mark
-  lives in fine chroma detail, and in `ui_file_info_scans_for_watermarks` a marked SDXL image
-  still decodes exactly after Qt's JPEG at quality 100 but keeps 6 of 48 bits wrong at 95 and
-  19 at 90 (not found). Many watermarks have no public
-  decoder (Google SynthID, Digimarc); the page says so under the results.
 
 ## Tests
 

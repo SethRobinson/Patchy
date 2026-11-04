@@ -11,7 +11,7 @@ Split from [scripting.md](scripting.md). Script and API identifiers are permanen
   resets each run) skips the snapshot for speed; those edits cannot be undone, but
   sessions are still marked modified so closing protects the work. Connector sessions
   reject it so failed edits remain recoverable. `patchy.ui.slowMode` instead separates
-  native strokes and undoable edits ([automation-feedback.md](automation-feedback.md)).
+  native strokes and undoable edits ([automation-feedback.md](automation-feedback.md#slow-mode)).
 - **Wrappers hold ids, never pointers.** Layer wrappers keep session id + LayerId and
   re-resolve on every access, throwing a JS error when the target is gone (a stored
   `Layer*` is the historical use-after-free pattern). Reads resolve through const
@@ -116,7 +116,7 @@ Split from [scripting.md](scripting.md). Script and API identifiers are permanen
 - **Deep documents** (16/32-bit, on by default; [high-bit-depth.md](high-bit-depth.md)):
   `getPixels`/`setPixels` stay RGBA8 and convert at the boundary, `fill`/`fillRect` and
   `applyFilter` work at depth, `applyPlugin` takes 16-bit layers through an 8-bit copy,
-  and `drawStrokes` still requires an 8-bit layer.
+  and `drawStrokes` paints any depth (the canvas brush works at the layer's depth).
 - **`include()` resolution order**: relative to the including script, then the user
   root, then the bundled root; a bundled result maps through the shadow-override store.
   `patchy.isMainScript()` is false during an included file's top-level code

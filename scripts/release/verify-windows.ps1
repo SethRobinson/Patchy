@@ -6,7 +6,8 @@ built connector and against the staged package's connector.
   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\release\verify-windows.ps1 [-SkipCore] [-SkipUi]
 
 Run it after the windows builder has finished (release-all-automated.bat verify-windows does
-this unattended) and never beside a build: the suites share the QSettings store. Each step
+this unattended), never beside a build or another suite (docs/testing.md, "Running and
+filtering", names the state UI runs share). Each step
 logs to build\release-logs\verify-windows-<step>.log and writes exit=<code> beside it; a
 step that exits 0 but printed [FAIL] counts as failed. The first failing step ends the run.
 -SkipCore / -SkipUi are for a re-verification after a change those suites already covered.

@@ -89,7 +89,7 @@ Resolution order: a DX10 header wins, then a FourCC, then the bit masks.
   named in file order; DX10 cubemap arrays append the element number), volume slices
   (`Slice N`) and array elements (`Element N`) become pixel layers with only the first
   visible, the ICO convention. Import only: a save flattens to one 2D texture after the
-  usual layered-document warning ([file-formats.md](file-formats.md), the Photoshop-style
+  usual layered-document warning ([file-formats-saving.md](file-formats-saving.md), the Photoshop-style
   save guard; `ui_dds_cubemap_import_is_layered_and_save_routes_to_save_as` pins the
   routing). A 1D DX10 texture reads as height 1.
 
@@ -297,7 +297,7 @@ wrote can move alpha by up to 18 in blocks that mix alpha 0 with high alpha: Pil
 Writer cross-check: `dds_writes_inspection_artifacts` leaves one texture per compression
 (with and without mipmaps) plus the flattened smooth-gradient sources as BMP under `test-artifacts/dds/`
 beside the core test binary; `python -I scripts/dev/dds/verify_dds.py
-build/release/test-artifacts/dds` decodes them with Pillow and demands identical pixels for
+build/opt-dev/test-artifacts/dds` decodes them with Pillow and demands identical pixels for
 the uncompressed files, exact cut-out alpha and PSNR above 30 dB for BC1, alpha within
 20 plus PSNR above 30 dB for BC3, PSNR above 35 dB with alpha within 16 for BC7, luminance
 within 3 for BC4 and red/green within 3 with blue 0 for BC5 (stb_dxt uses only the 8-level alpha mode, so a block that

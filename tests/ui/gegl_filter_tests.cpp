@@ -137,7 +137,7 @@ void ui_gegl_filters_list_and_apply_if_available() {
                          "gegl.absolute", "gegl.unpremultiply", "gegl.tile", "gegl.rectangle", "gegl.dropshadow"}) {
     CHECK(registry->find(id) == nullptr);
   }
-  // Cleared by the review: expired Shadow/Highlight patents, no superpixel patent found, and
+  // Offered after the review: expired Shadow/Highlight patents, no superpixel patent found, and
   // Vibrance by the claim read of Apple US 8638338 (docs/patent-research-adjustments.md).
   for (const auto* id : {"gegl.shadows-highlights", "gegl.slic", "gegl.waterpixels", "gegl.vibrance"}) {
     CHECK(registry->find(id) != nullptr);
@@ -610,7 +610,8 @@ void ui_gegl_sliders_cover_their_practical_range() {
   }
 }
 
-// GIMP 3 layer effects through Patchy's GEGL (docs/xcf.md, "Layer effects (GIMP 3 filters)"):
+// GIMP 3 layer effects through Patchy's GEGL
+// (docs/xcf-layer-effects.md, "Layer effects (GIMP 3 filters)"):
 // test-fixtures/xcf/gegl-effects.xcf (scripts/dev/xcf/make_gegl_effect_fixture.py) holds one
 // 48 x 48 tile layer per effect over a gray background, with GIMP 3.2's render beside it.
 // Each tile, with a margin for effects that reach past it, is compared with GIMP's render;

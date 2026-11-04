@@ -21,7 +21,7 @@ action leaves out renders with the dialog default, and an action with no descrip
 | Levels | `Lvls` / `Lvls` | `presetKind`, `Adjs`: list of `LvlA` {`Chnl` (Enmr Chnl: `Cmps`, `Rd  `, `Grn `, `Bl  `), `Inpt` [lo, hi], `Gmm ` double, `Otpt` [lo, hi]} |
 | Curves | `Crvs` / `Crvs` | `presetKind`, `Adjs`: list of `CrvA` {`Chnl`, `Crv `: list of `Pnt ` {`Hrzn`, `Vrtc`} doubles} |
 | Hue/Saturation | `HStr` / `HStr` | `presetKind`, `Clrz`, `Adjs`: one `Hst2` {`H   `, `Strt`, `Lght`}: the master sliders, or with `Clrz` the colorize sliders (hue 0..360) |
-| Brightness/Contrast | `BrgC` / `BrgC` | `Brgh`, `Cntr`, `useLegacy` (absent: modern) |
+| Brightness/Contrast | `BrgC` / `BrgC` | `Brgh`, `Cntr`, `useLegacy` (absent: legacy) |
 | Color Balance | `ClrB` / `ClrB` | `ShdL`, `MdtL`, `HghL` (cyan/red, magenta/green, yellow/blue), `PrsL` |
 | Channel Mixer | `ChnM` / `ChnM` | `Mnch`, `Rd  `/`Grn `/`Bl  ` or `Gry `: `ChMx` {`Rd  `, `Grn `, `Bl  `, `Cnst`} |
 | Exposure | `Exps` / `Exps` | `Exps`, `Ofst`, `gammaCorrection` doubles |
@@ -39,8 +39,9 @@ closed (the entry stays unmodeled and its stack keeps PS's preview) on any other
 `Auto` and the other auto flags (PS computes those values), Curves `Mpng` maps, per-hue-range
 `Hst2` bands (keys not captured), CMYK channel records, a Photo Filter color outside Lab, values
 outside the dialog ranges, and inverted Levels output ranges (Patchy's Levels record keeps output black at or below white). A charID class must carry its own
-filterID; a stringID class keeps whatever number PS stored. Invert and Shadows/Highlights belong
-to other work; Gradient Map and Color Lookup actions are not modeled.
+filterID; a stringID class keeps whatever number PS stored. Invert is a parameterless classic
+([smart-filters-native.md](smart-filters-native.md)); Shadows/Highlights, Gradient Map and Color
+Lookup actions are not modeled.
 
 Rendering runs `apply_adjustment_to_pixels`, the adjustment-layer math, on the straight colors of
 the stack's current result: bounds and alpha unchanged, no spatial reads. Like every Smart Filter

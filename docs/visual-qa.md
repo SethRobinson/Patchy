@@ -2,6 +2,8 @@
 
 Split from [testing.md](testing.md) (suite organization, filtering, offscreen fonts and traps). Read before capturing Patchy windows, driving the app from the command line, or scripting screenshots. The automation permissions are in `AGENTS.md`.
 
+## Permissions and task-owned instances
+
 The permission rule is in AGENTS.md: automation confined to Patchy and its hosted
 plug-in windows (KPT included) is authorized; desktop screenshots (even cropped),
 global input (`SendInput`, cursor moves), Computer Use, and other applications need
@@ -13,6 +15,8 @@ windows; `patchy.ui.captureWindow`, `QWidget::grab`, and the plug-in helper's
 Keep unattended runs in task-owned instances with isolated settings, offscreen where
 possible. Permission for Patchy input never covers discarding unsaved work, closing
 the user's running app/connector, or stopping unrelated processes.
+
+## MCP connector modes
 
 `patchy-mcp --attach` connects to an already-running interactive Patchy; use it
 only when authorized to control that workspace. For automated attachment tests,
@@ -29,13 +33,15 @@ the assembled control kit from its installed location. See [ai-control.md](ai-co
 The UI filter `ui_script_automation` covers native stroke parity, pressure,
 selection, palette snapping, history, stale IDs, and Unicode preview output.
 
+## MCP client integration tests
+
 The standard-client integration test uses a development-only Python 3.10+
 environment:
 
 ```powershell
 python -m venv .deps/mcp-client
 .deps/mcp-client/Scripts/python -m pip install 'mcp>=1.26,<2'
-cmd /s /c 'scripts\run-throttled.bat .deps\mcp-client\Scripts\python.exe tests\mcp_client_tests.py build\release\patchy-mcp.exe'
+cmd /s /c 'scripts\run-throttled.bat .deps\mcp-client\Scripts\python.exe tests\mcp_client_tests.py build\opt-dev\patchy-mcp.exe'
 ```
 
 Run from the repository root; artifacts stay under `test-artifacts/mcp`. The test
@@ -67,11 +73,15 @@ with owned headless and MCP processes. The UI filters `ui_unicode_recent_history
 and `ui_vector_preview_action_persistence` cover history merging/live refresh and
 the restored preview preference's menu/Preferences synchronization.
 
+## Command-line modes
+
 `patchy.exe --screenshot <out.png>` captures the running instance without raising or focusing it; `--screenshot-widget <qtObjectName>` and/or `--screenshot-rect x,y,w,h` narrow it; positional files open a document. The invoker exits at once: poll for the output. With no instance running, Patchy opens, waits about 1.5 s, captures and exits 0 (3 on failure). Add `--language <code>` (with `--headless`, so no running instance is reused) to capture a UI language without changing the saved preference ([localization.md](localization.md)). Never run `patchy.exe --help` or `--version` during verification: the Windows GUI build has no console, so Qt shows them in a message box over whatever Seth is doing.
 
 `patchy.exe --stress-test[=quick|small|standard|huge] [--stress-report-dir <dir>] [--stress-depth 16|32]` builds the deterministic performance scene (16 or 32 bits optional) and exits. Reports default to `%LOCALAPPDATA%\RTsoft\Patchy\stress-reports\` (`stress-latest.json`). Quick (1024 px) is for iteration, standard (4096 px) for full-scale measurements; real timings need a real screen ([performance.md](performance.md)).
 
 `patchy.exe --headless ...` runs any of those modes on Qt's offscreen platform. It never forwards to a running instance, so the exit code and `--script-output` file are the run's own; prompts are suppressed and sound muted. Leave it off when a capture must show the real platform and installed fonts (offscreen sees only bundled fonts; a Windows headless run loads installed fonts from the registry on the first text request).
+
+## Environment variables
 
 Useful diagnostic variables:
 
@@ -91,6 +101,8 @@ Useful diagnostic variables:
 - `QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES=1` makes `patchy.exe --help` and command-line parse errors print to the redirected stdout/stderr instead of a modal Win32 message box (patchy.exe is a GUI-subsystem binary), which is what an automated `--help` check needs.
 - `PATCHY_UI_PROFILE=1` prints stderr timing lines for instrumented UI stages (layer-panel rebuild phases, layer-style dialog open/close, undo snapshots).
 - `PATCHY_PERF_SAMPLER=1` (patchy_perf_tests only) samples the main thread's stacks every 10 ms and prints the hottest ones at exit.
+
+## Checksums and corpus fixtures
 
 Composite checksums from stress reports or large renders are comparable only on the same machine: text antialiasing varies by system and the parallel strip renderer varies with thread count.
 

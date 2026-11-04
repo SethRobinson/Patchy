@@ -82,7 +82,7 @@ public:
   // (percent of the image the filter works on) whenever the filter, a position or the
   // input layers change; empty when there is nothing to show. `move_point` is the way
   // back, for a handle the user dragged. Blur [Depth-of-Field] and Blur [Motion]
-  // would get none (docs/legal-constraints.md, "G'MIC engine"); neither is offered.
+  // would get none (docs/legal-constraints-filters.md, "G'MIC engine"); neither is offered.
   void set_points_callback(std::function<void(const std::vector<QPointF>&)> callback);
   void move_point(int index, QPointF percent);
 

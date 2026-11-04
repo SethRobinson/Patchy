@@ -16,7 +16,7 @@ struct BuiltinCustomShape {
   VectorPath path;
   // Default-library version that first shipped the shape: seeding adds only
   // shapes newer than the stored shapes/defaultShapesVersion stamp, so a
-  // deleted default stays deleted (docs/vector-tools.md).
+  // deleted default stays deleted (docs/vector-tools-custom-shapes.md).
   int introduced_version{1};
 };
 

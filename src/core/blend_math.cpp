@@ -182,8 +182,8 @@ std::uint8_t blend_channel(std::uint8_t src, std::uint8_t dst, BlendMode mode) {
     // Dissolve has no colour function: wherever it paints at all it paints the
     // source, and the coverage decision is made by dissolve_coverage in the
     // compositor. Returning the source here also keeps the callers that have no
-    // pixel coordinate (the eyedropper's compose_layer_pixel, the filter fade
-    // loops) degrading to Normal instead of falling through.
+    // pixel coordinate (the filter fade loops) degrading to Normal instead of
+    // falling through.
     case BlendMode::Dissolve:
       return src;
     // Paint.NET's modes (GitHub issue 379), bit-exact on its flattened exports: the
@@ -1254,7 +1254,7 @@ float gradient_position(const LayerStyleGradient& gradient, Rect bounds, std::in
   // width/height; between them it is the projected corner-to-corner extent.
   // GdFl fill layers instead span the CENTER CHORD through the bounds
   // (min(w/|cos|, h/|sin|)) - Photoshop 27.8 measurements in
-  // docs/vector-tools.md; both bases agree at exact axis angles.
+  // docs/vector-psd-encodings.md; both bases agree at exact axis angles.
   const auto abs_cos = std::abs(std::cos(radians));
   const auto abs_sin = std::abs(std::sin(radians));
   const auto projected_span =
@@ -1283,7 +1283,7 @@ float gradient_position(const LayerStyleGradient& gradient, Rect bounds, std::in
   // direction, increasing clockwise on screen, and IGNORES Scale (all four
   // cardinal directions hit exact stop values at scale 146). GdFl fill layers
   // share the anchors but keep their un-truncated center-chord span (pinned
-  // separately, docs/vector-tools.md).
+  // separately, docs/vector-psd-encodings.md).
   const auto scale = std::max(0.01F, gradient.scale);
   // At 100% scale with no offset, Photoshop places a fill layer's gradient like a
   // Gradient-tool drag whose end points are the center chord's ends TRUNCATED to whole

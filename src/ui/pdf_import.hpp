@@ -34,7 +34,7 @@ namespace patchy::ui {
 enum class PdfImportColorMode { Rgb, Grayscale, Cmyk, Palette };
 
 // How the MainWindow folds the per-page documents of an import into ONE document once
-// their text and images are rendered (GitHub issues 154 and 19, docs/pdf.md "Import"):
+// their text and images are rendered (GitHub issues 154 and 19, docs/pdf-import.md "Import"):
 // Layers puts each page's layers in a "Page N" folder (only the first visible), Artboards
 // makes each page an artboard of its own size. None opens what the import returned.
 enum class PdfPagesMerge { None, Layers, Artboards };

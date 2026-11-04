@@ -1,6 +1,6 @@
 #pragma once
 
-// Adjustment layers on 16 and 32-bit documents (docs/high-bit-depth.md). Values are on
+// Adjustment layers on 16 and 32-bit documents (docs/high-bit-depth-compositor.md). Values are on
 // the deep scale (255 = full). The 8-bit path (apply_adjustment_to_color, the 256-entry
 // LUTs) stays the only one for 8-bit documents.
 //

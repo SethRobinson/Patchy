@@ -1,4 +1,4 @@
-// The right column's Color panel (GitHub issue 365; docs/right-docks.md, "Color panel"):
+// The right column's Color panel (GitHub issue 365; docs/right-docks-color-panel.md, "Color panel"):
 // a click in its field or hue strip sets the foreground, Alt at the press sets the
 // background for the whole drag, the panel follows color changes made elsewhere, the
 // Window menu and patchy.ui reach it, and a saved layout from before it keeps its panels.

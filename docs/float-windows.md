@@ -84,8 +84,9 @@ activates the session by id). `ui_window_menu_lists_open_documents` pins it.
 - Close paths are session-based: `close_document_session` is the real close (Close All /
   Close Others iterate `sessions_`; the smart-object child recursion resolves children by
   session id, since a floated child has no tab index and closing one child can
-  recursively close another). `close_document_tab(int)` survives as a thin wrapper for
-  the stress test and `MainWindowTestAccess`. After a close, `fallback_active_canvas()`
+  recursively close another). `close_document_tab(int)` is the thin tab-index wrapper
+  (the tab close button, the tab context menu's Close, the stress test,
+  `MainWindowTestAccess`). After a close, `fallback_active_canvas()`
   keeps the invariant "`canvas_ == nullptr` iff no sessions" (current tab first, then the
   most recent float), and closing a BACKGROUND document never moves activation.
 - The preview-dialog edit lock stores the locked CANVAS

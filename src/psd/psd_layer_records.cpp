@@ -347,7 +347,7 @@ EncodedLayer encode_layer(const Layer& layer, bool large_document, bool bottom_r
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Layered PSD export currently supports pixel and group layers only"));
   }
   if (layer_is_vector_shape(layer)) {
-    // Photoshop's shape/fill layer convention (docs/vector-tools.md): empty
+    // Photoshop's shape/fill layer convention (docs/vector-psd-encodings.md): empty
     // record bounds and 2-byte channels (just the compression marker) for
     // transparency + RGB; the fill regenerates from the vector blocks.
     EncodedLayer encoded;
@@ -404,8 +404,8 @@ EncodedLayer encode_layer(const Layer& layer, bool large_document, bool bottom_r
     channel_ids.push_back(kChannelUserMask);
   }
   // Non-default vector-mask density/feather ride the mask-parameters form,
-  // which Photoshop pairs with a baked "derived" user-mask plane (docs/
-  // vector-tools.md). Only when no real raster mask occupies the slot.
+  // which Photoshop pairs with a baked "derived" user-mask plane
+  // (docs/vector-psd-encodings.md). Only when no real raster mask occupies the slot.
   CoverageBuffer derived_plane;
   if (const auto parameters = parameterized_vector_mask(layer);
       parameters.has_value() && !layer.mask().has_value()) {
@@ -567,7 +567,7 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
       // vector-mask coverage). Bit 4: mask parameters follow - flags byte with
       // bit 0 user density (u8), bit 1 user feather (f64), bit 2 vector density
       // (u8, raw 0..255), bit 3 vector feather (f64). Captured layout in
-      // docs/vector-tools.md.
+      // docs/vector-psd-encodings.md.
       record.mask->from_rendering = (mask_flags & 0x08U) != 0;
       // The 36+ byte form carries the real-user-mask fields (flags, default
       // color, rect) DIRECTLY after the section flags, ahead of any mask

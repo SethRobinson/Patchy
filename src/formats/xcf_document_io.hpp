@@ -32,15 +32,15 @@ namespace patchy::xcf {
 [[nodiscard]] std::vector<std::uint8_t> unwrap(std::span<const std::uint8_t> bytes);
 
 // The untranslated notice a read gives when text layers were painted on in GIMP; the open
-// path replaces it when it turns them into text (docs/xcf.md, "Text layers").
+// path replaces it when it turns them into text (docs/xcf-text-layers.md, "Text layers").
 [[nodiscard]] const char* painted_text_layers_notice() noexcept;
 
 // GIMP 3 layer effects (GEGL filters stored on a layer) that the reader has no code of its
-// own for run through an effect runner when one is set (docs/xcf.md, "Layer effects (GIMP 3
-// filters)"): the app sets one that runs Patchy's own GEGL. The reader picks the effects from
-// its table (effect_runner_operations) and passes each stored argument by name with the
-// helper's setting kind: 'i' int, 'u' unsigned (seeds), 'd' number, 'b' boolean (0 or 1),
-// 'e' enum value, 'c' color ("r g b a", display-encoded sRGB, 0..1).
+// own for run through an effect runner when one is set (docs/xcf-layer-effects.md, "Layer
+// effects (GIMP 3 filters)"): the app sets one that runs Patchy's own GEGL. The reader picks
+// the effects from its table (effect_runner_operations) and passes each stored argument by
+// name with the helper's setting kind: 'i' int, 'u' unsigned (seeds), 'd' number, 'b' boolean
+// (0 or 1), 'e' enum value, 'c' color ("r g b a", display-encoded sRGB, 0..1).
 struct EffectSetting {
   std::string name;
   char kind{'d'};

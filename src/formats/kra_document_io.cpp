@@ -1370,7 +1370,8 @@ void apply_transparency_masks(Layer& layer, const Node& node, BuildState& state)
   return layer;
 }
 
-// A file layer's image beside the .kra, decoded by stb_image (PNG, JPEG, BMP, TGA, GIF).
+// A file layer's image beside the .kra, decoded by stb_image (PNG and JPEG only: the
+// other stb formats are compiled out in stb/stb_image_impl.c).
 [[nodiscard]] std::optional<PixelBuffer> load_file_layer(const Node& node, BuildState& state) {
   if (state.source_directory.empty() || node.file_source.empty()) {
     return std::nullopt;

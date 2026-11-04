@@ -1,7 +1,7 @@
 # JPEG XL (.jxl)
 
 Read and write on every platform (Windows, macOS, Linux, wasm) through the vendored libjxl
-0.12.0. The binding legal conditions are in [legal-constraints.md](legal-constraints.md)
+0.12.0. The binding legal conditions are in [legal-licensing.md](legal-licensing.md)
 (JPEG XL bullet) and the research record in
 [patent-research-formats.md](patent-research-formats.md); read them before changing the
 encoder or upgrading the codec.

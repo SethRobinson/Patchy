@@ -3,7 +3,7 @@
 Patchy reads and adds Adobe TrustMark invisible watermarks. It never removes one
 ([legal-constraints.md](legal-constraints.md#watermark-detection)). The open Stable Diffusion
 watermark scan, the `watermark` privacy class and C2PA watermark declarations are in
-[file-info.md](file-info.md#watermarks); File Info's Watermarks page shows both scans.
+[file-info-watermarks.md](file-info-watermarks.md#watermarks); File Info's Watermarks page shows both scans.
 
 ## Models (one optional download)
 
@@ -11,15 +11,14 @@ Adobe's own ONNX exports from github.com/adobe/trustmark (MIT for code and model
 licensed Adobe Stock, per its FAQ), rehosted unchanged, under the `trustmark_` names, as assets of
 the Patchy GitHub release **`ai-models-3`**
 (`https://github.com/SethRobinson/Patchy/releases/download/ai-models-3/<name>`), with the same
-rules as `ai-models-1`/`-2` ([ai-selection.md](ai-selection.md#models-and-runtime)): never marked
+rules as `ai-models-1`/`-2` ([ai-selection-models.md](ai-selection-models.md#models-and-runtime)): never marked
 Latest, assets never replaced. Each file's fallback (`DownloadableModelFile::fallback_urls`, tried
 only when the release link fails) is the Content Authenticity Initiative's model host
 `https://cai-watermark.adobe.net/watermarking/trustmark-models/<upstream name>`, where
 `scripts/setup-ai-deps.*` still fetch them. Adobe's MIT `LICENSE` travels with every copy (MIT's
 one condition): the release carries it as `trustmark_LICENSE.txt` and the download saves it beside
-the models (fallback: raw.githubusercontent.com at adobe/trustmark commit 6df5a0a2). The release
-was staged October 23, 2026 for Seth to upload (desk card local-009); until then every download
-uses the fallback. Pinned by size and SHA-256 in `src/ui/watermark_model_download.cpp`, keep in
+the models (fallback: raw.githubusercontent.com at adobe/trustmark commit 6df5a0a2). Pinned by
+size and SHA-256 in `src/ui/watermark_model_download.cpp`, keep in
 sync with `scripts/setup-ai-deps.*`, `PATCHY_AI_WATERMARK_MODEL_FILES` (cmake/patchy_ai.cmake),
 `trustmark_model_files()` and `packaging/windows/UninstallPatchy.cs` (which also lists the
 license). "Adobe" and "TrustMark" only describe the files: no Adobe logo, nothing implying Adobe
@@ -46,7 +45,7 @@ behind Cast nodes), so ONNX Runtime's dynamic quantizer rejects them; int8 would
 re-export and a Patchy-hosted copy. The float16 files decode the reference images exactly.
 
 Download, folder, lookup and deletion follow the High Quality model
-([ai-selection.md](ai-selection.md#the-high-quality-model-desktop-download)): `start_model_download`
+([ai-selection-models.md](ai-selection-models.md#the-high-quality-model-desktop-download)): `start_model_download`
 into `downloaded_models_folder()` (`<AppLocalDataLocation>/ai-models`), sessions in the one ONNX
 translation unit (`segmentation_engine_onnx.cpp`, slots `OrtState::trustmark`), released before a
 delete. Unlike the High Quality model, only the download folder is searched, never the bundled
@@ -98,7 +97,7 @@ Scan for Watermarks and `doc.scanForWatermarks()` share `scan_watermarks` /
 `watermark_checks` (`src/ui/watermark_scan_report.*`): one row per kind, always all seven, in this
 order (ids permanent): `stableDiffusion1`, `stableDiffusion2`, `stableDiffusionXL`, `trustmarkQ`,
 `trustmarkP`, `trustmarkC`, `c2paDeclared` (a `c2pa.soft-binding` or `c2pa.watermarked*`
-declaration in the file's metadata, [file-info.md](file-info.md#watermarks)). Status `found`,
+declaration in the file's metadata, [file-info-watermarks.md](file-info-watermarks.md#watermarks)). Status `found`,
 `notFound` or `notChecked`; a `notChecked` row has a reason (permanent tokens): `imageTooSmall`
 (the Stable Diffusion rows under 256 x 256), `modelsNotDownloaded`, `notSupported` (a build
 without ONNX Runtime, the web build) or `failed` (the decoder threw). Found rows show the bits
@@ -141,13 +140,12 @@ strength 50 to 150%. Without the models it shows the download and keeps Add Wate
 ## Preferences
 
 Preferences > Metadata and Watermarks, the "Watermarks" group under "Saved metadata"
-([file-info.md](file-info.md#saved-metadata-preference)) (`main_window_preferences.cpp`, applied
+([file-info-save-stamp.md](file-info-save-stamp.md#saved-metadata-preference)) (`main_window_preferences.cpp`, applied
 on OK; `ui/watermark_settings.*`).
 Settings keys, permanent: `watermarks/payloadText` (printable ASCII, at most 8 characters, the
 `BCH_5` capacity), `watermarks/addOnSave` (`never` default, `ask`, `always`; also the scripting
-tokens) and `watermarks/checkOnOpen` (false). The models row moved here from Preferences > Tools; a
-note under it appears when a chosen option needs the models and they are missing (the Stable
-Diffusion check needs none).
+tokens) and `watermarks/checkOnOpen` (false). A note under the models row appears when a chosen
+option needs the models and they are missing (the Stable Diffusion check needs none).
 
 **Mark on save** (`watermark_for_save`, `watermarked_save_document`): `save_document_to_path` decides
 before the write, so Save, Save As and Export all follow it, and passes a `SaveWatermark` to

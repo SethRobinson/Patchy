@@ -1,6 +1,6 @@
 #pragma once
 
-// Theme sounds (docs/theme-files.md, "Sounds"): a theme package may hold
+// Theme sounds (docs/theme-files-scripts.md, "Sounds"): a theme package may hold
 // sounds/<event id>.wav for a short list of named events, played through
 // sound_effects.hpp's player (no Qt Multimedia). Without a package sound an event
 // is silent: Patchy has no sounds of its own. The "Play theme sounds" preference

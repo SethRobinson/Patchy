@@ -25,7 +25,7 @@ class PatternLibrary;
 // layer's single live-shape origination when the caller allows editing it
 // (rect/rounded-rect bounds and radii, ellipse bounds, line endpoints and
 // weight); the dialog edits the params in place and the caller regenerates
-// the subpaths. Dialog-based geometry editing is the patent-cleared route -
+// the subpaths. Dialog-based geometry editing is the reviewed patent route;
 // on-canvas live-shape gizmos stay excluded (docs/vector-tools.md).
 struct ShapeAppearanceSettings {
   VectorFill fill;

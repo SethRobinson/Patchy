@@ -1,6 +1,6 @@
 # Patent research: content-aware fill and exemplar inpainting
 
-Claim-level record for the content-driven object-removal boundary in [legal-constraints.md](legal-constraints.md) ("Content-aware fill and exemplar inpainting"). Companion to [patent-research.md](patent-research.md), split out for that file's size cap. An engineering record of the design and of the published claim text read on Google Patents.
+Claim-level record for the content-driven object-removal boundary in [legal-constraints-filters.md](legal-constraints-filters.md) ("Content-aware fill and exemplar inpainting"). Companion to [patent-research.md](patent-research.md), split out for that file's size cap. An engineering record of the design and of the published claim text read on Google Patents.
 
 ## Why the review happened (2026-09-22)
 
@@ -18,11 +18,11 @@ GitHub issue #23 asked for a lightweight, non-AI Remove Object and linked cheind
 
 ## The recorded design
 
-Implemented 2026-09-22 in `src/core/exemplar_inpaint.cpp` as Edit > Remove Object's only menu method; the shape-derived mirror stays as its automatic fallback and as the script API's `nearestEdge` method (its menu entry was removed 2026-09-23). Design record in [healing.md](healing.md).
+Implemented 2026-09-22 in `src/core/exemplar_inpaint.cpp` as Edit > Remove Object's only menu method; the shape-derived mirror stays as its automatic fallback and as the script API's `nearestEdge` method (its menu entry was removed 2026-09-23). Design record in [healing-remove-object.md](healing-remove-object.md).
 
 Fill the hole from its boundary inward in a fixed deterministic priority order (Criminisi's confidence times data term, or a simpler fixed order); for each target patch, scan every candidate source patch in a bounded window of the same image at the working resolution, score with an integer distance metric (L1 or SSD over the known pixels, fixed tie-breaks; the variation pick below is the one place randomness enters, through splitmix64), copy the best match (or, for a variation, one of the near-best matches of that same scan), update the front. Each patch's search is independent of every other patch's chosen offset. The shipped metric adds a fixed per-pixel penalty on the source offset (a geometric preference for nearby sources), and the shipped tone match is the expired-patent membrane on the low-pass band (frequency separation), not gradient-domain compositing. Not in the first implementation without their own check: patch rotation, scale, or mirror adaptation; gradient-domain color adaptation; a user-painted sampling region (Photoshop's 2018+ Content-Aware Fill workspace has unreviewed Adobe filings); anything that seeds, propagates, perturbs, prunes, or upsamples offsets.
 
-Unchanged neighbours of this boundary: the gradient-domain rule in legal-constraints.md still forbids compositing source gradients or building a guidance field (US 9058699's claims turned out to be preview-resolution claims: [patent-research-audit.md](patent-research-audit.md), 2026-10-20); US 8050498 (live classify-and-display, to 2029-11-03) still forbids live per-move previews; the classic-healing carve-out for Healing Brush, Spot Healing, Remove Object's shape-derived mode, and the Patch tool is unchanged (see [patent-research.md](patent-research.md)).
+Unchanged neighbours of this boundary: the gradient-domain rule in legal-constraints-filters.md still forbids compositing source gradients or building a guidance field (US 9058699's claims turned out to be preview-resolution claims: [patent-research-audit.md](patent-research-audit.md), 2026-10-20); US 8050498 (live classify-and-display, to 2029-11-03) still forbids live per-move previews; the classic-healing carve-out for Healing Brush, Spot Healing, Remove Object's shape-derived mode, and the Patch tool is unchanged (see [patent-research.md](patent-research.md)).
 
 ## Claim check 2026-09-24: variations (near-best random pick) and the Remove Object dialog
 

@@ -1,9 +1,9 @@
 // MainWindow's right-hand panels, split out of main_window.cpp: create_docks builds
-// the Layers, Channels, Paths, History, Properties, Info and Palette panels and hands
-// them to the PanelColumn (panel_column.hpp) beside the document tabs; the column's
-// width (content-fit, picked, snapped), its screen fit, the Window menu panel entries,
-// the panel header menu, the saved panel layout and Reset Panels live here too.
-// docs/right-docks.md owns the rules.
+// the Layers, Channels, Paths, History, Properties, Info, Color and Palette panels
+// and hands them to the PanelColumn (panel_column.hpp) beside the document tabs; the
+// column's width (content-fit, picked, snapped), its screen fit, the Window menu
+// panel entries, the panel header menu, the saved panel layout and Reset Panels live
+// here too. docs/right-docks.md owns the rules.
 
 #include "core/layer.hpp"
 #include "core/pixel_buffer.hpp"

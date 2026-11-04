@@ -4,7 +4,7 @@
 // lacks, the fonts that stand in for it, best first. Names and project links only, never font
 // data; each pair is justified in font_substitutes.cpp from the substitute's own documentation.
 // Qt-free; the text font service checks which candidates are installed. See
-// docs/font-resolution.md, "Substitute table".
+// docs/font-resolution-missing-fonts.md, "Substitute table".
 
 #include <cstdint>
 #include <functional>

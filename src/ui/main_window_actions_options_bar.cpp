@@ -3838,8 +3838,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
 #if !defined(Q_OS_WASM)
-  // The model Object Selection runs (docs/ai-selection.md): the bundled Standard model, or
-  // the High Quality model once downloaded. Choosing High Quality offers the download.
+  // The model Object Selection runs (docs/ai-selection-models.md): the bundled Standard model,
+  // or the High Quality model once downloaded. Choosing High Quality offers the download.
   configure_automatic_selection_models();
   if (patchy::ai::segmentation_available()) {
     add_option_separator({CanvasTool::ObjectSelect});  // GitHub issue 292
@@ -4878,7 +4878,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
 
-  // Zoom tool options (docs/view-navigation.md), Photoshop's row: the Zoom In /
+  // Zoom tool options (docs/view-navigation-zoom-tool.md), Photoshop's row: the Zoom In /
   // Zoom Out click direction (tools/zoomToolZoomsOut; Alt inverts it), Scrubby
   // Zoom, then the 100% / Fit Screen / Fill Screen view presets. Every widget
   // carries optionsBarAllowedWhileLocked: the Zoom tool works while a preview

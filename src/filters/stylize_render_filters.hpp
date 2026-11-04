@@ -15,7 +15,7 @@ namespace patchy {
 // integer math or + - * / and sqrt on doubles, and draws its randomness from
 // splitmix64, so a render is the same on every toolchain. Design notes:
 // docs/stylize-render-filters.md; the boundary is in
-// docs/legal-constraints.md.
+// docs/legal-constraints-filters.md.
 
 enum class WindMethod : std::uint8_t { Wind, Blast, Stagger };
 

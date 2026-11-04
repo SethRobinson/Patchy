@@ -108,8 +108,7 @@ existing background worker and generation checks, publish completed results
 together, reject superseded work, and reuse completed rasters on acceptance.
 Pattern adoption preserves collision aliases and placement references while
 restoring original resources on cancellation. Native style/vector sources are
-invalidated only for corresponding modeled changes. No scripting identifiers
-or file formats change.
+invalidated only for corresponding modeled changes.
 
 Focused regression coverage lives in `tests/ui/batch_appearance_tests.cpp`,
 alongside existing shape, style, color picker, palette, and Layers-panel tests.

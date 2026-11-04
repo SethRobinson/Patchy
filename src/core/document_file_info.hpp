@@ -99,7 +99,7 @@ struct DocumentFileInfo {
   std::vector<FileInfoObserved> observed;
   std::vector<FileInfoSegment> structure;
   // Strip All Metadata ran on this document since it was opened: a PSD save stamp then
-  // adds no EXIF block of its own (docs/file-info.md, "Save stamp"). Never written to a file.
+  // adds no EXIF block of its own (docs/file-info-save-stamp.md, "Save stamp"). Never written to a file.
   bool stripped{false};
 
   [[nodiscard]] bool has_metadata() const noexcept {

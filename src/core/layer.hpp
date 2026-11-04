@@ -428,7 +428,7 @@ struct LayerDropShadow {
   float fade{0.0F};
   // Quality > Contour (DrSh TrnS/AntA): maps the blurred shadow mask before
   // Opacity. GIMP imports use it to carry GEGL's linear-light shadow falloff
-  // (docs/xcf.md, "Layer effects").
+  // (docs/xcf-layer-effects.md, "Layer effects").
   StyleContour contour;
   bool anti_aliased{false};
 };
@@ -814,7 +814,7 @@ next_photoshop_layer_id(const std::vector<Layer>& layers);
 
 // Photoshop's Knockout blending option lives in the native 'knko' block (one
 // mode byte, three padding bytes): 0 None, 1 Shallow, 2 Deep. The compositor
-// renders straight from that block (layer_knockout_mode, docs/blend-modes.md).
+// renders straight from that block (layer_knockout_mode, docs/blend-modes-groups.md).
 // nullopt marks a payload Patchy cannot interpret: it stays raw, not editable.
 [[nodiscard]] std::optional<std::uint8_t> layer_knockout_setting(const Layer& layer) noexcept;
 // Patches the mode byte of the layer's 'knko' block in place (Photoshop writes

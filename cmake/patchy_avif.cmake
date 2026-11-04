@@ -2,7 +2,7 @@
 # 3.15.2 AV1 encoder, three static archives built from the vendored sources in
 # src/formats/libavif, src/formats/dav1d and src/formats/libaom instead of upstream's CMake and
 # meson, so no tools, tests, system codec discovery or install rules come along (docs/avif.md;
-# licensing record in docs/legal-constraints.md).
+# licensing record in docs/legal-licensing.md).
 #
 # dav1d is compiled without assembly (HAVE_ASM 0): the portable C paths need no nasm, give
 # the same bytes on every toolchain and are fast enough for stills. The bit-depth template

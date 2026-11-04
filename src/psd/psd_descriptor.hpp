@@ -138,7 +138,7 @@ void write_descriptor(BigEndianWriter& writer, const DescriptorObject& object);
 // fail a whole document over one row; each row's own byte count keeps the stream in sync,
 // so the damage cannot spread. Everything else (patterns, brushes, filter effects, ILBM)
 // keeps decode_packbits, whose exact-length contract catches genuine misparses.
-// See the damaged-scanline section of docs/file-formats.md.
+// See docs/psd-reader-hardening.md ("Damaged PackBits scanlines").
 [[nodiscard]] std::vector<std::uint8_t> decode_packbits_scanline(std::span<const std::uint8_t> encoded,
                                                                  std::size_t expected_size,
                                                                  bool* damaged = nullptr);

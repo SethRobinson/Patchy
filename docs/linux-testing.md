@@ -64,37 +64,32 @@ What this does not cover:
 
 ## What differs inside the sandbox
 
-Triage of the first full run (October 13, 2026: 11 UI failures, all passing on the host's
-Qt 6.8.3 build) found no Qt 6.11 behavior change among them. The causes were the
-sandbox, and one of them was a real bug in the shipped Flatpak:
+The sandbox differs from a host build in ways that change test and app behavior:
 
 - **Fonts live elsewhere.** The runtime keeps Liberation and DejaVu in
   `/usr/share/fonts/liberation-fonts` and `/usr/share/fonts/dejavu`, not Debian's
   `/usr/share/fonts/truetype/...`; it ships no CJK face, and the host's fonts appear
   under `/run/host/fonts`. `tests/test_fonts.hpp` lists both layouts. With no registered
-  UiDefault font the suite silently runs on a different default face, which is what nine
-  of the eleven were (options bar height, clipped labels, "Arial" resolving as a missing
-  font).
+  UiDefault font the suite silently runs on a different default face, which shows as wrong
+  options bar heights, clipped labels and "Arial" resolving as a missing font.
 - **Every run has the same pids.** The sandbox is a pid namespace: the test binary gets
   the same low pid each run, and the Flatpak app is always pid 2. Anything keyed on a
   pid, or trusting a `QLockFile` pid to mean "another live process", is wrong there.
   The suite's per-process stores (`tests/ui/main.cpp`) handle a leftover store that names
-  their own pid. In the app this was crash recovery: a crashed instance's lock named the
-  scanning instance's own pid, so the Flatpak never offered the crashed documents
+  their own pid. Crash recovery therefore never takes a lock's pid alone as a live instance
   ([document-recovery.md](document-recovery.md)).
 - **`FLATPAK_ID` is the SDK's.** The harness unsets it, since the test binary is not the
   installed Flatpak; a test of Flatpak-specific behavior sets it itself.
 
-The eleventh, `ui_tips_psd_speed_mode_line_clip_if_available` (runs only where the local
-`tips.psd` fixture exists), was a real text bug that the sandbox's fallback face (DejaVu
-Sans, against Noto Sans on the linux build host) made large enough to fail: calibrated
-box text grew its render rect on every re-edit. Fixed in the app
-([text-render-calibration.md](text-render-calibration.md)).
+The sandbox's fallback face is DejaVu Sans (Noto Sans on the Linux build host), so text
+measurements differ there: a box-text calibration error too small to fail on the host can
+fail `ui_tips_psd_speed_mode_line_clip_if_available` (runs only where the local `tips.psd`
+fixture exists) in the sandbox ([text-render-calibration.md](text-render-calibration.md)).
 
-Source changes the first SDK compile of the tests needed: a missing `<algorithm>`
-include, two GCC 15 `-Warray-bounds` false positives in test helpers (fixed by reserving
-the vector up front), and `QImage::mirrored`, deprecated from Qt 6.9 (its replacement
-`flipped` does not exist in 6.8.3, so tests call a version-checked helper).
+The tests build on both Qt 6.8.3 and the runtime's Qt: `QImage::mirrored` is deprecated
+from Qt 6.9 and its replacement `flipped` does not exist in 6.8.3, so tests call a
+version-checked helper (`mirrored_horizontally`). The SDK's GCC 15 reports `-Warray-bounds`
+false positives in test helpers that reserving the vector up front avoids.
 
 ## Runtime updates and the spin box field (Qt 6.11.3)
 
@@ -119,7 +114,7 @@ the full suites before a release.
 
 ## Foreign drags and the KDE rig (GitHub issue 62)
 
-On Wayland the old dock column dragged its panels with a real `QDrag`, so every enabled `acceptDrops` widget under the cursor saw drag events that carried no layers. The panels no longer float or drag, but any foreign drag (a file manager's, another app's) still reaches those widgets the same way.
+Any foreign drag (a file manager's, another app's) reaches every enabled `acceptDrops` widget under the cursor with drag events that carry no layers.
 
 **Never repolish a widget from inside its own event filter.** `installEventFilter` puts a filter ahead of those already installed, and KDE's Breeze style installs filters in `polish()`. A filter that calls `style()->unpolish/polish` on the watched widget is moved behind Qt's loop cursor and runs again for the same event; done unconditionally it never ends (issue 62: the layer action buttons' drag filter froze the Flatpak on KDE). Change the property only when it differs and repolish one event-loop hop later (`handle_layer_action_button_drag_event`; `ui_layer_action_button_foreign_drag_never_repolishes_in_filter` stands a filter-installing proxy style in for Breeze). It needs Breeze (the Flatpak's KDE runtime, `XDG_CURRENT_DESKTOP=KDE`) and enabled buttons (a document open). KWin's "not responding" kill sends SIGABRT: that coredump is a hang.
 

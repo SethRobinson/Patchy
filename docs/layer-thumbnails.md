@@ -1,6 +1,6 @@
 # Layer thumbnails
 
-How the Layers panel draws its row thumbnails and the settings that shape them. The rest of the panel, the thumbnail menus and Ctrl-click selection loads included, is in [layer-panel.md](layer-panel.md).
+How the Layers panel draws its row thumbnails and the settings that shape them. The rest of the panel is in [layer-panel.md](layer-panel.md), the thumbnail menus and Ctrl-click selection loads in [layer-panel-selection.md](layer-panel-selection.md).
 
 ## Tiles and bounds
 
@@ -10,4 +10,4 @@ Thumbnail size (#386): the Thumbnail Size submenu (`layerThumbnailSize*Action`) 
 
 ## Layers panel settings gear
 
-The gear at the right end of the Layers title row (`layersPanelSettingsButton`, tooltip "Layers panel settings", #511) pops up `layersPanelSettingsMenu`: Customize Layers Panel... (`layersPanelCustomizeButtonsAction`, Customize Tool Palette on its Layers Panel tab, [tool-palette.md](tool-palette.md)), a separator, then Thumbnail Size and Thumbnail Display. The menu is built once by `add_layer_thumbnail_view_menus`, so its submenus hold the same `layerThumbnailSize*Action` and `layerThumbnailBounds*Action` the thumbnail menus show and a pick ticks in both; the submenu titles are bound translations and `aboutToShow` re-reads the size and zoom settings (Preferences can change the zoom). The thumbnail menus keep their submenus (Seth, October 29, 2026). The button is a `PanelSpec::header_widget` like the Color gear ([right-docks.md](right-docks.md)) and shares its window sheet rule (`main_window_theme.cpp`); the title row's right-click menu stays the panel list, as on every panel. Coverage: `ui_layers_panel_gear_opens_layer_button_customize`.
+The gear at the right end of the Layers title row (`layersPanelSettingsButton`, tooltip "Layers panel settings", #511) pops up `layersPanelSettingsMenu`: Customize Layers Panel... (`layersPanelCustomizeButtonsAction`, Customize Tool Palette on its Layers Panel tab, [tool-palette.md](tool-palette.md)), a separator, then Thumbnail Size and Thumbnail Display. The menu is built once by `add_layer_thumbnail_view_menus`, so its submenus hold the same `layerThumbnailSize*Action` and `layerThumbnailBounds*Action` the thumbnail menus show and a pick ticks in both; the submenu titles are bound translations and `aboutToShow` re-reads the size and zoom settings (Preferences can change the zoom). The thumbnail menus keep their submenus (Seth, October 29, 2026). The button is a `PanelSpec::header_widget` like the Color gear ([right-docks-color-panel.md](right-docks-color-panel.md)) and shares its window sheet rule (`main_window_theme.cpp`); the title row's right-click menu stays the panel list, as on every panel. Coverage: `ui_layers_panel_gear_opens_layer_button_customize`.

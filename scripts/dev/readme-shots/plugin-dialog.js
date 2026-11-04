@@ -9,7 +9,7 @@
 // it by hand from a real (not offscreen) session:
 //
 //   set PATCHY_NO_SINGLE_INSTANCE=1
-//   build\release\patchy.exe --run-script scripts\dev\readme-shots\plugin-dialog.js ^
+//   build\opt-dev\patchy.exe --run-script scripts\dev\readme-shots\plugin-dialog.js ^
 //     --script-arg out=docs\images\screenshots\plugin_dialog.png ^
 //     --script-arg plugins=local-test-fixtures\photoshop-plugins\mehdi ^
 //     --script-arg photo=test-fixtures\readme\san_francisco_cityscape_cc0.jpg

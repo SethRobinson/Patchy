@@ -131,7 +131,7 @@ else
   echo "== patchy_ui_visual_tests not built in this run; skipped =="
 fi
 
-# GitHub issue 95: the shipped cocoa plugin is a patched build (docs/building.md, "Patched
+# GitHub issue 95: the shipped cocoa plugin is a patched build (docs/building-qt.md, "Patched
 # Qt cocoa plugin"). The setup script is a no-op until the patch changes; the test needs
 # the real cocoa platform, which the logged-in console session provides.
 if [ "$(uname -s)" = "Darwin" ] && built patchy_mac_a11y_tests; then

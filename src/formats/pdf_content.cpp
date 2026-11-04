@@ -42,7 +42,7 @@ RgbColor to_rgb_color(double red, double green, double blue) {
 }
 
 // CMYK to sRGB by the naive ink mix. Patchy uses the same formula wherever no ICC
-// profile is available (see the PSD CMYK notes in docs/file-formats.md), so PDF and
+// profile is available (see the PSD CMYK notes in docs/file-formats-psd.md), so PDF and
 // PSD imports agree on colours that carry no profile.
 RgbColor cmyk_to_rgb(double cyan, double magenta, double yellow, double black) {
   return to_rgb_color((1.0 - std::clamp(cyan, 0.0, 1.0)) * (1.0 - std::clamp(black, 0.0, 1.0)),

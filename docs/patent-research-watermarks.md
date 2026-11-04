@@ -1,7 +1,7 @@
 # Patent research: invisible watermarks
 
 Engineering record behind the "Watermark detection" rule in [legal-constraints.md](legal-constraints.md#watermark-detection)
-(feature design in [watermarks.md](watermarks.md) and [file-info.md](file-info.md#watermarks)). Conventions follow
+(feature design in [watermarks.md](watermarks.md) and [file-info-watermarks.md](file-info-watermarks.md#watermarks)). Conventions follow
 [patent-research.md](patent-research.md).
 
 ## What Patchy does
@@ -34,5 +34,5 @@ Engineering record behind the "Watermark detection" rule in [legal-constraints.m
 - A new model (another TrustMark variant's encoder, a different watermark family), the remover, or writing
   C2PA soft-binding assertions needs a new review.
 - Hosting the models on a Patchy release keeps them byte-identical to Adobe's, with Adobe's MIT text beside
-  them and Adobe credited as the source, without implying endorsement; it is a publish step and needs Seth's
-  go-ahead.
+  them and Adobe credited as the source, without implying endorsement; it is a publish step and needs an
+  explicit go-ahead.

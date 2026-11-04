@@ -2136,7 +2136,7 @@ void CanvasWidget::begin_mixer_brush_stroke() {
 // running pickup average (constraint block in core/pixel_tools.hpp). Reading
 // the snapshot rather than the live layer keeps the feed canvas-only AND
 // convergent: a live read would re-ingest the stroke's own fresh deposit, and
-// without Photoshop's paint-amount reservoir (legally excluded) that feedback
+// without Photoshop's paint-amount reservoir (excluded by the patent boundary) that feedback
 // loop would sustain a smear forever instead of letting it fade out.
 patchy::EditColor CanvasWidget::sample_mixer_pickup(double x, double y, int brush_size) const {
   const auto radius = std::max(0.5, static_cast<double>(std::max(1, brush_size)) / 2.0);

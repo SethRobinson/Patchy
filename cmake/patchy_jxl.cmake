@@ -1,7 +1,7 @@
 # Pinned, private JPEG XL codec: libjxl 0.12.0 with its bundled Highway, Brotli and skcms.
 # One static archive, built from upstream's own source lists (lib/jxl_lists.cmake) instead of
 # upstream's CMake, so no tools, plug-ins, install rules or system codec discovery come along
-# (docs/legal-constraints.md, JPEG XL conditions 1 and 2). Upstream sources are unmodified;
+# (docs/legal-licensing.md, JPEG XL conditions 1 and 2). Upstream sources are unmodified;
 # src/formats/libjxl/PATCHY.md records what was trimmed and how to upgrade.
 function(patchy_add_jxl)
   set(root "${PROJECT_SOURCE_DIR}/src/formats/libjxl")

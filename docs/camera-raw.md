@@ -10,10 +10,11 @@ comment and NOTICE-THIRD-PARTY.md. CDDL-1.0 elected; stock tarball only, demosai
 packs are GPL.
 
 `raw_document_io.{hpp,cpp}` develops to 16-bit sRGB with an explicit sRGB transfer
-curve; LibRaw defaults to BT.709. `raw_tone.{hpp,cpp}` applies contrast, highlights,
-and shadows through one composed 65536-entry LUT, then saturation/vibrance, before
-rounded 8-bit output. Raw files open as 8-bit documents, also with deep editing on (16-bit
-raw opening is open work in [high-bit-depth.md](high-bit-depth.md) Phase 8). The Natural profile runs first, on 16-bit sRGB. Shadow lift
+curve; LibRaw defaults to BT.709. Contrast, highlights and shadows go through one
+composed 65536-entry LUT, then saturation/vibrance, before rounded 8-bit output
+(`build_tone_lut`, `apply_color`: Camera Raw Filter below). Raw files open as 8-bit
+documents, also with deep editing on (16-bit
+raw opening is open work in [high-bit-depth-formats.md](high-bit-depth-formats.md#phase-8-other-formats-and-the-script-api) Phase 8). The Natural profile runs first, on 16-bit sRGB. Shadow lift
 is pinned at black; the highlight ramp is not pinned at white, so -100 dims blown
 areas. Adjustment sliders default to zero independently of the selected profile.
 
@@ -76,8 +77,9 @@ switching to Custom starts from the latest effective balance.
 
 ## Per-photo settings contract
 
-`imports/showRawDevelopDialog` still controls the interactive dialog. Legacy
-`imports/rawDevelop*` keys remain untouched and are never applied or migrated.
+`imports/showRawDevelopDialog` controls the interactive dialog, `imports/rawDevelopScrubbyZoom`
+the Scrubby Zoom check (below). The other `imports/rawDevelop*` keys are legacy develop values,
+untouched and never applied or migrated.
 The only settings store is the source's complete filename plus `.rawprefs`, for
 example `FX300416.ARW.rawprefs`. `raw_develop_settings.{hpp,cpp}` reads/writes UTF-8
 JSON with `format: "patchy.rawprefs"`, `version: 1`, `processingVersion: 3`, and a
@@ -213,7 +215,7 @@ Zoom (GitHub issue 395): bottom left, an editable `rawZoomCombo` (Fit, 12.5% to 
 percentages; Enter is consumed so it never presses Open), `rawZoom100Button`, `rawZoomFitButton`
 and `rawScrubbyZoomCheck` (`imports/rawDevelopScrubbyZoom`, default off). Scrubby Zoom is
 `ZoomableImagePreview::set_scrubby_zoom`: the canvas gesture's factor and slop
-([view-navigation.md](view-navigation.md)), a click steps in and Alt-click out; Space or the
+([view-navigation-zoom-tool.md](view-navigation-zoom-tool.md)), a click steps in and Alt-click out; Space or the
 middle button pans then. The middle button pans in every preview. Tests:
 `ui_raw_histogram_regions_and_auto_values`, `ui_raw_dialog_histogram_drag_and_modifier_clicks`,
 `ui_raw_dialog_zoom_controls_and_scrubby_zoom`, `ui_raw_dialog_issue_shots_if_available`.

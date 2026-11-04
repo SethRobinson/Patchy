@@ -22,7 +22,7 @@ rem With no arguments it starts the four builders; name targets to run a subset,
 rem e.g. release-all-automated.bat windows wasm, or release-all-automated.bat upload-wasm.
 rem Always go through this script (or release-worker.bat) for an unattended run: a
 rem builder launched by hand without NO_PAUSE stops on sign.bat's pause with no exit
-rem marker, which reads as a hung build. See docs/release-process.md.
+rem marker, which reads as a hung build. See docs/release-process-scripts.md.
 setlocal EnableExtensions
 cd /d "%~dp0..\.."
 if not exist build\release-logs mkdir build\release-logs

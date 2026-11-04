@@ -51,7 +51,7 @@ struct WavPcm {
 // Length of a well-formed WAV's samples in milliseconds, 0 for anything else.
 [[nodiscard]] int wav_duration_ms(const QByteArray& wav);
 
-// One looping sound at a time (docs/theme-files.md, "Sounds"), beside play_wav_bytes,
+// One looping sound at a time (docs/theme-files-scripts.md, "Sounds"), beside play_wav_bytes,
 // which keeps playing over it: `intro` (may be empty) plays once, then `loop` repeats
 // until stop_wav_loop or the next play_wav_loop. An intro in another format than the
 // loop is dropped, and a loop shorter than kMinWavLoopMs is refused (a tiny buffer

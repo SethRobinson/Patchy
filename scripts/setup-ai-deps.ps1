@@ -3,7 +3,8 @@
 # -Web, the pinned onnxruntime-web package the wasm app stages beside patchy.html.
 # Everything lands in .deps (gitignored, same idea as .deps/Qt); nothing here is
 # ever committed. Every download is checked against the SHA-256 pinned below, and
-# a file that fails the check is deleted, never used. See docs/ai-selection.md.
+# a file that fails the check is deleted, never used. See docs/ai-selection-models.md
+# and, for -Web, docs/ai-selection.md ("WebAssembly").
 #
 # Run from anywhere (a git worktree provisions the main checkout's .deps, which is
 # where CMake looks for it):

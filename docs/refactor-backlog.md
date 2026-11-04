@@ -14,7 +14,7 @@ canaries.
 
 Measured from `build\opt-dev\.ninja_log` (October 25, 2026): a full opt-dev build is about
 143 CPU-minutes, half of it test translation units. The reasons and the cheap fixes already
-made are in [building.md](building.md) ("Compile-time profile").
+made are in [building-incremental.md](building-incremental.md#compile-time-profile).
 
 - `render/layer_compositor.hpp` (about 4600 lines, 2850 of them template bodies over a
   `Target` type, 1100 non-template inline bodies, no `extern template`) is instantiated in

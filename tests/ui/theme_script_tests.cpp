@@ -1,4 +1,4 @@
-// Theme events, effects and theme scripts (docs/theme-files.md, "Events and effects",
+// Theme events, effects and theme scripts (docs/theme-files-scripts.md, "Events and effects",
 // "Theme scripts"): the event lookup, the effect overlay staying idle, the theme script
 // engine's isolation and watchdog, the trust prompt and its stored answer, the theme
 // menu and its hotkeys, cursors, panel backgrounds, the splash, the preferences and

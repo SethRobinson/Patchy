@@ -1,5 +1,7 @@
 # Automation feedback and image resize
 
+## Pause and Resume
+
 Pause/Resume beside Stop suspends visible MCP/CLI automation after the current
 native edit. `patchy.ui.paused` shares the control and resets at run end. While
 Pausing appears, Stop remains available. Once Resume appears, manual drawing,
@@ -9,6 +11,8 @@ deferred; simulated paint time does not advance. Stop, cancellation and
 disconnect leave the pause cleanly. Hidden runs
 and ordinary interactive scripts reject enabling it. The active MCP request stays
 busy; Resume is a window control, not a second concurrent script request.
+
+## Activity input guard
 
 The activity input guard permits window chrome, the zoom percentage editor,
 canvas wheel/pinch navigation, panel scrolling/filtering/disclosure, informational
@@ -22,6 +26,8 @@ shortcut or menu mnemonic is checked separately. Quit requires Stop first.
 The guard follows QObject ownership across popup windows; QWidget ancestry alone
 does not include menus and dialogs in another window.
 
+## API lifetime and history across a pause
+
 `ScriptApiCall` scopes defer editable pauses until native API locals and temporary
 tool state have unwound. Never retain session/layer pointers across an editable
 pause. Stroke batches also park between completed strokes, resolve the target
@@ -33,6 +39,8 @@ edits. Navigation alone does not split history. This also applies between async
 callbacks. Cached JS geometry remains the script author's responsibility: inspect
 again after a pause when an operation depends on the artist's latest geometry.
 
+## Progressive refresh
+
 Visible MCP and unattended CLI runs publish completed edits at most every 50 ms.
 `ScriptEngineHost::refresh_script_view` flushes document dirt before repainting,
 including structure and vector panels. Pixel/structure notifications enqueue their
@@ -40,6 +48,8 @@ current change before pumping. Native brush samples publish their accumulated
 dirty rectangle at safe boundaries through `paint_script_stroke`'s progress
 callback. Painting math and seed order remain unchanged. Hidden work retains
 coalesced refresh without forced screen repainting.
+
+## Slow mode
 
 The checkable Slow button beside Stop enables `patchy.ui.slowMode`. It defaults
 off for each workspace, stays selected between requests and reconnects, and can
@@ -62,6 +72,8 @@ Native in-stroke dirt passes `completed=false`; only the finished stroke closes
 its group. Multiple notifications for one edit cannot create extra checkpoints.
 Reads, previews, brush-library writes and view changes do not create Undo steps.
 
+## Explicit frames
+
 `patchy.ui.present(delayMs)` forces a frame and services events for an optional
 0..1000 ms hold. It feeds the inactivity watchdog without mutating history or file
 state. Existing synchronous/callback gates defer JavaScript timers during the
@@ -70,17 +82,23 @@ private JavaScript array does not change a layer until `setPixels` uploads it.
 Visible examples may use `watch=true` for intentional pacing; background work
 should omit it. Repainting cannot show computation still taking place in a client.
 
+## Status-bar controls
+
 MCP keeps its Stop button visible while connected, disabled outside a mutating
 request. Idle means waiting for the next request; stopping the assistant between
 requests belongs to the client's own Stop control. Long labels have bounded width
 so they cannot crowd Stop and Slow out of a narrow status bar. Both controls are
 inside the input guard's allowed widget subtree, along with Pause/Resume.
 
+## Layer-panel rebuilds during automation
+
 Script-originated layer-panel rebuilds during guarded automation deliver deferred deletion
 only to their detached old row widgets. A long JavaScript evaluation otherwise
 retains every retired generation until it returns to its outer event loop, causing
 memory and repaint costs to climb with each edit. Manual row-click lifetimes and
 unrelated deferred objects retain their normal Qt delivery order.
+
+## Visible unattended scripts
 
 Visible unattended scripts use a separate `McpActivity` instance in script mode,
 with `scriptActivity` and `scriptStopButton` identifiers. Its input guard and Stop
@@ -91,6 +109,8 @@ no activity widget. Normal interactive scripts retain their existing stop panel.
 The script activity widget is parent-owned with a guarded pointer in the host;
 the status bar may be destroyed before the host during window teardown.
 
+## Image resize
+
 `MainWindow::resize_document_image` is shared by Image Size and `doc.resizeImage`.
 A background worker copies the source document and resamples only that copy.
 `wait_for_processing_operation` keeps the existing delayed Processing overlay
@@ -100,6 +120,8 @@ mid-allocation; completion waits for that current compute to finish. GUI Image S
 retains its resolution, smart-object refresh and view/channel restoration steps.
 The existing preview edit lock blocks competing workspace edits and makes MCP
 report busy throughout the resize wait.
+
+## Test coverage
 
 Coverage: `ui_mcp_progressive_edits_and_present_keep_history` passively observes
 intermediate canvas paints and explicit frames, then verifies one-step Undo.
