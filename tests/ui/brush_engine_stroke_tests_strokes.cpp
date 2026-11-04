@@ -4,6 +4,7 @@
 #include "ui/curved_slider.hpp"
 #include <QClipboard>
 #include <QMenu>
+#include <map>
 
 #include "ui/canvas_widget.hpp"
 #include "ui/canvas_widget_shared.hpp"
@@ -4740,6 +4741,132 @@ void ui_clone_stamp_large_brush_skip_keeps_bytes() {
   patchy::set_deep_editing_override(std::nullopt);
 }
 
+// GitHub issue 597 follow-up: Wayland delivers every pointer motion, and a Clone or Healing
+// stroke that handled each as its own event left the canvas unpainted while a fast mouse
+// kept the queue full. Queued moves now coalesce per event-loop pass with every position
+// kept (the earlier moves and their folded samples ride on the replayed one), and a press
+// shares the settled render cache as its All Layers snapshot instead of rendering the
+// document again. Two strokes painted that way must leave the same bytes as the same
+// moves sent one by one from fresh renders.
+void ui_clone_stroke_coalesces_queued_moves_and_keeps_bytes() {
+  for (const auto tool : {patchy::ui::CanvasTool::Clone, patchy::ui::CanvasTool::Healing}) {
+    struct Result {
+      std::vector<std::uint8_t> bytes;
+      int coalesced{0};
+      int reuses{0};
+    };
+    const auto paint = [tool](bool coalesce_and_reuse) {
+      constexpr int kWidth = 420;
+      constexpr int kHeight = 300;
+      auto pixels = solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 255));
+      for (int y = 0; y < kHeight; ++y) {
+        for (int x = 0; x < kWidth; ++x) {
+          auto* px = pixels.pixel(x, y);
+          px[0] = static_cast<std::uint8_t>((x * 7 + y * 3) % 256);
+          px[1] = static_cast<std::uint8_t>((y * 5) % 256);
+          px[2] = static_cast<std::uint8_t>(((x ^ y) * 11) % 256);
+        }
+      }
+      patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+      const auto layer_id = document.add_pixel_layer("Photo", std::move(pixels)).id();
+      // A Multiply layer above, so the All Layers sample is a real composite.
+      auto& tint = document.add_pixel_layer(
+          "Tint", solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), QColor(250, 180, 120, 150)));
+      tint.set_blend_mode(patchy::BlendMode::Multiply);
+      document.set_active_layer(layer_id);
+      patchy::ui::CanvasWidget canvas;
+      canvas.resize(520, 400);
+      canvas.set_document(&document);
+      canvas.set_zoom(1.0);
+      canvas.set_retouch_snapshot_cache_reuse_enabled_for_testing(coalesce_and_reuse);
+      canvas.set_drag_move_coalescing_for_testing(coalesce_and_reuse
+                                                      ? patchy::ui::CanvasWidget::DragMoveCoalescing::AllMoves
+                                                      : patchy::ui::CanvasWidget::DragMoveCoalescing::Off);
+      canvas.show();
+      QApplication::processEvents();
+      canvas.set_tool(tool);
+      canvas.set_brush_size(61);
+      canvas.set_brush_softness(60);
+      const auto widget_point = [&canvas](QPoint document_point) {
+        return canvas.widget_position_for_document_point(document_point);
+      };
+      send_mouse(canvas, QEvent::MouseButtonPress, widget_point(QPoint(90, 150)), Qt::LeftButton, Qt::LeftButton,
+                 Qt::AltModifier);
+      send_mouse(canvas, QEvent::MouseButtonRelease, widget_point(QPoint(90, 150)), Qt::LeftButton, Qt::NoButton,
+                 Qt::AltModifier);
+      // Every third move carries two samples the platform folded into it.
+      std::map<std::pair<int, int>, std::vector<QPointF>> folded_by_event;
+      canvas.set_coalesced_mouse_positions_provider([&folded_by_event](const QMouseEvent& event) {
+        const auto found = folded_by_event.find({event.position().toPoint().x(), event.position().toPoint().y()});
+        return found == folded_by_event.end() ? std::vector<QPointF>{} : found->second;
+      });
+      for (const int stroke : {0, 1}) {
+        std::vector<QPoint> path;
+        for (int index = 0; index <= 60; ++index) {
+          const auto t = static_cast<double>(index);
+          path.emplace_back(static_cast<int>(std::lround(220.0 + 3.0 * t)),
+                            static_cast<int>(std::lround(90.0 + stroke * 90.0 + 30.0 * std::sin(t * 0.2))));
+        }
+        folded_by_event.clear();
+        std::vector<QPoint> event_points;
+        for (std::size_t index = 1; index < path.size();) {
+          if (index % 3 == 0 && index + 2 < path.size()) {
+            const auto event_point = widget_point(path[index + 2]);
+            folded_by_event[{event_point.x(), event_point.y()}] = {QPointF(widget_point(path[index])),
+                                                                   QPointF(widget_point(path[index + 1]))};
+            event_points.push_back(event_point);
+            index += 3;
+          } else {
+            event_points.push_back(widget_point(path[index]));
+            index += 1;
+          }
+        }
+        for (int wait = 0; wait < 200 && !canvas.render_settled(); ++wait) {
+          canvas.repaint();
+          QApplication::processEvents();
+        }
+        send_mouse(canvas, QEvent::MouseButtonPress, widget_point(path.front()), Qt::LeftButton, Qt::LeftButton);
+        if (coalesce_and_reuse) {
+          // Queued as a window system queues them, in bursts of seven per event-loop pass.
+          constexpr std::size_t kBurst = 7;
+          const auto queued = event_points.size() - event_points.size() % kBurst - kBurst;
+          for (std::size_t index = 0; index < queued; ++index) {
+            const auto position = QPointF(event_points[index]);
+            QApplication::postEvent(&canvas, new QMouseEvent(QEvent::MouseMove, position, canvas.mapToGlobal(position),
+                                                             Qt::NoButton, Qt::LeftButton, Qt::NoModifier));
+            if (index % kBurst == kBurst - 1) {
+              QApplication::processEvents();
+            }
+          }
+          // The last moves arrive without the event loop running: the first applies, the
+          // rest are still recorded when the release lands, which applies them first.
+          for (std::size_t index = queued; index < event_points.size(); ++index) {
+            send_mouse(canvas, QEvent::MouseMove, event_points[index], Qt::NoButton, Qt::LeftButton);
+          }
+        } else {
+          for (const auto& position : event_points) {
+            send_mouse(canvas, QEvent::MouseMove, position, Qt::NoButton, Qt::LeftButton);
+          }
+        }
+        send_mouse(canvas, QEvent::MouseButtonRelease, event_points.back(), Qt::LeftButton, Qt::NoButton);
+        QApplication::processEvents();
+      }
+      Result result;
+      const auto bytes = std::as_const(*document.find_layer(layer_id)).pixels().data();
+      result.bytes.assign(bytes.begin(), bytes.end());
+      result.coalesced = canvas.render_cache_diagnostics().drag_moves_coalesced;
+      result.reuses = canvas.render_cache_diagnostics().retouch_snapshot_cache_reuses;
+      return result;
+    };
+    const auto one_by_one = paint(false);
+    const auto coalesced = paint(true);
+    CHECK(one_by_one.coalesced == 0 && one_by_one.reuses == 0);
+    CHECK(coalesced.coalesced > 20);
+    CHECK(coalesced.reuses == 2);
+    CHECK(coalesced.bytes == one_by_one.bytes);
+  }
+}
+
 void ui_coalesced_pointer_history_keeps_points_after_previous_sample() {
   using patchy::ui::PointerHistoryPoint;
   const std::vector<PointerHistoryPoint> history{
@@ -5076,6 +5203,8 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
        ui_brush_stroke_paints_every_coalesced_mouse_sample},
       {"ui_hard_round_stroke_skip_keeps_bytes", ui_hard_round_stroke_skip_keeps_bytes},
       {"ui_clone_stamp_large_brush_skip_keeps_bytes", ui_clone_stamp_large_brush_skip_keeps_bytes},
+      {"ui_clone_stroke_coalesces_queued_moves_and_keeps_bytes",
+       ui_clone_stroke_coalesces_queued_moves_and_keeps_bytes},
       {"ui_coalesced_pointer_history_keeps_points_after_previous_sample",
        ui_coalesced_pointer_history_keeps_points_after_previous_sample},
       {"ui_zoomed_out_brush_stroke_patches_display_mips_in_place",

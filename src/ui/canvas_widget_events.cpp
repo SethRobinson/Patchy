@@ -1822,6 +1822,13 @@ QRect CanvasWidget::advance_paint_stroke(QPoint document_point, QPointF document
 }
 
 std::vector<QPointF> CanvasWidget::coalesced_stroke_positions(const QMouseEvent& event) {
+  if (replay_stroke_positions_.has_value()) {
+    // A replayed coalesced stroke move (flush_pending_drag_move): the positions recorded
+    // before it, each still its own sample.
+    auto positions = std::move(*replay_stroke_positions_);
+    replay_stroke_positions_.reset();
+    return positions;
+  }
   if (handling_tablet_event_) {
     // Qt already delivers every pen sample (the Windows pointer history, X11
     // tablet motion is never compressed); the synthesized move carries one.
@@ -4755,6 +4762,15 @@ bool CanvasWidget::defer_coalesced_drag_move(const QMouseEvent& event) {
     begin_drag_move_pass();
     return false;
   }
+  if (coalescing_retouch_stroke()) {
+    // A stroke keeps every position, in order: the move recorded before this one, then
+    // the samples the platform folded into this event (Windows' pointer history).
+    if (pending_drag_move_.has_value()) {
+      pending_stroke_positions_.push_back(pending_drag_move_->position);
+    }
+    auto folded = coalesced_stroke_positions(event);
+    pending_stroke_positions_.insert(pending_stroke_positions_.end(), folded.begin(), folded.end());
+  }
   pending_drag_move_ = PendingDragMove{event.position(), event.globalPosition(), event.buttons(), event.modifiers()};
   ++render_cache_diagnostics_.drag_moves_coalesced;
   return true;
@@ -4784,18 +4800,24 @@ void CanvasWidget::flush_pending_drag_move() {
   }
   const auto pending = *pending_drag_move_;
   pending_drag_move_.reset();
+  auto stroke_positions = std::exchange(pending_stroke_positions_, {});
   if (!coalescing_drag_active()) {
     return;  // the drag ended or was cancelled before the apply ran
   }
   QMouseEvent replay(QEvent::MouseMove, pending.position, pending.global_position, Qt::NoButton, pending.buttons,
                      pending.modifiers);
   const QScopedValueRollback replaying(replaying_drag_move_, true);
+  if (coalescing_retouch_stroke()) {
+    replay_stroke_positions_ = std::move(stroke_positions);
+  }
   mouseMoveEvent(&replay);
+  replay_stroke_positions_.reset();
 }
 
 void CanvasWidget::cancel_pointer_gestures() {
   const bool cancel_move = move_drag_pending_ || moving_layer_;
   pending_drag_move_.reset();
+  pending_stroke_positions_.clear();
   context_press_pos_.reset();
   cancel_move_layer_selection();
   if (selecting_ || lassoing_ || quick_selecting_ || moving_selection_ ||
@@ -4856,6 +4878,10 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
   if (script_brush_progress_) {
     QWidget::focusOutEvent(event);
     return;
+  }
+  if (coalescing_retouch_stroke()) {
+    // The stroke ends below: its recorded positions land first (GitHub #597).
+    flush_pending_drag_move();
   }
   const auto was_painting = painting_;
   const auto was_drawing_smart_filter_mask_shape =
