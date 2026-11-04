@@ -14983,6 +14983,82 @@ Each item&apos;s own View setting still applies.</source>
         <source>The temporary scan folder could not be created.</source>
         <translation>スキャン用の一時フォルダーを作成できませんでした。</translation>
     </message>
+    <message>
+        <source>Scanner: %1</source>
+        <translation>スキャナー: %1</translation>
+    </message>
+    <message>
+        <source>Camera: %1</source>
+        <translation>カメラ: %1</translation>
+    </message>
+    <message>
+        <source>The scanner could not be opened (%1)</source>
+        <translation>スキャナーを開けませんでした (%1)</translation>
+    </message>
+    <message>
+        <source>The camera could not be opened (%1)</source>
+        <translation>カメラを開けませんでした (%1)</translation>
+    </message>
+    <message>
+        <source>The camera image could not be downloaded (%1)</source>
+        <translation>カメラの画像をダウンロードできませんでした (%1)</translation>
+    </message>
+    <message>
+        <source>Device:</source>
+        <translation>デバイス:</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>解像度:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>モード:</translation>
+    </message>
+    <message>
+        <source>Source:</source>
+        <translation>ソース:</translation>
+    </message>
+    <message>
+        <source>Searching for scanners and cameras...</source>
+        <translation>スキャナーとカメラを検索しています...</translation>
+    </message>
+    <message>
+        <source>Reading the camera...</source>
+        <translation>カメラを読み取っています...</translation>
+    </message>
+    <message>
+        <source>Opening the scanner...</source>
+        <translation>スキャナーを開いています...</translation>
+    </message>
+    <message>
+        <source>No images were found on the camera.</source>
+        <translation>カメラに画像が見つかりませんでした。</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 dpi</translation>
+    </message>
+    <message>
+        <source>Import</source>
+        <translation>読み込み</translation>
+    </message>
+    <message>
+        <source>Scan</source>
+        <translation>スキャン</translation>
+    </message>
+    <message>
+        <source>Downloading from the camera...</source>
+        <translation>カメラからダウンロードしています...</translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation>スキャンしています...</translation>
+    </message>
+    <message>
+        <source>Scanning needs SANE (for scanners) or libgphoto2 (for cameras). Install them from your distribution and try again.</source>
+        <translation>スキャンには SANE (スキャナー用) または libgphoto2 (カメラ用) が必要です。ディストリビューションからインストールして、もう一度お試しください。</translation>
+    </message>
 </context>
 <context>
     <name>ScriptFolders</name>
@@ -32686,6 +32762,10 @@ Locked: %1</source>
     <message>
         <source>Select a fill layer to edit its settings</source>
         <translation>設定を編集する塗りつぶしレイヤーを選択してください</translation>
+    </message>
+    <message>
+        <source>No scanner or camera was found. Connect a scanner supported by SANE or a camera supported by gphoto2 and try again.</source>
+        <translation>スキャナーまたはカメラが見つかりませんでした。SANE 対応のスキャナーまたは gphoto2 対応のカメラを接続して、もう一度お試しください。</translation>
     </message>
 </context>
 <context>

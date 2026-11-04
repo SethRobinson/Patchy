@@ -14983,6 +14983,82 @@ Each item&apos;s own View setting still applies.</source>
         <source>Windows Image Acquisition is unavailable (%1)</source>
         <translation>無法使用 Windows 影像取得 (%1)</translation>
     </message>
+    <message>
+        <source>Scanner: %1</source>
+        <translation>掃描器: %1</translation>
+    </message>
+    <message>
+        <source>Camera: %1</source>
+        <translation>相機: %1</translation>
+    </message>
+    <message>
+        <source>The scanner could not be opened (%1)</source>
+        <translation>無法開啟掃描器 (%1)</translation>
+    </message>
+    <message>
+        <source>The camera could not be opened (%1)</source>
+        <translation>無法開啟相機 (%1)</translation>
+    </message>
+    <message>
+        <source>The camera image could not be downloaded (%1)</source>
+        <translation>無法下載相機影像 (%1)</translation>
+    </message>
+    <message>
+        <source>Device:</source>
+        <translation>裝置:</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>解析度:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>模式:</translation>
+    </message>
+    <message>
+        <source>Source:</source>
+        <translation>來源:</translation>
+    </message>
+    <message>
+        <source>Searching for scanners and cameras...</source>
+        <translation>正在搜尋掃描器和相機...</translation>
+    </message>
+    <message>
+        <source>Reading the camera...</source>
+        <translation>正在讀取相機...</translation>
+    </message>
+    <message>
+        <source>Opening the scanner...</source>
+        <translation>正在開啟掃描器...</translation>
+    </message>
+    <message>
+        <source>No images were found on the camera.</source>
+        <translation>相機上找不到影像。</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 dpi</translation>
+    </message>
+    <message>
+        <source>Import</source>
+        <translation>匯入</translation>
+    </message>
+    <message>
+        <source>Scan</source>
+        <translation>掃描</translation>
+    </message>
+    <message>
+        <source>Downloading from the camera...</source>
+        <translation>正在從相機下載...</translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation>正在掃描...</translation>
+    </message>
+    <message>
+        <source>Scanning needs SANE (for scanners) or libgphoto2 (for cameras). Install them from your distribution and try again.</source>
+        <translation>掃描需要 SANE（用於掃描器）或 libgphoto2（用於相機）。請從您的發行版安裝後再試一次。</translation>
+    </message>
 </context>
 <context>
     <name>ScriptFolders</name>
@@ -32686,6 +32762,10 @@ Locked: %1</source>
     <message>
         <source>Select a fill layer to edit its settings</source>
         <translation>請選取填滿圖層以編輯其設定</translation>
+    </message>
+    <message>
+        <source>No scanner or camera was found. Connect a scanner supported by SANE or a camera supported by gphoto2 and try again.</source>
+        <translation>找不到掃描器或相機。請連接 SANE 支援的掃描器或 gphoto2 支援的相機後再試一次。</translation>
     </message>
 </context>
 <context>

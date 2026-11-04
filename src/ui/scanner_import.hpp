@@ -8,8 +8,9 @@ class QWidget;
 namespace patchy::ui {
 
 // Native scanner acquisition. Windows uses WIA and also exposes cameras; macOS uses
-// ImageKit/ImageCaptureCore and exposes scanners only. Implemented in per-OS translation
-// units following the docs/platform.md convention.
+// ImageKit/ImageCaptureCore and exposes scanners only; Linux uses SANE for scanners and
+// libgphoto2 for cameras behind Patchy's own device dialog. Implemented in per-OS
+// translation units following the docs/platform.md convention.
 enum class ScannerAcquireStatus {
   Acquired,   // file_path holds the scanned image (caller deletes it after import)
   Cancelled,  // the user closed the native acquisition UI; stay silent
@@ -28,7 +29,7 @@ struct ScannerAcquireResult {
   double vertical_dpi{0.0};
 };
 
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
 [[nodiscard]] ScannerAcquireResult acquire_image_from_scanner(QWidget* parent);
 #elif defined(Q_OS_MACOS)
 // AppKit sheets must return to the application's main run loop before they can receive

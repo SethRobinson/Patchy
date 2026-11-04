@@ -43,6 +43,7 @@ std::vector<patchy::test::TestCase> builtin_filter_looks_tests();
 std::vector<patchy::test::TestCase> flat_formats_bmp_tests();
 std::vector<patchy::test::TestCase> raw_heif_tests();
 std::vector<patchy::test::TestCase> jxr_tests();
+std::vector<patchy::test::TestCase> scan_frame_tests();
 std::vector<patchy::test::TestCase> rttex_tests();
 std::vector<patchy::test::TestCase> dds_tests();
 std::vector<patchy::test::TestCase> ora_tests();

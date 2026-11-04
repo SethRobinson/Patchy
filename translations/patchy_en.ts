@@ -15013,6 +15013,82 @@ Each item&apos;s own View setting still applies.</source>
         <source>Windows Image Acquisition is unavailable (%1)</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Scanner: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Camera: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The scanner could not be opened (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The camera could not be opened (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The camera image could not be downloaded (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Device:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Source:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Searching for scanners and cameras...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reading the camera...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opening the scanner...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No images were found on the camera.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scan</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloading from the camera...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scanning needs SANE (for scanners) or libgphoto2 (for cameras). Install them from your distribution and try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScriptFolders</name>
@@ -32690,6 +32766,10 @@ Locked: %1</source>
     </message>
     <message>
         <source>Select a fill layer to edit its settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No scanner or camera was found. Connect a scanner supported by SANE or a camera supported by gphoto2 and try again.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
