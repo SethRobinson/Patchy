@@ -232,6 +232,7 @@ const ThemePalette& dark_palette() {
       .list_row_hover_bg = rgb(0x33373d),
       .preview_pane_bg = rgb(0x252525),
       .preview_pane_muted_text = rgb(0x9a9a9a),
+      .font_favorite_star = rgb(0xe3b53b),
       .accent_control = rgb(0x4c9aff),
       .accent_ring = rgb(0x63a6ff),
 
@@ -742,6 +743,9 @@ const ThemePalette& light_palette() {
     light.layer_color_violet = rgb(0x8352c4);
     light.layer_color_gray = rgb(0x7a8088);
 
+    // The favorite font star: a deeper gold that holds against a near-white list.
+    light.font_favorite_star = rgb(0xc99a0e);
+
     // Icon ink. The flip lands close, but these are the most-looked-at pixels in
     // the app and deserve exact values.
     light.icon_ink = rgb(0x333a42);
@@ -1004,6 +1008,7 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
       PATCHY_THEME_ROLE(list_row_hover_bg),
       PATCHY_THEME_ROLE(preview_pane_bg),
       PATCHY_THEME_ROLE(preview_pane_muted_text),
+      PATCHY_THEME_ROLE(font_favorite_star),
       PATCHY_THEME_ROLE(accent_control),
       PATCHY_THEME_ROLE(accent_ring),
 

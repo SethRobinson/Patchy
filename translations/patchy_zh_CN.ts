@@ -19340,6 +19340,34 @@ Each item&apos;s own View setting still applies.</source>
         <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
         <translation>其他</translation>
     </message>
+    <message>
+        <source>Favorites</source>
+        <translation>收藏</translation>
+    </message>
+    <message>
+        <source>No favorites yet. Click the star beside a font to add it.</source>
+        <translation>还没有收藏。点击字体旁边的星标即可收藏。</translation>
+    </message>
+    <message>
+        <source>No favorite fonts match the search or filters.</source>
+        <translation>没有符合搜索或筛选条件的收藏字体。</translation>
+    </message>
+    <message>
+        <source>Remove from Recent</source>
+        <translation>从最近使用中移除</translation>
+    </message>
+    <message>
+        <source>Remove from favorites</source>
+        <translation>取消收藏</translation>
+    </message>
+    <message>
+        <source>Add to favorites</source>
+        <translation>添加到收藏</translation>
+    </message>
+    <message>
+        <source>Show only favorite fonts</source>
+        <translation>仅显示收藏的字体</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

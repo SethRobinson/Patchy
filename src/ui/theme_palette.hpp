@@ -244,6 +244,8 @@ struct ThemePalette {
   QColor list_row_hover_bg;
   QColor preview_pane_bg;
   QColor preview_pane_muted_text;
+  // The filled star of a favorite font in the font picker (GitHub issue 630).
+  QColor font_favorite_star;
 
   // The blue used by hand-painted controls: filter dials and waveforms, the
   // Blend If ramp handles, the zoom overlay. One role because all three were

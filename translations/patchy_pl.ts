@@ -19432,6 +19432,34 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
         <translation>Inne</translation>
     </message>
+    <message>
+        <source>Favorites</source>
+        <translation>Ulubione</translation>
+    </message>
+    <message>
+        <source>No favorites yet. Click the star beside a font to add it.</source>
+        <translation>Brak ulubionych. Kliknij gwiazdkę obok czcionki, aby ją dodać.</translation>
+    </message>
+    <message>
+        <source>No favorite fonts match the search or filters.</source>
+        <translation>Żadna ulubiona czcionka nie pasuje do wyszukiwania ani filtrów.</translation>
+    </message>
+    <message>
+        <source>Remove from Recent</source>
+        <translation>Usuń z ostatnio używanych</translation>
+    </message>
+    <message>
+        <source>Remove from favorites</source>
+        <translation>Usuń z ulubionych</translation>
+    </message>
+    <message>
+        <source>Add to favorites</source>
+        <translation>Dodaj do ulubionych</translation>
+    </message>
+    <message>
+        <source>Show only favorite fonts</source>
+        <translation>Pokaż tylko ulubione czcionki</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

@@ -166,6 +166,7 @@
     "list_row_hover_bg": "#3c4353",
     "preview_pane_bg": "#2c323e",
     "preview_pane_muted_text": "#9ba6bc",
+    "font_favorite_star": "#e3b53b",
     "accent_control": "#62bce9",
     "accent_ring": "#76c4ec",
     "curves_graph_bg": "#363d4b",

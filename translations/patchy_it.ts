@@ -19386,6 +19386,34 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
         <translation>Altri</translation>
     </message>
+    <message>
+        <source>Favorites</source>
+        <translation>Preferiti</translation>
+    </message>
+    <message>
+        <source>No favorites yet. Click the star beside a font to add it.</source>
+        <translation>Ancora nessun preferito. Fai clic sulla stella accanto a un font per aggiungerlo.</translation>
+    </message>
+    <message>
+        <source>No favorite fonts match the search or filters.</source>
+        <translation>Nessun font preferito corrisponde alla ricerca o ai filtri.</translation>
+    </message>
+    <message>
+        <source>Remove from Recent</source>
+        <translation>Rimuovi dai recenti</translation>
+    </message>
+    <message>
+        <source>Remove from favorites</source>
+        <translation>Rimuovi dai preferiti</translation>
+    </message>
+    <message>
+        <source>Add to favorites</source>
+        <translation>Aggiungi ai preferiti</translation>
+    </message>
+    <message>
+        <source>Show only favorite fonts</source>
+        <translation>Mostra solo i font preferiti</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

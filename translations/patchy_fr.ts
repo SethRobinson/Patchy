@@ -19386,6 +19386,34 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
         <translation>Autres</translation>
     </message>
+    <message>
+        <source>Favorites</source>
+        <translation>Favoris</translation>
+    </message>
+    <message>
+        <source>No favorites yet. Click the star beside a font to add it.</source>
+        <translation>Aucun favori pour l’instant. Cliquez sur l’étoile à côté d’une police pour l’ajouter.</translation>
+    </message>
+    <message>
+        <source>No favorite fonts match the search or filters.</source>
+        <translation>Aucune police favorite ne correspond à la recherche ou aux filtres.</translation>
+    </message>
+    <message>
+        <source>Remove from Recent</source>
+        <translation>Retirer des récentes</translation>
+    </message>
+    <message>
+        <source>Remove from favorites</source>
+        <translation>Retirer des favoris</translation>
+    </message>
+    <message>
+        <source>Add to favorites</source>
+        <translation>Ajouter aux favoris</translation>
+    </message>
+    <message>
+        <source>Show only favorite fonts</source>
+        <translation>Afficher uniquement les polices favorites</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

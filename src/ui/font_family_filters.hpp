@@ -1,8 +1,8 @@
 #pragma once
 
-// The font picker's Recent list (GitHub issue 569) and its Style and Language filters (GitHub
-// issue 570): persisted choices, the per-family style index and its on-disk cache. See
-// docs/font-picker.md.
+// The font picker's Recent list (GitHub issue 569), its Favorites (GitHub issue 630) and its Style
+// and Language filters (GitHub issue 570): persisted choices, the per-family style index and its
+// on-disk cache. See docs/font-picker.md.
 
 #include "core/font_style_class.hpp"
 
@@ -21,6 +21,8 @@ namespace patchy::ui {
 inline constexpr char kFontPickerRecentFamiliesKey[] = "ui/textFontPickerRecentFamilies";
 inline constexpr char kFontPickerStyleFilterKey[] = "ui/textFontPickerStyleFilter";
 inline constexpr char kFontPickerLanguageFilterKey[] = "ui/textFontPickerLanguageFilter";
+inline constexpr char kFontPickerFavoriteFamiliesKey[] = "ui/textFontPickerFavoriteFamilies";
+inline constexpr char kFontPickerFavoritesOnlyKey[] = "ui/textFontPickerFavoritesOnly";  // bool
 inline constexpr int kMaxRecentFontFamilies = 8;
 
 // The Style combo's entries, in combo order.
@@ -54,6 +56,14 @@ enum class FontStyleFilter : std::uint8_t {
 [[nodiscard]] QStringList stored_recent_font_families();
 // Moves `family` to the front of the stored list (no repeats, at most kMaxRecentFontFamilies).
 void record_recent_font_family(const QString& family);
+// Takes `family` out of the stored Recent list (the Recent row's remove button).
+void remove_recent_font_family(const QString& family);
+
+// The stored Favorites, in the order they were added. Like the Recent list it may name families
+// no longer installed; the picker leaves those out.
+[[nodiscard]] QStringList stored_favorite_font_families();
+// Adds or removes `family`; returns whether it is a favorite afterwards.
+bool set_favorite_font_family(const QString& family, bool favorite);
 
 struct FontFamilyTraits {
   FontStyleCategory category{FontStyleCategory::unknown};
