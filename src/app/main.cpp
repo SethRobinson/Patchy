@@ -58,6 +58,7 @@
 #include <chrono>
 #include <clocale>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <deque>
 #include <functional>
@@ -416,11 +417,21 @@ int main(int argc, char* argv[]) {
   // which is how the Linux packages start the connector. Decided before anything else so
   // the GUI-only startup below (single-instance forwarding, the update prompt, window
   // restore, file opens) never runs for it. The flag is dropped so the connector parses
-  // the same arguments either way.
+  // the same arguments either way. Inside any AppImage `patchy-mcp` works too, whatever its
+  // AppRun (mcp_connector_argument_first; docs/appimage.md).
 #ifdef PATCHY_MCP_EXECUTABLE
   const bool connector_mode = true;
 #else
-  const bool connector_mode = patchy::mcp_connector_flag_first(argc, argv);
+#ifdef Q_OS_LINUX
+  // APPDIR too: the AppImage runtime sets both. Never inside a Flatpak, which keeps the
+  // environment of whatever AppImage'd program started it.
+  const char* appimage = std::getenv("FLATPAK_ID") == nullptr && std::getenv("APPDIR") != nullptr
+                             ? std::getenv("APPIMAGE")
+                             : nullptr;
+#else
+  const char* appimage = nullptr;
+#endif
+  const bool connector_mode = patchy::mcp_connector_argument_first(argc, argv, appimage);
   if (connector_mode) {
     patchy::drop_first_argument(argc, argv);
   }
