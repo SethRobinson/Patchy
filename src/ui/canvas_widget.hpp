@@ -753,6 +753,11 @@ public:
   // Turns off the Clone/Healing stamp's row spans and continued-segment skip (GitHub issue
   // 597) so a test can paint the same stroke both ways and compare the bytes.
   void set_clone_stamp_skip_enabled_for_testing(bool enabled) noexcept { clone_stamp_skip_enabled_ = enabled; }
+  // Turns off the retouch snapshot's reuse of the settled render cache (GitHub #597) so a
+  // test can paint the same strokes from a fresh render and compare the bytes.
+  void set_retouch_snapshot_cache_reuse_enabled_for_testing(bool enabled) noexcept {
+    retouch_snapshot_cache_reuse_enabled_ = enabled;
+  }
   // Drag move coalescing for tests and timing runs: Default coalesces window-system
   // moves only, AllMoves also posted ones (a test can queue a burst), Off none (the
   // before-the-fix baseline of `patchy_perf_tests textdrag`).
@@ -1693,10 +1698,14 @@ protected:
   void end_drag_move_pass();
   // Applies a recorded drag move now (presses, releases and keys call it first).
   void flush_pending_drag_move();
-  // The drags whose moves coalesce: Move tool, Free Transform, and a held pick (the Pick
-  // tool or a paint tool's Alt eyedropper, GitHub #478).
+  // The drags whose moves coalesce: Move tool, Free Transform, a held pick (the Pick
+  // tool or a paint tool's Alt eyedropper, GitHub #478), and a Clone or Healing stroke
+  // (GitHub #597), which keeps every recorded position (pending_stroke_positions_).
   [[nodiscard]] bool coalescing_drag_active() const noexcept {
-    return moving_layer_ || dragging_transform_ || color_picking_;
+    return moving_layer_ || dragging_transform_ || color_picking_ || coalescing_retouch_stroke();
+  }
+  [[nodiscard]] bool coalescing_retouch_stroke() const noexcept {
+    return painting_ && retouch_source_tool_active();
   }
   void cancel_pointer_gestures();
   void mouseDoubleClickEvent(QMouseEvent* event) override;
@@ -3622,6 +3631,12 @@ private:
     Qt::KeyboardModifiers modifiers;
   };
   std::optional<PendingDragMove> pending_drag_move_;
+  // A coalesced Clone or Healing stroke drops no position: the positions recorded before
+  // pending_drag_move_'s own (earlier moves and the samples the platform folded into
+  // them), applied as that move's folded samples when it is replayed
+  // (replay_stroke_positions_, read by coalesced_stroke_positions).
+  std::vector<QPointF> pending_stroke_positions_;
+  std::optional<std::vector<QPointF>> replay_stroke_positions_;
   bool drag_move_pass_active_{false};
   bool replaying_drag_move_{false};
   DragMoveCoalescing drag_move_coalescing_mode_{DragMoveCoalescing::Default};
@@ -4025,6 +4040,7 @@ private:
   };
   std::optional<CloneSegmentEnd> clone_stroke_segment_end_;
   bool clone_stamp_skip_enabled_{true};
+  bool retouch_snapshot_cache_reuse_enabled_{true};
   double brush_stroke_distance_since_last_stamp_{0.0};
   patchy::SmudgeState smudge_state_;
   QImage clone_source_cache_{};

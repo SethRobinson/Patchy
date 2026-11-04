@@ -1180,6 +1180,17 @@ QImage CanvasWidget::retouch_source_snapshot() {
   }
   const auto mode = retouch_effective_sample_layers();
   if (mode == SampleLayers::AllLayers) {
+    // The settled render cache is this composite, kept current region by region (the
+    // Magic Wand reads it as exact pixels too): sharing it spares every press a
+    // full-document render, 40 ms of a 3580x5370 Clone press (GitHub #597). Palette
+    // display snaps the cache, so palette mode renders.
+    if (retouch_snapshot_cache_reuse_enabled_ && render_settled() && !async_render_cache_pending_ &&
+        !document_->palette_editing().has_value() &&
+        render_cache_.size() == QSize(document_->width(), document_->height()) &&
+        render_cache_.format() == QImage::Format_RGBA8888) {
+      ++render_cache_diagnostics_.retouch_snapshot_cache_reuses;
+      return render_cache_;
+    }
     return render_document_image_with_processing();
   }
   if (mode != SampleLayers::CurrentLayer) {
