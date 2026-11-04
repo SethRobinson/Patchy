@@ -601,13 +601,12 @@ void ui_warp_text_render_matches_photoshop_if_available() {
       {"wt_bulge_p50_para_2lines", 0.30, 18},
   };
   // The floors above are Windows numbers: the reference PNGs are Photoshop renders of Windows
-  // Arial through DirectWrite, and Patchy matches them there at IoU 0.68-0.85. macOS lays the
-  // same warp out with CoreText and its own Arial build -- thinner stems, half-pixel different
-  // baselines -- which costs ~0.06 of IoU and a couple of pixels of ink extent on the point-text
-  // cases (0.60-0.85 there) without moving the warp geometry itself. Give the non-Windows
-  // rasterizers that much and no more: a real geometry break drops IoU to ~0.0-0.1, so it still
-  // fails everywhere. Linux has no Arial and skips the whole test above.
-#if defined(Q_OS_WIN)
+  // Arial through DirectWrite, and Patchy matches them there at IoU 0.68-0.85. macOS meets the
+  // same floors (0.67-0.89, ink within 2 px) since it fills glyph outlines rather than CoreText's
+  // smoothed glyph images (draw_document_glyph_run; those cost ~0.06 of IoU and up to 4 px of ink
+  // extent). A FreeType rasterizer keeps the old ~0.06 and 2 px allowance, unmeasured here: Linux
+  // has no Arial and skips the whole test above. A real geometry break drops IoU to ~0.0-0.1.
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
   constexpr double iou_floor_scale = 1.0;
   constexpr int extra_bounds_delta = 0;
 #else

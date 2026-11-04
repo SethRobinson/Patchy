@@ -766,6 +766,52 @@ TextRenderPlan build_text_render_plan(const TextToolSettings& settings, QColor c
   return result;
 }
 
+// macOS: Qt's raster engine draws text up to 64 px (QT_MAX_CACHED_GLYPH_SIZE) from cached glyph
+// images, and CoreText smooths (dilates) every one of them; no QFont strategy turns that off on a
+// current macOS (QCoreTextFontEngine::shouldSmoothFont in its Grayscale mode). Document text drew
+// heavier than its own outlines there (Convert to Shape coverage IoU 0.80 at 30 and 64 px, 0.99
+// from 66 px and on Windows and Linux) and so heavier than Photoshop. Document glyphs fill their
+// outlines instead, which is what Qt itself does above 64 px; a glyph with no outline (a colour
+// emoji bitmap) keeps the engine's image. No run carries Qt's decoration flags: Patchy draws
+// underline and strikethrough as its own bars (text_decorations_for_lines).
+#ifdef Q_OS_MACOS
+constexpr bool kFillGlyphOutlines = true;
+#else
+constexpr bool kFillGlyphOutlines = false;
+#endif
+
+void draw_document_glyph_run(QPainter& painter, const QPointF& origin, const QGlyphRun& run, const QColor& color) {
+  painter.setPen(color);
+#ifndef Q_OS_MACOS
+  painter.drawGlyphRun(origin, run);
+#else
+  const auto raw_font = run.rawFont();
+  const auto indexes = run.glyphIndexes();
+  const auto positions = run.positions();
+  QList<quint32> image_indexes;
+  QList<QPointF> image_positions;
+  painter.save();
+  painter.setRenderHint(QPainter::Antialiasing, painter.testRenderHint(QPainter::TextAntialiasing));
+  for (qsizetype index = 0; index < indexes.size() && index < positions.size(); ++index) {
+    auto path = raw_font.pathForGlyph(indexes[index]);
+    if (path.isEmpty()) {
+      image_indexes.push_back(indexes[index]);
+      image_positions.push_back(positions[index]);
+      continue;
+    }
+    path.translate(origin + positions[index]);
+    painter.fillPath(path, color);
+  }
+  painter.restore();
+  if (!image_indexes.isEmpty()) {
+    auto images = run;
+    images.setGlyphIndexes(image_indexes);
+    images.setPositions(image_positions);
+    painter.drawGlyphRun(origin, images);
+  }
+#endif
+}
+
 // Photoshop rasterizes each glyph with its absolute x rounded to a whole document pixel,
 // halves up, glyph by glyph rather than once per line: in the PS 27.9 anchor captures "Hg" at
 // x 100.5 moves the H a column while the g (100.5 + 34.67 = 135.17 -> 135) stays where the
@@ -886,7 +932,7 @@ void draw_line_glyphs_pixel_aligned(const QTextBlock& block, const BoxTextLineRe
             single.setUnderline(run.underline());
             single.setOverline(run.overline());
             single.setStrikeOut(run.strikeOut());
-            painter.drawGlyphRun(QPointF(0.0, 0.0), single);
+            draw_document_glyph_run(painter, QPointF(0.0, 0.0), single, color);
           }
           painter.restore();
         }
@@ -907,8 +953,7 @@ void draw_line_glyphs_pixel_aligned(const QTextBlock& block, const BoxTextLineRe
         continue;
       }
       run.setPositions(positions);
-      painter.setPen(color);
-      painter.drawGlyphRun(item.block_origin, run);
+      draw_document_glyph_run(painter, item.block_origin, run, color);
     }
     painter.restore();
   }
@@ -965,9 +1010,8 @@ void draw_vertical_text_plan(const TextRenderPlan& plan, QPainter& painter) {
           }
         }
       } else {
-        painter.setPen(color);
         for (const auto& run : runs) {
-          painter.drawGlyphRun(origin, run);
+          draw_document_glyph_run(painter, origin, run, color);
         }
       }
       painter.restore();
@@ -994,7 +1038,7 @@ void draw_text_render_plan(const TextRenderPlan& plan, QPainter& painter) {
         draw_line_glyphs_pixel_aligned(document.findBlock(item.block_position), item, plan.document_transform,
                                        painter, true, plan.strong_stroke);
       } else if (const auto block = document.findBlock(item.block_position);
-                 plan.strong_stroke > 0.0 || line_has_render_features(block, item.line)) {
+                 kFillGlyphOutlines || plan.strong_stroke > 0.0 || line_has_render_features(block, item.line)) {
         draw_line_glyphs_pixel_aligned(block, item, plan.document_transform, painter, false, plan.strong_stroke);
       } else {
         item.line.draw(&painter, item.block_origin);
@@ -1008,7 +1052,19 @@ void draw_text_render_plan(const TextRenderPlan& plan, QPainter& painter) {
     }
   } else {
     // Only text with no faux italic run gets here: document_needs_line_items asks for line items.
-    document.drawContents(&painter, plan.local_rect);
+    if constexpr (kFillGlyphOutlines) {
+      // The lines drawContents would draw, as outline fills (draw_document_glyph_run). Nothing here
+      // needs bars or features, and the plan's placement and bounds stay as they are.
+      for (const auto& item : natural_line_items(document, plan.local_rect)) {
+        painter.save();
+        painter.setClipRect(item.clip_rect);
+        draw_line_glyphs_pixel_aligned(document.findBlock(item.block_position), item, plan.document_transform,
+                                       painter, false, plan.strong_stroke);
+        painter.restore();
+      }
+    } else {
+      document.drawContents(&painter, plan.local_rect);
+    }
   }
 }
 

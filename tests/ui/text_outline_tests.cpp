@@ -387,13 +387,8 @@ void ui_text_convert_to_shape_handles_area_vertical_and_warp() {
     // Vertical cells draw as glyph runs, which the raster engine places on whole pixels (about
     // 0.2 px from the exact outline here), and the warped raster is a bilinear resample of a
     // supersampled render: both lose some overlap on thin stems. The ink centres must still agree.
-#ifdef Q_OS_MACOS
-    // CoreText rasterizes these glyph runs with heavier stems than their outlines (area text IoU
-    // 0.88, vertical 0.82), while point text matches; the ink rect and centre still agree.
-    CHECK(match.iou > 0.8);
-#else
+    // macOS fills the outlines themselves (draw_document_glyph_run): area 0.986, vertical 0.994.
     CHECK(match.iou > (std::string(name) == "AreaText" ? 0.97 : 0.9));
-#endif
     const auto text_centre = ink_centroid(text_raster);
     const auto shape_centre = ink_centroid(*shape);
     std::printf("[INFO] %s ink centre moved by (%.3f, %.3f)\n", name, shape_centre.x() - text_centre.x(),
@@ -403,6 +398,48 @@ void ui_text_convert_to_shape_handles_area_vertical_and_warp() {
   // The converted area, vertical and warped shapes, for a Photoshop open check.
   patchy::psd::DocumentIo::write_layered_rgb8_file(MainWindowTestAccess::document(window),
                                                    std::filesystem::path("test-artifacts/ui_text_outline_converted.psd"));
+}
+
+// Point text at the sizes Qt draws from cached glyph images (up to 64 px). macOS fills the glyph
+// outlines instead (draw_document_glyph_run): CoreText's smoothed images covered only 0.80 of
+// their own outlines at 30 and 64 px, against 0.99 above 64 px. FreeType's unhinted images (the
+// offscreen suite on Windows and Linux) cover 0.90 at 30 px and 0.96 at 64 px.
+void ui_text_convert_to_shape_matches_small_point_text() {
+  MainWindow window;
+  patchy::test::ui::show_window_empty(window);
+  run_script(window, QStringLiteral(R"JS(
+    var d = app.newDocument(760, 220);
+    d.activeLayer.fill('#ffffff');
+    var small = d.addTextLayer('Point thirty px', {font: 'Arial', size: 30, x: 20, y: 20, color: '#204080'});
+    small.name = 'Point30';
+    var cached = d.addTextLayer('Point sixty-four', {font: 'Arial', size: 64, x: 20, y: 90, color: '#204080'});
+    cached.name = 'Point64';
+  )JS"));
+  for (const char* name : {"Point30", "Point64"}) {
+    const auto* text = find_named(MainWindowTestAccess::document(window).layers(), name);
+    CHECK(text != nullptr && patchy::layer_is_text(*text));
+    if (text == nullptr) {
+      continue;
+    }
+    const auto id = text->id();
+    const auto text_raster = raster_copy(*text);
+    select_only(window, id);
+    patchy::test::ui::require_action(window, "typeConvertToShapeAction")->trigger();
+    QApplication::processEvents();
+    const auto* shape = MainWindowTestAccess::document(window).find_layer(id);
+    CHECK(shape != nullptr && patchy::layer_is_vector_shape(*shape));
+    if (shape == nullptr) {
+      continue;
+    }
+    const auto match = compare_coverage(text_raster, *shape);
+    std::printf("[INFO] %s coverage IoU %.4f, mean alpha difference %.2f\n", name, match.iou,
+                match.mean_alpha_difference);
+#ifdef Q_OS_MACOS
+    CHECK(match.iou > 0.97);
+#else
+    CHECK(match.iou > 0.88);
+#endif
+  }
 }
 
 // Several text colours keep their colours as paint parts, and the converted layers survive a PSD
@@ -621,6 +658,7 @@ std::vector<patchy::test::TestCase> text_outline_tests() {
       {"ui_text_create_work_path_keeps_text", ui_text_create_work_path_keeps_text},
       {"ui_text_convert_to_shape_handles_area_vertical_and_warp",
        ui_text_convert_to_shape_handles_area_vertical_and_warp},
+      {"ui_text_convert_to_shape_matches_small_point_text", ui_text_convert_to_shape_matches_small_point_text},
       {"ui_text_convert_to_shape_keeps_colors_and_round_trips_psd",
        ui_text_convert_to_shape_keeps_colors_and_round_trips_psd},
       {"ui_script_text_convert_to_shape_and_work_path", ui_script_text_convert_to_shape_and_work_path},
