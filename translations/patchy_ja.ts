@@ -11846,8 +11846,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>量:</translation>
     </message>
     <message>
-        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
-        <translation>背景: スタックの一番下にとどまり、透明部分もレイヤースタイルも持てません。右クリックして「背景からレイヤーへ」を選ぶと通常のレイヤーになります。</translation>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Click to make it an ordinary layer.</source>
+        <translation>背景: スタックの一番下にとどまり、透明部分もレイヤースタイルも持てません。クリックすると通常のレイヤーになります。</translation>
     </message>
     <message>
         <source>iPhone 16 Pro</source>
@@ -14844,6 +14844,22 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Feather radius:</source>
         <translation>ぼかしの半径:</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is damaged</source>
+        <translation>TIFF の画像データが破損しています</translation>
+    </message>
+    <message>
+        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <translation>Patchy はこの TIFF のサンプル構成を読み込めません</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <translation>TIFF の画像データが途中で切れているか破損しています。欠けた部分は空のまま開きました。</translation>
+    </message>
+    <message>
+        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
+        <translation>TIFF の追加チャンネルの一部を除外しました。ドキュメントのチャンネルは最大 56 個です。</translation>
     </message>
 </context>
 <context>
@@ -19339,6 +19355,34 @@ Each item&apos;s own View setting still applies.</source>
         <source>Other</source>
         <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
         <translation>その他</translation>
+    </message>
+    <message>
+        <source>Favorites</source>
+        <translation>お気に入り</translation>
+    </message>
+    <message>
+        <source>No favorites yet. Click the star beside a font to add it.</source>
+        <translation>お気に入りはまだありません。フォントの横の星をクリックすると追加されます。</translation>
+    </message>
+    <message>
+        <source>No favorite fonts match the search or filters.</source>
+        <translation>検索またはフィルターに一致するお気に入りのフォントはありません。</translation>
+    </message>
+    <message>
+        <source>Remove from Recent</source>
+        <translation>最近使用したフォントから削除</translation>
+    </message>
+    <message>
+        <source>Remove from favorites</source>
+        <translation>お気に入りから削除</translation>
+    </message>
+    <message>
+        <source>Add to favorites</source>
+        <translation>お気に入りに追加</translation>
+    </message>
+    <message>
+        <source>Show only favorite fonts</source>
+        <translation>お気に入りのフォントだけを表示</translation>
     </message>
 </context>
 <context>
@@ -32312,6 +32356,14 @@ Locked: %1</source>
         <source>Contract by:</source>
         <translation>縮小量:</translation>
     </message>
+    <message>
+        <source>Use Shift for tool switch</source>
+        <translation>Shift キーでツールを切り替え</translation>
+    </message>
+    <message>
+        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation>オンのとき、ツールグループの文字キーはグループの最初のツールを選択し、Shift と文字キーでグループ内を順に切り替えます。オフのとき、文字キーをもう一度押すとグループの次のツールに切り替わります。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34642,10 +34694,6 @@ Locked: %1</source>
         <translation>Seth のサイト: %1</translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation>新規ドキュメント...</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>開く...</translation>
     </message>
@@ -34696,6 +34744,18 @@ Locked: %1</source>
     <message>
         <source>Remove from Recent Files</source>
         <translation>最近使ったファイルから削除</translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation>新規...</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>クリップボード</translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
+        <translation>クリップボードの画像から新規ドキュメントを作成</translation>
     </message>
 </context>
 <context>

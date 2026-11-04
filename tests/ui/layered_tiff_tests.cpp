@@ -1,13 +1,16 @@
 // Layered TIFF through the app's open path (docs/tiff.md): Photoshop layers in tag 37724
-// open as layers, damaged layer data falls back to the composite with a note, and a
-// multi-page TIFF opens page 1 with a note.
+// open as layers, damaged layer data falls back to the composite with a note, a
+// multi-page TIFF opens page 1 with a note, and a flat TIFF Qt refuses opens through
+// Patchy's own decoder.
 #include "core/document.hpp"
+#include "core/pixel_depth.hpp"
 #include "psd/psd_tiff.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/image_save_options_dialog.hpp"
 #include "ui/main_window.hpp"
 #include "ui/qt_paths.hpp"
 #include "layered_tiff_fixture.hpp"
+#include "flat_tiff_fixture.hpp"
 #include "test_harness.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
@@ -131,6 +134,51 @@ void ui_multi_page_tiff_opens_its_first_page_with_a_note() {
   CHECK(document.width() == 8 && document.height() == 6);
   CHECK(document.layers().size() == 1U);
   CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("3 pages")));
+}
+
+// GitHub issue 623: 32-bit float RGB with four unspecified extra samples, which Qt's TIFF
+// plug-in refuses, opens through psd::read_flat_tiff as a 32-bit document whose extras are
+// alpha channels; page 2 adds the page note.
+void ui_flat_tiff_qt_refuses_opens_through_the_fallback_decoder() {
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  namespace flat = patchy::test::flat_tiff;
+  flat::Spec page;
+  page.kind = flat::Kind::F32;
+  page.samples = 7;
+  page.extra = std::vector<std::uint16_t>{0, 0, 0, 0};
+  page.width = 24;
+  page.height = 12;
+  page.value = [](std::uint32_t x, std::uint32_t, std::uint32_t sample) {
+    return sample >= 3U ? 0.1 * (sample - 2U) : (sample == 0U && x < 12U ? 1.0 : 0.25);
+  };
+  flat::Spec second = page;
+  second.kind = flat::Kind::U8;
+  second.samples = 3;
+  second.extra.clear();
+  second.value = [](std::uint32_t, std::uint32_t, std::uint32_t) { return 9.0; };
+  const auto path = write_file(QStringLiteral("float-extras.tif"), flat::write_tiff(std::vector<flat::Spec>{page, second}));
+  CHECK(QImage(path).isNull());  // Qt alone cannot read it
+  // With deep editing on the file keeps its depth; with it off (the suite's default, and
+  // PATCHY_DEEP_EDITING=0) it opens at 8 bits like every other deep file.
+  struct DeepEditingOverride {
+    ~DeepEditingOverride() { patchy::set_deep_editing_override(std::nullopt); }
+  } restore_deep_editing;
+  for (const bool deep : {true, false}) {
+    patchy::set_deep_editing_override(deep);
+    patchy::ui::MainWindow window;
+    show_window(window);
+    MainWindowTestAccess::open_document_path(window, path);
+    QApplication::processEvents();
+    const auto& document = std::as_const(MainWindowTestAccess::document(window));
+    CHECK(document.width() == 24 && document.height() == 12);
+    CHECK(document.color_state().bit_depth == (deep ? patchy::BitDepth::Float32 : patchy::BitDepth::UInt8));
+    CHECK(document.layers().size() == 1U);
+    CHECK(!document.layers().empty() && document.layers().front().name() == "float-extras");
+    CHECK(document.channels().size() == 4U);
+    CHECK(document.file_info().source_format == "TIFF");
+    CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("2 pages")));
+  }
 }
 
 
@@ -275,6 +323,8 @@ std::vector<patchy::test::TestCase> layered_tiff_ui_tests() {
       {"ui_layered_tiff_with_damaged_layers_opens_the_composite",
        ui_layered_tiff_with_damaged_layers_opens_the_composite},
       {"ui_multi_page_tiff_opens_its_first_page_with_a_note", ui_multi_page_tiff_opens_its_first_page_with_a_note},
+      {"ui_flat_tiff_qt_refuses_opens_through_the_fallback_decoder",
+       ui_flat_tiff_qt_refuses_opens_through_the_fallback_decoder},
       {"ui_layered_tiff_save_keeps_layers_and_flat_saves_stay_flat",
        ui_layered_tiff_save_keeps_layers_and_flat_saves_stay_flat},
       {"ui_tiff_options_dialog_offers_keep_layers", ui_tiff_options_dialog_offers_keep_layers},

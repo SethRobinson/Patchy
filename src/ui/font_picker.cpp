@@ -1,5 +1,6 @@
 #include "ui/font_picker.hpp"
 
+#include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/font_family_filters.hpp"
@@ -16,19 +17,26 @@
 #include <QFontMetrics>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QHelpEvent>
 #include <QItemSelectionModel>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
+#include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QScreen>
+#include <QScrollBar>
 #include <QSet>
 #include <QStyledItemDelegate>
 #include <QTimer>
+#include <QToolButton>
+#include <QToolTip>
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
 
 namespace patchy::ui {
@@ -285,8 +293,50 @@ private:
 
 struct FontListRow {
   FontPickerRowKind kind{FontPickerRowKind::family};
-  QString text;  // the family, or the header's label
+  QString text;  // the family, or the header's or note's text
   bool recent{false};
+};
+
+// A five-pointed star centered on `center`, its points on a circle of `radius`.
+[[nodiscard]] QPainterPath star_path(const QPointF& center, qreal radius) {
+  QPainterPath path;
+  constexpr double kPi = 3.14159265358979323846;
+  const qreal inner = radius * 0.42;
+  for (int point = 0; point < 10; ++point) {
+    const qreal r = point % 2 == 0 ? radius : inner;
+    const double angle = -kPi / 2.0 + point * kPi / 5.0;
+    const QPointF at(center.x() + r * std::cos(angle), center.y() + r * std::sin(angle) + radius * 0.08);
+    if (point == 0) {
+      path.moveTo(at);
+    } else {
+      path.lineTo(at);
+    }
+  }
+  path.closeSubpath();
+  return path;
+}
+
+// Paints the favorite star: filled in font_favorite_star for a favorite, else an outline in `ink`.
+void paint_star(QPainter& painter, const QRectF& box, bool filled, const QColor& ink) {
+  painter.save();
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  const auto path = star_path(box.center(), std::min(box.width(), box.height()) * 0.42);
+  if (filled) {
+    painter.setPen(QPen(theme().font_favorite_star, 1.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.setBrush(theme().font_favorite_star);
+  } else {
+    painter.setPen(QPen(ink, 1.3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.setBrush(Qt::NoBrush);
+  }
+  painter.drawPath(path);
+  painter.restore();
+}
+
+// The row button under the mouse, shared by the list's mouse handling and the delegate that
+// draws the buttons (the hovered one in brighter ink).
+struct RowButtonHover {
+  int row{-1};
+  FontPickerRowButton button{FontPickerRowButton::none};
 };
 
 // The popup's rows, rebuilt whenever the search text or a filter changes.
@@ -298,6 +348,19 @@ public:
     beginResetModel();
     rows_ = std::move(rows);
     endResetModel();
+  }
+
+  void set_favorites(const QSet<QString>* favorites) noexcept { favorites_ = favorites; }
+
+  // Repaints `family`'s rows after its favorite state changed.
+  void favorite_changed(const QString& family) {
+    for (int row = 0; row < static_cast<int>(rows_.size()); ++row) {
+      const auto& entry = rows_[static_cast<std::size_t>(row)];
+      if (entry.kind == FontPickerRowKind::family && entry.text == family) {
+        const auto changed = index(row, 0);
+        emit dataChanged(changed, changed, {kFontPickerFavoriteRole});
+      }
+    }
   }
 
   int rowCount(const QModelIndex& parent = QModelIndex()) const override {
@@ -316,6 +379,8 @@ public:
         return static_cast<int>(row.kind);
       case kFontPickerRecentRowRole:
         return row.recent;
+      case kFontPickerFavoriteRole:
+        return row.kind == FontPickerRowKind::family && favorites_ != nullptr && favorites_->contains(row.text);
       default:
         return {};
     }
@@ -332,12 +397,13 @@ public:
 
 private:
   std::vector<FontListRow> rows_;
+  const QSet<QString>* favorites_{nullptr};
 };
 
 class FontListDelegate : public QStyledItemDelegate {
 public:
-  FontListDelegate(FontPickerCombo& combo, QObject* parent)
-      : QStyledItemDelegate(parent), combo_(combo) {}
+  FontListDelegate(FontPickerCombo& combo, const RowButtonHover& hover, QObject* parent)
+      : QStyledItemDelegate(parent), combo_(combo), hover_(hover) {}
 
   void paint(QPainter* painter, const QStyleOptionViewItem& option,
              const QModelIndex& index) const override {
@@ -360,6 +426,31 @@ public:
       painter->fillRect(rect, theme().list_row_hover_bg);
     }
     auto text_rect = rect.adjusted(8, 0, -8, 0);
+    // The row buttons (GitHub issues 630 and 569). Their space is kept on every row, so a name
+    // never re-elides when the mouse arrives; a favorite's star shows always, the rest on hover.
+    const bool recent = index.data(kFontPickerRecentRowRole).toBool();
+    const auto star_rect = font_picker_row_button_rect(rect, FontPickerRowButton::favorite, recent);
+    text_rect.setRight(star_rect.left() - 4);
+    const bool hovered = (option.state & QStyle::State_MouseOver) != 0;
+    const bool favorite = index.data(kFontPickerFavoriteRole).toBool();
+    const auto button_ink = [&](FontPickerRowButton button) {
+      if (selected) {
+        return theme().list_selection_text;
+      }
+      return hover_.row == index.row() && hover_.button == button ? theme().text_primary : theme().text_secondary;
+    };
+    if (favorite || hovered) {
+      paint_star(*painter, QRectF(star_rect), favorite, button_ink(FontPickerRowButton::favorite));
+    }
+    if (recent && hovered) {
+      const QRectF glyph = QRectF(font_picker_row_button_rect(rect, FontPickerRowButton::remove_recent, true))
+                               .adjusted(6.0, 6.0, -6.0, -6.0);
+      painter->setRenderHint(QPainter::Antialiasing, true);
+      painter->setPen(QPen(button_ink(FontPickerRowButton::remove_recent), 1.5, Qt::SolidLine, Qt::RoundCap));
+      painter->drawLine(glyph.topLeft(), glyph.bottomRight());
+      painter->drawLine(glyph.topRight(), glyph.bottomLeft());
+      painter->setRenderHint(QPainter::Antialiasing, false);
+    }
     if (!info.row_sample.isEmpty()) {
       // Symbol-class family: readable name in the UI font, its actual glyphs beside it.
       const QFontMetrics sample_metrics(info.sample_font);
@@ -394,10 +485,19 @@ public:
 
 private:
   // A section header: a small dim label; "All Fonts" also draws the rule that separates it from
-  // the Recent rows above.
+  // the Recent rows above. The Favorites view's empty note is a dim line in the UI font.
   void paint_header(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const {
     painter->save();
     const auto rect = option.rect;
+    if (index.data(kFontPickerRowKindRole).toInt() == static_cast<int>(FontPickerRowKind::empty_note)) {
+      painter->setFont(combo_.font());
+      painter->setPen(theme().text_secondary);
+      painter->drawText(rect.adjusted(8, 0, -8, 0), Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
+                        QFontMetrics(combo_.font()).elidedText(index.data(Qt::DisplayRole).toString(),
+                                                               Qt::ElideRight, rect.width() - 16));
+      painter->restore();
+      return;
+    }
     if (index.data(kFontPickerRowKindRole).toInt() == static_cast<int>(FontPickerRowKind::all_header)) {
       // field_border (the gray around fields and combos), not the list frame's
       // field_inset_border: in Dark that one sits a shade off the list background and the rule
@@ -415,6 +515,7 @@ private:
   }
 
   FontPickerCombo& combo_;
+  const RowButtonHover& hover_;
 };
 
 [[nodiscard]] QString style_filter_label(FontStyleFilter filter) {
@@ -465,14 +566,55 @@ public:
         recent_.append(family);
       }
     }
+    for (const auto& family : stored_favorite_font_families()) {
+      if (installed.contains(family)) {
+        favorites_.insert(family);
+      }
+    }
+    model_->set_favorites(&favorites_);
     slice_timer_.setInterval(0);
     connect(&slice_timer_, &QTimer::timeout, this, [this] { classify_slice(); });
   }
 
   [[nodiscard]] FontListModel* model() const noexcept { return model_; }
 
-  // Rebuilds the rows, keeping the current family (and its section) when it survives.
-  void rebuild() {
+  // The Favorites view (GitHub issue 630): only the favorites that pass the search and filters.
+  void set_favorites_only(bool favorites_only) {
+    if (favorites_only_ != favorites_only) {
+      favorites_only_ = favorites_only;
+      rebuild();
+    }
+  }
+
+  // The row star: flips `family`'s favorite state, saves it and updates the list in place.
+  void toggle_favorite(const QString& family) {
+    const bool favorite = !favorites_.contains(family);
+    set_favorite_font_family(family, favorite);
+    if (favorite) {
+      favorites_.insert(family);
+    } else {
+      favorites_.remove(family);
+    }
+    if (favorites_only_) {
+      rebuild(true);  // an unstarred favorite leaves the Favorites view at once
+    } else {
+      model_->favorite_changed(family);
+    }
+  }
+
+  // The Recent row's remove button (GitHub issue 569 follow-up).
+  void remove_recent(const QString& family) {
+    remove_recent_font_family(family);
+    if (recent_.removeAll(family) > 0) {
+      rebuild(true);
+    }
+  }
+
+  // Rebuilds the rows, keeping the current family (and its section) when it survives. With
+  // `keep_scroll` (a row button removed a row) the list stays where it was instead of following
+  // the current row.
+  void rebuild(bool keep_scroll = false) {
+    const int scroll = list_.verticalScrollBar()->value();
     const auto previous = list_.currentIndex();
     const auto previous_family = is_family_row(previous) ? previous.data(Qt::DisplayRole).toString() : QString();
     const bool previous_recent = previous.data(kFontPickerRecentRowRole).toBool();
@@ -506,8 +648,24 @@ public:
     };
 
     std::vector<FontListRow> rows;
-    // While searching the Recent section hides: the matches are the list.
-    if (text.isEmpty()) {
+    if (favorites_only_) {
+      // The Favorites view replaces the Recent and All Fonts sections; the search and the filters
+      // still apply inside it.
+      rows.push_back({FontPickerRowKind::favorites_header, FontPickerCombo::tr("Favorites"), false});
+      for (const auto& family : families_) {
+        if (favorites_.contains(family) && accepts(family)) {
+          rows.push_back({FontPickerRowKind::family, family, false});
+        }
+      }
+      if (rows.size() == 1 && pending_.isEmpty()) {
+        rows.push_back({FontPickerRowKind::empty_note,
+                        favorites_.isEmpty()
+                            ? FontPickerCombo::tr("No favorites yet. Click the star beside a font to add it.")
+                            : FontPickerCombo::tr("No favorite fonts match the search or filters."),
+                        false});
+      }
+    } else if (text.isEmpty()) {
+      // While searching the Recent section hides: the matches are the list.
       std::vector<FontListRow> recent_rows;
       for (const auto& family : recent_) {
         if (accepts(family)) {
@@ -520,18 +678,25 @@ public:
         rows.push_back({FontPickerRowKind::all_header, FontPickerCombo::tr("All Fonts"), false});
       }
     }
-    for (const auto& family : families_) {
-      if (accepts(family)) {
-        rows.push_back({FontPickerRowKind::family, family, false});
+    if (!favorites_only_) {
+      for (const auto& family : families_) {
+        if (accepts(family)) {
+          rows.push_back({FontPickerRowKind::family, family, false});
+        }
       }
     }
     pending_.removeDuplicates();
     model_->set_rows(std::move(rows));
 
     if (!previous_family.isEmpty() && select_family(previous_family, previous_recent)) {
-      list_.scrollTo(list_.currentIndex());
+      if (!keep_scroll) {
+        list_.scrollTo(list_.currentIndex());
+      }
     } else {
       step_to_family_row(list_, -1, 1);
+    }
+    if (keep_scroll) {
+      list_.verticalScrollBar()->setValue(scroll);
     }
     update_classification();
   }
@@ -612,6 +777,8 @@ private:
   FontListModel* model_{nullptr};
   QStringList families_;
   QStringList recent_;
+  QSet<QString> favorites_;  // installed favorites only
+  bool favorites_only_{false};
   QSet<QString> language_families_;
   std::optional<QFontDatabase::WritingSystem> language_families_system_;
   QStringList pending_;
@@ -620,7 +787,151 @@ private:
   QElapsedTimer since_rebuild_;
 };
 
+// The row buttons' mouse handling on the list's viewport: a press on a button belongs to the
+// button (the row is neither picked nor selected), the action runs on release over the same
+// button, and hovering a button gives it its tooltip and brighter ink. Everywhere else the list
+// behaves as before, so the row's own pick and the keyboard are untouched.
+class RowButtonController : public QObject {
+public:
+  RowButtonController(QListView& list, FontListFilter& rows, QObject* parent)
+      : QObject(parent), list_(list), rows_(rows) {}
+
+  [[nodiscard]] const RowButtonHover& hover() const noexcept { return hover_; }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    switch (event->type()) {
+      case QEvent::MouseMove:
+        set_hover(button_at(static_cast<const QMouseEvent*>(event)->position().toPoint()));
+        break;
+      case QEvent::Leave:
+        set_hover({});
+        break;
+      case QEvent::MouseButtonPress:
+      case QEvent::MouseButtonDblClick: {
+        const auto* mouse = static_cast<const QMouseEvent*>(event);
+        if (mouse->button() == Qt::LeftButton) {
+          const auto hit = button_at(mouse->position().toPoint());
+          if (hit.button != FontPickerRowButton::none) {
+            pressed_ = hit;
+            event->accept();
+            return true;
+          }
+        }
+        break;
+      }
+      case QEvent::MouseButtonRelease: {
+        const auto* mouse = static_cast<const QMouseEvent*>(event);
+        if (pressed_.button != FontPickerRowButton::none && mouse->button() == Qt::LeftButton) {
+          const auto pressed = std::exchange(pressed_, RowButtonHover{});
+          const auto hit = button_at(mouse->position().toPoint());
+          if (hit.row == pressed.row && hit.button == pressed.button) {
+            const auto family = list_.model()->index(hit.row, 0).data(Qt::DisplayRole).toString();
+            // Queued: the action rebuilds the list's model, which must not happen inside its
+            // own mouse event.
+            QMetaObject::invokeMethod(
+                this, [this, family, button = hit.button] { activate(family, button); }, Qt::QueuedConnection);
+          }
+          event->accept();
+          return true;
+        }
+        break;
+      }
+      case QEvent::ToolTip: {
+        const auto* help = static_cast<const QHelpEvent*>(event);
+        const auto hit = button_at(help->pos());
+        if (hit.button == FontPickerRowButton::remove_recent) {
+          QToolTip::showText(help->globalPos(), FontPickerCombo::tr("Remove from Recent"), list_.viewport());
+          return true;
+        }
+        if (hit.button == FontPickerRowButton::favorite) {
+          const bool favorite = list_.model()->index(hit.row, 0).data(kFontPickerFavoriteRole).toBool();
+          QToolTip::showText(help->globalPos(),
+                             favorite ? FontPickerCombo::tr("Remove from favorites")
+                                      : FontPickerCombo::tr("Add to favorites"),
+                             list_.viewport());
+          return true;
+        }
+        break;
+      }
+      default:
+        break;
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  [[nodiscard]] RowButtonHover button_at(const QPoint& position) const {
+    const auto index = list_.indexAt(position);
+    if (!is_family_row(index)) {
+      return {};
+    }
+    const auto rect = list_.visualRect(index);
+    const bool recent = index.data(kFontPickerRecentRowRole).toBool();
+    for (const auto button : {FontPickerRowButton::remove_recent, FontPickerRowButton::favorite}) {
+      if (font_picker_row_button_rect(rect, button, recent).contains(position)) {
+        return {index.row(), button};
+      }
+    }
+    return {};
+  }
+
+  void set_hover(const RowButtonHover& hover) {
+    if (hover.row != hover_.row || hover.button != hover_.button) {
+      hover_ = hover;
+      list_.viewport()->update();
+    }
+  }
+
+  void activate(const QString& family, FontPickerRowButton button) {
+    if (button == FontPickerRowButton::favorite) {
+      rows_.toggle_favorite(family);
+    } else if (button == FontPickerRowButton::remove_recent) {
+      rows_.remove_recent(family);
+    }
+    // Rows may have moved under the mouse.
+    set_hover(button_at(list_.viewport()->mapFromGlobal(QCursor::pos())));
+  }
+
+  QListView& list_;
+  FontListFilter& rows_;
+  RowButtonHover hover_;
+  RowButtonHover pressed_;
+};
+
+// The Favorites toggle's star: an outline in icon ink while off, filled in font_favorite_star on.
+[[nodiscard]] QIcon favorites_toggle_icon(bool on) {
+  return themed_glyph_icon(on ? QStringLiteral("font-favorites-on") : QStringLiteral("font-favorites-off"), 16.0,
+                           on ? &ThemePalette::font_favorite_star : &ThemePalette::text_primary,
+                           [on](QPainter& painter, const QColor& ink) {
+                             painter.setRenderHint(QPainter::Antialiasing, true);
+                             const auto path = star_path(QPointF(8.0, 8.0), 7.0);
+                             if (on) {
+                               painter.setPen(QPen(ink, 1.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+                               painter.setBrush(ink);
+                             } else {
+                               painter.setPen(QPen(ink, 1.3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+                               painter.setBrush(Qt::NoBrush);
+                             }
+                             painter.drawPath(path);
+                           });
+}
+
 }  // namespace
+
+QRect font_picker_row_button_rect(const QRect& row_rect, FontPickerRowButton button, bool recent_row) {
+  const int side = std::clamp(row_rect.height() - 4, 14, 22);
+  const QRect rightmost(row_rect.right() - 4 - side + 1, row_rect.top() + (row_rect.height() - side) / 2, side, side);
+  switch (button) {
+    case FontPickerRowButton::remove_recent:
+      return recent_row ? rightmost : QRect();
+    case FontPickerRowButton::favorite:
+      return recent_row ? rightmost.translated(-(side + 2), 0) : rightmost;
+    case FontPickerRowButton::none:
+      break;
+  }
+  return {};
+}
 
 FontPreviewPane::FontPreviewPane(FontPickerCombo& combo, QWidget* parent)
     : QWidget(parent), combo_(combo) {}
@@ -920,6 +1231,18 @@ void FontPickerCombo::showPopup() {
   // The closed combo stays narrow; its list is as wide as the longest language name.
   language_combo->view()->setMinimumWidth(language_combo->view()->sizeHintForColumn(0) + 24);
   filter_row->addWidget(language_combo);
+  // The Favorites view (GitHub issue 630): a toggle beside the filters, since favorites are not a
+  // style. It persists like the filters.
+  auto* favorites_button = new QToolButton(popup);
+  favorites_button->setObjectName(QStringLiteral("textFontPickerFavoritesButton"));
+  favorites_button->setToolTip(tr("Show only favorite fonts"));
+  favorites_button->setFocusPolicy(Qt::NoFocus);
+  favorites_button->setCheckable(true);
+  favorites_button->setAutoRaise(true);
+  favorites_button->setIconSize(QSize(16, 16));
+  favorites_button->setChecked(app_settings().value(QString::fromLatin1(kFontPickerFavoritesOnlyKey)).toBool());
+  favorites_button->setIcon(favorites_toggle_icon(favorites_button->isChecked()));
+  filter_row->addWidget(favorites_button);
   layout->addLayout(filter_row);
   // Both lists scroll at a fixed height instead of running off the screen (the Language list
   // has dozens of entries; GitHub issue 570 follow-up), and keep Enter to themselves.
@@ -940,7 +1263,9 @@ void FontPickerCombo::showPopup() {
   list->setObjectName(QStringLiteral("textFontPickerList"));
   auto* rows = new FontListFilter(*this, *list, *search, *style_combo, *language_combo, *status, popup);
   list->setModel(rows->model());
-  list->setItemDelegate(new FontListDelegate(*this, list));
+  auto* row_buttons = new RowButtonController(*list, *rows, list);
+  list->viewport()->installEventFilter(row_buttons);
+  list->setItemDelegate(new FontListDelegate(*this, row_buttons->hover(), list));
   list->setUniformItemSizes(true);
   list->setEditTriggers(QAbstractItemView::NoEditTriggers);
   list->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -991,6 +1316,13 @@ void FontPickerCombo::showPopup() {
     rows->rebuild();
     search->setFocus();
   });
+  connect(favorites_button, &QToolButton::toggled, popup, [rows, favorites_button, search](bool checked) {
+    auto settings = app_settings();
+    settings.setValue(QString::fromLatin1(kFontPickerFavoritesOnlyKey), checked);
+    favorites_button->setIcon(favorites_toggle_icon(checked));
+    rows->set_favorites_only(checked);
+    search->setFocus();
+  });
 
   const auto commit = [this, popup](const QModelIndex& index) {
     if (!is_family_row(index)) {
@@ -1022,6 +1354,7 @@ void FontPickerCombo::showPopup() {
 
   // Start on the current family, previewed: its Recent row with the list at the top when it has
   // one (so the Recent section is in view), else its place in the full list, centered.
+  rows->set_favorites_only(favorites_button->isChecked());
   rows->rebuild();
   list->clearSelection();
   list->setCurrentIndex(QModelIndex());

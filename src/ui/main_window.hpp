@@ -250,6 +250,10 @@ public:
   // live, and moves the controls of an open Preferences or customize dialog to match.
   void apply_tool_palette_preferences(ToolbarIconSize icon_size, ToolFlyoutOpenMode flyout_open_mode);
   [[nodiscard]] ToolFlyoutOpenMode tool_flyout_open_mode() const noexcept { return tool_flyout_open_mode_; }
+  // Preferences' "Use Shift for tool switch" (GitHub issue 628): stores a change and applies
+  // it at once. Off, a tool group's plain letter walks the group as Shift+letter does.
+  void set_use_shift_for_tool_switch(bool use_shift);
+  [[nodiscard]] bool use_shift_for_tool_switch() const noexcept { return use_shift_for_tool_switch_; }
   // True where Patchy draws its own window frame (Windows, and Linux unless the
   // "Use the system title bar" preference is on): the frameless flag, the chrome buttons
   // in the menu-bar row, and the edge-resize machinery. macOS uses the native frame and
@@ -1025,6 +1029,15 @@ private:
   // The testable core of open_folder; returns how many documents opened (0 when
   // the folder holds no supported image, with a status-bar message).
   int open_folder_path(const QString& directory);
+  // A multi-file open (File > Open with several picks, a drop, command-line or forwarded
+  // files, Open Folder) runs inside an open batch (GitHub issue 624): each file's open-time
+  // prompts wait until the whole batch is open, so no Import Notes box shares the screen
+  // with the next file's open progress dialog. Batches nest; the outermost end runs them.
+  void begin_open_batch();
+  void end_open_batch();
+  // Runs a file's open-time prompts now, or holds them for the open batch's end.
+  void run_or_hold_open_prompts(std::int64_t session_id, std::function<void()> prompts);
+  void run_held_open_prompts(std::vector<std::pair<std::int64_t, std::function<void()>>> held);
   // Files as Layers (issue 25): image files become new layers of an open
   // document, one root per file, through a file drop on the Layers panel,
   // File > Import > Files as Layers, Paste with copied files, and
@@ -3274,6 +3287,8 @@ private:
   ToolPaletteCustomization tool_palette_customization_;
   // When tool groups open (Preferences, app_settings.hpp); the flyout buttons' openers follow it.
   ToolFlyoutOpenMode tool_flyout_open_mode_{ToolFlyoutOpenMode::Hold};
+  // Whether a group's plain letter only selects its first tool (Preferences, app_settings.hpp).
+  bool use_shift_for_tool_switch_{true};
   QAction* customize_tool_palette_action_{nullptr};
   struct LayerFooterButton {
     const char* id;
@@ -4234,6 +4249,9 @@ private:
   // otherwise run the inline-text-editor commit path against destroyed members. Read
   // only as an early-out guard; a bool stays trivially readable through teardown.
   bool shutting_down_{false};
+  // Open batch nesting and the prompts held for its end (GitHub issue 624).
+  int open_batch_depth_{0};
+  std::vector<std::pair<std::int64_t, std::function<void()>>> held_open_prompts_;
   // CLI automation (run_cli_export): suppress interactive prompts on the open/edit/save
   // paths so an unattended run can never block on a dialog.
   bool cli_automation_mode_{false};

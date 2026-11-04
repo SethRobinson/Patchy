@@ -124,16 +124,32 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
 
   auto* buttons_row = new QHBoxLayout();
   buttons_row->setSpacing(10);
-  auto* new_button = new QPushButton(tr("New Document..."), column);
-  bind_translated_text(new_button, QT_TR_NOOP("New Document..."), "patchy::ui::StartPanel");
+  auto* new_button = new QPushButton(tr("New..."), column);
+  bind_translated_text(new_button, QT_TR_NOOP("New..."), "patchy::ui::StartPanel");
   new_button->setObjectName(QStringLiteral("startPanelNewButton"));
   new_button->setCursor(Qt::PointingHandCursor);
+  // Runs File > Open from Clipboard and follows its enabled state (GitHub issue 626);
+  // MainWindow wires both through set_clipboard_available and open_clipboard_requested.
+  // The browser build hides that command (its clipboard cache can be stale), so the
+  // button is hidden there too.
+  clipboard_button_ = new QPushButton(tr("Clipboard"), column);
+  bind_translated_text(clipboard_button_, QT_TR_NOOP("Clipboard"), "patchy::ui::StartPanel");
+  clipboard_button_->setToolTip(tr("New document from the image on the clipboard"));
+  bind_translated_tooltip(clipboard_button_, QT_TR_NOOP("New document from the image on the clipboard"),
+                          "patchy::ui::StartPanel");
+  clipboard_button_->setObjectName(QStringLiteral("startPanelClipboardButton"));
+  clipboard_button_->setCursor(Qt::PointingHandCursor);
+  clipboard_button_->setEnabled(false);
+#ifdef Q_OS_WASM
+  clipboard_button_->setVisible(false);
+#endif
   auto* open_button = new QPushButton(tr("Open..."), column);
   bind_translated_text(open_button, QT_TR_NOOP("Open..."), "patchy::ui::StartPanel");
   open_button->setObjectName(QStringLiteral("startPanelOpenButton"));
   open_button->setCursor(Qt::PointingHandCursor);
   buttons_row->addStretch(1);
   buttons_row->addWidget(new_button);
+  buttons_row->addWidget(clipboard_button_);
   buttons_row->addWidget(open_button);
   buttons_row->addStretch(1);
   column_layout->addLayout(buttons_row);
@@ -317,6 +333,7 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
   for (const auto& callback : retranslation_callbacks_) callback();
 
   connect(new_button, &QPushButton::clicked, this, &StartPanel::new_document_requested);
+  connect(clipboard_button_, &QPushButton::clicked, this, &StartPanel::open_clipboard_requested);
   connect(open_button, &QPushButton::clicked, this, &StartPanel::open_requested);
   connect(recent_filter_edit_, &QLineEdit::textChanged, this, [this] { rebuild_recent_rows(); });
   // Enter opens the top match, the way the Open Recent menu's filter row does.
@@ -395,13 +412,18 @@ StartPanel::StartPanel(QWidget* parent) : QWidget(parent) {
       border: 1px solid @field_border;
       border-radius: 14px;
       color: @text_bright;
-      min-width: 130px;
+      min-width: 84px;
       min-height: 28px;
-      padding: 0 18px;
+      padding: 0 12px;
     }
     QWidget#startPanel QPushButton:hover {
       background: @neutral_button_hover_bg;
       border-color: @neutral_button_hover_border;
+    }
+    QWidget#startPanel QPushButton:disabled {
+      background: @field_bg_disabled;
+      border-color: @field_border_disabled;
+      color: @field_text_disabled;
     }
     QWidget#startPanel QPushButton#startPanelNewButton {
       background: @primary_bg;
@@ -515,6 +537,13 @@ bool StartPanel::eventFilter(QObject* watched, QEvent* event) {
     }
   }
   return QWidget::eventFilter(watched, event);
+}
+
+void StartPanel::set_clipboard_available(bool available) {
+#ifdef Q_OS_WASM
+  available = false;
+#endif
+  clipboard_button_->setEnabled(available);
 }
 
 void StartPanel::changeEvent(QEvent* event) {

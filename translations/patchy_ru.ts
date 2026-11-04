@@ -11916,8 +11916,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Величина:</translation>
     </message>
     <message>
-        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
-        <translation>Фон: остается в самом низу стека, без прозрачности и стилей слоя. Щелкните его правой кнопкой мыши и выберите «Слой из фона», чтобы сделать его обычным слоем.</translation>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Click to make it an ordinary layer.</source>
+        <translation>Фон: остается в самом низу стека, без прозрачности и стилей слоя. Щелкните, чтобы сделать его обычным слоем.</translation>
     </message>
     <message>
         <source>iPhone 16 Pro</source>
@@ -14936,6 +14936,22 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Feather radius:</source>
         <translation>Радиус растушевки:</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is damaged</source>
+        <translation>Данные изображения в TIFF повреждены</translation>
+    </message>
+    <message>
+        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <translation>Patchy не может прочитать структуру выборок этого TIFF</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <translation>Данные изображения в TIFF обрезаны или повреждены; недостающая часть открыта пустой.</translation>
+    </message>
+    <message>
+        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
+        <translation>Некоторые дополнительные каналы TIFF пропущены: в документе может быть не более 56 каналов.</translation>
     </message>
 </context>
 <context>
@@ -19431,6 +19447,34 @@ Each item&apos;s own View setting still applies.</source>
         <source>Other</source>
         <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
         <translation>Другие</translation>
+    </message>
+    <message>
+        <source>Favorites</source>
+        <translation>Избранное</translation>
+    </message>
+    <message>
+        <source>No favorites yet. Click the star beside a font to add it.</source>
+        <translation>Избранного пока нет. Нажмите звёздочку рядом со шрифтом, чтобы добавить его.</translation>
+    </message>
+    <message>
+        <source>No favorite fonts match the search or filters.</source>
+        <translation>Нет избранных шрифтов, подходящих под поиск или фильтры.</translation>
+    </message>
+    <message>
+        <source>Remove from Recent</source>
+        <translation>Удалить из недавних</translation>
+    </message>
+    <message>
+        <source>Remove from favorites</source>
+        <translation>Удалить из избранного</translation>
+    </message>
+    <message>
+        <source>Add to favorites</source>
+        <translation>Добавить в избранное</translation>
+    </message>
+    <message>
+        <source>Show only favorite fonts</source>
+        <translation>Показывать только избранные шрифты</translation>
     </message>
 </context>
 <context>
@@ -32482,6 +32526,14 @@ Locked: %1</source>
         <source>Contract by:</source>
         <translation>Сжать на:</translation>
     </message>
+    <message>
+        <source>Use Shift for tool switch</source>
+        <translation>Использовать Shift для смены инструмента</translation>
+    </message>
+    <message>
+        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation>Если включено, буква группы инструментов выбирает её первый инструмент, а Shift с буквой перебирает группу. Если выключено, повторное нажатие буквы переключает на следующий инструмент группы.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34802,10 +34854,6 @@ Locked: %1</source>
         <translation>Редактирование фотографий с открытым исходным кодом. Бесплатно навсегда, без подписок.</translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation>Новый документ...</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>Открыть...</translation>
     </message>
@@ -34868,6 +34916,18 @@ Locked: %1</source>
     <message>
         <source>Remove from Recent Files</source>
         <translation>Удалить из последних файлов</translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation>Создать...</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>Буфер обмена</translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
+        <translation>Новый документ из изображения в буфере обмена</translation>
     </message>
 </context>
 <context>

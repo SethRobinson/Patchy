@@ -11846,8 +11846,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>数量:</translation>
     </message>
     <message>
-        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
-        <translation>背景：它始终位于堆栈底部，没有透明度，也没有图层样式。右键单击它并选择“从背景生成图层”即可将其变为普通图层。</translation>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Click to make it an ordinary layer.</source>
+        <translation>背景：它始终位于堆栈底部，没有透明度，也没有图层样式。单击即可将其变为普通图层。</translation>
     </message>
     <message>
         <source>iPhone 16 Pro</source>
@@ -14844,6 +14844,22 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Feather radius:</source>
         <translation>羽化半径:</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is damaged</source>
+        <translation>TIFF 的图像数据已损坏</translation>
+    </message>
+    <message>
+        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <translation>Patchy 无法读取此 TIFF 的采样布局</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <translation>TIFF 的图像数据不完整或已损坏；缺失部分以空白打开。</translation>
+    </message>
+    <message>
+        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
+        <translation>已略去 TIFF 的部分额外通道：一个文档最多保留 56 个通道。</translation>
     </message>
 </context>
 <context>
@@ -19339,6 +19355,34 @@ Each item&apos;s own View setting still applies.</source>
         <source>Other</source>
         <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
         <translation>其他</translation>
+    </message>
+    <message>
+        <source>Favorites</source>
+        <translation>收藏</translation>
+    </message>
+    <message>
+        <source>No favorites yet. Click the star beside a font to add it.</source>
+        <translation>还没有收藏。点击字体旁边的星标即可收藏。</translation>
+    </message>
+    <message>
+        <source>No favorite fonts match the search or filters.</source>
+        <translation>没有符合搜索或筛选条件的收藏字体。</translation>
+    </message>
+    <message>
+        <source>Remove from Recent</source>
+        <translation>从最近使用中移除</translation>
+    </message>
+    <message>
+        <source>Remove from favorites</source>
+        <translation>取消收藏</translation>
+    </message>
+    <message>
+        <source>Add to favorites</source>
+        <translation>添加到收藏</translation>
+    </message>
+    <message>
+        <source>Show only favorite fonts</source>
+        <translation>仅显示收藏的字体</translation>
     </message>
 </context>
 <context>
@@ -32312,6 +32356,14 @@ Locked: %1</source>
         <source>Contract by:</source>
         <translation>收缩量:</translation>
     </message>
+    <message>
+        <source>Use Shift for tool switch</source>
+        <translation>使用 Shift 键切换工具</translation>
+    </message>
+    <message>
+        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation>开启时，工具组的字母键选择组内第一个工具，Shift 加字母键在组内依次切换。关闭时，再次按字母键切换到组内下一个工具。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34630,10 +34682,6 @@ Locked: %1</source>
         <translation>开源照片编辑。永久免费，无需订阅。</translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation>新建文档...</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>打开...</translation>
     </message>
@@ -34696,6 +34744,18 @@ Locked: %1</source>
     <message>
         <source>Remove from Recent Files</source>
         <translation>从最近使用的文件中移除</translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation>新建...</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>剪贴板</translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
+        <translation>用剪贴板中的图像新建文档</translation>
     </message>
 </context>
 <context>

@@ -11881,8 +11881,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Stärke:</translation>
     </message>
     <message>
-        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
-        <translation>Hintergrund: Diese Ebene bleibt ganz unten im Stapel, ohne Transparenz und ohne Ebenenstile. Klicken Sie mit der rechten Maustaste darauf und wählen Sie Ebene aus Hintergrund, um sie zu einer normalen Ebene zu machen.</translation>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Click to make it an ordinary layer.</source>
+        <translation>Hintergrund: Diese Ebene bleibt ganz unten im Stapel, ohne Transparenz und ohne Ebenenstile. Klicken Sie darauf, um sie zu einer normalen Ebene zu machen.</translation>
     </message>
     <message>
         <source>iPhone 16 Pro</source>
@@ -14890,6 +14890,22 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Feather radius:</source>
         <translation>Radius der weichen Kante:</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is damaged</source>
+        <translation>Die Bilddaten der TIFF-Datei sind beschädigt</translation>
+    </message>
+    <message>
+        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <translation>Patchy kann den Sample-Aufbau dieser TIFF-Datei nicht lesen</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <translation>Die Bilddaten der TIFF-Datei sind unvollständig oder beschädigt; der fehlende Teil wurde leer geöffnet.</translation>
+    </message>
+    <message>
+        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
+        <translation>Einige Zusatzkanäle der TIFF-Datei wurden ausgelassen: Ein Dokument enthält höchstens 56 Kanäle.</translation>
     </message>
 </context>
 <context>
@@ -19385,6 +19401,34 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Other</source>
         <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
         <translation>Sonstige</translation>
+    </message>
+    <message>
+        <source>Favorites</source>
+        <translation>Favoriten</translation>
+    </message>
+    <message>
+        <source>No favorites yet. Click the star beside a font to add it.</source>
+        <translation>Noch keine Favoriten. Klicken Sie auf den Stern neben einer Schrift, um sie hinzuzufügen.</translation>
+    </message>
+    <message>
+        <source>No favorite fonts match the search or filters.</source>
+        <translation>Keine Favoriten passen zur Suche oder zu den Filtern.</translation>
+    </message>
+    <message>
+        <source>Remove from Recent</source>
+        <translation>Aus „Zuletzt verwendet“ entfernen</translation>
+    </message>
+    <message>
+        <source>Remove from favorites</source>
+        <translation>Aus Favoriten entfernen</translation>
+    </message>
+    <message>
+        <source>Add to favorites</source>
+        <translation>Zu Favoriten hinzufügen</translation>
+    </message>
+    <message>
+        <source>Show only favorite fonts</source>
+        <translation>Nur Lieblingsschriften anzeigen</translation>
     </message>
 </context>
 <context>
@@ -32397,6 +32441,14 @@ Fixiert: %1</translation>
         <source>Contract by:</source>
         <translation>Verkleinern um:</translation>
     </message>
+    <message>
+        <source>Use Shift for tool switch</source>
+        <translation>Umschalttaste zum Werkzeugwechsel verwenden</translation>
+    </message>
+    <message>
+        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation>Wenn aktiviert, wählt der Buchstabe einer Werkzeuggruppe ihr erstes Werkzeug, und Umschalt mit dem Buchstaben wechselt durch die Gruppe. Wenn deaktiviert, wechselt erneutes Drücken des Buchstabens zum nächsten Werkzeug der Gruppe.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34716,10 +34768,6 @@ Fixiert: %1</translation>
         <translation>Open-Source-Bildbearbeitung. Für immer kostenlos, keine Abonnements.</translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation>Neues Dokument...</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>Öffnen...</translation>
     </message>
@@ -34782,6 +34830,18 @@ Fixiert: %1</translation>
     <message>
         <source>Remove from Recent Files</source>
         <translation>Aus zuletzt verwendeten Dateien entfernen</translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation>Neu...</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>Zwischenablage</translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
+        <translation>Neues Dokument aus dem Bild in der Zwischenablage</translation>
     </message>
 </context>
 <context>

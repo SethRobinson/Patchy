@@ -11865,7 +11865,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Click to make it an ordinary layer.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -14872,6 +14872,22 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Feather radius:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is damaged</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -19367,6 +19383,34 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Other</source>
         <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Favorites</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No favorites yet. Click the star beside a font to add it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No favorite fonts match the search or filters.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove from Recent</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove from favorites</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add to favorites</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show only favorite fonts</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -32316,6 +32360,14 @@ Locked: %1</source>
         <source>Contract by:</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Use Shift for tool switch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34635,10 +34687,6 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation type="unfinished"></translation>
     </message>
@@ -34700,6 +34748,18 @@ Locked: %1</source>
     </message>
     <message>
         <source>Remove from Recent Files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

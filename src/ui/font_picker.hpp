@@ -25,10 +25,19 @@ class FontPickerCombo;
 inline constexpr char kFontPickerPopupObjectName[] = "textFontPickerPopup";
 
 // The popup list's rows: families, plus the two section headers when the Recent section shows
-// (GitHub issue 569). Headers are not selectable; the row-kind role tells them apart.
+// (GitHub issue 569), or the Favorites header and, when no favorite passes, a one-line note
+// (GitHub issue 630). Only family rows are selectable; the row-kind role tells them apart.
 inline constexpr int kFontPickerRowKindRole = Qt::UserRole + 1;
-inline constexpr int kFontPickerRecentRowRole = Qt::UserRole + 2;  // bool: a row of the Recent section
-enum class FontPickerRowKind { family = 0, recent_header = 1, all_header = 2 };
+inline constexpr int kFontPickerRecentRowRole = Qt::UserRole + 2;    // bool: a row of the Recent section
+inline constexpr int kFontPickerFavoriteRole = Qt::UserRole + 3;     // bool: the family is a favorite
+enum class FontPickerRowKind { family = 0, recent_header = 1, all_header = 2, favorites_header = 3, empty_note = 4 };
+
+// The small buttons at the right of a family row (GitHub issues 630 and 569): the favorite star on
+// every family row, and the remove button on Recent rows, rightmost, with the star just left of it.
+enum class FontPickerRowButton { none, favorite, remove_recent };
+// The button's rectangle inside a row's visual rect; empty for the remove button of a row outside
+// the Recent section.
+[[nodiscard]] QRect font_picker_row_button_rect(const QRect& row_rect, FontPickerRowButton button, bool recent_row);
 
 // Per-family info for list rows and previews, computed lazily the first time a family is
 // painted or hovered (never precomputed across the whole database -- hundreds of families).

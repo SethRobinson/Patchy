@@ -11881,8 +11881,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Quantité :</translation>
     </message>
     <message>
-        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
-        <translation>Arrière-plan : il reste tout en bas de la pile, sans transparence ni styles de calque. Faites un clic droit dessus et choisissez Calque d&apos;après l&apos;arrière-plan pour en faire un calque ordinaire.</translation>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Click to make it an ordinary layer.</source>
+        <translation>Arrière-plan : il reste tout en bas de la pile, sans transparence ni styles de calque. Cliquez dessus pour en faire un calque ordinaire.</translation>
     </message>
     <message>
         <source>iPhone 16 Pro</source>
@@ -14890,6 +14890,22 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Feather radius:</source>
         <translation>Rayon du contour progressif :</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is damaged</source>
+        <translation>Les données d&apos;image du TIFF sont endommagées</translation>
+    </message>
+    <message>
+        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <translation>Patchy ne peut pas lire la disposition des échantillons de ce TIFF</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <translation>Les données d&apos;image du TIFF sont tronquées ou endommagées ; la partie manquante s&apos;est ouverte vide.</translation>
+    </message>
+    <message>
+        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
+        <translation>Certaines couches supplémentaires du TIFF ont été omises : un document compte au plus 56 couches.</translation>
     </message>
 </context>
 <context>
@@ -19385,6 +19401,34 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Other</source>
         <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
         <translation>Autres</translation>
+    </message>
+    <message>
+        <source>Favorites</source>
+        <translation>Favoris</translation>
+    </message>
+    <message>
+        <source>No favorites yet. Click the star beside a font to add it.</source>
+        <translation>Aucun favori pour l’instant. Cliquez sur l’étoile à côté d’une police pour l’ajouter.</translation>
+    </message>
+    <message>
+        <source>No favorite fonts match the search or filters.</source>
+        <translation>Aucune police favorite ne correspond à la recherche ou aux filtres.</translation>
+    </message>
+    <message>
+        <source>Remove from Recent</source>
+        <translation>Retirer des récentes</translation>
+    </message>
+    <message>
+        <source>Remove from favorites</source>
+        <translation>Retirer des favoris</translation>
+    </message>
+    <message>
+        <source>Add to favorites</source>
+        <translation>Ajouter aux favoris</translation>
+    </message>
+    <message>
+        <source>Show only favorite fonts</source>
+        <translation>Afficher uniquement les polices favorites</translation>
     </message>
 </context>
 <context>
@@ -32397,6 +32441,14 @@ Verrouillé : %1</translation>
         <source>Contract by:</source>
         <translation>Contracter de :</translation>
     </message>
+    <message>
+        <source>Use Shift for tool switch</source>
+        <translation>Utiliser Maj pour changer d&apos;outil</translation>
+    </message>
+    <message>
+        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation>Activé, la lettre d&apos;un groupe d&apos;outils sélectionne son premier outil et Maj avec la lettre parcourt le groupe. Désactivé, appuyer à nouveau sur la lettre passe à l&apos;outil suivant du groupe.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34716,10 +34768,6 @@ Verrouillé : %1</translation>
         <translation>Retouche photo open source. Gratuit pour toujours, sans abonnement.</translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation>Nouveau document...</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>Ouvrir...</translation>
     </message>
@@ -34782,6 +34830,18 @@ Verrouillé : %1</translation>
     <message>
         <source>Remove from Recent Files</source>
         <translation>Retirer des fichiers récents</translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation>Nouveau...</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>Presse-papiers</translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
+        <translation>Nouveau document à partir de l&apos;image du presse-papiers</translation>
     </message>
 </context>
 <context>

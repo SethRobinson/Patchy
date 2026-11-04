@@ -11916,8 +11916,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Wartość:</translation>
     </message>
     <message>
-        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
-        <translation>Tło: pozostaje na samym dole stosu, bez przezroczystości i stylów warstwy. Kliknij je prawym przyciskiem myszy i wybierz Warstwa z tła, aby zmienić je w zwykłą warstwę.</translation>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Click to make it an ordinary layer.</source>
+        <translation>Tło: pozostaje na samym dole stosu, bez przezroczystości i stylów warstwy. Kliknij, aby zmienić je w zwykłą warstwę.</translation>
     </message>
     <message>
         <source>iPhone 16 Pro</source>
@@ -14936,6 +14936,22 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Feather radius:</source>
         <translation>Promień wtapiania:</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is damaged</source>
+        <translation>Dane obrazu w pliku TIFF są uszkodzone</translation>
+    </message>
+    <message>
+        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <translation>Patchy nie może odczytać układu próbek tego pliku TIFF</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <translation>Dane obrazu w pliku TIFF są ucięte lub uszkodzone; brakująca część została otwarta jako pusta.</translation>
+    </message>
+    <message>
+        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
+        <translation>Pominięto część dodatkowych kanałów pliku TIFF: dokument może mieć najwyżej 56 kanałów.</translation>
     </message>
 </context>
 <context>
@@ -19431,6 +19447,34 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Other</source>
         <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
         <translation>Inne</translation>
+    </message>
+    <message>
+        <source>Favorites</source>
+        <translation>Ulubione</translation>
+    </message>
+    <message>
+        <source>No favorites yet. Click the star beside a font to add it.</source>
+        <translation>Brak ulubionych. Kliknij gwiazdkę obok czcionki, aby ją dodać.</translation>
+    </message>
+    <message>
+        <source>No favorite fonts match the search or filters.</source>
+        <translation>Żadna ulubiona czcionka nie pasuje do wyszukiwania ani filtrów.</translation>
+    </message>
+    <message>
+        <source>Remove from Recent</source>
+        <translation>Usuń z ostatnio używanych</translation>
+    </message>
+    <message>
+        <source>Remove from favorites</source>
+        <translation>Usuń z ulubionych</translation>
+    </message>
+    <message>
+        <source>Add to favorites</source>
+        <translation>Dodaj do ulubionych</translation>
+    </message>
+    <message>
+        <source>Show only favorite fonts</source>
+        <translation>Pokaż tylko ulubione czcionki</translation>
     </message>
 </context>
 <context>
@@ -32482,6 +32526,14 @@ Zablokowano: %1</translation>
         <source>Contract by:</source>
         <translation>Zawęź o:</translation>
     </message>
+    <message>
+        <source>Use Shift for tool switch</source>
+        <translation>Używaj Shift do przełączania narzędzi</translation>
+    </message>
+    <message>
+        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation>Gdy włączone, litera grupy narzędzi wybiera jej pierwsze narzędzie, a Shift z literą przechodzi przez grupę. Gdy wyłączone, ponowne naciśnięcie litery przechodzi do następnego narzędzia w grupie.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34802,10 +34854,6 @@ Zablokowano: %1</translation>
         <translation>Edycja zdjęć typu open source. Za darmo na zawsze, bez subskrypcji.</translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation>Nowy dokument...</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>Otwórz...</translation>
     </message>
@@ -34868,6 +34916,18 @@ Zablokowano: %1</translation>
     <message>
         <source>Remove from Recent Files</source>
         <translation>Usuń z ostatnich plików</translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation>Nowy...</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>Schowek</translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
+        <translation>Nowy dokument z obrazu w schowku</translation>
     </message>
 </context>
 <context>

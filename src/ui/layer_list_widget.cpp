@@ -998,7 +998,8 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
       }
     } else if (widget != nullptr && mouse_event->button() == Qt::LeftButton &&
                (mouse_event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier)) == 0 &&
-               !layer_row_button_owns_clicks(widget->objectName())) {
+               !layer_row_button_owns_clicks(widget->objectName()) &&
+               !widget->property("layerBackgroundBadge").toBool()) {
       const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
       if (auto* item = itemAt(viewport_pos); item != nullptr) {
         begin_single_drag_item(item);
@@ -1024,7 +1025,8 @@ bool LayerListWidget::eventFilter(QObject* watched, QEvent* event) {
         event->accept();
         return true;
       }
-      if (!layer_row_button_owns_clicks(widget->objectName())) {
+      if (!layer_row_button_owns_clicks(widget->objectName()) &&
+          !widget->property("layerBackgroundBadge").toBool()) {
         const auto viewport_pos = viewport()->mapFromGlobal(widget->mapToGlobal(mouse_event->pos()));
         if (handle_item_double_click(itemAt(viewport_pos), viewport_pos)) {
           event->accept();

@@ -91,7 +91,9 @@ the application and console connector. The connector mode is chosen before anyth
 else runs: the Windows and macOS `patchy-mcp` executable is `main.cpp` built with
 `PATCHY_MCP_EXECUTABLE` (mode forced), and `patchy` takes it from a first argument
 `--mcp-connector`, which it drops so both parse the same arguments
-(`mcp_connector_flag_first` in `support/cli_flags.hpp`). With no arguments, the connector creates
+(`mcp_connector_argument_first` in `support/cli_flags.hpp`). Inside an AppImage it also
+takes `patchy-mcp` there, so `<file>.AppImage patchy-mcp` works whatever AppRun the
+AppImage has ([appimage.md](appimage.md#layout-and-entry-point)). With no arguments, the connector creates
 an offscreen MainWindow with temporary settings and bypasses single-instance
 forwarding, sound, and updates. `--visible` shows that separate workspace. Its
 documents and history disappear on disconnect. Closing stdin interrupts work and

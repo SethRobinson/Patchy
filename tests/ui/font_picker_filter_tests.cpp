@@ -1,5 +1,5 @@
-// The text bar font picker's Recent section (GitHub issue 569) and its Style and Language
-// filters (GitHub issue 570). See docs/font-picker.md.
+// The text bar font picker's Recent section (GitHub issue 569), its Favorites (GitHub issue 630)
+// and its Style and Language filters (GitHub issue 570). See docs/font-picker.md.
 #include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/font_family_filters.hpp"
@@ -17,6 +17,7 @@
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QHoverEvent>
 #include <QImage>
 #include <QLabel>
 #include <QLineEdit>
@@ -26,6 +27,7 @@
 #include <QStandardPaths>
 #include <QSignalBlocker>
 #include <QTest>
+#include <QToolButton>
 
 #include <cstdlib>
 #include <iostream>
@@ -34,6 +36,7 @@ using namespace patchy::test::ui;
 
 namespace {
 
+using patchy::ui::FontPickerRowButton;
 using patchy::ui::FontPickerRowKind;
 
 struct StandardPathsTestMode {
@@ -46,6 +49,8 @@ void reset_picker_settings() {
   settings.remove(QString::fromLatin1(patchy::ui::kFontPickerRecentFamiliesKey));
   settings.remove(QString::fromLatin1(patchy::ui::kFontPickerStyleFilterKey));
   settings.remove(QString::fromLatin1(patchy::ui::kFontPickerLanguageFilterKey));
+  settings.remove(QString::fromLatin1(patchy::ui::kFontPickerFavoriteFamiliesKey));
+  settings.remove(QString::fromLatin1(patchy::ui::kFontPickerFavoritesOnlyKey));
   settings.sync();
 }
 
@@ -483,6 +488,309 @@ void ui_font_picker_filter_lists_scroll_keep_enter_and_offer_other() {
   reset_picker_settings();
 }
 
+bool popup_visible() {
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    if (widget->objectName() == QString::fromLatin1(patchy::ui::kFontPickerPopupObjectName) && widget->isVisible()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// The model row of `family` in the given section, or -1.
+int family_row(const QListView& list, const QString& family, bool recent) {
+  auto* model = list.model();
+  for (int row = 0; row < model->rowCount(); ++row) {
+    const auto index = model->index(row, 0);
+    if (row_kind(index) == FontPickerRowKind::family && index.data(Qt::DisplayRole).toString() == family &&
+        index.data(patchy::ui::kFontPickerRecentRowRole).toBool() == recent) {
+      return row;
+    }
+  }
+  return -1;
+}
+
+// Hovers `position` in the list's viewport the way a real mouse does: the view's hover row (which
+// shows the row buttons) and the mouse move the row buttons track.
+void hover_list(QListView& list, const QPoint& position) {
+  auto* viewport = list.viewport();
+  const QPointF global = viewport->mapToGlobal(QPointF(position));
+  QHoverEvent hover(QEvent::HoverMove, QPointF(position), global, QPointF(-1, -1));
+  QApplication::sendEvent(viewport, &hover);
+  QMouseEvent move(QEvent::MouseMove, QPointF(position), global, Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+  QApplication::sendEvent(viewport, &move);
+  QApplication::processEvents();
+}
+
+QPoint row_button_center(const QListView& list, int row, FontPickerRowButton button) {
+  const auto index = list.model()->index(row, 0);
+  return patchy::ui::font_picker_row_button_rect(list.visualRect(index), button,
+                                                 index.data(patchy::ui::kFontPickerRecentRowRole).toBool())
+      .center();
+}
+
+void click_row_button(QListView& list, int row, FontPickerRowButton button) {
+  const auto at = row_button_center(list, row, button);
+  hover_list(list, at);
+  QTest::mouseClick(list.viewport(), Qt::LeftButton, Qt::NoModifier, at);
+  QApplication::processEvents();  // the action runs queued
+  QApplication::processEvents();
+}
+
+// GitHub issue 630: the star at the right of a row toggles a favorite without picking the font or
+// closing the popup; a click elsewhere on the row still picks it.
+void ui_font_picker_favorite_star_toggles_without_picking() {
+  register_test_fonts(TestFontRole::Verdana);
+  reset_picker_settings();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* picker = type_tool_picker(window);
+  CHECK(picker != nullptr);
+  if (picker->count() < 3) {
+    patchy::test::skip("fewer than three font families on this machine");
+  }
+  const auto current = picker->itemText(0);
+  {
+    const QSignalBlocker blocker(picker);
+    picker->setCurrentFont(QFont(current));
+  }
+  auto* popup = open_picker_popup(*picker);
+  CHECK(popup != nullptr);
+  auto* list = popup->findChild<QListView*>(QStringLiteral("textFontPickerList"));
+  CHECK(list != nullptr);
+  list->scrollToTop();
+  QApplication::processEvents();
+  const auto starred = list->model()->index(1, 0).data(Qt::DisplayRole).toString();
+  CHECK(family_row(*list, starred, false) == 1);
+  CHECK(!list->model()->index(1, 0).data(patchy::ui::kFontPickerFavoriteRole).toBool());
+
+  click_row_button(*list, 1, FontPickerRowButton::favorite);
+  CHECK(popup->isVisible());
+  CHECK(picker->currentText() == current);
+  CHECK(list->model()->index(1, 0).data(patchy::ui::kFontPickerFavoriteRole).toBool());
+  CHECK(patchy::ui::stored_favorite_font_families() == QStringList{starred});
+  // The star shows on the hovered row; the favorite's stays filled.
+  hover_list(*list, row_button_center(*list, 2, FontPickerRowButton::favorite));
+  save_widget_artifact("issue630_font_picker_stars", *popup);
+  {
+    // The star art and its theme roles in Light too.
+    ColorSchemeRestorer light(patchy::ui::ColorSchemePreference::Light);
+    QApplication::processEvents();
+    CHECK(popup->isVisible());
+    hover_list(*list, row_button_center(*list, 2, FontPickerRowButton::favorite));
+    save_widget_artifact("issue630_font_picker_stars_light", *popup);
+  }
+  QApplication::processEvents();
+
+  // A double click on a star toggles it twice, like any toggle button, and picks nothing.
+  const auto at = row_button_center(*list, 2, FontPickerRowButton::favorite);
+  QTest::mouseDClick(list->viewport(), Qt::LeftButton, Qt::NoModifier, at);
+  QApplication::processEvents();
+  QApplication::processEvents();
+  CHECK(popup->isVisible());
+  CHECK(picker->currentText() == current);
+
+  // Clicking the star again removes the favorite.
+  click_row_button(*list, 1, FontPickerRowButton::favorite);
+  CHECK(!list->model()->index(1, 0).data(patchy::ui::kFontPickerFavoriteRole).toBool());
+  CHECK(patchy::ui::stored_favorite_font_families().isEmpty());
+  click_row_button(*list, 1, FontPickerRowButton::favorite);
+  CHECK(patchy::ui::stored_favorite_font_families() == QStringList{starred});
+
+  // The row outside the star still picks the font and closes the popup.
+  const auto row_rect = list->visualRect(list->model()->index(1, 0));
+  const QPoint name_point(row_rect.left() + 12, row_rect.center().y());
+  hover_list(*list, name_point);
+  QTest::mouseClick(list->viewport(), Qt::LeftButton, Qt::NoModifier, name_point);
+  QApplication::processEvents();
+  CHECK(picker->currentText() == starred);
+  CHECK(!popup_visible());  // the pick closed the popup
+  reset_picker_settings();
+}
+
+// GitHub issue 630: the star toggle beside the filters shows only the Favorites section; the
+// search and the Style and Language filters still apply inside it; it and the favorites persist.
+void ui_font_picker_favorites_view_filters_and_persists() {
+  register_test_fonts(TestFontRole::Verdana);
+  reset_picker_settings();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* picker = type_tool_picker(window);
+  CHECK(picker != nullptr);
+  QString mono;
+  QString proportional;
+  for (int row = 0; row < picker->count() && (mono.isEmpty() || proportional.isEmpty()); ++row) {
+    const auto family = picker->itemText(row);
+    auto& slot = QFontDatabase::isFixedPitch(family) ? mono : proportional;
+    if (slot.isEmpty()) {
+      slot = family;
+    }
+  }
+  if (mono.isEmpty() || proportional.isEmpty()) {
+    patchy::test::skip("needs a monospace and a proportional font family");
+  }
+  const auto missing = QStringLiteral("Patchy Missing Favorite Font 630");
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QString::fromLatin1(patchy::ui::kFontPickerFavoriteFamiliesKey),
+                      QStringList{mono, missing, proportional});
+    settings.setValue(QString::fromLatin1(patchy::ui::kFontPickerRecentFamiliesKey), QStringList{proportional});
+  }
+
+  auto* popup = open_picker_popup(*picker);
+  CHECK(popup != nullptr);
+  auto* list = popup->findChild<QListView*>(QStringLiteral("textFontPickerList"));
+  auto* style = popup->findChild<QComboBox*>(QStringLiteral("textFontPickerStyleCombo"));
+  auto* search = popup->findChild<QLineEdit*>(QStringLiteral("textFontPickerSearchEdit"));
+  auto* favorites = popup->findChild<QToolButton*>(QStringLiteral("textFontPickerFavoritesButton"));
+  CHECK(list != nullptr && style != nullptr && search != nullptr && favorites != nullptr);
+  CHECK(favorites->isCheckable() && !favorites->isChecked());
+  CHECK(favorites->focusPolicy() == Qt::NoFocus);
+  CHECK(!favorites->toolTip().isEmpty());
+  CHECK(row_kind(list->model()->index(0, 0)) == FontPickerRowKind::recent_header);
+
+  favorites->click();
+  QApplication::processEvents();
+  auto* model = list->model();
+  CHECK(row_kind(model->index(0, 0)) == FontPickerRowKind::favorites_header);
+  CHECK(header_rows(*list) == 1);  // no Recent or All Fonts section
+  CHECK(family_rows(*list, true).isEmpty());
+  auto expected = QStringList{mono, proportional};
+  expected.sort(Qt::CaseInsensitive);
+  auto shown = family_rows(*list, false);
+  shown.sort(Qt::CaseInsensitive);
+  CHECK(shown == expected);  // the missing family stays stored but never shows
+  for (int row = 1; row < model->rowCount(); ++row) {
+    CHECK(model->index(row, 0).data(patchy::ui::kFontPickerFavoriteRole).toBool());
+  }
+  CHECK(row_kind(list->currentIndex()) == FontPickerRowKind::family);
+  save_widget_artifact("issue630_font_picker_favorites_view", *popup);
+
+  // The Style filter applies inside Favorites.
+  style->setCurrentIndex(style->findData(QStringLiteral("monospace")));
+  QApplication::processEvents();
+  CHECK(family_rows(*list, false) == QStringList{mono});
+  // So does the search; nothing passing shows the empty note.
+  QTest::keyClicks(search, QStringLiteral("zzzz-no-such-font"));
+  QApplication::processEvents();
+  CHECK(model->rowCount() == 2);
+  CHECK(row_kind(model->index(1, 0)) == FontPickerRowKind::empty_note);
+  CHECK((model->flags(model->index(1, 0)) & Qt::ItemIsSelectable) == 0);
+  // Enter with nothing to pick keeps the popup open and the font unchanged.
+  const auto before_enter = picker->currentText();
+  QTest::keyClick(search, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(popup->isVisible());
+  CHECK(picker->currentText() == before_enter);
+  search->clear();
+  style->setCurrentIndex(0);
+  QApplication::processEvents();
+
+  // Unstarring in the Favorites view takes the row out at once; the popup stays open.
+  const int mono_row = family_row(*list, mono, false);
+  CHECK(mono_row > 0);
+  click_row_button(*list, mono_row, FontPickerRowButton::favorite);
+  CHECK(popup->isVisible());
+  CHECK(family_rows(*list, false) == QStringList{proportional});
+  CHECK(patchy::ui::stored_favorite_font_families() == (QStringList{missing, proportional}));
+
+  // The toggle persists across reopening.
+  popup->close();
+  QApplication::processEvents();
+  CHECK(patchy::ui::app_settings().value(QString::fromLatin1(patchy::ui::kFontPickerFavoritesOnlyKey)).toBool());
+  auto* reopened = open_picker_popup(*picker);
+  CHECK(reopened != nullptr);
+  auto* reopened_list = reopened->findChild<QListView*>(QStringLiteral("textFontPickerList"));
+  auto* reopened_favorites = reopened->findChild<QToolButton*>(QStringLiteral("textFontPickerFavoritesButton"));
+  CHECK(reopened_list != nullptr && reopened_favorites != nullptr);
+  CHECK(reopened_favorites->isChecked());
+  CHECK(row_kind(reopened_list->model()->index(0, 0)) == FontPickerRowKind::favorites_header);
+  CHECK(family_rows(*reopened_list, false) == QStringList{proportional});
+
+  // No favorites at all: the note says how to add one.
+  click_row_button(*reopened_list, family_row(*reopened_list, proportional, false), FontPickerRowButton::favorite);
+  CHECK(reopened_list->model()->rowCount() == 2);
+  CHECK(row_kind(reopened_list->model()->index(1, 0)) == FontPickerRowKind::empty_note);
+  save_widget_artifact("issue630_font_picker_favorites_empty", *reopened);
+
+  // Off again: Recent and All Fonts are back.
+  reopened_favorites->click();
+  QApplication::processEvents();
+  CHECK(row_kind(reopened_list->model()->index(0, 0)) == FontPickerRowKind::recent_header);
+  CHECK(family_rows(*reopened_list, false).size() == picker->count());
+  CHECK(!patchy::ui::app_settings().value(QString::fromLatin1(patchy::ui::kFontPickerFavoritesOnlyKey)).toBool());
+  reopened->close();
+  QApplication::processEvents();
+  reset_picker_settings();
+}
+
+// GitHub issue 569 follow-up: the x on a Recent row takes the font out of the saved Recent list
+// without picking it or closing the popup; the section hides once it is empty.
+void ui_font_picker_recent_remove_button_keeps_popup_open() {
+  register_test_fonts(TestFontRole::Verdana);
+  reset_picker_settings();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* picker = type_tool_picker(window);
+  CHECK(picker != nullptr);
+  if (picker->count() < 3) {
+    patchy::test::skip("fewer than three font families on this machine");
+  }
+  const auto first = picker->itemText(1);
+  const auto second = picker->itemText(2);
+  const auto current = picker->itemText(0);
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QString::fromLatin1(patchy::ui::kFontPickerRecentFamiliesKey), QStringList{first, second});
+  }
+  {
+    const QSignalBlocker blocker(picker);
+    picker->setCurrentFont(QFont(current));
+  }
+  auto* popup = open_picker_popup(*picker);
+  CHECK(popup != nullptr);
+  auto* list = popup->findChild<QListView*>(QStringLiteral("textFontPickerList"));
+  CHECK(list != nullptr);
+  list->scrollToTop();
+  QApplication::processEvents();
+  CHECK(family_rows(*list, true) == (QStringList{first, second}));
+  // Only Recent rows have the remove button.
+  const int all_row = family_row(*list, first, false);
+  CHECK(all_row > 0);
+  CHECK(patchy::ui::font_picker_row_button_rect(list->visualRect(list->model()->index(all_row, 0)),
+                                                FontPickerRowButton::remove_recent, false)
+            .isEmpty());
+  // The x and the star sit side by side inside the row.
+  const auto recent_rect = list->visualRect(list->model()->index(1, 0));
+  const auto x_rect =
+      patchy::ui::font_picker_row_button_rect(recent_rect, FontPickerRowButton::remove_recent, true);
+  const auto star_rect = patchy::ui::font_picker_row_button_rect(recent_rect, FontPickerRowButton::favorite, true);
+  CHECK(recent_rect.contains(x_rect) && recent_rect.contains(star_rect));
+  CHECK(!x_rect.intersects(star_rect) && star_rect.right() < x_rect.left());
+  hover_list(*list, x_rect.center());
+  save_widget_artifact("issue569_font_picker_recent_remove", *popup);
+
+  click_row_button(*list, 1, FontPickerRowButton::remove_recent);
+  CHECK(popup->isVisible());
+  CHECK(picker->currentText() == current);
+  CHECK(patchy::ui::stored_recent_font_families() == QStringList{second});
+  CHECK(family_rows(*list, true) == QStringList{second});
+  CHECK(family_rows(*list, false).contains(first));  // still in All Fonts
+
+  click_row_button(*list, 1, FontPickerRowButton::remove_recent);
+  CHECK(popup->isVisible());
+  CHECK(patchy::ui::stored_recent_font_families().isEmpty());
+  CHECK(header_rows(*list) == 0);  // the section is gone
+  // Keyboard navigation still works.
+  auto* search = popup->findChild<QLineEdit*>(QStringLiteral("textFontPickerSearchEdit"));
+  CHECK(search != nullptr);
+  QTest::keyClick(search, Qt::Key_Down);
+  CHECK(row_kind(list->currentIndex()) == FontPickerRowKind::family);
+  popup->close();
+  QApplication::processEvents();
+  reset_picker_settings();
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> font_picker_filter_tests() {
@@ -493,5 +801,8 @@ std::vector<patchy::test::TestCase> font_picker_filter_tests() {
       {"ui_font_picker_recent_separator_reads_in_both_schemes", ui_font_picker_recent_separator_reads_in_both_schemes},
       {"ui_font_picker_filter_lists_scroll_keep_enter_and_offer_other",
        ui_font_picker_filter_lists_scroll_keep_enter_and_offer_other},
+      {"ui_font_picker_favorite_star_toggles_without_picking", ui_font_picker_favorite_star_toggles_without_picking},
+      {"ui_font_picker_favorites_view_filters_and_persists", ui_font_picker_favorites_view_filters_and_persists},
+      {"ui_font_picker_recent_remove_button_keeps_popup_open", ui_font_picker_recent_remove_button_keeps_popup_open},
   };
 }

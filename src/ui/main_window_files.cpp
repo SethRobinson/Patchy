@@ -1637,17 +1637,46 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
         image = qimage_from_deep_jpeg(jpeg_deep::read_deep_jpeg(bytes));
       }
     }
-    if (image.isNull()) {
-      throw std::runtime_error(open_failure_reason(reader.errorString(), path, extension).toStdString());
-    }
-    orientation_applied = reader.transformation() != QImageIOHandler::TransformationNone;
     // A multi-page TIFF opens its first page, as in Photoshop; pages are separate images
     // (scans, faxes, GIMP's layers-as-pages export), not a layer stack (docs/tiff.md).
-    if (is_tiff_extension(extension)) {
+    const auto note_tiff_pages = [&] {
       if (const auto pages = psd::tiff_page_count(read_all_file_bytes(path)); pages > 1U) {
         import_notices.push_back(
             QObject::tr("This TIFF holds %1 pages; Patchy opened the first one.").arg(static_cast<qulonglong>(pages)));
       }
+    };
+    if (image.isNull() && is_tiff_extension(extension)) {
+      // Layouts Qt's TIFF plug-in refuses (float samples with extra channels, 32-bit
+      // integers, planar float; GitHub issue 623) go through Patchy's own flat decoder,
+      // which keeps the file's depth and opens unspecified extra samples as alpha channels.
+      std::vector<std::string> tiff_notices;
+      psd::FlatTiffReadOptions tiff_options;
+      tiff_options.layer_name = info.completeBaseName().toStdString();
+      tiff_options.notices = &tiff_notices;
+      QString fallback_error;
+      try {
+        opened = psd::read_flat_tiff(read_all_file_bytes(path), tiff_options);
+      } catch (const std::exception& error) {
+        fallback_error = translated_file_message(error.what());
+      }
+      if (fallback_error.isEmpty()) {
+        if (!deep_editing_enabled() && opened.color_state().bit_depth != BitDepth::UInt8) {
+          convert_document_depth(opened, BitDepth::UInt8);
+        }
+        for (const auto& notice : tiff_notices) {
+          import_notices.push_back(translated_file_message(notice));
+        }
+        note_tiff_pages();
+        return;
+      }
+      throw std::runtime_error(open_failure_reason(fallback_error, path, extension).toStdString());
+    }
+    if (image.isNull()) {
+      throw std::runtime_error(open_failure_reason(reader.errorString(), path, extension).toStdString());
+    }
+    orientation_applied = reader.transformation() != QImageIOHandler::TransformationNone;
+    if (is_tiff_extension(extension)) {
+      note_tiff_pages();
     }
     // Animated GIFs import every frame as a layer, frame 1 on TOP and all layers visible,
     // each frame's delay stamped as a trailing seconds token ("Frame 3 0.4s") that the
@@ -2344,6 +2373,8 @@ void MainWindow::open_document() {
   if (paths.isEmpty()) {
     remember_open_directory(browsed_directory);
   }
+  begin_open_batch();
+  const auto open_batch = qScopeGuard([this] { end_open_batch(); });
   for (const auto& path : paths) {
     open_document_path(path);
   }
@@ -2379,6 +2410,8 @@ int MainWindow::open_folder_path(const QString& directory) {
     show_status_error(tr("No supported images in %1").arg(native_directory));
     return 0;
   }
+  begin_open_batch();
+  const auto open_batch = qScopeGuard([this] { end_open_batch(); });
   const int total = static_cast<int>(paths.size());
   auto folder_name = QFileInfo(QDir(directory).absolutePath()).fileName();
   if (folder_name.isEmpty()) {
@@ -2458,9 +2491,13 @@ int MainWindow::open_folder_path(const QString& directory) {
       }
       ++opened;
       // Background files drop their ordinary notes (no status bar of their own), but a
-      // data-loss note must not go unseen just because the file was not first.
+      // data-loss note must not go unseen just because the file was not first. It waits
+      // for the folder to finish opening, like the first file's prompts (GitHub issue 624).
       if (loaded->force_import_notices_popup && !unattended_automation()) {
-        show_import_notices_popup(this, loaded->file_name, loaded->import_notices, true);
+        run_or_hold_open_prompts((*sessions_.rbegin())->session_id,
+                                 [this, file_name = loaded->file_name, notes = loaded->import_notices] {
+                                   show_import_notices_popup(this, file_name, notes, true);
+                                 });
       }
     } catch (const std::exception& error) {
       failed.push_back(QFileInfo(path).fileName());
@@ -2556,6 +2593,8 @@ bool MainWindow::paste_clipboard_text_paths(bool as_layers) {
       add_files_as_layers_interactive(openable, std::nullopt, tr("Paste in Place"));
     }
   } else {
+    begin_open_batch();
+    const auto open_batch = qScopeGuard([this] { end_open_batch(); });
     for (const auto& path : openable) {
       open_document_path(path);
     }
@@ -2921,6 +2960,8 @@ bool MainWindow::open_dropped_files(QDropEvent* event) {
     if (!font_paths.isEmpty()) {
       show_user_font_drop_result(user_fonts::add_user_fonts(font_paths));
     }
+    begin_open_batch();
+    const auto open_batch = qScopeGuard([this] { end_open_batch(); });
     for (const auto& path : paths) {
       open_document_path(path);
     }
@@ -2971,6 +3012,8 @@ void MainWindow::show_user_font_drop_result(const user_fonts::AddFontsResult& re
 }
 
 void MainWindow::open_command_line_files(const QStringList& paths) {
+  begin_open_batch();
+  const auto open_batch = qScopeGuard([this] { end_open_batch(); });
   for (const auto& path : paths) {
     if (path.isEmpty()) {
       continue;
@@ -3148,6 +3191,59 @@ void MainWindow::convert_af_image_layers(Document& target) {
                                        block.original_payload == nullptr;
                               }),
                blocks.end());
+}
+
+void MainWindow::begin_open_batch() {
+  ++open_batch_depth_;
+}
+
+void MainWindow::end_open_batch() {
+  if (open_batch_depth_ > 0) {
+    --open_batch_depth_;
+  }
+  if (open_batch_depth_ > 0 || held_open_prompts_.empty()) {
+    return;
+  }
+  auto held = std::exchange(held_open_prompts_, {});
+  // One event-loop turn later, like a single open's prompts (GitHub issue 593): the last
+  // file's tab is fit and drawn first, and every open progress dialog is gone.
+  QMetaObject::invokeMethod(
+      this, [this, held = std::move(held)]() mutable { run_held_open_prompts(std::move(held)); },
+      Qt::QueuedConnection);
+}
+
+void MainWindow::run_or_hold_open_prompts(std::int64_t session_id, std::function<void()> prompts) {
+  if (open_batch_depth_ > 0) {
+    held_open_prompts_.emplace_back(session_id, std::move(prompts));
+    return;
+  }
+  QMetaObject::invokeMethod(this, std::move(prompts), Qt::QueuedConnection);
+}
+
+// A batch's prompts run in open order, each with its own file's tab active (the notes
+// and questions are about that file, and the palette, missing-link and missing-font
+// dialogs act on the active document), then the tab the batch ended on is active again.
+void MainWindow::run_held_open_prompts(std::vector<std::pair<std::int64_t, std::function<void()>>> held) {
+  if (shutting_down_) {
+    return;
+  }
+  const auto* landed = active_session();
+  const auto landed_id = landed != nullptr ? landed->session_id : 0;
+  bool switched = false;
+  for (auto& [session_id, prompts] : held) {
+    auto* target = session_with_id(session_id);
+    if (target == nullptr) {
+      continue;  // closed since it opened
+    }
+    if (target != active_session()) {
+      activate_document_session(*target);
+      switched = true;
+    }
+    prompts();
+  }
+  if (auto* back = session_with_id(landed_id); switched && back != nullptr && back != active_session()) {
+    activate_document_session(*back);
+  }
 }
 
 void MainWindow::open_document_path(QString path, OpenExisting existing) {
@@ -3356,7 +3452,7 @@ void MainWindow::open_document_path(QString path, OpenExisting existing) {
       show_resolve_missing_fonts_dialog(true);
     };
     if (defer_prompts) {
-      QMetaObject::invokeMethod(this, std::move(prompts), Qt::QueuedConnection);
+      run_or_hold_open_prompts(opened_session_id, std::move(prompts));
     } else {
       prompts();
     }
@@ -7241,6 +7337,8 @@ void MainWindow::open_recent_folder(const QString& dir) {
   const auto paths = get_open_file_names(this, tr("Open"), start_dir, open_file_filter(), &selected_filter,
                                          QStringLiteral("openFileDialog"), FilterNameDetails::Hidden);
   remember_open_filter(paths.isEmpty() ? QString() : selected_filter);
+  begin_open_batch();
+  const auto open_batch = qScopeGuard([this] { end_open_batch(); });
   for (const auto& path : paths) {
     open_document_path(path);
   }

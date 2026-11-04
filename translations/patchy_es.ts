@@ -11881,8 +11881,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Cantidad:</translation>
     </message>
     <message>
-        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
-        <translation>Fondo: se queda al final de la pila, sin transparencia ni estilos de capa. Haga clic con el botón derecho y elija Capa a partir de fondo para convertirlo en una capa normal.</translation>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Click to make it an ordinary layer.</source>
+        <translation>Fondo: se queda al final de la pila, sin transparencia ni estilos de capa. Haga clic para convertirlo en una capa normal.</translation>
     </message>
     <message>
         <source>iPhone 16 Pro</source>
@@ -14890,6 +14890,22 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Feather radius:</source>
         <translation>Radio de calado:</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is damaged</source>
+        <translation>Los datos de imagen del TIFF están dañados</translation>
+    </message>
+    <message>
+        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <translation>Patchy no puede leer la disposición de muestras de este TIFF</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <translation>Los datos de imagen del TIFF están incompletos o dañados; la parte que falta se abrió vacía.</translation>
+    </message>
+    <message>
+        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
+        <translation>Se omitieron algunos canales adicionales del TIFF: un documento admite como máximo 56 canales.</translation>
     </message>
 </context>
 <context>
@@ -19385,6 +19401,34 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Other</source>
         <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
         <translation>Otras</translation>
+    </message>
+    <message>
+        <source>Favorites</source>
+        <translation>Favoritos</translation>
+    </message>
+    <message>
+        <source>No favorites yet. Click the star beside a font to add it.</source>
+        <translation>Aún no hay favoritos. Haga clic en la estrella junto a una fuente para añadirla.</translation>
+    </message>
+    <message>
+        <source>No favorite fonts match the search or filters.</source>
+        <translation>Ninguna fuente favorita coincide con la búsqueda o los filtros.</translation>
+    </message>
+    <message>
+        <source>Remove from Recent</source>
+        <translation>Quitar de recientes</translation>
+    </message>
+    <message>
+        <source>Remove from favorites</source>
+        <translation>Quitar de favoritos</translation>
+    </message>
+    <message>
+        <source>Add to favorites</source>
+        <translation>Añadir a favoritos</translation>
+    </message>
+    <message>
+        <source>Show only favorite fonts</source>
+        <translation>Mostrar solo fuentes favoritas</translation>
     </message>
 </context>
 <context>
@@ -32397,6 +32441,14 @@ Bloqueada: %1</translation>
         <source>Contract by:</source>
         <translation>Contraer en:</translation>
     </message>
+    <message>
+        <source>Use Shift for tool switch</source>
+        <translation>Usar Mayús para cambiar de herramienta</translation>
+    </message>
+    <message>
+        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation>Si está activado, la letra de un grupo de herramientas selecciona su primera herramienta y Mayús con la letra recorre el grupo. Si está desactivado, al pulsar de nuevo la letra se pasa a la siguiente herramienta del grupo.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34716,10 +34768,6 @@ Bloqueada: %1</translation>
         <translation>Edición de fotos de código abierto. Gratis para siempre, sin suscripciones.</translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation>Nuevo documento...</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>Abrir...</translation>
     </message>
@@ -34782,6 +34830,18 @@ Bloqueada: %1</translation>
     <message>
         <source>Remove from Recent Files</source>
         <translation>Quitar de archivos recientes</translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation>Nuevo...</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>Portapapeles</translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
+        <translation>Nuevo documento a partir de la imagen del portapapeles</translation>
     </message>
 </context>
 <context>
