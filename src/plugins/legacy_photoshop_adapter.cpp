@@ -6,6 +6,7 @@
 #include "support/path_utils.hpp"
 #include "support/translate_noop.hpp"
 
+#include <filesystem>
 #include <array>
 #include <cstdint>
 #include <fstream>
@@ -138,8 +139,19 @@ LegacyPhotoshopPluginProbe LegacyPhotoshopAdapter::probe(const std::filesystem::
       result.entry_point = result.architecture == "x86" ? result.pipl.entry_point_32 : result.pipl.entry_point_64;
     }
   }
-#if !defined(_WIN32)
-  // Legacy Photoshop plug-ins are Windows PE binaries; probing one on macOS/Linux gets an
+#if defined(__linux__)
+  // Linux runs 64-bit plug-ins through the Win32 helper inside Raven (docs/plugins.md,
+  // Linux). The Flatpak sandbox cannot start Raven, and no 32-bit helper is built here.
+  if (windows_binary && std::filesystem::exists("/.flatpak-info")) {
+    result.reason = PATCHY_TRANSLATE_NOOP("QObject", "Legacy Photoshop plug-ins are not available in the Flatpak; use the AppImage of Patchy.");
+    return result;
+  }
+  if (windows_binary && result.architecture == "x86") {
+    result.reason = PATCHY_TRANSLATE_NOOP("QObject", "32-bit plug-ins do not run on Linux yet; use the 64-bit version of the plug-in.");
+    return result;
+  }
+#elif !defined(_WIN32)
+  // Legacy Photoshop plug-ins are Windows PE binaries; probing one on macOS gets an
   // honest platform answer instead of a misleading architecture comparison.
   if (windows_binary) {
     result.reason = PATCHY_TRANSLATE_NOOP("QObject", "Legacy Photoshop plug-ins are Windows binaries; they require the Windows build of Patchy.");

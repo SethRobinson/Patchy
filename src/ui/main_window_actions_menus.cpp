@@ -2579,7 +2579,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
     register_document_action(action);
   }
 
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
   // These two repeat the plug-in that ran last: a plug-in never previews on the canvas, so
   // "apply, look, undo, adjust" is the loop and they keep it short. Neither has a default
   // key: Ctrl+F is Help > Search Commands (as in Photoshop), and Photoshop's Ctrl+Alt+F

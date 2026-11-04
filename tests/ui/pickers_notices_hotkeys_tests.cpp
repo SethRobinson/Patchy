@@ -4782,7 +4782,7 @@ void ui_command_search_lists_tools_keys_and_descriptions() {
       listed_ids.insert(entry.id);
     }
     const QStringList other_platforms{
-#ifndef Q_OS_WIN
+#if !defined(Q_OS_WIN) && !defined(Q_OS_LINUX)
         QStringLiteral("plugins.repeat_last"), QStringLiteral("plugins.last_settings"),
         QStringLiteral("plugins.open_folder"), QStringLiteral("plugins.rescan"),
 #else

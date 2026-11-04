@@ -2,6 +2,7 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QStandardPaths>
 #include <QFile>
 #include <QFileInfo>
 #include <QSaveFile>
@@ -29,7 +30,8 @@ constexpr const char* kReadmeText =
     "- Only filter plug-ins (.8bf) run. File-format (.8bi) and automation (.8li)\n"
     "  plug-ins are listed as unsupported. DDS textures need no plug-in: Patchy\n"
     "  opens and saves .dds files natively.\n"
-    "- Plug-ins are Windows programs. The macOS and Linux builds of Patchy cannot\n"
+    "- Plug-ins are Windows programs. On Linux, 64-bit plug-ins run inside Raven\n"
+    "  (https://useraven.org), which must be installed; the macOS build cannot\n"
     "  run them.\n"
     "- Each plug-in runs in a separate helper program (patchy-8bf-host32.exe or\n"
     "  patchy-8bf-host64.exe), so a crashing plug-in cannot take Patchy down. It\n"
@@ -43,6 +45,11 @@ constexpr const char* kReadmeText =
 QString legacy_plugins_folder_path() {
 #ifdef Q_OS_WIN
   return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("plugins"));
+#elif defined(Q_OS_LINUX)
+  // The AppImage and system installs are read-only: the user's data folder, which
+  // the plug-in scan already covers (MainWindow::legacy_plugin_scan_roots).
+  const auto data_dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+  return data_dir.isEmpty() ? QString() : QDir(data_dir).filePath(QStringLiteral("plugins"));
 #else
   return QString();
 #endif

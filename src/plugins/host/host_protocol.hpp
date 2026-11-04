@@ -6,6 +6,11 @@
 // {uint32 type, uint32 payload length, payload}. Pixel data never travels over
 // the pipe: Patchy publishes it in a named file mapping described by the Run
 // message. See docs/plugins.md.
+//
+// On Linux the helper runs inside Raven (docs/plugins.md, Linux), where no named
+// pipe or named mapping reaches Patchy: the helper connects to a loopback TCP port
+// instead, proves itself with the token Patchy gave it, and the pixels travel in
+// kMessagePixels frames (the Run request then has an empty mapping_name).
 
 #include <cstddef>
 #include <cstdint>
@@ -14,7 +19,7 @@
 
 namespace patchy::legacy_host {
 
-inline constexpr std::uint32_t kProtocolVersion = 5;
+inline constexpr std::uint32_t kProtocolVersion = 6;
 
 enum MessageType : std::uint32_t {
   kMessageHello = 1,     // both directions: uint32 protocol version, uint32 pointer size in bytes
@@ -26,7 +31,15 @@ enum MessageType : std::uint32_t {
   // the filter ABI: 1 parameters, 2 prepare, 3 start, 4 continue, 5 finish), so
   // Patchy can tell "the plug-in is showing its settings" from "it is working".
   kMessagePhase = 6,
+  // Stream transport only (empty RunRequest::mapping_name). Patchy -> host right
+  // after Run: the whole exchange area (mapping_size bytes, laid out by the Run
+  // offsets). Host -> Patchy right after an Ok Result: the output region.
+  kMessagePixels = 7,
 };
+
+// The largest exchange area a stream transport accepts (4 GiB less one byte
+// fits the frame's 32-bit length).
+inline constexpr std::uint64_t kMaxStreamPixelBytes = 0xFFFFFFFFULL;
 
 enum RunStatus : std::int32_t {
   kRunOk = 0,

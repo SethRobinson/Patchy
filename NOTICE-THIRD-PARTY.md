@@ -254,6 +254,13 @@ distribution's copies and ship neither. Their license texts ship in
 `share/licenses/com.rtsoft.patchy/` as `sane-backends-COPYING.txt` and
 `libgphoto2-COPYING.txt`.
 
+## Raven (Linux, not distributed)
+
+On Linux, Patchy runs 64-bit Photoshop filter plug-ins by starting the separate `raven`
+program (<https://github.com/mirkobrombin/raven>; GNU GPL version 3 or later, with its
+guest adapters under MIT) when the user has installed it. Patchy does not link, vendor
+or ship Raven; it only runs it as its own process, so no Raven code is part of Patchy.
+
 ## ONNX Runtime (desktop builds)
 
 Automatic selection (the Object Selection tool, and Select > Subject in builds that include it) runs on ONNX

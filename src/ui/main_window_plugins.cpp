@@ -62,9 +62,11 @@
 #include <functional>
 #include <cstdint>
 #include <qlatin1stringview.h>
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
 #include "ui/legacy_plugin_run_dialog.hpp"
 #include "ui/legacy_plugin_runner.hpp"
+#endif
+#ifdef Q_OS_WIN
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
@@ -607,7 +609,7 @@ MainWindow::LegacyPluginApplyStatus MainWindow::apply_legacy_plugin(DocumentSess
     }
     return LegacyPluginApplyStatus::Error;
   };
-#ifndef Q_OS_WIN
+#if !defined(Q_OS_WIN) && !defined(Q_OS_LINUX)
   Q_UNUSED(session);
   Q_UNUSED(layer_id);
   Q_UNUSED(entry);
@@ -773,6 +775,7 @@ MainWindow::LegacyPluginApplyStatus MainWindow::apply_legacy_plugin(DocumentSess
   // ends mid-dialog never re-enables it, and the keyboard focus the plug-in
   // held is not handed back. Put this window back in charge of its own input
   // unconditionally, at the Win32 level, before Qt's focus is restored.
+#ifdef Q_OS_WIN
   {
     const HWND self = reinterpret_cast<HWND>(winId());
     if (!IsWindowEnabled(self)) {
@@ -791,6 +794,11 @@ MainWindow::LegacyPluginApplyStatus MainWindow::apply_legacy_plugin(DocumentSess
     SetFocus(nullptr);
     SetFocus(self);
   }
+#else
+  // Raven's plug-in windows are another program's: take the focus back the Qt way.
+  activateWindow();
+  raise();
+#endif
   if (!result.parameters.isEmpty()) {
     legacy_plugin_parameters_[entry.identifier] = result.parameters;
   }

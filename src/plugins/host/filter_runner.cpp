@@ -880,6 +880,7 @@ DWORD record_fault(EXCEPTION_POINTERS* pointers) {
   return EXCEPTION_EXECUTE_HANDLER;
 }
 
+#if defined(_MSC_VER)
 DWORD call_entry_guarded(FilterEntryProc entry, std::int16_t selector, FilterRecord* record, std::intptr_t* data,
                          OSErr* result) {
   __try {
@@ -889,6 +890,40 @@ DWORD call_entry_guarded(FilterEntryProc entry, std::int16_t selector, FilterRec
     return GetExceptionCode() != 0 ? GetExceptionCode() : 1;
   }
 }
+#else
+// MinGW has no __try/__except (the helper is cross-built this way for Linux, where it
+// runs inside Raven). A fault the plug-in does not handle itself reaches the
+// unhandled-exception filter, which records it and jumps back here; exceptions the
+// plug-in handles never get that far, as with __except.
+void* g_guard_jump[5];
+volatile bool g_guard_active = false;
+volatile DWORD g_guard_code = 0;
+
+LONG WINAPI guarded_call_filter(EXCEPTION_POINTERS* pointers) {
+  if (!g_guard_active) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+  g_guard_active = false;
+  record_fault(pointers);
+  g_guard_code = pointers != nullptr && pointers->ExceptionRecord != nullptr ? pointers->ExceptionRecord->ExceptionCode : 1;
+  __builtin_longjmp(g_guard_jump, 1);
+}
+
+DWORD call_entry_guarded(FilterEntryProc entry, std::int16_t selector, FilterRecord* record, std::intptr_t* data,
+                         OSErr* result) {
+  g_guard_code = 0;
+  const auto previous = SetUnhandledExceptionFilter(&guarded_call_filter);
+  if (__builtin_setjmp(g_guard_jump) == 0) {
+    g_guard_active = true;
+    entry(selector, record, data, result);
+    g_guard_active = false;
+    SetUnhandledExceptionFilter(previous);
+    return 0;
+  }
+  SetUnhandledExceptionFilter(previous);
+  return g_guard_code != 0 ? g_guard_code : 1;
+}
+#endif
 
 std::string describe_last_fault() {
   char text[256];

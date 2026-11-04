@@ -83,8 +83,12 @@ void plugin_host_and_legacy_probe_work() {
   const auto probe = adapter.probe(fixture);
 #ifdef _WIN32
   CHECK(probe.supported);
+#elif defined(__linux__)
+  // Linux runs 64-bit x86 plug-ins inside Raven (docs/plugins.md, Linux); the fixture
+  // copies this host's architecture, so it is offered on x86-64 hosts only.
+  CHECK(probe.supported == (probe.architecture == "x64"));
 #else
-  // Legacy plug-ins are Windows PE binaries; off-Windows the probe rejects them with a
+  // Legacy plug-ins are Windows PE binaries; on macOS the probe rejects them with a
   // platform reason no matter how well the architecture matches the host.
   CHECK(!probe.supported);
 #endif

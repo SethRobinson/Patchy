@@ -30,7 +30,13 @@ if(MSVC)
   # Console subsystem with wmain; Patchy starts it without a window.
   target_link_options(${PATCHY_8BF_HOST_NAME} PRIVATE /SUBSYSTEM:CONSOLE)
 endif()
-target_link_libraries(${PATCHY_8BF_HOST_NAME} PRIVATE user32 gdi32 comdlg32 shell32)
+if(MINGW OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU" AND NOT MSVC))
+  # Cross-built on Linux for Raven (docs/plugins.md): wmain needs -municode, and the
+  # runtime is linked statically so the exe needs nothing beside it in the prefix.
+  target_compile_options(${PATCHY_8BF_HOST_NAME} PRIVATE -municode -Wall -Wextra)
+  target_link_options(${PATCHY_8BF_HOST_NAME} PRIVATE -municode -static -static-libgcc -static-libstdc++)
+endif()
+target_link_libraries(${PATCHY_8BF_HOST_NAME} PRIVATE user32 gdi32 comdlg32 shell32 ws2_32)
 # The static C++ runtime: the hosts sit beside patchy.exe, whose app-local MSVCP140.dll and
 # VCRUNTIME140.dll are the app's architecture (x64, or ARM64 in a Windows ARM64 package).
 # A host of another architecture importing them would find the wrong image there.

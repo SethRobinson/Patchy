@@ -710,6 +710,10 @@
         <source>The plug-in reported an error.</source>
         <translation>Плагин сообщил об ошибке.</translation>
     </message>
+    <message>
+        <source>Photoshop plug-ins on Linux run inside Raven, which is not installed. Install Raven from useraven.org, or set PATCHY_RAVEN to its raven program, then try again.</source>
+        <translation>В Linux плагины Photoshop работают внутри Raven, но он не установлен. Установите Raven с useraven.org или укажите в PATCHY_RAVEN путь к программе raven, затем повторите попытку.</translation>
+    </message>
 </context>
 <context>
     <name>ModelDownload</name>
@@ -15022,6 +15026,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their pixels without them.</source>
         <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
         <translation>Некоторые эффекты слоёв GIMP, которые Patchy не может воспроизвести, пропущены (%1); эти слои показывают свои пиксели без них.</translation>
+    </message>
+    <message>
+        <source>Legacy Photoshop plug-ins are not available in the Flatpak; use the AppImage of Patchy.</source>
+        <translation>Старые плагины Photoshop недоступны во Flatpak; используйте AppImage Patchy.</translation>
+    </message>
+    <message>
+        <source>32-bit plug-ins do not run on Linux yet; use the 64-bit version of the plug-in.</source>
+        <translation>32-разрядные плагины пока не работают в Linux; используйте 64-разрядную версию плагина.</translation>
     </message>
 </context>
 <context>

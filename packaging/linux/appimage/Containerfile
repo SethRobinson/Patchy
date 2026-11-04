@@ -12,7 +12,7 @@ ENV DEBIAN_FRONTEND=noninteractive PYTHONDONTWRITEBYTECODE=1
 # the arm64 image runs natively on an arm64 host or under qemu-user-static elsewhere.
 ARG ARCH=x86_64
 
-# The compiler, the headers Qt6Gui's CMake config needs, the runtime libraries the xcb and
+# The compiler, MinGW-w64 for the Win32 plug-in helper Raven runs (docs/plugins.md, Linux), the headers Qt6Gui's CMake config needs, the runtime libraries the xcb and
 # wayland platform plug-ins link (linuxdeploy resolves them here), the offscreen test fonts
 # (tests/test_fonts.hpp), xvfb for windowed checks, and gettext's msgfmt for GEGL's catalogs.
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libsm6 libice6 libxext6 libxrender1 \
       libwayland-client0 libwayland-cursor0 libwayland-egl1 \
       desktop-file-utils xvfb xauth fonts-liberation fonts-dejavu-core locales \
+      g++-mingw-w64-x86-64-posix \
     && rm -rf /var/lib/apt/lists/* \
     && locale-gen en_US.UTF-8
 

@@ -4,8 +4,9 @@
 // (patchy-8bf-host32.exe / patchy-8bf-host64.exe next to patchy.exe): the
 // pixels go through a named file mapping, the request and result over a named
 // pipe, and the caller's event loop keeps pumping so the progress dialog stays
-// live and a plug-in crash only ends the helper. Windows only; other platforms
-// never reach it (the probe rejects every plug-in there). See docs/plugins.md.
+// live and a plug-in crash only ends the helper. On Linux the same helper runs
+// inside Raven (useraven.org) and talks over loopback TCP instead; macOS never
+// reaches this (the probe rejects every plug-in there). See docs/plugins.md.
 
 #include "plugins/pipl.hpp"
 
@@ -121,6 +122,12 @@ public:
 private:
   void* job_{nullptr};
 };
+#endif
+
+#ifdef Q_OS_LINUX
+// The raven program that runs the helper: PATCHY_RAVEN, raven on PATH, or a usual
+// install location. Empty when Raven is not installed.
+[[nodiscard]] QString legacy_plugin_raven_executable();
 #endif
 
 // The helper executable for a plug-in architecture ("x86" or "x64"), next to

@@ -1947,7 +1947,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
               build_hotkey_editor();
             }
           });
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
   // Plug-ins: the folders scanned for legacy Photoshop .8bf filters (Windows
   // only, where they can run). The two automatic folders are fixed; the list
   // holds the user-added ones (docs/plugins.md). Scanning never runs a plug-in.
@@ -2330,7 +2330,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     set_stored_recovery_interval_minutes(recovery_combo->currentData().toInt());
     apply_recovery_preferences();
 #endif
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
     {
       QStringList plugin_folders;
       for (int row = 0; row < plugin_folders_list->count(); ++row) {

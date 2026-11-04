@@ -521,6 +521,41 @@ if(WIN32)
   patchy_add_external_8bf_host(patchy_8bf_host32 x86 32)
 endif()
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$")
+  # Linux runs 64-bit .8bf plug-ins through the same Win32 helper (x86-64 hosts only: Raven
+  # runs x86 code natively), cross-built with a
+  # MinGW-w64 toolchain and started inside Raven (docs/plugins.md, Linux). Without a
+  # toolchain the helper is skipped and the plug-in probe reports it missing.
+  set(PATCHY_8BF_HOST_MINGW "" CACHE PATH "Root of an x86_64-w64-mingw32 toolchain (its bin/ holds the compiler)")
+  set(_patchy_mingw_hints "")
+  if(PATCHY_8BF_HOST_MINGW)
+    list(APPEND _patchy_mingw_hints "${PATCHY_8BF_HOST_MINGW}/bin")
+  endif()
+  file(GLOB _patchy_deps_mingw LIST_DIRECTORIES true "${PROJECT_SOURCE_DIR}/.deps/llvm-mingw/bin"
+       "${PROJECT_SOURCE_DIR}/.deps/llvm-mingw/*/bin")
+  list(APPEND _patchy_mingw_hints ${_patchy_deps_mingw})
+  find_program(PATCHY_8BF_HOST_CXX NAMES x86_64-w64-mingw32-clang++ x86_64-w64-mingw32-g++
+               HINTS ${_patchy_mingw_hints})
+  if(PATCHY_8BF_HOST_CXX)
+    include(ExternalProject)
+    ExternalProject_Add(patchy-8bf-host64
+      SOURCE_DIR "${PROJECT_SOURCE_DIR}/src/plugins/host"
+      BINARY_DIR "${CMAKE_BINARY_DIR}/8bf-host64"
+      CMAKE_ARGS -DCMAKE_SYSTEM_NAME=Windows
+                 -DCMAKE_SYSTEM_PROCESSOR=x86_64
+                 -DCMAKE_CXX_COMPILER=${PATCHY_8BF_HOST_CXX}
+                 -DCMAKE_BUILD_TYPE=Release
+                 -DPATCHY_8BF_HOST_NAME=patchy-8bf-host64
+                 -DPATCHY_8BF_HOST_OUTPUT_DIR=${CMAKE_BINARY_DIR}
+      INSTALL_COMMAND ""
+      BUILD_ALWAYS ON
+      BUILD_BYPRODUCTS "${CMAKE_BINARY_DIR}/patchy-8bf-host64.exe")
+    message(STATUS "Legacy plug-in helper for Linux: patchy-8bf-host64.exe with ${PATCHY_8BF_HOST_CXX}")
+  else()
+    message(STATUS "Legacy plug-in helper for Linux: skipped (no x86_64-w64-mingw32 compiler; set PATCHY_8BF_HOST_MINGW)")
+  endif()
+endif()
+
 add_library(patchy_filters
   src/filters/auto_levels_math.cpp
   src/filters/auto_levels_math.hpp
@@ -1856,6 +1891,11 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
         # SANE scanner and libgphoto2 camera acquisition (File > Import > From Scanner or
         # Camera...), both dlopened at run time like fontconfig: no headers, nothing bundled.
         target_sources(patchy_ui PRIVATE src/ui/scanner_import_linux.cpp)
+        # Legacy .8bf plug-ins through the Win32 helper inside Raven (docs/plugins.md, Linux).
+        target_sources(patchy_ui PRIVATE src/ui/legacy_plugin_runner_linux.cpp)
+        if(TARGET patchy-8bf-host64)
+          add_dependencies(patchy_ui patchy-8bf-host64)
+        endif()
       endif()
       # "Pick Screen Color" on Wayland goes through the XDG desktop portal
       # (src/ui/portal_color_pick.cpp, GitHub issue 128). Looked up as a separate
@@ -2030,6 +2070,11 @@ exec \"$(dirname \"$(readlink -f \"$0\")\")/patchy\" --mcp-connector \"$@\"
 "
         FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
       install(PROGRAMS "$<TARGET_FILE_DIR:patchy>/patchy-mcp" DESTINATION ${CMAKE_INSTALL_BINDIR})
+      # The Win32 plug-in helper Raven runs (docs/plugins.md, Linux), beside patchy.
+      if(TARGET patchy-8bf-host64)
+        install(FILES "${CMAKE_BINARY_DIR}/patchy-8bf-host64.exe" DESTINATION ${CMAKE_INSTALL_BINDIR}
+                PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
+      endif()
     elseif(NOT EMSCRIPTEN)
       # Windows and macOS still ship a separate patchy-mcp executable: the same main.cpp
       # with the connector mode forced.

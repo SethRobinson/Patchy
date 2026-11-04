@@ -30,6 +30,9 @@
 #include "ui/app_settings.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/legacy_plugin_folder.hpp"
+#ifdef Q_OS_LINUX
+#include "ui/legacy_plugin_runner.hpp"
+#endif
 #include "ui/legacy_plugin_run_dialog.hpp"
 #include "ui/main_window.hpp"
 #include "ui/splash_dialog.hpp"
@@ -193,6 +196,12 @@ void ui_legacy_plugin_folder_scan_builds_category_menu() {
     CHECK(grey32->text() == QStringLiteral("Greyscale"));
   }
   CHECK(window.findChild<QAction*>(QStringLiteral("legacyPluginsEmptyNote")) == nullptr);
+#elif defined(Q_OS_LINUX)
+  // Linux runs 64-bit plug-ins inside Raven; 32-bit ones are listed but not offered.
+  CHECK(backlog_contains(window, QStringLiteral("|x64|true")));
+  CHECK(backlog_contains(window, QStringLiteral("|x86|false")));
+  CHECK(find_plugin_action(window, QStringLiteral("legacy.photoshop.Custom Grey64")) != nullptr);
+  CHECK(find_plugin_action(window, QStringLiteral("legacy.photoshop.Custom Grey32")) == nullptr);
 #else
   CHECK(backlog_contains(window, QStringLiteral("|x64|false")));
   CHECK(find_plugin_action(window, QStringLiteral("legacy.photoshop.Custom Grey64")) == nullptr);
@@ -234,7 +243,7 @@ void ui_legacy_plugin_non_filter_files_are_listed_not_offered() {
   CHECK(run_script(window, QStringLiteral("patchy.plugins.folders = [];")));
 }
 
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
 // The auto-scanned fixtures next to the binary: require_filter_foundry_fixtures()
 // stages the fetched Filter Foundry plug-ins there (docs/plugins.md).
 constexpr const char* kGreyscale64Id = "legacy.photoshop.Greyscale64";
@@ -254,6 +263,42 @@ QColor layer_pixel(patchy::ui::MainWindow& window, int x, int y) {
   return QColor(px[0], px[1], px[2]);
 }
 
+#ifdef Q_OS_LINUX
+// The 64-bit fixture through the helper inside Raven (docs/plugins.md, Linux): the
+// selected square turns grey in one undo step. Skips without Raven installed.
+void ui_legacy_plugin_runs_inside_raven() {
+  require_filter_foundry_fixtures();
+  if (patchy::ui::legacy_plugin_raven_executable().isEmpty()) {
+    patchy::test::skip("Raven (useraven.org) is not installed; set PATCHY_RAVEN to run this test");
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  wait_for_legacy_plugin_scan(window);
+  auto* canvas = require_canvas(window);
+  CHECK(find_plugin_action(window, QString::fromLatin1(kGreyscale64Id)) != nullptr);
+  CHECK(run_script(window, QStringLiteral("app.activeDocument.activeLayer.fillRect(0, 0, 200, 200, '#dc1e1e');")));
+  auto& document = MainWindowTestAccess::document(window);
+  patchy::PixelBuffer mask(document.width(), document.height(), patchy::PixelFormat::gray8());
+  for (int y = 0; y < mask.height(); ++y) {
+    auto row = mask.row(y);
+    for (int x = 0; x < mask.width(); ++x) {
+      row[static_cast<std::size_t>(x)] = (x < 100 && y < 100) ? 255 : 0;
+    }
+  }
+  canvas->replace_selection_from_grayscale(mask, QStringLiteral("Square selection"));
+  CHECK(run_script(window, QStringLiteral("app.activeDocument.activeLayer.applyPlugin('%1', {dialog: false});")
+                               .arg(QString::fromLatin1(kGreyscale64Id))));
+  const auto inside = layer_pixel(window, 50, 50);
+  CHECK(inside.red() == inside.green() && inside.green() == inside.blue());
+  CHECK(inside.red() > 60 && inside.red() < 120);
+  CHECK(layer_pixel(window, 150, 150) == QColor(220, 30, 30));
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(layer_pixel(window, 50, 50) == QColor(220, 30, 30));
+}
+#endif
+
+#ifdef Q_OS_WIN
 void ui_legacy_plugin_run_respects_selection_and_undoes() {
   require_filter_foundry_fixtures();
   patchy::ui::MainWindow window;
@@ -517,6 +562,8 @@ void ui_legacy_plugin_repeat_last_commands() {
 
 // Plugins menu: the folder command creates the folder with its README, the
 // rescan command rebuilds the submenu on a worker and reports in the status bar.
+#endif  // Q_OS_WIN
+
 void ui_legacy_plugin_menu_opens_folder_and_rescans() {
   require_filter_foundry_fixtures();
   patchy::ui::MainWindow window;
@@ -546,6 +593,7 @@ void ui_legacy_plugin_menu_opens_folder_and_rescans() {
   }
 }
 
+#ifdef Q_OS_WIN
 // The About dialog offers the same folder.
 void ui_about_dialog_has_plugins_folder_row() {
   bool inspected = false;
@@ -585,8 +633,9 @@ void ui_about_dialog_has_plugins_folder_row() {
   patchy::ui::show_about_splash();
   CHECK(inspected);
 }
+#endif  // Q_OS_WIN
 #else
-// Off Windows the plug-ins cannot run, so no folder, commands or About row exist.
+// On macOS the plug-ins cannot run, so no folder, commands or About row exist.
 void ui_legacy_plugin_ui_absent_off_windows() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -919,6 +968,9 @@ std::vector<patchy::test::TestCase> legacy_plugin_tests() {
        ui_legacy_plugin_runs_on_only_layer_when_none_selected},
       {"ui_legacy_plugin_repeat_last_commands", ui_legacy_plugin_repeat_last_commands},
       {"ui_legacy_plugin_process_tree_ends_child_processes", ui_legacy_plugin_process_tree_ends_child_processes},
+#elif defined(Q_OS_LINUX)
+      {"ui_legacy_plugin_runs_inside_raven", ui_legacy_plugin_runs_inside_raven},
+      {"ui_legacy_plugin_menu_opens_folder_and_rescans", ui_legacy_plugin_menu_opens_folder_and_rescans},
 #else
       {"ui_legacy_plugin_ui_absent_off_windows", ui_legacy_plugin_ui_absent_off_windows},
 #endif

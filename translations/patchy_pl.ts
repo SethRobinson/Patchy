@@ -710,6 +710,10 @@
         <source>The plug-in reported an error.</source>
         <translation>Wtyczka zgłosiła błąd.</translation>
     </message>
+    <message>
+        <source>Photoshop plug-ins on Linux run inside Raven, which is not installed. Install Raven from useraven.org, or set PATCHY_RAVEN to its raven program, then try again.</source>
+        <translation>Wtyczki Photoshopa działają na Linuksie w programie Raven, który nie jest zainstalowany. Zainstaluj Raven ze strony useraven.org albo ustaw PATCHY_RAVEN na jego program raven, a potem spróbuj ponownie.</translation>
+    </message>
 </context>
 <context>
     <name>ModelDownload</name>
@@ -15022,6 +15026,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Some GIMP layer effects Patchy cannot reproduce were left out (%1); those layers show their pixels without them.</source>
         <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
         <translation>Pominięto niektóre efekty warstw GIMP, których Patchy nie potrafi odtworzyć (%1); te warstwy pokazują swoje piksele bez nich.</translation>
+    </message>
+    <message>
+        <source>Legacy Photoshop plug-ins are not available in the Flatpak; use the AppImage of Patchy.</source>
+        <translation>Starsze wtyczki Photoshopa nie są dostępne we Flatpaku; użyj Patchy w wersji AppImage.</translation>
+    </message>
+    <message>
+        <source>32-bit plug-ins do not run on Linux yet; use the 64-bit version of the plug-in.</source>
+        <translation>Wtyczki 32-bitowe nie działają jeszcze na Linuksie; użyj 64-bitowej wersji wtyczki.</translation>
     </message>
 </context>
 <context>

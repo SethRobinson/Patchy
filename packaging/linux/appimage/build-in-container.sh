@@ -120,6 +120,8 @@ case "$GEGL_ASIDE" in /tmp/patchy-appimage-gegl.?*) rmdir "$GEGL_ASIDE" ;; esac
 [ -x "$APPDIR/usr/bin/patchy-gegl-host" ] && [ -f "$APPDIR/usr/lib/patchy/gegl/lib/libgegl-0.4.so.0" ] \
   && [ -f "$APPDIR/usr/lib/patchy/gegl/share/locale/de/LC_MESSAGES/gegl-0.4.mo" ] \
   || { echo "ERROR: the GEGL helper, Patchy's own GEGL or its catalogs are missing from the AppDir" >&2; exit 1; }
+[ "$(uname -m)" != "x86_64" ] || [ -f "$APPDIR/usr/bin/patchy-8bf-host64.exe" ] \
+  || { echo "ERROR: the plug-in helper patchy-8bf-host64.exe is missing from the AppDir" >&2; exit 1; }
 
 # linuxdeploy wraps the custom AppRun (as AppRun.wrapped) in one that sources
 # linuxdeploy-plugin-qt's hook, which forces QT_QPA_PLATFORMTHEME=gtk2 on GNOME and XFCE,

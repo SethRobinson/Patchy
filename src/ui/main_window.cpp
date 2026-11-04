@@ -4593,7 +4593,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   recent_history_timer->start();
   update_start_panel_visibility();
   recent_phase.end();
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
   // Plug-in folders are probed on a worker after the window is up, so a folder
   // full of .8bf files never delays the first paint (docs/plugins.md). The
   // in-flight flag is raised now so a wait for the scan cannot miss it.

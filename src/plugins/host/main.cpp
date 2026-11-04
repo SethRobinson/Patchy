@@ -4,6 +4,7 @@
 // reads the result back. A plug-in crash ends this process, never Patchy.
 //
 //   patchy-8bf-hostNN.exe --pipe <name>
+//   patchy-8bf-hostNN.exe --tcp <port> <token>   (inside Raven on Linux; pixels in the stream)
 //   patchy-8bf-hostNN.exe --self-test <plugin.8bf> <entry|-> <in.raw> <out.raw> <width> <height> <planes>
 //   patchy-8bf-hostNN.exe --self-test-crash
 //   patchy-8bf-hostNN.exe --self-test-screen <max width> <max height> <report.txt>
@@ -24,11 +25,15 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 
 #include <chrono>
 #include <cstdio>
+#include <algorithm>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <string>
@@ -38,56 +43,157 @@ namespace {
 
 using namespace patchy::legacy_host;
 
-bool write_all(HANDLE pipe, const std::vector<std::uint8_t>& bytes) {
-  std::size_t offset = 0;
-  while (offset < bytes.size()) {
-    DWORD written = 0;
-    if (!WriteFile(pipe, bytes.data() + offset, static_cast<DWORD>(bytes.size() - offset), &written, nullptr)) {
+// One connection to Patchy: the named pipe on Windows, or a loopback TCP socket
+// when the helper runs inside Raven on Linux (host_protocol.hpp).
+class Channel {
+public:
+  virtual ~Channel() = default;
+  virtual bool write(const std::uint8_t* data, std::size_t size) = 0;
+  virtual bool read(std::uint8_t* out, std::size_t size) = 0;  // exactly size bytes
+  // Bytes waiting to be read without blocking; false when Patchy went away.
+  virtual bool available(std::size_t& bytes) = 0;
+  virtual void close() = 0;
+};
+
+class PipeChannel final : public Channel {
+public:
+  explicit PipeChannel(HANDLE pipe) : pipe_(pipe) {}
+  bool write(const std::uint8_t* data, std::size_t size) override {
+    std::size_t offset = 0;
+    while (offset < size) {
+      DWORD written = 0;
+      if (!WriteFile(pipe_, data + offset, static_cast<DWORD>(size - offset), &written, nullptr)) {
+        return false;
+      }
+      offset += written;
+    }
+    return true;
+  }
+  bool read(std::uint8_t* out, std::size_t size) override {
+    std::size_t offset = 0;
+    while (offset < size) {
+      DWORD read = 0;
+      if (!ReadFile(pipe_, out + offset, static_cast<DWORD>(size - offset), &read, nullptr) || read == 0) {
+        return false;
+      }
+      offset += read;
+    }
+    return true;
+  }
+  bool available(std::size_t& bytes) override {
+    DWORD waiting = 0;
+    if (!PeekNamedPipe(pipe_, nullptr, 0, nullptr, &waiting, nullptr)) {
       return false;
     }
-    offset += written;
+    bytes = waiting;
+    return true;
   }
-  return true;
-}
+  void close() override {
+    if (pipe_ != INVALID_HANDLE_VALUE) {
+      FlushFileBuffers(pipe_);
+      CloseHandle(pipe_);
+      pipe_ = INVALID_HANDLE_VALUE;
+    }
+  }
 
-bool read_exact(HANDLE pipe, std::uint8_t* out, std::size_t size) {
-  std::size_t offset = 0;
-  while (offset < size) {
-    DWORD read = 0;
-    if (!ReadFile(pipe, out + offset, static_cast<DWORD>(size - offset), &read, nullptr) || read == 0) {
+private:
+  HANDLE pipe_;
+};
+
+class SocketChannel final : public Channel {
+public:
+  explicit SocketChannel(SOCKET socket) : socket_(socket) {}
+  bool write(const std::uint8_t* data, std::size_t size) override {
+    std::size_t offset = 0;
+    while (offset < size) {
+      const int chunk = static_cast<int>(std::min<std::size_t>(size - offset, 1U << 20U));
+      const int sent = send(socket_, reinterpret_cast<const char*>(data + offset), chunk, 0);
+      if (sent <= 0) {
+        return false;
+      }
+      offset += static_cast<std::size_t>(sent);
+    }
+    return true;
+  }
+  bool read(std::uint8_t* out, std::size_t size) override {
+    std::size_t offset = 0;
+    while (offset < size) {
+      const int chunk = static_cast<int>(std::min<std::size_t>(size - offset, 1U << 20U));
+      const int got = recv(socket_, reinterpret_cast<char*>(out + offset), chunk, 0);
+      if (got <= 0) {
+        return false;
+      }
+      offset += static_cast<std::size_t>(got);
+    }
+    return true;
+  }
+  bool available(std::size_t& bytes) override {
+    // A readable socket with nothing to read is a closed one.
+    fd_set readable;
+    FD_ZERO(&readable);
+    FD_SET(socket_, &readable);
+    timeval immediate{0, 0};
+    const int ready = select(0, &readable, nullptr, nullptr, &immediate);
+    if (ready == SOCKET_ERROR) {
       return false;
     }
-    offset += read;
+    u_long waiting = 0;
+    if (ioctlsocket(socket_, FIONREAD, &waiting) != 0) {
+      return false;
+    }
+    if (ready > 0 && waiting == 0) {
+      return false;
+    }
+    bytes = waiting;
+    return true;
   }
-  return true;
-}
+  void close() override {
+    if (socket_ != INVALID_SOCKET) {
+      shutdown(socket_, SD_SEND);
+      closesocket(socket_);
+      socket_ = INVALID_SOCKET;
+    }
+  }
 
-bool read_message(HANDLE pipe, std::uint32_t& type, std::vector<std::uint8_t>& payload) {
+private:
+  SOCKET socket_;
+};
+
+bool read_message(Channel& channel, std::uint32_t& type, std::vector<std::uint8_t>& payload) {
   std::uint8_t header[8];
-  if (!read_exact(pipe, header, sizeof(header))) {
+  if (!channel.read(header, sizeof(header))) {
     return false;
   }
   Reader reader(header, sizeof(header));
   type = reader.u32();
   const auto length = reader.u32();
   payload.resize(length);
-  return length == 0 || read_exact(pipe, payload.data(), length);
+  return length == 0 || channel.read(payload.data(), length);
 }
 
-bool send_message(HANDLE pipe, std::uint32_t type, const std::vector<std::uint8_t>& payload) {
-  return write_all(pipe, frame_message(type, payload));
+bool send_message(Channel& channel, std::uint32_t type, const std::vector<std::uint8_t>& payload) {
+  const auto framed = frame_message(type, payload);
+  return channel.write(framed.data(), framed.size());
+}
+
+// A frame whose payload is a slice of a larger buffer, without copying it first.
+bool send_message_slice(Channel& channel, std::uint32_t type, const std::uint8_t* data, std::size_t size) {
+  Writer header;
+  header.u32(type);
+  header.u32(static_cast<std::uint32_t>(size));
+  return channel.write(header.data().data(), header.data().size()) && (size == 0 || channel.write(data, size));
 }
 
 struct PipeSession {
-  HANDLE pipe{INVALID_HANDLE_VALUE};
+  Channel* channel{nullptr};
   bool cancelled{false};
   std::chrono::steady_clock::time_point last_progress{};
 
   // Reads whatever complete messages are waiting without blocking.
   void poll() {
     for (;;) {
-      DWORD available = 0;
-      if (!PeekNamedPipe(pipe, nullptr, 0, nullptr, &available, nullptr)) {
+      std::size_t available = 0;
+      if (!channel->available(available)) {
         cancelled = true;  // Patchy went away
         return;
       }
@@ -96,7 +202,7 @@ struct PipeSession {
       }
       std::uint32_t type = 0;
       std::vector<std::uint8_t> payload;
-      if (!read_message(pipe, type, payload)) {
+      if (!read_message(*channel, type, payload)) {
         cancelled = true;
         return;
       }
@@ -110,47 +216,40 @@ struct PipeSession {
 // The frame's close button ends a run the plug-in will not end itself: the
 // result "cancelled" goes to Patchy and this process exits from inside the
 // plug-in's own message loop, since there is no other way out of it.
-HANDLE g_close_pipe = INVALID_HANDLE_VALUE;
+Channel* g_close_channel = nullptr;
 
 void cancel_from_frame_close() {
-  if (g_close_pipe != INVALID_HANDLE_VALUE) {
+  if (g_close_channel != nullptr) {
     RunResult result;
     result.status = kRunCancelled;
-    (void)send_message(g_close_pipe, kMessageResult, encode_run_result(result));
-    FlushFileBuffers(g_close_pipe);
-    CloseHandle(g_close_pipe);
-    g_close_pipe = INVALID_HANDLE_VALUE;
+    (void)send_message(*g_close_channel, kMessageResult, encode_run_result(result));
+    g_close_channel->close();
+    g_close_channel = nullptr;
   }
   ExitProcess(0);
 }
 
-int run_pipe_mode(const std::wstring& name) {
-  const std::wstring path = L"\\\\.\\pipe\\" + name;
-  HANDLE pipe = INVALID_HANDLE_VALUE;
-  for (int attempt = 0; attempt < 100 && pipe == INVALID_HANDLE_VALUE; ++attempt) {
-    pipe = CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
-    if (pipe == INVALID_HANDLE_VALUE) {
-      Sleep(50);
-    }
-  }
-  if (pipe == INVALID_HANDLE_VALUE) {
-    return 2;
-  }
+// The session after the connection is up. token is empty for the named pipe;
+// over TCP the Hello carries it so Patchy knows the caller is its own helper.
+int run_session(Channel& channel, const std::string& token) {
   PipeSession session;
-  session.pipe = pipe;
-  g_close_pipe = pipe;
+  session.channel = &channel;
+  g_close_channel = &channel;
   set_screen_shim_close_handler(&cancel_from_frame_close);
 
   Writer hello;
   hello.u32(kProtocolVersion);
   hello.u32(static_cast<std::uint32_t>(sizeof(void*)));
-  if (!send_message(pipe, kMessageHello, hello.data())) {
+  if (!token.empty()) {
+    hello.utf8(token);
+  }
+  if (!send_message(channel, kMessageHello, hello.data())) {
     return 3;
   }
 
   std::uint32_t type = 0;
   std::vector<std::uint8_t> payload;
-  if (!read_message(pipe, type, payload) || type != kMessageHello) {
+  if (!read_message(channel, type, payload) || type != kMessageHello) {
     return 4;
   }
   {
@@ -159,7 +258,7 @@ int run_pipe_mode(const std::wstring& name) {
       return 5;
     }
   }
-  if (!read_message(pipe, type, payload) || type != kMessageRun) {
+  if (!read_message(channel, type, payload) || type != kMessageRun) {
     return 6;
   }
   RunRequest request;
@@ -168,9 +267,24 @@ int run_pipe_mode(const std::wstring& name) {
   }
 
   RunResult result;
-  const std::wstring mapping_name(request.mapping_name.begin(), request.mapping_name.end());
-  HANDLE mapping = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, mapping_name.c_str());
-  void* view = mapping != nullptr ? MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, 0) : nullptr;
+  // The exchange area: the named mapping, or (stream transport) a local copy of
+  // the bytes Patchy sends right after Run.
+  HANDLE mapping = nullptr;
+  void* view = nullptr;
+  std::vector<std::uint8_t> streamed;
+  const bool stream = request.mapping_name.empty();
+  if (stream) {
+    if (!read_message(channel, type, streamed) || type != kMessagePixels || streamed.size() != request.mapping_size) {
+      return 9;
+    }
+    view = streamed.data();
+  } else {
+    const std::wstring mapping_name(request.mapping_name.begin(), request.mapping_name.end());
+    mapping = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, mapping_name.c_str());
+    view = mapping != nullptr ? MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, 0) : nullptr;
+  }
+  const std::size_t output_bytes = static_cast<std::size_t>(request.width) * static_cast<std::size_t>(request.height) *
+                                   static_cast<std::size_t>(request.planes);
   if (view == nullptr) {
     result.status = kRunError;
     result.message = "The pixel exchange area could not be opened.";
@@ -192,7 +306,7 @@ int run_pipe_mode(const std::wstring& name) {
         Writer w;
         w.i32(done);
         w.i32(total);
-        (void)send_message(session.pipe, kMessageProgress, w.data());
+        (void)send_message(*session.channel, kMessageProgress, w.data());
       }
       session.poll();
     };
@@ -203,20 +317,85 @@ int run_pipe_mode(const std::wstring& name) {
     callbacks.phase = [&session](std::int32_t selector) {
       Writer w;
       w.i32(selector);
-      (void)send_message(session.pipe, kMessagePhase, w.data());
+      (void)send_message(*session.channel, kMessagePhase, w.data());
       session.poll();
     };
     result = run_filter(request, image, callbacks);
-    g_close_pipe = INVALID_HANDLE_VALUE;  // the normal path owns the pipe from here
+    g_close_channel = nullptr;  // the normal path owns the channel from here
+  }
+  bool sent = send_message(channel, kMessageResult, encode_run_result(result));
+  if (sent && stream && view != nullptr && result.status == kRunOk) {
+    sent = send_message_slice(channel, kMessagePixels, static_cast<const std::uint8_t*>(view) + request.output_offset,
+                              output_bytes);
+  }
+  if (!stream && view != nullptr) {
     UnmapViewOfFile(view);
   }
   if (mapping != nullptr) {
     CloseHandle(mapping);
   }
-  const bool sent = send_message(pipe, kMessageResult, encode_run_result(result));
-  FlushFileBuffers(pipe);
-  CloseHandle(pipe);
+  channel.close();
   return sent ? 0 : 8;
+}
+
+int run_pipe_mode(const std::wstring& name) {
+  const std::wstring path = L"\\\\.\\pipe\\" + name;
+  HANDLE pipe = INVALID_HANDLE_VALUE;
+  for (int attempt = 0; attempt < 100 && pipe == INVALID_HANDLE_VALUE; ++attempt) {
+    pipe = CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
+    if (pipe == INVALID_HANDLE_VALUE) {
+      Sleep(50);
+    }
+  }
+  if (pipe == INVALID_HANDLE_VALUE) {
+    return 2;
+  }
+  PipeChannel channel(pipe);
+  return run_session(channel, {});
+}
+
+// Loopback TCP to Patchy (the Raven route on Linux, host_protocol.hpp).
+int run_tcp_mode(const wchar_t* port_text, const wchar_t* token_text) {
+  const int port = _wtoi(port_text);
+  std::string token;
+  for (const wchar_t* c = token_text; *c != 0; ++c) {
+    if (*c > 0x7F) {
+      return 2;
+    }
+    token.push_back(static_cast<char>(*c));  // hex
+  }
+  if (port <= 0 || port > 65535 || token.empty()) {
+    return 2;
+  }
+  WSADATA wsa{};
+  if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
+    return 2;
+  }
+  SOCKET socket_handle = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  if (socket_handle == INVALID_SOCKET) {
+    return 2;
+  }
+  sockaddr_in address{};
+  address.sin_family = AF_INET;
+  address.sin_port = htons(static_cast<u_short>(port));
+  address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  bool connected = false;
+  for (int attempt = 0; attempt < 100 && !connected; ++attempt) {
+    connected = connect(socket_handle, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) == 0;
+    if (!connected) {
+      Sleep(50);
+    }
+  }
+  if (!connected) {
+    closesocket(socket_handle);
+    return 2;
+  }
+  BOOL no_delay = TRUE;
+  setsockopt(socket_handle, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<const char*>(&no_delay), sizeof(no_delay));
+  SocketChannel channel(socket_handle);
+  const int status = run_session(channel, token);
+  WSACleanup();
+  return status;
 }
 
 int run_self_test(int argc, wchar_t** argv) {
@@ -244,7 +423,7 @@ int run_self_test(int argc, wchar_t** argv) {
   request.case_input_handling = 1;
   request.case_output_handling = 1;
 
-  std::ifstream input(in_path, std::ios::binary);
+  std::ifstream input(std::filesystem::path(in_path), std::ios::binary);
   std::vector<std::uint8_t> in_bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
   const std::size_t expected = static_cast<std::size_t>(request.width) * static_cast<std::size_t>(request.height) *
                                static_cast<std::size_t>(request.planes);
@@ -262,7 +441,7 @@ int run_self_test(int argc, wchar_t** argv) {
   RunnerCallbacks callbacks;
   callbacks.should_abort = [] { return false; };
   // Opened first: run_filter makes the plug-in's folder the working directory.
-  std::ofstream output(out_path, std::ios::binary);
+  std::ofstream output(std::filesystem::path(out_path), std::ios::binary);
   const auto result = run_filter(request, image, callbacks);
   output.write(reinterpret_cast<const char*>(out_bytes.data()), static_cast<std::streamsize>(out_bytes.size()));
   std::printf("status %d %s\n", static_cast<int>(result.status), result.message.c_str());
@@ -281,7 +460,7 @@ int run_screen_self_test(int argc, wchar_t** argv) {
                                 nullptr);
   install_screen_shim(anchor, _wtoi(argv[2]), _wtoi(argv[3]), L"Self-test via Patchy", /*include_own_module=*/true);
   const RECT screen = screen_shim_rect();
-  std::ofstream report{std::wstring(argv[4])};
+  std::ofstream report{std::filesystem::path(std::wstring(argv[4]))};
   report << "virtual " << screen.left << ' ' << screen.top << ' ' << (screen.right - screen.left) << ' '
          << (screen.bottom - screen.top) << '\n';
   report << "metrics " << GetSystemMetrics(SM_CXSCREEN) << ' ' << GetSystemMetrics(SM_CYSCREEN) << '\n';
@@ -394,6 +573,9 @@ int run_screen_self_test(int argc, wchar_t** argv) {
 int wmain(int argc, wchar_t** argv) {
   if (argc >= 3 && std::wcscmp(argv[1], L"--pipe") == 0) {
     return run_pipe_mode(argv[2]);
+  }
+  if (argc >= 4 && std::wcscmp(argv[1], L"--tcp") == 0) {
+    return run_tcp_mode(argv[2], argv[3]);
   }
   if (argc >= 2 && std::wcscmp(argv[1], L"--self-test") == 0) {
     return run_self_test(argc, argv);

@@ -23,6 +23,7 @@
 // their --self-test mode over the fetched Filter Foundry fixtures
 // (scripts/fetch-test-plugins; the tests that need them skip without them).
 #include "plugins/legacy_photoshop_adapter.hpp"
+#include "plugins/host/host_protocol.hpp"
 #include "plugins/pipl.hpp"
 #include "core_test_support.hpp"
 #include "local_psd_fixtures.hpp"
@@ -181,6 +182,12 @@ void legacy_probe_reports_names_and_bitness() {
   CHECK(x64.entry_point == "PluginMain");
   CHECK(x86.reason.find("32-bit") != std::string::npos);
   CHECK(x64.reason.find("64-bit") != std::string::npos);
+#elif defined(__linux__)
+  // 64-bit plug-ins run inside Raven; 32-bit ones are reported with a reason.
+  CHECK(!x86.supported);
+  CHECK(x86.reason.find("32-bit") != std::string::npos);
+  CHECK(x64.supported);
+  CHECK(x64.entry_point == "PluginMain");
 #else
   CHECK(!x86.supported);
   CHECK(!x64.supported);
@@ -368,6 +375,56 @@ void legacy_host_virtual_screen_places_windows() {
 }
 #endif
 
+// The stream transport (Linux, the helper inside Raven): a Run with no mapping name
+// round-trips, the Hello carries the token after the two fixed fields (a pipe Hello
+// without it still reads), and frames split cleanly at their length.
+void legacy_host_stream_protocol_round_trips() {
+  namespace host = patchy::legacy_host;
+  CHECK(host::kProtocolVersion == 6);
+  host::RunRequest request;
+  request.mapping_size = 2U * 4U * 3U + 4U;
+  request.input_offset = 0;
+  request.output_offset = 12;
+  request.mask_offset = 24;
+  request.width = 2;
+  request.height = 2;
+  request.planes = 3;
+  request.has_mask = 1;
+  request.plugin_path = u"P:\\Greyscale64.8bf";
+  const auto encoded = host::encode_run_request(request);
+  host::RunRequest decoded;
+  CHECK(host::decode_run_request(encoded.data(), encoded.size(), decoded));
+  CHECK(decoded.mapping_name.empty());
+  CHECK(decoded.mapping_size == request.mapping_size);
+  CHECK(decoded.plugin_path == request.plugin_path);
+
+  host::Writer hello;
+  hello.u32(host::kProtocolVersion);
+  hello.u32(8);
+  hello.utf8("0123456789abcdef0123456789abcdef");
+  host::Reader reader(hello.data().data(), hello.data().size());
+  CHECK(reader.u32() == host::kProtocolVersion);
+  CHECK(reader.u32() == 8);
+  CHECK(reader.utf8() == "0123456789abcdef0123456789abcdef");
+  CHECK(reader.ok());
+  host::Writer pipe_hello;
+  pipe_hello.u32(host::kProtocolVersion);
+  pipe_hello.u32(8);
+  host::Reader short_reader(pipe_hello.data().data(), pipe_hello.data().size());
+  (void)short_reader.u32();
+  (void)short_reader.u32();
+  CHECK(short_reader.utf8().empty());
+  CHECK(!short_reader.ok());  // no token: the Linux runner refuses it
+
+  const std::vector<std::uint8_t> pixels{1, 2, 3, 4, 5};
+  const auto frame = host::frame_message(host::kMessagePixels, pixels);
+  CHECK(frame.size() == 8U + pixels.size());
+  host::Reader header(frame.data(), 8);
+  CHECK(header.u32() == host::kMessagePixels);
+  CHECK(header.u32() == pixels.size());
+  CHECK(std::equal(pixels.begin(), pixels.end(), frame.begin() + 8));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> pipl_tests() {
@@ -376,6 +433,7 @@ std::vector<patchy::test::TestCase> pipl_tests() {
       {"pipl_reads_bundled_fixture_property_lists", pipl_reads_bundled_fixture_property_lists},
       {"pipl_partial_read_matches_full_read", pipl_partial_read_matches_full_read},
       {"legacy_probe_reports_names_and_bitness", legacy_probe_reports_names_and_bitness},
+      {"legacy_host_stream_protocol_round_trips", legacy_host_stream_protocol_round_trips},
 #ifdef _WIN32
       {"legacy_host_self_test_filters_fixtures_in_both_bitnesses",
        legacy_host_self_test_filters_fixtures_in_both_bitnesses},

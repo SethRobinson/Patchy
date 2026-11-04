@@ -4,7 +4,17 @@ Patchy's plug-in support: the classic Photoshop `.8bf` filter host and the unuse
 
 ## Legacy Photoshop .8bf filters
 
-Windows only. Both 32-bit and 64-bit filter plug-ins run; the probe rejects every plug-in on macOS, Linux and the web build with a platform reason. Off Windows there is no plug-ins folder, no About row, no rescan command, no Preferences page and no startup scan: the Plugins menu shows only a disabled "run on Windows only" note (a decision: no Wine route).
+Windows runs 32-bit and 64-bit filter plug-ins; Linux runs 64-bit ones inside Raven (below). The probe rejects every plug-in on macOS and the web build with a platform reason; there the Plugins menu shows only a disabled "run on Windows only" note and there is no plug-ins folder, About row, rescan command, Preferences page or startup scan.
+
+### Linux: the helper inside Raven
+
+A user decision (2026-11-04) replaced the earlier "no Wine route" rule: Linux runs the same Win32 helper, never Wine. [Raven](https://useraven.org) (GPL-3.0-or-later, github.com/mirkobrombin/raven) loads Windows programs into a supervised process, runs their code natively and implements NT, user32, GDI, common controls and Winsock itself, so plug-in dialogs need nothing from Patchy. Raven is a separate program the user installs; Patchy only starts it (never links, vendors or bundles it).
+
+- Build: on Linux `patchy-8bf-host64.exe` is cross-built by an `ExternalProject` with an `x86_64-w64-mingw32` compiler (`PATCHY_8BF_HOST_MINGW`, else `.deps/llvm-mingw`, else PATH; skipped with a status line when none exists). MinGW has no `__try`, so `call_entry_guarded` uses an unhandled-exception filter with `__builtin_setjmp`/`__builtin_longjmp` there; MSVC keeps `__try`.
+- Runner: `src/ui/legacy_plugin_runner_linux.cpp`. Raven comes from `PATCHY_RAVEN`, `raven` on PATH, `~/.local/bin`, `~/.local/share/raven/bin`, `/usr/local/bin` or `/opt/raven/bin` (`legacy_plugin_raven_executable()`). The prefix is `<AppLocalDataLocation>/raven-prefix`; the helper is symlinked to `C:\Patchy\` and the plug-in's folder is drive `P:` (`drive_p` symlink). It runs `raven --run-process --execution=native --timeout-ms=86400000 --desktop=wayland|x11 <helper> -- --tcp <port> <token>` (Raven's own default timeout is 5 s).
+- Transport: no named pipe or mapping crosses Raven, so the helper connects to a `QTcpServer` on 127.0.0.1, its Hello carries the 128-bit per-run token (anything else is refused), and the pixels travel in `kMessagePixels` frames: the whole exchange area after Run, the output region after an Ok Result (protocol version 6, `host_protocol.hpp`).
+- Not on Linux: window capture, auto-accept and raise (the Win32 window scan), the job object (killing `raven` ends its guest), 32-bit plug-ins (reported with a reason) and the Flatpak (`/.flatpak-info`: reported with a reason). The plug-ins folder is `<AppDataLocation>/plugins`.
+- Tests: `ui_legacy_plugin_runs_inside_raven` skips while Raven is missing; the probe tests expect x64 offered and x86 refused.
 
 ### Where plug-ins come from
 
