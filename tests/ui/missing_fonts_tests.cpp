@@ -7,6 +7,7 @@
 #include "test_harness.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/font_picker.hpp"
+#include "ui/font_face_name_index.hpp"
 #include "ui/fontconfig_font_class.hpp"
 #include "ui/main_window.hpp"
 #include "ui/script_engine.hpp"
@@ -36,10 +37,16 @@
 #include <QTimer>
 #include <QUrl>
 
+#include <QElapsedTimer>
+#include <QGuiApplication>
+
 #include <algorithm>
+#include <atomic>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -1399,6 +1406,67 @@ void ui_fontconfig_font_types_follow_the_system_rules() {
 #endif
 }
 
+
+// CONC-02: the editable-PDF save worker resolves text fonts while the GUI thread may reset
+// the font caches (fontDatabaseChanged). A worker hammers the name-table index and the
+// writing-system coverage set while the GUI thread fires the signal and looks up too: no
+// crash, and every answer matches a quiet lookup.
+void ui_font_caches_stay_consistent_across_threads_while_the_database_changes() {
+  QStringList names;
+  for (const auto& family : QFontDatabase::families()) {
+    names.push_back(family);
+    if (names.size() == 6) {
+      break;
+    }
+  }
+  CHECK(!names.isEmpty());
+  names.push_back(kMissing);
+  const auto same = [](const std::optional<patchy::ui::FontFaceNameMatch>& lhs,
+                       const std::optional<patchy::ui::FontFaceNameMatch>& rhs) {
+    return lhs.has_value() == rhs.has_value() &&
+           (!lhs.has_value() || (lhs->family == rhs->family && lhs->style == rhs->style));
+  };
+  // Latin, Japanese and Thai: the coverage set is asked for each writing system.
+  const auto sample = QStringLiteral("Aaéあก");
+  std::vector<std::optional<patchy::ui::FontFaceNameMatch>> expected_faces;
+  QStringList expected_substitutes;
+  for (const auto& name : names) {
+    expected_faces.push_back(patchy::ui::font_face_for_name_table_name(name));
+    expected_substitutes.push_back(patchy::ui::substituted_text_family(name, sample));
+  }
+
+  std::atomic<bool> stop{false};
+  std::atomic<int> rounds{0};
+  std::atomic<int> mismatches{0};
+  std::thread worker([&] {
+    while (!stop.load()) {
+      for (qsizetype i = 0; i < names.size(); ++i) {
+        if (!same(patchy::ui::font_face_for_name_table_name(names[i]), expected_faces[static_cast<std::size_t>(i)]) ||
+            patchy::ui::substituted_text_family(names[i], sample) != expected_substitutes[i]) {
+          ++mismatches;
+        }
+      }
+      ++rounds;
+    }
+  });
+  QElapsedTimer clock;
+  clock.start();
+  int signals_fired = 0;
+  while ((clock.elapsed() < 1500 || rounds.load() < 20) && clock.elapsed() < 20000) {
+    Q_EMIT qGuiApp->fontDatabaseChanged();
+    ++signals_fired;
+    const auto i = signals_fired % names.size();
+    if (!same(patchy::ui::font_face_for_name_table_name(names[i]), expected_faces[static_cast<std::size_t>(i)])) {
+      ++mismatches;
+    }
+    QApplication::processEvents();
+  }
+  stop.store(true);
+  worker.join();
+  CHECK(rounds.load() >= 20);
+  CHECK(mismatches.load() == 0);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> missing_fonts_tests() {
@@ -1424,6 +1492,8 @@ std::vector<patchy::test::TestCase> missing_fonts_tests() {
       {"ui_unattended_open_skips_the_missing_fonts_dialog", ui_unattended_open_skips_the_missing_fonts_dialog},
       {"ui_transforming_missing_font_text_warns_and_keeps_its_pixels",
        ui_transforming_missing_font_text_warns_and_keeps_its_pixels},
+      {"ui_font_caches_stay_consistent_across_threads_while_the_database_changes",
+       ui_font_caches_stay_consistent_across_threads_while_the_database_changes},
   };
 }
 

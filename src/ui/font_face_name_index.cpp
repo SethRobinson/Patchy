@@ -12,9 +12,11 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <mutex>
 #include <vector>
 
 namespace patchy::ui {
@@ -160,16 +162,35 @@ struct FaceNameIndex {
   QHash<QString, std::vector<std::size_t>> by_family_name;
   QHash<QString, std::optional<FontFaceNameMatch>> results;
   bool complete{false};
+  std::uint64_t generation{0};
 };
 
-FaceNameIndex& face_name_index() {
+// The editable-PDF save worker resolves text fonts too, so the index is shared between the GUI
+// thread and workers: every access holds face_name_index_mutex (through LockedFaceNameIndex).
+// fontDatabaseChanged only bumps a generation, so the GUI-thread slot never waits on a worker
+// that is scanning fonts; the next lookup drops an index built for an older generation.
+std::mutex face_name_index_mutex;
+std::atomic<std::uint64_t> face_name_index_generation{0};
+
+struct LockedFaceNameIndex {
+  std::unique_lock<std::mutex> lock;
+  FaceNameIndex& index;
+};
+
+LockedFaceNameIndex face_name_index() {
   static FaceNameIndex index;
-  static bool invalidation_connected = false;
-  if (!invalidation_connected && qGuiApp != nullptr) {
-    invalidation_connected = true;
-    QObject::connect(qGuiApp, &QGuiApplication::fontDatabaseChanged, qGuiApp, [] { index = FaceNameIndex{}; });
+  static std::once_flag invalidation_connected;
+  std::call_once(invalidation_connected, [] {
+    QObject::connect(qGuiApp, &QGuiApplication::fontDatabaseChanged, qGuiApp,
+                     [] { face_name_index_generation.fetch_add(1, std::memory_order_acq_rel); });
+  });
+  std::unique_lock lock(face_name_index_mutex);
+  const auto generation = face_name_index_generation.load(std::memory_order_acquire);
+  if (index.generation != generation) {
+    index = FaceNameIndex{};
+    index.generation = generation;
   }
-  return index;
+  return LockedFaceNameIndex{std::move(lock), index};
 }
 
 void add_family_name_key(FaceNameIndex& index, const QString& name, std::size_t face) {
@@ -421,7 +442,9 @@ std::optional<FontFaceNameMatch> font_face_for_name_table_name(const QString& na
   if (key.isEmpty() || qGuiApp == nullptr) {
     return std::nullopt;
   }
-  auto& index = face_name_index();
+  // Held for the whole lookup: index_family appends faces that find_in_index reads.
+  auto locked = face_name_index();
+  auto& index = locked.index;
   if (const auto cached = index.results.constFind(key); cached != index.results.constEnd()) {
     return *cached;
   }

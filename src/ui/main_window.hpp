@@ -887,6 +887,12 @@ private:
   // inline text edit (the scripting host's manual-edit check and the recovery
   // timer's busy check share it).
   [[nodiscard]] bool any_canvas_interaction_active() const;
+  // True while any canvas runs a processing operation or a blocking processing wait, or a
+  // save pumps events while it writes the document. Those pumps dispatch timers and posted
+  // events while a worker (or the paused writer) reads the live document, so automation
+  // (MCP calls, script timers and callbacks) waits until they end
+  // (docs/ai-control.md#processing-waits).
+  [[nodiscard]] bool document_processing_wait_active() const;
 #ifndef Q_OS_WASM
   void start_document_recovery();
   [[nodiscard]] bool recovery_busy() const;
@@ -4219,6 +4225,8 @@ private:
   // CLI automation (run_cli_export): suppress interactive prompts on the open/edit/save
   // paths so an unattended run can never block on a dialog.
   bool cli_automation_mode_{false};
+  // run_save_write calls pumping events while the writer reads the document.
+  int save_write_pumps_active_{0};
   // One-click update (docs/auto-update.md). can_install_update is true for an update whose
   // manifest entry pins an installer, on a copy the Windows installer made, or pins an
   // AppImage, on an AppImage whose folder is writable.

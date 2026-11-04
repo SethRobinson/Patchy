@@ -79,7 +79,11 @@ the first non-const access. Worker strips calling non-const `row()`/`pixel()`/`d
 still-shared buffer race to detach, each copying while another's replacement frees the bytes
 (access violations, or heap corruption long after). Call `pixels.data()` once on the launching
 thread and hand the workers spans or raw pointers; `apply_row_spans_in_parallel`
-(src/ui/filter_workflows.cpp) and `heal_mask_from_surroundings` are the references.
+(src/ui/filter_workflows.cpp) and `heal_mask_from_surroundings` are the references. A
+progress tick pumps events, and a pumped render or recovery snapshot re-shares the bytes, so
+take the span after the last tick, or re-take it after each tick of a sequential walk (the
+Spot Healing, Healing Brush and Patch tool walks do;
+`ui_remove_object_sequential_heal_detaches_after_each_tick`).
 
 ## Vector-shape edits invalidate their effect rect, not the canvas
 

@@ -39,9 +39,14 @@ int idle_prespawned_pool_workers();
 // loop runs its 'cleanupThread' message, so back-to-back fan-outs inside one
 // compute (free-transform release: resample then patch render) always
 // overrun the pool while the main thread waits (see docs/wasm.md). No-op on
-// native builds. Scopes nest (inner value wins, restored on destruction);
-// only the main thread creates them. A negative budget constructs an inert
-// scope that publishes nothing, so call sites can build one unconditionally.
+// native builds. Scopes nest (inner value wins, restored on destruction).
+// The budget is one process-wide value and each scope restores the value it
+// replaced, so only the main thread may create them: two worker threads
+// overlapping scopes would restore each other's values out of order and
+// leave a stale budget published. A scope built on a wasm worker thread is
+// inert; a worker limits its own fan-outs with ThreadFanoutBudgetScope. A
+// negative budget constructs an inert scope that publishes nothing, so call
+// sites can build one unconditionally.
 class BlockingFanoutBudgetScope {
 public:
   explicit BlockingFanoutBudgetScope(int budget);
@@ -51,6 +56,31 @@ public:
 
 private:
   int previous_budget_;
+  bool published_;
 };
+
+// A budget for the calling thread only (thread-local, restored on destruction,
+// nestable), safe on any thread: a worker that fans out its own workers
+// builds one inside each of them to keep them from nesting further blocking
+// fan-outs, which the wasm pthread pool cannot stack. While both are active,
+// max_blocking_fanout_workers applies the tighter of this and the published
+// BlockingFanoutBudgetScope. Clamps only on wasm worker threads, like the
+// published budget; a negative budget is inert.
+class ThreadFanoutBudgetScope {
+public:
+  explicit ThreadFanoutBudgetScope(int budget);
+  ~ThreadFanoutBudgetScope();
+  ThreadFanoutBudgetScope(const ThreadFanoutBudgetScope&) = delete;
+  ThreadFanoutBudgetScope& operator=(const ThreadFanoutBudgetScope&) = delete;
+
+private:
+  int previous_budget_;
+};
+
+// The budget max_blocking_fanout_workers applies to a worker-thread caller on
+// this thread right now: the tighter of its ThreadFanoutBudgetScope and the
+// published BlockingFanoutBudgetScope, or -1 when neither is active. Tracked
+// on every platform (tests read it), though only wasm clamps by it.
+int current_blocking_fanout_budget();
 
 }  // namespace patchy

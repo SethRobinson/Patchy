@@ -220,6 +220,19 @@ preview dialog, modal dialog, or other script with `busy`. Connector restriction
 are scoped to the owned script run, so an idle connection does not restrict or
 interrupt local user scripts. CLI/Finder file opens wait until a script ends.
 
+### Processing waits
+
+A canvas processing operation or blocking wait (`processing_operation_active`,
+`processing_render_wait_active`) and a save's progress pump (`run_save_write`)
+dispatch timers and posted events while a worker, or the paused writer, reads the
+live `Document`. `MainWindow::document_processing_wait_active` reports all three.
+While it is true, a `tools/call` other than `get_info`/`get_help` that passed the
+`busy` check re-queues itself every 16 ms instead of running, a script timer holds
+its tick (a single-shot re-arms 16 ms later, a repeating timer fires on schedule)
+and `call_script_callback` skips the call (a canvas window's frame runs next tick).
+Running them inside the pump edited or re-rendered the document under the worker
+(an MCP undo, a script `fill`). Test: `ui_mcp_and_script_timers_wait_out_processing_waits`.
+
 `ui/mcp_activity.*` installs a permanent status-bar widget (`mcpActivity`,
 `mcpActivityLabel`, `mcpStopButton`). It appears after initialization, says AI
 connected while idle, and distinguishes reading from editing during requests.

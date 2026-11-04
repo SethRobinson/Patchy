@@ -21,6 +21,20 @@ namespace {
 // read by worker threads inside max_blocking_fanout_workers.
 std::atomic<int> blocking_fanout_budget{-1};
 
+// -1 = no scope active on this thread (ThreadFanoutBudgetScope).
+thread_local int thread_fanout_budget = -1;
+
+// A BlockingFanoutBudgetScope publishes only from the thread that owns the
+// process-wide value: the wasm main browser thread. Native builds never read
+// the budget, so any thread may publish there (the CPU-only tests do).
+bool may_publish_blocking_budget() {
+#if defined(__EMSCRIPTEN_PTHREADS__)
+  return emscripten_is_main_browser_thread();
+#else
+  return true;
+#endif
+}
+
 }  // namespace
 
 int idle_prespawned_pool_workers() {
@@ -62,7 +76,7 @@ int max_blocking_fanout_workers(int wanted) {
     const int idle = idle_prespawned_pool_workers();
     return std::clamp(idle - 2, 0, wanted);
   }
-  const int budget = blocking_fanout_budget.load(std::memory_order_relaxed);
+  const int budget = current_blocking_fanout_budget();
   if (budget >= 0) {
     return std::min(wanted, budget);
   }
@@ -70,15 +84,38 @@ int max_blocking_fanout_workers(int wanted) {
   return wanted;
 }
 
-// A negative budget constructs an inert scope (nothing published, destructor
-// restores the unchanged value), so call sites can build one unconditionally.
+int current_blocking_fanout_budget() {
+  const int published = blocking_fanout_budget.load(std::memory_order_relaxed);
+  const int local = thread_fanout_budget;
+  if (published < 0) {
+    return local;
+  }
+  return local < 0 ? published : std::min(published, local);
+}
+
+// A negative budget, or a wasm worker thread, constructs an inert scope
+// (nothing published or restored), so call sites can build one unconditionally.
 BlockingFanoutBudgetScope::BlockingFanoutBudgetScope(int budget)
-    : previous_budget_(budget < 0
-                           ? blocking_fanout_budget.load(std::memory_order_relaxed)
-                           : blocking_fanout_budget.exchange(budget, std::memory_order_relaxed)) {}
+    : previous_budget_(-1), published_(budget >= 0 && may_publish_blocking_budget()) {
+  if (published_) {
+    previous_budget_ = blocking_fanout_budget.exchange(budget, std::memory_order_relaxed);
+  }
+}
 
 BlockingFanoutBudgetScope::~BlockingFanoutBudgetScope() {
-  blocking_fanout_budget.store(previous_budget_, std::memory_order_relaxed);
+  if (published_) {
+    blocking_fanout_budget.store(previous_budget_, std::memory_order_relaxed);
+  }
+}
+
+ThreadFanoutBudgetScope::ThreadFanoutBudgetScope(int budget) : previous_budget_(thread_fanout_budget) {
+  if (budget >= 0) {
+    thread_fanout_budget = previous_budget_ < 0 ? budget : std::min(previous_budget_, budget);
+  }
+}
+
+ThreadFanoutBudgetScope::~ThreadFanoutBudgetScope() {
+  thread_fanout_budget = previous_budget_;
 }
 
 }  // namespace patchy

@@ -48,6 +48,19 @@ bool MainWindow::any_canvas_interaction_active() const {
   return false;
 }
 
+bool MainWindow::document_processing_wait_active() const {
+  if (save_write_pumps_active_ > 0) {
+    return true;
+  }
+  for (const auto& target_session : sessions_) {
+    const auto* canvas = target_session != nullptr ? target_session->canvas : nullptr;
+    if (canvas != nullptr && (canvas->processing_operation_active() || canvas->processing_render_wait_active())) {
+      return true;
+    }
+  }
+  return false;
+}
+
 #ifndef Q_OS_WASM
 
 // The window's side of the recovery lifecycle: what the coordinator asks of the

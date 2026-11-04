@@ -5,6 +5,7 @@
 #include "core/layer_render_utils.hpp"
 #include "core/pattern_resource.hpp"
 #include "core/vector_shape.hpp"
+#include "core/worker_budget.hpp"
 #include "formats/document_flatten.hpp"
 #include "formats/pdf_text_merge.hpp"
 #include "formats/vector_export_plan.hpp"
@@ -57,11 +58,15 @@ namespace {
 
 // flatten_document_rgba8_rect over `area` in horizontal bands on workers (each band its own
 // buffer; the layers are only read), then stitched: a 365 Mpx page grid's background took
-// 14 s as one band. The compositor's clip makes the bands match one flatten.
+// 14 s as one band. The compositor's clip makes the bands match one flatten. The band count is
+// a blocking fan-out (this thread waits on every band), so it goes through
+// max_blocking_fanout_workers like pdf_export.cpp: the save runs on the wasm main thread, where
+// an uncapped fan-out past the idle pthread pool never starts and the join freezes the tab.
 PixelBuffer flatten_area_in_bands(const Document& scratch, Rect area) {
   constexpr std::int64_t kBandPixels = 4'000'000;
   const auto total = static_cast<std::int64_t>(area.width) * area.height;
-  const int workers = kBackgroundWorkRunsInline ? 1 : std::max(1, static_cast<int>(std::thread::hardware_concurrency()));
+  const int workers =
+      kBackgroundWorkRunsInline ? 1 : std::max(1, max_blocking_fanout_workers(hardware_worker_threads()));
   const int bands = static_cast<int>(std::clamp<std::int64_t>(total / kBandPixels, 1, std::min(workers, area.height)));
   if (bands <= 1) {
     return flatten_document_rgba8_rect(scratch, area);

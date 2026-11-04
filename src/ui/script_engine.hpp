@@ -161,6 +161,10 @@ public:
   QJsonObject automation_state(bool refresh_brushes = true) const;
   [[nodiscard]] QString automation_fingerprint(bool refresh_brushes = true) const;
   [[nodiscard]] bool automation_ready() const;
+  // True while a canvas processing wait pumps events with a worker reading the live
+  // document: automation that would edit it (an MCP call, a script timer or callback)
+  // waits for the next event-loop turn instead (docs/ai-control.md#processing-waits).
+  [[nodiscard]] bool document_processing_wait_active() const;
   QImage render_preview(std::int64_t id, const QJsonObject& options, QJsonObject* metadata);
   void draw_strokes(std::int64_t session_id, LayerId layer_id, const QJSValue& strokes);
   std::vector<ScriptStroke> parse_brush_strokes(const QJSValue& input);

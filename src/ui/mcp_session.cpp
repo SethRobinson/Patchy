@@ -290,7 +290,6 @@ struct McpSession::Impl final : public QObject {
       {
         const std::lock_guard lock(request_mutex_);
         if (cancelled_ || disconnected_) { throw std::runtime_error(QStringLiteral("Operation cancelled.").toStdString()); }
-
       }
       const auto params = message["params"].toObject();
       const auto name = params["name"].toString();
@@ -315,6 +314,14 @@ struct McpSession::Impl final : public QObject {
       const bool editing = name == "execute_script" || name == "draw_strokes" || name == "undo" || name == "redo";
       if (name != "get_info" && name != "get_help" && !host_.automation_ready()) {
         complete_tool(id, {{"error", "busy"}, {"message", QStringLiteral("Finish the current gesture, text edit, transform, dialog, or script before using AI control.")}}, true);
+        return;
+      }
+      if (name != "get_info" && name != "get_help" && host_.document_processing_wait_active()) {
+        // Otherwise ready, but a canvas processing wait (a menu command's render or undo
+        // snapshot) pumps posted events while a worker reads the live document: running
+        // this tool now would edit or re-render it under that worker. Re-queue until the
+        // wait ends (docs/ai-control.md#processing-waits).
+        QTimer::singleShot(16, this, [this, message] { handle(message); });
         return;
       }
       if (editing && (attached_ || args.contains("expectedState"))) {
