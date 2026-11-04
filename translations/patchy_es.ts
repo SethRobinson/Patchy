@@ -19202,6 +19202,18 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Soften the selection edge</source>
         <translation>Suavizar el borde de la selección</translation>
     </message>
+    <message>
+        <source>Open Document</source>
+        <translation>Documento abierto</translation>
+    </message>
+    <message>
+        <source>Recent File</source>
+        <translation>Archivo reciente</translation>
+    </message>
+    <message>
+        <source>Recent Folder</source>
+        <translation>Carpeta reciente</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>

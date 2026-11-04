@@ -42,12 +42,15 @@
 #include <QComboBox>
 #include <QCursor>
 #include <QDialog>
+#include <QDir>
 #include <QDoubleSpinBox>
 #include <QFileInfo>
 #include <QFrame>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QHelpEvent>
+#include <QIcon>
+#include <QImage>
 #include <QLabel>
 #include <QLineEdit>
 #include <QList>
@@ -4925,7 +4928,9 @@ void ui_command_search_lists_tools_keys_and_descriptions() {
     const auto shot = list->viewport()->grab().toImage().convertToFormat(QImage::Format_RGB32);
     const auto metrics = list->fontMetrics();
     const int dpr_scale = qRound(shot.devicePixelRatio());
-    const int name_end = 22 + metrics.horizontalAdvance(QStringLiteral("Layer › New › New Layer")) + 6;
+    // The check column, the kind icon (text height) and its gap, then the path and name.
+    const int name_end =
+        22 + metrics.height() + 6 + metrics.horizontalAdvance(QStringLiteral("Layer › New › New Layer")) + 6;
     // Where the description used to start: the 250 px after the name stay background (the
     // shortcut sits further right).
     const int scan_end = name_end + 250;
@@ -5004,8 +5009,9 @@ void ui_command_search_lists_tools_keys_and_descriptions() {
   edit->setText(QStringLiteral("window"));
   QApplication::processEvents();
   for (int row = 0; row < list->count(); ++row) {
+    const int kind = list->item(row)->data(Qt::UserRole + 6).toInt();
     CHECK(!list->item(row)->data(Qt::UserRole + 5).toString().isEmpty() ||
-          list->item(row)->text().startsWith(QStringLiteral("1 ")));  // an open document's row
+          kind >= static_cast<int>(patchy::ui::CommandSearchKind::open_document));  // a document or recent file
   }
   save_window_popup_artifact("command_search_window", window, *window.menuBar(), *popup);
 
@@ -5026,6 +5032,188 @@ void ui_command_search_lists_tools_keys_and_descriptions() {
   }
   CHECK(process_events_until([&] { return popup == nullptr; }));
   CHECK(process_events_until([&] { return ruler_tool != nullptr && ruler_tool->isChecked(); }));
+}
+// GitHub issue 554 follow-up 3: recent files, recent folders and open documents are rows of
+// their own ("Recent File: patchy.jpg", "Open Document: patchy.jpg") that open or switch to the
+// file, and every row shows a small icon for its kind (menu command, tool, panel, key,
+// document, recent file or folder).
+void ui_command_search_lists_recent_files_and_open_documents() {
+  HotkeySettingsGroupRestorer restore_hotkeys;
+  clear_hotkey_overrides();
+  SettingsValueRestorer restore_recent_files(QStringLiteral("recentFiles"));
+  SettingsValueRestorer restore_recent_folders(QStringLiteral("recentFolders"));
+  ensure_artifact_dir();
+  const QDir folder(QFileInfo(QStringLiteral("test-artifacts/patchy-samples")).absoluteFilePath());
+  CHECK(QDir().mkpath(folder.path()));
+  const auto make_image = [&folder](const QString& name, const QColor& color) {
+    QImage image(48, 32, QImage::Format_RGB32);
+    image.fill(color);
+    const auto path = folder.filePath(name);
+    CHECK(image.save(path));
+    return path;
+  };
+  const auto opened = make_image(QStringLiteral("patchy.jpg"), QColor(200, 120, 40));
+  const auto second = make_image(QStringLiteral("patchy-sketch.png"), QColor(40, 120, 200));
+  const auto recent_only = make_image(QStringLiteral("patchy-recent.png"), QColor(90, 160, 90));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("recentFiles"), QStringList{recent_only});
+    settings.setValue(QStringLiteral("recentFolders"), QStringList{folder.path()});
+    settings.sync();
+  }
+  auto&& [window, canvas] = ShownWindowFixture{};
+  patchy::ui::MainWindowTestAccess::open_document_path(window, opened);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, second);
+  QApplication::processEvents();
+  const auto documents_before = patchy::ui::MainWindowTestAccess::session_count(window);
+  CHECK(documents_before >= 3);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_title(window) == QStringLiteral("patchy-sketch.png"));
+
+  constexpr int kPathRole = Qt::UserRole + 1;
+  constexpr int kKindRole = Qt::UserRole + 6;
+  using Kind = patchy::ui::CommandSearchKind;
+  auto* search_action = require_action(window, "helpSearchCommandsAction");
+  QPointer<QFrame> popup;
+  QLineEdit* edit = nullptr;
+  QListWidget* list = nullptr;
+  const auto open_popup = [&] {
+    search_action->trigger();
+    QApplication::processEvents();
+    popup = window.findChild<QFrame*>(QStringLiteral("commandSearchPopup"));
+    CHECK(popup != nullptr);
+    edit = popup != nullptr ? popup->findChild<QLineEdit*>(QStringLiteral("commandSearchEdit")) : nullptr;
+    list = popup != nullptr ? popup->findChild<QListWidget*>(QStringLiteral("commandSearchList")) : nullptr;
+    CHECK(edit != nullptr && list != nullptr);
+    return edit != nullptr && list != nullptr;
+  };
+  const auto search = [&](const QString& text) {
+    edit->setText(text);
+    QApplication::processEvents();
+    std::cerr << "search \"" << text.toStdString() << "\":";
+    for (int row = 0; row < std::min(list->count(), 14); ++row) {
+      std::cerr << " [" << list->item(row)->data(kPathRole).toString().toStdString() << " | "
+                << list->item(row)->text().toStdString() << "]";
+    }
+    std::cerr << '\n';
+  };
+  const auto find_row = [&](Kind kind, const QString& name) -> int {
+    for (int row = 0; row < list->count(); ++row) {
+      const auto* item = list->item(row);
+      if (item->text() == name && item->data(kKindRole).toInt() == static_cast<int>(kind)) {
+        return row;
+      }
+    }
+    return -1;
+  };
+  const auto press_enter = [&] {
+    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QApplication::sendEvent(edit, &enter);
+  };
+  if (!open_popup()) {
+    return;
+  }
+
+  // A file name finds the open document and the recent file under their labels, the full
+  // path as the tooltip; the menus' own data entries are not listed again.
+  search(QStringLiteral("patchy"));
+  save_window_popup_artifact("command_search_files", window, *window.menuBar(), *popup);
+  search(QStringLiteral("patchy.jpg"));
+  const int document_row = find_row(Kind::open_document, QStringLiteral("patchy.jpg"));
+  const int recent_row = find_row(Kind::recent_file, QStringLiteral("patchy.jpg"));
+  CHECK(document_row >= 0);
+  CHECK(recent_row >= 0);
+  CHECK(document_row < recent_row);
+  if (document_row >= 0) {
+    CHECK(list->item(document_row)->data(kPathRole).toString() == QStringLiteral("Open Document"));
+    CHECK(list->item(document_row)->toolTip() == QDir::toNativeSeparators(opened));
+  }
+  if (recent_row >= 0) {
+    CHECK(list->item(recent_row)->data(kPathRole).toString() == QStringLiteral("Recent File"));
+    CHECK(list->item(recent_row)->toolTip() == QDir::toNativeSeparators(opened));
+  }
+  for (int row = 0; row < list->count(); ++row) {
+    const auto path = list->item(row)->data(kPathRole).toString();
+    CHECK(!path.startsWith(QStringLiteral("Window")) && !path.startsWith(QStringLiteral("File › Open Recent")));
+  }
+  // The label is searched too.
+  search(QStringLiteral("open document sketch"));
+  CHECK(list->count() == 1 && find_row(Kind::open_document, QStringLiteral("patchy-sketch.png")) == 0);
+  search(QStringLiteral("recent folder patchy"));
+  CHECK(find_row(Kind::recent_folder, QStringLiteral("patchy-samples")) == 0);
+  if (list->count() > 0) {
+    CHECK(list->item(0)->data(kPathRole).toString() == QStringLiteral("Recent Folder"));
+    CHECK(list->item(0)->toolTip() == QDir::toNativeSeparators(folder.path()));
+  }
+
+  // Enter on an Open Document row switches to it, as the Window menu entry does.
+  search(QStringLiteral("patchy.jpg"));
+  const int switch_row = find_row(Kind::open_document, QStringLiteral("patchy.jpg"));
+  CHECK(switch_row >= 0);
+  list->setCurrentRow(std::max(0, switch_row));
+  press_enter();
+  CHECK(process_events_until([&] { return popup == nullptr; }));
+  CHECK(process_events_until([&] {
+    return patchy::ui::MainWindowTestAccess::active_session_title(window) == QStringLiteral("patchy.jpg");
+  }));
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == documents_before);
+
+  // Enter on a Recent File row opens it.
+  if (!open_popup()) {
+    return;
+  }
+  search(QStringLiteral("patchy-recent"));
+  const int open_row = find_row(Kind::recent_file, QStringLiteral("patchy-recent.png"));
+  CHECK(open_row == 0);
+  list->setCurrentRow(std::max(0, open_row));
+  press_enter();
+  CHECK(process_events_until([&] { return popup == nullptr; }));
+  CHECK(process_events_until([&] {
+    return patchy::ui::MainWindowTestAccess::active_session_title(window) == QStringLiteral("patchy-recent.png");
+  }));
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == documents_before + 1);
+
+  // Every row has a kind and an icon; the kinds land where they belong.
+  if (!open_popup()) {
+    return;
+  }
+  search(QString());
+  CHECK(list->count() > 100);
+  for (int row = 0; row < list->count(); ++row) {
+    const auto* item = list->item(row);
+    const auto kind = item->data(kKindRole);
+    CHECK(kind.isValid() && kind.toInt() >= 0 && kind.toInt() <= static_cast<int>(Kind::recent_folder));
+    if (item->data(Qt::DecorationRole).value<QIcon>().isNull()) {
+      std::cerr << "command search row without an icon: " << item->text().toStdString() << '\n';
+      CHECK(false);
+    }
+  }
+  const auto& registry = window.hotkey_registry();
+  const auto action_name = [&registry](const char* id) {
+    const auto* command = registry.find_command(QLatin1String(id));
+    return command != nullptr && command->action != nullptr
+               ? patchy::ui::strip_menu_ellipsis(patchy::ui::clean_action_text(command->action.data()))
+               : QString();
+  };
+  CHECK(find_row(Kind::menu, QStringLiteral("Gaussian Blur")) >= 0);
+  CHECK(find_row(Kind::tool, action_name("tools.move")) >= 0);
+  CHECK(find_row(Kind::panel, action_name("window.panel_layers")) >= 0);
+  CHECK(find_row(Kind::key, QStringLiteral("Blend Mode: Normal")) >= 0);
+  CHECK(find_row(Kind::open_document, QStringLiteral("patchy-sketch.png")) >= 0);
+  CHECK(find_row(Kind::recent_file, QStringLiteral("patchy-recent.png")) >= 0);
+  // A tool row shows the tool's palette icon.
+  if (const auto* move = registry.find_command(QStringLiteral("tools.move")); move != nullptr && move->action != nullptr) {
+    const int move_row = find_row(Kind::tool, action_name("tools.move"));
+    if (move_row >= 0) {
+      CHECK(list->item(move_row)->data(Qt::DecorationRole).value<QIcon>().cacheKey() ==
+            move->action->icon().cacheKey());
+    }
+  }
+  search(QStringLiteral("blur"));
+  save_window_popup_artifact("command_search_kinds_blur", window, *window.menuBar(), *popup);
+  search(QStringLiteral("brush"));
+  save_window_popup_artifact("command_search_kinds_brush", window, *window.menuBar(), *popup);
+  popup->close();
+  CHECK(process_events_until([&] { return popup == nullptr; }));
 }
 // Every command Search Commands can list has a description (docs/command-search.md,
 // "Descriptions"): menu commands hidden or disabled right now included, the tools and the keys
@@ -5658,6 +5846,8 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_command_search_popup_filters_and_runs_commands", ui_command_search_popup_filters_and_runs_commands},
       {"ui_command_search_lists_tools_keys_and_descriptions", ui_command_search_lists_tools_keys_and_descriptions},
       {"ui_command_search_every_command_has_a_description", ui_command_search_every_command_has_a_description},
+      {"ui_command_search_lists_recent_files_and_open_documents",
+       ui_command_search_lists_recent_files_and_open_documents},
       {"ui_brush_hardness_shortcuts_step_by_quarters", ui_brush_hardness_shortcuts_step_by_quarters},
       {"ui_preset_step_shortcuts_cycle_brush_and_gradient_presets",
        ui_preset_step_shortcuts_cycle_brush_and_gradient_presets},

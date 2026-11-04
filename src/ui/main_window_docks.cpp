@@ -17,6 +17,7 @@
 #include <QScrollBar>
 #include <QStatusBar>
 #include "ui/canvas_widget.hpp"
+#include "ui/command_search.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/modifier_names.hpp"
 #include "ui/paths_panel.hpp"
@@ -843,6 +844,13 @@ void MainWindow::install_window_panel_entries() {
   bind_action_text(window_reset_panels_action_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Reset Panels"));
   register_hotkey(window_reset_panels_action_, "window.reset_panels", QKeySequence());
   connect(window_reset_panels_action_, &QAction::triggered, this, [this] { reset_panels(); });
+  // Search Commands shows these with its panel icon (docs/command-search.md).
+  for (auto* action : window_panel_actions_) {
+    action->setProperty(kCommandSearchKindProperty, static_cast<int>(CommandSearchKind::panel));
+  }
+  for (auto* action : window_toolbar_actions_) {
+    action->setProperty(kCommandSearchKindProperty, static_cast<int>(CommandSearchKind::panel));
+  }
   sort_window_panel_entries();
   connect(window_menu, &QMenu::aboutToShow, this, [this] { sort_window_panel_entries(); });
 }

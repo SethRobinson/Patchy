@@ -7055,6 +7055,7 @@ void MainWindow::rebuild_recent_files_menu() {
       action->setToolTip(path);
       action->setData(path);
       action->setProperty(kCommandSearchDataEntryProperty, true);
+      action->setProperty(kCommandSearchKindProperty, static_cast<int>(CommandSearchKind::recent_file));
       connect(action, &QAction::triggered, this, [this, path] { open_recent_document(path); });
     };
 
@@ -7358,6 +7359,7 @@ void MainWindow::rebuild_recent_folders_menu() {
       action->setToolTip(dir);
       action->setData(dir);
       action->setProperty(kCommandSearchDataEntryProperty, true);
+      action->setProperty(kCommandSearchKindProperty, static_cast<int>(CommandSearchKind::recent_folder));
       connect(action, &QAction::triggered, this, [this, dir] { open_recent_folder(dir); });
     };
 

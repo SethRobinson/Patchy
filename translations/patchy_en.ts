@@ -19185,6 +19185,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Soften the selection edge</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Open Document</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recent File</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recent Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>

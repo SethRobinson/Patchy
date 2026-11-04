@@ -19156,6 +19156,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Soften the selection edge</source>
         <translation>선택 영역 가장자리 부드럽게</translation>
     </message>
+    <message>
+        <source>Open Document</source>
+        <translation>열린 문서</translation>
+    </message>
+    <message>
+        <source>Recent File</source>
+        <translation>최근 파일</translation>
+    </message>
+    <message>
+        <source>Recent Folder</source>
+        <translation>최근 폴더</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>

@@ -49,6 +49,7 @@
 #include <QApplication>
 #include <QColor>
 #include <QDesktopServices>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QFrame>
 #include <QEvent>
@@ -3272,8 +3273,34 @@ void MainWindow::show_command_search() {
   refresh_layer_visibility_action_text();
   refresh_appimage_menu_entry_action();
   rebuild_scripts_menu();
+  refresh_recent_history();
+  auto entries = collect_search_commands(menuBar(), hotkey_registry_);
+  // After the commands, so a command keeps its place among matches of the same strength: the
+  // open documents (the Window menu's entries, float windows included), then the recent files
+  // and folders, straight from their lists, so a collapsed or filtered Open Recent list
+  // changes nothing (GitHub issue 554 follow-up 3).
   if (auto* window_menu = menuBar()->findChild<QMenu*>(QStringLiteral("windowMenu")); window_menu != nullptr) {
     rebuild_window_document_entries(window_menu);
+  }
+  std::size_t document_index = 0;
+  for (const auto& target_session : sessions_) {
+    if (target_session == nullptr || document_index >= window_document_actions_.size()) {
+      continue;
+    }
+    MenuCommandEntry entry{window_document_actions_[document_index++],
+                           session_display_title(*target_session),
+                           command_search_kind_label(CommandSearchKind::open_document)};
+    entry.kind = CommandSearchKind::open_document;
+    entry.tooltip = target_session->path.isEmpty() ? QString() : QDir::toNativeSeparators(target_session->path);
+    entries.push_back(std::move(entry));
+  }
+  for (const auto& path : std::as_const(recent_files_)) {
+    entries.push_back(command_search_path_entry(CommandSearchKind::recent_file, path,
+                                                [this, path] { open_recent_document(path); }));
+  }
+  for (const auto& dir : std::as_const(recent_folders_)) {
+    entries.push_back(command_search_path_entry(CommandSearchKind::recent_folder, dir,
+                                                [this, dir] { open_recent_folder(dir); }));
   }
   QPoint top_left;
   if (command_search_button_ != nullptr && command_search_button_->isVisible()) {
@@ -3284,7 +3311,7 @@ void MainWindow::show_command_search() {
     const QPoint anchor = mapToGlobal(QPoint(width() / 2, top));
     top_left = anchor - QPoint(340, 0);
   }
-  command_search_popup_ = show_command_search_popup(this, collect_search_commands(menuBar(), hotkey_registry_), top_left);
+  command_search_popup_ = show_command_search_popup(this, std::move(entries), top_left);
 }
 
 }  // namespace patchy::ui

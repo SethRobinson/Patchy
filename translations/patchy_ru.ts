@@ -19248,6 +19248,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Soften the selection edge</source>
         <translation>Смягчить край выделения</translation>
     </message>
+    <message>
+        <source>Open Document</source>
+        <translation>Открытый документ</translation>
+    </message>
+    <message>
+        <source>Recent File</source>
+        <translation>Недавний файл</translation>
+    </message>
+    <message>
+        <source>Recent Folder</source>
+        <translation>Недавняя папка</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
