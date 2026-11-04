@@ -14907,6 +14907,51 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
         <translation>Certaines couches supplémentaires du TIFF ont été omises : un document compte au plus 56 couches.</translation>
     </message>
+    <message>
+        <source>The TIFF has no pages to open</source>
+        <translation>Le TIFF ne contient aucune page à ouvrir</translation>
+    </message>
+    <message>
+        <source>The pages&apos; extra channels were left out: they belong to single pages, not the layered document.</source>
+        <translation>Les couches supplémentaires des pages ont été omises : elles appartiennent à des pages isolées, pas au document en calques.</translation>
+    </message>
+    <message>
+        <source>Multi-Page TIFF</source>
+        <translation>TIFF multipage</translation>
+    </message>
+    <message>
+        <source>%1 holds %2 pages. How should Patchy open them?</source>
+        <translation>%1 contient %2 pages. Comment Patchy doit-il les ouvrir ?</translation>
+    </message>
+    <message>
+        <source>Pages as Layers puts every page on its own layer in one document, page 1 on top. Separate Documents opens every page in its own tab.</source>
+        <translation>Pages en calques place chaque page sur son propre calque dans un document, la page 1 en haut. Documents distincts ouvre chaque page dans son propre onglet.</translation>
+    </message>
+    <message>
+        <source>Pages as Layers</source>
+        <translation>Pages en calques</translation>
+    </message>
+    <message>
+        <source>Separate Documents</source>
+        <translation>Documents distincts</translation>
+    </message>
+    <message>
+        <source>First Page Only</source>
+        <translation>Première page seulement</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF: opened %1 pages as layers</source>
+        <translation>TIFF multipage : %1 pages ouvertes en calques</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF: opened %1 pages as separate documents</source>
+        <translation>TIFF multipage : %1 pages ouvertes en documents distincts</translation>
+    </message>
+    <message>
+        <source>Pages Patchy could not read were left out: %1</source>
+        <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
+        <translation>Les pages que Patchy n&apos;a pas pu lire ont été omises : %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

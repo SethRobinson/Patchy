@@ -59,6 +59,37 @@ void write_layered_tiff_file(const Document& document, const std::filesystem::pa
 // header or the first directory is unreadable.
 [[nodiscard]] std::vector<std::uint32_t> tiff_page_directory_offsets(std::span<const std::uint8_t> bytes);
 
+// One full-resolution page of a multi-page TIFF (docs/tiff.md, "Multi-page TIFF").
+struct TiffPage {
+  std::uint32_t directory_offset{0};
+  // The directory's place in the file's chain counting every directory, reduced-resolution
+  // previews included: the index libtiff's TIFFSetDirectory (Qt's jumpToImage) takes.
+  std::size_t directory_index{0};
+  std::uint32_t width{0};
+  std::uint32_t height{0};
+  // The PageName tag (285), empty when the page has none.
+  std::string name;
+};
+
+// The file's pages in file order (page 1 first), the same set tiff_page_directory_offsets
+// lists; empty when the header or the first directory is unreadable.
+[[nodiscard]] std::vector<TiffPage> tiff_pages(std::span<const std::uint8_t> bytes);
+
+// One decoded page for tiff_pages_as_layers: a flat document (one pixel layer) at the
+// page's own size and depth.
+struct TiffPageDocument {
+  Document document;
+  std::string layer_name;
+};
+
+// The pages as one document (docs/tiff.md, "Multi-page TIFF"): a canvas of the largest
+// width and height among them, one pixel layer per page at the top left, page 1 on top and
+// every layer visible (the GIF/APNG/WebP frame order), at the highest depth among the
+// pages (the others converted). Resolution and color state come from page 1. Saved
+// channels are left out, with one notice. Throws std::invalid_argument for no pages.
+[[nodiscard]] Document tiff_pages_as_layers(std::vector<TiffPageDocument> pages,
+                                            std::vector<std::string>* notices = nullptr);
+
 struct FlatTiffReadOptions {
   // The image file directory to decode; 0 means the first one (page 1).
   std::uint32_t directory_offset{0};
@@ -69,9 +100,9 @@ struct FlatTiffReadOptions {
 
 // Flat TIFF fallback (docs/tiff.md, "Flat fallback decoder") for files Qt's TIFF plug-in
 // refuses: little or big endian, chunky or planar, strips or tiles; no compression,
-// PackBits, LZW or Deflate with predictor 1, 2 or 3; gray, RGB or palette color; 8, 16 or
-// 32-bit unsigned integers and 16, 32 or 64-bit floats. 8-bit samples open as an 8-bit
-// document, 16 and 32-bit integers as 16-bit, floats as a 32-bit (linear) one. The first
+// PackBits, LZW or Deflate with predictor 1, 2 or 3; gray, RGB or palette color; 8, 12, 16
+// or 32-bit unsigned integers and 16, 32 or 64-bit floats. 8-bit samples open as an 8-bit
+// document, 12, 16 and 32-bit integers as 16-bit, floats as a 32-bit (linear) one. The first
 // associated or unassociated extra sample becomes the layer's alpha (associated alpha is
 // unpremultiplied); every other extra sample becomes a saved alpha channel. Throws
 // std::runtime_error for layouts outside that set and for damaged structure.

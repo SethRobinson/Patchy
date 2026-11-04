@@ -1133,8 +1133,12 @@ private:
   // 256), no dither: the non-interactive half of Image > Mode > Indexed. False when the
   // document is not 8-bit or holds Smart Objects. Defined in main_window_palette.cpp.
   bool convert_imported_document_to_palette(Document& document);
+  // Further pages of a PDF or multi-page TIFF opened as separate documents. `depth` is
+  // the PDF import's Bit Depth (finish_imported_pdf_document); unset (a TIFF) keeps each
+  // page as it was read.
   void open_extra_imported_page_sessions(const QString& file_name, std::vector<PdfImportedDocument> pages,
-                                         PdfImportColorMode mode, BitDepth depth, QStringList& notices);
+                                         PdfImportColorMode mode, std::optional<BitDepth> depth,
+                                         QStringList& notices);
   // The Layers and Artboards targets of a multi-page PDF import (GitHub issues 154 and 19):
   // renders the extra pages' pending text and images, then folds every page into `first`
   // as a "Page N" folder (Layers, only the first visible; a page that is one plain raster

@@ -14907,6 +14907,51 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
         <translation>Se omitieron algunos canales adicionales del TIFF: un documento admite como máximo 56 canales.</translation>
     </message>
+    <message>
+        <source>The TIFF has no pages to open</source>
+        <translation>El TIFF no tiene páginas que abrir</translation>
+    </message>
+    <message>
+        <source>The pages&apos; extra channels were left out: they belong to single pages, not the layered document.</source>
+        <translation>Se omitieron los canales adicionales de las páginas: pertenecen a páginas individuales, no al documento con capas.</translation>
+    </message>
+    <message>
+        <source>Multi-Page TIFF</source>
+        <translation>TIFF de varias páginas</translation>
+    </message>
+    <message>
+        <source>%1 holds %2 pages. How should Patchy open them?</source>
+        <translation>%1 contiene %2 páginas. ¿Cómo debe abrirlas Patchy?</translation>
+    </message>
+    <message>
+        <source>Pages as Layers puts every page on its own layer in one document, page 1 on top. Separate Documents opens every page in its own tab.</source>
+        <translation>Páginas como capas coloca cada página en su propia capa de un documento, con la página 1 arriba. Documentos separados abre cada página en su propia pestaña.</translation>
+    </message>
+    <message>
+        <source>Pages as Layers</source>
+        <translation>Páginas como capas</translation>
+    </message>
+    <message>
+        <source>Separate Documents</source>
+        <translation>Documentos separados</translation>
+    </message>
+    <message>
+        <source>First Page Only</source>
+        <translation>Solo la primera página</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF: opened %1 pages as layers</source>
+        <translation>TIFF de varias páginas: se abrieron %1 páginas como capas</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF: opened %1 pages as separate documents</source>
+        <translation>TIFF de varias páginas: se abrieron %1 páginas como documentos separados</translation>
+    </message>
+    <message>
+        <source>Pages Patchy could not read were left out: %1</source>
+        <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
+        <translation>Se omitieron las páginas que Patchy no pudo leer: %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
