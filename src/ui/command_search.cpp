@@ -1,5 +1,6 @@
 #include "ui/command_search.hpp"
 
+#include "ui/action_icons.hpp"
 #include "ui/hotkey_registry.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
@@ -7,7 +8,9 @@
 #include <QAction>
 #include <QApplication>
 #include <QCoreApplication>
+#include <QDir>
 #include <QEvent>
+#include <QFileInfo>
 #include <QFrame>
 #include <QFontMetrics>
 #include <QGuiApplication>
@@ -47,8 +50,32 @@ constexpr int kShortcutRole = Qt::UserRole + 2;
 constexpr int kCheckRole = Qt::UserRole + 3;  // -1 not checkable, 0 off, 1 on
 constexpr int kEntryRole = Qt::UserRole + 4;
 constexpr int kDescriptionRole = Qt::UserRole + 5;
+constexpr int kKindRole = Qt::UserRole + 6;  // an int CommandSearchKind
+constexpr int kIconGap = 6;
 
 const QString kPathSeparator = QStringLiteral(" › ");
+const QString kLabelSeparator = QStringLiteral(": ");
+
+// The rows built from data: "Open Document: patchy.jpg", listed by show_command_search
+// rather than from their menus.
+bool is_data_kind(CommandSearchKind kind) {
+  return kind == CommandSearchKind::open_document || kind == CommandSearchKind::recent_file ||
+         kind == CommandSearchKind::recent_folder;
+}
+
+// The kind an action's kCommandSearchKindProperty names, else `fallback`.
+CommandSearchKind action_kind(const QAction* action, CommandSearchKind fallback) {
+  if (action == nullptr) {
+    return fallback;
+  }
+  const auto value = action->property(kCommandSearchKindProperty);
+  if (!value.isValid()) {
+    return fallback;
+  }
+  const int kind = value.toInt();
+  return kind >= 0 && kind <= static_cast<int>(CommandSearchKind::recent_folder) ? static_cast<CommandSearchKind>(kind)
+                                                                                  : fallback;
+}
 
 struct CommandDescription {
   const char* id;  // the hotkey command id, else the action's objectName (both permanent)
@@ -571,10 +598,11 @@ void walk_menu(QMenu* menu, bool visible_only, const QString& top, QStringList& 
   }
 }
 
-// The menu path in the muted color, then the name ("Filter › Blur › Gaussian Blur"), the
-// shortcut at the right edge; a check mark in the left column for a checked command. The
-// name keeps its full width first; the path elides from the left. The description is the
-// row's tooltip only (GitHub issue 554: on every row it was too much).
+// A check mark in the left column for a checked command, the kind icon (text height), the
+// menu path in the muted color, then the name ("Filter › Blur › Gaussian Blur"), the
+// shortcut at the right edge. A data row shows its label instead of a path ("Open Document:
+// patchy.jpg"). The name keeps its full width first; the path elides from the left. The
+// description is the row's tooltip only (GitHub issue 554: on every row it was too much).
 class CommandRowDelegate final : public QStyledItemDelegate {
 public:
   using QStyledItemDelegate::QStyledItemDelegate;
@@ -617,13 +645,21 @@ public:
       right -= width + 3 * kRowPadding;
     }
     int x = rect.left() + kCheckColumn;
+    const int icon_side = metrics.height();
+    if (const auto icon = index.data(Qt::DecorationRole).value<QIcon>(); !icon.isNull()) {
+      const QRect icon_rect(x, rect.top() + (rect.height() - icon_side) / 2, icon_side, icon_side);
+      icon.paint(painter, icon_rect, Qt::AlignCenter, QIcon::Normal, QIcon::Off);
+    }
+    x += icon_side + kIconGap;
     const auto full_name = index.data(Qt::DisplayRole).toString();
     const auto path = index.data(kPathRole).toString();
     if (!path.isEmpty()) {
+      const auto separator =
+          is_data_kind(static_cast<CommandSearchKind>(index.data(kKindRole).toInt())) ? kLabelSeparator : kPathSeparator;
       const int path_room = right - x - metrics.horizontalAdvance(full_name);
       // Left out when only its ellipsis would fit: the name needs the whole row.
-      if (path_room > metrics.horizontalAdvance(QStringLiteral("…") + kPathSeparator)) {
-        const auto shown = metrics.elidedText(path + kPathSeparator, Qt::ElideLeft, path_room);
+      if (path_room > metrics.horizontalAdvance(QStringLiteral("…") + separator)) {
+        const auto shown = metrics.elidedText(path + separator, Qt::ElideLeft, path_room);
         painter->setPen(muted);
         painter->drawText(x, baseline, shown);
         x += metrics.horizontalAdvance(shown);
@@ -819,6 +855,11 @@ std::vector<MenuCommandEntry> collect_menu_entries(const QMenuBar* menu_bar, boo
     if ((!unavailable_too && !action->isEnabled()) || seen.contains(action)) {
       return;
     }
+    // Open documents and recent files are rows of their own (show_command_search).
+    const auto kind = action_kind(action, CommandSearchKind::menu);
+    if (is_data_kind(kind)) {
+      return;
+    }
     const auto name = strip_menu_ellipsis(clean_action_text(action));
     if (name.isEmpty()) {
       return;
@@ -828,7 +869,9 @@ std::vector<MenuCommandEntry> collect_menu_entries(const QMenuBar* menu_bar, boo
     for (const auto& submenu : submenus) {
       path += kPathSeparator + strip_menu_ellipsis(submenu);
     }
-    entries.push_back({action, name, path});
+    MenuCommandEntry entry{action, name, path};
+    entry.kind = kind;
+    entries.push_back(std::move(entry));
   });
   return entries;
 }
@@ -904,13 +947,144 @@ std::vector<MenuCommandEntry> collect_search_commands(const QMenuBar* menu_bar, 
         continue;
       }
       listed.insert(action);
-      entries.push_back({command.action, name, search_category_path(command.category),
-                         entry_description(action, command.id, name), command.id});
+      MenuCommandEntry entry{command.action, name, search_category_path(command.category),
+                             entry_description(action, command.id, name), command.id};
+      entry.kind = tools ? CommandSearchKind::tool : CommandSearchKind::key;
+      entries.push_back(std::move(entry));
     }
   };
   add_registered(true);
   add_registered(false);
   return entries;
+}
+
+QString command_search_kind_label(CommandSearchKind kind) {
+  switch (kind) {
+    case CommandSearchKind::open_document:
+      return QCoreApplication::translate("patchy::ui::CommandSearch", "Open Document");
+    case CommandSearchKind::recent_file:
+      return QCoreApplication::translate("patchy::ui::CommandSearch", "Recent File");
+    case CommandSearchKind::recent_folder:
+      return QCoreApplication::translate("patchy::ui::CommandSearch", "Recent Folder");
+    default:
+      return {};
+  }
+}
+
+QIcon command_search_kind_icon(CommandSearchKind kind) {
+  // Patchy's own small glyphs on a 16 px grid in the theme's icon ink (procedural, so a
+  // scheme change repaints them): a menu, a panel with its title band, a key cap, a page, and
+  // a page or a folder with a clock for the recent ones. A tool or a menu command with an
+  // icon of its own shows that instead.
+  const auto outline = [](QPainter& painter, const QColor& ink) {
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(QPen(ink, 1.3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.setBrush(Qt::NoBrush);
+  };
+  const auto page = [](QPainter& painter, qreal left, qreal top, qreal right, qreal bottom) {
+    const qreal fold = 3.0;
+    QPainterPath sheet;
+    sheet.moveTo(left, top);
+    sheet.lineTo(right - fold, top);
+    sheet.lineTo(right, top + fold);
+    sheet.lineTo(right, bottom);
+    sheet.lineTo(left, bottom);
+    sheet.closeSubpath();
+    painter.drawPath(sheet);
+    QPainterPath corner;
+    corner.moveTo(right - fold, top);
+    corner.lineTo(right - fold, top + fold);
+    corner.lineTo(right, top + fold);
+    painter.drawPath(corner);
+  };
+  const auto clock = [](QPainter& painter, const QColor& ink) {
+    const QPointF center(11.6, 11.6);
+    // Cleared first, so the page or folder line under it does not cross the dial.
+    painter.save();
+    painter.setCompositionMode(QPainter::CompositionMode_Clear);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(Qt::black);
+    painter.drawEllipse(center, 4.4, 4.4);
+    painter.restore();
+    painter.setPen(QPen(ink, 1.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.drawEllipse(center, 3.5, 3.5);
+    painter.drawLine(center, center + QPointF(0.0, -2.1));
+    painter.drawLine(center, center + QPointF(1.6, 0.0));
+  };
+  switch (kind) {
+    case CommandSearchKind::menu:
+      return themed_glyph_icon(QStringLiteral("command-search-menu"), 16.0, &ThemePalette::icon_ink,
+                               [outline](QPainter& painter, const QColor& ink) {
+                                 outline(painter, ink);
+                                 painter.drawRoundedRect(QRectF(2.5, 2.5, 11.0, 11.0), 1.5, 1.5);
+                                 for (const qreal y : {5.8, 8.0, 10.2}) {
+                                   painter.drawLine(QPointF(5.0, y), QPointF(11.0, y));
+                                 }
+                               });
+    case CommandSearchKind::panel:
+      return themed_glyph_icon(QStringLiteral("command-search-panel"), 16.0, &ThemePalette::icon_ink,
+                               [outline](QPainter& painter, const QColor& ink) {
+                                 outline(painter, ink);
+                                 painter.drawRoundedRect(QRectF(2.0, 2.5, 12.0, 11.0), 1.5, 1.5);
+                                 painter.setBrush(ink);
+                                 painter.drawRect(QRectF(2.0, 2.5, 12.0, 2.6));
+                                 painter.drawLine(QPointF(9.5, 5.1), QPointF(9.5, 13.5));
+                               });
+    case CommandSearchKind::key:
+    case CommandSearchKind::tool:
+      return themed_glyph_icon(QStringLiteral("command-search-key"), 16.0, &ThemePalette::icon_ink,
+                               [outline](QPainter& painter, const QColor& ink) {
+                                 outline(painter, ink);
+                                 painter.drawRoundedRect(QRectF(1.8, 2.5, 12.4, 11.0), 2.5, 2.5);
+                                 painter.drawRoundedRect(QRectF(4.0, 4.2, 8.0, 6.3), 1.4, 1.4);
+                               });
+    case CommandSearchKind::open_document:
+      return themed_glyph_icon(QStringLiteral("command-search-document"), 16.0, &ThemePalette::icon_ink,
+                               [outline, page](QPainter& painter, const QColor& ink) {
+                                 outline(painter, ink);
+                                 page(painter, 3.5, 1.8, 12.5, 14.2);
+                                 for (const qreal y : {8.0, 10.5}) {
+                                   painter.drawLine(QPointF(5.8, y), QPointF(10.2, y));
+                                 }
+                               });
+    case CommandSearchKind::recent_file:
+      return themed_glyph_icon(QStringLiteral("command-search-recent-file"), 16.0, &ThemePalette::icon_ink,
+                               [outline, page, clock](QPainter& painter, const QColor& ink) {
+                                 outline(painter, ink);
+                                 page(painter, 2.0, 1.5, 10.5, 13.5);
+                                 clock(painter, ink);
+                               });
+    case CommandSearchKind::recent_folder:
+      return themed_glyph_icon(QStringLiteral("command-search-recent-folder"), 16.0, &ThemePalette::icon_ink,
+                               [outline, clock](QPainter& painter, const QColor& ink) {
+                                 outline(painter, ink);
+                                 QPainterPath folder;
+                                 folder.moveTo(1.5, 3.0);
+                                 folder.lineTo(5.5, 3.0);
+                                 folder.lineTo(7.0, 4.6);
+                                 folder.lineTo(13.5, 4.6);
+                                 folder.lineTo(13.5, 12.5);
+                                 folder.lineTo(1.5, 12.5);
+                                 folder.closeSubpath();
+                                 painter.drawPath(folder);
+                                 painter.drawLine(QPointF(1.5, 6.6), QPointF(13.5, 6.6));
+                                 clock(painter, ink);
+                               });
+  }
+  return {};
+}
+
+MenuCommandEntry command_search_path_entry(CommandSearchKind kind, const QString& path, std::function<void()> run) {
+  const QFileInfo info(path);
+  auto name = info.fileName();
+  if (name.isEmpty()) {
+    name = QDir::toNativeSeparators(path);  // a drive or share root
+  }
+  MenuCommandEntry entry{nullptr, name, command_search_kind_label(kind)};
+  entry.kind = kind;
+  entry.tooltip = QDir::toNativeSeparators(path);
+  entry.run = std::move(run);
+  return entry;
 }
 
 std::vector<int> match_menu_commands(const std::vector<MenuCommandEntry>& entries, const QString& query) {
@@ -995,34 +1169,57 @@ QFrame* show_command_search_popup(QWidget* parent, std::vector<MenuCommandEntry>
   layout->addWidget(list);
 
   auto shared_entries = std::make_shared<std::vector<MenuCommandEntry>>(std::move(entries));
-  const auto refill = [list, shared_entries](const QString& query) {
+  QHash<int, QIcon> kind_icons;
+  for (int kind = 0; kind <= static_cast<int>(CommandSearchKind::recent_folder); ++kind) {
+    kind_icons.insert(kind, command_search_kind_icon(static_cast<CommandSearchKind>(kind)));
+  }
+  const auto refill = [list, shared_entries, kind_icons](const QString& query) {
     list->clear();
     for (const int index : match_menu_commands(*shared_entries, query)) {
       const auto& entry = (*shared_entries)[static_cast<std::size_t>(index)];
-      if (entry.action == nullptr) {
+      if (entry.action == nullptr && !entry.run) {
         continue;
       }
+      const auto* action = entry.action.data();
       auto* item = new QListWidgetItem(entry.name, list);
       item->setData(kPathRole, entry.path);
-      item->setData(kShortcutRole, action_shortcut_text(entry.action.data()));
-      item->setData(kCheckRole, entry.action->isCheckable() ? (entry.action->isChecked() ? 1 : 0) : -1);
+      item->setData(kShortcutRole, action != nullptr ? action_shortcut_text(action) : QString());
+      item->setData(kCheckRole,
+                    action != nullptr && action->isCheckable() ? (action->isChecked() ? 1 : 0) : -1);
       item->setData(kEntryRole, index);
+      item->setData(kKindRole, static_cast<int>(entry.kind));
+      // The action's own icon (a tool's palette icon), else the kind's; data rows always
+      // show their kind.
+      const bool own_icon = action != nullptr && !is_data_kind(entry.kind) && !action->icon().isNull();
+      item->setData(Qt::DecorationRole, own_icon ? action->icon() : kind_icons.value(static_cast<int>(entry.kind)));
       if (!entry.description.isEmpty()) {
         item->setData(kDescriptionRole, entry.description);
-        item->setToolTip(entry.description);
+      }
+      if (const auto& tip = entry.tooltip.isEmpty() ? entry.description : entry.tooltip; !tip.isEmpty()) {
+        item->setToolTip(tip);
       }
     }
     if (list->count() > 0) {
       list->setCurrentRow(0);
     }
   };
-  const auto run = [popup, list, shared_entries] {
+  const QPointer<QWidget> owner = parent;
+  const auto run = [popup, list, shared_entries, owner] {
     auto* item = list->currentItem();
     if (item == nullptr) {
       return;
     }
-    const QPointer<QAction> action = (*shared_entries)[static_cast<std::size_t>(item->data(kEntryRole).toInt())].action;
+    const auto& entry = (*shared_entries)[static_cast<std::size_t>(item->data(kEntryRole).toInt())];
+    const QPointer<QAction> action = entry.action;
+    auto callback = entry.run;
     popup->close();
+    if (callback && action == nullptr) {
+      // A recent file or folder: opened once the popup is gone, while its window lives.
+      if (owner != nullptr) {
+        QTimer::singleShot(0, owner.data(), std::move(callback));
+      }
+      return;
+    }
     if (action == nullptr) {
       return;
     }

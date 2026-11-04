@@ -2,10 +2,12 @@
 
 Help > Search Commands (`help.search_commands`, default Ctrl+F (Command+F) as in Photoshop, with
 Ctrl+Shift+/ as a second key; GitHub issue 554) opens a
-popup that finds menu-bar commands, tools and keyboard commands by name, menu or description.
+popup that finds menu-bar commands, tools and keyboard commands by name, menu or description,
+and the open documents, recent files and recent folders by name.
 Code: `src/ui/command_search.cpp`, `MainWindow::show_command_search` in
 `src/ui/main_window_actions_menus.cpp`. Tests: `ui_command_search_popup_filters_and_runs_commands`,
-`ui_command_search_lists_tools_keys_and_descriptions`, `ui_command_search_every_command_has_a_description`.
+`ui_command_search_lists_tools_keys_and_descriptions`, `ui_command_search_every_command_has_a_description`,
+`ui_command_search_lists_recent_files_and_open_documents`.
 
 ## What it lists
 
@@ -20,8 +22,29 @@ Code: `src/ui/command_search.cpp`, `MainWindow::show_command_search` in
   such as Blend Mode: Normal (no path). Channels, Paths, theme and script commands are left
   out (panel targets, or already in a menu). Disabled and unnamed commands are skipped like
   menu commands.
-- Each row shows the menu path in the muted color with its separator (`Filter › Blur › `),
-  then the name (mnemonics and trailing ellipsis removed), the current shortcut at the right,
+- `show_command_search` appends the rows built from data, after every command so a command
+  keeps its place among matches of the same strength (a search that matches only a file name
+  shows them first anyway): each open document as "Open Document: patchy.jpg" (the Window
+  menu's entry, so Enter switches to it the same way; float windows included; the full path
+  is the tooltip), then each recent file as "Recent File: patchy.jpg" and each recent folder
+  as "Recent Folder: Photos", taken from `recent_files_` and `recent_folders_` rather than the
+  Open Recent menus (on Windows and Linux those are a filter row and a list widget, not
+  actions), with the full path as the tooltip; Enter runs `open_recent_document` or
+  `open_recent_folder` once the popup has closed. Entries without an action carry a `run`
+  callback. The menu walk skips the Window menu's documents and the plain Open Recent entries
+  (their `kCommandSearchKindProperty` is a data kind), so nothing is listed twice; Clear
+  Recent Files and the other management entries stay menu rows.
+- Each row has a kind (`CommandSearchKind`: menu, tool, panel, key, open document, recent
+  file, recent folder; item role `Qt::UserRole + 6`) and one icon at text height after the
+  check column: the action's own icon when it has one (a tool's palette icon, a menu command
+  with an icon), else the kind's procedural glyph from `command_search_kind_icon` in the
+  theme's `icon_ink` (a menu, a panel with its title band, a key cap, a page, a page or folder
+  with a clock). Data rows always show their kind's glyph. Panel rows are the Window menu's
+  panel and toolbar entries, marked by `install_window_panel_entries` with
+  `kCommandSearchKindProperty`; tools are the `tools` category (a Cycle command, without an
+  icon, shows the key glyph); keys are the other listed categories.
+- Each row shows the menu path in the muted color with its separator (`Filter › Blur › `; a
+  data row shows its label and `: `), then the name (mnemonics and trailing ellipsis removed), the current shortcut at the right,
   and a check mark for a checked command. The name keeps its full width; the path elides from
   the left and is dropped when only its ellipsis would fit. The description is the row's
   tooltip only (`Qt::ToolTipRole`), never drawn on the row: on every row it was too much

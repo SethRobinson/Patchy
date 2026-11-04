@@ -19248,6 +19248,18 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Soften the selection edge</source>
         <translation>Zmiękcz krawędź zaznaczenia</translation>
     </message>
+    <message>
+        <source>Open Document</source>
+        <translation>Otwarty dokument</translation>
+    </message>
+    <message>
+        <source>Recent File</source>
+        <translation>Ostatni plik</translation>
+    </message>
+    <message>
+        <source>Recent Folder</source>
+        <translation>Ostatni folder</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>

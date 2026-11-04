@@ -19202,6 +19202,18 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Soften the selection edge</source>
         <translation>Die Auswahlkante weichzeichnen</translation>
     </message>
+    <message>
+        <source>Open Document</source>
+        <translation>Geöffnetes Dokument</translation>
+    </message>
+    <message>
+        <source>Recent File</source>
+        <translation>Zuletzt verwendete Datei</translation>
+    </message>
+    <message>
+        <source>Recent Folder</source>
+        <translation>Zuletzt verwendeter Ordner</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>

@@ -19202,6 +19202,18 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Soften the selection edge</source>
         <translation>Adoucir le bord de la sélection</translation>
     </message>
+    <message>
+        <source>Open Document</source>
+        <translation>Document ouvert</translation>
+    </message>
+    <message>
+        <source>Recent File</source>
+        <translation>Fichier récent</translation>
+    </message>
+    <message>
+        <source>Recent Folder</source>
+        <translation>Dossier récent</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>

@@ -19156,6 +19156,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Soften the selection edge</source>
         <translation>選択範囲の境界をぼかす</translation>
     </message>
+    <message>
+        <source>Open Document</source>
+        <translation>開いているドキュメント</translation>
+    </message>
+    <message>
+        <source>Recent File</source>
+        <translation>最近使ったファイル</translation>
+    </message>
+    <message>
+        <source>Recent Folder</source>
+        <translation>最近使ったフォルダー</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>

@@ -19202,6 +19202,18 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Soften the selection edge</source>
         <translation>Suavizar a borda da seleção</translation>
     </message>
+    <message>
+        <source>Open Document</source>
+        <translation>Documento aberto</translation>
+    </message>
+    <message>
+        <source>Recent File</source>
+        <translation>Arquivo recente</translation>
+    </message>
+    <message>
+        <source>Recent Folder</source>
+        <translation>Pasta recente</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>

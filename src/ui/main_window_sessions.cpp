@@ -1426,6 +1426,7 @@ void MainWindow::rebuild_window_document_entries(QMenu* window_menu) {
                                window_menu);
     action->setObjectName(QStringLiteral("windowDocument%1Action").arg(number));
     action->setProperty(kCommandSearchDataEntryProperty, true);
+    action->setProperty(kCommandSearchKindProperty, static_cast<int>(CommandSearchKind::open_document));
     action->setCheckable(true);
     action->setChecked(target_session.get() == active);
     const auto session_id = target_session->session_id;
