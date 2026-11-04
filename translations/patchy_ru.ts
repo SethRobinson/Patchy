@@ -14851,16 +14851,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Сгладить выделение</translation>
     </message>
     <message>
-        <source>Sample radius</source>
-        <translation>Радиус выборки</translation>
-    </message>
-    <message>
         <source>Feather Selection</source>
         <translation>Растушевать выделение</translation>
-    </message>
-    <message>
-        <source>Feather radius</source>
-        <translation>Радиус растушевки</translation>
     </message>
     <message>
         <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
@@ -14936,6 +14928,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Arrowheads:</source>
         <translation>Наконечники:</translation>
+    </message>
+    <message>
+        <source>Sample radius:</source>
+        <translation>Радиус выборки:</translation>
+    </message>
+    <message>
+        <source>Feather radius:</source>
+        <translation>Радиус растушевки:</translation>
     </message>
 </context>
 <context>
@@ -24965,10 +24965,6 @@ Save your work and close Patchy before running the installer.</source>
         <translation>Расширить выделение</translation>
     </message>
     <message>
-        <source>Expand by</source>
-        <translation>Расширить на</translation>
-    </message>
-    <message>
         <source>Make a selection before contracting</source>
         <translation>Создайте выделение перед сжатием</translation>
     </message>
@@ -24977,20 +24973,12 @@ Save your work and close Patchy before running the installer.</source>
         <translation>Сжать выделение</translation>
     </message>
     <message>
-        <source>Contract by</source>
-        <translation>Сжать на</translation>
-    </message>
-    <message>
         <source>Make a selection before selecting a border</source>
         <translation>Сделайте выбор, прежде чем выбирать границу</translation>
     </message>
     <message>
         <source>Border Selection</source>
         <translation>Граница выделения</translation>
-    </message>
-    <message>
-        <source>Width</source>
-        <translation>Ширина</translation>
     </message>
     <message>
         <source>Finish the current drag before aligning layers</source>
@@ -32485,6 +32473,14 @@ Locked: %1</source>
     <message>
         <source>Linked files on %1 are allowed now</source>
         <translation>Связанные файлы на %1 теперь разрешены</translation>
+    </message>
+    <message>
+        <source>Expand by:</source>
+        <translation>Расширить на:</translation>
+    </message>
+    <message>
+        <source>Contract by:</source>
+        <translation>Сжать на:</translation>
     </message>
 </context>
 <context>

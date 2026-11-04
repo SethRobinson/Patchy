@@ -6039,7 +6039,7 @@ void MainWindow::expand_selection_dialog() {
     return;
   }
   const auto pixels = request_integer_input(this, QStringLiteral("patchyExpandSelectionDialog"),
-                                            tr("Expand Selection"), tr("Expand by"), 4, 1,
+                                            tr("Expand Selection"), tr("Expand by:"), 4, 1,
                                             kMaxSelectionModifyRadius, 1);
   if (pixels.has_value()) {
     canvas_->run_selection_command(tr("Expand Selection"), [this, pixels] { canvas_->expand_selection(*pixels); });
@@ -6052,7 +6052,7 @@ void MainWindow::contract_selection_dialog() {
     return;
   }
   const auto pixels = request_integer_input(this, QStringLiteral("patchyContractSelectionDialog"),
-                                            tr("Contract Selection"), tr("Contract by"), 4, 1,
+                                            tr("Contract Selection"), tr("Contract by:"), 4, 1,
                                             kMaxSelectionModifyRadius, 1);
   if (pixels.has_value()) {
     canvas_->run_selection_command(tr("Contract Selection"), [this, pixels] { canvas_->contract_selection(*pixels); });
@@ -6065,7 +6065,7 @@ void MainWindow::border_selection_dialog() {
     return;
   }
   const auto pixels = request_integer_input(this, QStringLiteral("patchyBorderSelectionDialog"),
-                                            tr("Border Selection"), tr("Width"), 4, 1, 250, 1);
+                                            tr("Border Selection"), tr("Width:"), 4, 1, 250, 1);
   if (pixels.has_value()) {
     canvas_->run_selection_command(tr("Border Selection"), [this, pixels] { canvas_->border_selection(*pixels); });
   }

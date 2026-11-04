@@ -14789,15 +14789,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Sample radius</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Feather Selection</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Feather radius</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -14872,6 +14864,14 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Arrowheads:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sample radius:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Feather radius:</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -24099,10 +24099,6 @@ Save your work and close Patchy before running the installer.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Expand by</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Make a selection before contracting</source>
         <translation type="unfinished"></translation>
     </message>
@@ -24111,19 +24107,11 @@ Save your work and close Patchy before running the installer.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Contract by</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Make a selection before selecting a border</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Border Selection</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Width</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -32318,6 +32306,14 @@ Locked: %1</source>
     </message>
     <message>
         <source>Linked files on %1 are allowed now</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Expand by:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Contract by:</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

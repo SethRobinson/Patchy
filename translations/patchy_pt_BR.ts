@@ -14806,16 +14806,8 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Suavizar seleção</translation>
     </message>
     <message>
-        <source>Sample radius</source>
-        <translation>Raio de amostra</translation>
-    </message>
-    <message>
         <source>Feather Selection</source>
         <translation>Difundir seleção</translation>
-    </message>
-    <message>
-        <source>Feather radius</source>
-        <translation>Raio de difusão</translation>
     </message>
     <message>
         <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
@@ -14890,6 +14882,14 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Arrowheads:</source>
         <translation>Pontas de seta:</translation>
+    </message>
+    <message>
+        <source>Sample radius:</source>
+        <translation>Raio de amostra:</translation>
+    </message>
+    <message>
+        <source>Feather radius:</source>
+        <translation>Raio de difusão:</translation>
     </message>
 </context>
 <context>
@@ -24905,10 +24905,6 @@ Salve seu trabalho e feche o Patchy antes de executar o instalador.</translation
         <translation>Expandir seleção</translation>
     </message>
     <message>
-        <source>Expand by</source>
-        <translation>Expandir por</translation>
-    </message>
-    <message>
         <source>Make a selection before contracting</source>
         <translation>Faça uma seleção antes de contraí-la</translation>
     </message>
@@ -24917,20 +24913,12 @@ Salve seu trabalho e feche o Patchy antes de executar o instalador.</translation
         <translation>Contrair seleção</translation>
     </message>
     <message>
-        <source>Contract by</source>
-        <translation>Contrair por</translation>
-    </message>
-    <message>
         <source>Make a selection before selecting a border</source>
         <translation>Faça uma seleção antes de selecionar uma borda</translation>
     </message>
     <message>
         <source>Border Selection</source>
         <translation>Seleção de borda</translation>
-    </message>
-    <message>
-        <source>Width</source>
-        <translation>Largura</translation>
     </message>
     <message>
         <source>Finish the current drag before aligning layers</source>
@@ -32400,6 +32388,14 @@ Bloqueado: %1</translation>
     <message>
         <source>Linked files on %1 are allowed now</source>
         <translation>Os arquivos vinculados em %1 agora são permitidos</translation>
+    </message>
+    <message>
+        <source>Expand by:</source>
+        <translation>Expandir por:</translation>
+    </message>
+    <message>
+        <source>Contract by:</source>
+        <translation>Contrair por:</translation>
     </message>
 </context>
 <context>

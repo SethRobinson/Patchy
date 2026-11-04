@@ -14806,16 +14806,8 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Suavizar selección</translation>
     </message>
     <message>
-        <source>Sample radius</source>
-        <translation>Radio de muestra</translation>
-    </message>
-    <message>
         <source>Feather Selection</source>
         <translation>Calar selección</translation>
-    </message>
-    <message>
-        <source>Feather radius</source>
-        <translation>Radio de calado</translation>
     </message>
     <message>
         <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
@@ -14890,6 +14882,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Arrowheads:</source>
         <translation>Puntas de flecha:</translation>
+    </message>
+    <message>
+        <source>Sample radius:</source>
+        <translation>Radio de muestra:</translation>
+    </message>
+    <message>
+        <source>Feather radius:</source>
+        <translation>Radio de calado:</translation>
     </message>
 </context>
 <context>
@@ -24134,10 +24134,6 @@ Guarde su trabajo y cierre Patchy antes de ejecutar el instalador.</translation>
         <translation>Expandir selección</translation>
     </message>
     <message>
-        <source>Expand by</source>
-        <translation>Expandir en</translation>
-    </message>
-    <message>
         <source>Make a selection before contracting</source>
         <translation>Haga una selección antes de contraer</translation>
     </message>
@@ -24146,20 +24142,12 @@ Guarde su trabajo y cierre Patchy antes de ejecutar el instalador.</translation>
         <translation>Contraer selección</translation>
     </message>
     <message>
-        <source>Contract by</source>
-        <translation>Contraer en</translation>
-    </message>
-    <message>
         <source>Make a selection before selecting a border</source>
         <translation>Haga una selección antes de seleccionar un borde</translation>
     </message>
     <message>
         <source>Border Selection</source>
         <translation>Borde de selección</translation>
-    </message>
-    <message>
-        <source>Width</source>
-        <translation>Anchura</translation>
     </message>
     <message>
         <source>Use Free Transform or rasterize Smart Objects before flipping</source>
@@ -32400,6 +32388,14 @@ Bloqueada: %1</translation>
     <message>
         <source>Linked files on %1 are allowed now</source>
         <translation>Ahora se permiten los archivos vinculados de %1</translation>
+    </message>
+    <message>
+        <source>Expand by:</source>
+        <translation>Expandir en:</translation>
+    </message>
+    <message>
+        <source>Contract by:</source>
+        <translation>Contraer en:</translation>
     </message>
 </context>
 <context>

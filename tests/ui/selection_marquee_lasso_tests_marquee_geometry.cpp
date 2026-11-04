@@ -13,6 +13,7 @@
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
+#include <QFormLayout>
 #include <QFrame>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -3157,6 +3158,10 @@ void ui_select_smooth_and_feather_commands_are_one_undo_step() {
         dialog->reject();
         return;
       }
+      // The field label ends with a colon (#614 follow-up 2).
+      auto* form = dialog->findChild<QFormLayout*>();
+      auto* label = form != nullptr ? qobject_cast<QLabel*>(form->labelForField(spin)) : nullptr;
+      CHECK(label != nullptr && label->text().endsWith(QLatin1Char(':')));
       // OK as wide as Cancel (#614 follow-up).
       if (auto* box = dialog->findChild<QDialogButtonBox*>(); box != nullptr) {
         auto* ok = box->button(QDialogButtonBox::Ok);
@@ -3210,6 +3215,32 @@ void ui_select_smooth_and_feather_commands_are_one_undo_step() {
   CHECK(!canvas->selection_has_partial_alpha());
   CHECK(canvas->selected_document_region() == QRegion(40, 30, 60, 50));
   save_widget_artifact("ui_select_smooth_and_feather", *canvas);
+
+  // Expand, Contract and Border share request_integer_input: their labels end with a colon too
+  // (#614 follow-up 2). Each dialog is cancelled.
+  for (const auto& [action_text, dialog_name] :
+       {std::pair{QStringLiteral("Expand..."), QStringLiteral("patchyExpandSelectionDialog")},
+        std::pair{QStringLiteral("Contract..."), QStringLiteral("patchyContractSelectionDialog")},
+        std::pair{QStringLiteral("Border..."), QStringLiteral("patchyBorderSelectionDialog")}}) {
+    bool checked = false;
+    QTimer::singleShot(0, guarded([dialog_name, &checked] {
+      auto* dialog = find_top_level_dialog(dialog_name);
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      auto* spin = dialog->findChild<QAbstractSpinBox*>();
+      auto* form = dialog->findChild<QFormLayout*>();
+      auto* label = spin != nullptr && form != nullptr ? qobject_cast<QLabel*>(form->labelForField(spin)) : nullptr;
+      CHECK(label != nullptr && label->text().endsWith(QLatin1Char(':')));
+      checked = true;
+      dialog->reject();
+    }));
+    require_action_by_text(window, action_text)->trigger();
+    QApplication::processEvents();
+    CHECK(checked);
+  }
+  CHECK(canvas->selected_document_region() == QRegion(40, 30, 60, 50));
 }
 
 // The visible result of Select > Smooth and Select > Feather (GitHub issue 614): one shape with

@@ -14806,16 +14806,8 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Lisser la sélection</translation>
     </message>
     <message>
-        <source>Sample radius</source>
-        <translation>Rayon d&apos;échantillonnage</translation>
-    </message>
-    <message>
         <source>Feather Selection</source>
         <translation>Contour progressif de la sélection</translation>
-    </message>
-    <message>
-        <source>Feather radius</source>
-        <translation>Rayon du contour progressif</translation>
     </message>
     <message>
         <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
@@ -14890,6 +14882,14 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Arrowheads:</source>
         <translation>Pointes de flèche :</translation>
+    </message>
+    <message>
+        <source>Sample radius:</source>
+        <translation>Rayon d&apos;échantillonnage :</translation>
+    </message>
+    <message>
+        <source>Feather radius:</source>
+        <translation>Rayon du contour progressif :</translation>
     </message>
 </context>
 <context>
@@ -24134,10 +24134,6 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
         <translation>Dilater la sélection</translation>
     </message>
     <message>
-        <source>Expand by</source>
-        <translation>Dilater de</translation>
-    </message>
-    <message>
         <source>Make a selection before contracting</source>
         <translation>Effectuez une sélection avant de la contracter</translation>
     </message>
@@ -24146,20 +24142,12 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
         <translation>Contracter la sélection</translation>
     </message>
     <message>
-        <source>Contract by</source>
-        <translation>Contracter de</translation>
-    </message>
-    <message>
         <source>Make a selection before selecting a border</source>
         <translation>Effectuez une sélection avant de créer un cadre</translation>
     </message>
     <message>
         <source>Border Selection</source>
         <translation>Cadre de la sélection</translation>
-    </message>
-    <message>
-        <source>Width</source>
-        <translation>Largeur</translation>
     </message>
     <message>
         <source>Use Free Transform or rasterize Smart Objects before flipping</source>
@@ -32400,6 +32388,14 @@ Verrouillé : %1</translation>
     <message>
         <source>Linked files on %1 are allowed now</source>
         <translation>Les fichiers liés sur %1 sont désormais autorisés</translation>
+    </message>
+    <message>
+        <source>Expand by:</source>
+        <translation>Dilater de :</translation>
+    </message>
+    <message>
+        <source>Contract by:</source>
+        <translation>Contracter de :</translation>
     </message>
 </context>
 <context>

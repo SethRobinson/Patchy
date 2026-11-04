@@ -14851,16 +14851,8 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Wygładź zaznaczenie</translation>
     </message>
     <message>
-        <source>Sample radius</source>
-        <translation>Promień próbkowania</translation>
-    </message>
-    <message>
         <source>Feather Selection</source>
         <translation>Wtapianie zaznaczenia</translation>
-    </message>
-    <message>
-        <source>Feather radius</source>
-        <translation>Promień wtapiania</translation>
     </message>
     <message>
         <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
@@ -14936,6 +14928,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Arrowheads:</source>
         <translation>Groty strzałek:</translation>
+    </message>
+    <message>
+        <source>Sample radius:</source>
+        <translation>Promień próbkowania:</translation>
+    </message>
+    <message>
+        <source>Feather radius:</source>
+        <translation>Promień wtapiania:</translation>
     </message>
 </context>
 <context>
@@ -24965,10 +24965,6 @@ Zapisz pracę i zamknij Patchy przed uruchomieniem instalatora.</translation>
         <translation>Rozszerz zaznaczenie</translation>
     </message>
     <message>
-        <source>Expand by</source>
-        <translation>Rozszerz o</translation>
-    </message>
-    <message>
         <source>Make a selection before contracting</source>
         <translation>Utwórz zaznaczenie przed zawężeniem</translation>
     </message>
@@ -24977,20 +24973,12 @@ Zapisz pracę i zamknij Patchy przed uruchomieniem instalatora.</translation>
         <translation>Zawęź zaznaczenie</translation>
     </message>
     <message>
-        <source>Contract by</source>
-        <translation>Zawęź o</translation>
-    </message>
-    <message>
         <source>Make a selection before selecting a border</source>
         <translation>Utwórz zaznaczenie przed wybraniem obramowania</translation>
     </message>
     <message>
         <source>Border Selection</source>
         <translation>Obramowanie zaznaczenia</translation>
-    </message>
-    <message>
-        <source>Width</source>
-        <translation>Szerokość</translation>
     </message>
     <message>
         <source>Finish the current drag before aligning layers</source>
@@ -32485,6 +32473,14 @@ Zablokowano: %1</translation>
     <message>
         <source>Linked files on %1 are allowed now</source>
         <translation>Połączone pliki na %1 są teraz dozwolone</translation>
+    </message>
+    <message>
+        <source>Expand by:</source>
+        <translation>Rozszerz o:</translation>
+    </message>
+    <message>
+        <source>Contract by:</source>
+        <translation>Zawęź o:</translation>
     </message>
 </context>
 <context>

@@ -14806,16 +14806,8 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Auswahl glätten</translation>
     </message>
     <message>
-        <source>Sample radius</source>
-        <translation>Radius</translation>
-    </message>
-    <message>
         <source>Feather Selection</source>
         <translation>Weiche Auswahlkante</translation>
-    </message>
-    <message>
-        <source>Feather radius</source>
-        <translation>Radius der weichen Kante</translation>
     </message>
     <message>
         <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
@@ -14890,6 +14882,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Arrowheads:</source>
         <translation>Pfeilspitzen:</translation>
+    </message>
+    <message>
+        <source>Sample radius:</source>
+        <translation>Radius:</translation>
+    </message>
+    <message>
+        <source>Feather radius:</source>
+        <translation>Radius der weichen Kante:</translation>
     </message>
 </context>
 <context>
@@ -24134,10 +24134,6 @@ Speichern Sie Ihre Arbeit und schließen Sie Patchy, bevor Sie das Installations
         <translation>Auswahl erweitern</translation>
     </message>
     <message>
-        <source>Expand by</source>
-        <translation>Erweitern um</translation>
-    </message>
-    <message>
         <source>Make a selection before contracting</source>
         <translation>Erstellen Sie vor dem Verkleinern eine Auswahl</translation>
     </message>
@@ -24146,20 +24142,12 @@ Speichern Sie Ihre Arbeit und schließen Sie Patchy, bevor Sie das Installations
         <translation>Auswahl verkleinern</translation>
     </message>
     <message>
-        <source>Contract by</source>
-        <translation>Verkleinern um</translation>
-    </message>
-    <message>
         <source>Make a selection before selecting a border</source>
         <translation>Erstellen Sie vor dem Auswählen eines Rands eine Auswahl</translation>
     </message>
     <message>
         <source>Border Selection</source>
         <translation>Auswahlrand</translation>
-    </message>
-    <message>
-        <source>Width</source>
-        <translation>Breite</translation>
     </message>
     <message>
         <source>Use Free Transform or rasterize Smart Objects before flipping</source>
@@ -32400,6 +32388,14 @@ Fixiert: %1</translation>
     <message>
         <source>Linked files on %1 are allowed now</source>
         <translation>Verknüpfte Dateien auf %1 sind jetzt erlaubt</translation>
+    </message>
+    <message>
+        <source>Expand by:</source>
+        <translation>Erweitern um:</translation>
+    </message>
+    <message>
+        <source>Contract by:</source>
+        <translation>Verkleinern um:</translation>
     </message>
 </context>
 <context>

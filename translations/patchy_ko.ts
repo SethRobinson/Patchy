@@ -14761,16 +14761,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>선택 영역 매끄럽게</translation>
     </message>
     <message>
-        <source>Sample radius</source>
-        <translation>샘플 반경</translation>
-    </message>
-    <message>
         <source>Feather Selection</source>
         <translation>선택 영역 페더</translation>
-    </message>
-    <message>
-        <source>Feather radius</source>
-        <translation>페더 반경</translation>
     </message>
     <message>
         <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
@@ -14844,6 +14836,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Arrowheads:</source>
         <translation>화살촉:</translation>
+    </message>
+    <message>
+        <source>Sample radius:</source>
+        <translation>샘플 반경:</translation>
+    </message>
+    <message>
+        <source>Feather radius:</source>
+        <translation>페더 반경:</translation>
     </message>
 </context>
 <context>
@@ -24845,10 +24845,6 @@ Save your work and close Patchy before running the installer.</source>
         <translation>선택 영역 확대</translation>
     </message>
     <message>
-        <source>Expand by</source>
-        <translation>확대량</translation>
-    </message>
-    <message>
         <source>Make a selection before contracting</source>
         <translation>축소할 선택 영역을 먼저 만드세요</translation>
     </message>
@@ -24857,20 +24853,12 @@ Save your work and close Patchy before running the installer.</source>
         <translation>선택 영역 축소</translation>
     </message>
     <message>
-        <source>Contract by</source>
-        <translation>축소량</translation>
-    </message>
-    <message>
         <source>Make a selection before selecting a border</source>
         <translation>테두리를 선택하기 전에 선택하세요.</translation>
     </message>
     <message>
         <source>Border Selection</source>
         <translation>선택 영역 테두리</translation>
-    </message>
-    <message>
-        <source>Width</source>
-        <translation>너비</translation>
     </message>
     <message>
         <source>Finish the current drag before aligning layers</source>
@@ -32315,6 +32303,14 @@ Locked: %1</source>
     <message>
         <source>Linked files on %1 are allowed now</source>
         <translation>이제 %1의 연결된 파일이 허용됩니다</translation>
+    </message>
+    <message>
+        <source>Expand by:</source>
+        <translation>확대량:</translation>
+    </message>
+    <message>
+        <source>Contract by:</source>
+        <translation>축소량:</translation>
     </message>
 </context>
 <context>

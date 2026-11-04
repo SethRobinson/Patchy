@@ -82,7 +82,7 @@ std::optional<int> request_selection_smooth_radius(QWidget* parent, int initial)
   spin->setValue(std::clamp(initial, kMinSelectionSmoothRadius, kMaxSelectionSmoothRadius));
   configure_dialog_spinbox(spin);
   if (!run_radius_dialog(QStringLiteral("patchySmoothSelectionDialog"),
-                         QObject::tr("Smooth Selection"), QObject::tr("Sample radius"), spin, dialog)) {
+                         QObject::tr("Smooth Selection"), QObject::tr("Sample radius:"), spin, dialog)) {
     return std::nullopt;
   }
   return spin->value();
@@ -99,7 +99,7 @@ std::optional<double> request_selection_feather_radius(QWidget* parent, double i
   spin->setValue(std::clamp(initial, kMinSelectionFeatherCommandRadius, kMaxSelectionFeatherCommandRadius));
   configure_dialog_spinbox(spin);
   if (!run_radius_dialog(QStringLiteral("patchyFeatherSelectionDialog"),
-                         QObject::tr("Feather Selection"), QObject::tr("Feather radius"), spin, dialog)) {
+                         QObject::tr("Feather Selection"), QObject::tr("Feather radius:"), spin, dialog)) {
     return std::nullopt;
   }
   return spin->value();

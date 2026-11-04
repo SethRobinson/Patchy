@@ -14761,16 +14761,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>選択範囲を滑らかに</translation>
     </message>
     <message>
-        <source>Sample radius</source>
-        <translation>サンプル半径</translation>
-    </message>
-    <message>
         <source>Feather Selection</source>
         <translation>選択範囲をぼかす</translation>
-    </message>
-    <message>
-        <source>Feather radius</source>
-        <translation>ぼかしの半径</translation>
     </message>
     <message>
         <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
@@ -14844,6 +14836,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Arrowheads:</source>
         <translation>矢じり:</translation>
+    </message>
+    <message>
+        <source>Sample radius:</source>
+        <translation>サンプル半径:</translation>
+    </message>
+    <message>
+        <source>Feather radius:</source>
+        <translation>ぼかしの半径:</translation>
     </message>
 </context>
 <context>
@@ -23171,10 +23171,6 @@ To update, paste this into a terminal:
         <translation>選択範囲を拡張</translation>
     </message>
     <message>
-        <source>Expand by</source>
-        <translation>拡張量</translation>
-    </message>
-    <message>
         <source>Make a selection before contracting</source>
         <translation>縮小する前に選択範囲を作成してください</translation>
     </message>
@@ -23183,20 +23179,12 @@ To update, paste this into a terminal:
         <translation>選択範囲を縮小</translation>
     </message>
     <message>
-        <source>Contract by</source>
-        <translation>縮小量</translation>
-    </message>
-    <message>
         <source>Make a selection before selecting a border</source>
         <translation>境界を選択する前に選択範囲を作成してください</translation>
     </message>
     <message>
         <source>Border Selection</source>
         <translation>選択範囲の境界</translation>
-    </message>
-    <message>
-        <source>Width</source>
-        <translation>幅</translation>
     </message>
     <message>
         <source>Flip horizontal</source>
@@ -32315,6 +32303,14 @@ Locked: %1</source>
     <message>
         <source>Linked files on %1 are allowed now</source>
         <translation>%1 上のリンクファイルが許可されました</translation>
+    </message>
+    <message>
+        <source>Expand by:</source>
+        <translation>拡張量:</translation>
+    </message>
+    <message>
+        <source>Contract by:</source>
+        <translation>縮小量:</translation>
     </message>
 </context>
 <context>

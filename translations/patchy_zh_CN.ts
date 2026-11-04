@@ -14761,16 +14761,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>平滑选区</translation>
     </message>
     <message>
-        <source>Sample radius</source>
-        <translation>取样半径</translation>
-    </message>
-    <message>
         <source>Feather Selection</source>
         <translation>羽化选区</translation>
-    </message>
-    <message>
-        <source>Feather radius</source>
-        <translation>羽化半径</translation>
     </message>
     <message>
         <source>GIMP layer effects Patchy can reproduce (Gaussian Blur, color filters such as Levels and Hue-Saturation, and the GEGL filters Patchy includes, such as Unsharp Mask, Bloom and Noise) were applied to their layers&apos; pixels.</source>
@@ -14844,6 +14836,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Arrowheads:</source>
         <translation>箭头:</translation>
+    </message>
+    <message>
+        <source>Sample radius:</source>
+        <translation>取样半径:</translation>
+    </message>
+    <message>
+        <source>Feather radius:</source>
+        <translation>羽化半径:</translation>
     </message>
 </context>
 <context>
@@ -24079,10 +24079,6 @@ Save your work and close Patchy before running the installer.</source>
         <translation>扩展选区</translation>
     </message>
     <message>
-        <source>Expand by</source>
-        <translation>扩展量</translation>
-    </message>
-    <message>
         <source>Make a selection before contracting</source>
         <translation>请先建立选区再收缩</translation>
     </message>
@@ -24091,20 +24087,12 @@ Save your work and close Patchy before running the installer.</source>
         <translation>收缩选区</translation>
     </message>
     <message>
-        <source>Contract by</source>
-        <translation>收缩量</translation>
-    </message>
-    <message>
         <source>Make a selection before selecting a border</source>
         <translation>请先建立选区再选择边界</translation>
     </message>
     <message>
         <source>Border Selection</source>
         <translation>边界选区</translation>
-    </message>
-    <message>
-        <source>Width</source>
-        <translation>宽度</translation>
     </message>
     <message>
         <source>Use Free Transform or rasterize Smart Objects before flipping</source>
@@ -32315,6 +32303,14 @@ Locked: %1</source>
     <message>
         <source>Linked files on %1 are allowed now</source>
         <translation>现已允许 %1 上的链接文件</translation>
+    </message>
+    <message>
+        <source>Expand by:</source>
+        <translation>扩展量:</translation>
+    </message>
+    <message>
+        <source>Contract by:</source>
+        <translation>收缩量:</translation>
     </message>
 </context>
 <context>
