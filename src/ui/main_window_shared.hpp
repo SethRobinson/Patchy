@@ -256,7 +256,11 @@ constexpr auto kScriptsMenuProperty = "patchy.scriptsMenu";
 [[nodiscard]] QString default_startup_brush_preset_id();
 void apply_brush_preset(CanvasWidget& canvas, const BrushPreset& preset);
 
-// Localized display name of a tool for the status bar / info panel.
+// A tool's English palette label ("Pick", "Hand", "Rect"), marked for the MainWindow
+// translation context. The label also builds the tool's action and button object names, so it
+// never changes.
+[[nodiscard]] const char* tool_action_source(CanvasTool tool);
+// Localized display name of a tool for the status bar / info panel: the palette label, translated.
 [[nodiscard]] QString tool_name(CanvasTool tool);
 
 // Default anti-alias strength for the Type tool's Smoothing combo.

@@ -1,6 +1,7 @@
 #include "psd/psd_artboard.hpp"
 
 #include "psd/psd_descriptor.hpp"
+#include "psd/psd_io_internal.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -80,22 +81,25 @@ std::optional<double> number_of(const DescriptorObject& object, std::string_view
   }
 }
 
-std::uint8_t channel_of(double value) {
-  return static_cast<std::uint8_t>(std::clamp(std::lround(value), 0L, 255L));
-}
-
 std::optional<RgbColor> color_of(const DescriptorObject& object, std::string_view key) {
   const auto* color = descriptor_object(object, key);
   if (color == nullptr) {
     return std::nullopt;
   }
-  const auto red = number_of(*color, "Rd  ");
-  const auto green = number_of(*color, "Grn ");
-  const auto blue = number_of(*color, "Bl  ");
-  if (!red.has_value() || !green.has_value() || !blue.has_value()) {
+  // HSB, Lab, CMYK, gray and float colors decode through the shared descriptor decoder
+  // (read as RGB keys they came out black). A plain RGB color still needs all three
+  // channels, or the artboard keeps its default.
+  const bool other_class = color->class_id == "CMYC" || color->class_id == "Grsc" ||
+                           color->class_id == "LbCl" || color->class_id == "HSBC";
+  const bool float_rgb = descriptor_value(*color, "redFloat") != nullptr ||
+                         descriptor_value(*color, "greenFloat") != nullptr ||
+                         descriptor_value(*color, "blueFloat") != nullptr;
+  if (!other_class && !float_rgb &&
+      (!number_of(*color, "Rd  ").has_value() || !number_of(*color, "Grn ").has_value() ||
+       !number_of(*color, "Bl  ").has_value())) {
     return std::nullopt;
   }
-  return RgbColor{channel_of(*red), channel_of(*green), channel_of(*blue)};
+  return descriptor_rgb_color(object, key, CmykColorConverter{});
 }
 
 ArtboardBackground background_of(std::int32_t type) {

@@ -14,6 +14,7 @@
 #include "ui/layer_thumbnail_size.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
+#include "ui/main_window_shared.hpp"
 #include "ui/tool_palette_customization.hpp"
 #include "ui/tool_palette_footer.hpp"
 #include "ui/tool_palette_layout.hpp"
@@ -43,6 +44,7 @@
 #include <QRadioButton>
 #include <QScreen>
 #include <QScrollBar>
+#include <QStatusBar>
 #include <QStyleFactory>
 #include <QStyleOptionViewItem>
 #include <QStyledItemDelegate>
@@ -190,6 +192,39 @@ void press_dialog_button(QDialog& dialog, QDialogButtonBox::StandardButton which
   if (box != nullptr) {
     box->button(which)->click();
   }
+}
+
+// The status bar and Info panel name each tool exactly as the palette does (one table,
+// tool_action_source): Pick and Hand, never Eyedropper and Pan.
+void ui_tool_names_match_the_palette_labels() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(patchy::ui::tool_name(patchy::ui::CanvasTool::Eyedropper) == QStringLiteral("Pick"));
+  CHECK(patchy::ui::tool_name(patchy::ui::CanvasTool::Pan) == QStringLiteral("Hand"));
+  int compared = 0;
+  for (auto* action : window.findChildren<QAction*>()) {
+    const auto name = action->objectName();
+    if (!name.startsWith(QStringLiteral("tool")) || !name.endsWith(QStringLiteral("Action")) ||
+        !action->isCheckable() || !action->data().isValid()) {
+      continue;
+    }
+    bool ok = false;
+    const auto value = action->data().toInt(&ok);
+    if (!ok) {
+      continue;
+    }
+    const auto tool = static_cast<patchy::ui::CanvasTool>(value);
+    if (QString(action->text()).remove(QLatin1Char('&')) != patchy::ui::tool_name(tool)) {
+      std::cerr << name.toStdString() << ": palette '" << action->text().toStdString() << "' status '"
+                << patchy::ui::tool_name(tool).toStdString() << "'\n";
+    }
+    CHECK(QString(action->text()).remove(QLatin1Char('&')) == patchy::ui::tool_name(tool));
+    ++compared;
+  }
+  CHECK(compared >= 40);
+  require_action(window, "toolHandAction")->trigger();
+  QApplication::processEvents();
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Hand"));
 }
 
 // GitHub issue 213 (and 304's Hand tool): a hidden tool leaves the palette but keeps its key;
@@ -3359,6 +3394,7 @@ void ui_tool_palette_customize_combos_show_their_entries() {
 std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
   return {
       {"ui_tool_palette_customize_hidden_tools_keep_hotkeys", ui_tool_palette_customize_hidden_tools_keep_hotkeys},
+      {"ui_tool_names_match_the_palette_labels", ui_tool_names_match_the_palette_labels},
       {"ui_tool_palette_two_columns_place_tools_side_by_side",
        ui_tool_palette_two_columns_place_tools_side_by_side},
       {"ui_tool_palette_wheel_scrolls_overflowing_column", ui_tool_palette_wheel_scrolls_overflowing_column},

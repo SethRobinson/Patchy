@@ -1165,6 +1165,10 @@ private:
       const QString& folder, const QString& prefix, const QString& extension,
       DividePhotosExistingFiles existing_files);
   void import_sprite_sheet();
+  // Every finished file export's tail: the status message, the export-done theme event, and
+  // the reveal in the file manager when `reveal` is set (main_window_files.cpp).
+  void finish_file_export(const QString& status_message, bool reveal = false, const QString& reveal_path = {},
+                          bool reveal_is_file = true);
   void export_sprite_sheet();
   void import_image_sequence();
   void export_image_sequence();

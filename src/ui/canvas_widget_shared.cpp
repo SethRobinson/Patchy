@@ -373,21 +373,9 @@ void apply_fill_settings(EditOptions& options, const CanvasWidget& canvas) {
   options.flood_contiguous = canvas.fill_contiguous();
 }
 
-EditOptions edit_options(QColor primary, QColor secondary, int brush_size, int brush_opacity, int brush_softness,
-                         bool fill_shapes, bool lock_transparent_pixels, const CanvasWidget& canvas,
-                         int brush_roundness, double brush_angle_degrees) {
-  EditOptions options;
-  primary.setAlpha(std::clamp(static_cast<int>(std::round(255.0 * static_cast<double>(brush_opacity) / 100.0)), 1, 255));
-  options.primary = edit_color(primary);
-  options.secondary = edit_color(secondary);
+void apply_canvas_edit_state(EditOptions& options, const CanvasWidget& canvas) {
   options.primary_gain = color_intensity_gain(canvas.paint_intensity().foreground);
   options.secondary_gain = color_intensity_gain(canvas.paint_intensity().background);
-  options.brush_size = brush_size;
-  options.brush_softness = brush_softness;
-  options.brush_roundness = std::clamp(brush_roundness, 1, 100);
-  options.brush_angle_degrees = brush_angle_degrees;
-  options.fill_shapes = fill_shapes;
-  options.lock_transparent_pixels = lock_transparent_pixels;
   options.palette_snap = canvas.palette_snap_for_edits();
   options.progress_callback = [&canvas] {
     const_cast<CanvasWidget&>(canvas).tick_processing_operation();
@@ -410,6 +398,22 @@ EditOptions edit_options(QColor primary, QColor secondary, int brush_size, int b
       return static_cast<float>(canvas.selection_alpha_at(QPoint(x, y))) / 255.0F;
     };
   }
+}
+
+EditOptions edit_options(QColor primary, QColor secondary, int brush_size, int brush_opacity, int brush_softness,
+                         bool fill_shapes, bool lock_transparent_pixels, const CanvasWidget& canvas,
+                         int brush_roundness, double brush_angle_degrees) {
+  EditOptions options;
+  primary.setAlpha(std::clamp(static_cast<int>(std::round(255.0 * static_cast<double>(brush_opacity) / 100.0)), 1, 255));
+  options.primary = edit_color(primary);
+  options.secondary = edit_color(secondary);
+  options.brush_size = brush_size;
+  options.brush_softness = brush_softness;
+  options.brush_roundness = std::clamp(brush_roundness, 1, 100);
+  options.brush_angle_degrees = brush_angle_degrees;
+  options.fill_shapes = fill_shapes;
+  options.lock_transparent_pixels = lock_transparent_pixels;
+  apply_canvas_edit_state(options, canvas);
   return options;
 }
 

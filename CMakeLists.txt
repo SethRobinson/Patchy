@@ -136,6 +136,12 @@ if(NOT MSVC)
     src/core/perspective_planes.cpp
     PROPERTIES COMPILE_OPTIONS "-ffp-contract=off"
   )
+  # The factory brush tips are float coverage math; their masks are pinned
+  # (ui_default_brush_tip_masks_digest_is_pinned) and must match MSVC's everywhere.
+  set_source_files_properties(
+    src/ui/default_brush_tips.cpp
+    PROPERTIES COMPILE_OPTIONS "-ffp-contract=off"
+  )
   set_source_files_properties(
     src/formats/bcdec/bcdec_impl.c
     PROPERTIES COMPILE_OPTIONS "-std=gnu2x"

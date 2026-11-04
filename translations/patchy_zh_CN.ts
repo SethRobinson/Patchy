@@ -6894,140 +6894,12 @@ Flow: %6
         <translation>移动</translation>
     </message>
     <message>
-        <source>Marquee</source>
-        <translation>选框</translation>
-    </message>
-    <message>
-        <source>Elliptical Marquee</source>
-        <translation>椭圆选框</translation>
-    </message>
-    <message>
-        <source>Lasso</source>
-        <translation>套索</translation>
-    </message>
-    <message>
-        <source>Magnetic Lasso</source>
-        <translation>磁性套索</translation>
-    </message>
-    <message>
-        <source>Magic Wand</source>
-        <translation>魔棒</translation>
-    </message>
-    <message>
-        <source>Quick Select</source>
-        <translation>快速选择</translation>
-    </message>
-    <message>
-        <source>Brush</source>
-        <translation>画笔</translation>
-    </message>
-    <message>
-        <source>Mixer Brush</source>
-        <translation>混合器画笔</translation>
-    </message>
-    <message>
-        <source>Clone Stamp</source>
-        <translation>仿制图章</translation>
-    </message>
-    <message>
-        <source>Pattern Stamp</source>
-        <translation>图案图章</translation>
-    </message>
-    <message>
-        <source>Healing Brush</source>
-        <translation>修复画笔</translation>
-    </message>
-    <message>
-        <source>Smudge</source>
-        <translation>涂抹</translation>
-    </message>
-    <message>
-        <source>Dodge</source>
-        <translation>减淡</translation>
-    </message>
-    <message>
-        <source>Burn</source>
-        <translation>加深</translation>
-    </message>
-    <message>
-        <source>Eraser</source>
-        <translation>橡皮擦</translation>
-    </message>
-    <message>
-        <source>Pen</source>
-        <translation>钢笔</translation>
-    </message>
-    <message>
-        <source>Path Select</source>
-        <translation>路径选择</translation>
-    </message>
-    <message>
-        <source>Direct Select</source>
-        <translation>直接选择</translation>
-    </message>
-    <message>
-        <source>Line</source>
-        <translation>直线</translation>
-    </message>
-    <message>
-        <source>Rectangle</source>
-        <translation>矩形</translation>
-    </message>
-    <message>
-        <source>Ellipse</source>
-        <translation>椭圆</translation>
-    </message>
-    <message>
-        <source>Polygon</source>
-        <translation>多边形</translation>
-    </message>
-    <message>
-        <source>Custom Shape</source>
-        <translation>自定形状</translation>
-    </message>
-    <message>
-        <source>Eyedropper</source>
-        <translation>吸管</translation>
-    </message>
-    <message>
         <source>Type</source>
         <translation>文字</translation>
     </message>
     <message>
-        <source>Pan</source>
-        <translation>抓手</translation>
-    </message>
-    <message>
         <source>Zoom</source>
         <translation>缩放</translation>
-    </message>
-    <message>
-        <source>Spot Healing</source>
-        <translation>污点修复</translation>
-    </message>
-    <message>
-        <source>Patch</source>
-        <translation>修补</translation>
-    </message>
-    <message>
-        <source>Crop</source>
-        <translation>裁剪</translation>
-    </message>
-    <message>
-        <source>Add Anchor Point</source>
-        <translation>添加锚点</translation>
-    </message>
-    <message>
-        <source>Delete Anchor Point</source>
-        <translation>删除锚点</translation>
-    </message>
-    <message>
-        <source>Convert Point</source>
-        <translation>转换点</translation>
-    </message>
-    <message>
-        <source>Tool</source>
-        <translation>工具</translation>
     </message>
     <message>
         <source>Edit Gradient Stops</source>
@@ -9639,10 +9511,6 @@ RGB：%2, %3, %4</translation>
         <translation>Patchy 以 RGB 编辑此文件。未修改的受支持图层可以按原始颜色模式保存。内容编辑或不受支持的图层需要以 RGB 保存，这可能改变渐变和调整效果。</translation>
     </message>
     <message>
-        <source>Object Selection</source>
-        <translation>对象选择</translation>
-    </message>
-    <message>
         <source>Patchy converted this document to RGB, so this profile is shown for reference only and is not written to RGB saves.</source>
         <translation>Patchy 已将此文档转换为 RGB，因此此配置文件仅供参考，以 RGB 保存时不会写入。</translation>
     </message>
@@ -11982,10 +11850,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>背景：它始终位于堆栈底部，没有透明度，也没有图层样式。右键单击它并选择“从背景生成图层”即可将其变为普通图层。</translation>
     </message>
     <message>
-        <source>Polygonal Lasso</source>
-        <translation>多边形套索</translation>
-    </message>
-    <message>
         <source>iPhone 16 Pro</source>
         <translation>iPhone 16 Pro</translation>
     </message>
@@ -12234,10 +12098,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Right</source>
         <translation>右侧</translation>
-    </message>
-    <message>
-        <source>Perspective Crop</source>
-        <translation>透视裁剪</translation>
     </message>
     <message>
         <source>Search results</source>
@@ -12489,10 +12349,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%1, from Preferences</source>
         <comment>new document color profile: the CMYK working profile</comment>
         <translation>%1 (首选项)</translation>
-    </message>
-    <message>
-        <source>Red Eye</source>
-        <translation>红眼</translation>
     </message>
     <message>
         <source>This Paint.NET file is damaged and could not be opened.</source>
@@ -13151,10 +13007,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Encoding %1...</source>
         <translation>正在编码 %1...</translation>
-    </message>
-    <message>
-        <source>Ruler</source>
-        <translation>标尺工具</translation>
     </message>
     <message>
         <source>Layer and vector mask are linked. Click to unlink.</source>
@@ -14887,10 +14739,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Extend</source>
         <translation>扩展</translation>
-    </message>
-    <message>
-        <source>Content-Aware Move</source>
-        <translation>内容感知移动</translation>
     </message>
     <message>
         <source>Fill layer. Click to edit its fill settings.</source>
@@ -23601,10 +23449,6 @@ Save your work and close Patchy before running the installer.</source>
     <message>
         <source>Ungroup layers</source>
         <translation>取消图层编组</translation>
-    </message>
-    <message>
-        <source>Ungrouped the folder; its opacity, blend mode, or mask was discarded</source>
-        <translation>已取消文件夹编组；其不透明度、混合模式或蒙版已被丢弃</translation>
     </message>
     <message numerus="yes">
         <source>Ungrouped %n folder(s)</source>
@@ -32399,6 +32243,10 @@ Locked: %1</source>
     <message>
         <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
         <translation>画完新轮廓后，选择其中的对象，扩展几个像素并应用羽化，然后再拖动</translation>
+    </message>
+    <message>
+        <source>Ungrouped the folder; its opacity, blend mode, mask, or style was discarded</source>
+        <translation>已取消文件夹编组；其不透明度、混合模式、蒙版或样式已被丢弃</translation>
     </message>
 </context>
 <context>

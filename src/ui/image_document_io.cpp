@@ -56,6 +56,7 @@
 #include <QByteArray>
 #include <QColor>
 #include <QDir>
+#include <QFileInfo>
 #include <QFile>
 #include <QImage>
 #include <QImageWriter>
@@ -2303,6 +2304,22 @@ void write_bytes_with_save_file(const QString& path, std::span<const std::uint8_
 }
 
 }  // namespace
+
+bool save_qimage_atomically(const QImage& image, const QString& path, const char* format) {
+  if (image.isNull() || path.isEmpty()) {
+    return false;
+  }
+  QSaveFile file(path);
+  if (!file.open(QIODevice::WriteOnly)) {
+    return false;
+  }
+  const QByteArray derived = QFileInfo(path).suffix().toLower().toLatin1();
+  if (!image.save(&file, format != nullptr ? format : derived.constData())) {
+    file.cancelWriting();
+    return false;
+  }
+  return file.commit();
+}
 
 std::vector<std::uint8_t> encode_thumbnail_jpeg(const QImage& image) {
   if (image.isNull()) {

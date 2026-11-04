@@ -1,6 +1,7 @@
 #include <string_view>
 #include "core/smart_filter.hpp"
 #include "core/document.hpp"
+#include "filters/filter_registry.hpp"
 #include "filters/smart_filter_renderer.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
@@ -456,6 +457,94 @@ void smart_filter_effects_mask_replacement_adds_removes_and_fails_closed() {
             opaque_store.blocks.front()) == valid_before);
   CHECK(patchy::psd::serialize_filter_effects_block(
             opaque_store.blocks.back()) == opaque_payload);
+}
+
+// Every blend mode a Smart Filter entry can carry (recipe_blend_mode_supported) is written
+// as its stringID and must read back as itself: Vivid Light, Linear Light, Hard Mix, Darker
+// Color and Lighter Color once read back as an Unsupported stack. The modes the Smart Filter
+// renderer cannot blend still read as unsupported rather than as Normal.
+void smart_filter_entry_blend_modes_round_trip_at_every_supported_mode() {
+  patchy::SmartObjectPlacement placement;
+  placement.uuid = "11111111-2222-3333-8444-555555555556";
+  placement.transform = {0.0, 0.0, 32.0, 0.0, 32.0, 24.0, 0.0, 24.0};
+  placement.width = 32.0;
+  placement.height = 24.0;
+  placement.resolution = 72.0;
+  int supported_modes = 0;
+  for (int value = 0; value <= static_cast<int>(patchy::BlendMode::EasyDodge); ++value) {
+    const auto mode = static_cast<patchy::BlendMode>(value);
+    auto stack = test_gaussian_smart_filter_stack(2.0);
+    stack.entries.front().blend_mode = mode;
+    const auto payload = patchy::psd::author_placed_layer_sold_payload(
+        placement, "aaaaaaaa-bbbb-cccc-8ddd-eeeeeeeeeeef", &stack);
+    const auto info = patchy::psd::parse_placed_layer_block("SoLd", payload);
+    CHECK(info.has_value() && info->smart_filters.has_value());
+    if (!info.has_value() || !info->smart_filters.has_value()) {
+      continue;
+    }
+    const auto& read = *info->smart_filters;
+    if (patchy::recipe_blend_mode_supported(mode)) {
+      ++supported_modes;
+      if (read.support != patchy::SmartFilterStackSupport::Supported || read.entries.size() != 1U ||
+          read.entries.front().blend_mode != mode) {
+        std::cerr << "blend mode " << value << " did not round-trip\n";
+      }
+      CHECK(read.support == patchy::SmartFilterStackSupport::Supported);
+      CHECK(read.entries.size() == 1U);
+      CHECK(!read.entries.empty() && read.entries.front().blend_mode == mode);
+    }
+  }
+  CHECK(supported_modes == 26);
+
+  // A Photoshop-only stringID Patchy cannot blend (Dissolve) and one it does not know
+  // both leave the stack unsupported instead of reading as Normal.
+  for (const char* unsupported : {"dissolve", "notABlendMode", "passThrough"}) {
+    auto stack = test_gaussian_smart_filter_stack(2.0);
+    stack.entries.front().blend_mode = patchy::BlendMode::Multiply;
+    auto payload = patchy::psd::author_placed_layer_sold_payload(
+        placement, "aaaaaaaa-bbbb-cccc-8ddd-eeeeeeeeeeef", &stack);
+    patchy::psd::BigEndianReader reader(payload);
+    CHECK(patchy::psd::key_string(patchy::psd::read_signature(reader)) == "soLD");
+    CHECK(reader.read_u32() == 4U);
+    CHECK(reader.read_u32() == 16U);
+    auto descriptor = patchy::psd::read_descriptor(reader);
+    auto* filter_root = patchy::psd::descriptor_object(descriptor, "filterFX");
+    CHECK(filter_root != nullptr);
+    if (filter_root == nullptr) {
+      continue;
+    }
+    auto* list = const_cast<patchy::psd::DescriptorValue*>(patchy::psd::descriptor_value(*filter_root, "filterFXList"));
+    CHECK(list != nullptr && list->list_value.size() == 1U && list->list_value.front().object_value != nullptr);
+    if (list == nullptr || list->list_value.empty() || list->list_value.front().object_value == nullptr) {
+      continue;
+    }
+    auto* blend = const_cast<patchy::psd::DescriptorObject*>(
+        patchy::psd::descriptor_object(*list->list_value.front().object_value, "blendOptions"));
+    CHECK(blend != nullptr);
+    if (blend == nullptr) {
+      continue;
+    }
+    auto found = blend->values.find("Md  ");
+    CHECK(found != blend->values.end());
+    if (found == blend->values.end()) {
+      continue;
+    }
+    found->second.enum_value = unsupported;
+    patchy::psd::BigEndianWriter writer;
+    for (const char ch : {'s', 'o', 'L', 'D'}) {
+      writer.write_u8(static_cast<std::uint8_t>(ch));
+    }
+    writer.write_u32(4U);
+    writer.write_u32(16U);
+    patchy::psd::write_descriptor(writer, descriptor);
+    while ((writer.bytes().size() % 4U) != 0U) {
+      writer.write_u8(0U);
+    }
+    const auto patched = patchy::psd::parse_placed_layer_block("SoLd", writer.bytes());
+    CHECK(patched.has_value() && patched->smart_filters.has_value());
+    CHECK(patched.has_value() && patched->smart_filters.has_value() &&
+          patched->smart_filters->support != patchy::SmartFilterStackSupport::Supported);
+  }
 }
 
 void smart_filter_canonical_gaussian_descriptor_authors_patches_and_removes() {
@@ -2007,6 +2096,8 @@ std::vector<patchy::test::TestCase> smart_filter_descriptors_tests_part1() {
        smart_filter_effects_mask_replacement_adds_removes_and_fails_closed},
       {"smart_filter_canonical_gaussian_descriptor_authors_patches_and_removes",
        smart_filter_canonical_gaussian_descriptor_authors_patches_and_removes},
+      {"smart_filter_entry_blend_modes_round_trip_at_every_supported_mode",
+       smart_filter_entry_blend_modes_round_trip_at_every_supported_mode},
       {"smart_filter_canonical_high_pass_descriptor_round_trips_and_preserves_unknowns",
        smart_filter_canonical_high_pass_descriptor_round_trips_and_preserves_unknowns},
       {"smart_filter_canonical_median_descriptor_round_trips_and_preserves_unknowns",

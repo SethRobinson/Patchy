@@ -820,102 +820,110 @@ void bind_tooltip(QObject* object, const char* source) {
   apply_bound_translation(object);
 }
 
-QString tool_name(CanvasTool tool) {
+// The palette labels double as object names (tool_action_object_name, plain_tool_button_object_name):
+// never change one. Translated in the MainWindow context through bind_action_text.
+const char* tool_action_source(CanvasTool tool) {
   switch (tool) {
     case CanvasTool::Move:
-      return QObject::tr("Move");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Move");
     case CanvasTool::Marquee:
-      return QObject::tr("Marquee");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Marquee");
     case CanvasTool::EllipticalMarquee:
-      return QObject::tr("Elliptical Marquee");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Elliptical Marquee");
     case CanvasTool::Lasso:
-      return QObject::tr("Lasso");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Lasso");
     case CanvasTool::PolygonLasso:
-      return QObject::tr("Polygonal Lasso");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Polygonal Lasso");
     case CanvasTool::MagneticLasso:
-      return QObject::tr("Magnetic Lasso");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Magnetic Lasso");
     case CanvasTool::MagicWand:
-      return QObject::tr("Magic Wand");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Magic Wand");
     case CanvasTool::QuickSelect:
-      return QObject::tr("Quick Select");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Quick Select");
     case CanvasTool::ObjectSelect:
-      return QObject::tr("Object Selection");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Object Selection");
     case CanvasTool::Brush:
-      return QObject::tr("Brush");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Brush");
     case CanvasTool::MixerBrush:
-      return QObject::tr("Mixer Brush");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Mixer Brush");
     case CanvasTool::Clone:
-      return QObject::tr("Clone Stamp");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Clone");
     case CanvasTool::PatternStamp:
-      return QObject::tr("Pattern Stamp");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Pattern Stamp");
     case CanvasTool::Healing:
-      return QObject::tr("Healing Brush");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Healing Brush");
     case CanvasTool::Smudge:
-      return QObject::tr("Smudge");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Smudge");
     case CanvasTool::Dodge:
-      return QObject::tr("Dodge");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Dodge");
     case CanvasTool::Burn:
-      return QObject::tr("Burn");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Burn");
     case CanvasTool::Sponge:
-      return QObject::tr("Sponge");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Sponge");
     case CanvasTool::BlurBrush:
-      return QObject::tr("Blur");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Blur");
     case CanvasTool::SharpenBrush:
-      return QObject::tr("Sharpen");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Sharpen");
     case CanvasTool::Eraser:
-      return QObject::tr("Eraser");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Eraser");
     case CanvasTool::Gradient:
-      return QObject::tr("Gradient");
-    case CanvasTool::Pen:
-      return QObject::tr("Pen");
-    case CanvasTool::PathSelect:
-      return QObject::tr("Path Select");
-    case CanvasTool::DirectSelect:
-      return QObject::tr("Direct Select");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Gradient");
     case CanvasTool::Line:
-      return QObject::tr("Line");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Line");
     case CanvasTool::Rectangle:
-      return QObject::tr("Rectangle");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Rect");
     case CanvasTool::Ellipse:
-      return QObject::tr("Ellipse");
-    case CanvasTool::Polygon:
-      return QObject::tr("Polygon");
-    case CanvasTool::CustomShape:
-      return QObject::tr("Custom Shape");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Ellipse");
     case CanvasTool::Fill:
-      return QObject::tr("Fill");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Fill");
     case CanvasTool::Eyedropper:
-      return QObject::tr("Eyedropper");
-    case CanvasTool::Text:
-      return QObject::tr("Type");
-    case CanvasTool::Pan:
-      return QObject::tr("Pan");
-    case CanvasTool::Zoom:
-      return QObject::tr("Zoom");
-    case CanvasTool::SpotHealing:
-      return QObject::tr("Spot Healing");
-    case CanvasTool::PatchTool:
-      return QObject::tr("Patch");
-    case CanvasTool::ContentAwareMove:
-      return QObject::tr("Content-Aware Move");
-    case CanvasTool::RedEye:
-      return QObject::tr("Red Eye");
-    case CanvasTool::Crop:
-      return QObject::tr("Crop");
-    case CanvasTool::PerspectiveCrop:
-      return QObject::tr("Perspective Crop");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Pick");
     case CanvasTool::Ruler:
-      return QObject::tr("Ruler");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Ruler");
+    case CanvasTool::Text:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Type");
+    case CanvasTool::Pan:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Hand");
+    case CanvasTool::Zoom:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Zoom");
+    case CanvasTool::Pen:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Pen");
+    case CanvasTool::PathSelect:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Path Select");
+    case CanvasTool::DirectSelect:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Direct Select");
+    case CanvasTool::Polygon:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Polygon");
+    case CanvasTool::CustomShape:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Custom Shape");
+    case CanvasTool::SpotHealing:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Spot Healing");
+    case CanvasTool::PatchTool:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Patch");
+    case CanvasTool::ContentAwareMove:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Content-Aware Move");
+    case CanvasTool::RedEye:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Red Eye");
+    case CanvasTool::Crop:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Crop");
+    case CanvasTool::PerspectiveCrop:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Perspective Crop");
     case CanvasTool::AddAnchor:
-      return QObject::tr("Add Anchor Point");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Add Anchor");
     case CanvasTool::DeleteAnchor:
-      return QObject::tr("Delete Anchor Point");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Delete Anchor");
     case CanvasTool::ConvertPoint:
-      return QObject::tr("Convert Point");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Convert Point");
     case CanvasTool::Artboard:
-      return QObject::tr("Artboard");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Artboard");
   }
-  return QObject::tr("Tool");
+  return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Tool");
+}
+
+// The status bar and Info panel name a tool as the palette does: one table, so "Pick" and "Hand"
+// never read as Eyedropper and Pan in one place and Pick and Hand in the other.
+QString tool_name(CanvasTool tool) {
+  return QCoreApplication::translate("patchy::ui::MainWindow", tool_action_source(tool));
 }
 
 int text_smoothing_combo_value(const QComboBox* combo) {

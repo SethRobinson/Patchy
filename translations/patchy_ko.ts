@@ -7140,140 +7140,12 @@ Flow: %6
         <translation>이동</translation>
     </message>
     <message>
-        <source>Marquee</source>
-        <translation>사각형 선택 윤곽</translation>
-    </message>
-    <message>
-        <source>Elliptical Marquee</source>
-        <translation>타원형 선택 윤곽</translation>
-    </message>
-    <message>
-        <source>Lasso</source>
-        <translation>올가미</translation>
-    </message>
-    <message>
-        <source>Magnetic Lasso</source>
-        <translation>자석 올가미</translation>
-    </message>
-    <message>
-        <source>Magic Wand</source>
-        <translation>자동 선택</translation>
-    </message>
-    <message>
-        <source>Quick Select</source>
-        <translation>빠른 선택</translation>
-    </message>
-    <message>
-        <source>Brush</source>
-        <translation>브러시</translation>
-    </message>
-    <message>
-        <source>Mixer Brush</source>
-        <translation>혼합 브러시</translation>
-    </message>
-    <message>
-        <source>Clone Stamp</source>
-        <translation>복제 도장</translation>
-    </message>
-    <message>
-        <source>Pattern Stamp</source>
-        <translation>패턴 스탬프</translation>
-    </message>
-    <message>
-        <source>Healing Brush</source>
-        <translation>복구 브러시</translation>
-    </message>
-    <message>
-        <source>Smudge</source>
-        <translation>손가락</translation>
-    </message>
-    <message>
-        <source>Dodge</source>
-        <translation>닷지</translation>
-    </message>
-    <message>
-        <source>Burn</source>
-        <translation>번</translation>
-    </message>
-    <message>
-        <source>Eraser</source>
-        <translation>지우개</translation>
-    </message>
-    <message>
-        <source>Pen</source>
-        <translation>펜</translation>
-    </message>
-    <message>
-        <source>Path Select</source>
-        <translation>패스 선택</translation>
-    </message>
-    <message>
-        <source>Direct Select</source>
-        <translation>직접 선택</translation>
-    </message>
-    <message>
-        <source>Line</source>
-        <translation>선</translation>
-    </message>
-    <message>
-        <source>Rectangle</source>
-        <translation>사각형</translation>
-    </message>
-    <message>
-        <source>Ellipse</source>
-        <translation>타원</translation>
-    </message>
-    <message>
-        <source>Polygon</source>
-        <translation>다각형</translation>
-    </message>
-    <message>
-        <source>Custom Shape</source>
-        <translation>사용자 지정 모양</translation>
-    </message>
-    <message>
-        <source>Eyedropper</source>
-        <translation>스포이드</translation>
-    </message>
-    <message>
         <source>Type</source>
         <translation>문자</translation>
     </message>
     <message>
-        <source>Pan</source>
-        <translation>화면 이동</translation>
-    </message>
-    <message>
         <source>Zoom</source>
         <translation>줌</translation>
-    </message>
-    <message>
-        <source>Spot Healing</source>
-        <translation>스팟 복구</translation>
-    </message>
-    <message>
-        <source>Patch</source>
-        <translation>패치</translation>
-    </message>
-    <message>
-        <source>Crop</source>
-        <translation>자르기</translation>
-    </message>
-    <message>
-        <source>Add Anchor Point</source>
-        <translation>고정점 추가</translation>
-    </message>
-    <message>
-        <source>Delete Anchor Point</source>
-        <translation>고정점 삭제</translation>
-    </message>
-    <message>
-        <source>Convert Point</source>
-        <translation>포인트 변환</translation>
-    </message>
-    <message>
-        <source>Tool</source>
-        <translation>도구</translation>
     </message>
     <message>
         <source>Edit Gradient Stops</source>
@@ -9639,10 +9511,6 @@ RGB: %2, %3, %4</translation>
         <translation>Patchy는 이 파일을 RGB로 편집합니다. 지원되는 레이어가 변경되지 않았다면 원래 색상 모드로 저장할 수 있습니다. 내용을 편집하거나 지원되지 않는 레이어가 있으면 RGB로 저장해야 하므로 그레이디언트와 조정이 달라질 수 있습니다.</translation>
     </message>
     <message>
-        <source>Object Selection</source>
-        <translation>개체 선택</translation>
-    </message>
-    <message>
         <source>Patchy converted this document to RGB, so this profile is shown for reference only and is not written to RGB saves.</source>
         <translation>Patchy가 이 문서를 RGB로 변환했으므로 이 프로필은 참고용으로만 표시되며 RGB로 저장할 때 기록되지 않습니다.</translation>
     </message>
@@ -11982,10 +11850,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>배경: 스택의 맨 아래에 머물며 투명도나 레이어 스타일을 가질 수 없습니다. 마우스 오른쪽 버튼으로 클릭하고 배경에서 레이어로를 선택하면 일반 레이어가 됩니다.</translation>
     </message>
     <message>
-        <source>Polygonal Lasso</source>
-        <translation>다각형 올가미</translation>
-    </message>
-    <message>
         <source>iPhone 16 Pro</source>
         <translation>iPhone 16 Pro</translation>
     </message>
@@ -12234,10 +12098,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Right</source>
         <translation>오른쪽</translation>
-    </message>
-    <message>
-        <source>Perspective Crop</source>
-        <translation>원근 자르기</translation>
     </message>
     <message>
         <source>Search results</source>
@@ -12489,10 +12349,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%1, from Preferences</source>
         <comment>new document color profile: the CMYK working profile</comment>
         <translation>%1 (환경설정)</translation>
-    </message>
-    <message>
-        <source>Red Eye</source>
-        <translation>적목 현상 제거</translation>
     </message>
     <message>
         <source>This Paint.NET file is damaged and could not be opened.</source>
@@ -13151,10 +13007,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Encoding %1...</source>
         <translation>%1 인코딩 중...</translation>
-    </message>
-    <message>
-        <source>Ruler</source>
-        <translation>자</translation>
     </message>
     <message>
         <source>Layer and vector mask are linked. Click to unlink.</source>
@@ -14887,10 +14739,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Extend</source>
         <translation>확장</translation>
-    </message>
-    <message>
-        <source>Content-Aware Move</source>
-        <translation>내용 인식 이동</translation>
     </message>
     <message>
         <source>Fill layer. Click to edit its fill settings.</source>
@@ -24280,10 +24128,6 @@ Save your work and close Patchy before running the installer.</source>
         <source>Ungroup layers</source>
         <translation>레이어 그룹 해제</translation>
     </message>
-    <message>
-        <source>Ungrouped the folder; its opacity, blend mode, or mask was discarded</source>
-        <translation>폴더를 그룹 해제했습니다. 불투명도, 혼합 모드 또는 마스크가 삭제되었습니다.</translation>
-    </message>
     <message numerus="yes">
         <source>Ungrouped %n folder(s)</source>
         <translation>
@@ -32399,6 +32243,10 @@ Locked: %1</source>
     <message>
         <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
         <translation>새 윤곽선을 다 그리면 그 안의 개체를 선택하고 몇 픽셀 확장한 뒤 페더를 적용한 다음 드래그합니다</translation>
+    </message>
+    <message>
+        <source>Ungrouped the folder; its opacity, blend mode, mask, or style was discarded</source>
+        <translation>폴더를 그룹 해제했습니다. 불투명도, 혼합 모드, 마스크 또는 스타일이 삭제되었습니다.</translation>
     </message>
 </context>
 <context>

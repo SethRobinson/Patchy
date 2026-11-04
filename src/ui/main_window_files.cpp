@@ -4394,6 +4394,19 @@ void MainWindow::import_sprite_sheet() {
   }
 }
 
+// The one tail every finished file export runs (Export As, Quick Export, Export for Web,
+// sprite sheets, image sequences, layer exports, animations, PDF and folder exports): the
+// status message, the export-done theme event (docs/theme-files-scripts.md), and the reveal
+// when the export's options ask for it.
+void MainWindow::finish_file_export(const QString& status_message, bool reveal, const QString& reveal_path,
+                                    bool reveal_is_file) {
+  statusBar()->showMessage(status_message);
+  fire_theme_event(ThemeSoundEvent::ExportDone);
+  if (reveal && !reveal_path.isEmpty()) {
+    reveal_path_in_file_explorer(reveal_path, reveal_is_file);
+  }
+}
+
 void MainWindow::export_sprite_sheet() {
   if (!has_active_document()) {
     show_status_error(tr("No document"));
@@ -4447,11 +4460,8 @@ void MainWindow::export_sprite_sheet() {
     write_flat_image_file(sheet_document, path, extension, *image_options);
     offer_browser_download_for_saved_file(path);
     remember_save_directory_for_path(path);
-    statusBar()->showMessage(tr("Exported sprite sheet %1").arg(path));
-    fire_theme_event(ThemeSoundEvent::ExportDone);
-    if (image_options->export_reveal_in_file_explorer) {
-      reveal_path_in_file_explorer(path, /*is_file*/ true);
-    }
+    finish_file_export(tr("Exported sprite sheet %1").arg(path),
+                       image_options->export_reveal_in_file_explorer, path, /*reveal_is_file*/ true);
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
                           QStringLiteral("exportFailedMessageBox"));
@@ -4586,11 +4596,8 @@ void MainWindow::export_image_sequence() {
       ++frame_index;
     }
     remember_save_directory_for_path(path);
-    statusBar()->showMessage(tr("Exported %1 images to %2").arg(file_names.size()).arg(directory.absolutePath()));
-    fire_theme_event(ThemeSoundEvent::ExportDone);
-    if (image_options->export_reveal_in_file_explorer) {
-      reveal_path_in_file_explorer(directory.absolutePath(), /*is_file*/ false);
-    }
+    finish_file_export(tr("Exported %1 images to %2").arg(file_names.size()).arg(directory.absolutePath()),
+                       image_options->export_reveal_in_file_explorer, directory.absolutePath(), /*reveal_is_file*/ false);
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
                           QStringLiteral("exportFailedMessageBox"));
@@ -4849,33 +4856,32 @@ void MainWindow::export_selected_layers(bool choose_format, LayerExportSource so
       return;
     }
     const auto where = QDir::toNativeSeparators(paths.size() == 1 ? paths.front() : folder);
+    QString message;
     if (mask_export) {
       // Selected layers without a mask of the clicked kind were left out.
       if (skipped == 0) {
-        statusBar()->showMessage(paths.size() == 1 ? tr("Exported %1").arg(where)
-                                                   : tr("Exported %1 masks to %2").arg(written).arg(where));
+        message = paths.size() == 1 ? tr("Exported %1").arg(where)
+                                    : tr("Exported %1 masks to %2").arg(written).arg(where);
       } else if (paths.size() == 1) {
-        statusBar()->showMessage(tr("Exported %1; %2 layers without that mask were skipped").arg(where).arg(skipped));
+        message = tr("Exported %1; %2 layers without that mask were skipped").arg(where).arg(skipped);
       } else {
-        statusBar()->showMessage(tr("Exported %1 masks to %2; %3 layers without that mask were skipped")
-                                     .arg(written)
-                                     .arg(where)
-                                     .arg(skipped));
+        message = tr("Exported %1 masks to %2; %3 layers without that mask were skipped")
+                      .arg(written)
+                      .arg(where)
+                      .arg(skipped);
       }
     } else if (paths.size() == 1) {
-      statusBar()->showMessage(tr("Exported %1").arg(where));
+      message = tr("Exported %1").arg(where);
     } else if (skipped == 0) {
-      statusBar()->showMessage(tr("Exported %1 layers to %2").arg(written).arg(where));
+      message = tr("Exported %1 layers to %2").arg(written).arg(where);
     } else {
-      statusBar()->showMessage(tr("Exported %1 layers to %2; %3 layers without pixels were skipped")
-                                   .arg(written)
-                                   .arg(where)
-                                   .arg(skipped));
+      message = tr("Exported %1 layers to %2; %3 layers without pixels were skipped")
+                    .arg(written)
+                    .arg(where)
+                    .arg(skipped);
     }
-    fire_theme_event(ThemeSoundEvent::ExportDone);
-    if (options.export_reveal_in_file_explorer) {
-      reveal_path_in_file_explorer(paths.size() == 1 ? paths.front() : folder, /*is_file*/ paths.size() == 1);
-    }
+    finish_file_export(message, options.export_reveal_in_file_explorer, paths.size() == 1 ? paths.front() : folder,
+                       /*reveal_is_file*/ paths.size() == 1);
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
                           QStringLiteral("exportFailedMessageBox"));
@@ -4918,11 +4924,8 @@ void MainWindow::export_animated_gif() {
     write_flat_image_file(document(), path, QStringLiteral("gif"), *options, &writer_notices);
     offer_browser_download_for_saved_file(path);
     remember_save_directory_for_path(path);
-    statusBar()->showMessage(tr("Exported %1").arg(path) + export_notes_suffix_for(writer_notices));
-    fire_theme_event(ThemeSoundEvent::ExportDone);
-    if (options->export_reveal_in_file_explorer) {
-      reveal_path_in_file_explorer(path, /*is_file*/ true);
-    }
+    finish_file_export(tr("Exported %1").arg(path) + export_notes_suffix_for(writer_notices),
+                       options->export_reveal_in_file_explorer, path, /*reveal_is_file*/ true);
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
                           QStringLiteral("exportFailedMessageBox"));
@@ -4966,11 +4969,8 @@ void MainWindow::export_animated_webp() {
     persist_image_save_defaults(*options);
     offer_browser_download_for_saved_file(path);
     remember_save_directory_for_path(path);
-    statusBar()->showMessage(tr("Exported %1").arg(path) + export_notes_suffix_for(writer_notices));
-    fire_theme_event(ThemeSoundEvent::ExportDone);
-    if (options->export_reveal_in_file_explorer) {
-      reveal_path_in_file_explorer(path, /*is_file*/ true);
-    }
+    finish_file_export(tr("Exported %1").arg(path) + export_notes_suffix_for(writer_notices),
+                       options->export_reveal_in_file_explorer, path, /*reveal_is_file*/ true);
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
                           QStringLiteral("exportFailedMessageBox"));
@@ -5014,11 +5014,8 @@ void MainWindow::export_animated_png() {
     persist_image_save_defaults(*options);
     offer_browser_download_for_saved_file(path);
     remember_save_directory_for_path(path);
-    statusBar()->showMessage(tr("Exported %1").arg(path) + export_notes_suffix_for(writer_notices));
-    fire_theme_event(ThemeSoundEvent::ExportDone);
-    if (options->export_reveal_in_file_explorer) {
-      reveal_path_in_file_explorer(path, /*is_file*/ true);
-    }
+    finish_file_export(tr("Exported %1").arg(path) + export_notes_suffix_for(writer_notices),
+                       options->export_reveal_in_file_explorer, path, /*reveal_is_file*/ true);
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
                           QStringLiteral("exportFailedMessageBox"));
@@ -5906,11 +5903,8 @@ void MainWindow::export_flat_image() {
       persist_image_save_defaults(effective_image_options);
     }
     remember_save_directory_for_path(path);
-    statusBar()->showMessage(tr("Exported %1").arg(path) + export_notes_suffix);
-    fire_theme_event(ThemeSoundEvent::ExportDone);
-    if (effective_image_options.export_reveal_in_file_explorer) {
-      reveal_path_in_file_explorer(path, /*is_file*/ true);
-    }
+    finish_file_export(tr("Exported %1").arg(path) + export_notes_suffix,
+                       effective_image_options.export_reveal_in_file_explorer, path, /*reveal_is_file*/ true);
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
                           QStringLiteral("exportFailedMessageBox"));
@@ -5988,10 +5982,8 @@ void MainWindow::export_for_web() {
     }
     offer_browser_download_for_saved_file(path);
     remember_save_directory_for_path(path);
-    statusBar()->showMessage(tr("Exported %1").arg(path) + export_notes_suffix_for(notices));
-    if (choice->settings.reveal_when_done) {
-      reveal_path_in_file_explorer(path, /*is_file*/ true);
-    }
+    finish_file_export(tr("Exported %1").arg(path) + export_notes_suffix_for(notices),
+                       choice->settings.reveal_when_done, path, /*reveal_is_file*/ true);
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
                           QStringLiteral("exportFailedMessageBox"));
@@ -6080,9 +6072,8 @@ void MainWindow::export_multipage_pdf() {
     }
     offer_browser_download_for_saved_file(path);
     remember_save_directory_for_path(path);
-    statusBar()->showMessage(tr("Exported %n page(s) to %1", nullptr, page_count).arg(path) +
-                             export_notes_suffix_for(writer_notices));
-    fire_theme_event(ThemeSoundEvent::ExportDone);
+    finish_file_export(tr("Exported %n page(s) to %1", nullptr, page_count).arg(path) +
+                       export_notes_suffix_for(writer_notices));
   } catch (const std::exception& error) {
     show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
                           QStringLiteral("exportFailedMessageBox"));
@@ -6116,7 +6107,7 @@ void MainWindow::export_documents_to_folder() {
   if (!written.has_value()) {
     return;
   }
-  statusBar()->showMessage(
+  finish_file_export(
       tr("Exported %1 images to %2").arg(written->size()).arg(QDir::toNativeSeparators(choice->folder)));
 }
 
@@ -6179,7 +6170,7 @@ void MainWindow::export_artboards_to_files() {
   if (!written.has_value()) {
     return;
   }
-  statusBar()->showMessage(
+  finish_file_export(
       tr("Exported %1 images to %2").arg(written->size()).arg(QDir::toNativeSeparators(choice->folder)));
 }
 

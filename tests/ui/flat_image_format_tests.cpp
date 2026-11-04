@@ -136,6 +136,43 @@ void ui_qimage_import_export_preserves_alpha_and_formats() {
   CHECK(QImage(QStringLiteral("test-artifacts/format_alpha.png")).pixelColor(0, 0).alpha() == 128);
 }
 
+// save_qimage_atomically (palette strips, script icons, brush tip masks) writes through a
+// QSaveFile: a Unicode target is replaced whole, and a failed save leaves the old file as
+// it was instead of truncated.
+void ui_save_qimage_atomically_replaces_whole_and_keeps_old_file_on_failure() {
+  const auto dir = std::filesystem::absolute(patchy::test::unicode_artifact_dir(u8"atomic qimage save"));
+  const auto target = dir / (patchy::test::unicode_path_piece(patchy::test::kUnicodeCombinedStem) += ".png");
+  const auto target_path = patchy::ui::to_qstring(target);
+  {
+    std::ofstream stale(target, std::ios::binary);
+    const std::string filler(200000U, 'x');
+    stale.write(filler.data(), static_cast<std::streamsize>(filler.size()));
+  }
+  QImage image(16, 8, QImage::Format_RGB32);
+  image.fill(QColor(30, 140, 220));
+  CHECK(patchy::ui::save_qimage_atomically(image, target_path, "PNG"));
+  QImage read(target_path);
+  CHECK(read.size() == image.size());
+  CHECK(!read.isNull() && read.pixelColor(3, 3) == QColor(30, 140, 220));
+  const auto saved_size = std::filesystem::file_size(target);
+  CHECK(saved_size < 200000U);
+
+  // The suffix picks the format when none is given.
+  CHECK(patchy::ui::save_qimage_atomically(image, target_path));
+  CHECK(!QImage(target_path).isNull());
+
+  // A save that cannot encode fails and the file on disk is untouched.
+  CHECK(!patchy::ui::save_qimage_atomically(image, target_path, "no-such-format"));
+  CHECK(!patchy::ui::save_qimage_atomically(QImage(), target_path, "PNG"));
+  CHECK(std::filesystem::file_size(target) == saved_size);
+  CHECK(QImage(target_path).pixelColor(3, 3) == QColor(30, 140, 220));
+  std::size_t entries = 0;
+  for ([[maybe_unused]] const auto& entry : std::filesystem::directory_iterator(dir)) {
+    ++entries;
+  }
+  CHECK(entries == 1U);
+}
+
 // With deep editing on, a 16-bit PNG opens as a 16-bit document with its samples intact,
 // a float image as a 32-bit one (values above 1.0 kept), and the flat-alpha promotion
 // keeps both the mask and the color at depth (docs/high-bit-depth-formats.md, Phase 8).
@@ -4145,6 +4182,8 @@ void ui_flat_alpha_mask_thumbnail_reads_deep_masks() {
 std::vector<patchy::test::TestCase> flat_image_format_tests() {
   return {
       {"ui_qimage_import_export_preserves_alpha_and_formats", ui_qimage_import_export_preserves_alpha_and_formats},
+      {"ui_save_qimage_atomically_replaces_whole_and_keeps_old_file_on_failure",
+       ui_save_qimage_atomically_replaces_whole_and_keeps_old_file_on_failure},
       {"ui_deep_images_import_at_their_depth", ui_deep_images_import_at_their_depth},
       {"ui_qimage_import_export_writes_tiff_and_webp", ui_qimage_import_export_writes_tiff_and_webp},
       {"ui_jpeg_compressed_tiff_opens_through_the_jpeg_decoder", ui_jpeg_compressed_tiff_opens_through_the_jpeg_decoder},

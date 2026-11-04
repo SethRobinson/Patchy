@@ -2,6 +2,7 @@
 
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
+#include "psd/psd_io_internal.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -79,22 +80,11 @@ std::string display_name(std::string source) {
   return source;
 }
 
+// A stop color in any class Photoshop writes (RGB, float RGB, HSB, Lab, CMYK, gray) through
+// the shared descriptor decoder; a .grd carries no document profile, so the default
+// converter applies.
 RgbColor color(const DescriptorObject &stop) {
-  const auto *c = object(stop, "Clr ");
-  if (c == nullptr)
-    return {};
-  if (c->class_id == "Grsc") {
-    // 'Gry ' is Photoshop's black percentage (100 = black), as in lfx2 'Grsc' colors.
-    const auto gray = static_cast<std::uint8_t>(
-        std::clamp(std::lround((100.0 - number(*c, "Gry ")) * 2.55), 0L, 255L));
-    return RgbColor{gray, gray, gray};
-  }
-  return RgbColor{static_cast<std::uint8_t>(
-                      std::clamp(std::lround(number(*c, "Rd  ")), 0L, 255L)),
-                  static_cast<std::uint8_t>(
-                      std::clamp(std::lround(number(*c, "Grn ")), 0L, 255L)),
-                  static_cast<std::uint8_t>(
-                      std::clamp(std::lround(number(*c, "Bl  ")), 0L, 255L))};
+  return descriptor_rgb_color(stop, "Clr ", CmykColorConverter{});
 }
 
 std::array<std::uint16_t, 4> range(const DescriptorObject &object,

@@ -225,6 +225,26 @@ void ui_ungroup_layers_releases_children_in_order_and_undoes() {
   QApplication::processEvents();
   CHECK(std::as_const(document).find_layer(*folder_id) != nullptr);
 
+  // A folder's layer style is dropped like its opacity, blend mode and masks, and the
+  // status line says so.
+  if (auto* folder = document.find_layer(*folder_id); folder != nullptr) {
+    patchy::LayerColorOverlay overlay;
+    overlay.enabled = true;
+    folder->layer_style().color_overlays.push_back(overlay);
+    CHECK(!std::as_const(*folder).layer_style().empty());
+    CHECK(folder->opacity() >= 1.0F && folder->blend_mode() == patchy::BlendMode::PassThrough);
+    layer_list->clearSelection();
+    document.set_active_layer(*folder_id);
+    ungroup->trigger();
+    QApplication::processEvents();
+    CHECK(std::as_const(document).find_layer(*folder_id) == nullptr);
+    CHECK(window.statusBar()->currentMessage() ==
+          QStringLiteral("Ungrouped the folder; its opacity, blend mode, mask, or style was discarded"));
+    patchy::ui::MainWindowTestAccess::undo(window);
+    QApplication::processEvents();
+    CHECK(std::as_const(document).find_layer(*folder_id) != nullptr);
+  }
+
   // Nothing grouped: a plain layer refuses.
   layer_list->clearSelection();
   document.set_active_layer(*active);

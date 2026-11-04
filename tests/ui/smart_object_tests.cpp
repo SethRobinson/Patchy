@@ -53,6 +53,7 @@
 #include <QPixmap>
 #include <QTabWidget>
 #include <QFileDialog>
+#include <QLineEdit>
 #include <QTimer>
 #include <QToolTip>
 #include <QPointer>
@@ -842,6 +843,84 @@ void ui_cmyk_smart_object_content_edits_keep_native_saves() {
           patchy::smart_object_placed_uuid(*placed))->native_color_space != nullptr);
     }
   }
+}
+
+// Export Smart Object Contents writes the embedded file to a Unicode path through a sibling
+// temporary and a rename: an existing, longer file at the target is replaced whole, with no
+// stale tail left from an in-place truncating write.
+void ui_smart_object_export_contents_writes_unicode_path_atomically() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  document.set_active_layer(layer_id);
+  const auto* source =
+      document.metadata().smart_objects.find(patchy::smart_object_source_uuid(*document.find_layer(layer_id)));
+  CHECK(source != nullptr && source->file_bytes != nullptr);
+  if (source == nullptr || source->file_bytes == nullptr) {
+    return;
+  }
+  const auto expected = *source->file_bytes;
+
+  const auto dir = std::filesystem::absolute(patchy::test::unicode_artifact_dir(u8"smart object export"));
+  const auto target = dir / (patchy::test::unicode_path_piece(patchy::test::kUnicodeCombinedStem) += ".psb");
+  {
+    std::ofstream stale(target, std::ios::binary);
+    const std::string filler(expected.size() + 4096U, 'x');
+    stale.write(filler.data(), static_cast<std::streamsize>(filler.size()));
+  }
+  const auto target_path = patchy::ui::to_qstring(target);
+  when_dialog_visible(QStringLiteral("exportSmartObjectContentsFileDialog"), [target_path](QDialog& dialog) {
+    auto* files = qobject_cast<QFileDialog*>(&dialog);
+    CHECK(files != nullptr);
+    if (files == nullptr) {
+      dialog.reject();
+      return;
+    }
+    files->selectFile(target_path);
+    // selectFile leaves a focused name field alone; type the name too (as the Export for Web test does).
+    if (auto* name = files->findChild<QLineEdit*>(QStringLiteral("fileNameEdit")); name != nullptr) {
+      name->setText(target_path);
+    }
+    // The target exists, so the dialog asks to replace it from inside accept(); armed first,
+    // this answers Yes from that question's event loop.
+    QTimer::singleShot(0, [] {
+      for (auto* widget : QApplication::topLevelWidgets()) {
+        if (auto* box = qobject_cast<QMessageBox*>(widget); box != nullptr && box->isVisible()) {
+          for (auto* button : box->buttons()) {
+            const auto role = box->buttonRole(button);
+            if (role == QMessageBox::YesRole || role == QMessageBox::AcceptRole) {
+              button->click();
+              return;
+            }
+          }
+        }
+      }
+    });
+    static_cast<QDialog*>(files)->accept();
+    if (files->isVisible()) {
+      CHECK(false);
+      files->reject();
+    }
+  });
+  require_action(window, "layerSmartObjectExportAction")->trigger();
+  QApplication::processEvents();
+
+  std::ifstream written(target, std::ios::binary);
+  const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(written)), std::istreambuf_iterator<char>());
+  if (bytes != expected) {
+    std::cerr << "export wrote " << bytes.size() << " bytes, expected " << expected.size() << "; status: "
+              << window.statusBar()->currentMessage().toStdString() << std::endl;
+  }
+  CHECK(bytes == expected);
+  CHECK(window.statusBar()->currentMessage().startsWith(QStringLiteral("Exported smart object contents")));
+  std::size_t leftovers = 0;
+  for (const auto& entry : std::filesystem::directory_iterator(dir)) {
+    if (entry.path() != target) {
+      ++leftovers;
+    }
+  }
+  CHECK(leftovers == 0U);
 }
 
 void ui_smart_object_edit_contents_commit_rerenders_parent() {
@@ -4010,6 +4089,8 @@ std::vector<patchy::test::TestCase> smart_object_tests() {
       {"ui_layer_smart_object_badge_click_keeps_panel_scroll", ui_layer_smart_object_badge_click_keeps_panel_scroll},
       {"ui_smart_object_edit_contents_commit_rerenders_parent",
        ui_smart_object_edit_contents_commit_rerenders_parent},
+      {"ui_smart_object_export_contents_writes_unicode_path_atomically",
+       ui_smart_object_export_contents_writes_unicode_path_atomically},
       {"ui_smart_object_locked_refusal_and_parent_close_prompt",
        ui_smart_object_locked_refusal_and_parent_close_prompt},
       {"ui_smart_object_replace_contents_repoints_shared_layers",

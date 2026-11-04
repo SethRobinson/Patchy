@@ -12,6 +12,8 @@
 #include "formats/pcx_document_io.hpp"
 #include "formats/tga_document_io.hpp"
 #include "psd/grd_io.hpp"
+#include "psd/psd_binary.hpp"
+#include "psd/psd_descriptor.hpp"
 #include "psd/psd_document_io.hpp"
 #include "render/compositor.hpp"
 #include "render/layer_compositor.hpp"
@@ -167,6 +169,104 @@ void grd_v5_round_trips_solid_dynamic_noise_and_hierarchy() {
   const auto recovered = patchy::psd::read_grd(truncated, error);
   CHECK(recovered.has_value());
   CHECK(recovered->gradients.size() == source.size());
+}
+
+// Photoshop writes a GRD stop color in the class it was picked in: HSB ('HSBC'), Lab
+// ('LbCl'), CMYK ('CMYC') or float RGB, not only 'RGBC'. Read as RGB keys those stops came
+// out black. The stops are written as RGB, then rewritten in place as the other classes.
+void grd_reads_hsb_lab_cmyk_and_float_stop_colors() {
+  patchy::GradientDefinition definition;
+  definition.name = "Classes";
+  for (int index = 0; index < 4; ++index) {
+    patchy::GradientColorStop stop;
+    stop.location = static_cast<float>(index) / 3.0F;
+    stop.color = patchy::RgbColor{10, 20, 30};
+    definition.color_stops.push_back(stop);
+  }
+  definition.alpha_stops = {patchy::GradientAlphaStop{}, patchy::GradientAlphaStop{}};
+  definition.alpha_stops.back().location = 1.0F;
+  const std::vector<patchy::psd::GrdGradient> source{{"Classes", "", definition}};
+  const auto bytes = patchy::psd::write_grd(source);
+
+  patchy::psd::BigEndianReader reader(bytes);
+  CHECK(patchy::psd::key_string(patchy::psd::read_signature(reader)) == "8BGR");
+  CHECK(reader.read_u16() == 5U);
+  CHECK(reader.read_u32() == 16U);
+  auto root = patchy::psd::read_descriptor(reader);
+  const auto tail_start = reader.position();
+  auto& list = root.values.at("GrdL");
+  CHECK(list.list_value.size() == 1U);
+  auto& gradient = *list.list_value.front().object_value->values.at("Grad").object_value;
+  auto& stops = gradient.values.at("Clrs").list_value;
+  CHECK(stops.size() == 4U);
+  const auto number = [](double value, const char* unit = nullptr) {
+    patchy::psd::DescriptorValue result;
+    result.type = unit == nullptr ? patchy::psd::DescriptorValue::Type::Double
+                                  : patchy::psd::DescriptorValue::Type::UnitFloat;
+    result.double_value = value;
+    if (unit != nullptr) {
+      result.unit = unit;
+    }
+    return result;
+  };
+  const auto recolor = [&](patchy::psd::DescriptorValue& stop, std::string class_id,
+                           std::vector<std::pair<std::string, patchy::psd::DescriptorValue>> components) {
+    auto& color = *stop.object_value->values.at("Clr ").object_value;
+    color.class_id = std::move(class_id);
+    color.values.clear();
+    color.key_order.clear();
+    for (auto& [key, value] : components) {
+      color.key_order.push_back({key, key.size() != 4U});
+      color.values.emplace(key, std::move(value));
+    }
+  };
+  recolor(stops[0], "HSBC", {{"H   ", number(120.0, "#Ang")}, {"Strt", number(100.0)}, {"Brgh", number(100.0)}});
+  // Photoshop Lab is D50: sRGB red is about (54.29, 80.80, 69.89).
+  recolor(stops[1], "LbCl", {{"Lmnc", number(54.29)}, {"A   ", number(80.80)}, {"B   ", number(69.89)}});
+  recolor(stops[2], "RGBC", {{"redFloat", number(1.0)}, {"greenFloat", number(0.5)}, {"blueFloat", number(0.0)}});
+  recolor(stops[3], "CMYC",
+          {{"Cyn ", number(0.0)}, {"Mgnt", number(0.0)}, {"Ylw ", number(0.0)}, {"Blck", number(100.0)}});
+
+  patchy::psd::BigEndianWriter writer;
+  for (const char ch : {'8', 'B', 'G', 'R'}) {
+    writer.write_u8(static_cast<std::uint8_t>(ch));
+  }
+  writer.write_u16(5U);
+  writer.write_u32(16U);
+  patchy::psd::write_descriptor(writer, root);
+  writer.write_bytes(std::span<const std::uint8_t>(bytes).subspan(tail_start));
+
+  std::string error;
+  const auto decoded = patchy::psd::read_grd(writer.bytes(), error);
+  CHECK(decoded.has_value() && error.empty());
+  if (!decoded.has_value() || decoded->gradients.size() != 1U ||
+      decoded->gradients.front().definition.color_stops.size() != 4U) {
+    CHECK(false);
+    return;
+  }
+  const auto& read = decoded->gradients.front().definition.color_stops;
+  const auto close_to = [](patchy::RgbColor color, int red, int green, int blue) {
+    return std::abs(color.red - red) <= 2 && std::abs(color.green - green) <= 2 && std::abs(color.blue - blue) <= 2;
+  };
+  CHECK((read[0].color == patchy::RgbColor{0, 255, 0}));
+  CHECK(close_to(read[1].color, 255, 0, 0));
+  CHECK((read[2].color == patchy::RgbColor{255, 128, 0}));
+  CHECK((read[3].color == patchy::RgbColor{0, 0, 0}));
+  // Full black ink is black; zero ink is white, which tells the CMYK decode from a read of
+  // missing RGB keys.
+  recolor(stops[3], "CMYC",
+          {{"Cyn ", number(0.0)}, {"Mgnt", number(0.0)}, {"Ylw ", number(0.0)}, {"Blck", number(0.0)}});
+  patchy::psd::BigEndianWriter white_writer;
+  for (const char ch : {'8', 'B', 'G', 'R'}) {
+    white_writer.write_u8(static_cast<std::uint8_t>(ch));
+  }
+  white_writer.write_u16(5U);
+  white_writer.write_u32(16U);
+  patchy::psd::write_descriptor(white_writer, root);
+  white_writer.write_bytes(std::span<const std::uint8_t>(bytes).subspan(tail_start));
+  const auto white = patchy::psd::read_grd(white_writer.bytes(), error);
+  CHECK(white.has_value() && white->gradients.size() == 1U &&
+        (white->gradients.front().definition.color_stops[3].color == patchy::RgbColor{255, 255, 255}));
 }
 
 // Samples of 4096-pixel Photoshop 2026 noise Gradient Fills (16-bit, rounded to
@@ -1075,6 +1175,7 @@ std::vector<patchy::test::TestCase> gradients_interior_effects_tests() {
       {"gradient_presets_have_stable_ids_and_recipes", gradient_presets_have_stable_ids_and_recipes},
       {"grd_v5_round_trips_solid_dynamic_noise_and_hierarchy",
        grd_v5_round_trips_solid_dynamic_noise_and_hierarchy},
+      {"grd_reads_hsb_lab_cmyk_and_float_stop_colors", grd_reads_hsb_lab_cmyk_and_float_stop_colors},
       {"noise_gradient_matches_photoshop_samples", noise_gradient_matches_photoshop_samples},
       {"noise_gradient_lab_matches_photoshop_probes_if_available",
        noise_gradient_lab_matches_photoshop_probes_if_available},

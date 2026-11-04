@@ -683,7 +683,7 @@ void ui_paint_tool_hints_name_shared_gestures() {
   };
   const std::array<ToolHint, 13> tools{{
       {"toolBrushAction", "Brush: Shift+click draws a line, %1+click picks a color, "},
-      {"toolCloneAction", "Clone Stamp: %1+click sets the source, Shift+click draws a line, "},
+      {"toolCloneAction", "Clone: %1+click sets the source, Shift+click draws a line, "},
       {"toolMixerBrushAction", "Mixer Brush: Shift+click draws a line, %1+click picks a color, "},
       {"toolPatternStampAction", "Pattern Stamp: Shift+click draws a line, "},
       {"toolEraserAction", "Eraser: Shift+click draws a line, "},

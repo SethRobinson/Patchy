@@ -156,13 +156,19 @@ QString automatic_selection_out_of_memory_message(const QString& command);
 // patch commit loops.
 void blend_straight_rgba(std::uint8_t* dst, const std::uint8_t* src, float amount);
 
-// Baseline EditOptions for the pixel-editing paths: bakes the brush settings,
-// palette snap, and the active selection into the options. Shared by the brush
-// TU and the shape/fill/line members still in canvas_widget.cpp.
 // Applies the Fill tool / Fill command settings (options bar: Opacity, Soft, Tol, Contiguous)
 // to `options`: Opacity scales primary.a, Soft becomes the inward feather band (up to 50 px),
 // and Tol / Contiguous drive flood_fill. fill_rect ignores the last two.
 void apply_fill_settings(EditOptions& options, const CanvasWidget& canvas);
+// The canvas state every pixel edit carries: the foreground and background intensity gains,
+// the palette snap (palette mode), the processing-overlay progress tick, and the active
+// selection (bounds, scan rects, and the per-pixel mask and coverage). The tool factory below
+// and MainWindow's menu commands (Cut, Clear, Fill, Stroke) both start from it, so a menu
+// command edit cannot skip what a tool edit applies (palette snapping did, once).
+void apply_canvas_edit_state(EditOptions& options, const CanvasWidget& canvas);
+// Baseline EditOptions for the pixel-editing paths: bakes the brush settings and
+// apply_canvas_edit_state into the options. Shared by the brush TU and the
+// shape/fill/line members still in canvas_widget.cpp.
 EditOptions edit_options(QColor primary, QColor secondary, int brush_size, int brush_opacity, int brush_softness,
                          bool fill_shapes, bool lock_transparent_pixels, const CanvasWidget& canvas,
                          int brush_roundness = 100, double brush_angle_degrees = 0.0);

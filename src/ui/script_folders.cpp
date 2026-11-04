@@ -7,6 +7,7 @@
 #include "ui/script_folders.hpp"
 
 #include "ui/hotkey_editor.hpp"
+#include "ui/image_document_io.hpp"
 
 #include <QCoreApplication>
 #include <QKeySequence>
@@ -296,7 +297,7 @@ bool write_script_icon(const QImage& image, const QString& target) {
   if (!QDir().mkpath(QFileInfo(target).absolutePath())) {
     return false;
   }
-  return scaled.save(target, "PNG");
+  return save_qimage_atomically(scaled, target, "PNG");
 }
 
 QIcon script_entry_icon(const ScriptFolderEntry& entry) {

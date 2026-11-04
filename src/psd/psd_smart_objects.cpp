@@ -82,22 +82,18 @@ bool known_smart_filter_blend_mode(const DescriptorValue& value, BlendMode& mode
     }
     name = found->second;
   }
-  // Photoshop 2026 writes full stringIDs here, just like lfx2. Do not let the
-  // shared converter's unknown-to-Normal fallback make an imported stack look
-  // executable when its native blend mode is actually unsupported.
-  static constexpr std::array<std::string_view, 21> kKnown{
-      "normal",           "multiply",         "screen",
-      "overlay",          "darken",           "lighten",
-      "colorDodge",       "colorBurn",        "hardLight",
-      "softLight",        "difference",       "linearBurn",
-      "pinLight",         "saturation",       "luminosity",
-      "exclusion",        "hue",              "color",
-      "linearDodge",      "blendSubtraction", "blendDivide",
-  };
-  if (std::find(kKnown.begin(), kKnown.end(), name) == kKnown.end()) {
+  // Photoshop 2026 writes full stringIDs here, just like lfx2. The shared converter
+  // (blend_mode_from_descriptor_enum) maps an unknown value to Normal, which would make an
+  // imported stack look executable when its native blend mode is unsupported, so a value
+  // counts only when it names its mode exactly: it must round-trip through the stringID
+  // Patchy writes. That leaves out passThrough and the modes Photoshop has no stringID
+  // for. Dissolve round-trips but is a coverage decision the Smart Filter blend loops do
+  // not model (recipe_blend_mode_supported in filters/filter_registry.hpp).
+  const auto parsed = blend_mode_from_lfx2_enum(name);
+  if (parsed == BlendMode::Dissolve || blend_mode_lfx2_string(parsed) != name) {
     return false;
   }
-  mode = blend_mode_from_lfx2_enum(name);
+  mode = parsed;
   return true;
 }
 
