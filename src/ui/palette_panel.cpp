@@ -5,6 +5,7 @@
 #include "ui/app_settings.hpp"
 #include "ui/background_pick_cursor.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/image_document_io.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/localization.hpp"
@@ -577,7 +578,7 @@ std::optional<QString> prompt_save_palette_file(QWidget* parent, const std::vect
           }
         }
       }
-      if (!strip.save(path)) {
+      if (!save_qimage_atomically(strip, path, "PNG")) {
         throw std::runtime_error("Could not write the PNG file");
       }
     } else {

@@ -1,20 +1,51 @@
 #include "ui/default_brush_tips.hpp"
 
+#include "core/splitmix64.hpp"
+
 #include <QObject>
 
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <random>
 
 // Every tip below is pure math over a float coverage buffer: signed-distance shapes, value-noise
-// grain, and seeded PRNG scatter. Fixed seeds keep the output identical between runs and
-// machines, so the seeded library files are reproducible.
+// grain, and seeded scatter (TipRandom). Fixed seeds keep the output identical between runs and
+// on every toolchain, so the seeded library files are reproducible; the pixels are pinned by
+// ui_default_brush_tip_masks_digest_is_pinned. The source builds with -ffp-contract=off
+// (CMakeLists.txt, docs/platform.md "Floating-point determinism").
 namespace patchy::ui {
 
 namespace {
 
 constexpr double kPi = 3.14159265358979323846;
+
+// The tips' random draws: splitmix64 over a counter, mapped to a range with explicit arithmetic.
+// A std:: engine and distribution would differ by standard library (the distributions'
+// algorithms are implementation-defined), and so would the shipped tips. Take one draw per
+// statement: the order of draws inside one argument list differs by compiler.
+class TipRandom {
+public:
+  explicit TipRandom(std::uint64_t seed) noexcept : state_(seed) {}
+
+  // Uniform in [low, high): the top 24 bits as an exact float fraction.
+  [[nodiscard]] float uniform(float low, float high) noexcept {
+    const auto fraction = static_cast<float>(next() >> 40U) * (1.0F / 16777216.0F);
+    return low + (high - low) * fraction;
+  }
+
+  // Normal (Box-Muller, the cosine branch; two draws per value).
+  [[nodiscard]] float normal(float mean, float sigma) noexcept {
+    const auto u1 = (static_cast<double>(next() >> 11U) + 1.0) * (1.0 / 9007199254740992.0);  // (0, 1]
+    const auto u2 = static_cast<double>(next() >> 11U) * (1.0 / 9007199254740992.0);          // [0, 1)
+    const auto z = std::sqrt(-2.0 * std::log(u1)) * std::cos(2.0 * kPi * u2);
+    return mean + sigma * static_cast<float>(z);
+  }
+
+private:
+  [[nodiscard]] std::uint64_t next() noexcept { return patchy::splitmix64(state_++); }
+
+  std::uint64_t state_;
+};
 
 class CoverageBuffer {
 public:
@@ -375,17 +406,16 @@ void stamp_capsule(CoverageBuffer& buffer, float x0, float y0, float x1, float y
 [[nodiscard]] patchy::BrushTip make_bristle_tip() {
   constexpr std::int32_t kSize = 128;
   CoverageBuffer buffer(kSize, kSize);
-  std::mt19937 rng(404);
-  std::uniform_real_distribution<float> jitter(-3.0F, 3.0F);
-  std::uniform_real_distribution<float> alpha_pick(0.35F, 1.0F);
-  std::uniform_real_distribution<float> radius_pick(1.2F, 3.4F);
+  TipRandom random(404);
   // A vertical row of bristle dots: stroking horizontally streaks each dot into its own line.
   constexpr int kBristles = 14;
   for (int bristle = 0; bristle < kBristles; ++bristle) {
     const auto t = (static_cast<float>(bristle) + 0.5F) / kBristles;
-    const auto y = 10.0F + t * 108.0F + jitter(rng);
-    const auto x = 64.0F + jitter(rng) * 2.2F;
-    stamp_dot(buffer, x, y, radius_pick(rng), alpha_pick(rng), 0.45F);
+    const auto y = 10.0F + t * 108.0F + random.uniform(-3.0F, 3.0F);
+    const auto x = 64.0F + random.uniform(-3.0F, 3.0F) * 2.2F;
+    const auto radius = random.uniform(1.2F, 3.4F);
+    const auto alpha = random.uniform(0.35F, 1.0F);
+    stamp_dot(buffer, x, y, radius, alpha, 0.45F);
   }
   return buffer.to_tip(0.03);
 }
@@ -468,17 +498,15 @@ void stamp_capsule(CoverageBuffer& buffer, float x0, float y0, float x1, float y
 [[nodiscard]] patchy::BrushTip make_spray_tip() {
   constexpr std::int32_t kSize = 128;
   CoverageBuffer buffer(kSize, kSize);
-  std::mt19937 rng(808);
-  std::normal_distribution<float> radial(0.0F, 24.0F);
-  std::uniform_real_distribution<float> angle_pick(0.0F, static_cast<float>(2.0 * kPi));
-  std::uniform_real_distribution<float> alpha_pick(0.25F, 0.9F);
-  std::uniform_real_distribution<float> radius_pick(0.6F, 1.6F);
+  TipRandom random(808);
   for (int droplet = 0; droplet < 900; ++droplet) {
-    const auto angle = angle_pick(rng);
-    const auto distance = std::min(std::abs(radial(rng)), 58.0F);
+    const auto angle = random.uniform(0.0F, static_cast<float>(2.0 * kPi));
+    const auto distance = std::min(std::abs(random.normal(0.0F, 24.0F)), 58.0F);
     const auto x = 64.0F + std::cos(angle) * distance;
     const auto y = 64.0F + std::sin(angle) * distance;
-    stamp_dot(buffer, x, y, radius_pick(rng), alpha_pick(rng), 0.5F);
+    const auto radius = random.uniform(0.6F, 1.6F);
+    const auto alpha = random.uniform(0.25F, 0.9F);
+    stamp_dot(buffer, x, y, radius, alpha, 0.5F);
   }
   return buffer.to_tip(0.05);
 }
@@ -486,19 +514,16 @@ void stamp_capsule(CoverageBuffer& buffer, float x0, float y0, float x1, float y
 [[nodiscard]] patchy::BrushTip make_spatter_tip() {
   constexpr std::int32_t kSize = 128;
   CoverageBuffer buffer(kSize, kSize);
-  std::mt19937 rng(909);
-  std::normal_distribution<float> radial(0.0F, 23.0F);
-  std::uniform_real_distribution<float> angle_pick(0.0F, static_cast<float>(2.0 * kPi));
-  std::uniform_real_distribution<float> radius_pick(1.0F, 6.5F);
-  std::uniform_real_distribution<float> alpha_pick(0.7F, 1.0F);
+  TipRandom random(909);
   // Enough droplets that repeated stamps read as texture, not as a recognizable cluster.
   for (int blob = 0; blob < 42; ++blob) {
-    const auto angle = angle_pick(rng);
-    const auto distance = std::min(std::abs(radial(rng)), 56.0F);
+    const auto angle = random.uniform(0.0F, static_cast<float>(2.0 * kPi));
+    const auto distance = std::min(std::abs(random.normal(0.0F, 23.0F)), 56.0F);
     const auto x = 64.0F + std::cos(angle) * distance;
     const auto y = 64.0F + std::sin(angle) * distance;
-    const auto radius = radius_pick(rng) * (1.0F - distance / 110.0F);  // smaller near the rim
-    stamp_dot(buffer, x, y, std::max(0.8F, radius), alpha_pick(rng), 0.25F);
+    const auto radius = random.uniform(1.0F, 6.5F) * (1.0F - distance / 110.0F);  // smaller near the rim
+    const auto alpha = random.uniform(0.7F, 1.0F);
+    stamp_dot(buffer, x, y, std::max(0.8F, radius), alpha, 0.25F);
   }
   return buffer.to_tip(0.4);
 }
@@ -506,17 +531,15 @@ void stamp_capsule(CoverageBuffer& buffer, float x0, float y0, float x1, float y
 [[nodiscard]] patchy::BrushTip make_stipple_tip() {
   constexpr std::int32_t kSize = 128;
   CoverageBuffer buffer(kSize, kSize);
-  std::mt19937 rng(1013);
-  std::uniform_real_distribution<float> angle_pick(0.0F, static_cast<float>(2.0 * kPi));
-  std::uniform_real_distribution<float> distance_pick(0.0F, 1.0F);
-  std::uniform_real_distribution<float> radius_pick(3.2F, 6.8F);
+  TipRandom random(1013);
   // Isotropic scatter inside the disc (sqrt keeps density uniform) so repeats do not read as a
   // recognizable constellation.
   for (int dot = 0; dot < 13; ++dot) {
-    const auto angle = angle_pick(rng);
-    const auto distance = std::sqrt(distance_pick(rng)) * 50.0F;
-    stamp_dot(buffer, 64.0F + std::cos(angle) * distance, 64.0F + std::sin(angle) * distance,
-              radius_pick(rng), 1.0F, 0.2F);
+    const auto angle = random.uniform(0.0F, static_cast<float>(2.0 * kPi));
+    const auto distance = std::sqrt(random.uniform(0.0F, 1.0F)) * 50.0F;
+    const auto radius = random.uniform(3.2F, 6.8F);
+    stamp_dot(buffer, 64.0F + std::cos(angle) * distance, 64.0F + std::sin(angle) * distance, radius, 1.0F,
+              0.2F);
   }
   return buffer.to_tip(0.6);
 }
@@ -539,19 +562,18 @@ void stamp_capsule(CoverageBuffer& buffer, float x0, float y0, float x1, float y
     }
   }
   // Radial arms with droplets flying off the ends.
-  std::mt19937 rng(kSeed);
-  std::uniform_real_distribution<float> angle_jitter(-0.25F, 0.25F);
-  std::uniform_real_distribution<float> length_pick(34.0F, 66.0F);
-  std::uniform_real_distribution<float> width_pick(2.6F, 5.4F);
+  TipRandom random(kSeed);
   constexpr int kArms = 12;
   for (int arm = 0; arm < kArms; ++arm) {
-    const auto angle = static_cast<float>(arm) / kArms * static_cast<float>(2.0 * kPi) + angle_jitter(rng);
-    const auto length = length_pick(rng);
+    const auto angle =
+        static_cast<float>(arm) / kArms * static_cast<float>(2.0 * kPi) + random.uniform(-0.25F, 0.25F);
+    const auto length = random.uniform(34.0F, 66.0F);
+    const auto width = random.uniform(2.6F, 5.4F);
     const auto x0 = 80.0F + std::cos(angle) * 16.0F;
     const auto y0 = 80.0F + std::sin(angle) * 16.0F;
     const auto x1 = 80.0F + std::cos(angle) * (16.0F + length);
     const auto y1 = 80.0F + std::sin(angle) * (16.0F + length);
-    stamp_capsule(buffer, x0, y0, x1, y1, width_pick(rng), 0.8F, 1.0F);
+    stamp_capsule(buffer, x0, y0, x1, y1, width, 0.8F, 1.0F);
     if ((arm % 3) != 2) {
       const auto drop_distance = 16.0F + length + 5.0F + 6.0F * hash01(arm, 7, kSeed);
       stamp_dot(buffer, 80.0F + std::cos(angle) * drop_distance, 80.0F + std::sin(angle) * drop_distance,
@@ -642,17 +664,13 @@ void stamp_capsule(CoverageBuffer& buffer, float x0, float y0, float x1, float y
 [[nodiscard]] patchy::BrushTip make_grass_tip() {
   constexpr std::int32_t kSize = 128;
   CoverageBuffer buffer(kSize, kSize);
-  std::mt19937 rng(1414);
-  std::uniform_real_distribution<float> base_pick(34.0F, 94.0F);
-  std::uniform_real_distribution<float> lean_pick(-26.0F, 26.0F);
-  std::uniform_real_distribution<float> height_pick(58.0F, 96.0F);
-  std::uniform_real_distribution<float> width_pick(1.8F, 3.2F);
+  TipRandom random(1414);
   constexpr int kBlades = 11;
   for (int blade = 0; blade < kBlades; ++blade) {
-    const auto base_x = base_pick(rng);
-    const auto lean = lean_pick(rng);
-    const auto height = height_pick(rng);
-    const auto width = width_pick(rng);
+    const auto base_x = random.uniform(34.0F, 94.0F);
+    const auto lean = random.uniform(-26.0F, 26.0F);
+    const auto height = random.uniform(58.0F, 96.0F);
+    const auto width = random.uniform(1.8F, 3.2F);
     // Approximate a curved blade with three tapering capsule segments.
     const auto base_y = 120.0F;
     float previous_x = base_x;

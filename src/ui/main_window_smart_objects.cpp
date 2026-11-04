@@ -30,6 +30,8 @@
 #include "ui/layer_list_widget.hpp"
 #include "ui/localization.hpp"
 #include "ui/missing_links_dialog.hpp"
+#include "ui/qt_paths.hpp"
+#include "support/atomic_file_write.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/tile_preview_window.hpp"
 #include "ui/update_checker.hpp"
@@ -289,11 +291,11 @@ void MainWindow::export_smart_object_contents() {
   if (path.isEmpty()) {
     return;
   }
-  QFile file(path);
-  if (!file.open(QIODevice::WriteOnly) ||
-      file.write(reinterpret_cast<const char*>(source->file_bytes->data()),
-                 static_cast<qint64>(source->file_bytes->size())) !=
-          static_cast<qint64>(source->file_bytes->size())) {
+  // A sibling temporary and a replacing rename: a failed write keeps the file that was there.
+  try {
+    write_file_bytes_atomically(to_filesystem_path(path), *source->file_bytes, "Could not create the file",
+                                "Could not write the file");
+  } catch (const std::exception&) {
     show_critical_message(this, tr("Export failed"), tr("Could not write %1").arg(path),
                           QStringLiteral("exportSmartObjectFailedMessageBox"));
     return;

@@ -191,10 +191,13 @@ file is what comes back. A flush failure is a write failure. Callers:
 PCX, ICO, ILBM, Aseprite, GIF, JPEG XL, JPEG XR, OpenRaster, SVG, RTTEX, DDS), the animated
 JPEG XL, WebP and PNG writers, the palette (`palette_io::write_palette_file`), Curves
 (`acv::write_file`) and adjustment preset exports, the copies that preset and theme imports
-make in the user folders, theme file and package exports, the AppImage menu entry, and the
-recovery store. `write_flat_image_file` (PNG, JPEG, WebP, TIFF and the other
+make in the user folders, theme file and package exports, the AppImage menu entry, Export
+Smart Object Contents, and the recovery store. `write_flat_image_file` (PNG, JPEG, WebP, TIFF and the other
 `QImageWriter` formats) goes through `QSaveFile` with an explicit format instead, since
-`QImageWriter` on a device cannot infer it from a suffix. Small Qt-side text files (the
+`QImageWriter` on a device cannot infer it from a suffix. Images saved straight from a
+`QImage` (the palette PNG strip, script icons, brush tip masks) use `save_qimage_atomically`
+(`src/ui/image_document_io.hpp`), the same `QSaveFile` path: never `QImage::save(path)`, which
+truncates the file first. Small Qt-side text files (the
 Script Manager's Save and Save As, `patchy.io.writeTextFile`) go through
 `save_text_file_atomically` in `src/ui/qt_text_file.hpp`, a `QSaveFile` wrapper that
 reports the commit result; the editor clears its modified flag only after that succeeds.

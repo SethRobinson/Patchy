@@ -13,7 +13,7 @@ Every event goes through `fire_theme_event` (theme_script_host.hpp): the sound, 
 | Event id | Fires when |
 |---|---|
 | `save-done` | a save or saved copy finishes (`save_document_to_path`) |
-| `export-done` | an export finishes (Export As, Quick Export, animation, sprite sheet, PDF and folder exports) |
+| `export-done` | an export finishes (Export As, Quick Export, Export for Web, animation, sprite sheet, image sequence, layer, PDF, Export Documents to Folder and Export Artboards to Files): every export ends in `MainWindow::finish_file_export` (`ui_folder_artboard_and_web_exports_fire_export_done`) |
 | `long-operation-done` | a progress dialog that stayed up 3 s or more closes |
 | `error`, `warning` | an error or warning box opens (`show_critical_message`, `show_warning_message`) |
 | `script-alert` | a user script's `alert()` box opens |

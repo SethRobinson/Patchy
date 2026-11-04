@@ -4,6 +4,7 @@
 // menu and its hotkeys, cursors, panel backgrounds, the splash, the preferences and
 // Unicode paths.
 
+#include "core/artboard.hpp"
 #include "core/document.hpp"
 #include "test_harness.hpp"
 #include "ui/canvas_types.hpp"
@@ -21,6 +22,7 @@
 #include "ui/theme_palette.hpp"
 #include "ui/theme_script_host.hpp"
 #include "ui/theme_sounds.hpp"
+#include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
 #include "unicode_path_names.hpp"
@@ -35,6 +37,8 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QLineEdit>
+#include <QFileDialog>
 #include <QImage>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -526,6 +530,105 @@ void ui_theme_script_events_reach_the_script() {
       QStringLiteral("Error")));
 }
 
+// Export Documents to Folder, Export Artboards to Files and Export for Web end in the shared
+// finish_file_export tail, so each fires export-done like every other export.
+void ui_folder_artboard_and_web_exports_fire_export_done() {
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  ScriptThemesDir themes;
+  SettingsValueRestorer last_save_restorer(QStringLiteral("lastSaveDirectory"));
+  write_package(themes.file(QStringLiteral("ExportListen")), {},
+                QByteArrayLiteral("var exports = 0;\n"
+                                  "patchy.theme.on('export-done', function () {\n"
+                                  "  exports += 1; patchy.theme.log('export-done ' + exports);\n"
+                                  "});\n"));
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  patchy::ui::MainWindow window;
+  show_window(window);
+  apply(QStringLiteral("ExportListen"), true);
+  CHECK(ThemeScriptHost::instance().running());
+
+  // Both folder exports share one dialog; fill in the folder and press Export.
+  const auto run_folder_dialog = [&temp](const QString& dialog_name, const QString& subfolder) {
+    when_dialog_visible(dialog_name, [folder = QDir(temp.path()).filePath(subfolder)](QDialog& shown) {
+      auto* dialog = &shown;
+      auto* folder_edit = dialog->findChild<QLineEdit*>(QStringLiteral("exportDocumentsFolderEdit"));
+      auto* export_button = dialog->findChild<QPushButton*>(QStringLiteral("exportDocumentsExportButton"));
+      CHECK(folder_edit != nullptr && export_button != nullptr);
+      if (folder_edit == nullptr || export_button == nullptr) {
+        dialog->reject();
+        return;
+      }
+      QDir().mkpath(folder);
+      folder_edit->setText(QDir::toNativeSeparators(folder));
+      CHECK(export_button->isEnabled());
+      export_button->click();
+      if (dialog->isVisible()) {
+        CHECK(false);
+        dialog->reject();
+      }
+    });
+  };
+
+  run_folder_dialog(QStringLiteral("exportDocumentsFolderDialog"), QStringLiteral("documents"));
+  require_action(window, "fileExportDocumentsToFolderAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!QDir(temp.filePath(QStringLiteral("documents"))).entryList(QDir::Files).isEmpty());
+  CHECK(process_events_until([] { return log_contains(QStringLiteral("export-done 1")); }, 2000));
+
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto artboard = patchy::make_artboard_group(document.allocate_layer_id(), "Board", patchy::Rect{0, 0, 40, 30},
+                                              patchy::ArtboardBackground::White);
+  document.layers().push_back(std::move(artboard));
+  document.metadata().artboard_settings.emplace();
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  QApplication::processEvents();
+  run_folder_dialog(QStringLiteral("exportArtboardsDialog"), QStringLiteral("artboards"));
+  require_action(window, "fileExportArtboardsAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!QDir(temp.filePath(QStringLiteral("artboards"))).entryList(QDir::Files).isEmpty());
+  CHECK(process_events_until([] { return log_contains(QStringLiteral("export-done 2")); }, 2000));
+
+  // Export for Web: Save in the dialog once its preview is current, then name the file.
+  const auto web_target = temp.filePath(QStringLiteral("web.jpg"));
+  bool saved = false;
+  when_dialog_visible(QStringLiteral("webExportDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
+    auto* preview = dialog->findChild<QWidget*>(QStringLiteral("webExportPreview"));
+    auto* save = dialog->findChild<QPushButton*>(QStringLiteral("webExportSaveButton"));
+    CHECK(preview != nullptr && save != nullptr);
+    if (preview == nullptr || save == nullptr) {
+      dialog->reject();
+      return;
+    }
+    CHECK(process_events_until([&] { return preview->property("webExportShowsCurrent").toBool(); }, 60000));
+    auto* file_dialog_timer = new QTimer(&window);
+    file_dialog_timer->setInterval(20);
+    QObject::connect(file_dialog_timer, &QTimer::timeout, &window, [&, file_dialog_timer] {
+      auto* file_dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("exportForWebFileDialog")));
+      if (file_dialog == nullptr) {
+        return;
+      }
+      file_dialog_timer->stop();
+      file_dialog_timer->deleteLater();
+      file_dialog->selectFile(web_target);
+      if (auto* name = file_dialog->findChild<QLineEdit*>(QStringLiteral("fileNameEdit")); name != nullptr) {
+        name->setText(web_target);
+      }
+      saved = true;
+      static_cast<QDialog*>(file_dialog)->accept();
+    });
+    file_dialog_timer->start();
+    save->click();
+  });
+  require_action(window, "fileExportForWebAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saved);
+  CHECK(process_events_until([&] { return QFileInfo(web_target).isFile(); }, 30000));
+  CHECK(process_events_until([] { return log_contains(QStringLiteral("export-done 3")); }, 5000));
+}
+
 // A real brush drag on the canvas fires stroke-start on press and stroke-end on release,
 // once each, with the painting tool's id.
 void ui_theme_script_hears_brush_strokes() {
@@ -729,6 +832,7 @@ std::vector<patchy::test::TestCase> theme_script_tests() {
       {"ui_theme_menu_sits_right_of_help_with_hotkeys", ui_theme_menu_sits_right_of_help_with_hotkeys},
       {"ui_theme_cursors_backgrounds_and_splash", ui_theme_cursors_backgrounds_and_splash},
       {"ui_theme_script_events_reach_the_script", ui_theme_script_events_reach_the_script},
+      {"ui_folder_artboard_and_web_exports_fire_export_done", ui_folder_artboard_and_web_exports_fire_export_done},
       {"ui_theme_script_hears_brush_strokes", ui_theme_script_hears_brush_strokes},
       {"ui_theme_script_loops_a_sound", ui_theme_script_loops_a_sound},
       {"ui_theme_effects_and_scripts_preferences", ui_theme_effects_and_scripts_preferences},

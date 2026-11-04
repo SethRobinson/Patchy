@@ -7164,140 +7164,12 @@ Flow: %6
         <translation>Перемещение</translation>
     </message>
     <message>
-        <source>Marquee</source>
-        <translation>Прямоугольная область</translation>
-    </message>
-    <message>
-        <source>Elliptical Marquee</source>
-        <translation>Овальная область</translation>
-    </message>
-    <message>
-        <source>Lasso</source>
-        <translation>Лассо</translation>
-    </message>
-    <message>
-        <source>Magnetic Lasso</source>
-        <translation>Магнитное лассо</translation>
-    </message>
-    <message>
-        <source>Magic Wand</source>
-        <translation>Волшебная палочка</translation>
-    </message>
-    <message>
-        <source>Quick Select</source>
-        <translation>Быстрое выделение</translation>
-    </message>
-    <message>
-        <source>Brush</source>
-        <translation>Кисть</translation>
-    </message>
-    <message>
-        <source>Mixer Brush</source>
-        <translation>Микс-кисть</translation>
-    </message>
-    <message>
-        <source>Clone Stamp</source>
-        <translation>Штамп</translation>
-    </message>
-    <message>
-        <source>Pattern Stamp</source>
-        <translation>Узорный штамп</translation>
-    </message>
-    <message>
-        <source>Healing Brush</source>
-        <translation>Восстанавливающая кисть</translation>
-    </message>
-    <message>
-        <source>Smudge</source>
-        <translation>Палец</translation>
-    </message>
-    <message>
-        <source>Dodge</source>
-        <translation>Осветлитель</translation>
-    </message>
-    <message>
-        <source>Burn</source>
-        <translation>Затемнитель</translation>
-    </message>
-    <message>
-        <source>Eraser</source>
-        <translation>Ластик</translation>
-    </message>
-    <message>
-        <source>Pen</source>
-        <translation>Перо</translation>
-    </message>
-    <message>
-        <source>Path Select</source>
-        <translation>Выделение контура</translation>
-    </message>
-    <message>
-        <source>Direct Select</source>
-        <translation>Выделение узла</translation>
-    </message>
-    <message>
-        <source>Line</source>
-        <translation>Линия</translation>
-    </message>
-    <message>
-        <source>Rectangle</source>
-        <translation>Прямоугольник</translation>
-    </message>
-    <message>
-        <source>Ellipse</source>
-        <translation>Эллипс</translation>
-    </message>
-    <message>
-        <source>Polygon</source>
-        <translation>Многоугольник</translation>
-    </message>
-    <message>
-        <source>Custom Shape</source>
-        <translation>Произвольная фигура</translation>
-    </message>
-    <message>
-        <source>Eyedropper</source>
-        <translation>Пипетка</translation>
-    </message>
-    <message>
         <source>Type</source>
         <translation>Текст</translation>
     </message>
     <message>
-        <source>Pan</source>
-        <translation>Рука</translation>
-    </message>
-    <message>
         <source>Zoom</source>
         <translation>Масштаб</translation>
-    </message>
-    <message>
-        <source>Spot Healing</source>
-        <translation>Точечное восстановление</translation>
-    </message>
-    <message>
-        <source>Patch</source>
-        <translation>Заплатка</translation>
-    </message>
-    <message>
-        <source>Crop</source>
-        <translation>Кадрирование</translation>
-    </message>
-    <message>
-        <source>Add Anchor Point</source>
-        <translation>Добавить опорную точку</translation>
-    </message>
-    <message>
-        <source>Delete Anchor Point</source>
-        <translation>Удалить опорную точку</translation>
-    </message>
-    <message>
-        <source>Convert Point</source>
-        <translation>Преобразовать точку</translation>
-    </message>
-    <message>
-        <source>Tool</source>
-        <translation>Инструмент</translation>
     </message>
     <message>
         <source>Edit Gradient Stops</source>
@@ -9701,10 +9573,6 @@ RGB: %2, %3, %4</translation>
         <translation>Patchy редактирует этот файл в RGB. Неизменённые поддерживаемые слои можно сохранить в исходном цветовом режиме. Изменения содержимого или неподдерживаемые слои требуют сохранения в RGB, что может изменить градиенты и корректировки.</translation>
     </message>
     <message>
-        <source>Object Selection</source>
-        <translation>Выделение объектов</translation>
-    </message>
-    <message>
         <source>Patchy converted this document to RGB, so this profile is shown for reference only and is not written to RGB saves.</source>
         <translation>Patchy преобразовал этот документ в RGB, поэтому этот профиль показан только для справки и не записывается при сохранении в RGB.</translation>
     </message>
@@ -12052,10 +11920,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Фон: остается в самом низу стека, без прозрачности и стилей слоя. Щелкните его правой кнопкой мыши и выберите «Слой из фона», чтобы сделать его обычным слоем.</translation>
     </message>
     <message>
-        <source>Polygonal Lasso</source>
-        <translation>Многоугольное лассо</translation>
-    </message>
-    <message>
         <source>iPhone 16 Pro</source>
         <translation>iPhone 16 Pro</translation>
     </message>
@@ -12304,10 +12168,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Right</source>
         <translation>Справа</translation>
-    </message>
-    <message>
-        <source>Perspective Crop</source>
-        <translation>Кадрирование перспективы</translation>
     </message>
     <message>
         <source>Search results</source>
@@ -12559,10 +12419,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%1, from Preferences</source>
         <comment>new document color profile: the CMYK working profile</comment>
         <translation>%1, из настроек</translation>
-    </message>
-    <message>
-        <source>Red Eye</source>
-        <translation>Красные глаза</translation>
     </message>
     <message>
         <source>This Paint.NET file is damaged and could not be opened.</source>
@@ -13223,10 +13079,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Encoding %1...</source>
         <translation>Кодирование %1...</translation>
-    </message>
-    <message>
-        <source>Ruler</source>
-        <translation>Линейка</translation>
     </message>
     <message>
         <source>Layer and vector mask are linked. Click to unlink.</source>
@@ -14977,10 +14829,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Extend</source>
         <translation>Расширение</translation>
-    </message>
-    <message>
-        <source>Content-Aware Move</source>
-        <translation>Перемещение с учетом содержимого</translation>
     </message>
     <message>
         <source>Fill layer. Click to edit its fill settings.</source>
@@ -24394,10 +24242,6 @@ Save your work and close Patchy before running the installer.</source>
         <source>Ungroup layers</source>
         <translation>Разгруппировать слои</translation>
     </message>
-    <message>
-        <source>Ungrouped the folder; its opacity, blend mode, or mask was discarded</source>
-        <translation>Папка разгруппирована; её непрозрачность, режим наложения или маска отброшены</translation>
-    </message>
     <message numerus="yes">
         <source>Ungrouped %n folder(s)</source>
         <translation>
@@ -32567,6 +32411,10 @@ Locked: %1</source>
     <message>
         <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
         <translation>После рисования нового контура выделяет объект внутри него, расширяет выделение на несколько пикселей и применяет растушёвку перед перетаскиванием</translation>
+    </message>
+    <message>
+        <source>Ungrouped the folder; its opacity, blend mode, mask, or style was discarded</source>
+        <translation>Папка разгруппирована; её непрозрачность, режим наложения, маска или стиль отброшены</translation>
     </message>
 </context>
 <context>

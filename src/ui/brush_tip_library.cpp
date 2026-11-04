@@ -4,6 +4,7 @@
 #include "ui/default_brush_tips.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/image_document_io.hpp"
 #include "ui/localization.hpp"
 
 #include <QCryptographicHash>
@@ -713,7 +714,7 @@ int BrushTipLibrary::reset_default_tips_to_factory() {
     updated.tool_airbrush.reset();
     if (mask_differs) {
       // Rewrite the stamp pixels in place (same id/file) and refresh everything derived.
-      if (!coverage_image_from_brush_tip(factory_tip).save(png_path(found->id), "PNG")) {
+      if (!save_qimage_atomically(coverage_image_from_brush_tip(factory_tip), png_path(found->id), "PNG")) {
         continue;
       }
       tip_cache_.erase(std::remove_if(tip_cache_.begin(), tip_cache_.end(),

@@ -3440,92 +3440,20 @@ RGB: %2, %3, %4</translation>
         <translation>移動</translation>
     </message>
     <message>
-        <source>Marquee</source>
-        <translation>長方形選択</translation>
-    </message>
-    <message>
-        <source>Elliptical Marquee</source>
-        <translation>楕円形選択</translation>
-    </message>
-    <message>
-        <source>Lasso</source>
-        <translation>なげなわ</translation>
-    </message>
-    <message>
-        <source>Magnetic Lasso</source>
-        <translation>マグネット選択</translation>
-    </message>
-    <message>
-        <source>Magic Wand</source>
-        <translation>自動選択</translation>
-    </message>
-    <message>
-        <source>Quick Select</source>
-        <translation>クイック選択</translation>
-    </message>
-    <message>
-        <source>Brush</source>
-        <translation>ブラシ</translation>
-    </message>
-    <message>
-        <source>Mixer Brush</source>
-        <translation>ミキサーブラシ</translation>
-    </message>
-    <message>
-        <source>Clone Stamp</source>
-        <translation>コピースタンプ</translation>
-    </message>
-    <message>
-        <source>Healing Brush</source>
-        <translation>修復ブラシ</translation>
-    </message>
-    <message>
-        <source>Smudge</source>
-        <translation>指先</translation>
-    </message>
-    <message>
-        <source>Eraser</source>
-        <translation>消しゴム</translation>
-    </message>
-    <message>
         <source>Gradient</source>
         <translation>グラデーション</translation>
-    </message>
-    <message>
-        <source>Line</source>
-        <translation>直線</translation>
-    </message>
-    <message>
-        <source>Rectangle</source>
-        <translation>長方形</translation>
-    </message>
-    <message>
-        <source>Ellipse</source>
-        <translation>楕円</translation>
     </message>
     <message>
         <source>Fill</source>
         <translation>塗りつぶし</translation>
     </message>
     <message>
-        <source>Eyedropper</source>
-        <translation>スポイト</translation>
-    </message>
-    <message>
         <source>Type</source>
         <translation>文字</translation>
     </message>
     <message>
-        <source>Pan</source>
-        <translation>手のひら</translation>
-    </message>
-    <message>
         <source>Zoom</source>
         <translation>ズーム</translation>
-    </message>
-    <message>
-        <source>Tool</source>
-        <translation>ツール</translation>
     </message>
     <message>
         <source>%1 (%2)</source>
@@ -5507,18 +5435,6 @@ Mixed selection</source>
         <translation>ひび割れた砂漠</translation>
     </message>
     <message>
-        <source>Dodge</source>
-        <translation>覆い焼き</translation>
-    </message>
-    <message>
-        <source>Burn</source>
-        <translation>焼き込み</translation>
-    </message>
-    <message>
-        <source>Pattern Stamp</source>
-        <translation>パターンスタンプ</translation>
-    </message>
-    <message>
         <source>Run the JavaScript file. With a running instance this forwards the request and exits; otherwise a new unattended instance opens the given files, runs the script, and exits (0 = ok, 4 = script error).</source>
         <translation>JavaScript ファイルを実行します。実行中のインスタンスがあればリクエストを転送して終了し、なければ新しい無人インスタンスが指定ファイルを開いてスクリプトを実行し終了します (0 = 成功、4 = スクリプトエラー)。</translation>
     </message>
@@ -5641,38 +5557,6 @@ Mixed selection</source>
     <message>
         <source>Format:</source>
         <translation>形式:</translation>
-    </message>
-    <message>
-        <source>Pen</source>
-        <translation>ペン</translation>
-    </message>
-    <message>
-        <source>Path Select</source>
-        <translation>パスコンポーネント選択</translation>
-    </message>
-    <message>
-        <source>Direct Select</source>
-        <translation>ダイレクト選択</translation>
-    </message>
-    <message>
-        <source>Polygon</source>
-        <translation>多角形</translation>
-    </message>
-    <message>
-        <source>Custom Shape</source>
-        <translation>カスタムシェイプ</translation>
-    </message>
-    <message>
-        <source>Spot Healing</source>
-        <translation>スポット修復</translation>
-    </message>
-    <message>
-        <source>Patch</source>
-        <translation>パッチ</translation>
-    </message>
-    <message>
-        <source>Crop</source>
-        <translation>切り抜き</translation>
     </message>
     <message>
         <source>Destination</source>
@@ -6573,18 +6457,6 @@ Mixed selection</source>
     <message>
         <source>Photo (Maximum)</source>
         <translation>最高精度の写真</translation>
-    </message>
-    <message>
-        <source>Add Anchor Point</source>
-        <translation>アンカーポイントを追加</translation>
-    </message>
-    <message>
-        <source>Delete Anchor Point</source>
-        <translation>アンカーポイントを削除</translation>
-    </message>
-    <message>
-        <source>Convert Point</source>
-        <translation>ポイントを切り替え</translation>
     </message>
     <message>
         <source>Save the current settings as a preset</source>
@@ -9639,10 +9511,6 @@ Mixed selection</source>
         <translation>PatchyはこのファイルをRGBで編集します。対応するレイヤーが変更されていなければ、元のカラーモードで保存できます。内容の編集や非対応のレイヤーがある場合はRGBでの保存が必要となり、グラデーションや色調補正が変わることがあります。</translation>
     </message>
     <message>
-        <source>Object Selection</source>
-        <translation>オブジェクト選択</translation>
-    </message>
-    <message>
         <source>Patchy converted this document to RGB, so this profile is shown for reference only and is not written to RGB saves.</source>
         <translation>Patchy はこのドキュメントを RGB に変換したため、このプロファイルは参考として表示されるだけで、RGB での保存時には書き込まれません。</translation>
     </message>
@@ -11982,10 +11850,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>背景: スタックの一番下にとどまり、透明部分もレイヤースタイルも持てません。右クリックして「背景からレイヤーへ」を選ぶと通常のレイヤーになります。</translation>
     </message>
     <message>
-        <source>Polygonal Lasso</source>
-        <translation>多角形選択</translation>
-    </message>
-    <message>
         <source>iPhone 16 Pro</source>
         <translation>iPhone 16 Pro</translation>
     </message>
@@ -12234,10 +12098,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Right</source>
         <translation>右</translation>
-    </message>
-    <message>
-        <source>Perspective Crop</source>
-        <translation>遠近法の切り抜き</translation>
     </message>
     <message>
         <source>Search results</source>
@@ -12489,10 +12349,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%1, from Preferences</source>
         <comment>new document color profile: the CMYK working profile</comment>
         <translation>%1 (環境設定)</translation>
-    </message>
-    <message>
-        <source>Red Eye</source>
-        <translation>赤目修正</translation>
     </message>
     <message>
         <source>This Paint.NET file is damaged and could not be opened.</source>
@@ -13151,10 +13007,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Encoding %1...</source>
         <translation>%1 をエンコード中...</translation>
-    </message>
-    <message>
-        <source>Ruler</source>
-        <translation>ものさし</translation>
     </message>
     <message>
         <source>Layer and vector mask are linked. Click to unlink.</source>
@@ -14887,10 +14739,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Extend</source>
         <translation>拡張</translation>
-    </message>
-    <message>
-        <source>Content-Aware Move</source>
-        <translation>コンテンツに応じた移動</translation>
     </message>
     <message>
         <source>Fill layer. Click to edit its fill settings.</source>
@@ -25964,10 +25812,6 @@ Clipped to the layer below</source>
         <source>Ungroup layers</source>
         <translation>レイヤーのグループ解除</translation>
     </message>
-    <message>
-        <source>Ungrouped the folder; its opacity, blend mode, or mask was discarded</source>
-        <translation>フォルダーのグループを解除しました。フォルダーの不透明度、描画モード、マスクは破棄されました</translation>
-    </message>
     <message numerus="yes">
         <source>Ungrouped %n folder(s)</source>
         <translation>
@@ -32399,6 +32243,10 @@ Locked: %1</source>
     <message>
         <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
         <translation>新しい輪郭を描き終えたとき、その中のオブジェクトを選択し、数ピクセル拡張してぼかしを適用してからドラッグします</translation>
+    </message>
+    <message>
+        <source>Ungrouped the folder; its opacity, blend mode, mask, or style was discarded</source>
+        <translation>フォルダーのグループを解除しました。フォルダーの不透明度、描画モード、マスク、スタイルは破棄されました</translation>
     </message>
 </context>
 <context>

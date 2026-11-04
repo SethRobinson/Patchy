@@ -6900,139 +6900,11 @@ Flow: %6
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Marquee</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Elliptical Marquee</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Lasso</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Magnetic Lasso</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Magic Wand</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Quick Select</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Brush</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Mixer Brush</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Clone Stamp</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Pattern Stamp</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Healing Brush</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Smudge</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Dodge</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Burn</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Eraser</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Pen</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Path Select</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Direct Select</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Line</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Rectangle</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Ellipse</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Polygon</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Custom Shape</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Eyedropper</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Type</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Pan</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Zoom</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Spot Healing</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Patch</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Crop</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Add Anchor Point</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Delete Anchor Point</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Convert Point</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Tool</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -9660,10 +9532,6 @@ RGB: %2, %3, %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Object Selection</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Patchy converted this document to RGB, so this profile is shown for reference only and is not written to RGB saves.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -12001,10 +11869,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Polygonal Lasso</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>iPhone 16 Pro</source>
         <translation type="unfinished"></translation>
     </message>
@@ -12252,10 +12116,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Right</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Perspective Crop</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -12507,10 +12367,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     <message>
         <source>%1, from Preferences</source>
         <comment>new document color profile: the CMYK working profile</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Red Eye</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -13169,10 +13025,6 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Encoding %1...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Ruler</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -14914,10 +14766,6 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Extend</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Content-Aware Move</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -23617,10 +23465,6 @@ Save your work and close Patchy before running the installer.</source>
     </message>
     <message>
         <source>Ungroup layers</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Ungrouped the folder; its opacity, blend mode, or mask was discarded</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
@@ -32401,6 +32245,10 @@ Locked: %1</source>
     </message>
     <message>
         <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ungrouped the folder; its opacity, blend mode, mask, or style was discarded</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

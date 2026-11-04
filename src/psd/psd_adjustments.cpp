@@ -841,11 +841,11 @@ std::optional<AdjustmentSettings> parse_photoshop_black_white_adjustment(std::sp
     *weights[index] = value->integer_value;
   }
   bw.tint = descriptor_bool(*descriptor, "useTint");
-  if (const auto* tint = descriptor_object(*descriptor, "tintColor"); tint != nullptr) {
-    const auto channel = [tint](const char* key) {
-      return static_cast<std::uint8_t>(std::clamp(std::lround(descriptor_number(*tint, key, 0.0)), 0L, 255L));
-    };
-    bw.tint_color = RgbColor{channel("Rd  "), channel("Grn "), channel("Bl  ")};
+  // Any color class Photoshop writes (RGB, float RGB, HSB, Lab, CMYK, gray) through the shared
+  // decoder; read as RGB keys the others came out black. The default converter keeps this
+  // parse identical to the writer's re-parse of the original block (preserve unless edited).
+  if (descriptor_object(*descriptor, "tintColor") != nullptr) {
+    bw.tint_color = descriptor_rgb_color(*descriptor, "tintColor", CmykColorConverter{});
   }
   bw = clamp_black_white(bw);
   return settings;

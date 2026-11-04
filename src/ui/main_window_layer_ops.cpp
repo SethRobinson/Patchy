@@ -176,35 +176,16 @@ QByteArray clipboard_image_signature(const QImage& image) {
   return signature;
 }
 
-EditOptions edit_options(CanvasWidget& canvas) {
+// EditOptions for a menu-command edit (Cut, Layer via Cut, Fill, Clear, Stroke): the current
+// colors and brush, plus the canvas state every edit carries (apply_canvas_edit_state in
+// canvas_widget_shared, the same call the tool factory edit_options makes).
+EditOptions menu_command_edit_options(const CanvasWidget& canvas) {
   EditOptions options;
   options.primary = edit_color(canvas.primary_color());
   options.secondary = edit_color(canvas.secondary_color());
-  options.primary_gain = color_intensity_gain(canvas.paint_intensity().foreground);
-  options.secondary_gain = color_intensity_gain(canvas.paint_intensity().background);
   options.brush_size = canvas.brush_size();
   options.brush_softness = canvas.brush_softness();
-  options.progress_callback = [&canvas] {
-    canvas.tick_processing_operation();
-  };
-  if (canvas.selected_document_rect().has_value()) {
-    options.selection = to_core_rect(*canvas.selected_document_rect());
-    const auto region = canvas.selected_document_region();
-    if (!canvas.selection_has_partial_alpha()) {
-      options.selection_scan_rects.reserve(static_cast<std::size_t>(region.rectCount()));
-      for (const auto& rect : region) {
-        options.selection_scan_rects.push_back(to_core_rect(rect));
-      }
-    }
-    // Both per-pixel lookups go through selection_alpha_at, which rasterizes a
-    // many-span region once; QRegion::contains would scan every span per pixel.
-    options.selection_mask = [&canvas](std::int32_t x, std::int32_t y) {
-      return canvas.selection_alpha_at(QPoint(x, y)) != 0U;
-    };
-    options.selection_coverage = [&canvas](std::int32_t x, std::int32_t y) {
-      return static_cast<float>(canvas.selection_alpha_at(QPoint(x, y))) / 255.0F;
-    };
-  }
+  apply_canvas_edit_state(options, canvas);
   return options;
 }
 
@@ -759,7 +740,8 @@ void MainWindow::ungroup_selected_layers() {
       // Photoshop drops the folder's own attributes; say so afterwards.
       dropped_attributes = dropped_attributes || group->opacity() < 1.0F ||
                            group->blend_mode() != BlendMode::PassThrough || group->mask().has_value() ||
-                           group->vector_mask() != nullptr || group->clipped();
+                           group->vector_mask() != nullptr || group->clipped() ||
+                           !group->layer_style().empty();
     }
     const auto released = ungroup_layer(doc.layers(), id);
     if (released.has_value() && !released->empty() && !first_released.has_value()) {
@@ -775,7 +757,7 @@ void MainWindow::ungroup_selected_layers() {
   refresh_document_info();
   canvas_->document_changed();
   if (dropped_attributes) {
-    statusBar()->showMessage(tr("Ungrouped the folder; its opacity, blend mode, or mask was discarded"));
+    statusBar()->showMessage(tr("Ungrouped the folder; its opacity, blend mode, mask, or style was discarded"));
   } else {
     statusBar()->showMessage(tr("Ungrouped %n folder(s)", nullptr, static_cast<int>(groups.size())));
   }
@@ -855,7 +837,7 @@ void MainWindow::cut_selection() {
   auto& doc = document();
   push_undo_snapshot(tr("Cut"));
   Rect affected;
-  auto options = edit_options(*canvas_);
+  auto options = menu_command_edit_options(*canvas_);
   for (const auto id : layers_to_cut) {
     auto* layer = doc.find_layer(id);
     if (layer == nullptr || layer->kind() != LayerKind::Pixel || !layer->visible()) {
@@ -1845,7 +1827,7 @@ void MainWindow::layer_via_cut() {
 
   auto& doc = document();
   push_undo_snapshot(tr("Layer via cut"));
-  auto options = edit_options(*canvas_);
+  auto options = menu_command_edit_options(*canvas_);
   Rect affected = payload->document_rect;
   const auto selected_rect = canvas_->selected_document_rect();
   for (const auto id : payload->source_layer_ids) {
@@ -5067,7 +5049,7 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label, std::
     }
   });
   push_undo_snapshot(label);
-  auto options = edit_options(*canvas_);
+  auto options = menu_command_edit_options(*canvas_);
   options.primary = edit_color(color);
   options.primary_gain = color_intensity_gain(intensity_stops);
   // Fill honors its own Opacity and Soft settings (Fill tool options bar; default 100% / 0). Opacity
@@ -5219,7 +5201,7 @@ void MainWindow::clear_active_layer() {
   };
   std::vector<ClearCandidate> candidates;
   std::int64_t scan_pixels = 0;
-  auto options = edit_options(*canvas_);
+  auto options = menu_command_edit_options(*canvas_);
   for (const auto id : editable_ids) {
     const auto* layer = doc.find_layer(id);
     if (layer == nullptr || layer->kind() != LayerKind::Pixel || layer_pixels_are_procedural(*layer)) {
@@ -6030,7 +6012,7 @@ void MainWindow::stroke_selection() {
     return;
   }
   push_undo_snapshot(tr("Stroke selection"));
-  auto options = edit_options(*canvas_);
+  auto options = menu_command_edit_options(*canvas_);
   options.primary = edit_color(chosen->color);
   options.lock_transparent_pixels = layer_locks_transparent_pixels(*layer);
   const auto stroke_bounds = stroke_region.boundingRect();

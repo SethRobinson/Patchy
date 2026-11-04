@@ -376,6 +376,43 @@ void ui_palette_panel_click_sets_foreground_and_chip_tracks_mode() {
   CHECK(document.indexed_palette()->colors.size() == 16);
 }
 
+// Menu-command edits (Layer > Fill, Edit > Stroke, Cut, Clear) build their EditOptions in
+// MainWindow, not in the canvas tool factory; in palette mode they must snap like a tool
+// edit does. An off-palette foreground filled through the menu lands on its nearest
+// palette color.
+void ui_palette_mode_menu_fill_snaps_to_palette() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  patchy::DocumentPaletteEditing editing;
+  editing.palette.colors = {patchy::RgbColor{0, 0, 0}, patchy::RgbColor{255, 255, 255},
+                            patchy::RgbColor{255, 0, 0}};
+  editing.palette_revision = 902;
+  document.palette_editing() = editing;
+  patchy::ui::MainWindowTestAccess::refresh_document_info(window);
+  QApplication::processEvents();
+
+  canvas->set_primary_color(QColor(200, 30, 20));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  const auto active = document.active_layer_id();
+  CHECK(active.has_value());
+  if (!active.has_value()) {
+    return;
+  }
+  const auto* layer = std::as_const(document).find_layer(*active);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  const auto bounds = layer->bounds();
+  const auto x = document.width() / 2 - bounds.x;
+  const auto y = document.height() / 2 - bounds.y;
+  const auto* px = layer->pixels().pixel(x, y);
+  CHECK(px[0] == 255 && px[1] == 0 && px[2] == 0 && px[3] == 255);
+}
+
 void ui_palette_panel_scrolls_large_palette_in_place() {
   // The swatch grid reports its full height as a hard minimum, so a 256-color
   // palette (22 rows) must scroll inside the panel's scroll well instead of
@@ -2335,6 +2372,7 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part1() {
        ui_brush_tip_softness_feathers_stroke_and_size_reaches_1024},
       {"ui_palette_panel_click_sets_foreground_and_chip_tracks_mode",
        ui_palette_panel_click_sets_foreground_and_chip_tracks_mode},
+      {"ui_palette_mode_menu_fill_snaps_to_palette", ui_palette_mode_menu_fill_snaps_to_palette},
       {"ui_palette_panel_scrolls_large_palette_in_place", ui_palette_panel_scrolls_large_palette_in_place},
       {"ui_convert_to_indexed_dialog_converts_and_undoes", ui_convert_to_indexed_dialog_converts_and_undoes},
       {"ui_convert_to_indexed_preview_zoom_and_pan", ui_convert_to_indexed_preview_zoom_and_pan},

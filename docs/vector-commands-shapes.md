@@ -65,7 +65,7 @@ at the folder's position, composite order unchanged (`ungroup_layer`,
 `src/core/layer_tree`). New Folder (`layer.new_folder`) is Ctrl+G, so the
 pair matches Photoshop. Photoshop's rule applies: the folder's own opacity,
 blend mode, masks, and style are dropped, and the status line says so when
-one was set. Lock All on the folder refuses. One "Ungroup layers" undo
+one was set (a style counts when it has an enabled effect). Lock All on the folder refuses. One "Ungroup layers" undo
 entry; the topmost released layer becomes active; the folder leaves the
 session's collapsed set. Script: `layer.ungroup()` returns the released
 layers top to bottom.

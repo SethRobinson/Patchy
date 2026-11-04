@@ -20,9 +20,9 @@ internal static class UninstallPatchy
     // Object Selection's downloaded High Quality model (docs/ai-selection-models.md) and the
     // watermark models (docs/watermarks.md): Qt's AppLocalDataLocation for organization
     // RTsoft, application Patchy, plus "ai-models" (%LOCALAPPDATA%\RTsoft\Patchy\ai-models;
-    // src/ui/app_data_migration.hpp). RemoveDownloadedModels below still cleans only the
-    // roaming AppDataLocation (%APPDATA%) that downloads used through 1.19, a known gap
-    // (docs/ai-selection-models.md). Only these exact files are deleted, never a
+    // src/ui/app_data_migration.hpp). RemoveDownloadedModels cleans that folder and the
+    // roaming AppDataLocation (%APPDATA%) one that downloads used through 1.19, for older
+    // installs. Only these exact files are deleted, never a
     // wildcard; keep the names in sync with high_quality_model_files() in
     // src/ui/object_selection_model_download.cpp and watermark_model_files() in
     // src/ui/watermark_model_download.cpp.
@@ -261,18 +261,26 @@ internal static class UninstallPatchy
     }
 
     // Deletes the downloaded model files by their full names, then the ai-models folder only
-    // when nothing else is left in it (Directory.Delete without recursion). The rest of the
-    // user's Patchy data (fonts, scripts, settings) stays.
+    // when nothing else is left in it (Directory.Delete without recursion), in both places a
+    // download has lived: %LOCALAPPDATA% (current) and %APPDATA% (through 1.19). The rest of
+    // the user's Patchy data (fonts, scripts, settings) stays.
     private static void RemoveDownloadedModels()
+    {
+        RemoveDownloadedModelsUnder(Environment.SpecialFolder.LocalApplicationData);
+        RemoveDownloadedModelsUnder(Environment.SpecialFolder.ApplicationData);
+    }
+
+    // One folder's pass. Each runs in its own try/catch, so a failure in one never skips the other.
+    private static void RemoveDownloadedModelsUnder(Environment.SpecialFolder root)
     {
         try
         {
-            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            if (string.IsNullOrWhiteSpace(appData))
+            string rootDirectory = Environment.GetFolderPath(root);
+            if (string.IsNullOrWhiteSpace(rootDirectory))
             {
                 return;
             }
-            string modelsDirectory = Path.Combine(appData, DownloadedModelsRelativePath);
+            string modelsDirectory = Path.Combine(rootDirectory, DownloadedModelsRelativePath);
             foreach (string fileName in DownloadedModelFileNames)
             {
                 string modelPath = Path.Combine(modelsDirectory, fileName);

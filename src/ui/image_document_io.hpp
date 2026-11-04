@@ -134,6 +134,12 @@ struct LayerPixelsOverrideSpec {
     const Document& document, QRect document_rect, bool preserve_alpha, const std::vector<LayerId>& hidden_layer_ids,
     const std::vector<std::pair<LayerId, Rect>>& layer_bounds);
 [[nodiscard]] bool image_format_preserves_alpha(std::string_view extension) noexcept;
+// QImage::save for files the user keeps (palette strips, script icons, brush tip masks):
+// encodes into a QSaveFile, so the target is replaced by a rename only after a complete
+// write and a failure keeps the old file (QImage::save(path) truncates it in place first).
+// `format` is a QImageWriter format such as "PNG"; null derives it from the suffix.
+// Returns false when the file cannot be created, encoded, or committed.
+[[nodiscard]] bool save_qimage_atomically(const QImage& image, const QString& path, const char* format = nullptr);
 // A save's thumbnail as JFIF bytes (PSD resource 1036, JPEG EXIF IFD1; docs/file-info-save-stamp.md,
 // "Thumbnails"): `image` fit to psd::kThumbnailMaxSide pixels (never enlarged), over white.
 [[nodiscard]] std::vector<std::uint8_t> encode_thumbnail_jpeg(const QImage& image);

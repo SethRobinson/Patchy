@@ -6905,140 +6905,12 @@ Flux : %6
         <translation>Déplacement</translation>
     </message>
     <message>
-        <source>Marquee</source>
-        <translation>Rectangle de sélection</translation>
-    </message>
-    <message>
-        <source>Elliptical Marquee</source>
-        <translation>Ellipse de sélection</translation>
-    </message>
-    <message>
-        <source>Lasso</source>
-        <translation>Lasso</translation>
-    </message>
-    <message>
-        <source>Magnetic Lasso</source>
-        <translation>Lasso magnétique</translation>
-    </message>
-    <message>
-        <source>Magic Wand</source>
-        <translation>Baguette magique</translation>
-    </message>
-    <message>
-        <source>Quick Select</source>
-        <translation>Sélection rapide</translation>
-    </message>
-    <message>
-        <source>Brush</source>
-        <translation>Pinceau</translation>
-    </message>
-    <message>
-        <source>Mixer Brush</source>
-        <translation>Pinceau mélangeur</translation>
-    </message>
-    <message>
-        <source>Clone Stamp</source>
-        <translation>Tampon de duplication</translation>
-    </message>
-    <message>
-        <source>Pattern Stamp</source>
-        <translation>Tampon de motif</translation>
-    </message>
-    <message>
-        <source>Healing Brush</source>
-        <translation>Correcteur</translation>
-    </message>
-    <message>
-        <source>Smudge</source>
-        <translation>Doigt</translation>
-    </message>
-    <message>
-        <source>Dodge</source>
-        <translation>Densité -</translation>
-    </message>
-    <message>
-        <source>Burn</source>
-        <translation>Densité +</translation>
-    </message>
-    <message>
-        <source>Eraser</source>
-        <translation>Gomme</translation>
-    </message>
-    <message>
-        <source>Pen</source>
-        <translation>Plume</translation>
-    </message>
-    <message>
-        <source>Path Select</source>
-        <translation>Sélection de tracé</translation>
-    </message>
-    <message>
-        <source>Direct Select</source>
-        <translation>Sélection directe</translation>
-    </message>
-    <message>
-        <source>Line</source>
-        <translation>Trait</translation>
-    </message>
-    <message>
-        <source>Rectangle</source>
-        <translation>Rectangle</translation>
-    </message>
-    <message>
-        <source>Ellipse</source>
-        <translation>Ellipse</translation>
-    </message>
-    <message>
-        <source>Polygon</source>
-        <translation>Polygone</translation>
-    </message>
-    <message>
-        <source>Custom Shape</source>
-        <translation>Forme personnalisée</translation>
-    </message>
-    <message>
-        <source>Eyedropper</source>
-        <translation>Pipette</translation>
-    </message>
-    <message>
         <source>Type</source>
         <translation>Texte</translation>
     </message>
     <message>
-        <source>Pan</source>
-        <translation>Main</translation>
-    </message>
-    <message>
         <source>Zoom</source>
         <translation>Zoom</translation>
-    </message>
-    <message>
-        <source>Spot Healing</source>
-        <translation>Correcteur localisé</translation>
-    </message>
-    <message>
-        <source>Patch</source>
-        <translation>Pièce</translation>
-    </message>
-    <message>
-        <source>Crop</source>
-        <translation>Recadrage</translation>
-    </message>
-    <message>
-        <source>Add Anchor Point</source>
-        <translation>Ajout de point d&apos;ancrage</translation>
-    </message>
-    <message>
-        <source>Delete Anchor Point</source>
-        <translation>Suppression de point d&apos;ancrage</translation>
-    </message>
-    <message>
-        <source>Convert Point</source>
-        <translation>Conversion de point</translation>
-    </message>
-    <message>
-        <source>Tool</source>
-        <translation>Outil</translation>
     </message>
     <message>
         <source>Edit Gradient Stops</source>
@@ -9670,10 +9542,6 @@ RVB : %2, %3, %4</translation>
         <translation>Patchy modifie ce fichier en RVB. Les calques pris en charge et non modifiés peuvent être enregistrés dans le mode colorimétrique d’origine. Les modifications de contenu ou les calques non pris en charge nécessitent un enregistrement en RVB, ce qui peut modifier les dégradés et les réglages.</translation>
     </message>
     <message>
-        <source>Object Selection</source>
-        <translation>Sélection d&apos;objet</translation>
-    </message>
-    <message>
         <source>Patchy converted this document to RGB, so this profile is shown for reference only and is not written to RGB saves.</source>
         <translation>Patchy a converti ce document en RVB ; ce profil est donc affiché à titre indicatif et n&apos;est pas écrit dans les enregistrements RVB.</translation>
     </message>
@@ -12017,10 +11885,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Arrière-plan : il reste tout en bas de la pile, sans transparence ni styles de calque. Faites un clic droit dessus et choisissez Calque d&apos;après l&apos;arrière-plan pour en faire un calque ordinaire.</translation>
     </message>
     <message>
-        <source>Polygonal Lasso</source>
-        <translation>Lasso polygonal</translation>
-    </message>
-    <message>
         <source>iPhone 16 Pro</source>
         <translation>iPhone 16 Pro</translation>
     </message>
@@ -12269,10 +12133,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Right</source>
         <translation>Droite</translation>
-    </message>
-    <message>
-        <source>Perspective Crop</source>
-        <translation>Recadrage perspective</translation>
     </message>
     <message>
         <source>Search results</source>
@@ -12524,10 +12384,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%1, from Preferences</source>
         <comment>new document color profile: the CMYK working profile</comment>
         <translation>%1, des Préférences</translation>
-    </message>
-    <message>
-        <source>Red Eye</source>
-        <translation>Yeux rouges</translation>
     </message>
     <message>
         <source>This Paint.NET file is damaged and could not be opened.</source>
@@ -13187,10 +13043,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Encoding %1...</source>
         <translation>Encodage %1...</translation>
-    </message>
-    <message>
-        <source>Ruler</source>
-        <translation>Règle</translation>
     </message>
     <message>
         <source>Layer and vector mask are linked. Click to unlink.</source>
@@ -14932,10 +14784,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Extend</source>
         <translation>Étendre</translation>
-    </message>
-    <message>
-        <source>Content-Aware Move</source>
-        <translation>Déplacement de contenu</translation>
     </message>
     <message>
         <source>Fill layer. Click to edit its fill settings.</source>
@@ -23653,10 +23501,6 @@ Enregistrez votre travail et fermez Patchy avant de lancer le programme d&apos;i
     <message>
         <source>Ungroup layers</source>
         <translation>Dissocier les calques</translation>
-    </message>
-    <message>
-        <source>Ungrouped the folder; its opacity, blend mode, or mask was discarded</source>
-        <translation>Dossier dissocié ; son opacité, son mode de fusion ou son masque a été abandonné</translation>
     </message>
     <message numerus="yes">
         <source>Ungrouped %n folder(s)</source>
@@ -32483,6 +32327,10 @@ Verrouillé : %1</translation>
     <message>
         <source>When you finish drawing a new outline, select the object inside it, grow that a few pixels and apply the Feather, before you drag</source>
         <translation>Une fois un nouveau contour tracé, sélectionne l&apos;objet qu&apos;il contient, l&apos;agrandit de quelques pixels et applique le contour progressif avant le glissement</translation>
+    </message>
+    <message>
+        <source>Ungrouped the folder; its opacity, blend mode, mask, or style was discarded</source>
+        <translation>Dossier dissocié ; son opacité, son mode de fusion, son masque ou son style a été abandonné</translation>
     </message>
 </context>
 <context>

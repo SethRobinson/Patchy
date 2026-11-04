@@ -450,6 +450,45 @@ void ui_brush_tip_picker_keeps_a_fixed_width() {
   clear_brush_tip_test_state();
 }
 
+// The factory tips' pixels are pinned: they are drawn from TipRandom (splitmix64, explicit
+// mappings, one draw per statement) and float math built without FMA contraction, so every
+// toolchain generates the same masks. A deliberate generator change re-pins this digest; it must
+// never move for a refactor, and never differ per platform (docs/brushes.md).
+void ui_default_brush_tip_masks_digest_is_pinned() {
+  std::uint64_t digest = 14695981039346656037ULL;  // FNV-1a 64
+  const auto mix = [&digest](std::uint8_t byte) {
+    digest ^= byte;
+    digest *= 1099511628211ULL;
+  };
+  const auto mix_u32 = [&mix](std::uint32_t value) {
+    for (int shift = 0; shift < 32; shift += 8) {
+      mix(static_cast<std::uint8_t>((value >> shift) & 0xFFU));
+    }
+  };
+  const auto specs = patchy::ui::generate_default_brush_tips();
+  for (const auto& spec : specs) {
+    for (const auto byte : spec.key.toUtf8()) {
+      mix(static_cast<std::uint8_t>(byte));
+    }
+    mix_u32(static_cast<std::uint32_t>(spec.tip.width));
+    mix_u32(static_cast<std::uint32_t>(spec.tip.height));
+    for (const auto value : spec.tip.mask) {
+      mix(value);
+    }
+  }
+  constexpr std::uint64_t kPinned = 0xf9b6c4940139513bULL;
+  if (digest != kPinned) {
+    std::cerr << "default brush tip digest 0x" << std::hex << digest << std::dec << '\n';
+  }
+  CHECK(digest == kPinned);
+  // Generating twice in one process gives the same masks (no hidden global state).
+  const auto again = patchy::ui::generate_default_brush_tips();
+  CHECK(again.size() == specs.size());
+  for (std::size_t index = 0; index < specs.size() && index < again.size(); ++index) {
+    CHECK(again[index].tip.mask == specs[index].tip.mask);
+  }
+}
+
 void ui_default_brush_tips_carry_curated_dynamics() {
   clear_brush_tip_test_state();
   {
@@ -2637,6 +2676,7 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part2() {
       {"ui_brush_tip_picker_keeps_a_fixed_width", ui_brush_tip_picker_keeps_a_fixed_width},
       {"ui_brush_tip_follows_the_preset_menu", ui_brush_tip_follows_the_preset_menu},
       {"ui_default_brush_tips_carry_curated_dynamics", ui_default_brush_tips_carry_curated_dynamics},
+      {"ui_default_brush_tip_masks_digest_is_pinned", ui_default_brush_tip_masks_digest_is_pinned},
       {"ui_brush_tip_manager_edits_dynamics", ui_brush_tip_manager_edits_dynamics},
       {"ui_brush_tip_picker_popup_resizes_and_persists", ui_brush_tip_picker_popup_resizes_and_persists},
       {"ui_brush_dynamics_round_brush_session", ui_brush_dynamics_round_brush_session},
