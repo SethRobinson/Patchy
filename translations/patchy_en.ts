@@ -14973,6 +14973,28 @@ Each item&apos;s own View setting still applies.</source>
         <source>32-bit plug-ins do not run on Linux yet; use the 64-bit version of the plug-in.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Patchy cannot open or save JPEG XR images because the system&apos;s jxrlib library is not installed. Install it and try again.
+Debian/Ubuntu: sudo apt install libjxr0
+Fedora/RHEL (EPEL): sudo dnf install jxrlib</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This build of Patchy has no JPEG XR helper (patchy-jxr-host), so it cannot open or save JPEG XR images.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The system&apos;s JPEG XR library (jxrlib) failed on this image. The file may be damaged.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>JPEG XR images cannot be opened or saved in the Flatpak version of Patchy. Use the AppImage or a distribution package of Patchy with the system&apos;s jxrlib library installed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This JPEG XR image&apos;s pixel format is not supported</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

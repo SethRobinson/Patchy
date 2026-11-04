@@ -184,7 +184,7 @@ The desktop and browser builds share the editor, with these differences:
 | G'MIC Filter Library | Yes | Yes | Yes | No |
 | Photoshop filter plug-ins (.8bf) | 32-bit and 64-bit | No | 64-bit, via bundled [Raven](https://useraven.org) | No |
 | AVIF import / export | Both | Both | Both | No |
-| JPEG XR import / export | Both | No | No | No |
+| JPEG XR import / export | Both | No | Both, with the system's jxrlib | No |
 | HEIC/HEIF import | With OS codecs | With OS decoder | With system decoder | With browser HEVC support |
 | Printing | Yes | Yes | Yes | No |
 | Scanner / camera acquisition | Both, via WIA | Scanners | Both, via SANE and gphoto2 | No |

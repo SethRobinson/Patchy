@@ -48,6 +48,9 @@ bool is_jxr_extension(std::string_view extension) {
   return std::find(extensions.begin(), extensions.end(), normalized) != extensions.end();
 }
 
+#ifndef PATCHY_JXR_SYSTEM_LIBRARY
+// Linux defines its own (jxr_document_io_linux.cpp): available when the system's jxrlib
+// answers through patchy-jxr-host.
 bool is_available() noexcept {
 #ifdef _WIN32
   return true;
@@ -55,6 +58,7 @@ bool is_available() noexcept {
   return false;
 #endif
 }
+#endif
 
 bool sniff(std::span<const std::uint8_t> bytes) {
   // JPEG XR files are little-endian only: "II" then 0xBC then the format version (1 for
@@ -130,12 +134,13 @@ void write_jxr_file(const Document& document, const std::filesystem::path& path,
   formats::write_file_bytes(path, write_jxr(document, options), "JPEG XR");
 }
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(PATCHY_JXR_SYSTEM_LIBRARY)
 
-// Decoding and encoding JPEG XR needs the in-box Windows Imaging Component codec, and Qt
-// ships no JPEG XR plugin, so the registry-error retry through QImageReader in
-// load_document_from_path fails too and the user sees this message. The save filter row is
-// gated on is_available(), so write_jxr is only reachable from a hand-typed path.
+// macOS and wasm: decoding and encoding JPEG XR needs the in-box Windows Imaging Component
+// codec (Windows) or the distribution's jxrlib (Linux), and Qt ships no JPEG XR plugin, so
+// the registry-error retry through QImageReader in load_document_from_path fails too and
+// the user sees this message. The save filter row is gated on is_available(), so write_jxr
+// is only reachable from a hand-typed path.
 FormatReadResult read_jxr(std::span<const std::uint8_t> bytes) {
   (void)bytes;
   throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "JPEG XR images can only be opened on Windows."));
@@ -154,6 +159,6 @@ std::vector<std::uint8_t> write_jxr(std::span<const std::uint8_t> rgba, std::int
   throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "JPEG XR images can only be saved on Windows."));
 }
 
-#endif  // !_WIN32
+#endif  // !_WIN32 && !PATCHY_JXR_SYSTEM_LIBRARY
 
 }  // namespace patchy::jxr

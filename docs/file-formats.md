@@ -25,7 +25,7 @@ Desktop file drops copy the accepted local paths and queue processing on the mai
 
 ## Per-format catalogue
 
-Everything reads and writes except camera raw, HEIF/HEIC, .af, .pdn, .kra and portable anymaps (read-only); JPEG XR reads and writes on Windows only. Modules live in src/formats/, Qt-free, explicit-endian via `binary_le.hpp` (LE) or `psd_binary.hpp` (BE).
+Everything reads and writes except camera raw, HEIF/HEIC, .af, .pdn, .kra and portable anymaps (read-only); JPEG XR reads and writes on Windows and Linux. Modules live in src/formats/, Qt-free, explicit-endian via `binary_le.hpp` (LE) or `psd_binary.hpp` (BE).
 
 - PSD/PSB: PSB section below plus [ps-compat.md](ps-compat.md); 16/32-bit files open at their depth while deep editing is on ([high-bit-depth.md](high-bit-depth.md)), else convert to 8-bit (section below). An unnamed layer record takes Photoshop's display name: "Layer N" (N counts ordinary layers from the bottom, 1-based), or "Background" for a bottom record with no transparency channel.
 - BMP: includes 32-bit `BI_RGB`/compression 0, whose 4th byte Patchy keeps (feeds document-alpha import below).
@@ -37,7 +37,7 @@ Everything reads and writes except camera raw, HEIF/HEIC, .af, .pdn, .kra and po
 - Portable anymaps `.pbm/.pgm/.ppm/.pnm`: a read-only filter row, no registry row; Qt's PPM handler reads P1 to P6 and sniffs the magic behind `.pnm` (`ui_portable_anymap_files_open`). No PAM or PFM.
 - GIF and animated WebP: [animation.md](animation.md) owns import, export, timing, loop counts, codec isolation and scripted animation.
 - PNG/JPEG/TIFF and still WebP: Qt readers/writers (12-bit and lossless JPEG: section below). Photoshop layers in a TIFF (tag 37724) open as layers: [tiff.md](tiff.md). WebP options retain quality (`saveOptions/webpQuality`, default 75) and lossless (`saveOptions/webpLossless`; quality 100 also means lossless).
-- JPEG XR (.jxr/.wdp/.hdp): Windows only, read and write through the in-box WIC codec; the filter row is gated on `jxr::is_available()`, and the registry row has a writer so Save stays on .jxr. Details: [jxr.md](jxr.md).
+- JPEG XR (.jxr/.wdp/.hdp): WIC on Windows, the system jxrlib via `patchy-jxr-host` on Linux; saving is gated on `jxr::is_available()`, and the registry row has a writer so Save stays on .jxr. Details: [jxr.md](jxr.md).
 - JPEG XL `.jxl`: read and write everywhere (vendored libjxl) at 8, 16 or 32 bits, animations as layers; encoder patches and dots stay off: [jxl.md](jxl.md).
 - OpenRaster `.ora`: layered read and write, baking what it cannot hold: [ora.md](ora.md).
 - Proton `.rttex`: read and write everywhere; the RTPACK wrapper, pixel layouts, embedded-JPEG variant and PVRTC rejection: [rttex.md](rttex.md).

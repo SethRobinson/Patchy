@@ -40,7 +40,8 @@ bool claimed_nowhere(const QString& extension) {
   return extension == QStringLiteral("pdf");
 }
 
-// JPEG XR decodes only through the Windows codec, so only the Windows list claims it.
+// JPEG XR decodes through the in-box Windows codec, or on Linux only when the optional system
+// jxrlib is installed (docs/jxr.md), so only the Windows list claims it.
 bool windows_only(const QString& extension) {
   return extension == QStringLiteral("jxr") || extension == QStringLiteral("wdp") ||
          extension == QStringLiteral("hdp");

@@ -14990,6 +14990,30 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>32-bit plug-ins do not run on Linux yet; use the 64-bit version of the plug-in.</source>
         <translation>32-Bit-Plug-ins laufen unter Linux noch nicht; verwenden Sie die 64-Bit-Version des Plug-ins.</translation>
     </message>
+    <message>
+        <source>Patchy cannot open or save JPEG XR images because the system&apos;s jxrlib library is not installed. Install it and try again.
+Debian/Ubuntu: sudo apt install libjxr0
+Fedora/RHEL (EPEL): sudo dnf install jxrlib</source>
+        <translation>Patchy kann keine JPEG-XR-Bilder öffnen oder speichern, weil die Systembibliothek jxrlib nicht installiert ist. Installieren Sie sie und versuchen Sie es erneut.
+Debian/Ubuntu: sudo apt install libjxr0
+Fedora/RHEL (EPEL): sudo dnf install jxrlib</translation>
+    </message>
+    <message>
+        <source>This build of Patchy has no JPEG XR helper (patchy-jxr-host), so it cannot open or save JPEG XR images.</source>
+        <translation>Dieser Patchy-Build hat kein JPEG-XR-Hilfsprogramm (patchy-jxr-host) und kann daher keine JPEG-XR-Bilder öffnen oder speichern.</translation>
+    </message>
+    <message>
+        <source>The system&apos;s JPEG XR library (jxrlib) failed on this image. The file may be damaged.</source>
+        <translation>Die JPEG-XR-Bibliothek des Systems (jxrlib) ist bei diesem Bild fehlgeschlagen. Die Datei ist möglicherweise beschädigt.</translation>
+    </message>
+    <message>
+        <source>JPEG XR images cannot be opened or saved in the Flatpak version of Patchy. Use the AppImage or a distribution package of Patchy with the system&apos;s jxrlib library installed.</source>
+        <translation>JPEG-XR-Bilder können in der Flatpak-Version von Patchy nicht geöffnet oder gespeichert werden. Verwenden Sie das AppImage oder ein Distributionspaket von Patchy mit installierter Systembibliothek jxrlib.</translation>
+    </message>
+    <message>
+        <source>This JPEG XR image&apos;s pixel format is not supported</source>
+        <translation>Das Pixelformat dieses JPEG-XR-Bildes wird nicht unterstützt</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -84,6 +84,8 @@ RUN mkdir -p /opt/appimage-tools && cd /opt/appimage-tools \
        | grep -- "-$ARCH" | sha256sum -c - \
     && chmod +x linuxdeploy-$ARCH.AppImage linuxdeploy-plugin-qt-$ARCH.AppImage appimagetool-$ARCH.AppImage
 
+# libjxr-dev: jxrlib's headers for patchy-jxr-host, which dlopens the host's jxrlib at run
+# time; the library itself is never bundled (docs/jxr.md, Linux).
 # What Raven needs to build (cmake/patchy_raven.cmake): Python 3.11, the 32-bit MinGW
 # compilers for its x86 components, wayland-scanner and protocols, and the development
 # files of the host libraries it links. Raven's runtime libraries (libwayland-client,
@@ -93,6 +95,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       python3.11 gcc-mingw-w64-i686-posix g++-mingw-w64-i686-posix \
       libwayland-dev wayland-protocols libfreetype-dev libssl-dev \
       libxcb-xkb-dev libxcb-xfixes0-dev libxcb-xinput-dev libxkbcommon-x11-dev \
+      libjxr-dev \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=mingw-sysroot /usr/x86_64-w64-mingw32/sys-root/mingw/include/ /usr/x86_64-w64-mingw32/include/
 COPY --from=mingw-sysroot /usr/x86_64-w64-mingw32/sys-root/mingw/lib/ /usr/x86_64-w64-mingw32/lib/

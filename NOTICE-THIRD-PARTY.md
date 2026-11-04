@@ -146,6 +146,14 @@ the CMYK profile chosen in Preferences. Only the MIT-licensed core is
 vendored (the optional lcms2 speed plugins are GPL-licensed and are not
 included); the license text is included at `src/color/lcms2/LICENSE`.
 
+## jxrlib (Linux, not shipped)
+
+On Linux, Patchy reads and writes JPEG XR through the distribution's own jxrlib
+(`libjxrglue.so.0`, Microsoft's BSD-2-Clause reference code as packaged by the
+distribution), which `patchy-jxr-host` loads at run time. Patchy compiles against the
+distribution's headers but ships, links and bundles none of jxrlib; the user installs it
+with the system package manager.
+
 ## libheif (web build only)
 
 `src/formats/libheif/` vendors libheif 1.23.1

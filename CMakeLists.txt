@@ -806,6 +806,29 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_sources(patchy_formats PRIVATE src/formats/heif_document_io_linux.cpp)
   target_compile_definitions(patchy_formats PRIVATE PATCHY_HEIF_HOST_LIBHEIF=1)
   target_link_libraries(patchy_formats PRIVATE patchy_lcms2 ${CMAKE_DL_LIBS})
+  # JPEG XR goes through the distribution's jxrlib in the separate patchy-jxr-host process
+  # (jxr_document_io_linux.cpp, docs/jxr.md). The helper compiles against the distribution's
+  # headers (jxrlib-devel, libjxr-dev) and dlopens the library: nothing is linked, so the
+  # AppImage never bundles it. Without the headers the helper is not built and opening a
+  # JPEG XR file explains that.
+  target_sources(patchy_formats PRIVATE src/formats/jxr_document_io_linux.cpp)
+  target_compile_definitions(patchy_formats PRIVATE PATCHY_JXR_SYSTEM_LIBRARY=1)
+  find_path(PATCHY_JXRLIB_INCLUDE_DIR JXRGlue.h PATH_SUFFIXES jxrlib
+            DOC "Folder holding jxrlib's JXRGlue.h (headers only; the library is loaded at run time)")
+  if(PATCHY_JXRLIB_INCLUDE_DIR)
+    add_executable(patchy-jxr-host src/formats/jxr_host/main.cpp src/formats/jxr_host_protocol.hpp)
+    target_include_directories(patchy-jxr-host PRIVATE "${PROJECT_SOURCE_DIR}/src")
+    # SYSTEM: jxrlib's own headers are not held to Patchy's warning flags.
+    target_include_directories(patchy-jxr-host SYSTEM PRIVATE "${PATCHY_JXRLIB_INCLUDE_DIR}")
+    target_compile_definitions(patchy-jxr-host PRIVATE __ANSI__ DISABLE_PERF_MEASUREMENT)
+    target_link_libraries(patchy-jxr-host PRIVATE ${CMAKE_DL_LIBS})
+    set_target_properties(patchy-jxr-host PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+    patchy_configure_target(patchy-jxr-host)
+    add_dependencies(patchy_formats patchy-jxr-host)
+    message(STATUS "JPEG XR on Linux: patchy-jxr-host with jxrlib headers from ${PATCHY_JXRLIB_INCLUDE_DIR}")
+  else()
+    message(STATUS "JPEG XR on Linux: patchy-jxr-host not built (no jxrlib headers; install jxrlib-devel or libjxr-dev)")
+  endif()
 elseif(APPLE)
   # HEIF/HEIC deeper than 8 bits (10-bit captures, PQ and HLG HDR) decodes through ImageIO,
   # the system HEVC decoder (heif_document_io_mac.cpp, plain C APIs, no Objective-C). Every
@@ -2082,6 +2105,10 @@ exec \"$(dirname \"$(readlink -f \"$0\")\")/patchy\" --mcp-connector \"$@\"
       if(PATCHY_BUNDLED_RAVEN)
         install(DIRECTORY "${CMAKE_BINARY_DIR}/raven/" DESTINATION ${CMAKE_INSTALL_LIBDIR}/patchy/raven
                 USE_SOURCE_PERMISSIONS)
+      endif()
+      # The JPEG XR helper (docs/jxr.md, Linux), beside patchy, where the backend looks.
+      if(TARGET patchy-jxr-host)
+        install(TARGETS patchy-jxr-host RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
       endif()
     elseif(NOT EMSCRIPTEN)
       # Windows and macOS still ship a separate patchy-mcp executable: the same main.cpp

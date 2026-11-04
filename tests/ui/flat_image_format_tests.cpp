@@ -1620,10 +1620,10 @@ void ui_jxr_opens_and_saves_as_a_read_write_format() {
       patchy::test::committed_format_fixture_path("jxr", "hdr-ramp.jxr").wstring());
   CHECK(QFileInfo::exists(fixture));
 
-  // JPEG XR is Windows-only: everywhere else the filter table hides it and the reader
-  // throws, which is the documented behavior rather than a failure.
+  // JPEG XR needs Windows' in-box codec or, on Linux, the system's jxrlib: without one the
+  // save filter hides it and the reader throws, the documented behavior, not a failure.
   if (!patchy::jxr::is_available()) {
-    patchy::test::skip("no in-box Windows codec");
+    patchy::test::skip("no JPEG XR codec (Windows WIC, or the system's jxrlib on Linux)");
   }
   // Alpha survives a .jxr export, unlike the formats that drop it.
   CHECK(patchy::ui::image_format_preserves_alpha("jxr"));

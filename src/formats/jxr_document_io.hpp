@@ -12,12 +12,13 @@
 namespace patchy::jxr {
 
 // JPEG XR (ISO/IEC 29199-2, ITU-T T.832), originally Microsoft's HD Photo / Windows Media
-// Photo. TIFF-like container, magic "II" 0xBC + version. Read and write, Windows only:
-// both the decoder (CLSID_WICWmpDecoder) and the encoder have shipped in-box in the
-// Windows Imaging Component since Vista, so Patchy carries no JPEG XR codec of its own.
-// Qt has no JPEG XR plugin, so on macOS, Linux and wasm both entry points always throw and
-// the format is hidden from the save/export filters (see docs/legal-constraints.md for the
-// rule against vendoring one).
+// Photo. TIFF-like container, magic "II" 0xBC + version. Read and write on Windows, where
+// the decoder (CLSID_WICWmpDecoder) and the encoder have shipped in-box in the Windows
+// Imaging Component since Vista, and on Linux through the distribution's jxrlib run in the
+// separate patchy-jxr-host process (jxr_document_io_linux.cpp). Patchy carries no JPEG XR
+// codec of its own. Qt has no JPEG XR plugin, so on macOS and wasm, and on Linux without
+// jxrlib, both entry points throw (on Linux with the install commands) and the format is
+// hidden from the save/export filters (docs/legal-licensing.md: no vendored codec).
 //
 // The format's distinguishing feature is float channels, which is why NVIDIA's in-game
 // capture (GeForce Experience / NVIDIA App) writes HDR screenshots as .jxr: 32-bit float
@@ -32,9 +33,11 @@ namespace patchy::jxr {
 [[nodiscard]] const std::vector<std::string>& jxr_extensions();
 [[nodiscard]] bool is_jxr_extension(std::string_view extension);
 
-// True when this build can actually decode and encode JPEG XR (Windows only). The Save As
-// and Export filter rows are gated on this, so no platform offers a save that would always
-// throw.
+// True when this build can actually decode and encode JPEG XR: always on Windows; on Linux
+// when patchy-jxr-host is beside the executable and loads the system's jxrlib (probed once,
+// never inside the Flatpak). The Save As and Export filter rows are gated on this, so no
+// platform offers a save that would always throw; Linux still offers the open, which
+// explains how to install jxrlib.
 [[nodiscard]] bool is_available() noexcept;
 
 // Container check: 'I' 'I' 0xBC then a nonzero version byte. Deliberately rejects TIFF,

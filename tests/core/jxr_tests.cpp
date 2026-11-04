@@ -23,6 +23,11 @@
 #include "core/pixel_depth.hpp"
 #include "formats/format_registry.hpp"
 #include "formats/jxr_document_io.hpp"
+#ifdef __linux__
+#include "formats/jxr_host_protocol.hpp"
+
+#include <cstdlib>
+#endif
 #include "support/srgb_transfer.hpp"
 #include "core_test_support.hpp"
 #include "local_psd_fixtures.hpp"
@@ -40,14 +45,14 @@
 
 namespace {
 
-// Why this build cannot decode JPEG XR (it has no codec: everything but Windows), or nothing
-// when it can. Codec-dependent tests skip instead of failing, matching the HEIF and
-// camera-raw convention.
+// Why this build cannot decode JPEG XR (no codec: macOS and wasm, or Linux without the
+// system's jxrlib), or nothing when it can. Codec-dependent tests skip instead of failing,
+// matching the HEIF and camera-raw convention.
 [[nodiscard]] std::optional<std::string> codec_missing_reason() {
   if (patchy::jxr::is_available()) {
     return std::nullopt;
   }
-  return "JPEG XR needs the in-box Windows codec";
+  return "JPEG XR needs the in-box Windows codec or, on Linux, the system's jxrlib and patchy-jxr-host";
 }
 
 [[nodiscard]] patchy::Document solid_document(std::int32_t width, std::int32_t height, bool with_alpha) {
@@ -382,6 +387,55 @@ void jxr_reads_real_captures_if_available() {
   }
 }
 
+#ifdef __linux__
+// Linux reads JPEG XR through the distribution's jxrlib in patchy-jxr-host (docs/jxr.md).
+// Without the library, opening a file must say how to install it, with the exact commands
+// the open-failed box shows as copyable text. PATCHY_JXR_LIBRARY reaches the helper through
+// the inherited environment.
+void jxr_missing_library_explains_install() {
+  const auto bytes = patchy::test::read_binary_file(
+      patchy::test::committed_format_fixture_path("jxr", "hdr-ramp.jxr"));
+  const char* previous = std::getenv("PATCHY_JXR_LIBRARY");
+  const std::string saved = previous != nullptr ? previous : "";
+  setenv("PATCHY_JXR_LIBRARY", "/nonexistent/libjxrglue.so.0", 1);
+  std::string message;
+  try {
+    (void)patchy::jxr::read_jxr(bytes);
+  } catch (const std::exception& error) {
+    message = error.what();
+  }
+  if (previous != nullptr) {
+    setenv("PATCHY_JXR_LIBRARY", saved.c_str(), 1);
+  } else {
+    unsetenv("PATCHY_JXR_LIBRARY");
+  }
+  if (message.find("patchy-jxr-host") != std::string::npos) {
+    patchy::test::skip("this build has no patchy-jxr-host (no jxrlib headers at configure time)");
+  }
+  CHECK(message.find("jxrlib") != std::string::npos);
+  CHECK(message.find("sudo apt install libjxr0") != std::string::npos);
+  CHECK(message.find("sudo dnf install jxrlib") != std::string::npos);
+}
+
+// jxrlib has no quality knob, so Patchy maps 1-100 onto its quantizer index itself. The
+// mapping must be monotonic (higher quality, finer quantizer), keep QP 1 for lossless only,
+// and stay inside the codec's 1-255 range.
+void jxr_quality_maps_monotonically_to_quantizer() {
+  namespace host = patchy::jxr::host;
+  CHECK(host::quality_to_qp(90, true) == 1);
+  CHECK(host::quality_to_qp(1, true) == 1);
+  int previous = 256;
+  for (int quality = 1; quality <= 100; ++quality) {
+    const int qp = host::quality_to_qp(quality, false);
+    CHECK(qp >= 2 && qp <= 255);
+    CHECK(qp <= previous);
+    previous = qp;
+  }
+  CHECK(host::quality_to_qp(0, false) == host::quality_to_qp(1, false));
+  CHECK(host::quality_to_qp(150, false) == host::quality_to_qp(100, false));
+}
+#endif
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> jxr_tests() {
@@ -396,5 +450,9 @@ std::vector<patchy::test::TestCase> jxr_tests() {
       {"jxr_hdr_fixture_opens_as_linear_32_bit_with_deep_editing",
        jxr_hdr_fixture_opens_as_linear_32_bit_with_deep_editing},
       {"jxr_reads_real_captures_if_available", jxr_reads_real_captures_if_available},
+#ifdef __linux__
+      {"jxr_missing_library_explains_install", jxr_missing_library_explains_install},
+      {"jxr_quality_maps_monotonically_to_quantizer", jxr_quality_maps_monotonically_to_quantizer},
+#endif
   };
 }

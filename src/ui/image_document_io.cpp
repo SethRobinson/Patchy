@@ -2683,8 +2683,9 @@ void write_flat_image_file(const Document& document, const QString& path, const 
     return;
   }
   if (jxr::is_jxr_extension(lower)) {
-    // Windows only (the filter row is gated on jxr::is_available(), so this is reachable
-    // elsewhere only through a hand-typed path, where the writer throws a clear message).
+    // Windows (WIC) and Linux (the system's jxrlib through patchy-jxr-host). The save filter
+    // row is gated on jxr::is_available(), so elsewhere, or on Linux without jxrlib, this is
+    // reachable only through a hand-typed path, where the writer throws a clear message.
     jxr::write_jxr_file(document, to_filesystem_path(path),
                         jxr::WriteOptions{std::clamp(options.jxr_quality, 1, 100), options.jxr_lossless});
     return;

@@ -129,6 +129,14 @@ case "$GEGL_ASIDE" in /tmp/patchy-appimage-gegl.?*) rmdir "$GEGL_ASIDE" ;; esac
   || { echo "ERROR: the GEGL helper, Patchy's own GEGL or its catalogs are missing from the AppDir" >&2; exit 1; }
 [ "$(uname -m)" != "x86_64" ] || [ -f "$APPDIR/usr/bin/patchy-8bf-host64.exe" ] \
   || { echo "ERROR: the plug-in helper patchy-8bf-host64.exe is missing from the AppDir" >&2; exit 1; }
+# The JPEG XR helper must load the host's jxrlib, never a bundled one (docs/jxr.md, Linux).
+[ -x "$APPDIR/usr/bin/patchy-jxr-host" ] \
+  || { echo "ERROR: the JPEG XR helper patchy-jxr-host is missing from the AppDir" >&2; exit 1; }
+if readelf -d "$APPDIR/usr/bin/patchy-jxr-host" | grep -qE 'NEEDED.*(jxrglue|jpegxr)' ||
+    find "$APPDIR" -name 'libjxrglue*' -o -name 'libjpegxr*' | grep -q .; then
+  echo "ERROR: jxrlib is linked or bundled; it must come from the host" >&2
+  exit 1
+fi
 [ "$(uname -m)" != "x86_64" ] || { [ -x "$APPDIR/usr/lib/patchy/raven/raven" ] && [ -x "$APPDIR/usr/lib/patchy/raven/raven-bootstrap" ] \
   && [ -f "$APPDIR/usr/lib/patchy/raven/LICENSE" ] && [ -f "$APPDIR/usr/lib/patchy/raven/RAVEN-SOURCE.txt" ]; } \
   || { echo "ERROR: Raven (raven, raven-bootstrap, LICENSE, RAVEN-SOURCE.txt) is missing from usr/lib/patchy/raven" >&2; exit 1; }

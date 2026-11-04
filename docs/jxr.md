@@ -1,4 +1,4 @@
-# JPEG XR (.jxr/.wdp/.hdp): WIC codec, 32-bit HDR, tone map
+# JPEG XR (.jxr/.wdp/.hdp): WIC or system jxrlib, 32-bit HDR, tone map
 
 Full record for the JPEG XR reader and writer. Read this before touching `jxr_document_io.*`
 or the tone-map constants. Registry and filter-table wiring rules live in
@@ -20,19 +20,48 @@ Experience / NVIDIA App) writes HDR game screenshots as `.jxr` in 32-bit float s
 the Windows Game Bar writes 16-bit half. Windows opens them because the Windows Imaging
 Component has carried a JPEG XR codec since Vista.
 
-## Windows only, by design
+## Windows (WIC) and Linux (the system's jxrlib)
 
-Both the decoder (`CLSID_WICWmpDecoder`) and the encoder are in-box on every supported
-Windows, so unlike HEIF there is no Store package to probe, no missing-codec markers, no
-Store deep link, and no codec of Patchy's own. It shares `patchy_formats`' Windows link
-of `windowscodecs` and `ole32` with the HEIF reader.
+Windows: both the decoder (`CLSID_WICWmpDecoder`) and the encoder are in-box on every
+supported Windows, so unlike HEIF there is no Store package to probe, no missing-codec
+markers, no Store deep link, and no codec of Patchy's own. It shares `patchy_formats`'
+Windows link of `windowscodecs` and `ole32` with the HEIF reader.
 
-Linux support was [reviewed](https://github.com/SethRobinson/Patchy/issues/269) and it
-ships the original library published by Microsoft on CodePlex in 2013, but it lacks
-fuzzy fixes and contains crashes. Qt ships no JPEG XR plugin, so
-`read_jxr` and `write_jxr` always throw there. The whole filter-table row is gated on
-`jxr::is_available()`, following the PDF row's conditional-open pattern, so no platform
-offers an open or a save that could only fail.
+Linux (user decision, 2026-11-05, the new review `legal-licensing.md` asks for): the
+distribution's own jxrlib, the HEIF-on-Linux pattern. [Issue 269](https://github.com/SethRobinson/Patchy/issues/269)
+rejected shipping jxrlib because Microsoft's 2013 CodePlex code lacks fuzzing fixes and
+crashes on malformed files, so Patchy still ships none and never links it:
+
+- `patchy-jxr-host` (`src/formats/jxr_host/main.cpp`) compiles against the distribution's
+  headers (`jxrlib-devel` on Fedora/EPEL, `libjxr-dev` on Debian/Ubuntu) and dlopens
+  `libjxrglue.so.0`, which pulls in `libjpegxr.so.0`. It has no NEEDED entry on either, so
+  linuxdeploy/sharun never bundle them; `PATCHY_JXR_LIBRARY` overrides the name (tests point
+  it at a missing file). Without the headers at configure time the helper is not built.
+- It runs as its own process, one request per run, over a socketpair
+  (`src/formats/jxr_host_protocol.hpp`): a jxrlib crash or a hang past the timeout ends the
+  helper, never Patchy, and reads as "the system's JPEG XR library failed on this image".
+  The helper's real stdout is a private descriptor, so library output cannot corrupt a reply.
+- Decode returns float frames (16/32-bit float, and 16/32-bit fixed point, which WIC also
+  counts as float) as straight-alpha RGBA float, everything else as RGBA8; the backend
+  (`jxr_document_io_linux.cpp`) then builds exactly the document the WIC reader builds (32-bit
+  linear with deep editing, the tone map without, the 96-DPI-means-untagged rule, the same
+  notices). jxrlib leaves a planar alpha channel undecoded unless `uAlphaMode` is 2, which the
+  helper sets. Unsupported: CMYK, n-channel, RGBE, packed 5/10/565-bit and 1-bit formats.
+  Integer frames get no ICC conversion on Linux (WIC applies an embedded profile).
+- Encode: jxrlib has no quality knob, so `host::quality_to_qp` maps 1-100 onto the default
+  quantizer index (lossless is QP 1; 90 lands near 13, 50 near 61, 1 at 120; overlap one
+  level, two below quality 50), YUV 4:4:4, planar alpha only for an alpha-carrying flatten
+  (24bpp RGB otherwise, the Windows writer's rule). The same quality does not give the same
+  bytes as WIC.
+- `jxr::is_available()` probes the helper once. Linux always offers the Open half of the
+  filter row, so a `.jxr` opens to the message that names the install command
+  (`sudo apt install libjxr0`, `sudo dnf install jxrlib`), translated in every catalog with
+  the commands left verbatim; Save As and Export still need the library. The Flatpak has no
+  jxrlib and says so. The desktop file does not claim the type (the library is optional).
+
+macOS and wasm: Qt ships no JPEG XR plugin, so `read_jxr` and `write_jxr` throw there and
+the whole filter-table row is gated on `jxr::is_available()`, following the PDF row's
+conditional-open pattern, so no platform offers an open or a save that could only fail.
 
 Files:
 
@@ -40,6 +69,8 @@ Files:
   and the non-Windows throwing stubs. Qt-free and platform-neutral, so the tone map is
   pinned by tests on every platform.
 - `jxr_document_io_win.cpp`: WIC decode and encode.
+- `jxr_document_io_linux.cpp`, `jxr_host_protocol.hpp`, `jxr_host/main.cpp`: the Linux
+  backend, the helper protocol and the helper.
 - `wic_com.hpp`: `ComPtr`, `CoInitGuard`, `hresult_text`, `create_srgb_transform`,
   `classify_pixel_format` and `copy_rgba_float`, shared with `heif_document_io_win.cpp`. Windows-only, included only from sources guarded by
   `WIN32` in CMakeLists.txt.
@@ -144,7 +175,9 @@ Conventions this format follows:
 - Statistics and tolerances, never byte pins, for anything the platform codec touched. Same
   rule as HEIF and camera raw. The lossless round trip is the one exact comparison, and it
   compares decoded pixels, never encoder bytes.
-- Codec-dependent tests `[SKIP]` where `jxr::is_available()` is false. The sniff, registry
+- Codec-dependent tests `[SKIP]` where `jxr::is_available()` is false; on Linux they run
+  when jxrlib is installed (all pass with EPEL's jxrlib 1.1). `jxr_missing_library_explains_install`
+  and `jxr_quality_maps_monotonically_to_quantizer` are Linux-only. The sniff, registry
   routing and tone-map tests are pure logic and run on every platform.
 - Real captures dropped into untracked `local-test-fixtures/jxr/` are decoded and reported
   by `jxr_reads_real_captures_if_available`, which asserts the frame has range and did not

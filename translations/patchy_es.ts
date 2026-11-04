@@ -14990,6 +14990,30 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>32-bit plug-ins do not run on Linux yet; use the 64-bit version of the plug-in.</source>
         <translation>Los plug-ins de 32 bits todavía no funcionan en Linux; use la versión de 64 bits del plug-in.</translation>
     </message>
+    <message>
+        <source>Patchy cannot open or save JPEG XR images because the system&apos;s jxrlib library is not installed. Install it and try again.
+Debian/Ubuntu: sudo apt install libjxr0
+Fedora/RHEL (EPEL): sudo dnf install jxrlib</source>
+        <translation>Patchy no puede abrir ni guardar imágenes JPEG XR porque la biblioteca jxrlib del sistema no está instalada. Instálela e inténtelo de nuevo.
+Debian/Ubuntu: sudo apt install libjxr0
+Fedora/RHEL (EPEL): sudo dnf install jxrlib</translation>
+    </message>
+    <message>
+        <source>This build of Patchy has no JPEG XR helper (patchy-jxr-host), so it cannot open or save JPEG XR images.</source>
+        <translation>Esta compilación de Patchy no tiene el asistente de JPEG XR (patchy-jxr-host), por lo que no puede abrir ni guardar imágenes JPEG XR.</translation>
+    </message>
+    <message>
+        <source>The system&apos;s JPEG XR library (jxrlib) failed on this image. The file may be damaged.</source>
+        <translation>La biblioteca JPEG XR del sistema (jxrlib) falló con esta imagen. Es posible que el archivo esté dañado.</translation>
+    </message>
+    <message>
+        <source>JPEG XR images cannot be opened or saved in the Flatpak version of Patchy. Use the AppImage or a distribution package of Patchy with the system&apos;s jxrlib library installed.</source>
+        <translation>Las imágenes JPEG XR no se pueden abrir ni guardar en la versión Flatpak de Patchy. Use el AppImage o un paquete de Patchy de la distribución con la biblioteca jxrlib del sistema instalada.</translation>
+    </message>
+    <message>
+        <source>This JPEG XR image&apos;s pixel format is not supported</source>
+        <translation>El formato de píxel de esta imagen JPEG XR no es compatible</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

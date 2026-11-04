@@ -157,6 +157,10 @@ behind. Wherever a path is shown, stored or compared across launches, use it (or
   ([auto-update.md](auto-update.md), "AppImage"). Otherwise it names the file, Download is
   the default button and opens `linux.appimage_url` (else `kAppImageDownloadUrl`, the
   GitHub permalink). Never a flatpak command.
+- JPEG XR: `usr/bin/patchy-jxr-host` dlopens the host's `libjxrglue.so.0` (Ubuntu/Debian:
+  `libjxr0`; Fedora/EPEL: `jxrlib`) and runs it in its own process ([jxr.md](jxr.md)). The
+  container installs `libjxr-dev` for the headers only; the AppImage must never bundle
+  jxrlib, and `build-in-container.sh` fails if the helper is missing or has a NEEDED entry on it.
 - HEIC: aqt's Qt has no HEIF plug-in. Instead the app dlopens the host's `libheif.so.1`
   at run time (`heif_document_io_linux.cpp`, GitHub issue 117), so HEIC opens wherever
   the distro's libheif and its HEVC plug-in are installed (Ubuntu/Debian: `libheif1` plus,

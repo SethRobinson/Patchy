@@ -737,17 +737,25 @@ const QList<FileFormatEntry>& file_format_entries() {
     list.push_back({QT_TRANSLATE_NOOP("QObject", "AVIF Image"), avif_extensions,
                     avif::is_available() ? QStringList{QStringLiteral("avif")} : QStringList{}, avif::is_available(),
                     avif::is_available()});
-    // JPEG XR reads and writes, but only where the in-box Windows codec exists: Qt has no
-    // JPEG XR plugin, so on macOS/Linux/wasm the row would advertise an open and a save that
-    // can only fail. Gate the whole row like the PDF row's conditional open half.
+    // JPEG XR reads and writes where a codec exists: Windows' in-box one, or on Linux the
+    // distribution's jxrlib through patchy-jxr-host (docs/jxr.md). Qt has no JPEG XR plugin,
+    // so on macOS and wasm the row would advertise an open and a save that can only fail;
+    // gate the whole row there like the PDF row's conditional open half. Linux always
+    // offers the open half, so a .jxr opens to the message that says how to install jxrlib;
+    // the save half still needs the library.
     QStringList jxr_extensions;
     for (const auto& extension : jxr::jxr_extensions()) {
       jxr_extensions.push_back(QString::fromStdString(extension));
     }
+#ifdef Q_OS_LINUX
+    const bool jxr_openable = true;
+#else
+    const bool jxr_openable = jxr::is_available();
+#endif
     list.push_back({QT_TRANSLATE_NOOP("QObject", "JPEG XR Image"),
+                    jxr_openable ? jxr_extensions : QStringList{},
                     jxr::is_available() ? jxr_extensions : QStringList{},
-                    jxr::is_available() ? jxr_extensions : QStringList{},
-                    jxr::is_available(),
+                    jxr_openable,
                     jxr::is_available()});
     // JPEG XL reads and writes everywhere through the vendored libjxl (docs/jxl.md).
     QStringList jxl_extensions;

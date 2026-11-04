@@ -14990,6 +14990,30 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>32-bit plug-ins do not run on Linux yet; use the 64-bit version of the plug-in.</source>
         <translation>Plug-ins de 32 bits ainda não funcionam no Linux; use a versão de 64 bits do plug-in.</translation>
     </message>
+    <message>
+        <source>Patchy cannot open or save JPEG XR images because the system&apos;s jxrlib library is not installed. Install it and try again.
+Debian/Ubuntu: sudo apt install libjxr0
+Fedora/RHEL (EPEL): sudo dnf install jxrlib</source>
+        <translation>O Patchy não pode abrir nem salvar imagens JPEG XR porque a biblioteca jxrlib do sistema não está instalada. Instale-a e tente novamente.
+Debian/Ubuntu: sudo apt install libjxr0
+Fedora/RHEL (EPEL): sudo dnf install jxrlib</translation>
+    </message>
+    <message>
+        <source>This build of Patchy has no JPEG XR helper (patchy-jxr-host), so it cannot open or save JPEG XR images.</source>
+        <translation>Esta compilação do Patchy não tem o auxiliar de JPEG XR (patchy-jxr-host), então não pode abrir nem salvar imagens JPEG XR.</translation>
+    </message>
+    <message>
+        <source>The system&apos;s JPEG XR library (jxrlib) failed on this image. The file may be damaged.</source>
+        <translation>A biblioteca JPEG XR do sistema (jxrlib) falhou nesta imagem. O arquivo pode estar danificado.</translation>
+    </message>
+    <message>
+        <source>JPEG XR images cannot be opened or saved in the Flatpak version of Patchy. Use the AppImage or a distribution package of Patchy with the system&apos;s jxrlib library installed.</source>
+        <translation>Imagens JPEG XR não podem ser abertas nem salvas na versão Flatpak do Patchy. Use o AppImage ou um pacote do Patchy da distribuição com a biblioteca jxrlib do sistema instalada.</translation>
+    </message>
+    <message>
+        <source>This JPEG XR image&apos;s pixel format is not supported</source>
+        <translation>O formato de pixel desta imagem JPEG XR não é compatível</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

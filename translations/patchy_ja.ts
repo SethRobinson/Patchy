@@ -14945,6 +14945,30 @@ Each item&apos;s own View setting still applies.</source>
         <source>32-bit plug-ins do not run on Linux yet; use the 64-bit version of the plug-in.</source>
         <translation>32 ビットのプラグインはまだ Linux では動作しません。64 ビット版のプラグインを使用してください。</translation>
     </message>
+    <message>
+        <source>Patchy cannot open or save JPEG XR images because the system&apos;s jxrlib library is not installed. Install it and try again.
+Debian/Ubuntu: sudo apt install libjxr0
+Fedora/RHEL (EPEL): sudo dnf install jxrlib</source>
+        <translation>システムの jxrlib ライブラリがインストールされていないため、Patchy は JPEG XR 画像を開くことも保存することもできません。インストールしてからもう一度お試しください。
+Debian/Ubuntu: sudo apt install libjxr0
+Fedora/RHEL (EPEL): sudo dnf install jxrlib</translation>
+    </message>
+    <message>
+        <source>This build of Patchy has no JPEG XR helper (patchy-jxr-host), so it cannot open or save JPEG XR images.</source>
+        <translation>この Patchy ビルドには JPEG XR ヘルパー (patchy-jxr-host) が含まれていないため、JPEG XR 画像を開くことも保存することもできません。</translation>
+    </message>
+    <message>
+        <source>The system&apos;s JPEG XR library (jxrlib) failed on this image. The file may be damaged.</source>
+        <translation>システムの JPEG XR ライブラリ (jxrlib) がこの画像の処理に失敗しました。ファイルが破損している可能性があります。</translation>
+    </message>
+    <message>
+        <source>JPEG XR images cannot be opened or saved in the Flatpak version of Patchy. Use the AppImage or a distribution package of Patchy with the system&apos;s jxrlib library installed.</source>
+        <translation>Flatpak 版の Patchy では JPEG XR 画像を開くことも保存することもできません。AppImage か、システムの jxrlib ライブラリをインストールしたディストリビューションの Patchy パッケージを使用してください。</translation>
+    </message>
+    <message>
+        <source>This JPEG XR image&apos;s pixel format is not supported</source>
+        <translation>この JPEG XR 画像のピクセル形式はサポートされていません</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
