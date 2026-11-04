@@ -15023,6 +15023,10 @@ Each item&apos;s own View setting still applies.</source>
         <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
         <translation>Некоторые эффекты слоёв GIMP, которые Patchy не может воспроизвести, пропущены (%1); эти слои показывают свои пиксели без них.</translation>
     </message>
+    <message>
+        <source>There is not enough memory available to open this file.</source>
+        <translation>Недостаточно памяти, чтобы открыть этот файл.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

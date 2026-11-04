@@ -14933,6 +14933,10 @@ Each item&apos;s own View setting still applies.</source>
         <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
         <translation>Patchy で再現できない GIMP のレイヤー効果は省きました（%1）。それらのレイヤーは効果なしのピクセルを表示します。</translation>
     </message>
+    <message>
+        <source>There is not enough memory available to open this file.</source>
+        <translation>このファイルを開くのに十分なメモリがありません。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

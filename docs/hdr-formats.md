@@ -13,7 +13,9 @@ tinyexr or OpenJPEG, or their filter-table rows. Registry and filter wiring rule
   per-channel run-length coding (`2 2 hi lo`) for widths 8..32767, flat quadruples with the
   old `1 1 1 count` repeat marker otherwise. `rgbe_to_float` uses Ward's `(m + 0.5) / 256 *
   2^(e - 128)`; `float_to_rgbe` the matching `frexp` encode. EXPOSURE is ignored (values open
-  as stored, as Photoshop does).
+  as stored, as Photoshop does). The resolution line must be backed by the RGBE data that
+  follows ([psd-reader-hardening.md](psd-reader-hardening.md#decode-budget)) before the float
+  buffer is allocated.
 - Opens as a 32-bit floating-point RGBA document (alpha 1.0), linear light, no profile
   ([high-bit-depth.md](high-bit-depth.md)). Writes the flattened document as RGBE with
   run-length scanlines; 8 and 16-bit documents are linearized (sRGB transfer) first because
@@ -33,6 +35,10 @@ tinyexr or OpenJPEG, or their filter-table rows. Registry and filter wiring rule
   multi-part and deep files with their own messages; a file without R/G/B or Y gets its own
   too, and tinyexr's reason (an unknown codec such as B44, DWA, PXR24 or ZSTD) is appended
   to the generic decode failure. Non-finite samples become 0, alpha is clamped to 0..1.
+  Before tinyexr allocates, the reader checks the data window against the file size, the
+  level-0 tile grid or scanline block count against the room for its offset table, and a
+  scanline file's `chunkCount` against the block count tinyexr would compute
+  ([psd-reader-hardening.md](psd-reader-hardening.md#decode-budget)).
 - Writes four planar FLOAT channels (A, B, G, R, the sorted order the format wants) with ZIP
   compression; 8 and 16-bit documents are linearized first. Round trip is exact for 32-bit
   documents (`exr_round_trips_float_rgba`).

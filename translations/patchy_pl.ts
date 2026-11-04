@@ -15023,6 +15023,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
         <translation>Pominięto niektóre efekty warstw GIMP, których Patchy nie potrafi odtworzyć (%1); te warstwy pokazują swoje piksele bez nich.</translation>
     </message>
+    <message>
+        <source>There is not enough memory available to open this file.</source>
+        <translation>Brak wystarczającej ilości pamięci, aby otworzyć ten plik.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

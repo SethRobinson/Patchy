@@ -14978,6 +14978,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
         <translation>Algunos efectos de capa de GIMP que Patchy no puede reproducir se omitieron (%1); esas capas muestran sus píxeles sin ellos.</translation>
     </message>
+    <message>
+        <source>There is not enough memory available to open this file.</source>
+        <translation>No hay suficiente memoria disponible para abrir este archivo.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

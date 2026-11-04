@@ -14978,6 +14978,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
         <translation>Einige GIMP-Ebeneneffekte, die Patchy nicht nachbilden kann, wurden weggelassen (%1); diese Ebenen zeigen ihre Pixel ohne sie.</translation>
     </message>
+    <message>
+        <source>There is not enough memory available to open this file.</source>
+        <translation>Zum Öffnen dieser Datei ist nicht genügend Arbeitsspeicher verfügbar.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

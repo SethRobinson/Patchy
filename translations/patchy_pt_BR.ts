@@ -14978,6 +14978,10 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
         <translation>Alguns efeitos de camada do GIMP que o Patchy não consegue reproduzir foram deixados de fora (%1); essas camadas mostram seus pixels sem eles.</translation>
     </message>
+    <message>
+        <source>There is not enough memory available to open this file.</source>
+        <translation>Não há memória suficiente disponível para abrir este arquivo.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

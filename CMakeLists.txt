@@ -173,6 +173,7 @@ add_library(patchy_core
   src/support/atomic_file_write.cpp
   src/support/random_uuid.cpp
   src/support/byte_order.hpp
+  src/support/decode_budget.hpp
   src/support/startup_trace.cpp
   src/core/environment.cpp
   src/core/hdr_display.cpp
@@ -2405,6 +2406,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/builtin_filter_looks_tests.cpp
     tests/core/flat_formats_bmp_tests.cpp
     tests/core/flat_formats_misc_tests.cpp
+    tests/core/decode_budget_tests.cpp
     tests/core/unicode_path_tests.cpp
     tests/core/atomic_write_recovery_tests.cpp
     tests/core/font_zip_tests.cpp

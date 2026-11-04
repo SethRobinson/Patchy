@@ -23,6 +23,7 @@
 #include "psd/psd_patterns.hpp"
 #include "psd/psd_smart_objects.hpp"
 #include "render/compositor.hpp"
+#include "support/decode_budget.hpp"
 #include "support/srgb_transfer.hpp"
 #include "support/string_utils.hpp"
 #include "support/translate_noop.hpp"
@@ -211,6 +212,26 @@ std::vector<std::uint8_t> read_rle_channel_from_counts(BigEndianReader& reader,
 [[nodiscard]] constexpr std::size_t bytes_per_sample(std::uint16_t depth) noexcept {
   return depth == 32 ? 4U : depth == 16 ? 2U : 1U;
 }
+
+}  // namespace
+
+void require_composite_fits_data(const Header& header, std::uint16_t compression, std::size_t encoded_bytes) {
+  // Bitmap stores one plane with eight pixels to a byte; every other mode stores whole
+  // samples for each of its channels. Raw data never expands; RLE stays within the shared
+  // decode ceiling (support/decode_budget.hpp).
+  const bool bitmap = header.color_mode == kColorModeBitmap;
+  const std::uint64_t sample_bytes = bitmap ? 1U : bytes_per_sample(header.depth);
+  const std::uint64_t planes = bitmap ? 1U : std::max<std::uint64_t>(1U, header.channels);
+  const std::uint64_t expansion = (compression == kCompressionRaw ? 1U : kMaxDecodeExpansion) * (bitmap ? 8U : 1U);
+  const auto plane_bytes = checked_decode_bytes(header.width, header.height, sample_bytes, encoded_bytes, expansion);
+  const auto all_planes = plane_bytes.has_value() ? checked_multiply(*plane_bytes, planes) : std::nullopt;
+  if (!all_planes.has_value() || !decoded_size_plausible(*all_planes, encoded_bytes, expansion)) {
+    // The planes the header declares are not in the file: the same message as short data.
+    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PSD composite channel data is truncated"));
+  }
+}
+
+namespace {
 
 // Inflates one zip/zip-prediction channel payload. Photoshop writes standard zlib
 // streams and the decoded size is exactly the planar sample data.
@@ -1060,6 +1081,7 @@ void convert_cmyk_planes_to_rgb(PixelBuffer& pixels, const std::uint8_t* cyan,
 std::vector<std::vector<std::uint8_t>> read_flat_image_channels(BigEndianReader& reader, const Header& header,
                                                                 std::uint16_t compression,
                                                                 std::size_t* damaged_rows, bool keep_native) {
+  require_composite_fits_data(header, compression, reader.remaining());
   std::vector<std::vector<std::uint8_t>> channels;
   channels.reserve(header.channels);
   const auto width = static_cast<std::int32_t>(header.width);
@@ -1109,6 +1131,7 @@ std::vector<std::vector<std::uint8_t>> read_flat_image_channels_from(
   if (first_channel > header.channels) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Invalid PSD saved channel index"));
   }
+  require_composite_fits_data(header, compression, reader.remaining());
   const auto width = static_cast<std::int32_t>(header.width);
   const auto height = static_cast<std::int32_t>(header.height);
   const auto channel_bytes = static_cast<std::size_t>(width) * static_cast<std::size_t>(height) *

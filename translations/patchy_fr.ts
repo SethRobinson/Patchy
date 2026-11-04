@@ -14978,6 +14978,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
         <translation>Certains effets de calque de GIMP que Patchy ne sait pas reproduire ont été omis (%1) ; ces calques montrent leurs pixels sans eux.</translation>
     </message>
+    <message>
+        <source>There is not enough memory available to open this file.</source>
+        <translation>Il n&apos;y a pas assez de mémoire disponible pour ouvrir ce fichier.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

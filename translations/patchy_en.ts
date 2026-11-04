@@ -14961,6 +14961,10 @@ Each item&apos;s own View setting still applies.</source>
         <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>There is not enough memory available to open this file.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -3,6 +3,7 @@
 #include "core/pixel_depth.hpp"
 #include "formats/document_flatten.hpp"
 #include "render/compositor.hpp"
+#include "support/decode_budget.hpp"
 #include "support/string_utils.hpp"
 #include "support/translate_noop.hpp"
 
@@ -130,6 +131,11 @@ FormatReadResult read_hdr(std::span<const std::uint8_t> bytes) {
   const bool bottom_up = y_token == "+Y";
   const auto w = static_cast<std::int32_t>(width);
   const auto h = static_cast<std::int32_t>(height);
+  // The float buffer below is sized from the resolution line alone: the RGBE data after it
+  // must be able to describe that many pixels (docs/psd-reader-hardening.md, "Decode budget").
+  if (!checked_decode_bytes(w, h, 4U, bytes.size() - at).has_value()) {
+    throw damaged();
+  }
 
   PixelBuffer pixels(w, h, with_bit_depth(PixelFormat::rgba8(), BitDepth::Float32));
   std::vector<std::uint8_t> scanline(static_cast<std::size_t>(w) * 4U);

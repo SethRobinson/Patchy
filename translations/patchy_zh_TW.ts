@@ -14933,6 +14933,10 @@ Each item&apos;s own View setting still applies.</source>
         <extracomment>%1 lists the names of GIMP layer effects (filters), separated by commas.</extracomment>
         <translation>部分 Patchy 無法重現的 GIMP 圖層效果已略過（%1）；這些圖層顯示未加這些效果的像素。</translation>
     </message>
+    <message>
+        <source>There is not enough memory available to open this file.</source>
+        <translation>沒有足夠的可用記憶體來開啟此檔案。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

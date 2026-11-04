@@ -23,6 +23,7 @@
 #include "psd/psd_smart_objects.hpp"
 #include "render/compositor.hpp"
 #include "render/native_duotone.hpp"
+#include "support/decode_budget.hpp"
 #include "support/string_utils.hpp"
 #include "support/translate_noop.hpp"
 
@@ -255,6 +256,9 @@ Document read_flat_composite(BigEndianReader& reader, const Header& header,
                              bool keep_depth = false, bool retain_native_colors = false) {
   const auto format = format_from_header(header);
   const auto compression = reader.read_u16();
+  // An empty layer section leaves the header as the only size: check it against the data
+  // before the canvas buffer below is allocated.
+  require_composite_fits_data(header, compression, reader.remaining());
   const auto source_is_cmyk = is_cmyk_color_mode(header.color_mode);
   const auto source_is_gray = is_grayscale_color_mode(header.color_mode);
   // Deep files kept at their depth read the file's samples; the 8-bit planes below are
@@ -745,11 +749,42 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
 
   std::vector<DecodedLayer> decoded_layers;
   decoded_layers.reserve(layer_count);
+  // Layer planes are allocated from record rectangles before any channel data is read, so
+  // each one must be something its own channel data can describe (docs/psd-reader-hardening.md,
+  // "Decode budget"). Rectangles with no data behind them (old empty layers write zero-length
+  // channels) share one allowance across the whole layer section.
+  const auto sample_bytes = std::max<std::size_t>(1U, static_cast<std::size_t>(depth / 8U));
+  const auto channel_describes = [sample_bytes](std::int32_t plane_width, std::int32_t plane_height,
+                                                std::uint64_t payload_bytes) {
+    return checked_decode_bytes(plane_width, plane_height, sample_bytes, payload_bytes, kMaxDecodeExpansion,
+                                /*allowance*/ 0U)
+        .has_value();
+  };
+  DecodeAllowance unbacked_planes;
   for (const auto& record : records) {
     const auto width = std::max(0, record.bounds.width);
     const auto height = std::max(0, record.bounds.height);
     const auto source_is_cmyk = is_cmyk_color_mode(source_color_mode);
     const auto source_is_gray = is_grayscale_color_mode(source_color_mode);
+    const auto plane_bytes = checked_decode_bytes(width, height, sample_bytes, 0U, kMaxDecodeExpansion,
+                                                  std::numeric_limits<std::uint64_t>::max());
+    // Declared lengths are only evidence when the file holds them (the channel loop below
+    // rejects the same files later, but after the planes are allocated).
+    std::uint64_t declared_bytes = 0;
+    for (const auto channel : record.channels) {
+      declared_bytes += std::min<std::uint64_t>(channel.length, std::uint64_t{1} << 62U);
+      if (declared_bytes > layer_reader.remaining()) {
+        throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PSD layer channel data is truncated"));
+      }
+    }
+    const bool backed = std::any_of(record.channels.begin(), record.channels.end(), [&](LayerChannelInfo channel) {
+      return channel.id != kChannelUserMask && channel.id != kChannelRealUserMask && channel.length >= 2U &&
+             channel_describes(width, height, channel.length - 2U);
+    });
+    if (!plane_bytes.has_value() || (!backed && !unbacked_planes.charge(*plane_bytes))) {
+      // The data for this rectangle is not in the file: the same message as a short channel.
+      throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PSD layer channel data is truncated"));
+    }
     const auto pixel_count = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
     const auto has_color = std::any_of(record.channels.begin(), record.channels.end(), [source_color_mode](LayerChannelInfo channel) {
       return is_source_color_channel(channel.id, source_color_mode);
@@ -827,9 +862,16 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
                                   : channel.id == kChannelUserMask && record.mask.has_value()
                                       ? std::max(0, record.mask->bounds.height)
                                       : height;
+      if (!channel_describes(channel_width, channel_height, payload_length)) {
+        // No encoder writes this little data for this plane; decoding it would only size
+        // a buffer from the rectangle. Skip it like any other undecodable channel.
+        if (damaged_rows != nullptr) {
+          *damaged_rows += static_cast<std::size_t>(channel_height);
+        }
+        continue;
+      }
       const auto channel_pixel_count =
           static_cast<std::size_t>(channel_width) * static_cast<std::size_t>(channel_height);
-      const auto sample_bytes = static_cast<std::size_t>(depth / 8U);
       if (compression == kCompressionRaw && payload_length < channel_pixel_count * sample_bytes) {
         throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PSD layer channel data is truncated"));
       }
@@ -1570,7 +1612,9 @@ bool DocumentIo::can_read(std::span<const std::uint8_t> bytes) noexcept {
   return bytes.size() >= 4 && bytes[0] == '8' && bytes[1] == 'B' && bytes[2] == 'P' && bytes[3] == 'S';
 }
 
-Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions options) {
+namespace {
+
+Document read_document(std::span<const std::uint8_t> bytes, ReadOptions options) {
   BigEndianReader reader(bytes);
   const auto header = read_header(reader);
   {
@@ -2140,6 +2184,19 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
   }
   lift_file_info_resources(document, header.color_mode, header.large_document);
   return document;
+}
+
+}  // namespace
+
+Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions options) {
+  try {
+    return read_document(bytes, std::move(options));
+  } catch (const std::bad_alloc&) {
+    // Running out of memory is not damage: report it instead of a decoder's bare
+    // "bad allocation" (the size checks above make this a genuinely large file).
+    throw std::runtime_error(
+        PATCHY_TRANSLATE_NOOP("QObject", "There is not enough memory available to open this file."));
+  }
 }
 
 Document DocumentIo::read_file(const std::filesystem::path& path, ReadOptions options) {
