@@ -1250,6 +1250,81 @@ void ui_import_notices_dialog_shown_when_setting_enabled() {
   CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("frames as layers")));
 }
 
+// GitHub issue 624: files opened together hold their Import Notes boxes until every file is
+// open, so a box never shares the screen with the next file's open progress dialog (a window
+// manager restacks the two on Alt+Tab). Each box comes up over its own file's tab, and the
+// last file opened is active again afterwards. A single file still shows its box at once.
+void ui_multi_file_open_holds_import_notes_until_batch_ends() {
+  ensure_artifact_dir();
+  const auto gif_path = QString::fromStdWString(
+      patchy::test::committed_format_fixture_path("gif", "pillow-animated.gif").wstring());
+  CHECK(QFileInfo::exists(gif_path));
+  const auto png_path = QFileInfo(QStringLiteral("test-artifacts/ui_issue_624_second.png")).absoluteFilePath();
+  QImage second(8, 8, QImage::Format_ARGB32);
+  second.fill(Qt::red);
+  CHECK(second.save(png_path));
+  const auto single_path = QFileInfo(QStringLiteral("test-artifacts/ui_issue_624_single.gif")).absoluteFilePath();
+  QFile::remove(single_path);
+  CHECK(QFile::copy(gif_path, single_path));
+
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), true);
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  QStringList box_texts;
+  QStringList box_tabs;
+  bool box_with_progress = false;
+  int poll_attempts = 0;
+  QTimer poller;
+  QObject::connect(&poller, &QTimer::timeout, [&] {
+    if (++poll_attempts > 2000) {
+      poller.stop();
+      return;
+    }
+    bool progress_visible = false;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() == QStringLiteral("openProgressDialog") && widget->isVisible()) {
+        progress_visible = true;
+      }
+    }
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* box = qobject_cast<QMessageBox*>(widget);
+      if (box != nullptr && box->objectName() == QStringLiteral("importNoticesMessageBox") && box->isVisible()) {
+        box_with_progress = box_with_progress || progress_visible;
+        box_texts.push_back(box->text());
+        box_tabs.push_back(patchy::ui::MainWindowTestAccess::active_session_title(window));
+        box->accept();
+        return;
+      }
+    }
+  });
+  const auto sessions_before = patchy::ui::MainWindowTestAccess::session_count(window);
+  poller.start(5);
+  window.open_command_line_files({gif_path, png_path});
+  for (int turn = 0; turn < 20; ++turn) {
+    QApplication::processEvents();
+  }
+
+  CHECK(!box_with_progress);
+  CHECK(!box_texts.isEmpty());
+  CHECK(!box_texts.isEmpty() && box_texts.front().contains(QStringLiteral("frames as layers")));
+  CHECK(!box_tabs.isEmpty() && box_tabs.front().contains(QStringLiteral("pillow-animated.gif")));
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == sessions_before + 2);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_title(window).contains(
+      QStringLiteral("ui_issue_624_second.png")));
+
+  // One file through the same entry point: its box still comes up on the next event turn.
+  const auto boxes_before = box_texts.size();
+  window.open_command_line_files({single_path});
+  QApplication::processEvents();
+  poller.stop();
+  CHECK(box_texts.size() == boxes_before + 1);
+  CHECK(box_texts.size() > boxes_before && box_texts.back().contains(QStringLiteral("frames as layers")));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_title(window).contains(
+      QStringLiteral("ui_issue_624_single.gif")));
+}
+
 // A 16-bit source converts to 8-bit and every save then writes 8-bit, so that note pops
 // up even with the popup preference off (GitHub issue 52). The compatibility report,
 // which shares the preference, stays hidden: only the notes box is forced.
@@ -4210,6 +4285,8 @@ std::vector<patchy::test::TestCase> flat_image_format_tests() {
       {"ui_animated_gif_opens_frames_as_layers", ui_animated_gif_opens_frames_as_layers},
       {"ui_import_notices_dialog_shown_when_setting_enabled",
        ui_import_notices_dialog_shown_when_setting_enabled},
+      {"ui_multi_file_open_holds_import_notes_until_batch_ends",
+       ui_multi_file_open_holds_import_notes_until_batch_ends},
       {"ui_deep_psd_import_forces_notices_popup", ui_deep_psd_import_forces_notices_popup},
       {"ui_color_mode_and_ink_adjustment_imports_force_notices_popup",
        ui_color_mode_and_ink_adjustment_imports_force_notices_popup},

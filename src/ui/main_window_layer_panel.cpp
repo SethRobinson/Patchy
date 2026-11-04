@@ -99,6 +99,7 @@
 #include <QRect>
 #include <QRectF>
 #include <QRgb>
+#include <QScopeGuard>
 #include <QSignalBlocker>
 #include <QSize>
 #include <QSizePolicy>
@@ -3317,6 +3318,8 @@ void MainWindow::handle_layer_drop() {
       return;
     }
     if (!has_active_document()) {
+      begin_open_batch();
+      const auto open_batch = qScopeGuard([this] { end_open_batch(); });
       for (const auto& path : file_request->paths) {
         open_document_path(path);
       }
