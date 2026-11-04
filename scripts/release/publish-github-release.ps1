@@ -24,6 +24,8 @@ Assets, taken from -AssetDir (default build\package):
   PatchyWindowsArm64Installer.exe, PatchyWindowsArm64NoInstaller.zip (stable names)
   Patchy-<version>.dmg -> PatchyMacOS.dmg, Patchy-<version>.flatpak -> PatchyLinux.flatpak,
   Patchy-<version>-x86_64.AppImage(.zsync) -> PatchyLinux.AppImage(.zsync)
+  Patchy-<version>-aarch64.AppImage(.zsync) -> PatchyLinux-aarch64.AppImage(.zsync), when
+  this version's aarch64 build is in -AssetDir (make-appimage.sh with ARCH=aarch64)
   PatchyGeglSources.zip (build-release.bat; the source of the GEGL the packages carry,
   which its licenses require beside the downloads: docs/gegl-filters.md, "Sources")
   (the mac and Linux builders write versioned files; stable-name copies left in
@@ -175,6 +177,13 @@ if (-not $SkipGeglSources) {
 if (-not $SkipAppImage) {
   $assets['PatchyLinux.AppImage'] = Resolve-Asset 'PatchyLinux.AppImage' "Patchy-$Version-x86_64.AppImage"
   $assets['PatchyLinux.AppImage.zsync'] = Resolve-Asset 'PatchyLinux.AppImage.zsync' "Patchy-$Version-x86_64.AppImage.zsync"
+  # The aarch64 AppImage (docs/appimage.md) ships when this version built it; an older
+  # version's aarch64 file is never published under this release.
+  $arm64AppImage = Join-Path $AssetDir "Patchy-$Version-aarch64.AppImage"
+  if (Test-Path -LiteralPath $arm64AppImage -PathType Leaf) {
+    $assets['PatchyLinux-aarch64.AppImage'] = $arm64AppImage
+    $assets['PatchyLinux-aarch64.AppImage.zsync'] = Resolve-Asset 'PatchyLinux-aarch64.AppImage.zsync' "Patchy-$Version-aarch64.AppImage.zsync"
+  }
 }
 
 # Stage under the published names in a scratch folder (gh names an asset after its
@@ -216,6 +225,10 @@ foreach ($name in $assets.Keys) {
   if ($name -eq 'PatchyLinux.AppImage') {
     $appImageSize = (Get-Item -LiteralPath $dest).Length
     $appImageSha256 = $hash
+  }
+  if ($name -eq 'PatchyLinux-aarch64.AppImage') {
+    $arm64AppImageSize = (Get-Item -LiteralPath $dest).Length
+    $arm64AppImageSha256 = $hash
   }
   Write-Host ("  {0,-30} {1,12:N0} bytes  sha256 {2}  <- {3}" -f $name, (Get-Item -LiteralPath $dest).Length, $hash, $source)
 }
@@ -362,5 +375,15 @@ if (-not $SkipAppImage) {
   Write-Host "      `"appimage_install_url`": `"$base/PatchyLinux.AppImage`","
   Write-Host "      `"appimage_install_size`": $appImageSize,"
   Write-Host "      `"appimage_install_sha256`": `"$appImageSha256`""
+  if ($assets.Contains('PatchyLinux-aarch64.AppImage')) {
+    # docs/auto-update.md, "Linux ARM64": aarch64 builds read only this entry.
+    Write-Host ''
+    Write-Host 'For the linux-arm64 entry of latest_version.json (same version as linux):'
+    Write-Host "      `"download_url`": `"https://github.com/$Repo/releases/latest/download/PatchyLinux-aarch64.AppImage`","
+    Write-Host "      `"appimage_url`": `"https://github.com/$Repo/releases/latest/download/PatchyLinux-aarch64.AppImage`","
+    Write-Host "      `"appimage_install_url`": `"$base/PatchyLinux-aarch64.AppImage`","
+    Write-Host "      `"appimage_install_size`": $arm64AppImageSize,"
+    Write-Host "      `"appimage_install_sha256`": `"$arm64AppImageSha256`""
+  }
 }
 exit 0

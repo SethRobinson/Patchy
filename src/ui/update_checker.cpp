@@ -203,7 +203,13 @@ QStringList current_update_platforms() {
 #elif defined(Q_OS_MACOS)
   return {QStringLiteral("macos")};
 #elif defined(Q_OS_LINUX)
+#if defined(Q_PROCESSOR_ARM_64)
+  // Never offered the x86-64 AppImage: without a linux-arm64 entry the check reports
+  // MissingPlatform, like windows-arm64 (docs/auto-update.md).
+  return {QStringLiteral("linux-arm64")};
+#else
   return {QStringLiteral("linux")};
+#endif
 #else
   return {};
 #endif

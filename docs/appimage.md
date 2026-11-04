@@ -2,8 +2,24 @@
 
 Patchy ships on Linux as a Flatpak ([packaging/linux/README.md](../packaging/linux/README.md))
 and, since GitHub issue 83, as an AppImage: `PatchyLinux.AppImage` on GitHub Releases (with
-`PatchyLinux.AppImage.zsync`). One x86_64 file, no runtime to
+`PatchyLinux.AppImage.zsync`). One file per architecture, no runtime to
 install, runs on Ubuntu 22.04 and every newer distro (Mint 21+, Debian 12+, Fedora 36+).
+
+## Architectures
+
+x86_64 is the default and keeps every historical name. `ARCH=aarch64
+packaging/linux/make-appimage.sh` builds the arm64 AppImage in an arm64 22.04 container
+(`podman --arch arm64`: native on an arm64 host, through qemu-user-static elsewhere, which
+is slow). The container's `uname -m` picks the aqt kit (`gcc_arm64`), the
+`linux-appimage-arm64` preset, ONNX Runtime and GEGL `linux-aarch64`, and the aarch64
+linuxdeploy, Qt plug-in, appimagetool and type2 runtime, each pinned by SHA-256 in the
+Containerfile. It writes `Patchy-<version>-aarch64.AppImage(.zsync)`, published as
+`PatchyLinux-aarch64.AppImage(.zsync)` (permanent names; `publish-github-release.ps1`
+uploads them when this version's build is present) with its own zsync update info. A
+foreign-architecture AppImage skips the host FUSE smoke check; the container's extracted
+run still checks it. Updates read the `linux-arm64` manifest entry
+([auto-update.md](auto-update.md#linux-arm64)). The arm64 suites need an arm64 host
+(`remote-build.ps1 -Target linux-arm64`).
 
 ## Compatibility floor: build on Ubuntu 22.04
 
@@ -37,7 +53,7 @@ install -y podman uidmap`, one time). It builds the image from
    options: tests off, `PATCHY_REQUIRE_AI_SELECTION=ON`, `PATCHY_GMIC_THREADS=ON`, ONNX
    Runtime and models from `/opt/deps`, which the image fills with `setup-ai-deps.sh`).
    The preset's paths (`/opt/qt`, `/opt/deps`, `gcc-12`) exist only in the container. Patchy's own GEGL is
-   built first when `.deps/gegl/0.4.72/linux-x64-appimage` is missing
+   built first when `.deps/gegl/0.4.72/linux-x64-appimage` (or `linux-aarch64-appimage`) is missing
    ([gegl-filters.md](gegl-filters.md#bundled-gegl)).
 2. `cmake --install` into `build/appimage-appdir/usr` (the normal `bin/` + `share/patchy/`
    layout; every resource lookup already probes `../share/patchy`). `libonnxruntime.so*`
@@ -58,7 +74,7 @@ install -y podman uidmap`, one time). It builds the image from
    by default) with update information
    `gh-releases-zsync|SethRobinson|Patchy|latest|PatchyLinux.AppImage.zsync`. The zsync file
    records the AppImage's file name, so both are packed under their published names and
-   only then renamed to `build/package/Patchy-<version>-x86_64.AppImage(.zsync)`.
+   only then renamed to `build/package/Patchy-<version>-<arch>.AppImage(.zsync)`.
 6. Smoke checks inside the container (extracted run) and again on the host through a real
    FUSE mount: `--headless --run-script` must end in `[done]`, and
    `PatchyLinux.AppImage patchy-mcp --check` must pass.

@@ -20,7 +20,7 @@ Windows hosts that build the web release (remote-build.ps1 -Target wasm, release
 each also with a 'share': the UNC path of its work tree, which the site is copied back from.
 #>
 function Get-PatchyHostsEntry {
-  param([Parameter(Mandatory = $true)][ValidateSet('mac', 'linux', 'windows', 'windows-arm64', 'wasm')][string]$Target)
+  param([Parameter(Mandatory = $true)][ValidateSet('mac', 'linux', 'linux-arm64', 'windows', 'windows-arm64', 'wasm')][string]$Target)
 
   $candidates = @(Join-Path $PSScriptRoot 'hosts.local.json')
   $commonDir = git -C $PSScriptRoot rev-parse --path-format=absolute --git-common-dir 2>$null
@@ -52,7 +52,7 @@ function Get-PatchyHostsEntry {
 }
 
 function Get-PatchyRemoteHost {
-  param([Parameter(Mandatory = $true)][ValidateSet('mac', 'linux', 'windows', 'windows-arm64', 'wasm')][string]$Target)
+  param([Parameter(Mandatory = $true)][ValidateSet('mac', 'linux', 'linux-arm64', 'windows', 'windows-arm64', 'wasm')][string]$Target)
   return (Get-PatchyHostsEntry $Target)[0]
 }
 

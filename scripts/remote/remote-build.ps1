@@ -2,7 +2,7 @@
 Builds the current working tree (uncommitted changes included) on a remote test machine
 and runs the test suites there.
 
-  scripts\remote\remote-build.ps1 -Target mac|linux|windows|windows-arm64|wasm [-TestFilter ui_palette] [-CoreTestFilter psd]
+  scripts\remote\remote-build.ps1 -Target mac|linux|linux-arm64|windows|windows-arm64|wasm [-TestFilter ui_palette] [-CoreTestFilter psd]
                                   [-BuildTarget patchy_ui_visual_tests[,patchy_core_tests]] [-Preset opt-dev]
                                   [-SkipTests] [-FetchArtifacts]
   linux only:   [-NativeQt]
@@ -42,6 +42,8 @@ detached -- unchanged files keep their mtimes, so remote Ninja rebuilds stay
 incremental -- then scripts/remote/build-and-test.sh configures, builds, and runs the
 suites with output streamed back here. The remote exit code propagates.
 
+-Target linux-arm64 works like -Target linux on the config's linux-arm64 host (an aarch64
+machine; ARM64 executables need an ARM64 host to run the suites).
 -Target linux builds and tests inside the Flatpak SDK (preset linux-flatpak-qt), so the
 suites run against the Qt that Linux users get. -NativeQt selects the older
 linux-release preset (the aqt Qt in .deps) for the tools that need a host binary, such
@@ -76,7 +78,7 @@ On a failing test run (or with -FetchArtifacts) the remote test-artifacts folder
 copied to build\remote-artifacts\<target>\ for inspection.
 #>
 param(
-  [Parameter(Mandatory = $true)][ValidateSet('mac', 'linux', 'windows', 'windows-arm64', 'wasm')][string]$Target,
+  [Parameter(Mandatory = $true)][ValidateSet('mac', 'linux', 'linux-arm64', 'windows', 'windows-arm64', 'wasm')][string]$Target,
   [string]$TestFilter = '',
   # Core-suite name filter.
   [string]$CoreTestFilter = '',
@@ -119,7 +121,7 @@ $repoRoot = (git rev-parse --show-toplevel 2>$null)
 if (-not $repoRoot) { throw 'remote-build.ps1 must run inside the Patchy repository' }
 $lockOwner = Get-PatchyLockOwner $repoRoot.Trim()
 $lockPath = $null
-if ($NativeQt -and $Target -ne 'linux') { throw '-NativeQt is only supported for -Target linux' }
+if ($NativeQt -and $Target -notlike 'linux*') { throw '-NativeQt is only supported for -Target linux and linux-arm64' }
 if ($NativeQt -and $Preset) { throw '-NativeQt and -Preset both pick the preset; pass only -Preset' }
 # Names go into a remote command line: plain CMake names only.
 $targets = @($BuildTarget | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
@@ -191,7 +193,8 @@ $preset = if ($Preset) { $Preset }
   elseif ($Target -eq 'windows') { 'release' }
   elseif ($Target -eq 'windows-arm64') { 'windows-arm64-release' }
   elseif ($Target -eq 'wasm') { 'wasm-release' }
-  elseif ($Target -eq 'linux' -and -not $NativeQt) { 'linux-flatpak-qt' }
+  elseif ($Target -like 'linux*' -and -not $NativeQt) { 'linux-flatpak-qt' }
+  elseif ($Target -eq 'linux-arm64') { 'linux-arm64-release' }
   else { "$Target-release" }
 
 Push-Location $repoRoot.Trim()

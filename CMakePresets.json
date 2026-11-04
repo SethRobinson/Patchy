@@ -139,6 +139,15 @@
       }
     },
     {
+      "name": "linux-arm64-release",
+      "displayName": "Linux aarch64 release build (aqt Qt kit gcc_arm64)",
+      "inherits": "linux-release",
+      "binaryDir": "${sourceDir}/build/linux-arm64-release",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "${sourceDir}/.deps/Qt/6.8.3/gcc_arm64"
+      }
+    },
+    {
       "name": "linux-flatpak-qt",
       "displayName": "Linux release build against the Flatpak SDK's Qt (configure and build inside org.kde.Sdk; see docs/platform.md)",
       "generator": "Ninja",
@@ -198,6 +207,26 @@
       "displayName": "Linux AppImage toolchain with tests (inside the Ubuntu 22.04 container only)",
       "inherits": "linux-appimage",
       "binaryDir": "${sourceDir}/build/appimage-tests",
+      "cacheVariables": {
+        "PATCHY_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "linux-appimage-arm64",
+      "displayName": "Linux aarch64 AppImage build (inside the arm64 Ubuntu 22.04 container only; see docs/appimage.md)",
+      "inherits": "linux-appimage",
+      "binaryDir": "${sourceDir}/build/appimage-arm64",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "/opt/qt/6.8.3/gcc_arm64",
+        "PATCHY_ONNXRUNTIME_DIR": "/opt/deps/onnxruntime/1.30.0/linux-aarch64",
+        "PATCHY_GEGL_BUNDLE_DIR": "${sourceDir}/.deps/gegl/0.4.72/linux-aarch64-appimage"
+      }
+    },
+    {
+      "name": "linux-appimage-arm64-tests",
+      "displayName": "Linux aarch64 AppImage toolchain with tests (inside the arm64 Ubuntu 22.04 container only)",
+      "inherits": "linux-appimage-arm64",
+      "binaryDir": "${sourceDir}/build/appimage-arm64-tests",
       "cacheVariables": {
         "PATCHY_BUILD_TESTS": "ON"
       }
@@ -282,6 +311,10 @@
       "configurePreset": "linux-release"
     },
     {
+      "name": "linux-arm64-release",
+      "configurePreset": "linux-arm64-release"
+    },
+    {
       "name": "linux-flatpak-qt",
       "configurePreset": "linux-flatpak-qt"
     },
@@ -300,6 +333,14 @@
     {
       "name": "linux-appimage-tests",
       "configurePreset": "linux-appimage-tests"
+    },
+    {
+      "name": "linux-appimage-arm64",
+      "configurePreset": "linux-appimage-arm64"
+    },
+    {
+      "name": "linux-appimage-arm64-tests",
+      "configurePreset": "linux-appimage-arm64-tests"
     },
     {
       "name": "wasm-core",

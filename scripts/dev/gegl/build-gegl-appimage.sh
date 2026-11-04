@@ -36,7 +36,14 @@ JSON_GLIB_SHA256=55c5c141a564245b8f8fbe7698663c87a45a7333c2a2c56f06f811ab73b212d
 
 WORK=$(mktemp -d /tmp/patchy-gegl-XXXXXX)
 PREFIX="$WORK/install"
-OUT="$REPO/.deps/gegl/$GEGL_VERSION/linux-x64-appimage"
+# ARCH (x86_64 or aarch64) names the container's architecture (packaging/linux/make-appimage.sh).
+case "$(uname -m)" in
+  x86_64) BUNDLE_PLATFORM=linux-x64 ;;
+  aarch64) BUNDLE_PLATFORM=linux-aarch64 ;;
+  *) echo "unsupported architecture $(uname -m)" >&2; exit 1 ;;
+esac
+MULTIARCH_LIB="/usr/lib/$(uname -m)-linux-gnu"
+OUT="$REPO/.deps/gegl/$GEGL_VERSION/$BUNDLE_PLATFORM-appimage"
 cd "$WORK"
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
 
@@ -100,7 +107,7 @@ while true; do
         cp -L "$PREFIX/lib/$name" "$STAGE/lib/"
         added=1
       elif [ "${name%%.so*}" = libffi ]; then
-        cp -L "/usr/lib/x86_64-linux-gnu/$name" "$STAGE/lib/"
+        cp -L "$MULTIARCH_LIB/$name" "$STAGE/lib/"
         added=1
       fi
     done
@@ -116,7 +123,7 @@ if ldd "$STAGE"/lib/*.so* "$STAGE"/lib/*/*.so | grep 'not found'; then
   exit 1
 fi
 if ldd "$STAGE"/lib/*.so* "$STAGE"/lib/*/*.so | awk '/=>/ {print $3}' | sort -u |
-    grep -v -E "^$STAGE/|/lib/x86_64-linux-gnu/(libc|libm|libdl|libpthread|librt|libstdc\+\+|libgcc_s|libz)\.so"; then
+    grep -v -E "^$STAGE/|$MULTIARCH_LIB/(libc|libm|libdl|libpthread|librt|libstdc\+\+|libgcc_s|libz)\.so"; then
   echo "a staged library loads a system library the AppImage cannot count on (above)" >&2
   exit 1
 fi
@@ -130,7 +137,7 @@ cp /usr/share/doc/libffi8/copyright "$STAGE/licenses/libffi-copyright.txt"
 pcre2_license=$(find "build-glib-$GLIB_VERSION" "glib-$GLIB_VERSION/subprojects" -maxdepth 3 -name 'LICENCE*' 2>/dev/null | head -1)
 patchy_gegl_license "${pcre2_license:-the PCRE2 LICENCE of the GLib subproject}" pcre2-LICENCE.txt
 {
-  echo "Patchy's GEGL bundle (linux-x64-appimage, Ubuntu 22.04 and later), built $(date -u +%Y-%m-%d) by scripts/dev/gegl/build-gegl-appimage.sh"
+  echo "Patchy's GEGL bundle ($BUNDLE_PLATFORM-appimage, Ubuntu 22.04 and later), built $(date -u +%Y-%m-%d) by scripts/dev/gegl/build-gegl-appimage.sh"
   echo "GEGL $GEGL_VERSION https://download.gimp.org/pub/gegl/0.4/gegl-$GEGL_VERSION.tar.xz sha256 $GEGL_SHA256"
   echo "babl $BABL_VERSION https://download.gimp.org/pub/babl/0.1/babl-$BABL_VERSION.tar.xz sha256 $BABL_SHA256"
   echo "GLib $GLIB_VERSION https://download.gnome.org/sources/glib/ sha256 $GLIB_SHA256 (PCRE2 from its meson subproject)"

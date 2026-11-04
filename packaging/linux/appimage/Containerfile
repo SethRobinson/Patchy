@@ -8,6 +8,10 @@ FROM docker.io/library/ubuntu:22.04@sha256:5ec03bb3441e8b0bf3b4f9cd4629a1ae76301
 
 ENV DEBIAN_FRONTEND=noninteractive PYTHONDONTWRITEBYTECODE=1
 
+# x86_64 or aarch64: make-appimage.sh passes it with a matching `podman build --arch`, so
+# the arm64 image runs natively on an arm64 host or under qemu-user-static elsewhere.
+ARG ARCH=x86_64
+
 # The compiler, the headers Qt6Gui's CMake config needs, the runtime libraries the xcb and
 # wayland platform plug-ins link (linuxdeploy resolves them here), the offscreen test fonts
 # (tests/test_fonts.hpp), xvfb for windowed checks, and gettext's msgfmt for GEGL's catalogs.
@@ -32,10 +36,15 @@ ENV LANG=en_US.UTF-8
 # 22.04's apt CMake is 3.22; the project needs 3.26 (presets schema 6).
 RUN pip3 install --no-cache-dir "cmake==3.31.6" "aqtinstall==3.3.0"
 
-RUN aqt install-qt linux desktop 6.8.3 linux_gcc_64 -m qtimageformats qtpdf -O /opt/qt
+RUN if [ "$ARCH" = aarch64 ]; then \
+      aqt install-qt linux_arm64 desktop 6.8.3 linux_gcc_arm64 -m qtimageformats qtpdf -O /opt/qt; \
+    else \
+      aqt install-qt linux desktop 6.8.3 linux_gcc_64 -m qtimageformats qtpdf -O /opt/qt; \
+    fi
 
 # ONNX Runtime and the segmentation models, pinned and checksummed by the same script the
-# dev trees use (ends up in /opt/deps/onnxruntime/<version>/linux-x64 and /opt/deps/ai-models).
+# dev trees use (ends up in /opt/deps/onnxruntime/<version>/linux-x64 or linux-aarch64, and
+# /opt/deps/ai-models).
 COPY setup-ai-deps.sh /tmp/setup-ai-deps.sh
 RUN bash /tmp/setup-ai-deps.sh /opt/deps && rm /tmp/setup-ai-deps.sh
 
@@ -43,21 +52,25 @@ RUN bash /tmp/setup-ai-deps.sh /opt/deps && rm /tmp/setup-ai-deps.sh
 # linuxdeploy and its Qt plug-in collect the libraries; appimagetool packs the AppDir onto
 # the static type2 runtime, which needs no libfuse2 on the user's machine.
 RUN mkdir -p /opt/appimage-tools && cd /opt/appimage-tools \
-    && curl -fL --retry 3 -o linuxdeploy-x86_64.AppImage \
-         https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20251107-1/linuxdeploy-x86_64.AppImage \
-    && curl -fL --retry 3 -o linuxdeploy-plugin-qt-x86_64.AppImage \
-         https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/1-alpha-20250213-1/linuxdeploy-plugin-qt-x86_64.AppImage \
-    && curl -fL --retry 3 -o appimagetool-x86_64.AppImage \
-         https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage \
-    && curl -fL --retry 3 -o runtime-x86_64 \
-         https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64 \
+    && curl -fL --retry 3 -o linuxdeploy-$ARCH.AppImage \
+         https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20251107-1/linuxdeploy-$ARCH.AppImage \
+    && curl -fL --retry 3 -o linuxdeploy-plugin-qt-$ARCH.AppImage \
+         https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/1-alpha-20250213-1/linuxdeploy-plugin-qt-$ARCH.AppImage \
+    && curl -fL --retry 3 -o appimagetool-$ARCH.AppImage \
+         https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-$ARCH.AppImage \
+    && curl -fL --retry 3 -o runtime-$ARCH \
+         https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-$ARCH \
     && printf '%s\n' \
          "c20cd71e3a4e3b80c3483cef793cda3f4e990aca14014d23c544ca3ce1270b4d  linuxdeploy-x86_64.AppImage" \
          "15106be885c1c48a021198e7e1e9a48ce9d02a86dd0a1848f00bdbf3c1c92724  linuxdeploy-plugin-qt-x86_64.AppImage" \
          "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  appimagetool-x86_64.AppImage" \
          "2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d  runtime-x86_64" \
-       | sha256sum -c - \
-    && chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage appimagetool-x86_64.AppImage
+         "620095110d693282b8ebeb244a95b5e911cf8f65f76c88b4b47d16ae6346fcff  linuxdeploy-aarch64.AppImage" \
+         "bf1c24aff6d749b5cf423afad6f15abd4440f81dec1aab95706b25f6667cdcf1  linuxdeploy-plugin-qt-aarch64.AppImage" \
+         "f0837e7448a0c1e4e650a93bb3e85802546e60654ef287576f46c71c126a9158  appimagetool-aarch64.AppImage" \
+         "00cbdfcf917cc6c0ff6d3347d59e0ca1f7f45a6df1a428a0d6d8a78664d87444  runtime-aarch64" \
+       | grep -- "-$ARCH" | sha256sum -c - \
+    && chmod +x linuxdeploy-$ARCH.AppImage linuxdeploy-plugin-qt-$ARCH.AppImage appimagetool-$ARCH.AppImage
 
 # What scripts/dev/gegl/build-gegl-appimage.sh needs to build Patchy's own GEGL from source
 # (docs/gegl-filters.md): GLib 2.84 wants Meson 1.4 or newer and Python's packaging module;

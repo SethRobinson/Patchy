@@ -72,10 +72,15 @@ fi
 mkdir -p "$(dirname "$SRC")"
 [ -d "$SRC/.git" ] || git clone "$BARE" "$SRC"
 
-QT_DIR="$SRC/.deps/Qt/$QT_VER/gcc_64"
+# aqt's kit names: gcc_64 on x86_64, gcc_arm64 on an aarch64 host (-Target linux-arm64).
+case "$(uname -m)" in
+  aarch64) QT_HOST=linux_arm64; QT_ARCH=linux_gcc_arm64; QT_KIT=gcc_arm64 ;;
+  *) QT_HOST=linux; QT_ARCH=linux_gcc_64; QT_KIT=gcc_64 ;;
+esac
+QT_DIR="$SRC/.deps/Qt/$QT_VER/$QT_KIT"
 if [ ! -d "$QT_DIR" ]; then
   echo "== Installing Qt $QT_VER into $SRC/.deps/Qt (downloads ~1 GB) =="
-  "$HOME/.local/bin/aqt" install-qt linux desktop "$QT_VER" linux_gcc_64 -m qtimageformats qtpdf -O "$SRC/.deps/Qt"
+  "$HOME/.local/bin/aqt" install-qt "$QT_HOST" desktop "$QT_VER" "$QT_ARCH" -m qtimageformats qtpdf -O "$SRC/.deps/Qt"
 fi
 
 echo "== Versions =="

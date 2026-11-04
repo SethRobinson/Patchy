@@ -45,9 +45,18 @@ mkdir -p "$PACKAGE_DIR"
 # Every core but four (at least one), so the remote machine stays usable.
 JOBS=$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 5) - 4 ))
 [ "$JOBS" -ge 1 ] || JOBS=1
-# Delete ALL previous bundles up front (not just this version's): if the build fails,
-# nothing stale remains for the newest-file upload script to pick up by accident.
-rm -f "${ROOT:?}/build/package"/Patchy-*.flatpak "${ROOT:?}/build/package"/Patchy-*-flatpak-repo.tar
+# The bundle is for this host's architecture. x86_64 keeps the historical names; an
+# aarch64 host writes Patchy-<version>-aarch64.flatpak and its own repository tar.
+ARCH=$(flatpak --default-arch)
+if [ "$ARCH" = x86_64 ]; then ARCH_SUFFIX=""; else ARCH_SUFFIX="-$ARCH"; fi
+# Delete ALL previous bundles of this architecture up front (not just this version's): if
+# the build fails, nothing stale remains for the newest-file upload script to pick up.
+if [ -z "$ARCH_SUFFIX" ]; then
+  find "${ROOT:?}/build/package" -maxdepth 1 \( -name 'Patchy-*.flatpak' -o -name 'Patchy-*-flatpak-repo.tar' \) \
+    ! -name 'Patchy-*-aarch64*' -delete
+else
+  rm -f "${ROOT:?}/build/package"/Patchy-*"$ARCH_SUFFIX".flatpak "${ROOT:?}/build/package"/Patchy-*"$ARCH_SUFFIX"-flatpak-repo.tar
+fi
 # A new token invalidates only the app module's cached build and refreshes the
 # timestamp. The generated manifest resolves its source path from its new folder.
 RELEASE_MANIFEST="$ROOT/build/flatpak-release-manifest.yml"
@@ -114,8 +123,8 @@ if [ -z "$GPG_KEY" ]; then
   echo "NOTE: PATCHY_FLATPAK_GPG_KEY is not set: no repository is built, and installs of" >&2
   echo "this bundle will not update through flatpak. Not a release artifact." >&2
   flatpak build-bundle --runtime-repo="$FLATHUB_REPO" \
-    "$REPO_DIR" "$PACKAGE_DIR/Patchy-$VERSION.flatpak" "$APP_ID"
-  echo "Bundle written: $PACKAGE_DIR/Patchy-$VERSION.flatpak"
+    "$REPO_DIR" "$PACKAGE_DIR/Patchy-$VERSION$ARCH_SUFFIX.flatpak" "$APP_ID"
+  echo "Bundle written: $PACKAGE_DIR/Patchy-$VERSION$ARCH_SUFFIX.flatpak"
   exit 0
 fi
 
@@ -126,7 +135,6 @@ fi
 # files users point flatpak at. The bundle is exported from this same signed commit
 # with --repo-url, so a bundle install gets the repository as its origin and updates
 # from it like a repository install does.
-ARCH=$(flatpak --default-arch)
 APP_REF="app/$APP_ID/$ARCH/master"
 rm -rf "${ROOT:?}/build/flatpak-publish"
 mkdir -p "$PUBLISH_DIR"
@@ -164,10 +172,10 @@ EOF
 
 flatpak build-bundle --runtime-repo="$FLATHUB_REPO" --repo-url="$REPO_URL" \
   --gpg-keys="$PUBLISH_DIR/patchy.gpg" \
-  "$PUBLISH_DIR/repo" "$PACKAGE_DIR/Patchy-$VERSION.flatpak" "$APP_ID"
-echo "Bundle written: $PACKAGE_DIR/Patchy-$VERSION.flatpak"
+  "$PUBLISH_DIR/repo" "$PACKAGE_DIR/Patchy-$VERSION$ARCH_SUFFIX.flatpak" "$APP_ID"
+echo "Bundle written: $PACKAGE_DIR/Patchy-$VERSION$ARCH_SUFFIX.flatpak"
 
 # One tar for the upload script: the repo directory plus the two descriptor files.
-tar -C "$PUBLISH_DIR" -cf "$PACKAGE_DIR/Patchy-$VERSION-flatpak-repo.tar" \
+tar -C "$PUBLISH_DIR" -cf "$PACKAGE_DIR/Patchy-$VERSION$ARCH_SUFFIX-flatpak-repo.tar" \
   repo patchy.flatpakrepo "$APP_ID.flatpakref"
-echo "Repository written: $PACKAGE_DIR/Patchy-$VERSION-flatpak-repo.tar"
+echo "Repository written: $PACKAGE_DIR/Patchy-$VERSION$ARCH_SUFFIX-flatpak-repo.tar"

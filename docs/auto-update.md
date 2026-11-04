@@ -134,6 +134,13 @@ installer refuses an x64 or x86 PC before touching anything
 ([packaging/windows/README.md](../packaging/windows/README.md)). Test:
 `update_platform_prefers_windows_arm64_on_arm64_pcs`.
 
+## Linux ARM64
+
+The `linux-arm64` entry (permanent key) has the `linux` keys and names
+`PatchyLinux-aarch64.AppImage`. An aarch64 build reads only `linux-arm64`; without it the
+check reports `MissingPlatform`, so an arm64 copy is never offered the x86-64 AppImage.
+x86-64 builds keep reading `linux`. Test: `update_platform_prefers_windows_arm64_on_arm64_pcs`.
+
 ## Switching it off from the manifest
 
 If a release's self-update turns out to be broken, edit `latest_version.json` on `main`; no

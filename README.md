@@ -176,7 +176,7 @@ The desktop and browser builds share the editor, with these differences:
 
 | Capability | Windows | macOS | Linux | Browser |
 | --- | --- | --- | --- | --- |
-| Available build | x64, ARM64 | Apple Silicon | x86-64, Flatpak / AppImage | WebAssembly |
+| Available build | x64, ARM64 | Apple Silicon | x86-64, ARM64, Flatpak / AppImage | WebAssembly |
 | 8-bit and 16-bit editing | Yes | Yes | Yes | Yes |
 | 32-bit HDR editing | Yes | Yes | Yes | Opens converted to 16-bit |
 | PSD/PSB, Affinity, Krita, GIMP, OpenRaster, Paint.NET, layered TIFF, Aseprite | Yes | Yes | Yes | Yes |

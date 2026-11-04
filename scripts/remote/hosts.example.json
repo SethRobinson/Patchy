@@ -1,7 +1,8 @@
 {
-  "//": "Copy to hosts.local.json (gitignored) in the main checkout and fill in the ssh targets this machine can reach. Omit targets you do not have. windows may be one entry or a list in order of preference; optional jobs sets its build parallelism (default 8). windows-arm64 lists Windows ARM64 hosts the same way (-Target windows-arm64). wasm lists the Windows hosts that build the web release (-Target wasm, release-wasm.ps1), each with share, the UNC path of its work tree that the site is copied back from. See docs/building.md, \"Remote build machinery\".",
+  "//": "Copy to hosts.local.json (gitignored) in the main checkout and fill in the ssh targets this machine can reach. Omit targets you do not have. windows may be one entry or a list in order of preference; optional jobs sets its build parallelism (default 8). windows-arm64 lists Windows ARM64 hosts the same way (-Target windows-arm64); linux-arm64 is an aarch64 Linux host (-Target linux-arm64). wasm lists the Windows hosts that build the web release (-Target wasm, release-wasm.ps1), each with share, the UNC path of its work tree that the site is copied back from. See docs/building.md, \"Remote build machinery\".",
   "mac": { "ssh": "user@mac-build-host.local" },
   "linux": { "ssh": "user@linux-build-host.local" },
+  "linux-arm64": { "ssh": "user@linux-arm64-build-host.local" },
   "windows": [
     { "ssh": "windows-build-host", "workTree": "C:/patchy/src" },
     { "ssh": "second-windows-build-host", "workTree": "C:/patchy/src", "jobs": 14 }

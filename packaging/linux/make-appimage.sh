@@ -2,6 +2,9 @@
 # Builds the Linux AppImage in build/package (docs/appimage.md):
 #   Patchy-<version>-x86_64.AppImage          published as PatchyLinux.AppImage
 #   Patchy-<version>-x86_64.AppImage.zsync    published as PatchyLinux.AppImage.zsync
+# ARCH=aarch64 builds the arm64 AppImage in an arm64 container instead (natively on an arm64
+# host, through qemu-user-static elsewhere):
+#   Patchy-<version>-aarch64.AppImage         published as PatchyLinux-aarch64.AppImage
 # Everything compiles inside an Ubuntu 22.04 container (appimage/Containerfile), so the
 # AppImage runs on 22.04 and every newer distro; the container's build half is
 # appimage/build-in-container.sh. Afterwards the AppImage is smoke-checked here on the host
@@ -35,21 +38,30 @@ VERSION=$(sed -nE 's/^[[:space:]]*VERSION[[:space:]]+([0-9.]+).*$/\1/p' "$ROOT/C
 JOBS=$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 5) - 4 ))
 [ "$JOBS" -ge 1 ] || JOBS=1
 
+ARCH="${ARCH:-x86_64}"
+case "$ARCH" in
+  x86_64) PODMAN_ARCH=amd64; IMAGE_SUFFIX="" ;;
+  aarch64) PODMAN_ARCH=arm64; IMAGE_SUFFIX="-aarch64" ;;
+  *) echo "ERROR: ARCH must be x86_64 or aarch64, not $ARCH" >&2; exit 1 ;;
+esac
+
 IMAGE_HASH=$(cat appimage/Containerfile "$ROOT/scripts/setup-ai-deps.sh" | sha256sum | cut -c1-16)
-IMAGE="localhost/patchy-appimage-build:$IMAGE_HASH"
+IMAGE="localhost/patchy-appimage-build$IMAGE_SUFFIX:$IMAGE_HASH"
 if ! podman image exists "$IMAGE"; then
   echo "== building the container image $IMAGE =="
   CONTEXT=$(mktemp -d "${TMPDIR:-/tmp}/patchy-appimage-context.XXXXXX")
   trap 'case "$CONTEXT" in */patchy-appimage-context.?*) rm -rf "$CONTEXT" ;; esac' EXIT
   cp appimage/Containerfile "$ROOT/scripts/setup-ai-deps.sh" "$CONTEXT/"
-  nice -n 10 podman build --tag "$IMAGE" --file "$CONTEXT/Containerfile" "$CONTEXT"
+  nice -n 10 podman build --arch "$PODMAN_ARCH" --build-arg ARCH="$ARCH" --tag "$IMAGE" \
+    --file "$CONTEXT/Containerfile" "$CONTEXT"
 fi
 
 if [ "$MODE" = "package" ]; then
   mkdir -p "$ROOT/build/package"
-  # Delete ALL previous AppImages up front (not just this version's): if the build fails,
+  # Delete every previous AppImage of this architecture up front (not just this version's):
+  # if the build fails,
   # nothing stale remains for the release scripts to pick up by accident.
-  rm -f "${ROOT:?}/build/package"/Patchy-*.AppImage "${ROOT:?}/build/package"/Patchy-*.AppImage.zsync
+  rm -f "${ROOT:?}/build/package"/Patchy-*-"$ARCH".AppImage "${ROOT:?}/build/package"/Patchy-*-"$ARCH".AppImage.zsync
 fi
 
 # --userns=keep-id: files the build writes belong to this user, as in a host build.
@@ -62,14 +74,14 @@ if [ "$MODE" = "tests" ] && [ -d /usr/share/fonts ]; then
   FONT_ARGS=(--volume /usr/share/fonts:/usr/local/share/fonts:ro)
 fi
 echo "== container build ($MODE) =="
-podman run --rm --userns=keep-id --security-opt label=disable \
+podman run --rm --arch "$PODMAN_ARCH" --userns=keep-id --security-opt label=disable \
   --volume "$ROOT:/src" "${FONT_ARGS[@]}" --env JOBS="$JOBS" --workdir /src \
   "$IMAGE" nice -n 10 bash /src/packaging/linux/appimage/build-in-container.sh "$MODE" \
   "$( [ "$MODE" = package ] && echo "$VERSION" || echo "$FILTER" )"
 
 [ "$MODE" = "package" ] || exit 0
 
-APPIMAGE="$ROOT/build/package/Patchy-$VERSION-x86_64.AppImage"
+APPIMAGE="$ROOT/build/package/Patchy-$VERSION-$ARCH.AppImage"
 [ -s "$APPIMAGE" ] || { echo "ERROR: the container did not write $APPIMAGE" >&2; exit 1; }
 chmod +x "$APPIMAGE"
 
@@ -87,7 +99,13 @@ if command -v appstreamcli >/dev/null; then
 fi
 
 # The same checks as inside the container, now through the AppImage runtime's own FUSE
-# mount on this (newer) distro: what a user's double-click does.
+# mount on this (newer) distro: what a user's double-click does. A foreign-architecture
+# AppImage cannot mount on this host; the container's extracted run already checked it.
+if [ "$(uname -m)" != "$ARCH" ]; then
+  echo "Host smoke check skipped: $ARCH AppImage on a $(uname -m) host."
+  echo "AppImage written: $APPIMAGE"
+  exit 0
+fi
 echo "== host smoke check (FUSE mount) =="
 SMOKE=$(mktemp -d "${TMPDIR:-/tmp}/patchy-appimage-smoke.XXXXXX")
 mkdir -p "$SMOKE/settings"

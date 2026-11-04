@@ -10,12 +10,19 @@ ROOT=/src
 [ -f "$ROOT/CMakeLists.txt" ] || { echo "ERROR: the repository is not mounted at $ROOT" >&2; exit 1; }
 cd "$ROOT"
 JOBS="${JOBS:-4}"
-QT_DIR=/opt/qt/6.8.3/gcc_64
+# The container's architecture picks the Qt kit, ONNX Runtime, GEGL bundle, presets and
+# tools; x86_64 keeps every historical name (published file names are persisted tokens).
+ARCH=$(uname -m)
+case "$ARCH" in
+  x86_64) QT_DIR=/opt/qt/6.8.3/gcc_64; DEPS_PLATFORM=linux-x64; PRESET=linux-appimage ;;
+  aarch64) QT_DIR=/opt/qt/6.8.3/gcc_arm64; DEPS_PLATFORM=linux-aarch64; PRESET=linux-appimage-arm64 ;;
+  *) echo "ERROR: unsupported architecture $ARCH" >&2; exit 1 ;;
+esac
 TOOLS=/opt/appimage-tools
-ORT_LIB_DIR=/opt/deps/onnxruntime/1.30.0/linux-x64/lib
+ORT_LIB_DIR=/opt/deps/onnxruntime/1.30.0/$DEPS_PLATFORM/lib
 # Patchy's own GEGL for the AppImage (docs/gegl-filters.md), built here once and kept in
 # .deps like the other platforms' bundles; the presets point CMake at it.
-GEGL_BUNDLE="$ROOT/.deps/gegl/0.4.72/linux-x64-appimage"
+GEGL_BUNDLE="$ROOT/.deps/gegl/0.4.72/$DEPS_PLATFORM-appimage"
 PATCHY_GEGL_SCRIPTS="$ROOT/scripts/dev/gegl"
 . "$PATCHY_GEGL_SCRIPTS/common.sh"
 # Rebuilt when missing, without GEGL's German catalog (built before the container had
@@ -30,8 +37,8 @@ fi
 
 if [ "$MODE" = "tests" ]; then
   FILTER="${2:-}"
-  cmake --preset linux-appimage-tests
-  nice -n 10 cmake --build --preset linux-appimage-tests -j "$JOBS"
+  cmake --preset "$PRESET-tests"
+  nice -n 10 cmake --build --preset "$PRESET-tests" -j "$JOBS"
   echo "== patchy_core_tests (gcc-12, Qt 6.8.3) =="
   # The filter usually names UI tests, and a filter that selects nothing fails a suite;
   # run the core suite only when the filter selects some of its tests.
@@ -48,9 +55,9 @@ fi
 VERSION="${2:?package needs the version}"
 
 echo "== configure and build (linux-appimage: gcc-12, Qt 6.8.3, glibc 2.35) =="
-cmake --preset linux-appimage
-nice -n 10 cmake --build --preset linux-appimage --target patchy_refresh_build_stamp -j "$JOBS"
-nice -n 10 cmake --build --preset linux-appimage -j "$JOBS"
+cmake --preset "$PRESET"
+nice -n 10 cmake --build --preset "$PRESET" --target patchy_refresh_build_stamp -j "$JOBS"
+nice -n 10 cmake --build --preset "$PRESET" -j "$JOBS"
 
 echo "== stage the AppDir =="
 APPDIR="$ROOT/build/appimage-appdir"
@@ -100,7 +107,7 @@ chmod 755 /tmp/AppRun
 GEGL_ASIDE=$(mktemp -d /tmp/patchy-appimage-gegl.XXXXXX)
 mv "$APPDIR/usr/lib/patchy/gegl" "$GEGL_ASIDE/gegl"
 # Keep the plug-in's AppImage beside linuxdeploy: that is where linuxdeploy looks.
-"$TOOLS/linuxdeploy-x86_64.AppImage" --appdir "$APPDIR" \
+"$TOOLS/linuxdeploy-$ARCH.AppImage" --appdir "$APPDIR" \
   --executable "$APPDIR/usr/bin/patchy" \
   --library "$APPDIR/usr/lib/libonnxruntime.so.1" \
   --desktop-file "$APPDIR/usr/share/applications/com.rtsoft.patchy.desktop" \
@@ -207,11 +214,13 @@ echo "== pack (appimagetool, static type2 runtime) =="
 STAGE="$ROOT/build/appimage-out"
 rm -rf "${ROOT:?}/build/appimage-out"
 mkdir -p "$STAGE" "$ROOT/build/package"
-(cd "$STAGE" && ARCH=x86_64 VERSION="$VERSION" "$TOOLS/appimagetool-x86_64.AppImage" --no-appstream \
-  --runtime-file "$TOOLS/runtime-x86_64" \
-  -u "gh-releases-zsync|SethRobinson|Patchy|latest|PatchyLinux.AppImage.zsync" \
-  "$APPDIR" PatchyLinux.AppImage)
-[ -s "$STAGE/PatchyLinux.AppImage" ] && [ -s "$STAGE/PatchyLinux.AppImage.zsync" ] \
+# x86_64 keeps the original published names; aarch64 publishes PatchyLinux-aarch64.AppImage.
+if [ "$ARCH" = x86_64 ]; then PUBLISHED=PatchyLinux.AppImage; else PUBLISHED="PatchyLinux-$ARCH.AppImage"; fi
+(cd "$STAGE" && ARCH="$ARCH" VERSION="$VERSION" "$TOOLS/appimagetool-$ARCH.AppImage" --no-appstream \
+  --runtime-file "$TOOLS/runtime-$ARCH" \
+  -u "gh-releases-zsync|SethRobinson|Patchy|latest|$PUBLISHED.zsync" \
+  "$APPDIR" "$PUBLISHED")
+[ -s "$STAGE/$PUBLISHED" ] && [ -s "$STAGE/$PUBLISHED.zsync" ] \
   || { echo "ERROR: appimagetool did not write the AppImage and its zsync file" >&2; exit 1; }
 
 echo "== smoke check inside the 22.04 container (extracted run) =="
@@ -220,13 +229,13 @@ mkdir -p "$SMOKE/settings"
 # The GEGL filters must list and run from the mounted image (patchy-gegl-host and the bundle).
 cp "$ROOT/packaging/gegl-smoke.js" "$SMOKE/smoke.js"
 timeout 180 env PATCHY_SETTINGS_DIR="$SMOKE/settings" PATCHY_NO_SOUND=1 \
-  "$STAGE/PatchyLinux.AppImage" --headless --run-script "$SMOKE/smoke.js" --script-output "$SMOKE/out.txt" \
+  "$STAGE/$PUBLISHED" --headless --run-script "$SMOKE/smoke.js" --script-output "$SMOKE/out.txt" \
   > "$SMOKE/console.txt" 2>&1 || { echo "ERROR: headless smoke check failed:" >&2; cat "$SMOKE/console.txt" >&2; exit 1; }
 [ "$(tail -n 1 "$SMOKE/out.txt" 2>/dev/null)" = "[done]" ] \
   || { echo "ERROR: headless smoke output did not end with [done]" >&2; cat "$SMOKE/out.txt" >&2 || true; exit 1; }
-timeout 180 "$STAGE/PatchyLinux.AppImage" patchy-mcp --check
+timeout 180 "$STAGE/$PUBLISHED" patchy-mcp --check
 case "$SMOKE" in /tmp/patchy-appimage-smoke.?*) rm -rf "$SMOKE" ;; esac
 
-mv "$STAGE/PatchyLinux.AppImage" "$ROOT/build/package/Patchy-$VERSION-x86_64.AppImage"
-mv "$STAGE/PatchyLinux.AppImage.zsync" "$ROOT/build/package/Patchy-$VERSION-x86_64.AppImage.zsync"
-echo "AppImage written: build/package/Patchy-$VERSION-x86_64.AppImage (+ .zsync)"
+mv "$STAGE/$PUBLISHED" "$ROOT/build/package/Patchy-$VERSION-$ARCH.AppImage"
+mv "$STAGE/$PUBLISHED.zsync" "$ROOT/build/package/Patchy-$VERSION-$ARCH.AppImage.zsync"
+echo "AppImage written: build/package/Patchy-$VERSION-$ARCH.AppImage (+ .zsync)"

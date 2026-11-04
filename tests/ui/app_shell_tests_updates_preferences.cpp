@@ -1180,6 +1180,12 @@ void update_platform_prefers_windows_arm64_on_arm64_pcs() {
   CHECK(patchy::ui::current_update_platforms().back() == x64);
 #endif
   CHECK(patchy::ui::current_update_platform() == patchy::ui::current_update_platforms().front());
+#elif defined(Q_OS_LINUX)
+#if defined(Q_PROCESSOR_ARM_64)
+  CHECK(patchy::ui::current_update_platforms() == QStringList{QStringLiteral("linux-arm64")});
+#else
+  CHECK(patchy::ui::current_update_platforms() == QStringList{QStringLiteral("linux")});
+#endif
 #endif
 
   const QByteArray both = R"({"platforms": {
