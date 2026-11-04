@@ -202,4 +202,84 @@ double sane_resolution_to_dpi(std::int32_t word, bool is_fixed) noexcept {
   return value > 0.0 ? value : 0.0;
 }
 
+bool is_network_scanner(std::string_view device_name) noexcept {
+  for (const std::string_view prefix : {"airscan:", "escl:", "net:"}) {
+    if (device_name.starts_with(prefix)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::string network_scanner_address(std::string_view model) {
+  const auto at = model.find("ip=");
+  if (at == std::string_view::npos) {
+    return {};
+  }
+  const auto rest = model.substr(at + 3);
+  const auto end = rest.find_first_of(" \t,)");
+  const auto address = rest.substr(0, end);
+  const bool plausible = !address.empty() && std::all_of(address.begin(), address.end(), [](char c) {
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F') || c == '.' || c == ':';
+  });
+  return plausible ? std::string(address) : std::string{};
+}
+
+AcquireFailureCause classify_sane_failure(int sane_status, std::string_view device_name) noexcept {
+  // SANE_Status values from sane.h.
+  switch (sane_status) {
+    case 1:  // SANE_STATUS_UNSUPPORTED
+    case 4:  // SANE_STATUS_INVAL
+      return AcquireFailureCause::UnsupportedSettings;
+    case 3:  // SANE_STATUS_DEVICE_BUSY
+      return AcquireFailureCause::Busy;
+    case 6:  // SANE_STATUS_JAMMED
+      return AcquireFailureCause::Jammed;
+    case 7:  // SANE_STATUS_NO_DOCS
+      return AcquireFailureCause::FeederEmpty;
+    case 8:  // SANE_STATUS_COVER_OPEN
+      return AcquireFailureCause::CoverOpen;
+    case 9:  // SANE_STATUS_IO_ERROR
+      return is_network_scanner(device_name) ? AcquireFailureCause::NetworkUnreachable
+                                             : AcquireFailureCause::ConnectionLost;
+    case 10:  // SANE_STATUS_NO_MEM
+      return AcquireFailureCause::OutOfMemory;
+    case 11:  // SANE_STATUS_ACCESS_DENIED
+      return AcquireFailureCause::AccessDenied;
+    default:
+      return AcquireFailureCause::Unknown;
+  }
+}
+
+AcquireFailureCause classify_gphoto_failure(int gphoto_status) noexcept {
+  // GP_ERROR_* values from gphoto2-port-result.h and gphoto2-result.h.
+  switch (gphoto_status) {
+    case -3:  // GP_ERROR_NO_MEMORY
+      return AcquireFailureCause::OutOfMemory;
+    case -6:    // GP_ERROR_NOT_SUPPORTED
+    case -105:  // GP_ERROR_MODEL_NOT_FOUND
+      return AcquireFailureCause::CameraNotSupported;
+    case -7:   // GP_ERROR_IO
+    case -10:  // GP_ERROR_TIMEOUT
+    case -34:  // GP_ERROR_IO_READ
+    case -35:  // GP_ERROR_IO_WRITE
+    case -52:  // GP_ERROR_IO_USB_FIND
+    case -113: // GP_ERROR_CAMERA_ERROR
+      return AcquireFailureCause::ConnectionLost;
+    case -31:  // GP_ERROR_IO_INIT: usually the USB device node is not writable
+      return AcquireFailureCause::AccessDenied;
+    case -53:   // GP_ERROR_IO_USB_CLAIM
+    case -60:   // GP_ERROR_IO_LOCK
+    case -110:  // GP_ERROR_CAMERA_BUSY
+      return AcquireFailureCause::CameraClaimed;
+    case -102:  // GP_ERROR_CORRUPTED_DATA
+      return AcquireFailureCause::CorruptedData;
+    case -107:  // GP_ERROR_DIRECTORY_NOT_FOUND
+    case -108:  // GP_ERROR_FILE_NOT_FOUND
+      return AcquireFailureCause::ImageMissing;
+    default:
+      return AcquireFailureCause::Unknown;
+  }
+}
+
 }  // namespace patchy::support

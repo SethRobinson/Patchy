@@ -15048,6 +15048,66 @@ Each item&apos;s own View setting still applies.</source>
         <source>Scanning needs SANE (for scanners) or libgphoto2 (for cameras). Install them from your distribution and try again.</source>
         <translation>掃描需要 SANE（用於掃描器）或 libgphoto2（用於相機）。請從您的發行版安裝後再試一次。</translation>
     </message>
+    <message>
+        <source>The network scanner does not answer.</source>
+        <translation>網路掃描器沒有回應。</translation>
+    </message>
+    <message>
+        <source>The network scanner at %1 does not answer.</source>
+        <translation>位於 %1 的網路掃描器沒有回應。</translation>
+    </message>
+    <message>
+        <source>Check that it is switched on and connected to the same network as this computer. If its address changed, correct or remove the old address in the scanner configuration in /etc/sane.d (airscan.conf or escl.conf).</source>
+        <translation>請檢查它是否已開機，並與這台電腦連接到同一個網路。如果它的位址已變更，請在 /etc/sane.d 中的掃描器設定（airscan.conf 或 escl.conf）裡更正或刪除舊位址。</translation>
+    </message>
+    <message>
+        <source>The device stopped responding. Check that it is switched on, the cable is connected and it is not in sleep mode, then try again.</source>
+        <translation>裝置停止回應。請檢查它是否已開機、纜線是否已連接、是否處於睡眠模式，然後再試一次。</translation>
+    </message>
+    <message>
+        <source>The scanner is in use by another program or still finishing a previous job. Close the other program or wait a moment, then try again.</source>
+        <translation>掃描器正被其他程式使用，或仍在完成上一個工作。請關閉其他程式或稍候片刻，然後再試一次。</translation>
+    </message>
+    <message>
+        <source>This user account is not allowed to use the device. Add your account to the scanner group (often &quot;scanner&quot; or &quot;lp&quot;), or install the device rules from your distribution&apos;s SANE or libgphoto2 package, then log in again.</source>
+        <translation>此使用者帳戶無權使用該裝置。請將您的帳戶加入掃描器群組（通常是「scanner」或「lp」），或安裝發行版 SANE 或 libgphoto2 套件中的裝置規則，然後重新登入。</translation>
+    </message>
+    <message>
+        <source>Paper is jammed in the scanner. Clear the jam and try again.</source>
+        <translation>掃描器卡紙。請清除卡紙後再試一次。</translation>
+    </message>
+    <message>
+        <source>The document feeder is empty. Load the pages, or choose the flatbed as the source.</source>
+        <translation>文件進紙器是空的。請放入頁面，或選擇平台作為來源。</translation>
+    </message>
+    <message>
+        <source>The scanner cover is open. Close it and try again.</source>
+        <translation>掃描器上蓋已開啟。請關閉後再試一次。</translation>
+    </message>
+    <message>
+        <source>The scanner does not accept these settings. Try another mode, resolution or source.</source>
+        <translation>掃描器不接受這些設定。請嘗試其他模式、解析度或來源。</translation>
+    </message>
+    <message>
+        <source>There is not enough memory for this scan. Try a lower resolution.</source>
+        <translation>記憶體不足，無法完成此次掃描。請嘗試較低的解析度。</translation>
+    </message>
+    <message>
+        <source>Another program is using the camera, often the file manager, which opens cameras automatically. Eject or unmount the camera there, then try again.</source>
+        <translation>另一個程式正在使用相機，通常是會自動開啟相機的檔案管理員。請在那裡退出或卸載相機，然後再試一次。</translation>
+    </message>
+    <message>
+        <source>libgphoto2 does not support this camera model. Copy the images with a card reader or the file manager instead.</source>
+        <translation>libgphoto2 不支援此相機型號。請改用讀卡機或檔案管理員複製影像。</translation>
+    </message>
+    <message>
+        <source>The camera sent damaged data. Reconnect the camera and try again.</source>
+        <translation>相機傳送了損壞的資料。請重新連接相機後再試一次。</translation>
+    </message>
+    <message>
+        <source>The image is no longer on the camera. Pick the device again to refresh the list.</source>
+        <translation>該影像已不在相機上。請重新選擇裝置以重新整理清單。</translation>
+    </message>
 </context>
 <context>
     <name>ScriptFolders</name>

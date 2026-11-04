@@ -130,6 +130,36 @@ void scan_frame_resolution_words_convert_to_dpi() {
   CHECK(patchy::support::sane_resolution_to_dpi(-5, false) == 0.0);
 }
 
+void scan_frame_failures_map_to_actionable_causes() {
+  using patchy::support::AcquireFailureCause;
+  using patchy::support::classify_gphoto_failure;
+  using patchy::support::classify_sane_failure;
+  // An I/O error means "unreachable" for network backends and "connection lost" for USB.
+  CHECK(classify_sane_failure(9, "airscan:e0:Lexmark") == AcquireFailureCause::NetworkUnreachable);
+  CHECK(classify_sane_failure(9, "escl:https://10.0.0.5:443") == AcquireFailureCause::NetworkUnreachable);
+  CHECK(classify_sane_failure(9, "genesys:libusb:001:004") == AcquireFailureCause::ConnectionLost);
+  CHECK(classify_sane_failure(3, "x") == AcquireFailureCause::Busy);
+  CHECK(classify_sane_failure(6, "x") == AcquireFailureCause::Jammed);
+  CHECK(classify_sane_failure(7, "x") == AcquireFailureCause::FeederEmpty);
+  CHECK(classify_sane_failure(8, "x") == AcquireFailureCause::CoverOpen);
+  CHECK(classify_sane_failure(11, "x") == AcquireFailureCause::AccessDenied);
+  CHECK(classify_sane_failure(4, "x") == AcquireFailureCause::UnsupportedSettings);
+  CHECK(classify_sane_failure(10, "x") == AcquireFailureCause::OutOfMemory);
+  CHECK(classify_sane_failure(42, "x") == AcquireFailureCause::Unknown);
+  CHECK(classify_gphoto_failure(-53) == AcquireFailureCause::CameraClaimed);
+  CHECK(classify_gphoto_failure(-110) == AcquireFailureCause::CameraClaimed);
+  CHECK(classify_gphoto_failure(-105) == AcquireFailureCause::CameraNotSupported);
+  CHECK(classify_gphoto_failure(-52) == AcquireFailureCause::ConnectionLost);
+  CHECK(classify_gphoto_failure(-31) == AcquireFailureCause::AccessDenied);
+  CHECK(classify_gphoto_failure(-108) == AcquireFailureCause::ImageMissing);
+  CHECK(classify_gphoto_failure(-1) == AcquireFailureCause::Unknown);
+  CHECK(patchy::support::network_scanner_address("Lexmark mc3224dwe (eSCL) - https ip=192.168.8.3") ==
+        "192.168.8.3");
+  CHECK(patchy::support::network_scanner_address("Canon ip=fe80::1 x") == "fe80::1");
+  CHECK(patchy::support::network_scanner_address("Canon LiDE 300").empty());
+  CHECK(patchy::support::network_scanner_address("bad ip=<script>").empty());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> scan_frame_tests() {
@@ -140,5 +170,6 @@ std::vector<patchy::test::TestCase> scan_frame_tests() {
       {"scan_frame_merges_three_pass_color", scan_frame_merges_three_pass_color},
       {"scan_frame_rejects_malformed_frames", scan_frame_rejects_malformed_frames},
       {"scan_frame_resolution_words_convert_to_dpi", scan_frame_resolution_words_convert_to_dpi},
+      {"scan_frame_failures_map_to_actionable_causes", scan_frame_failures_map_to_actionable_causes},
   };
 }

@@ -7,6 +7,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <string>
+#include <string_view>
 #include <vector>
 
 namespace patchy::support {
@@ -61,5 +63,33 @@ class ScanImageAssembler {
 
 // SANE reports resolution as SANE_Int dots per inch or SANE_Fixed (16.16).
 [[nodiscard]] double sane_resolution_to_dpi(std::int32_t word, bool is_fixed) noexcept;
+
+// Why a scanner or camera call failed, in terms the user can act on. The dialog turns each
+// cause into an explanation with a next step instead of showing only the library's text.
+enum class AcquireFailureCause {
+  Unknown,
+  NetworkUnreachable,  // network scanner (airscan, escl, net) did not answer
+  ConnectionLost,      // local device I/O error or timeout
+  Busy,                // another program or job holds the device
+  AccessDenied,        // device permissions
+  Jammed,
+  FeederEmpty,
+  CoverOpen,
+  UnsupportedSettings,
+  OutOfMemory,
+  CameraClaimed,       // the desktop or another program has the camera open
+  CameraNotSupported,  // libgphoto2 has no driver for the model
+  CorruptedData,
+  ImageMissing,        // the file was removed from the camera after listing
+};
+
+// sane_status is a SANE_Status value; device_name is the SANE device name ("airscan:...").
+[[nodiscard]] AcquireFailureCause classify_sane_failure(int sane_status, std::string_view device_name) noexcept;
+// gphoto_status is a negative libgphoto2 result code.
+[[nodiscard]] AcquireFailureCause classify_gphoto_failure(int gphoto_status) noexcept;
+// True for SANE backends that reach the device over the network.
+[[nodiscard]] bool is_network_scanner(std::string_view device_name) noexcept;
+// The address from a network backend's model text ("... ip=192.168.1.20"), or empty.
+[[nodiscard]] std::string network_scanner_address(std::string_view model);
 
 }  // namespace patchy::support

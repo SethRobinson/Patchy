@@ -15093,6 +15093,66 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Scanning needs SANE (for scanners) or libgphoto2 (for cameras). Install them from your distribution and try again.</source>
         <translation>Para escanear se necesita SANE (para escáneres) o libgphoto2 (para cámaras). Instálelos desde su distribución e inténtelo de nuevo.</translation>
     </message>
+    <message>
+        <source>The network scanner does not answer.</source>
+        <translation>El escáner de red no responde.</translation>
+    </message>
+    <message>
+        <source>The network scanner at %1 does not answer.</source>
+        <translation>El escáner de red en %1 no responde.</translation>
+    </message>
+    <message>
+        <source>Check that it is switched on and connected to the same network as this computer. If its address changed, correct or remove the old address in the scanner configuration in /etc/sane.d (airscan.conf or escl.conf).</source>
+        <translation>Compruebe que esté encendido y conectado a la misma red que este equipo. Si su dirección cambió, corrija o elimine la dirección antigua en la configuración del escáner en /etc/sane.d (airscan.conf o escl.conf).</translation>
+    </message>
+    <message>
+        <source>The device stopped responding. Check that it is switched on, the cable is connected and it is not in sleep mode, then try again.</source>
+        <translation>El dispositivo dejó de responder. Compruebe que esté encendido, que el cable esté conectado y que no esté en reposo, e inténtelo de nuevo.</translation>
+    </message>
+    <message>
+        <source>The scanner is in use by another program or still finishing a previous job. Close the other program or wait a moment, then try again.</source>
+        <translation>Otro programa está usando el escáner o todavía está terminando un trabajo anterior. Cierre el otro programa o espere un momento e inténtelo de nuevo.</translation>
+    </message>
+    <message>
+        <source>This user account is not allowed to use the device. Add your account to the scanner group (often &quot;scanner&quot; or &quot;lp&quot;), or install the device rules from your distribution&apos;s SANE or libgphoto2 package, then log in again.</source>
+        <translation>Esta cuenta de usuario no tiene permiso para usar el dispositivo. Añada su cuenta al grupo del escáner (a menudo «scanner» o «lp») o instale las reglas de dispositivo del paquete SANE o libgphoto2 de su distribución, y vuelva a iniciar sesión.</translation>
+    </message>
+    <message>
+        <source>Paper is jammed in the scanner. Clear the jam and try again.</source>
+        <translation>Hay un atasco de papel en el escáner. Retire el papel atascado e inténtelo de nuevo.</translation>
+    </message>
+    <message>
+        <source>The document feeder is empty. Load the pages, or choose the flatbed as the source.</source>
+        <translation>El alimentador de documentos está vacío. Cargue las páginas o elija la superficie plana como origen.</translation>
+    </message>
+    <message>
+        <source>The scanner cover is open. Close it and try again.</source>
+        <translation>La tapa del escáner está abierta. Ciérrela e inténtelo de nuevo.</translation>
+    </message>
+    <message>
+        <source>The scanner does not accept these settings. Try another mode, resolution or source.</source>
+        <translation>El escáner no acepta esta configuración. Pruebe otro modo, resolución u origen.</translation>
+    </message>
+    <message>
+        <source>There is not enough memory for this scan. Try a lower resolution.</source>
+        <translation>No hay suficiente memoria para este escaneo. Pruebe una resolución más baja.</translation>
+    </message>
+    <message>
+        <source>Another program is using the camera, often the file manager, which opens cameras automatically. Eject or unmount the camera there, then try again.</source>
+        <translation>Otro programa está usando la cámara, a menudo el gestor de archivos, que abre las cámaras automáticamente. Expulse o desmonte la cámara allí e inténtelo de nuevo.</translation>
+    </message>
+    <message>
+        <source>libgphoto2 does not support this camera model. Copy the images with a card reader or the file manager instead.</source>
+        <translation>libgphoto2 no es compatible con este modelo de cámara. Copie las imágenes con un lector de tarjetas o el gestor de archivos.</translation>
+    </message>
+    <message>
+        <source>The camera sent damaged data. Reconnect the camera and try again.</source>
+        <translation>La cámara envió datos dañados. Vuelva a conectar la cámara e inténtelo de nuevo.</translation>
+    </message>
+    <message>
+        <source>The image is no longer on the camera. Pick the device again to refresh the list.</source>
+        <translation>La imagen ya no está en la cámara. Vuelva a elegir el dispositivo para actualizar la lista.</translation>
+    </message>
 </context>
 <context>
     <name>ScriptFolders</name>
