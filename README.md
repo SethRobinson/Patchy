@@ -114,6 +114,9 @@ For AI control, the connector command is the AppImage file with the argument
 `patchy-mcp` (Help > Set up AI Control shows the exact line). The AppImage opens HEIC
 images through your distribution's libheif (Ubuntu and Debian: the `libheif1` package,
 plus `libheif-plugin-libde265` on Ubuntu 24.04 and later); the Flatpak brings its own.
+JPEG XR opens and saves through your distribution's jxrlib (Ubuntu and Debian: `libjxr0`;
+Fedora: `jxrlib` from EPEL on RHEL-based systems); without it Patchy says what to install.
+JPEG XR is not available in the Flatpak.
 
 ## Screenshots
 
@@ -156,7 +159,7 @@ See it in action.  Click an image for the full-size capture.
 | **Paint and retouch** | Pressure-aware brushes, Mixer Brush, stroke smoothing, healing, cloning, Patch, Red Eye, Remove Object, Liquify, and selections, including Object Selection that picks out an object from a dragged box. |
 | **Text and vectors** | Rich and vertical text, paragraph controls, Warp Text, Pen paths, shape layers, vector masks, SVG, and image tracing. |
 | **Photos and print** | 16-bit and 32-bit (HDR) editing, Camera Raw development, HEIC/HEIF, AVIF, JPEG XL, JPEG 2000, OpenEXR and Radiance HDR, plus CMYK proofing and CMYK JPEG, TIFF, and PDF export for print. |
-| **Extend your workflow** | The G'MIC filter library (nearly 400 filters with live preview, desktop), Last Filter to repeat any filter, classic 32-bit and 64-bit Photoshop filter plug-ins on Windows, a built-in JavaScript editor, batch processing, command-line tools, and local MCP control. |
+| **Extend your workflow** | The G'MIC filter library (nearly 400 filters with live preview, desktop), Last Filter to repeat any filter, classic 32-bit and 64-bit Photoshop filter plug-ins on Windows (64-bit on Linux), a built-in JavaScript editor, batch processing, command-line tools, and local MCP control. |
 
 Patchy's C++ foundation makes these integrations more straightforward: we can build
 on established C and C++ libraries such as G'MIC and implement classic Photoshop
@@ -262,7 +265,8 @@ get a bounded, movable window. [Plug-in details](docs/plugins.md).
 ## Building it yourself
 
 See [build instructions](docs/building.md) for the core, Qt desktop app, macOS, Linux,
-and Windows packaging. Contributors and automation tools should read [AGENTS.md](AGENTS.md) first.
+and Windows packaging. On Linux, check out the Raven submodule first
+(`git submodule update --init third_party/raven`) so the build includes .8bf plug-in support. Contributors and automation tools should read [AGENTS.md](AGENTS.md) first.
 
 ## License
 
