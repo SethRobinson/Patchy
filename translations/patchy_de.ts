@@ -11881,8 +11881,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Stärke:</translation>
     </message>
     <message>
-        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
-        <translation>Hintergrund: Diese Ebene bleibt ganz unten im Stapel, ohne Transparenz und ohne Ebenenstile. Klicken Sie mit der rechten Maustaste darauf und wählen Sie Ebene aus Hintergrund, um sie zu einer normalen Ebene zu machen.</translation>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Click to make it an ordinary layer.</source>
+        <translation>Hintergrund: Diese Ebene bleibt ganz unten im Stapel, ohne Transparenz und ohne Ebenenstile. Klicken Sie darauf, um sie zu einer normalen Ebene zu machen.</translation>
     </message>
     <message>
         <source>iPhone 16 Pro</source>
