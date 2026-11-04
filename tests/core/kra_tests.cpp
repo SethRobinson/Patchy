@@ -429,7 +429,8 @@ void kra_file_layer_on_a_network_server_needs_permission() {
   auto entries = synthetic_entries();
   entries[1].data = bytes_of(maindoc);
   const auto container = patchy::ora::detail::zip_archive(entries);
-  const auto folder = std::filesystem::current_path() / "test-artifacts";
+  // Relative: under Node (the wasm suite) current_path() throws because getcwd fails.
+  const auto folder = std::filesystem::path("test-artifacts");
 
   std::vector<std::string> asked;
   std::vector<std::string> blocked;

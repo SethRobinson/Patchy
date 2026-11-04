@@ -10606,10 +10606,13 @@ void ui_opacity_digit_keys_work_from_panels() {
   process_events_for(900);
 
   // Move with the Layers panel focused: the digit sets the selected layer's opacity.
+  // The digit filter acts only for the focus widget: let the tool switch (which rebuilds the
+  // options bar that held focus) settle, then wait for the panel to hold focus (a full ARM64
+  // suite run once missed this digit, while the test alone passes there).
   require_action(window, "toolMoveAction")->trigger();
-  QApplication::processEvents();
+  process_events_for(60);
   layer_list->setFocus(Qt::OtherFocusReason);
-  QApplication::processEvents();
+  CHECK(process_events_until([layer_list] { return QApplication::focusWidget() == layer_list; }));
   QTest::keyClick(layer_list, Qt::Key_5);
   process_events_for(60);
   CHECK(opacity_of(upper_id) == 50);

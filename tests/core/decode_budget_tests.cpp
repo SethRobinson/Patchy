@@ -15,6 +15,7 @@
 #include "psd_test_support.hpp"
 #include "test_harness.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -310,8 +311,9 @@ void psd_flat_composite_larger_than_its_data_is_rejected() {
 
 void hdr_resolution_larger_than_its_data_is_rejected() {
   const std::string header = "#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 65535 +X 65535\n";
-  Bytes bytes(header.begin(), header.end());
-  bytes.insert(bytes.end(), 16U, std::uint8_t{0x80});
+  // Sized once and filled: insert-after-range-construct trips a GCC 15 -Warray-bounds false positive.
+  Bytes bytes(header.size() + 16U, std::uint8_t{0x80});
+  std::copy(header.begin(), header.end(), bytes.begin());
   CHECK(rejected_cleanly([&] { (void)patchy::hdr::read_hdr(bytes); }));
 }
 

@@ -1460,6 +1460,13 @@ void ui_font_caches_stay_consistent_across_threads_while_the_database_changes() 
       ++mismatches;
     }
     QApplication::processEvents();
+    // One reset per worker round: a reset per GUI lookup made the worker rebuild the
+    // index on nearly every call on a host with many fonts (Linux fontconfig), so it
+    // finished too few rounds. The next reset still lands while that round runs.
+    const int seen = rounds.load();
+    while (rounds.load() == seen && clock.elapsed() < 20000) {
+      std::this_thread::yield();
+    }
   }
   stop.store(true);
   worker.join();

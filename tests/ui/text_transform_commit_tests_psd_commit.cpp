@@ -676,11 +676,18 @@ void ui_restaurant_menu_dishes_commit_matches_photoshop_bands_if_available() {
   if (probe->committed_bands.size() != probe->original_bands.size()) {
     return;
   }
+  // macOS substitutes its own font for the missing one, and since #598 it fills that font's
+  // glyph outlines, whose ink ends band 3 12 px above Photoshop's (Windows and Linux: 5 px).
+#ifdef Q_OS_MACOS
+  constexpr int kBottomTolerance = 13;
+#else
+  constexpr int kBottomTolerance = 10;
+#endif
   for (std::size_t i = 0; i < probe->original_bands.size(); ++i) {
     // Band bottoms ride the baselines (leading model); substitute-font descenders and the
     // one-time anchor settle between the conversion (PSD-geometry-aligned placement) and
     // re-edits (pure transform placement) move them a few pixels at most.
-    CHECK(std::abs(probe->committed_bands[i].bottom - probe->original_bands[i].bottom) <= 10);
+    CHECK(std::abs(probe->committed_bands[i].bottom - probe->original_bands[i].bottom) <= kBottomTolerance);
     CHECK(std::abs(probe->committed_bands[i].top - probe->original_bands[i].top) <= 12);
   }
   // Total block height within 2% of Photoshop's 785px (the collapsed-spacing bug halved it).
