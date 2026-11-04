@@ -18,6 +18,7 @@
 #include "ui/canvas_widget.hpp"
 #include "filters/gmic/gmic_engine.hpp"
 #include "ui/main_window_shared.hpp"
+#include "ui/start_panel.hpp"
 #include "ui/main_window_actions_internal.hpp"
 
 #include "ai/segmentation_engine.hpp"
@@ -322,6 +323,15 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
     const auto* clipboard = QApplication::clipboard();
     create_clipboard_document(clipboard != nullptr ? clipboard->image() : QImage(), tr("New document"));
   });
+  // The Home Screen's Clipboard button is this command (GitHub issue 626): same enabled
+  // state, same trigger, so the preview-dialog lock and document path stay in one place.
+  if (start_panel_ != nullptr) {
+    start_panel_->set_clipboard_available(open_clipboard_action->isEnabled());
+    connect(open_clipboard_action, &QAction::changed, start_panel_, [this, open_clipboard_action] {
+      start_panel_->set_clipboard_available(open_clipboard_action->isEnabled());
+    });
+    connect(start_panel_, &StartPanel::open_clipboard_requested, open_clipboard_action, &QAction::trigger);
+  }
 #endif
   // A whole folder of images as tabs (the other half of the PDF round trip: pages
   // exported to a folder come back as one document each).

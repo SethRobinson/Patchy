@@ -34818,10 +34818,6 @@ Zablokowano: %1</translation>
         <translation>Edycja zdjęć typu open source. Za darmo na zawsze, bez subskrypcji.</translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation>Nowy dokument...</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>Otwórz...</translation>
     </message>
@@ -34884,6 +34880,18 @@ Zablokowano: %1</translation>
     <message>
         <source>Remove from Recent Files</source>
         <translation>Usuń z ostatnich plików</translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation>Nowy...</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>Schowek</translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
+        <translation>Nowy dokument z obrazu w schowku</translation>
     </message>
 </context>
 <context>

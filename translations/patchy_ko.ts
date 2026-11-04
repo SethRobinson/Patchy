@@ -34646,10 +34646,6 @@ Locked: %1</source>
         <translation>오픈 소스 사진 편집. 영원히 무료이며 구독이 필요하지 않습니다.</translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation>새 문서...</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>열기...</translation>
     </message>
@@ -34712,6 +34708,18 @@ Locked: %1</source>
     <message>
         <source>Remove from Recent Files</source>
         <translation>최근 파일에서 제거</translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation>새로 만들기...</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>클립보드</translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
+        <translation>클립보드의 이미지로 새 문서 만들기</translation>
     </message>
 </context>
 <context>

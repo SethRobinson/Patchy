@@ -34732,10 +34732,6 @@ Verrouillé : %1</translation>
         <translation>Retouche photo open source. Gratuit pour toujours, sans abonnement.</translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation>Nouveau document...</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>Ouvrir...</translation>
     </message>
@@ -34798,6 +34794,18 @@ Verrouillé : %1</translation>
     <message>
         <source>Remove from Recent Files</source>
         <translation>Retirer des fichiers récents</translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation>Nouveau...</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>Presse-papiers</translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
+        <translation>Nouveau document à partir de l&apos;image du presse-papiers</translation>
     </message>
 </context>
 <context>

@@ -34646,10 +34646,6 @@ Locked: %1</source>
         <translation>开源照片编辑。永久免费，无需订阅。</translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation>新建文档...</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>打开...</translation>
     </message>
@@ -34712,6 +34708,18 @@ Locked: %1</source>
     <message>
         <source>Remove from Recent Files</source>
         <translation>从最近使用的文件中移除</translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation>新建...</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>剪贴板</translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
+        <translation>用剪贴板中的图像新建文档</translation>
     </message>
 </context>
 <context>

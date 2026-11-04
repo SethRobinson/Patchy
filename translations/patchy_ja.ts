@@ -34658,10 +34658,6 @@ Locked: %1</source>
         <translation>Seth のサイト: %1</translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation>新規ドキュメント...</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>開く...</translation>
     </message>
@@ -34712,6 +34708,18 @@ Locked: %1</source>
     <message>
         <source>Remove from Recent Files</source>
         <translation>最近使ったファイルから削除</translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation>新規...</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>クリップボード</translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
+        <translation>クリップボードの画像から新規ドキュメントを作成</translation>
     </message>
 </context>
 <context>

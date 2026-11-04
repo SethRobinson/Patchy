@@ -34732,10 +34732,6 @@ Bloccato: %1</translation>
         <translation>Fotoritocco open source. Gratuito per sempre, senza abbonamenti.</translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation>Nuovo documento...</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>Apri...</translation>
     </message>
@@ -34798,6 +34794,18 @@ Bloccato: %1</translation>
     <message>
         <source>Remove from Recent Files</source>
         <translation>Rimuovi dai file recenti</translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation>Nuovo...</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>Appunti</translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
+        <translation>Nuovo documento dall&apos;immagine negli appunti</translation>
     </message>
 </context>
 <context>

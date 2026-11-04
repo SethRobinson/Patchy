@@ -34732,10 +34732,6 @@ Bloqueada: %1</translation>
         <translation>Edición de fotos de código abierto. Gratis para siempre, sin suscripciones.</translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation>Nuevo documento...</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>Abrir...</translation>
     </message>
@@ -34798,6 +34794,18 @@ Bloqueada: %1</translation>
     <message>
         <source>Remove from Recent Files</source>
         <translation>Quitar de archivos recientes</translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation>Nuevo...</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>Portapapeles</translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
+        <translation>Nuevo documento a partir de la imagen del portapapeles</translation>
     </message>
 </context>
 <context>

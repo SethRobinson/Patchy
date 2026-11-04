@@ -34646,10 +34646,6 @@ Locked: %1</source>
         <translation>開放原始碼的相片編輯軟體。永久免費，無需訂閱。</translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation>開新文件...</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>開啟...</translation>
     </message>
@@ -34712,6 +34708,18 @@ Locked: %1</source>
     <message>
         <source>Remove from Recent Files</source>
         <translation>從最近使用的檔案中移除</translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation>開新檔案...</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>剪貼簿</translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
+        <translation>以剪貼簿中的影像開新檔案</translation>
     </message>
 </context>
 <context>
