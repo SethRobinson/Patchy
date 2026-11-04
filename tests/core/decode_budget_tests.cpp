@@ -52,8 +52,10 @@ void decode_budget_checks_products_and_the_32_bit_cap() {
   CHECK(patchy::checked_multiply(0U, ~std::uint64_t{0}) == std::uint64_t{0});
   CHECK(!patchy::checked_multiply(std::uint64_t{1} << 32U, std::uint64_t{1} << 32U).has_value());
   CHECK(!patchy::checked_pixel_count(-1, 4).has_value());
-  CHECK(patchy::checked_pixel_count(300000, 200000) == std::uint64_t{60000000000});
-  CHECK(!patchy::checked_pixel_count(300000, 300000).has_value());  // past 2^36
+  CHECK(patchy::kMaxDecodePixels ==
+        (sizeof(std::size_t) >= 8 ? patchy::kMaxDecodePixels64 : patchy::kMaxDecodePixels32));
+  CHECK(patchy::checked_pixel_count(300000, 200000, patchy::kMaxDecodePixels64) == std::uint64_t{60000000000});
+  CHECK(!patchy::checked_pixel_count(300000, 300000, patchy::kMaxDecodePixels64).has_value());  // past 2^36
   // The PCX case that wraps a 32-bit size_t: 3 x 43691 bytes per row x 32768 rows is
   // 2^32 + 32768. A 32-bit build refuses it; the 64-bit cap still allows it.
   CHECK(!patchy::checked_pixel_count(3 * 43691, 32768, patchy::kMaxDecodePixels32).has_value());
