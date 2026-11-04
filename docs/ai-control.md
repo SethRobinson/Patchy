@@ -49,9 +49,9 @@ entry records as `InstallLocation`, and Help > Set up AI Control always pastes
 the real paths. Register the connector and install the skill separately. Putting a
 skill in a repository does not install it in a client.
 
-For a Windows source build, the same dialog works from `build/release/patchy.exe`:
-it resolves `build/release/patchy-mcp.exe` and the assembled
-`build/release/ai/patchy-control`. Use absolute output paths or configure the
+For a Windows source build, the same dialog works from `build/<preset>/patchy.exe`
+(development builds are `build/opt-dev`): it resolves `patchy-mcp.exe` and the assembled
+`ai/patchy-control` beside it. Use absolute output paths or configure the
 server's working directory.
 
 `agent-kit/patchy-control/SKILL.md` is the stable client entry point. Install only

@@ -318,7 +318,7 @@ are downscaled diffuse maps from Poly Haven (https://polyhaven.com), published
 under CC0 ("You can use our assets for any purpose, including commercial work.
 You do not need to give credit or attribution"). All are real photo-scanned
 surfaces created by named human artists (no AI generation, per
-docs/legal-constraints.md); the 1K PNG masters were fetched from dl.polyhaven.org on
+docs/legal-licensing.md); the 1K PNG masters were fetched from dl.polyhaven.org on
 2026-07-12 and downscaled losslessly (no JPEG step) with a seam-preserving
 3x3-tile filter.
 
@@ -357,7 +357,7 @@ folders such as Animals, Nature and Games, plus most of Arrows and Symbols; ids
 `src/ui/shapes/game-icons.json`) are outlines from the game-icons.net collection
 (https://game-icons.net, repository https://github.com/game-icons/icons at commit
 `82d948812bfe3f269ef8f731dcdb07b08160edc4`), drawn by the people below (no AI generation, per
-docs/legal-constraints.md). They are licensed under the Creative Commons Attribution 3.0
+docs/legal-licensing.md). They are licensed under the Creative Commons Attribution 3.0
 Unported license (https://creativecommons.org/licenses/by/3.0/), except Viscious Speed's and
 Zeromancer's, which are CC0. Changes: the black background square was removed, the outlines
 were renamed, sorted into Patchy's own folders and scaled to a unit box; the selection list is

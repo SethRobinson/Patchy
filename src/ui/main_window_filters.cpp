@@ -2413,7 +2413,8 @@ bool MainWindow::prompt_rasterize_procedural_layer(LayerId layer_id,
     return false;
   }
   if (cli_automation_mode_) {
-    // A prompt would block unattended runs; keep the plug-in path's refusal.
+    // A prompt would block unattended runs, so CLI automation refuses with a
+    // status message instead of prompting.
     show_status_error(
         tr("Rasterize Text, Smart Object, and Shape layers before editing their pixels"));
     return false;

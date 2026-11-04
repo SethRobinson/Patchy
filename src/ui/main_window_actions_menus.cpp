@@ -1269,7 +1269,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_smart_objects_menu->addAction(layer_smart_object_to_layers_action_);
   layer_smart_objects_menu->addAction(layer_smart_object_to_normal_action_);
   connect(layer_smart_objects_menu, &QMenu::aboutToShow, this, [this] { refresh_smart_object_action_states(); });
-  // Commands on existing shapes (docs/vector-commands.md). A submenu keeps the
+  // Commands on existing shapes (docs/vector-commands-shapes.md). A submenu keeps the
   // Layer menu inside its wasm-viewport row bound.
   auto* layer_shape_menu = new QMenu(tr("Shape"), layer_menu);
   layer_shape_menu->setObjectName(QStringLiteral("layerShapeMenu"));
@@ -1760,7 +1760,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_document_action(layer_export_menu->menuAction());
   // The Layer menu's rows, in display order (Seth, October 31, 2026): five groups, with the
   // fill and merge commands in their own submenus. ui_main_window_renders_color_controls pins
-  // the row bound (21 rows). Shortcuts still fire from the submenus.
+  // the row bound (22 rows). Shortcuts still fire from the submenus.
   auto* layer_fill_menu = new QMenu(tr("&Fill"), layer_menu);
   layer_fill_menu->setObjectName(QStringLiteral("layerFillMenu"));
   bind_action_text(layer_fill_menu->menuAction(), QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "&Fill"));

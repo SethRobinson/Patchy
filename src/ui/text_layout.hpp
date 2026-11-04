@@ -20,7 +20,7 @@
 //
 // Document construction lives in text_document.cpp; text_render.cpp owns the
 // render plan and raster pass. The owning plan keeps its document alive for every
-// line handle. See docs/text-tool.md.
+// line handle. See docs/text-tool-layout.md.
 
 #include <QFont>
 #include <QPointF>
@@ -174,7 +174,7 @@ struct PhotoshopLineMetrics {
 // lays it out: the lines' advance extents (tracking between glyphs only), top = first baseline
 // - (em + cap height) / 2, bottom = last baseline (Photoshop leading) + the font's head yMin.
 // Box text keeps the frame and only raises its top: cap height - (em + cap height) / 2 above it.
-// nullopt for an empty document. Calibrated on 45 Windows fonts in docs/warp.md.
+// nullopt for an empty document. Calibrated on 45 Windows fonts in docs/warp-text.md.
 [[nodiscard]] std::optional<QRectF> photoshop_warp_box(const QTextDocument& document, bool boxed, QRectF frame);
 
 // Box text keeps a line only while its BASELINE is inside the frame (Photoshop 2026, Arial

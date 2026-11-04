@@ -23,7 +23,7 @@ namespace patchy {
 [[nodiscard]] const std::vector<std::uint8_t>& default_cmyk_profile();
 // The gray profile an untagged Grayscale PSD is read through: Patchy's own model of a
 // Dot Gain 20% gray (Photoshop's default gray working space), built in memory. Its tone
-// curve is a power law fitted to the converted output only (docs/file-formats.md), so no
+// curve is a power law fitted to the converted output only (docs/file-formats-psd.md), so no
 // third-party profile data is shipped.
 [[nodiscard]] const std::vector<std::uint8_t>& assumed_gray_profile();
 

@@ -8,7 +8,7 @@
 
 namespace patchy::ui {
 
-// What a running save reports to its progress dialog (docs/file-formats.md, "Save
+// What a running save reports to its progress dialog (docs/file-formats-saving.md, "Save
 // progress"). The writer may run on a worker thread; the UI thread reads state().
 class SaveProgress {
 public:

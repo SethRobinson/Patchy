@@ -31,7 +31,7 @@ struct ImageSaveOptions {
   bool jpeg_progressive{false};
   bool jpeg_optimize{false};
   // JPEG: a save that writes EXIF adds an IFD1 thumbnail of the saved image
-  // (docs/file-info.md, "Thumbnails"). Export for Web clears it unless "Include thumbnail"
+  // (docs/file-info-save-stamp.md, "Thumbnails"). Export for Web clears it unless "Include thumbnail"
   // is on; scripts pass `thumbnail`.
   bool jpeg_exif_thumbnail{true};
   // With jpeg_exif_thumbnail, a JPEG that would carry no EXIF (Metadata None) gets a minimal

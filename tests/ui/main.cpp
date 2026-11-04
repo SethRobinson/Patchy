@@ -132,8 +132,8 @@ LONG WINAPI report_access_violation(EXCEPTION_POINTERS* info) {
   }
   // The walk above stops at the first frame it cannot unwind (a fault inside
   // the heap manager prints nothing), so also leave a minidump beside the
-  // artifacts: `dump_stack.exe <dmp> build\release` symbolizes it offline
-  // against the matching PDB (docs/testing.md).
+  // artifacts to symbolize offline against the PDBs of the build that ran
+  // (docs/testing.md).
   char dump_path[MAX_PATH] = {};
   snprintf(dump_path, sizeof(dump_path), "test-artifacts\\crash-%lu.dmp",
            static_cast<unsigned long>(GetCurrentProcessId()));

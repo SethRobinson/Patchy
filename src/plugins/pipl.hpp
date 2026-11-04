@@ -5,7 +5,7 @@
 // header, section table, the resource directory) and parses the property list
 // out of the raw bytes, so scanning a plug-in folder never loads or executes a
 // plug-in. Patchy's own declarations, written from the public plug-in
-// documentation; see docs/plugins.md and docs/legal-constraints.md.
+// documentation; see docs/plugins.md and docs/legal-licensing.md.
 
 #include <array>
 #include <cstdint>

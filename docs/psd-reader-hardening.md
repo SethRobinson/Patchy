@@ -1,6 +1,6 @@
 # PSD reader hardening: damaged PackBits and limits
 
-Split out of [file-formats.md](file-formats.md) (October 16, 2026) to keep that file under its size limit. Read before touching `decode_packbits_scanline`, the PSD/PSB header validation or the nesting and record caps.
+Split from [file-formats.md](file-formats.md). Read before touching `decode_packbits_scanline`, the PSD/PSB header validation or the nesting and record caps.
 
 ## Damaged PackBits scanlines
 

@@ -1,7 +1,8 @@
 #pragma once
 
-// The right-hand panel column (docs/right-docks.md): Layers, Channels and Paths as
-// one tab group, then History, Properties, Info and Palette, each a section with a
+// The right-hand panel column (docs/right-docks.md). Its first-launch layout, which
+// Reset Panels restores: Color and Palette as one tab group, Layers, Channels and
+// Paths as another, then Properties, Info and History, each a section with a
 // title row (collapse toggle and title) over its panel. Sections sit in a vertical
 // QSplitter, so the dividers between them drag; a collapsed section is exactly its
 // title row. Dragging a title row (or a group's tab bar) up or down moves its section

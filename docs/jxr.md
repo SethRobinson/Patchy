@@ -3,9 +3,9 @@
 Full record for the JPEG XR reader and writer. Read this before touching `jxr_document_io.*`
 or the tone-map constants. Registry and filter-table wiring rules live in
 [file-formats.md](file-formats.md); the no-vendored-codec boundary lives in
-[legal-constraints.md](legal-constraints.md). Its basis: Patchy ships no JPEG XR codec, so no JPEG XR patent
-claim applies to the binary; the format is friendlier than HEVC (Open Specification Promise,
-2006-2009 priorities) but was never claim-reviewed, so there is no licence to vendor a codec.
+[legal-licensing.md](legal-licensing.md#format-copyright-trademarks-and-assets). Its basis: Patchy ships no JPEG XR codec, so the binary
+contains no JPEG XR coding steps; the format is friendlier than HEVC (Open Specification Promise,
+2006-2009 priorities) but was never claim-reviewed, so vendoring a codec needs that review first.
 
 ## What the format is and why it is here
 
@@ -27,9 +27,9 @@ Windows, so unlike HEIF there is no Store package to probe, no missing-codec mar
 Store deep link, and no codec of Patchy's own. It shares `patchy_formats`' Windows link
 of `windowscodecs` and `ole32` with the HEIF reader.
 
-Linux support was [reviewed](https://github.com/SethRobinson/Patchy/issues/269) and it
-ships the original library published by Microsoft on CodePlex in 2013, but it lacks
-fuzzy fixes and contains crashes. Qt ships no JPEG XR plugin, so
+Linux has no codec Patchy will use ([issue 269](https://github.com/SethRobinson/Patchy/issues/269)):
+the distributions' jxrlib is Microsoft's 2013 CodePlex release or a 2017 snapshot of it, which
+lack the fuzzing fixes and have publicly known crashes. Qt ships no JPEG XR plugin, so
 `read_jxr` and `write_jxr` always throw there. The whole filter-table row is gated on
 `jxr::is_available()`, following the PDF row's conditional-open pattern, so no platform
 offers an open or a save that could only fail.

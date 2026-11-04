@@ -20,7 +20,8 @@
 //   - text layers carry patchy.text.* metadata plus kLayerMetadataPdfPendingText,
 //     rendered by MainWindow::render_pending_pdf_text_layers;
 //   - image layers carry their bytes in the document's SmartObjectStore plus
-//     kLayerMetadataPdfPendingImage, rendered by MainWindow::render_pending_pdf_images.
+//     kLayerMetadataPdfPendingImage, rendered by
+//     MainWindow::render_pending_pdf_image_layers.
 //
 // The rasterizing importer in src/ui/pdf_import.* is the other half of the feature:
 // this one keeps structure, that one keeps fidelity, and the Import PDF dialog

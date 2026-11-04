@@ -1,4 +1,4 @@
-// Color choice in 32-bit documents (docs/high-bit-depth.md, "Color choice at 32 bits"): the
+// Color choice in 32-bit documents (docs/high-bit-depth-color.md, "Color choice at 32 bits"): the
 // Foreground and Background Color windows and the Color panel show the color's linear value
 // and Intensity in stops while the active document is 32-bit, painting carries the
 // Intensity into 32-bit layers, and the Eyedropper keeps a picked value above 1.0.

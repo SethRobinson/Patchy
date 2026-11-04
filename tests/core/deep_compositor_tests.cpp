@@ -1,4 +1,4 @@
-// The 16/32-bit compositor (docs/high-bit-depth.md, Phase 3): every feature composited
+// The 16/32-bit compositor (docs/high-bit-depth-compositor.md, Phase 3): every feature composited
 // at 16 bits narrows to what the 8-bit compositor draws (the differential oracle), and
 // the deep flatten matches Photoshop's own 16-bit and 32-bit renders of the deep
 // fixture corpus (scripts/dev/deep/make_deep_fixtures.py) when it is present.

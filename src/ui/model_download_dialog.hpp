@@ -3,7 +3,7 @@
 // The progress dialog of every start_model_download transfer the user starts (the High
 // Quality Object Selection model, the watermark models, a one-click update): what is being
 // fetched, file N of M with its size, and the full link it comes from, so users can see and
-// copy where the bytes come from (docs/ai-selection.md, "The High Quality model").
+// copy where the bytes come from (docs/ai-selection-models.md, "The High Quality model").
 
 #include "ui/object_selection_model_download.hpp"
 

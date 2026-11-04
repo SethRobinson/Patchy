@@ -14,7 +14,8 @@ does not carry the pinned keys.
 ## When the startup check runs
 
 `MainWindow::begin_startup_update_check` (called from `src/app/main.cpp` only) decides, in
-this order. Every key is permanent; accessors live in `src/ui/app_settings.hpp`.
+this order. Every key is permanent; `src/ui/app_settings.hpp` has accessors for all but
+`updates/checkOnStartup`.
 
 - `updates/checkOnStartup` (bool, default true) is the master switch.
 - `updates/checkIntervalDays` (int: 0, 1, 7, 14 or 30; anything else reads as 0) is the
@@ -68,13 +69,11 @@ version: neither raises a prompt.
    That quit is a posted event, and any window shown before it runs deletes it; more
    important, it is inactive before `app.exec()`. Opening a file given on the command line
    pumps events before the main loop starts (its "Opening ..." progress), the startup update
-   check answers in there, and an update accepted at that point closed the window and started
-   the installer before `exec()`: Qt posted nothing, `exit()` had no loop to stop, and `exec()`
-   then ran with no window while the installer waited two minutes and asked the user to close
-   a Patchy nobody could see (October 2026, Patchy 1.12 started by double-clicking a JPG; a
-   launch without a file was fine). `src/app/main.cpp` now skips `exec()` when the window is
-   already closed at that point, and 250 ms after `lastWindowClosed` a still-hidden main window
-   ends a running loop.
+   check answers in there, and an update accepted at that point closes the window and starts
+   the installer before `exec()`, where Qt posts no quit and `exit()` has no loop to stop.
+   `exec()` would then run with no window while the installer waits for Patchy to exit, so
+   `src/app/main.cpp` skips `exec()` when the window is already closed, and 250 ms after
+   `lastWindowClosed` a still-hidden main window ends a running loop.
 5. `packaging/windows/InstallPatchyLauncher.cs` turns those variables into
    `InstallPatchy.ps1 -Update -InstallDir <dir> -WaitForProcessId <pid>` and removes them
    from the child's environment. Without the variable the wizard runs as before. The
@@ -164,8 +163,9 @@ The key name is permanent, like the other three.
   installer's wait has expired and it has no window left (flow step 6; only that process id,
   only from inside the install folder). AI apps are left alone (see below).
 - The install is per-user and needs no elevation, so there is no UAC prompt in the flow.
-- Announcing a release now means adding the three keys to the `windows` entry as well as
-  bumping `version`; `publish-github-release.ps1` prints them. Still announce last
+- Announcing a release means adding the three installer keys to the `windows` and
+  `windows-arm64` entries (and the AppImage keys to `linux`, "AppImage" below) as well as
+  bumping their `version`; `publish-github-release.ps1` prints them. Still announce last
   (docs/release-process.md). A manifest with a new `version` and stale installer keys would
   fail the checksum and fall back to the browser download.
 
@@ -209,7 +209,7 @@ rename; there is no installer.
   `ui_update_one_click_replaces_appimage_on_close` (Linux: prompt, download, save prompt,
   settled close, real replacement, read-only fallback). Not automated: the relaunch waiter
   and a real update between two released AppImages; try one with `PATCHY_UPDATE_MANIFEST_URL`
-  pointing at a loopback manifest before the first release that ships it.
+  pointing at a loopback manifest before a release that changes this update path.
 
 ## Connectors that are running during an update
 

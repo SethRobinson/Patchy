@@ -3,9 +3,7 @@
 Read before changing `hdr_document_io`, `exr_document_io`, `jp2_document_io`, the vendored
 tinyexr or OpenJPEG, or their filter-table rows. Registry and filter wiring rules live in
 [file-formats.md](file-formats.md); the licensing record in
-[legal-constraints.md](legal-constraints.md) and [patent-research-formats.md](patent-research-formats.md).
-Added October 16, 2026 for GitHub issue 117 after a corpus sweep showed these as the
-unsupported formats worth having.
+[legal-licensing.md](legal-licensing.md#format-copyright-trademarks-and-assets) and [patent-research-formats.md](patent-research-formats.md).
 
 ## Radiance HDR (.hdr, .rgbe)
 
@@ -50,7 +48,7 @@ unsupported formats worth having.
   `OPJ_CODEC_JP2`, a bare `FF 4F FF 51` codestream `OPJ_CODEC_J2K`.
 - Reads the first image: 1 component gray, 2 gray+alpha, 3 RGB or sYCC (converted, chroma
   planes repeated to full resolution when subsampled), 4 RGBA or CMYK (naive ink mix plus a
-  notice). Signed samples are offset to unsigned, precision 1..16 is rescaled to 8 bits (or
+  notice). Signed samples are offset to unsigned, precision 1..32 is rescaled to 8 bits (or
   16 when the first component exceeds 8). An embedded ICC profile lands in
   `color_state().embedded_icc_profile`. Writes a lossless (5/3 reversible, one layer, up to
   six resolutions) JP2 at the document's integer depth; alpha is written only when some pixel
@@ -61,8 +59,8 @@ unsupported formats worth having.
 
 `src/formats/hdr_transfer.{hpp,cpp}` (Qt-free, decode only) turns PQ (SMPTE ST 2084) and HLG
 (BT.2100) signals into the 32-bit model: linear light, sRGB primaries, 1.0 at SDR reference
-white, which ITU-R BT.2408 puts at 203 nits (`kSdrReferenceWhiteNits`, the same constant
-libjxl's output is scaled by in the JPEG XL reader, [jxl.md](jxl.md)). PQ codes become
+white, which ITU-R BT.2408 puts at 203 nits (`kSdrReferenceWhiteNits`; the JPEG XL reader scales libjxl's output by its own
+`kSdrWhiteNits`, also 203, [jxl.md](jxl.md)). PQ codes become
 nits / 203; HLG codes go through the inverse OETF, then the BT.2100 reference OOTF at a
 1000-nit nominal peak (gamma 1.2, luminance weights of the source primaries), which puts the
 75% signal on 203 nits. A 3x3 matrix built from the source chromaticities (Bradford-adapted

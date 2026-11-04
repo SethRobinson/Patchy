@@ -21,7 +21,7 @@ namespace patchy::ui {
 [[nodiscard]] std::uint64_t document_layer_bytes(const Document& document);
 
 // The status-bar document info field (GitHub issues 202 and 206; see
-// docs/view-navigation.md): one line with the active document's dimensions,
+// docs/view-navigation-status-bar.md): one line with the active document's dimensions,
 // resolution, color mode and bit depth, in that order, between two separators. The
 // field keeps one width for every document (a long sample line in its own font), so
 // the status message after it starts at the same place; a rare longer line is elided.
@@ -73,7 +73,7 @@ private:
   QWidget* separator_after_{nullptr};
 };
 
-// The status-bar selection readout (GitHub issue 355; docs/view-navigation.md): the
+// The status-bar selection readout (GitHub issue 355; docs/view-navigation-status-bar.md): the
 // selection's bounding box as X, Y, W and H in the ruler unit, after the document info
 // field. Shown only while a selection exists or a marquee or lasso drag is in progress.
 class StatusSelectionInfoLabel final : public QLabel {

@@ -145,7 +145,7 @@ float shape_burst_stroke_opacity(const LayerStyleGradient& gradient, float band_
   return composite_blended_rgb({color.red, color.green, color.blue}, destination, mode, alpha, 1.0F);
 }
 
-// Deep twin of fold_effect_color (docs/high-bit-depth.md): the effect color is an 8-bit
+// Deep twin of fold_effect_color (docs/high-bit-depth-compositor.md): the effect color is an 8-bit
 // parameter converted into the domain; the burn/dodge pre-folds keep their 8-bit form.
 [[nodiscard]] DeepChannels fold_effect_color(DeepChannels destination, RgbColor color, float alpha,
                                              BlendMode mode, std::int32_t x, std::int32_t y,

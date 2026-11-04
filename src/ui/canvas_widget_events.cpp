@@ -1626,9 +1626,9 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     // stays clamped to the canvas edges instead of spanning into the margin.
     zoom_start_ = document_ != nullptr ? clamped_document_point(*document_, document_point) : document_point;
     zoom_current_ = zoom_start_;
-    // Scrubby Zoom (docs/view-navigation.md): the press arms a live drag zoom
-    // about the frame-clamped press point instead of a marquee. A click (travel
-    // under kZoomClickSlopPx) still zooms by the fixed factor on release.
+    // Scrubby Zoom (docs/view-navigation-zoom-tool.md): the press arms a live drag zoom
+    // about the frame-clamped press point instead of a marquee. A click (travel under
+    // kZoomClickSlopPx) still takes one zoom-ladder step on release (zoom_click_step).
     zoom_scrubbing_ = zoom_scrubby_;
     zoom_scrub_started_ = false;
     if (zoom_scrubbing_) {

@@ -88,7 +88,7 @@ std::vector<float> stroke_distance_field(const std::vector<float>& base, int wid
 // Distance from every pixel center to the nearest painted (alpha > 0) or, with
 // `sources_are_painted` false, non-solid (alpha < 1) pixel center of `base`, plus that
 // pixel's alpha in `edge_alpha` (0 or 1 where no source exists). The Photoshop stroke
-// band's anchor and last-ring value (docs/layer-effects-render.md "Stroke").
+// band's anchor and last-ring value (docs/layer-effects-render-stroke.md "Stroke").
 void stroke_distance_field_with_edge_alpha(const std::vector<float>& base, int width, int height,
                                            bool sources_are_painted, std::vector<float>& distance,
                                            std::vector<float>& edge_alpha);

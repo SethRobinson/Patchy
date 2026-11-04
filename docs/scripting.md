@@ -10,6 +10,11 @@ Scripting Guide, served to MCP clients as `get_help(guide)`) and
 `scripts/bundled/patchy.d.ts` (TypeScript definitions). BOTH must track every API
 change, and every change gets an entry in [scripting-api-changes.md](scripting-api-changes.md).
 
+Related documents:
+
+- [scripting-engine.md](scripting-engine.md): the binding engine design rules.
+- [scripting-api-changes.md](scripting-api-changes.md): the API change log and its archives.
+
 ## Where things live
 
 - `src/ui/script_engine.{hpp,cpp}`: `ScriptEngineHost`, the engine owner. Run lifecycle,
@@ -58,7 +63,9 @@ change, and every change gets an entry in [scripting-api-changes.md](scripting-a
   Every bundled script must finish cleanly unattended under `--run-script` (cancelled
   pickers return "", showDialog answers its defaults). User scripts live in the per-user
   app-data folder under `scripts/` (`MainWindow::user_scripts_directory()`).
-- Tests: `tests/ui/scripting_tests.cpp`.
+- Tests: `tests/ui/scripting_tests_*.cpp` and `script_pixel_io_tests.cpp`, which
+  `scripting_tests.cpp` registers in a fixed order (later tests consume settings and
+  artifacts); helpers in `scripting_test_support.{hpp,cpp}`.
 
 ## Script icons and metadata
 
@@ -206,7 +213,8 @@ newline-separated fields after the output path, so keys and values must not cont
 newlines. The bundled `Utilities/batch-export.js` is the reference consumer.
 
 - With a running instance: the request forwards over the single-instance socket (the
-  `patchy-cmd:run-script` reserved entry, same scheme as `--screenshot`) and the invoker
+  `patchy-cmd:run-script` reserved entry, same scheme as `--screenshot`,
+  [visual-qa.md](visual-qa.md#command-line-modes)) and the invoker
   exits immediately; file/script requests, Finder opens included, wait until any current
   script finishes. Console output, errors, and a final `[done]` or `[failed]` line reach
   the output file when the run fully completes; the caller polls for it. Warnings are
@@ -251,7 +259,7 @@ file, network, or process API beyond the documented `patchy.io` and `patchy.scri
 helpers and document save/export paths. The single-instance pipe is per-user. Theme
 packages' scripts are the exception: they run in a separate locked-down engine with only
 `patchy.theme` (no files, documents or user-script globals), a per-call time budget, rate
-limits and a trust prompt ([theme-files.md](theme-files.md#theme-scripts)).
+limits and a trust prompt ([theme-files-scripts.md](theme-files-scripts.md#theme-scripts)).
 
 ## Legal posture
 
@@ -261,18 +269,19 @@ limits and a trust prompt ([theme-files.md](theme-files.md#theme-scripts)).
 
 ## Testing
 
-- `tests/ui/scripting_tests.cpp` (`.\patchy_ui_visual_tests.exe ui_script`) covers the
-  engine rules, the CLI output file, the Script Manager, the canvas window, the Scripts
-  menu, save options, hotkeys, and `patchy.io` on Unicode paths; layer moves live in
-  `tests/ui/script_move_tests.cpp`. The engine works offscreen;
-  `ScriptEngineHost::message_backlog()` is the easiest assertion surface.
+- The test files under [Where things live](#where-things-live)
+  (`.\patchy_ui_visual_tests.exe ui_script`) cover the engine rules, the CLI output file,
+  the Script Manager, the canvas window, the Scripts menu, save options, hotkeys, and
+  `patchy.io` on Unicode paths; layer moves live in `tests/ui/script_move_tests.cpp`. The
+  engine works offscreen; `ScriptEngineHost::message_backlog()` is the easiest assertion
+  surface.
 - Manual smoke: every bundled script runs from File > Scripts and unattended under
   `--run-script` (picker-driven ones take `--script-arg` and cancel cleanly without).
 
 ## Future work
 
 Not built: document/save/command hooks for user scripts with a reentrancy design (theme
-scripts have event hooks in their own engine, [theme-files.md](theme-files.md#theme-scripts)),
+scripts have event hooks in their own engine, [theme-files-scripts.md](theme-files-scripts.md#theme-scripts)),
 persistent script storage, macro recording, non-blocking batches, script packaging, an editor REPL.
 Anti-goals: never freeze or fork the API surface, no undocumented escape hatches, and
 scripts stay plain user-editable files.

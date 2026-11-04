@@ -40,7 +40,7 @@ QPointer<ThemeEffectsOverlay>& overlay_slot() {
 }
 
 // Effects draw content, not chrome: their colors are generated hues (the exemption
-// docs/theme-files.md records), varied per burst.
+// docs/theme-files-scripts.md records), varied per burst.
 [[nodiscard]] QColor effect_hue(double unit, double saturation = 0.85, double value = 1.0) {
   return QColor::fromHsvF(static_cast<float>(unit - std::floor(unit)), static_cast<float>(saturation),
                           static_cast<float>(value));

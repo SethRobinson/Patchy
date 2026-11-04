@@ -2,7 +2,7 @@
 // pixel layer, Free Transform lifts only the selected pixels, the box fits the
 // selection, Enter composites the transformed pixels back onto the layer (one undo
 // step, the selection follows), Esc leaves layer and selection untouched, and with
-// no selection the whole layer transforms as before. docs/free-transform.md.
+// no selection the whole layer transforms as before. docs/free-transform-targets.md.
 // Also Select > Transform Selection (GitHub issue 323), which reshapes the outline only.
 #include "core/document.hpp"
 #include "core/layer_metadata.hpp"

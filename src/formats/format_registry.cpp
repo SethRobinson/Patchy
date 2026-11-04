@@ -201,7 +201,7 @@ void register_builtin_formats(FormatRegistry& registry) {
                              [](std::span<const std::uint8_t> bytes) { return exr::read_exr(bytes); },
                              [](const Document& document) { return exr::write_exr(document); },
                              [](std::span<const std::uint8_t> bytes) { return exr::sniff(bytes); }});
-  // JPEG 2000 through the vendored OpenJPEG (docs/hdr-formats.md, docs/legal-constraints.md).
+  // JPEG 2000 through the vendored OpenJPEG (docs/hdr-formats.md, docs/legal-licensing.md).
   registry.register_handler({"patchy.formats.jp2",
                              "JPEG 2000 Image",
                              jp2::jp2_extensions(),
@@ -209,7 +209,7 @@ void register_builtin_formats(FormatRegistry& registry) {
                              [](const Document& document) { return jp2::write_jp2(document); },
                              [](std::span<const std::uint8_t> bytes) { return jp2::sniff(bytes); }});
   // AVIF through the vendored libavif: dav1d decodes, libaom encodes (docs/avif.md,
-  // docs/legal-constraints.md); the browser build registers the row with throwing functions.
+  // docs/legal-licensing.md); the browser build registers the row with throwing functions.
   registry.register_handler({"patchy.formats.avif",
                              "AVIF Image",
                              avif::avif_extensions(),
@@ -217,7 +217,7 @@ void register_builtin_formats(FormatRegistry& registry) {
                              [](const Document& document) { return avif::write_avif(document); },
                              [](std::span<const std::uint8_t> bytes) { return avif::sniff(bytes); }});
   // JPEG XL through the vendored libjxl on every platform (docs/jxl.md). The encoder's
-  // patches and dots stay off on every write (docs/legal-constraints.md).
+  // patches and dots stay off on every write (docs/legal-licensing.md).
   registry.register_handler({"patchy.formats.jxl",
                              "JPEG XL Image",
                              jxl::jxl_extensions(),
@@ -228,7 +228,7 @@ void register_builtin_formats(FormatRegistry& registry) {
   // .afphoto/.afdesign/.afpub generations share the .af magic and wire grammar, so
   // one handler covers them all; pre-2.x files that fail the tree parse fall back
   // to the embedded-preview import with a notice. The container spec record lives
-  // in docs/file-formats.md ".af (Affinity)".
+  // in docs/af-format.md.
   registry.register_handler({"patchy.formats.af",
                              "Affinity Document",
                              {".af", ".afphoto", ".afdesign", ".afpub"},

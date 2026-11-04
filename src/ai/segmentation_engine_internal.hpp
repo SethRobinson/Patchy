@@ -21,9 +21,11 @@ namespace patchy::ai {
 inline constexpr std::int64_t kDecoderMaskCount = 4;
 inline constexpr std::int64_t kDecoderLowResSize = 256;
 
-// Pinned by scripts/setup-ai-deps.* (docs/ai-selection.md lists provenance and licenses): the
-// conversions made by scripts/ai/quantize_models.py. Desktop builds run EfficientViT-SAM XL0
-// (float16 weights); the web build runs MobileSAM (int8), a much smaller first-use download.
+// Pinned by scripts/setup-ai-deps.* (docs/ai-selection-models.md lists provenance and licenses):
+// the conversions made by scripts/ai/quantize_models.py. MobileSAM (int8) is the Standard
+// model, bundled with desktop builds and the only one in the web build (a much smaller
+// first-use download there). EfficientViT-SAM XL0 (float16 weights) is the High Quality model:
+// a desktop-only download, used once present and enabled (SamModel in segmentation_engine.hpp).
 // Both decoders are SAM's: same prompts, four masks with predicted IoUs, no mask input.
 inline constexpr const char* kEfficientSamEncoderFile = "efficientvit_sam_xl0_encoder_fp16.onnx";
 inline constexpr const char* kEfficientSamDecoderFile = "efficientvit_sam_xl0_decoder_multi_fp16.onnx";

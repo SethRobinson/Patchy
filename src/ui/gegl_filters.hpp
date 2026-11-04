@@ -71,9 +71,10 @@ inline constexpr char kGeglFilterIdPrefix[] = "gegl.";
 // About GEGL (docs/gegl-filters.md, "Credit"): what GEGL is, who makes it, its licenses and
 // where its source is. `scan` may be null (before a scan, or with no GEGL found).
 void show_about_gegl(QWidget* parent, const GeglFilterScanResult* scan);
-// Lets GIMP files apply their layer effects through Patchy's own GEGL (docs/xcf.md, "Layer
-// effects (GIMP 3 filters)"): sets the XCF reader's effect runner to one helper run per
-// effect. Clears it and returns false in a build without the bundle.
+// Lets GIMP files apply their layer effects through Patchy's own GEGL
+// (docs/xcf-layer-effects.md, "Layer effects (GIMP 3 filters)"): sets the XCF reader's effect
+// runner to one helper run per effect. Clears it and returns false in a build without the
+// bundle.
 bool install_xcf_effect_runner();
 
 }  // namespace patchy::ui

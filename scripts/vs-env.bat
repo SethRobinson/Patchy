@@ -2,7 +2,7 @@
 rem Enters the Visual Studio x64 developer environment in the CALLING cmd session,
 rem forwarding every argument to VsDevCmd.bat:
 rem
-rem   scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul && cmake --build --preset release
+rem   scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul && cmake --build --preset opt-dev
 rem
 rem No setlocal here on purpose: the point of the script is to leave VsDevCmd's
 rem variables behind for whoever called it.
@@ -13,7 +13,7 @@ rem cmd refuses to resolve a bare name from the current directory when
 rem NoDefaultCurrentDirectoryInExePath is set, which non-interactive shells do set.
 rem VsDevCmd treats that probe as optional and still returns 0, but it prints
 rem "'vswhere.exe' is not recognized", which reads like a build failure in a release
-rem log. See docs/release-process.md.
+rem log. See docs/release-process-scripts.md.
 rem
 rem The dev box has VS Community 2026 at the fixed path below. Other machines (the
 rem Windows offload box's VS 2026 Build Tools, see docs/building.md) are found through

@@ -224,7 +224,7 @@ bool paint_printer_page(QPrinter& printer, const Document& document, const Print
 // and the next dialog crashes the app instead of reporting an error. A broken
 // Microsoft Print to PDF does exactly this: its CreateDC fails with
 // ERROR_PATH_NOT_FOUND while the spooler still hands out a DEVMODE, so testing the
-// device context is the only reliable check. See docs/platform.md.
+// device context is the only reliable check. See docs/platform-sites.md.
 bool windows_printer_device_is_usable(const QString& printer_name) {
   const auto name = printer_name.toStdWString();
   // The same call the engine makes; a null DEVMODE just means driver defaults.

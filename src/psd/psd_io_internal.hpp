@@ -525,7 +525,7 @@ void write_descriptor_text_item(BigEndianWriter& writer, std::string_view key, s
 // Channel/composite image-data codec helpers (definitions in psd_channel_data.cpp).
 EncodedChannel encode_channel(std::uint16_t id, std::int32_t width, std::int32_t height,
                               std::span<const std::uint8_t> raw_data, bool wide_rle_counts);
-// Deep documents (docs/high-bit-depth.md): one channel of `buffer`, which must already be
+// Deep documents (docs/high-bit-depth-formats.md): one channel of `buffer`, which must already be
 // at `depth`, as big-endian samples (a channel index past the buffer's count yields a
 // constant full-scale plane, the opaque alpha of an RGB layer).
 [[nodiscard]] std::vector<std::uint8_t> big_endian_plane(const PixelBuffer& buffer, std::size_t channel);
@@ -561,7 +561,7 @@ private:
 void write_rgb8_image_data(BigEndianWriter& writer, const PixelBuffer& pixels, bool wide_rle_counts);
 [[nodiscard]] std::optional<DocumentAlphaComposite> document_alpha_composite(const Document& document);
 [[nodiscard]] DocumentAlphaComposite merged_flatten_composite(const Document& document);
-// A 16 or 32-bit document's composite at its own depth (docs/high-bit-depth.md): `rgb`
+// A 16 or 32-bit document's composite at its own depth (docs/high-bit-depth-formats.md): `rgb`
 // is canvas-sized 3-channel at `depth`, `alpha` the matching coverage plane (empty when
 // channel_name is), `alpha8` that plane narrowed for the writer's channel bookkeeping.
 struct DeepDocumentComposite {
@@ -607,7 +607,7 @@ std::vector<std::uint8_t> read_channel_data(BigEndianReader& reader, std::uint16
                                             const ChannelDecodeInfo& decode_info = {},
                                             std::size_t* damaged_rows = nullptr);
 // The same decode without the 8-bit conversion: the channel's big-endian samples at the
-// file's depth, for documents that keep it (docs/high-bit-depth.md).
+// file's depth, for documents that keep it (docs/high-bit-depth-formats.md).
 std::vector<std::uint8_t> read_channel_samples(BigEndianReader& reader, std::uint16_t compression, std::int32_t width,
                                                std::int32_t height, bool wide_rle_counts,
                                                const ChannelDecodeInfo& decode_info = {},
@@ -800,7 +800,7 @@ void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encode
 // Vector shape/path codec: vmsk/vsms path records, SoCo/GdFl/PtFl fill
 // content, vstk stroke style, vogk live-shape origination, and the saved-path
 // image resources (definitions in psd_vector.cpp; encodings recorded in
-// docs/vector-tools.md from PS 27.8 captures).
+// docs/vector-psd-encodings.md from PS 27.8 captures).
 struct ParsedVectorMaskBlock {
   VectorPath path;
   bool disabled{false};

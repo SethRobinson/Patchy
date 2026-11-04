@@ -10,7 +10,7 @@ The web build ships with the desktop releases because the site redeploy is its o
 
 There are no versioned wasm artifacts: the site serves stable names and a redeploy replaces them in place.
 
-Every browser, Safari and iOS included, gets the one threaded artifact ([wasm-memory.md](wasm-memory.md)). The `wasm-release-st` preset is for manual comparisons only and is not staged or uploaded; a leftover `www/patchy/st/` on the server is unreferenced. `build-wasm.bat` additionally stages the memory-diagnostics harness (`stress-harness.html` from `scripts\wasm`, cache-tag substituted, plus `memsoak.js`). The production upload list deliberately excludes the harness; `upload-wasm-to-rtsoft-beta.bat` publishes the same staged site plus the harness to the staging copy at `rtsoft.com/patchy-beta` (same nopause convention and COOP/COEP checks) for Safari/iOS device testing. The diagnostics workflow lives in [performance.md](performance.md).
+Every browser, Safari and iOS included, gets the one threaded artifact ([wasm-memory.md](wasm-memory.md)). The `wasm-release-st` preset is for manual comparisons only and is not staged or uploaded; a leftover `www/patchy/st/` on the server is unreferenced. `build-wasm.bat` additionally stages the memory-diagnostics harness (`stress-harness.html` from `scripts\wasm`, cache-tag substituted, plus `memsoak.js`). The production upload list deliberately excludes the harness; `upload-wasm-to-rtsoft-beta.bat` publishes the same staged site plus the harness to the staging copy at `rtsoft.com/patchy-beta` (same nopause convention and COOP/COEP checks) for Safari/iOS device testing. The diagnostics workflow lives in [wasm-memory.md](wasm-memory.md#headless-wasm-stress-harness).
 
 ## Remote web build
 

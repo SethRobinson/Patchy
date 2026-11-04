@@ -2,6 +2,11 @@
 
 Everything a new blend mode touches, and the calibrated rounding rules. `BlendMode` (core/layer.hpp) is append-only: the enum rides combo item data, casts, and file maps keyed on the existing order, so only append (see the universal invariants in `AGENTS.md`).
 
+Related documents:
+
+- [blend-modes-groups.md](blend-modes-groups.md): group compositing (Pass Through fades, isolation, styled groups, channel restrictions) and Knockout.
+- [blend-modes-cmyk.md](blend-modes-cmyk.md): imported 8-bit CMYK stacks composited on their inks, the RGB-renderer fallbacks and the untagged working profile.
+
 ## Adding a mode: the full checklist
 
 Adding a blend mode means updating ALL of:
@@ -14,67 +19,13 @@ Adding a blend mode means updating ALL of:
 - The Aseprite map in both directions.
 - `script_api.cpp`: `kBlendModeIds` is INDEXED BY THE ENUM ORDINAL, so its size literal has to grow with the enum and the new id appends at the end. Scripts hard-code these strings.
 - `svg_io_internal.hpp`: `blend_mode_css` has a `default:` returning the empty string, which is what raises the SVG rasterization barrier. Nothing to do unless CSS can express the mode.
-- `af_document_io.cpp`: read-only Affinity map (`map_blend_mode`). The wire enum is VERSIONED: a version-0 base table shared by layer `Blnd` and effect `BlnM`, versioned id reuse for later modes, and a version-6 renumbering that matches the JS-facing table; the full record is in [file-formats.md](file-formats.md). Affinity-only modes remap through `approximate_blend_mode` to the closest existing mode (probe-scored; Average folds half opacity, ContrastNegate stays Normal + notice, and Erase folds into an isolated group + inverse-alpha group mask, see the Erase bullet in [file-formats.md](file-formats.md)), deliberately NEVER new BlendMode values, so every import stays PSD-savable. Leave an entry alone unless a real Affinity file pins it (blend-sweep-v0.afphoto and the af-spike blend_probes renders are the evidence).
+- `af_document_io.cpp`: read-only Affinity map (`map_blend_mode`). The wire enum is VERSIONED: a version-0 base table shared by layer `Blnd` and effect `BlnM`, versioned id reuse for later modes, and a version-6 renumbering that matches the JS-facing table; the full record is in [af-format.md](af-format.md#blend-modes). Affinity-only modes remap through `approximate_blend_mode` to the closest existing mode (probe-scored; Average folds half opacity, ContrastNegate stays Normal + notice, and Erase folds into an isolated group + inverse-alpha group mask, see Erase in [af-format.md](af-format.md#erase-blend-mode)), deliberately NEVER new BlendMode values, so every import stays PSD-savable. Leave an entry alone unless a real Affinity file pins it (blend-sweep-v0.afphoto and the af-spike blend_probes renders are the evidence).
 - `recipe_blend_mode_supported` (`filters/filter_registry.hpp`): decide explicitly whether recipes and Smart Filters can execute the mode. It is the one guard; never reintroduce an ordinal range or a second copy.
 - `translations/patchy_<code>.ts` (every language): the display name, after `scripts\update-translations.ps1` adds the entry ([localization.md](localization.md)).
 
 Most of the exhaustive `switch (mode)` maps are caught by `-Wswitch` because they have no `default:`. The ones that are NOT: the `if`-chains in `blend_mode_from_key` and `blend_mode_from_descriptor_enum`, the `kBlendModes` array, and `kBlendModeIds`. Check those four, and `blend_math_deep.cpp`, by hand.
 
 ## Calibrated math rules
-
-### Imported CMYK documents
-
-The CPU and canvas renderers composite supported 8-bit CMYK stacks on four
-inverted ink channels before converting the result to sRGB. Raster layers use
-their retained native planes while their pixels are unchanged. Edited pixels
-and regenerated Smart Objects convert through the document's CMYK profile;
-native solid/gradient descriptors supply their original ink colors for fresh
-vector rendering. Pixel edits invalidate the source-plane reuse and undo
-restores it. The conversion/raster preparation cache is bounded and keyed by
-layer render revision and source-space identity. A layer at an uncached revision
-(the one being painted, or a Move override's pixels) separates only its part
-inside the render clip, so a brush dab costs its own rect; the profile's two
-Little CMS transforms are built once per source space (`ink_transforms`), never
-per render. Building them per render cost 44 ms per dab (issue 220's sample),
-in CMYK Proof and RGB mode alike.
-`native_cmyk_render_stats` counts transform builds and separated pixels;
-`compositor_cmyk_dab_renders_reuse_transforms_and_separate_only_their_rect` holds
-both per dab, and `patchy_perf_tests cmykbrush` times strokes on that sample
-(`local-test-fixtures/cmyk-brush-perf/ag-psd-cmyk-src.psd`).
-
-Component modes use the existing byte kernels on C/M/Y and K. Hue, Saturation
-and Color retain backdrop K; Luminosity takes source K. Darker/Lighter Color
-choose one complete four-channel color by comparing `(30*C + 59*M + 11*Y)*K`
-on inverted bytes, keeping the backdrop on a tie. The comparison precedes ICC
-conversion. Photoshop COM captures of 512 color pairs pin that selection rule;
-the committed `cmyk-render/calibration` fixture covers all 26 color modes.
-This coupled selection applies to layer and group blends. Non-Normal vector
-strokes require a coupled ink bake and currently select the RGB renderer.
-
-Masks, layer Opacity/Fill, isolated groups, faded Pass Through groups and artboards (over
-their paper's inks) keep their native-channel composition. Normal-mode Threshold uses native inks too
-([adjustment calibration](adjustments-calibration.md)). Other adjustments, layer effects, clipping
-runs, knockout and rendered Blend If/channel restrictions currently select the
-existing RGB renderer for the whole stack. Noise/pattern fills and compound
-vector paints also use that fallback. Deep CMYK and Dynamic Vector Preview
-remain on that renderer. Untagged CMYK editing pixels use the same installed
-working-profile fallback as the native composite.
-Flat imports without native layer records keep their already-converted RGB
-preview; sending it back through the CMYK gamut would introduce avoidable error.
-Native save eligibility is separate: [preservation rules](psd-native-color.md).
-
-For untagged CMYK, Patchy uses U.S. Web Coated (SWOP) v2 if that profile is already
-installed in a conventional Adobe/system profile directory. No Adobe profile
-is bundled or downloaded. Without it the existing mathematical conversion is
-the fallback. Embedded profiles take precedence; an assumed profile is not
-silently embedded into the original PSD. Untagged color therefore depends on
-installed profiles, and may differ from another application's chosen working
-space. Stored Smart Object previews in an untagged file may reflect an unknown
-earlier working profile; even Photoshop can change them when rebuilding the
-embedded contents. Do not infer that profile from the stored preview colors.
-`cmyk-render/smart-gradient` pins fresh Smart Object and ink-gradient
-rendering; the core tests cover partial bounds, cache invalidation and Unicode
-profile paths.
 
 - Non-separable modes (Hue/Saturation/Color/Luminosity) use the PDF-spec set_lum/set_sat algorithm.
 - Exclusion rounds the s*d/255 product BEFORE doubling; Divide rounds to nearest, and its 0/0 corner follows the destination (d=0 gives 0 even at s=0; psd-tools' `divide.psd`). Both verified against Photoshop and Aseprite.
@@ -88,110 +39,6 @@ profile paths.
   256-scale Burn/Dodge kernels in `composite_special_fill_rgb` are calibrated
   separately and do not follow this rule.
 - `aseprite_blend_modes_match_aseprite_render` pins the Aseprite-parity set in-suite.
-
-## Group compositing: Pass Through, isolation, and group opacity
-
-Calibrated against a Photoshop 2026 COM-authored fixture
-(`test-fixtures/psd/photoshop-group-opacity.psd/.bmp`, pinned within 1/255 by
-`psd_photoshop_group_opacity_fixture_matches_render`). The group branch lives
-in `composite_layer` (src/render/layer_compositor.hpp); the UI renderer routes
-every blend-if, masked, non-pass-through, or faded group through it
-(src/ui/image_document_io.cpp), which also covers Merge Group and Merge Down.
-
-- **Pass Through group opacity is a post-composite fade.** Children composite
-  at full strength against the true backdrop (child blend modes and interior
-  adjustments keep meeting the layers below), then the whole result
-  interpolates back toward the pre-group backdrop by the group opacity: the
-  PDF non-isolated-group alpha formula. One fade applies to the composite, so
-  overlapping children never double-fade. Implemented as `CompositeSnapshot` +
-  `fade_toward_snapshot` + a `store_color` overwrite primitive (source-over
-  cannot reduce coverage). The fade covers the full clip because an interior
-  adjustment with unlimited bounds can touch backdrop pixels outside the
-  children's render bounds. A group raster/vector mask still attenuates each
-  child contribution in place; the fade applies once on top.
-- **Non-pass-through groups isolate.** Children composite into a transparent
-  `IsolatedClipGroupTarget` (bounded by the children's render bounds when no
-  overrides are active) and the merged result meets the backdrop with the
-  group's blend mode, opacity, and mask: a Multiply child inside a Normal
-  group does not see the backdrop. Groups default to `BlendMode::Normal` in
-  core, so tests that want Photoshop's default folder behavior must set
-  `BlendMode::PassThrough` explicitly (the UI folder command and PSD import
-  do).
-- **Blend-if groups always isolate** (calibrated separately; see the blend-if
-  group tests). A Pass Through group WITH blend-if keeps that path, where
-  opacity is an alpha multiply on the merged result.
-- **Every compositor target must implement `store_color`** (direct overwrite
-  of straight color + coverage) alongside `composite_color`/`sample_color`:
-  Rgb8PixelBufferTarget, Rgba8PixelBufferTarget and Rgb8PerPixelTarget
-  (render/composite_targets.hpp), QImageCompositeTarget, IsolatedClipGroupTarget,
-  and the forwarding GroupMaskedTarget.
-- **Styled groups render their layer effects** (the calibrated rules live in
-  docs/ps-compat.md "Layer effects on GROUPS"). A non-pass-through
-  styled group routes its flattened `IsolatedClipGroupTarget` content through
-  `composite_pixel_layer` via a pixel override (the group plays the layer's
-  role; folder Fill fades the content only). A
-  PASS-THROUGH styled group does NOT isolate: children composite against the
-  true backdrop as always, while a silhouette flatten feeds exterior effects
-  (painted before the children) and interior effects (painted above them,
-  each with its own blend mode). Style-less groups take the unstyled paths; `group_style_renders` (core/layer_render_utils) is the gate, and
-  `layer_render_bounds`/`layer_effect_padding` include the group's own style
-  padding (zero for empty styles).
-- Photoshop Knockout (shallow/deep) renders from the preserved `knko` block;
-  see "Knockout transparency" below. The single-pixel merged
-  sampler `compose_layer_pixel` (src/ui/canvas_widget_render.cpp) still
-  ignores group opacity and child blend modes (an approximation);
-  it does apply per-layer channel restrictions (premultiplied keep, and the
-  all-excluded skip), though partial restrictions on GROUPS stay unhandled
-  there like the other group state.
-- Advanced Blending "Channels" restrictions ('brst') render on layers,
-  adjustment layers, groups (pass-through included, which does NOT force
-  isolation), and clip runs; the calibrated rules live in
-  [ps-compat.md](ps-compat.md) and the wrapper is `ChannelRestrictedTarget`
-  in render/layer_compositor.hpp.
-
-## Knockout transparency
-
-The CPU compositor and canvas renderer interpret native `knko` mode bytes
-0/1/2 (None/Shallow/Deep), with the four-byte block preserved verbatim on save.
-Unsupported payloads stay raw and do not activate rendering. Blending Options'
-Knockout combo edits the mode through `set_layer_knockout` (core/layer.hpp): it
-patches the byte in place (PS writes `knko` on every layer) or appends a block for
-a non-None mode; an unknown payload disables the combo. Photoshop's [knockout guide](https://helpx.adobe.com/photoshop/using/knockout-reveal-content-layers.html)
-describes the general behavior; Photoshop 2026 COM captures pin these details:
-
-- At document level both modes reveal the real Background, or transparency if
-  there is none. The bottom RGB layer without a transparency channel is the
-  Background; an opaque RGBA layer or the name "Background" is insufficient.
-- Pass Through groups give Shallow their entry backdrop and inherit the Deep
-  floor. Isolated groups reset both floors to transparency, so even Deep stops
-  at that boundary. A folder with knockout composites its child silhouette as
-  one source. The eight small psd-tools `knockout-*` cases distinguish these
-  boundaries, including a cyan Background and no Background.
-- Shape is source alpha times the layer/vector mask and master Opacity. Fill
-  scales the paint only: Fill 0 still cuts the whole shape. The content blends
-  against the knockout floor. The uncovered contribution of the preceding stack
-  is restored in premultiplied space after the content pass, avoiding a second
-  application of antialiasing or Opacity. The 24 pixel/folder captures varying
-  alpha, Fill and Opacity agree byte-for-byte.
-- With Blend Clipped Layers as Group enabled, clipped members knock back to the
-  clipping base in both modes, without widening its transparency. The disabled
-  option's cross-run knockout and knockout on a clipping base are not modeled;
-  these remain approximations. Knockout on an adjustment layer also remains
-  unmodeled.
-- Floor snapshots exist only in stacks containing knockout. Isolation/silhouette
-  rendering has an explicit empty floor; clipped and strip renders retain document
-  coordinates. Mask and Opacity attenuation survive Pass Through nesting. The same
-  algorithm operates on encoded 8/16-bit and linear 32-bit targets. RGB previews
-  retain logical alpha until the final white matte so holes do not turn black.
-  Hidden or zero-opacity knockout trees do not change the RGB preview's blend
-  backdrop, including temporary visibility overrides.
-
-Coverage: `compositor_knockout_*`, `psd_tools_knockout_matches_photoshop_if_available`,
-`knockout_preview_preserves_alpha_depth_and_partial_bounds`, and
-`hidden_knockout_does_not_change_rgb_matte_blending`. The single-pixel
-merged sampler still approximates group state and does not implement knockout.
-Effect/Blend If/channel-restriction combinations beyond these captures are not
-calibrated. No non-knockout byte baseline is changed.
 
 ## Vivid/Linear Light, Hard Mix, Darker/Lighter Color
 
@@ -253,8 +100,8 @@ probability that a pixel is painted at all: the pixel is either fully painted
 through Normal or not painted, so a Dissolve layer never produces a blended
 intermediate value. It therefore cannot live in `blend_rgb`, which takes
 neither alpha nor a coordinate. `blend_rgb` returns the source for Dissolve so
-that the callers with no pixel coordinate (the eyedropper's
-`compose_layer_pixel`, the filter fade loops) degrade to Normal.
+that the callers with no pixel coordinate (the filter fade loops) degrade to
+Normal.
 
 The math is `dissolve_coverage(x, y, alpha, field)` in `blend_math.cpp`, and the
 compositor applies it. **Patchy's noise field is its own, not a reconstruction of
@@ -354,7 +201,7 @@ the Paint.NET and GIMP modes above. OpenRaster writes them under Krita's names
 - Photoshop records (PSD, PSB, layered TIFF): everything but Paint.NET's four and GIMP's seventeen, Pass Through on folders only, and at 32 bits only what `blend_mode_supported_at_depth` allows.
 - Aseprite: what `aseprite::stores_blend_mode` maps (no Linear Burn, Pin/Vivid/Linear Light, Hard Mix, Darker/Lighter Color, Dissolve, Paint.NET's four, GIMP's seventeen). Aseprite folders always isolate, so a Pass Through folder counts only when it holds a visible layer in another mode than Normal.
 
-`find_unsupported_blend_modes` lists the modes and the layers (hidden ones too). When it finds any, an interactive save to one of those formats asks first (`unsupportedBlendModesMessageBox`, MainWindow::save_document_to_path): Keep the Look (default) bakes, Save as Normal writes the layers as Normal (the writers' old behaviour), Cancel writes nothing. Scripts never see the prompt: saveAs option `unsupportedBlendModes` is `"normal"` (default) or `"bake"`. The answer travels as `ImageSaveOptions::bake_unsupported_blend_modes`, never persisted; `DocumentSaveCoordinator::write_prepared` applies it to the save snapshot only and adds a notice either way. OpenRaster keeps its own baking ([ora.md](ora.md)).
+`find_unsupported_blend_modes` lists the modes and the layers (hidden ones too). When it finds any, an interactive save to one of those formats asks first (`unsupportedBlendModesMessageBox`, MainWindow::save_document_to_path): Keep the Look (default) bakes, Save as Normal writes the layers as Normal, Cancel writes nothing. Scripts never see the prompt: saveAs option `unsupportedBlendModes` is `"normal"` (default) or `"bake"`. The answer travels as `ImageSaveOptions::bake_unsupported_blend_modes`, never persisted; `DocumentSaveCoordinator::write_prepared` applies it to the save snapshot only and adds a notice either way. OpenRaster keeps its own baking ([ora.md](ora.md)).
 
 The bake (`bake_unsupported_blend_modes`), per unit: render the composite below the unit (B) and with it (R) in the context it composites in, then write a Normal, 100% pixel layer N with N over B = R. Where B is opaque N is R, opaque wherever the unit changed a pixel; under partial cover N's alpha and colour solve the source-over equation (alpha quantized up to 1/255); pixels the unit left alone stay transparent, so the layers below still show and stay editable there.
 

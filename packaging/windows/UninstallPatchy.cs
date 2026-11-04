@@ -17,9 +17,12 @@ internal static class UninstallPatchy
     private const string OpenWithProgId = "Patchy.Image";
     private const string ShortcutRelativePath = @"Microsoft\Windows\Start Menu\Programs\Patchy.lnk";
     private const string DesktopShortcutName = "Patchy.lnk";
-    // Object Selection's downloaded High Quality model (docs/ai-selection.md) and the
-    // watermark models (docs/watermarks.md): Qt's AppDataLocation for organization RTsoft,
-    // application Patchy, plus "ai-models". Only these exact files are deleted, never a
+    // Object Selection's downloaded High Quality model (docs/ai-selection-models.md) and the
+    // watermark models (docs/watermarks.md): Qt's AppLocalDataLocation for organization
+    // RTsoft, application Patchy, plus "ai-models" (%LOCALAPPDATA%\RTsoft\Patchy\ai-models;
+    // src/ui/app_data_migration.hpp). RemoveDownloadedModels below still cleans only the
+    // roaming AppDataLocation (%APPDATA%) that downloads used through 1.19, a known gap
+    // (docs/ai-selection-models.md). Only these exact files are deleted, never a
     // wildcard; keep the names in sync with high_quality_model_files() in
     // src/ui/object_selection_model_download.cpp and watermark_model_files() in
     // src/ui/watermark_model_download.cpp.

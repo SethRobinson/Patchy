@@ -162,7 +162,7 @@ struct GradientStop {
   EditColor color{};
   // The stop's Intensity in stops (core/hdr_color.hpp): 32-bit layers scale its decoded color
   // by 2^stops before interpolating, so a gradient can run above 1.0. 8 and 16-bit layers
-  // ignore it (docs/high-bit-depth.md, "Color choice at 32 bits").
+  // ignore it (docs/high-bit-depth-color.md, "Color choice at 32 bits").
   float intensity_stops{0.0F};
 };
 
@@ -189,7 +189,8 @@ struct SmudgeState {
 // interpolation in mixer_brush_dab_color. No per-pixel/per-bristle brush state or spatial
 // pickup texture, no paint-amount/fill channel (US 8749572), no erodible tip state
 // (US 10217253), linear color mixing only (US 10924633 B1), and no region-sweep loading mode
-// or multi-cell brush model (US 8654143). See docs/brushes.md.
+// or multi-cell brush model (US 8654143). See docs/mixer.md and docs/legal-constraints.md
+// ("Mixer Brush").
 struct MixerBrushState {
   bool initialized{false};
   bool has_pickup{false};
@@ -298,7 +299,7 @@ enum class CanvasAnchor {
 [[nodiscard]] Rect draw_linear_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0,
                                         std::int32_t x1, std::int32_t y1, const EditOptions& options);
 void expand_layer_to_include_rect(Layer& layer, Rect document_rect);
-// Growth headroom for one stroke on one layer (docs/performance.md). While a reserve is
+// Growth headroom for one stroke on one layer (docs/performance-strokes.md). While a reserve is
 // open on this thread, expand_layer_to_include_rect grows that layer well past each
 // requested rect (clamped to `limit`, usually the canvas), so a stroke that leaves a small
 // layer (a pasted one) reallocates a few times instead of on every dab. close() trims the

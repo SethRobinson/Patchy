@@ -104,7 +104,7 @@ void set_stored_toolbar_icon_size(ToolbarIconSize size);
 [[nodiscard]] ToolbarIconSize stored_layer_footer_icon_size();
 void set_stored_layer_footer_icon_size(ToolbarIconSize size);
 
-// When a tool palette flyout (a tool group) opens (GitHub issue 459; docs/tool-palette.md):
+// When a tool palette flyout (a tool group) opens (GitHub issue 459; docs/tool-flyouts.md):
 // press and hold the button (the default), a click on it, or the pointer resting on it.
 // Stored under `preferences/toolFlyoutOpenMode` as the token (`hold`, `click`, `hover`); the
 // key and the tokens are compatibility contracts. An unknown or missing token reads as Hold,

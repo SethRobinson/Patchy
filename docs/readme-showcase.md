@@ -34,7 +34,7 @@ or `-Scene plugin_kpt5`. It requires the Windows 32-bit legacy helper.
 | `smart_filters.png` (hero) | `shot_readme_smart_filters` | `local-test-fixtures/psd/akiko_cycling_okinawa.jpg`, grouped captions, clipping, a Levels adjustment, and color controls |
 | `layer_styles.png` | `shot_readme_layer_styles` | `local-test-fixtures/psd/ipad_main_v04.psd`, live layer styles and gradient color controls |
 | `plugin_kpt5.png` | `scripts/dev/readme-shots/plugin-kpt5.js` | Licensed KPT 5 fixture and the existing CC0 city photograph |
-| `plugin_dialog.png` | `scripts/dev/readme-shots/plugin-dialog.js` | `local-test-fixtures/photoshop-plugins/mehdi` (Mehdi's Absolute Color, not committed; skipped when absent) and the CC0 city photograph |
+| `plugin_dialog.png` (shown on no page) | `scripts/dev/readme-shots/plugin-dialog.js` | `local-test-fixtures/photoshop-plugins/mehdi` (Mehdi's Absolute Color, not committed; skipped when absent) and the CC0 city photograph |
 | `object_select.png` | `scripts/dev/readme-shots/object-select.js` | `test-fixtures/readme/havana_vintage_car_cc0.jpg` (CC0), cropped in the script; needs the High Quality model (the script downloads it when missing) |
 | `artboards.png` | `scripts/dev/readme-shots/artboards.js`, with isolated Light settings | `test-fixtures/readme/havana_vintage_car_cc0.jpg` (CC0), placed as a smart object on each artboard; generated type and vector shapes |
 | `layered_import.png` | `scripts/dev/readme-shots/layered-import.js` | Existing local `psd/mow_master.psd` and `af-spike/corpus/tips.af`; local CC0 corpus files `kra-corpus/gdquest-dan.kra` (GDquest) and `xcf-corpus/opengameart/gas-giant-rings.xcf`; committed `test-fixtures/pdn/demo.pdn`; generated ORA, layered TIFF, and Aseprite files |
@@ -151,8 +151,8 @@ the vanishing point of the right window sill and the sign's lower edge, the side
 the drainpipe and the sign's left edge, so the grid follows the brick courses. Three posters
 (San Francisco, Havana, Sunset) are pasted at one scale and spaced from the plane's width; the
 first two are placed and the last is left floating. Keep the plane at a gentle angle: a
-steeply foreshortened plane samples a coarse mip level and blurs the art (a first version on
-the Havana street's right-hand wall did). Use real CC0 photos here, never generated ones.
+steeply foreshortened plane samples a coarse mip level and blurs the art. Use real CC0
+photos here, never generated ones.
 
 The text showcase combines a live Warp Text preview with three warped words,
 a single boxed paragraph containing bold, italic, colored, and mixed-font runs plus the
@@ -199,12 +199,8 @@ license are recorded in [NOTICE-THIRD-PARTY.md](../NOTICE-THIRD-PARTY.md).
 
 ## README screenshots: capture conventions
 
-`scripts\make-readme-screenshots.ps1` regenerates `docs/images/screenshots/`. The current
-showcase, per-image inputs, and regeneration commands are listed in
-[readme-showcase.md](readme-showcase.md). KPT is an explicit driver scene
-(`-Scene plugin_kpt5`, or `-IncludeLegacyPlugins` for a full run) using an isolated
-portable host and fixture copy; it combines direct Patchy and plug-in window captures.
-Two pipelines:
+`scripts\make-readme-screenshots.ps1` regenerates `docs/images/screenshots/` through two
+pipelines (the per-image table and the KPT recipe are above):
 
 - **Script-driven scenes** (`scripts/dev/readme-shots/*.js`, listed in the driver's
   `$jsScenes` table): a fresh unattended `patchy.exe --run-script` run stages the UI with the

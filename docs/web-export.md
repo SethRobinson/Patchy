@@ -4,10 +4,9 @@ File > Export for Web... (`file.export_for_web`, Ctrl+Alt+Shift+S; action
 `fileExportForWebAction`) writes a copy of the document in a web format from a dialog with live,
 real encoded previews and sizes. It sits in the File menu itself, under Save As and Revert and right above the Export submenu,
 not inside it (Seth, October 26, 2026, and again for GitHub issue 619: it is the export most
-people use). Export > Flat Image is unchanged and still covers every format; it gave up the
-Ctrl+Alt+Shift+S default when this command arrived (a user binding keeps working). "Save for Web"
-is another product's command name, and the layout (a format list with live sizes, a split
-divider) is Patchy's own.
+people use). Export > Flat Image still covers every format and has no default key (a user's own
+binding keeps working). "Save for Web" is another product's command name, and the layout (a
+format list with live sizes, a split divider) is Patchy's own.
 
 Code: `src/ui/web_export.{hpp,cpp}` (settings, preview engine, panes, dialog),
 `MainWindow::export_for_web` in `src/ui/main_window_files.cpp` (file name and write), the writer
@@ -72,7 +71,7 @@ The dialog opens at its minimum size the first time, then at the size it last cl
   distinct colors).
 - Animation (Seth, October 27, 2026: like the Layers as Animated dialogs): one group, shown for GIF,
   WebP, JPEG XL and PNG when the document has two or more layers and a visible one. It holds the
-  format's own "Animation from visible layers" check and the old dialogs' timing rows from the
+  format's own "Animation from visible layers" check and those dialogs' timing rows from the
   shared helper `create_animation_timing_controls` (image_save_options_dialog): "Default frame
   delay:" (GIF in centiseconds, 2 decimals; the others 3 decimals up to `kMaxFrameDelayMs`; a layer
   name's `0.25s` token wins), Forever / Play count for WebP, JPEG XL and APNG (GIF loops forever,
@@ -80,7 +79,7 @@ The dialog opens at its minimum size the first time, then at the size it last cl
   (`animation_frame_delay_ms`): editing it in one format's row updates the others. Play counts
   (`webp_loop_count`, `jxl_loop_count`, `apng_loop_count`) start from the document's metadata
   (`webp.loop_count`, `jxl.loop_count`, `apng.loop_count`) and are written back after an animated
-  export, as the old exports do; they are never persisted in settings.
+  export, as the Layers as Animated exports do; they are never persisted in settings.
 - Transparency (formats with alpha): Keep transparent or Fill with a color on one row (two rows
   when the language's labels do not fit the column), the Export section's group through the
   shared helper `add_transparency_choice` with `one_row`
@@ -121,11 +120,12 @@ writer options only when asked for.
 ### Quantizer
 
 `palette_colors`, `palette_dither`, `palette_dither_amount` map to `QuantizeOptions`
-(`formats/document_flatten.hpp`): `indexed_rgba8_quantized` picks the colors as before (the exact
+(`formats/document_flatten.hpp`): `indexed_rgba8_quantized` picks the colors (the exact
 colors when they fit, else the deterministic median cut; the transparent slot counts toward the
 total) and, with diffusion, first runs the palette mode's integer Floyd-Steinberg
 (`apply_palette_to_pixels`, serpentine, error in 1/16 units) on a copy with the error scaled by
-`amount / 100` (truncating). The defaults (256 colors, no diffusion) are the old call exactly, so
+`amount / 100` (truncating). The defaults (256 colors, no diffusion) are exactly
+`indexed_rgba8_quantized(rgba, 256, threshold)`, so
 `gif_encoder_bytes_are_stable` and the GIF writer's bytes do not change; `gif::write(document,
 options)` and the animated GIF frames take the same options. Palette-mode documents keep their own
 palette and ignore them. Pinned by `gif_quantize_*` (core).
@@ -217,7 +217,7 @@ in the preview (Seth, October 27, 2026):
 
 ## Settings (permanent identifiers)
 
-`exportForWeb/format` (`jpeg`, `webp`, `png`), `exportForWeb/jpegQuality`, `jpegProgressive`,
+`exportForWeb/format` (`jpeg`, `webp`, `png`, `gif`, `avif`, `jxl`), `exportForWeb/jpegQuality`, `jpegProgressive`,
 `jpegOptimize`, `jpegBackground` (`#rrggbb`), `webpQuality`, `webpLossless`, `webpAnimate`,
 `metadata` (`none`, `basic`, `copyright`, `all`), `thumbnail`, `resample` (`smooth`, `pixelArt`), `trim`,
 `convertToSrgb`, `compare` (`split`, `sideBySide`, `result`, `quad` for 4-up), `revealWhenDone`, `pngColors`
@@ -243,7 +243,8 @@ to its first-use default and keeps the compare mode and reveal choice.
 default; the palette keys without it throw). `.png` also takes `animate`, `frameDelayMs` and
 `loopCount`, the animation keys `.jxl` takes (an APNG; `animate` with `pngColors: "palette"`
 throws). Strict, like every save option
-([scripting-api-changes.md](scripting-api-changes.md)). `metadata` was already there.
+([scripting-api-changes.md](scripting-api-changes.md)). `metadata` is the shared save option
+([file-info.md](file-info.md), "Writing").
 
 `doc.encodeForWeb(format, options)` encodes without a file and returns `{bytes, width, height}`
 (`bytes` an ArrayBuffer). `format` is a persisted token (`"jpeg"`, `"webp"`, `"png"`, `"gif"`,

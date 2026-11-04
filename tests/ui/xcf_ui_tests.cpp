@@ -1,6 +1,7 @@
 // GIMP .xcf files in the app (docs/xcf.md): opening by name, by GIMP's compressed names and
 // by content, the layer tree and GIMP's modes in the Layers panel, editable text that keeps
-// its place when Patchy redraws it, and Save going to Save As (the format is read-only).
+// its place when Patchy redraws it (docs/xcf-text-layers.md), and Save going to Save As (the
+// format is read-only).
 
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"

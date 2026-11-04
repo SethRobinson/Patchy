@@ -211,8 +211,8 @@ mkdir "%STAGE_DIR%\plugins" || goto fail
 copy /Y "%REPO%\packaging\plugins\README.txt" "%STAGE_DIR%\plugins\README.txt" >nul || goto fail
 xcopy /E /I /Y "%BUILD_DIR%\ai" "%STAGE_DIR%\ai" >nul || goto fail
 xcopy /E /I /Y "%BUILD_DIR%\scripts" "%STAGE_DIR%\scripts" >nul || goto fail
-rem Automatic selection (docs/ai-selection.md): ONNX Runtime beside patchy.exe and the models
-rem with their license texts in ai-models\. The configure above requires them.
+rem Automatic selection (docs/ai-selection-models.md): ONNX Runtime beside patchy.exe and the
+rem models with their license texts in ai-models\. The configure above requires them.
 for %%F in (onnxruntime.dll onnxruntime_providers_shared.dll) do (
   if not exist "%BUILD_DIR%\%%F" (
     echo ONNX Runtime was not staged at "%BUILD_DIR%\%%F"; run scripts\setup-ai-deps.ps1.

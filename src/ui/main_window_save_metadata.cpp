@@ -1,4 +1,4 @@
-// Preferences > Metadata and Watermarks, "Saved metadata" (docs/file-info.md, "Saved
+// Preferences > Metadata and Watermarks, "Saved metadata" (docs/file-info-save-stamp.md, "Saved
 // metadata preference"): the user's name, copyright and contact added on save.
 
 #include "ui/main_window.hpp"

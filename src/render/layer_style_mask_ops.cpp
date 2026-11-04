@@ -1294,8 +1294,8 @@ std::vector<float> stroke_alpha_mask(const PixelBuffer& source, const Layer& lay
   std::vector<float> mask(base.size(), 0.0F);
   // Semi-transparent content (a feathered edge, a 50% fill, a gradient fading to
   // nothing; Photoshop 2026 probes on a square whose alpha ramps 1 -> 0 and on a
-  // flat 50% square, October 2026, docs/layer-effects-render.md "Strokes on
-  // semi-transparent content"): the outer band takes the pixel's missing alpha
+  // flat 50% square, October 2026, docs/layer-effects-render-stroke.md "Strokes on
+  // anti-aliased, soft and semi-transparent content"): the outer band takes the pixel's missing alpha
   // (1 - a) UNDER the content, as a second paint beside it, and the inner band
   // treats every such pixel as band at coverage a, replacing the content. When the
   // caller asks for the planes, the under-content part moves out of the over-draw

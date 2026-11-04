@@ -33,7 +33,7 @@
 // command-line directory), File > Export > Documents to Folder (the checked open
 // documents as numbered image files), the shared document-order list's Auto
 // Sort / Reverse buttons, and the shape of the File > Export submenu itself
-// (docs/import.md, docs/pdf.md, docs/ui-conventions.md).
+// (docs/import.md, docs/pdf.md, docs/ui-conventions-menus.md).
 #include "core/document.hpp"
 #include "formats/aseprite_document_io.hpp"
 #include "formats/pdf_document_io.hpp"
@@ -842,7 +842,7 @@ void ui_document_order_auto_sort_and_reverse() {
 }
 
 // Every export command lives under File > Export, with the verb carried by the
-// submenu title instead of repeated on each row (docs/ui-conventions.md).
+// submenu title instead of repeated on each row (docs/ui-conventions-menus.md).
 void ui_file_export_menu_actions_registered() {
   patchy::ui::MainWindow window;
   show_window(window);

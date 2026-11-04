@@ -8,7 +8,7 @@
 #include <vector>
 
 // Detection of the open invisible watermarks Stable Diffusion's reference scripts and
-// SDXL embed (File > File Info's Watermarks page; docs/file-info.md). Patchy-owned
+// SDXL embed (File > File Info's Watermarks page; docs/file-info-watermarks.md). Patchy-owned
 // reimplementation of the decoding side of the MIT-licensed invisible-watermark
 // library's "dwtDct" method (docs/legal-constraints.md, "Watermark detection"):
 // integer math only, deterministic on every toolchain, no model. Nothing here
@@ -38,14 +38,14 @@ struct InvisibleWatermarkScan {
 };
 
 // The most differing bits a payload of `bit_count` bits may show and still count as
-// found: one in twelve, rounded down (docs/file-info.md explains the choice).
+// found: one in twelve, rounded down (docs/file-info-watermarks.md explains the choice).
 [[nodiscard]] int invisible_watermark_tolerance(int bit_count) noexcept;
 
 // How the per-bit average of block scores becomes a bit. Library is EmbedMaxDct's
 // `mean * 255 > 127`. TwoCluster puts the threshold where the averages split into two
 // groups: a marked 1 reads 1 in nearly every block while a marked 0 reads 1 in about
 // half of them (the embedding can lower the block's largest coefficient below another
-// one), so the library's fixed midpoint misreads many 0 bits (docs/file-info.md).
+// one), so the library's fixed midpoint misreads many 0 bits (docs/file-info-watermarks.md).
 enum class DwtDctBitRule : std::uint8_t { Library, TwoCluster };
 
 struct DwtDctDecodeOptions {

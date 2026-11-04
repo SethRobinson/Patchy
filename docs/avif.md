@@ -2,10 +2,9 @@
 
 Read before changing `avif_document_io`, the vendored libavif, dav1d or libaom, or their
 filter and registry rows. Registry and filter wiring rules live in [file-formats.md](file-formats.md);
-the licensing rule in [legal-constraints.md](legal-constraints.md) and the research record
+the licensing rule in [legal-licensing.md](legal-licensing.md#format-copyright-trademarks-and-assets) and the research record
 in [patent-research-formats.md](patent-research-formats.md). Added October 16, 2026 for
-GitHub issue 120: until then AVIF opened only through an OS decoder (the Windows AV1
-extension, macOS ImageIO) and never in the AppImage.
+GitHub issue 120.
 
 ## Read and write, everywhere native
 
@@ -121,7 +120,7 @@ extension, macOS ImageIO) and never in the AppImage.
 - Speed of the generic C encoder, measured October 16, 2026 on the 24-thread dev box: the
   800x600 sample saves in about 0.15 s at speed 6 (10 KB), 0.09 s at speed 8, 0.13 s lossless;
   large photos take seconds, which the dialog note mentions. A libaom upgrade or SIMD
-  enablement repeats the licence read in [legal-constraints.md](legal-constraints.md).
+  enablement repeats the licence read in [legal-licensing.md](legal-licensing.md#format-copyright-trademarks-and-assets).
 - Tests (tests/core/flat_formats_misc_tests.cpp): the 511-byte lossless quadrant file
   embedded as bytes (`kQuadrantsAvif`, written by Pillow 12.1), the committed
   `test-fixtures/avif/frames.avif` sequence (three frames, 100/200/300 ms), and the

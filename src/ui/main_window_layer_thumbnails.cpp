@@ -2,7 +2,7 @@
 // (#433), the short context menus on a row's layer and mask thumbnails (#431, #432) and on its
 // fx and smart object badges (#473, #474), and the footer Delete button acting on a targeted
 // mask (#441).
-// See docs/layer-panel.md "Thumbnail menus and selection loads".
+// See docs/layer-panel-selection.md "Thumbnail menus and selection loads".
 #include "core/layer.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/pixel_buffer.hpp"

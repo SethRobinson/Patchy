@@ -60,4 +60,4 @@ Controls on the left (each numeric option is a slider plus spin box through `add
 
 ## Not implemented
 
-Centerline (stroke) tracing, automatic palette sizing ("Full Tone"), and tracing into a work path. The centerline patent (US 7876932) expired in 2025, so that phase needs only a skeletonization design, not a new clearance.
+Centerline (stroke) tracing, automatic palette sizing ("Full Tone"), and tracing into a work path. The centerline patent (US 7876932) expired in 2025, so that phase needs only a skeletonization design, not a new patent review.

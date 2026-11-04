@@ -259,7 +259,7 @@ public:
   // wheel_zooms(). wheel_zoom_factor is the zoom step for one event of either kind.
   [[nodiscard]] static bool wheel_event_is_continuous_scroll(const QWheelEvent& event) noexcept;
   [[nodiscard]] static double wheel_zoom_factor(const QWheelEvent& event) noexcept;
-  // Scrubby Zoom (docs/view-navigation.md): a Zoom tool drag zooms live about
+  // Scrubby Zoom (docs/view-navigation-zoom-tool.md): a Zoom tool drag zooms live about
   // the press point instead of drawing a marquee. Persisted by MainWindow as
   // tools/zoomScrubby; default off.
   void set_zoom_scrubby(bool enabled) noexcept;
@@ -342,7 +342,7 @@ public:
   [[nodiscard]] QColor primary_color() const noexcept;
   void set_secondary_color(QColor color);
   [[nodiscard]] QColor secondary_color() const noexcept;
-  // The colors' Intensity in stops (core/hdr_color.hpp, docs/high-bit-depth.md): 32-bit
+  // The colors' Intensity in stops (core/hdr_color.hpp, docs/high-bit-depth-color.md): 32-bit
   // layers paint the decoded color times 2^stops. A set_primary_color or set_secondary_color
   // that changes the color drops its side back to 0; the color window and the Color panel
   // set it after the color.
@@ -1476,7 +1476,7 @@ public:
     return document_position_f(widget_position);
   }
   void set_before_edit_callback(std::function<void(QString)> callback);
-  // Paint-tool stroke lifecycle for the host's per-stroke history (docs/performance.md,
+  // Paint-tool stroke lifecycle for the host's per-stroke history (docs/performance-strokes.md,
   // "History"): Begin fires right after the stroke's before-edit callback pushed its
   // snapshot and names the buffer the stroke will write (layer content, layer mask or
   // saved channel); Finish fires once the stroke is over with the union of every dirty
@@ -2150,12 +2150,12 @@ private:
   bool begin_edit(QString label);
   // Called right after a successful begin_edit by the painting_ gestures: emits the
   // Begin history event and starts collecting the stroke's dirty rectangles. Also fires
-  // the theme's "stroke-start" event (docs/theme-files.md).
+  // the theme's "stroke-start" event (docs/theme-files-scripts.md).
   void arm_paint_stroke_history();
   // Emits the Finish event with the collected bounds (no-op when not armed), and
   // "stroke-end" for a stroke that fired "stroke-start".
   void finish_paint_stroke_history();
-  // The stroke's LayerGrowthReserve (docs/performance.md): opened by arm_paint_stroke_history
+  // The stroke's LayerGrowthReserve (docs/performance-strokes.md): opened by arm_paint_stroke_history
   // for a pixel layer smaller than the canvas, closed (the layer trimmed to its exact
   // growth) on release and by finish_paint_stroke_history, before the stroke is reported.
   void open_stroke_growth_reserve();
@@ -2324,7 +2324,7 @@ private:
   // gesture snapshot through the stroke's source offset plus the healing membrane of the
   // expired US 6587592 (core/heal_membrane.hpp) and written over the stroke-start pixels
   // by that coverage with the Mode. No patch search and no per-move heal or preview
-  // (docs/legal-constraints.md). Returns the written rect.
+  // (docs/legal-constraints-filters.md). Returns the written rect.
   [[nodiscard]] QRect finish_healing_brush_stroke();
   [[nodiscard]] QRect clone_brush_at(QPoint point);
   void draw_pixel(Layer& layer, QPoint document_point, QColor color, bool erase);
@@ -2671,7 +2671,7 @@ private:
   // (core/heal_membrane.hpp). No PatchMatch-style offset propagation or
   // perturbation, reshuffling, or gradient-domain compositing of source
   // gradients may be added here, and a content-driven source search must
-  // follow the exhaustive exemplar boundary in docs/legal-constraints.md
+  // follow the exhaustive exemplar boundary in docs/legal-constraints-filters.md
   // (US 8285055/8340463/8355592, US 9058699, live-classification US 8050498).
   void begin_spot_heal_stroke(QPoint document_point, std::optional<QPointF> connect_from);
   void extend_spot_heal_stroke(QPoint document_point);
@@ -2802,7 +2802,7 @@ private:
   // propagation or perturbation, reshuffling, gradient-domain compositing of
   // source gradients, or live per-move classification may be added here, and
   // a content-driven source search must follow the exhaustive exemplar
-  // boundary in docs/legal-constraints.md (US 8285055/8340463/8355592,
+  // boundary in docs/legal-constraints-filters.md (US 8285055/8340463/8355592,
   // US 9058699, live-classification US 8050498).
   [[nodiscard]] bool begin_patch_tool_drag(QPoint document_point);
   void update_patch_tool_drag(QPoint document_point);
@@ -2884,7 +2884,7 @@ private:
   // the result combines under selection_operation_. The caller owns the before-edit snapshot.
   void combine_selection_from_lasso(const QPolygon& outline);
   void combine_selection_from_lasso(const QPolygon& outline, const QPolygonF& mask_outline);
-  // Polygonal Lasso session (docs/selection-tools.md). Clicks place vertices with the button
+  // Polygonal Lasso session (docs/lasso-tools.md). Clicks place vertices with the button
   // up between them and a rubber band follows the pointer; the region is built once, in
   // finish_polygon_lasso(). Shift keeps a segment at 45 degree steps, an Alt drag adds a
   // freehand run. from_lasso marks the Lasso's Alt-release switch, which closes on Alt up.
@@ -4296,7 +4296,7 @@ private:
   // while transforming_layer_: transform_layer_id_ has a value XOR
   // transform_targets_ is non-empty; the single-layer path never reads these.
   std::vector<TransformTarget> transform_targets_;
-  // Free Transform of the selected pixels (GitHub issue 399; docs/free-transform.md,
+  // Free Transform of the selected pixels (GitHub issue 399; docs/free-transform-targets.md,
   // "Transforming the selected pixels"). Set while the single-layer session floats
   // the selection: transform_source_image_ is `floating` and transform_original_rect_
   // its document rect. The document is untouched until commit; previews render from

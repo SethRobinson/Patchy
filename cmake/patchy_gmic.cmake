@@ -11,7 +11,7 @@
 # standard, warnings off. It is built with no display, network library, FFTW,
 # image codecs, external programs (cimg_no_system_calls, gmic_noexec) or
 # patch-based algorithms (patchy_gmic_no_patch_algorithms; see
-# docs/legal-constraints.md). Its FFT is the vendored pocketfft
+# docs/legal-constraints-filters.md). Its FFT is the vendored pocketfft
 # (src/filters/gmic/pocketfft, BSD-3-Clause; patchy_gmic_use_pocketfft).
 # A build directory configured before the default changed keeps its cached value:
 # pass -UPATCHY_ENABLE_GMIC once to pick up the default.

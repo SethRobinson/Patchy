@@ -2,8 +2,9 @@
 
 GitHub #555. Commands that change the structure of an existing path (where its subpaths open,
 join or split) and that act on whole components (shape groups). The point-editing surface they
-plug into (selection, context menu, tool roles) is in [vector-commands.md](vector-commands.md);
-the model in [vector-tools.md](vector-tools.md). Geometry: `src/core/path_point_edits.{hpp,cpp}`;
+plug into (context menu, tool roles) is in [vector-commands.md](vector-commands.md), the point
+and shape selection in [vector-commands-selection.md](vector-commands-selection.md); the model
+in [vector-tools.md](vector-tools.md). Geometry: `src/core/path_point_edits.{hpp,cpp}`;
 canvas side: `src/ui/canvas_widget_path_edits.cpp`; MainWindow side:
 `src/ui/main_window_path_components.cpp`. Tests: `path_break_*`, `path_join_*`,
 `path_delete_segment_*`, `path_merge_points_*`, `path_components_*` in
@@ -15,11 +16,13 @@ Classic bezier path editing (Illustrator 88 era, expired); no legal boundary app
 
 ## Point and segment commands
 
-Layer > Shape lists four commands (hotkey ids, no default keys): Break Path at Point
-(`path.break_at_point`, `pathBreakAtPointAction`), Join End Points (`path.join_end_points`),
-Merge into One Point (`path.merge_points`) and Delete Segment (`path.delete_segment`). The path
-context menu repeats them after Convert Point (`pathMenuBreakAtPointAction`,
-`pathMenuJoinEndPointsAction`, `pathMenuMergePointsAction`, `pathMenuDeleteSegmentAction`).
+Layer > Shape lists four commands (hotkey ids, no default keys), after Shape Appearance, Simplify
+Path, the four combine commands, Merge Shapes and Split Shapes and before the component commands:
+Break Path at Point (`path.break_at_point`, `pathBreakAtPointAction`), Join End Points
+(`path.join_end_points`), Merge into One Point (`path.merge_points`) and Delete Segment
+(`path.delete_segment`). The path context menu repeats them after Convert Point
+(`pathMenuBreakAtPointAction`, `pathMenuJoinEndPointsAction`, `pathMenuMergePointsAction`,
+`pathMenuDeleteSegmentAction`).
 
 What they act on (`CanvasWidget::plan_path_point_command`): the menu's press first (an anchor for
 Break, a segment for Merge and Delete Segment), else the Direct Select point selection of the
@@ -209,18 +212,18 @@ to their joint bounds, or the canvas with Align to Canvas; one "Align shapes" st
 stay selected, live shapes stay live. Distribute still works on layers only.
 Test: `ui_path_align_shapes_inside_a_layer`.
 
-## The spike report
+## Spikes after Break Path at Point (open report)
 
-Seth's screenshot (October 31, 2026) showed long thin wedges along the edges of a filled shape
-after Break Path at Point on several points. Reproduced his steps (Rectangle tool, a corner
-dragged into a quad, one, several and all points marquee-selected, Break) in
+Break Path at Point on several points must leave a filled shape without spikes (long thin wedges
+along its edges, reported October 31, 2026). The reported steps (Rectangle tool, a corner dragged
+into a quad, one, several and all points marquee-selected, Break) are pinned in
 `ui_path_break_several_points_renders_cleanly`, fill only and with an 8 px miter stroke in every
 alignment, checking the layer bounds and the canvas at 100% and 300% (Dynamic Vector Preview), and
 in core with `path_break_at_points_renders_without_spikes` and the seeded sweep
 `path_point_commands_sweep_renders_inside_the_shape` (60 random convex and curved shapes, every
 point command, fill and three alignments): no spike appears. The wedge shape (widest at a vertex,
 along an edge's extension) is what a miter join draws at a near-reversal; the stroker allows that
-up to the miter limit (100, Photoshop's). The exact cause in his file is still open; the tests
+up to the miter limit (100, Photoshop's). The cause in the reported file is still open; the tests
 guard every path the commands produce.
 
 ## Usage sweep (October 31, 2026)
@@ -260,44 +263,7 @@ Under Path Select, Direct Select and the Pen family the path menu lists, by what
 pointer: Add Anchor Point (a segment), Delete Anchor Point and Convert Point (a point), Break,
 Join, Merge into One Point and Delete Segment (the point or segment, else the selection), the
 selection's Delete and Deselect, Free Transform, then under Path Select and Direct Select the
-combine commands (with two or more shapes), Merge Shapes, Cut/Copy/Paste Shapes, Color Selected
-Shapes and Move/Copy to New Layer, then the Paths panel commands. Every disabled entry names what
-it needs in its tooltip. With no path to edit (a pixel layer, nothing picked) the canvas menu is
-the general one.
-
-## Plan for the follow-up (October 31, 2026)
-
-Seth tested parts 2 and 3: Break Path at Point on several selected points of a filled shape drew
-long spikes, and combining shapes for real, welding points while editing and finding the commands
-were missing. The plan, built in this order:
-
-1. **Spikes.** Reproduce Seth's steps exactly (Rectangle tool, a corner dragged, several points
-   marquee-selected, Break) in a UI test that renders the layer and the canvas at 100% and zoomed,
-   fill-only and with a thick stroke in every alignment; a core test renders one, several and all
-   points broken on closed and open paths. Find the root cause and fix it in the geometry or the
-   renderer, whichever is wrong.
-2. **Multi-point semantics.** Break at several points splits the path at each one into separate
-   open pieces of the same shape (predictable, each piece keeps its own handles). Every point
-   command gets degenerate cases tested: coincident points, zero-length segments, every point
-   selected, a two-point path, a path joined to itself.
-3. **Merge Shapes (part 1).** Layer > Shape > Merge Shapes, the path menu and a Merge Shapes button
-   on the Path Select / Direct Select options bar next to Combine. It bakes the selected
-   components' Add / Subtract / Intersect / Exclude (all components when none are selected; two or
-   more selected shape layers combine first) into one component that can be moved and point-edited.
-   Core: the stroker's boundary walk (split flattened edges at crossings, keep edges whose two sides
-   fill differently) becomes `vector_path_fill_contours`, refit with the per-run Schneider fitter
-   (`fit_closed_loop`, corners at 45 degrees, near-straight runs snapped to lines). Deterministic
-   lattice math; vector booleans are long-expired prior art (vector-tools.md). A button rather than
-   an "Apply operation" checkbox: the live ops stay editable by default and one click bakes them,
-   with no hidden mode to remember.
-4. **Weld while editing.** Dragging one point with Direct Select (or the Pen's Ctrl latch) snaps it
-   onto any other point of the path within 8 screen pixels, with a ring on the target (a double ring
-   when the release will join) and a status hint; dropped on an end point it joins the two end
-   points (same path: closes it; two paths: one path), in the drag's own undo step. Alt held during
-   the drag places the point freely.
-5. **Discoverability.** Layer > Shape order: Shape Appearance, Simplify, the combine commands with
-   Merge Shapes, the point commands, the component commands. Every disabled point, merge and
-   component command carries its reason as a tooltip; a hotkey that cannot apply says why in the
-   status bar. The path menu offers what fits the pointer (a point, a segment, the selection).
-6. **Usage sweep.** Drive the everyday shape and path tasks through the real build and list each
-   one with whether it works and how many steps it takes (below), fixing what is missing.
+combine commands (with two or more shapes), Merge Shapes, Split Shapes, Cut/Copy/Paste Shapes,
+Color Selected Shapes and Move/Copy to New Layer, then the Paths panel commands. Every disabled
+entry names what it needs in its tooltip. With no path to edit (a pixel layer, nothing picked) the
+canvas menu is the general one.

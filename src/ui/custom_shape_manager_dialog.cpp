@@ -103,7 +103,7 @@ QString request_custom_shape_manager(QWidget* parent, CustomShapeLibrary& librar
       QObject::tr("Folder for the selected shape(s); leave empty to remove them from folders"));
   form->addRow(QObject::tr("Folder:"), folder_edit);
   scaffold.right()->addLayout(form);
-  // CC BY 3.0 asks for the authors' credit wherever the shapes are used (docs/legal-constraints.md).
+  // CC BY 3.0 asks for the authors' credit wherever the shapes are used (docs/legal-licensing.md).
   auto* credit = new QLabel(&dialog);
   credit->setObjectName(QStringLiteral("customShapeManagerCreditLabel"));
   credit->setWordWrap(true);

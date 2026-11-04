@@ -686,7 +686,7 @@ void set_curve_points_for_channel(CurvesAdjustment& curves, CurvesChannel channe
 // Photoshop's deep (16 and 32-bit) Hue/Saturation as a continuous map of 0..255
 // values: apply_hue_saturation's 1530-step wheel and in-gamut chroma limit, with the
 // deep rules Photoshop 2026 uses instead of its 8-bit ones (exact lightness percent,
-// unrounded hue rotation, its own saturation multipliers; docs/high-bit-depth.md).
+// unrounded hue rotation, its own saturation multipliers; docs/high-bit-depth-compositor.md).
 // With unbounded set there is no chroma limit and no 0..255 clamp, as in Photoshop's
 // 32-bit Hue/Saturation (deep corpus adj-huesat-32). nullopt for Colorize, which has
 // no continuous form here.

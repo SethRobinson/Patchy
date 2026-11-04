@@ -468,7 +468,7 @@ public:
   Q_PROPERTY(QJSValue watermarkPreferences READ watermark_preferences)
   [[nodiscard]] QJSValue watermark_preferences() const;
   Q_INVOKABLE void setWatermarkPreferences(const QJSValue& preferences);
-  // Preferences > Metadata and Watermarks, "Saved metadata" (docs/file-info.md): {mode:
+  // Preferences > Metadata and Watermarks, "Saved metadata" (docs/file-info-save-stamp.md): {mode:
   // "none" | "basic" | "personal", name, copyright, email, website, askBeforeAdding};
   // setSaveMetadataPreferences takes any subset (unknown keys or a bad mode throw).
   Q_PROPERTY(QJSValue saveMetadataPreferences READ save_metadata_preferences)

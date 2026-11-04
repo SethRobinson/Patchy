@@ -15,7 +15,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
-// Per-stroke history entries (core/stroke_patch.hpp, docs/performance.md
+// Per-stroke history entries (core/stroke_patch.hpp, docs/performance-strokes.md
 // "History"): a paint stroke retains only the pixels inside its bounds, undo
 // and redo restore exactly what the whole-document snapshot path restores, a
 // mask stroke patches the mask alone, patch entries mix with snapshot entries

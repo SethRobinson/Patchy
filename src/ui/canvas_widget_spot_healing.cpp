@@ -16,11 +16,11 @@
 // gradients: those are claimed by Adobe's active patents (US 8285055,
 // US 8340463, US 8355592, into 2031) and US 9058699 (to 2029); a
 // content-driven source search must be the exhaustive exemplar search
-// docs/legal-constraints.md clears. Live classify-and-display during input is
+// docs/legal-constraints-filters.md allows. Live classify-and-display during input is
 // claimed by US 8050498 (to Nov 3, 2029), so the drag shows only the raw
 // footprint overlay, and the Remove Object dialog (main_window_layer_ops.cpp)
 // runs a fill only on a button click or a settled slider value, never per
-// slider move or pointer move. See docs/legal-constraints.md and the dated
+// slider move or pointer move. See docs/legal-constraints-filters.md and the dated
 // records in docs/patent-research.md and docs/patent-research-inpainting.md.
 
 #include "ui/canvas_widget.hpp"
@@ -380,7 +380,7 @@ CanvasWidget::RemoveObjectComputed CanvasWidget::compute_remove_object(
     return computed;
   }
   if (job.options.tone_match > 0) {
-    // Frequency separation through the cleared membrane: the fill keeps its
+    // Frequency separation through the recorded membrane: the fill keeps its
     // grain, its low-pass follows its own edge values smoothly (the
     // brightness polygons where fill fronts meet go; the fill's own tone
     // stays, since only hole cells are read). 0 keeps the raw fill.
@@ -747,7 +747,7 @@ QRect CanvasWidget::heal_mask_from_surroundings(QRect bounds, const std::vector<
 // the Mode. Diffusion sets how far along the boundary the offsets are averaged before the
 // solve (Diffusion - 1 pixels), so film grain on the rim does not print into the heal.
 // The source mapping is the user's offset alone: no patch search, no per-move heal or
-// preview (US 8050498; docs/legal-constraints.md).
+// preview (US 8050498; docs/legal-constraints-filters.md).
 QRect CanvasWidget::finish_healing_brush_stroke() {
   if (!healing_membrane_stroke_) {
     return {};

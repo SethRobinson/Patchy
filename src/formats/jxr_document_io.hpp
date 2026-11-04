@@ -16,7 +16,7 @@ namespace patchy::jxr {
 // both the decoder (CLSID_WICWmpDecoder) and the encoder have shipped in-box in the
 // Windows Imaging Component since Vista, so Patchy carries no JPEG XR codec of its own.
 // Qt has no JPEG XR plugin, so on macOS, Linux and wasm both entry points always throw and
-// the format is hidden from the save/export filters (see docs/legal-constraints.md for the
+// the format is hidden from the save/export filters (see docs/legal-licensing.md for the
 // rule against vendoring one).
 //
 // The format's distinguishing feature is float channels, which is why NVIDIA's in-game

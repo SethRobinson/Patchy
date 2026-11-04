@@ -1,7 +1,8 @@
 // Theme packages (docs/theme-files.md, "Theme packages"): folder and zip loading,
 // the path and size limits, icon overrides with their fallback, the backdrop
 // painter and the scroll-bar gutter, the folder auto-reload, the Preferences
-// entries and the theme sound events.
+// entries (docs/theme-files-preferences.md) and the theme sound events
+// (docs/theme-files-scripts.md).
 
 #include "formats/ora_document_io.hpp"
 #include "core/document.hpp"
@@ -872,7 +873,7 @@ void ui_theme_package_icon_template_and_example_package() {
   }
 }
 
-// A bundled package (docs/theme-files.md, "Bundled themes") loads from the generated
+// A bundled package (docs/bundled-themes.md, "Theme packages") loads from the generated
 // resource folder, which holds exactly its source files but the README; its scripts run
 // until the user turns them off; PATCHY_THEME_SOURCE_DIR reads and watches the source.
 void ui_bundled_theme_package_loads_from_resources_and_source() {

@@ -5520,7 +5520,7 @@ std::uint64_t remove_object_selection_hash(const QRegion& region) {
 // or on a settled spin/step value (one run per discrete change, coalesced),
 // never per slider move or pointer move: US 8050498 (live classify-and-
 // display, to Nov 3, 2029) bars a live per-move healing preview. See
-// docs/legal-constraints.md and docs/patent-research-inpainting.md.
+// docs/legal-constraints-filters.md and docs/patent-research-inpainting.md.
 void MainWindow::remove_object_dialog() {
   if (canvas_ == nullptr) {
     return;
@@ -5927,8 +5927,8 @@ void MainWindow::content_aware_fill_selection(bool to_new_layer, BlendMode blend
   const auto active_id = *active;
   const Layer original = *layer;
   // Remove Object's dialog-free run at its defaults (best match, no tone match, no edge
-  // feather; docs/healing.md), written into the layer without history so the one entry
-  // below holds the original.
+  // feather; docs/healing-remove-object.md), written into the layer without history so
+  // the one entry below holds the original.
   CanvasWidget::RemoveObjectResult result;
   {
     QApplication::setOverrideCursor(Qt::WaitCursor);

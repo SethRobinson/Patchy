@@ -2,9 +2,15 @@
 
 Deep reference for the Affinity (.af/.afphoto/.afdesign/.afpub) importer. Read this before touching src/formats/af_document_io or af_tree. The format registry entry and open/save filter rules stay in [file-formats.md](file-formats.md).
 
+## Importer modules and versions
+
 `src/formats/af_document_io.{hpp,cpp}`, read-only (magic `00 FF 4B 41`; registry id `patchy.formats.af`, sniff on the magic). The filter row claims `.af` plus 2.x `.afphoto/.afdesign/.afpub`: all generations share the container and doc.dat grammar (container v7..v12, doc versions 3..32 verified; newer container versions attempt import + warning notice). The driver owns layer assembly, effects, embedded-document recursion and preview fallback. `af_container.cpp` owns stream tables, decompression and preview PNG decoding; `af_raster.cpp` owns tile/original-image decoding and affine resampling; `af_text.cpp` and `af_vector.cpp` own their layer builders. Their `af_*_internal.hpp` interfaces are private to this importer. Field-level wire layouts stay beside the owning parser, including `af_tree.cpp`; read them there. Spike notes stay untracked in `local-test-fixtures/af-spike/`.
 
+## Legal method
+
 Legal: proprietary, unpublished format. Knowledge comes from byte-level observation of self-authored documents, the MIT afread notes, and the BSD-3 JSLib scripting sources inside the Affinity install, never from disassembly (the PSD clean-by-method rule). The Affinity Terms (section 12, reviewed 2026-07-20) prohibit copying the software's code and do not address file formats. Never commit Canva-authored samples.
+
+## Container and tree
 
 Container and tree gotchas:
 
@@ -12,6 +18,10 @@ Container and tree gotchas:
 - Stream CRC32 mismatch = notice, not failure. zlib via miniz; zstd via decode-only zstddeclib.c; thumbnails via a minimal Qt-free PNG reader.
 - The doc.dat tree (`af_tree.{hpp,cpp}`) is schema-less: each field's leading type byte determines its layout; the importer queries by 4CC. v3 quirks vs afread: class-type headers carry a u16 version (afread read u32); some formerly mandatory fields are optional. Bounds-checked and capped; mutation sweeps pin no-crash on hostile input.
 - Tiers: tier 2 parses doc.dat into real Patchy layers; the importer never composites itself. Structural problems fall back to the tier-0 flat render, never a failed open (`PATCHY_AF_TRACE=1` prints why): a `Snap` snapshot render, else the 512px thumbnail. If nothing decodes, tier-0 wins over an all-placeholder canvas.
+
+## Import mapping
+
+### Placement and layer model
 
 Placement and layer model:
 
@@ -22,25 +32,43 @@ Placement and layer model:
 - Groups import COLLAPSED (`collapse_imported_groups`, a sweep over the finished tree so the synthesized artboard/Erase/crop wrappers get it too). The tree stores no disclosure state at all (a `Grup` node carries only Visi/Edtb/MEtb/TrFV/deco, and no stream holds UI state), so Affinity is applying a fixed closed default rather than reloading one, while Patchy's default for an unmarked group is EXPANDED: the flag has to be stamped explicitly. It is native PSD (the folder's section-divider type), so it survives a save.
 - Top-level artboards import as native artboards ([artboards.md](artboards.md)) at their layout positions: the box is the artboard rect, a plain opaque solid fill becomes the artboard background color, any other fill stays a bottom "<name> Background" shape over a Transparent artboard. An artboard nested in a group keeps the older form (a Pass Through group with a rectangular default-black LayerMask), because native artboards never nest. Symbols chase one link-ring hop. Undecodable content imports as named empty layers keeping tree position; unknown tile codes are honestly undecodable, never silent black.
 
-Rasters and tiles: RGBA8/16, Gray8/16, RGBA-float32, always imported at 8 bits (16-bit = value/257; float linearizes to sRGB; deep .af import is open work in [high-bit-depth.md](high-bit-depth.md) Phase 8); resampled through the affine with bilinear premultiplied accumulation, after a per-axis power-of-two box pre-reduction whenever the affine minifies below one half (matches Affinity's mip-filtered render; plain bilinear left 1/32-scale placements visibly aliased). Old files (v6-v9) omit the tile-grid fields: derive the grid from the dimensions ONLY when the `Sta` code list holds exactly that many codes. Lazy layout decodes the untouched `c/<n>` original via vendored stb_image + `heif::apply_exif_orientation`; pristine placed images also become embedded smart-object sources so Edit/Replace Contents work and PSD saves embed the original. GUI opens offer converting those to plain pixel layers instead (`MainWindow::maybe_convert_af_image_layers`; preference `imports/afImageLayers` = ask/smart/pixel, also in Preferences; unattended runs always keep smart objects). The FULLY lazy shape (3.x saves of untouched placed images; 33 in the esdreika wild file) stores NO base-plane fields at all, only `Bckg` plus a mip pyramid starting several levels down - and imports as an implicit all-code-5 base filled from the original. Unnamed placed-image nodes take their `IRFN` file name (Affinity's Layers-panel behavior); unnamed adjustment nodes take the adjustment kind's name. CMYK converts through the PSD lcms2 path (.af ink is straight, inverted into that transform's PSD-inverted convention); profile-less CMYK = naive ink mix + notice; Lab through lcms2's D50 Lab profile.
+### Rasters and tiles
+
+Rasters and tiles: RGBA8/16, Gray8/16, RGBA-float32, always imported at 8 bits (16-bit = value/257; float linearizes to sRGB; deep .af import is open work in [high-bit-depth-formats.md](high-bit-depth-formats.md#phase-8-other-formats-and-the-script-api) Phase 8); resampled through the affine with bilinear premultiplied accumulation, after a per-axis power-of-two box pre-reduction whenever the affine minifies below one half (matches Affinity's mip-filtered render; plain bilinear left 1/32-scale placements visibly aliased). Old files (v6-v9) omit the tile-grid fields: derive the grid from the dimensions ONLY when the `Sta` code list holds exactly that many codes. Lazy layout decodes the untouched `c/<n>` original via vendored stb_image + `heif::apply_exif_orientation`; pristine placed images also become embedded smart-object sources so Edit/Replace Contents work and PSD saves embed the original. GUI opens offer converting those to plain pixel layers instead (`MainWindow::maybe_convert_af_image_layers`; preference `imports/afImageLayers` = ask/smart/pixel, also in Preferences; unattended runs always keep smart objects). The FULLY lazy shape (3.x saves of untouched placed images; 33 in the esdreika wild file) stores NO base-plane fields at all, only `Bckg` plus a mip pyramid starting several levels down - and imports as an implicit all-code-5 base filled from the original. Unnamed placed-image nodes take their `IRFN` file name (Affinity's Layers-panel behavior); unnamed adjustment nodes take the adjustment kind's name. CMYK converts through the PSD lcms2 path (.af ink is straight, inverted into that transform's PSD-inverted convention); profile-less CMYK = naive ink mix + notice; Lab through lcms2's D50 Lab profile.
+
+### Embedded documents
 
 Embedded documents (`edc/<n>`) parse recursively and flatten (8-byte `EmDc` wrapper in all generations). Doc version >= 20 anchors the node translation on the flattened canvas's CENTER; 1.x anchors at the origin. Gaps: old embeds may carry an extra ~0.766 scale (unconfirmed); embeds whose only pixel source is `IRDS` `FlDS` bytes render empty.
 
+### Vectors
+
 Vectors: `PCrv` imports as a real shape layer (baked raster, block-dirty so PSD saves regenerate); subpaths share one group, filled even-odd. Colors may be `HSLA` (hue in turns) or five-float `CMYK` (NOT RGBA). Compound shapes bake the booleaned result into the node's lowercase `crvs` = ONE exact shape layer; without it, children import as a group (subtract operands render opaque). Seventeen parametric `ShpN` kinds are modeled as real shape layers (pinned against Affinity's own Convert-to-Curves output); the rest stay placeholders, and a document whose only content is unmodeled shapes prefers tier-0.
 
-Text (`TxtA` artistic, `TxtF` frame) imports as real editable text layers via standard `patchy.text.*` metadata (so text PSD round-trips); `render_pending_af_text_layers` renders post-open, anchoring the first line on the tallest run's ascent. Gotchas: `GlAR.Indx` is the run END (exclusive) in CODEPOINTS including the trailing NUL; Affinity's line pitch = natural leading + COLLAPSED paragraph margins, exactly Qt's model; a line straddling the frame bottom draws whole ([text-tool.md](text-tool.md)); rotated/sheared ARTISTIC text renders exactly, FRAME text axis-aligned + notice.
+### Text
+
+Text (`TxtA` artistic, `TxtF` frame) imports as real editable text layers via standard `patchy.text.*` metadata (so text PSD round-trips); `render_pending_af_text_layers` renders post-open, anchoring the first line on the tallest run's ascent. Gotchas: `GlAR.Indx` is the run END (exclusive) in CODEPOINTS including the trailing NUL; Affinity's line pitch = natural leading + COLLAPSED paragraph margins, exactly Qt's model; a line straddling the frame bottom draws whole ([area-text.md](area-text.md#box-text-overflow)); rotated/sheared ARTISTIC text renders exactly, FRAME text axis-aligned + notice.
+
+### Effects
 
 Effects (`FiEf`) import into `Layer::layer_style()`: shadows (wire `Angl` = the direction the shadow FALLS; PS light angle = 180 - deg), outline, overlays (from `FDeX`: PS angle = atan2(-c, a), span = hypot(a, c)), glows, bevels (notice-approximate). Unknown kinds skip + notice; group effects render through the calibrated PSD group-style pipeline. The effect `BlnM` enum is its OWN space, NOT the layer `Blnd` enum. Gaussian blur BAKES into the pixels at end of read; wire `Radi` is 2 sigma vs the PS kernel's ~1 sigma, so the bake halves it.
-
-Adjustments: eight kinds import as real adjustment layers with mask planes (Curves, Levels, Invert, Threshold, Posterize, Hue/Saturation 1:1, Brightness/Contrast and Colour Balance notice-approximate; Colour Balance maps its three -1..1 tone triples at 40% of Photoshop's -100..100, fitted on the corpus `adjust-colourbalance` render, mean 0.84/255). Others and live filters keep the placeholder path. Adjustment tags end `*RA`; live filters share the ONE tag `FlRN`, kind in its `Filt` child. Affinity scopes a group-member adjustment to the group's own content (esdreika: a -180 degree HSL shift inside a group darkens only that group in Affinity's render), so a default pass-through group holding an unclipped adjustment child imports ISOLATED (Normal); an explicit wire blend stays authoritative.
-
-Blend modes: layer `Blnd` and effect `BlnM` share one VERSIONED wire enum (`map_blend_mode`). Later modes REUSE ids under an enum-version bump, and version >= 6 renumbers to the JS-facing table, so the JS table alone misreads every non-Normal version-0 layer. Photoshop-shared modes map natively; Affinity-only modes remap to the closest EXISTING BlendMode + notice naming both (never new enum values): Average -> Normal at half opacity, Negation -> Exclusion, Reflect -> Overlay, Glow -> Linear Light, Pigment -> Overlay, ContrastNegate -> Normal. Unmapped explicit group modes fall to Normal + notice, never silent pass-through. Pins: blend-sweep-v0.afphoto, tiny-blend-affinity.af.
-
-Erase blend mode removes alpha from everything beneath; no BlendMode can carry it. `fold_erase_layers` wraps the siblings beneath the carrier in an ISOLATED group "<carrier> (Erase)" with a gray8 group mask = 255 - (carrier alpha x Opacity x Fill x its own masks), canvas-clipped, `default_color` 255 (isolated masks the merged stack once; folder + raster mask is native PSD, so it round-trips). Declined with a notice: carriers in clipping runs, group/adjustment carriers, clip bases, bottom-most carriers, empty carriers, >64 folds; carrier effects drop. Pin: `af_erase_blend_round_trips_through_psd`.
-
-Fixtures: `test-fixtures/af/` is self-authored: `tiny-*.af` via scripted Affinity 3.x (regenerate with `testy/affinity_js.py`); `tiny-v2-*.afphoto` authored interactively in Affinity Photo 2.6.5 (ground truth in the local, untracked `af-spike/v2_corpus`); `tiny-v2-stale-dfsz.afphoto`/`tiny-lazy-placed.af` are byte-level derivations (local `af-spike/author_derived_fixtures.py`). Wild-file tests skip without local samples (the esdreika resized/lazy-raster regression file lives in the local `af-spike/from_esdreika`).
 
 Gaussian layer-effect baking validates each radius, clamps it to the renderer's
 supported range after unit conversion, and contains failures to the affected
 layer. Invalid or failed effects retain the original pixels and report an import
 note; they do not force the whole document through the flat-preview fallback.
+
+### Adjustments
+
+Adjustments: eight kinds import as real adjustment layers with mask planes (Curves, Levels, Invert, Threshold, Posterize, Hue/Saturation 1:1, Brightness/Contrast and Colour Balance notice-approximate; Colour Balance maps its three -1..1 tone triples at 40% of Photoshop's -100..100, fitted on the corpus `adjust-colourbalance` render, mean 0.84/255). Others and live filters keep the placeholder path. Adjustment tags end `*RA`; live filters share the ONE tag `FlRN`, kind in its `Filt` child. Affinity scopes a group-member adjustment to the group's own content (esdreika: a -180 degree HSL shift inside a group darkens only that group in Affinity's render), so a default pass-through group holding an unclipped adjustment child imports ISOLATED (Normal); an explicit wire blend stays authoritative.
+
+### Blend modes
+
+Blend modes: layer `Blnd` and effect `BlnM` share one VERSIONED wire enum (`map_blend_mode`). Later modes REUSE ids under an enum-version bump, and version >= 6 renumbers to the JS-facing table, so the JS table alone misreads every non-Normal version-0 layer. Photoshop-shared modes map natively; Affinity-only modes remap to the closest EXISTING BlendMode + notice naming both (never new enum values): Average -> Normal at half opacity, Negation -> Exclusion, Reflect -> Overlay, Glow -> Linear Light, Pigment -> Overlay, ContrastNegate -> Normal. Unmapped explicit group modes fall to Normal + notice, never silent pass-through. Pins: blend-sweep-v0.afphoto, tiny-blend-affinity.af.
+
+### Erase blend mode
+
+Erase blend mode removes alpha from everything beneath; no BlendMode can carry it. `fold_erase_layers` wraps the siblings beneath the carrier in an ISOLATED group "<carrier> (Erase)" with a gray8 group mask = 255 - (carrier alpha x Opacity x Fill x its own masks), canvas-clipped, `default_color` 255 (isolated masks the merged stack once; folder + raster mask is native PSD, so it round-trips). Declined with a notice: carriers in clipping runs, group/adjustment carriers, clip bases, bottom-most carriers, empty carriers, >64 folds; carrier effects drop. Pin: `af_erase_blend_round_trips_through_psd`.
+
+## Fixtures
+
+Fixtures: `test-fixtures/af/` is self-authored: `tiny-*.af` via scripted Affinity 3.x (regenerate with `testy/affinity_js.py`); `tiny-v2-*.afphoto` authored interactively in Affinity Photo 2.6.5 (ground truth in the local, untracked `af-spike/v2_corpus`); `tiny-v2-stale-dfsz.afphoto`/`tiny-lazy-placed.af` are byte-level derivations (local `af-spike/author_derived_fixtures.py`). Wild-file tests skip without local samples (the esdreika resized/lazy-raster regression file lives in the local `af-spike/from_esdreika`).

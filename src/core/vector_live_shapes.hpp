@@ -6,7 +6,7 @@
 #include <vector>
 
 // Live-shape parameter -> path regeneration. The generated subpaths reproduce
-// Photoshop 27.8's own knot constructions (docs/vector-tools.md):
+// Photoshop 27.8's own knot constructions (docs/vector-psd-encodings.md):
 // - sharp rectangle: 4 corner knots TL/TR/BR/BL clockwise;
 // - rounded rectangle: per rounded corner two smooth knots (arc start/end)
 //   with kappa handles, starting at the top-left arc's top-edge end;
