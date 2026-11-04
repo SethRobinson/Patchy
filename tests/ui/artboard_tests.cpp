@@ -1296,7 +1296,7 @@ void ui_save_as_pdf_uses_the_pdf_options_dialog() {
 }
 
 
-// A slow save shows the Saving dialog (docs/file-formats.md, "Save progress"): the PSD
+// A slow save shows the Saving dialog (docs/file-formats-saving.md, "Save progress"): the PSD
 // writer runs on a worker and names each artboard as it is written. The delay is forced to
 // zero so this small document shows it too.
 void ui_save_shows_progress_with_artboard_names() {

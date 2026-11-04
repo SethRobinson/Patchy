@@ -315,7 +315,7 @@ void ui_file_info_strip_and_export_policies() {
   const auto target = artifact_dir() + QStringLiteral("/stripped.jpg");
   CHECK(MainWindowTestAccess::save_document_to_path(window, target, patchy::ui::ImageSaveOptions{}));
   const auto stripped = md::extract_file_info_from_path(patchy::ui::to_filesystem_path(target));
-  // Only the JPEG save stamp comes back (docs/file-info.md, "Save stamp"): no EXIF, no IPTC,
+  // Only the JPEG save stamp comes back (docs/file-info-save-stamp.md, "Save stamp"): no EXIF, no IPTC,
   // and nothing of the stripped XMP.
   CHECK(stripped.exif == nullptr && stripped.iptc == nullptr);
   CHECK(creator_tool_of(stripped).rfind("Patchy ", 0) == 0U);
@@ -327,7 +327,7 @@ void ui_file_info_strip_and_export_policies() {
 }
 
 
-// Issue 219: a PSD save records its dates and Patchy as the creator in the XMP (docs/file-info.md,
+// Issue 219: a PSD save records its dates and Patchy as the creator in the XMP (docs/file-info-save-stamp.md,
 // "Save stamp"); a second save keeps the creation date and moves the modify date.
 void ui_psd_save_stamps_dates_and_creator() {
   patchy::ui::MainWindow window;
@@ -1346,7 +1346,7 @@ patchy::InvisibleWatermarkScan scan_qimage(const QImage& source) {
       static_cast<std::size_t>(image.bytesPerLine()), 3);
 }
 
-// File Info's Watermarks page (docs/file-info.md, "Watermarks"): nothing is scanned
+// File Info's Watermarks page (docs/file-info-watermarks.md, "Watermarks"): nothing is scanned
 // until Scan for Watermarks is pressed; a hit shows on the page, in the banner and in
 // All Metadata; a clean image reports none. Also checks the decoder after JPEG
 // recompression.
@@ -1368,7 +1368,7 @@ void ui_file_info_scans_for_watermarks() {
   CHECK(scan_qimage(marked).matches.size() == 1);
   // JPEG recompression (Qt's encoder subsamples chroma 4:2:0): recorded, not required.
   // The mark lives in fine chroma detail, so the decoder does not survive it
-  // (docs/file-info.md, "Watermarks"); the scan must still run and report cleanly.
+  // (docs/file-info-watermarks.md, "Watermarks"); the scan must still run and report cleanly.
   for (const int quality : {100, 95, 90}) {
     QBuffer buffer;
     buffer.open(QIODevice::WriteOnly);

@@ -1,9 +1,9 @@
 #pragma once
 
 // Theme packages (docs/theme-files.md, "Theme packages"): a folder in
-// user_themes_directory() holding theme.json plus icons/, images/ and sounds/, or
-// that folder zipped. Everything a package holds is read into memory once, at
-// load, under ThemePackageLimits, so a folder and a zip behave the same and
+// user_themes_directory() holding theme.json plus icons/, images/, sounds/ and
+// scripts/, or that folder zipped. Everything a package holds is read into memory
+// once, at load, under ThemePackageLimits, so a folder and a zip behave the same and
 // nothing reads the disk at paint time. A package holds JSON, SVG, PNG, BMP, JPEG,
 // WAV and theme JavaScript; the scripts run only in the locked-down theme engine
 // (theme_script_host.hpp), once the user allows them.
@@ -32,7 +32,7 @@ struct ThemeIcon {
   QImage image_2x;  // <stem>@2x.png, drawn when the target has the pixels for it
 };
 
-// One theme.json "events" entry (docs/theme-files.md, "Events and effects").
+// One theme.json "events" entry (docs/theme-files-scripts.md, "Events and effects").
 struct ThemeEventAction {
   QByteArray sound;    // RIFF/WAVE bytes; empty for none
   QVariantMap effect;  // {"name": "fireworks" | "sparkles" | "confetti" | "sprite", options...}; empty for none
@@ -55,7 +55,8 @@ struct ThemeAssets {
   // sounds, events or files. Never applied; load the package in full first.
   bool summary = false;
 
-  // True when the package holds scripts/main.js (docs/theme-files.md, "Theme scripts").
+  // True when the package holds scripts/main.js
+  // (docs/theme-files-scripts.md, "Theme scripts").
   [[nodiscard]] bool has_scripts() const;
 };
 

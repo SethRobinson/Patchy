@@ -84,5 +84,5 @@ Manifest keys (a file-format contract, never renamed):
 
 ## Boundaries
 
-- Patchy only exchanges pixels; the companion produces the content. A result is an ordinary pixel layer with a raster mask. Before integrating generated output into Smart Filter stacks or a one-click merge-visible operation, read the US 12530821 and US 8655112 notes in [legal-constraints.md](legal-constraints.md).
+- Patchy only exchanges pixels; the companion produces the content. A result is an ordinary pixel layer with a raster mask. Before integrating generated output into Smart Filter stacks or a one-click merge-visible operation, read the US 12530821 and US 8655112 notes in [legal-constraints-filters.md](legal-constraints-filters.md).
 - Pixels cross at 8 bits per channel. A 16 or 32-bit document takes the RGBA8 result at its depth through `setPixels`.

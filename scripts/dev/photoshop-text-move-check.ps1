@@ -1,11 +1,14 @@
-# Photoshop acceptance check for script layer moves of text (docs/scripting.md, "A script
-# move is a Move tool move"). A text layer made with doc.addTextLayer and moved with
+# Photoshop acceptance check for script layer moves of text (docs/scripting-engine.md, "A
+# script move is a Move tool move"). A text layer made with doc.addTextLayer and moved with
 # layer.moveTo or the x / y setters must stay where the script put it when Photoshop lays
 # the text out again. Photoshop reads the anchor from the text transform, so a move that
 # shifts only the pixels looks right on open and jumps back to the creation anchor at the
 # first edit.
 #
 #   & scripts\dev\photoshop-text-move-check.ps1 [-Patchy build\release\patchy.exe] [-OutDir <dir>] [-Tolerance 3]
+#
+# -Patchy defaults to the release build, which only releases refresh: pass
+# build\opt-dev\patchy.exe to check a development build.
 #
 # The script writes the PSD with `patchy --headless --run-script` (isolated settings, so
 # the run leaves no recent-file entries), opens it in Photoshop over COM, records every

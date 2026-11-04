@@ -24,7 +24,7 @@ All Qt-free, in src/formats/ (patchy_formats):
 - `svg_document_io.hpp`: public API (`svg::DocumentIo::read/write/write_file`,
   the `baked_content` dry run, `svg_extensions()` = {.svg, .svgz}, `sniff`).
 - `vector_export_plan.{hpp,cpp}`: the target-independent export policy shared
-  with editable PDF export (docs/pdf.md): combine classification, the common
+  with editable PDF export (docs/pdf-editable-export.md): combine classification, the common
   shape/group representability checks, the sibling-unit walk with the barrier
   rule (parameterized by which blend modes the target expresses), gradient
   geometry + stop sampling, and the alpha-bounds crop. The SVG writer adds only
@@ -39,8 +39,8 @@ All Qt-free, in src/formats/ (patchy_formats):
   exact for the <= 15-digit numbers the writer emits).
 
 UI side: the registry row (format_registry.cpp), the `file_format_entries()`
-row, the svg branches in `save_document_to_path` / `export_flat_image`, the
-post-open passes (below), `MainWindow::define_custom_shape_from_svg_*`
+row, the svg branches in `DocumentSaveCoordinator::write_prepared` (Save) and
+`export_flat_image`, the post-open passes (below), `MainWindow::define_custom_shape_from_svg_*`
 (main_window_vector.cpp), and `MainWindow::paste_svg_from_clipboard`
 (main_window_layer_ops.cpp).
 
@@ -89,7 +89,8 @@ post-open passes (below), `MainWindow::define_custom_shape_from_svg_*`
   a fill-less "<name> Stroke" layer at the stroke's own opacity.
 - **Gradients**: linear/radial with href template inheritance, objectBoundingBox
   and userSpaceOnUse units, gradientTransform, stop-opacity. Geometry maps
-  onto the calibrated GdFl model (span = center chord; docs/vector-tools.md);
+  onto the calibrated GdFl model (span = center chord;
+  [vector-psd-encodings.md](vector-psd-encodings.md#gdfl-gradient-fill-geometry-probe5c5d5e));
   smoothness = 0 so stops interpolate linearly, matching SVG.
   Coordinates are read in gradient space and carried to the document by one
   matrix: element transform x gradientTransform for userSpaceOnUse, element
@@ -205,7 +206,7 @@ emit native `<rect>`/`<ellipse>`/`<line>` (round-trips back to live).
 
 - Open lists *.svg and *.svgz; Save As/Export list *.svg. svg stays OUT of
   save_extension_preserves_layers on purpose, but it does not inherit the
-  generic flat-format warning either: `save_discards_layers` (main_window_files.cpp)
+  generic flat-format warning either: `save_discards_layers` (document_save_coordinator.cpp)
   asks the writer's dry run, `svg::DocumentIo::baked_content`, which walks the
   document with the writer's own representability rules and reports what
   `write` would bake (`BakedContentKind` + layer name) without compositing or

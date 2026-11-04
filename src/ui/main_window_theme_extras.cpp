@@ -1,7 +1,8 @@
-// Theme events, effects and scripts, MainWindow side (docs/theme-files.md, "Theme
-// scripts"): the effects overlay above the document tabs, the theme menu right of Help
-// and its hotkeys, the trust prompt, the splash, status messages, tool cursors and the
-// panel backgrounds the theme script host asks for, and the start-screen idle event.
+// Theme events, effects and scripts, MainWindow side
+// (docs/theme-files-scripts.md, "Theme scripts"): the effects overlay above the document
+// tabs, the theme menu right of Help and its hotkeys, the trust prompt, the splash,
+// status messages, tool cursors and the panel backgrounds the theme script host asks
+// for, and the start-screen idle event.
 
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window.hpp"

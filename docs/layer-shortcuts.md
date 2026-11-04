@@ -2,12 +2,12 @@
 
 Keys that change the selected layers without opening a panel: opacity digits, the transparency
 lock, blend modes, selection stepping, visibility and the Lock Layers dialog. Most actions live on
-the main window only: the Layer menu's row count is pinned at 21 (`ui_main_window_renders_color_controls`).
+the main window only: the Layer menu is held to at most 22 rows (`ui_main_window_renders_color_controls`).
 Hotkey ids are permanent ([ui-conventions.md](ui-conventions.md), Hotkeys).
 
 The Layer menu's rows are added in one block in display order (end of the Layer section of
 `build_menu_bar_actions`): New, New Adjustment Layer, New Fill Layer; Duplicate, Delete, Rename,
-Color, Hide Layers, Lock Layers...; Layer Mask through Shape; Fill (`layerFillMenu`: Fill Layer /
+Color, Hide Layers, Show All Layers, Lock Layers...; Layer Mask through Shape; Fill (`layerFillMenu`: Fill Layer /
 Selection, Fill With Background Color, Clear Layer / Selection), Arrange, Rotate & Flip, Merge
 (`layerMergeMenu`: Merge Down, Merge Visible, Merge Visible to New Layer (Copy)); Export. Keys fire
 from the submenus, and opening Merge refreshes Merge Visible's state. Pin:
@@ -23,7 +23,7 @@ editable combos, Tab-focused options-bar controls (`spacebar_canvas_pan_blocked_
 dialogs, float windows and open menus keep their digits. The tools are listed in `tool_sets_layer_opacity_with_digit_keys`
 (canvas_widget_events.cpp): Move, Artboard, the marquees, lassos, Magic Wand, Quick Select, Object
 Selection, Pick, Ruler, Type (while not editing), Hand, Zoom, the Pen and path tools, Polygon,
-Custom Shape, Patch and Red Eye. Tools in `tool_supports_opacity_digit_keys` keep the digits for
+Custom Shape, Patch, Content-Aware Move and Red Eye. Tools in `tool_supports_opacity_digit_keys` keep the digits for
 their own Opacity or Flow ([brushes.md](brushes.md)). Fill, Dodge, Burn, Sponge, Blur, Sharpen,
 Mixer Brush and Spot Healing ignore them (their own amounts may take the keys later), and so do
 the crop tools. No tool takes them during a pointer drag (`pointer_gesture_active`) or a Free

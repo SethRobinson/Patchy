@@ -1,7 +1,7 @@
 # Patent research: procedural fire (Filter > Render > Flame)
 
 Engineering record behind the Lens Flare and Flame rule in
-[legal-constraints.md](legal-constraints.md#filters-and-smart-objects); the design is in
+[legal-constraints-filters.md](legal-constraints-filters.md#filters-and-smart-objects); the design is in
 [stylize-render-filters.md](stylize-render-filters.md#flame). Searched 2026-10-28 (web and
 Google Patents): Adobe flame and path patents, procedural fire and flame texture patents,
 flames along curves or strokes.

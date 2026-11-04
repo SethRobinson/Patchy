@@ -11,7 +11,7 @@ The format comes only from the published spec ([openraster.org](https://www.open
 layer stack and file layout pages; link it, never copy its text) and from files GIMP, Krita and
 Patchy write. Krita, GIMP and libkra are GPL: never read, copy or search their source. GIMP and Krita
 are run only as tools, through their command lines, to make fixtures and check interchange. Format
-and app names only; no app logos or icons ([legal-constraints.md](legal-constraints.md)). Krita's .kra
+and app names only; no app logos or icons ([legal-licensing.md](legal-licensing.md#format-copyright-trademarks-and-assets)). Krita's .kra
 and GIMP's .xcf open through their own importers ([kra.md](kra.md), [xcf.md](xcf.md)).
 
 ## Container
@@ -30,7 +30,7 @@ and GIMP's .xcf open through their own importers ([kra.md](kra.md), [xcf.md](xcf
 
 ### Limits
 
-Refused before allocation: a canvas or layer side over 300000, an image over 2^30 pixels, more than
+Refused before allocation: a canvas or layer side over 300000, an image over 2^28 pixels, more than
 2^31 decoded pixels in a file, more than 4 GiB extracted, `stack.xml` over 64 MiB, more than 200000
 entries, an entry claiming more than deflate can expand to (1032:1) or a stored entry whose sizes
 differ, encrypted entries, groups nested past 64. A layer `src` with `..`, a leading `/`, a
@@ -173,8 +173,8 @@ first run on October 24, 2026; the script holds the table.
   128 (a pixel whose two colors have nearly equal luminosity picks the other one; means 0.15 and
   0.25), Hard Mix a worst of 255 (pixels exactly on its threshold flip), and Dissolve is reported
   only (each app draws its own random pattern).
-- Krita and 16 bits: Patchy's 16-bit file renders within 1 level (mean 0.23), now that its PNGs
-  carry the sRGB profile; before that, Krita's export hung on it.
+- Krita and 16 bits: Patchy's 16-bit file renders within 1 level (mean 0.23); the sRGB profile its
+  PNGs carry is what lets Krita's export finish ("Colour profile" above).
 - GIMP, by default: mean 6, worst 130. GIMP 3 composites layers in linear light, so every partly
   covered pixel differs, even at Normal (measured mean 4.5, worst 63 at soft edges). Addition,
   hue, saturation, color and luminosity differ more (linear light plus GIMP's own color models
@@ -196,11 +196,10 @@ pass-through, odd and non-ASCII names, partial-opacity modes). The corpus itself
 The October 25, 2026 sweep: 62 files (MyPaint's and Drawpile's test files, about 20 from public
 GitHub art and library repositories, two CC0 MyPaint paintings from OpenGameArt, an npm sample, the
 GIMP and Krita fixtures). All open, and every save and reopen is identical. Patchy's render matches
-the file's merged image or Krita's export on 60; the two others are Krita's quirk below. Found and
-fixed: Drawpile's `-dp-` mode names opened as Normal, and large files decoded their layers one at a
-time (a 3600x3600 file with 21 layers now opens in 0.9 s instead of 3.2 s; its save takes about 4 s
-for 1.1 GB of layer pixels). MyPaint and Pinta have no scripted save, so writing files with them would
-need desktop control; their output here comes only from files found online.
+the file's merged image or Krita's export on 60; the two others are Krita's quirk below. A 3600x3600
+file with 21 layers opens in 0.9 s and saves in about 4 s (1.1 GB of layer pixels). MyPaint and Pinta
+have no scripted save, so writing files with them would need desktop control; their output here
+comes only from files found online.
 
 Known differences that are the other app's:
 

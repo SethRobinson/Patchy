@@ -1,4 +1,4 @@
-// Paint colors for 32-bit documents (core/hdr_color.hpp; docs/high-bit-depth.md, "Color
+// Paint colors for 32-bit documents (core/hdr_color.hpp; docs/high-bit-depth-color.md, "Color
 // choice at 32 bits"): a base color plus an Intensity in stops, and the paint path that
 // carries it into 32-bit layers only.
 #include "core/document.hpp"

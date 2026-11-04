@@ -174,7 +174,7 @@ std::optional<AvailableTextFamilyStyle> font_database_family_style_split(const Q
 // suites stay hermetic.
 std::optional<AvailableTextFamilyStyle> platform_installed_family_style_match(const QString& requested,
                                                                               bool consult_name_tables) {
-  // Locked: PDF saves draw text on a worker thread (docs/file-formats.md, "Save progress").
+  // Locked: PDF saves draw text on a worker thread (docs/file-formats-saving.md, "Save progress").
   static QHash<QString, std::optional<AvailableTextFamilyStyle>> cache;
   static QMutex cache_mutex;
   static std::once_flag invalidation_connected;

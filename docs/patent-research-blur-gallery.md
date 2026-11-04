@@ -2,7 +2,7 @@
 
 Scan of October 20, 2026. Claim elements were read on Google Patents; statuses are Google's
 estimates, unchecked against USPTO fee or assignment records. The binding rules are in
-[legal-constraints.md](legal-constraints.md); the descriptor and render notes are in
+[legal-constraints-filters.md](legal-constraints-filters.md); the descriptor and render notes are in
 [smart-filters-native.md](smart-filters-native.md). Earlier reads of the same families:
 [patent-research.md](patent-research.md) (Tilt-Shift, Lens and Iris Blur) and
 [patent-research-gmic.md](patent-research-gmic.md) (field blur, bokeh, motion path).

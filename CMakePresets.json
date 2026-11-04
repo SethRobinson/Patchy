@@ -140,7 +140,7 @@
     },
     {
       "name": "linux-flatpak-qt",
-      "displayName": "Linux release build against the Flatpak SDK's Qt (configure and build inside org.kde.Sdk; see docs/platform.md)",
+      "displayName": "Linux release build against the Flatpak SDK's Qt (configure and build inside org.kde.Sdk; see docs/linux-testing.md)",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/linux-flatpak-qt",
       "cacheVariables": {

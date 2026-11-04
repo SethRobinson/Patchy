@@ -33,4 +33,4 @@ Names and values are Patchy's own; none repeats a Photoshop preset's values (che
 
 ## Image > Adjustments
 
-Hue/Saturation and Color Balance run through `direct_adjustment_dialog` like the #528 kinds: the preview covers the hue ranges and OK writes the layer's pixels in one undo step. Before #588 their preview ignored range-only edits and OK added an adjustment layer.
+Hue/Saturation and Color Balance run through `direct_adjustment_dialog` like the #528 kinds: the preview covers the hue ranges and OK writes the layer's pixels in one undo step.

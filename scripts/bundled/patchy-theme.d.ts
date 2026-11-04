@@ -4,8 +4,8 @@
 // described in patchy.d.ts: the only globals are the JavaScript built-ins and the
 // declarations below. There is no file, document, process or network access, every
 // path is relative to the theme package, and every call into theme code runs under a
-// time budget. See docs/theme-files.md ("Theme scripts") for the limits and the trust
-// prompt. Identifiers here are permanent; changes are logged in
+// time budget. See docs/theme-files-scripts.md ("Theme scripts") for the limits and the
+// trust prompt. Identifiers here are permanent; changes are logged in
 // docs/scripting-api-changes.md.
 
 /** The theme events, in the order Patchy lists them. */

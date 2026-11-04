@@ -496,7 +496,7 @@ inline void composite_effect_color(Target& destination, std::int32_t x, std::int
                                                             std::int32_t x, std::int32_t y,
                                                             DissolveField field);
 
-// Deep twin of fold_effect_color (docs/high-bit-depth.md): the effect color is an 8-bit
+// Deep twin of fold_effect_color (docs/high-bit-depth-compositor.md): the effect color is an 8-bit
 // parameter converted into the domain; the burn/dodge pre-folds keep their 8-bit form.
 [[nodiscard]] DeepChannels fold_effect_color(DeepChannels destination, RgbColor color, float alpha,
                                              BlendMode mode, std::int32_t x, std::int32_t y,
@@ -1951,7 +1951,7 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
 
   const auto& layer_source = layer_pixels_for_render(layer, overrides);
   // A deep target repaints gradient fills at its depth instead of reading their 8-bit
-  // raster (docs/high-bit-depth.md).
+  // raster (docs/high-bit-depth-compositor.md).
   std::shared_ptr<const PixelBuffer> deep_fill;
   if constexpr (is_deep_target_v<Target>) {
     if (&layer_source == &layer.pixels() && layer.vector_shape() != nullptr) {
@@ -2100,7 +2100,7 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
 
   // Interior overlays on a stroked shape layer apply to the FILL plane and the
   // vector stroke re-composites above them (PS 2026 probes fx-sofi-center /
-  // outside, docs/vector-tools.md). A stroke-only shape's overlay covers the
+  // outside, docs/layer-effects-render.md). A stroke-only shape's overlay covers the
   // stroke, which the legacy combined path already renders. The split planes
   // come from the shape bake; when absent or mismatched (no stroke, non-Normal
   // stroke blend, transform-preview override, preserved import raster) the
@@ -2218,7 +2218,7 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
   if (!draw_rect.empty()) {
     profile_compositor_step(destination, layer, "base_pixels", draw_rect, [&] {
       if constexpr (is_deep_target_v<Target>) {
-          // 16/32-bit documents (docs/high-bit-depth.md): the general loop below on
+          // 16/32-bit documents (docs/high-bit-depth-compositor.md): the general loop below on
           // float rows in the target's domain. No fast paths; every gate, fold and
           // blend is the 8-bit loop's, with the deep math in place of the byte math.
           const auto domain = target_domain(destination);
@@ -2906,7 +2906,7 @@ template <typename Color>
 class IsolatedClipGroupTargetT {
 public:
   // Deep instantiations (16/32-bit documents) declare their color type and domain; the
-  // 8-bit one is the historical byte target (docs/high-bit-depth.md).
+  // 8-bit one is the historical byte target (docs/high-bit-depth-compositor.md).
   using color_type = Color;
   using channel_type = color_channel_t<Color>;
   static constexpr bool kDeep = std::is_same_v<Color, DeepRgb>;
@@ -3564,7 +3564,7 @@ void composite_clip_base_content(IsolatedClipGroupTargetT<Color>& fill, const La
                                  const PatternStore* patterns) {
   const auto draw_rect = intersect_rect(rect, bounds);
   if constexpr (std::is_same_v<Color, DeepRgb>) {
-    // 16/32-bit documents (docs/high-bit-depth.md): the same base content on float rows.
+    // 16/32-bit documents (docs/high-bit-depth-compositor.md): the same base content on float rows.
     if (draw_rect.empty() || source.empty() || source.format().channels < 3) {
       return;
     }

@@ -138,7 +138,7 @@ void ui_qimage_import_export_preserves_alpha_and_formats() {
 
 // With deep editing on, a 16-bit PNG opens as a 16-bit document with its samples intact,
 // a float image as a 32-bit one (values above 1.0 kept), and the flat-alpha promotion
-// keeps both the mask and the color at depth (docs/high-bit-depth.md, Phase 8).
+// keeps both the mask and the color at depth (docs/high-bit-depth-formats.md, Phase 8).
 void ui_deep_images_import_at_their_depth() {
   ensure_artifact_dir();
   QImage source(4, 2, QImage::Format_RGBA64);
@@ -622,7 +622,7 @@ void ui_flat_alpha_layer_mask_preference_keeps_the_mask() {
   CHECK(reloaded.pixelColor(3, 2).alpha() == 255);
 }
 
-// "Lossy hidden color" (docs/file-formats.md): with the layer-mask open, the color under
+// "Lossy hidden color" (docs/file-formats-psd.md): with the layer-mask open, the color under
 // zero alpha stays exactly what the decoder returned, for lossy and lossless WebP alike. A
 // lossy encoder may have filled it with block-shaped junk; that is the file's data, and the
 // split open exists to show it, so Patchy neither clears nor refills it.

@@ -95,7 +95,7 @@ bool straight_segment(const PathAnchor& from, const PathAnchor& to) noexcept {
          std::abs(to.in_x - to.anchor_x) < kEpsilon && std::abs(to.in_y - to.anchor_y) < kEpsilon;
 }
 
-// Even-odd within a path is Patchy's exact within-group rule (docs/vector-tools.md).
+// Even-odd within a path is Patchy's exact within-group rule (docs/vector-psd-encodings.md).
 QPainterPath painter_path(const VectorPath& path) {
   QPainterPath result;
   result.setFillRule(Qt::OddEvenFill);

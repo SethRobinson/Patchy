@@ -50,7 +50,7 @@ historyBudgetBytes, seq, timestampMs; seq and timestampMs detect staleness
 during long synchronous compute) for page JS and the memory test harness.
 It is diagnostics OPT-IN and inert for release visitors:
 `?PATCHY_MEM_STATS=1` enables the publisher, `?PATCHY_MEM_LOG=1`
-additionally logs each sample to the console, and the harness page opts in
+implies it and logs each sample to the console, and the harness page opts in
 automatically through `globalThis.patchyExtraEnv` (folded into the app
 environment by app-env-pre.js, explicit URL keys winning).
 
@@ -114,7 +114,7 @@ Open `http://localhost:8974/stress-harness.html?mode=open`. Pass means
 `open-passed` with `transferReleased: true`; `?timeout=` overrides 600000 ms.
 Remove both staged files and stop port 8974 afterward.
 
-Instrumentation on the page: an on-screen HUD (heap/used/cap/stage), 2 s `POST /memtest-sample` samples that `scripts/wasm/serve.py` appends to a JSONL (silently inert on plain Apache; the path avoids the word "telemetry", which content blockers kill), and a localStorage black box journaled synchronously at each load stage (memory-constructed, fetch, compile, qtload-start, loaded, running+Ns) so a browser memory kill, which fires no catchable event, is reported by the NEXT load as a banner with the death stage and last heap numbers. Three consecutive unclean ends gate the next boot behind a click so Safari's kill-then-reload loop cannot hammer a device. In-app numbers come from `globalThis.patchyMemStats` (ui/wasm_memory_telemetry.cpp, see [wasm-memory.md](wasm-memory.md)); the publisher is diagnostics opt-in (`?PATCHY_MEM_STATS=1`, implied by `?PATCHY_MEM_LOG=1`), the harness enables it automatically, and release visitors run without it.
+Instrumentation on the page: an on-screen HUD (heap/used/cap/stage), 2 s `POST /memtest-sample` samples that `scripts/wasm/serve.py` appends to a JSONL (silently inert on plain Apache; the path avoids the word "telemetry", which content blockers kill), and a localStorage black box journaled synchronously at each load stage (memory-constructed, fetch, compile, qtload-start, loaded, running+Ns) so a browser memory kill, which fires no catchable event, is reported by the NEXT load as a banner with the death stage and last heap numbers. Three consecutive unclean ends gate the next boot behind a click so Safari's kill-then-reload loop cannot hammer a device. In-app numbers come from `globalThis.patchyMemStats` ([Reading the numbers](#reading-the-numbers-about-row-and-patchymemstats)), which the harness enables automatically.
 
 ## Safari/iOS memory diagnostics (mac build host)
 

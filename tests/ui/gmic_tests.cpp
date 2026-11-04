@@ -1699,7 +1699,7 @@ void ui_gmic_library_dialog_puts_point_handles_on_the_canvas() {
                    QPointF(bounds.x + 0.25 * bounds.width, bounds.y + 0.75 * bounds.height), 0.01));
 
     // Blur [Radial] and Blur [Angular] show their centre; the two blur filters held back
-    // for review are not offered at all (docs/legal-constraints.md).
+    // for review are not offered at all (docs/legal-constraints-filters.md).
     CHECK(dialog.select_filter("fx_blur_radial"));
     CHECK(canvas->preview_point_handle_count() == 1);
     CHECK(dialog.select_filter("fx_blur_angular"));

@@ -1,5 +1,5 @@
 // Lifting the selected pixels out of a layer and compositing them back (GitHub
-// issue 399, Free Transform of a selection; docs/free-transform.md).
+// issue 399, Free Transform of a selection; docs/free-transform-targets.md).
 #include "core/floating_selection.hpp"
 #include "core/pixel_depth.hpp"
 #include "test_harness.hpp"

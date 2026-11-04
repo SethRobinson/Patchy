@@ -22,7 +22,7 @@ inline constexpr const char* kActionTooltipDetailProperty = "patchy.tooltipDetai
 void refresh_action_tooltip(QAction* action);
 
 // Per-platform DEFAULT shortcuts for a register_hotkey call site (macOS conventions
-// differ; see docs/platform.md). Safe for saved user hotkeys: only
+// differ; see docs/platform-sites.md). Safe for saved user hotkeys: only
 // per-command deltas persist, so unmodified commands adopt the platform default
 // automatically. A platform default must be conflict-free on that platform
 // (ui_hotkey_defaults_have_no_conflicts runs per-OS).

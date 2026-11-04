@@ -1,4 +1,4 @@
-"""Reproduces the automatic-selection models Patchy ships (docs/ai-selection.md).
+"""Reproduces the automatic-selection models Patchy ships (docs/ai-selection-models.md).
 
 Dev tooling only: builds never run this. Every output is byte-reproducible from the pinned
 upstream fp32 file it names below.

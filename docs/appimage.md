@@ -69,9 +69,8 @@ That lint fails on any `desktop-file-validate` error from 22.04's desktop-file-u
 which predates Desktop Entry 1.5, so the build drops `SingleMainWindow` from the AppImage's
 copy of the desktop file (the Flatpak keeps it). It warns unless `.DirIcon` is a PNG, so the
 build points `.DirIcon` at a root copy of the 256 px PNG instead of linuxdeploy's SVG. The
-build fails if either check regresses. Releases up to 1.13 shipped `SingleMainWindow` and
-failed the lint (GitHub issue 208); a newer host validator (24.04's 0.27) accepts the key,
-so reproduce with 22.04's. Still warnings, by choice: "Linux" in the file name
+build fails if either check regresses. A newer host validator (24.04's 0.27) accepts the key,
+so reproduce with 22.04's (GitHub issue 208). Still warnings, by choice: "Linux" in the file name
 (renaming breaks the zsync update name older installs follow) and
 "No appdata file" (the lint looks only for `*appdata.xml`; ours is the current
 `.metainfo.xml` name, which the worker still copies for screenshots). Keep that name: under
@@ -146,7 +145,7 @@ behind. Wherever a path is shown, stored or compared across launches, use it (or
   the distro's libheif and its HEVC plug-in are installed (Ubuntu/Debian: `libheif1` plus,
   on 24.04 and later, `libheif-plugin-libde265`; Fedora: `libheif` plus RPM Fusion's
   `libheif-freeworld`). The open error shows the exact install command. The AppImage must never
-  bundle libheif or an HEVC decoder ([legal-constraints.md](legal-constraints.md));
+  bundle libheif or an HEVC decoder ([legal-licensing.md](legal-licensing.md));
   linuxdeploy copies only what the binary links, and dlopen links nothing. The loader
   uses `RTLD_LOCAL`, so the host library's codecs stay out of the app's symbol namespace;
   its own `libjpeg`/`libpng` dependencies resolve to the bundled copies when the sonames
@@ -191,9 +190,8 @@ Code: `ui/appimage_menu_entry.{hpp,cpp}` (files), `main_window_appimage_menu_ent
   (`send_kde_icon_theme_changed`). KDE's icon loader lists a theme's folders once, so without
   that signal a KDE program keeps the folder list it read when it loaded the theme, so
   `hicolor/<size>/apps` folders created later stay unseen. On the signal every KDE program
-  rebuilds its themes, as after an icon theme change in System Settings. With the themed
-  `Icon` name 1.19 wrote, a Plasma user saw a blank task bar icon after Add (GitHub issue
-  226; Plasma 5.27 and 6 test containers did not reproduce it). The full-path `Icon` does not
+  rebuilds its themes, as after an icon theme change in System Settings. The full-path `Icon`
+  (a themed name left a Plasma task bar icon blank after Add, GitHub issue 226) does not
   depend on any theme lookup; the refreshes keep lookups by the app id's name current. An entry an older release wrote is rewritten at the next launch (the launch
   refresh compares bytes).
 - Plasma 5.27 and 6 show an AppImage's icon without any entry when nothing installed
@@ -265,9 +263,8 @@ Code: `ui/appimage_menu_entry.{hpp,cpp}` (files), `main_window_appimage_menu_ent
 
 The AppImage bundles no picture of itself: the screenshots a software center or the AppImage
 catalog shows come from the installed `usr/share/metainfo/com.rtsoft.patchy.metainfo.xml`,
-whose `<screenshot>` URLs are raw GitHub links pinned to a release tag. 1.17 and 1.18 shipped
-pinned to v1.16 (the captures themselves were not regenerated between those tags either), so
-`scripts/release/check-metainfo.py` now fails the release drivers when a pin is behind
+whose `<screenshot>` URLs are raw GitHub links pinned to a release tag.
+`scripts/release/check-metainfo.py` fails the release drivers when a pin is behind
 `docs/images/screenshots/` ([packaging/linux/README.md](../packaging/linux/README.md)).
 `release-linux.ps1` runs that check, then `make-appimage.sh` after `make-flatpak.sh`, and copies both files
 back; `publish-github-release.ps1` publishes them as `PatchyLinux.AppImage` and

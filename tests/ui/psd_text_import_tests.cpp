@@ -461,7 +461,7 @@ std::optional<double> layer_metric(const patchy::Layer& layer, const char* key) 
 // pitch as the paragraph auto-leading fraction. The saved PSD reopens with the frame where it was
 // (no jump entering the layer) and re-saves the same type blocks. The document is kept under
 // test-artifacts so the Photoshop read-back can be re-measured by COM
-// (docs/text-render-calibration.md).
+// (docs/text-render-calibration-patchy-authored.md).
 void ui_text_commit_records_photoshop_baseline_metrics_and_round_trips_psd() {
   skip_without_arial_for_psd_text_preview();
   patchy::ui::MainWindow window;

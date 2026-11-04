@@ -1,6 +1,6 @@
 // macOS HEIF reader for files deeper than 8 bits (compiled on macOS only, see CMakeLists).
 // ImageIO is the system HEVC decoder, so Patchy still ships no codec of its own
-// (docs/legal-constraints.md). Ordinary 8-bit HEIC keeps the historical route: read_heif
+// (docs/legal-licensing.md). Ordinary 8-bit HEIC keeps the historical route: read_heif
 // throws and load_document_from_path retries through QImageReader (Qt's qmacheif, which
 // decodes through ImageIO too but returns 8-bit pixels). This reader takes only what that
 // route would narrow, and only while deep editing is on:

@@ -11,10 +11,10 @@
 
 namespace patchy::avif {
 
-// AVIF (AV1 Image File Format, .avif/.avifs): decode-only on every native platform through
+// AVIF (AV1 Image File Format, .avif/.avifs): read on every native platform through
 // the vendored libavif 1.4.2 over the dav1d 1.5.4 AV1 decoder (src/formats/libavif,
 // src/formats/dav1d; both BSD-2-Clause; cmake/patchy_avif.cmake). Design in docs/avif.md,
-// the licensing record in docs/legal-constraints.md. The browser build compiles only the
+// the licensing record in docs/legal-licensing.md. The browser build compiles only the
 // stub: is_available() is false there and read_avif() throws.
 //
 // The primary image opens as an 8-bit RGBA document, or 16-bit when the file stores 10 or

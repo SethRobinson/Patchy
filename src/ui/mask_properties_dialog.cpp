@@ -1,5 +1,5 @@
 // Mask Properties: Density and Feather for a layer mask or a vector mask
-// (docs/vector-tools.md, "Vector mask UI"; docs/layer-panel.md).
+// (docs/vector-tools.md, "Vector mask UI"; docs/layer-panel-row-controls.md).
 #include "ui/mask_properties_dialog.hpp"
 
 #include "ui/curved_slider.hpp"

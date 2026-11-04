@@ -49,9 +49,11 @@ Separable two-pass filter with per-axis weight tables (`build_axis_weights`):
 - Deterministic: fixed summation order, no threads inside. The Image Size caller already runs
   it on a worker (`resize_document_image`).
 
-Other callers pass an explicit method and keep Bilinear: the export Resize option
-(`transform_export_buffer`, `src/ui/image_document_io.cpp`) and the Proton texture writer's
-stretch mode (`rttex_document_io.cpp`).
+Other callers pass an explicit Bilinear: the export Resize option
+(`transform_export_buffer`, `src/ui/image_document_io.cpp`), the Proton texture writer's
+stretch mode (`rttex_document_io.cpp`), the Camera Raw filter's draft source
+(`camera_raw_filter_dialog.cpp`) and the AI selection model input
+(`src/ai/ai_selection_math.cpp`).
 
 ## Free Transform
 
@@ -92,7 +94,9 @@ Core (`tests/core/pixel_tools_tests.cpp`): `resample_nearest_replicates_pixels_a
 `resample_cubic_variants_are_distinct_and_keep_flat_color`, `resample_interpolates_premultiplied_alpha`,
 `resample_sixteen_bit_and_float_interpolate`, `resample_automatic_resolves_by_direction`,
 `resample_method_ids_round_trip`; `document_image_resize_scales_layers_and_writes_artifact`
-covers the method reaching layers. UI (`tests/ui/import_print_resolution_tests.cpp`):
+(`tests/core/document_ops_filters_tests.cpp`) covers the method reaching layers. UI
+(`tests/ui/import_print_resolution_tests_geometry_rendering.cpp`; the two export pins are in
+`tests/ui/import_print_resolution_tests_import_export.cpp`):
 `ui_image_size_dialog_method_is_applied_and_remembered`, `ui_script_resize_image_method_option`,
 the Resample-off phase of `ui_image_size_dialog_unit_and_resolution_links_work`, and the export
 pins `ui_export_resize_resamples_bilinear_to_target` and

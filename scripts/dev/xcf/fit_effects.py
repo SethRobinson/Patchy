@@ -1,4 +1,5 @@
-"""Fits Patchy's formulas for GIMP's color filters against GIMP's renders (docs/xcf.md).
+"""Fits Patchy's formulas for GIMP's color filters against GIMP's renders
+(docs/xcf-layer-effects.md, "Layer effects").
 
 Reads the files make_effect_fixtures.py writes (the 4096-color sweep with one GIMP filter
 each) and prints, per filter and candidate formula, the mean and worst difference in 8-bit

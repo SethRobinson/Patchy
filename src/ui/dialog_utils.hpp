@@ -84,7 +84,7 @@ inline constexpr char kToolbarSpinboxWidthSampleProperty[] = "patchy.toolbarSpin
 // Set this bool property on an integer toolbar spin box to give its popup slider the
 // SliderCurve::FineLowEnd response (curved_slider.hpp) for size-like ranges.
 inline constexpr char kToolbarSpinboxSliderCurvedProperty[] = "patchy.popupSliderCurved";
-// Scrub handles (GitHub issue 46; docs/ui-conventions.md). A label,
+// Scrub handles (GitHub issue 46; docs/ui-conventions-dialogs.md). A label,
 // the gap between it and its field, and the field itself form one scrub zone:
 // - A horizontal drag past the drag distance changes `spin`'s value by one singleStep
 //   per pixel, ten with Shift, a tenth with Alt (integer fields then move every ten

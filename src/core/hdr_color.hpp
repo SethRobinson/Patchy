@@ -1,6 +1,6 @@
 #pragma once
 
-// Paint colors for 32-bit documents (docs/high-bit-depth.md, "Color choice at 32 bits").
+// Paint colors for 32-bit documents (docs/high-bit-depth-color.md, "Color choice at 32 bits").
 // A foreground or background color is an 8-bit sRGB base color plus an intensity in stops:
 // its linear value is the decoded base times 2^stops, so +1 stop doubles the light and a
 // 32-bit layer can be painted above 1.0. 8 and 16-bit documents use the base color alone.

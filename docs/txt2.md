@@ -233,5 +233,5 @@ numbering: 58 px), the text itself is unchanged, and the tier changes the bullet
   Photoshop read the probes' horizontal, vertical and boxed layers back, but a transformed
   Patchy-born layer has not been read back yet. Warp Text lives only in the TySh too; its box
   must match Photoshop's layout or the layer prompts to update, whatever the object
-  ([warp.md](warp.md), Warp Text).
+  ([warp-text.md](warp-text.md)).
 - Older Photoshop versions: Photoshop 2026 (`/98 /0 14`) has been probed, Photoshop 2025 only for the issue 341 open checks. Older files can carry a named-key engine (`DocumentResources/TextFrameSet`, `DocumentObjects/TextObjects`); Patchy reads its point and box frames and preserves the rest, but cannot author into it.

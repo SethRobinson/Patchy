@@ -1291,8 +1291,8 @@ struct Importer {
     std::stable_sort(gradient.alpha_stops.begin(), gradient.alpha_stops.end(), by_location);
 
     // Geometry: map the SVG gradient vector onto Patchy's calibrated model
-    // (span = center chord of the aligned bounds; docs/vector-tools.md "GdFl
-    // gradient fill geometry"). The attributes are read in GRADIENT space and
+    // (span = center chord of the aligned bounds; docs/vector-psd-encodings.md
+    // "GdFl gradient fill geometry"). The attributes are read in GRADIENT space and
     // carried to the document by one matrix, the way the spec composes it:
     //   userSpaceOnUse:     element transform x gradientTransform
     //   objectBoundingBox:  element transform x (unit square -> the element's

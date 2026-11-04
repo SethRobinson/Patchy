@@ -22,7 +22,8 @@ tip, dynamics, smoothing and stroke state restore even after interruption.
 Editable Pause waits until a native stroke finishes and this temporary state is
 restored. Batches resolve and validate their target again before each stroke, so
 manual deletion, locking or document closure fails cleanly on resume. See
-[automation-feedback.md](automation-feedback.md) for history and API lifetime rules.
+[automation-feedback.md](automation-feedback.md#api-lifetime-and-history-across-a-pause)
+for history and API lifetime rules.
 Focus loss during a native script stroke skips manual gesture cleanup: zoom-field
 focus or switching windows must not reset its coverage, spacing, or Mixer pickup.
 
@@ -86,7 +87,7 @@ MCP/CLI operation label. Stop checks run between pointer samples and native tick
 Normal mode creates one Undo entry per touched document per script. Slow mode
 separates each native stroke, including strokes within one batch or strokePath.
 It presents completed changes without changing simulated time; see
-[automation-feedback.md](automation-feedback.md).
+[automation-feedback.md](automation-feedback.md#slow-mode).
 
 MCP state contains compact current-brush metadata and the library revision.
 Attached fingerprints additionally include current brush settings. Fetch full

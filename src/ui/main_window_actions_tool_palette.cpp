@@ -1566,8 +1566,8 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     button->setMenu(menu);
     button->setDefaultAction(default_action);
     button->setToolTip(default_action->toolTip());
-    // Press-and-hold opens the flyout after SH_ToolButton_PopupDelay (the
-    // InteractionHintsStyle in main.cpp). A left double-click is the second
+    // Press-and-hold opens the flyout after SH_ToolButton_PopupDelay (set in
+    // AppStyle::styleHint, app_style.cpp). A left double-click is the second
     // way in: Qt would otherwise route the pair's second press back to
     // mousePressEvent and restart the hold timer, so swallow it and open the
     // menu through the same showMenu() path the timer uses. The first click
@@ -1951,8 +1951,8 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   register_hotkey(resolve_fonts_action, "type.resolve_missing_fonts");
   connect(resolve_fonts_action, &QAction::triggered, this, [this] { show_resolve_missing_fonts_dialog(); });
   register_document_action(resolve_fonts_action);
-  // Text as vector outlines (GitHub issue 598; docs/text-tool.md, "Convert to Shape"). The
-  // Layers panel's text-layer menu and the Move tool's canvas menu share these actions.
+  // Text as vector outlines (GitHub issue 598; docs/text-outlines.md). The Layers panel's
+  // text-layer menu and the Move tool's canvas menu share these actions.
   ctx.type_menu->addSeparator();
   type_convert_to_shape_action_ = ctx.type_menu->addAction(QString());
   bind_action_text(type_convert_to_shape_action_, QT_TR_NOOP("Convert to Shape"));
@@ -1986,7 +1986,7 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   secondary_color_button_ = tool_palette_footer_->background();
   primary_color_button_->setToolTip(tr("Foreground color"));
   secondary_color_button_->setToolTip(tr("Background color"));
-  // Screen modes (GitHub issue 212; docs/tool-palette.md): one flyout-style button under
+  // Screen modes (GitHub issue 212; docs/screen-modes.md): one flyout-style button under
   // Quick Mask whose icon shows the current mode. A click cycles like F; a hold, a
   // double-click or a right-click opens the View > Screen Mode actions, so the check marks
   // live in one place. A double-click's first click has already cycled.

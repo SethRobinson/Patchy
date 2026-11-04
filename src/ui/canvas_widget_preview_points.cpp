@@ -2,7 +2,7 @@
 // dialog puts on the canvas while it is open (the G'MIC Filter Library's point
 // parameters, docs/gmic.md). They are plain markers: a position and nothing
 // else, with no extent, ring, boundary or region drawn around them
-// (docs/legal-constraints.md, "G'MIC engine").
+// (docs/legal-constraints-filters.md, "G'MIC engine").
 
 #include "ui/canvas_widget.hpp"
 

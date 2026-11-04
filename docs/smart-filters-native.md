@@ -1,15 +1,5 @@
 # Native Smart Filters: descriptors, FEid cache, render calibration
 
-CMYK FEid caches contain inverted C/M/Y/K in slots 0..3 and alpha in slot 25
-(Photoshop captures `cmyk-render/smart-filtered-{8,16}.psd`). Photoshop's 16-bit
-capture uses 16-bit ZIP-predicted planes, preserved but preview-locked; Patchy's
-authored caches use the supported 8-bit form. Imported records retain their source
-profile in session metadata through rekeying, mask edits and clipboard copies.
-CMYK saves convert rebuilt sRGB cache planes with that document's profile while
-preserving the remaining slots and exact mask tail. Unchanged native caches are
-emitted verbatim. The layer preview converts separately at the parent depth;
-neither conversion alters the live document or undo snapshots.
-
 Calibration record for Photoshop-native Smart Filter authoring and rendering. Read this before touching src/psd smart-filter descriptor I/O or src/filters/smart_filter_renderer.cpp. Model and UI rules live in [smart-objects.md](smart-objects.md).
 Conventions: "PS" = Adobe Photoshop 2026/27.8, the installed ground truth; every rule is pinned by PS COM captures unless noted. Fixtures named `photoshop-*` live in `test-fixtures/psd/`; `local-test-fixtures/` is machine-local. The COM workflow lives in [ps-compat.md](ps-compat.md).
 
@@ -49,7 +39,7 @@ Conventions: "PS" = Adobe Photoshop 2026/27.8, the installed ground truth; every
   - Plastic Wrap: deterministic integer height-field render; bounds/alpha byte-exact; Patchy-original pixels, no byte-identity claim.
   - Blur, Blur More, Sharpen, Sharpen More (`render_classic_kernel`): byte-exact 3x3 kernels, pinned by `photoshop-smart-filter-classic.psd` (noise with mixed alpha, a stack, content crossing the canvas edge). Blur: cross 1-4-1 / 8; Blur More: 1-2-1 / 2-2-2 / 1-2-1 / 14; Sharpen: centre 8, cross -1, / 4; Sharpen More: centre 12, all eight neighbours -1, / 4. Edge-repeat at the FEid canvas edge, quotients round half up, alpha takes the same kernel. The blurs run premultiplied (`p = round(c*a/255)`, back `round(P*255/A)`); the sharpens run on straight RGB with transparent pixels borrowing the nearest visible colour (Median's extension). One transparent pixel of padding inside the canvas replaces full-canvas embedding; blurs grow by one pixel. Known tolerance: the sharpens' extension (`extend_transparent_colors_columns_first`) breaks equal-distance ties by the nearest visible pixel in the same column (below first), then the nearer column, then the right one. That rule leaves 18 of about 6700 channel samples on a noise-with-holes probe and 1 of 522 fixture pixels off (diagonal ties); the fixture test allows 1 in 200 for the sharpens only.
   - Sharpen Edges (`render_sharpen_edges_kernel`), a fitted model pinned by `photoshop-smart-filter-sharpen-edges.psd`: per channel (alpha included) out = round((S*(255-w) + Sh*w)/255), where Sh is the byte-rounded Sharpen above and w = round(clamp(floor(|Sobel(S)|) - 64, 0, 191)*255/191) from that channel's 3x3 Sobel magnitude. Within one level of PS on 99.65% of probe samples; same extension and padding as the sharpens. The 64 and 191 are fixed constants, never user-set, ranked or image-derived ([patent-research-smart-sharpen.md](patent-research-smart-sharpen.md)).
-  - Average (`render_canvas_average_effect`): every visible pixel takes the mean straight RGB over the whole FEid canvas, rounded half up; alpha and bounds unchanged. PS counts each transparent pixel by its stored hidden color (white outside the placed content, the embedded layer's color inside); Patchy counts all of them as white, so it matches PS where hidden colors are white (probes `avg1..3`, an opaque square on transparency) and drifts elsewhere. PS's destructive Average averages stored hidden colors too; Patchy's destructive Average uses the alpha-weighted mean of visible pixels instead ([filters.md](filters.md)).
+  - Average (`render_canvas_average_effect`): every visible pixel takes the mean straight RGB over the whole FEid canvas, rounded half up; alpha and bounds unchanged. PS counts each transparent pixel by its stored hidden color (white outside the placed content, the embedded layer's color inside); Patchy counts all of them as white, so it matches PS where hidden colors are white (probes `avg1..3`, an opaque square on transparency) and drifts elsewhere. PS's destructive Average averages stored hidden colors too; Patchy's destructive Average uses the alpha-weighted mean of visible pixels instead ([filters-spatial-bounds.md](filters-spatial-bounds.md)).
   - Invert (`render_invert_effect`): `255 - c` on straight RGB, alpha and bounds unchanged; byte-exact (`photoshop-smart-filter-invert.psd`, including Invert then Blur and a layer past the canvas edge).
   - Radial Blur Zoom (`radial_zoom_kernel`): Patchy's own ray average about the content center, like Spin; samples 8/16/32 by quality at scale factors spread evenly over `1 +/- amount / 400`, Photoshop's streak extent read off dot probes (a dot at distance d streaks over d/(1+a/400)..d/(1-a/400)). Not byte-exact: on `photoshop-smart-filter-zoom.psd` (smooth gradients, Zoom 10 Draft, 25 Best, 60 Good) the mean opaque RGB difference is 0.26..1.8 levels and alpha differs by up to 51 at streak ends; per-pixel noise reaches about 6. The test pins mean <= 3 and alpha <= 64.
   - Mosaic, Emboss, Box Blur, Radial Blur (Spin), Add Noise: pinned byte-equal to the corresponding destructive filters (Box Blur above radius 12 via an exact integer sliding window; Radial Blur about the content center; Add Noise deterministic position-hashed from the seed, Patchy's own noise, not PS's).
@@ -59,8 +49,19 @@ Conventions: "PS" = Adobe Photoshop 2026/27.8, the installed ground truth; every
 - Stack semantics: each nondefault blend/opacity result source-over composites onto the previous result; Normal 100% replaces. The shared document-space mask applies once to the completed stack. Editing rebuilds the unfiltered placed/warped raster before running the stack; placement, warp, Edit Contents, linked refresh, Relink, and Replace Contents regenerate the FEid cache. The first supported filter seeds the mask from the exact selection alpha; no selection writes an all-white mask. Editable native masks cap at 64 megapixels; larger imported records stay preview-locked.
 - Untouched SoLd and FEid/FXid payloads stay byte-exact. Rekeying duplicates changes only the Pascal `placed` id and rebuilds the envelope; the cloned FEid record must sit directly AFTER its source, and the cloned layer needs a fresh native `lyid` (PS rejects wrong cache order and merges duplicate lyids); Patchy allocates the next unused native id independently of runtime `LayerId`. Unknown versions, malformed bounds/lengths, trailing row data, unsupported depth/compression, missing associations, and duplicate `placed` matches fail closed; any opaque FEid/FXid block disables association and mutation store-wide. If ANY `filterFXList` entry is unsupported the whole stack stays preview-locked; never execute a known prefix over PS's baked preview. No private fallback block.
 - **Approximate renders.** A modeled filter whose pixels Patchy cannot reproduce (Plastic Wrap, Add Noise, the randomized filters in [smart-filters-pixelate-render.md](smart-filters-pixelate-render.md), the distortions not yet byte-exact in [smart-filters-distort-stylize.md](smart-filters-distort-stylize.md)) still unlocks its stack, because opening NEVER re-renders: an untouched layer shows Photoshop's baked pixels, and Patchy renders the stack only after an edit to that layer (its stack, mask, placement, contents or the document geometry). Keep any new open-time refresh away from supported stacks; `ui_smart_filter_table_approximate_stacks_keep_photoshop_pixels_on_open` and its distort-stylize sibling pin it.
-- Fixture inventory: [smart-objects.md](smart-objects.md). PS ignores written `filterMaskLinked=true`; Patchy preserves the flag but keeps that stack preview-locked.
+- Fixture inventory: [smart-objects-ground-truth.md](smart-objects-ground-truth.md) ("Fixtures"). PS ignores written `filterMaskLinked=true`; Patchy preserves the flag but keeps that stack preview-locked.
 
+## CMYK documents
+
+CMYK FEid caches contain inverted C/M/Y/K in slots 0..3 and alpha in slot 25
+(Photoshop captures `cmyk-render/smart-filtered-{8,16}.psd`). Photoshop's 16-bit
+capture uses 16-bit ZIP-predicted planes, preserved but preview-locked; Patchy's
+authored caches use the supported 8-bit form. Imported records retain their source
+profile in session metadata through rekeying, mask edits and clipboard copies.
+CMYK saves convert rebuilt sRGB cache planes with that document's profile while
+preserving the remaining slots and exact mask tail. Unchanged native caches are
+emitted verbatim. The layer preview converts separately at the parent depth;
+neither conversion alters the live document or undo snapshots.
 
 The self-authored `cmyk-render/smart-filtered-{8,16}.psd` fixtures add Gaussian Blur
 through Photoshop COM to `smart-gradient.psd`; `smart-gradient-16.psd` is its

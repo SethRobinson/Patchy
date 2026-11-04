@@ -5,7 +5,7 @@
 // itself would draw that type in (GitHub issue 463). libfontconfig is loaded with dlopen at run
 // time, like libheif: Qt's Linux font database already loads the same library, and nothing new is
 // linked or needed at build time (Flatpak SDK, AppImage container, native presets). See
-// docs/font-resolution.md, "Font types".
+// docs/font-resolution-missing-fonts.md, "Font types".
 
 #include "core/font_substitutes.hpp"
 

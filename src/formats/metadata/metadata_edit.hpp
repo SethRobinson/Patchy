@@ -103,7 +103,7 @@ struct SaveMetadata {
   }
 };
 
-// A PSD/PSB save, recorded in the document's XMP and EXIF (docs/file-info.md, "Save stamp").
+// A PSD/PSB save, recorded in the document's XMP and EXIF (docs/file-info-save-stamp.md, "Save stamp").
 struct SaveStamp {
   std::string when;           // ISO 8601 local time with its offset (xmp_date)
   std::string software;       // "Patchy 1.14"

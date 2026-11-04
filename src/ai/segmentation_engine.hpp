@@ -1,9 +1,10 @@
 #pragma once
 
-// Automatic selection inference (docs/ai-selection.md): EfficientViT-SAM XL0 for the Object
-// Selection tool and BiRefNet for Select > Subject, both on ONNX Runtime's CPU provider.
-// The threaded wasm app runs MobileSAM in the page's onnxruntime-web instead
-// (segmentation_engine_web.cpp); there every inference call must run off the main thread.
+// Automatic selection inference (docs/ai-selection.md): MobileSAM for the Object Selection
+// tool (EfficientViT-SAM XL0 instead once it is downloaded and enabled; see SamModel) and
+// BiRefNet for Select > Subject, all on ONNX Runtime's CPU provider. The threaded wasm app
+// runs only MobileSAM, in the page's onnxruntime-web (segmentation_engine_web.cpp); there
+// every inference call must run off the main thread.
 // Builds without either (PATCHY_ENABLE_AI_SELECTION off, wasm-core, single-threaded wasm)
 // link a stub that reports the feature unavailable, so callers never need their own #if.
 //
@@ -89,7 +90,7 @@ void set_model_directory(const std::filesystem::path& directory);
 // model is held back pending patent review (US 12051225, docs/legal-constraints.md).
 [[nodiscard]] bool subject_selection_available();
 
-// The two Object Selection models (docs/ai-selection.md). Standard is MobileSAM, bundled
+// The two Object Selection models (docs/ai-selection-models.md). Standard is MobileSAM, bundled
 // with every build that has automatic selection (and the only one in the web build).
 // HighQuality is EfficientViT-SAM XL0, a 234 MB download desktop users opt into; it runs
 // only when its files are present and the user's setting allows it. Which model runs is

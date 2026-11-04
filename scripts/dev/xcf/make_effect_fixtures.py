@@ -1,4 +1,4 @@
-"""Writes GIMP 3 layer-effect calibration files (docs/xcf.md, "Layer effects").
+"""Writes GIMP 3 layer-effect calibration files (docs/xcf-layer-effects.md, "Layer effects").
 
 One 64 x 64 image of 4096 colors (16 levels of red, green and blue) gets one GIMP filter as
 a layer effect per file; GIMP saves the .xcf and exports its render as a PNG beside it, so

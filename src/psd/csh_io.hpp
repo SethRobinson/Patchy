@@ -9,7 +9,7 @@
 #include <vector>
 
 // Reader for Adobe Photoshop .csh custom-shape libraries (GitHub issue 486),
-// written from files only (layout in docs/vector-tools.md, "Photoshop .csh
+// written from files only (layout in docs/vector-tools-custom-shapes.md, "Photoshop .csh
 // files"): 'cush', a u32 version 2 and a u32 shape count, then per shape a
 // u32 UTF-16 length with the big-endian name (terminator included), zero
 // padding to a 4-byte file offset, a u32 1, and a u32 block length. The block

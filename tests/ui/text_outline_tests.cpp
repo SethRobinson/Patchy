@@ -1,5 +1,5 @@
-// Type > Convert to Shape and Type > Create Work Path (GitHub issue 598; docs/text-tool.md,
-// "Convert to Shape"): text layers become shape layers and work paths from their glyph
+// Type > Convert to Shape and Type > Create Work Path (GitHub issue 598;
+// docs/text-outlines.md): text layers become shape layers and work paths from their glyph
 // outlines. The shape must cover the pixels the text drew (point, area, vertical and warped
 // text), keep the layer's own properties, undo in one step, survive a PSD round trip, and the
 // outline grouping must fill like the nonzero glyph outlines it came from.

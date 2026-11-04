@@ -21,7 +21,7 @@ Anything a user would read as "the tool is broken" on a fresh launch starts from
 - Quick Mask mode and a temporary tool (the spacebar Hand, the Alt eyedropper, the Zoom modifier): canvas state, never written.
 - The selection combine mode (New/Add/Subtract/Intersect), the vector Combine operation (New Layer/Add/Subtract/...), the Patch tool's Mode and Transparent (retired keys `tools/patchMode` and `tools/patchTransparent`, [healing.md](healing.md)), Content-Aware Move's Mode (never stored, [content-aware-move.md](content-aware-move.md)), the Align To choice (retired `tools/alignTo`, [alignment.md](alignment.md)).
 - The Marquee and shape Style rows (Normal/Fixed Ratio/Fixed Size with their W/H): a persisted Fixed Size silently resizes the first drag.
-- Round and Square brush dynamics (session values, [brushes.md](brushes.md)), the Mixer "useful combinations" row (derived from Wet/Load/Mix).
+- Round and Square brush dynamics (session values, [brush-dynamics.md](brush-dynamics.md)), the Mixer "useful combinations" row (derived from Wet/Load/Mix).
 - The Type tool's font, style, size, color, alignment and orientation: they mirror the selected text layer; a new layer takes the application font, as the installed face it resolves to (never a generic name such as Linux's "Sans Serif"). Remembering the last-used type style is a separate feature.
 
 ## Inventory
@@ -100,7 +100,5 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Type | Smoothing (`textSmoothingCombo`) | `textSmoothing` | yes | yes |
 | Pick | Size, Layer, Sets, Show Sample Ring | `eyedropperSampleSize`, `eyedropperSampleLayers` (five-way token; the older bool `eyedropperSampleAllLayers` is still written and maps on first read), `eyedropperPicksBackground`, `eyedropperShowSampleRing` | yes | yes |
 | Zoom | Zoom In/Out, Scrubby | `zoomToolZoomsOut`, `zoomScrubby` | yes | yes |
-
-Counts: 56 rows (a row is one control or one group sharing a handler). 12 new keys across 11 rows: the active tool, the Brush family's preset, size, opacity, Soft, flow, Airbrush and tip, the Eraser's opacity and Soft, the Marquee radius, the pixel shapes' Fill. 35 rows were already persisted. The color pair (issue 339) added 2 keys in 1 row. 9 rows are deliberately session-only or layer state (the list above).
 
 The keys the May 2026 brush reset retired (`brushSize`, `brushOpacity`, `brushSoftness`, `brushTip`, `brushPreset`, `eraserOpacity`, `eraserSoftness`) carry their old meaning and are back in use; `brushBuildUp` stays retired, `brushAirbrush` replaces it.

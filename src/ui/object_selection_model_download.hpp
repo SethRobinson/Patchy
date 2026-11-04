@@ -1,6 +1,6 @@
 #pragma once
 
-// Object Selection's High quality model (EfficientViT-SAM XL0, docs/ai-selection.md) is not
+// Object Selection's High quality model (EfficientViT-SAM XL0, docs/ai-selection-models.md) is not
 // packaged: desktop users download it on first use, from the ai-models-2 GitHub release,
 // into the per-user app-data folder. Every file is pinned by size and SHA-256 and written
 // through QSaveFile, so a partial or wrong download never replaces anything.

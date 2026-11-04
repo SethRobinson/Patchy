@@ -325,7 +325,7 @@ void ui_clone_source_offset_edit_and_slots_switch_sources() {
 }
 
 // The Healing Brush shares the sources and offsets but never the transform: its source
-// stays the plain Alt-click offset (docs/legal-constraints.md, the healing carve-out).
+// stays the plain Alt-click offset (docs/legal-constraints-filters.md, the healing carve-out).
 void ui_clone_source_healing_brush_ignores_transform() {
   patchy::Document document(64, 64, patchy::PixelFormat::rgba8());
   auto& layer = document.add_pixel_layer("Coordinates", coordinate_pixels(64));

@@ -1,7 +1,7 @@
 #pragma once
 
-// Theme scripts and the theme hooks (docs/theme-files.md, "Theme scripts"): a theme
-// package may ship scripts/main.js, which runs in its OWN QJSEngine, never the user
+// Theme scripts and the theme hooks (docs/theme-files-scripts.md, "Theme scripts"): a
+// theme package may ship scripts/main.js, which runs in its OWN QJSEngine, never the user
 // scripting engine. That engine holds the standard JavaScript built-ins plus
 // patchy.theme, timers and console, nothing else: no patchy.io, no documents, no file
 // paths, no processes, no network. Every call into theme code runs under a time
@@ -54,7 +54,7 @@ enum class ThemeScriptTrust { Unknown, Allowed, Denied };
 void store_theme_script_trust(const QString& theme_id, const QString& digest, bool allowed);
 
 // Plays the event's theme sound and effect and hands it to the theme scripts. Every
-// theme event goes through here (docs/theme-files.md, "Events and effects").
+// theme event goes through here (docs/theme-files-scripts.md, "Events and effects").
 void fire_theme_event(ThemeSoundEvent event, const QVariantMap& payload = {});
 
 struct ThemeCommand {

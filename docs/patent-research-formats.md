@@ -2,7 +2,7 @@
 
 Research record for Patchy's PSD format and copyright position, the HEIF codec boundary, the JPEG XL codec review, and its trademark usage; each entry carries its date. Split from [patent-research.md](patent-research.md) and written to the same conventions: an engineering record of the designs and of the published patents and licences considered. The binding summary lives in [legal-licensing.md](legal-licensing.md) ("Format, copyright, trademarks, and assets"); read that first and never act on a patent-adjacent feature from this record alone.
 
-- **Format and copyright**: Adobe's "Photoshop File Formats Specification" (https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/, November 2019 edition, confirmed live July 2026) is a public page with no click-through whose preface states it is provided for third parties to read and write the format; the restrictive 2004-2006 SDK EULA bound only its signatories. File formats are not copyrightable expression (Feist; 17 USC 102(b); Lotus v. Borland; Google v. Oracle; CJEU SAS Institute v. World Programming C-406/10), and Patchy's COM byte-diff method observes a licensed Photoshop's output without decompiling, so the reverse-engineering safe harbors (Sega v. Accolade, Sony v. Connectix, DMCA 1201(f), EU 2009/24/EC art. 5(3)/6) are belt-and-suspenders on top. Rules that keep this clean: no verbatim Adobe spec text in the repo (link it instead), self-authored fixtures only, no PSDC cloud-document support. Enforcement record: no documented Adobe action against any third-party PSD implementation or Photoshop clone (GIMP, Krita, Affinity, Corel, Apple, Photopea all ship PSD support; Photopea has sold a direct in-browser clone since 2013 untouched); Adobe's actual enforcement targets are piracy, DRM circumvention, cybersquatting, and trademark misuse.
+- **Format and copyright**: Adobe's "Photoshop File Formats Specification" (https://www.adobe.com/devnet-apps/photoshop/fileformatashtml/, November 2019 edition, confirmed live July 2026) is a public page with no click-through whose preface states it is provided for third parties to read and write the format; the restrictive 2004-2006 SDK EULA bound only its signatories. Patchy's COM byte-diff method observes a licensed Photoshop's output without decompiling. Sources consulted on file formats and copyright: Feist; 17 USC 102(b); Lotus v. Borland; Google v. Oracle; CJEU SAS Institute v. World Programming C-406/10; on reverse engineering: Sega v. Accolade, Sony v. Connectix, DMCA 1201(f), EU 2009/24/EC art. 5(3)/6. Rules that follow: no verbatim Adobe spec text in the repo (link it instead), self-authored fixtures only, no PSDC cloud-document support. Enforcement record: no documented Adobe action against any third-party PSD implementation or Photoshop clone (GIMP, Krita, Affinity, Corel, Apple, Photopea all ship PSD support; Photopea has sold a direct in-browser clone since 2013 untouched); Adobe's actual enforcement targets are piracy, DRM circumvention, cybersquatting, and trademark misuse.
 - **HEIF-in-WASM boundary reassessed 2026-07-31**: the earlier blanket
   "never vendor libheif" rule conflated a container parser with an HEVC codec.
   Patchy's browser build may distribute libheif under LGPL-3.0-or-later when
@@ -33,7 +33,7 @@ Research record for Patchy's PSD format and copyright position, the HEIF codec b
   - *Platform alternative rejected*: Windows reads and writes JPEG XL only through the Store "JPEG XL Image Extension" on Windows 11 24H2 ([PCWorld 2025-03-03](https://www.pcworld.com/article/2625216/microsoft-adds-jpeg-xl-support-to-windows-11-with-a-quick-download.html)); it is not in Microsoft's [native WIC list](https://learn.microsoft.com/en-us/windows/win32/wic/native-wic-codecs). macOS 14 ImageIO decodes but no encode path was found. Linux has nothing, and Qt's qtimageformats has no plug-in (KDE kimageformats' `jxl.cpp` is BSD-2 over libjxl). Browsers decode (Safari 17, [Chrome 155](https://developer.chrome.com/blog/jpeg-xl-in-chrome), [Firefox 158](https://www.firefox.com/en-US/firefox/158.0/releasenotes/)) but cannot encode. A JXR-style platform-only path would therefore leave most users without the format, and vendoring was chosen.
   - *Trademark*: no registration of "JPEG" or "JPEG XL" was found (USPTO, EUIPO and Justia searches were partly blocked). [jpeg.org/terms](https://jpeg.org/terms.html) treats committee names and logos as proprietary. Naming the format is nominative; ship no committee logos.
   - *Proposed implementation, for a later code task*: `cmake/patchy_jxl.cmake` modelled on `patchy_webp.cmake` (a pinned private static archive with prefixed symbols), a Qt-free `src/formats/jxl_document_io.{hpp,cpp}`, a registry row with a writer, and a new `docs/jxl.md`, because `file-formats.md` has room only for a pointer.
-- **Trademarks**: "Smart Object(s)", "Smart Filter(s)", "Filter Gallery", "Healing Brush", "Content-Aware", and "PSD" are absent from Adobe's published trademark list (May 21, 2026 edition; also absent from the 2009 edition) and from all 601 Adobe-owned US trademark records; the existing SMART FILTER / SMART OBJECT registrations belong to unrelated companies. PHOTOSHOP is registered (e.g. Reg. 1,850,242, renewed) and policed against generic-verb use and cybersquatting. Photopea uses the feature names verbatim commercially; Krita/Affinity rename theirs (File/Filter Layers, Live Filters), the conservative norm. Patchy's usage stays nominative (the terms describe Photoshop's own stored data), product branding contains no Adobe marks, and README.md carries the attribution notice in Adobe's preferred format. UI look-and-feel claims are weak doctrine (Apple v. Microsoft, 35 F.3d 1435 (9th Cir. 1994); Lotus v. Borland, 49 F.3d 807 (1st Cir. 1995)) and no Adobe UI trade-dress enforcement was found; original tool icons keep extra distance. The gallery's display name was deliberately changed from "Visual Filters & Looks" to "Filter Gallery" in July 2026 after this sweep confirmed "Filter Gallery" is not an Adobe mark (nominative use of a descriptive feature name, the Photopea precedent); persisted identifiers kept their original names.
+- **Trademarks**: "Smart Object(s)", "Smart Filter(s)", "Filter Gallery", "Healing Brush", "Content-Aware", and "PSD" are absent from Adobe's published trademark list (May 21, 2026 edition; also absent from the 2009 edition) and from all 601 Adobe-owned US trademark records; the existing SMART FILTER / SMART OBJECT registrations belong to unrelated companies. PHOTOSHOP is registered (e.g. Reg. 1,850,242, renewed) and policed against generic-verb use and cybersquatting. Photopea uses the feature names verbatim commercially; Krita/Affinity rename theirs (File/Filter Layers, Live Filters), the conservative norm. Patchy's usage stays nominative (the terms describe Photoshop's own stored data), product branding contains no Adobe marks, and README.md carries the attribution notice in Adobe's preferred format. Sources consulted on UI look and feel: Apple v. Microsoft, 35 F.3d 1435 (9th Cir. 1994); Lotus v. Borland, 49 F.3d 807 (1st Cir. 1995). No Adobe UI trade-dress enforcement was found, and Patchy's tool icons are original. The gallery's display name was deliberately changed from "Visual Filters & Looks" to "Filter Gallery" in July 2026 after this sweep confirmed "Filter Gallery" is not an Adobe mark (nominative use of a descriptive feature name, the Photopea precedent); persisted identifiers kept their original names.
 - **JPEG 2000, OpenEXR and Radiance HDR reviewed 2026-10-16**, before the code landed.
   - *JPEG 2000*: ISO/IEC 15444-1 (2000) was standardized under a royalty-free baseline
     agreement among the Part 1 patent holders (the JPEG committee's stated goal for Part 1;
@@ -49,7 +49,7 @@ Research record for Patchy's PSD format and copyright position, the HEIF codec b
     codecs Patchy reads. The B44 and DWA codecs are not implemented by tinyexr and not read.
   - *Radiance HDR*: Greg Ward's 1980s RGBE encoding, published in Graphics Gems II (1991);
     no patents. Patchy's reader and writer are its own code.
-  - Binding engineering rule in [legal-constraints.md](legal-constraints.md).
+  - Binding engineering rule in [legal-licensing.md](legal-licensing.md#format-copyright-trademarks-and-assets).
 - **AVIF / AV1 decoding reviewed 2026-10-16** (GitHub issue 120), decided the same day.
   - *Grant*: the AV1 specification is published by the Alliance for Open Media under the
     [AOM Patent License 1.0](https://aomedia.org/license/patent-license/), a royalty-free grant
@@ -84,7 +84,7 @@ Research record for Patchy's PSD format and copyright position, the HEIF codec b
     royalty-free.
   - *Gain maps* (ISO 21496-1, Apple's HEIC gain map, Ultra HDR JPEG, libavif's gain-map code):
     not applied anywhere; adding them needs its own review first.
-  - Binding rule in [legal-constraints.md](legal-constraints.md).
+  - Binding rule in [legal-licensing.md](legal-licensing.md#format-copyright-trademarks-and-assets).
 - **OpenRaster (.ora) read 2026-10-24** (GitHub issue 375), an engineering read, before the code.
   - *Format*: an open spec ([openraster.org](https://www.openraster.org)) for exchanging layered
     images between painting programs. It is a zip of PNG layers (or other image files) with an
@@ -97,7 +97,7 @@ Research record for Patchy's PSD format and copyright position, the HEIF codec b
     linked or shipped, and the format and app names are used only to name the format and where
     files come from (no app logos or icons).
   - *Not covered*: GIMP's .xcf and Krita's .kra have their own entries below.
-  - Binding rule in [legal-constraints.md](legal-constraints.md).
+  - Binding rule in [legal-licensing.md](legal-licensing.md#format-copyright-trademarks-and-assets).
 - **GIMP XCF (.xcf) read 2026-10-25** (local desk card local-011), an engineering read before
   the code.
   - *Format*: GIMP's native document: big-endian image, layer, channel, path and effect
@@ -117,7 +117,7 @@ Research record for Patchy's PSD format and copyright position, the HEIF codec b
     blend modes were found by observation and by fitting against GIMP's renders. GIMP runs
     only as a command-line tool for fixtures and reference renders; nothing of it is linked
     or shipped. "GIMP" and "XCF" name the format and its origin only; no GIMP logos or icons.
-  - Binding rule in [legal-constraints.md](legal-constraints.md).
+  - Binding rule in [legal-licensing.md](legal-licensing.md#format-copyright-trademarks-and-assets).
 - **Krita .kra read 2026-10-25**, an engineering read, before the code (import only).
   - *Format*: Krita's native layered format. It has no published specification; Krita's manual
     describes it only as a zip, loosely based on OpenDocument, that holds the layer data and a
@@ -135,4 +135,4 @@ Research record for Patchy's PSD format and copyright position, the HEIF codec b
     format and app names are used only to name the format and where files come from (no app logos
     or icons). The corpus is local test data only, never committed.
   - *Not covered*: writing .kra. A writer would need its own read first.
-  - Binding rule in [legal-constraints.md](legal-constraints.md).
+  - Binding rule in [legal-licensing.md](legal-licensing.md#format-copyright-trademarks-and-assets).

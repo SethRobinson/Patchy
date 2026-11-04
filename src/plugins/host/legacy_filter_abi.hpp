@@ -4,7 +4,7 @@
 // record a filter receives, the callback suites a host provides, the selector
 // and error codes. Written from the public plug-in documentation and from the
 // behaviour of real plug-ins; no SDK file or text is reproduced here (the
-// binding boundary is recorded in docs/legal-constraints.md). Layout facts that
+// binding boundary is recorded in docs/legal-licensing.md). Layout facts that
 // matter: the filter record is 4-byte packed while the callback suites use the
 // compiler's natural alignment, points and rectangles are 16-bit QuickDraw
 // style, every callback uses the C calling convention, and the host-owned

@@ -10,10 +10,10 @@ namespace patchy {
 // along the region boundary are interpolated harmonically across the interior
 // (a relaxation solve of Laplace's equation on the OFFSET field with Dirichlet
 // boundary conditions), and the healed result is source texture plus the
-// smooth offset membrane. Practicing this exact expired teaching is cleared
-// prior art. It is NOT gradient-domain compositing: no source gradients are
+// smooth offset membrane. This is exactly that expired teaching, published
+// earlier work. It is NOT gradient-domain compositing: no source gradients are
 // composited and no Poisson guidance field exists (US 9058699 claims a
-// different, later technique). See docs/legal-constraints.md and the dated
+// different, later technique). See docs/legal-constraints-filters.md and the dated
 // record in docs/patent-research.md.
 //
 // `interior` is a row-major byte mask over the width x height grid: non-zero

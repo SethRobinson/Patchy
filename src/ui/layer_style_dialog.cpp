@@ -1831,7 +1831,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   channels_layout->addStretch(1);
   blending_form->addRow(QObject::tr("Channels:"), channels_row);
   // Advanced Blending "Knockout" (the native 'knko' mode the compositor
-  // renders, docs/blend-modes.md): the layer's shape cuts through the layers
+  // renders, docs/blend-modes-groups.md): the layer's shape cuts through the layers
   // below it to its group's backdrop (Shallow) or to the Background (Deep).
   auto* knockout = new QComboBox(blending_group);
   knockout->setObjectName(QStringLiteral("layerStyleKnockoutCombo"));

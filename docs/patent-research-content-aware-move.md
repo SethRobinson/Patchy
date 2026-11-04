@@ -1,6 +1,6 @@
 # Patent research: Content-Aware Move and the Patch tool's drag preview
 
-Claim-level record behind the Content-Aware Move bullet in [legal-constraints.md](legal-constraints.md) (GitHub issues 599 and 369; review of 2026-11-03, claim text read on Google Patents). Companion to [patent-research.md](patent-research.md). An engineering record of the design and of the published claims considered; act on the binding bullet, not on this record alone.
+Claim-level record behind the Content-Aware Move bullet in [legal-constraints-filters.md](legal-constraints-filters.md) (GitHub issues 599 and 369; review of 2026-11-03, claim text read on Google Patents). Companion to [patent-research.md](patent-research.md). An engineering record of the design and of the published claims considered; act on the binding bullet, not on this record alone.
 
 ## Patents read
 
@@ -18,7 +18,7 @@ Claim-level record behind the Content-Aware Move bullet in [legal-constraints.md
 
 ## Fill on release (2026-11-03 follow-up)
 
-Seth found the first version poor on real photos. The fill of the old spot was re-read against the claims: element (a), the original spot showing the current location's content during the drag, is in every independent claim of US 9575641 and US 10332291, and Patchy's drag never does it, so neither patent limits the fill method on release. What still binds is the inpainting boundary ([patent-research-inpainting.md](patent-research-inpainting.md)): the fill now uses (1) one exhaustive exemplar search with the whole hole as the single target patch (every translation in a bounded window scored independently by integer L1 over the band around the hole, fixed scan order, first smallest wins, the drop region and hole excluded: no offset field, propagation, perturbation, stored candidates or coarse map, so none of US 8285055, US 8340463, US 8355592 or US 9396530's claimed elements), healed in with the expired US 6587592 membrane; (2) the existing exhaustive exemplar fill as the fallback; (3) the shape-derived map last. The membrane's offsets fade to an edge band by a fixed distance weight (a feather, no gradients; US 9058699 untouched). Whole-image template matching of this kind is decades-old published practice (block matching, Efros-Leung 1999 used whole-window exhaustive scans).
+The first version did poorly on real photos. The fill of the old spot was re-read against the claims: element (a), the original spot showing the current location's content during the drag, is in every independent claim of US 9575641 and US 10332291, and Patchy's drag never does it, so neither patent limits the fill method on release. What still binds is the inpainting boundary ([patent-research-inpainting.md](patent-research-inpainting.md)): the fill now uses (1) one exhaustive exemplar search with the whole hole as the single target patch (every translation in a bounded window scored independently by integer L1 over the band around the hole, fixed scan order, first smallest wins, the drop region and hole excluded: no offset field, propagation, perturbation, stored candidates or coarse map, so none of US 8285055, US 8340463, US 8355592 or US 9396530's claimed elements), healed in with the expired US 6587592 membrane; (2) the existing exhaustive exemplar fill as the fallback; (3) the shape-derived map last. The membrane's offsets fade to an edge band by a fixed distance weight (a feather, no gradients; US 9058699 untouched). Whole-image template matching of this kind is decades-old published practice (block matching, Efros-Leung 1999 used whole-window exhaustive scans).
 
 ## Object Selection option (2026-11-03)
 
@@ -26,7 +26,7 @@ The option (GitHub issue 599 follow-up) adds nothing to the drag or the fill: on
 
 ## Side finding: the Patch tool's Source preview
 
-Patchy's Patch tool in Source mode used to show the dragged-to content inside the original spot during the drag and heal on release: the steps of US 10332291 claim 1. Photoshop's own Patch tool did the same years before 2012 (the tool dates from Photoshop 7, 2002, and Photoshop CS4 books describe the preview), which is strong prior art, but the preview was changed to the outline only on 2026-11-03 (Seth's choice) so the question does not arise. Destination mode keeps its ghost at the drop point, which shows nothing in the original spot.
+Patchy's Patch tool in Source mode used to show the dragged-to content inside the original spot during the drag and heal on release: the steps of US 10332291 claim 1. Photoshop's own Patch tool did the same years before the 2012 priority date (the tool dates from Photoshop 7, 2002, and Photoshop CS4 books describe the preview), but the preview was changed to the outline only by a decision of 2026-11-03, so the question does not arise. Destination mode keeps its ghost at the drop point, which shows nothing in the original spot.
 
 ## Sources
 

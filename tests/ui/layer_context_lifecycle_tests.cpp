@@ -91,7 +91,7 @@ namespace {
 using namespace patchy::test::ui;
 
 // The canvas context menu (one builder for the Move tool's layer section and
-// the selection section; docs/ui-conventions.md).
+// the selection section; docs/canvas-context-menu.md).
 QMenu* move_layer_menu(patchy::ui::CanvasWidget& canvas) {
   for (auto* menu : canvas.findChildren<QMenu*>(QStringLiteral("canvasContextMenu"))) {
     if (menu->isVisible()) {

@@ -1,5 +1,5 @@
-// Type > Convert to Shape and Type > Create Work Path (GitHub issue 598; docs/text-tool.md,
-// "Convert to Shape"): text layers as vector outlines, from the glyph outlines the text
+// Type > Convert to Shape and Type > Create Work Path (GitHub issue 598;
+// docs/text-outlines.md): text layers as vector outlines, from the glyph outlines the text
 // renderer draws (text_layer_outlines), never a raster trace.
 #include "core/document_path.hpp"
 #include "core/layer_metadata.hpp"

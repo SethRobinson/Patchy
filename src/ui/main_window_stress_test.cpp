@@ -9,12 +9,12 @@
 //   result".
 // - Steps are keyed by stable ids ("05_monitor_body"); the baseline table and
 //   report diffs depend on them, so never rename one.
-// - push_undo_snapshot copies the whole Document (expensive at 4096 px), so
-//   scene steps that would otherwise commit dozens of tool strokes write cells
-//   directly into the layer buffer under ONE undo snapshot and invalidate per
-//   cell (paint_cells_direct) - that per-rect invalidation is itself the
-//   scattered-dirty-rect probe. The runner also trims the undo stack between
-//   steps to keep peak memory flat.
+// - Undo snapshots are copy-on-write, but each keeps the buffers its edit
+//   detached (expensive at 4096 px), so scene steps that would otherwise commit
+//   dozens of tool strokes write cells directly into the layer buffer under ONE
+//   undo snapshot and invalidate per cell (paint_cells_direct) - that per-rect
+//   invalidation is itself the scattered-dirty-rect probe. The runner also trims
+//   the undo stack between steps to keep peak memory flat.
 
 #include "core/pixel_buffer.hpp"
 #include "core/layer.hpp"
@@ -2571,7 +2571,7 @@ void StressTestRunner::phase_arcade_vector() {
 }
 
 void StressTestRunner::phase_arcade_filters() {
-  // 51: the patent design-around implementations with distinct perf profiles:
+  // 51: the implementations shaped by patent boundaries, with distinct perf profiles:
   // surface blur (no value histogram) and median (single-pixel histogram
   // updates), selection-restricted to a raster glass pane over the screen.
   step("51_new_blurs", "Surface blur + median (arcade glass)", "filters", [&] {

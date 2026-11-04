@@ -1,4 +1,4 @@
-// Preferences > Metadata and Watermarks, "Saved metadata" (docs/file-info.md, "Saved metadata
+// Preferences > Metadata and Watermarks, "Saved metadata" (docs/file-info-save-stamp.md, "Saved metadata
 // preference"): the page and its persistence, each mode for PSD and JPEG, when the "add your
 // name and copyright" prompt shows and when it does not, exports, and the scripting view.
 
@@ -230,7 +230,7 @@ void ui_save_metadata_modes_for_psd_and_jpeg() {
   CHECK(MainWindowTestAccess::save_document_to_path(window, dir + QStringLiteral("/basic.psd")));
   CHECK(creator_tool(saved_info(dir + QStringLiteral("/basic.psd"))).rfind("Patchy ", 0) == 0U);
   CHECK(md::read_fields(saved_info(dir + QStringLiteral("/basic.psd"))).authors.empty());
-  // Basic stamps PSD, PSB and JPEG saves (docs/file-info.md; JPEG since October 25, 2026):
+  // Basic stamps PSD, PSB and JPEG saves (docs/file-info-save-stamp.md; JPEG since October 25, 2026):
   // a new document's JPEG gets the XMP record and a minimal EXIF block.
   new_document(window, QStringLiteral("Basic JPEG"));
   CHECK(MainWindowTestAccess::save_document_to_path(window, dir + QStringLiteral("/basic.jpg")));

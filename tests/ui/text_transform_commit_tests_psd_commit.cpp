@@ -1076,9 +1076,10 @@ std::optional<std::pair<int, int>> half_alpha_row_span(const patchy::Layer& laye
 // Sharp) CENTERED on anchor x 100.0 and 100.3, unscaled and under a 0.9 transform. Photoshop
 // rounds each line's START (the anchor minus the justification offset), not the anchor: the
 // centered raster moves one column for the .3 fraction (72 -> 73 unscaled, 75 -> 76 scaled)
-// while the left-aligned whole/half fixtures do not (docs/text-render-calibration.md, "Pixel
-// grid"). Rounding the anchor drew both members of a pair identically, so the pair deltas are the
-// sharp check; the absolute columns keep Patchy on Photoshop's ink within the usual pixel.
+// while the left-aligned whole/half fixtures do not
+// (docs/text-render-calibration-pixel-grid.md, "Pixel grid"). Rounding the anchor drew both
+// members of a pair identically, so the pair deltas are the sharp check; the absolute columns
+// keep Patchy on Photoshop's ink within the usual pixel.
 void ui_psd_centered_text_commit_rounds_line_start_like_photoshop() {
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   struct Case {
@@ -1179,7 +1180,7 @@ void ui_psd_centered_text_commit_rounds_line_start_like_photoshop() {
 // the half capture moves the H one column right while the g stays put (100.5 + 34.67 = 135.17
 // rounds to the same 135 as 134.67). A line-level shift moved both. The re-rendered rasters must
 // keep Photoshop's crisp edges exactly, and the pair must show the same asymmetry: left edge +1,
-// right edge +0 (docs/text-render-calibration.md, "Pixel grid").
+// right edge +0 (docs/text-render-calibration-pixel-grid.md, "Pixel grid").
 void ui_psd_left_text_commit_rounds_each_glyph_like_photoshop() {
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   struct Case {

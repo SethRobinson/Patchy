@@ -18,7 +18,7 @@
 // exact-area cell coverage (the FreeType-smooth family, reimplemented from
 // the algorithm idea with Patchy's own conventions).
 //
-// Semantics pinned against Photoshop 27.8 (docs/vector-tools.md):
+// Semantics pinned against Photoshop 27.8 (docs/vector-psd-encodings.md):
 // - subpaths sharing a shape_group rasterize together under EVEN-ODD winding;
 // - groups combine sequentially by their op over accumulated coverage
 //   (soft-boolean: add/union, subtract, intersect, xor);
@@ -70,7 +70,7 @@ struct ShapeRasterResult {
   PixelBuffer pixels{};  // straight-alpha RGBA8
   // Split planes over the same `bounds` for style compositing: interior
   // overlay effects apply to the FILL plane and the vector stroke composites
-  // above them (PS 2026 probes fx-sofi-*, docs/vector-tools.md). Populated
+  // above them (PS 2026 probes fx-sofi-*, docs/layer-effects-render.md). Populated
   // only when a fill AND a Normal-blend stroke both rendered; empty
   // otherwise, in which case the compositor keeps the combined-plane path.
   PixelBuffer fill_pixels{};

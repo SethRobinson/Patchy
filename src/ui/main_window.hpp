@@ -361,8 +361,8 @@ public:
   // data-loss confirms). Set before opening files.
   void set_cli_automation_mode(bool enabled) { cli_automation_mode_ = enabled; }
   [[nodiscard]] bool unattended_automation() const;
-  // Object Selection's High Quality model (EfficientViT-SAM XL0, docs/ai-selection.md): a
-  // one-time download into the app-data folder (main_window_ai_selection.cpp). The offer
+  // Object Selection's High Quality model (EfficientViT-SAM XL0, docs/ai-selection-models.md):
+  // a one-time download into the app-data folder (main_window_ai_selection.cpp). The offer
   // asks once, the first time the tool is chosen on a desktop build without the model
   // (never offscreen or unattended); choosing High Quality on the options bar asks again.
   // The download runs under a window-modal progress dialog with Cancel, or with status-bar
@@ -942,7 +942,7 @@ private:
   // save to `extension` adds, asking first in Ask mode unless `quiet`; empty for none.
   [[nodiscard]] std::optional<SaveWatermark> watermark_for_save(const QString& extension,
                                                                 const ImageSaveOptions& options, bool quiet);
-  // "Basic plus my name and copyright" (docs/file-info.md, "Saved metadata preference"):
+  // "Basic plus my name and copyright" (docs/file-info-save-stamp.md, "Saved metadata preference"):
   // before a save to a format that carries metadata, adds the stored name, copyright and
   // contact to the document's File Info when it lacks the name, asking first unless the
   // user chose to always add (quiet saves never ask, and skip when asking is on). Skip is
@@ -1083,13 +1083,14 @@ private:
   // main_window.cpp (it needs the text render machinery there).
   void render_pending_svg_text_layers(Document& target);
   void render_pending_af_text_layers(Document& target);
-  // GIMP text layers with an outline (kLayerMetadataXcfPendingOutline, docs/xcf.md): redraws
-  // the text and adds the outline as a Stroke style.
+  // GIMP text layers with an outline (kLayerMetadataXcfPendingOutline, docs/xcf-text-layers.md):
+  // redraws the text and adds the outline as a Stroke style.
   void render_pending_xcf_text_layers(Document& target);
-  // A GIMP file's painted-on text layers (docs/xcf.md, "Text layers"): keeps them as pixels,
-  // or as one undo step turns them into text or adds text copies, as imports/xcfPaintedTextLayers
-  // says or the user picks; `notices` then says what was done. Returns the notes the user's
-  // answer covers (empty when no question was shown), which the Import Notes box leaves out.
+  // A GIMP file's painted-on text layers (docs/xcf-text-layers.md, "Text layers"): keeps them
+  // as pixels, or as one undo step turns them into text or adds text copies, as
+  // imports/xcfPaintedTextLayers says or the user picks; `notices` then says what was done.
+  // Returns the notes the user's answer covers (empty when no question was shown), which the
+  // Import Notes box leaves out.
   QStringList offer_painted_gimp_text_conversion(DocumentSession& target, QStringList& notices);
   // Whether that call would ask (an interactive open, the "ask" setting, painted-on text).
   [[nodiscard]] bool painted_gimp_text_question_pending(const DocumentSession& target) const;
@@ -1099,7 +1100,8 @@ private:
   // resample their smart-object source through the placement quad.
   void render_pending_pdf_text_layers(Document& target);
   void render_pending_pdf_image_layers(Document& target);
-  // Reopened Patchy PSDs: layout metrics for the kept text rasters (docs/text-render-calibration.md).
+  // Reopened Patchy PSDs: layout metrics for the kept text rasters
+  // (docs/text-render-calibration-patchy-authored.md).
   void record_text_layout_metrics_for_reopened_text(Document& target);
   void lay_out_raster_less_imported_text(Document& target);
   // The Import PDF dialog's Mode and Bit Depth for one finished page document (pending
@@ -1214,7 +1216,7 @@ private:
   // only; `export_pages` (File > Export > Multi-Page PDF) also offers the open documents.
   // nullopt = cancelled.
   std::optional<MultiPagePdfExportChoice> prompt_pdf_options(const QString& path, bool export_pages);
-  // The Saving dialog around a writer (docs/file-formats.md, "Save progress"): appears
+  // The Saving dialog around a writer (docs/file-formats-saving.md, "Save progress"): appears
   // when a save runs past kSaveProgressDelayMs, names the step (compositing, layer or
   // artboard N of M, page N of M, writing), and blocks input while it runs. `on_worker`
   // runs `write` on a worker thread (it must read only its own snapshot); otherwise the
@@ -1270,7 +1272,7 @@ private:
   // the steps have to run in.
   void apply_color_scheme();
   // Theme events, effects, scripts and their UI (main_window_theme_extras.cpp;
-  // docs/theme-files.md, "Theme scripts"): the effects overlay above the document area,
+  // docs/theme-files-scripts.md, "Theme scripts"): the effects overlay above the document area,
   // the theme menu right of Help, the trust prompt, splash, status, cursors and panel
   // backgrounds the theme script host asks for.
   void install_theme_extras();
@@ -1444,7 +1446,7 @@ private:
   void set_system_clipboard_mime(QMimeData* mime);
   // Edit > Copy as SVG: the selected layers as image/svg+xml plus text.
   void copy_as_svg();
-  // Layer > New > Ungroup Layers (docs/vector-commands.md).
+  // Layer > New > Ungroup Layers (docs/vector-commands-shapes.md).
   void ungroup_selected_layers();
   void clear_internal_clipboard_on_external_change();
   void transform_active_layer_dialog();
@@ -1867,7 +1869,7 @@ private:
   [[nodiscard]] patchy::VectorShapeContent current_shape_appearance_content() const;
   void refresh_vector_tool_options_visibility();
   void refresh_path_point_count_chip();
-  // Layer > Shape commands (docs/vector-commands.md).
+  // Layer > Shape commands (docs/vector-commands-shapes.md).
   void simplify_target_path();
   void combine_selected_shape_layers(patchy::PathCombineOp op);
   void refresh_combine_shapes_action_states();
@@ -2261,7 +2263,7 @@ private:
   // For a command that needs a layer: with no active layer, a one-layer
   // document's only layer becomes the selection instead of the command
   // refusing. Call it right before the command reads its target. See
-  // docs/layer-panel.md, "Deselected state".
+  // docs/layer-panel-selection.md, "Deselected state".
   void select_only_layer_if_none_active();
   void zoom_canvas_to_layer_content(LayerId id);
   void set_layer_visibility_from_item(QListWidgetItem* item);
@@ -2300,9 +2302,10 @@ private:
   // Ends a thumbnail's own right-click menu (pixel, layer mask and vector mask thumbnails) with the
   // Thumbnail Size and Thumbnail Display submenus, after a separator (#481).
   void add_layer_thumbnail_view_menus(QMenu* menu);
-  // Layer export (#462, main_window_files.cpp): Quick Export as PNG (choose_format false) and
-  // Export As... for the selected layers, each its own file named after the layer (a group as
-  // its composite; a mask source writes each selected layer's mask of that kind instead).
+  // Layer export (#462, main_window_files.cpp; docs/layer-drag-duplicate.md): Quick Export as
+  // PNG (choose_format false) and Export As... for the selected layers, each its own file named
+  // after the layer (a group as its composite; a mask source writes each selected layer's mask
+  // of that kind instead).
   // add_layer_export_actions adds both shared actions to a context menu.
   void add_layer_export_actions(QMenu* menu);
   void export_selected_layers(bool choose_format, LayerExportSource source = LayerExportSource::Layer);
@@ -2967,7 +2970,7 @@ private:
   void apply_history_restore_tail(DocumentSession& active_session, const HistoryRefreshRegion& changed,
                                   SelectionSnapshot restored_selection,
                                   const QString& status_message);
-  // Per-stroke history (docs/performance.md, "History"). Begin remembers the
+  // Per-stroke history (docs/performance-strokes.md, "History"). Begin remembers the
   // snapshot a paint stroke just pushed; Finish shrinks that snapshot to a
   // StrokePatch covering the stroke's bounds when the stroke changed nothing
   // else, so a stroke retains its footprint instead of the painted layer.

@@ -1,6 +1,6 @@
 #pragma once
 
-// Per-screen HDR capability probe (docs/platform.md, site inventory). Windows reads
+// Per-screen HDR capability probe (docs/platform-sites.md, site inventory). Windows reads
 // DXGI and DisplayConfig (display_hdr_info_win.cpp), macOS reads NSScreen's EDR values
 // (display_hdr_info_mac.mm); every other platform, and the offscreen QPA, reports
 // `queried == false`. Values change at runtime ("Use HDR", the SDR content brightness

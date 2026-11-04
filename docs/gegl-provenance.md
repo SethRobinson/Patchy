@@ -10,7 +10,7 @@ None of these were opened, searched or excerpted at any point, by a person or a 
 
 ### 2026-11-02: GEGL helper (GEGL 0.4, babl 0.1, GLib 2.0 as installed with GIMP 3.2.6, Windows)
 
-- Rule: [legal-licensing.md](legal-licensing.md#gegl-operations-through-a-helper) (Seth, November 2, 2026).
+- Rule: [legal-licensing.md](legal-licensing.md#gegl-operations-through-a-helper) (decided November 2, 2026).
 - Installed public headers read for declarations only: `gegl-init.h`, `gegl-operations-util.h`, `gegl-node.h`, `gegl-buffer.h`, `gegl-buffer-enums.h`, `gegl-types.h`, `gegl-paramspecs.h`, `gegl-color.h` (GEGL); `babl.h` (babl); `gobject/gparam.h`, `gparamspecs.h`, `genums.h`, `gvalue.h`, `gtype.h` (GLib). Taken: function signatures, the layouts of `GParamSpec`, `GParamSpecInt`, `GParamSpecUInt`, `GParamSpecFloat`, `GParamSpecDouble`, `GParamSpecEnum`, `GeglParamSpecInt`, `GeglParamSpecDouble`, `GeglParamSpecSeed`, `GEnumClass`, `GEnumValue`, `GValue`, `GeglRectangle`, the fundamental type numbers, `GEGL_BLIT_DEFAULT`, and the doc comment that `gegl_list_operations`' array is freed with `g_free` (the names are GEGL's).
 - Published API documentation: GeglConfig's `application-license` property ("a list of additional licenses to allow for operations", valadoc.org Gegl-0.4 `Gegl.Config`), and GIMP's 2014 commit message setting it to "GPL3" (lists.gnome.org commits-list). The environment variable `GEGL_THREADS`.
 - Run-time self-description: `gegl --list-all` and `gegl --info <op>` of GIMP's own `gegl.exe`, then the helper's own `--list` (operation keys and property specs).

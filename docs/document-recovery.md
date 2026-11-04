@@ -188,9 +188,11 @@ crash or power loss the new bytes are on the device before the rename, and the o
 left is a directory entry the file system has not persisted yet, in which case the old
 file is what comes back. A flush failure is a write failure. Callers:
 `psd::write_file_bytes` (every PSD/PSB write), `formats::write_file_bytes` (BMP, TGA,
-PCX, ICO, ILBM, Aseprite, GIF, JPEG XR, SVG, RTTEX, DDS), the animated WebP and PNG writers, the
-palette (`palette_io::write_palette_file`) and Curves preset (`acv::write_file`) exports,
-and the recovery store. `write_flat_image_file` (PNG, JPEG, WebP, TIFF and the other
+PCX, ICO, ILBM, Aseprite, GIF, JPEG XL, JPEG XR, OpenRaster, SVG, RTTEX, DDS), the animated
+JPEG XL, WebP and PNG writers, the palette (`palette_io::write_palette_file`), Curves
+(`acv::write_file`) and adjustment preset exports, the copies that preset and theme imports
+make in the user folders, theme file and package exports, the AppImage menu entry, and the
+recovery store. `write_flat_image_file` (PNG, JPEG, WebP, TIFF and the other
 `QImageWriter` formats) goes through `QSaveFile` with an explicit format instead, since
 `QImageWriter` on a device cannot infer it from a suffix. Small Qt-side text files (the
 Script Manager's Save and Save As, `patchy.io.writeTextFile`) go through

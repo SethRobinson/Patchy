@@ -1,7 +1,7 @@
 #pragma once
 
 // The two-line recent list shared by the start panel's Recent Files box and the Open
-// Recent File / Folder menus (docs/ui-conventions.md): name over its dimmed folder,
+// Recent File / Folder menus (docs/ui-conventions-menus.md): name over its dimmed folder,
 // both elided in the middle, a fixed row height, and a box that scrolls instead of
 // growing past its visible row cap.
 

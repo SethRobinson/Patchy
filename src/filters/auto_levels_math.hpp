@@ -15,7 +15,7 @@ using AutoLevelsHistogram = std::array<std::uint32_t, 256>;
 // registry wrapper and the invocation engine) must call these helpers so
 // their outputs stay byte-identical.
 //
-// Legal boundary (docs/legal-constraints.md, Filters): the auto adjustments
+// Legal boundary (docs/legal-constraints-filters.md, Filters): the auto adjustments
 // derive only whole-image tonal histograms and means, with fixed constants
 // (0.1% clip per end, midtone target 128). No spatial windows, no content
 // classification, no content-driven algorithm selection.

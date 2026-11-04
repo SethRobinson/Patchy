@@ -39,7 +39,7 @@ struct UpdateInfo {
 };
 
 // The GitHub latest-release permalink of the AppImage (a stable asset name, like
-// PatchyLinux.flatpak; docs/release-process.md).
+// PatchyLinux.flatpak; docs/release-process-github.md).
 inline constexpr char kAppImageDownloadUrl[] =
     "https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyLinux.AppImage";
 // An AppImage has no publisher signature to check (the Windows installer's second guard),

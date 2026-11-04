@@ -1,6 +1,6 @@
 # Red Eye tool
 
-GitHub issue 370. The fourth tool of the healing flyout ([healing.md](healing.md#palette-placement)). The user picks the eye; the tool never looks for eyes. The legal boundary is the "Red Eye" bullet in [legal-constraints.md](legal-constraints.md), record in [patent-research.md](patent-research.md) (checked 2026-10-24): fixed color and geometry rules on the region the user picked. Face or eye detection, whole-image scans, learned models, circle fitting that finds the eye without the user's point, and a fix-all command need a new check.
+GitHub issue 370. The fifth tool of the healing flyout, after Content-Aware Move ([healing.md](healing.md#palette-placement)). The user picks the eye; the tool never looks for eyes. The legal boundary is the "Red Eye" bullet in [legal-constraints-filters.md](legal-constraints-filters.md), record in [patent-research.md](patent-research.md) (checked 2026-10-24): fixed color and geometry rules on the region the user picked. Face or eye detection, whole-image scans, learned models, eye-shape, iris or glint classification, circle fitting that finds the eye without the user's point, and a fix-all command need a new check.
 
 ## Gesture
 
@@ -8,7 +8,7 @@ A click works in a square of `red_eye_click_box_size` around the press point (a 
 
 ## Method
 
-`core/red_eye.{hpp,cpp}`. Every weight is integer math on display-encoded 8-bit values (0..256 fixed point), so the mask is the same on every toolchain and at every depth. Calibrated on the real photos in `test-fixtures/red-eye` (licenses in its README) plus three CC BY-SA photos kept out of the repository (October 24, 2026). The first version (one hard ratio threshold, a 1 px feather, darken by multiplication) left a red ring at the anti-aliased rim, a pink halo round the glint and flat black blobs on real eyes.
+`core/red_eye.{hpp,cpp}`. Every weight is integer math on display-encoded 8-bit values (0..256 fixed point), so the mask is the same on every toolchain and at every depth. Calibrated on the real photos in `test-fixtures/red-eye` (licenses in its README) plus three CC BY-SA photos kept out of the repository (October 24, 2026). On real eyes, one hard ratio threshold, a 1 px feather and darkening by multiplication leave a red ring at the anti-aliased rim, a pink halo round the glint and flat black blobs.
 
 - **Redness** (`red_eye_redness`): red must be the largest channel; hue within 8 degrees of red toward orange (fading out by 18, where brown irises, skin and lashes sit) or 30 toward magenta (fading out by 45); saturation ramping in from 0.35 to 0.55; and red at least 24 to 64 levels above green and blue. The three ramps multiply. Pupil Size maps 1..100 onto an internal 50..90 (default 70) that lowers the saturation and excess ramps, so 100 also takes pink and purple red-eye.
 - **Tint**: any reddish or pinkish cast (hue to 15/40 degrees, saturation from 0.06). **Cast**: any saturation at all, any hue.

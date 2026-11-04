@@ -1,9 +1,10 @@
 #pragma once
 
 // The Colors and Themes page of Preferences (main_window_preferences_themes.cpp;
-// docs/theme-files.md, "Preferences UI"). show_preferences builds the page's widgets
-// at once and reads the themes on the page's first visit: loading every package
-// (icons, backdrop, sounds) is the slow part, and most Preferences opens never look.
+// docs/theme-files-preferences.md, "Preferences UI"). show_preferences builds the
+// page's widgets at once and reads the themes on the page's first visit: loading every
+// package (icons, backdrop, sounds) is the slow part, and most Preferences opens never
+// look.
 
 #include <functional>
 

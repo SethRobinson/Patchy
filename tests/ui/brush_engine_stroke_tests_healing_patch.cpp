@@ -2107,7 +2107,7 @@ QColor canvas_color_at(const QImage& frame, const patchy::ui::CanvasWidget& canv
 }
 
 // Patch Source shows only the moving outline while dragging (US 10332291 claim 1,
-// docs/legal-constraints.md): the original spot keeps its own pixels on screen until
+// docs/legal-constraints-filters.md): the original spot keeps its own pixels on screen until
 // release, and nothing is drawn at the dragged-to area either.
 void ui_patch_tool_source_drag_preview_leaves_original_spot() {
   patchy::Document document(64, 24, patchy::PixelFormat::rgba8());

@@ -1037,7 +1037,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   right_column->addWidget(fill_group);
 
   // --- Edge: the shape's vector-mask Feather / Density (Photoshop's
-  // Properties-panel pair on a shape layer; docs/vector-tools.md) ---
+  // Properties-panel pair on a shape layer; docs/vector-tools-appearance.md) ---
   auto* edge_group = new QGroupBox(QObject::tr("Edge"), left_widget);
   auto* edge_layout = new QVBoxLayout(edge_group);
   edge_layout->setContentsMargins(10, 8, 10, 8);

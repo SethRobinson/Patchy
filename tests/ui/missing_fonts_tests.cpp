@@ -1,6 +1,6 @@
 // Missing fonts: the Resolve Missing Fonts dialog (GitHub issue 169), the substitution prompt on
 // hidden layers (177), the layer badge during a session (178) and the options-bar font new type
-// starts in (180). See docs/font-resolution.md, "Missing fonts".
+// starts in (180). See docs/font-resolution-missing-fonts.md, "Missing fonts".
 #include "core/layer_metadata.hpp"
 #include "psd/psd_document_io.hpp"
 #include "test_fonts.hpp"

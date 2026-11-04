@@ -5,7 +5,8 @@ Patchy behavior that differs on a Wayland session (Qt's `wayland` platform plug-
 the frameless window chrome below, which is the Linux rule for X11 too. The right panels
 never float on any platform (the column is Patchy's own widget, [right-docks.md](right-docks.md)),
 so the Wayland dock-drag problems of GitHub issue 102 no longer exist; the KWin and GNOME
-test rigs are in [testing.md](testing.md).
+test rigs are in [linux-testing.md](linux-testing.md) (the GNOME rig's commands also under
+"Reproducing on a headless GNOME Shell" below).
 
 ## The frameless window chrome (Linux, X11 and Wayland)
 
@@ -238,13 +239,12 @@ screen. See [right-docks.md](right-docks.md).
 
 ## A restored maximized window (GitHub issue 132)
 
-`restore_window_geometry` used to set `Qt::WindowMaximized` before the first show. On
-Wayland the compositor can drop a maximize requested before the first configure (GNOME did,
-in the AppImage): the window came up at its normal size while Qt still reported it maximized
-and its decoration showed the restore glyph, and the first-show clamp skipped it as
-"maximized". Now the restore only records `wayland_maximize_on_first_show_` on Wayland and
+On Wayland `restore_window_geometry` only records `wayland_maximize_on_first_show_`, and
 `showEvent`'s first-show turn calls `showMaximized()` once the surface exists; other platforms
-keep the pre-show state. Verify on the GNOME rig: seed `window/normalGeometry` and
+keep the pre-show state. Never request `Qt::WindowMaximized` before the first show there: the
+compositor can drop a maximize asked for before the first configure (GNOME does; seen in the
+AppImage), leaving a normal-size window that Qt reports maximized, with the restore glyph,
+which the first-show clamp then skips. Verify on the GNOME rig: seed `window/normalGeometry` and
 `window/maximized=true` in the rig's settings file, launch, and read
 `meta_window.get_maximized()` plus `get_frame_rect()` through `Shell.Eval`.
 
@@ -278,7 +278,7 @@ File > Open is the desktop's portal dialog. On GNOME that is xdg-desktop-portal-
 GTK 4 dialog, whose type dropdown is a popover capped at 400 px (GTK's `gtkdropdown.ui`,
 `max-content-height`): about ten rows, scrolled by wheel or touchpad, with an overlay
 scrollbar visible only while the pointer moves over the list. Every row Patchy sends is
-there (rig captures `build/issue-shots/270`); the GTK 3 backend (xdg-desktop-portal-gtk),
+there (checked on the GNOME rig below); the GTK 3 backend (xdg-desktop-portal-gtk),
 KDE's dialog and Qt's widget dialog list all of them. Qt's portal helper
 (`qxdgdesktopportalfiledialog.cpp`) sends every row whose spec matches
 `QPlatformFileDialogHelper::filterRegExp` and xdg-desktop-portal validates the list whole,
@@ -296,9 +296,9 @@ session bus, env in `build/gnome-rig/env`), the setup the issue 100 and 108 repo
 draws its own title bar there). `start-shell` (with `MON=1366x768` for that laptop), then
 `patchy <scale>` launches the Flatpak as the single instance, `script <file.js>` forwards a
 `--run-script` to it (the script file must live under `$HOME`: the sandbox hides `/tmp`),
-and `drive` reads pointer commands on stdin (`gnome-input.py`: `move X Y` in output pixels,
-`rel DX DY` for the motion of a drag, `press`, `release`, `click`, `sleep MS`, `shot NAME`
-through `org.gnome.Shell.Screenshot`).
+and `drive` reads pointer and key commands on stdin (`gnome-input.py`: `move X Y` in output pixels,
+`rel DX DY` for the motion of a drag, `press`, `release`, `click`, `kdown SYM`/`kup SYM`
+(X keysyms, to hold modifiers), `sleep MS`, `shot NAME` through `org.gnome.Shell.Screenshot`).
 The pointer is `org.gnome.Mutter.RemoteDesktop` relative motion anchored at the bottom-left
 corner, because the top-left one is the Activities hot corner and opens the overview; if
 the overview is up anyway, `gdbus call ... org.gnome.Shell.Eval 'Main.overview.hide()'`.

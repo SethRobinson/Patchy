@@ -34,7 +34,7 @@ $cmake = "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\Comm
 $ctest = "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\ctest.exe"
 # vs-env.bat wraps VsDevCmd.bat: it owns the VS install path for every build script and
 # keeps the spurious "'vswhere.exe' is not recognized" line out of the log. See
-# docs/release-process.md.
+# docs/release-process-scripts.md.
 $vsDev = Join-Path $PSScriptRoot "vs-env.bat"
 $throttled = Join-Path $PSScriptRoot "run-throttled.bat"
 

@@ -1509,7 +1509,7 @@ void inject_round_trips_through_every_container() {
 }
 
 
-// Save stamp (GitHub issue 219, docs/file-info.md "Save stamp"): PSD saves record their
+// Save stamp (GitHub issue 219, docs/file-info-save-stamp.md "Save stamp"): PSD saves record their
 // dates and creator in the XMP the way Photoshop does, from a fixed clock here.
 md::XmpPacket stamped_packet(const patchy::DocumentFileInfo& info) {
   CHECK(info.xmp != nullptr);

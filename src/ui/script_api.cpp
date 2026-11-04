@@ -1757,7 +1757,7 @@ QJSValue ScriptLayerObject::getPixels() {
   }
   const auto& stored = layer->pixels();
   // 16/32-bit layers read as their display values, RGBA8 like every other layer
-  // (docs/high-bit-depth.md).
+  // (docs/high-bit-depth-formats.md).
   const auto pixels = stored.format().bit_depth != BitDepth::UInt8 && stored.format().channels >= 3
                           ? convert_pixel_buffer_depth(stored, BitDepth::UInt8, SampleKind::Color)
                           : stored;

@@ -114,7 +114,7 @@ void path_fixed_point_conversion_round_trips() {
 
 void live_rounded_rect_matches_photoshop_construction() {
   // The probe-live-rect capture: box (8,12)-(52,44), radii TL 4, TR 8,
-  // BL 12, BR 16 (docs/vector-tools.md).
+  // BL 12, BR 16 (docs/vector-psd-encodings.md).
   LiveShapeParams params;
   params.kind = LiveShapeKind::RoundedRectangle;
   params.left = 8.0;

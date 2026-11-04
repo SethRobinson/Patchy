@@ -4,8 +4,9 @@ How Photoshop draws each type layer `/AntiAlias` mode (0 None, 1 Crisp, 2 Strong
 4 Sharp, 6 Windows LCD, 7 Windows; `kTextAntiAlias*` in core/layer_metadata.hpp) and what
 Patchy's renderer does with it. The mode itself round-trips through the TySh and the options bar
 (`psd_text_anti_alias_modes_save_and_reopen_as_photoshop_writes`); the general render rules
-(unhinted glyphs, whole-pixel sizes, per-glyph x rounding) are in
-[text-render-calibration.md](text-render-calibration.md).
+(unhinted glyphs, whole-pixel sizes) are in
+[text-render-calibration.md](text-render-calibration.md), per-glyph x rounding in
+[text-render-calibration-pixel-grid.md](text-render-calibration-pixel-grid.md).
 
 ## Photoshop captures
 
@@ -65,7 +66,7 @@ Ink (sum of alpha) relative to Smooth at the same size:
   over Smooth at least 1.12 at 12 px and 1.02 at 30 px, and Strong's per-pixel difference
   (sum |Patchy - Photoshop| over Photoshop's ink) under the unstroked render's. Measured:
 
-  | Layer | Ink vs Photoshop, before / after | Pixel difference, before / after |
+  | Layer | Ink vs Photoshop, unstroked / stroked | Pixel difference, unstroked / stroked |
   |---|---|---|
   | aa_pin Strong12 | 0.78 / 0.93 | 0.30 / 0.25 |
   | aa_pin Strong30 | 0.89 / 0.96 | 0.16 / 0.14 |

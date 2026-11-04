@@ -3931,8 +3931,8 @@ void MainWindow::set_layer_visibility(LayerId id, bool visible) {
   }
 
   layer->set_visible(visible);
-  // Not undoable (docs/layer-panel.md), but it changes what a save writes, so closing
-  // afterwards must offer to save like any other edit.
+  // Not undoable (docs/layer-panel-row-controls.md), but it changes what a save writes, so
+  // closing afterwards must offer to save like any other edit.
   mark_session_modified(session());
   const auto is_group = layer->kind() == LayerKind::Group;
   QListWidgetItem* item = nullptr;
@@ -4081,7 +4081,8 @@ void MainWindow::set_all_layers_visible(bool visible) {
 }
 
 // Layer > Hide Layers / Show Layers (GitHub issue 546): hides the selected layers when any of
-// them shows, else shows them all. Outside history, like the eye (docs/layer-panel.md).
+// them shows, else shows them all. Outside history, like the eye
+// (docs/layer-panel-row-controls.md).
 void MainWindow::toggle_selected_layers_visibility() {
   if (!has_active_document()) {
     return;

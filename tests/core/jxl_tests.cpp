@@ -312,7 +312,7 @@ void jxl_lossy_quality_stays_close() {
 }
 
 void jxl_encoder_keeps_patches_and_dots_off() {
-  // docs/legal-constraints.md, JPEG XL condition 3: every encode turns both tools off.
+  // docs/legal-licensing.md, JPEG XL condition 3: every encode turns both tools off.
   for (const bool lossless_encode : {false, true}) {
     jxl::WriteOptions options;
     options.lossless = lossless_encode;
@@ -517,7 +517,7 @@ void jxl_rejects_damaged_and_truncated_files() {
 }
 
 void jxl_decodes_conformance_files_that_use_patches() {
-  // The encoder never writes patches (docs/legal-constraints.md), but files made elsewhere
+  // The encoder never writes patches (docs/legal-licensing.md), but files made elsewhere
   // with them must open. Both inputs are the libjxl conformance suite's CC0 "patches" cases
   // (test-fixtures/jxl, provenance in NOTICE-THIRD-PARTY.md); the PNGs are the suite's 8-bit
   // renderings of its float references.

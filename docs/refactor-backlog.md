@@ -3,7 +3,7 @@
 This file lists current, verified cleanup opportunities. Completed work and refactor
 chronology do not belong here. Before taking an item, confirm it still exists with a
 repository-wide search and read the area-specific documentation linked from
-`AGENTS.md`. The weekly health check (last run October 25, 2026) re-verifies every entry.
+`AGENTS.md`. The weekly health check (last run November 4, 2026) re-verifies every entry.
 
 All work here is behavior-preserving unless an entry explicitly identifies a bug.
 Preserve test registration order, persisted identifiers, serialization bytes,
@@ -14,29 +14,17 @@ canaries.
 
 Measured from `build\opt-dev\.ninja_log` (October 25, 2026): a full opt-dev build is about
 143 CPU-minutes, half of it test translation units. The reasons and the cheap fixes already
-made are in [building.md](building.md) ("Compile-time profile").
+made are in [building-incremental.md](building-incremental.md#compile-time-profile).
 
-- `render/layer_compositor.hpp` (about 4600 lines, 2850 of them template bodies over a
-  `Target` type, 1100 non-template inline bodies, no `extern template`) is instantiated in
-  full by each of its 13 includers for their own local Target class: `ui/image_document_io.cpp`
-  (121 s), `render/compositor.cpp`, `render/native_duotone.cpp` (147 lines, 57 s),
-  `formats/bmp_document_io.cpp`, `formats/document_flatten.cpp`. `bmp_document_io.cpp`'s
-  `Rgba8RenderTarget` is method-for-method `document_flatten.cpp`'s `Rgba8FlattenTarget` minus
-  an origin offset, and its `Rgb8RenderTarget` largely matches `compositor.cpp`'s
-  `Rgb8PixelBufferTarget`. Merge the Target classes, add `extern template` declarations with
-  one explicit-instantiation TU per Target, move the cold non-template helpers to a `.cpp`, and
-  give `formats/ora_document_io.cpp` (which uses only `layer_knockout_mode`) a small header.
-  Output is pinned by the compositor canaries and the composite corpus digests.
-- `ui/appearance_properties.cpp` takes about 100 s for 440 lines: 112 `*_FIELD` macro
-  expansions, each a generic lambda with `if constexpr (requires ...)` probes inside
-  `add_effects<auto Member>`. Replace them with one templated member-pointer helper driven by a
-  per-effect constexpr field table. Property keys are persisted identifiers.
-- The builder functions over 1000 lines (`build_options_bar` 3860, `request_layer_style_settings`
-  2761, `build_menu_bar_actions` 2331, `show_preferences` 1983, `request_visual_filter_gallery`
-  1664, `request_shape_appearance_settings` 1497, `make_layer_row_widget` 1225 with about 30
-  defaulted `std::function` parameters, `CanvasWidget::mousePressEvent` 1110) inflate optimized
-  compile times and are hard to review. Split along their existing comment sections; keep
-  object names, translation contexts and registration order.
+- The builder functions over 1000 lines (November 4, 2026: `build_options_bar` 4334,
+  `request_layer_style_settings` 3022, `build_menu_bar_actions` 2984, `show_preferences` 1993,
+  `request_shape_appearance_settings` 1943, `request_visual_filter_gallery` 1687,
+  `request_web_export` 1629, `create_docks` 1320, `make_layer_row_widget` 1311 with 41
+  parameters, 36 of them defaulted and 20 of those `std::function`,
+  `CanvasWidget::mousePressEvent` 1177, `run_raw_develop_dialog` 1172,
+  `request_new_document_settings` 1113, `CanvasWidget::mouseReleaseEvent` 1069) inflate
+  optimized compile times and are hard to review. Split along their existing comment sections;
+  keep object names, translation contexts and registration order.
 - Build caching: no compiler launcher and every preset has its own binary directory, so the
   vendored codecs (about 825 CPU-seconds) recompile per preset. Options: sccache with `/Z7`
   for opt-dev (`/Zi` is set at the top of `CMakeLists.txt`), or a shared prebuilt install of the
@@ -46,11 +34,12 @@ made are in [building.md](building.md) ("Compile-time profile").
   change, about 11.5 s opt-dev, 56 s release). Whether opt-dev may defer them is Seth's call.
 - `patchy-mcp` recompiles `app/mcp_server.cpp` and `app/mcp_stdio.cpp` (only `main.cpp` needs
   its own define); they could be shared objects.
-- Qt umbrella includes are clean, but `<filesystem>` reaches 404 of 683 TUs through
+- Qt umbrella includes are clean, but `<filesystem>` reaches about 490 of 880 TUs through
   `color/color_management.hpp`, `formats/bmp_document_io.hpp` and `ui/image_save_options.hpp`
   (which includes the whole `formats/dds_document_io.hpp` and `rttex_document_io.hpp` for option
   enums). `ui/dialog_utils.hpp` includes `<QSizeGrip>` and `<QMessageBox>` for `VisibleSizeGrip`
-  and a few callers; a separate header would take them out of 121 TUs.
+  and a few callers; a separate header would take them out of about 150 TUs (include-graph
+  counts, November 4, 2026).
 
 ## Test infrastructure
 
@@ -60,11 +49,12 @@ made are in [building.md](building.md) ("Compile-time profile").
   curves-clipping and translation-check mains still have their own loops, and the crash
   handlers in `tests/core/main.cpp` and `tests/ui/main.cpp` are copies. Share them without
   changing registration order or filtering.
-- 25 test files define their own `make_*`/`solid_*` document and layer helpers although
-  `tests/core/core_test_support.hpp` provides `solid_rgba`; `MainWindow window` plus
-  `show_window` plus `require_canvas` is repeated about a thousand times across 103 UI test
-  files. A shown-window fixture would cover most of it. `tests/synthetic_dng.hpp` is included
-  by 92 test TUs and unused in about 50; 7 core tests include `stb_image.h` without decoding.
+- `ShownWindowFixture` (tests/ui/ui_test_support.hpp, [testing.md](testing.md#suite-organization))
+  covers about 430 uses in 11 UI test files; about 700 `MainWindow window` plus `show_window`
+  plus `require_canvas` triples remain in 59 files and can move to it. About two dozen test
+  files define their own `make_*`/`solid_*` document, layer or pixel helpers, more than in
+  October; `tests/ui/composite_render_tests.cpp` repeats `solid_rgba` and `solid_rgb` because
+  the UI binary does not link `tests/core/core_test_support.cpp`.
 
 ## Repeated implementation
 
@@ -99,10 +89,13 @@ made are in [building.md](building.md) ("Compile-time profile").
   shared reader with `padded_multiple=1`.
 - Byte order: `support/byte_order.hpp` now holds the fixed-width readers, writers and appends,
   but about 20 files still shift bytes by hand; move them over as they are touched. UTF-16
-  surrogate decoding appears five times (`formats/metadata/exif_tags.cpp`,
-  `metadata_containers.cpp`, `psd/psd_io_common.cpp` twice, `psd_descriptor.cpp`,
-  `psd_text_read.cpp`). The Linux and wasm HEIF readers share the lcms transform setup; Windows
-  HEIF and JXR share the WIC colour transform.
+  surrogate-pair decoding is written out ten times in nine files (`formats/metadata/exif_tags.cpp`,
+  `metadata_containers.cpp`, `formats/pdf_fonts.cpp`, `formats/svg_xml.cpp`, `psd/csh_io.cpp`,
+  `psd/engine_data.cpp`, `psd/psd_descriptor.cpp`, `psd/psd_io_common.cpp`,
+  `psd/psd_image_resources.cpp` twice); the PSD reader already has `utf16_units_to_utf8`
+  (`psd_io_internal.hpp`), so compare lone-surrogate handling before sharing one decoder. The
+  Linux and wasm HEIF readers share the lcms transform setup; Windows HEIF and JXR share the WIC
+  colour transform.
 - PSD `document_alpha_mask_layer` resembles
   `core/layer_render_utils::document_alpha_rgba8`, but their predicates differ. Diff
   the preconditions before sharing code.
@@ -119,8 +112,8 @@ made are in [building.md](building.md) ("Compile-time profile").
   `filters/smart_filter_table_render.cpp` and `ui/filter_preview_proxy.cpp` beside the public
   float one in `core/blend_math.hpp`. They stay separate on purpose: the integer clamps sit in
   per-pixel loops and the double variant rounds differently, so none is bit-identical to a
-  float `lround`. `parse_double_token` appears in `core/smart_object.cpp` and
-  `core/text_warp.cpp`.
+  float `lround`. `parse_double_token` and `format_double` (`%.17g`) are identical in
+  `core/smart_object.cpp`, `core/text_warp.cpp` and `core/vector_shape.cpp`.
 - Tool-classification switches with overlapping case lists sit in `canvas_widget_events.cpp`
   (twice) and `canvas_widget_shared.cpp`.
 
@@ -137,8 +130,10 @@ made are in [building.md](building.md) ("Compile-time profile").
   `main_window_shared` (22 `QProgressDialog` sites, 8 of them in `main_window_files.cpp`).
 - Promote the busy-progress-dialog pattern used by `main_window.cpp`,
   `main_window_palette.cpp` and `main_window_layer_ops.cpp` to `main_window_shared`.
-- The model-download progress lambda is duplicated between `main_window_ai_selection.cpp` and
-  `main_window_watermarks.cpp`.
+- The model-download wait (dialog or status-bar text, progress lambda, event loop and
+  keep-alive timer) is duplicated nearly line for line between `main_window_ai_selection.cpp`
+  and `main_window_watermarks.cpp`; the update download in `main_window_files.cpp` repeats the
+  dialog and progress lambda, and each of the three has its own megabytes helper.
 - Consider small parameterized helpers for the undo/redo pair, horizontal/vertical
   flip pair, fill/clear ladder, view-menu checkbox sync, and Smart Object
   relink/replace and update/embed preambles.
@@ -158,8 +153,11 @@ made are in [building.md](building.md) ("Compile-time profile").
   `pattern_library.cpp` and `style_library.cpp`; `QIconEngine::paint` mode handling in
   `action_icons.cpp` and `icon_theme.cpp`; the filter overlay `sync_role` blocks and zoom
   buttons in `filter_workflows.cpp` and `visual_filter_gallery_dialog.cpp`.
-- Seven direct `QFileDialog::getExistingDirectory` calls bypass the `dialog_utils.hpp`
-  file-dialog wrappers.
+- Eight direct `QFileDialog::getExistingDirectory` calls bypass the `get_existing_directory`
+  wrapper in `dialog_utils.hpp` (one caller so far): `divide_photos_dialog.cpp`,
+  `export_documents_folder_dialog.cpp`, `gmic_parameter_panel.cpp`, `main_window_files.cpp`,
+  `main_window_preferences.cpp`, `main_window_preferences_themes.cpp`, and `script_engine.cpp`
+  twice.
 
 ## Structural extractions
 
@@ -171,6 +169,12 @@ made are in [building.md](building.md) ("Compile-time profile").
 - Decompose `request_visual_filter_gallery` using the layer-style dialog module pattern.
   Recipe ids, parameter keys, captured colors, and the tilt-shift overlay
   are compatibility-sensitive.
+- Feature families added to `main_window.hpp` and `canvas_widget.hpp` after the growth rule
+  ([code-organization.md](code-organization.md)) belong in helper classes: Screen Mode (11
+  data members and 12 methods), the GEGL filter scan, external Smart Object edits,
+  path components, the brush overlay, theme extras on MainWindow; the clone source, Ruler and
+  path edits on the canvas. `main_window.hpp` includes `ui/preferences_themes_page.hpp` only for
+  one return type, where a forward declaration does.
 
 ## Bugs and performance risks
 
@@ -180,15 +184,18 @@ made are in [building.md](building.md) ("Compile-time profile").
 - Unguarded mutable statics beside mutex-guarded caches in `text_font_service.cpp`
   (`covered`, `loaded`, `attempted`); PDF saves draw text on a worker thread. Also check
   `user_fonts.cpp`, `font_face_name_index.cpp`, `main_window_theme.cpp`, `sound_effects.cpp`.
-- 29 `catch (...)` sites in `src` swallow errors with no diagnostic (`canvas_widget_render.cpp`,
-  `canvas_widget_selection.cpp`, `main_window_tool_options.cpp`, `layer_merge.cpp`,
-  `main_window_vector.cpp`, `vector_preview_renderer.cpp`, `canvas_widget_move.cpp`,
-  `main_window_watermarks.cpp`, `app/mcp_server.cpp`, ...). Add a debug log or catch
-  `std::exception` first.
+- 12 of the 30 `catch (...)` sites in `src` drop the exception with no diagnostic (the others
+  rethrow, forward `std::current_exception()` or report the failure): `canvas_widget_render.cpp`
+  (three), `canvas_widget_selection.cpp`, `canvas_widget_move.cpp`,
+  `main_window_tool_options.cpp`, `layer_merge.cpp`, `main_window_vector.cpp`,
+  `vector_preview_renderer.cpp`, `main_window_watermarks.cpp`, `background_workers.cpp`,
+  `app/mcp_server.cpp`. Two say the swallow is deliberate and three turn it into a failure
+  flag. Add a debug log or catch `std::exception` first.
 - PSD import copies preserved tagged blocks, including potentially large Smart Object
   data. Use mutable ownership carefully to remove the copies.
 - `estimate_text_size_from_alpha` uses a revision-bumping pixel accessor on a local
-  layer before insertion.
+  layer before insertion, as the argument of `record.text_size.value_or(...)`
+  (`psd_document_io.cpp`), so the alpha scan also runs when the record has a size.
 - `Rgb8PerPixelTarget` (the BMP RGB writer) is `Rgb8PixelBufferTarget` without the
   `composite_blended_row` row kernel and the strip origin (render/composite_targets.hpp;
   method bodies otherwise identical, October 2026). Merging them routes BMP RGB export
@@ -207,8 +214,7 @@ made are in [building.md](building.md) ("Compile-time profile").
   child mutation path bumps the ancestor revision first.
 - Likely unused includes (confirm with the `opt-dev-no-pch` preset): `canvas_widget_events.cpp`
   includes `ui/tool_cursors.hpp`; `psd/psd_document_io.cpp` includes `render/compositor.hpp` and
-  `core/style_contour.hpp`; `ui/script_api.cpp` includes `formats/apng_writer.hpp`;
-  `main_window_files.cpp` includes `core/layer_metadata.hpp` and `core/psd_source_colors.hpp`.
+  `core/style_contour.hpp`; `main_window_files.cpp` includes `core/psd_source_colors.hpp`.
 
 ## Longer-term design
 
@@ -217,12 +223,13 @@ made are in [building.md](building.md) ("Compile-time profile").
   document, render, save, and per-session history modules. Preserve the distinct editor
   settings conversions and canvas/session destruction order.
 - The options bar's `current_*` mirrors indicate a missing tool-options model.
-- Canvas callback fields (56 `std::function` members on `CanvasWidget`) could become a
-  clearer single-listener interface or Qt signals.
+- Canvas callback fields (69 `std::function` members on `CanvasWidget`, 56 on October 25) could
+  become a clearer single-listener interface or Qt signals.
 - The `qimage_from_document_rect*` overload family and `RenderedDocumentPatch` could
   use request and result types in a small header.
-- Replace ambiguous boolean parameters such as `flatten_confirmed` and pixel-tool
-  `erase` flags with named option types when those APIs next change.
+- Replace ambiguous boolean parameters such as the pixel-tool `erase` flags
+  (`core/pixel_tools.hpp`) with named option types when those APIs next change, as
+  `SaveToPathPolicy` did for `flatten_confirmed`.
 
 ## Build system
 

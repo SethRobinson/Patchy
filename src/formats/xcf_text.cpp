@@ -1,7 +1,7 @@
-// GIMP text layers (docs/xcf.md, "Text layers"): the "gimp-text-layer" parasite is a list of
-// (key value...) forms. This file parses it and writes Patchy's patchy.text.* metadata;
-// the layer keeps GIMP's raster until the text is edited. The keys come from files GIMP
-// writes, read as data.
+// GIMP text layers (docs/xcf-text-layers.md, "Text layers"): the "gimp-text-layer" parasite
+// is a list of (key value...) forms. This file parses it and writes Patchy's patchy.text.*
+// metadata; the layer keeps GIMP's raster until the text is edited. The keys come from files
+// GIMP writes, read as data.
 
 #include "core/layer_metadata.hpp"
 #include "core/pixel_depth.hpp"

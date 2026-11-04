@@ -1,6 +1,6 @@
 #pragma once
 
-// The right column's Color panel (docs/right-docks.md, "Color panel"; GitHub issue 365):
+// The right column's Color panel (docs/right-docks-color-panel.md, "Color panel"; GitHub issue 365):
 // the foreground/background pair with its swap and default glyphs, and one of four
 // views picked from the settings gear (GitHub issue 404): the Hue Cube (a saturation/value
 // field and a hue strip), RGB Sliders, HSB Sliders or CMYK Sliders. Every view shows

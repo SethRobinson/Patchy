@@ -761,7 +761,7 @@ elseif(WIN32)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   # HEIF/HEIC decodes through the distribution's own libheif, loaded with dlopen at run
   # time (heif_document_io_linux.cpp). Nothing is linked: the AppImage must not bundle
-  # libheif or any HEVC decoder (docs/legal-constraints.md), and linuxdeploy only copies
+  # libheif or any HEVC decoder (docs/legal-licensing.md), and linuxdeploy only copies
   # what the binary links. Little CMS bakes the file's ICC profile to sRGB as on wasm.
   target_sources(patchy_formats PRIVATE src/formats/heif_document_io_linux.cpp)
   target_compile_definitions(patchy_formats PRIVATE PATCHY_HEIF_HOST_LIBHEIF=1)
@@ -1188,8 +1188,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       add_custom_target(patchy_agent_kit ALL DEPENDS "${PATCHY_AGENT_KIT_STAMP}")
     endif()
     # Bundled theme packages: every file in a themes/bundled/<name>/ folder but its
-    # README.txt, under /patchy/themes/<name>/ in a generated qrc (docs/theme-files.md,
-    # "Bundled themes"). CONFIGURE_DEPENDS regenerates it when a file is added or removed;
+    # README.txt, under /patchy/themes/<name>/ in a generated qrc (docs/bundled-themes.md).
+    # CONFIGURE_DEPENDS regenerates it when a file is added or removed;
     # rcc tracks edits to the listed files itself. Written through configure_file so an
     # unchanged list does not rerun rcc.
     set(PATCHY_THEME_PACKAGES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/themes/bundled")
@@ -2041,7 +2041,7 @@ exec \"$(dirname \"$(readlink -f \"$0\")\")/patchy\" --mcp-connector \"$@\"
         # MCP clients (the Codex app) keep a connector alive per thread, which locks
         # patchy-mcp.exe against relinking (LNK1104). Move a locked one aside right
         # before the link and sweep stale copies once nothing runs them; never kill
-        # a client. See docs/release-process.md.
+        # a client. See docs/release-process-scripts.md.
         add_custom_command(TARGET patchy-mcp PRE_LINK
           COMMAND ${CMAKE_COMMAND} -DPATCHY_LOCKED_EXECUTABLE=$<TARGET_FILE:patchy-mcp>
                   -P ${CMAKE_SOURCE_DIR}/cmake/unlock_locked_executable.cmake
@@ -2050,11 +2050,11 @@ exec \"$(dirname \"$(readlink -f \"$0\")\")/patchy\" --mcp-connector \"$@\"
       install(TARGETS patchy-mcp RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     endif()
     if(WIN32)
-      # Seth often has build\release\patchy.exe open while a build runs. A running
+      # A patchy.exe from this build folder is often open while a build runs. A running
       # image cannot be overwritten (LNK1104) but can be renamed, so move it aside
-      # exactly like the connector above; his instance keeps running the renamed
+      # exactly like the connector above; that instance keeps running the renamed
       # copy and the link produces a fresh patchy.exe. Never kill it: it may hold
-      # unsaved work. See docs/release-process.md.
+      # unsaved work. See docs/release-process-scripts.md.
       add_custom_command(TARGET patchy PRE_LINK
         COMMAND ${CMAKE_COMMAND} -DPATCHY_LOCKED_EXECUTABLE=$<TARGET_FILE:patchy>
                 -P ${CMAKE_SOURCE_DIR}/cmake/unlock_locked_executable.cmake
@@ -2734,7 +2734,7 @@ if(PATCHY_BUILD_TESTS)
 
     # GitHub issue 95: the patched cocoa plugin's table-cell lifetime. Needs the real
     # cocoa platform, so it is not a ctest; scripts/remote/build-and-test.sh runs it with
-    # the plugin from scripts/setup-qt-cocoa-patch-mac.sh (docs/building.md).
+    # the plugin from scripts/setup-qt-cocoa-patch-mac.sh (docs/building-qt.md).
     if(APPLE)
       add_executable(patchy_mac_a11y_tests tests/macos/cocoa_a11y_cell_lifetime_test.mm)
       target_link_libraries(patchy_mac_a11y_tests PRIVATE Qt6::Widgets "-framework AppKit")

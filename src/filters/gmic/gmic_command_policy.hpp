@@ -3,7 +3,7 @@
 // The interpreter enforces this when registering commands, including commands
 // defined by a formula's run(). Restricted bodies become error stubs, so $$name
 // cannot recover their implementation under an alias. Keep the catalog exclusions
-// and the underlying algorithm entry points covered (docs/legal-constraints.md).
+// and the underlying algorithm entry points covered (docs/legal-constraints-filters.md).
 // C++17: this header is also included by the vendored interpreter.
 #include <string_view>
 

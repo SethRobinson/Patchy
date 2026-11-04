@@ -48,7 +48,7 @@ Three platform findings constrain the shape; do not regress them:
   JS writes plain state; C++ polls it from a QTimer, whose handler runs
   inside the resumed main loop, where nesting an exec is safe.
 
-Other step-3 decisions:
+Other decisions:
 
 - **Save As and Export prompt for a name and format** in a small dialog
   (`wasmSaveFileDialog`); the chosen filter row flows back through
@@ -114,9 +114,10 @@ Two Emscripten facts shape every rule here:
 Consequences (do not regress):
 
 - Pool size: `QT_WASM_PTHREAD_POOL_SIZE` pre-spawns
-  `min(hardwareConcurrency,16)+16` workers (page-overridable; see
-  `PATCHY_WASM_POOL` above). The CMYK site and both strip renderers cap at
-  16 workers. `PTHREAD_POOL_SIZE_STRICT` stays unset: overflow lazily spawns
+  `min(hardwareConcurrency,16)+16` workers (page-overridable with the
+  `PATCHY_WASM_POOL` URL knob: [wasm.md](wasm.md),
+  [wasm-memory.md](wasm-memory.md)). The CMYK site and both strip renderers
+  cap at 16 workers. `PTHREAD_POOL_SIZE_STRICT` stays unset: overflow lazily spawns
   (fine from worker threads) instead of aborting the session. Worker stacks
   are 4 MB (LibRaw decode and full compositor walks run there).
 - Headroom alone is insufficient once busy workers shrink the idle pool
@@ -174,7 +175,7 @@ reentry while script code is executing; the script canvas frame timer is
 single-shot, re-armed per frame.
 
 Slow live previews paint a "Rendering preview..." canvas badge on every
-platform (see [filters.md](filters.md)); it matters most on wasm.
+platform (see [filters-gallery.md](filters-gallery.md)); it matters most on wasm.
 
 Single-threaded builds: `should_defer_full_refresh_to_async` /
 `should_defer_first_render_to_async` (canvas_widget_render.cpp) return false

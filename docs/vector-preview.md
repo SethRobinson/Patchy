@@ -50,15 +50,16 @@ remain on top (next section).
 
 ## Overlay order
 
-The paint order is: composite (at 600% and up through `draw_deep_zoom_pixels`,
-which bakes View > Show > Pixel Grid into its raster), then the preview frame
+The paint order is: composite (through `draw_deep_zoom_pixels` from 600%, or from
+a lower "Show pixel grid from" threshold while the grid is drawn,
+[view-navigation.md](view-navigation.md#deep-zoom-and-the-pixel-grid); it bakes
+View > Show > Pixel Grid into its raster), then the preview frame
 (`draw_vector_preview`, a checkerboard plus the frame over the composite), then
 every overlay: the document grid, guides, artboards, the document border,
 selection edges, tool overlays and readouts, and the rulers last. Anything an
 overlay draws after the frame is above it by construction; only the pixel grid
-lives inside the composite's raster, so the frame covered it (it showed only in
-the frames before a new render landed, hence the flashes while zooming). The
-rule: with the pixel grid on at deep zoom, `draw_vector_preview` redraws the
+lives inside the composite's raster, which the frame covers. The rule: whenever
+the pixel grid is drawn (`pixel_grid_drawn`), `draw_vector_preview` redraws the
 grid alone after the frame, a grid-only `deep_zoom_raster` (transparent except
 the lines) of the document pixels at the current view's cell edges, so each line
 keeps its cell's own tone and lands where the composite would draw it, including

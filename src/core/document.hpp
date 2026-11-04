@@ -71,7 +71,7 @@ struct DocumentMetadata {
   std::vector<std::uint8_t> raw_psd_global_layer_mask_info;
   // A 32-bit PSD's color mode data: Photoshop's HDR toning record ('hdrt', 'hdra'), which
   // Photoshop requires in every 32-bit file it opens. Kept from the source and written
-  // back; documents without one get Photoshop 2026's default (docs/high-bit-depth.md).
+  // back; documents without one get Photoshop 2026's default (docs/high-bit-depth-formats.md).
   std::vector<std::uint8_t> raw_psd_color_mode_data;
   std::vector<std::uint8_t> raw_psd_image_resources;
   // Session-only source mode for lossless layered 16-bit CMYK/gray/Lab saves.

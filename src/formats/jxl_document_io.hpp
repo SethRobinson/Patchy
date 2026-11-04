@@ -16,7 +16,7 @@ namespace patchy::jxl {
 // JPEG XL (ISO/IEC 18181), read and write on every platform through the vendored libjxl
 // (src/formats/libjxl, built by cmake/patchy_jxl.cmake). Design, color rules and the
 // encoder constraints are in docs/jxl.md; the binding legal conditions are in
-// docs/legal-constraints.md. The one that shapes this API: the encoder always runs with
+// docs/legal-licensing.md. The one that shapes this API: the encoder always runs with
 // patches and dots off, so no option here can turn them on.
 
 inline constexpr const char* kLoopCountMetadata = "jxl.loop_count";
@@ -112,7 +112,7 @@ private:
 };
 
 // The frame settings every encode applies, exposed so a test proves the legal rule holds:
-// patches and dots are always 0 (docs/legal-constraints.md, JPEG XL condition 3).
+// patches and dots are always 0 (docs/legal-licensing.md, JPEG XL condition 3).
 struct EncoderToolSettings {
   std::int64_t patches{-1};
   std::int64_t dots{-1};

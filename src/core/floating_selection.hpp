@@ -1,6 +1,6 @@
 #pragma once
 
-// Free Transform of the selected pixels (GitHub issue 399; docs/free-transform.md,
+// Free Transform of the selected pixels (GitHub issue 399; docs/free-transform-targets.md,
 // "Transforming the selected pixels"): the selection is lifted out of a pixel layer
 // into a floating buffer, transformed, and composited back onto the layer.
 //

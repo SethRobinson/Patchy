@@ -6,7 +6,7 @@ Google Patents rate-limited the scan (US 8391627, US 7412110, US 8260080, US 889
 US 9349164, US 9619870, US 8594418, plus cover pages of US 9392173, US 9779489, US 9632679).
 Statuses are Google's estimates or cover-page arithmetic (filing date plus the printed term
 adjustment), unchecked against USPTO fee or assignment records. The binding rules are in
-[legal-constraints.md](legal-constraints.md); earlier sharpening reads are in
+[legal-constraints-filters.md](legal-constraints-filters.md); earlier sharpening reads are in
 [patent-research.md](patent-research.md) (local Sharpen brush, Unsharp Mask).
 
 Question: may Patchy render an imported Smart Filter whose descriptor is Photoshop's Smart
@@ -48,7 +48,7 @@ days PTA, about 2031-03) claims concurrently presented controls for several modi
 categories combined into one modification set applied in a single composite operation. It is not
 about sharpening; it belongs to a separate review of any multi-category adjustment panel, not to
 one filter. No Adobe patent naming Smart Sharpen, sharpening fade by tone, or a user-entered
-motion angle for deconvolution was found (an absence, not a finding of freedom).
+motion angle for deconvolution was found (an absence in the sweep, not a finding).
 
 US 8750639 is Microsoft's, not Adobe's, and it lapsed in 2026 (corrected in patent-research.md).
 
@@ -67,7 +67,7 @@ also decades-old prior art, and Patchy's Unsharp Mask is already reviewed.
    there, subject to calibration. In the CC (non-legacy) mode Photoshop runs its 2013 adaptive
    algorithm. US 9142009 was filed six weeks after that release, by an Adobe inventor whose
    specification contrasts the invention with unsharp masking and Smart Sharpen; that suggests,
-   without proving, that Photoshop's non-legacy mode practices it. Patchy rendering that mode with
+   without proving, that Photoshop's non-legacy mode uses its method. Patchy rendering that mode with
    unsharp masking is ALLOWED but will not match Photoshop's pixels, and reproducing those pixels by
    patch search would be NOT ALLOWED under US 9142009 (to 2033-07-30) and possibly US 8687913 (to
    2032-07-17).
@@ -96,7 +96,7 @@ also decades-old prior art, and Patchy's Unsharp Mask is already reviewed.
    Adobe only. Non-Adobe deblurring patents (ringing suppression, sparse or hyper-Laplacian
    priors, multi-scale or edge-adaptive regularization) were not swept: any of those additions
    needs its own check.
-4. **Remove = Motion Blur with Angle: same verdict as Lens Blur.** The PSF is one straight line
+4. **Remove = Motion Blur with Angle: same boundary as Lens Blur.** The PSF is one straight line
    from the user's Angle and Radius (the reviewed Motion Blur kernel), inverted by the same
    textbook non-blind method. Every Adobe deblurring claim read requires estimating the kernel
    from the image; a user-entered kernel misses that element. Never estimate angle or length from

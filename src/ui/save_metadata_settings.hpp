@@ -1,6 +1,6 @@
 #pragma once
 
-// Preferences > Metadata and Watermarks, "Saved metadata" (docs/file-info.md, "Saved
+// Preferences > Metadata and Watermarks, "Saved metadata" (docs/file-info-save-stamp.md, "Saved
 // metadata preference"): what Patchy adds of its own when saving. The settings keys and the
 // mode tokens are permanent.
 
