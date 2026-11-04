@@ -514,7 +514,7 @@ void ui_deko_layer_transparency_selection_and_channel_save_if_available() {
   require_action(window, "channelSaveSelectionAction")->trigger();
   const auto elapsed_ms = timer.elapsed();
   QApplication::processEvents();
-  CHECK(elapsed_ms < 5000);
+  CHECK(elapsed_ms < patchy::test::time_budget_ms(5000));
   CHECK(active_document.channels().size() == channel_count_before + 1);
   const auto& saved = active_document.channels().back().pixels();
   CHECK(*saved.pixel(faint_point->x(), faint_point->y()) == faint_alpha);
@@ -2260,7 +2260,7 @@ void ui_marquee_drag_after_antialiased_lasso_is_fast() {
   send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(end), Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
   std::cout << "  " << kMoves << " marquee moves over an anti-aliased lasso: " << drag_ms << " ms\n";
-  CHECK(drag_ms < 2000);
+  CHECK(drag_ms < patchy::test::time_budget_ms(2000));
   const auto replaced = canvas->selected_document_region();
   CHECK(replaced.rectCount() == 1);
   CHECK(replaced.boundingRect().contains(QRect(200, 200, 3600, 2600)));
@@ -2391,7 +2391,7 @@ void ui_selection_drag_of_large_lasso_is_fast() {
                 << " outline traces\n";
       // The outline is moved, not retraced: one trace at most, never one per move.
       CHECK(drag_traces <= 1);
-      CHECK(drag_ms < 3000);
+      CHECK(drag_ms < patchy::test::time_budget_ms(3000));
       CHECK(canvas->selected_document_region() == reference_selection);
       CHECK(canvas->selection_has_partial_alpha() == antialias);
       CHECK(sample_alpha() == reference_alpha);

@@ -92,7 +92,7 @@ void ui_brush_tip_manager_edits_dynamics() {
   CHECK(!tip_id.isEmpty());
 
   bool saw_editor = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     QDialog* manager = nullptr;
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() == QStringLiteral("brushTipManagerDialog")) {
@@ -126,7 +126,7 @@ void ui_brush_tip_manager_edits_dynamics() {
     });
     dynamics_button->click();  // blocks in the editor's exec loop until the inner callback closes it
     manager->reject();
-  });
+  }));
   patchy::ui::request_brush_tip_manager(&window, library, tip_id, {}, {});
 
   CHECK(saw_editor);
@@ -1315,7 +1315,7 @@ void ui_brush_tip_import_remembers_last_folder() {
   // Runs the dialog; `act` sees it open and closes it. Returns the folder it opened in.
   const auto run_dialog = [&window](const std::function<void(QFileDialog&)>& act, QString* result) {
     QString opened_in;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("brushTipImportFileDialog")));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -1323,7 +1323,7 @@ void ui_brush_tip_import_remembers_last_folder() {
       }
       opened_in = dialog->directory().absolutePath();
       act(*dialog);
-    });
+    }));
     *result = patchy::ui::get_abr_import_file_name(&window, QStringLiteral("Import Photoshop Brushes"),
                                                    QStringLiteral("Photoshop Brushes (*.abr)"),
                                                    QStringLiteral("brushTipImportFileDialog"));

@@ -143,7 +143,7 @@ void ui_image_size_dialog_unit_and_resolution_links_work() {
   patchy::ui::MainWindow window;  // default document: 1024x768 at 72 ppi
   show_window(window);
 
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyImageSizeDialog")) {
         continue;
@@ -227,7 +227,7 @@ void ui_image_size_dialog_unit_and_resolution_links_work() {
       return;
     }
     CHECK(false);
-  });
+  }));
   require_action(window, "imageSizeAction")->trigger();
   QApplication::processEvents();
 
@@ -248,7 +248,7 @@ void ui_canvas_size_dialog_units_convert_through_resolution() {
   show_window(window);
 
   bool drove_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyCanvasSizeDialog")) {
         continue;
@@ -331,7 +331,7 @@ void ui_canvas_size_dialog_units_convert_through_resolution() {
       return;
     }
     CHECK(false);
-  });
+  }));
   require_action(window, "imageCanvasSizeAction")->trigger();
   QApplication::processEvents();
   CHECK(drove_dialog);
@@ -351,7 +351,7 @@ void ui_canvas_size_dialog_link_keeps_aspect_ratio() {
   show_window(window);
 
   bool drove_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyCanvasSizeDialog")) {
         continue;
@@ -427,7 +427,7 @@ void ui_canvas_size_dialog_link_keeps_aspect_ratio() {
       return;
     }
     CHECK(false);
-  });
+  }));
   require_action(window, "imageCanvasSizeAction")->trigger();
   QApplication::processEvents();
   CHECK(drove_dialog);
@@ -451,7 +451,7 @@ void ui_canvas_size_dialog_deletes_off_canvas_layers() {
   const auto layer_count = document.layers().size();
 
   bool drove_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyCanvasSizeDialog")) {
         continue;
@@ -466,7 +466,7 @@ void ui_canvas_size_dialog_deletes_off_canvas_layers() {
       return;
     }
     CHECK(false);
-  });
+  }));
   require_action(window, "imageCanvasSizeAction")->trigger();
   QApplication::processEvents();
   CHECK(drove_dialog);
@@ -507,7 +507,7 @@ void ui_crop_to_selection_advanced_crops_and_deletes_off_canvas_layers() {
   document.add_layer(std::move(group));
 
   bool drove_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyCanvasSizeDialog")) {
         continue;
@@ -523,7 +523,7 @@ void ui_crop_to_selection_advanced_crops_and_deletes_off_canvas_layers() {
       return;
     }
     CHECK(false);
-  });
+  }));
   require_action(window, "imageCropToSelectionAdvancedAction")->trigger();
   QApplication::processEvents();
   CHECK(drove_dialog);
@@ -583,7 +583,7 @@ void ui_crop_to_selection_advanced_prefills_canvas_size_dialog() {
   CHECK(selection->width() < 1024 && selection->height() < 768);
 
   bool drove_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyCanvasSizeDialog")) {
         continue;
@@ -611,7 +611,7 @@ void ui_crop_to_selection_advanced_prefills_canvas_size_dialog() {
       return;
     }
     CHECK(false);
-  });
+  }));
   require_action(window, "imageCropToSelectionAdvancedAction")->trigger();
   QApplication::processEvents();
   CHECK(drove_dialog);
@@ -648,7 +648,7 @@ void ui_image_size_dialog_remembers_units() {
   bool drove_dialog = false;
   const auto open_dialog = [&](std::function<void(const Fields&)> body) {
     drove_dialog = false;
-    QTimer::singleShot(0, [&drove_dialog, body = std::move(body)] {
+    QTimer::singleShot(0, guarded([&drove_dialog, body = std::move(body)] {
       auto* dialog = find_top_level_dialog(QStringLiteral("patchyImageSizeDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -665,7 +665,7 @@ void ui_image_size_dialog_remembers_units() {
             fields.width != nullptr && fields.resolution != nullptr);
       body(fields);
       drove_dialog = true;
-    });
+    }));
     require_action(window, "imageSizeAction")->trigger();
     QApplication::processEvents();
     CHECK(drove_dialog);
@@ -729,7 +729,7 @@ void ui_image_size_dialog_method_is_applied_and_remembered() {
 
   const auto resize_through_dialog = [&](const QString& method_id, const QString& expected_preselected) {
     bool drove_dialog = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = find_top_level_dialog(QStringLiteral("patchyImageSizeDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -757,7 +757,7 @@ void ui_image_size_dialog_method_is_applied_and_remembered() {
       height->setValue(4);
       dialog->accept();
       drove_dialog = true;
-    });
+    }));
     require_action(window, "imageSizeAction")->trigger();
     QApplication::processEvents();
     process_events_for(120);
@@ -811,7 +811,7 @@ void ui_image_size_dialog_preview_follows_method() {
   };
 
   bool drove_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyImageSizeDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -836,7 +836,7 @@ void ui_image_size_dialog_preview_follows_method() {
     CHECK(bicubic_pure < nearest_pure);
     drove_dialog = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "imageSizeAction")->trigger();
   QApplication::processEvents();
   process_events_for(120);
@@ -894,7 +894,7 @@ void ui_canvas_size_dialog_remembers_unit() {
   bool drove_dialog = false;
   const auto open_dialog = [&](std::function<void(const Fields&)> body) {
     drove_dialog = false;
-    QTimer::singleShot(0, [&drove_dialog, body = std::move(body)] {
+    QTimer::singleShot(0, guarded([&drove_dialog, body = std::move(body)] {
       auto* dialog = find_top_level_dialog(QStringLiteral("patchyCanvasSizeDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -910,7 +910,7 @@ void ui_canvas_size_dialog_remembers_unit() {
             fields.width != nullptr);
       body(fields);
       drove_dialog = true;
-    });
+    }));
     require_action(window, "imageCanvasSizeAction")->trigger();
     QApplication::processEvents();
     CHECK(drove_dialog);

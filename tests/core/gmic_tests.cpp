@@ -578,9 +578,11 @@ void gmic_engine_stops_on_request() {  const gmic::Engine engine(standard_librar
   // Bounded even if the request were ignored.
   const auto result = engine.run("repeat 400 { blur 3 }", images, &control);
   const auto elapsed = std::chrono::steady_clock::now() - start;
+  // The structural proof is result.aborted (an ignored request runs all 400 blurs to
+  // completion and reports ok); the clock is only a hang guard.
   CHECK(result.aborted);
   CHECK(!result.ok);
-  CHECK(elapsed < std::chrono::seconds(5));
+  CHECK(elapsed < std::chrono::milliseconds(patchy::test::kWallClockBackstopMs));
 }
 
 // A command's `progress` reaches the caller as a percentage; a run that reports none

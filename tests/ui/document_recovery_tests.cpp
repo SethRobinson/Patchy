@@ -81,6 +81,7 @@ using patchy::test::ui::process_events_until;
 using patchy::test::ui::require_action;
 using patchy::test::ui::SettingsValueRestorer;
 using patchy::test::ui::show_window;
+using patchy::test::ui::guarded;
 
 namespace {
 
@@ -737,7 +738,7 @@ void ui_preferences_recovery_controls_persist() {
   CHECK(timer != nullptr && timer->isActive() && timer->interval() == 10 * 60 * 1000);
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -759,7 +760,7 @@ void ui_preferences_recovery_controls_persist() {
     CHECK(!combo->isEnabled());
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);

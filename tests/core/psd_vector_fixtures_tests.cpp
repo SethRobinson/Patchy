@@ -129,7 +129,7 @@ void psd_shape_solid_fixture_parses_and_renders() {
 }
 
 void psd_aligned_double_stroke_rebuild_matches_photoshop_if_available() {
-  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" /
+  const auto path = patchy::test::local_fixtures_root() / "psd-tools" /
                     "tests" / "psd_files" / "effects" / "double-stroke-effects.psd";
   patchy::test::skip_unless_exists(path);
   auto document = patchy::psd::DocumentIo::read_file(path);
@@ -2829,7 +2829,7 @@ void psd_stroke_block_with_short_class_parses() {
 // joins, CMYK rich black) whose stored pixels sit far off the 240x186 canvas. Photoshop
 // redraws it from the path: a near-black rounded box spanning x 141..192, y 97..153.
 void psd_tools_issue397_short_stroke_class_shape_renders_if_available() {
-  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" /
+  const auto path = patchy::test::local_fixtures_root() / "psd-tools" / "tests" /
                     "psd_files" / "issues" / "issue397.psd";
   patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);

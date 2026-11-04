@@ -2299,14 +2299,6 @@ exec \"$(dirname \"$(readlink -f \"$0\")\")/patchy\" --mcp-connector \"$@\"
                         DEPENDS "${PATCHY_BUNDLE_RESOURCES_STAMP}")
     endif()
     if(NOT EMSCRIPTEN)
-      # 34 MB the wasm virtual filesystem could never see; the sole runtime
-      # consumer (load_bundled_legacy_plugins) early-returns when absent.
-      add_custom_command(TARGET patchy POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
-                ${PROJECT_SOURCE_DIR}/test-fixtures
-                $<TARGET_FILE_DIR:patchy>/test-fixtures
-        COMMENT "Copying Patchy test fixtures next to the app binary"
-      )
       install(TARGETS patchy
         BUNDLE DESTINATION .
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -2467,6 +2459,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/vector_shape_tests.cpp
     tests/core/path_edits_tests.cpp
     tests/core/translation_marker_tests.cpp
+    tests/core/ui_color_literal_tests.cpp
     tests/core/floating_selection_tests.cpp
     tests/core/ai_selection_tests.cpp
     tests/core/gmic_tests.cpp
@@ -2511,6 +2504,9 @@ if(PATCHY_BUILD_TESTS)
     add_test(NAME patchy_build_graph_tests
       COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tests/build_graph_tests.py"
               --cmake "${CMAKE_COMMAND}" --ninja "${CMAKE_MAKE_PROGRAM}")
+    # Unguarded QTimer::singleShot CHECKs and sub-minute wall-clock CHECKs (docs/testing.md).
+    add_test(NAME patchy_test_source_lint
+      COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/scripts/lint-test-sources.py")
     # One binary; per-group TUs live in tests/ui/ (tests/ui/ui_test_groups.hpp lists
     # the groups; main() concatenates the group vectors in a fixed order — never
     # static self-registration).
@@ -2663,6 +2659,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/composite_render_tests.cpp
       tests/ui/theme_package_tests.cpp
       tests/ui/theme_script_tests.cpp
+      tests/ui/painted_chrome_scheme_tests.cpp
       tests/ui/readme_screenshot_tests.cpp
       tests/ui/readme_screenshot_tests_classic.cpp
       tests/ui/readme_screenshot_tests_scripting.cpp

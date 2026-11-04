@@ -2067,7 +2067,7 @@ void ui_move_ctrl_hover_outlines_layer_with_auto_select_off() {
 int move_outline_top_edge_pixels(const QImage& image, const patchy::ui::CanvasWidget& canvas, QRect document_rect) {
   const QRect widget(canvas.widget_position_for_document_point(document_rect.topLeft()),
                      canvas.widget_position_for_document_point(document_rect.topRight() + QPoint(1, 0)));
-  return count_pixels_close(image, QRect(widget.left(), widget.top() - 2, widget.width(), 5), QColor(95, 170, 255),
+  return count_pixels_close(image, QRect(widget.left(), widget.top() - 2, widget.width(), 5), patchy::ui::theme().canvas_layer_selection_border,
                             18);
 }
 
@@ -2314,7 +2314,7 @@ void ui_move_layer_outline_reads_on_every_side_at_every_zoom() {
   QApplication::processEvents();
 
   const QColor dark(18, 20, 24);
-  const QColor blue(95, 170, 255);
+  const QColor blue = patchy::ui::theme().canvas_layer_selection_border;
   QList<QImage> strips;
   for (const double zoom : {1.0 / 3.0, 2.0 / 3.0, 1.0, 1.5, 3.0}) {
     canvas.set_zoom_centered(zoom);
@@ -4667,7 +4667,7 @@ void ui_duke_psd_text_edit_stays_responsive_if_available() {
   timer.start();
   auto document = patchy::psd::DocumentIo::read_file(path);
   const auto load_elapsed_ms = timer.elapsed();
-  CHECK(load_elapsed_ms < 10000);
+  CHECK(load_elapsed_ms < patchy::test::time_budget_ms(10000));
 
   struct TextTarget {
     QRect bounds;
@@ -4704,7 +4704,7 @@ void ui_duke_psd_text_edit_stays_responsive_if_available() {
   canvas->fit_to_view();
   QApplication::processEvents();
   const auto display_elapsed_ms = timer.elapsed();
-  CHECK(display_elapsed_ms < 5000);
+  CHECK(display_elapsed_ms < patchy::test::time_budget_ms(5000));
 
   const auto hit_document_point = target->bounds.center();
   const auto hit_widget_point = canvas->widget_position_for_document_point(hit_document_point);
@@ -4756,7 +4756,7 @@ void ui_duke_psd_text_edit_stays_responsive_if_available() {
   QApplication::processEvents();
   CHECK(editor->textCursor().hasSelection());
   const auto edit_elapsed_ms = timer.elapsed();
-  CHECK(edit_elapsed_ms < 3000);
+  CHECK(edit_elapsed_ms < patchy::test::time_budget_ms(3000));
   QTextCursor end_cursor(editor->document());
   end_cursor.movePosition(QTextCursor::End);
   editor->setTextCursor(end_cursor);
@@ -4769,7 +4769,7 @@ void ui_duke_psd_text_edit_stays_responsive_if_available() {
   canvas->set_show_transform_controls(false);
   QApplication::processEvents();
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
-  CHECK(timer.elapsed() < 4000);
+  CHECK(timer.elapsed() < patchy::test::time_budget_ms(4000));
 
   require_action_by_text(window, QStringLiteral("Type"))->trigger();
   accept_missing_psd_text_font_warning_if_present();
@@ -5133,8 +5133,12 @@ void ui_text_reedit_preserves_rich_text_spacing() {
 
 // Deferred Move commit fixture: a blue 60x60 layer on white at zoom 1, the
 // proxy preview latched on the first live frame (PATCHY_MOVE_LIVE_LATCH_MS=0)
-// so the release takes the accurate-patch route, and a 400 ms worker delay so
-// the job is observably pending after the release returns.
+// so the release takes the accurate-patch route, and a kDeferredMoveRenderDelayMs
+// worker delay so the job is observably pending after the release returns. A step that
+// waited for the worker would take the whole delay, so "did not wait" is elapsed below
+// half of it: far above the step's own cost on a loaded host.
+constexpr int kDeferredMoveRenderDelayMs = 4000;
+
 struct DeferredMoveScene {
   patchy::ui::MainWindow window;
   patchy::ui::CanvasWidget* canvas{nullptr};
@@ -5166,7 +5170,7 @@ struct DeferredMoveScene {
     QApplication::processEvents();
     settle();
     qputenv("PATCHY_MOVE_LIVE_LATCH_MS", QByteArray("0"));
-    qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("400"));
+    qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray::number(kDeferredMoveRenderDelayMs));
   }
 
   void settle() {
@@ -5211,7 +5215,7 @@ void ui_move_release_defers_accurate_patches_behind_a_hold() {
   const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(scene.window);
   const auto before = scene.canvas->render_cache_diagnostics();
   const auto release_ms = scene.drag_right(QPoint(70, 70));
-  CHECK(release_ms < 300.0);
+  CHECK(release_ms < kDeferredMoveRenderDelayMs / 2);
   CHECK(scene.canvas->move_commit_job_pending());
   CHECK(!scene.canvas->render_settled());
   CHECK(scene.canvas->render_cache_diagnostics().move_deferred_commits == before.move_deferred_commits + 1);
@@ -5378,7 +5382,7 @@ void ui_move_cold_preview_is_async_and_uses_latest_delta() {
   scene.settle();
   scene.canvas->set_selected_layer_ids({scene.layer_id});
   scene.canvas->set_rulers_visible(false);
-  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("1200"));
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray::number(kDeferredMoveRenderDelayMs));
   // The band ends above the drag outline, which sits on the row just outside
   // the layer's top edge.
   const int layer_top = scene.canvas->widget_position_for_document_point(QPoint(40, 40)).y();
@@ -5391,7 +5395,7 @@ void ui_move_cold_preview_is_async_and_uses_latest_delta() {
   send_mouse(*scene.canvas, QEvent::MouseMove, start + QPoint(20, 0), Qt::NoButton, Qt::LeftButton);
   send_mouse(*scene.canvas, QEvent::MouseMove, start + QPoint(50, 0), Qt::NoButton, Qt::LeftButton);
   const auto first_feedback_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - began).count();
-  CHECK(first_feedback_ms < 300.0);
+  CHECK(first_feedback_ms < kDeferredMoveRenderDelayMs / 2);
   CHECK(scene.canvas->render_cache_diagnostics().move_proxy_previews == before.move_proxy_previews);
   CHECK(!scene.canvas->processing_overlay_visible());
   const auto first_badge = render_widget_image(*scene.canvas).copy(badge_area);
@@ -5401,7 +5405,7 @@ void ui_move_cold_preview_is_async_and_uses_latest_delta() {
   // No more pointer events: the spinner must keep animating on its own.
   CHECK(process_events_until([&] {
     return scene.canvas->render_cache_diagnostics().processing_overlay_frames > first_frame;
-  }, 1000));
+  }, kDeferredMoveRenderDelayMs / 2));
   CHECK(scene.canvas->render_cache_diagnostics().move_proxy_previews == before.move_proxy_previews);
   CHECK(!images_equal_rgba(first_badge, render_widget_image(*scene.canvas).copy(badge_area)));
   scene.settle();
@@ -5418,8 +5422,8 @@ void ui_move_cold_preview_is_async_and_uses_latest_delta() {
   // alive. Neither completion may install the abandoned preview/document.
   scene.canvas->document_changed();
   scene.settle();
-  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("400"));
-  CHECK(scene.drag_right(QPoint(120, 70)) < 300.0);
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray::number(kDeferredMoveRenderDelayMs));
+  CHECK(scene.drag_right(QPoint(120, 70)) < kDeferredMoveRenderDelayMs / 2);
   CHECK(scene.layer_x() == 140);
   // A released drag must not keep claiming that it is building a drag preview.
   CHECK(images_equal_rgba(no_badge, render_widget_image(*scene.canvas).copy(badge_area)));
@@ -5431,7 +5435,7 @@ void ui_move_cold_preview_is_async_and_uses_latest_delta() {
 
   scene.canvas->document_changed();
   scene.settle();
-  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("1200"));
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray::number(kDeferredMoveRenderDelayMs));
   const auto cancel_start = scene.canvas->widget_position_for_document_point(QPoint(120, 70));
   send_mouse(*scene.canvas, QEvent::MouseButtonPress, cancel_start, Qt::LeftButton, Qt::LeftButton);
   send_mouse(*scene.canvas, QEvent::MouseMove, cancel_start + QPoint(20, 0), Qt::NoButton, Qt::LeftButton);
@@ -5446,7 +5450,7 @@ void ui_move_cold_preview_is_async_and_uses_latest_delta() {
 void ui_move_rapid_commits_keep_latest_region_and_exact_pixels() {
   DeferredMoveScene scene;
   for (int i = 0; i < 5; ++i) {
-    CHECK(scene.drag_right(QPoint(70 + i * 50, 70)) < 300.0);
+    CHECK(scene.drag_right(QPoint(70 + i * 50, 70)) < kDeferredMoveRenderDelayMs / 2);
   }
   CHECK(scene.layer_x() == 290);
   CHECK(scene.canvas->move_commit_job_pending());

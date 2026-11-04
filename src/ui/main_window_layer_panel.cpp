@@ -17,6 +17,7 @@
 #include "color/color_management.hpp"
 #include "core/palette.hpp"
 #include "ui/main_window.hpp"
+#include "ui/transparency_checkerboard.hpp"
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
@@ -1421,7 +1422,7 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
     } else {
       for (int row = 0; row < 3; ++row) {
         for (int column = 0; column < 4; ++column) {
-          painter.setBrush((row + column) % 2 == 0 ? QColor(236, 236, 236) : QColor(188, 188, 188));
+          painter.setBrush((row + column) % 2 == 0 ? checkerboard_light_square() : checkerboard_dark_square());
           painter.drawRect(QRectF(page.x() + column * page.width() / 4.0, page.y() + row * page.height() / 3.0,
                                   page.width() / 4.0, page.height() / 3.0));
         }
@@ -2009,8 +2010,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     link->setCheckable(true);
     link->setChecked(linked);
     link->setText(QString());
-    link->setIcon(simple_icon(link->isChecked() ? QStringLiteral("link") : QStringLiteral("off"),
-                              link->isChecked() ? QColor(220, 226, 235) : QColor(112, 120, 130)));
+    // Both names have authored SVGs, which take their colors from the icon color map.
+    link->setIcon(simple_icon(link->isChecked() ? QStringLiteral("link") : QStringLiteral("off")));
     link->setToolButtonStyle(Qt::ToolButtonIconOnly);
     link->setIconSize(QSize(19, 19));
     link->setToolTip(tooltip(link->isChecked()));
@@ -2020,8 +2021,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     }
     QObject::connect(link, &QToolButton::toggled, row,
                      [parent, id = layer.id(), link, tooltip, set_linked = std::move(set_linked)](bool checked) {
-      link->setIcon(simple_icon(checked ? QStringLiteral("link") : QStringLiteral("off"),
-                                checked ? QColor(220, 226, 235) : QColor(112, 120, 130)));
+      link->setIcon(simple_icon(checked ? QStringLiteral("link") : QStringLiteral("off")));
       link->setToolTip(tooltip(checked));
       if (set_linked) {
         QTimer::singleShot(0, parent, [id, checked, set_linked] { set_linked(id, checked); });
@@ -3946,12 +3946,11 @@ void MainWindow::set_layer_visibility(LayerId id, bool visible) {
     }
   }
   if (item != nullptr) {
-    // setCheckState and setForeground both emit itemChanged; the guard keeps
-    // them from re-entering via set_layer_visibility_from_item.
+    // setCheckState emits itemChanged; the guard keeps it from re-entering via
+    // set_layer_visibility_from_item.
     const auto was_updating = updating_layer_list_;
     updating_layer_list_ = true;
     item->setCheckState(visible ? Qt::Checked : Qt::Unchecked);
-    item->setForeground(visible ? QBrush(QColor(226, 230, 237)) : QBrush(QColor(126, 132, 142)));
     if (auto* row_widget = layer_list_->itemWidget(item); row_widget != nullptr) {
       if (auto* visibility = row_widget->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
           visibility != nullptr) {
@@ -4169,7 +4168,6 @@ void MainWindow::sync_layer_row_visibility_indicators() {
       continue;
     }
     item->setCheckState(visible ? Qt::Checked : Qt::Unchecked);
-    item->setForeground(visible ? QBrush(QColor(226, 230, 237)) : QBrush(QColor(126, 132, 142)));
     if (auto* row_widget = layer_list_->itemWidget(item); row_widget != nullptr) {
       if (auto* visibility = row_widget->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
           visibility != nullptr) {
@@ -4454,7 +4452,6 @@ QString MainWindow::layer_list_item_tooltip(const LayerListRowSpec& row) const {
 QListWidgetItem* MainWindow::make_layer_list_item(const LayerListRowSpec& row, std::optional<LayerId> active) {
   const auto& layer = *row.layer;
   const auto is_group = layer.kind() == LayerKind::Group;
-  const auto effective_visible = row.ancestors_visible && layer.visible();
   auto* item = new QListWidgetItem(QString::fromStdString(layer.name()));
   item->setData(kLayerIdRole, QVariant::fromValue<qulonglong>(static_cast<qulonglong>(layer.id())));
   item->setData(kLayerDepthRole, row.depth);
@@ -4475,7 +4472,6 @@ QListWidgetItem* MainWindow::make_layer_list_item(const LayerListRowSpec& row, s
       effect_count > 0 ? 1 + (effects_expanded ? static_cast<int>(effect_count) : 0) : 0;
   item->setSizeHint(QSize(0, layer_main_row_height(layer_thumbnail_size_) +
                                  26 * (smart_filter_row_count + effect_row_count)));
-  item->setForeground(effective_visible ? QBrush(QColor(226, 230, 237)) : QBrush(QColor(126, 132, 142)));
   if (active.has_value() && *active == layer.id()) {
     auto font = item->font();
     font.setBold(true);

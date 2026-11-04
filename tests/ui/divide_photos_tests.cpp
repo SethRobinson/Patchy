@@ -64,6 +64,7 @@ using patchy::test::ui::save_widget_artifact;
 using patchy::test::ui::send_mouse;
 using patchy::test::ui::SettingsValueRestorer;
 using patchy::test::ui::show_window;
+using patchy::test::ui::guarded;
 
 namespace {
 
@@ -100,7 +101,7 @@ struct DividePhotosSettingsGuard {
 // test by much.
 void click_message_box_when_shown(const QString& object_name, QMessageBox::StandardButton button,
                                   std::shared_ptr<bool> done, int attempts_left = 300) {
-  QTimer::singleShot(10, [object_name, button, done, attempts_left] {
+  QTimer::singleShot(10, guarded([object_name, button, done, attempts_left] {
     auto* dialog = find_top_level_dialog(object_name);
     if (dialog == nullptr || !dialog->isVisible()) {
       if (attempts_left > 0 && !*done) {
@@ -114,7 +115,7 @@ void click_message_box_when_shown(const QString& object_name, QMessageBox::Stand
       *done = true;
       box->button(button)->click();
     }
-  });
+  }));
 }
 
 // Arms a No answer for the scan-another-batch prompt that follows every
@@ -201,7 +202,7 @@ void ui_scan_and_divide_opens_document_per_photo() {
   const auto tab_count_before = tabs->count();
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("dividePhotosDialog"));
     CHECK(dialog != nullptr);
     auto* pane = dialog->findChild<QWidget*>(QStringLiteral("dividePhotosPreviewPane"));
@@ -234,7 +235,7 @@ void ui_scan_and_divide_opens_document_per_photo() {
     save_widget_artifact("ui_divide_photos_dialog", *dialog);
     saw_dialog = true;
     buttons->button(QDialogButtonBox::Ok)->click();
-  });
+  }));
   const auto scan_again = decline_scan_again_prompt();
   patchy::ui::MainWindowTestAccess::import_and_divide_from_scanner(window);
   QApplication::processEvents();
@@ -266,7 +267,7 @@ void ui_divide_dialog_region_editing_and_sensitivity() {
   const auto tab_count_before = tabs->count();
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("dividePhotosDialog"));
     CHECK(dialog != nullptr);
     auto* pane = dialog->findChild<QWidget*>(QStringLiteral("dividePhotosPreviewPane"));
@@ -315,7 +316,7 @@ void ui_divide_dialog_region_editing_and_sensitivity() {
     CHECK(pane->property("regionCount").toInt() == 5);
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::import_and_divide_from_scanner(window);
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -355,7 +356,7 @@ void ui_divide_current_document_uses_flattened_composite() {
   const auto source_tab = tabs->currentIndex();
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("dividePhotosDialog"));
     CHECK(dialog != nullptr);
     auto* pane = dialog->findChild<QWidget*>(QStringLiteral("dividePhotosPreviewPane"));
@@ -365,7 +366,7 @@ void ui_divide_current_document_uses_flattened_composite() {
     CHECK(pane->property("regionCount").toInt() == 2);
     saw_dialog = true;
     buttons->button(QDialogButtonBox::Ok)->click();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::divide_current_document_photos(window);
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -394,7 +395,7 @@ void ui_divide_straighten_and_perspective_toggles() {
   // Run 1, Straighten off: the photo is cut along its axis-aligned bounding
   // box, so the result is the rotated rect's larger footprint.
   bool saw_cut_dialog = false;
-  QTimer::singleShot(0, [&saw_cut_dialog] {
+  QTimer::singleShot(0, guarded([&saw_cut_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("dividePhotosDialog"));
     CHECK(dialog != nullptr);
     auto* pane = dialog->findChild<QWidget*>(QStringLiteral("dividePhotosPreviewPane"));
@@ -407,7 +408,7 @@ void ui_divide_straighten_and_perspective_toggles() {
     straighten->setChecked(false);
     saw_cut_dialog = true;
     buttons->button(QDialogButtonBox::Ok)->click();
-  });
+  }));
   const auto first_scan_again = decline_scan_again_prompt();
   patchy::ui::MainWindowTestAccess::import_and_divide_from_scanner(window);
   QApplication::processEvents();
@@ -423,7 +424,7 @@ void ui_divide_straighten_and_perspective_toggles() {
   // Run 2, Straighten on (plus the checkbox implication: Fix Perspective
   // forces and disables Straighten): the photo comes out level at its own size.
   bool saw_straighten_dialog = false;
-  QTimer::singleShot(0, [&saw_straighten_dialog] {
+  QTimer::singleShot(0, guarded([&saw_straighten_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("dividePhotosDialog"));
     CHECK(dialog != nullptr);
     auto* straighten = dialog->findChild<QCheckBox*>(QStringLiteral("dividePhotosStraightenCheck"));
@@ -442,7 +443,7 @@ void ui_divide_straighten_and_perspective_toggles() {
     CHECK(straighten->isChecked());
     saw_straighten_dialog = true;
     buttons->button(QDialogButtonBox::Ok)->click();
-  });
+  }));
   const auto second_scan_again = decline_scan_again_prompt();
   patchy::ui::MainWindowTestAccess::import_and_divide_from_scanner(window);
   QApplication::processEvents();
@@ -469,7 +470,7 @@ std::vector<patchy::PixelBuffer> make_two_test_photos() {
 // clicks it away so the suite cannot hang). Returns the flag to CHECK after.
 std::shared_ptr<bool> arm_unexpected_overwrite_prompt_check() {
   auto prompted = std::make_shared<bool>(false);
-  QTimer::singleShot(0, [prompted] {
+  QTimer::singleShot(0, guarded([prompted] {
     auto* dialog = find_top_level_dialog(QStringLiteral("dividePhotosOverwriteMessageBox"));
     if (dialog == nullptr) {
       return;
@@ -478,7 +479,7 @@ std::shared_ptr<bool> arm_unexpected_overwrite_prompt_check() {
     auto* box = qobject_cast<QMessageBox*>(dialog);
     CHECK(box != nullptr);
     box->button(QMessageBox::No)->click();
-  });
+  }));
   return prompted;
 }
 
@@ -572,7 +573,7 @@ void ui_divide_overwrite_mode_prompts_once_naming_first_conflict() {
   // nothing at all.
   bool prompted = false;
   QString prompt_text;
-  QTimer::singleShot(0, [&prompted, &prompt_text] {
+  QTimer::singleShot(0, guarded([&prompted, &prompt_text] {
     auto* dialog = find_top_level_dialog(QStringLiteral("dividePhotosOverwriteMessageBox"));
     CHECK(dialog != nullptr);
     auto* box = qobject_cast<QMessageBox*>(dialog);
@@ -580,7 +581,7 @@ void ui_divide_overwrite_mode_prompts_once_naming_first_conflict() {
     prompted = true;
     prompt_text = box->text();
     box->button(QMessageBox::No)->click();
-  });
+  }));
   const auto declined = patchy::ui::MainWindowTestAccess::save_divided_photos_to_folder(
       window, photos, print_settings, temp.path(), QStringLiteral("pic_"), QStringLiteral("png"),
       patchy::ui::DividePhotosExistingFiles::Overwrite);
@@ -596,14 +597,14 @@ void ui_divide_overwrite_mode_prompts_once_naming_first_conflict() {
 
   // Accepting overwrites the whole batch from 001.
   bool accepted_prompt = false;
-  QTimer::singleShot(0, [&accepted_prompt] {
+  QTimer::singleShot(0, guarded([&accepted_prompt] {
     auto* dialog = find_top_level_dialog(QStringLiteral("dividePhotosOverwriteMessageBox"));
     CHECK(dialog != nullptr);
     auto* box = qobject_cast<QMessageBox*>(dialog);
     CHECK(box != nullptr);
     accepted_prompt = true;
     box->button(QMessageBox::Yes)->click();
-  });
+  }));
   const auto saved = patchy::ui::MainWindowTestAccess::save_divided_photos_to_folder(
       window, photos, print_settings, temp.path(), QStringLiteral("pic_"), QStringLiteral("png"),
       patchy::ui::DividePhotosExistingFiles::Overwrite);
@@ -654,7 +655,7 @@ void ui_divide_up_direction_rotates_photos() {
   show_window(window);
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("dividePhotosDialog"));
     CHECK(dialog != nullptr);
     auto* left_button = dialog->findChild<QToolButton*>(QStringLiteral("dividePhotosUpDirectionLeftButton"));
@@ -665,7 +666,7 @@ void ui_divide_up_direction_rotates_photos() {
     CHECK(left_button->isChecked());
     saw_dialog = true;
     buttons->button(QDialogButtonBox::Ok)->click();
-  });
+  }));
   const auto scan_again = decline_scan_again_prompt();
   patchy::ui::MainWindowTestAccess::import_and_divide_from_scanner(window);
   QApplication::processEvents();
@@ -701,7 +702,7 @@ void ui_divide_save_and_open_opens_unmodified_sessions() {
   const QString folder = temp.path();
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog, &folder] {
+  QTimer::singleShot(0, guarded([&saw_dialog, &folder] {
     auto* dialog = find_top_level_dialog(QStringLiteral("dividePhotosDialog"));
     CHECK(dialog != nullptr);
     auto* both_radio = dialog->findChild<QRadioButton*>(QStringLiteral("dividePhotosSaveAndOpenRadio"));
@@ -717,7 +718,7 @@ void ui_divide_save_and_open_opens_unmodified_sessions() {
     prefix_edit->setText(QStringLiteral("both_"));
     saw_dialog = true;
     buttons->button(QDialogButtonBox::Ok)->click();
-  });
+  }));
   const auto scan_again = decline_scan_again_prompt();
   patchy::ui::MainWindowTestAccess::import_and_divide_from_scanner(window);
   QApplication::processEvents();
@@ -758,7 +759,7 @@ void ui_divide_scan_again_prompt_repeats_scan() {
   // the first prompt, No to the second.
   const auto pump = std::make_shared<std::function<void(int)>>();
   *pump = [pump, dialogs_okayed, answered_yes, answered_no](int attempts_left) {
-    QTimer::singleShot(10, [pump, dialogs_okayed, answered_yes, answered_no, attempts_left] {
+    QTimer::singleShot(10, guarded([pump, dialogs_okayed, answered_yes, answered_no, attempts_left] {
       if (auto* dialog = find_top_level_dialog(QStringLiteral("dividePhotosDialog"));
           dialog != nullptr && dialog->isVisible()) {
         auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("dividePhotosButtonBox"));
@@ -782,7 +783,7 @@ void ui_divide_scan_again_prompt_repeats_scan() {
       if (attempts_left > 0 && !*answered_no) {
         (*pump)(attempts_left - 1);
       }
-    });
+    }));
   };
   (*pump)(600);
   patchy::ui::MainWindowTestAccess::import_and_divide_from_scanner(window);
@@ -804,7 +805,7 @@ void ui_divide_output_controls_follow_output_mode() {
   show_window(window);
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("dividePhotosDialog"));
     CHECK(dialog != nullptr);
     auto* open_radio = dialog->findChild<QRadioButton*>(QStringLiteral("dividePhotosOpenDocumentsRadio"));
@@ -845,7 +846,7 @@ void ui_divide_output_controls_follow_output_mode() {
     CHECK(buttons->button(QDialogButtonBox::Ok)->isEnabled());
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::import_and_divide_from_scanner(window);
   QApplication::processEvents();
   CHECK(saw_dialog);

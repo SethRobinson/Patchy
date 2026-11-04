@@ -305,7 +305,7 @@ void ui_object_selection_model_offer_not_now_keeps_standard() {
   CHECK(find_top_level_dialog(QStringLiteral("objectSelectionModelOfferMessageBox")) == nullptr);
 
   bool saw_offer = false;
-  QTimer::singleShot(0, [&saw_offer] {
+  QTimer::singleShot(0, guarded([&saw_offer] {
     auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("objectSelectionModelOfferMessageBox")));
     CHECK(box != nullptr);
     if (box == nullptr) {
@@ -319,7 +319,7 @@ void ui_object_selection_model_offer_not_now_keeps_standard() {
         return;
       }
     }
-  });
+  }));
   CHECK(!patchy::ui::MainWindowTestAccess::offer_high_quality_object_selection_model(window));
   CHECK(saw_offer);
   CHECK(patchy::ai::active_sam_model() == patchy::ai::SamModel::Standard);
@@ -363,7 +363,7 @@ void ui_preferences_deletes_only_the_downloaded_model_files() {
   // The first-use offer was already made and the user had picked Standard: Delete resets both.
   patchy::ui::app_settings().setValue(QStringLiteral("automaticSelection/highQualityModelOffered"), true);
   patchy::ui::set_object_selection_high_quality_setting(false);
-  QTimer::singleShot(0, [&saw_preferences] {
+  QTimer::singleShot(0, guarded([&saw_preferences] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -384,7 +384,7 @@ void ui_preferences_deletes_only_the_downloaded_model_files() {
       saw_preferences = true;
     }
     dialog->reject();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::show_preferences(window);
   CHECK(saw_preferences);
   CHECK(!patchy::ui::app_settings().contains(QStringLiteral("automaticSelection/highQualityModelOffered")));

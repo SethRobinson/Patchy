@@ -240,7 +240,7 @@ void ui_preferences_convert_rgb_profiles_checkbox() {
   patchy::ui::MainWindow window;
   show_window(window);
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) return;
@@ -252,7 +252,7 @@ void ui_preferences_convert_rgb_profiles_checkbox() {
     }
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -273,7 +273,7 @@ void ui_convert_to_profile_dialog_converts_and_undoes() {
   CHECK(std::as_const(MainWindowTestAccess::document(window)).color_state().embedded_icc_profile == display_p3());
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("convertToProfileDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) return;
@@ -294,7 +294,7 @@ void ui_convert_to_profile_dialog_converts_and_undoes() {
     dialog->grab().save(artifact_dir() + QStringLiteral("/convert-to-profile-dialog.png"));
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "editConvertToProfileAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);

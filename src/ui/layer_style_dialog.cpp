@@ -32,6 +32,7 @@
 #include "ui/ui_text_size.hpp"
 
 #include <QAbstractButton>
+#include <QApplication>
 #include <QCheckBox>
 #include <QColor>
 #include <QComboBox>
@@ -45,6 +46,7 @@
 #include <QHBoxLayout>
 #include <QHash>
 #include <QIcon>
+#include <QIconEngine>
 #include <QImage>
 #include <QLabel>
 #include <QLineEdit>
@@ -71,6 +73,7 @@
 #include <QStackedWidget>
 #include <QString>
 #include <QStyle>
+#include <QStyleOption>
 #include <QTimer>
 #include <QToolButton>
 #include <QTreeWidget>
@@ -510,28 +513,67 @@ QIcon pattern_preset_icon(const PixelBuffer& tile, int extent = 24) {
          std::equal(lhs.data().begin(), lhs.data().end(), rhs.data().begin());
 }
 
-// Thumbnail of a contour curve: the engine LUT drawn as a polyline on a chip.
-QIcon contour_preset_icon(const StyleContour& contour) {
-  constexpr int kWidth = 32;
-  constexpr int kHeight = 24;
-  QImage image(kWidth, kHeight, QImage::Format_RGBA8888);
-  image.fill(QColor(43, 43, 43));
-  QPainter painter(&image);
-  painter.setPen(QColor(90, 90, 90));
-  painter.drawRect(0, 0, kWidth - 1, kHeight - 1);
-  const auto lut = build_style_contour_lut(contour);
-  QPolygonF line;
-  for (int x = 0; x < kWidth; ++x) {
-    const auto t = static_cast<float>(x) / static_cast<float>(kWidth - 1);
-    const auto value = sample_style_contour_lut(lut, t, true);
-    line << QPointF(1.0 + x * (kWidth - 3.0) / (kWidth - 1.0),
-                    (kHeight - 2.0) - value * (kHeight - 4.0) + 1.0);
+// Thumbnail of a contour curve: the engine LUT drawn as a polyline on a chip. The
+// chip is painted from theme() roles when the icon is drawn, never baked into a
+// pixmap at build time, so the combo follows a scheme change without rebuilding.
+class ContourPresetIconEngine final : public QIconEngine {
+public:
+  explicit ContourPresetIconEngine(StyleContour contour) : contour_(std::move(contour)) {}
+
+  void paint(QPainter* painter, const QRect& rect, QIcon::Mode mode, QIcon::State state) override {
+    painter->drawPixmap(rect, pixmap(rect.size(), mode, state));
   }
-  painter.setRenderHint(QPainter::Antialiasing, true);
-  painter.setPen(QPen(QColor(220, 226, 235), 1.2));
-  painter.drawPolyline(line);
-  painter.end();
-  return QIcon(QPixmap::fromImage(image));
+
+  QSize actualSize(const QSize& size, QIcon::Mode, QIcon::State) override {
+    const QSize native(kWidth, kHeight);
+    if (native.width() <= size.width() && native.height() <= size.height()) {
+      return native;
+    }
+    return native.scaled(size, Qt::KeepAspectRatio);
+  }
+
+  QPixmap pixmap(const QSize&, QIcon::Mode mode, QIcon::State) override {
+    auto chip = QPixmap::fromImage(chip_image());
+    if (mode == QIcon::Disabled) {
+      QStyleOption option;
+      return QApplication::style()->generatedIconPixmap(QIcon::Disabled, chip, &option);
+    }
+    return chip;
+  }
+
+  QIconEngine* clone() const override { return new ContourPresetIconEngine(*this); }
+
+private:
+  static constexpr int kWidth = 32;
+  static constexpr int kHeight = 24;
+
+  [[nodiscard]] QImage chip_image() const {
+    const auto& palette = theme();
+    QImage image(kWidth, kHeight, QImage::Format_RGBA8888);
+    image.fill(palette.field_bg_large);
+    QPainter painter(&image);
+    painter.setPen(palette.field_border);
+    painter.drawRect(0, 0, kWidth - 1, kHeight - 1);
+    const auto lut = build_style_contour_lut(contour_);
+    QPolygonF line;
+    for (int x = 0; x < kWidth; ++x) {
+      const auto t = static_cast<float>(x) / static_cast<float>(kWidth - 1);
+      const auto value = sample_style_contour_lut(lut, t, true);
+      line << QPointF(1.0 + x * (kWidth - 3.0) / (kWidth - 1.0),
+                      (kHeight - 2.0) - value * (kHeight - 4.0) + 1.0);
+    }
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setPen(QPen(palette.icon_ink, 1.2));
+    painter.drawPolyline(line);
+    painter.end();
+    return image;
+  }
+
+  StyleContour contour_;
+};
+
+QIcon contour_preset_icon(const StyleContour& contour) {
+  return QIcon(new ContourPresetIconEngine(contour));
 }
 
 constexpr int kPatternIdRole = Qt::UserRole;

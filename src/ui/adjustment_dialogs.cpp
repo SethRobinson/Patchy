@@ -602,9 +602,9 @@ protected:
     painter.setRenderHint(QPainter::Antialiasing, true);
 
     const auto graph = graph_rect();
-    painter.fillRect(rect(), QColor(73, 73, 73));
-    painter.fillRect(graph, QColor(55, 55, 55));
-    painter.setPen(QPen(QColor(46, 46, 46), 1));
+    painter.fillRect(rect(), theme().levels_graph_bg);
+    painter.fillRect(graph, theme().levels_graph_well_bg);
+    painter.setPen(QPen(theme().levels_graph_border, 1));
     painter.drawRect(graph.adjusted(0, 0, -1, -1));
 
     std::uint64_t total = 0;
@@ -615,7 +615,7 @@ protected:
     }
     const auto ceiling = histogram_display_ceiling(total, non_empty);
     const auto bar_color = channel_ == LevelsChannel::Rgb
-                               ? QColor(218, 218, 218)
+                               ? theme().levels_graph_ink
                                : channel_histogram_color(curves_channel_for_levels(channel_));
     painter.setPen(Qt::NoPen);
     for (int x = 0; x < graph.width(); ++x) {
@@ -633,14 +633,15 @@ protected:
       painter.fillRect(QRect(graph.left() + x, graph.bottom() - bar_height, 1, bar_height), bar_color);
     }
 
-    painter.setPen(QPen(QColor(192, 192, 192, 160), 1));
+    painter.setPen(QPen(theme().levels_graph_marker, 1));
     painter.drawLine(QPointF(x_for_value(black_input_), graph.top()), QPointF(x_for_value(black_input_), graph.bottom()));
     painter.drawLine(QPointF(gamma_x(), graph.top()), QPointF(gamma_x(), graph.bottom()));
     painter.drawLine(QPointF(x_for_value(white_input_), graph.top()), QPointF(x_for_value(white_input_), graph.bottom()));
 
-    draw_handle(painter, x_for_value(black_input_), QColor(28, 28, 28), InputHandle::Black);
-    draw_handle(painter, gamma_x(), QColor(154, 154, 154), InputHandle::Gamma);
-    draw_handle(painter, x_for_value(white_input_), QColor(242, 242, 242), InputHandle::White);
+    // The handle fills depict the black, gray and white points: content, not chrome.
+    draw_handle(painter, x_for_value(black_input_), QColor(28, 28, 28), InputHandle::Black);  // color-literal-ok
+    draw_handle(painter, gamma_x(), QColor(154, 154, 154), InputHandle::Gamma);  // color-literal-ok
+    draw_handle(painter, x_for_value(white_input_), QColor(242, 242, 242), InputHandle::White);  // color-literal-ok
   }
 
   void mousePressEvent(QMouseEvent* event) override {
@@ -714,7 +715,7 @@ private:
     const auto graph = graph_rect();
     const auto top = static_cast<double>(graph.bottom() + 4);
     const QPolygonF triangle{QPointF(x, top), QPointF(x - 5.0, top + 9.0), QPointF(x + 5.0, top + 9.0)};
-    painter.setPen(QPen(handle == active_handle_ ? QColor(92, 164, 255) : QColor(118, 118, 118), 1));
+    painter.setPen(QPen(handle == active_handle_ ? theme().levels_handle_active_border : theme().levels_handle_border, 1));
     painter.setBrush(color);
     painter.drawPolygon(triangle);
   }
@@ -777,7 +778,7 @@ protected:
     Q_UNUSED(event);
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.fillRect(rect(), QColor(73, 73, 73));
+    painter.fillRect(rect(), theme().levels_graph_bg);
 
     const auto bar = bar_rect();
     QLinearGradient gradient(bar.topLeft(), bar.topRight());
@@ -789,10 +790,11 @@ protected:
       gradient.setColorAt(t, QColor(value, value, value));
     }
     painter.fillRect(bar, gradient);
-    painter.setPen(QPen(QColor(46, 46, 46), 1));
+    painter.setPen(QPen(theme().levels_graph_border, 1));
     painter.drawRect(bar.adjusted(0, 0, -1, -1));
-    draw_handle(painter, x_for_value(black_output_), QColor(28, 28, 28), OutputHandle::Black);
-    draw_handle(painter, x_for_value(white_output_), QColor(242, 242, 242), OutputHandle::White);
+    // The handle fills depict the output black and white points: content, not chrome.
+    draw_handle(painter, x_for_value(black_output_), QColor(28, 28, 28), OutputHandle::Black);  // color-literal-ok
+    draw_handle(painter, x_for_value(white_output_), QColor(242, 242, 242), OutputHandle::White);  // color-literal-ok
   }
 
   void mousePressEvent(QMouseEvent* event) override {
@@ -844,7 +846,7 @@ private:
     const auto bar = bar_rect();
     const auto top = static_cast<double>(bar.bottom() + 4);
     const QPolygonF triangle{QPointF(x, top), QPointF(x - 5.0, top + 9.0), QPointF(x + 5.0, top + 9.0)};
-    painter.setPen(QPen(handle == active_handle_ ? QColor(92, 164, 255) : QColor(118, 118, 118), 1));
+    painter.setPen(QPen(handle == active_handle_ ? theme().levels_handle_active_border : theme().levels_handle_border, 1));
     painter.setBrush(color);
     painter.drawPolygon(triangle);
   }

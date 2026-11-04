@@ -13,6 +13,7 @@
 
 #include "core/smart_object.hpp"
 #include "ui/action_icons.hpp"
+#include "ui/theme_palette.hpp"
 #include "render/compositor.hpp"
 #include "core/pixel_depth.hpp"
 #include "ui/dialog_utils.hpp"
@@ -113,13 +114,13 @@ std::uint8_t white_backed_component(std::uint8_t component, std::uint8_t alpha) 
 // image, while the composite is not ready).
 QPixmap framed_channel_thumbnail(const QImage& scaled) {
   QPixmap result(42, 30);
-  result.fill(QColor(30, 32, 35));
+  result.fill(theme().channel_thumbnail_bg);
   QPainter painter(&result);
   if (!scaled.isNull()) {
     painter.drawImage(QPoint((result.width() - scaled.width()) / 2, (result.height() - scaled.height()) / 2),
                       scaled);
   }
-  painter.setPen(QColor(92, 96, 102));
+  painter.setPen(theme().channel_thumbnail_border);
   painter.drawRect(result.rect().adjusted(0, 0, -1, -1));
   return result;
 }
@@ -249,13 +250,13 @@ QPixmap sampled_grayscale_channel_thumbnail(const PixelBuffer& pixels) {
     }
   }
   QPixmap result(42, 30);
-  result.fill(QColor(30, 32, 35));
+  result.fill(theme().channel_thumbnail_bg);
   QPainter painter(&result);
   painter.drawImage(
       QPoint((result.width() - scaled.width()) / 2,
              (result.height() - scaled.height()) / 2),
       scaled);
-  painter.setPen(QColor(92, 96, 102));
+  painter.setPen(theme().channel_thumbnail_border);
   painter.drawRect(result.rect().adjusted(0, 0, -1, -1));
   return result;
 }

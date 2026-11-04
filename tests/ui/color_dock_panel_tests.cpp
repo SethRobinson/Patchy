@@ -758,7 +758,7 @@ void ui_color_panel_view_menu_switches_views() {
   CHECK(panel->findChild<QWidget*>(QStringLiteral("colorPanelViewButton")) == nullptr);
   if (title != nullptr) {
     bool saw_menu = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
       CHECK(menu != nullptr);
       if (menu == nullptr) {
@@ -770,7 +770,7 @@ void ui_color_panel_view_menu_switches_views() {
         CHECK(!menu->actions().contains(panel->view_action(view)));
       }
       menu->close();
-    });
+    }));
     const QPoint position(title->width() / 3, title->height() / 2);
     QContextMenuEvent event(QContextMenuEvent::Mouse, position, title->mapToGlobal(position));
     QApplication::sendEvent(title, &event);

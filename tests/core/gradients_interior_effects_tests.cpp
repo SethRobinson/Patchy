@@ -249,7 +249,7 @@ void noise_gradient_matches_photoshop_samples() {
 // levels off on average (the OKLab stand-in it replaced was 31 to 36); the measured
 // residuals are in docs/gradients.md.
 void noise_gradient_lab_matches_photoshop_probes_if_available() {
-  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "noise-gradient-probes";
+  const auto dir = patchy::test::local_fixtures_root() / "noise-gradient-probes";
   struct Probe {
     const char* file;
     bool restrict_colors;

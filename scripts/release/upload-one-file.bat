@@ -28,6 +28,11 @@ rem cd to the repo root (this script lives in scripts\release) so a relative loc
 rem path resolves from any cwd.
 setlocal
 cd /d "%~dp0..\.."
+rem The ssh account comes from local config (upload-target.bat), never this file.
+call "%~dp0upload-target.bat"
+if errorlevel 1 (
+  exit /b 1
+)
 
 set "LOCAL_FILE=%~1"
 set "REMOTE_DIR=%~2"
@@ -55,7 +60,7 @@ if not defined LOCAL_HASH (
 )
 
 echo Uploading %LOCAL_FILE% to rtsoft.com:www/%REMOTE_DIR%/%REMOTE_NAME% ...
-scp "%LOCAL_FILE%" rtsoft@rtsoft.com:www/%REMOTE_DIR%/
+scp "%LOCAL_FILE%" %UPLOAD_SSH%:www/%REMOTE_DIR%/
 if errorlevel 1 (
   echo.
   echo ERROR: scp failed for "%LOCAL_FILE%".
@@ -69,13 +74,13 @@ rem undefined and the check below fires. -n: without it ssh can wait on an inher
 rem piped stdin after the hash is printed (the 1.25 upload stalled 16 minutes here).
 echo Verifying the uploaded copy on the server ...
 set "REMOTE_HASH="
-for /f "usebackq tokens=1" %%H in (`ssh -n rtsoft@rtsoft.com "sha256sum www/%REMOTE_DIR%/%REMOTE_NAME%"`) do set "REMOTE_HASH=%%H"
+for /f "usebackq tokens=1" %%H in (`ssh -n %UPLOAD_SSH% "sha256sum www/%REMOTE_DIR%/%REMOTE_NAME%"`) do set "REMOTE_HASH=%%H"
 if not defined REMOTE_HASH (
   echo.
   echo ERROR: could not read back a SHA-256 for www/%REMOTE_DIR%/%REMOTE_NAME%.
   echo The transfer reported success but the file could not be hashed on the
   echo server, so it may be missing. Check by hand with:
-  echo   ssh rtsoft@rtsoft.com "ls -l www/%REMOTE_DIR%/%REMOTE_NAME%"
+  echo   ssh %UPLOAD_SSH% "ls -l www/%REMOTE_DIR%/%REMOTE_NAME%"
   exit /b 1
 )
 if /i not "%LOCAL_HASH%"=="%REMOTE_HASH%" (

@@ -82,7 +82,9 @@ void tool_wide_brush_segment_is_fast_and_writes_artifact() {
                               .count();
 
   CHECK(!dirty.empty());
-  CHECK(elapsed_ms < 1000);
+  // Its speed budget is patchy_perf_tests toolbudgets; here the clock is a hang guard.
+  std::printf("  wide brush segment: %lld ms\n", static_cast<long long>(elapsed_ms));
+  CHECK(elapsed_ms < patchy::test::kWallClockBackstopMs);
   const auto* layer = document.find_layer(layer_id);
   CHECK(layer != nullptr);
   CHECK(layer->bounds().contains(800, 500));
@@ -206,21 +208,35 @@ void tool_round_dab_skips_its_bounding_square_corners() {
 // dab. That growth must stay cheap (it used to re-copy the whole layer per dab, freezing a
 // long stroke), and the result must match painting on a canvas-sized layer. Under a
 // LayerGrowthReserve (the canvas opens one per stroke) the layer reallocates a few times
-// and close() trims it to the same bounds and bytes as exact per-dab growth.
+// and close() trims it to the same bounds and bytes as exact per-dab growth. Cheapness is
+// asserted structurally: each reallocation shows as a bounds change, and under the
+// reserve there are a handful where exact growth makes one per segment.
 void tool_small_layer_grows_cheaply_under_a_long_stroke() {
   constexpr std::int32_t side = 3000;
   const auto paint = [](patchy::Document& document, patchy::LayerId layer_id) {
     auto options = tool_options(200, 40, 40);
     options.brush_size = 30;
+    int regrowths = 0;
+    const auto bounds_now = [&] { return std::as_const(document).find_layer(layer_id)->bounds(); };
+    auto last = bounds_now();
+    const auto segment = [&](double x0, double y0, double x1, double y1) {
+      CHECK(!patchy::paint_brush_segment(document, layer_id, x0, y0, x1, y1, options, false).empty());
+      const auto now = bounds_now();
+      if (now.x != last.x || now.y != last.y || now.width != last.width || now.height != last.height) {
+        ++regrowths;
+        last = now;
+      }
+    };
     double x = 32.0;
     double y = 32.0;
     while (x < side - 100) {
-      CHECK(!patchy::paint_brush_segment(document, layer_id, x, y, x + 4.0, y + 3.0, options, false).empty());
+      segment(x, y, x + 4.0, y + 3.0);
       x += 4.0;
       y += 3.0;
     }
     // Back over painted ground and out past the top edge of the grown area.
-    CHECK(!patchy::paint_brush_segment(document, layer_id, x, y, 600.0, 20.0, options, false).empty());
+    segment(x, y, 600.0, 20.0);
+    return regrowths;
   };
   const auto small_document = [] {
     patchy::Document document(side, side, patchy::PixelFormat::rgb8());
@@ -240,18 +256,25 @@ void tool_small_layer_grows_cheaply_under_a_long_stroke() {
 
   auto exact_document = small_document();
   const auto exact_id = active_tool_layer(exact_document);
-  const auto exact_ms = timed([&] { paint(exact_document, exact_id); });
+  int exact_regrowths = 0;
+  const auto exact_ms = timed([&] { exact_regrowths = paint(exact_document, exact_id); });
 
   auto reserved_document = small_document();
   const auto reserved_id = active_tool_layer(reserved_document);
   bool trimmed = false;
+  int reserved_regrowths = 0;
   const auto reserved_ms = timed([&] {
     patchy::LayerGrowthReserve reserve(reserved_id, patchy::Rect::from_size(side, side));
-    paint(reserved_document, reserved_id);
+    reserved_regrowths = paint(reserved_document, reserved_id);
     trimmed = reserve.close(*reserved_document.find_layer(reserved_id));
   });
-  std::printf("  small-layer stroke: exact %lld ms, reserved %lld ms\n", static_cast<long long>(exact_ms),
-              static_cast<long long>(reserved_ms));
+  std::printf("  small-layer stroke: exact %lld ms (%d reallocations), reserved %lld ms (%d reallocations)\n",
+              static_cast<long long>(exact_ms), exact_regrowths, static_cast<long long>(reserved_ms),
+              reserved_regrowths);
+  // Exact growth reallocates once per segment that leaves the layer (about 700); the
+  // reserve grows by half again each time, so a few reallocations cover the canvas.
+  CHECK(exact_regrowths > 200);
+  CHECK(reserved_regrowths >= 1 && reserved_regrowths <= 24);
   CHECK(trimmed);
 
   patchy::Document full_document(side, side, patchy::PixelFormat::rgb8());
@@ -286,8 +309,9 @@ void tool_small_layer_grows_cheaply_under_a_long_stroke() {
     }
   }
   CHECK(same);
-  CHECK(exact_ms < 8000);
-  CHECK(reserved_ms < 2000);
+  // Hang guards only: the reallocation counts above are the cheapness property.
+  CHECK(exact_ms < patchy::test::kWallClockBackstopMs);
+  CHECK(reserved_ms < patchy::test::kWallClockBackstopMs);
 }
 
 void tool_brush_segment_accepts_float_endpoints() {
@@ -457,7 +481,9 @@ void tool_filled_ellipse_uses_direct_fill_and_writes_artifact() {
                               .count();
 
   CHECK(!dirty.empty());
-  CHECK(elapsed_ms < 1000);
+  // Its speed budget is patchy_perf_tests toolbudgets; here the clock is a hang guard.
+  std::printf("  filled ellipse: %lld ms\n", static_cast<long long>(elapsed_ms));
+  CHECK(elapsed_ms < patchy::test::kWallClockBackstopMs);
   const auto& filled = document.find_layer(layer_id)->pixels();
   CHECK(filled.pixel(570, 400)[0] == 20);
   CHECK(filled.pixel(570, 400)[1] == 150);

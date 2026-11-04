@@ -283,7 +283,7 @@ void shot_readme_script_options() {
       [&] { return !color_close(canvas_pixel(*canvas, photo_sample), before_color, 8); }, 10000));
 
   bool captured = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* form = find_top_level_dialog(QStringLiteral("scriptFormDialog"));
     CHECK(form != nullptr);
     CHECK(form->findChild<QLabel*>(QStringLiteral("scriptFormDescription")) != nullptr);
@@ -296,7 +296,7 @@ void shot_readme_script_options() {
     save_readme_shot("shot_readme_script_options", base);
     captured = true;
     form->reject();  // cancelled showOptions ends the run without a second remap
-  });
+  }));
   {
     patchy::ui::ScriptEngineHost::RunOptions options;
     options.name = QStringLiteral("Duotone");

@@ -6,6 +6,11 @@ rem differences: the target directory, and the memory-diagnostics harness
 rem (stress-harness.html + memsoak.js) is included; it must never ship to
 rem production. See docs/performance.md (headless wasm stress harness).
 cd /d "%~dp0..\.."
+rem The ssh account comes from local config (upload-target.bat), never this file.
+call "%~dp0upload-target.bat"
+if errorlevel 1 (
+  goto fail
+)
 set "SITE_DIR=build\package\wasm-site"
 for %%F in (patchy.data patchy.wasm patchy.js qtloader.js patchy.data.br patchy.data.gz patchy.wasm.br patchy.wasm.gz patchy.js.br patchy.js.gz qtloader.js.br qtloader.js.gz patchy-logo.svg favicon.ico apple-touch-icon.png patchy-192.png patchy-512.png site.webmanifest NOTICE-THIRD-PARTY.md libheif-COPYING.txt .htaccess patchy.html index.html stress-harness.html memsoak.js) do (
   if not exist "%SITE_DIR%\%%F" (
@@ -27,17 +32,17 @@ if not exist "%SITE_DIR%\ai-models\mobile_sam_image_encoder_int8.onnx" (
   exit /b 1
 )
 echo Ensuring www/patchy-beta exists on rtsoft.com...
-ssh -n rtsoft@rtsoft.com "mkdir -p www/patchy-beta"
+ssh -n %UPLOAD_SSH% "mkdir -p www/patchy-beta"
 if errorlevel 1 goto fail
 echo Uploading the wasm site to rtsoft.com/patchy-beta...
 rem Object Selection's runtime and models first: the html goes last.
-scp -r "%SITE_DIR%\ai-models" "%SITE_DIR%\%ORT_WEB_DIR%" rtsoft@rtsoft.com:www/patchy-beta/
+scp -r "%SITE_DIR%\ai-models" "%SITE_DIR%\%ORT_WEB_DIR%" %UPLOAD_SSH%:www/patchy-beta/
 if errorlevel 1 goto fail
 rem scp -r from Windows creates the folders as 707, which Apache refuses
 rem (403); give them the same 775 as the rest of the site.
-ssh -n rtsoft@rtsoft.com "chmod 775 www/patchy-beta/ai-models www/patchy-beta/%ORT_WEB_DIR%"
+ssh -n %UPLOAD_SSH% "chmod 775 www/patchy-beta/ai-models www/patchy-beta/%ORT_WEB_DIR%"
 if errorlevel 1 goto fail
-scp "%SITE_DIR%\patchy.data" "%SITE_DIR%\patchy.wasm" "%SITE_DIR%\patchy.js" "%SITE_DIR%\qtloader.js" "%SITE_DIR%\patchy.data.br" "%SITE_DIR%\patchy.data.gz" "%SITE_DIR%\patchy.wasm.br" "%SITE_DIR%\patchy.wasm.gz" "%SITE_DIR%\patchy.js.br" "%SITE_DIR%\patchy.js.gz" "%SITE_DIR%\qtloader.js.br" "%SITE_DIR%\qtloader.js.gz" "%SITE_DIR%\patchy-logo.svg" "%SITE_DIR%\favicon.ico" "%SITE_DIR%\apple-touch-icon.png" "%SITE_DIR%\patchy-192.png" "%SITE_DIR%\patchy-512.png" "%SITE_DIR%\site.webmanifest" "%SITE_DIR%\NOTICE-THIRD-PARTY.md" "%SITE_DIR%\libheif-COPYING.txt" "%SITE_DIR%\.htaccess" "%SITE_DIR%\memsoak.js" "%SITE_DIR%\stress-harness.html" "%SITE_DIR%\patchy.html" "%SITE_DIR%\index.html" rtsoft@rtsoft.com:www/patchy-beta/
+scp "%SITE_DIR%\patchy.data" "%SITE_DIR%\patchy.wasm" "%SITE_DIR%\patchy.js" "%SITE_DIR%\qtloader.js" "%SITE_DIR%\patchy.data.br" "%SITE_DIR%\patchy.data.gz" "%SITE_DIR%\patchy.wasm.br" "%SITE_DIR%\patchy.wasm.gz" "%SITE_DIR%\patchy.js.br" "%SITE_DIR%\patchy.js.gz" "%SITE_DIR%\qtloader.js.br" "%SITE_DIR%\qtloader.js.gz" "%SITE_DIR%\patchy-logo.svg" "%SITE_DIR%\favicon.ico" "%SITE_DIR%\apple-touch-icon.png" "%SITE_DIR%\patchy-192.png" "%SITE_DIR%\patchy-512.png" "%SITE_DIR%\site.webmanifest" "%SITE_DIR%\NOTICE-THIRD-PARTY.md" "%SITE_DIR%\libheif-COPYING.txt" "%SITE_DIR%\.htaccess" "%SITE_DIR%\memsoak.js" "%SITE_DIR%\stress-harness.html" "%SITE_DIR%\patchy.html" "%SITE_DIR%\index.html" %UPLOAD_SSH%:www/patchy-beta/
 if errorlevel 1 goto fail
 echo Verifying cross-origin isolation headers on the beta site...
 curl -sI https://www.rtsoft.com/patchy-beta/ | findstr /i "Cross-Origin-Opener-Policy" >nul || goto headers_fail

@@ -452,7 +452,7 @@ void ui_channel_ctrl_click_context_menu_and_compact_actions() {
   CHECK(canvas->selection_alpha_at(QPoint(2, 0)) == 244);
 
   bool saw_context_menu = false;
-  QTimer::singleShot(0, [&window, &saw_context_menu] {
+  QTimer::singleShot(0, guarded([&window, &saw_context_menu] {
     auto* menu = window.findChild<QMenu*>(QStringLiteral("channelContextMenu"));
     CHECK(menu != nullptr);
     CHECK(menu->objectName() == QStringLiteral("channelContextMenu"));
@@ -482,7 +482,7 @@ void ui_channel_ctrl_click_context_menu_and_compact_actions() {
     CHECK(require_action(window, "channelDeleteAction")->isEnabled());
     saw_context_menu = true;
     menu->close();
-  });
+  }));
   const auto context_point = channels->visualItemRect(channels->item(4)).center();
   QContextMenuEvent context_event(QContextMenuEvent::Mouse, context_point,
                                   channels->viewport()->mapToGlobal(context_point));
@@ -662,13 +662,13 @@ void ui_channels_soft_selection_crud_history_and_layer_exit() {
   CHECK(canvas->active_document_channel_id() == second_id);
 
   bool rename_dialog_seen = false;
-  QTimer::singleShot(0, [&rename_dialog_seen] {
+  QTimer::singleShot(0, guarded([&rename_dialog_seen] {
     auto* dialog = qobject_cast<QInputDialog*>(QApplication::activeModalWidget());
     CHECK(dialog != nullptr);
     rename_dialog_seen = true;
     dialog->setTextValue(QStringLiteral("Custom Alpha"));
     dialog->accept();
-  });
+  }));
   require_action(window, "channelRenameAction")->trigger();
   QApplication::processEvents();
   CHECK(rename_dialog_seen);
@@ -741,7 +741,7 @@ void ui_save_fragmented_selection_as_channel_stays_responsive() {
   require_action(window, "channelSaveSelectionAction")->trigger();
   const auto elapsed_ms = timer.elapsed();
   QApplication::processEvents();
-  CHECK(elapsed_ms < 1500);
+  CHECK(elapsed_ms < patchy::test::time_budget_ms(1500));
   const auto& active_document = patchy::ui::MainWindowTestAccess::document(window);
   CHECK(active_document.channels().size() == 1);
   CHECK(active_document.channels().front().pixels().data().size() == checkerboard.data().size());
@@ -817,25 +817,25 @@ void ui_non_psd_save_warns_before_discarding_channels() {
   patchy::ui::ImageSaveOptions options;
 
   bool cancel_prompt_seen = false;
-  QTimer::singleShot(0, [&cancel_prompt_seen] {
+  QTimer::singleShot(0, guarded([&cancel_prompt_seen] {
     auto* box = qobject_cast<QMessageBox*>(
         find_top_level_dialog(QStringLiteral("discardSavedChannelsMessageBox")));
     CHECK(box != nullptr);
     cancel_prompt_seen = true;
     box->button(QMessageBox::Cancel)->click();
-  });
+  }));
   CHECK(!patchy::ui::MainWindowTestAccess::save_document_to_path(window, path, options));
   CHECK(cancel_prompt_seen);
   CHECK(!QFileInfo::exists(path));
 
   bool save_prompt_seen = false;
-  QTimer::singleShot(0, [&save_prompt_seen] {
+  QTimer::singleShot(0, guarded([&save_prompt_seen] {
     auto* box = qobject_cast<QMessageBox*>(
         find_top_level_dialog(QStringLiteral("discardSavedChannelsMessageBox")));
     CHECK(box != nullptr);
     save_prompt_seen = true;
     box->button(QMessageBox::Save)->click();
-  });
+  }));
   CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, path, options));
   CHECK(save_prompt_seen);
   CHECK(QFileInfo::exists(path));
@@ -873,7 +873,7 @@ void ui_save_layered_flat_format_routes_to_save_as_with_psd_default() {
 
   bool saw_dialog = false;
   QString default_name;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
     CHECK(dialog != nullptr);
     const auto selected = dialog->selectedFiles();
@@ -882,7 +882,7 @@ void ui_save_layered_flat_format_routes_to_save_as_with_psd_default() {
     }
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
   CHECK(!patchy::ui::MainWindowTestAccess::save_document(window));
   CHECK(saw_dialog);
   CHECK(default_name == QStringLiteral("photo.psd"));

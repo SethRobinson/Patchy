@@ -233,6 +233,44 @@ const ThemePalette& dark_palette() {
       .preview_pane_bg = rgb(0x252525),
       .preview_pane_muted_text = rgb(0x9a9a9a),
       .accent_control = rgb(0x4c9aff),
+      .accent_ring = rgb(0x63a6ff),
+
+      // Curves graph.
+      .curves_graph_bg = rgb(0x2b2e35),
+      .curves_graph_well_bg = rgb(0x171a20),
+      .curves_graph_border = rgb(0x686f7c),
+      .curves_graph_focus = rgb(0x5ba3ff),
+      .curves_graph_label_text = rgb(0xb5bac5),
+      .curves_graph_grid = rgb(0x9da5b2),
+      .curves_graph_diagonal = QColor(210, 215, 224, 105),
+      .curves_graph_curve_halo = QColor(5, 8, 12, 180),
+      .curves_graph_ink = rgb(0xeef2f8),
+      .curves_graph_point_bg = rgb(0x1f232b),
+      .curves_graph_point_selected_bg = rgb(0xf5f8fd),
+      .curves_graph_sample_marker = QColor(255, 198, 72, 205),
+
+      // Levels histogram and output ramp.
+      .levels_graph_bg = rgb(0x494949),
+      .levels_graph_well_bg = rgb(0x373737),
+      .levels_graph_border = rgb(0x2e2e2e),
+      .levels_graph_ink = rgb(0xdadada),
+      .levels_graph_marker = QColor(192, 192, 192, 160),
+      .levels_handle_border = rgb(0x767676),
+      .levels_handle_active_border = rgb(0x5ca4ff),
+
+      // Blend If.
+      .blend_if_ramp_border = rgb(0x707782),
+      .blend_if_frame_border = rgb(0x4e545e),
+
+      // Gradient stops editor.
+      .gradient_stop_outline = rgb(0xffffff),
+      .gradient_midpoint_outline = rgb(0xebeef3),
+      .gradient_midpoint_fill = rgb(0x5f6772),
+
+      // Path, custom shape and channel thumbnails.
+      .path_thumbnail_bg = rgb(0x343840),
+      .channel_thumbnail_bg = rgb(0x1e2023),
+      .channel_thumbnail_border = rgb(0x5c6066),
 
       // Tabs.
       .tab_bg = rgb(0x2b2b2b),
@@ -721,6 +759,23 @@ const ThemePalette& light_palette() {
     light.icon_success = rgb(0x1f8a3d);
     light.icon_surface = rgb(0xf0f0f0);
 
+    // The Curves graph's well and points are near-blacks with a cool cast, which
+    // trips the chromatic branch of the flip and comes back as one periwinkle mid
+    // tone (the tint-on-a-surface trap). Light makes the well a near-white field
+    // with dark neutral ink on it, and turns the active curve's dark halo into a
+    // light one so it still separates the curve from the grid.
+    light.curves_graph_well_bg = rgb(0xf7f8fa);
+    light.curves_graph_ink = rgb(0x2b2f36);
+    light.curves_graph_point_bg = rgb(0xffffff);
+    light.curves_graph_point_selected_bg = rgb(0x2b2f36);
+    light.curves_graph_curve_halo = QColor(255, 255, 255, 180);
+    // The Levels well frame is darker than the well in Dark; a mirror makes it
+    // lighter than Light's well, where it vanishes.
+    light.levels_graph_border = rgb(0x9a9a9a);
+    // The Blend If frame survives the mirror but lands too close to the dialog
+    // surface to read; the thumbnail ring's gray does.
+    light.blend_if_frame_border = rgb(0xa9adb2);
+
     // Yellow text keeps its lightness band in the flip and is unreadable on the
     // light status bar; this amber is darker than the error red, as dark as needed.
     light.status_notice_text = rgb(0x7a5a00);
@@ -950,6 +1005,39 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
       PATCHY_THEME_ROLE(preview_pane_bg),
       PATCHY_THEME_ROLE(preview_pane_muted_text),
       PATCHY_THEME_ROLE(accent_control),
+      PATCHY_THEME_ROLE(accent_ring),
+
+      PATCHY_THEME_ROLE(curves_graph_bg),
+      PATCHY_THEME_ROLE(curves_graph_well_bg),
+      PATCHY_THEME_ROLE(curves_graph_border),
+      PATCHY_THEME_ROLE(curves_graph_focus),
+      PATCHY_THEME_ROLE(curves_graph_label_text),
+      PATCHY_THEME_ROLE(curves_graph_grid),
+      PATCHY_THEME_ROLE(curves_graph_diagonal),
+      PATCHY_THEME_ROLE(curves_graph_curve_halo),
+      PATCHY_THEME_ROLE(curves_graph_ink),
+      PATCHY_THEME_ROLE(curves_graph_point_bg),
+      PATCHY_THEME_ROLE(curves_graph_point_selected_bg),
+      PATCHY_THEME_ROLE(curves_graph_sample_marker),
+
+      PATCHY_THEME_ROLE(levels_graph_bg),
+      PATCHY_THEME_ROLE(levels_graph_well_bg),
+      PATCHY_THEME_ROLE(levels_graph_border),
+      PATCHY_THEME_ROLE(levels_graph_ink),
+      PATCHY_THEME_ROLE(levels_graph_marker),
+      PATCHY_THEME_ROLE(levels_handle_border),
+      PATCHY_THEME_ROLE(levels_handle_active_border),
+
+      PATCHY_THEME_ROLE(blend_if_ramp_border),
+      PATCHY_THEME_ROLE(blend_if_frame_border),
+
+      PATCHY_THEME_ROLE(gradient_stop_outline),
+      PATCHY_THEME_ROLE(gradient_midpoint_outline),
+      PATCHY_THEME_ROLE(gradient_midpoint_fill),
+
+      PATCHY_THEME_ROLE(path_thumbnail_bg),
+      PATCHY_THEME_ROLE(channel_thumbnail_bg),
+      PATCHY_THEME_ROLE(channel_thumbnail_border),
 
       PATCHY_THEME_ROLE(tab_bg),
       PATCHY_THEME_ROLE(tab_hover_bg),

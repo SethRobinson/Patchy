@@ -1823,8 +1823,8 @@ private:
     }
     draw_text_box_outline(painter, outline);
 
-    painter.setPen(QPen(QColor(35, 38, 44), 1.0));
-    painter.setBrush(QColor(245, 248, 252));
+    painter.setPen(QPen(theme().resize_handle_border, 1.0));
+    painter.setBrush(theme().resize_handle_bg);
     for (const auto handle : kResizeHandles) {
       painter.drawRect(resize_handle_rect(handle));
     }

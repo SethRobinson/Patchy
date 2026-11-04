@@ -158,7 +158,7 @@ void ui_layer_style_blend_if_controls_load_channels_and_map_settings() {
   CHECK(layer.blend_if_payload_status() == patchy::BlendIfPayloadStatus::Supported);
 
   bool inspected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* group = dialog->findChild<QWidget*>(QStringLiteral("layerStyleBlendIfGroup"));
@@ -271,7 +271,7 @@ void ui_layer_style_blend_if_controls_load_channels_and_map_settings() {
     CHECK(underlying_white_low->value() == 185);
     inspected = true;
     dialog->accept();
-  });
+  }));
 
   const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(inspected);
@@ -292,7 +292,7 @@ void ui_layer_style_blend_if_preview_off_accumulates_and_cancel_restores() {
   direct_layer.set_blend_if_payload(original_payload, true);
 
   std::vector<patchy::ui::LayerStyleSettings> previews;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("layerStylePreviewCheck"));
@@ -311,7 +311,7 @@ void ui_layer_style_blend_if_preview_off_accumulates_and_cancel_restores() {
     QTest::qWait(80);
     CHECK(previews.back().blend_if == original);
     dialog->accept();
-  });
+  }));
 
   const auto accepted = patchy::ui::request_layer_style_settings(
       nullptr, direct_layer,
@@ -333,7 +333,7 @@ void ui_layer_style_blend_if_preview_off_accumulates_and_cancel_restores() {
   window.add_document_session(std::move(document), QStringLiteral("Blend If Cancel"));
   show_window(window);
   bool saw_live_preview = false;
-  QTimer::singleShot(0, &window, [&] {
+  QTimer::singleShot(0, &window, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* black_high = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleBlendIfThisBlackHighSpin"));
@@ -344,7 +344,7 @@ void ui_layer_style_blend_if_preview_off_accumulates_and_cancel_restores() {
     CHECK(preview_layer != nullptr);
     saw_live_preview = preview_layer->blend_if().channels[0].this_layer.black_high == 35;
     dialog->reject();
-  });
+  }));
   require_action(window, "layerBlendingOptionsAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_live_preview);
@@ -370,12 +370,12 @@ void ui_layer_style_blend_if_unsupported_requires_explicit_replace() {
   auto* blending_options = require_action(window, "layerBlendingOptionsAction");
   const auto run_style_dialog = [&](const std::function<void(QDialog&)>& interaction) {
     bool handled = false;
-    QTimer::singleShot(0, &window, [&] {
+    QTimer::singleShot(0, &window, guarded([&] {
       auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
       CHECK(dialog != nullptr);
       interaction(*dialog);
       handled = true;
-    });
+    }));
     blending_options->trigger();
     QApplication::processEvents();
     CHECK(handled);
@@ -450,7 +450,7 @@ void ui_layer_style_blend_if_unsupported_requires_explicit_replace() {
   const auto non_rgb_payload = patchy::encode_layer_blend_if(blend_if_ui_test_settings());
   non_rgb_layer.set_blend_if_payload(non_rgb_payload, false);
   CHECK(non_rgb_layer.blend_if_payload_status() == patchy::BlendIfPayloadStatus::Unsupported);
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* warning = dialog->findChild<QLabel*>(QStringLiteral("layerStyleBlendIfUnsupportedWarning"));
@@ -458,7 +458,7 @@ void ui_layer_style_blend_if_unsupported_requires_explicit_replace() {
     CHECK(warning != nullptr && warning->isVisible());
     CHECK(group != nullptr && !group->isEnabled());
     dialog->reject();
-  });
+  }));
   const auto non_rgb_result = patchy::ui::request_layer_style_settings(nullptr, non_rgb_layer, {});
   CHECK(!non_rgb_result.has_value());
   CHECK(non_rgb_layer.raw_psd_blending_ranges() == non_rgb_payload);
@@ -479,7 +479,7 @@ void ui_layer_style_shadow_distances_accept_photoshop_30000() {
   layer.layer_style().inner_shadows.push_back(inner);
 
   bool drove_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* drop = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleDropShadowDistanceSpin"));
@@ -513,7 +513,7 @@ void ui_layer_style_shadow_distances_accept_photoshop_30000() {
     CHECK(inner_spin->value() == 20000 && patchy::ui::slider_value(*inner_slider) == 1000);
     drove_dialog = true;
     dialog->accept();
-  });
+  }));
   const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(drove_dialog);
   CHECK(settings.has_value());
@@ -538,7 +538,7 @@ void ui_layer_style_dialog_coalesces_rapid_slider_preview_callbacks() {
   int latest_preview_shadow_distance = -1;
   bool queued_slow_changes = false;
 
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
@@ -561,7 +561,7 @@ void ui_layer_style_dialog_coalesces_rapid_slider_preview_callbacks() {
       CHECK(shadow_distance->value() == value);
     }
     QTimer::singleShot(360, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
 
   const auto settings = patchy::ui::request_layer_style_settings(
       nullptr, layer, [&](const patchy::ui::LayerStyleSettings& preview) {
@@ -573,7 +573,7 @@ void ui_layer_style_dialog_coalesces_rapid_slider_preview_callbacks() {
                 : static_cast<int>(std::lround(preview.style.drop_shadows.front().distance));
         if (!queued_slow_changes && latest_preview_opacity == 24 && latest_preview_shadow_distance == 24) {
           queued_slow_changes = true;
-          QTimer::singleShot(0, [] {
+          QTimer::singleShot(0, guarded([] {
             auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
             CHECK(dialog != nullptr);
             auto* opacity_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleOpacitySlider"));
@@ -585,7 +585,7 @@ void ui_layer_style_dialog_coalesces_rapid_slider_preview_callbacks() {
               opacity_slider->setValue(value);
               patchy::ui::set_slider_to_value(*shadow_distance_slider, value + 6);
             }
-          });
+          }));
           QElapsedTimer slow_preview;
           slow_preview.start();
           while (slow_preview.elapsed() < 45) {
@@ -633,12 +633,11 @@ void ui_layer_style_opacity_slider_does_not_block_on_slow_preview_render() {
   int awaited_renders = -1;
   // The property under test is structural: no slider change may make the GUI
   // thread wait on the (synthetically 520 ms) render, which awaited_renders
-  // counts exactly. The wall clock is only a backstop against per-change
-  // synchronous rendering (48 changes x 520 ms = about 25 s); a tight budget
-  // here measured host load, not blocking (a full suite on a busy host
-  // overran 1200 ms while the loop itself takes about 160 ms and awaits none).
-  constexpr qint64 kResponsiveSliderLoopBudgetMs = 6000;
-  QTimer::singleShot(0, [&] {
+  // counts exactly. The wall clock is only a hang guard; a tight budget here
+  // measured host load, not blocking (a full suite on a busy host overran
+  // 1200 ms while the loop itself takes about 160 ms and awaits none).
+  constexpr qint64 kResponsiveSliderLoopBudgetMs = patchy::test::kWallClockBackstopMs;
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* opacity = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleOpacitySpin"));
@@ -662,7 +661,7 @@ void ui_layer_style_opacity_slider_does_not_block_on_slow_preview_render() {
     CHECK(awaited_renders == 0);
     CHECK(elapsed_ms < kResponsiveSliderLoopBudgetMs);
     QTimer::singleShot(120, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
 
   require_action(window, "layerBlendingOptionsAction")->trigger();
   QApplication::processEvents();
@@ -848,7 +847,7 @@ void ui_layer_style_stroke_size_drag_stays_responsive_on_large_image() {
   bool settled_exactly = false;
   int size_mid_drag = -1;
   int awaited_renders = -1;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
@@ -875,7 +874,7 @@ void ui_layer_style_stroke_size_drag_stays_responsive_on_large_image() {
     settled_exactly = wait_for_canvas_to_match_document(window, *canvas);
     exercised = true;
     QTimer::singleShot(0, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
   require_action(window, "layerBlendingOptionsAction")->trigger();
   QApplication::processEvents();
   CHECK(exercised);
@@ -902,7 +901,7 @@ void ui_levels_drag_stays_responsive_on_large_image() {
   int awaited_renders = -1;
   int async_refreshes = -1;
   int region_batches = -1;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLevelsDialog")));
     CHECK(dialog != nullptr);
     auto* black = dialog->findChild<QSpinBox*>(QStringLiteral("levelsBlackInputSpin"));
@@ -918,7 +917,7 @@ void ui_levels_drag_stays_responsive_on_large_image() {
     region_batches = after.dirty_region_batches - before.dirty_region_batches;
     exercised = true;
     QTimer::singleShot(0, dialog, [dialog] { dialog->reject(); });
-  });
+  }));
   require_action(window, "imageAdjustLevelsAction")->trigger();
   QApplication::processEvents();
   CHECK(exercised);
@@ -941,7 +940,7 @@ void ui_gaussian_blur_drag_stays_responsive_on_large_image() {
   bool settled_exactly = false;
   int awaited_renders = -1;
   int async_refreshes = -1;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
     CHECK(dialog != nullptr);
     const auto spins = dialog->findChildren<QDoubleSpinBox*>();
@@ -957,7 +956,7 @@ void ui_gaussian_blur_drag_stays_responsive_on_large_image() {
     async_refreshes = after.live_preview_async_refreshes - before.live_preview_async_refreshes;
     exercised = true;
     QTimer::singleShot(0, dialog, [dialog] { dialog->reject(); });
-  });
+  }));
   require_action(window, "filterAction_patchy_filters_gaussian_blur")->trigger();
   QApplication::processEvents();
   CHECK(exercised);
@@ -1124,7 +1123,7 @@ void ui_layer_style_gradient_editor_drag_updates_stops_and_previews() {
   auto layer = make_gradient_fill_test_layer(document);
 
   int preview_calls = 0;
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     select_layer_style_gradient_page(*dialog);
@@ -1145,7 +1144,7 @@ void ui_layer_style_gradient_editor_drag_updates_stops_and_previews() {
     QApplication::processEvents();
     CHECK(location->value() == 40);
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
 
   const auto settings = patchy::ui::request_layer_style_settings(
       nullptr, layer, [&](const patchy::ui::LayerStyleSettings&) { ++preview_calls; });
@@ -1204,7 +1203,7 @@ void ui_layer_style_gradient_stop_picker_follows_the_selected_stop() {
   auto layer = make_gradient_fill_test_layer(document);
   bool picker_closed_on_switch = false;
   bool saw_second_stop_selected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -1244,7 +1243,7 @@ void ui_layer_style_gradient_stop_picker_follows_the_selected_stop() {
       });
     });
     swatch->click();
-  });
+  }));
 
   // Themed like the app: the dialog's artifact is the issue's screenshot.
   const auto themed_parent = make_themed_dialog_parent();
@@ -1271,7 +1270,7 @@ void ui_layer_style_gradient_stop_picker_follows_the_selected_stop() {
 void ui_layer_style_ok_keeps_the_open_stop_picker_color() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   auto layer = make_gradient_fill_test_layer(document);
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -1288,7 +1287,7 @@ void ui_layer_style_ok_keeps_the_open_stop_picker_color() {
       dialog->accept();
     });
     swatch->click();
-  });
+  }));
   const auto first = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(first.has_value());
   if (!first.has_value() || first->style.gradient_fills.size() != 1) {
@@ -1301,7 +1300,7 @@ void ui_layer_style_ok_keeps_the_open_stop_picker_color() {
   // Second session on the committed style: edit the right end through its
   // picker's OK; the left end keeps the color from the first session.
   layer.layer_style() = first->style;
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -1326,7 +1325,7 @@ void ui_layer_style_ok_keeps_the_open_stop_picker_color() {
       QTimer::singleShot(0, dialog, [dialog] { dialog->accept(); });
     });
     swatch->click();
-  });
+  }));
   const auto second = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(second.has_value());
   if (!second.has_value() || second->style.gradient_fills.size() != 1) {
@@ -1345,7 +1344,7 @@ void ui_layer_style_gradient_opacity_track_adds_and_edits_alpha_stops() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   auto layer = make_gradient_fill_test_layer(document);
 
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     select_layer_style_gradient_page(*dialog);
@@ -1372,7 +1371,7 @@ void ui_layer_style_gradient_opacity_track_adds_and_edits_alpha_stops() {
     CHECK(stop_opacity->value() == 100);
     stop_opacity->setValue(0);
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
 
   const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
 
@@ -1393,7 +1392,7 @@ void ui_layer_style_gradient_midpoints_edit_color_and_opacity_tracks() {
   gradient.color_stops.back().midpoint = 0.25F;
   gradient.alpha_stops.back().midpoint = 0.75F;
 
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     select_layer_style_gradient_page(*dialog);
@@ -1429,7 +1428,7 @@ void ui_layer_style_gradient_midpoints_edit_color_and_opacity_tracks() {
     CHECK(midpoint->value() == 75);
     midpoint->setValue(33);
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
 
   const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(settings.has_value());
@@ -1442,7 +1441,7 @@ void ui_layer_style_gradient_page_controls_map_to_settings() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   auto layer = make_gradient_fill_test_layer(document);
 
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     select_layer_style_gradient_page(*dialog);
@@ -1463,7 +1462,7 @@ void ui_layer_style_gradient_page_controls_map_to_settings() {
     send_key(*stop_hex, Qt::Key_Return);
     CHECK(stop_hex->text() == QStringLiteral("#00FF00"));
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
 
   const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
 
@@ -1573,7 +1572,7 @@ void ui_layer_style_noise_gradient_overlay_loads_into_dialog() {
                            false);
     QApplication::processEvents();
     inspected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     select_layer_style_gradient_page(*dialog);
@@ -1596,7 +1595,7 @@ void ui_layer_style_noise_gradient_overlay_loads_into_dialog() {
     CHECK(seed->isVisibleTo(dialog));
     inspected = true;
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
 
   settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(inspected);
@@ -1625,7 +1624,7 @@ void ui_layer_style_preview_is_transient_and_show_effects_persists() {
   layer.layer_style().effects_visible = false;
 
   std::vector<patchy::ui::LayerStyleSettings> previews;
-  QTimer::singleShot(0, [&previews] {
+  QTimer::singleShot(0, guarded([&previews] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
@@ -1662,7 +1661,7 @@ void ui_layer_style_preview_is_transient_and_show_effects_persists() {
     CHECK(previews.back().style.strokes.front().size == 19.0F);
     preview->setChecked(false);
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
 
   const auto settings = patchy::ui::request_layer_style_settings(
       nullptr, layer, [&](const patchy::ui::LayerStyleSettings& value) { previews.push_back(value); });
@@ -1689,26 +1688,26 @@ void ui_layer_style_blending_options_round_trip_the_interior_group_flag() {
   layer.layer_style().color_overlays.push_back(overlay);
   layer.layer_style().blend_interior_elements = true;
 
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* blend_interior = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleBlendInteriorCheck"));
     CHECK(blend_interior != nullptr);
     CHECK(blend_interior->isChecked());
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
   const auto kept = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(kept.has_value());
   CHECK(kept->style.blend_interior_elements);
 
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* blend_interior = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleBlendInteriorCheck"));
     CHECK(blend_interior != nullptr);
     blend_interior->setChecked(false);
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
   const auto cleared = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(cleared.has_value());
   CHECK(!cleared->style.blend_interior_elements);
@@ -1726,26 +1725,26 @@ void ui_layer_style_blending_options_round_trip_the_clipped_group_flag() {
   layer.layer_style().color_overlays.push_back(overlay);
   layer.layer_style().blend_clipped_elements = false;
 
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* blend_clipped = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleBlendClippedCheck"));
     CHECK(blend_clipped != nullptr);
     CHECK(!blend_clipped->isChecked());
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
   const auto kept = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(kept.has_value());
   CHECK(!kept->style.blend_clipped_elements);
 
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* blend_clipped = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleBlendClippedCheck"));
     CHECK(blend_clipped != nullptr);
     blend_clipped->setChecked(true);
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
   const auto restored = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(restored.has_value());
   CHECK(restored->style.blend_clipped_elements);
@@ -1763,7 +1762,7 @@ void ui_layer_style_blending_options_round_trip_channel_restrictions() {
   direct_layer.set_fill_opacity(0.4F);
 
   std::vector<patchy::ui::LayerStyleSettings> previews;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* red = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleChannelRedCheck"));
@@ -1792,7 +1791,7 @@ void ui_layer_style_blending_options_round_trip_channel_restrictions() {
     green->setChecked(true);
     QTest::qWait(80);
     dialog->accept();
-  });
+  }));
   const auto accepted = patchy::ui::request_layer_style_settings(
       nullptr, direct_layer,
       [&](const patchy::ui::LayerStyleSettings& settings) { previews.push_back(settings); });
@@ -1813,7 +1812,7 @@ void ui_layer_style_blending_options_round_trip_channel_restrictions() {
   window.add_document_session(std::move(document), QStringLiteral("Restrict Cancel"));
   show_window(window);
   bool saw_live_preview = false;
-  QTimer::singleShot(0, &window, [&] {
+  QTimer::singleShot(0, &window, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* blue = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleChannelBlueCheck"));
@@ -1825,7 +1824,7 @@ void ui_layer_style_blending_options_round_trip_channel_restrictions() {
     saw_live_preview = preview_layer->restricted_channels() ==
                        (patchy::kRestrictGreen | patchy::kRestrictBlue);
     dialog->reject();
-  });
+  }));
   require_action(window, "layerBlendingOptionsAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_live_preview);
@@ -1843,7 +1842,7 @@ void ui_layer_style_channel_checkboxes_disabled_for_unsupported_payload() {
                       solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
   layer.set_channel_restriction_unsupported();
 
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* red = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleChannelRedCheck"));
@@ -1853,7 +1852,7 @@ void ui_layer_style_channel_checkboxes_disabled_for_unsupported_payload() {
     CHECK(!red->isEnabled() && !green->isEnabled() && !blue->isEnabled());
     CHECK(red->isChecked() && green->isChecked() && blue->isChecked());
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
   const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(settings.has_value());
   CHECK(settings->restricted_channels == 0U);
@@ -1871,7 +1870,7 @@ void ui_layer_style_gradient_stroke_controls_map_to_settings() {
   stroke.gradient.alpha_stops = {{0.0F, 1.0F}, {1.0F, 1.0F}};
   layer.layer_style().strokes.push_back(stroke);
 
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
@@ -1940,7 +1939,7 @@ void ui_layer_style_gradient_stroke_controls_map_to_settings() {
     CHECK(midpoint->isEnabled());
     midpoint->setValue(36);
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
 
   const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(settings.has_value());
@@ -1967,14 +1966,14 @@ void ui_layer_style_stroke_gradient_fill_keeps_dialog_height() {
 
   int color_height = 0;
   int color_minimum = 0;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     QApplication::processEvents();
     color_height = dialog->height();
     color_minimum = dialog->minimumSizeHint().height();
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
   patchy::Layer color_layer(document.allocate_layer_id(), "Color Stroke",
                             solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
   patchy::LayerStroke color_stroke;
@@ -1984,7 +1983,7 @@ void ui_layer_style_stroke_gradient_fill_keeps_dialog_height() {
 
   int gradient_height = 0;
   int gradient_minimum = 0;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     CHECK(dialog->findChild<QScrollArea*>(QStringLiteral("layerStyleStrokeScroll")) != nullptr);
@@ -1992,7 +1991,7 @@ void ui_layer_style_stroke_gradient_fill_keeps_dialog_height() {
     gradient_height = dialog->height();
     gradient_minimum = dialog->minimumSizeHint().height();
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
   patchy::Layer gradient_layer(document.allocate_layer_id(), "Gradient Stroke",
                                solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
   patchy::LayerStroke gradient_stroke;
@@ -2024,7 +2023,7 @@ void ui_layer_style_bevel_lighting_controls_map_to_settings() {
   bevel.soften = 3.0F;
   layer.layer_style().bevels.push_back(bevel);
 
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
@@ -2086,7 +2085,7 @@ void ui_layer_style_bevel_lighting_controls_map_to_settings() {
     soften->setValue(5);
 
     const auto choose_color = [](QPushButton* button, QColor color) {
-      QTimer::singleShot(0, [color] {
+      QTimer::singleShot(0, guarded([color] {
         auto* picker_dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyColorDialog")));
         CHECK(picker_dialog != nullptr);
         auto* picker = picker_dialog->findChild<patchy::ui::PatchyColorPicker*>(
@@ -2094,13 +2093,13 @@ void ui_layer_style_bevel_lighting_controls_map_to_settings() {
         CHECK(picker != nullptr);
         picker->setCurrentColor(color);
         picker_dialog->accept();
-      });
+      }));
       button->click();
     };
     choose_color(highlight_color, QColor(12, 34, 56));
     choose_color(shadow_color, QColor(78, 90, 123));
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
 
   const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(settings.has_value());
@@ -2126,7 +2125,7 @@ void ui_layer_style_satin_controls_map_to_settings() {
   satin.unsupported_contour_options = true;
   layer.layer_style().satins.push_back(satin);
 
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
@@ -2168,7 +2167,7 @@ void ui_layer_style_satin_controls_map_to_settings() {
     green->setValue(34);
     blue->setValue(56);
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
 
   int previews = 0;
   const auto settings = patchy::ui::request_layer_style_settings(
@@ -2198,7 +2197,7 @@ void ui_layer_style_outer_glow_technique_and_range_map_to_settings() {
   glow.range = 80.0F;
   layer.layer_style().outer_glows.push_back(glow);
 
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
@@ -2222,7 +2221,7 @@ void ui_layer_style_outer_glow_technique_and_range_map_to_settings() {
     range->setValue(25);
     spread->setValue(8);
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
 
   const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(settings.has_value());
@@ -2246,7 +2245,7 @@ void ui_layer_style_continuous_shadow_controls_map_to_settings_and_mark_patchy_o
   shadow.distance = 40.0F;
   layer.layer_style().drop_shadows.push_back(shadow);
 
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
@@ -2275,7 +2274,7 @@ void ui_layer_style_continuous_shadow_controls_map_to_settings_and_mark_patchy_o
     CHECK(fade->isEnabled());
     fade->setValue(40);
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
 
   const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(settings.has_value());
@@ -2294,7 +2293,7 @@ void ui_layer_style_drop_shadow_contour_keeps_a_custom_curve() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   patchy::Layer layer(document.allocate_layer_id(), "Shadowed",
                       solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
-  const auto fixture = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-issue-507" / "replace-magenta.xcf";
+  const auto fixture = patchy::test::local_fixtures_root() / "xcf-issue-507" / "replace-magenta.xcf";
   const bool imported = std::filesystem::exists(fixture);
   if (imported) {
     const auto gimp = patchy::xcf::DocumentIo::read_file(fixture);
@@ -2318,7 +2317,7 @@ void ui_layer_style_drop_shadow_contour_keeps_a_custom_curve() {
   CHECK(original.opacity == 0.75F);
   CHECK(original.contour.points.size() >= 3);
 
-  QTimer::singleShot(0, [imported] {
+  QTimer::singleShot(0, guarded([imported] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
@@ -2342,7 +2341,7 @@ void ui_layer_style_drop_shadow_contour_keeps_a_custom_curve() {
     }
     anti_aliased->setChecked(true);
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
 
   const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(settings.has_value());
@@ -2364,7 +2363,7 @@ void ui_layer_style_inner_glow_technique_and_range_map_to_settings() {
   glow.range = 80.0F;
   layer.layer_style().inner_glows.push_back(glow);
 
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
@@ -2388,7 +2387,7 @@ void ui_layer_style_inner_glow_technique_and_range_map_to_settings() {
     range->setValue(25);
     choke->setValue(8);
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
 
   const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(settings.has_value());
@@ -2413,14 +2412,14 @@ void ui_layer_style_pattern_warning_follows_resolvability() {
   // A resolvable reference (built-in preset) shows neither the legacy
   // preserved-only banner nor the missing-pattern banner.
   bool checked_resolvable = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     CHECK(dialog->findChild<QLabel*>(QStringLiteral("layerStyleUnsupportedEffectsWarning")) == nullptr);
     CHECK(dialog->findChild<QLabel*>(QStringLiteral("layerStyleMissingPatternWarning")) == nullptr);
     checked_resolvable = true;
     dialog->reject();
-  });
+  }));
   const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(!settings.has_value());
   CHECK(checked_resolvable);
@@ -2430,7 +2429,7 @@ void ui_layer_style_pattern_warning_follows_resolvability() {
   layer.layer_style().pattern_overlays.front().pattern_id = "00000000-dead-beef-0000-000000000000";
   layer.layer_style().pattern_overlays.front().pattern_name = "Lost Pattern";
   bool checked_missing = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* warning = dialog->findChild<QLabel*>(QStringLiteral("layerStyleMissingPatternWarning"));
@@ -2440,7 +2439,7 @@ void ui_layer_style_pattern_warning_follows_resolvability() {
     CHECK(warning->text().contains(QStringLiteral("not embedded")));
     checked_missing = true;
     dialog->reject();
-  });
+  }));
   const auto missing_settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(!missing_settings.has_value());
   CHECK(checked_missing);
@@ -2463,7 +2462,7 @@ void ui_layer_style_bevel_texture_missing_pattern_presents_unchecked() {
   layer.layer_style().bevels.push_back(bevel);
 
   bool checked = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* texture_check = dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleBevelTextureCategoryCheck"));
@@ -2472,7 +2471,7 @@ void ui_layer_style_bevel_texture_missing_pattern_presents_unchecked() {
     CHECK(dialog->findChild<QLabel*>(QStringLiteral("layerStyleMissingPatternWarning")) == nullptr);
     checked = true;
     dialog->reject();
-  });
+  }));
   const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(!settings.has_value());
   CHECK(checked);
@@ -2484,7 +2483,7 @@ void ui_layer_style_pattern_overlay_controls_map_to_settings() {
                       solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
 
   const auto bricks_id = QString::fromLatin1(patchy::builtin_pattern_presets()[9].id);
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
@@ -2519,7 +2518,7 @@ void ui_layer_style_pattern_overlay_controls_map_to_settings() {
     scale->setValue(250);
     link->setChecked(false);
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
 
   const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(settings.has_value());
@@ -2544,7 +2543,7 @@ void ui_layer_style_slider_rows_have_step_buttons() {
   layer.layer_style().bevels.push_back(bevel);
 
   bool inspected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
@@ -2643,7 +2642,7 @@ void ui_layer_style_slider_rows_have_step_buttons() {
     save_widget_artifact("ui_layer_style_step_buttons", *dialog);
     inspected = true;
     dialog->accept();
-  });
+  }));
 
   const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(inspected);
@@ -2707,7 +2706,7 @@ void ui_layer_style_dialog_fits_a_short_screen() {
   window.add_document_session(std::move(document), QStringLiteral("Short Screen"));
   show_window(window);
   bool inspected = false;
-  QTimer::singleShot(0, &window, [&] {
+  QTimer::singleShot(0, &window, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -2759,7 +2758,7 @@ void ui_layer_style_dialog_fits_a_short_screen() {
     }
     inspected = true;
     dialog->reject();
-  });
+  }));
 
   require_action(window, "layerBlendingOptionsAction")->trigger();
   QApplication::processEvents();
@@ -2785,7 +2784,7 @@ void ui_layer_style_dialog_resizes_below_its_tallest_page() {
 
   const auto open_dialog = [&window](const std::function<void(QDialog&, QScrollArea&)>& inspect) {
     bool inspected = false;
-    QTimer::singleShot(0, &window, [&] {
+    QTimer::singleShot(0, &window, guarded([&] {
       auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -2799,7 +2798,7 @@ void ui_layer_style_dialog_resizes_below_its_tallest_page() {
       }
       inspected = true;
       dialog->reject();
-    });
+    }));
     require_action(window, "layerBlendingOptionsAction")->trigger();
     QApplication::processEvents();
     CHECK(inspected);
@@ -2899,7 +2898,7 @@ void ui_layer_style_page_captures_issue_606() {
   window.add_document_session(std::move(document), QStringLiteral("Captures"));
   show_window(window);
   bool inspected = false;
-  QTimer::singleShot(0, &window, [&] {
+  QTimer::singleShot(0, &window, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -2941,7 +2940,7 @@ void ui_layer_style_page_captures_issue_606() {
     save_image_artifact("ui_layer_style_606_style_presets_short", dialog->grab().toImage());
     inspected = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "layerBlendingOptionsAction")->trigger();
   QApplication::processEvents();
   CHECK(inspected);
@@ -2973,7 +2972,7 @@ void ui_layer_style_page_titles_show_ampersands() {
   patchy::Layer layer(document.allocate_layer_id(), "Titles",
                       solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
   bool inspected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -3000,7 +2999,7 @@ void ui_layer_style_page_titles_show_ampersands() {
     }
     inspected = true;
     dialog->reject();
-  });
+  }));
   (void)patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(inspected);
 }
@@ -3028,7 +3027,7 @@ void ui_layer_style_make_default_and_reset_to_default() {
   };
 
   bool inspected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -3074,14 +3073,14 @@ void ui_layer_style_make_default_and_reset_to_default() {
     CHECK(continuous->isChecked());
     inspected = true;
     dialog->reject();
-  });
+  }));
   (void)patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(inspected);
 
   // Reopened, a drop shadow turned on starts from the stored values; the page
   // shows them before it is ticked.
   inspected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -3096,7 +3095,7 @@ void ui_layer_style_make_default_and_reset_to_default() {
     QApplication::processEvents();
     inspected = true;
     dialog->accept();
-  });
+  }));
   const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(inspected);
   CHECK(settings.has_value());
@@ -3122,7 +3121,7 @@ void ui_layer_style_make_default_and_reset_to_default() {
   bevel.contour.enabled = true;
   layer.layer_style().bevels.push_back(bevel);
   inspected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -3145,7 +3144,7 @@ void ui_layer_style_make_default_and_reset_to_default() {
     CHECK(down->isChecked());
     inspected = true;
     dialog->accept();
-  });
+  }));
   const auto bevel_settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(inspected);
   CHECK(bevel_settings.has_value());
@@ -3280,7 +3279,7 @@ void ui_layer_style_angle_dials_drive_the_fields() {
   show_window(window);
   const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
   bool inspected = false;
-  QTimer::singleShot(0, &window, [&] {
+  QTimer::singleShot(0, &window, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -3334,7 +3333,7 @@ void ui_layer_style_angle_dials_drive_the_fields() {
     }
     inspected = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "layerBlendingOptionsAction")->trigger();
   QApplication::processEvents();
   CHECK(inspected);
@@ -3369,7 +3368,7 @@ void ui_layer_style_issue_606_layout() {
 
   const auto open_dialog = [&window](const std::function<void(QDialog&)>& inspect) {
     bool inspected = false;
-    QTimer::singleShot(0, &window, [&] {
+    QTimer::singleShot(0, &window, guarded([&] {
       auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -3379,7 +3378,7 @@ void ui_layer_style_issue_606_layout() {
       inspect(*dialog);
       inspected = true;
       dialog->reject();
-    });
+    }));
     require_action(window, "layerBlendingOptionsAction")->trigger();
     QApplication::processEvents();
     CHECK(inspected);
@@ -3546,7 +3545,7 @@ void ui_layer_style_knockout_and_vector_mask_hides_effects_commit() {
   window.add_document_session(std::move(document), QStringLiteral("Knockout"));
   show_window(window);
   bool inspected = false;
-  QTimer::singleShot(0, &window, [&] {
+  QTimer::singleShot(0, &window, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -3578,7 +3577,7 @@ void ui_layer_style_knockout_and_vector_mask_hides_effects_commit() {
     }
     inspected = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "layerBlendingOptionsAction")->trigger();
   QApplication::processEvents();
   CHECK(inspected);
@@ -3596,7 +3595,7 @@ void ui_layer_style_knockout_and_vector_mask_hides_effects_commit() {
   patchy::Layer unknown(other.allocate_layer_id(), "Unknown Knockout",
                         solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
   unknown.unknown_psd_blocks().push_back({"knko", {9, 0, 0, 0}});
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -3605,7 +3604,7 @@ void ui_layer_style_knockout_and_vector_mask_hides_effects_commit() {
     auto* knockout = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleKnockoutCombo"));
     CHECK(knockout != nullptr && !knockout->isEnabled());
     dialog->accept();
-  });
+  }));
   CHECK(patchy::ui::request_layer_style_settings(nullptr, unknown, {}).has_value());
 }
 

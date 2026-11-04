@@ -630,7 +630,7 @@ void psd_cmyk_smart_filter_saves_preserve_native_and_convert_authored_caches() {
 }
 
 void psd_deep_non_rgb_gradients_and_adjustments_keep_native_color_if_available() {
-  const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files";
+  const auto root = patchy::test::local_fixtures_root() / "psd-tools" / "tests" / "psd_files";
   patchy::test::skip_unless_exists(root);
   psd::ReadOptions read;
   read.keep_bit_depth = true;
@@ -693,7 +693,7 @@ void psd_deep_non_rgb_gradients_and_adjustments_keep_native_color_if_available()
 // the existing suites pin against Photoshop), keeps samples 8 bits cannot hold, and
 // survives Patchy's own deep write.
 void psd_deep_photoshop_corpus_reads_and_round_trips_if_available() {
-  const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "deep";
+  const auto root = patchy::test::local_fixtures_root() / "deep";
   patchy::test::skip_unless_exists(root / "manifest.json");
   int checked = 0;
   for (const auto& scene : std::filesystem::directory_iterator(root)) {

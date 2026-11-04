@@ -420,7 +420,7 @@ void ui_float_window_respects_preview_dialog_edit_lock() {
   CHECK(patchy::ui::MainWindowTestAccess::canvas(window) == tab_canvas);
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyFilterDialog")) {
         continue;
@@ -448,7 +448,7 @@ void ui_float_window_respects_preview_dialog_edit_lock() {
       return;
     }
     CHECK(false);
-  });
+  }));
   require_action(window, "imageAdjustDesaturateAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);

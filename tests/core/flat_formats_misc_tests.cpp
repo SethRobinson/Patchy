@@ -2382,7 +2382,7 @@ void avif_decodes_corpus_samples_if_available() {
   }
   // cgohlke/imagecodecs-samples (CC BY 4.0, untracked local fixtures): gray and RGB, with and
   // without alpha, 8 and 16-bit, stills and sequences.
-  const auto directory = patchy::test::source_root_path() / "local-test-fixtures" / "imagecodecs-samples" / "images";
+  const auto directory = patchy::test::local_fixtures_root() / "imagecodecs-samples" / "images";
   patchy::test::skip_unless_exists(directory / "rgb_u2.avif");
   const bool deep = patchy::deep_editing_enabled();
   int decoded = 0;

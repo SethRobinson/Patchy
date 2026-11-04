@@ -6,6 +6,7 @@ Resolves the ssh target of a remote build machine. Dot-source it, then:
   $hosts = Get-PatchyWindowsHosts           # every windows entry, in preference order
   $arm = Get-PatchyWindowsHosts windows-arm64   # the Windows ARM64 hosts, same shape
   $web = Get-PatchyWindowsHosts wasm        # the Windows hosts that build the web site
+  $upload = Get-PatchyRemoteHost upload     # .ssh of the download server (release uploads)
 
 Machine names, users, and paths are developer-specific, so they live in
 scripts\remote\hosts.local.json (gitignored; copy hosts.example.json) and never in the
@@ -20,7 +21,7 @@ Windows hosts that build the web release (remote-build.ps1 -Target wasm, release
 each also with a 'share': the UNC path of its work tree, which the site is copied back from.
 #>
 function Get-PatchyHostsEntry {
-  param([Parameter(Mandatory = $true)][ValidateSet('mac', 'linux', 'windows', 'windows-arm64', 'wasm')][string]$Target)
+  param([Parameter(Mandatory = $true)][ValidateSet('mac', 'linux', 'windows', 'windows-arm64', 'wasm', 'upload')][string]$Target)
 
   $candidates = @(Join-Path $PSScriptRoot 'hosts.local.json')
   $commonDir = git -C $PSScriptRoot rev-parse --path-format=absolute --git-common-dir 2>$null
@@ -52,7 +53,7 @@ function Get-PatchyHostsEntry {
 }
 
 function Get-PatchyRemoteHost {
-  param([Parameter(Mandatory = $true)][ValidateSet('mac', 'linux', 'windows', 'windows-arm64', 'wasm')][string]$Target)
+  param([Parameter(Mandatory = $true)][ValidateSet('mac', 'linux', 'windows', 'windows-arm64', 'wasm', 'upload')][string]$Target)
   return (Get-PatchyHostsEntry $Target)[0]
 }
 

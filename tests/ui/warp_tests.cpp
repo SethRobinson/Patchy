@@ -473,7 +473,7 @@ void ui_warp_text_dialog_applies_and_undoes() {
 
   // Cancel restores the original state even after live previews.
   bool drove_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("warpTextDialog"));
     CHECK(dialog != nullptr);
     auto* style_combo = dialog->findChild<QComboBox*>(QStringLiteral("warpTextStyleCombo"));
@@ -488,7 +488,7 @@ void ui_warp_text_dialog_applies_and_undoes() {
     CHECK(preview_layer->bounds().height > unwarped_bounds.height + 4);
     drove_dialog = true;
     dialog->reject();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::request_warp_text_dialog(window);
   CHECK(drove_dialog);
   layer = document.find_layer(text_id);
@@ -499,7 +499,7 @@ void ui_warp_text_dialog_applies_and_undoes() {
 
   // OK applies the warp: metadata + taller bounds (arc bows the text upward).
   drove_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("warpTextDialog"));
     CHECK(dialog != nullptr);
     auto* style_combo = dialog->findChild<QComboBox*>(QStringLiteral("warpTextStyleCombo"));
@@ -515,7 +515,7 @@ void ui_warp_text_dialog_applies_and_undoes() {
     if (auto* buttons = dialog->findChild<QDialogButtonBox*>(); buttons != nullptr) {
       buttons->button(QDialogButtonBox::Ok)->click();
     }
-  });
+  }));
   patchy::ui::MainWindowTestAccess::request_warp_text_dialog(window);
   CHECK(drove_dialog);
   layer = document.find_layer(text_id);
@@ -544,7 +544,7 @@ void ui_warp_text_dialog_applies_and_undoes() {
 
   // Re-opening with style None removes the warp (back to the plain render).
   drove_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("warpTextDialog"));
     CHECK(dialog != nullptr);
     auto* style_combo = dialog->findChild<QComboBox*>(QStringLiteral("warpTextStyleCombo"));
@@ -558,7 +558,7 @@ void ui_warp_text_dialog_applies_and_undoes() {
     if (auto* buttons = dialog->findChild<QDialogButtonBox*>(); buttons != nullptr) {
       buttons->button(QDialogButtonBox::Ok)->click();
     }
-  });
+  }));
   patchy::ui::MainWindowTestAccess::request_warp_text_dialog(window);
   CHECK(drove_dialog);
   layer = document.find_layer(text_id);
@@ -726,7 +726,7 @@ void ui_warp_text_box_text_warps_over_frame() {
   CHECK(layer != nullptr && patchy::layer_is_text(*layer));
   auto unwarped = image_from_pixels_for_visuals(layer->pixels());
   // Drive the REAL dialog like a user: pick Bulge, bend 50, OK.
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("warpTextDialog"));
     CHECK(dialog != nullptr);
     auto* style_combo = dialog->findChild<QComboBox*>(QStringLiteral("warpTextStyleCombo"));
@@ -738,7 +738,7 @@ void ui_warp_text_box_text_warps_over_frame() {
     if (auto* buttons = dialog->findChild<QDialogButtonBox*>(); buttons != nullptr) {
       buttons->button(QDialogButtonBox::Ok)->click();
     }
-  });
+  }));
   patchy::ui::MainWindowTestAccess::request_warp_text_dialog(window);
   layer = document.find_layer(*active_id);
   CHECK(layer != nullptr);
@@ -1509,7 +1509,7 @@ void ui_warped_text_refuses_faux_bold_toggle() {
     return;
   }
   bool drove_panel = false;
-  QTimer::singleShot(0, [&window, &drove_panel] {
+  QTimer::singleShot(0, guarded([&window, &drove_panel] {
     auto* dialog = window.findChild<QDialog*>(QStringLiteral("textCharacterDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -1524,7 +1524,7 @@ void ui_warped_text_refuses_faux_bold_toggle() {
       drove_panel = true;
     }
     dialog->reject();
-  });
+  }));
   character_button->click();
   QApplication::processEvents();
   CHECK(drove_panel);

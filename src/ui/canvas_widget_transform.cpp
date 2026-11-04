@@ -7,6 +7,7 @@
 // Pure function moves from canvas_widget.cpp; behavior must stay identical.
 
 #include "ui/canvas_widget.hpp"
+#include "ui/theme_palette.hpp"
 
 #include "core/document.hpp"
 #include "core/floating_selection.hpp"
@@ -3768,9 +3769,9 @@ void CanvasWidget::draw_distorted_transform_controls(QPainter& painter) const {
   }
   painter.save();
   painter.setBrush(Qt::NoBrush);
-  painter.setPen(QPen(QColor(95, 170, 255), 1.0, Qt::DashLine));
+  painter.setPen(QPen(theme().canvas_layer_selection_border, 1.0, Qt::DashLine));
   painter.drawPolygon(polygon);
-  painter.setPen(QPen(QColor(95, 170, 255), 1.0));
+  painter.setPen(QPen(theme().canvas_layer_selection_border, 1.0));
   painter.drawLine(distorted_transform_handle_position(TransformHandle::Top),
                    distorted_transform_handle_position(TransformHandle::Rotate));
   constexpr double kHandleSize = 8.0;
@@ -3779,7 +3780,8 @@ void CanvasWidget::draw_distorted_transform_controls(QPainter& painter) const {
                             TransformHandle::Right, TransformHandle::BottomRight, TransformHandle::Bottom,
                             TransformHandle::BottomLeft, TransformHandle::Left, TransformHandle::Rotate}) {
     const auto point = distorted_transform_handle_position(handle);
-    painter.setBrush(handle == TransformHandle::Rotate ? QColor(95, 170, 255) : QColor(245, 248, 252));
+    painter.setBrush(handle == TransformHandle::Rotate ? theme().canvas_layer_selection_border
+                                                       : QColor(245, 248, 252));
     painter.drawRect(QRectF(point.x() - kHandleSize / 2.0, point.y() - kHandleSize / 2.0, kHandleSize, kHandleSize));
   }
   painter.restore();
@@ -4511,9 +4513,9 @@ void CanvasWidget::draw_transform_controls(QPainter& painter, QRectF document_re
   painter.rotate(angle_degrees);
   const QRectF local_rect(-rect.width() / 2.0, -rect.height() / 2.0, rect.width(), rect.height());
   painter.setBrush(Qt::NoBrush);
-  painter.setPen(QPen(QColor(95, 170, 255), 1.0, Qt::DashLine));
+  painter.setPen(QPen(theme().canvas_layer_selection_border, 1.0, Qt::DashLine));
   painter.drawRect(local_rect);
-  painter.setPen(QPen(QColor(95, 170, 255), 1.0));
+  painter.setPen(QPen(theme().canvas_layer_selection_border, 1.0));
   painter.drawLine(QPointF(0.0, -rect.height() / 2.0), QPointF(0.0, -rect.height() / 2.0 - 32.0));
   painter.restore();
 
@@ -4535,7 +4537,8 @@ void CanvasWidget::draw_transform_handle_squares(QPainter& painter, QRectF docum
     }
     const auto point = transform_handle_position(handle, document_rect, angle_degrees);
     const QRectF handle_rect(point.x() - kHandleSize / 2.0, point.y() - kHandleSize / 2.0, kHandleSize, kHandleSize);
-    painter.setBrush(handle == TransformHandle::Rotate ? QColor(95, 170, 255) : QColor(245, 248, 252));
+    painter.setBrush(handle == TransformHandle::Rotate ? theme().canvas_layer_selection_border
+                                                       : QColor(245, 248, 252));
     painter.drawRect(handle_rect);
   }
   painter.restore();
@@ -6398,7 +6401,7 @@ void CanvasWidget::draw_warp_transform(QPainter& painter) const {
   // The control cage: u- and v-direction cubics through the control points (the
   // classic warp grid), drawn in widget space.
   painter.setBrush(Qt::NoBrush);
-  painter.setPen(QPen(QColor(95, 170, 255), 1.0));
+  painter.setPen(QPen(theme().canvas_layer_selection_border, 1.0));
   const int u_order = warp_mesh_.u_order;
   const int v_order = warp_mesh_.v_order;
   const auto control = [this](int row, int column) {
@@ -6437,7 +6440,7 @@ void CanvasWidget::draw_warp_transform(QPainter& painter) const {
       const auto index = row * u_order + column;
       const auto point = widget_position_f(warp_handle_document_position(index));
       const QRectF handle_rect(point.x() - size / 2.0, point.y() - size / 2.0, size, size);
-      painter.setBrush(index == warp_drag_index_ && dragging_warp_handle_ ? QColor(95, 170, 255)
+      painter.setBrush(index == warp_drag_index_ && dragging_warp_handle_ ? theme().canvas_layer_selection_border
                                                                           : QColor(245, 248, 252));
       if (corner) {
         painter.drawRect(handle_rect);

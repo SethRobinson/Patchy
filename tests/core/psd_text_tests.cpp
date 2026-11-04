@@ -2284,7 +2284,7 @@ void psd_restaurant_menu_dishes_runs_parse_photoshop_layout_if_available() {
 // 12 pt (12 engine px), first baseline on y = 0; the reader used to keep the 300 PPI default,
 // so the Character panel showed 2.88 pt.
 void psd_ag_psd_auto_lead_text_without_raster_if_available() {
-  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "ag-psd" / "auto-lead" / "expected.psd";
+  const auto path = patchy::test::local_fixtures_root() / "ag-psd" / "auto-lead" / "expected.psd";
   patchy::test::skip_unless_exists(path);
   const auto read = patchy::psd::DocumentIo::read_file(path);
   std::cout << "  ppi " << read.print_settings().horizontal_ppi << " x " << read.print_settings().vertical_ppi << "\n";

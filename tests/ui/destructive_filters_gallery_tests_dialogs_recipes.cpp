@@ -287,7 +287,7 @@ void ui_tilt_shift_blur_dialog_cancel_selection_apply_and_undo() {
 
   bool inspected_controls = false;
   bool saw_cancel_preview = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(
         find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
     CHECK(dialog != nullptr);
@@ -349,7 +349,7 @@ void ui_tilt_shift_blur_dialog_cancel_selection_apply_and_undo() {
         },
         5000));
     dialog->reject();
-  });
+  }));
   action->trigger();
   process_events_for(100);
   CHECK(inspected_controls && saw_cancel_preview);
@@ -384,7 +384,7 @@ void ui_tilt_shift_blur_dialog_cancel_selection_apply_and_undo() {
       patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
 
   bool accepted = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(
         find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
     CHECK(dialog != nullptr);
@@ -404,7 +404,7 @@ void ui_tilt_shift_blur_dialog_cancel_selection_apply_and_undo() {
     transition->setValue(0.0);
     accepted = true;
     dialog->accept();
-  });
+  }));
   action->trigger();
   QApplication::processEvents();
   CHECK(accepted);
@@ -521,7 +521,7 @@ void ui_expanding_filter_cancel_and_undo_redo_restore_pixels_and_bounds() {
   CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
 
   bool saw_expanded_preview = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
     CHECK(dialog != nullptr);
     auto* radius = dialog->findChild<QSpinBox*>(QStringLiteral("filterRadiusSpin"));
@@ -537,7 +537,7 @@ void ui_expanding_filter_cancel_and_undo_redo_restore_pixels_and_bounds() {
                              preview_layer->pixels().height() > original_pixels.height();
     }
     dialog->reject();
-  });
+  }));
   box_blur->trigger();
   QApplication::processEvents();
   CHECK(saw_expanded_preview);
@@ -551,14 +551,14 @@ void ui_expanding_filter_cancel_and_undo_redo_restore_pixels_and_bounds() {
   CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before);
   CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
 
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
     CHECK(dialog != nullptr);
     auto* radius = dialog->findChild<QSpinBox*>(QStringLiteral("filterRadiusSpin"));
     CHECK(radius != nullptr);
     radius->setValue(6);
     dialog->accept();
-  });
+  }));
   box_blur->trigger();
   QApplication::processEvents();
   patchy::Rect applied_bounds;
@@ -625,7 +625,7 @@ void ui_clouds_fills_canvas_cancel_and_undo_redo_restore_pixels_and_bounds() {
   // The live preview covers the entire canvas even though the layer's content
   // rectangle is smaller, and Cancel restores pixels and bounds exactly.
   bool saw_canvas_preview = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
     CHECK(dialog != nullptr);
     auto* seed = dialog->findChild<QSpinBox*>(QStringLiteral("filterSeedSpin"));
@@ -643,7 +643,7 @@ void ui_clouds_fills_canvas_cancel_and_undo_redo_restore_pixels_and_bounds() {
         },
         7000));
     dialog->reject();
-  });
+  }));
   clouds->trigger();
   process_events_for(100);
   CHECK(saw_canvas_preview);
@@ -657,11 +657,11 @@ void ui_clouds_fills_canvas_cancel_and_undo_redo_restore_pixels_and_bounds() {
   CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before);
   CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
 
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
     CHECK(dialog != nullptr);
     dialog->accept();
-  });
+  }));
   clouds->trigger();
   QApplication::processEvents();
   patchy::Rect applied_bounds;
@@ -714,11 +714,11 @@ void ui_clouds_fills_canvas_cancel_and_undo_redo_restore_pixels_and_bounds() {
   patchy::ui::MainWindow off_window;
   off_window.add_document_session(std::move(off_canvas), QStringLiteral("Clouds Off Canvas"));
   show_window(off_window);
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
     CHECK(dialog != nullptr);
     dialog->accept();
-  });
+  }));
   require_action(off_window, "filterAction_patchy_filters_clouds")->trigger();
   QApplication::processEvents();
   const auto& off_document = std::as_const(patchy::ui::MainWindowTestAccess::document(off_window));
@@ -762,11 +762,11 @@ void ui_clouds_selection_renders_outside_content_rect_and_trims() {
     CHECK(canvas->has_selection());
   };
   const auto apply_clouds = [&] {
-    QTimer::singleShot(0, [] {
+    QTimer::singleShot(0, guarded([] {
       auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
       CHECK(dialog != nullptr);
       dialog->accept();
-    });
+    }));
     clouds->trigger();
     QApplication::processEvents();
   };
@@ -844,11 +844,11 @@ void ui_clouds_skips_canvas_embed_for_locked_or_rgb_layers() {
     patchy::ui::MainWindow window;
     window.add_document_session(std::move(document), title);
     show_window(window);
-    QTimer::singleShot(0, [] {
+    QTimer::singleShot(0, guarded([] {
       auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
       CHECK(dialog != nullptr);
       dialog->accept();
-    });
+    }));
     require_action(window, "filterAction_patchy_filters_clouds")->trigger();
     QApplication::processEvents();
     const auto& applied_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
@@ -1127,7 +1127,7 @@ void ui_filter_gallery_clouds_recipe_fills_canvas_and_plain_thumbnails_stay_prox
   const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
 
   bool drove_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
@@ -1156,7 +1156,7 @@ void ui_filter_gallery_clouds_recipe_fills_canvas_and_plain_thumbnails_stay_prox
     CHECK(buttons != nullptr && buttons->button(QDialogButtonBox::Ok) != nullptr);
     drove_dialog = true;
     buttons->button(QDialogButtonBox::Ok)->click();
-  });
+  }));
   require_action(window, "filterGalleryAction")->trigger();
   QApplication::processEvents();
   CHECK(drove_dialog);
@@ -1199,7 +1199,7 @@ void ui_filter_gallery_clouds_recipe_fills_canvas_and_plain_thumbnails_stay_prox
   require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
   QApplication::processEvents();
   bool drove_soft_glow = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
@@ -1211,7 +1211,7 @@ void ui_filter_gallery_clouds_recipe_fills_canvas_and_plain_thumbnails_stay_prox
     CHECK(buttons != nullptr && buttons->button(QDialogButtonBox::Ok) != nullptr);
     drove_soft_glow = true;
     buttons->button(QDialogButtonBox::Ok)->click();
-  });
+  }));
   require_action(window, "filterGalleryAction")->trigger();
   QApplication::processEvents();
   CHECK(drove_soft_glow);
@@ -1394,7 +1394,7 @@ void ui_filter_gallery_stack_edits_reverse_order_and_stay_independent() {
   std::vector<patchy::ui::VisualFilterGalleryPreview> previews;
   bool drove_dialog = false;
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* looks = dialog->findChild<QListWidget*>(
@@ -1525,7 +1525,7 @@ void ui_filter_gallery_stack_edits_reverse_order_and_stay_independent() {
     CHECK(!previews.back().recipe->entries[2].enabled);
     drove_dialog = true;
     buttons->button(QDialogButtonBox::Ok)->click();
-  });
+  }));
 
   const auto result = patchy::ui::request_visual_filter_gallery(
       &theme_host, source, bounds, QRegion(), registry,
@@ -1553,7 +1553,7 @@ void ui_filter_gallery_blending_controls_edit_recipe_entries() {
   std::vector<patchy::ui::VisualFilterGalleryPreview> previews;
   bool drove_dialog = false;
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* looks = dialog->findChild<QListWidget*>(
@@ -1648,7 +1648,7 @@ void ui_filter_gallery_blending_controls_edit_recipe_entries() {
 
     drove_dialog = true;
     buttons->button(QDialogButtonBox::Ok)->click();
-  });
+  }));
 
   const auto result = patchy::ui::request_visual_filter_gallery(
       &theme_host, source, bounds, QRegion(), registry,
@@ -1683,7 +1683,7 @@ void ui_filter_gallery_drag_events_reach_stack_during_preview_lock() {
   show_window(window);
   bool drove_dialog = false;
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* looks = dialog->findChild<QListWidget*>(
@@ -1751,7 +1751,7 @@ void ui_filter_gallery_drag_events_reach_stack_during_preview_lock() {
     layer_duplicate->removeEventFilter(&layer_button_events);
     drove_dialog = true;
     dialog->reject();
-  });
+  }));
 
   require_action(window, "filterGalleryAction")->trigger();
   CHECK(drove_dialog);
@@ -1767,7 +1767,7 @@ void ui_filter_gallery_stack_spatial_overlay_tracks_active_input_bounds() {
   std::vector<patchy::ui::VisualFilterGalleryPreview> previews;
   bool drove_dialog = false;
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* looks = dialog->findChild<QListWidget*>(
@@ -1986,7 +1986,7 @@ void ui_filter_gallery_stack_spatial_overlay_tracks_active_input_bounds() {
     CHECK(std::abs(radius->value() - expected_dragged_radius) <= 1.0);
     drove_dialog = true;
     dialog->reject();
-  });
+  }));
 
   const auto result = patchy::ui::request_visual_filter_gallery(
       &theme_host, source, bounds, QRegion(), registry, patchy::RgbColor{},
@@ -2007,7 +2007,7 @@ void ui_filter_gallery_explicit_original_click_clears_filtered_stack() {
   std::vector<patchy::ui::VisualFilterGalleryPreview> previews;
   bool drove_dialog = false;
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* looks = dialog->findChild<QListWidget*>(
@@ -2040,7 +2040,7 @@ void ui_filter_gallery_explicit_original_click_clears_filtered_stack() {
     CHECK(!previews.empty() && !previews.back().recipe.has_value());
     drove_dialog = true;
     dialog->reject();
-  });
+  }));
 
   const auto result = patchy::ui::request_visual_filter_gallery(
       nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{},
@@ -2112,7 +2112,7 @@ void ui_filter_gallery_stack_cancel_and_apply_are_one_transaction() {
   };
 
   bool cancelled_stack = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     configure_stack(*dialog);
@@ -2129,7 +2129,7 @@ void ui_filter_gallery_stack_cancel_and_apply_are_one_transaction() {
         7000));
     cancelled_stack = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "filterGalleryAction")->trigger();
   CHECK(cancelled_stack);
   process_events_for(120);
@@ -2146,7 +2146,7 @@ void ui_filter_gallery_stack_cancel_and_apply_are_one_transaction() {
   CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
 
   bool applied_stack = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     configure_stack(*dialog);
@@ -2155,7 +2155,7 @@ void ui_filter_gallery_stack_cancel_and_apply_are_one_transaction() {
     CHECK(buttons != nullptr && buttons->button(QDialogButtonBox::Ok) != nullptr);
     applied_stack = true;
     buttons->button(QDialogButtonBox::Ok)->click();
-  });
+  }));
   require_action(window, "filterGalleryAction")->trigger();
   CHECK(applied_stack);
   {
@@ -2195,7 +2195,7 @@ void ui_filter_gallery_saved_looks_persist_after_cancel_and_support_crud() {
   patchy::FilterRecipe saved_recipe;
   bool saved_and_renamed = false;
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* looks = dialog->findChild<QListWidget*>(
@@ -2235,13 +2235,13 @@ void ui_filter_gallery_saved_looks_persist_after_cancel_and_support_crud() {
     CHECK(applied->count() == 2);
     CHECK(save->isEnabled());
 
-    QTimer::singleShot(0, dialog, [] {
+    QTimer::singleShot(0, dialog, guarded([] {
       auto* input = qobject_cast<QInputDialog*>(find_top_level_dialog(
           QStringLiteral("filterGalleryLookNameDialog")));
       CHECK(input != nullptr);
       input->setTextValue(QStringLiteral("Road Trip"));
       input->accept();
-    });
+    }));
     save->click();
     CHECK(library.entries().size() == 1);
     saved_id = library.entries().front().id;
@@ -2249,14 +2249,14 @@ void ui_filter_gallery_saved_looks_persist_after_cancel_and_support_crud() {
     CHECK(combo->currentData().toString() == saved_id);
     CHECK(rename->isEnabled() && remove->isEnabled());
 
-    QTimer::singleShot(0, dialog, [] {
+    QTimer::singleShot(0, dialog, guarded([] {
       auto* input = qobject_cast<QInputDialog*>(find_top_level_dialog(
           QStringLiteral("filterGalleryLookNameDialog")));
       CHECK(input != nullptr);
       CHECK(input->textValue() == QStringLiteral("Road Trip"));
       input->setTextValue(QStringLiteral("Island Evening"));
       input->accept();
-    });
+    }));
     rename->click();
     CHECK(library.find_entry(saved_id) != nullptr);
     CHECK(library.find_entry(saved_id)->name ==
@@ -2264,7 +2264,7 @@ void ui_filter_gallery_saved_looks_persist_after_cancel_and_support_crud() {
     CHECK(combo->currentData().toString() == saved_id);
     saved_and_renamed = true;
     dialog->reject();
-  });
+  }));
   const auto first_result = patchy::ui::request_visual_filter_gallery(
       nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{},
       patchy::RgbColor{255, 255, 255}, {}, &library);
@@ -2291,7 +2291,7 @@ void ui_filter_gallery_saved_looks_persist_after_cancel_and_support_crud() {
   CHECK(error == patchy::ui::FilterLookLibraryError::None);
 
   bool loaded_and_deleted = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* combo = dialog->findChild<QComboBox*>(
@@ -2321,20 +2321,20 @@ void ui_filter_gallery_saved_looks_persist_after_cancel_and_support_crud() {
     CHECK(applied->item(0)->text() == QStringLiteral("Noir"));
     CHECK(applied->item(1)->text() == QStringLiteral("Soft Glow"));
     CHECK(remove->isEnabled());
-    QTimer::singleShot(0, dialog, [] {
+    QTimer::singleShot(0, dialog, guarded([] {
       auto* message = qobject_cast<QMessageBox*>(find_top_level_dialog(
           QStringLiteral("filterGalleryDeleteLookMessageBox")));
       CHECK(message != nullptr);
       CHECK(message->text().contains(QStringLiteral("Island Evening")));
       message->done(QMessageBox::Yes);
-    });
+    }));
     remove->click();
     CHECK(reloaded.find_entry(saved_id) == nullptr);
     CHECK(combo->findData(saved_id) < 0);
     CHECK(combo->findData(future_id) > 0);
     loaded_and_deleted = true;
     dialog->reject();
-  });
+  }));
   const auto second_result = patchy::ui::request_visual_filter_gallery(
       nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{},
       patchy::RgbColor{255, 255, 255}, {}, &reloaded);
@@ -2429,7 +2429,7 @@ void ui_filter_on_text_layer_prompts_and_rasterizes() {
 
   bool saw_dialog = false;
   bool saw_settings_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* box =
         qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("rasterizeOrConvertMessageBox")));
     CHECK(box != nullptr);
@@ -2452,7 +2452,7 @@ void ui_filter_on_text_layer_prompts_and_rasterizes() {
       }
     });
     rasterize->click();
-  });
+  }));
   require_action(window, "imageAdjustInvertAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -2486,7 +2486,7 @@ void ui_filter_on_text_layer_convert_choice_opens_smart_filter_dialog() {
 
   bool saw_prompt = false;
   bool saw_filter_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* box =
         qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("rasterizeOrConvertMessageBox")));
     CHECK(box != nullptr);
@@ -2502,7 +2502,7 @@ void ui_filter_on_text_layer_convert_choice_opens_smart_filter_dialog() {
     }
     // The editable Smart Filter dialog opens right after the conversion; this
     // queued dismissal fires inside its nested event loop.
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -2510,9 +2510,9 @@ void ui_filter_on_text_layer_convert_choice_opens_smart_filter_dialog() {
       }
       saw_filter_dialog = true;
       dialog->reject();
-    });
+    }));
     convert->click();
-  });
+  }));
   require_action(window, "filterAction_patchy_filters_gaussian_blur")->trigger();
   QApplication::processEvents();
   CHECK(saw_prompt);
@@ -2545,7 +2545,7 @@ void ui_filter_on_shape_layer_prompt_cancel_leaves_shape() {
   const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* box =
         qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("rasterizeOrConvertMessageBox")));
     CHECK(box != nullptr);
@@ -2558,7 +2558,7 @@ void ui_filter_on_shape_layer_prompt_cancel_leaves_shape() {
     if (cancel != nullptr) {
       cancel->click();
     }
-  });
+  }));
   require_action(window, "filterAction_patchy_filters_gaussian_blur")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -2583,7 +2583,7 @@ void ui_filter_gallery_on_shape_layer_rasterize_choice() {
 
   bool saw_prompt = false;
   bool saw_gallery = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* box =
         qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("rasterizeOrConvertMessageBox")));
     CHECK(box != nullptr);
@@ -2596,7 +2596,7 @@ void ui_filter_gallery_on_shape_layer_rasterize_choice() {
     if (rasterize == nullptr) {
       return;
     }
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("filterGalleryDialog")));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -2604,9 +2604,9 @@ void ui_filter_gallery_on_shape_layer_rasterize_choice() {
       }
       saw_gallery = true;
       dialog->reject();
-    });
+    }));
     rasterize->click();
-  });
+  }));
   require_action(window, "filterGalleryAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_prompt);
@@ -2671,7 +2671,7 @@ void ui_levels_on_text_layer_prompt_has_no_convert_choice() {
   const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* box =
         qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("rasterizeOrConvertMessageBox")));
     CHECK(box != nullptr);
@@ -2686,7 +2686,7 @@ void ui_levels_on_text_layer_prompt_has_no_convert_choice() {
     if (cancel != nullptr) {
       cancel->click();
     }
-  });
+  }));
   require_action(window, "imageAdjustLevelsAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -2759,7 +2759,7 @@ void ui_filter_gallery_builtin_looks_load_preview_and_apply_at_8_and_16_bit() {
       const auto id = QString::fromLatin1(look.id.data(),
                                           static_cast<qsizetype>(look.id.size()));
       bool accepted = false;
-      QTimer::singleShot(0, [&] {
+      QTimer::singleShot(0, guarded([&] {
         auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
         CHECK(dialog != nullptr);
         if (dialog == nullptr) {
@@ -2804,7 +2804,7 @@ void ui_filter_gallery_builtin_looks_load_preview_and_apply_at_8_and_16_bit() {
         CHECK(preview->property("filterGalleryRenderedFilterId").toString() == expected_filter);
         accepted = true;
         buttons->button(QDialogButtonBox::Ok)->click();
-      });
+      }));
       const auto undo_before =
           patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
       require_action(window, "filterGalleryAction")->trigger();
@@ -2836,7 +2836,7 @@ void ui_filter_gallery_builtin_looks_load_preview_and_apply_at_8_and_16_bit() {
 // the test skips without it. One "before" capture, then one per Look.
 void ui_filter_gallery_builtin_look_shots_if_available() {
   const std::filesystem::path photo_path =
-      std::filesystem::path(PATCHY_SOURCE_DIR) / "local-test-fixtures" / "looks" / "sample-photo.png";
+      patchy::test::local_fixtures_root() / "looks" / "sample-photo.png";
   patchy::test::skip_unless_exists(photo_path);
   const QImage photo =
       QImage(QString::fromStdWString(photo_path.wstring())).convertToFormat(QImage::Format_RGBA8888);
@@ -2859,7 +2859,7 @@ void ui_filter_gallery_builtin_look_shots_if_available() {
       QStringLiteral("patchy.looks.comic"),       QStringLiteral("patchy.looks.halftone_print"),
   };
   bool captured = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -2893,7 +2893,7 @@ void ui_filter_gallery_builtin_look_shots_if_available() {
     }
     captured = true;
     dialog->reject();
-  });
+  }));
   (void)patchy::ui::request_visual_filter_gallery(
       nullptr, source, patchy::Rect{0, 0, source.width(), source.height()}, QRegion(), registry,
       patchy::RgbColor{}, patchy::RgbColor{255, 255, 255}, {}, &library);

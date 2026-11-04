@@ -335,7 +335,7 @@ void ui_history_clicks_blocked_during_preview_lock() {
   CHECK(history->isEnabled());
 
   bool saw_disabled_history = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyFilterDialog")) {
         continue;
@@ -347,7 +347,7 @@ void ui_history_clicks_blocked_during_preview_lock() {
       return;
     }
     CHECK(false);
-  });
+  }));
   require_action(window, "imageAdjustDesaturateAction")->trigger();
   CHECK(saw_disabled_history);
   CHECK(history->isEnabled());

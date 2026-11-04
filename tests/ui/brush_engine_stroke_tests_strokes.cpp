@@ -487,7 +487,7 @@ void ui_large_soft_brush_drag_stays_responsive() {
 
   std::cout << "[brush_perf] ui_large_soft_brush_drag_stays_responsive elapsed_ms="
             << elapsed_ms << '\n';
-  CHECK(elapsed_ms < 5000);
+  CHECK(elapsed_ms < patchy::test::time_budget_ms(5000));
   save_widget_artifact("ui_large_soft_brush_drag_responsive", canvas);
 }
 
@@ -1557,7 +1557,7 @@ void ui_deep_zoom_brush_repaint_stays_responsive() {
   QApplication::processEvents();
 
   CHECK(counter.paint_events <= kSteps + 4);
-  CHECK(elapsed_ms < 2500);
+  CHECK(elapsed_ms < patchy::test::time_budget_ms(2500));
   CHECK(paint_layer.pixels().pixel(1, 1)[3] == 255);
 }
 

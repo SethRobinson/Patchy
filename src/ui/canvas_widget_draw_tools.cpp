@@ -1044,7 +1044,7 @@ void CanvasWidget::draw_text_rect_preview(QPainter& painter) const {
   painter.setBrush(QColor(65, 135, 220, 28));
   painter.setPen(Qt::NoPen);
   painter.drawRect(preview_rect);
-  QPen border(QColor(95, 170, 255), 1.0);
+  QPen border(theme().canvas_layer_selection_border, 1.0);
   border.setCosmetic(true);
   border.setDashPattern({5.0, 4.0});
   painter.setBrush(Qt::NoBrush);

@@ -145,7 +145,7 @@ QDialog* visible_filter_dialog() {
 
 // Runs `drive` once the filter dialog shows (polling, as the dialog runs its own loop).
 void when_filter_dialog_shows(std::function<void(QDialog&)> drive, int attempts = 400) {
-  QTimer::singleShot(25, [drive = std::move(drive), attempts]() mutable {
+  QTimer::singleShot(25, guarded([drive = std::move(drive), attempts]() mutable {
     auto* dialog = visible_filter_dialog();
     if (dialog == nullptr) {
       CHECK(attempts > 0);
@@ -155,7 +155,7 @@ void when_filter_dialog_shows(std::function<void(QDialog&)> drive, int attempts 
       return;
     }
     drive(*dialog);
-  });
+  }));
 }
 
 patchy::ui::ZoomableImagePreview* proxy_preview(QDialog& dialog) {

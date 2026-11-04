@@ -1,4 +1,6 @@
+#include "core/brush_tip.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/pixel_tools.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/rect_utils.hpp"
 #include "core/vector_live_shapes.hpp"
@@ -3932,6 +3934,174 @@ void vector_mask_anchor_drag_perf() {
   }
 }
 
+// The core tool strokes' speed budgets (moved out of patchy_core_tests, whose wall-clock
+// checks are hang guards only: docs/testing.md, "Failure and lifetime traps"). Each
+// workload runs three times on a fresh document; the median must stay under its budget,
+// which PATCHY_TEST_TIME_SCALE multiplies (time_budget_ms; Debug builds 4x). Run alone with
+// `patchy_perf_tests toolbudgets`; the default run includes it.
+void tool_budgets_perf() {
+  const auto blank_rgba = [](std::int32_t width, std::int32_t height) {
+    patchy::PixelBuffer pixels(width, height, patchy::PixelFormat::rgba8());
+    pixels.clear(0);
+    return pixels;
+  };
+  const auto white_rgb = [](std::int32_t width, std::int32_t height) {
+    patchy::PixelBuffer pixels(width, height, patchy::PixelFormat::rgb8());
+    pixels.clear(255);
+    return pixels;
+  };
+  const auto options_for = [](std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+    patchy::EditOptions options;
+    options.primary = patchy::EditColor{r, g, b, 255};
+    options.secondary = patchy::EditColor{255, 255, 255, 255};
+    return options;
+  };
+  // `setup` builds the state outside the clock; `work` is timed.
+  const auto median_ms = [](const std::function<std::function<void()>()>& setup) {
+    std::vector<double> samples;
+    for (int run = 0; run < 3; ++run) {
+      auto work = setup();
+      const auto started = Clock::now();
+      work();
+      samples.push_back(std::chrono::duration<double, std::milli>(Clock::now() - started).count());
+    }
+    std::sort(samples.begin(), samples.end());
+    return samples[1];
+  };
+  int over_budget = 0;
+  const auto judge = [&over_budget](const char* name, double ms, double budget_ms) {
+    const auto budget = patchy::test::time_budget_ms(budget_ms);
+    const bool over = ms >= static_cast<double>(budget);
+    over_budget += over ? 1 : 0;
+    std::cout << std::fixed << std::setprecision(1) << "[PERF] toolbudgets " << name << ": " << ms
+              << " ms (budget " << budget << " ms)" << (over ? " OVER BUDGET" : "") << '\n';
+  };
+
+  // A 240 px round brush across a 1600 x 1000 layer (pixel_tools_tests).
+  judge("wide_brush_segment",
+        median_ms([&] {
+          auto document = std::make_shared<patchy::Document>(1600, 1000, patchy::PixelFormat::rgb8());
+          document->add_pixel_layer("Background", white_rgb(1600, 1000));
+          const auto id = document->add_pixel_layer("Paint", blank_rgba(1600, 1000)).id();
+          return std::function<void()>([document, id, options_for] {
+            auto options = options_for(20, 80, 230);
+            options.brush_size = 240;
+            CHECK(!patchy::paint_brush_segment(*document, id, 140, 500, 1460, 500, options, false).empty());
+          });
+        }),
+        1000);
+
+  // A filled 900 x 620 ellipse takes the direct fill, not 96 px dabs (pixel_tools_tests).
+  judge("filled_ellipse",
+        median_ms([&] {
+          auto document = std::make_shared<patchy::Document>(1200, 900, patchy::PixelFormat::rgb8());
+          const auto id = document->add_pixel_layer("Filled Ellipse", blank_rgba(1200, 900)).id();
+          return std::function<void()>([document, id, options_for] {
+            auto options = options_for(20, 150, 240);
+            options.fill_shapes = true;
+            options.brush_size = 96;
+            CHECK(!patchy::draw_ellipse(*document, id, patchy::Rect{120, 90, 900, 620}, options, false).empty());
+          });
+        }),
+        1000);
+
+  // A long stroke growing a 64 px pasted layer across a 3000 px canvas, exact and under a
+  // LayerGrowthReserve (pixel_tools_tests checks the bytes and the reallocation counts).
+  constexpr std::int32_t kSide = 3000;
+  const auto growth_setup = [&](bool reserved) {
+    auto document = std::make_shared<patchy::Document>(kSide, kSide, patchy::PixelFormat::rgb8());
+    auto pixels = blank_rgba(64, 64);
+    pixels.pixel(10, 10)[3] = 255;
+    patchy::Layer layer(document->allocate_layer_id(), "Pasted Layer", std::move(pixels));
+    layer.set_bounds(patchy::Rect{0, 0, 64, 64});
+    const auto id = layer.id();
+    document->add_layer(std::move(layer));
+    return std::function<void()>([document, id, reserved, options_for] {
+      std::optional<patchy::LayerGrowthReserve> reserve;
+      if (reserved) {
+        reserve.emplace(id, patchy::Rect::from_size(kSide, kSide));
+      }
+      auto options = options_for(200, 40, 40);
+      options.brush_size = 30;
+      double x = 32.0;
+      double y = 32.0;
+      while (x < kSide - 100) {
+        CHECK(!patchy::paint_brush_segment(*document, id, x, y, x + 4.0, y + 3.0, options, false).empty());
+        x += 4.0;
+        y += 3.0;
+      }
+      CHECK(!patchy::paint_brush_segment(*document, id, x, y, 600.0, 20.0, options, false).empty());
+      if (reserve) {
+        reserve->close(*document->find_layer(id));
+      }
+    });
+  };
+  judge("small_layer_growth_exact", median_ms([&] { return growth_setup(false); }), 8000);
+  judge("small_layer_growth_reserved", median_ms([&] { return growth_setup(true); }), 2000);
+
+  // Count 8 with scatter, size and angle jitter along a 420 px stroke (brush_engine_tests).
+  judge("scattered_count_8_stroke",
+        median_ms([&] {
+          auto document = std::make_shared<patchy::Document>(512, 128, patchy::PixelFormat::rgb8());
+          document->add_pixel_layer("Background", white_rgb(512, 128));
+          const auto id = document->add_pixel_layer("Paint", blank_rgba(512, 128)).id();
+          patchy::BrushTip block;
+          block.width = 64;
+          block.height = 64;
+          block.mask.assign(64U * 64U, 255);
+          auto scaled = std::make_shared<patchy::ScaledBrushTip>(
+              patchy::make_scaled_brush_tip(patchy::build_brush_tip_mips(block), 64));
+          return std::function<void()>([document, id, scaled, options_for] {
+            auto options = options_for(0, 0, 0);
+            options.brush_size = 64;
+            options.brush_tip = scaled.get();
+            options.brush_tip_spacing = 0.25;
+            options.brush_dynamics.count = 8;
+            options.brush_dynamics.scatter = 1.0;
+            options.brush_dynamics.size_jitter = 0.5;
+            options.brush_dynamics.angle_jitter = 1.0;
+            options.brush_dynamics.seed = 42;
+            patchy::BrushTipStrokeState state;
+            CHECK(!patchy::paint_brush_segment(*document, id, 40.0, 64.0, 460.0, 64.0, options, false, state).empty());
+          });
+        }),
+        1000);
+
+  // A 500 px stamp tip, mip build included, across a 1600 px layer (brush_engine_tests).
+  judge("large_stamp_stroke",
+        median_ms([&] {
+          auto document = std::make_shared<patchy::Document>(1600, 1000, patchy::PixelFormat::rgb8());
+          document->add_pixel_layer("Background", white_rgb(1600, 1000));
+          const auto id = document->add_pixel_layer("Paint", blank_rgba(1600, 1000)).id();
+          auto tip = std::make_shared<patchy::BrushTip>();
+          tip->width = 500;
+          tip->height = 500;
+          tip->mask.assign(500U * 500U, 0);
+          for (std::int32_t y = 0; y < 500; ++y) {
+            for (std::int32_t x = 0; x < 500; ++x) {
+              if ((x - 250) * (x - 250) + (y - 250) * (y - 250) <= 240 * 240) {
+                tip->mask[static_cast<std::size_t>(y) * 500U + static_cast<std::size_t>(x)] = 255;
+              }
+            }
+          }
+          return std::function<void()>([document, id, tip, options_for] {
+            const auto scaled = patchy::make_scaled_brush_tip(patchy::build_brush_tip_mips(*tip), 500);
+            auto options = options_for(30, 60, 200);
+            options.brush_size = 500;
+            options.brush_tip = &scaled;
+            options.brush_tip_spacing = 0.25;
+            patchy::BrushTipStrokeState state;
+            CHECK(!patchy::paint_brush_segment(*document, id, 250.0, 500.0, 1450.0, 500.0, options, false, state)
+                       .empty());
+          });
+        }),
+        1000);
+
+  if (over_budget > 0) {
+    throw std::runtime_error("toolbudgets: " + std::to_string(over_budget) + " workload(s) over budget");
+  }
+}
+
 int main(int argc, char* argv[]) {
   patchy::test::suppress_crash_dialogs();
 #ifdef Q_OS_WIN
@@ -3983,6 +4153,10 @@ int main(int argc, char* argv[]) {
     }
     if (argc > 1 && std::string_view(argv[1]) == "brushstroke") {
       run_scenario("brushstroke", big_brush_stroke_perf);
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "toolbudgets") {
+      run_scenario("toolbudgets", tool_budgets_perf);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "idle") {
@@ -4067,6 +4241,7 @@ int main(int argc, char* argv[]) {
       run_scenario("pdfsave", [&] { pdf_save_perf_if_available(argc, argv); });
       return 0;
     }
+    run_scenario("toolbudgets", tool_budgets_perf);
     run_scenario("template_dirty_move", template_psd_dirty_move_perf_if_available);
     run_scenario("template_keyboard_nudge", template_psd_ui_keyboard_nudge_perf_if_available);
     run_scenario("zoom", tent_psb_zoom_step_perf_if_available);

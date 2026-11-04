@@ -168,7 +168,7 @@ void ui_file_info_opens_views_edits_and_undoes() {
   CHECK(title_of(info) == "Original title");
 
   bool inspected = false;
-  QTimer::singleShot(0, [&inspected] {
+  QTimer::singleShot(0, guarded([&inspected] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyFileInfoDialog"));
     CHECK(dialog != nullptr);
     auto* banner = dialog->findChild<QLabel*>(QStringLiteral("fileInfoPrivacyBanner"));
@@ -210,7 +210,7 @@ void ui_file_info_opens_views_edits_and_undoes() {
     }
     inspected = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "fileInfoAction")->trigger();
   QApplication::processEvents();
   CHECK(inspected);
@@ -766,7 +766,7 @@ void ui_file_info_gimp_offsets_gps_and_source_type() {
 // after-photoshop-file.png and after-photoshop-file-history.png into test-artifacts/file-info.
 QString show_file_info_and_capture(patchy::ui::MainWindow& window, const QString& name, bool history_too) {
   QString application;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyFileInfoDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -811,7 +811,7 @@ QString show_file_info_and_capture(patchy::ui::MainWindow& window, const QString
       dialog->grab().save(artifact_dir() + QStringLiteral("/%1-history.png").arg(name));
     }
     dialog->reject();
-  });
+  }));
   require_action(window, "fileInfoAction")->trigger();
   QApplication::processEvents();
   return application;
@@ -1406,7 +1406,7 @@ void ui_file_info_scans_for_watermarks() {
     MainWindowTestAccess::open_document_path(window, path);
     QApplication::processEvents();
     bool inspected = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = find_top_level_dialog(QStringLiteral("patchyFileInfoDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -1481,7 +1481,7 @@ void ui_file_info_scans_for_watermarks() {
       }
       inspected = true;
       dialog->reject();
-    });
+    }));
     require_action(window, "fileInfoAction")->trigger();
     QApplication::processEvents();
     CHECK(inspected);
@@ -1563,7 +1563,7 @@ void ui_document_tab_scan_for_watermarks() {
     driver.stop();
     dialog->reject();
   });
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       auto* menu = qobject_cast<QMenu*>(widget);
       if (menu == nullptr || menu->objectName() != QStringLiteral("documentTabContextMenu")) {
@@ -1592,7 +1592,7 @@ void ui_document_tab_scan_for_watermarks() {
       menu->close();
       return;
     }
-  });
+  }));
   const auto point = tab_bar->tabRect(marked_tab).center();
   QContextMenuEvent event(QContextMenuEvent::Mouse, point, tab_bar->mapToGlobal(point));
   QApplication::sendEvent(tab_bar, &event);

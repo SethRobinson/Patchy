@@ -61,16 +61,17 @@ QColor channel_color(CurvesChannel channel, bool active) {
   QColor color;
   switch (channel) {
     case CurvesChannel::Red:
-      color = QColor(246, 92, 92);
+      color = QColor(246, 92, 92);  // color-literal-ok: the Red channel's hue
       break;
     case CurvesChannel::Green:
-      color = QColor(82, 218, 126);
+      color = QColor(82, 218, 126);  // color-literal-ok: the Green channel's hue
       break;
     case CurvesChannel::Blue:
-      color = QColor(94, 145, 255);
+      color = QColor(94, 145, 255);  // color-literal-ok: the Blue channel's hue
       break;
     case CurvesChannel::Rgb:
-      color = QColor(238, 242, 248);
+      // The composite curve is chrome ink, not a channel hue.
+      color = theme().curves_graph_ink;
       break;
   }
   color.setAlpha(active ? 255 : 105);
@@ -289,10 +290,10 @@ protected:
     Q_UNUSED(event);
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.fillRect(rect(), QColor(43, 46, 53));
+    painter.fillRect(rect(), theme().curves_graph_bg);
 
     const auto graph = graph_rect();
-    painter.fillRect(graph, QColor(23, 26, 32));
+    painter.fillRect(graph, theme().curves_graph_well_bg);
     draw_histogram(painter, graph);
     draw_grid(painter, graph);
 
@@ -306,11 +307,11 @@ protected:
     draw_points(painter, graph);
 
     painter.setRenderHint(QPainter::Antialiasing, false);
-    painter.setPen(QPen(hasFocus() ? QColor(91, 163, 255) : QColor(104, 111, 124), hasFocus() ? 2 : 1));
+    painter.setPen(QPen(hasFocus() ? theme().curves_graph_focus : theme().curves_graph_border, hasFocus() ? 2 : 1));
     painter.setBrush(Qt::NoBrush);
     painter.drawRect(graph.adjusted(0, 0, -1, -1));
 
-    painter.setPen(QColor(181, 186, 197));
+    painter.setPen(theme().curves_graph_label_text);
     // The axis labels' boxes, and the margins graph_rect() leaves for them, grow with the
     // interface text size (GitHub issue 495).
     const int label_height = ui_text_length(18);
@@ -526,11 +527,13 @@ private:
       const auto x = graph.left() + division * (graph.width() - 1) / 4;
       const auto y = graph.top() + division * (graph.height() - 1) / 4;
       const auto alpha = division == 2 ? 86 : 50;
-      painter.setPen(QPen(QColor(157, 165, 178, alpha), 1));
+      auto grid = theme().curves_graph_grid;
+      grid.setAlpha(alpha);
+      painter.setPen(QPen(grid, 1));
       painter.drawLine(x, graph.top(), x, graph.bottom());
       painter.drawLine(graph.left(), y, graph.right(), y);
     }
-    painter.setPen(QPen(QColor(210, 215, 224, 105), 1, Qt::DashLine));
+    painter.setPen(QPen(theme().curves_graph_diagonal, 1, Qt::DashLine));
     painter.drawLine(graph.bottomLeft(), graph.topRight());
     painter.setRenderHint(QPainter::Antialiasing, true);
   }
@@ -544,7 +547,7 @@ private:
     }
     painter.setBrush(Qt::NoBrush);
     if (active) {
-      painter.setPen(QPen(QColor(5, 8, 12, 180), 4.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+      painter.setPen(QPen(theme().curves_graph_curve_halo, 4.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
       painter.drawPath(path);
     }
     painter.setPen(QPen(channel_color(channel, active), active ? 2.2 : 1.2, Qt::SolidLine, Qt::RoundCap,
@@ -559,8 +562,9 @@ private:
       const auto& point = points[static_cast<std::size_t>(index)];
       const QPointF center(x_for_input(point.input), y_for_output(point.output));
       const auto selected = index == selected_point_;
-      painter.setPen(QPen(selected ? QColor(91, 163, 255) : channel_color(active_channel_, true), selected ? 2.2 : 1.4));
-      painter.setBrush(selected ? QColor(245, 248, 253) : QColor(31, 35, 43));
+      painter.setPen(
+          QPen(selected ? theme().curves_graph_focus : channel_color(active_channel_, true), selected ? 2.2 : 1.4));
+      painter.setBrush(selected ? theme().curves_graph_point_selected_bg : theme().curves_graph_point_bg);
       painter.drawEllipse(center, selected ? 6.0 : 4.3, selected ? 6.0 : 4.3);
     }
   }
@@ -571,7 +575,7 @@ private:
     }
     const auto x = x_for_input(*sample_input_);
     painter.setRenderHint(QPainter::Antialiasing, false);
-    painter.setPen(QPen(QColor(255, 198, 72, 205), 1, Qt::DashLine));
+    painter.setPen(QPen(theme().curves_graph_sample_marker, 1, Qt::DashLine));
     painter.drawLine(QPointF(x, graph.top()), QPointF(x, graph.bottom()));
     painter.setRenderHint(QPainter::Antialiasing, true);
   }

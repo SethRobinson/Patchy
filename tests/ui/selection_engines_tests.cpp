@@ -2404,7 +2404,7 @@ void ui_magic_wand_complex_selection_is_responsive() {
   send_mouse(*canvas, QEvent::MouseButtonPress, click_point, Qt::LeftButton, Qt::LeftButton);
   send_mouse(*canvas, QEvent::MouseButtonRelease, click_point, Qt::LeftButton, Qt::NoButton);
   const auto elapsed_ms = timer.elapsed();
-  CHECK(elapsed_ms < 1500);
+  CHECK(elapsed_ms < patchy::test::time_budget_ms(1500));
   CHECK(canvas->selected_document_region().contains(QPoint(25, 25)));
   CHECK(!canvas->selected_document_region().contains(QPoint(90, 80)));
   save_widget_artifact("ui_magic_wand_complex_selection", *canvas);

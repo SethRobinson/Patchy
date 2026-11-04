@@ -1244,7 +1244,7 @@ void ui_crop_options_popup_sets_shield_and_cropped_area() {
   // Color through the picker, then the opacity spin.
   bool picked = false;
   std::function<void()> pick_when_open;
-  pick_when_open = [&] {
+  pick_when_open = guarded([&] {
     auto* picker = patchy::ui::open_color_picker_dialog();
     if (picker == nullptr) {
       QTimer::singleShot(10, &window, pick_when_open);
@@ -1253,7 +1253,7 @@ void ui_crop_options_popup_sets_shield_and_cropped_area() {
     CHECK(patchy::ui::apply_color_to_open_color_picker(QColor(200, 0, 0)));
     picked = true;
     picker->accept();
-  };
+  });
   color_button->click();
   QTimer::singleShot(0, &window, pick_when_open);
   QElapsedTimer timer;
@@ -1668,7 +1668,7 @@ void ui_crop_menu_commands_use_crop_box() {
   CHECK(std::abs(box->width() - 121) <= 2 && std::abs(box->height() - 81) <= 2);
   const auto expected_info = QStringLiteral("%1 x %2 px").arg(box->width()).arg(box->height());
   bool drove_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyCanvasSizeDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -1682,7 +1682,7 @@ void ui_crop_menu_commands_use_crop_box() {
     CHECK(height->value() == static_cast<double>(box->height()));
     drove_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "imageCropToSelectionAdvancedAction")->trigger();
   QApplication::processEvents();
   CHECK(drove_dialog);

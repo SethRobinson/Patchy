@@ -309,7 +309,7 @@ void ui_hdr_gradient_stops_carry_intensity() {
 
     // The dialog: the 32-bit row only at 32 bits, showing and editing the current stop.
     bool checked = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = find_top_level_dialog(QStringLiteral("gradientStopsDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -336,7 +336,7 @@ void ui_hdr_gradient_stops_carry_intensity() {
         checked = true;
       }
       QTimer::singleShot(0, dialog, [dialog] { dialog->accept(); });
-    });
+    }));
     window.findChild<QPushButton*>(QStringLiteral("gradientEditStopsButton"))->click();
     QApplication::processEvents();
     CHECK(checked);

@@ -280,7 +280,7 @@ public:
     }
 
     painter->save();
-    QPen pen(QColor(99, 166, 255), 2);
+    QPen pen(theme().accent_ring, 2);
     pen.setCosmetic(true);
     painter->setPen(pen);
     painter->setBrush(Qt::NoBrush);

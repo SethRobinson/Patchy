@@ -71,6 +71,7 @@ std::vector<patchy::test::TestCase> xcf_tests();
 std::vector<patchy::test::TestCase> kra_tests();
 std::vector<patchy::test::TestCase> composite_corpus_tests();
 std::vector<patchy::test::TestCase> translation_marker_tests();
+std::vector<patchy::test::TestCase> ui_color_literal_tests();
 std::vector<patchy::test::TestCase> floating_selection_tests();
 std::vector<patchy::test::TestCase> atomic_write_recovery_tests();
 std::vector<patchy::test::TestCase> pixel_depth_tests();

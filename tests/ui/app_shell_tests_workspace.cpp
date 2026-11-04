@@ -455,7 +455,7 @@ void ui_start_panel_recent_files_scroll_and_context_menu() {
   // Right-click a row: the start panel gets the same menu the Open Recent menu builds.
   QApplication::clipboard()->clear();
   bool saw_context_menu = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       auto* menu = qobject_cast<QMenu*>(widget);
       if (menu == nullptr || menu->objectName() != QStringLiteral("recentFileContextMenu")) {
@@ -473,7 +473,7 @@ void ui_start_panel_recent_files_scroll_and_context_menu() {
       return;
     }
     CHECK(false);
-  });
+  }));
 
   auto* target_item = recent_list->item(kSeededFiles - 1);
   const auto context_point = recent_list->visualItemRect(target_item).center();
@@ -555,7 +555,7 @@ void ui_start_panel_recent_row_remove_button_and_menu() {
 
   // The context menu's Remove item does the same.
   bool saw_remove = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       auto* menu = qobject_cast<QMenu*>(widget);
       if (menu == nullptr || menu->objectName() != QStringLiteral("recentFileContextMenu")) {
@@ -571,7 +571,7 @@ void ui_start_panel_recent_row_remove_button_and_menu() {
       menu->close();
       return;
     }
-  });
+  }));
   const auto context_point = recent_list->visualItemRect(recent_list->item(0)).center();
   QContextMenuEvent context_event(QContextMenuEvent::Mouse, context_point,
                                   recent_list->viewport()->mapToGlobal(context_point));
@@ -2300,7 +2300,7 @@ void ui_panel_header_right_click_opens_panel_menu() {
   // closes the menu when empty).
   const auto right_click = [&](QWidget* target, const QString& expected_close, const QString& trigger) {
     bool saw_menu = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
       CHECK(menu != nullptr);
       if (menu == nullptr) {
@@ -2318,7 +2318,7 @@ void ui_panel_header_right_click_opens_panel_menu() {
       if (chosen != nullptr) {
         chosen->trigger();
       }
-    });
+    }));
     const QPoint position(target->width() / 2, target->height() / 2);
     QContextMenuEvent event(QContextMenuEvent::Mouse, position, target->mapToGlobal(position));
     QApplication::sendEvent(target, &event);
@@ -3151,7 +3151,7 @@ void ui_screen_mode_button_cycles_and_lists_modes() {
                                                          {full, "screen-mode-full"}};
   if (menu != nullptr) {
     bool shown = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       shown = menu->isVisible();
       CHECK(menu->actions().contains(standard) && menu->actions().contains(with_menus) &&
             menu->actions().contains(full) && menu->actions().contains(cycle));
@@ -3167,7 +3167,7 @@ void ui_screen_mode_button_cycles_and_lists_modes() {
       CHECK(menu->geometry().left() >= button->mapToGlobal(QPoint(button->width(), 0)).x());
       save_widget_artifact("issue_212_screen_mode_menu", *menu);
       menu->close();
-    });
+    }));
     send_mouse(*button, QEvent::MouseButtonPress, button->rect().center(), Qt::RightButton, Qt::RightButton);
     QApplication::processEvents();
     CHECK(shown);
@@ -4263,7 +4263,7 @@ void ui_save_as_dialog_lists_recent_files() {
   CHECK(save_as_action->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S));
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
     CHECK(dialog != nullptr);
     auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("saveAsRecentFileNameCombo"));
@@ -4282,7 +4282,7 @@ void ui_save_as_dialog_lists_recent_files() {
     CHECK(QFileInfo(selected_files.first()).absoluteFilePath() == second_path);
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
   save_as_action->trigger();
   CHECK(saw_dialog);
 }
@@ -4345,7 +4345,7 @@ void ui_open_recent_lists_two_hundred_files_in_one_scrolling_list() {
   list->scrollToItem(older_row);
   QApplication::processEvents();
   bool saw_context_menu = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       auto* menu = qobject_cast<QMenu*>(widget);
       if (menu == nullptr || menu->objectName() != QStringLiteral("recentFileContextMenu")) {
@@ -4360,7 +4360,7 @@ void ui_open_recent_lists_two_hundred_files_in_one_scrolling_list() {
       return;
     }
     CHECK(false);
-  });
+  }));
   const auto context_point = list->visualItemRect(older_row).center();
   QContextMenuEvent context_event(QContextMenuEvent::Mouse, context_point,
                                   list->viewport()->mapToGlobal(context_point));
@@ -4974,7 +4974,7 @@ void ui_open_recent_folders_list_two_hundred_folders_with_filter() {
   auto* row = recent_menu_list_item(*folders_menu, recent_folders[50]);
   CHECK(row != nullptr);
   bool saw_context_menu = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       auto* menu = qobject_cast<QMenu*>(widget);
       if (menu == nullptr || menu->objectName() != QStringLiteral("recentFileContextMenu")) {
@@ -4989,7 +4989,7 @@ void ui_open_recent_folders_list_two_hundred_folders_with_filter() {
       return;
     }
     CHECK(false);
-  });
+  }));
   const auto context_point = list->visualItemRect(row).center();
   QContextMenuEvent context_event(QContextMenuEvent::Mouse, context_point,
                                   list->viewport()->mapToGlobal(context_point));
@@ -5047,7 +5047,7 @@ void ui_recent_file_context_menu_copies_path() {
   QApplication::processEvents();
 
   bool saw_context_menu = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       auto* menu = qobject_cast<QMenu*>(widget);
       if (menu == nullptr || menu->objectName() != QStringLiteral("recentFileContextMenu")) {
@@ -5065,7 +5065,7 @@ void ui_recent_file_context_menu_copies_path() {
       return;
     }
     CHECK(false);
-  });
+  }));
 
   const auto context_point = recent_list->visualItemRect(recent_row).center();
   QContextMenuEvent context_event(QContextMenuEvent::Mouse, context_point,
@@ -5107,7 +5107,7 @@ void ui_recent_folder_context_menu_copies_path_and_offers_explorer() {
   QApplication::processEvents();
 
   bool saw_context_menu = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       auto* menu = qobject_cast<QMenu*>(widget);
       if (menu == nullptr || menu->objectName() != QStringLiteral("recentFileContextMenu")) {
@@ -5126,7 +5126,7 @@ void ui_recent_folder_context_menu_copies_path_and_offers_explorer() {
       return;
     }
     CHECK(false);
-  });
+  }));
 
   const auto context_point = folder_list->visualItemRect(folder_row).center();
   QContextMenuEvent context_event(QContextMenuEvent::Mouse, context_point,
@@ -5152,14 +5152,14 @@ void ui_save_as_remembers_last_save_directory_between_windows() {
   {
     auto&& [window, canvas] = ShownWindowFixture{};
     bool saved = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
       CHECK(dialog != nullptr);
       dialog->setDirectory(remembered_dir);
       dialog->selectFile(saved_path);
       saved = true;
       static_cast<QDialog*>(dialog)->accept();
-    });
+    }));
     require_action(window, "fileSaveAsAction")->trigger();
     CHECK(saved);
     CHECK(QFileInfo::exists(saved_path));
@@ -5174,7 +5174,7 @@ void ui_save_as_remembers_last_save_directory_between_windows() {
   auto&& [next_window, canvas] = ShownWindowFixture{};
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
     CHECK(dialog != nullptr);
     CHECK(QFileInfo(dialog->directory().absolutePath()).absoluteFilePath() ==
@@ -5184,7 +5184,7 @@ void ui_save_as_remembers_last_save_directory_between_windows() {
     CHECK(QFileInfo(selected_files.first()).absolutePath() == QFileInfo(remembered_dir).absoluteFilePath());
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
   require_action(next_window, "fileSaveAsAction")->trigger();
   CHECK(saw_dialog);
 }
@@ -5219,14 +5219,14 @@ void ui_open_remembers_last_directory_and_lists_recent_folders() {
 
   // The Open dialog starts in the remembered directory.
   bool saw_open_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("openFileDialog")));
     CHECK(dialog != nullptr);
     CHECK(QFileInfo(dialog->directory().absolutePath()).absoluteFilePath() ==
           QFileInfo(folder_a).absoluteFilePath());
     saw_open_dialog = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "fileOpenAction")->trigger();
   CHECK(saw_open_dialog);
 

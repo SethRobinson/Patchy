@@ -925,7 +925,7 @@ void ui_text_paragraph_panel_sets_indents_and_spacing() {
   };
   // The panel runs a nested non-modal loop; drive it from a queued lambda. Points at the startup
   // document's 72 ppi are document px.
-  QTimer::singleShot(0, [&window, &find_spins] {
+  QTimer::singleShot(0, guarded([&window, &find_spins] {
     auto* dialog = window.findChild<QDialog*>(QStringLiteral("textParagraphDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -948,7 +948,7 @@ void ui_text_paragraph_panel_sets_indents_and_spacing() {
     after->setValue(15.0);
     QApplication::processEvents();
     dialog->reject();
-  });
+  }));
   paragraph_button->click();
   QApplication::processEvents();
   // The panel interaction must have left the session alive (no focus-loss commit).
@@ -1018,7 +1018,7 @@ void ui_text_paragraph_panel_sets_indents_and_spacing() {
   QApplication::processEvents();
   process_events_for(200);
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr);
-  QTimer::singleShot(0, [&window, &find_spins] {
+  QTimer::singleShot(0, guarded([&window, &find_spins] {
     auto* dialog = window.findChild<QDialog*>(QStringLiteral("textParagraphDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -1034,7 +1034,7 @@ void ui_text_paragraph_panel_sets_indents_and_spacing() {
       CHECK(std::abs(after->value() - 15.0) < 0.05);
     }
     dialog->reject();
-  });
+  }));
   paragraph_button->click();
   QApplication::processEvents();
   send_key(*canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")), Qt::Key_Escape);
@@ -1046,7 +1046,7 @@ void ui_text_paragraph_panel_sets_indents_and_spacing() {
   patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
   const auto depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
   const auto committed_id = committed->id();
-  QTimer::singleShot(0, [&window, &find_spins, &document, committed_id, depth, &paragraph_fields] {
+  QTimer::singleShot(0, guarded([&window, &find_spins, &document, committed_id, depth, &paragraph_fields] {
     auto* dialog = window.findChild<QDialog*>(QStringLiteral("textParagraphDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -1077,7 +1077,7 @@ void ui_text_paragraph_panel_sets_indents_and_spacing() {
       }
     }
     dialog->reject();
-  });
+  }));
   paragraph_button->click();
   QApplication::processEvents();
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
@@ -1116,7 +1116,7 @@ void ui_text_character_panel_sets_leading_tracking_and_scales() {
   if (character_button == nullptr) {
     return;
   }
-  QTimer::singleShot(0, [&window] {
+  QTimer::singleShot(0, guarded([&window] {
     auto* dialog = window.findChild<QDialog*>(QStringLiteral("textCharacterDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -1137,7 +1137,7 @@ void ui_text_character_panel_sets_leading_tracking_and_scales() {
     h_scale->setValue(120);
     QApplication::processEvents();
     dialog->reject();
-  });
+  }));
   character_button->click();
   QApplication::processEvents();
   // The panel interaction must have left the session alive (no focus-loss commit).
@@ -1192,7 +1192,7 @@ void ui_text_character_panel_sets_leading_tracking_and_scales() {
   QApplication::processEvents();
   process_events_for(200);
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr);
-  QTimer::singleShot(0, [&window] {
+  QTimer::singleShot(0, guarded([&window] {
     auto* dialog = window.findChild<QDialog*>(QStringLiteral("textCharacterDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -1209,7 +1209,7 @@ void ui_text_character_panel_sets_leading_tracking_and_scales() {
       CHECK(h_scale->value() == 120);
     }
     dialog->reject();
-  });
+  }));
   character_button->click();
   QApplication::processEvents();
   send_key(*canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")), Qt::Key_Escape);

@@ -1422,7 +1422,7 @@ void compositor_effects_follow_shape_coverage_under_transparent_fill() {
 // fxprobe/probe.jsx, kept in local-test-fixtures/shape-fx-probes). Each file's own
 // composite is Photoshop's render; Patchy's render of the layers has to agree with it.
 void shape_effect_silhouette_matches_photoshop_probes_if_available() {
-  const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "shape-fx-probes";
+  const auto root = patchy::test::local_fixtures_root() / "shape-fx-probes";
   patchy::test::skip_unless_exists(root);
   int compared = 0;
   for (const auto& entry : std::filesystem::directory_iterator(root)) {
@@ -1500,7 +1500,7 @@ void shape_effect_silhouette_matches_photoshop_probes_if_available() {
 // one stroke variant per file (position, stroke opacity, layer opacity, Fill Opacity,
 // Overprint, Multiply). The composite in each file is Photoshop's render.
 void stroke_on_semi_transparent_content_matches_photoshop_probes_if_available() {
-  const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "stroke-alpha-probes";
+  const auto root = patchy::test::local_fixtures_root() / "stroke-alpha-probes";
   patchy::test::skip_unless_exists(root);
   int compared = 0;
   for (const auto& entry : std::filesystem::directory_iterator(root)) {
@@ -1553,7 +1553,7 @@ void stroke_on_semi_transparent_content_matches_photoshop_probes_if_available() 
 // carries the two paints. Before this model the band sat about a pixel inside
 // Photoshop's on every feathered square (the reporter's "1 px smaller" stroke).
 void stroke_soft_edge_probes_match_photoshop_if_available() {
-  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "stroke-soft-probes";
+  const auto dir = patchy::test::local_fixtures_root() / "stroke-soft-probes";
   patchy::test::skip_unless_exists(dir / "probes.psd");
   patchy::test::skip_unless_exists(dir / "probes-flat.bmp");
   const auto document = patchy::psd::DocumentIo::read_file(dir / "probes.psd");
@@ -1646,7 +1646,7 @@ void compositor_multiple_strokes_stack_first_on_top_with_knockout() {
 // 'lmfx' block, a 7 px Multiply stroke listed first and an 18 px Normal stroke second,
 // over a scribbled backdrop. ps-flat.bmp is Photoshop's flatten.
 void ag_psd_strokes_two_instances_match_photoshop_if_available() {
-  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "ag-psd" / "strokes";
+  const auto dir = patchy::test::local_fixtures_root() / "ag-psd" / "strokes";
   patchy::test::skip_unless_exists(dir / "src.psd");
   patchy::test::skip_unless_exists(dir / "ps-flat.bmp");
   const auto document = patchy::psd::DocumentIo::read_file(dir / "src.psd");
@@ -1700,7 +1700,7 @@ void ag_psd_strokes_two_instances_match_photoshop_if_available() {
 // holding the bare layer: a group's silhouette is the same matte.
 void ag_psd_strokes_shape_edge_shows_only_the_first_stroke_if_available() {
   using namespace patchy;
-  const auto dir = test::source_root_path() / "local-test-fixtures" / "ag-psd" / "strokes";
+  const auto dir = test::local_fixtures_root() / "ag-psd" / "strokes";
   test::skip_unless_exists(dir / "src.psd");
   test::skip_unless_exists(dir / "ps-flat.bmp");
   const auto source = psd::DocumentIo::read_file(dir / "src.psd");

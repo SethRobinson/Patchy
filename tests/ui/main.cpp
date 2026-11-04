@@ -497,6 +497,7 @@ int main(int argc, char* argv[]) {
            composite_render_tests,
            theme_package_tests,
            theme_script_tests,
+           painted_chrome_scheme_tests,
            readme_screenshot_tests,
            // Last: registers serif and monospaced faces earlier text tests must not see.
            missing_font_type_tests,

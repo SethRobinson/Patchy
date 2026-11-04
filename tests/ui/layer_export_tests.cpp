@@ -85,7 +85,7 @@ struct RowMenuSeen {
 RowMenuSeen read_row_menu(patchy::ui::MainWindow& window, QListWidget& layers, const QString& row_name,
                           const std::string& artifact = std::string()) {
   RowMenuSeen seen;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     QMenu* row_menu = nullptr;
     for (auto* widget : QApplication::topLevelWidgets()) {
       auto* menu = qobject_cast<QMenu*>(widget);
@@ -151,7 +151,7 @@ RowMenuSeen read_row_menu(patchy::ui::MainWindow& window, QListWidget& layers, c
       }
     }
     row_menu->close();
-  });
+  }));
   auto* row = layers.itemWidget(require_layer_item(layers, row_name));
   auto* name = row != nullptr ? row->findChild<QWidget*>(QStringLiteral("layerRowName")) : nullptr;
   CHECK(name != nullptr);
@@ -415,7 +415,7 @@ ExportFixture add_export_document(patchy::ui::MainWindow& window, const std::str
 // Accepts the named file dialog with `path` once it is up (exec_dialog nests a loop).
 void accept_file_dialog_later(const QString& object_name, const QString& path, bool& seen,
                               const std::function<void(QFileDialog&)>& inspect = {}) {
-  QTimer::singleShot(0, [object_name, path, &seen, inspect] {
+  QTimer::singleShot(0, guarded([object_name, path, &seen, inspect] {
     auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(object_name));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -430,7 +430,7 @@ void accept_file_dialog_later(const QString& object_name, const QString& path, b
     }
     dialog->selectFile(path);
     static_cast<QDialog*>(dialog)->accept();  // QFileDialog::accept is protected
-  });
+  }));
 }
 
 QImage read_png(const QString& path) {
@@ -504,12 +504,12 @@ void ui_layer_quick_export_png_writes_trimmed_named_files() {
   // An empty layer alone asks nothing and writes nothing.
   patchy::ui::MainWindowTestAccess::select_layers(window, {ids.empty}, ids.empty);
   QApplication::processEvents();
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     if (auto* dialog = find_top_level_dialog(QStringLiteral("layerQuickExportFileDialog")); dialog != nullptr) {
       CHECK(false);
       dialog->reject();
     }
-  });
+  }));
   require_action(window, "layerQuickExportPngAction")->trigger();
   QApplication::processEvents();
   CHECK(find_top_level_dialog(QStringLiteral("layerQuickExportFileDialog")) == nullptr);
@@ -595,7 +595,7 @@ patchy::LayerVectorMask square_vector_mask() {
 // Right-clicks `part` of the named row and picks `action_name` in its Export submenu.
 void pick_thumbnail_export_entry(QListWidget& layers, const QString& row_name, const QString& part,
                                  const QString& action_name, bool& picked) {
-  QTimer::singleShot(0, [&layers, action_name, &picked] {
+  QTimer::singleShot(0, guarded([&layers, action_name, &picked] {
     static_cast<void>(layers);
     for (auto* widget : QApplication::topLevelWidgets()) {
       auto* menu = qobject_cast<QMenu*>(widget);
@@ -622,7 +622,7 @@ void pick_thumbnail_export_entry(QListWidget& layers, const QString& row_name, c
       QTest::keyClick(export_menu, Qt::Key_Return);
       return;
     }
-  });
+  }));
   auto* row = layers.itemWidget(require_layer_item(layers, row_name));
   auto* thumbnail = row != nullptr ? row->findChild<QWidget*>(part) : nullptr;
   CHECK(thumbnail != nullptr);

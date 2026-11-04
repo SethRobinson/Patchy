@@ -129,7 +129,7 @@ QStringList top_level_menu_texts(QMenuBar& menu_bar) {
 void choose_preferences_language(patchy::ui::MainWindow& window, const QString& language_code) {
   auto* preferences = require_action(window, "filePreferencesAction");
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("preferencesLanguageCombo"));
@@ -139,7 +139,7 @@ void choose_preferences_language(patchy::ui::MainWindow& window, const QString& 
     combo->setCurrentIndex(index);
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   preferences->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -313,7 +313,7 @@ void ui_preferences_reload_reapplies_an_edited_theme_file() {
   show_window(window);
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -343,7 +343,7 @@ void ui_preferences_reload_reapplies_an_edited_theme_file() {
     CHECK(remove->isEnabled());
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -369,7 +369,7 @@ void ui_preferences_delete_removes_theme_file_and_entry() {
 
   bool saw_dialog = false;
   bool saw_confirm = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -385,7 +385,7 @@ void ui_preferences_delete_removes_theme_file_and_entry() {
     CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:doomed.patchytheme")));
     CHECK(patchy::ui::theme().window_bg == QColor(70, 80, 90));
 
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* confirm = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("preferencesDeleteThemeConfirm")));
       CHECK(confirm != nullptr);
       if (confirm == nullptr) {
@@ -399,7 +399,7 @@ void ui_preferences_delete_removes_theme_file_and_entry() {
         }
       }
       CHECK(false);
-    });
+    }));
     remove->click();
     QApplication::processEvents();
 
@@ -413,7 +413,7 @@ void ui_preferences_delete_removes_theme_file_and_entry() {
     CHECK(!patchy::ui::has_active_custom_palette());
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -450,7 +450,7 @@ void ui_bundled_themes_load_and_list_in_preferences() {
   patchy::ui::MainWindow window;
   show_window(window);
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -480,7 +480,7 @@ void ui_bundled_themes_load_and_list_in_preferences() {
     CHECK(!remove->isEnabled());
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -502,7 +502,7 @@ void ui_preferences_export_defaults_to_themes_folder_and_lists_the_copy() {
   show_window(window);
   bool saw_dialog = false;
   bool saw_save_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -518,7 +518,7 @@ void ui_preferences_export_defaults_to_themes_folder_and_lists_the_copy() {
     }
     CHECK(select_preferences_theme(*dialog, QStringLiteral("custom:bundled:nord.patchytheme")));
 
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* save = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("exportThemeFileDialog")));
       CHECK(save != nullptr);
       if (save == nullptr) {
@@ -531,7 +531,7 @@ void ui_preferences_export_defaults_to_themes_folder_and_lists_the_copy() {
       CHECK(!selected.isEmpty() && QFileInfo(selected.first()).fileName() == QStringLiteral("Nord.patchytheme"));
       save->selectFile(QDir(themes_dir.path()).filePath(QStringLiteral("Nord.patchytheme")));
       static_cast<QDialog*>(save)->accept();  // QFileDialog::accept is protected
-    });
+    }));
     export_button->click();
     QApplication::processEvents();
 
@@ -549,7 +549,7 @@ void ui_preferences_export_defaults_to_themes_folder_and_lists_the_copy() {
     CHECK(reread.theme.has_value() && reread.theme->name == QStringLiteral("Nord"));
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -691,7 +691,7 @@ void ui_preferences_ok_saves_a_previewed_theme_without_applying_it_again() {
   const auto connection = QObject::connect(&patchy::ui::ThemeManager::instance(),
                                            &patchy::ui::ThemeManager::color_scheme_changed, [&] { ++applies; });
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -702,7 +702,7 @@ void ui_preferences_ok_saves_a_previewed_theme_without_applying_it_again() {
     CHECK(applies == 1);
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   QObject::disconnect(connection);
@@ -846,7 +846,7 @@ void ui_psd_import_warning_preference_defaults_to_hidden() {
   show_window(window);
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesShowPsdImportWarningsCheck"));
@@ -855,7 +855,7 @@ void ui_psd_import_warning_preference_defaults_to_hidden() {
     CHECK(!check->isChecked());
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -873,7 +873,7 @@ void ui_psd_import_warning_preference_persists_enabled_setting() {
   show_window(window);
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesShowPsdImportWarningsCheck"));
@@ -882,7 +882,7 @@ void ui_psd_import_warning_preference_persists_enabled_setting() {
     check->setChecked(true);
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -905,7 +905,7 @@ void ui_transform_shift_aspect_preference_defaults_to_off() {
   CHECK(!canvas->shift_keeps_transform_aspect());
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesTransformShiftAspectCheck"));
@@ -914,7 +914,7 @@ void ui_transform_shift_aspect_preference_defaults_to_off() {
     CHECK(!check->isChecked());
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -933,7 +933,7 @@ void ui_transform_shift_aspect_preference_persists_and_reaches_canvas() {
   auto* canvas = require_canvas(window);
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesTransformShiftAspectCheck"));
@@ -942,7 +942,7 @@ void ui_transform_shift_aspect_preference_persists_and_reaches_canvas() {
     check->setChecked(true);
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -968,7 +968,7 @@ void ui_transform_snap_preference_persists_and_reaches_canvas() {
   CHECK(canvas->snap_transforms_to_pixel_grid());
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesTransformSnapToPixelGridCheck"));
@@ -977,7 +977,7 @@ void ui_transform_snap_preference_persists_and_reaches_canvas() {
     check->setChecked(false);
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -1213,7 +1213,7 @@ void ui_language_combo_lists_every_shipped_language() {
   show_window(window);
   auto* preferences = require_action(window, "filePreferencesAction");
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("preferencesLanguageCombo"));
@@ -1227,7 +1227,7 @@ void ui_language_combo_lists_every_shipped_language() {
     CHECK(combo->currentData().toString() == manager.current_language());
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
   preferences->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -1467,7 +1467,7 @@ struct IniRootOverride {
 
 void ui_about_dialog_shows_labeled_external_links() {
   bool inspected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchySplashScreen"));
     CHECK(dialog != nullptr);
 
@@ -1587,7 +1587,7 @@ void ui_about_dialog_shows_labeled_external_links() {
     save_widget_artifact("ui_about_dialog_links", *dialog);
     inspected = true;
     dialog->accept();
-  });
+  }));
 
   patchy::ui::show_about_splash();
   CHECK(inspected);
@@ -1624,7 +1624,7 @@ void ui_about_dialog_lists_shared_settings_and_data_folder_once() {
         QDir::cleanPath(data_folder));
 
   bool inspected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchySplashScreen"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -1644,7 +1644,7 @@ void ui_about_dialog_lists_shared_settings_and_data_folder_once() {
     save_widget_artifact("ui_about_dialog_shared_folder", *dialog);
     inspected = true;
     dialog->accept();
-  });
+  }));
 
   patchy::ui::show_about_splash();
   CHECK(inspected);
@@ -1652,7 +1652,7 @@ void ui_about_dialog_lists_shared_settings_and_data_folder_once() {
 
 void ui_about_dialog_shows_memory_row() {
   bool inspected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchySplashScreen"));
     CHECK(dialog != nullptr);
 
@@ -1667,7 +1667,7 @@ void ui_about_dialog_shows_memory_row() {
 
     inspected = true;
     dialog->accept();
-  });
+  }));
 
   patchy::ui::show_about_splash();
   CHECK(inspected);
@@ -2297,7 +2297,7 @@ void ui_preferences_system_title_bar_checkbox_shows_desktop_default() {
           return;
         }
         check->setChecked(false);
-        QTimer::singleShot(0, [&] {
+        QTimer::singleShot(0, guarded([&] {
           auto* message = qobject_cast<QMessageBox*>(
               find_top_level_dialog(QStringLiteral("preferencesSystemTitleBarMessageBox")));
           CHECK(message != nullptr);
@@ -2305,7 +2305,7 @@ void ui_preferences_system_title_bar_checkbox_shows_desktop_default() {
             message->accept();
             dismissed_message = true;
           }
-        });
+        }));
       });
       CHECK(dismissed_message);
       CHECK(patchy::ui::stored_system_title_bar_choice() == std::optional<bool>(false));
@@ -2339,7 +2339,7 @@ void ui_preferences_system_title_bar_checkbox_persists_key() {
     CHECK(!check->isChecked());
     CHECK(check->parentWidget() == dialog.findChild<QWidget*>(QStringLiteral("preferencesApplicationGroup")));
     check->setChecked(true);
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* message =
           qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("preferencesSystemTitleBarMessageBox")));
       CHECK(message != nullptr);
@@ -2347,7 +2347,7 @@ void ui_preferences_system_title_bar_checkbox_persists_key() {
         message->accept();
         dismissed_message = true;
       }
-    });
+    }));
   });
   CHECK(patchy::ui::stored_system_title_bar() == kSystemTitleBarPreferenceApplies);
   CHECK(dismissed_message == kSystemTitleBarPreferenceApplies);

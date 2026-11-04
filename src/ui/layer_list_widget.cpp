@@ -2259,10 +2259,13 @@ void LayerListWidget::paintEvent(QPaintEvent* event) {
 
   QPainter painter(viewport());
   painter.setRenderHint(QPainter::Antialiasing);
-  const QColor indicator(49, 168, 255);
+  const auto& colors = theme();
+  const auto indicator = colors.drop_indicator_bg;
   if (drop_preview_->position == LayerDropPosition::OnItem && item_accepts_on_drop(target_item)) {
     painter.setPen(QPen(indicator, 2));
-    painter.setBrush(QColor(49, 168, 255, 36));
+    auto wash = indicator;
+    wash.setAlpha(36);
+    painter.setBrush(wash);
     painter.drawRoundedRect(rect.adjusted(2, 2, -3, -3), 3, 3);
     return;
   }
@@ -2274,7 +2277,9 @@ void LayerListWidget::paintEvent(QPaintEvent* event) {
   const auto y = drop_preview_->position == LayerDropPosition::AboveItem ? rect.top() : rect.bottom() + 1;
   const auto left = rect.left() + 5;
   const auto right = rect.right() - 5;
-  painter.setPen(QPen(QColor(7, 18, 30, 180), 4, Qt::SolidLine, Qt::RoundCap));
+  auto halo = colors.drop_indicator_border;
+  halo.setAlpha(180);
+  painter.setPen(QPen(halo, 4, Qt::SolidLine, Qt::RoundCap));
   painter.drawLine(QPoint(left, y), QPoint(right, y));
   painter.setPen(QPen(indicator, 2, Qt::SolidLine, Qt::RoundCap));
   painter.drawLine(QPoint(left, y), QPoint(right, y));

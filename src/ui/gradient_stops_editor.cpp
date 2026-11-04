@@ -1,6 +1,7 @@
 #include "ui/gradient_stops_editor.hpp"
 
 #include "core/blend_math.hpp"
+#include "ui/theme_palette.hpp"
 
 #include <QApplication>
 #include <QCursor>
@@ -189,7 +190,7 @@ void GradientStopsEditorWidget::paintEvent(QPaintEvent* event) {
   painter.fillRect(bar, gradient);
   painter.restore();
 
-  painter.setPen(QColor(154, 164, 178));
+  painter.setPen(theme().swatch_border);
   painter.setBrush(Qt::NoBrush);
   painter.drawRect(bar);
 
@@ -199,10 +200,10 @@ void GradientStopsEditorWidget::paintEvent(QPaintEvent* event) {
       const auto path = color_midpoint_path(row);
       if (!path.isEmpty()) {
         painter.setPen(QPen(active_midpoint_ && active_track_ == Track::Color && active_row_ == row
-                                ? QColor(76, 154, 255)
-                                : QColor(235, 238, 243),
+                                ? theme().accent_control
+                                : theme().gradient_midpoint_outline,
                             1.5));
-        painter.setBrush(QColor(95, 103, 114));
+        painter.setBrush(theme().gradient_midpoint_fill);
         painter.drawPath(path);
       }
     }
@@ -210,10 +211,10 @@ void GradientStopsEditorWidget::paintEvent(QPaintEvent* event) {
       const auto path = opacity_midpoint_path(row);
       if (!path.isEmpty()) {
         painter.setPen(QPen(active_midpoint_ && active_track_ == Track::Opacity && active_row_ == row
-                                ? QColor(76, 154, 255)
-                                : QColor(235, 238, 243),
+                                ? theme().accent_control
+                                : theme().gradient_midpoint_outline,
                             1.5));
-        painter.setBrush(QColor(95, 103, 114));
+        painter.setBrush(theme().gradient_midpoint_fill);
         painter.drawPath(path);
       }
     }
@@ -223,7 +224,7 @@ void GradientStopsEditorWidget::paintEvent(QPaintEvent* event) {
       continue;
     }
     const auto path = handle_path(row);
-    painter.setPen(QPen(row == current_row_ ? QColor(76, 154, 255) : QColor(255, 255, 255), 2.0));
+    painter.setPen(QPen(row == current_row_ ? theme().accent_control : theme().gradient_stop_outline, 2.0));
     painter.setBrush(qcolor_from_edit_color(stops_[static_cast<std::size_t>(row)].color));
     painter.drawPath(path);
   }
@@ -235,7 +236,8 @@ void GradientStopsEditorWidget::paintEvent(QPaintEvent* event) {
       // Photoshop convention: opaque stops read black, transparent stops white.
       const auto opacity = std::clamp(opacity_stops_[static_cast<std::size_t>(row)].opacity, 0.0F, 1.0F);
       const auto gray = 255 - static_cast<int>(std::lround(opacity * 255.0F));
-      painter.setPen(QPen(row == current_opacity_row_ ? QColor(76, 154, 255) : QColor(255, 255, 255), 2.0));
+      painter.setPen(
+          QPen(row == current_opacity_row_ ? theme().accent_control : theme().gradient_stop_outline, 2.0));
       painter.setBrush(QColor(gray, gray, gray));
       painter.drawPath(opacity_handle_path(row));
     }

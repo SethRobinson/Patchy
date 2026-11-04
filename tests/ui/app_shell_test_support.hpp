@@ -17,7 +17,7 @@ using namespace patchy::test::ui;
 template <typename Inspect>
 void run_preferences_dialog(patchy::ui::MainWindow& window, bool accept, Inspect inspect) {
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -36,7 +36,7 @@ void run_preferences_dialog(patchy::ui::MainWindow& window, bool accept, Inspect
     } else {
       dialog->reject();
     }
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);

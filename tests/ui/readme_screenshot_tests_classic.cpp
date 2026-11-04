@@ -483,7 +483,7 @@ void shot_readme_levels() {
   QApplication::processEvents();
 
   bool captured = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyLevelsDialog"));
     CHECK(dialog != nullptr);
     auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("levelsPreviewCheck"));
@@ -503,7 +503,7 @@ void shot_readme_levels() {
     save_readme_shot("shot_readme_levels", base);
     captured = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "imageAdjustLevelsAction")->trigger();
   QApplication::processEvents();
   CHECK(captured);
@@ -544,7 +544,7 @@ void shot_readme_layer_styles() {
   QApplication::processEvents();
 
   bool captured = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog"));
     CHECK(dialog != nullptr);
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
@@ -578,7 +578,7 @@ void shot_readme_layer_styles() {
     // The color tags live below the bar; the 0% tag sits at the left gutter.
     const QPoint stop_tag(10, editor->height() - 18);
     send_mouse(*editor, QEvent::MouseButtonPress, stop_tag, Qt::LeftButton, Qt::LeftButton);
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* picker_dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
       CHECK(picker_dialog != nullptr);
       CHECK(picker_dialog->isVisible());
@@ -593,12 +593,12 @@ void shot_readme_layer_styles() {
       save_readme_shot("shot_readme_layer_styles", base);
       captured = true;
       picker_dialog->reject();  // restores the stop's original color
-    });
+    }));
     send_mouse(*editor, QEvent::MouseButtonRelease, stop_tag, Qt::LeftButton, Qt::NoButton);
     QApplication::processEvents();
     CHECK(captured);
     dialog->reject();
-  });
+  }));
   require_action(window, "layerBlendingOptionsAction")->trigger();
   QApplication::processEvents();
   CHECK(captured);
@@ -795,7 +795,7 @@ void shot_readme_palette_mode() {
   // First pass: convert the photo to the built-in Commodore 64 palette through
   // the real Convert to Indexed dialog.
   bool converted = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("paletteConvertDialog"));
     CHECK(dialog != nullptr);
     auto* source = dialog->findChild<QComboBox*>(QStringLiteral("paletteConvertSourceCombo"));
@@ -807,7 +807,7 @@ void shot_readme_palette_mode() {
     CHECK(buttons != nullptr);
     converted = true;
     buttons->button(QDialogButtonBox::Ok)->click();
-  });
+  }));
   require_action(window, "imageModeIndexedAction")->trigger();
   QApplication::processEvents();
   CHECK(converted);
@@ -851,7 +851,7 @@ void shot_readme_palette_mode() {
   // Second pass: re-open the dialog over the converted canvas and grab the
   // scene with the palette dropdown open on the preset list.
   bool captured = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("paletteConvertDialog"));
     CHECK(dialog != nullptr);
     const QPoint dialog_offset(880, 180);
@@ -884,7 +884,7 @@ void shot_readme_palette_mode() {
     captured = true;
     source->hidePopup();
     dialog->reject();
-  });
+  }));
   require_action(window, "imageModeIndexedAction")->trigger();
   QApplication::processEvents();
   CHECK(captured);
@@ -929,7 +929,7 @@ void shot_readme_image_trace() {
   patchy::ui::MainWindow theme_host;
   show_readme_shot_window(theme_host);
   bool captured = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("imageTraceDialog"));
     CHECK(dialog != nullptr);
     dialog->resize(1180, 760);
@@ -950,7 +950,7 @@ void shot_readme_image_trace() {
     save_readme_shot("shot_readme_image_trace", dialog->grab().toImage());
     captured = true;
     dialog->reject();
-  });
+  }));
   const auto result = patchy::ui::request_image_trace(&theme_host, source, preset->options);
   CHECK(captured);
   CHECK(!result.has_value());
@@ -1588,7 +1588,7 @@ void shot_readme_pattern_manager() {
   patchy::ui::MainWindow theme_host;
   show_readme_shot_window(theme_host);
   bool captured = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patternManagerDialog"));
     CHECK(dialog != nullptr);
     auto* tree = dialog->findChild<QTreeWidget*>(
@@ -1610,7 +1610,7 @@ void shot_readme_pattern_manager() {
     save_readme_shot("shot_readme_pattern_manager", dialog->grab().toImage());
     captured = true;
     dialog->reject();
-  });
+  }));
   const auto result = patchy::ui::request_pattern_manager(
       &theme_host, library, texture_pattern_id);
   CHECK(captured);
@@ -1635,7 +1635,7 @@ void shot_readme_tilt_shift() {
   patchy::ui::MainWindow theme_host;
   show_readme_shot_window(theme_host);
   bool captured = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* looks = dialog->findChild<QListWidget*>(
@@ -1682,7 +1682,7 @@ void shot_readme_tilt_shift() {
     save_readme_shot("shot_readme_tilt_shift", dialog->grab().toImage());
     captured = true;
     dialog->reject();
-  });
+  }));
   const auto result = patchy::ui::request_visual_filter_gallery(
       &theme_host, source, bounds, QRegion(), registry, patchy::RgbColor{},
       patchy::RgbColor{255, 255, 255});
@@ -1863,7 +1863,7 @@ void shot_readme_material_styles() {
   QApplication::processEvents();
 
   bool captured = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog"));
     CHECK(dialog != nullptr);
     auto* categories = dialog->findChild<QListWidget*>(
@@ -1896,7 +1896,7 @@ void shot_readme_material_styles() {
     save_readme_shot("shot_readme_material_styles", base);
     captured = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "layerBlendingOptionsAction")->trigger();
   QApplication::processEvents();
   CHECK(captured);
@@ -2792,7 +2792,7 @@ void shot_readme_shape_appearance() {
   const auto before_color = canvas_pixel(*canvas, card_sample);
 
   bool captured = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     auto* fill_kind_combo = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillKindCombo"));
@@ -2825,7 +2825,7 @@ void shot_readme_shape_appearance() {
     save_readme_shot("shot_readme_shape_appearance", base);
     captured = true;
     dialog->accept();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   CHECK(captured);

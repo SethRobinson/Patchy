@@ -1,5 +1,6 @@
 #include "test_groups.hpp"
 #include "test_harness.hpp"
+#include "test_harness_selftests.hpp"
 #include "core/pixel_depth.hpp"
 #include <cstdio>
 #include <cstdlib>
@@ -197,6 +198,7 @@ int main(int argc, char** argv) {
            kra_tests,
            composite_corpus_tests,
            translation_marker_tests,
+           ui_color_literal_tests,
            floating_selection_tests,
            atomic_write_recovery_tests,
            pixel_depth_tests,
@@ -230,8 +232,14 @@ int main(int argc, char** argv) {
 #endif
                      }});
   }
+  // The runner's own skip judging (tests/test_harness_selftests.hpp).
+  for (auto& test : patchy::test::selftest::test_harness_selftests()) {
+    tests.push_back(std::move(test));
+  }
 
   patchy::test::TestSuiteOptions options;
   options.timeout_seconds = patchy::test::test_timeout_seconds(300);
+  // The wasm build's argv[0] is not the binary's name.
+  options.suite_name = "patchy_core_tests";
   return patchy::test::run_test_suite(tests, argc, argv, options);
 }

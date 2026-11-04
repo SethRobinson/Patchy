@@ -509,10 +509,10 @@ protected:
       const auto rect = cell_rect(index);
       painter.fillRect(rect, colors_[static_cast<std::size_t>(index)]);
       if (index == selected_index_) {
-        painter.setPen(QPen(QColor(0x2f, 0x75, 0xbd), 2));
+        painter.setPen(QPen(theme().accent_pressed_bg, 2));
         painter.drawRect(rect.adjusted(1, 1, -2, -2));
       } else if (index == hover_index_) {
-        painter.setPen(QPen(QColor(0x63, 0xa6, 0xff), 2));
+        painter.setPen(QPen(theme().accent_ring, 2));
         painter.drawRect(rect.adjusted(1, 1, -2, -2));
       } else {
         painter.setPen(QColor(0x74, 0x7b, 0x86));

@@ -73,7 +73,7 @@ class NewDocumentSettingsScope {
 // rejects it.
 bool with_new_document_dialog(patchy::ui::MainWindow& window, const std::function<void(QDialog&)>& inspect) {
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -81,7 +81,7 @@ bool with_new_document_dialog(patchy::ui::MainWindow& window, const std::functio
     }
     saw_dialog = true;
     inspect(*dialog);
-  });
+  }));
   require_action(window, "fileNewAction")->trigger();
   QApplication::processEvents();
   return saw_dialog;
@@ -378,7 +378,7 @@ void ui_new_document_empty_layer_preference() {
   CHECK(layer_list != nullptr);
 
   bool saw_preferences = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -395,7 +395,7 @@ void ui_new_document_empty_layer_preference() {
     }
     saw_preferences = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_preferences);
@@ -522,7 +522,7 @@ void ui_new_document_name_reaches_tab_and_save_as() {
   CHECK(tabs != nullptr && tabs->tabText(tabs->currentIndex()).contains(expected_name));
 
   bool saw_save_as = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -532,7 +532,7 @@ void ui_new_document_name_reaches_tab_and_save_as() {
     CHECK(!selected.isEmpty() && QFileInfo(selected.first()).fileName() == expected_name + QStringLiteral(".psd"));
     saw_save_as = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "fileSaveAsAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_save_as);
@@ -578,7 +578,7 @@ void ui_new_document_save_preset_and_reload() {
     QApplication::processEvents();
 
     bool named = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* prompt = qobject_cast<QInputDialog*>(find_top_level_dialog(QStringLiteral("newDocumentSavePresetDialog")));
       CHECK(prompt != nullptr);
       if (prompt == nullptr) {
@@ -588,7 +588,7 @@ void ui_new_document_save_preset_and_reload() {
       prompt->setTextValue(QStringLiteral("My Banner"));
       named = true;
       prompt->accept();
-    });
+    }));
     save->click();
     QApplication::processEvents();
     CHECK(named);

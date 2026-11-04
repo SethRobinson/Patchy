@@ -10,7 +10,9 @@
 //   local-test-fixtures/composite-corpus/<kind>-digests.txt
 //                                                     untracked overlay for documents
 //                                                     dropped into that directory
-// A missing baseline is written on the first run. To add a committed fixture or
+// A missing baseline is written on the first run (the local overlay's goes under
+// test-artifacts instead while PATCHY_LOCAL_FIXTURES_DIR names another checkout's
+// fixtures). To add a committed fixture or
 // re-pin after a deliberate rendering change, delete the tracked file, rerun the
 // test, review the git diff, and commit it (or copy the .actual file the failing
 // run writes under test-artifacts/composite-corpus). Never re-pin per machine:
@@ -65,7 +67,7 @@ struct CorpusDirectory {
 inline std::vector<CorpusDirectory> corpus_directories() {
   return {
       {source_root_path() / "test-fixtures" / "psd", true, "committed"},
-      {source_root_path() / "local-test-fixtures" / "composite-corpus", false, "local"},
+      {local_fixtures_root() / "composite-corpus", false, "local"},
   };
 }
 
@@ -139,10 +141,23 @@ inline void write_baseline(const std::filesystem::path& path, const std::map<std
 // of problems. A missing baseline is written and counts as zero problems. On any
 // problem the actual digests are also written under test-artifacts so a
 // deliberate re-pin is a copy.
+inline std::filesystem::path actual_digests_path(const CorpusDirectory& directory, std::string_view kind) {
+  return std::filesystem::path("test-artifacts") / "composite-corpus" /
+         (std::string(directory.tag) + '-' + std::string(kind) + "-digests.txt");
+}
+
 inline int compare_corpus_baseline(std::string_view kind, const CorpusDirectory& directory, int digest_columns,
                                    const std::map<std::string, std::string>& digests) {
   const auto path = baseline_path(directory, kind);
   if (!std::filesystem::exists(path)) {
+    if (!directory.committed && local_fixtures_overridden()) {
+      // PATCHY_LOCAL_FIXTURES_DIR points at another checkout's fixtures: never write there.
+      const auto actual = actual_digests_path(directory, kind);
+      write_baseline(actual, digests);
+      std::cout << "[INFO] no " << directory.tag << ' ' << kind << " corpus baseline in PATCHY_LOCAL_FIXTURES_DIR; "
+                << "digests written to " << actual.string() << " (copy to " << path.string() << " to pin them)\n";
+      return 0;
+    }
     write_baseline(path, digests);
     std::cout << "[INFO] wrote " << directory.tag << ' ' << kind << " corpus baseline (" << digests.size()
               << " documents): " << path.string() << '\n';
@@ -178,8 +193,7 @@ inline int compare_corpus_baseline(std::string_view kind, const CorpusDirectory&
     ++problems;
   }
   if (problems > 0) {
-    const auto actual = std::filesystem::path("test-artifacts") / "composite-corpus" /
-        (std::string(directory.tag) + '-' + std::string(kind) + "-digests.txt");
+    const auto actual = actual_digests_path(directory, kind);
     write_baseline(actual, digests);
     std::cerr << "[DIGEST] actual " << directory.tag << ' ' << kind << " digests written to " << actual.string()
               << " (copy over " << path.string() << " to re-pin deliberately)\n";

@@ -84,6 +84,7 @@ using patchy::test::ui::remove_test_scratch_dir;
 using patchy::test::ui::require_action;
 using patchy::test::ui::SettingsValueRestorer;
 using patchy::test::ui::show_window;
+using patchy::test::ui::guarded;
 
 namespace {
 
@@ -274,14 +275,14 @@ void ui_unicode_save_as_dialog_round_trip() {
   const auto selected_name = combined_name("psd");
   const auto selected_path = dir + QLatin1Char('/') + selected_name;
   bool accepted_selected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
     CHECK(dialog != nullptr);
     dialog->setDirectory(dir);
     dialog->selectFile(selected_path);
     accepted_selected = true;
     static_cast<QDialog*>(dialog)->accept();
-  });
+  }));
   require_action(window, "fileSaveAsAction")->trigger();
   CHECK(accepted_selected);
   CHECK(QFileInfo(selected_path).isFile());
@@ -293,7 +294,7 @@ void ui_unicode_save_as_dialog_round_trip() {
                           QStringLiteral(".psd");
   const auto typed_path = dir + QLatin1Char('/') + typed_name;
   bool accepted_typed = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
     CHECK(dialog != nullptr);
     dialog->setDirectory(dir);
@@ -306,7 +307,7 @@ void ui_unicode_save_as_dialog_round_trip() {
     CHECK(nfc(QFileInfo(selected_files.first()).fileName()) == nfc(typed_name));
     accepted_typed = true;
     static_cast<QDialog*>(dialog)->accept();
-  });
+  }));
   require_action(window, "fileSaveAsAction")->trigger();
   CHECK(accepted_typed);
   CHECK(QFileInfo(typed_path).isFile());
@@ -336,14 +337,14 @@ void ui_unicode_open_dialog_round_trip() {
   show_window(window);
   const auto sessions_before = patchy::ui::MainWindowTestAccess::session_count(window);
   bool accepted = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("openFileDialog")));
     CHECK(dialog != nullptr);
     dialog->setDirectory(dir);
     dialog->selectFile(path);
     accepted = true;
     static_cast<QDialog*>(dialog)->accept();
-  });
+  }));
   require_action(window, "fileOpenAction")->trigger();
   QApplication::processEvents();
   CHECK(accepted);
@@ -371,14 +372,14 @@ void ui_unicode_export_flat_image_dialog() {
   patchy::ui::MainWindow window;
   show_window(window);
   bool accepted = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("exportFlatImageFileDialog")));
     CHECK(dialog != nullptr);
     dialog->setDirectory(dir);
     dialog->selectFile(path);
     accepted = true;
     static_cast<QDialog*>(dialog)->accept();
-  });
+  }));
   require_action(window, "fileExportFlatAction")->trigger();
   CHECK(accepted);
   CHECK(QFileInfo(path).isFile());
@@ -889,7 +890,7 @@ void ui_save_as_aborts_when_the_owning_document_changes() {
   patchy::ui::MainWindow window;
   show_window(window);
   bool confirmed = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
     CHECK(dialog != nullptr);
     dialog->setDirectory(dir);
@@ -899,7 +900,7 @@ void ui_save_as_aborts_when_the_owning_document_changes() {
     window.add_document_session(std::move(other), QStringLiteral("Other"));
     confirmed = true;
     static_cast<QDialog*>(dialog)->accept();
-  });
+  }));
   require_action(window, "fileSaveAsAction")->trigger();
   CHECK(confirmed);
   CHECK(!QFileInfo::exists(path));

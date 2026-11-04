@@ -71,6 +71,7 @@ using patchy::test::ui::require_hotkey_action;
 using patchy::test::ui::save_widget_artifact;
 using patchy::test::ui::show_window;
 using patchy::test::ui::solid_pixels;
+using patchy::test::ui::guarded;
 
 constexpr const char* kUserPresetsKey = "imageTrace/userPresets";
 
@@ -227,7 +228,7 @@ void ui_trace_image_to_shapes_creates_group_and_undoes() {
 
   bool saw_preview = false;
   const std::function<void(int)> drive_dialog = [&](int attempts) {
-    QTimer::singleShot(0, [&, attempts] {
+    QTimer::singleShot(0, guarded([&, attempts] {
       auto* dialog = find_top_level_dialog(QStringLiteral("imageTraceDialog"));
       if (dialog == nullptr) {
         if (attempts > 0) {
@@ -279,7 +280,7 @@ void ui_trace_image_to_shapes_creates_group_and_undoes() {
       auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("imageTraceButtons"));
       CHECK(buttons != nullptr);
       buttons->button(QDialogButtonBox::Ok)->click();
-    });
+    }));
   };
   drive_dialog(5);
   auto* action = window.findChild<QAction*>(QStringLiteral("layerTraceImageAction"));
@@ -598,7 +599,7 @@ void ui_trace_image_to_shapes_limits_to_selection() {
 
   bool saw_note = false;
   const std::function<void(int)> drive_dialog = [&](int attempts) {
-    QTimer::singleShot(0, [&, attempts] {
+    QTimer::singleShot(0, guarded([&, attempts] {
       auto* dialog = find_top_level_dialog(QStringLiteral("imageTraceDialog"));
       if (dialog == nullptr) {
         if (attempts > 0) {
@@ -625,7 +626,7 @@ void ui_trace_image_to_shapes_limits_to_selection() {
       auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("imageTraceButtons"));
       CHECK(buttons != nullptr);
       buttons->button(QDialogButtonBox::Ok)->click();
-    });
+    }));
   };
   drive_dialog(5);
   require_action(window, "layerTraceImageAction")->trigger();
@@ -737,7 +738,7 @@ void ui_image_trace_dialog_offers_smoothing_and_anchor_budget() {
 
   bool drove = false;
   const std::function<void(int)> drive_dialog = [&](int attempts) {
-    QTimer::singleShot(0, [&, attempts] {
+    QTimer::singleShot(0, guarded([&, attempts] {
       auto* dialog = find_top_level_dialog(QStringLiteral("imageTraceDialog"));
       if (dialog == nullptr) {
         if (attempts > 0) {
@@ -808,7 +809,7 @@ void ui_image_trace_dialog_offers_smoothing_and_anchor_budget() {
       auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("imageTraceButtons"));
       CHECK(buttons != nullptr);
       buttons->button(QDialogButtonBox::Cancel)->click();
-    });
+    }));
   };
   drive_dialog(5);
   auto* action = window.findChild<QAction*>(QStringLiteral("layerTraceImageAction"));
@@ -832,7 +833,7 @@ void ui_image_trace_new_options_persist_in_settings() {
 
   bool drove = false;
   const std::function<void(int)> drive_dialog = [&](int attempts) {
-    QTimer::singleShot(0, [&, attempts] {
+    QTimer::singleShot(0, guarded([&, attempts] {
       auto* dialog = find_top_level_dialog(QStringLiteral("imageTraceDialog"));
       if (dialog == nullptr) {
         if (attempts > 0) {
@@ -853,7 +854,7 @@ void ui_image_trace_new_options_persist_in_settings() {
       auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("imageTraceButtons"));
       CHECK(buttons != nullptr);
       buttons->button(QDialogButtonBox::Ok)->click();
-    });
+    }));
   };
   drive_dialog(5);
   auto* action = window.findChild<QAction*>(QStringLiteral("layerTraceImageAction"));

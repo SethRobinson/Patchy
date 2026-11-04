@@ -1283,7 +1283,8 @@ void ui_remove_object_dialog_previews_rerolls_and_is_undoable() {
   when_dialog_ready = [&](std::function<void(QDialog&)> body) {
     driver_tries = 0;
     auto poll = std::make_shared<std::function<void()>>();
-    *poll = [&, body = std::move(body), poll]() {
+    // `body` CHECKs: guarded keeps a failure from crossing Qt's event dispatch.
+    *poll = guarded([&, body = std::move(body), poll]() {
       auto* dialog = find_remove_object_dialog();
       if (dialog == nullptr || !dialog->isVisible()) {
         if (++driver_tries < 500) {
@@ -1292,7 +1293,7 @@ void ui_remove_object_dialog_previews_rerolls_and_is_undoable() {
         return;
       }
       body(*dialog);
-    };
+    });
     QTimer::singleShot(10, *poll);
   };
   const auto wait_for_result = [](QDialog& dialog) {
@@ -2696,7 +2697,7 @@ constexpr std::array<ContentAwareMovePhotoCase, 9> kContentAwareMovePhotoCases{{
 }};
 
 std::filesystem::path content_aware_move_photo_path(const char* name) {
-  return patchy::test::source_root_path() / "local-test-fixtures" / "content-aware-move" /
+  return patchy::test::local_fixtures_root() / "content-aware-move" /
          (std::string(name) + ".jpg");
 }
 

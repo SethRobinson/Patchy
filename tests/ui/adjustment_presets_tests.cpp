@@ -115,7 +115,7 @@ void answer_yes(const QString& object_name) {
 // Answers the next file dialog as the Curves .acv test does: armed right before the click.
 // A dialog that stays open after the answer is rejected, so a test can never hang on it.
 void answer_file(const QString& object_name, const QString& path) {
-  QTimer::singleShot(0, [object_name, path] {
+  QTimer::singleShot(0, guarded([object_name, path] {
     auto* files = qobject_cast<QFileDialog*>(find_top_level_dialog(object_name));
     CHECK(files != nullptr);
     if (files == nullptr) {
@@ -129,7 +129,7 @@ void answer_file(const QString& object_name, const QString& path) {
       CHECK(false);
       files->reject();
     }
-  });
+  }));
 }
 
 QColor property_color(const QWidget& widget, const char* name) {
@@ -202,7 +202,7 @@ constexpr std::array<patchy::ui::ColorSchemePreference, 2> kBothSchemes{patchy::
 // Levels preset combo shares (#589 follow-up 2).
 std::array<int, 2> hue_saturation_preset_left_edges(QWidget& parent) {
   std::array<int, 2> lefts{-1, -1};
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyHueSaturationDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -216,7 +216,7 @@ std::array<int, 2> hue_saturation_preset_left_edges(QWidget& parent) {
       lefts[index] = geometry_in(*presets, *dialog).left();
     }
     dialog->reject();
-  });
+  }));
   CHECK(!patchy::ui::request_hue_saturation_settings(&parent, {}).has_value());
   return lefts;
 }
@@ -291,7 +291,7 @@ void ui_adjustment_presets_hue_saturation_presets_tracks_and_buttons() {
   parent.show();
   QApplication::processEvents();
   bool checked = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyHueSaturationDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -482,7 +482,7 @@ void ui_adjustment_presets_hue_saturation_presets_tracks_and_buttons() {
     CHECK(!colorize->isChecked() && range->currentIndex() == 1 && hue->value() == 50);
     checked = true;
     dialog->accept();
-  });
+  }));
   const auto result = patchy::ui::request_hue_saturation_settings(&parent, {});
   CHECK(checked);
   CHECK(result.has_value() && result->bands[0].hue_shift == 50 && !result->colorize);
@@ -520,7 +520,7 @@ void ui_adjustment_presets_levels_presets_fields_and_eyedroppers() {
   QApplication::processEvents();
   const auto hue_saturation_lefts = hue_saturation_preset_left_edges(parent);
   bool checked = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyLevelsDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -687,7 +687,7 @@ void ui_adjustment_presets_levels_presets_fields_and_eyedroppers() {
     CHECK(!QFileInfo::exists(saved_path));
     checked = true;
     dialog->accept();
-  });
+  }));
   const auto result = patchy::ui::request_levels_settings(&parent, {}, {}, nullptr, hooks);
   CHECK(checked);
   CHECK(result.has_value() && result->red.black_input == 10 && result->blue.white_input == 220);
@@ -703,7 +703,7 @@ void ui_adjustment_presets_curves_layout_and_user_presets() {
   parent.show();
   QApplication::processEvents();
   bool checked = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyCurvesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -873,7 +873,7 @@ void ui_adjustment_presets_curves_layout_and_user_presets() {
     CHECK(list->count() == count && !QFileInfo::exists(saved_path));
     checked = true;
     dialog->accept();
-  });
+  }));
   const auto result = patchy::ui::request_curves_settings(&parent, {});
   CHECK(checked);
   CHECK(result.has_value());
@@ -895,7 +895,7 @@ void ui_adjustment_presets_black_white_user_presets() {
   parent.show();
   QApplication::processEvents();
   bool checked = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyBlackWhiteDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -960,7 +960,7 @@ void ui_adjustment_presets_black_white_user_presets() {
     CHECK(reds->value() == 120 && tint->isChecked());
     checked = true;
     dialog->accept();
-  });
+  }));
   const auto result = patchy::ui::request_black_white_settings(&parent, {}, {}, nullptr);
   CHECK(checked);
   CHECK(result.has_value() && result->reds == 120 && result->tint &&
@@ -973,7 +973,7 @@ void ui_adjustment_presets_color_balance_tabs_tracks_reset_and_order() {
   parent.show();
   QApplication::processEvents();
   bool checked = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyColorBalanceDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -1057,7 +1057,7 @@ void ui_adjustment_presets_color_balance_tabs_tracks_reset_and_order() {
     yellow_blue->setValue(44);
     checked = true;
     dialog->accept();
-  });
+  }));
   const auto result =
       patchy::ui::request_color_balance_settings(&parent, {}, patchy::ui::new_color_balance_settings());
   CHECK(checked);

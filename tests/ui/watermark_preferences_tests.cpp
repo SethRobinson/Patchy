@@ -236,7 +236,7 @@ void ui_watermark_on_save_marks_flat_files_only() {
   patchy::ui::set_stored_watermark_save_mode(patchy::ui::WatermarkSaveMode::Ask);
   for (const bool add : {false, true}) {
     bool answered = false;
-    QTimer::singleShot(0, [&answered, add] {
+    QTimer::singleShot(0, guarded([&answered, add] {
       auto* box = visible_message_box(QStringLiteral("saveWatermarkPrompt"));
       CHECK(box != nullptr);
       if (box == nullptr) {
@@ -252,7 +252,7 @@ void ui_watermark_on_save_marks_flat_files_only() {
           return;
         }
       }
-    });
+    }));
     const auto target = dir + (add ? QStringLiteral("/ask-add.png") : QStringLiteral("/ask-skip.png"));
     CHECK(MainWindowTestAccess::save_document_to_path(window, target));
     CHECK(answered);
@@ -313,12 +313,8 @@ void ui_watermark_check_on_open_shows_a_notice() {
     CHECK(notice->informativeText().contains(QStringLiteral("Stable Diffusion XL")));
     capture_widget_artifact("ui_watermark_found_notice", *notice);
     bool file_info_opened = false;
-    QTimer::singleShot(100, [&file_info_opened] {
-      auto* dialog = find_top_level_dialog(QStringLiteral("patchyFileInfoDialog"));
-      CHECK(dialog != nullptr);
-      if (dialog == nullptr) {
-        return;
-      }
+    when_dialog_visible(QStringLiteral("patchyFileInfoDialog"), [&file_info_opened](QDialog& shown) {
+      auto* dialog = &shown;
       QApplication::processEvents();
       bool found = false;
       for (auto* label : dialog->findChildren<QLabel*>(QStringLiteral("fileInfoWatermarkScanResult"))) {

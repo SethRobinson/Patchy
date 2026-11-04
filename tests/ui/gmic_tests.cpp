@@ -345,7 +345,7 @@ void ui_gmic_library_dialog_renders_in_the_app_theme() {
   QApplication::processEvents();
   CHECK(dialog.grab().toImage().save(QDir::current().filePath(QStringLiteral("test-artifacts/gmic/notes.png"))));
   bool captured = false;
-  QTimer::singleShot(0, &dialog, [&dialog, &captured] {
+  QTimer::singleShot(0, &dialog, guarded([&dialog, &captured] {
     auto* about = dialog.findChild<QDialog*>(QStringLiteral("gmicAboutDialog"));
     CHECK(about != nullptr);
     if (about != nullptr) {
@@ -353,7 +353,7 @@ void ui_gmic_library_dialog_renders_in_the_app_theme() {
       captured = about->grab().toImage().save(QDir::current().filePath(QStringLiteral("test-artifacts/gmic/about.png")));
       about->accept();
     }
-  });
+  }));
   dialog.show_about_gmic();
   CHECK(captured);
   dialog.close();
@@ -390,7 +390,7 @@ bool run_script(patchy::ui::MainWindow& window, const QString& source) {
 template <typename Drive>
 void run_library_dialog(patchy::ui::MainWindow& window, Drive drive) {
   bool driven = false;
-  QTimer::singleShot(0, &window, [&window, &driven, drive] {
+  QTimer::singleShot(0, &window, guarded([&window, &driven, drive] {
     auto* dialog = window.findChild<patchy::ui::GmicFilterLibraryDialog*>();
     CHECK(dialog != nullptr);
     if (dialog != nullptr) {
@@ -400,7 +400,7 @@ void run_library_dialog(patchy::ui::MainWindow& window, Drive drive) {
         dialog->reject();
       }
     }
-  });
+  }));
   require_action(window, "filterGmicLibraryAction")->trigger();
   QApplication::processEvents();
   CHECK(driven);
@@ -467,7 +467,7 @@ void ui_gmic_color_swatch_previews_while_picking() {
   };
   const auto original = value();
   bool picked = false;
-  QTimer::singleShot(0, &dialog, [&] {
+  QTimer::singleShot(0, &dialog, guarded([&] {
     const int before = requests;
     CHECK(patchy::ui::apply_color_to_open_color_picker(QColor(10, 200, 30)));
     CHECK(value().rfind("10,200,30", 0) == 0);
@@ -478,7 +478,7 @@ void ui_gmic_color_swatch_previews_while_picking() {
         qobject_cast<QDialog*>(widget)->reject();
       }
     }
-  });
+  }));
   swatch->click();
   CHECK(picked);
   CHECK(value() == original);
@@ -1293,7 +1293,7 @@ void ui_gmic_filter_changes_every_chosen_layer() {
 template <typename Drive>
 void run_about_box(patchy::ui::GmicFilterLibraryDialog& dialog, Drive drive) {
   bool driven = false;
-  QTimer::singleShot(0, &dialog, [&dialog, &driven, drive] {
+  QTimer::singleShot(0, &dialog, guarded([&dialog, &driven, drive] {
     auto* about = dialog.findChild<QDialog*>(QStringLiteral("gmicAboutDialog"));
     CHECK(about != nullptr);
     if (about != nullptr) {
@@ -1301,7 +1301,7 @@ void run_about_box(patchy::ui::GmicFilterLibraryDialog& dialog, Drive drive) {
       drive(*about);
       about->accept();
     }
-  });
+  }));
   auto* button = dialog.findChild<QPushButton*>(QStringLiteral("gmicAboutButton"));
   CHECK(button != nullptr);
   if (button != nullptr) {

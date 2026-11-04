@@ -6,6 +6,7 @@
 #include "psd/csh_io.hpp"
 #include "ui/default_custom_shapes.hpp"
 #include "ui/localization.hpp"
+#include "ui/theme_palette.hpp"
 
 #include <QComboBox>
 #include <QCoreApplication>
@@ -52,7 +53,8 @@ const BuiltinCustomShape* builtin_shape(const QString& shape_id) {
   return nullptr;
 }
 
-// Draws a shape's thumbnail on first paint at each size (bundled shapes, GitHub #521).
+// Draws a shape's thumbnail on first paint at each size (bundled shapes, GitHub #521). The
+// thumbnail is painted from theme() roles, so the cache is dropped when theme_generation() moves.
 class CustomShapeIconEngine final : public QIconEngine {
 public:
   explicit CustomShapeIconEngine(VectorPath path) : path_(std::move(path)) {}
@@ -63,6 +65,10 @@ public:
 
   QPixmap pixmap(const QSize& size, QIcon::Mode, QIcon::State) override {
     const int extent = std::max(1, std::min(size.width(), size.height()));
+    if (cache_generation_ != theme_generation()) {
+      cache_.clear();
+      cache_generation_ = theme_generation();
+    }
     auto& cached = cache_[extent];
     if (cached.isNull()) {
       cached = custom_shape_thumbnail(path_, extent);
@@ -75,6 +81,7 @@ public:
 private:
   VectorPath path_;
   std::map<int, QPixmap> cache_;
+  int cache_generation_{theme_generation()};
 };
 
 }  // namespace
@@ -244,7 +251,7 @@ std::optional<VectorPath> custom_shape_path_from_svg_file(const QString& path, Q
 
 QPixmap custom_shape_thumbnail(const VectorPath& path, int size) {
   QPixmap pixmap(size, size);
-  pixmap.fill(QColor(52, 56, 64));
+  pixmap.fill(theme().path_thumbnail_bg);
   QPainter painter(&pixmap);
   painter.setRenderHint(QPainter::Antialiasing, true);
   const double margin = size * 0.12;
@@ -270,9 +277,9 @@ QPixmap custom_shape_thumbnail(const VectorPath& path, int size) {
   }
   outline.setFillRule(Qt::OddEvenFill);
   painter.setPen(Qt::NoPen);
-  painter.setBrush(QColor(220, 226, 235));
+  painter.setBrush(theme().icon_ink);
   painter.drawPath(outline);
-  painter.setPen(QPen(QColor(150, 158, 168), 1));
+  painter.setPen(QPen(theme().layer_thumbnail_border, 1));
   painter.setBrush(Qt::NoBrush);
   painter.drawRect(QRect(0, 0, size - 1, size - 1));
   return pixmap;

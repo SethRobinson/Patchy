@@ -215,7 +215,7 @@ void draw_move_layer_outline(QPainter& painter, QPoint top_left, QPoint end) {
   const QRect ring(top_left - QPoint(1, 1), end - QPoint(1, 1));
   painter.setPen(QPen(QColor(18, 20, 24), 1));
   painter.drawRect(ring);
-  painter.setPen(QPen(QColor(95, 170, 255), 1, Qt::DashLine));
+  painter.setPen(QPen(theme().canvas_layer_selection_border, 1, Qt::DashLine));
   painter.drawRect(ring);
   painter.restore();
 }

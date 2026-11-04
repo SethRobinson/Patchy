@@ -1146,7 +1146,7 @@ void ui_custom_shape_stamps_and_defines() {
   }
   const auto entries_before = combo->count();
   // The action prompts for a name, prefilled with the generated fallback.
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("defineCustomShapeDialog"));
     CHECK(dialog != nullptr);
     auto* name_edit = dialog->findChild<QLineEdit*>(QStringLiteral("defineCustomShapeNameEdit"));
@@ -1154,7 +1154,7 @@ void ui_custom_shape_stamps_and_defines() {
     CHECK(!name_edit->text().isEmpty());
     name_edit->setText(QStringLiteral("Test Heart Copy"));
     dialog->accept();
-  });
+  }));
   window.findChild<QAction*>(QStringLiteral("editDefineCustomShapeAction"))->trigger();
   QApplication::processEvents();
   CHECK(combo->count() == entries_before + 1);
@@ -1443,7 +1443,7 @@ void ui_custom_shape_manager_edits_reach_the_shape_picker() {
   QString copy_storage_id;
 
   bool ran = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("customShapeManagerDialog")));
     CHECK(manager != nullptr);
     if (manager == nullptr) {
@@ -1491,7 +1491,7 @@ void ui_custom_shape_manager_edits_reach_the_shape_picker() {
     CHECK(use_button->isEnabled());
     ran = true;
     use_button->click();
-  });
+  }));
   require_action(window, "editPresetsCustomShapesAction")->trigger();
   QApplication::processEvents();
   CHECK(ran);
@@ -1591,7 +1591,7 @@ void ui_custom_shape_csh_import_reads_unicode_paths_and_stamps_holes() {
     }
     QApplication::processEvents();
     bool captured = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("customShapeManagerDialog")));
       CHECK(manager != nullptr);
       if (manager == nullptr) {
@@ -1600,7 +1600,7 @@ void ui_custom_shape_csh_import_reads_unicode_paths_and_stamps_holes() {
       save_widget_artifact("ui_custom_shape_manager_csh_import", *manager);
       captured = true;
       manager->reject();
-    });
+    }));
     require_action(window, "editPresetsCustomShapesAction")->trigger();
     QApplication::processEvents();
     CHECK(captured);
@@ -1816,12 +1816,9 @@ void ui_custom_shape_picker_groups_folders_and_opens_the_manager() {
   tree = open_popup();
   QString manager_current;
   bool saw_manager = false;
-  QTimer::singleShot(100, [&] {
-    auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("customShapeManagerDialog")));
-    saw_manager = manager != nullptr;
-    if (manager == nullptr) {
-      return;
-    }
+  when_dialog_visible(QStringLiteral("customShapeManagerDialog"), [&](QDialog& shown) {
+    auto* manager = &shown;
+    saw_manager = true;
     CHECK(manager->windowTitle() == QStringLiteral("Shapes Manager"));
     auto* manager_tree =
         static_cast<patchy::ui::PresetTreeWidget*>(manager->findChild<QTreeWidget*>(QStringLiteral("customShapeManagerTree")));
@@ -1835,10 +1832,7 @@ void ui_custom_shape_picker_groups_folders_and_opens_the_manager() {
   if (manage != nullptr) {
     manage->click();
   }
-  for (int pass = 0; pass < 20 && !saw_manager; ++pass) {
-    QTest::qWait(50);
-  }
-  CHECK(saw_manager);
+  CHECK(process_events_until([&] { return saw_manager; }, 15000));
   CHECK(manager_current == star_storage);
 }
 
@@ -1855,17 +1849,17 @@ void ui_custom_shape_manager_moves_and_renames_folders() {
   const auto star = library.find_entry_by_shape_id(QStringLiteral("shape.builtin.star"))->storage_id;
   const auto plus = library.find_entry_by_shape_id(QStringLiteral("shape.builtin.plus"))->storage_id;
   const auto answer_folder_prompt = [](const QString& name) {
-    QTimer::singleShot(0, [name] {
+    QTimer::singleShot(0, guarded([name] {
       auto* prompt = qobject_cast<QInputDialog*>(find_top_level_dialog(QStringLiteral("customShapeManagerFolderNameDialog")));
       CHECK(prompt != nullptr);
       if (prompt != nullptr) {
         prompt->setTextValue(name);
         prompt->accept();
       }
-    });
+    }));
   };
   bool ran = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("customShapeManagerDialog")));
     CHECK(manager != nullptr);
     if (manager == nullptr) {
@@ -1925,7 +1919,7 @@ void ui_custom_shape_manager_moves_and_renames_folders() {
     CHECK(library.find_entry(plus)->folder.isEmpty());
     ran = true;
     manager->reject();
-  });
+  }));
   (void)patchy::ui::request_custom_shape_manager(nullptr, library, QStringLiteral("shape.builtin.heart"));
   CHECK(ran);
   // The moves reached the sidecars.
@@ -1962,17 +1956,17 @@ void ui_custom_shape_manager_grid_view_toggles_and_organizes() {
   const auto plus = library.find_entry_by_shape_id(QStringLiteral("shape.builtin.plus"))->storage_id;
   const auto arrow_right = library.find_entry_by_shape_id(QStringLiteral("shape.builtin.arrow-right"))->storage_id;
   const auto answer_folder_prompt = [](const QString& name) {
-    QTimer::singleShot(0, [name] {
+    QTimer::singleShot(0, guarded([name] {
       auto* prompt = qobject_cast<QInputDialog*>(find_top_level_dialog(QStringLiteral("customShapeManagerFolderNameDialog")));
       CHECK(prompt != nullptr);
       if (prompt != nullptr) {
         prompt->setTextValue(name);
         prompt->accept();
       }
-    });
+    }));
   };
   bool ran = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("customShapeManagerDialog")));
     CHECK(manager != nullptr);
     if (manager == nullptr) {
@@ -2088,7 +2082,7 @@ void ui_custom_shape_manager_grid_view_toggles_and_organizes() {
     CHECK(patchy::ui::app_settings().value(QLatin1String(patchy::ui::kCustomShapeManagerGridViewKey), false).toBool());
     ran = true;
     manager->reject();
-  });
+  }));
   (void)patchy::ui::request_custom_shape_manager(nullptr, library, QStringLiteral("shape.builtin.heart"));
   CHECK(ran);
 }
@@ -2250,7 +2244,7 @@ void ui_custom_shape_bundled_pack_loads_on_request() {
   const auto bundled = static_cast<int>(library.entries().size() - before);
   std::printf("[INFO] bundled custom shapes: %d loaded in %lld ms\n", bundled, static_cast<long long>(load_ms));
   CHECK(bundled >= 800 && bundled <= 1000);
-  CHECK(load_ms < 3000);
+  CHECK(load_ms < patchy::test::time_budget_ms(3000));
   // Permanent ids (documents and settings name them): a few pinned from the manifest.
   for (const auto* id : {"shape.gameicons.skoll.chess-rook", "shape.gameicons.delapouite.banjo",
                          "shape.gameicons.delapouite.spiky-wing"}) {
@@ -2354,7 +2348,7 @@ void ui_custom_shape_picker_opens_with_the_bundled_pack() {
   QApplication::processEvents();
   const auto open_ms = timer.elapsed();
   std::printf("[INFO] Shape picker first opening with the bundled pack: %lld ms\n", static_cast<long long>(open_ms));
-  CHECK(open_ms < 2500);
+  CHECK(open_ms < patchy::test::time_budget_ms(2500));
   auto* popup = picker->picker_popup();
   CHECK(popup != nullptr && popup->isVisible());
   if (popup == nullptr) {
@@ -2573,7 +2567,7 @@ void ui_edit_presets_menu_lists_the_managers_in_order() {
       {"editPresetsStrokePresetsAction", QStringLiteral("strokePresetManagerDialog")}};
   for (const auto& [action_name, dialog_name] : dialogs) {
     bool found = false;
-    QTimer::singleShot(0, [&, dialog_name] {
+    QTimer::singleShot(0, guarded([&, dialog_name] {
       auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(dialog_name));
       found = dialog != nullptr;
       if (dialog == nullptr) {
@@ -2587,7 +2581,7 @@ void ui_edit_presets_menu_lists_the_managers_in_order() {
         save_widget_artifact("ui_custom_shape_manager_from_menu", *dialog);
       }
       dialog->reject();
-    });
+    }));
     require_action(window, action_name)->trigger();
     QApplication::processEvents();
     if (!found) {
@@ -2701,13 +2695,13 @@ void ui_paths_panel_fill_stroke_and_make_selection() {
   // Fill Path paints the foreground color into the active raster layer (the
   // dialog's default contents).
   canvas->set_primary_color(QColor(30, 160, 40));
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("fillPathDialog"));
     CHECK(dialog != nullptr);
     dialog->findChild<QComboBox*>(QStringLiteral("fillPathContentsCombo"))->setCurrentIndex(0);
     dialog->findChild<QSpinBox*>(QStringLiteral("fillPathOpacitySpin"))->setValue(100);
     dialog->accept();
-  });
+  }));
   window.findChild<QAction*>(QStringLiteral("pathFillAction"))->trigger();
   QApplication::processEvents();
   CHECK(color_close(canvas_pixel(*canvas, QPoint(300, 260)), QColor(30, 160, 40), 8));
@@ -2723,7 +2717,7 @@ void ui_paths_panel_fill_stroke_and_make_selection() {
   canvas->set_brush_softness(0);
   const auto undo_depth_before =
       patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("strokePathDialog"));
     CHECK(dialog != nullptr);
     auto* simulate =
@@ -2731,7 +2725,7 @@ void ui_paths_panel_fill_stroke_and_make_selection() {
     CHECK(simulate != nullptr);
     simulate->setChecked(false);
     dialog->accept();
-  });
+  }));
   window.findChild<QAction*>(QStringLiteral("pathStrokeAction"))->trigger();
   QApplication::processEvents();
   CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
@@ -2745,11 +2739,11 @@ void ui_paths_panel_fill_stroke_and_make_selection() {
   // Make Selection converts the path (re-select the row first).
   paths_list->setCurrentRow(0);
   QApplication::processEvents();
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("makeSelectionDialog"));
     CHECK(dialog != nullptr);
     dialog->accept();
-  });
+  }));
   window.findChild<QAction*>(QStringLiteral("pathMakeSelectionAction"))->trigger();
   QApplication::processEvents();
   const auto selection = canvas->selected_document_rect();
@@ -2788,7 +2782,7 @@ void ui_shape_appearance_dialog_commits_and_cancels() {
 
   // Commit: enable a 6 px centered stroke and check the live preview fired.
   bool saw_live_preview = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     auto* stroke_width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeWidthSpin"));
@@ -2810,7 +2804,7 @@ void ui_shape_appearance_dialog_commits_and_cancels() {
     saw_live_preview = preview_layer != nullptr && preview_layer->vector_shape() != nullptr &&
                        preview_layer->vector_shape()->stroke.enabled;
     dialog->accept();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   CHECK(saw_live_preview);
@@ -2822,7 +2816,7 @@ void ui_shape_appearance_dialog_commits_and_cancels() {
   CHECK(patchy::layer_vector_block_dirty(*layer));
 
   // Cancel: change the width, reject, and expect no change to the model.
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     auto* stroke_width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeWidthSpin"));
@@ -2830,7 +2824,7 @@ void ui_shape_appearance_dialog_commits_and_cancels() {
     stroke_width->setValue(20.0);
     QApplication::processEvents();
     dialog->reject();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   layer = document.find_layer(*layer_id);
@@ -2903,7 +2897,7 @@ void ui_shape_appearance_custom_dash_pattern_edits_stroke() {
   };
   bool checked = false;
   std::vector<double> previewed;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeWidthSpin"));
@@ -2932,7 +2926,7 @@ void ui_shape_appearance_custom_dash_pattern_edits_stroke() {
     CHECK(pattern->text() == QStringLiteral("6 2 1 2"));
     checked = true;
     dialog->accept();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   CHECK(checked);
@@ -2943,7 +2937,7 @@ void ui_shape_appearance_custom_dash_pattern_edits_stroke() {
 
   // Reopen: the pattern shows as Custom with its text; an odd count repeats.
   checked = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     auto* dashes = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeDashCombo"));
@@ -2965,7 +2959,7 @@ void ui_shape_appearance_custom_dash_pattern_edits_stroke() {
     CHECK(pattern->text() == QStringLiteral("3 3"));
     checked = true;
     dialog->accept();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   CHECK(checked);
@@ -2996,7 +2990,7 @@ void ui_shape_appearance_dotted_draws_on_butt_caps() {
 
   const auto edit = [&](patchy::VectorStrokeCap cap, bool pick_dotted) {
     bool checked = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
       CHECK(dialog != nullptr);
       auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeStrokeWidthSpin"));
@@ -3018,7 +3012,7 @@ void ui_shape_appearance_dotted_draws_on_butt_caps() {
       CHECK(dashes->currentIndex() == dotted_row);
       checked = true;
       dialog->accept();
-    });
+    }));
     patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
     QApplication::processEvents();
     CHECK(checked);
@@ -3088,7 +3082,7 @@ void ui_shape_appearance_dash_presets_set_patterns() {
     CHECK(layer_id.has_value());
     const auto& row = rows[i];
     bool checked = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
       CHECK(dialog != nullptr);
       auto* fill_kind = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillKindCombo"));
@@ -3141,7 +3135,7 @@ void ui_shape_appearance_dash_presets_set_patterns() {
       }
       checked = true;
       dialog->accept();
-    });
+    }));
     patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
     QApplication::processEvents();
     CHECK(checked);
@@ -3160,7 +3154,7 @@ void ui_shape_appearance_dash_presets_set_patterns() {
 
     // Reopened, the layer shows its own row; Round caps keep the preset.
     checked = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
       CHECK(dialog != nullptr);
       auto* caps = dialog->findChild<QComboBox*>(QStringLiteral("shapeStrokeCapCombo"));
@@ -3172,7 +3166,7 @@ void ui_shape_appearance_dash_presets_set_patterns() {
       CHECK(dashes->currentIndex() == static_cast<int>(i));
       checked = true;
       dialog->accept();
-    });
+    }));
     patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
     QApplication::processEvents();
     CHECK(checked);
@@ -3230,29 +3224,29 @@ void ui_shape_appearance_dash_offset_and_stroke_presets() {
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto layer_id = make_rect_shape_layer(window, *canvas);
   const auto answer_name_prompt = [](const QString& name) {
-    QTimer::singleShot(0, [name] {
+    QTimer::singleShot(0, guarded([name] {
       auto* prompt = qobject_cast<QInputDialog*>(find_top_level_dialog(QStringLiteral("shapeStrokePresetNameDialog")));
       CHECK(prompt != nullptr);
       if (prompt != nullptr) {
         prompt->setTextValue(name);
         prompt->accept();
       }
-    });
+    }));
   };
   // A built-in's name is refused: the prompt closes, then the warning is answered.
   const auto answer_refused_name = [](const QString& name) {
-    QTimer::singleShot(0, [name] {
+    QTimer::singleShot(0, guarded([name] {
       auto* prompt = qobject_cast<QInputDialog*>(find_top_level_dialog(QStringLiteral("shapeStrokePresetNameDialog")));
       CHECK(prompt != nullptr);
       if (prompt == nullptr) return;
-      QTimer::singleShot(0, [] {
+      QTimer::singleShot(0, guarded([] {
         auto* box = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
         CHECK(box != nullptr);
         if (box != nullptr) box->button(QMessageBox::Ok)->click();
-      });
+      }));
       prompt->setTextValue(name);
       prompt->accept();
-    });
+    }));
   };
   const auto stroke_of_layer = [&]() -> patchy::VectorStroke {
     const auto* layer = std::as_const(document).find_layer(layer_id);
@@ -3262,7 +3256,7 @@ void ui_shape_appearance_dash_offset_and_stroke_presets() {
   };
 
   bool checked = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) return;
@@ -3361,7 +3355,7 @@ void ui_shape_appearance_dash_offset_and_stroke_presets() {
     QApplication::processEvents();
     checked = true;
     dialog->accept();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   CHECK(checked);
@@ -3373,7 +3367,7 @@ void ui_shape_appearance_dash_offset_and_stroke_presets() {
 
   // Reopened, the dialog shows the offset and the preset the layer matches.
   checked = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) return;
@@ -3385,7 +3379,7 @@ void ui_shape_appearance_dash_offset_and_stroke_presets() {
     CHECK(dashes->currentText() == QStringLiteral("Offset dashes"));
     checked = true;
     dialog->reject();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   CHECK(checked);
@@ -3401,7 +3395,7 @@ void ui_shape_appearance_gradient_rows_indent() {
   auto&& [window, canvas] = ShownWindowFixture{};
   make_rect_shape_layer(window, *canvas);
   bool checked = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) return;
@@ -3499,7 +3493,7 @@ void ui_shape_appearance_gradient_rows_indent() {
     CHECK(!stroke_block->isVisibleTo(dialog));
     checked = true;
     dialog->reject();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   CHECK(checked);
@@ -3525,7 +3519,7 @@ void ui_shape_appearance_pattern_rows_indent() {
   auto&& [window, canvas] = ShownWindowFixture{};
   make_rect_shape_layer(window, *canvas);
   bool checked = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) return;
@@ -3615,7 +3609,7 @@ void ui_shape_appearance_pattern_rows_indent() {
     CHECK(!fill_block->isVisibleTo(dialog) && !stroke_block->isVisibleTo(dialog));
     checked = true;
     dialog->reject();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   CHECK(checked);
@@ -3788,7 +3782,7 @@ void ui_stroke_preset_manager_duplicates_and_edits() {
 
   const auto stored = [] { return patchy::ui::load_stroke_style_presets(); };
   bool checked = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("strokePresetManagerDialog")));
     CHECK(manager != nullptr);
     if (manager == nullptr) return;
@@ -3866,7 +3860,7 @@ void ui_stroke_preset_manager_duplicates_and_edits() {
     CHECK(stored().size() == 2);
     checked = true;
     manager->reject();
-  });
+  }));
   const auto chosen = patchy::ui::request_stroke_preset_manager(nullptr, patchy::ui::stroke_dash_preset_label(
                                                                              patchy::StrokeDashPreset::Dashed));
   CHECK(checked);
@@ -3899,14 +3893,14 @@ void ui_stroke_preset_manager_edits_round_trip_through_the_setting() {
   CHECK(!patchy::ui::stroke_preset_name_is_builtin(QStringLiteral("Fine dots")));
   // Answers the next message box (a refused name, the Delete question) with its default.
   const auto answer_message_box = [](QMessageBox::StandardButton button) {
-    QTimer::singleShot(0, [button] {
+    QTimer::singleShot(0, guarded([button] {
       auto* box = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
       CHECK(box != nullptr);
       if (box != nullptr && box->button(button) != nullptr) box->button(button)->click();
-    });
+    }));
   };
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("strokePresetManagerDialog")));
     CHECK(manager != nullptr);
     if (manager == nullptr) return;
@@ -3993,7 +3987,7 @@ void ui_stroke_preset_manager_edits_round_trip_through_the_setting() {
     tree->setCurrentItem(tree->topLevelItem(builtin_count));
     QApplication::processEvents();
     use->click();
-  });
+  }));
   const auto chosen = patchy::ui::request_stroke_preset_manager(nullptr, QStringLiteral("Outside dashes"));
   CHECK(!chosen.builtin.has_value() && chosen.saved.has_value());
   if (chosen.saved.has_value()) {
@@ -4009,7 +4003,7 @@ void ui_stroke_preset_manager_edits_round_trip_through_the_setting() {
         stored.back().cap == patchy::VectorStrokeCap::Round);
 
   // Use on a built-in returns the built-in.
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("strokePresetManagerDialog")));
     CHECK(manager != nullptr);
     if (manager == nullptr) return;
@@ -4022,7 +4016,7 @@ void ui_stroke_preset_manager_edits_round_trip_through_the_setting() {
     // A built-in's name preselects it.
     CHECK(tree->indexOfTopLevelItem(tree->currentItem()) == 4);
     use->click();
-  });
+  }));
   const auto builtin_choice =
       patchy::ui::request_stroke_preset_manager(nullptr, patchy::ui::stroke_dash_preset_label(builtins[4]));
   CHECK(builtin_choice.builtin == builtins[4] && !builtin_choice.saved.has_value());
@@ -4150,7 +4144,7 @@ void ui_options_bar_dash_combo_lists_saved_stroke_presets() {
   // Manage Presets... returns the combo to its entry and opens the manager; Use there applies
   // to the selected shape, and a rename made there shows in the list.
   combo->setCurrentIndex(combo->findData(-2 /* Manage Presets... */));
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("strokePresetManagerDialog")));
     CHECK(manager != nullptr);
     if (manager == nullptr) return;
@@ -4171,7 +4165,7 @@ void ui_options_bar_dash_combo_lists_saved_stroke_presets() {
     QMetaObject::invokeMethod(name_edit, "editingFinished");
     QApplication::processEvents();
     use->click();
-  });
+  }));
   process_events_for(50);
   QApplication::processEvents();
   if (second.has_value()) {
@@ -4237,7 +4231,7 @@ void ui_shape_appearance_unit_fields_share_spin_box_border() {
     ColorSchemeRestorer::apply(preference);
     const std::string scheme = preference == patchy::ui::ColorSchemePreference::Light ? "light" : "dark";
     bool sampled = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -4271,7 +4265,7 @@ void ui_shape_appearance_unit_fields_share_spin_box_border() {
       check_border(scheme + " feather", *feather, *density, palette.field_border);
       sampled = true;
       dialog->reject();
-    });
+    }));
     patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
     QApplication::processEvents();
     CHECK(sampled);
@@ -4293,11 +4287,11 @@ void ui_new_solid_fill_layer_uses_selection_mask() {
   const auto selection_rect = canvas->selected_document_rect();
   CHECK(selection_rect.has_value());
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
     CHECK(dialog != nullptr);
     dialog->accept();
-  });
+  }));
   auto* action = window.findChild<QAction*>(QStringLiteral("layerNewSolidColorFillAction"));
   CHECK(action != nullptr);
   action->trigger();
@@ -4334,11 +4328,11 @@ void ui_options_bar_stroke_skips_fill_layers() {
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   canvas->set_primary_color(QColor(40, 90, 200));
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
     CHECK(dialog != nullptr);
     if (dialog != nullptr) dialog->accept();
-  });
+  }));
   require_action(window, "layerNewSolidColorFillAction")->trigger();
   QApplication::processEvents();
   const auto fill_id = document.active_layer_id();
@@ -4357,7 +4351,7 @@ void ui_options_bar_stroke_skips_fill_layers() {
   const auto base_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
 
   const auto pick_stroke_color = [&](QColor color) {
-    QTimer::singleShot(0, [&, color] {
+    QTimer::singleShot(0, guarded([&, color] {
       auto* dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) return;
@@ -4366,7 +4360,7 @@ void ui_options_bar_stroke_skips_fill_layers() {
       if (picker != nullptr) picker->setCurrentColor(color);
       QApplication::processEvents();
       dialog->accept();
-    });
+    }));
     patchy::ui::MainWindowTestAccess::pick_vector_solid_color(window, true);
     QApplication::processEvents();
   };
@@ -4453,7 +4447,7 @@ void ui_shape_geometry_edits_live_shape() {
   CHECK(layer_id.has_value());
 
   // Edit the live rect's bounds and one corner radius through the dialog.
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     auto* x_spin = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeGeometryXSpin"));
@@ -4475,7 +4469,7 @@ void ui_shape_geometry_edits_live_shape() {
     radius_tl->setValue(30.0);
     QApplication::processEvents();
     dialog->accept();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
 
@@ -5102,7 +5096,7 @@ void ui_shape_pattern_fill_uses_custom_library_pattern() {
   poisoned.id = pattern_id.toStdString();
   document.metadata().patterns.patterns.push_back(poisoned);
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     auto* type_combo = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillKindCombo"));
@@ -5149,7 +5143,7 @@ void ui_shape_pattern_fill_uses_custom_library_pattern() {
     stroke_width->setValue(6.0);
     QApplication::processEvents();
     dialog->accept();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
 
@@ -5662,11 +5656,11 @@ void ui_new_fill_layer_clips_to_targeted_path() {
   CHECK(canvas->panel_path_targeted());
 
   canvas->set_primary_color(QColor(40, 90, 200));
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
     CHECK(dialog != nullptr);
     dialog->accept();
-  });
+  }));
   window.findChild<QAction*>(QStringLiteral("layerNewSolidColorFillAction"))->trigger();
   QApplication::processEvents();
 
@@ -5692,11 +5686,11 @@ void ui_new_gradient_fill_layer_spans_canvas() {
   canvas->set_secondary_color(Qt::white);
   // The gradient flow opens the appearance dialog right after creating the
   // layer; accept it unchanged.
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     dialog->accept();
-  });
+  }));
   auto* action = window.findChild<QAction*>(QStringLiteral("layerNewGradientFillAction"));
   CHECK(action != nullptr);
   action->trigger();
@@ -5775,7 +5769,7 @@ void ui_new_gradient_fill_layer_selects_its_preset_and_shows_only_fill() {
 
   make_rect_shape_layer(window, *canvas);
   bool checked = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) return;
@@ -5788,7 +5782,7 @@ void ui_new_gradient_fill_layer_selects_its_preset_and_shows_only_fill() {
     CHECK(dialog->width() > fill_only_width);
     checked = true;
     dialog->reject();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   CHECK(checked);
@@ -5966,7 +5960,7 @@ void ui_shape_appearance_gradient_manage_buttons_open_the_manager() {
 
       // Fill: the manager opens on the custom gradient; a preset saved from it
       // shows in the list afterwards and is the one selected.
-      QTimer::singleShot(0, [&] {
+      QTimer::singleShot(0, guarded([&] {
         auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("gradientManagerDialog")));
         CHECK(manager != nullptr);
         if (manager == nullptr) return;
@@ -5975,7 +5969,7 @@ void ui_shape_appearance_gradient_manage_buttons_open_the_manager() {
         CHECK(new_current != nullptr && new_current->isEnabled());
         saved_id = library.add_gradient(QStringLiteral("Saved Ramp"), custom);
         manager->reject();
-      });
+      }));
       fill_manage->click();
       QApplication::processEvents();
       CHECK(!saved_id.isEmpty());
@@ -5984,7 +5978,7 @@ void ui_shape_appearance_gradient_manage_buttons_open_the_manager() {
       CHECK(stroke_combo->findData(saved_id) < 0);  // the other list refreshes on its own Manage
 
       // Stroke: Use Gradient picks My Ramp; the list shows it and the stroke takes it.
-      QTimer::singleShot(0, [&] {
+      QTimer::singleShot(0, guarded([&] {
         auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("gradientManagerDialog")));
         CHECK(manager != nullptr);
         if (manager == nullptr) return;
@@ -6002,7 +5996,7 @@ void ui_shape_appearance_gradient_manage_buttons_open_the_manager() {
         CHECK(found != nullptr);
         if (found != nullptr) tree->setCurrentItem(found);
         use->click();
-      });
+      }));
       stroke_manage->click();
       QApplication::processEvents();
       CHECK(stroke_combo->currentData().toString() == user_id);
@@ -6056,7 +6050,7 @@ void ui_gradient_preset_thumbnails_follow_the_current_colors() {
 
   // The Gradient Manager's list and its large preview use them too.
   bool checked = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("gradientManagerDialog")));
     CHECK(manager != nullptr);
     if (manager == nullptr) return;
@@ -6069,7 +6063,7 @@ void ui_gradient_preset_thumbnails_follow_the_current_colors() {
     save_widget_artifact("issue581_gradient_manager_previews", *manager);
     checked = true;
     manager->reject();
-  });
+  }));
   (void)patchy::ui::request_gradient_manager(nullptr, library, kForegroundToTransparentId);
   CHECK(checked);
 }
@@ -6935,7 +6929,7 @@ void ui_fill_path_supports_patterns() {
   // A deliberately absurd foreground proves the pattern pixels were used.
   canvas->set_primary_color(QColor(255, 0, 255));
   bool pattern_selected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("fillPathDialog"));
     CHECK(dialog != nullptr);
     auto* contents = dialog->findChild<QComboBox*>(QStringLiteral("fillPathContentsCombo"));
@@ -6953,7 +6947,7 @@ void ui_fill_path_supports_patterns() {
     }
     dialog->findChild<QSpinBox*>(QStringLiteral("fillPathOpacitySpin"))->setValue(100);
     dialog->accept();
-  });
+  }));
   window.findChild<QAction*>(QStringLiteral("pathFillAction"))->trigger();
   QApplication::processEvents();
   CHECK(pattern_selected);
@@ -6984,7 +6978,7 @@ void ui_fill_path_supports_patterns() {
     paths_list->setCurrentRow(0);  // keep the work path targeted for the refill
     QApplication::processEvents();
   }
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("fillPathDialog"));
     CHECK(dialog != nullptr);
     auto* contents = dialog->findChild<QComboBox*>(QStringLiteral("fillPathContentsCombo"));
@@ -6999,7 +6993,7 @@ void ui_fill_path_supports_patterns() {
     CHECK(angle->isEnabled());
     offset_x->setValue(4.0);
     dialog->accept();
-  });
+  }));
   window.findChild<QAction*>(QStringLiteral("pathFillAction"))->trigger();
   QApplication::processEvents();
   {
@@ -7052,13 +7046,13 @@ void ui_stroke_path_simulate_pressure_tapers() {
   canvas->set_brush_size(20);
   canvas->set_brush_opacity(100);
   canvas->set_brush_softness(0);
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("strokePathDialog"));
     CHECK(dialog != nullptr);
     dialog->findChild<QCheckBox*>(QStringLiteral("strokePathSimulatePressureCheck"))
         ->setChecked(true);
     dialog->accept();
-  });
+  }));
   window.findChild<QAction*>(QStringLiteral("pathStrokeAction"))->trigger();
   QApplication::processEvents();
 
@@ -7176,11 +7170,11 @@ void ui_make_work_path_from_selection_traces_selection() {
   canvas->replace_selection_from_grayscale(coverage, QStringLiteral("test selection"));
   CHECK(canvas->has_selection());
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("makeWorkPathDialog"));
     CHECK(dialog != nullptr);
     dialog->accept();
-  });
+  }));
   window.findChild<QAction*>(QStringLiteral("pathFromSelectionAction"))->trigger();
   QApplication::processEvents();
 
@@ -7239,12 +7233,12 @@ void ui_new_fill_cancel_preserves_document_and_history() {
   const auto undo = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
   for (const auto* name : {"layerNewGradientFillAction", "layerNewPatternFillAction"}) {
     bool cancelled = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
       CHECK(dialog != nullptr);
       cancelled = true;
       dialog->reject();
-    });
+    }));
     auto* action = window.findChild<QAction*>(QString::fromLatin1(name));
     CHECK(action != nullptr);
     action->trigger();
@@ -8450,7 +8444,7 @@ void ui_shape_appearance_dialog_edits_opacity_feather_and_stroke_opacity() {
   const auto layer_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
   const auto history_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -8474,7 +8468,7 @@ void ui_shape_appearance_dialog_edits_opacity_feather_and_stroke_opacity() {
     density->setValue(60);
     QApplication::processEvents();
     dialog->accept();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   auto* layer = document.find_layer(layer_id);
@@ -8500,7 +8494,7 @@ void ui_shape_appearance_dialog_edits_opacity_feather_and_stroke_opacity() {
   CHECK(far_alpha >= 95 && far_alpha <= 110);
 
   // Cancel restores everything, including the layer opacity.
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -8512,7 +8506,7 @@ void ui_shape_appearance_dialog_edits_opacity_feather_and_stroke_opacity() {
     dialog->findChild<QDoubleSpinBox*>(QStringLiteral("shapeFeatherSpin"))->setValue(20.0);
     QApplication::processEvents();
     dialog->reject();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   layer = document.find_layer(layer_id);
@@ -8533,7 +8527,7 @@ void ui_shape_geometry_link_keeps_aspect() {
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
   const auto layer_id = make_rect_shape_layer(window, *canvas);  // 200 x 120
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -8556,7 +8550,7 @@ void ui_shape_geometry_link_keeps_aspect() {
     width->setValue(400.0);
     QApplication::processEvents();
     dialog->accept();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   const auto* content = document.find_layer(layer_id)->vector_shape();
@@ -8585,7 +8579,7 @@ void ui_shape_geometry_radius_link_edits_all_corners() {
         dialog.findChild<QDoubleSpinBox*>(QStringLiteral("shapeGeometryRadiusBottomLeftSpin"))};
   };
   bool first_open_checked = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -8658,7 +8652,7 @@ void ui_shape_geometry_radius_link_edits_all_corners() {
     }
     first_open_checked = true;
     dialog->accept();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   CHECK(first_open_checked);
@@ -8676,7 +8670,7 @@ void ui_shape_geometry_radius_link_edits_all_corners() {
   // Distinct corners: the dialog reopens unlinked, so one edit cannot flatten
   // them by accident.
   bool reopened = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -8688,7 +8682,7 @@ void ui_shape_geometry_radius_link_edits_all_corners() {
     CHECK(corners[1] != nullptr && std::abs(corners[1]->value() - 5.0) < 1e-6);
     reopened = true;
     dialog->reject();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   CHECK(reopened);
@@ -8704,7 +8698,7 @@ void ui_shape_appearance_dialog_fits_1080p_and_has_two_columns() {
   shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));
 
   bool checked = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -8772,7 +8766,7 @@ void ui_shape_appearance_dialog_fits_1080p_and_has_two_columns() {
     CHECK(buttons->mapTo(dialog, QPoint(0, 0)).y() + buttons->height() <= dialog->height());
     checked = true;
     dialog->reject();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   CHECK(checked);
@@ -8788,7 +8782,7 @@ void ui_shape_appearance_grows_to_fit_gradient_stroke() {
   make_rect_shape_layer(window, *canvas);
 
   bool checked = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -8831,7 +8825,7 @@ void ui_shape_appearance_grows_to_fit_gradient_stroke() {
     }
     checked = true;
     dialog->reject();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   CHECK(checked);
@@ -8844,7 +8838,7 @@ void ui_shape_appearance_spins_have_step_buttons() {
   const auto layer_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
 
   int spins_checked = 0;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -8886,7 +8880,7 @@ void ui_shape_appearance_spins_have_step_buttons() {
     CHECK(std::abs(width->value() - (before + 1.0)) < 1e-9);
     QApplication::processEvents();
     dialog->accept();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   CHECK(spins_checked >= 17);
@@ -8905,7 +8899,7 @@ void ui_shape_appearance_reset_restores_factory_defaults() {
   canvas->set_primary_color(Qt::red);
 
   bool reset_seen = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -8944,7 +8938,7 @@ void ui_shape_appearance_reset_restores_factory_defaults() {
     CHECK(opacity->value() == 100);
     CHECK(std::abs(width->value() - 400.0) < 1e-9);  // geometry survives the reset
     dialog->accept();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   CHECK(reset_seen);
@@ -9472,7 +9466,7 @@ void ui_shape_appearance_unit_pick_sets_ruler_unit() {
   CHECK(options_width != nullptr);
 
   bool drove_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -9493,7 +9487,7 @@ void ui_shape_appearance_unit_pick_sets_ruler_unit() {
     CHECK(options_width->display_unit() == patchy::ui::SpinUnit::Inches);
     drove_dialog = true;
     dialog->reject();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::edit_active_shape_appearance(window);
   QApplication::processEvents();
   CHECK(drove_dialog);

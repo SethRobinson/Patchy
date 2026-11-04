@@ -101,7 +101,7 @@ void ui_layer_style_bevel_contour_and_texture_rows_round_trip() {
 
   const auto ring_id = QStringLiteral("contour.ring");
   const auto bumps_id = QString::fromLatin1(patchy::builtin_pattern_presets()[8].id);
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
@@ -162,7 +162,7 @@ void ui_layer_style_bevel_contour_and_texture_rows_round_trip() {
     texture_invert->setChecked(true);
     texture_link->setChecked(false);
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
 
   const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(settings.has_value());
@@ -194,13 +194,13 @@ void ui_layer_style_dialog_has_no_group_effects_warning() {
   group.add_child(patchy::Layer(document.allocate_layer_id(), "Child",
                                solid_pixels(32, 24, patchy::PixelFormat::rgba8(), QColor(Qt::white))));
 
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
     auto* warning = dialog->findChild<QLabel*>(QStringLiteral("layerStyleGroupEffectsWarning"));
     CHECK(warning == nullptr);
     dialog->reject();
-  });
+  }));
 
   const auto settings = patchy::ui::request_layer_style_settings(nullptr, group, {});
   CHECK(!settings.has_value());
@@ -486,7 +486,7 @@ void ui_pattern_manager_and_layer_style_buttons_use_library_pattern() {
                       solid_pixels(48, 36, patchy::PixelFormat::rgba8(),
                                    QColor(80, 140, 220, 255)));
   bool checked_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog =
         qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
@@ -518,7 +518,7 @@ void ui_pattern_manager_and_layer_style_buttons_use_library_pattern() {
     save_widget_artifact("ui_layer_style_pattern_manager_buttons", *dialog);
 
     bool checked_manager = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* manager =
           qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patternManagerDialog")));
       CHECK(manager != nullptr);
@@ -544,7 +544,7 @@ void ui_pattern_manager_and_layer_style_buttons_use_library_pattern() {
       save_widget_artifact("ui_pattern_manager_dialog", *manager);
       checked_manager = true;
       use->click();
-    });
+    }));
     overlay_manage->click();
     CHECK(checked_manager);
     CHECK(overlay_combo->currentData().toString() == imported_pattern_id);
@@ -554,21 +554,21 @@ void ui_pattern_manager_and_layer_style_buttons_use_library_pattern() {
     CHECK(!texture_items.empty());
     categories->setCurrentItem(texture_items.front());
     QApplication::processEvents();
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* manager =
           qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patternManagerDialog")));
       CHECK(manager != nullptr);
       auto* use = manager->findChild<QPushButton*>(QStringLiteral("patternManagerUseButton"));
       CHECK(use != nullptr && use->isEnabled());
       use->click();
-    });
+    }));
     texture_manage->click();
     CHECK(texture_combo->currentData().toString() == imported_pattern_id);
     bevel_check->setChecked(true);
     texture_check->setChecked(true);
     checked_dialog = true;
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
 
   int preview_count = 0;
   const auto settings = patchy::ui::request_layer_style_settings(
@@ -607,7 +607,7 @@ void ui_pattern_manager_preview_zooms_and_opens_image() {
   QString opened_name;
   std::optional<patchy::PixelBuffer> opened_tile;
   bool drove_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* manager =
         qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patternManagerDialog")));
     CHECK(manager != nullptr);
@@ -666,7 +666,7 @@ void ui_pattern_manager_preview_zooms_and_opens_image() {
     CHECK(!open_button->isEnabled());  // one queued document per pattern per run
     drove_dialog = true;
     manager->reject();
-  });
+  }));
   const auto chosen = patchy::ui::request_pattern_manager(
       nullptr, library, {}, [&](const QString& name, const patchy::PixelBuffer& out) {
         opened_name = name;
@@ -689,7 +689,7 @@ void ui_gradient_manager_shows_defaults_and_supports_crud() {
   CHECK(library.entries().size() == 20U);
   const auto initial_id = library.entries().front().storage_id;
   bool drove_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* manager = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("gradientManagerDialog")));
     CHECK(manager != nullptr);
     auto* tree = manager->findChild<QTreeWidget*>(QStringLiteral("gradientManagerTree"));
@@ -728,7 +728,7 @@ void ui_gradient_manager_shows_defaults_and_supports_crud() {
     CHECK(use->isEnabled());
     drove_dialog = true;
     use->click();
-  });
+  }));
   const auto selected = patchy::ui::request_gradient_manager(
       nullptr, library, initial_id, patchy::builtin_gradient_presets().front().definition);
   CHECK(drove_dialog);
@@ -760,7 +760,7 @@ void ui_layer_style_open_pattern_as_image_defers_until_dialog_closes() {
   CHECK(row_name != nullptr);
 
   bool drove_style_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog =
         qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
@@ -769,7 +769,7 @@ void ui_layer_style_open_pattern_as_image_defers_until_dialog_closes() {
     CHECK(overlay_manage != nullptr && overlay_manage->isEnabled());
 
     bool drove_manager = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* manager =
           qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patternManagerDialog")));
       CHECK(manager != nullptr);
@@ -786,13 +786,13 @@ void ui_layer_style_open_pattern_as_image_defers_until_dialog_closes() {
       CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("Moss")));
       drove_manager = true;
       manager->reject();
-    });
+    }));
     overlay_manage->click();
     CHECK(drove_manager);
     CHECK(tabs->count() == initial_tabs);
     drove_style_dialog = true;
     dialog->reject();  // the cancel path must flush the queued document too
-  });
+  }));
   send_double_click(*row_name, row_name->rect().center());
   QApplication::processEvents();
   CHECK(drove_style_dialog);
@@ -833,7 +833,7 @@ void ui_layer_style_pattern_picker_groups_and_collapses_folders() {
                                    QColor(80, 140, 220, 255)));
 
   bool checked_popup = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto *dialog = qobject_cast<QDialog *>(
         find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
@@ -902,7 +902,7 @@ void ui_layer_style_pattern_picker_groups_and_collapses_folders() {
     CHECK(combo->currentData().toString() == imported_pattern_id);
     checked_popup = true;
     dialog->reject();
-  });
+  }));
 
   const auto settings = patchy::ui::request_layer_style_settings(
       nullptr, layer, {}, &document.metadata().patterns, &library);
@@ -935,7 +935,7 @@ void ui_pattern_manager_remaps_document_id_collision() {
                                    QColor(80, 140, 220, 255)));
 
   QString remapped_id;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog =
         qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
@@ -956,14 +956,14 @@ void ui_pattern_manager_remaps_document_id_collision() {
     categories->setCurrentItem(overlay_items.front());
     QApplication::processEvents();
 
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* manager =
           qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patternManagerDialog")));
       CHECK(manager != nullptr);
       auto* use = manager->findChild<QPushButton*>(QStringLiteral("patternManagerUseButton"));
       CHECK(use != nullptr && use->isEnabled());
       use->click();
-    });
+    }));
     manage->click();
 
     remapped_id = combo->currentData().toString();
@@ -976,7 +976,7 @@ void ui_pattern_manager_remaps_document_id_collision() {
     CHECK(document.metadata().patterns.find(kCollisionId)->tile.pixel(0, 0)[0] == 220);
     overlay_check->setChecked(true);
     dialog->accept();
-  });
+  }));
 
   const auto settings = patchy::ui::request_layer_style_settings(
       nullptr, layer, {}, &document.metadata().patterns, &library);
@@ -1024,7 +1024,7 @@ void ui_layer_style_library_pattern_cancel_and_undo_restore_store() {
 
     const auto drive_dialog = [&](bool accept, bool& preview_materialized,
                                   std::string& selected_alias) {
-      QTimer::singleShot(0, &window, [&] {
+      QTimer::singleShot(0, &window, guarded([&] {
         auto* dialog = qobject_cast<QDialog*>(
             find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
         CHECK(dialog != nullptr);
@@ -1045,7 +1045,7 @@ void ui_layer_style_library_pattern_cancel_and_undo_restore_store() {
         CHECK(!overlay_items.empty());
         categories->setCurrentItem(overlay_items.front());
         QApplication::processEvents();
-        QTimer::singleShot(0, [&] {
+        QTimer::singleShot(0, guarded([&] {
           auto* manager = qobject_cast<QDialog*>(
               find_top_level_dialog(QStringLiteral("patternManagerDialog")));
           CHECK(manager != nullptr);
@@ -1053,7 +1053,7 @@ void ui_layer_style_library_pattern_cancel_and_undo_restore_store() {
               manager->findChild<QPushButton*>(QStringLiteral("patternManagerUseButton"));
           CHECK(use != nullptr && use->isEnabled());
           use->click();
-        });
+        }));
         manage->click();
         selected_alias = combo->currentData().toString().toStdString();
         CHECK(!selected_alias.empty() && selected_alias != imported_id);
@@ -1081,7 +1081,7 @@ void ui_layer_style_library_pattern_cancel_and_undo_restore_store() {
         } else {
           dialog->reject();
         }
-      });
+      }));
       require_action(window, "layerBlendingOptionsAction")->trigger();
       QApplication::processEvents();
     };
@@ -1294,7 +1294,7 @@ void ui_layer_style_styles_page_applies_preset_and_previews() {
   // The grid shows by default (GitHub issue 606); a click on a cell applies.
   patchy::ui::set_stored_layer_style_styles_grid_view(true);
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog =
         qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
@@ -1335,7 +1335,7 @@ void ui_layer_style_styles_page_applies_preset_and_previews() {
     CHECK(categories->currentRow() == 0);
     save_widget_artifact("ui_layer_style_styles_page", *dialog);
     QTimer::singleShot(50, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
 
   int previews = 0;
   const auto settings = patchy::ui::request_layer_style_settings(
@@ -1365,7 +1365,7 @@ void ui_layer_style_no_style_entry_clears_effects() {
   layer.set_opacity(0.4F);
   patchy::ui::set_stored_layer_style_styles_grid_view(true);
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog =
         qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
@@ -1391,7 +1391,7 @@ void ui_layer_style_no_style_entry_clears_effects() {
     CHECK(!shadow_items.empty());
     CHECK(shadow_items.front()->checkState() == Qt::Unchecked);
     QTimer::singleShot(50, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
 
   const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {}, nullptr,
                                                                  nullptr, &library);
@@ -1415,7 +1415,7 @@ void ui_layer_style_new_style_saves_current_settings() {
   layer.set_opacity(0.35F);
   layer.set_blend_mode(patchy::BlendMode::Screen);
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog =
         qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
@@ -1426,7 +1426,7 @@ void ui_layer_style_new_style_saves_current_settings() {
     CHECK(!styles_items.empty());
     categories->setCurrentItem(styles_items.front());
     QApplication::processEvents();
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* prompt =
           qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("layerStyleNewStyleDialog")));
       CHECK(prompt != nullptr);
@@ -1439,11 +1439,11 @@ void ui_layer_style_new_style_saves_current_settings() {
       folder->setCurrentText(QStringLiteral("My Styles"));
       include_blend->setChecked(true);
       prompt->accept();
-    });
+    }));
     new_style->click();
     QApplication::processEvents();
     QTimer::singleShot(50, dialog, [dialog] { dialog->reject(); });
-  });
+  }));
 
   const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {}, nullptr,
                                                                  nullptr, &library);
@@ -1536,7 +1536,7 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     ColorSchemeRestorer::apply(preference);
     const std::string scheme = preference == patchy::ui::ColorSchemePreference::Light ? "light" : "dark";
     const auto grab_dialog = [&](const QString& object_name, const std::string& label) {
-      QTimer::singleShot(0, [&, object_name, label] {
+      QTimer::singleShot(0, guarded([&, object_name, label] {
         auto* dialog = find_top_level_dialog(object_name);
         CHECK(dialog != nullptr);
         if (dialog == nullptr) {
@@ -1545,7 +1545,7 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
         (void)capture_widget_artifact("ui_dialog_sweep_" + label + "_" + scheme, *dialog);
         ++captured;
         QTimer::singleShot(0, dialog, [dialog] { dialog->reject(); });
-      });
+      }));
     };
     patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
     patchy::Layer layer(document.allocate_layer_id(), "Styled",
@@ -1650,7 +1650,7 @@ void ui_style_manager_lists_renames_and_uses_styles() {
   CHECK(!storage_id.isEmpty());
   const auto style_id = library.find_entry(storage_id)->id;
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* manager =
         qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("styleManagerDialog")));
     CHECK(manager != nullptr);
@@ -1674,7 +1674,7 @@ void ui_style_manager_lists_renames_and_uses_styles() {
     save_widget_artifact("ui_style_manager_dialog", *manager);
     CHECK(use_button->isEnabled());
     use_button->click();
-  });
+  }));
 
   const auto chosen = patchy::ui::request_style_manager(nullptr, library, style_id);
   CHECK(chosen == storage_id);
@@ -1714,7 +1714,7 @@ void ui_style_preset_pattern_apply_cancel_restores_document_store() {
                       solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
 
   std::string applied_alias;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog =
         qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
@@ -1743,7 +1743,7 @@ void ui_style_preset_pattern_apply_cancel_restores_document_store() {
     }
     CHECK(!applied_alias.empty());
     QTimer::singleShot(50, dialog, [dialog] { dialog->reject(); });
-  });
+  }));
 
   const auto settings = patchy::ui::request_layer_style_settings(
       nullptr, layer, {}, &document.metadata().patterns, nullptr, &library);

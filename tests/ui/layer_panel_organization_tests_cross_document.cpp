@@ -234,7 +234,7 @@ void ui_layer_drag_to_other_document_respects_edit_lock() {
   const auto mark_id = layer_id_named(*docs.source_document, "Mark");
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyFilterDialog")) {
         continue;
@@ -255,7 +255,7 @@ void ui_layer_drag_to_other_document_respects_edit_lock() {
       return;
     }
     CHECK(false);
-  });
+  }));
   require_action(window, "imageAdjustDesaturateAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -410,7 +410,7 @@ void ui_duplicate_layer_to_document_dialog_copies() {
   // The dialog offers the other open document and New Document; the name
   // field renames a lone copy.
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = window.findChild<QDialog*>(QStringLiteral("duplicateLayerToDocumentDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -428,7 +428,7 @@ void ui_duplicate_layer_to_document_dialog_copies() {
     combo->setCurrentIndex(0);
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "layerDuplicateToDocumentAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -443,7 +443,7 @@ void ui_duplicate_layer_to_document_dialog_copies() {
   QApplication::processEvents();
   const auto sessions_before = patchy::ui::MainWindowTestAccess::session_count(window);
   saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = window.findChild<QDialog*>(QStringLiteral("duplicateLayerToDocumentDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -454,7 +454,7 @@ void ui_duplicate_layer_to_document_dialog_copies() {
     combo->setCurrentIndex(combo->count() - 1);
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "layerDuplicateToDocumentAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -477,7 +477,7 @@ void ui_duplicate_layer_to_document_dialog_fits_title_and_destinations() {
   window.add_document_session(cross_document_source(), QStringLiteral("Only"));
   QApplication::processEvents();
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = window.findChild<QDialog*>(QStringLiteral("duplicateLayerToDocumentDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -501,7 +501,7 @@ void ui_duplicate_layer_to_document_dialog_fits_title_and_destinations() {
     }
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "layerDuplicateToDocumentAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);

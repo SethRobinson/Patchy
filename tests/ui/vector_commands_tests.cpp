@@ -606,7 +606,7 @@ void ui_combine_shapes_in_context_menus_and_on_path_components() {
   canvas->set_view_zoom_centered(1.0);
   canvas->set_tool(patchy::ui::CanvasTool::PathSelect);
   QApplication::processEvents();
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       auto* menu = qobject_cast<QMenu*>(widget);
       if (menu == nullptr || menu->objectName() != QStringLiteral("canvasPathContextMenu")) {
@@ -621,7 +621,7 @@ void ui_combine_shapes_in_context_menus_and_on_path_components() {
       menu->close();
       return;
     }
-  });
+  }));
   const auto widget_point = canvas->widget_position_for_document_point(QPoint(250, 190));
   CHECK(canvas->show_path_context_menu(QPointF(widget_point), canvas->mapToGlobal(widget_point)));
   QApplication::processEvents();

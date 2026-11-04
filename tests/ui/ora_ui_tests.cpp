@@ -35,6 +35,7 @@ namespace {
 
 using patchy::test::ui::find_top_level_dialog;
 using patchy::test::ui::show_window;
+using patchy::test::ui::guarded;
 
 QString committed_ora_fixture(const char* name) {
   return QString::fromStdWString(patchy::test::committed_format_fixture_path("ora", name).wstring());
@@ -95,7 +96,7 @@ void ui_ora_save_warns_about_baked_content_and_stays_on_ora() {
   CHECK(temp.isValid());
   const auto out_path = temp.filePath(QStringLiteral("layers.ora"));
   bool prompt_seen = false;
-  QTimer::singleShot(0, [&prompt_seen] {
+  QTimer::singleShot(0, guarded([&prompt_seen] {
     auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("oraLostContentMessageBox")));
     CHECK(box != nullptr);
     if (box == nullptr) {
@@ -105,7 +106,7 @@ void ui_ora_save_warns_about_baked_content_and_stays_on_ora() {
     CHECK(box->text().contains(QStringLiteral("text layer \"Headline\"")));
     prompt_seen = true;
     box->button(QMessageBox::Save)->click();
-  });
+  }));
   CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, out_path, patchy::ui::ImageSaveOptions{}));
   CHECK(prompt_seen);
   // A layered save, not a flattened copy: the session now points at the .ora file.
@@ -255,7 +256,7 @@ void ui_save_asks_about_unsupported_blend_modes() {
   bool prompt_seen = false;
   const auto answer_with = [&prompt_seen](Answer answer, bool capture) {
     prompt_seen = false;
-    QTimer::singleShot(0, [&prompt_seen, answer, capture] {
+    QTimer::singleShot(0, guarded([&prompt_seen, answer, capture] {
       auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("unsupportedBlendModesMessageBox")));
       CHECK(box != nullptr);
       if (box == nullptr) {
@@ -275,7 +276,7 @@ void ui_save_asks_about_unsupported_blend_modes() {
       } else if (keep != nullptr && normal != nullptr) {
         (answer == Answer::Keep ? keep : normal)->click();
       }
-    });
+    }));
   };
   const auto read_psd = [](const QString& path) {
     return patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(path));

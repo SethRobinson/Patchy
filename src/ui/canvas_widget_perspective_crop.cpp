@@ -8,6 +8,7 @@
 // quad. A tool switch, an edit lock or a document swap cancel it, like Crop.
 
 #include "ui/canvas_widget.hpp"
+#include "ui/theme_palette.hpp"
 
 #include "ui/canvas_types.hpp"
 #include "ui/tool_cursors.hpp"
@@ -379,7 +380,7 @@ void CanvasWidget::draw_perspective_crop_overlay(QPainter& painter) const {
   }
   // Same unthemed overlay inks as the Crop box (docs/crop-tool.md): they sit on
   // artwork, not chrome.
-  const QColor box_color(95, 170, 255);
+  const QColor box_color = theme().canvas_layer_selection_border;
   const QColor handle_ink(10, 14, 20);
   const QColor handle_fill(245, 248, 252);
 

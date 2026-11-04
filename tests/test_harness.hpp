@@ -1,12 +1,16 @@
 #pragma once
 
+#include <algorithm>
+#include <array>
 #include <chrono>
 #include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <fstream>
 #include <functional>
+#include <initializer_list>
 #include <iostream>
 #include <mutex>
 #include <stdexcept>
@@ -27,10 +31,63 @@ struct TestCase {
   TestFn run;
 };
 
+// Why a test skipped, for the [SUMMARY] split (docs/testing-skips.md). `fixture` is an
+// absent untracked input (local-test-fixtures, staged models or plug-ins); PATCHY_REQUIRE_FIXTURES=1
+// fails those instead. `platform` is the host (OS, window system, installed fonts, codecs);
+// `feature` is a build without the feature.
+enum class SkipKind { fixture, platform, feature, other };
+
+inline const char* skip_kind_name(SkipKind kind) {
+  switch (kind) {
+    case SkipKind::fixture:
+      return "fixture";
+    case SkipKind::platform:
+      return "platform";
+    case SkipKind::feature:
+      return "feature";
+    case SkipKind::other:
+      break;
+  }
+  return "other";
+}
+
+// The class of a plain skip(reason), from the wording the suites use. Tests that know
+// better pass the kind to skip(kind, reason).
+inline SkipKind classify_skip_reason(std::string_view reason) {
+  std::string text(reason);
+  for (auto& character : text) {
+    if (character >= 'A' && character <= 'Z') {
+      character = static_cast<char>(character - 'A' + 'a');
+    }
+  }
+  const auto has = [&text](std::initializer_list<std::string_view> needles) {
+    for (const auto needle : needles) {
+      if (text.find(needle) != std::string::npos) {
+        return true;
+      }
+    }
+    return false;
+  };
+  if (has({"local-test-fixtures", "optional fixture", "fixture missing", "fixture font missing", "not staged",
+           "fetch-test-plugins"})) {
+    return SkipKind::fixture;
+  }
+  if (has({"build without", "this build", "build includes", "qt build", "not built", "patchy_enable"})) {
+    return SkipKind::feature;
+  }
+  if (has({"windows", "macos", "linux", "unix", "wayland", "flatpak", "directwrite", "fontconfig", "platform",
+           "64-bit", "interactive desktop", "codec", "decoder", "symlink", "font", "face", "installed", "registered",
+           "this machine", "this host", "arial", "verdana", "helvetica", "calibri"})) {
+    return SkipKind::platform;
+  }
+  return SkipKind::other;
+}
+
 // Thrown by skip(). Deliberately not a std::exception, so a test's own
 // catch (const std::exception&) cannot swallow it.
 struct TestSkipped {
   std::string reason;
+  SkipKind kind = SkipKind::other;
 };
 
 // Ends the running test as skipped: the runner prints "[SKIP] <name>: <reason>" instead
@@ -38,8 +95,13 @@ struct TestSkipped {
 // local fixture, a font the machine lacks, a platform or build without the feature), never
 // to hide a failure. A test that checked part of its work before running out of inputs
 // passes instead.
+[[noreturn]] inline void skip(SkipKind kind, std::string reason) {
+  throw TestSkipped{std::move(reason), kind};
+}
+
 [[noreturn]] inline void skip(std::string reason) {
-  throw TestSkipped{std::move(reason)};
+  const auto kind = classify_skip_reason(reason);
+  throw TestSkipped{std::move(reason), kind};
 }
 
 // A fixture path for a skip reason: from its test-fixtures or local-test-fixtures folder
@@ -57,10 +119,38 @@ inline std::string fixture_display_path(const std::filesystem::path& path) {
   return std::string(text.begin(), text.end());
 }
 
-// Skips the test unless the optional fixture at `path` exists.
+// An environment variable's value, empty when unset (MSVC deprecates std::getenv).
+inline std::string environment_value(const char* name) {
+#ifdef _MSC_VER
+  char* buffer = nullptr;
+  std::size_t length = 0;
+  std::string value;
+  if (_dupenv_s(&buffer, &length, name) == 0 && buffer != nullptr) {
+    value = buffer;
+  }
+  std::free(buffer);
+  return value;
+#else
+  const char* value = std::getenv(name);
+  return value != nullptr ? std::string(value) : std::string();
+#endif
+}
+
+// PATCHY_REQUIRE_FIXTURES=1: a machine that is meant to hold every local fixture (the
+// release box) fails a fixture skip instead of passing over it.
+inline bool fixtures_required() {
+  const auto value = environment_value("PATCHY_REQUIRE_FIXTURES");
+  return !value.empty() && value != "0";
+}
+
+// Skips the test unless the optional fixture at `path` exists (fails it under
+// PATCHY_REQUIRE_FIXTURES=1).
 inline void skip_unless_exists(const std::filesystem::path& path) {
   if (!std::filesystem::exists(path)) {
-    skip("optional fixture missing: " + fixture_display_path(path));
+    if (fixtures_required()) {
+      throw std::runtime_error("required fixture missing (PATCHY_REQUIRE_FIXTURES=1): " + fixture_display_path(path));
+    }
+    skip(SkipKind::fixture, "optional fixture missing: " + fixture_display_path(path));
   }
 }
 
@@ -89,23 +179,6 @@ void suppress_crash_dialogs() noexcept;
 // Exit code of a run a test timeout ended (the same value as coreutils `timeout`).
 inline constexpr int kTestTimeoutExitCode = 124;
 
-// An environment variable's value, empty when unset (MSVC deprecates std::getenv).
-inline std::string environment_value(const char* name) {
-#ifdef _MSC_VER
-  char* buffer = nullptr;
-  std::size_t length = 0;
-  std::string value;
-  if (_dupenv_s(&buffer, &length, name) == 0 && buffer != nullptr) {
-    value = buffer;
-  }
-  std::free(buffer);
-  return value;
-#else
-  const char* value = std::getenv(name);
-  return value != nullptr ? std::string(value) : std::string();
-#endif
-}
-
 // The per-test limit in seconds: PATCHY_TEST_TIMEOUT_SECONDS when set (0 turns the
 // watchdog off), else `fallback`. Debug builds get four times the fallback.
 inline long long test_timeout_seconds(long long fallback) {
@@ -120,6 +193,33 @@ inline long long test_timeout_seconds(long long fallback) {
   fallback *= 4;
 #endif
   return fallback;
+}
+
+// The wall-clock limit a test may assert: a hang guard, never a performance bound
+// (docs/testing.md, "Failure and lifetime traps"). Throughput budgets live in
+// patchy_perf_tests (its "toolbudgets" scenario holds the core tool strokes).
+inline constexpr long long kWallClockBackstopMs = 120000;
+
+// PATCHY_TEST_TIME_SCALE (a positive number; default 1, and 4 in Debug builds) multiplies
+// time_budget_ms. Only the throughput budgets that predate scripts/lint-test-sources.py use
+// it: new tests assert structure and keep minutes as the backstop (docs/testing.md).
+inline double test_time_scale() {
+  if (const auto text = environment_value("PATCHY_TEST_TIME_SCALE"); !text.empty()) {
+    char* end = nullptr;
+    const double value = std::strtod(text.c_str(), &end);
+    if (end != text.c_str() && value > 0.0) {
+      return value;
+    }
+  }
+#ifndef NDEBUG
+  return 4.0;
+#else
+  return 1.0;
+#endif
+}
+
+inline long long time_budget_ms(double budget_ms) {
+  return static_cast<long long>(budget_ms * test_time_scale() + 0.5);
 }
 
 // Fails a test that runs past its limit instead of letting the run hang (a modal
@@ -225,7 +325,40 @@ struct TestSuiteOptions {
   TestWatchdog::Report timeout_report;
   // Runs before and after every test (the UI suite's window and settings cleanup).
   std::function<void()> around_each;
+  // Names test-artifacts/skipped-<suite_name>.txt; empty takes argv[0]'s stem.
+  std::string suite_name;
 };
+
+struct SkippedTestRecord {
+  std::string name;
+  std::string reason;
+};
+
+// Writes test-artifacts/skipped-<suite>.txt (under the working directory): one
+// "<test name>\t<reason>" line per skipped test, sorted by name, empty when nothing
+// skipped. The release verifiers diff these names against an expected list per host
+// (docs/testing-skips.md); the file is a valid expected list as it stands.
+inline void write_skipped_tests_file(const std::string& suite, std::vector<SkippedTestRecord> records) {
+  std::sort(records.begin(), records.end(),
+            [](const SkippedTestRecord& left, const SkippedTestRecord& right) { return left.name < right.name; });
+  std::error_code error;
+  const auto folder = std::filesystem::current_path(error) / "test-artifacts";
+  std::filesystem::create_directories(folder, error);
+  const auto path = folder / ("skipped-" + suite + ".txt");
+  std::ofstream out(path, std::ios::binary | std::ios::trunc);
+  for (const auto& record : records) {
+    std::string reason = record.reason;
+    for (auto& character : reason) {
+      if (character == '\n' || character == '\r' || character == '\t') {
+        character = ' ';
+      }
+    }
+    out << record.name << '\t' << reason << '\n';
+  }
+  if (!out) {
+    std::cout << "  note: could not write test-artifacts/skipped-" << suite << ".txt\n";
+  }
+}
 
 inline void print_test_suite_usage(const char* program) {
   std::cerr << "usage: " << (program != nullptr ? program : "tests") << " [--list] [--exact] [filter]\n"
@@ -237,8 +370,11 @@ inline void print_test_suite_usage(const char* program) {
 
 // The runner loop shared by patchy_core_tests (native and wasm) and patchy_ui_visual_tests.
 // Prints [PASS] on stdout, [FAIL] on stderr, [SKIP] for skip(), and a closing [SUMMARY]
-// line. Returns 0 when nothing failed (skips included), 1 when a test failed, and
-// kTestUsageExitCode for a bad command line or a filter item that selects no test.
+// line whose skip count is split by SkipKind; then writes test-artifacts/skipped-<suite>.txt.
+// A test that recorded a failure (report_failure) and then skipped fails; under
+// PATCHY_REQUIRE_FIXTURES=1 a fixture skip fails too. Returns 0 when nothing failed (skips
+// included), 1 when a test failed, and kTestUsageExitCode for a bad command line or a filter
+// item that selects no test.
 inline int run_test_suite(const std::vector<TestCase>& tests, int argc, char** argv,
                           const TestSuiteOptions& options) {
   bool list = false;
@@ -317,8 +453,10 @@ inline int run_test_suite(const std::vector<TestCase>& tests, int argc, char** a
   }
 
   std::size_t passed = 0;
-  std::size_t skipped = 0;
+  std::vector<SkippedTestRecord> skipped;
+  std::array<std::size_t, 4> skipped_by_kind{};
   std::vector<std::string> failed;
+  const bool require_fixtures = fixtures_required();
   const auto started = std::chrono::steady_clock::now();
   TestWatchdog watchdog(options.timeout_seconds, options.timeout_report);
   for (const auto* test : selected) {
@@ -340,8 +478,23 @@ inline int run_test_suite(const std::vector<TestCase>& tests, int argc, char** a
         }
       }
     } catch (const TestSkipped& skipped_test) {
-      ++skipped;
-      std::cout << "[SKIP] " << test->name << ": " << skipped_test.reason << std::endl;
+      if (!deferred_failures().empty()) {
+        // A skip after a recorded failure must not hide it: the test checked something and
+        // it failed.
+        failed.push_back(test->name);
+        for (const auto& message : deferred_failures()) {
+          std::cerr << "[FAIL] " << test->name << ": " << message << std::endl;
+        }
+        std::cerr << "  then skipped: " << skipped_test.reason << std::endl;
+      } else if (require_fixtures && skipped_test.kind == SkipKind::fixture) {
+        failed.push_back(test->name);
+        std::cerr << "[FAIL] " << test->name << ": required fixture missing (PATCHY_REQUIRE_FIXTURES=1): "
+                  << skipped_test.reason << std::endl;
+      } else {
+        skipped.push_back({test->name, skipped_test.reason});
+        ++skipped_by_kind[static_cast<std::size_t>(skipped_test.kind)];
+        std::cout << "[SKIP] " << test->name << ": " << skipped_test.reason << std::endl;
+      }
     } catch (const std::exception& error) {
       failed.push_back(test->name);
       std::cerr << "[FAIL] " << test->name << ": " << error.what() << std::endl;
@@ -359,8 +512,27 @@ inline int run_test_suite(const std::vector<TestCase>& tests, int argc, char** a
 
   char seconds[32] = {};
   std::snprintf(seconds, sizeof(seconds), "%.1f", elapsed.count());
+  // The skip split: "skipped 7 (fixture 3, platform 2, feature 1, other 1)", zero classes left out.
+  std::string skip_classes;
+  for (std::size_t kind = 0; kind < skipped_by_kind.size(); ++kind) {
+    if (skipped_by_kind[kind] != 0) {
+      skip_classes += (skip_classes.empty() ? " (" : ", ");
+      skip_classes += std::string(skip_kind_name(static_cast<SkipKind>(kind))) + " " +
+                      std::to_string(skipped_by_kind[kind]);
+    }
+  }
+  if (!skip_classes.empty()) {
+    skip_classes += ")";
+  }
   std::cout << "[SUMMARY] executed " << selected.size() << ", passed " << passed << ", failed " << failed.size()
-            << ", skipped " << skipped << " in " << seconds << " s" << std::endl;
+            << ", skipped " << skipped.size() << skip_classes << " in " << seconds << " s" << std::endl;
+  std::string suite = options.suite_name;
+  if (suite.empty() && argc > 0 && argv[0] != nullptr) {
+    suite = std::filesystem::path(argv[0]).stem().string();
+  }
+  if (!suite.empty()) {
+    write_skipped_tests_file(suite, skipped);
+  }
   if (!selected.empty() && passed == 0 && failed.empty()) {
     std::cout << "[SUMMARY] every selected test skipped: nothing was checked" << std::endl;
   }

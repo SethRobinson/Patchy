@@ -1799,7 +1799,7 @@ void ui_layer_thumbnail_size_menu_resizes_rows_and_persists() {
     // The row menu's sizes, if it ends with the submenu, and the checked one.
     const auto read_row_menu_sizes = [&] {
       std::pair<QStringList, QString> seen;
-      QTimer::singleShot(0, [&] {
+      QTimer::singleShot(0, guarded([&] {
         for (auto* widget : QApplication::topLevelWidgets()) {
           auto* menu = qobject_cast<QMenu*>(widget);
           if (menu == nullptr || !menu->isVisible()) {
@@ -1819,7 +1819,7 @@ void ui_layer_thumbnail_size_menu_resizes_rows_and_persists() {
           menu->close();
           return;
         }
-      });
+      }));
       // Sky has no mask, so at None its row center stays off every thumbnail.
       const auto point = layer_list->visualItemRect(require_layer_item(*layer_list, QStringLiteral("Sky"))).center();
       QContextMenuEvent context_event(QContextMenuEvent::Mouse, point, layer_list->viewport()->mapToGlobal(point));
@@ -1978,7 +1978,7 @@ void ui_layer_thumbnails_zoom_to_content_preference() {
   // Unchecking the preference reverts to document mapping without a restart:
   // accepting the dialog clears the pixmap cache and rebuilds the rows.
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesZoomLayerThumbnailsCheck"));
@@ -1987,7 +1987,7 @@ void ui_layer_thumbnails_zoom_to_content_preference() {
     check->setChecked(false);
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -2010,7 +2010,7 @@ void ui_layer_thumbnails_zoom_to_content_preference() {
         QSize(28, 21));
   CHECK(patchy::ui::app_settings().value(QStringLiteral("view/zoomLayerThumbnailsToContent"), false).toBool());
   bool saw_checked = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     auto* check = dialog != nullptr
@@ -2020,7 +2020,7 @@ void ui_layer_thumbnails_zoom_to_content_preference() {
     if (dialog != nullptr) {
       dialog->reject();
     }
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_checked);
@@ -3312,7 +3312,7 @@ void ui_layer_eye_right_click_opens_color_menu() {
 // "before" pictures came from this test without the strip checks on an older build.
 void ui_issue_244_sample_layers_panel_shots_if_available() {
   const auto path =
-      patchy::test::source_root_path() / "local-test-fixtures" / "psd" / "issue-244" / "Test - Layer Lock.psd";
+      patchy::test::local_fixtures_root() / "psd" / "issue-244" / "Test - Layer Lock.psd";
   patchy::test::skip_unless_exists(path);
   SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
   patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
@@ -3356,7 +3356,7 @@ const patchy::Layer* top_level_layer_named(const patchy::Document& document, con
 
 void ui_issue_246_sample_prevent_auto_nesting_if_available() {
   const auto path =
-      patchy::test::source_root_path() / "local-test-fixtures" / "psd" / "issue-244" / "Test - Layer Lock.psd";
+      patchy::test::local_fixtures_root() / "psd" / "issue-244" / "Test - Layer Lock.psd";
   patchy::test::skip_unless_exists(path);
   SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
   patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
@@ -4192,13 +4192,13 @@ void ui_layer_shape_row_double_click_opens_layer_style() {
   auto* details = layer_list->itemWidget(item)->findChild<QLabel*>(QStringLiteral("layerRowDetails"));
   CHECK(details != nullptr);
   bool saw_style_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     CHECK(find_top_level_dialog(QStringLiteral("shapeAppearanceDialog")) == nullptr);
     if (auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")); dialog != nullptr) {
       saw_style_dialog = true;
       dialog->reject();
     }
-  });
+  }));
   send_double_click(*details, details->rect().center());
   QApplication::processEvents();
   CHECK(saw_style_dialog);
@@ -4312,7 +4312,7 @@ void ui_fill_layer_row_opens_fill_settings_without_shape_controls() {
   bool edge_shown = true;
   int kinds = 0;
   const auto inspect_and = [&](bool accept) {
-    return [&, accept] {
+    return guarded([&, accept] {
       auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -4335,7 +4335,7 @@ void ui_fill_layer_row_opens_fill_settings_without_shape_controls() {
       } else {
         dialog->reject();
       }
-    };
+    });
   };
 
   QTimer::singleShot(0, inspect_and(true));
@@ -4430,7 +4430,7 @@ void ui_fill_layer_settings_title_and_fill_label_by_mode() {
   bool fill_only = false;
   bool preview_left_of_reset = false;
   const auto inspect = [&](bool switch_to_pattern) {
-    return [&, switch_to_pattern] {
+    return guarded([&, switch_to_pattern] {
       auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -4467,7 +4467,7 @@ void ui_fill_layer_settings_title_and_fill_label_by_mode() {
       }
       title = dialog->windowTitle();
       dialog->reject();
-    };
+    });
   };
 
   // New Gradient Fill stages the layer and opens the fill-only dialog: accept it.
@@ -6363,6 +6363,9 @@ void ui_layer_eye_menu_opens_from_eye_column_only() {
 }
 
 void ui_layer_eye_sweep_survives_folder_row_rebuild() {
+  // Each worker render sleeps this long first: a press that waited for one would take at
+  // least that, so the press bound is half of it.
+  constexpr qint64 kEyeSweepRenderDelayMs = 4000;
   EnvironmentVariableRestorer restore_delay{"PATCHY_PROCESSING_RENDER_TEST_DELAY_MS"};
   EnvironmentVariableRestorer restore_threshold{"PATCHY_PROCESSING_OVERLAY_MIN_PIXELS"};
   for (const bool collapsed : {false, true}) {
@@ -6394,7 +6397,7 @@ void ui_layer_eye_sweep_survives_folder_row_rebuild() {
       auto* canvas = require_canvas(window);
       canvas->force_refresh();
       const auto overlays_before = canvas->render_cache_diagnostics().processing_overlays_shown;
-      qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("600"));
+      qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray::number(kEyeSweepRenderDelayMs));
       qputenv("PATCHY_PROCESSING_OVERLAY_MIN_PIXELS", QByteArray("1"));
       const auto selected_before = layer_list->selectedItems().size();
       const auto current_id_before = layer_list->currentItem()->data(Qt::UserRole).toULongLong();
@@ -6416,7 +6419,7 @@ void ui_layer_eye_sweep_survives_folder_row_rebuild() {
       QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
       const auto press_ms = std::chrono::duration<double, std::milli>(
           std::chrono::steady_clock::now() - press_started).count();
-      CHECK(press_ms < 400.0);  // the injected render takes at least 600 ms
+      CHECK(press_ms < kEyeSweepRenderDelayMs / 2);  // the press never waited for the injected render
 
       QPoint last_position(column_x, 0);
       for (const auto* name : {"Folder", "Child B", "Child A", "Background"}) {
@@ -6471,7 +6474,7 @@ void ui_layer_eye_sweep_survives_folder_row_rebuild() {
       CHECK(layer_list->currentItem()->data(Qt::UserRole).toULongLong() == current_id_before);
       CHECK(canvas->render_cache_diagnostics().processing_overlays_shown == overlays_before);
       qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("0"));
-      CHECK(process_events_until([canvas] { return canvas->render_settled(); }, 10000));
+      CHECK(process_events_until([canvas] { return canvas->render_settled(); }, 60000));
       const auto settled_image = render_widget_image(*canvas);
       canvas->force_refresh();
       CHECK(images_equal_rgba(settled_image, render_widget_image(*canvas)));

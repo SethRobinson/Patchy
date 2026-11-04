@@ -176,7 +176,7 @@ void adjustment_preset_files_round_trip_and_reject_malformed() {
 // preset files carry the same bytes, and Photoshop applied each exported file through
 // its Usng load). See local-test-fixtures/adjustment-presets/README.txt.
 void adjustment_preset_files_read_photoshop_payloads_if_available() {
-  const auto folder = patchy::test::source_root_path() / "local-test-fixtures" / "adjustment-presets";
+  const auto folder = patchy::test::local_fixtures_root() / "adjustment-presets";
   patchy::test::skip_unless_exists(folder / "README.txt");
 
   const auto hue = patchy::ahu::read_file(folder / "photoshop-hue-reds.ahu");

@@ -34,8 +34,12 @@
 #include <QVariant>
 
 #include <array>
+#include <concepts>
 #include <cstdint>
+#include <exception>
 #include <functional>
+#include <stdexcept>
+#include <type_traits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -591,6 +595,69 @@ QDialog* find_top_level_dialog(const QString& object_name);
 // unwinding through Qt's event dispatch; a dialog that never shows is recorded too, and a
 // different modal dialog open in its place is rejected so the test cannot park in it.
 void when_dialog_visible(const QString& object_name, std::function<void(QDialog&)> drive, int timeout_ms = 10000);
+
+// What guarded() does with a throw that reached the edge of a Qt callback, so it never
+// crosses Qt's event dispatch (macOS aborts in the CFRunLoop frames; docs/testing.md,
+// "Failure and lifetime traps"). Inside a run_non_modal_dialog loop it hands the error to
+// patchy::ui::unwind_non_modal_dialog_loop, which rethrows it on that loop's frame and so
+// fails the test normally. Otherwise it records the message through
+// patchy::test::report_failure (printed at once on stderr too, so a later timeout explains
+// itself), then closes the active popup and rejects the active modal dialog, as
+// when_dialog_visible does, so the test is not parked in a loop nobody drives any more.
+// A skip() inside a callback is reported the same way: it cannot end the test from there.
+void report_callback_failure(std::exception_ptr error);
+
+// A callable that runs `F` and routes anything it throws to report_callback_failure.
+// Same arguments and return type as F (a value-initialized result after a throw); calls
+// through a const Guarded need a const-callable F, so a mutable lambda works when the
+// Guarded itself is not const.
+template <typename F>
+class Guarded {
+public:
+  explicit Guarded(F callable) : callable_(std::move(callable)) {}
+
+  template <typename... Args>
+    requires std::invocable<F&, Args...>
+  decltype(auto) operator()(Args&&... args) {
+    return run(callable_, std::forward<Args>(args)...);
+  }
+
+  template <typename... Args>
+    requires std::invocable<const F&, Args...>
+  decltype(auto) operator()(Args&&... args) const {
+    return run(callable_, std::forward<Args>(args)...);
+  }
+
+private:
+  template <typename G, typename... Args>
+  static std::invoke_result_t<G&, Args...> run(G& callable, Args&&... args) {
+    using Result = std::invoke_result_t<G&, Args...>;
+    try {
+      return std::invoke(callable, std::forward<Args>(args)...);
+    } catch (const patchy::test::TestSkipped& skipped) {
+      report_callback_failure(std::make_exception_ptr(
+          std::runtime_error("skip() inside a timer or slot cannot end the test: " + skipped.reason)));
+    } catch (...) {
+      report_callback_failure(std::current_exception());
+    }
+    if constexpr (!std::is_void_v<Result>) {
+      return Result{};
+    }
+  }
+
+  F callable_;
+};
+
+// Wraps a QTimer::singleShot body (or any slot) whose CHECKs may throw:
+//
+//   QTimer::singleShot(0, guarded([&] { CHECK(dialog != nullptr); ... }));
+//
+// A modal dialog driver is better armed with when_dialog_visible, which also waits for the
+// dialog. scripts/lint-test-sources.py fails a singleShot lambda with an unguarded CHECK(.
+template <typename F>
+[[nodiscard]] Guarded<std::decay_t<F>> guarded(F&& callable) {
+  return Guarded<std::decay_t<F>>(std::forward<F>(callable));
+}
 
 // Prints what decides whether a shape drag makes a shape layer (the current canvas, its
 // tool, vector mode, style, edit target, quick mask, zoom, the layers and the active one).

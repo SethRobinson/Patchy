@@ -16,6 +16,7 @@
 #include <bit>
 #include <cctype>
 #include <chrono>
+#include <cstdio>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -1774,7 +1775,9 @@ void tool_brush_tip_count_stamps_multiple_dabs_per_step() {
   const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                               std::chrono::steady_clock::now() - start)
                               .count();
-  CHECK(elapsed_ms < 1000);
+  // Its speed budget is patchy_perf_tests toolbudgets; here the clock is a hang guard.
+  std::printf("  scattered count-8 stroke: %lld ms\n", static_cast<long long>(elapsed_ms));
+  CHECK(elapsed_ms < patchy::test::kWallClockBackstopMs);
 }
 
 void tool_brush_tip_opacity_jitter_varies_dab_alpha() {
@@ -2045,7 +2048,9 @@ void tool_brush_tip_large_stamp_stroke_is_fast() {
       std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
 
   CHECK(!dirty.empty());
-  CHECK(elapsed_ms < 1000);
+  // Its speed budget is patchy_perf_tests toolbudgets; here the clock is a hang guard.
+  std::printf("  500 px stamp stroke: %lld ms\n", static_cast<long long>(elapsed_ms));
+  CHECK(elapsed_ms < patchy::test::kWallClockBackstopMs);
   const auto* layer = document.find_layer(layer_id);
   CHECK(layer != nullptr);
   const auto* center = layer->pixels().pixel(800 - layer->bounds().x, 500 - layer->bounds().y);

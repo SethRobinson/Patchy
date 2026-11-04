@@ -3445,7 +3445,7 @@ void ui_size_dialogs_open_with_width_focused_and_selected() {
   // (WasmDialogInitialFocusGuard, dialog_utils.cpp); this pins the intended
   // state where Qt gets it right natively.
   const auto check_dialog = [](const QString& dialog_name, const QString& spin_name) {
-    QTimer::singleShot(0, [dialog_name, spin_name] {
+    QTimer::singleShot(0, guarded([dialog_name, spin_name] {
       for (auto* widget : QApplication::topLevelWidgets()) {
         if (widget->objectName() != dialog_name) {
           continue;
@@ -3464,7 +3464,7 @@ void ui_size_dialogs_open_with_width_focused_and_selected() {
         return;
       }
       CHECK(false);
-    });
+    }));
   };
   check_dialog(QStringLiteral("patchyImageSizeDialog"), QStringLiteral("imageSizeWidthSpin"));
   require_action(window, "imageSizeAction")->trigger();
@@ -5182,7 +5182,7 @@ void ui_view_extras_menu_options_dialog_and_settings() {
     CHECK(!canvas->extra_shown(ViewExtra::Grid));
 
     bool dialog_seen = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = find_top_level_dialog(QStringLiteral("viewExtrasOptionsDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -5203,7 +5203,7 @@ void ui_view_extras_menu_options_dialog_and_settings() {
       }
       save_widget_artifact("ui_view_extras_options_dialog", *dialog);
       QTimer::singleShot(0, dialog, [dialog] { dialog->accept(); });
-    });
+    }));
     require_action(window, "viewExtrasOptionsAction")->trigger();
     QApplication::processEvents();
     CHECK(dialog_seen);
@@ -6844,7 +6844,7 @@ void ui_tool_palette_crop_icon_has_large_center() {
                 .save(QString::fromStdString("test-artifacts/issue_390_crop_palette" + suffix + scale + ".png")));
     }
     auto* menu = button->menu();
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       const QPoint popup_position = menu->mapToGlobal(QPoint(0, 0)) - window.mapToGlobal(QPoint(0, 0));
       const QRect crop = QRect(button_origin, button->size())
                              .united(QRect(popup_position, menu->size()))
@@ -6856,7 +6856,7 @@ void ui_tool_palette_crop_icon_has_large_center() {
                   .save(QString::fromStdString("test-artifacts/issue_390_crop_flyout" + suffix + scale + ".png")));
       }
       menu->close();
-    });
+    }));
     button->showMenu();
     QApplication::processEvents();
     CHECK(!menu->isVisible());
@@ -7109,7 +7109,7 @@ void ui_filled_shape_preview_clears_after_commit() {
 void accept_edit_fill_dialog(const QString& contents, const QString& mode, int opacity,
                              std::optional<QColor> color = std::nullopt, bool preserve_transparency = false,
                              const char* artifact = nullptr) {
-  QTimer::singleShot(0, [=] {
+  QTimer::singleShot(0, guarded([=] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyFillDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -7146,7 +7146,7 @@ void accept_edit_fill_dialog(const QString& contents, const QString& mode, int o
       save_widget_artifact(artifact, *dialog);
     }
     dialog->accept();
-  });
+  }));
 }
 
 // Edit > Fill's OK is as wide as Cancel (GitHub issue 575 follow-up 2), in English and in German,
@@ -7157,7 +7157,7 @@ void ui_edit_fill_dialog_ok_matches_cancel_width() {
     CHECK(patchy::ui::LocalizationManager::instance().set_language(QString::fromLatin1(language), false));
     QApplication::processEvents();
     bool checked = false;
-    QTimer::singleShot(0, [&checked, language] {
+    QTimer::singleShot(0, guarded([&checked, language] {
       auto* dialog = find_top_level_dialog(QStringLiteral("patchyFillDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -7178,7 +7178,7 @@ void ui_edit_fill_dialog_ok_matches_cancel_width() {
       }
       save_widget_artifact(std::string("issue_575_fill_dialog_buttons_") + language, *dialog);
       dialog->reject();
-    });
+    }));
     const auto settings = patchy::ui::request_fill_settings(nullptr, QColor(Qt::black), QColor(Qt::white));
     CHECK(!settings.has_value());
     CHECK(checked);
@@ -7258,13 +7258,13 @@ void ui_edit_fill_dialog_fills_contents_with_mode_and_opacity() {
   // Cancel changes nothing and adds no history.
   {
     const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
-    QTimer::singleShot(0, [] {
+    QTimer::singleShot(0, guarded([] {
       auto* dialog = find_top_level_dialog(QStringLiteral("patchyFillDialog"));
       CHECK(dialog != nullptr);
       if (dialog != nullptr) {
         dialog->reject();
       }
-    });
+    }));
     fill->trigger();
     QApplication::processEvents();
     CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before);
@@ -7345,7 +7345,7 @@ void ui_edit_fill_dialog_content_aware_fills_selection() {
   };
 
   // No selection: the order and separators, Content-Aware disabled, the slider pair.
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyFillDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -7419,7 +7419,7 @@ void ui_edit_fill_dialog_content_aware_fills_selection() {
     parts.opacity_spin->setValue(70);
     CHECK(parts.opacity_slider->value() == 70);
     dialog->reject();
-  });
+  }));
   fill->trigger();
   QApplication::processEvents();
 
@@ -7444,7 +7444,7 @@ void ui_edit_fill_dialog_content_aware_fills_selection() {
   // Answers the dialog with Content-Aware, `new_layer` ticked or not. Mode and Opacity
   // follow Add to New Layer; with it ticked the dialog picks Multiply at 60%.
   const auto accept_content_aware = [&](bool new_layer, const char* artifact) {
-    QTimer::singleShot(0, [&, new_layer, artifact] {
+    QTimer::singleShot(0, guarded([&, new_layer, artifact] {
       auto* dialog = find_top_level_dialog(QStringLiteral("patchyFillDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -7490,7 +7490,7 @@ void ui_edit_fill_dialog_content_aware_fills_selection() {
         save_widget_artifact(artifact, *dialog);
       }
       dialog->accept();
-    });
+    }));
   };
 
   // In place: only the selection changes, the dark "1" bar is gone, one history entry.
@@ -7585,7 +7585,7 @@ void ui_edit_fill_dialog_content_aware_fills_selection() {
   // A remembered Content-Aware falls back to Foreground Color when there is no selection.
   require_action(window, "editDeselectAction")->trigger();
   QApplication::processEvents();
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyFillDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -7594,7 +7594,7 @@ void ui_edit_fill_dialog_content_aware_fills_selection() {
     auto* contents = dialog->findChild<QComboBox*>(QStringLiteral("editFillContentsCombo"));
     CHECK(contents != nullptr && contents->currentData().toString() == QStringLiteral("foreground"));
     dialog->reject();
-  });
+  }));
   fill->trigger();
   QApplication::processEvents();
   patchy::ui::save_fill_dialog_settings(patchy::ui::FillDialogSettings{});
@@ -7965,7 +7965,7 @@ void ui_fill_of_wand_selection_with_many_spans_is_fast() {
   CHECK(pixel_at(2, 2) == QColor(0, 180, 210));
   CHECK(pixel_at(kWidth - 3, kHeight - 3) == QColor(0, 180, 210));
   CHECK(pixel_at(kDiscSpacing / 2, kDiscSpacing / 2) == QColor(30, 30, 30));
-  CHECK(fill_command_ms < 3000);
+  CHECK(fill_command_ms < patchy::test::time_budget_ms(3000));
 
   // The Fill tool click inside the same selection floods the fresh fill color.
   canvas->set_tool(patchy::ui::CanvasTool::Fill);
@@ -7981,7 +7981,7 @@ void ui_fill_of_wand_selection_with_many_spans_is_fast() {
   CHECK(pixel_at(2, 2) == QColor(200, 40, 60));
   CHECK(pixel_at(kWidth - 3, kHeight - 3) == QColor(200, 40, 60));
   CHECK(pixel_at(kDiscSpacing / 2, kDiscSpacing / 2) == QColor(30, 30, 30));
-  CHECK(fill_tool_ms < 3000);
+  CHECK(fill_tool_ms < patchy::test::time_budget_ms(3000));
   std::cout << "  fill command " << fill_command_ms << " ms, fill tool " << fill_tool_ms << " ms over "
             << selection.rectCount() << " selection spans\n";
 }
@@ -8636,7 +8636,7 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(canvas->gradient_opacity() == 55);
   CHECK(canvas->gradient_reverse());
 
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = find_top_level_dialog(QStringLiteral("gradientStopsDialog"));
     CHECK(dialog != nullptr);
     auto* preview = dialog->findChild<QWidget*>(QStringLiteral("gradientStopsPreview"));
@@ -8723,7 +8723,7 @@ void ui_options_bar_tracks_active_tool() {
 
     const QColor original_stop_color(table->item(2, 1)->text());
     bool saw_live_stop_picker = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* color_dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyColorDialog")));
       CHECK(color_dialog != nullptr);
       auto* picker = color_dialog->findChild<patchy::ui::PatchyColorPicker*>(
@@ -8734,13 +8734,13 @@ void ui_options_bar_tracks_active_tool() {
       CHECK(table->item(2, 1)->text() == QStringLiteral("#0C2238"));
       saw_live_stop_picker = true;
       color_dialog->reject();
-    });
+    }));
     choose_color->click();
     CHECK(saw_live_stop_picker);
     CHECK(table->item(2, 1)->text() == original_stop_color.name(QColor::HexRgb).toUpper());
 
     dialog->accept();
-  });
+  }));
   gradient_edit_stops->click();
   QApplication::processEvents();
   CHECK(canvas->gradient_stops().has_value());
@@ -8832,7 +8832,7 @@ void ui_gradient_toolbar_preset_popup_applies_stops() {
   // The Edit Stops dialog's Preset... button opens the same quick popup; a
   // rejected dialog discards the picked preset.
   bool checked_dialog_popup = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("gradientStopsDialog"));
     CHECK(dialog != nullptr);
     auto* table = dialog->findChild<QTableWidget*>(QStringLiteral("gradientStopsTable"));
@@ -8860,7 +8860,7 @@ void ui_gradient_toolbar_preset_popup_applies_stops() {
     CHECK(table->item(0, 1)->text() == QStringLiteral("#081C33"));
     checked_dialog_popup = true;
     dialog->reject();
-  });
+  }));
   auto* gradient_edit_stops = window.findChild<QPushButton*>(QStringLiteral("gradientEditStopsButton"));
   CHECK(gradient_edit_stops != nullptr);
   gradient_edit_stops->click();
@@ -9047,7 +9047,11 @@ void ui_layer_opacity_control_defers_slow_rendering_and_undoes_once() {
   EnvironmentVariableRestorer restore_render_delay("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS");
   qputenv("PATCHY_PROCESSING_OVERLAY_DELAY_MS", QByteArray("0"));
   qputenv("PATCHY_PROCESSING_OVERLAY_MIN_PIXELS", QByteArray("0"));
-  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("240"));
+  // Each worker render sleeps this long first. A sweep that waited for even one render
+  // would take at least that, so the sweep bound is half of it, far above the sweep's
+  // own cost on a loaded host.
+  constexpr qint64 kOpacityRenderDelayMs = 4000;
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray::number(kOpacityRenderDelayMs));
 
   // The popup slider drives the spin box with plain setValue calls, so this
   // sweep exercises the same path a slider drag does.
@@ -9058,7 +9062,8 @@ void ui_layer_opacity_control_defers_slow_rendering_and_undoes_once() {
     CHECK(opacity_spin->value() == value);
     QApplication::processEvents(QEventLoop::AllEvents, 1);
   }
-  CHECK(slider_updates.elapsed() < 300);
+  std::printf("  opacity sweep: %lld ms\n", static_cast<long long>(slider_updates.elapsed()));
+  CHECK(slider_updates.elapsed() < kOpacityRenderDelayMs / 2);
   CHECK(opacity_spin->value() == 25);
 
   auto& edited_document = patchy::ui::MainWindowTestAccess::document(window);
@@ -9066,7 +9071,7 @@ void ui_layer_opacity_control_defers_slow_rendering_and_undoes_once() {
   CHECK(edited_layer != nullptr);
   QElapsedTimer wait_for_apply;
   wait_for_apply.start();
-  while (std::abs(edited_layer->opacity() - 0.25F) > 0.001F && wait_for_apply.elapsed() < 900) {
+  while (std::abs(edited_layer->opacity() - 0.25F) > 0.001F && wait_for_apply.elapsed() < 60000) {
     QApplication::processEvents(QEventLoop::AllEvents, 20);
   }
   CHECK(std::abs(edited_layer->opacity() - 0.25F) <= 0.001F);
@@ -10798,12 +10803,12 @@ void ui_layer_blend_mode_fast_steps_render_only_the_landing_mode() {
   const auto settle = [canvas](int baseline) {
     QElapsedTimer wait;
     wait.start();
-    while (canvas->render_cache_diagnostics().full_refreshes == baseline && wait.elapsed() < 8000) {
+    while (canvas->render_cache_diagnostics().full_refreshes == baseline && wait.elapsed() < 60000) {
       QApplication::processEvents(QEventLoop::AllEvents, 20);
     }
     QElapsedTimer tail;
     tail.start();
-    while ((tail.elapsed() < 1500 || !canvas->render_settled()) && wait.elapsed() < 12000) {
+    while ((tail.elapsed() < 1500 || !canvas->render_settled()) && wait.elapsed() < 90000) {
       QApplication::processEvents(QEventLoop::AllEvents, 20);
     }
   };
@@ -10828,8 +10833,11 @@ void ui_layer_blend_mode_fast_steps_render_only_the_landing_mode() {
     CHECK(blend_of_target() == patchy::BlendMode::Normal);
   }
 
+  // Each worker render sleeps this long first: presses that waited for one would take at
+  // least that, so their bound is half of it.
+  constexpr qint64 kBlendRenderDelayMs = 4000;
   EnvironmentVariableRestorer restore_render_delay("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS");
-  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("300"));
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray::number(kBlendRenderDelayMs));
   QElapsedTimer pause;
   pause.start();
   while (Access::layer_blend_edit_pending(window) && pause.elapsed() < 3000) {
@@ -10857,7 +10865,7 @@ void ui_layer_blend_mode_fast_steps_render_only_the_landing_mode() {
   CHECK(during.partial_patches == before.partial_patches);
   // The one awaited operation is the run's undo snapshot (a document copy), not a render.
   CHECK(during.awaited_renders - before.awaited_renders <= 1);
-  CHECK(presses_ms < 300);  // the presses never waited for the delayed worker render
+  CHECK(presses_ms < kBlendRenderDelayMs / 2);  // the presses never waited for the delayed worker render
   settle(before.full_refreshes);
   const auto after = canvas->render_cache_diagnostics();
   std::printf("[blend-step] renders for 7 quick presses: %d\n", after.full_refreshes - before.full_refreshes);
@@ -11117,7 +11125,7 @@ QString row_details(patchy::ui::MainWindow& window, patchy::LayerId id) {
 void with_layer_style_blend_combo(patchy::ui::MainWindow& window, const std::function<void(QComboBox&)>& inspect,
                                   bool accept) {
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog"));
     CHECK(dialog != nullptr);
     auto* blend =
@@ -11134,7 +11142,7 @@ void with_layer_style_blend_combo(patchy::ui::MainWindow& window, const std::fun
         dialog->reject();
       }
     }
-  });
+  }));
   require_action(window, "layerBlendingOptionsAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -11888,7 +11896,7 @@ void ui_right_dock_drag_works_during_preview_dialog() {
   const auto width_before = layers_dock->width();
   bool saw_dialog = false;
   int width_during = 0;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyFilterDialog") || !widget->isVisible()) {
         continue;
@@ -11908,7 +11916,7 @@ void ui_right_dock_drag_works_during_preview_dialog() {
       return;
     }
     CHECK(false);
-  });
+  }));
   require_action(window, "imageAdjustDesaturateAction")->trigger();
   CHECK(saw_dialog);
   CHECK(width_during == width_before - 60);

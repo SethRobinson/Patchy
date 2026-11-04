@@ -710,7 +710,7 @@ void ui_liquify_dialog_exposes_manual_tools_and_brush_controls() {
     }
   }
   bool inspected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("liquifyDialog"));
     CHECK(dialog != nullptr);
     for (const auto* name : {"liquifyWarpTool", "liquifyReconstructTool",
@@ -758,7 +758,7 @@ void ui_liquify_dialog_exposes_manual_tools_and_brush_controls() {
                       preview->rect().center());
     inspected = true;
     dialog->accept();
-  });
+  }));
   const auto result = patchy::ui::request_liquify(
       nullptr, source, patchy::Rect{0, 0, source.width(), source.height()},
       QRegion());
@@ -1723,7 +1723,7 @@ void ui_filter_settings_dialog_coalesces_rapid_slider_preview_callbacks() {
                                             QStringLiteral("%"), "amount", patchy::FilterParameterKind::Integer,
                                             std::int64_t{0}}}};
 
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
     CHECK(dialog != nullptr);
     auto* amount = dialog->findChild<QSpinBox*>(QStringLiteral("filterAmountSpin"));
@@ -1732,7 +1732,7 @@ void ui_filter_settings_dialog_coalesces_rapid_slider_preview_callbacks() {
       amount->setValue(value);
     }
     QTimer::singleShot(120, dialog, [dialog] { dialog->accept(); });
-  });
+  }));
 
   const auto settings = patchy::ui::request_filter_settings(
       nullptr, spec, [&](patchy::ui::FilterPreviewSettings preview) {
@@ -1764,7 +1764,7 @@ void ui_filter_settings_dialog_delivers_latest_after_slow_preview_callback() {
           return;
         }
         queued_changes = true;
-        QTimer::singleShot(0, [] {
+        QTimer::singleShot(0, guarded([] {
           auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
           CHECK(dialog != nullptr);
           auto* amount = dialog->findChild<QSpinBox*>(QStringLiteral("filterAmountSpin"));
@@ -1773,7 +1773,7 @@ void ui_filter_settings_dialog_delivers_latest_after_slow_preview_callback() {
             amount->setValue(value);
           }
           QTimer::singleShot(120, dialog, [dialog] { dialog->accept(); });
-        });
+        }));
         QElapsedTimer slow_preview;
         slow_preview.start();
         while (slow_preview.elapsed() < 45) {
@@ -1804,7 +1804,7 @@ void ui_filter_settings_dialog_reset_restores_named_defaults_and_colors() {
 
   int preview_calls = 0;
   patchy::ui::FilterPreviewSettings last_preview;
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
     CHECK(dialog != nullptr);
     auto* scale = dialog->findChild<QSpinBox*>(QStringLiteral("filterScaleSpin"));
@@ -1830,7 +1830,7 @@ void ui_filter_settings_dialog_reset_restores_named_defaults_and_colors() {
     CHECK(contrast->value() == 40);
     CHECK(seed->value() == 1);
     dialog->accept();
-  });
+  }));
 
   const auto settings = patchy::ui::request_filter_settings(
       nullptr, spec,
@@ -1946,7 +1946,7 @@ void ui_filter_settings_dialog_angle_dial_and_waveform_sync_numeric_controls() {
     CHECK(motion != nullptr);
     const auto spec = patchy::ui::filter_dialog_spec_for(*motion);
     bool drove_dialog = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = qobject_cast<QDialog*>(
           find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
       CHECK(dialog != nullptr);
@@ -1970,7 +1970,7 @@ void ui_filter_settings_dialog_angle_dial_and_waveform_sync_numeric_controls() {
             angle_spin->value());
       drove_dialog = true;
       dialog->accept();
-    });
+    }));
     const auto settings = patchy::ui::request_filter_settings(nullptr, spec, {});
     CHECK(drove_dialog);
     CHECK(settings.has_value());
@@ -1985,7 +1985,7 @@ void ui_filter_settings_dialog_angle_dial_and_waveform_sync_numeric_controls() {
     CHECK(wave != nullptr);
     const auto spec = patchy::ui::filter_dialog_spec_for(*wave);
     bool drove_dialog = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = qobject_cast<QDialog*>(
           find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
       CHECK(dialog != nullptr);
@@ -2020,7 +2020,7 @@ void ui_filter_settings_dialog_angle_dial_and_waveform_sync_numeric_controls() {
       CHECK(wavelength->value() == wavelength_before + 1);
       drove_dialog = true;
       dialog->accept();
-    });
+    }));
     const auto settings = patchy::ui::request_filter_settings(nullptr, spec, {});
     CHECK(drove_dialog);
     CHECK(settings.has_value());
@@ -2044,7 +2044,7 @@ void ui_filter_settings_dialog_proxy_preview_renders_and_center_overlay_drag_syn
   bool drove_dialog = false;
   double dragged_center_x = 0.0;
   double dragged_center_y = 0.0;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(
         find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
     CHECK(dialog != nullptr);
@@ -2107,7 +2107,7 @@ void ui_filter_settings_dialog_proxy_preview_renders_and_center_overlay_drag_syn
     save_widget_artifact("ui_filter_settings_dialog_proxy_preview", *dialog);
     drove_dialog = true;
     dialog->accept();
-  });
+  }));
   const auto settings =
       patchy::ui::request_filter_settings(nullptr, spec, {}, {}, &source);
   CHECK(drove_dialog);
@@ -2131,7 +2131,7 @@ void ui_filter_settings_dialog_tilt_shift_overlay_defers_proxy_adoption_until_re
                                                      &registry};
 
   bool drove_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QDialog*>(
         find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
     CHECK(dialog != nullptr);
@@ -2171,7 +2171,7 @@ void ui_filter_settings_dialog_tilt_shift_overlay_defers_proxy_adoption_until_re
     QApplication::processEvents();
     drove_dialog = true;
     dialog->accept();
-  });
+  }));
   const auto settings =
       patchy::ui::request_filter_settings(nullptr, spec, {}, {}, &source);
   CHECK(drove_dialog);

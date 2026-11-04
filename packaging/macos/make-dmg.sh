@@ -78,7 +78,8 @@ rm -f "${ROOT:?}/build/package"/Patchy-*.dmg
 STAGE=$(mktemp -d "$SCRATCH_PARENT/patchy-dmg-stage.XXXXXX")
 trap 'remove_scratch "$STAGE"' EXIT
 cp -R "$APP" "$STAGE/Patchy.app"
-# Dev-tree extras that are not part of the shipped app.
+# Dev-tree extras that are not part of the shipped app: the build no longer copies test-fixtures into
+# the bundle, but long-lived build trees keep the old copy, and the UI tests stage plug-ins there.
 rm -rf "${STAGE:?}/Patchy.app/Contents/MacOS/test-fixtures"
 # A build tree from the GIMP plug-in branch keeps that removed helper in its bundle.
 rm -f "${STAGE:?}/Patchy.app/Contents/MacOS/patchy-gimp-host"

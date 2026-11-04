@@ -123,7 +123,7 @@ void BlendIfRangeEditorWidget::paintEvent(QPaintEvent* event) {
   gradient.setColorAt(0.0, QColor(0, 0, 0));
   gradient.setColorAt(1.0, ramp_end_color(ramp_channel_));
   painter.fillRect(ramp, gradient);
-  painter.setPen(QPen(QColor(112, 119, 130), 1));
+  painter.setPen(QPen(theme().blend_if_ramp_border, 1));
   painter.setBrush(Qt::NoBrush);
   painter.drawRect(ramp.adjusted(0, 0, -1, -1));
 
@@ -151,7 +151,7 @@ void BlendIfRangeEditorWidget::paintEvent(QPaintEvent* event) {
   }
 
   painter.setRenderHint(QPainter::Antialiasing, false);
-  painter.setPen(QPen(hasFocus() ? selected_color() : QColor(78, 84, 94), hasFocus() ? 2 : 1));
+  painter.setPen(QPen(hasFocus() ? selected_color() : theme().blend_if_frame_border, hasFocus() ? 2 : 1));
   painter.setBrush(Qt::NoBrush);
   painter.drawRect(rect().adjusted(1, 1, -2, -2));
 }

@@ -2170,7 +2170,7 @@ void ui_script_text_size_survives_low_zoom_reedit() {
 // skips unless the font is installed on this machine and copied into local-test-fixtures.
 void ui_script_text_full_face_name_resolves_like_its_family() {
 #ifdef Q_OS_WIN
-  const auto fixture = QStringLiteral(PATCHY_SOURCE_DIR "/local-test-fixtures/fonts/FUTURAXK.TTF");
+  const auto fixture = patchy::ui::to_qstring(patchy::test::local_fixtures_root() / "fonts/FUTURAXK.TTF");
   if (!QFileInfo::exists(fixture) || !patchy::psd::installed_font_for_name("Futura Extra Black BT").has_value()) {
     patchy::test::skip("Futura Extra Black BT is not installed and staged in local-test-fixtures/fonts");
   }

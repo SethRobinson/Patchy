@@ -270,7 +270,7 @@ void ui_photocopy_dialog_previews_clipping_at_actual_size() {
   // and paper size this machine defaults to.
   qputenv("PATCHY_FAKE_SCANNER_FILE", write_fake_scan(QStringLiteral("ui_fake_photocopy_large.png"), 6000, 1200).toUtf8());
   bool saw_clipped_dialog = false;
-  QTimer::singleShot(0, [&saw_clipped_dialog] {
+  QTimer::singleShot(0, guarded([&saw_clipped_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("photocopyDialog"));
     CHECK(dialog != nullptr);
     auto* printer = dialog->findChild<QComboBox*>(QStringLiteral("photocopyPrinterCombo"));
@@ -347,7 +347,7 @@ void ui_photocopy_dialog_previews_clipping_at_actual_size() {
     save_widget_artifact("ui_photocopy_dialog_cropped", *dialog);
     saw_clipped_dialog = true;
     dialog->reject();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::photocopy_from_scanner(window);
   QApplication::processEvents();
   CHECK(saw_clipped_dialog);
@@ -357,7 +357,7 @@ void ui_photocopy_dialog_previews_clipping_at_actual_size() {
   // A 1 x 0.8 inch scan fits every paper: no warning, portrait stays.
   qputenv("PATCHY_FAKE_SCANNER_FILE", write_fake_scan(QStringLiteral("ui_fake_photocopy_small.png"), 300, 240).toUtf8());
   bool saw_fitting_dialog = false;
-  QTimer::singleShot(0, [&saw_fitting_dialog] {
+  QTimer::singleShot(0, guarded([&saw_fitting_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("photocopyDialog"));
     CHECK(dialog != nullptr);
     auto* scan_size = dialog->findChild<QLabel*>(QStringLiteral("photocopyScanSizeLabel"));
@@ -380,7 +380,7 @@ void ui_photocopy_dialog_previews_clipping_at_actual_size() {
     CHECK(std::abs(anchored.y()) < 0.01);
     saw_fitting_dialog = true;
     dialog->reject();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::photocopy_from_scanner(window);
   QApplication::processEvents();
   CHECK(saw_fitting_dialog);
@@ -724,7 +724,7 @@ void ui_sprite_sheet_export_grid_layout_and_padding() {
 
   // The options dialog round trip.
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("spriteSheetExportDialog"));
     CHECK(dialog != nullptr);
     dialog->findChild<QSpinBox*>(QStringLiteral("spriteSheetColumnsSpin"))->setValue(5);
@@ -732,7 +732,7 @@ void ui_sprite_sheet_export_grid_layout_and_padding() {
     dialog->findChild<QCheckBox*>(QStringLiteral("spriteSheetTransparentCheck"))->setChecked(false);
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   const auto chosen = patchy::ui::prompt_sprite_sheet_export_options(nullptr, 9);
   CHECK(saw_dialog);
   CHECK(chosen.has_value());
@@ -769,7 +769,7 @@ void ui_sprite_sheet_import_slices_cells_into_layers() {
   CHECK(sliced->layers()[2].pixels().pixel(4, 3)[2] == 200);
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("spriteSheetImportDialog"));
     CHECK(dialog != nullptr);
     dialog->findChild<QSpinBox*>(QStringLiteral("spriteSheetCellWidthSpin"))->setValue(8);
@@ -781,7 +781,7 @@ void ui_sprite_sheet_import_slices_cells_into_layers() {
     CHECK(label->text().contains(QStringLiteral("= 4")));
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   const auto chosen = patchy::ui::prompt_sprite_sheet_import_options(nullptr, sheet.size());
   CHECK(saw_dialog);
   CHECK(chosen.has_value());
@@ -864,7 +864,7 @@ void ui_image_sequence_import_builds_layers() {
 
   // The confirmation dialog lists the ordered files and states the canvas size.
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("imageSequenceImportDialog"));
     CHECK(dialog != nullptr);
     auto* list = dialog->findChild<QListWidget*>(QStringLiteral("imageSequenceFileList"));
@@ -877,7 +877,7 @@ void ui_image_sequence_import_builds_layers() {
     CHECK(label->text().contains(QStringLiteral("8 x 10")));
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   const auto accepted = patchy::ui::prompt_image_sequence_import_options(nullptr, paths, QSize(8, 10));
   CHECK(saw_dialog);
   CHECK(accepted);
@@ -912,7 +912,7 @@ void ui_image_sequence_export_names_and_dialog() {
   // Dialog round trip: the scope radios, start spin, and naming radios drive the
   // live count and preview.
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("imageSequenceExportDialog"));
     CHECK(dialog != nullptr);
     auto* info = dialog->findChild<QLabel*>(QStringLiteral("imageSequenceInfoLabel"));
@@ -935,7 +935,7 @@ void ui_image_sequence_export_names_and_dialog() {
     CHECK(preview->text().contains(QStringLiteral("end.png")));
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   patchy::ui::ImageSequenceNaming suggested;
   suggested.prefix = QStringLiteral("shot_");
   suggested.start = 2;

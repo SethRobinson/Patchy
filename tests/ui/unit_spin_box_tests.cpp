@@ -528,7 +528,7 @@ void unit_spin_box_context_menu_pick_emits_picked() {
                    [&changed](SpinUnit unit) { changed.push_back(unit); });
 
   bool saw_menu = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       auto* menu = qobject_cast<QMenu*>(widget);
       if (menu == nullptr || !menu->isVisible()) {
@@ -550,7 +550,7 @@ void unit_spin_box_context_menu_pick_emits_picked() {
       }
     }
     CHECK(false);
-  });
+  }));
   const auto point = spin.rect().center();
   QContextMenuEvent event(QContextMenuEvent::Mouse, point, spin.mapToGlobal(point));
   QApplication::sendEvent(&spin, &event);

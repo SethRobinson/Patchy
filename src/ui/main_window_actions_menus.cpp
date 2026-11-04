@@ -1335,7 +1335,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_merge_visible_layers_action_ = new QAction(tr("&Merge Visible"), layer_menu);
   layer_merge_visible_layers_action_->setObjectName(QStringLiteral("layerMergeVisibleLayersAction"));
   layer_merge_visible_layers_action_->setMenuRole(QAction::NoRole);
-  layer_merge_visible_layers_action_->setIcon(simple_icon(QStringLiteral("merge"), QColor(160, 220, 255)));
+  layer_merge_visible_layers_action_->setIcon(simple_icon(QStringLiteral("merge")));
   bind_action_text(layer_merge_visible_layers_action_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "&Merge Visible"));
   bind_translated_status_tip(layer_merge_visible_layers_action_,
                              QT_TRANSLATE_NOOP("patchy::ui::MainWindow",
@@ -1591,19 +1591,19 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   fill_background_action->setObjectName(QStringLiteral("layerFillBackgroundAction"));
   clear_layer_action->setObjectName(QStringLiteral("layerClearAction"));
   add_layer_action->setIcon(simple_icon(QStringLiteral("new")));
-  add_folder_action->setIcon(simple_icon(QStringLiteral("dir"), QColor(245, 205, 105)));
+  add_folder_action->setIcon(simple_icon(QStringLiteral("dir")));
   layer_via_copy_action->setIcon(simple_icon(QStringLiteral("copy")));
-  layer_via_cut_action->setIcon(simple_icon(QStringLiteral("cut"), QColor(255, 185, 120)));
-  add_mask_action->setIcon(simple_icon(QStringLiteral("mask"), QColor(210, 220, 230)));
-  edit_layer_mask_action_->setIcon(simple_icon(QStringLiteral("mask"), QColor(150, 205, 255)));
-  mask_overlay_action_->setIcon(simple_icon(QStringLiteral("mask"), QColor(255, 120, 120)));
-  view_layer_mask_action_->setIcon(simple_icon(QStringLiteral("mask"), QColor(235, 235, 235)));
-  delete_layer_mask_action_->setIcon(simple_icon(QStringLiteral("mask"), QColor(255, 150, 150)));
-  link_layer_mask_action_->setIcon(simple_icon(QStringLiteral("link"), QColor(210, 220, 230)));
-  disable_layer_mask_action_->setIcon(simple_icon(QStringLiteral("off"), QColor(255, 190, 120)));
+  layer_via_cut_action->setIcon(simple_icon(QStringLiteral("cut")));
+  add_mask_action->setIcon(simple_icon(QStringLiteral("mask")));
+  edit_layer_mask_action_->setIcon(simple_icon(QStringLiteral("mask")));
+  mask_overlay_action_->setIcon(simple_icon(QStringLiteral("mask")));
+  view_layer_mask_action_->setIcon(simple_icon(QStringLiteral("mask")));
+  delete_layer_mask_action_->setIcon(simple_icon(QStringLiteral("mask")));
+  link_layer_mask_action_->setIcon(simple_icon(QStringLiteral("link")));
+  disable_layer_mask_action_->setIcon(simple_icon(QStringLiteral("off")));
   invert_layer_mask_action_->setIcon(simple_icon(QStringLiteral("inv"), QColor(210, 220, 230)));
   apply_layer_mask_action_->setIcon(simple_icon(QStringLiteral("ok"), QColor(160, 220, 165)));
-  layer_clipping_mask_action_->setIcon(simple_icon(QStringLiteral("clip"), QColor(150, 205, 255)));
+  layer_clipping_mask_action_->setIcon(simple_icon(QStringLiteral("clip"), &ThemePalette::layer_clip_badge));
   link_layer_mask_action_->setCheckable(true);
   disable_layer_mask_action_->setCheckable(true);
   edit_layer_mask_action_->setCheckable(true);
@@ -1624,7 +1624,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   rename_layer_action->setIcon(simple_icon(QStringLiteral("RN")));
   delete_layer_action->setIcon(simple_icon(QStringLiteral("trash")));
   fill_layer_action->setIcon(simple_icon(QStringLiteral("fill")));
-  fill_background_action->setIcon(simple_icon(QStringLiteral("fill"), QColor(160, 190, 255)));
+  fill_background_action->setIcon(simple_icon(QStringLiteral("fill")));
   clear_layer_action->setIcon(simple_icon(QStringLiteral("clear")));
   flip_h_action->setIcon(simple_icon(QStringLiteral("FH")));
   flip_v_action->setIcon(simple_icon(QStringLiteral("FV")));

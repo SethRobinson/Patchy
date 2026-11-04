@@ -182,7 +182,7 @@ protected:
 // the callback closes it.
 template <typename Act>
 void with_path_context_menu(Act act) {
-  QTimer::singleShot(0, [act] {
+  QTimer::singleShot(0, guarded([act] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       auto* menu = qobject_cast<QMenu*>(widget);
       if (menu == nullptr || menu->objectName() != QStringLiteral("canvasPathContextMenu")) {
@@ -193,7 +193,7 @@ void with_path_context_menu(Act act) {
       return;
     }
     CHECK(false);
-  });
+  }));
 }
 
 void open_path_menu_at(patchy::ui::CanvasWidget& canvas, QPoint document_point) {
@@ -2474,7 +2474,7 @@ void ui_path_context_menu_offers_paths_panel_commands() {
     save_window_popup_artifact("issue_396_path_menu", window, *canvas, menu);
     // Fill Path from the menu opens its dialog and paints the path.
     canvas->set_primary_color(QColor(30, 160, 40));
-    QTimer::singleShot(0, [] {
+    QTimer::singleShot(0, guarded([] {
       auto* dialog = find_top_level_dialog(QStringLiteral("fillPathDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -2483,7 +2483,7 @@ void ui_path_context_menu_offers_paths_panel_commands() {
       dialog->findChild<QComboBox*>(QStringLiteral("fillPathContentsCombo"))->setCurrentIndex(0);
       dialog->findChild<QSpinBox*>(QStringLiteral("fillPathOpacitySpin"))->setValue(100);
       dialog->accept();
-    });
+    }));
     require_menu_action(menu, "pathFillAction")->trigger();
   });
   open_path_menu_at(*canvas, QPoint(200, 100));

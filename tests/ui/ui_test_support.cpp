@@ -1,4 +1,5 @@
 #include "ui/curved_slider.hpp"
+#include "ui/dialog_utils.hpp"
 #include <QAbstractTextDocumentLayout>
 #include <QTextBlock>
 #include <QWindow>
@@ -969,7 +970,7 @@ QAction* find_menu_action_by_text(QMenu& menu, const QString& text) {
 
 LayerStyleContextMenuState layer_style_context_menu_state(QListWidget& layer_list, QListWidgetItem& item) {
   LayerStyleContextMenuState state;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       auto* menu = qobject_cast<QMenu*>(widget);
       if (menu == nullptr || menu->objectName() != QStringLiteral("layerContextMenu")) {
@@ -991,7 +992,7 @@ LayerStyleContextMenuState layer_style_context_menu_state(QListWidget& layer_lis
       return;
     }
     CHECK(false);
-  });
+  }));
 
   const auto context_point = layer_list.visualItemRect(&item).center();
   QContextMenuEvent context_event(QContextMenuEvent::Mouse, context_point,
@@ -1162,10 +1163,18 @@ void when_dialog_visible(const QString& object_name, std::function<void(QDialog&
         report_failure("dialog " + object_name.toStdString() + " closed before it could be driven");
         return;
       }
+      std::string failure;
       try {
         drive(*dialog);
-      } catch (const std::exception& failure) {
-        report_failure(failure.what());
+      } catch (const std::exception& error) {
+        failure = error.what();
+      } catch (const patchy::test::TestSkipped& skipped) {
+        failure = "skip() inside a dialog driver cannot end the test: " + skipped.reason;
+      } catch (...) {
+        failure = "a dialog driver threw a non-standard exception";
+      }
+      if (!failure.empty()) {
+        report_failure(failure);
         if (dialog != nullptr && dialog->isVisible()) {
           dialog->reject();
         }
@@ -1173,6 +1182,35 @@ void when_dialog_visible(const QString& object_name, std::function<void(QDialog&
     });
   });
   poll->start();
+}
+
+void report_callback_failure(std::exception_ptr error) {
+  // A run_non_modal_dialog loop rethrows the error on its own frame, outside Qt's dispatch,
+  // so the test fails exactly as a throw in its own code would.
+  if (!patchy::ui::unwind_non_modal_dialog_loop(error)) {
+    std::string message = "a timer or slot threw a non-standard exception";
+    try {
+      std::rethrow_exception(error);
+    } catch (const std::exception& failure) {
+      message = failure.what();
+    } catch (...) {
+    }
+    std::cerr << "  failure inside a Qt callback (recorded; the test fails when it returns): " << message
+              << std::endl;
+    report_failure(message);
+  }
+  // Nobody drives the loop the failed callback was answering any more (a modal one would
+  // also keep an unwound run_non_modal_dialog loop below it from returning).
+  if (auto* popup = QApplication::activePopupWidget(); popup != nullptr) {
+    popup->close();
+  }
+  if (auto* modal = QApplication::activeModalWidget(); modal != nullptr) {
+    if (auto* dialog = qobject_cast<QDialog*>(modal); dialog != nullptr) {
+      dialog->reject();
+    } else {
+      modal->close();
+    }
+  }
 }
 
 void print_shape_drag_state(patchy::ui::MainWindow& window, patchy::ui::CanvasWidget& canvas, const char* label) {
@@ -1280,20 +1318,20 @@ QString preferences_selected_theme(QWidget& dialog) {
 }
 
 void accept_save_file_dialog_then(const QString& object_name, const QString& path, std::function<void()> next) {
-  QTimer::singleShot(0, [object_name, path, next = std::move(next)] {
+  QTimer::singleShot(0, guarded([object_name, path, next = std::move(next)] {
     auto* save = qobject_cast<QFileDialog*>(find_top_level_dialog(object_name));
     CHECK(save != nullptr);
     if (save == nullptr) {
       return;
     }
-    QTimer::singleShot(0, next);  // runs inside the next dialog's event loop
+    QTimer::singleShot(0, guarded(next));  // runs inside the next dialog's event loop
     save->selectFile(path);
     static_cast<QDialog*>(save)->accept();  // QFileDialog::accept is protected
-  });
+  }));
 }
 
 void accept_missing_psd_text_font_warning_if_present() {
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     auto* dialog = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("missingPsdTextFontMessageBox")));
     if (dialog == nullptr) {
       return;
@@ -1305,7 +1343,7 @@ void accept_missing_psd_text_font_warning_if_present() {
       }
     }
     CHECK(false);
-  });
+  }));
 }
 
 void accept_compatibility_report_when_present(const std::shared_ptr<bool>& done, int attempts) {
@@ -2005,7 +2043,7 @@ QListWidgetItem* require_gallery_filter_item(QListWidget& looks, const QString& 
 }
 
 void accept_new_document_dialog(int width_value, int height_value) {
-  QTimer::singleShot(0, [width_value, height_value] {
+  QTimer::singleShot(0, guarded([width_value, height_value] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyNewDocumentDialog")) {
         continue;
@@ -2041,11 +2079,11 @@ void accept_new_document_dialog(int width_value, int height_value) {
       dialog->accept();
       return;
     }
-  });
+  }));
 }
 
 void accept_clipboard_new_document_dialog(QSize clipboard_size) {
-  QTimer::singleShot(0, [clipboard_size] {
+  QTimer::singleShot(0, guarded([clipboard_size] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyNewDocumentDialog")) {
         continue;
@@ -2186,11 +2224,11 @@ void accept_clipboard_new_document_dialog(QSize clipboard_size) {
       return;
     }
     CHECK(false);
-  });
+  }));
 }
 
 void accept_integer_dialog(const QString& object_name, int value) {
-  QTimer::singleShot(0, [object_name, value] {
+  QTimer::singleShot(0, guarded([object_name, value] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != object_name) {
         continue;
@@ -2214,7 +2252,7 @@ void accept_integer_dialog(const QString& object_name, int value) {
       dialog->accept();
       return;
     }
-  });
+  }));
 }
 
 void accept_stroke_selection_dialog(int width, const QString& location, std::optional<QColor> color) {
@@ -2261,7 +2299,7 @@ void accept_stroke_selection_dialog(int width, const QString& location, std::opt
 }
 
 void accept_canvas_size_dialog(int width_value, int height_value) {
-  QTimer::singleShot(0, [width_value, height_value] {
+  QTimer::singleShot(0, guarded([width_value, height_value] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyCanvasSizeDialog")) {
         continue;
@@ -2306,11 +2344,11 @@ void accept_canvas_size_dialog(int width_value, int height_value) {
       dialog->accept();
       return;
     }
-  });
+  }));
 }
 
 void accept_rotate_canvas_dialog(double degrees, bool clockwise) {
-  QTimer::singleShot(0, [degrees, clockwise] {
+  QTimer::singleShot(0, guarded([degrees, clockwise] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyRotateCanvasDialog")) {
         continue;
@@ -2333,11 +2371,11 @@ void accept_rotate_canvas_dialog(double degrees, bool clockwise) {
       return;
     }
     CHECK(false);
-  });
+  }));
 }
 
 void accept_image_size_dialog(int width_value, int height_value) {
-  QTimer::singleShot(0, [width_value, height_value] {
+  QTimer::singleShot(0, guarded([width_value, height_value] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyImageSizeDialog")) {
         continue;
@@ -2382,11 +2420,11 @@ void accept_image_size_dialog(int width_value, int height_value) {
       dialog->accept();
       return;
     }
-  });
+  }));
 }
 
 void accept_image_size_resolution_dialog(int resolution_value) {
-  QTimer::singleShot(0, [resolution_value] {
+  QTimer::singleShot(0, guarded([resolution_value] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyImageSizeDialog")) {
         continue;
@@ -2405,11 +2443,11 @@ void accept_image_size_resolution_dialog(int resolution_value) {
       dialog->accept();
       return;
     }
-  });
+  }));
 }
 
 void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool shadow_enabled) {
-  QTimer::singleShot(0, [stroke_enabled, gradient_enabled, shadow_enabled] {
+  QTimer::singleShot(0, guarded([stroke_enabled, gradient_enabled, shadow_enabled] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyLayerStyleDialog")) {
         continue;
@@ -2661,11 +2699,11 @@ void accept_layer_style_dialog(bool stroke_enabled, bool gradient_enabled, bool 
       dialog->accept();
       return;
     }
-  });
+  }));
 }
 
 void accept_transform_dialog(int x_value, int y_value, int width_value, int height_value) {
-  QTimer::singleShot(0, [x_value, y_value, width_value, height_value] {
+  QTimer::singleShot(0, guarded([x_value, y_value, width_value, height_value] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyTransformDialog")) {
         continue;
@@ -2687,11 +2725,11 @@ void accept_transform_dialog(int x_value, int y_value, int width_value, int heig
       dialog->accept();
       return;
     }
-  });
+  }));
 }
 
 void accept_hue_saturation_dialog(int hue_value, int saturation_value, int lightness_value) {
-  QTimer::singleShot(0, [hue_value, saturation_value, lightness_value] {
+  QTimer::singleShot(0, guarded([hue_value, saturation_value, lightness_value] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyHueSaturationDialog")) {
         continue;
@@ -2713,11 +2751,11 @@ void accept_hue_saturation_dialog(int hue_value, int saturation_value, int light
       dialog->accept();
       return;
     }
-  });
+  }));
 }
 
 void accept_levels_dialog(int black_value, int white_value, int gamma_value) {
-  QTimer::singleShot(0, [black_value, white_value, gamma_value] {
+  QTimer::singleShot(0, guarded([black_value, white_value, gamma_value] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyLevelsDialog")) {
         continue;
@@ -2756,7 +2794,7 @@ void accept_levels_dialog(int black_value, int white_value, int gamma_value) {
       dialog->accept();
       return;
     }
-  });
+  }));
 }
 
 QPoint curves_graph_position(QWidget& graph, int input, int output) {
@@ -2781,7 +2819,7 @@ void click_curves_graph(QWidget& graph, int input, int output) {
 }
 
 void accept_curves_dialog(int shadow_value, int midtone_value, int highlight_value) {
-  QTimer::singleShot(0, [shadow_value, midtone_value, highlight_value] {
+  QTimer::singleShot(0, guarded([shadow_value, midtone_value, highlight_value] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyCurvesDialog")) {
         continue;
@@ -2818,11 +2856,11 @@ void accept_curves_dialog(int shadow_value, int midtone_value, int highlight_val
       dialog->accept();
       return;
     }
-  });
+  }));
 }
 
 void accept_color_balance_dialog(int cyan_red_value, int magenta_green_value, int yellow_blue_value) {
-  QTimer::singleShot(0, [cyan_red_value, magenta_green_value, yellow_blue_value] {
+  QTimer::singleShot(0, guarded([cyan_red_value, magenta_green_value, yellow_blue_value] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyColorBalanceDialog")) {
         continue;
@@ -2844,7 +2882,7 @@ void accept_color_balance_dialog(int cyan_red_value, int magenta_green_value, in
       dialog->accept();
       return;
     }
-  });
+  }));
 }
 
 void accept_filter_dialog(std::vector<std::pair<QString, int>> spin_values) {

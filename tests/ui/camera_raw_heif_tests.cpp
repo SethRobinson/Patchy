@@ -97,25 +97,25 @@ void ui_flat_save_of_layered_document_warns_and_saves_copy() {
   patchy::ui::ImageSaveOptions options;
 
   bool cancel_prompt_seen = false;
-  QTimer::singleShot(0, [&cancel_prompt_seen] {
+  QTimer::singleShot(0, guarded([&cancel_prompt_seen] {
     auto* box =
         qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("flattenLayersMessageBox")));
     CHECK(box != nullptr);
     cancel_prompt_seen = true;
     box->button(QMessageBox::Cancel)->click();
-  });
+  }));
   CHECK(!patchy::ui::MainWindowTestAccess::save_document_to_path(window, jpg_path, options));
   CHECK(cancel_prompt_seen);
   CHECK(!QFileInfo::exists(jpg_path));
 
   bool save_prompt_seen = false;
-  QTimer::singleShot(0, [&save_prompt_seen] {
+  QTimer::singleShot(0, guarded([&save_prompt_seen] {
     auto* box =
         qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("flattenLayersMessageBox")));
     CHECK(box != nullptr);
     save_prompt_seen = true;
     box->button(QMessageBox::Save)->click();
-  });
+  }));
   CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, jpg_path, options));
   CHECK(save_prompt_seen);
   CHECK(QFileInfo::exists(jpg_path));
@@ -893,7 +893,7 @@ void ui_raw_local_photo_visual_acceptance_if_available() {
   using namespace patchy::ui;
   int checked = 0;
   for (const bool shelves : {false, true}) {
-    const auto source = patchy::test::source_root_path() / "local-test-fixtures" / "raw" /
+    const auto source = patchy::test::local_fixtures_root() / "raw" /
         (shelves ? "sony_fx30_fx300354.arw" : "sony_fx30_fx300416.arw");
     if (!std::filesystem::exists(source)) {
       std::cout << "  note: optional fixture missing: " << patchy::test::fixture_display_path(source) << '\n';
@@ -980,7 +980,7 @@ void ui_raw_develop_dialog_accept_opens_document_and_save_routes_to_psd() {
   // <basename>.psd (the read-only-source counterpart of the layered-JPEG routing).
   bool saw_dialog = false;
   QString default_name;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
     CHECK(dialog != nullptr);
     const auto selected = dialog->selectedFiles();
@@ -989,7 +989,7 @@ void ui_raw_develop_dialog_accept_opens_document_and_save_routes_to_psd() {
     }
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
   CHECK(!patchy::ui::MainWindowTestAccess::save_document(window));
   CHECK(saw_dialog);
   CHECK(default_name == QStringLiteral("raw_develop_accept.psd"));
@@ -1299,7 +1299,7 @@ void ui_heif_open_is_read_only_if_available() {
   // (the camera-raw routing, driven by the registry handler having no writer).
   bool saw_dialog = false;
   QString default_name;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
     CHECK(dialog != nullptr);
     const auto selected = dialog->selectedFiles();
@@ -1308,7 +1308,7 @@ void ui_heif_open_is_read_only_if_available() {
     }
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
   CHECK(!patchy::ui::MainWindowTestAccess::save_document(window));
   CHECK(saw_dialog);
   CHECK(default_name == QStringLiteral("quadrants.psd"));
@@ -1668,7 +1668,7 @@ void ui_raw_dialog_zoom_controls_and_scrubby_zoom() {
 // Issue screenshots on a real photo (local-test-fixtures/raw); skipped without it.
 void ui_raw_dialog_issue_shots_if_available() {
   using namespace patchy::ui;
-  const auto source = patchy::test::source_root_path() / "local-test-fixtures" / "raw" / "sony_fx30_fx300354.arw";
+  const auto source = patchy::test::local_fixtures_root() / "raw" / "sony_fx30_fx300354.arw";
   if (!std::filesystem::exists(source)) {
     patchy::test::skip("optional fixture missing: local-test-fixtures/raw/sony_fx30_fx300354.arw");
   }
@@ -1740,7 +1740,7 @@ void ui_raw_dialog_issue_shots_if_available() {
 // develop of a real photo (GitHub issue 394); prints the numbers. Skipped without the fixture.
 void ui_raw_auto_tone_matches_image_auto_tone_if_available() {
   using namespace patchy::ui;
-  const auto source = patchy::test::source_root_path() / "local-test-fixtures" / "raw" / "sony_fx30_fx300354.arw";
+  const auto source = patchy::test::local_fixtures_root() / "raw" / "sony_fx30_fx300354.arw";
   if (!std::filesystem::exists(source)) {
     patchy::test::skip("optional fixture missing: local-test-fixtures/raw/sony_fx30_fx300354.arw");
   }
@@ -1830,7 +1830,7 @@ void ui_raw_auto_tone_matches_image_auto_tone_if_available() {
 // scale (issue 393's combing report came from such a screen). Skipped without the fixture.
 void ui_raw_dialog_histogram_shots_if_available() {
   using namespace patchy::ui;
-  const auto source = patchy::test::source_root_path() / "local-test-fixtures" / "raw" / "sony_fx30_fx300354.arw";
+  const auto source = patchy::test::local_fixtures_root() / "raw" / "sony_fx30_fx300354.arw";
   if (!std::filesystem::exists(source)) {
     patchy::test::skip("optional fixture missing: local-test-fixtures/raw/sony_fx30_fx300354.arw");
   }

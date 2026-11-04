@@ -1209,7 +1209,7 @@ void ui_pdf_options_dialog_offers_image_quality_presets() {
   defaults.pdf_lossless = false;
   defaults.pdf_jpeg_quality = 90;
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("pdfSaveOptionsDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -1228,7 +1228,7 @@ void ui_pdf_options_dialog_offers_image_quality_presets() {
     quality->setCurrentIndex(quality->findData(QStringLiteral("medium")));
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   const auto chosen = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("pdf"), defaults);
   CHECK(saw_dialog);
   CHECK(chosen.has_value());
@@ -1522,7 +1522,7 @@ void ui_pdf_options_dialog_offers_keep_original_only_with_source_data() {
     defaults.pdf_original_image_data_available = available;
     defaults.pdf_keep_original_images = true;
     bool saw_dialog = false;
-    QTimer::singleShot(0, [&saw_dialog, available] {
+    QTimer::singleShot(0, guarded([&saw_dialog, available] {
       auto* dialog = find_top_level_dialog(QStringLiteral("pdfSaveOptionsDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -1537,7 +1537,7 @@ void ui_pdf_options_dialog_offers_keep_original_only_with_source_data() {
       }
       saw_dialog = true;
       dialog->accept();
-    });
+    }));
     const auto chosen = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("pdf"), defaults);
     CHECK(saw_dialog);
     CHECK(chosen.has_value());
@@ -1558,7 +1558,7 @@ void ui_pdf_options_dialog_shows_editable_warning() {
     patchy::ui::ImageSaveOptions defaults;
     defaults.pdf_editable_layers = keep_layers;
     bool saw_dialog = false;
-    QTimer::singleShot(0, [&saw_dialog, keep_layers] {
+    QTimer::singleShot(0, guarded([&saw_dialog, keep_layers] {
       auto* dialog = find_top_level_dialog(QStringLiteral("pdfSaveOptionsDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -1587,7 +1587,7 @@ void ui_pdf_options_dialog_shows_editable_warning() {
       }
       saw_dialog = true;
       dialog->accept();
-    });
+    }));
     const auto chosen =
         patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("pdf"), defaults, /*for_export*/ true);
     CHECK(saw_dialog);
@@ -1637,7 +1637,7 @@ void ui_pdf_layer_choice_dialog_and_preference() {
   show_window(window);
 
   const auto drive = [](const char* button_text, bool remember) {
-    QTimer::singleShot(0, [button_text, remember] {
+    QTimer::singleShot(0, guarded([button_text, remember] {
       auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("pdfLayersMessageBox")));
       CHECK(box != nullptr);
       if (box == nullptr) {
@@ -1658,7 +1658,7 @@ void ui_pdf_layer_choice_dialog_and_preference() {
         }
       }
       CHECK(false);  // button not found
-    });
+    }));
   };
 
   drive(nullptr, false);
@@ -2241,7 +2241,7 @@ void ui_print_dialog_exposes_printer_and_visible_checkboxes() {
     document.print_settings().vertical_ppi = 300.0;
   }
 
-  QTimer::singleShot(0, [&window] {
+  QTimer::singleShot(0, guarded([&window] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyPrintDialog")) {
         continue;
@@ -2357,7 +2357,7 @@ void ui_print_dialog_exposes_printer_and_visible_checkboxes() {
       return;
     }
     CHECK(false);
-  });
+  }));
 
   require_action(window, "filePrintAction")->trigger();
   QApplication::processEvents();

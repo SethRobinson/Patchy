@@ -1437,10 +1437,14 @@ void psb_life_trailer_fields_parse_if_available() {
   }
   CHECK(content != nullptr);
   CHECK(content->kind == patchy::SmartObjectSourceKind::ExternalFile);
-  // The ExternalFileLink descriptor + trailer, exactly as Photoshop 2023 stored them.
+  // The ExternalFileLink descriptor + trailer, exactly as Photoshop 2023 stored them. The stored
+  // path starts with the fixture author's own folders, so only its tail is pinned, and the URI must
+  // be the file: form of that same path.
   CHECK(content->external_rel_path == "Content.psb");
-  CHECK(content->external_original_path == "D:\\projects\\C2\\TableTents\\DrinkTable\\Content.psb");
-  CHECK(content->external_full_path == "file:///D:/projects/C2/TableTents/DrinkTable/Content.psb");
+  CHECK(content->external_original_path.ends_with("\\TableTents\\DrinkTable\\Content.psb"));
+  std::string expected_uri = "file:///" + content->external_original_path;
+  std::replace(expected_uri.begin(), expected_uri.end(), '\\', '/');
+  CHECK(content->external_full_path == expected_uri);
   CHECK(content->external_link_desc_version == 2);
   CHECK(content->external_mod_year == 2023 && content->external_mod_month == 2 && content->external_mod_day == 2);
   CHECK(content->external_mod_hour == 10 && content->external_mod_minute == 32);

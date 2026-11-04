@@ -2,6 +2,10 @@
 
 Native visual QA and app-driving commands are in [visual-qa.md](visual-qa.md); README screenshot capture is in [readme-showcase.md](readme-showcase.md); the Linux foreign-drag rig is in [linux-testing.md](linux-testing.md).
 
+Related documents:
+
+- [testing-skips.md](testing-skips.md): skip classes, the `skipped-<suite>.txt` record, the release verifiers' expected-skip lists, `PATCHY_REQUIRE_FIXTURES` and `PATCHY_LOCAL_FIXTURES_DIR`.
+
 Read before adding tests, changing test infrastructure, diagnosing suite-only failures, or driving Patchy for visual QA.
 
 ## Suite organization
@@ -26,7 +30,7 @@ Move helpers shared across parts into `<group>_test_support.{hpp,cpp}`; single-p
 helpers stay anonymous. Core parts must stay under ~3,000 lines: the target has no
 `/bigobj`.
 
-Local-fixture tests skip on a remote machine until the untracked `local-test-fixtures` is copied there: from the repo root `tar -cf - local-test-fixtures | ssh <host> 'tar -xf - -C ~/patchy/src'` (Git Bash; macOS tar drops four harmless `__MACOSX/._*` entries). Filter Foundry plug-ins: `scripts/fetch-test-plugins.ps1` (or `.sh`) once per machine. A synced corpus enables the face-gated text tests; the gates and tolerances in [platform-tests.md](platform-tests.md) keep them passing (a missing face raises an unanswerable Missing Font prompt).
+Local fixture paths come from `local_fixtures_root()` (tests/local_psd_fixtures.hpp), never `source_root_path() / "local-test-fixtures"`: `PATCHY_LOCAL_FIXTURES_DIR` points a worktree at the main checkout's corpus without a junction, and nothing may write into that folder ([testing-skips.md](testing-skips.md#patchy_local_fixtures_dir)). Local-fixture tests skip on a remote machine until the untracked `local-test-fixtures` is copied there: from the repo root `tar -cf - local-test-fixtures | ssh <host> 'tar -xf - -C ~/patchy/src'` (Git Bash; macOS tar drops four harmless `__MACOSX/._*` entries). Filter Foundry plug-ins: `scripts/fetch-test-plugins.ps1` (or `.sh`) once per machine. A synced corpus enables the face-gated text tests; the gates and tolerances in [platform-tests.md](platform-tests.md) keep them passing (a missing face raises an unanswerable Missing Font prompt).
 
 The harnesses turn deep editing off by default (`set_deep_editing_default(false)`), so tests written for 8-bit opening keep their meaning; deep tests set `set_deep_editing_override` ([high-bit-depth.md](high-bit-depth.md)).
 
@@ -46,9 +50,9 @@ Run `patchy_ui_visual_tests.exe` with `QT_QPA_PLATFORM=offscreen`. The harness f
 
 Both suites (wasm core too) share `run_test_suite` (`tests/test_harness.hpp`): `<binary> [--list] [--exact] [filter]`. The filter is a comma-separated list of name substrings (any match runs), which reproduces ordered cross-test interactions. `--exact` matches whole names; `--list` prints the selection without running it. A filter item that selects no test fails the run (exit 2): a typo never reads as a pass. An empty filter (`""`) selects every test. The UI suite also reads `PATCHY_UI_TEST_FILTER`; the command line wins. The runner never prints the active filter, so a `PATCHY_UI_TEST_FILTER` left set in the shell turns a full run into a subset that still exits 0 (`verify-windows.ps1` clears it): compare `executed N` with `--list`.
 
-A finished run ends with `[SUMMARY] executed N, passed P, failed F, skipped S in T s`, where N counts the selection, not the suite. Exit codes: 0 nothing failed (skips allowed), 1 a test failed, 2 a bad command line or empty selection, 124 a timeout. No `[SUMMARY]` means the run died: a timeout prints its `[FAIL]` line and exits 124 at once; a crash exits with the platform's code (-1073741819, an access violation, on Windows; a signal on POSIX); a throw the runner does not catch (one that is not a `std::exception`, or any from the per-test cleanup `around_each`) aborts the process. `[FAIL]` goes to stderr, everything else to stdout: capture both and judge a run by exit code, `[FAIL]` lines and counts. Report skips with results: an all-skip run checked nothing.
+A finished run ends with `[SUMMARY] executed N, passed P, failed F, skipped S (fixture a, platform b, feature c, other d) in T s` (empty skip classes left out), where N counts the selection, not the suite, and writes the skipped names and reasons to `test-artifacts/skipped-<suite>.txt` ([testing-skips.md](testing-skips.md)). Exit codes: 0 nothing failed (skips allowed), 1 a test failed, 2 a bad command line or empty selection, 124 a timeout. No `[SUMMARY]` means the run died: a timeout prints its `[FAIL]` line and exits 124 at once; a crash exits with the platform's code (-1073741819, an access violation, on Windows; a signal on POSIX); a throw the runner does not catch (one that is not a `std::exception`, or any from the per-test cleanup `around_each`) aborts the process. `[FAIL]` goes to stderr, everything else to stdout: capture both and judge a run by exit code, `[FAIL]` lines and counts. Report skips with results: an all-skip run checked nothing. The release verifiers fail a skip missing from the host's expected-skip list ([testing-skips.md](testing-skips.md#expected-skip-lists)).
 
-A test whose optional input is absent (untracked fixture, missing face, a build or platform without the feature) calls `patchy::test::skip(reason)` or `skip_unless_exists(path)` before asserting; the runner prints `[SKIP] <test>: <reason>`. Never return early or print `[SKIP]` yourself: the runner then reports `[PASS]` for nothing. A missing optional input never fails a test; one that checked part of its work prints a `  note:` line and passes. `TestSkipped` is not a `std::exception`: never skip inside a `try` with `catch (...)`. UI face gates: `skip_without_font_face`, `skip_without_psd_text_face`, `skip_without_arial_for_psd_text_preview` (`missing_*_reason` for partial checks).
+A test whose optional input is absent (untracked fixture, missing face, a build or platform without the feature) calls `patchy::test::skip(reason)` (or `skip(SkipKind, reason)` when the wording does not say which class it is) or `skip_unless_exists(path)` before asserting; the runner prints `[SKIP] <test>: <reason>`. A test that recorded a failure (`report_failure`) and then skips fails. Under `PATCHY_REQUIRE_FIXTURES=1` a fixture skip fails too ([testing-skips.md](testing-skips.md#patchy_require_fixtures)). Never return early or print `[SKIP]` yourself: the runner then reports `[PASS]` for nothing. A missing optional input never fails a test; one that checked part of its work prints a `  note:` line and passes. `TestSkipped` is not a `std::exception`: never skip inside a `try` with `catch (...)`. UI face gates: `skip_without_font_face`, `skip_without_psd_text_face`, `skip_without_arial_for_psd_text_preview` (`missing_*_reason` for partial checks).
 
 Run one suite at a time. UI runs from one build folder share its `test-artifacts` tree, the QSettings store (`test-artifacts/settings`) included, so a second run rewrites preference keys mid-test; UI runs from different folders still share the per-user `qttest` folders that the tests enabling `QStandardPaths` test mode write. The core suite uses no Qt, and the app keeps its own store (the per-user one, or `PATCHY_SETTINGS_DIR`). Nothing enforces the rule: `run-throttled.bat` locks only `cmake --build`.
 
@@ -77,7 +81,8 @@ On macOS a menu popped up with `QMenu::popup` leaves the window's shortcuts unma
 ## Driving dialogs
 
 - A test that answers a modal dialog arms `when_dialog_visible(name, drive)` (tests/ui/ui_test_support.hpp) before the action that opens it. Never arm a fixed-delay `QTimer::singleShot(N, ...)` that looks the dialog up: when the opener defers through the event loop (the smart filter Edit button posts a 0 ms timer, then builds the dialog) or pumps events before showing it, the delay fires first on a slow host and finds nothing. `ui_test_harness_when_dialog_visible_waits_for_a_deferred_opener` reproduces the race. The smart filter tests use the helper; the older fixed-delay drivers elsewhere are converted when they are next touched or when one flakes.
-- The helper records a throw inside `drive` as a failure and rejects the dialog, so a failing check neither crosses Qt's event dispatch nor leaves the test parked in the dialog's loop.
+- The helper records a throw inside `drive` (a `skip()` too) as a failure and rejects the dialog, so a failing check neither crosses Qt's event dispatch nor leaves the test parked in the dialog's loop.
+- Any other timer body or slot that CHECKs is wrapped in `guarded(...)` (tests/ui/ui_test_support.hpp): `QTimer::singleShot(0, guarded([&] { CHECK(...); }))`. It keeps the callable's arguments and return type (a mutable lambda works) and hands a throw to `report_callback_failure`: inside a `run_non_modal_dialog` loop the error is rethrown on that loop's frame (`unwind_non_modal_dialog_loop`), otherwise it is recorded through `report_failure` and printed at once; then the active popup is closed and the active modal dialog rejected. A self-rearming poll wraps its definition (`*poll = guarded([&, poll] { ... })`), a factory its returned lambda. A plain local `QEventLoop` the failed callback would have quit stays parked until its own timeout or the watchdog, so give such loops a quit timer.
 - A bound on background work counts every worker that can be running: the Export for Web engine has two lanes, so a replaced request can leave two stale encodes started, not one (`ui_web_export_engine_drops_stale_requests`, macOS in 1.23). When a design adds a worker or lane, update the bounds that count them.
 - A full-suite failure that passes on a rerun is a bug in the test or the code: diagnose it and fix the cause, never rerun it away (Seth, October 30, 2026). When it cannot be reproduced, make the failing check print the state that decides it (`print_shape_drag_state`) so the next occurrence explains itself, and record it in the release notes.
 
@@ -86,9 +91,20 @@ On macOS a menu popped up with `QMenu::popup` leaves the window's shortcuts unma
 - Timer-driven checks wait for observable state with a bounded deadline: a busy machine
   delivers fewer timer ticks than a fixed sleep assumes (the Airbrush opacity-cap test).
 - A wall-clock limit in a test is a hang guard, never a performance bound: give it
-  minutes (`kRawDialogDeadlineMs` in `camera_raw_heif_tests.cpp` is 120 s). Never sleep
-  to synchronize; wait for the state (`process_events_until`, or a script's marker file
-  as `protocol_edges` in `tests/mcp_client_tests.py` does).
+  minutes (`patchy::test::kWallClockBackstopMs`, 120 s; `kRawDialogDeadlineMs` in
+  `camera_raw_heif_tests.cpp`). Assert the structural property instead: renders the GUI
+  thread awaited (`render_cache_diagnostics().awaited_renders`, the reference is
+  `ui_layer_style_opacity_slider_does_not_block_on_slow_preview_render` in
+  `layer_style_gradient_tests_effects.cpp`), full refreshes, deferred commits, worker starts,
+  reallocations (`tool_small_layer_grows_cheaply_under_a_long_stroke`). To prove a step did
+  not wait for a worker, make the worker slow on purpose (`PATCHY_PROCESSING_RENDER_TEST_DELAY_MS`,
+  a parked filter) with a delay far above the step's cost, 4 s or more, and assert
+  `elapsed < kDelayMs / 2` against that named delay constant. Throughput budgets belong in
+  `patchy_perf_tests` (`toolbudgets` holds the core tool strokes). The budgets that predate
+  this rule are scaled by `PATCHY_TEST_TIME_SCALE` (`patchy::test::time_budget_ms`: default 1,
+  4 in Debug; raise it on a slow host) and listed in the lint's allowlist; never add one.
+  Never sleep to synchronize; wait for the state (`process_events_until`, or a script's
+  marker file as `protocol_edges` in `tests/mcp_client_tests.py` does).
 - Every test runs under a per-test timeout (`TestWatchdog`, tests/test_harness.hpp):
   300 s core, 600 s UI, four times that in Debug; `PATCHY_TEST_TIMEOUT_SECONDS` overrides,
   0 disables. On expiry the run prints `[FAIL] <test>: timed out`, the UI suite lists its
@@ -107,12 +123,22 @@ On macOS a menu popped up with `QMenu::popup` leaves the window's shortcuts unma
 
 - A test that sets an environment variable declares an `EnvironmentVariableRestorer` (tests/ui/ui_test_support.hpp) before the `qputenv`, never a trailing `qunsetenv`: a failed `CHECK` skips the cleanup and the value leaks into every later test (a leaked 300 ms `PATCHY_SCRIPT_TIMEOUT_MS` once killed 16 later scripted runs).
 - The test `CHECK()` macro throws. A failure while a MainWindow still owns an open inline text editor can abort during unwind without printing a `[FAIL]` line. Commit or close the editor before assertions that may throw.
-- Never let a driver lambda (a `QTimer::singleShot` body or any slot) throw across Qt event dispatch; Qt does not support it, and on macOS the suite aborts in the CFRunLoop frames. Wrap the driver body in try/catch and pass `std::current_exception()` to `patchy::ui::unwind_non_modal_dialog_loop` while the code under test is parked in `run_non_modal_dialog` (reference: `ui_filter_gallery_unwinding_call_disarms_in_flight_renders`).
+- Never let a driver lambda (a `QTimer::singleShot` body or any slot) throw across Qt event dispatch; Qt does not support it, and on macOS the suite aborts in the CFRunLoop frames. Wrap it in `guarded(...)` ("Driving dialogs"), or catch in the body and pass `std::current_exception()` to `patchy::ui::unwind_non_modal_dialog_loop` yourself when the test must tell its own error from the code's (reference: `ui_filter_gallery_unwinding_call_disarms_in_flight_renders`). The test source lint fails an unguarded `QTimer::singleShot` lambda that CHECKs.
 - Clicking a layer-row content or mask thumbnail may rebuild and delete the row widget between press and release. Use `click_layer_row_thumbnail(...)`, which refetches the widget for both events; never retain the old pointer.
 - If the UI suite dies with an access violation, read the symbolized stack appended by the dbghelp vectored handler in `tests/ui/main.cpp`. It also writes `test-artifacts/crash-<pid>.dmp`; when the walk prints no frames (a fault inside the heap manager), symbolize it offline against the PDBs of the build that ran (`build\opt-dev` for handoff runs, `build\release` only for a release run).
 - A crash that occurs only in the full ordered suite is usually an order-dependent heap error. Use the `linux-asan` procedure in [platform.md](platform.md); never reorder or skip tests to conceal it.
 - Tests that enable `imports/showPsdWarningsAndInfo` need a repeating QTimer notice dismisser. A one-shot can fire during open progress and leave the suite hung; see [file-formats.md](file-formats.md) under Import notices.
 - Platform-specific skips and their reasons are maintained in [platform-tests.md](platform-tests.md).
+
+## Test source lint
+
+`python scripts/lint-test-sources.py` (CTest: `patchy_test_source_lint`) scans `tests/**/*.cpp,hpp` with a brace, string and comment aware scanner and exits 1 on:
+
+- `unguarded-timer`: a `QTimer::singleShot` lambda whose body holds a `CHECK(` outside a `try` block, a `when_dialog_visible(...)` call, a nested `guarded(...)` and a nested `singleShot` (judged on its own). Fix: `guarded(...)` or `when_dialog_visible`.
+- `wall-clock`: a `CHECK` comparing a measured time (`QElapsedTimer::elapsed()`, a variable taken from a clock, a `*_ms` or `elapsed*` variable) with a bound under 60 s (a literal, a `constexpr` in the file, `std::chrono::seconds(N)`, `time_budget_ms(N)`), outside the perf harness (`tests/perf_*.cpp`). The accepted sub-minute form is `< kSomethingDelayMs / N` against an injected delay ("Failure and lifetime traps").
+- A line in `scripts/lint-test-sources-allowlist.txt` (the scaled budgets that predate the lint) that no longer matches a check: the list only shrinks.
+
+`--list` prints every wall-clock finding, allowed or not. Run it after changing timer drivers or timing checks. It cannot see a named callable (`QTimer::singleShot(10, *poll)`) or a factory's lambda: wrap those definitions by hand.
 
 ## Scratch tools linking Patchy's libs
 

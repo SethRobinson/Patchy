@@ -848,7 +848,7 @@ void ui_pdf_local_scans_copy_merged_renders_only_the_selection_if_available() {
   const auto elapsed_ms =
       std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
   CHECK(boxes == 1);
-  CHECK(elapsed_ms < 2000);
+  CHECK(elapsed_ms < patchy::test::time_budget_ms(2000));
   // A rect on page 1 copies its pixels.
   select(QRect(first.x + 200, first.y + 200, 300, 200));
   QApplication::clipboard()->clear();

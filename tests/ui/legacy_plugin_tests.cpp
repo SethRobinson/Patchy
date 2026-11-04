@@ -350,7 +350,7 @@ void ui_legacy_plugin_run_respects_selection_and_undoes() {
 // committed; see agents_local.md). Each is run without its dialog; a plug-in
 // that opens one anyway is answered by the runner's auto-accept.
 void ui_legacy_plugin_mehdi_filters_run_if_available() {
-  const auto mehdi = patchy::test::source_root_path() / "local-test-fixtures" / "photoshop-plugins" / "mehdi";
+  const auto mehdi = patchy::test::local_fixtures_root() / "photoshop-plugins" / "mehdi";
   patchy::test::skip_unless_exists(mehdi);
   patchy::ui::MainWindow window;
   show_window(window);
@@ -392,7 +392,7 @@ void ui_legacy_plugin_mehdi_filters_run_if_available() {
 // Color opens its dialog from Start even without a Parameters call, which is
 // what makes it capturable unattended.
 void ui_legacy_plugin_mehdi_dialog_capture_if_available() {
-  const auto mehdi = patchy::test::source_root_path() / "local-test-fixtures" / "photoshop-plugins" / "mehdi";
+  const auto mehdi = patchy::test::local_fixtures_root() / "photoshop-plugins" / "mehdi";
   patchy::test::skip_unless_exists(mehdi);
   if (!on_interactive_window_station()) {
     patchy::test::skip("plug-in dialog capture needs the interactive desktop (not a service or ssh session)");
@@ -549,7 +549,7 @@ void ui_legacy_plugin_menu_opens_folder_and_rescans() {
 // The About dialog offers the same folder.
 void ui_about_dialog_has_plugins_folder_row() {
   bool inspected = false;
-  QTimer::singleShot(0, [&inspected] {
+  QTimer::singleShot(0, guarded([&inspected] {
     auto* dialog = QApplication::activeModalWidget();
     if (dialog == nullptr) {
       for (auto* widget : QApplication::topLevelWidgets()) {
@@ -581,7 +581,7 @@ void ui_about_dialog_has_plugins_folder_row() {
     if (auto* as_dialog = qobject_cast<QDialog*>(dialog); as_dialog != nullptr) {
       as_dialog->accept();
     }
-  });
+  }));
   patchy::ui::show_about_splash();
   CHECK(inspected);
 }
@@ -650,7 +650,7 @@ void ui_legacy_plugin_offers_to_rasterize_text_layer() {
     return;
   }
   const auto answer_prompt = [&](const QString& button_text, bool& saw) {
-    QTimer::singleShot(0, [&, button_text] {
+    QTimer::singleShot(0, guarded([&, button_text] {
       auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("rasterizeOrConvertMessageBox")));
       CHECK(box != nullptr);
       if (box == nullptr) {
@@ -664,7 +664,7 @@ void ui_legacy_plugin_offers_to_rasterize_text_layer() {
         }
       }
       box->reject();
-    });
+    }));
   };
 
   CHECK(run_script(window, QStringLiteral("var d = app.activeDocument; var t = d.addTextLayer('Plug-in', {size: 48, x: 20, y: 60, color: '#ff0000'}); d.activeLayer = t;\n"
@@ -696,7 +696,7 @@ void ui_preferences_plugin_screen_size_round_trips() {
   show_window(window);
   wait_for_legacy_plugin_scan(window);
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -714,7 +714,7 @@ void ui_preferences_plugin_screen_size_round_trips() {
     combo->setCurrentIndex(combo->findData(QSize(1024, 768)));
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -739,7 +739,7 @@ void ui_preferences_dialog_shows_every_tab() {
   show_window(window);
   wait_for_legacy_plugin_scan(window);
   bool inspected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -762,7 +762,7 @@ void ui_preferences_dialog_shows_every_tab() {
       inspected = true;
     }
     dialog->reject();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(inspected);

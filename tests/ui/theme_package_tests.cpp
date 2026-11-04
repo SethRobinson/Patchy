@@ -629,7 +629,7 @@ void ui_preferences_lists_theme_packages_and_sound_preference() {
   patchy::ui::MainWindow window;
   show_window(window);
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -655,7 +655,7 @@ void ui_preferences_lists_theme_packages_and_sound_preference() {
     sounds->setChecked(false);
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -751,7 +751,7 @@ void ui_preferences_theme_list_loads_packages_when_selected() {
   patchy::ui::MainWindow window;
   show_window(window);
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -787,7 +787,7 @@ void ui_preferences_theme_list_loads_packages_when_selected() {
     CHECK(meta != nullptr && meta->text() == list->item(damaged_row)->toolTip());
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -818,7 +818,7 @@ void ui_preferences_theme_row_plays_its_startup_sound() {
   patchy::ui::MainWindow window;
   show_window(window);
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -842,7 +842,7 @@ void ui_preferences_theme_row_plays_its_startup_sound() {
     CHECK(patchy::ui::theme_sound_play_count_for_testing() == plays);
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -960,7 +960,7 @@ void ui_theme_package_capture_shots() {
   {
     patchy::ui::MainWindow window;
     show_window(window);
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
       CHECK(dialog != nullptr);
       if (dialog != nullptr) {
@@ -968,7 +968,7 @@ void ui_theme_package_capture_shots() {
         (void)capture_widget_artifact("theme-package-after-preferences", *dialog);
         dialog->reject();
       }
-    });
+    }));
     require_action(window, "filePreferencesAction")->trigger();
     QApplication::processEvents();
   }
@@ -1234,7 +1234,7 @@ void ui_theme_info_shows_version_author_and_minimum_patchy() {
   show_window(window);
   int warnings_seen = 0;
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -1262,7 +1262,7 @@ void ui_theme_info_shows_version_author_and_minimum_patchy() {
 
     // Selecting it warns once per dialog, as plain text.
     const auto answer_warning = [&warnings_seen] {
-      QTimer::singleShot(0, [&warnings_seen] {
+      QTimer::singleShot(0, guarded([&warnings_seen] {
         auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("themeNeedsNewerPatchyMessageBox")));
         CHECK(box != nullptr);
         if (box != nullptr) {
@@ -1271,7 +1271,7 @@ void ui_theme_info_shows_version_author_and_minimum_patchy() {
           CHECK(box->text().contains(QStringLiteral("999.0")));
           box->accept();
         }
-      });
+      }));
     };
     // Selected directly: the select helper processes events, which would run the
     // answer before the box opens.
@@ -1292,7 +1292,7 @@ void ui_theme_info_shows_version_author_and_minimum_patchy() {
     save_widget_artifact("preferences_theme_needs_newer_patchy", *dialog);
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -1348,7 +1348,7 @@ void ui_theme_description_parses_round_trips_and_shows_in_details() {
   patchy::ui::MainWindow window;
   show_window(window);
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -1382,7 +1382,7 @@ void ui_theme_description_parses_round_trips_and_shows_in_details() {
     CHECK(!heading->isVisible() && !text->isVisible());
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);

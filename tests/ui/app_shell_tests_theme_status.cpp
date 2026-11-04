@@ -229,7 +229,7 @@ void ui_light_scheme_dialog_chrome_separates_from_canvas() {
   QApplication::processEvents();
 
   bool sampled = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -256,7 +256,7 @@ void ui_light_scheme_dialog_chrome_separates_from_canvas() {
     }
     save_widget_artifact("ui_light_scheme_preferences_dialog", *dialog);
     dialog->reject();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(sampled);
@@ -511,7 +511,7 @@ void ui_light_scheme_about_dialog_reads_as_a_light_surface() {
   ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Light);
 
   bool inspected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchySplashScreen"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -562,7 +562,7 @@ void ui_light_scheme_about_dialog_reads_as_a_light_surface() {
 
     inspected = true;
     dialog->accept();
-  });
+  }));
 
   patchy::ui::show_about_splash();
   CHECK(inspected);

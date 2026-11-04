@@ -178,7 +178,7 @@ void send_wheel_notch_down(QWidget& target) {
 GuiScaleDialogRun drive_preferences_gui_scale(patchy::ui::MainWindow& window,
                                               std::optional<int> percent, GuiScaleInput input) {
   GuiScaleDialogRun run;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -216,7 +216,7 @@ GuiScaleDialogRun drive_preferences_gui_scale(patchy::ui::MainWindow& window,
         QTest::keyClicks(edit, QString::number(*percent));
         CHECK(QString(edit->text()).remove(QLatin1Char('%')).trimmed() == QString::number(*percent));
       }
-      QTimer::singleShot(0, [&] {
+      QTimer::singleShot(0, guarded([&] {
         auto* message = qobject_cast<QMessageBox*>(
             find_top_level_dialog(QStringLiteral("preferencesInterfaceScaleMessageBox")));
         CHECK(message != nullptr);
@@ -224,10 +224,10 @@ GuiScaleDialogRun drive_preferences_gui_scale(patchy::ui::MainWindow& window,
           message->accept();
           run.dismissed_message = true;
         }
-      });
+      }));
     }
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   return run;
@@ -237,7 +237,7 @@ int choose_preferences_color_scheme(patchy::ui::MainWindow& window, const QStrin
                                     bool accept) {
   bool saw_dialog = false;
   int result = QDialog::Rejected;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -251,7 +251,7 @@ int choose_preferences_color_scheme(patchy::ui::MainWindow& window, const QStrin
     } else {
       dialog->reject();
     }
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -698,7 +698,7 @@ void ui_blocked_window_cursor_covers_preferences_over_the_canvas() {
   CHECK(tool_shape != Qt::ArrowCursor);
 
   bool checked = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr && dialog->isModal());
     if (dialog == nullptr) {
@@ -709,7 +709,7 @@ void ui_blocked_window_cursor_covers_preferences_over_the_canvas() {
     CHECK(handle->cursor().shape() == Qt::ArrowCursor);
     checked = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(checked);
@@ -888,7 +888,7 @@ void ui_recent_history_checks_in_background_and_skips_network_paths() {
   QElapsedTimer timer;
   timer.start();
   emit file_menu->aboutToShow();
-  CHECK(timer.elapsed() < 1000);
+  CHECK(timer.elapsed() < patchy::test::time_budget_ms(1000));
   CHECK(listed(files_menu) == QStringList({network_file, live_file}));
   CHECK(listed(folders_menu) == QStringList({network_folder, live_folder}));
 
@@ -911,7 +911,7 @@ void ui_open_dialog_hides_name_filter_details() {
   bool saw_open_dialog = false;
   QStringList filters;
   QStringList displayed;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("openFileDialog")));
     CHECK(dialog != nullptr);
     CHECK(dialog->testOption(QFileDialog::HideNameFilterDetails));
@@ -935,7 +935,7 @@ void ui_open_dialog_hides_name_filter_details() {
     CHECK(displayed.last() == QStringLiteral("All Files (*.*)"));
     saw_open_dialog = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "fileOpenAction")->trigger();
   CHECK(saw_open_dialog);
   // Checked outside the dialog callback: a failing CHECK throws, and a throw inside the
@@ -962,13 +962,13 @@ void ui_open_dialog_hides_name_filter_details() {
 
   // Save As filters are one short entry per format; their extension details stay visible.
   bool saw_save_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
     CHECK(dialog != nullptr);
     CHECK(!dialog->testOption(QFileDialog::HideNameFilterDetails));
     saw_save_dialog = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "fileSaveAsAction")->trigger();
   CHECK(saw_save_dialog);
 }
@@ -1082,7 +1082,7 @@ void ui_open_dialog_cancel_remembers_the_folder() {
   show_window(window);
   const auto sessions_before = patchy::ui::MainWindowTestAccess::session_count(window);
   bool answered = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("openFileDialog")));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -1092,7 +1092,7 @@ void ui_open_dialog_cancel_remembers_the_folder() {
     QApplication::processEvents();
     answered = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "fileOpenAction")->trigger();
   QApplication::processEvents();
   CHECK(answered);
@@ -1125,7 +1125,7 @@ void ui_open_dialog_opens_every_selected_file() {
   show_window(window);
   const auto sessions_before = patchy::ui::MainWindowTestAccess::session_count(window);
   QStringList picked;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("openFileDialog")));
     CHECK(dialog != nullptr);
     CHECK(dialog->fileMode() == QFileDialog::ExistingFiles);
@@ -1137,7 +1137,7 @@ void ui_open_dialog_opens_every_selected_file() {
     QApplication::processEvents();
     picked = dialog->selectedFiles();
     static_cast<QDialog*>(dialog)->accept();
-  });
+  }));
   require_action(window, "fileOpenAction")->trigger();
   QApplication::processEvents();
 
@@ -1548,7 +1548,7 @@ void ui_update_available_dialog_warns_to_close_patchy_before_installing() {
   show_window(window);
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("updateAvailableMessageBox")));
     CHECK(dialog != nullptr);
     // The install advice is per-platform (installer exe / DMG / Flatpak update).
@@ -1569,7 +1569,7 @@ void ui_update_available_dialog_warns_to_close_patchy_before_installing() {
     CHECK(dialog->findChild<QAbstractButton*>(QStringLiteral("updateInstallNowButton")) == nullptr);
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
 
   // Each platform gets its real download URL (the GitHub latest-release permalink that
   // latest_version.json carries), which is what the Download button opens.
@@ -1630,7 +1630,7 @@ void ui_update_available_dialog_offers_one_click_update_for_installed_copy() {
   const auto shown_with_update_now = [&window](const patchy::ui::UpdateInfo& info, QString* text) {
     bool saw_dialog = false;
     bool update_now = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("updateAvailableMessageBox")));
       CHECK(dialog != nullptr);
       auto* button = dialog->findChild<QAbstractButton*>(QStringLiteral("updateInstallNowButton"));
@@ -1649,7 +1649,7 @@ void ui_update_available_dialog_offers_one_click_update_for_installed_copy() {
       }
       saw_dialog = true;
       dialog->reject();  // never an accept: that would start the download
-    });
+    }));
     window.show_update_available(info);
     CHECK(saw_dialog);
     return update_now;
@@ -1702,7 +1702,7 @@ void ui_update_connector_restart_notice_names_the_apps() {
   patchy::ui::MainWindow window;
   show_window(window);
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog =
         qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("updateConnectorNoticeMessageBox")));
     CHECK(dialog != nullptr);
@@ -1713,7 +1713,7 @@ void ui_update_connector_restart_notice_names_the_apps() {
       saw_dialog = true;
       dialog->accept();
     }
-  });
+  }));
   window.show_connector_restart_notice({QStringLiteral("Claude"), QStringLiteral("Codex")});
   CHECK(saw_dialog);
   // Nothing to name: no dialog at all.
@@ -1812,7 +1812,7 @@ void ui_update_available_dialog_offers_appimage_download() {
   show_window(window);
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("updateAvailableMessageBox")));
     CHECK(dialog != nullptr);
     CHECK(dialog->text().contains(QStringLiteral("replace this file")));
@@ -1823,7 +1823,7 @@ void ui_update_available_dialog_offers_appimage_download() {
           dialog->defaultButton()->objectName() == QStringLiteral("updateDownloadButton"));
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
   window.show_update_available({QStringLiteral("linux"), QStringLiteral("9.9"),
                                 QUrl(QStringLiteral(
                                     "https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyLinux.flatpak"))});
@@ -2005,7 +2005,7 @@ void ui_update_one_click_replaces_appimage_on_close() {
   patchy::ui::MainWindow second;
   show_window(second);
   bool saw_download_prompt = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* prompt = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("updateAvailableMessageBox")));
     CHECK(prompt != nullptr);
     if (prompt != nullptr) {
@@ -2014,7 +2014,7 @@ void ui_update_one_click_replaces_appimage_on_close() {
           prompt->findChild<QAbstractButton*>(QStringLiteral("updateDownloadButton")) != nullptr;
       prompt->reject();
     }
-  });
+  }));
   second.show_update_available(update);
   CHECK(saw_download_prompt);
 #else
@@ -2261,7 +2261,7 @@ void ui_update_preference_persists_startup_check_setting() {
   }
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("preferencesCheckForUpdatesCheck"));
@@ -2270,7 +2270,7 @@ void ui_update_preference_persists_startup_check_setting() {
     check->setChecked(false);
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -2307,13 +2307,13 @@ void ui_update_checks_can_be_switched_off() {
   CHECK(find_top_level_dialog(QStringLiteral("updateAvailableMessageBox")) == nullptr);
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     CHECK(dialog->findChild<QCheckBox*>(QStringLiteral("preferencesCheckForUpdatesCheck")) == nullptr);
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -4014,7 +4014,7 @@ struct PreferencesEntryState {
 // the way `exit` says. Returns what the controls showed on entry.
 PreferencesEntryState change_preferences_and_exit(patchy::ui::MainWindow& window, PreferencesExit exit) {
   PreferencesEntryState entry;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -4062,7 +4062,7 @@ PreferencesEntryState change_preferences_and_exit(patchy::ui::MainWindow& window
       CHECK(false);
       dialog->reject();
     }
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(entry.saw_dialog);
@@ -4073,7 +4073,7 @@ PreferencesEntryState change_preferences_and_exit(patchy::ui::MainWindow& window
 // What a fresh Preferences shows: the settings in effect in the running window.
 std::pair<bool, int> preferences_wheel_and_subdivisions(patchy::ui::MainWindow& window) {
   std::pair<bool, int> shown{false, -1};
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -4086,7 +4086,7 @@ std::pair<bool, int> preferences_wheel_and_subdivisions(patchy::ui::MainWindow& 
       shown.second = spin->value();
     }
     dialog->reject();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   return shown;

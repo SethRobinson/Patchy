@@ -688,7 +688,7 @@ void ui_preferences_flat_alpha_as_layer_mask_checkbox() {
   patchy::ui::MainWindow window;
   show_window(window);
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) return;
@@ -705,7 +705,7 @@ void ui_preferences_flat_alpha_as_layer_mask_checkbox() {
     }
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -777,7 +777,7 @@ void ui_image_save_options_defaults_and_dialogs() {
   CHECK(loaded.bmp_palette_path == defaults.bmp_palette_path);
 
   bool saw_jpeg_dialog = false;
-  QTimer::singleShot(0, [&saw_jpeg_dialog] {
+  QTimer::singleShot(0, guarded([&saw_jpeg_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("jpegSaveOptionsDialog"));
     CHECK(dialog != nullptr);
     auto* quality = dialog->findChild<QSpinBox*>(QStringLiteral("jpegQualitySpin"));
@@ -792,7 +792,7 @@ void ui_image_save_options_defaults_and_dialogs() {
     CHECK(quality_slider->value() == 82);
     saw_jpeg_dialog = true;
     dialog->accept();
-  });
+  }));
   auto jpeg_options = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("jpeg"), loaded);
   CHECK(saw_jpeg_dialog);
   CHECK(jpeg_options.has_value());
@@ -800,7 +800,7 @@ void ui_image_save_options_defaults_and_dialogs() {
   CHECK(jpeg_options->bmp_encoding == patchy::bmp::BmpEncoding::Indexed4);
 
   bool saw_bmp_dialog = false;
-  QTimer::singleShot(0, [&saw_bmp_dialog] {
+  QTimer::singleShot(0, guarded([&saw_bmp_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("bmpSaveOptionsDialog"));
     CHECK(dialog != nullptr);
     auto* indexed4 = dialog->findChild<QRadioButton*>(QStringLiteral("bmpEncodingIndexed4Radio"));
@@ -832,7 +832,7 @@ void ui_image_save_options_defaults_and_dialogs() {
     palette_path->setText(QStringLiteral("test-artifacts/other_palette.pal"));
     saw_bmp_dialog = true;
     dialog->accept();
-  });
+  }));
   auto bmp_options = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral(".bmp"), *jpeg_options);
   CHECK(saw_bmp_dialog);
   CHECK(bmp_options.has_value());
@@ -913,13 +913,13 @@ void ui_export_dialog_offers_cmyk_for_print_formats() {
     dialog.accept();
   });
   bool save_as_seen = false;
-  QTimer::singleShot(0, [&save_as_seen] {
+  QTimer::singleShot(0, guarded([&save_as_seen] {
     auto* dialog = find_top_level_dialog(QStringLiteral("jpegSaveOptionsDialog"));
     CHECK(dialog != nullptr);
     CHECK(dialog->findChild<QComboBox*>(QStringLiteral("exportColorCombo")) == nullptr);
     save_as_seen = true;
     dialog->accept();
-  });
+  }));
   const auto save_as = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("jpg"), *jpeg_again);
   CHECK(save_as_seen);
   CHECK(save_as.has_value() && !save_as->export_cmyk && !save_as->export_black_ink_only);
@@ -952,7 +952,7 @@ void ui_ico_export_dialog_sizes_and_resample() {
   CHECK(defaults.ico_resample == patchy::ui::IcoResample::Auto);
 
   bool saw_ico_dialog = false;
-  QTimer::singleShot(0, [&saw_ico_dialog] {
+  QTimer::singleShot(0, guarded([&saw_ico_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("icoSaveOptionsDialog"));
     CHECK(dialog != nullptr);
     auto* ok_button = dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok);
@@ -976,7 +976,7 @@ void ui_ico_export_dialog_sizes_and_resample() {
     CHECK(dialog->findChild<QSpinBox*>(QStringLiteral("curHotspotXSpin")) == nullptr);
     saw_ico_dialog = true;
     dialog->accept();
-  });
+  }));
   const auto ico_options = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("ico"), defaults);
   CHECK(saw_ico_dialog);
   CHECK(ico_options.has_value());
@@ -984,7 +984,7 @@ void ui_ico_export_dialog_sizes_and_resample() {
   CHECK(ico_options->ico_resample == patchy::ui::IcoResample::Nearest);
 
   bool saw_cur_dialog = false;
-  QTimer::singleShot(0, [&saw_cur_dialog] {
+  QTimer::singleShot(0, guarded([&saw_cur_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("curSaveOptionsDialog"));
     CHECK(dialog != nullptr);
     auto* hotspot_x = dialog->findChild<QSpinBox*>(QStringLiteral("curHotspotXSpin"));
@@ -995,7 +995,7 @@ void ui_ico_export_dialog_sizes_and_resample() {
     hotspot_y->setValue(4);
     saw_cur_dialog = true;
     dialog->accept();
-  });
+  }));
   const auto cur_options = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("cur"), *ico_options);
   CHECK(saw_cur_dialog);
   CHECK(cur_options.has_value());
@@ -1350,7 +1350,7 @@ void ui_color_mode_and_ink_adjustment_imports_force_notices_popup() {
   CHECK(indexed.contains(QStringLiteral("RGB file")));
 
   // psd-tools' CMYK Levels file (testy/fetch_psd_tools_corpus.py), when it is there.
-  const auto cmyk = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" /
+  const auto cmyk = patchy::test::local_fixtures_root() / "psd-tools" / "tests" /
                     "psd_files" / "adjustments" / "levels_cmyk.psd";
   if (!std::filesystem::exists(cmyk)) {
     std::cout << "  note: optional fixture missing: " << patchy::test::fixture_display_path(cmyk) << '\n';
@@ -1472,7 +1472,7 @@ void ui_gif_save_options_dialog_choices() {
 
   // Save As form: animation is the default, flatten + a new delay persist for next time.
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("gifSaveOptionsDialog"));
     CHECK(dialog != nullptr);
     auto* animation = dialog->findChild<QRadioButton*>(QStringLiteral("gifAnimationRadio"));
@@ -1491,7 +1491,7 @@ void ui_gif_save_options_dialog_choices() {
     CHECK(!delay->isEnabled());  // the delay only applies to animations
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   auto options = patchy::ui::prompt_gif_save_options(nullptr, defaults, /*offer_flatten_choice*/ true,
                                                      /*for_export*/ false, /*has_visible_frames*/ true);
   CHECK(saw_dialog);
@@ -1501,7 +1501,7 @@ void ui_gif_save_options_dialog_choices() {
 
   // Second invocation: the flatten choice and the delay were remembered.
   saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("gifSaveOptionsDialog"));
     CHECK(dialog != nullptr);
     auto* animation = dialog->findChild<QRadioButton*>(QStringLiteral("gifAnimationRadio"));
@@ -1513,7 +1513,7 @@ void ui_gif_save_options_dialog_choices() {
     CHECK(delay->isEnabled());
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   options = patchy::ui::prompt_gif_save_options(nullptr, patchy::ui::load_image_save_option_defaults(),
                                                 /*offer_flatten_choice*/ true, /*for_export*/ false,
                                                 /*has_visible_frames*/ true);
@@ -1523,7 +1523,7 @@ void ui_gif_save_options_dialog_choices() {
 
   // With nothing visible the animation radio disables and flatten is forced.
   saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("gifSaveOptionsDialog"));
     CHECK(dialog != nullptr);
     auto* animation = dialog->findChild<QRadioButton*>(QStringLiteral("gifAnimationRadio"));
@@ -1533,7 +1533,7 @@ void ui_gif_save_options_dialog_choices() {
     CHECK(flatten->isChecked());
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   options = patchy::ui::prompt_gif_save_options(nullptr, patchy::ui::load_image_save_option_defaults(),
                                                 /*offer_flatten_choice*/ true, /*for_export*/ false,
                                                 /*has_visible_frames*/ false);
@@ -1544,7 +1544,7 @@ void ui_gif_save_options_dialog_choices() {
   // The Export Layers as Animated GIF form: no radios, always an animation, and the
   // export flow adds the scale combo.
   saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("gifSaveOptionsDialog"));
     CHECK(dialog != nullptr);
     CHECK(dialog->findChild<QRadioButton*>(QStringLiteral("gifAnimationRadio")) == nullptr);
@@ -1557,7 +1557,7 @@ void ui_gif_save_options_dialog_choices() {
     scale->setCurrentIndex(std::max(0, scale->findData(2)));
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   options = patchy::ui::prompt_gif_save_options(nullptr, patchy::ui::load_image_save_option_defaults(),
                                                 /*offer_flatten_choice*/ false, /*for_export*/ true,
                                                 /*has_visible_frames*/ true);
@@ -1884,7 +1884,7 @@ void ui_rttex_save_options_persist_and_dialog_prefills_from_source() {
   // The dialog: its controls carry the documented object names, and the JPEG quality row
   // follows the encoding combo.
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("rttexSaveOptionsDialog"));
     CHECK(dialog != nullptr);
     auto* encoding = dialog->findChild<QComboBox*>(QStringLiteral("rttexEncodingCombo"));
@@ -1906,7 +1906,7 @@ void ui_rttex_save_options_persist_and_dialog_prefills_from_source() {
     compress->setChecked(false);
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   const auto chosen = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("rttex"),
                                                             patchy::ui::load_image_save_option_defaults());
   CHECK(saw_dialog);
@@ -2097,7 +2097,7 @@ void ui_dds_save_options_persist_and_dialog_prefills_from_source() {
 
   // The dialog carries the documented object names and hands back the chosen values.
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("ddsSaveOptionsDialog"));
     CHECK(dialog != nullptr);
     auto* compression = dialog->findChild<QComboBox*>(QStringLiteral("ddsCompressionCombo"));
@@ -2117,7 +2117,7 @@ void ui_dds_save_options_persist_and_dialog_prefills_from_source() {
     mipmaps->setCurrentIndex(mipmaps->findData(QStringLiteral("on")));
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   const auto chosen = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("dds"),
                                                             patchy::ui::load_image_save_option_defaults());
   CHECK(saw_dialog);
@@ -2139,7 +2139,7 @@ void ui_dds_save_options_persist_and_dialog_prefills_from_source() {
   CHECK(prefilled.dds_source.compression == patchy::dds::Compression::Bc1);
   CHECK(prefilled.dds_source.mipmaps == true);
   bool saw_prefilled_dialog = false;
-  QTimer::singleShot(0, [&saw_prefilled_dialog] {
+  QTimer::singleShot(0, guarded([&saw_prefilled_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("ddsSaveOptionsDialog"));
     CHECK(dialog != nullptr);
     auto* compression = dialog->findChild<QComboBox*>(QStringLiteral("ddsCompressionCombo"));
@@ -2150,7 +2150,7 @@ void ui_dds_save_options_persist_and_dialog_prefills_from_source() {
     CHECK(mipmaps->currentText().contains(QStringLiteral("generate, as the opened file")));
     saw_prefilled_dialog = true;
     dialog->reject();
-  });
+  }));
   CHECK(!patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("dds"), prefilled).has_value());
   CHECK(saw_prefilled_dialog);
 
@@ -2223,14 +2223,14 @@ void ui_dds_automatic_follows_opened_file_and_previews_the_chain() {
 
   bool saw_preview = false;
   bool saw_options = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("ddsSaveOptionsDialog"));
     CHECK(dialog != nullptr);
     auto* preview = dialog->findChild<QPushButton*>(QStringLiteral("ddsMipmapPreviewButton"));
     CHECK(preview != nullptr);
     CHECK(preview->isVisible());
     saw_options = true;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* window_dialog = find_top_level_dialog(QStringLiteral("ddsMipmapPreviewDialog"));
       CHECK(window_dialog != nullptr);
       if (window_dialog == nullptr) {
@@ -2269,9 +2269,9 @@ void ui_dds_automatic_follows_opened_file_and_previews_the_chain() {
       saw_preview = true;
       window_dialog->accept();
       QTimer::singleShot(0, [dialog] { dialog->reject(); });
-    });
+    }));
     preview->click();
-  });
+  }));
   const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
   CHECK(!patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("dds"), defaults, /*for_export*/ false,
                                                QSize(), &document)
@@ -2300,7 +2300,7 @@ void ui_dds_cubemap_import_is_layered_and_save_routes_to_save_as() {
   // instead of silently flattening over the cubemap (the Photoshop-style guard).
   bool saw_dialog = false;
   QString default_name;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
     CHECK(dialog != nullptr);
     const auto selected = dialog->selectedFiles();
@@ -2309,7 +2309,7 @@ void ui_dds_cubemap_import_is_layered_and_save_routes_to_save_as() {
     }
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
   CHECK(!patchy::ui::MainWindowTestAccess::save_document(window));
   CHECK(saw_dialog);
   CHECK(default_name == QStringLiteral("synth-cubemap-a8r8g8b8-4x4.psd"));
@@ -2544,7 +2544,7 @@ void ui_export_options_dialog_shared_section() {
 
   const patchy::ui::ImageSaveOptions defaults;
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("exportScaleOptionsDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -2588,7 +2588,7 @@ void ui_export_options_dialog_shared_section() {
     CHECK(probe.swatch->isEnabled());
     // The swatch opens Patchy's own picker (never Qt's stock dialog): pick through it, then
     // check that a cancel keeps the color even after a live preview.
-    QTimer::singleShot(0, [] {
+    QTimer::singleShot(0, guarded([] {
       auto* picker_dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
       CHECK(picker_dialog != nullptr);
       if (picker_dialog == nullptr) {
@@ -2596,10 +2596,10 @@ void ui_export_options_dialog_shared_section() {
       }
       CHECK(patchy::ui::apply_color_to_open_color_picker(QColor(10, 20, 30)));
       picker_dialog->accept();
-    });
+    }));
     probe.swatch->click();
     CHECK(probe.swatch->property("patchy.exportBackgroundColor").value<QColor>() == QColor(10, 20, 30));
-    QTimer::singleShot(0, [] {
+    QTimer::singleShot(0, guarded([] {
       auto* picker_dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
       CHECK(picker_dialog != nullptr);
       if (picker_dialog == nullptr) {
@@ -2607,14 +2607,14 @@ void ui_export_options_dialog_shared_section() {
       }
       CHECK(patchy::ui::apply_color_to_open_color_picker(QColor(99, 99, 99)));
       picker_dialog->reject();
-    });
+    }));
     probe.swatch->click();
     CHECK(probe.swatch->property("patchy.exportBackgroundColor").value<QColor>() == QColor(10, 20, 30));
     probe.trim->click();
     probe.reveal->click();
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   auto chosen = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("png"), defaults, /*for_export*/ true,
                                                       QSize(640, 480));
   CHECK(saw_dialog);
@@ -2638,7 +2638,7 @@ void ui_export_options_dialog_shared_section() {
 
   // A second document prefills from the remembered choices; the percent scales its size.
   saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("exportScaleOptionsDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -2662,7 +2662,7 @@ void ui_export_options_dialog_shared_section() {
     CHECK(!probe.swatch->isEnabled());
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   chosen = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("png"), defaults, /*for_export*/ true,
                                                  QSize(100, 50));
   CHECK(saw_dialog);
@@ -2677,7 +2677,7 @@ void ui_export_options_dialog_shared_section() {
 
   // Without a document size the Resize row hides and nothing resize-related changes.
   saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("exportScaleOptionsDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -2687,7 +2687,7 @@ void ui_export_options_dialog_shared_section() {
     CHECK(row != nullptr && row->isHidden());
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   chosen = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("png"), defaults, /*for_export*/ true);
   CHECK(saw_dialog);
   CHECK(chosen.has_value());
@@ -2708,7 +2708,7 @@ void ui_export_options_jpeg_forces_background_fill() {
 
   const patchy::ui::ImageSaveOptions defaults;
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("jpegSaveOptionsDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -2732,7 +2732,7 @@ void ui_export_options_jpeg_forces_background_fill() {
     CHECK(no_clipped_labels(*dialog));
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   auto chosen = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("jpg"), defaults, /*for_export*/ true,
                                                       QSize(64, 64));
   CHECK(saw_dialog);
@@ -2747,7 +2747,7 @@ void ui_export_options_jpeg_forces_background_fill() {
 
   // Save As keeps the plain JPEG form.
   saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("jpegSaveOptionsDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -2757,7 +2757,7 @@ void ui_export_options_jpeg_forces_background_fill() {
     CHECK(dialog->findChild<QCheckBox*>(QStringLiteral("exportTrimCheck")) == nullptr);
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   chosen = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("jpg"), defaults);
   CHECK(saw_dialog);
   CHECK(chosen.has_value());
@@ -2803,7 +2803,7 @@ void ui_webp_save_options_dialog_persists_quality_and_lossless() {
   patchy::ui::ImageSaveOptions seed;
   seed.webp_quality = 42;
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("webpSaveOptionsDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -2826,7 +2826,7 @@ void ui_webp_save_options_dialog_persists_quality_and_lossless() {
     CHECK(dialog->findChild<QComboBox*>(QStringLiteral("exportScaleCombo")) == nullptr);
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   auto chosen = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("webp"), seed);
   CHECK(saw_dialog);
   CHECK(chosen.has_value());
@@ -2837,7 +2837,7 @@ void ui_webp_save_options_dialog_persists_quality_and_lossless() {
 
   // The export form carries the shared section and still fits its labels.
   saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("webpSaveOptionsDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -2848,7 +2848,7 @@ void ui_webp_save_options_dialog_persists_quality_and_lossless() {
     CHECK(no_clipped_labels(*dialog));
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
   chosen = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("webp"), seed, /*for_export*/ true,
                                                  QSize(32, 32));
   CHECK(saw_dialog);
@@ -2874,7 +2874,7 @@ void ui_export_options_sections_do_not_clip_labels() {
   };
   for (const auto& [extension, object_name] : forms) {
     bool saw_dialog = false;
-    QTimer::singleShot(0, [&saw_dialog, object_name] {
+    QTimer::singleShot(0, guarded([&saw_dialog, object_name] {
       auto* dialog = find_top_level_dialog(object_name);
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -2884,7 +2884,7 @@ void ui_export_options_sections_do_not_clip_labels() {
       CHECK(no_clipped_labels(*dialog));
       saw_dialog = true;
       dialog->reject();
-    });
+    }));
     const auto chosen =
         patchy::ui::prompt_image_save_options(nullptr, extension, defaults, /*for_export*/ true, QSize(300, 200));
     CHECK(saw_dialog);
@@ -2892,7 +2892,7 @@ void ui_export_options_sections_do_not_clip_labels() {
   }
 
   bool saw_gif_dialog = false;
-  QTimer::singleShot(0, [&saw_gif_dialog] {
+  QTimer::singleShot(0, guarded([&saw_gif_dialog] {
     auto* dialog = find_top_level_dialog(QStringLiteral("gifSaveOptionsDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -2902,7 +2902,7 @@ void ui_export_options_sections_do_not_clip_labels() {
     CHECK(no_clipped_labels(*dialog));
     saw_gif_dialog = true;
     dialog->reject();
-  });
+  }));
   const auto gif = patchy::ui::prompt_gif_save_options(nullptr, defaults, /*offer_flatten_choice*/ true,
                                                        /*for_export*/ true, /*has_visible_frames*/ true,
                                                        QSize(300, 200));

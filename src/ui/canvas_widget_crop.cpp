@@ -8,6 +8,7 @@
 // the new document).
 
 #include "ui/canvas_widget.hpp"
+#include "ui/theme_palette.hpp"
 
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget_shared.hpp"
@@ -969,7 +970,7 @@ void CanvasWidget::draw_crop_overlay(QPainter& painter) const {
   }
 
   painter.setBrush(Qt::NoBrush);
-  painter.setPen(QPen(QColor(95, 170, 255), 1.0, Qt::DashLine));
+  painter.setPen(QPen(theme().canvas_layer_selection_border, 1.0, Qt::DashLine));
   painter.drawRect(local_rect);
   painter.restore();
 

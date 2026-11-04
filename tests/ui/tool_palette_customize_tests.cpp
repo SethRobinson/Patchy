@@ -137,7 +137,7 @@ void send_wheel(QWidget& target, int angle) {
 
 // Runs `act` on the Customize Tool Palette dialog once it is up (it runs its own loop).
 void when_customize_dialog_opens(const std::function<void(QDialog&)>& act) {
-  QTimer::singleShot(0, [act] {
+  QTimer::singleShot(0, guarded([act] {
     QDialog* dialog = nullptr;
     process_events_until([&] {
       dialog = find_top_level_dialog(QStringLiteral("toolPaletteCustomizeDialog"));
@@ -147,7 +147,7 @@ void when_customize_dialog_opens(const std::function<void(QDialog&)>& act) {
     if (dialog != nullptr) {
       act(*dialog);
     }
-  });
+  }));
 }
 
 QTreeWidgetItem* tree_row(QTreeWidget& tree, const QString& text) {
@@ -760,7 +760,7 @@ void ui_layers_panel_gear_opens_layer_button_customize() {
 
   // The gear's menu open with Thumbnail Size beside it, painted over the Layers section.
   bool shown = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* open = qobject_cast<QMenu*>(QApplication::activePopupWidget());
     CHECK(open == menu);
     if (open != menu) {
@@ -799,7 +799,7 @@ void ui_layers_panel_gear_opens_layer_button_customize() {
     }
     size_menu->close();
     menu->close();
-  });
+  }));
   gear->showMenu();
   settle();
   CHECK(shown);
@@ -814,7 +814,7 @@ void ui_layers_panel_gear_opens_layer_button_customize() {
   CHECK(checked_in(*size_menu) == QStringLiteral("layerThumbnailSizeSmallAction"));
   QString thumbnail_menu_size;
   QString thumbnail_menu_name;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* open = qobject_cast<QMenu*>(QApplication::activePopupWidget());
     CHECK(open != nullptr);
     if (open == nullptr) {
@@ -826,7 +826,7 @@ void ui_layers_panel_gear_opens_layer_button_customize() {
       thumbnail_menu_size = checked_in(*thumbnail_size);
     }
     open->close();
-  });
+  }));
   auto* row = layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("Paint Layer")));
   auto* thumbnail = row != nullptr ? row->findChild<QWidget*>(QStringLiteral("layerContentThumbnail")) : nullptr;
   CHECK(thumbnail != nullptr);
@@ -1133,7 +1133,7 @@ void ui_preferences_opens_customize_tool_palette() {
   auto&& [window, canvas] = ShownWindowFixture{};
   bool saw_preferences = false;
   bool saw_customize = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     QDialog* preferences = nullptr;
     process_events_until([&] {
       preferences = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
@@ -1177,16 +1177,16 @@ void ui_preferences_opens_customize_tool_palette() {
         dialog_size->setCurrentIndex(dialog_size->findData(QStringLiteral("bigger")));
       }
       press_dialog_button(dialog, QDialogButtonBox::Ok);
-      QTimer::singleShot(0, preferences, [preferences, open_combo] {
+      QTimer::singleShot(0, preferences, guarded([preferences, open_combo] {
         auto* size = preferences->findChild<QComboBox*>(QStringLiteral("preferencesToolbarIconSizeCombo"));
         CHECK(open_combo == nullptr || open_combo->currentData().toString() == QStringLiteral("click"));
         CHECK(size != nullptr && size->currentData().toString() == QStringLiteral("bigger"));
         // Preferences' OK keeps what the dialog chose.
         preferences->accept();
-      });
+      }));
     });
     button->click();
-  });
+  }));
   patchy::ui::MainWindowTestAccess::show_preferences(window);
   settle();
   CHECK(saw_preferences);
@@ -1873,13 +1873,13 @@ void ui_layer_footer_rasterize_button_opens_its_menu() {
     int shows = 0;
     const auto connection = QObject::connect(menu, &QMenu::aboutToShow, menu, [&] {
       ++shows;
-      QTimer::singleShot(0, menu, [&] {
+      QTimer::singleShot(0, menu, guarded([&] {
         CHECK(menu->isVisible());
         in_menu();
         if (menu->isVisible()) {
           menu->close();
         }
-      });
+      }));
     });
     // The press itself opens it (a hold-only menu, the first try, opened 200 ms later).
     QTest::mousePress(handle, Qt::LeftButton, Qt::NoModifier, at);

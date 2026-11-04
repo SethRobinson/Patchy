@@ -203,7 +203,7 @@ void ui_color_picker_ignores_reentrant_requests() {
   bool nested_request_returned = false;
   std::optional<QColor> nested_result;
   int pickers_while_first_open = 0;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     QDialog* first = nullptr;
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() == QStringLiteral("patchyColorDialog") && widget->isVisible()) {
@@ -220,7 +220,7 @@ void ui_color_picker_ignores_reentrant_requests() {
     if (first != nullptr) {
       first->accept();
     }
-  });
+  }));
   const auto result = patchy::ui::request_patchy_color(nullptr, QColor(10, 20, 30), QStringLiteral("Re-entrancy"));
   CHECK(nested_request_returned);
   CHECK(!nested_result.has_value());
@@ -254,7 +254,7 @@ void ui_color_picker_closes_with_parent_dialog() {
   // The single-picker guard must have been released with it: a later request
   // opens a fresh picker instead of silently doing nothing.
   bool second_picker_opened = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() == QStringLiteral("patchyColorDialog") && widget->isVisible()) {
         second_picker_opened = true;
@@ -263,7 +263,7 @@ void ui_color_picker_closes_with_parent_dialog() {
       }
     }
     CHECK(false);
-  });
+  }));
   const auto second = patchy::ui::request_patchy_color(nullptr, QColor(3, 2, 1), QStringLiteral("Fresh"));
   CHECK(second_picker_opened);
   CHECK(second.has_value());
@@ -276,7 +276,7 @@ void ui_color_picker_keeps_its_color_when_parent_is_accepted() {
   parent.show();
   QApplication::processEvents();
   std::optional<QColor> live;
-  QTimer::singleShot(0, &parent, [&] {
+  QTimer::singleShot(0, &parent, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyColorDialog") || !widget->isVisible()) {
         continue;
@@ -289,7 +289,7 @@ void ui_color_picker_keeps_its_color_when_parent_is_accepted() {
       break;
     }
     parent.accept();
-  });
+  }));
   const auto kept = patchy::ui::request_patchy_color(&parent, QColor(10, 20, 30), QStringLiteral("Kept"),
                                                      [&](QColor color) { live = color; });
   CHECK(live.has_value() && *live == QColor(40, 160, 210));
@@ -308,7 +308,7 @@ void ui_color_picker_fields_keep_their_digits_in_a_styled_dialog() {
   parent.show();
   QApplication::processEvents();
   bool checked = false;
-  QTimer::singleShot(0, &parent, [&] {
+  QTimer::singleShot(0, &parent, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyColorDialog") || !widget->isVisible()) {
         continue;
@@ -328,7 +328,7 @@ void ui_color_picker_fields_keep_their_digits_in_a_styled_dialog() {
       qobject_cast<QDialog*>(widget)->reject();
       return;
     }
-  });
+  }));
   (void)patchy::ui::request_patchy_color(&parent, QColor(0x5a, 0x2d, 0x25), QStringLiteral("Styled parent"));
   CHECK(checked);
 }
@@ -1205,7 +1205,7 @@ void ui_psd_import_warning_dialog_shows_when_enabled() {
 // The reporter's files from GitHub issue 559 (local fixtures): a Photoshop file of six
 // stroke-preset shape layers and a Patchy-saved one both reopen with nothing to report.
 void ui_compatibility_report_is_empty_for_issue_559_files_if_available() {
-  const auto folder = patchy::test::source_root_path() / "local-test-fixtures" / "issue-559";
+  const auto folder = patchy::test::local_fixtures_root() / "issue-559";
   for (const char* name : {"photoshop-stroke-presets.psd", "patchy-dashes-test-2.psd"}) {
     const auto path = folder / name;
     patchy::test::skip_unless_exists(path);
@@ -1382,7 +1382,7 @@ void ui_image_mode_converts_bit_depth_with_undo() {
 // that depth back, and the row is hidden when deep editing is off.
 void ui_new_document_dialog_creates_the_chosen_bit_depth() {
   const auto answer_new_document = [](int bits, bool expect_row, int* remembered) {
-    QTimer::singleShot(0, [bits, expect_row, remembered] {
+    QTimer::singleShot(0, guarded([bits, expect_row, remembered] {
       auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -1429,7 +1429,7 @@ void ui_new_document_dialog_creates_the_chosen_bit_depth() {
         height->setValue(48);
       }
       dialog->accept();
-    });
+    }));
   };
   patchy::set_deep_editing_override(true);
   {
@@ -1499,7 +1499,7 @@ void ui_image_mode_from_32_bits_asks_for_hdr_toning() {
       exposure->setValue(0.0);
     }
     const auto answer_toning = [](bool accept, double exposure) {
-      QTimer::singleShot(0, [accept, exposure] {
+      QTimer::singleShot(0, guarded([accept, exposure] {
         auto* dialog = find_top_level_dialog(QStringLiteral("hdrToningDialog"));
         CHECK(dialog != nullptr);
         if (dialog == nullptr) {
@@ -1515,7 +1515,7 @@ void ui_image_mode_from_32_bits_asks_for_hdr_toning() {
         } else {
           dialog->reject();
         }
-      });
+      }));
     };
     answer_toning(false, 0.0);
     to16->trigger();
@@ -2654,7 +2654,7 @@ void ui_eyedropper_options_bar_sample_controls() {
   CHECK(capture_theme_mismatch(window).isEmpty());
   auto shot = window.grab().toImage();
   bool popup_captured = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* list = layers_combo->view();
     CHECK(list != nullptr && list->isVisible());
     if (list != nullptr && list->isVisible()) {
@@ -2674,7 +2674,7 @@ void ui_eyedropper_options_bar_sample_controls() {
       popup_captured = true;
     }
     layers_combo->hidePopup();
-  });
+  }));
   layers_combo->showPopup();
   QApplication::processEvents();
   QApplication::processEvents();
@@ -3257,7 +3257,7 @@ void ui_selection_commands_live_only_in_select_menu() {
 
   // The hotkey editor groups rows by the menu they sit in: these now list under Select.
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -3279,7 +3279,7 @@ void ui_selection_commands_live_only_in_select_menu() {
     }
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
   window.show_hotkey_preferences(QString());
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -4463,7 +4463,7 @@ void ui_preferences_builds_hotkey_editor_on_first_visit() {
   clear_hotkey_overrides();
   auto&& [window, canvas] = ShownWindowFixture{};
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -4481,7 +4481,7 @@ void ui_preferences_builds_hotkey_editor_on_first_visit() {
     CHECK(dialog->findChild<QWidget*>(QStringLiteral("hotkeyEditorPanel")) == panel);
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -4490,7 +4490,7 @@ void ui_preferences_builds_hotkey_editor_on_first_visit() {
   CHECK(patchy::ui::stored_preferences_last_page() == QStringLiteral("hotkeys"));
   patchy::ui::set_stored_preferences_last_page(QStringLiteral("application"));
   saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -4499,7 +4499,7 @@ void ui_preferences_builds_hotkey_editor_on_first_visit() {
     CHECK(dialog->findChild<QWidget*>(QStringLiteral("hotkeyEditorPanel")) == nullptr);
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -4511,7 +4511,7 @@ void ui_hotkey_editor_search_row_stays_while_list_scrolls() {
   clear_hotkey_overrides();
   auto&& [window, canvas] = ShownWindowFixture{};
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -4580,7 +4580,7 @@ void ui_hotkey_editor_search_row_stays_while_list_scrolls() {
     QApplication::processEvents();
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -5078,7 +5078,7 @@ void ui_hotkey_editor_assigns_and_persists_custom_shortcut() {
   clear_hotkey_overrides();
   auto&& [window, canvas] = ShownWindowFixture{};
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     select_hotkeys_tab(*dialog);
@@ -5119,7 +5119,7 @@ void ui_hotkey_editor_assigns_and_persists_custom_shortcut() {
     QApplication::processEvents();
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -5141,7 +5141,7 @@ void ui_hotkey_editor_lists_scripts_category() {
   const auto pong_id = patchy::ui::script_hotkey_command_id(QStringLiteral("Games/pong.js"));
   CHECK(window.hotkey_registry().find_command(pong_id) != nullptr);
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -5172,7 +5172,7 @@ void ui_hotkey_editor_lists_scripts_category() {
     save_widget_artifact("hotkey_editor_scripts_category", *dialog);
     saw_dialog = true;
     dialog->reject();
-  });
+  }));
   window.show_hotkey_preferences(QStringLiteral("Pong"));
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -5182,7 +5182,7 @@ void ui_hotkey_editor_steals_conflicting_shortcut() {
   clear_hotkey_overrides();
   auto&& [window, canvas] = ShownWindowFixture{};
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     select_hotkeys_tab(*dialog);
@@ -5219,7 +5219,7 @@ void ui_hotkey_editor_steals_conflicting_shortcut() {
     CHECK(note->isVisible());
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -5246,7 +5246,7 @@ void ui_hotkey_editor_reset_all_clears_overrides() {
   CHECK(undo_command != nullptr && undo_command->action != nullptr);
   CHECK(undo_command->action->shortcuts().isEmpty());
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     select_hotkeys_tab(*dialog);
@@ -5258,7 +5258,7 @@ void ui_hotkey_editor_reset_all_clears_overrides() {
     QApplication::processEvents();
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -5410,7 +5410,7 @@ void ui_preferences_cmyk_settings_persist_and_apply() {
   const ScopedCmykWorkingSettings defaults(patchy::ui::CmykWorkingSettings{});
   auto&& [window, canvas] = ShownWindowFixture{};
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     auto* profile = dialog->findChild<QComboBox*>(QStringLiteral("preferencesCmykProfileCombo"));
@@ -5436,7 +5436,7 @@ void ui_preferences_cmyk_settings_persist_and_apply() {
     black_point->setChecked(false);
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);

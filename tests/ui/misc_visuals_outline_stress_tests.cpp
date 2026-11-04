@@ -53,6 +53,8 @@ void ui_transparency_checkerboard_and_copy_paste_preserve_alpha() {
   // ui_copy_* tests; revisit if a cross-platform variant of this scene is wanted.
   patchy::test::skip("uses the Windows-only bundled legacy 8BF shim");
 #else
+  // Stage the plug-ins (or skip without them) instead of relying on an earlier test's staging.
+  require_filter_foundry_fixtures();
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
@@ -80,14 +82,14 @@ void ui_transparency_checkerboard_and_copy_paste_preserve_alpha() {
   // selected area is empty", docs/clipboard.md) instead of copying an invisible layer.
   require_action(window, "editSelectAllAction")->trigger();
   auto refused = std::make_shared<bool>(false);
-  QTimer::singleShot(0, [refused] {
+  QTimer::singleShot(0, guarded([refused] {
     auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("copyEmptySelectionMessageBox")));
     CHECK(box != nullptr);
     if (box != nullptr) {
       *refused = true;
       box->button(QMessageBox::Ok)->click();
     }
-  });
+  }));
   require_action(window, "editCopyAction")->trigger();
   QApplication::processEvents();
   CHECK(*refused);

@@ -90,6 +90,7 @@ using patchy::test::ui::save_image_artifact;
 using patchy::test::ui::save_widget_artifact;
 using patchy::test::ui::SettingsValueRestorer;
 using patchy::test::ui::show_window;
+using patchy::test::ui::guarded;
 
 namespace {
 
@@ -147,7 +148,7 @@ struct ExportDocumentsSettingsGuard {
 
 void click_message_box_when_shown(const QString& object_name, QMessageBox::StandardButton button,
                                   std::shared_ptr<bool> done, int attempts_left = 300) {
-  QTimer::singleShot(10, [object_name, button, done, attempts_left] {
+  QTimer::singleShot(10, guarded([object_name, button, done, attempts_left] {
     auto* dialog = find_top_level_dialog(object_name);
     if (dialog == nullptr || !dialog->isVisible()) {
       if (attempts_left > 0 && !*done) {
@@ -161,7 +162,7 @@ void click_message_box_when_shown(const QString& object_name, QMessageBox::Stand
       *done = true;
       box->button(button)->click();
     }
-  });
+  }));
 }
 
 void ui_open_folder_opens_images_in_natural_order() {
@@ -180,7 +181,7 @@ void ui_open_folder_opens_images_in_natural_order() {
   // The progress dialog is up while the loop pumps events, so a zero-delay timer
   // fires inside it.
   bool saw_progress = false;
-  QTimer::singleShot(0, [&saw_progress] {
+  QTimer::singleShot(0, guarded([&saw_progress] {
     auto* dialog = qobject_cast<QProgressDialog*>(find_top_level_dialog(QStringLiteral("openFolderProgressDialog")));
     if (dialog == nullptr) {
       return;
@@ -188,7 +189,7 @@ void ui_open_folder_opens_images_in_natural_order() {
     CHECK(dialog->windowTitle().startsWith(QStringLiteral("Opening ")));
     CHECK(dialog->labelText().contains(QStringLiteral(" of 3")));
     saw_progress = true;
-  });
+  }));
   const int opened = MainWindowTestAccess::open_folder_path(window, temp.path());
   QApplication::processEvents();
   CHECK(opened == 3);
@@ -451,7 +452,7 @@ void ui_export_documents_to_folder_writes_numbered_files() {
   }
   auto declined = std::make_shared<bool>(false);
   QString prompt_text;
-  QTimer::singleShot(0, [declined, &prompt_text] {
+  QTimer::singleShot(0, guarded([declined, &prompt_text] {
     auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("exportDocumentsOverwriteMessageBox")));
     CHECK(box != nullptr);
     if (box != nullptr) {
@@ -459,7 +460,7 @@ void ui_export_documents_to_folder_writes_numbered_files() {
       *declined = true;
       box->button(QMessageBox::No)->click();
     }
-  });
+  }));
   const auto refused = MainWindowTestAccess::export_document_sessions_to_folder(
       window, ids, temp.path(), QStringLiteral("png"), naming, patchy::ui::ExportDocumentsExistingFiles::Overwrite);
   CHECK(*declined);
@@ -601,7 +602,7 @@ void ui_export_documents_to_folder_pdf_layer_choice() {
   // "ask" raises the question once for the batch; Cancel writes nothing.
   settings.setValue(QStringLiteral("saveOptions/pdfLayerPolicy"), QStringLiteral("ask"));
   const auto drive = [](const char* button_text, std::shared_ptr<bool> seen) {
-    QTimer::singleShot(0, [button_text, seen] {
+    QTimer::singleShot(0, guarded([button_text, seen] {
       auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("pdfLayersMessageBox")));
       CHECK(box != nullptr);
       if (box == nullptr) {
@@ -619,7 +620,7 @@ void ui_export_documents_to_folder_pdf_layer_choice() {
         }
       }
       CHECK(false);  // button not found
-    });
+    }));
   };
   auto cancelled = std::make_shared<bool>(false);
   drive(nullptr, cancelled);
@@ -654,7 +655,7 @@ void ui_export_documents_dialog_round_trip() {
   CHECK(MainWindowTestAccess::session_count(window) == base + 3);
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog, &temp, base] {
+  QTimer::singleShot(0, guarded([&saw_dialog, &temp, base] {
     auto* dialog = find_top_level_dialog(QStringLiteral("exportDocumentsFolderDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -711,7 +712,7 @@ void ui_export_documents_dialog_round_trip() {
     save_widget_artifact("ui_export_documents_folder_dialog", *dialog);
     saw_dialog = true;
     export_button->click();
-  });
+  }));
   require_action(window, "fileExportDocumentsToFolderAction")->trigger();
   CHECK(saw_dialog);
   // Reversed order: Blue, Green, Red as pg07, pg08, pg09.

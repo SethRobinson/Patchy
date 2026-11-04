@@ -1134,7 +1134,7 @@ void psd_layer_color_labels_round_trip_lclr() {
 // orange, yellow and green. Copied into local-test-fixtures (never committed).
 void psd_issue_244_sample_layer_colors_if_available() {
   const auto path =
-      patchy::test::source_root_path() / "local-test-fixtures" / "psd" / "issue-244" / "Test - Layer Lock.psd";
+      patchy::test::local_fixtures_root() / "psd" / "issue-244" / "Test - Layer Lock.psd";
   patchy::test::skip_unless_exists(path);
   std::ifstream input(path, std::ios::binary);
   const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
@@ -1892,7 +1892,7 @@ void psd_other_color_modes_convert_to_rgb_on_read() {
 
 // The psd-tools files in those modes all open (testy/fetch_psd_tools_corpus.py).
 void psd_tools_other_color_modes_open_if_available() {
-  const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files";
+  const auto root = patchy::test::local_fixtures_root() / "psd-tools" / "tests" / "psd_files";
   patchy::test::skip_unless_exists(root / "colormodes" / "4x4_8bit_lab.psd");
   const std::array<std::pair<const char*, const char*>, 11> files{{
       {"colormodes/100x20_1bit_bitmap_rle.psd", "Bitmap"},
@@ -1939,7 +1939,7 @@ void psd_tools_other_color_modes_open_if_available() {
 // over a photo and four color ramps; U.S. Web Coated (SWOP) v2 embedded), sampled in each
 // strip. Running the same records on RGB, as Patchy did, is off by 60 and more here.
 void psd_tools_cmyk_levels_run_on_the_inks_if_available() {
-  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" /
+  const auto path = patchy::test::local_fixtures_root() / "psd-tools" / "tests" /
                     "psd_files" / "adjustments" / "levels_cmyk.psd";
   patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
@@ -2043,7 +2043,7 @@ void psd_tools_cmyk_levels_run_on_the_inks_if_available() {
 // Photoshop 2026's flatten of psd-tools' levels_grayscale.psd, curves_grayscale.psd and
 // exposure_grayscale.psd (four masked adjustment layers each), sampled in every strip.
 void psd_tools_grayscale_adjustments_apply_to_the_gray_channel_if_available() {
-  const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" /
+  const auto root = patchy::test::local_fixtures_root() / "psd-tools" / "tests" /
                     "psd_files" / "adjustments";
   struct Probe {
     std::int32_t x;
@@ -2115,7 +2115,7 @@ void psd_tools_grayscale_adjustments_apply_to_the_gray_channel_if_available() {
 // of psd-tools' gradient-styles.psd omit it; at the effect default of 90 degrees their
 // vertical bands were redrawn as horizontal ones.
 void psd_tools_gradient_fill_without_angle_runs_left_to_right_if_available() {
-  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" /
+  const auto path = patchy::test::local_fixtures_root() / "psd-tools" / "tests" /
                     "psd_files" / "gradient-styles.psd";
   patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
@@ -2154,7 +2154,7 @@ void psd_tools_gradient_fill_without_angle_runs_left_to_right_if_available() {
 // solid fill of psd-tools' lab-color-swatches.psd has to parse to the color Photoshop
 // baked into that layer's own pixels.
 void psd_tools_lab_color_descriptors_parse_if_available() {
-  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" /
+  const auto path = patchy::test::local_fixtures_root() / "psd-tools" / "tests" /
                     "psd_files" / "descriptors" / "lab-color-swatches.psd";
   patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
@@ -2195,7 +2195,7 @@ void psd_tools_lab_color_descriptors_parse_if_available() {
 // Patchy accepts but cannot round-trip through its own writer.
 void psd_tools_corpus_reads_and_round_trips_if_available() {
   const auto root =
-      patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files";
+      patchy::test::local_fixtures_root() / "psd-tools" / "tests" / "psd_files";
   patchy::test::skip_unless_exists(root);
 
   std::vector<std::filesystem::path> files;
@@ -2247,7 +2247,7 @@ void psd_tools_corpus_reads_and_round_trips_if_available() {
 // Photoshop 2026's flatten of the psd-tools group Fill files: a blue layer inside a
 // Fill 50% group over red is 127, 0, 128 whether the group is Normal or Pass Through.
 void psd_tools_group_fill_matches_photoshop_if_available() {
-  const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files" /
+  const auto root = patchy::test::local_fixtures_root() / "psd-tools" / "tests" / "psd_files" /
                     "transparency";
   int checked = 0;
   for (const char* name : {"knockout-none-normal.psd", "knockout-none-passthrough.psd"}) {
@@ -2299,7 +2299,7 @@ void psd_tools_group_fill_matches_photoshop_if_available() {
 // the sRGB encoding Patchy applies to the pixel channels. Read as encoded bytes the fill
 // came out a dark (172, 11, 11) (Testy, October 2026).
 void psd_tools_32_bit_fill_color_is_linear_if_available() {
-  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files" /
+  const auto path = patchy::test::local_fixtures_root() / "psd-tools" / "tests" / "psd_files" /
                     "300dpi.psb";
   patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
@@ -2321,7 +2321,7 @@ void psd_tools_32_bit_fill_color_is_linear_if_available() {
 // is regenerated for a pathless fill layer, so this compares what it says, plus the
 // form marker and the absence of stop lists in the written bytes.
 void psd_tools_noise_gradient_fill_survives_resave_if_available() {
-  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files" /
+  const auto path = patchy::test::local_fixtures_root() / "psd-tools" / "tests" / "psd_files" /
                     "gradients" / "noise-gradient-rgb.psd";
   patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
@@ -2380,7 +2380,7 @@ void psd_tools_noise_gradient_fill_survives_resave_if_available() {
 // checks both the parse and Patchy's own linear-light ramp against Photoshop: read as
 // Classic it was up to 60/255 off down the whole column.
 void psd_tools_linear_gradient_fill_redraw_matches_photoshop_if_available() {
-  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files" /
+  const auto path = patchy::test::local_fixtures_root() / "psd-tools" / "tests" / "psd_files" /
                     "adjustments" / "adjustment_clipping.psd";
   patchy::test::skip_unless_exists(path);
   auto document = patchy::psd::DocumentIo::read_file(path);
@@ -2435,7 +2435,7 @@ void psd_tools_linear_gradient_fill_redraw_matches_photoshop_if_available() {
 // Photoshop names an unnamed layer "Layer N" by its position among the ordinary layers;
 // its own manifest for these two files is the reference.
 void psd_tools_unnamed_layers_take_photoshop_names_if_available() {
-  const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files";
+  const auto root = patchy::test::local_fixtures_root() / "psd-tools" / "tests" / "psd_files";
   const auto swatches = root / "descriptors" / "stroke-color-descriptors-hsb-with-rgb-mode.psd";
   const auto nested = root / "issues" / "issue397.psd";
   patchy::test::skip_unless_exists(swatches);
@@ -3673,7 +3673,7 @@ std::vector<std::uint8_t> psd_without_image_resource(const std::vector<std::uint
 // psd-tools' exposure_grayscale.psd (embedded Dot Gain 20%) stripped of its profile renders
 // like the original, Exposure layers included (their gray space comes from the same model).
 void psd_tools_untagged_grayscale_reads_like_dot_gain_20_if_available() {
-  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" /
+  const auto path = patchy::test::local_fixtures_root() / "psd-tools" / "tests" /
                     "psd_files" / "adjustments" / "exposure_grayscale.psd";
   patchy::test::skip_unless_exists(path);
   std::ifstream input(path, std::ios::binary);
@@ -3700,7 +3700,7 @@ void psd_tools_untagged_grayscale_reads_like_dot_gain_20_if_available() {
 // them as gray 127, 154 and 153 (Rec. 601 luma, luma, L) and shows them through Dot Gain
 // 20% as 148, 173 and 172. They used to render in color.
 void psd_tools_grayscale_noise_gradients_render_gray_if_available() {
-  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" /
+  const auto path = patchy::test::local_fixtures_root() / "psd-tools" / "tests" /
                     "psd_files" / "gradients" / "noise-gradient-grayscale.psd";
   patchy::test::skip_unless_exists(path);
   auto document = patchy::psd::DocumentIo::read_file(path);

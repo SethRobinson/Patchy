@@ -6,6 +6,7 @@
 #include "ui/background_pick_cursor.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/qt_paths.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/ui_text_size.hpp"
@@ -173,7 +174,7 @@ protected:
       const auto highlighted = highlight_.has_value() && highlight_->red == color.red &&
                                highlight_->green == color.green && highlight_->blue == color.blue;
       if (index == selected_ || highlighted) {
-        painter.setPen(QPen(index == selected_ ? QColor(0x2f, 0x75, 0xbd) : QColor(245, 248, 252), 2));
+        painter.setPen(QPen(index == selected_ ? theme().accent_pressed_bg : QColor(245, 248, 252), 2));
         painter.drawRect(rect.adjusted(1, 1, -2, -2));
       }
       if (dragging_ && index == drag_target_ && index != selected_) {

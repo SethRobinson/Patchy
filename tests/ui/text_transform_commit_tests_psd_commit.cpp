@@ -1303,7 +1303,7 @@ void ui_psd_tracked_text_sweep_matches_photoshop_if_available() {
 // run 20261028-164532, solid fill pixels). Patchy used to sit 2 px right and 1 px low on the
 // first file and 1 px left on the second.
 void ui_psd_tools_tracked_box_text_matches_photoshop_if_available() {
-  const auto folder = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files";
+  const auto folder = patchy::test::local_fixtures_root() / "psd-tools" / "tests" / "psd_files";
   patchy::test::skip_unless_exists(folder / "effect-stroke-gradient.psd");
   patchy::test::skip_unless_exists(folder / "adjustment-fillers.psd");
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
@@ -1382,7 +1382,7 @@ void ui_psd_tools_small_tracking_centred_glyph_matches_photoshop_if_available() 
   CHECK(patchy::ui::psd_text_frame_extent_pixels(121.84547) == 122);
   CHECK(patchy::ui::psd_text_frame_extent_pixels(28.02122) == 29);
   CHECK(patchy::ui::psd_text_frame_extent_pixels(3.0) == patchy::ui::kMinimumTextBoxDocumentSize);
-  const auto folder = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files";
+  const auto folder = patchy::test::local_fixtures_root() / "psd-tools" / "tests" / "psd_files";
   patchy::test::skip_unless_exists(folder / "layers" / "type-layer.psd");
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   struct Case {
@@ -2445,7 +2445,7 @@ void ui_dungeon_scroll_faux_bold_reads_as_faux_not_bold_if_available() {
   }
   // The panel runs a nested non-modal loop; drive the check from a queued lambda.
   bool checked_panel = false;
-  QTimer::singleShot(0, [&window, &checked_panel] {
+  QTimer::singleShot(0, guarded([&window, &checked_panel] {
     auto* dialog = window.findChild<QDialog*>(QStringLiteral("textCharacterDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -2459,7 +2459,7 @@ void ui_dungeon_scroll_faux_bold_reads_as_faux_not_bold_if_available() {
       checked_panel = true;
     }
     dialog->reject();
-  });
+  }));
   character_button->click();
   QApplication::processEvents();
   CHECK(checked_panel);
@@ -4136,7 +4136,7 @@ void ui_title02_tracked_legacy_text_caret_matches_glyphs_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("Title02.psd");
   patchy::test::skip_unless_exists(path);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
-  const auto futura = QStringLiteral(PATCHY_SOURCE_DIR) + QStringLiteral("/local-test-fixtures/fonts/FUTURABC.TTF");
+  const auto futura = patchy::ui::to_qstring(patchy::test::local_fixtures_root() / "fonts/FUTURABC.TTF");
   // Registered the way user fonts are: on macOS under the Windows names, so the face is
   // "Futura BdCn BT" + "Bold" everywhere instead of sharing Apple's "Futura" + "Bold" slot.
   const int futura_id = QFile::exists(futura) ? patchy::ui::add_application_font_by_windows_names(futura) : -1;

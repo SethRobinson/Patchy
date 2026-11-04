@@ -315,7 +315,7 @@ void xcf_alpha_less_bottom_layer_keeps_only_gimps_locks() {
 // philipzae's file from #547 (local-test-fixtures/xcf-issue-547, README.txt there): the bottom
 // layer has no lock in GIMP and none in Patchy; the locks GIMP set on the others come through.
 void xcf_issue_547_bottom_layer_has_no_locks_if_available() {
-  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-issue-547";
+  const auto dir = patchy::test::local_fixtures_root() / "xcf-issue-547";
   patchy::test::skip_unless_exists(dir / "README.txt");
   const auto document = patchy::xcf::DocumentIo::read_file(dir / "layer-switches.xcf");
   const auto& layers = document.layers();
@@ -537,7 +537,7 @@ void xcf_vector_layers_match_gimp_renders() {
     std::cout << "  vector-layers: mean " << std::setprecision(3) << difference->mean << ", worst " << difference->worst << "\n";
     CHECK(difference->mean <= 1.7);  // measured 1.37: antialiased edges
   }
-  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-issue-548";
+  const auto dir = patchy::test::local_fixtures_root() / "xcf-issue-548";
   patchy::test::skip_unless_exists(dir / "README.txt");
   const auto paths = patchy::xcf::DocumentIo::read_file(dir / "paths.xcf");
   std::size_t shapes = 0;
@@ -560,7 +560,7 @@ void xcf_vector_layers_match_gimp_renders() {
 // as shape layers with GIMP's arrays; Line and Dense dots show as Shape
 // Appearance presets, the rest as Custom.
 void xcf_gimp_dash_presets_map_to_shape_appearance_presets() {
-  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-issue-548";
+  const auto dir = patchy::test::local_fixtures_root() / "xcf-issue-548";
   patchy::test::skip_unless_exists(dir / "line-dash-presets.xcf");
   const auto document = patchy::xcf::DocumentIo::read_file(dir / "line-dash-presets.xcf");
   using patchy::StrokeDashPreset;
@@ -908,7 +908,7 @@ void xcf_reads_gray_and_indexed_images() {
 // README.txt there): the colormap attaches whole and in order, every pixel is one of its
 // colors, and the composite matches GIMP's render.
 void xcf_indexed_samples_attach_their_colormap() {
-  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-indexed";
+  const auto dir = patchy::test::local_fixtures_root() / "xcf-indexed";
   patchy::test::skip_unless_exists(dir / "README.txt");
   struct Sample {
     const char* name;
@@ -1182,7 +1182,7 @@ void xcf_painted_text_layers_keep_gimps_text() {
 // philipzae's #551 file (local-test-fixtures/xcf-issue-547, the same file as #547's): its "Lock
 // all" text layer was painted on in GIMP, keeps GIMP's text, and taking it makes a text layer.
 void xcf_issue_551_painted_text_layer_keeps_its_text_if_available() {
-  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-issue-547";
+  const auto dir = patchy::test::local_fixtures_root() / "xcf-issue-547";
   patchy::test::skip_unless_exists(dir / "layer-switches.xcf");
   std::vector<std::string> notices;
   const auto document = patchy::xcf::DocumentIo::read_file(dir / "layer-switches.xcf", &notices);
@@ -1405,7 +1405,7 @@ void xcf_text_layers_keep_gimp_styling_and_outlines() {
 // philipzae's files (local-test-fixtures/xcf-issue-508, README.txt there): every text layer
 // opens as text.
 void xcf_issue_508_509_samples_open_as_text_if_available() {
-  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-issue-508";
+  const auto dir = patchy::test::local_fixtures_root() / "xcf-issue-508";
   patchy::test::skip_unless_exists(dir / "README.txt");
   for (const std::string stem : {"text-editable", "text-turned-pixels"}) {
     std::vector<std::string> notices;
@@ -1821,7 +1821,7 @@ void xcf_drop_shadow_keeps_color_mode_and_opacity() {
 // one file per layer, against GIMP 3.2's merge of each (local-test-fixtures/xcf-issue-507,
 // README.txt there).
 void xcf_drop_shadow_issue_507_matches_gimp_if_available() {
-  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-issue-507";
+  const auto dir = patchy::test::local_fixtures_root() / "xcf-issue-507";
   patchy::test::skip_unless_exists(dir / "drop-shadow.xcf");
   struct Entry {
     const char* name;
@@ -1873,7 +1873,7 @@ void xcf_drop_shadow_issue_507_matches_gimp_if_available() {
 // GIMP's renders of each color filter on the 4096-color sweep
 // (scripts/dev/xcf/make_effect_fixtures.py) against Patchy's baked result.
 void xcf_effect_fixtures_match_gimp_if_available() {
-  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf" / "effects";
+  const auto dir = patchy::test::local_fixtures_root() / "xcf" / "effects";
   patchy::test::skip_unless_exists(dir / "posterize.xcf");
   std::vector<std::string> failures;
   for (const auto& item : std::filesystem::directory_iterator(dir)) {
@@ -2068,7 +2068,7 @@ void xcf_committed_gimp_files_match_gimp_renders() {
 // composite is compared with GIMP's merge of the visible layers. The tolerances are the
 // known differences in docs/xcf.md ("Rendering against GIMP").
 void xcf_gimp_fixtures_match_gimp_renders_if_available() {
-  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf";
+  const auto dir = patchy::test::local_fixtures_root() / "xcf";
   patchy::test::skip_unless_exists(dir / "manifest.txt");
   patchy::set_deep_editing_override(true);
   std::size_t checked = 0;
@@ -2124,7 +2124,7 @@ void xcf_gimp_fixtures_match_gimp_renders_if_available() {
 // The public corpus (local-test-fixtures/xcf-corpus, sources in its README.txt): every file
 // opens or is refused with a plain message, quickly; a PNG beside a file is its reference.
 void xcf_corpus_opens_if_available() {
-  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-corpus";
+  const auto dir = patchy::test::local_fixtures_root() / "xcf-corpus";
   patchy::test::skip_unless_exists(dir / "README.txt");
   patchy::set_deep_editing_override(true);
   patchy::xcf::detail::set_trace_override(1);
@@ -2260,7 +2260,7 @@ void xcf_bottom_erase_layer_draws_as_normal() {
 // philipzae's files from issue 487 (local-test-fixtures/xcf-issue-487, README.txt there):
 // both open, the active layer exists, and the composite matches GIMP's render.
 void xcf_issue_487_samples_open_like_gimp() {
-  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-issue-487";
+  const auto dir = patchy::test::local_fixtures_root() / "xcf-issue-487";
   patchy::test::skip_unless_exists(dir / "README.txt");
   for (const std::string stem : {"0203 - layer blend modes - test 3", "0203 - layer blend modes - test 4"}) {
     std::vector<std::string> notices;
@@ -2452,7 +2452,7 @@ void flatten_patchy_tree(const std::vector<patchy::Layer>& layers, int depth,
 // and bounds. Files with a visible Erase or Split layer are listed and skipped: the import
 // emulates those modes with groups (docs/xcf.md, "Blend modes").
 void xcf_layer_trees_match_gimp_if_available() {
-  const auto root = patchy::test::source_root_path() / "local-test-fixtures";
+  const auto root = patchy::test::local_fixtures_root();
   std::vector<std::filesystem::path> dirs;
   for (const char* name : {"xcf", "xcf-corpus", "xcf-indexed", "xcf-metadata", "xcf-issue-487"}) {
     if (std::filesystem::exists(root / name / "gimp-trees")) {
@@ -2765,7 +2765,7 @@ void xcf_metadata_application_names_gimp() {
 // there). Each also goes through a PSD save and read: File Info must show the same fields,
 // and the PSD lands in test-artifacts/xcf-metadata for scripts/dev/photoshop-open-check.ps1.
 [[nodiscard]] Document open_metadata_sample(const std::string& name) {
-  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-metadata" / (name + ".xcf");
+  const auto path = patchy::test::local_fixtures_root() / "xcf-metadata" / (name + ".xcf");
   patchy::test::skip_unless_exists(path);
   auto document = patchy::xcf::DocumentIo::read_file(path);
   CHECK(document.file_info().source_format == "XCF");

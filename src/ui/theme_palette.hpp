@@ -249,6 +249,63 @@ struct ThemePalette {
   // Blend If ramp handles, the zoom overlay. One role because all three were
   // authored to the same value and should stay in step.
   QColor accent_control;
+  // A brighter ring of the same blue: a hovered color-palette cell and the
+  // selected row of the gradient stops table.
+  QColor accent_ring;
+
+  // The Curves graph (Image > Adjustments > Curves and the Curves properties).
+  // The channel hues (red, green, blue curves and histograms) are content and
+  // stay literal; everything else in the graph is chrome. The grid's two line
+  // weights apply their alpha in code, so the role carries the hue only.
+  QColor curves_graph_bg;
+  QColor curves_graph_well_bg;
+  QColor curves_graph_border;
+  // The focused graph frame and the selected point's ring.
+  QColor curves_graph_focus;
+  QColor curves_graph_label_text;
+  QColor curves_graph_grid;
+  QColor curves_graph_diagonal;
+  // The halo under the active curve that separates it from the grid.
+  QColor curves_graph_curve_halo;
+  // The RGB composite curve and composite histogram.
+  QColor curves_graph_ink;
+  QColor curves_graph_point_bg;
+  QColor curves_graph_point_selected_bg;
+  // The dashed line at the input value sampled from the image.
+  QColor curves_graph_sample_marker;
+
+  // The Levels input histogram and output ramp. The black, gray and white
+  // handle fills and the output ramp's gradient depict values and stay literal.
+  QColor levels_graph_bg;
+  QColor levels_graph_well_bg;
+  QColor levels_graph_border;
+  // The composite histogram bars; channel histograms take the channel hue.
+  QColor levels_graph_ink;
+  // The input marker lines through the well.
+  QColor levels_graph_marker;
+  QColor levels_handle_border;
+  QColor levels_handle_active_border;
+
+  // Layer Style > Blending Options: the Blend If ramp's outline and the
+  // control's unfocused frame (the focused frame and selected handles use
+  // accent_control).
+  QColor blend_if_ramp_border;
+  QColor blend_if_frame_border;
+
+  // The gradient stops editor's markers (the bar outline is swatch_border and a
+  // selected marker accent_control). The stop outline must contrast with the
+  // dialog surface the stops sit on, which is why it is a role.
+  QColor gradient_stop_outline;
+  QColor gradient_midpoint_outline;
+  QColor gradient_midpoint_fill;
+
+  // The tile behind path and custom shape thumbnails (Paths panel rows, the
+  // Custom Shape picker), and the letterbox and frame of a channel thumbnail.
+  // The outline and glyph ink is icon_ink, the path tile frame
+  // layer_thumbnail_border.
+  QColor path_thumbnail_bg;
+  QColor channel_thumbnail_bg;
+  QColor channel_thumbnail_border;
 
   // Tabs.
   QColor tab_bg;

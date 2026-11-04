@@ -740,7 +740,7 @@ void ui_artboard_properties_scrub_previews_like_the_handle_drag() {
     window.add_document_session(std::move(seed), QStringLiteral("Big Board"));
     check_artboard_scrub_costs_a_handle_drag(window, board, "4000x3000 artboard, 3 layers");
   }
-  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "ag-psd" / "artboards" / "src.psd";
+  const auto path = patchy::test::local_fixtures_root() / "ag-psd" / "artboards" / "src.psd";
   if (!std::filesystem::exists(path)) {
     std::printf("[TIMING] ag-psd artboards sample not present; skipped\n");
     return;
@@ -1502,14 +1502,14 @@ int outline_pixels_on_bottom_edge(const QImage& image, patchy::ui::CanvasWidget&
   const auto bottom_left = canvas.widget_position_for_document_point(QPoint(rect.x, rect.y + rect.height));
   const auto bottom_right = canvas.widget_position_for_document_point(QPoint(rect.x + rect.width, rect.y + rect.height));
   const QRect band(bottom_left.x() - 3, bottom_left.y() - 3, bottom_right.x() - bottom_left.x() + 6, 7);
-  return count_pixels_close(image, band, QColor(95, 170, 255), 18);
+  return count_pixels_close(image, band, patchy::ui::theme().canvas_layer_selection_border, 18);
 }
 
 // The hover outline's blue pixels in the band around a whole rect (every edge).
 int outline_pixels_around(const QImage& image, patchy::ui::CanvasWidget& canvas, patchy::Rect rect) {
   const QRect widget(canvas.widget_position_for_document_point(QPoint(rect.x, rect.y)),
                      canvas.widget_position_for_document_point(QPoint(rect.x + rect.width, rect.y + rect.height)));
-  const QColor blue(95, 170, 255);
+  const QColor blue = patchy::ui::theme().canvas_layer_selection_border;
   return count_pixels_close(image, widget.adjusted(-3, -3, 3, 3), blue, 18) -
          count_pixels_close(image, widget.adjusted(3, 3, -3, -3), blue, 18);
 }
@@ -1873,7 +1873,7 @@ void ui_artboard_label_shows_its_full_name_past_a_narrow_board() {
 // while the names over the pasteboard keep the pasteboard ink; and with the Move tool
 // (GitHub issue 259) hovering the custom board's empty area frames it.
 void ui_artboard_ag_psd_sample_labels_read_on_their_backing_if_available() {
-  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "ag-psd" / "artboards" / "src.psd";
+  const auto path = patchy::test::local_fixtures_root() / "ag-psd" / "artboards" / "src.psd";
   patchy::test::skip_unless_exists(path);
   SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
   patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
@@ -1938,7 +1938,7 @@ void ui_artboard_ag_psd_sample_labels_read_on_their_backing_if_available() {
       const auto white_top_left = canvas->widget_position_for_document_point(QPoint(white_rect.x, white_rect.y));
       const auto white_top_right = canvas->widget_position_for_document_point(QPoint(white_rect.x + white_rect.width, white_rect.y));
       const QRect white_top_band(white_top_left.x() - 3, white_top_left.y() - 3, white_top_right.x() - white_top_left.x() + 6, 7);
-      CHECK(count_pixels_close(hovered, white_top_band, QColor(95, 170, 255), 18) < 6);
+      CHECK(count_pixels_close(hovered, white_top_band, patchy::ui::theme().canvas_layer_selection_border, 18) < 6);
       send_mouse(*canvas, QEvent::MouseMove, QPoint(2, 2), Qt::NoButton, Qt::NoButton);
     }
     CHECK(ink_pixels(image, label_region(*canvas, white_board->artboard()->rect), pasteboard_ink) > 6);
@@ -2339,7 +2339,7 @@ void ui_artboard_preset_picker_search_filters_and_keyboard_selects() {
       return count;
     };
     bool inspected = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       inspected = true;
       auto* search = picker->search_edit();
       CHECK(menu->isVisible() && search != nullptr && search->hasFocus());
@@ -2390,7 +2390,7 @@ void ui_artboard_preset_picker_search_filters_and_keyboard_selects() {
       CHECK(results.size() >= 2 && menu->activeAction() == results[1]);
       save_window_popup_artifact("issue_285_preset_search" + suffix, window, *picker, *menu);
       QTest::keyClick(search, Qt::Key_Return);
-    });
+    }));
     picker->showMenu();
     QApplication::processEvents();
     CHECK(inspected);

@@ -12,7 +12,10 @@ Run it after that target's builder (release-all-automated.bat verify-mac / verif
 this unattended); it refuses while build\release-logs\<target>.exit reports a failed build.
 Logs: build\release-logs\verify-<target>-suites.log and verify-<target>-checks.log, each with
 an .exit marker. A step passes only with exit 0, no [FAIL] line and, for step 2, the script's
-closing "ALL ... RELEASE CHECKS PASSED" line. Never name a log verify-<target>.log here: that
+closing "ALL ... RELEASE CHECKS PASSED" line. Step 1 also judges each suite's skips against
+local-test-fixtures\expected-skips\<host>-<suite>.txt (skip-check.ps1, docs/testing-skips.md):
+an unlisted skip fails it; with no list the skips are printed and a candidate list is written
+beside the log. Never name a log verify-<target>.log here: that
 is where release-worker.bat redirects this script's own output, so the checks redirect would
 fail on the lock and the closing tail would echo the file back into itself without end.
 
@@ -33,6 +36,7 @@ param(
 # 'Continue', not 'Stop': native stderr would become terminating errors under 5.1.
 $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot 'release-process-run.ps1')
+. (Join-Path $PSScriptRoot 'skip-check.ps1')
 $root =(Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Set-Location $root
 if (-not (Test-Path 'CMakeLists.txt')) { throw "not the repository root: $root" }
@@ -65,8 +69,15 @@ if (-not $SkipSuites) {
                          $Target + $presetArgument + ' > "' + $suitesLog + '" 2>&1')
   $fails = (Count $suitesLog '[FAIL]') + (Count $suitesLog '[CRASH]')
   if ($code -eq 0 -and $fails -gt 0) { $code = 1 }
+  Write-Output ("suites: exit={0} pass={1} fail={2} skip={3}" -f $code, (Count $suitesLog '[PASS]'), $fails, (Count $suitesLog '[SKIP]'))
+  # A skipped test checked nothing: judge the skips against this host's expected lists.
+  $unexpected = 0
+  Test-PatchySkips -Log $suitesLog -HostName $remoteHost -Root $root -Unexpected ([ref]$unexpected)
+  if ($unexpected -gt 0) {
+    Write-Output ("suites: {0} unexpected skip(s), named above" -f $unexpected)
+    if ($code -eq 0) { $code = 1 }
+  }
   Write-Marker $suitesLog $code
-  Write-Output ("suites: exit={0} pass={1} fail={2}" -f $code, (Count $suitesLog '[PASS]'), $fails)
   if ($code -ne 0) { exit $code }
 }
 

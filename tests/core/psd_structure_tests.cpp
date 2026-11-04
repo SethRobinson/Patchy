@@ -1467,7 +1467,7 @@ void psd_bottom_record_without_transparency_reads_as_background() {
 // a full-canvas Background, white outside the record.
 void psd_ag_psd_float_size_background_fills_the_canvas_if_available() {
   const auto path =
-      patchy::test::source_root_path() / "local-test-fixtures" / "ag-psd" / "float-size" / "expected.psd";
+      patchy::test::local_fixtures_root() / "ag-psd" / "float-size" / "expected.psd";
   patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
   CHECK(document.width() == 2000 && document.height() == 2000);

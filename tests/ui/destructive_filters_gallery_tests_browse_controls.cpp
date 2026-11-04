@@ -153,7 +153,7 @@ void ui_filter_gallery_photo_looks_layout_thumbnails_controls_zoom_and_before() 
   std::vector<patchy::ui::VisualFilterGalleryPreview> canvas_previews;
   bool drove_dialog = false;
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     CHECK(!dialog->isModal());
@@ -319,7 +319,7 @@ void ui_filter_gallery_photo_looks_layout_thumbnails_controls_zoom_and_before() 
     QElapsedTimer max_zoom_paint;
     max_zoom_paint.start();
     CHECK(!preview->grab().toImage().isNull());
-    CHECK(max_zoom_paint.elapsed() < 1500);
+    CHECK(max_zoom_paint.elapsed() < patchy::test::time_budget_ms(1500));
     zoom_out->click();
     zoom_fit->click();
     QApplication::processEvents();
@@ -359,7 +359,7 @@ void ui_filter_gallery_photo_looks_layout_thumbnails_controls_zoom_and_before() 
     save_widget_artifact("ui_filter_gallery_photo_looks", *dialog);
     drove_dialog = true;
     dialog->reject();
-  });
+  }));
 
   const auto result = patchy::ui::request_visual_filter_gallery(
       &theme_host, source, bounds, QRegion(), registry,
@@ -408,7 +408,7 @@ void ui_filter_gallery_live_canvas_latest_off_on_and_cancel_restore_exact() {
            patchy::ui::pixel_buffers_equal(layer->pixels(), wanted);
   };
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
@@ -455,7 +455,7 @@ void ui_filter_gallery_live_canvas_latest_off_on_and_cancel_restore_exact() {
     looks->setCurrentRow(3);
     drove_dialog = true;
     dialog->reject();
-  });
+  }));
 
   require_action(window, "filterGalleryAction")->trigger();
   CHECK(drove_dialog);
@@ -497,7 +497,7 @@ void ui_filter_gallery_applies_looks_to_16_bit_layers() {
     CHECK(expected_pixels.format().bit_depth == patchy::BitDepth::UInt16);
 
     bool accepted_filter = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -516,7 +516,7 @@ void ui_filter_gallery_applies_looks_to_16_bit_layers() {
       }
       accepted_filter = true;
       buttons->button(QDialogButtonBox::Ok)->click();
-    });
+    }));
     require_action(window, "filterGalleryAction")->trigger();
     CHECK(accepted_filter);
     const auto& read_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
@@ -552,7 +552,7 @@ void ui_filter_gallery_original_noop_and_selected_apply_undo_redo() {
   const auto pixel_revision_before = before_layer->pixel_revision();
 
   bool accepted_original = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
@@ -562,7 +562,7 @@ void ui_filter_gallery_original_noop_and_selected_apply_undo_redo() {
     CHECK(buttons != nullptr && buttons->button(QDialogButtonBox::Ok) != nullptr);
     accepted_original = true;
     buttons->button(QDialogButtonBox::Ok)->click();
-  });
+  }));
   require_action(window, "filterGalleryAction")->trigger();
   CHECK(accepted_original);
   process_events_for(120);
@@ -606,7 +606,7 @@ void ui_filter_gallery_original_noop_and_selected_apply_undo_redo() {
   CHECK(filter_rect_equal(expected_bounds, bounds));
 
   bool accepted_filter = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
@@ -621,7 +621,7 @@ void ui_filter_gallery_original_noop_and_selected_apply_undo_redo() {
     CHECK(buttons->button(QDialogButtonBox::Ok) != nullptr);
     accepted_filter = true;
     buttons->button(QDialogButtonBox::Ok)->click();
-  });
+  }));
   require_action(window, "filterGalleryAction")->trigger();
   CHECK(accepted_filter);
 
@@ -682,7 +682,7 @@ void ui_filter_gallery_categories_have_stable_tokens_and_exact_members() {
   std::vector<patchy::ui::VisualFilterGalleryPreview> previews;
   bool drove_dialog = false;
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* category = dialog->findChild<QComboBox*>(QStringLiteral("filterGalleryCategoryCombo"));
@@ -738,7 +738,7 @@ void ui_filter_gallery_categories_have_stable_tokens_and_exact_members() {
 
     drove_dialog = true;
     dialog->reject();
-  });
+  }));
 
   const auto result = patchy::ui::request_visual_filter_gallery(
       nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{},
@@ -757,7 +757,7 @@ void ui_filter_gallery_list_fits_every_name_without_side_scrolling() {
   const patchy::Rect bounds{0, 0, source.width(), source.height()};
   bool drove_dialog = false;
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
@@ -777,7 +777,7 @@ void ui_filter_gallery_list_fits_every_name_without_side_scrolling() {
     }
     drove_dialog = true;
     dialog->reject();
-  });
+  }));
 
   const auto result = patchy::ui::request_visual_filter_gallery(
       nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{},
@@ -798,7 +798,7 @@ void ui_filter_gallery_search_matches_localized_and_canonical_names() {
   const auto source = make_filter_stroke_source();
   const patchy::Rect bounds{0, 0, source.width(), source.height()};
   bool drove_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* category = dialog->findChild<QComboBox*>(QStringLiteral("filterGalleryCategoryCombo"));
@@ -861,7 +861,7 @@ void ui_filter_gallery_search_matches_localized_and_canonical_names() {
     CHECK(empty->isVisible());
     drove_dialog = true;
     dialog->reject();
-  });
+  }));
 
   const auto result = patchy::ui::request_visual_filter_gallery(
       nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{},
@@ -897,7 +897,7 @@ void ui_filter_gallery_favorites_and_dialog_state_persist_across_reopen() {
   const auto source = make_filter_stroke_source();
   const patchy::Rect bounds{0, 0, source.width(), source.height()};
   bool drove_first = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* category = dialog->findChild<QComboBox*>(QStringLiteral("filterGalleryCategoryCombo"));
@@ -940,7 +940,7 @@ void ui_filter_gallery_favorites_and_dialog_state_persist_across_reopen() {
     QApplication::processEvents();
     drove_first = true;
     dialog->reject();
-  });
+  }));
   const auto first = patchy::ui::request_visual_filter_gallery(
       nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{},
       patchy::RgbColor{255, 255, 255});
@@ -959,7 +959,7 @@ void ui_filter_gallery_favorites_and_dialog_state_persist_across_reopen() {
   }
 
   bool drove_second = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* category = dialog->findChild<QComboBox*>(QStringLiteral("filterGalleryCategoryCombo"));
@@ -980,7 +980,7 @@ void ui_filter_gallery_favorites_and_dialog_state_persist_across_reopen() {
           QStringList{QStringLiteral("patchy.filters.vignette")});
     drove_second = true;
     dialog->reject();
-  });
+  }));
   const auto second = patchy::ui::request_visual_filter_gallery(
       nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{},
       patchy::RgbColor{255, 255, 255});
@@ -999,7 +999,7 @@ void ui_filter_gallery_generated_controls_match_catalog_and_direct_defaults() {
   std::vector<patchy::ui::VisualFilterGalleryPreview> previews;
   bool drove_gallery = false;
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
@@ -1042,7 +1042,7 @@ void ui_filter_gallery_generated_controls_match_catalog_and_direct_defaults() {
     }
     drove_gallery = true;
     dialog->reject();
-  });
+  }));
   const auto gallery_result = patchy::ui::request_visual_filter_gallery(
       nullptr, source, bounds, QRegion(), registry, foreground, background,
       [&](const patchy::ui::VisualFilterGalleryPreview& preview) {
@@ -1058,7 +1058,7 @@ void ui_filter_gallery_generated_controls_match_catalog_and_direct_defaults() {
     const auto expected = registry.default_invocation(definition->identifier,
                                                       foreground, background);
     bool inspected = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = find_top_level_dialog(QStringLiteral("patchyFilterDialog"));
       CHECK(dialog != nullptr);
       for (const auto& control : spec.controls) {
@@ -1078,7 +1078,7 @@ void ui_filter_gallery_generated_controls_match_catalog_and_direct_defaults() {
       }
       inspected = true;
       dialog->accept();
-    });
+    }));
     const auto direct = patchy::ui::request_filter_settings(
         nullptr, spec, [](patchy::ui::FilterPreviewSettings) {}, expected);
     CHECK(inspected && direct.has_value());
@@ -1100,7 +1100,7 @@ void ui_filter_gallery_specialized_controls_sync_and_drag_in_expected_directions
   std::vector<patchy::ui::VisualFilterGalleryPreview> previews;
   bool drove_dialog = false;
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
@@ -1324,7 +1324,7 @@ void ui_filter_gallery_specialized_controls_sync_and_drag_in_expected_directions
 
     drove_dialog = true;
     dialog->reject();
-  });
+  }));
   const auto result = patchy::ui::request_visual_filter_gallery(
       &theme_host, source, bounds, QRegion(), registry, patchy::RgbColor{},
       patchy::RgbColor{255, 255, 255},
@@ -1346,7 +1346,7 @@ void ui_filter_gallery_tilt_shift_overlay_syncs_and_freezes_during_drag() {
   std::vector<patchy::ui::VisualFilterGalleryPreview> previews;
   bool drove_dialog = false;
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* looks = dialog->findChild<QListWidget*>(
@@ -1514,7 +1514,7 @@ void ui_filter_gallery_tilt_shift_overlay_syncs_and_freezes_during_drag() {
 
     drove_dialog = true;
     dialog->reject();
-  });
+  }));
 
   const auto result = patchy::ui::request_visual_filter_gallery(
       &theme_host, source, bounds, QRegion(), registry, patchy::RgbColor{},
@@ -1628,6 +1628,9 @@ void ui_filter_gallery_tilt_shift_overlay_has_no_boundary_marks() {
 }
 
 void ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop() {
+  // The slow filter parks until the test releases it, for at most this long. Selecting it
+  // must return without waiting for it: a step that waited would take the whole park.
+  constexpr qint64 kSlowFilterParkDelayMs = 20000;
   GallerySettingsRestorer gallery_settings;
   patchy::FilterRegistry registry;
   patchy::register_builtin_filters(registry);
@@ -1647,7 +1650,7 @@ void ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop() {
           // the worker explicitly.
           QElapsedTimer parked;
           parked.start();
-          while (parked.elapsed() < 5000 &&
+          while (parked.elapsed() < kSlowFilterParkDelayMs &&
                  !release_slow->load(std::memory_order_acquire)) {
             QThread::msleep(1);
           }
@@ -1661,7 +1664,7 @@ void ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop() {
   const patchy::Rect bounds{0, 0, source.width(), source.height()};
   bool drove_dialog = false;
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* category = dialog->findChild<QComboBox*>(QStringLiteral("filterGalleryCategoryCombo"));
@@ -1715,8 +1718,8 @@ void ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop() {
     bool central_marker = false;
     QTimer::singleShot(50, dialog, [&] { central_marker = true; });
     looks->setCurrentItem(slow);
-    CHECK(process_events_until([&] { return central_marker; }, 500));
-    CHECK(responsiveness.elapsed() < 180);
+    CHECK(process_events_until([&] { return central_marker; }, kSlowFilterParkDelayMs / 2));
+    CHECK(responsiveness.elapsed() < kSlowFilterParkDelayMs / 2);
     // The center preview is debounced, so the worker may start after the
     // marker on a busy machine; wait for it instead of assuming the order.
     CHECK(process_events_until(
@@ -1748,7 +1751,7 @@ void ui_filter_gallery_heavy_thumbnail_queue_yields_to_event_loop() {
         1500));
     drove_dialog = true;
     dialog->reject();
-  });
+  }));
   const auto result = patchy::ui::request_visual_filter_gallery(
       nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{},
       patchy::RgbColor{255, 255, 255});
@@ -2015,7 +2018,7 @@ void ui_filter_gallery_smart_filter_badges_and_tooltips() {
   const patchy::Rect bounds{0, 0, source.width(), source.height()};
   bool drove_dialog = false;
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* looks = dialog->findChild<QListWidget*>(
@@ -2077,7 +2080,7 @@ void ui_filter_gallery_smart_filter_badges_and_tooltips() {
 
     drove_dialog = true;
     dialog->reject();
-  });
+  }));
   const auto result = patchy::ui::request_visual_filter_gallery(
       nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{},
       patchy::RgbColor{255, 255, 255});
@@ -2103,7 +2106,7 @@ void ui_filter_gallery_smart_object_outcome_line_and_warning_marks() {
       "This effect cannot be applied as a Smart Filter. Applying the stack "
       "will rasterize the Smart Object.");
 
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
     CHECK(dialog != nullptr);
     auto* looks = dialog->findChild<QListWidget*>(
@@ -2193,7 +2196,7 @@ void ui_filter_gallery_smart_object_outcome_line_and_warning_marks() {
 
     drove_dialog = true;
     dialog->reject();
-  });
+  }));
   const auto result = patchy::ui::request_visual_filter_gallery(
       nullptr, source, bounds, QRegion(), registry, patchy::RgbColor{},
       patchy::RgbColor{255, 255, 255}, {}, nullptr, {}, {},

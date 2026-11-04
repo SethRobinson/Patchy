@@ -2437,7 +2437,7 @@ void ui_canvas_aid_preferences_and_guide_dialogs_work() {
   auto* canvas = require_canvas(window);
 
   bool saw_preferences = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     auto* pages = preferences_page_list(*dialog);
@@ -2492,7 +2492,7 @@ void ui_canvas_aid_preferences_and_guide_dialogs_work() {
     dialog->findChild<QCheckBox*>(QStringLiteral("preferencesSnapGridCheck"))->setChecked(false);
     saw_preferences = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_preferences);
@@ -2511,28 +2511,28 @@ void ui_canvas_aid_preferences_and_guide_dialogs_work() {
   CHECK(settings.value(QStringLiteral("view/gridSubdivisions")).toInt() == 8);
 
   bool saw_new_guide = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("newGuideDialog"));
     CHECK(dialog != nullptr);
     dialog->findChild<QComboBox*>(QStringLiteral("newGuideOrientationCombo"))->setCurrentIndex(0);
     dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newGuidePositionSpin"))->setValue(24.0);
     saw_new_guide = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "viewNewGuideAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_new_guide);
   CHECK(canvas->has_selected_guides());
 
   bool saw_layout = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("newGuideLayoutDialog"));
     CHECK(dialog != nullptr);
     dialog->findChild<QSpinBox*>(QStringLiteral("newGuideLayoutColumnsSpin"))->setValue(3);
     dialog->findChild<QSpinBox*>(QStringLiteral("newGuideLayoutRowsSpin"))->setValue(2);
     saw_layout = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "viewNewGuideLayoutAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_layout);
@@ -2557,7 +2557,7 @@ void ui_pen_preferences_persist_and_apply() {
   auto* canvas = require_canvas(window);
 
   bool saw_preferences = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     CHECK(select_preferences_page(*dialog, QStringLiteral("Pen")));
@@ -2579,7 +2579,7 @@ void ui_pen_preferences_persist_and_apply() {
     dialog->findChild<QSpinBox*>(QStringLiteral("preferencesPenTiltMinRoundnessSpin"))->setValue(44);
     saw_preferences = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_preferences);
@@ -2617,7 +2617,7 @@ void ui_pen_preferences_spin_buttons_visible_and_increment_on_right() {
   show_window(window);
 
   bool saw_preferences = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     CHECK(select_preferences_page(*dialog, QStringLiteral("Pen")));
@@ -2650,7 +2650,7 @@ void ui_pen_preferences_spin_buttons_visible_and_increment_on_right() {
     save_widget_artifact("ui_pen_preferences_spin_buttons", *dialog);
     saw_preferences = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_preferences);
@@ -2694,7 +2694,7 @@ void ui_new_guide_layout_dialog_presets_gutters_and_margins() {
     ColorSchemeRestorer::apply(preference);
     const std::string scheme = preference == patchy::ui::ColorSchemePreference::Light ? "light" : "dark";
     bool saw_dialog = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = find_top_level_dialog(QStringLiteral("newGuideLayoutDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -2718,7 +2718,7 @@ void ui_new_guide_layout_dialog_presets_gutters_and_margins() {
       }
       saw_dialog = true;
       dialog->reject();
-    });
+    }));
     require_action(window, "viewNewGuideLayoutAction")->trigger();
     QApplication::processEvents();
     CHECK(saw_dialog);
@@ -2749,7 +2749,7 @@ void ui_new_guide_layout_dialog_presets_gutters_and_margins() {
 
   // The 3 x 3 preset fills the fields.
   bool saw_preset = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("newGuideLayoutDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -2821,7 +2821,7 @@ void ui_new_guide_layout_dialog_presets_gutters_and_margins() {
     CHECK(rows->value() == 3);
     saw_preset = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "viewNewGuideLayoutAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_preset);
@@ -2830,7 +2830,7 @@ void ui_new_guide_layout_dialog_presets_gutters_and_margins() {
 
   // Reopened, the dialog remembers the layout; editing a field turns the preset to Custom.
   bool saw_custom = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("newGuideLayoutDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -2866,7 +2866,7 @@ void ui_new_guide_layout_dialog_presets_gutters_and_margins() {
     save_widget_artifact("ui_new_guide_layout_dialog_custom", *dialog);
     saw_custom = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "viewNewGuideLayoutAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_custom);
@@ -2919,13 +2919,13 @@ void ui_new_guide_layout_user_presets_save_apply_delete() {
 
   // Arms a one-shot answer for a dialog that opens inside the next blocking call.
   const auto when_open = [](const QString& name, std::function<void(QDialog&)> act) {
-    QTimer::singleShot(0, [name, act] {
+    QTimer::singleShot(0, guarded([name, act] {
       auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(name));
       CHECK(dialog != nullptr);
       if (dialog != nullptr) {
         act(*dialog);
       }
-    });
+    }));
   };
   const auto name_prompt = [when_open](const QString& text, std::function<void()> after = {}) {
     when_open(QStringLiteral("newGuideLayoutSavePresetNameDialog"), [text, after](QDialog& prompt) {
@@ -2980,7 +2980,7 @@ void ui_new_guide_layout_user_presets_save_apply_delete() {
   };
   const auto run_dialog = [&](const std::function<void(QDialog&, Fields&)>& act) {
     bool saw = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("newGuideLayoutDialog")));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -2996,7 +2996,7 @@ void ui_new_guide_layout_user_presets_save_apply_delete() {
       if (dialog->isVisible()) {
         dialog->reject();
       }
-    });
+    }));
     require_action(window, "viewNewGuideLayoutAction")->trigger();
     QApplication::processEvents();
     CHECK(saw);
@@ -3145,7 +3145,7 @@ void ui_select_smooth_and_feather_commands_are_one_undo_step() {
 
   const auto arm_dialog = [](const QString& dialog_name, double expected_initial, double expected_after_shift_up,
                              double value) {
-    QTimer::singleShot(0, [=] {
+    QTimer::singleShot(0, guarded([=] {
       auto* dialog = find_top_level_dialog(dialog_name);
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -3180,7 +3180,7 @@ void ui_select_smooth_and_feather_commands_are_one_undo_step() {
         qobject_cast<QDoubleSpinBox*>(spin)->setValue(value);
       }
       dialog->accept();
-    });
+    }));
   };
 
   arm_dialog(QStringLiteral("patchySmoothSelectionDialog"), 1.0, 11.0, 6.0);

@@ -842,7 +842,7 @@ void psd_lfx2_float_color_descriptor_reads_as_rgb() {
 // (ps-flat.bmp, COM capture) pins the render away from the glyphs; the lone Satin record
 // is an unused class (enab and present both false) and must raise no dialog notice.
 void ag_psd_float_color_outer_glow_matches_photoshop_if_available() {
-  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "ag-psd" / "float-color";
+  const auto dir = patchy::test::local_fixtures_root() / "ag-psd" / "float-color";
   patchy::test::skip_unless_exists(dir / "src.psd");
   patchy::test::skip_unless_exists(dir / "ps-flat.bmp");
   const auto document = patchy::psd::DocumentIo::read_file(dir / "src.psd");
@@ -905,7 +905,7 @@ void ag_psd_float_color_outer_glow_matches_photoshop_if_available() {
 // merge of it over white. The noise gradient must survive the read with its settings and
 // the overlay must render within the Lab noise tolerance recorded in docs/gradients.md.
 void ag_psd_effects_noise_gradient_overlay_matches_photoshop_if_available() {
-  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "ag-psd" / "effects";
+  const auto dir = patchy::test::local_fixtures_root() / "ag-psd" / "effects";
   patchy::test::skip_unless_exists(dir / "src-nosatin.psd");
   patchy::test::skip_unless_exists(dir / "ps-flat-nosatin.bmp");
   const auto document = patchy::psd::DocumentIo::read_file(dir / "src-nosatin.psd");
@@ -960,7 +960,7 @@ void ag_psd_effects_noise_gradient_overlay_matches_photoshop_if_available() {
 // flatten over white. The band must start where Photoshop's does, one pixel outside the
 // old half-coverage anchor.
 void ag_psd_effects_stroke_layer_matches_photoshop_if_available() {
-  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "ag-psd" / "effects";
+  const auto dir = patchy::test::local_fixtures_root() / "ag-psd" / "effects";
   patchy::test::skip_unless_exists(dir / "src.psd");
   patchy::test::skip_unless_exists(dir / "ps-flat.bmp");
   const auto document = patchy::psd::DocumentIo::read_file(dir / "src.psd");

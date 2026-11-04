@@ -683,7 +683,7 @@ void compositor_knockout_group_boundaries_match_photoshop() {
 }
 
 void psd_tools_knockout_matches_photoshop_if_available() {
-  const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files" /
+  const auto root = patchy::test::local_fixtures_root() / "psd-tools" / "tests" / "psd_files" /
                     "transparency";
   patchy::test::skip_unless_exists(root);
   struct Probe { const char* name; std::array<int, 4> rgba; };
@@ -1677,7 +1677,7 @@ void compositor_cmyk_noise_gradient_keeps_rgb_fallback() {
 // 84 levels off Photoshop in Difference and Exclusion. Compared with the composite
 // Photoshop saved in the file.
 void compositor_cmyk_artboards_blend_on_native_inks_if_available() {
-  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" /
+  const auto path = patchy::test::local_fixtures_root() / "psd-tools" / "tests" /
                     "psd_files" / "blend-modes" / "cmyk-blend-modes.psd";
   patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);

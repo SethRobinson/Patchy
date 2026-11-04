@@ -13,6 +13,9 @@
 // Never call QFontDatabase::removeApplicationFont to clean up: invalidating an in-use
 // font cache can hard-crash the suite (see docs/testing.md).
 
+#include "local_psd_fixtures.hpp"
+#include "ui/qt_paths.hpp"
+
 #include <QFileInfo>
 #include <QFont>
 #include <QFontDatabase>
@@ -232,7 +235,7 @@ inline QStringList test_font_candidates(TestFontRole role) {
       // lives only in the gitignored local-test-fixtures tree and is never committed; tests that
       // need it skip when the file is absent.
 #ifdef PATCHY_SOURCE_DIR
-      return {QStringLiteral(PATCHY_SOURCE_DIR) + QStringLiteral("/local-test-fixtures/fonts/Balmoral LET Plain.ttf")};
+      return {patchy::ui::to_qstring(local_fixtures_root() / "fonts" / "Balmoral LET Plain.ttf")};
 #else
       return {};
 #endif

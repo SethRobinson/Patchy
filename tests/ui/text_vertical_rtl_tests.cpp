@@ -151,7 +151,7 @@ void with_paragraph_panel(patchy::ui::MainWindow& window, std::function<void(QDi
   if (button == nullptr) {
     return;
   }
-  QTimer::singleShot(0, [&window, body = std::move(body)] {
+  QTimer::singleShot(0, guarded([&window, body = std::move(body)] {
     auto* dialog = window.findChild<QDialog*>(QStringLiteral("textParagraphDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -160,7 +160,7 @@ void with_paragraph_panel(patchy::ui::MainWindow& window, std::function<void(QDi
     body(*dialog);
     QApplication::processEvents();
     dialog->reject();
-  });
+  }));
   button->click();
   QApplication::processEvents();
 }

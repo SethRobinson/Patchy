@@ -726,7 +726,7 @@ void ui_web_export_animation_plays_in_the_preview() {
   show_window(window);
   (void)animation_fixture_document(window);
   bool inspected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("webExportDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -906,7 +906,7 @@ void ui_web_export_animation_plays_in_the_preview() {
     inspected = true;
     dialog->reject();
     CHECK(!timer->isActive());
-  });
+  }));
   patchy::test::ui::require_action(window, "fileExportForWebAction")->trigger();
   QApplication::processEvents();
   CHECK(inspected);
@@ -934,7 +934,7 @@ void ui_web_export_transparency_fill_in_the_dialog() {
   MainWindowTestAccess::open_document_path(window, path);
   QApplication::processEvents();
   bool inspected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("webExportDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -975,7 +975,7 @@ void ui_web_export_transparency_fill_in_the_dialog() {
     CHECK(!swatch->isEnabled());
     inspected = true;
     dialog->reject();
-  });
+  }));
   patchy::test::ui::require_action(window, "fileExportForWebAction")->trigger();
   QApplication::processEvents();
   CHECK(inspected);
@@ -1000,7 +1000,7 @@ void ui_web_export_wheel_over_unfocused_control_scrolls_the_settings() {
   MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(photo));
   QApplication::processEvents();
   bool inspected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("webExportDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -1064,7 +1064,7 @@ void ui_web_export_wheel_over_unfocused_control_scrolls_the_settings() {
     CHECK(quality->value() != focused_before);
     inspected = true;
     dialog->reject();
-  });
+  }));
   patchy::test::ui::require_action(window, "fileExportForWebAction")->trigger();
   QApplication::processEvents();
   CHECK(inspected);
@@ -1081,7 +1081,7 @@ void ui_web_export_metadata_choices_and_thumbnail_with_none() {
   MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(photo));
   QApplication::processEvents();
   bool inspected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("webExportDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -1138,7 +1138,7 @@ void ui_web_export_metadata_choices_and_thumbnail_with_none() {
     metadata->hidePopup();
     inspected = true;
     dialog->reject();
-  });
+  }));
   patchy::test::ui::require_action(window, "fileExportForWebAction")->trigger();
   QApplication::processEvents();
   CHECK(inspected);
@@ -1160,7 +1160,7 @@ void ui_web_export_dialog_previews_and_saves() {
 
   bool inspected = false;
   bool saved_dialog_seen = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("webExportDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -1348,7 +1348,7 @@ void ui_web_export_dialog_previews_and_saves() {
     });
     file_dialog_timer->start();
     save->click();
-  });
+  }));
   patchy::test::ui::require_action(window, "fileExportForWebAction")->trigger();
   QApplication::processEvents();
   CHECK(inspected);
@@ -1509,7 +1509,7 @@ void ui_web_export_format_order_quality_steps_and_presets() {
 // Runs `inspect` on the Export for Web dialog over `document`, then closes it.
 void with_web_export_dialog(const patchy::Document& document, const std::function<void(QDialog&)>& inspect) {
   bool inspected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("webExportDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -1520,7 +1520,7 @@ void with_web_export_dialog(const patchy::Document& document, const std::functio
     if (dialog->isVisible()) {
       dialog->reject();
     }
-  });
+  }));
   (void)patchy::ui::request_web_export(nullptr, std::make_shared<const patchy::Document>(document));
   CHECK(inspected);
 }
@@ -1645,14 +1645,14 @@ void ui_web_export_quad_compare_and_presets_in_the_dialog() {
     QApplication::processEvents();
     CHECK(presets->currentIndex() == -1);
     // Save asks for a name and selects the new preset.
-    QTimer::singleShot(0, [] {
+    QTimer::singleShot(0, guarded([] {
       auto* name_dialog = qobject_cast<QInputDialog*>(find_top_level_dialog(QStringLiteral("webExportPresetNameDialog")));
       CHECK(name_dialog != nullptr);
       if (name_dialog != nullptr) {
         name_dialog->setTextValue(QStringLiteral("Photo 60"));
         name_dialog->accept();
       }
-    });
+    }));
     save->click();
     QApplication::processEvents();
     CHECK(presets->currentText() == QStringLiteral("Photo 60") && remove->isEnabled());

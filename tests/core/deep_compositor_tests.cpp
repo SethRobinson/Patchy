@@ -533,7 +533,7 @@ void deep_documents_flatten_to_display_values_at_8_bits() {
 }
 
 void deep_compositor_matches_photoshop_corpus_if_available() {
-  const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "deep";
+  const auto root = patchy::test::local_fixtures_root() / "deep";
   patchy::test::skip_unless_exists(root / "manifest.json");
   // Scenes whose Photoshop math Patchy models only within its 8-bit calibration (the
   // gradient fill's interpolation, Exposure's 16-bit pipeline, the layer effects'

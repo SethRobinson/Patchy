@@ -109,7 +109,7 @@ void ui_batch_shape_fields_radii_and_full_apply() {
   const std::vector<Layer> layers{rectangle(1, 10, 130, {2, 4, 6, 8}, {210, 20, 30}),
                                  rectangle(2, 210, 30, {0, 0, 0, 0}, {10, 180, 40})};
   auto context = shape_context(layers);
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = appearance_dialog("shapeAppearanceDialog");
     CHECK(field<QLabel>(*dialog, "shapeAppearanceSelectionSummary")->text().contains("2"));
     auto* radius_link = field<QToolButton>(*dialog, "shapeGeometryRadiusLinkButton");
@@ -119,7 +119,7 @@ void ui_batch_shape_fields_radii_and_full_apply() {
     field<QDoubleSpinBox>(*dialog, "shapeGeometryRadiusTopLeftSpin")->setValue(90);
     field<QDoubleSpinBox>(*dialog, "shapeStrokeWidthSpin")->setValue(7);
     dialog->accept();
-  });
+  }));
   const auto edited = request_shape_appearance_settings(nullptr, {}, context.originals.front(), {},
       nullptr, nullptr, nullptr, {}, {}, {}, &context);
   CHECK(edited.has_value());
@@ -159,7 +159,7 @@ void ui_batch_shape_same_value_and_nested_picker_cancel() {
                                  rectangle(2, 210, 50, {}, {10, 180, 40})};
   auto context = shape_context(layers);
   ShapeAppearanceSettings preview;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = appearance_dialog("shapeAppearanceDialog");
     auto* width = field<QDoubleSpinBox>(*dialog, "shapeStrokeWidthSpin");
     auto* text = width->findChild<QLineEdit*>();
@@ -167,17 +167,17 @@ void ui_batch_shape_same_value_and_nested_picker_cancel() {
     // An explicit commit of the displayed value applies it to the other shape.
     QMetaObject::invokeMethod(text, "textEdited", Qt::DirectConnection, Q_ARG(QString, text->text()));
     QMetaObject::invokeMethod(width, "editingFinished", Qt::DirectConnection);
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* picker_dialog = appearance_dialog("patchyColorDialog");
       auto* picker = field<PatchyColorPicker>(*picker_dialog, "patchyAdvancedColorPicker");
       picker->setCurrentColor(QColor(30, 40, 230));
       CHECK(apply_shape_appearance_edits(context.originals[1], preview).fill.color.blue == 230);
       picker_dialog->reject();
-    });
+    }));
     field<QPushButton>(*dialog, "shapeFillColorButton")->click();
     CHECK(apply_shape_appearance_edits(context.originals[1], preview).fill == context.originals[1].fill);
     dialog->accept();
-  });
+  }));
   const auto edited = request_shape_appearance_settings(nullptr, [&](const auto& value) { preview = value; },
       context.originals.front(), {}, nullptr, nullptr, nullptr, {}, {}, {}, &context);
   CHECK(edited.has_value());
@@ -202,7 +202,7 @@ void ui_batch_style_occurrences_missing_and_navigation() {
   AppearanceDialogContext<LayerStyleSettings> context;
   context.originals = {layer_style_settings(first), layer_style_settings(second), layer_style_settings(missing)};
   context.names = {"First", "Second", "Missing"}; context.selected_count = 3;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = appearance_dialog("patchyLayerStyleDialog");
     select_style_page(*dialog, "Drop Shadow");
     CHECK(field<QSpinBox>(*dialog, "layerStyleDropShadowSizeSpin")->property("appearanceMixed").toBool());
@@ -210,7 +210,7 @@ void ui_batch_style_occurrences_missing_and_navigation() {
     select_style_page(*dialog, "Stroke");
     select_style_page(*dialog, "Blending Options");
     dialog->accept();
-  });
+  }));
   const auto edited = request_layer_style_settings(nullptr, first, {}, nullptr, nullptr, nullptr, {}, nullptr, {}, {}, &context);
   CHECK(edited.has_value());
   const auto next = apply_layer_style_edits(context.originals[1], *edited);
@@ -354,11 +354,11 @@ void ui_batch_style_stack_order_full_apply_and_no_style() {
   const auto all = request_layer_style_settings(nullptr, first, {}, nullptr, nullptr, nullptr, {}, nullptr, {}, {}, &context);
   CHECK(all.has_value());
   CHECK(layer_style_settings_equal(apply_layer_style_edits(context.originals[1], *all), context.originals[0]));
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = appearance_dialog("patchyLayerStyleDialog");
     CHECK(QMetaObject::invokeMethod(field<QWidget>(*dialog, "layerStyleStylesBrowser"), "no_style_clicked", Qt::DirectConnection));
     dialog->accept();
-  });
+  }));
   const auto none = request_layer_style_settings(nullptr, first, {}, nullptr, nullptr, nullptr, {}, nullptr, {}, {}, &context);
   CHECK(none.has_value());
   const auto cleared = apply_layer_style_edits(context.originals[1], *none);
@@ -385,7 +385,7 @@ void ui_batch_shape_mixed_geometry_compound_and_reset() {
   std::vector<Layer> layers{ellipse, rectangle(2, 150, 30, {2, 4, 6, 8}, {10, 180, 40}), compound, unsupported};
   auto context = shape_context(layers);
   ShapeAppearanceSettings preview;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = appearance_dialog("shapeAppearanceDialog");
     auto* radius = field<QDoubleSpinBox>(*dialog, "shapeGeometryRadiusTopLeftSpin");
     CHECK(radius->value() == 2);
@@ -398,7 +398,7 @@ void ui_batch_shape_mixed_geometry_compound_and_reset() {
     field<QDoubleSpinBox>(*dialog, "shapeStrokeWidthSpin")->setValue(17);
     save_widget_artifact("ui_batch_shape_dialog", *dialog);
     dialog->accept();
-  });
+  }));
   const auto edited = request_shape_appearance_settings(&window, {}, context.originals.front(), {},
       nullptr, nullptr, nullptr, {}, {}, {}, &context);
   CHECK(edited.has_value());
@@ -411,13 +411,13 @@ void ui_batch_shape_mixed_geometry_compound_and_reset() {
   CHECK(assembled.parts[1].stroke.content == b.stroke.content && assembled.parts[1].stroke.enabled);
   CHECK(apply_shape_appearance_edits(context.originals[0], *edited).geometry == context.originals[0].geometry);
   CHECK(!apply_shape_appearance_edits(context.originals[3], *edited).geometry.has_value());
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = appearance_dialog("shapeAppearanceDialog");
     field<QCheckBox>(*dialog, "shapeAppearancePreviewCheck")->setChecked(false);
     field<QPushButton>(*dialog, "shapeAppearanceResetButton")->click();
     CHECK(!preview.preview_enabled);
     dialog->accept();
-  });
+  }));
   const auto reset = request_shape_appearance_settings(nullptr, [&](const auto& value) { preview = value; },
       context.originals.front(), {}, nullptr, nullptr, nullptr, {}, {}, {}, &context);
   CHECK(reset.has_value());
@@ -475,7 +475,7 @@ void ui_batch_style_transaction_groups_and_row_selection() {
   auto* list = field<QListWidget>(window, "layerList");
   CHECK(list->selectedItems().size() == 2);
   const auto before = MainWindowTestAccess::active_session_undo_depth(window);
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = appearance_dialog("patchyLayerStyleDialog");
     select_style_page(*dialog, "Drop Shadow");
     field<QSpinBox>(*dialog, "layerStyleDropShadowSizeSpin")->setValue(9);
@@ -483,7 +483,7 @@ void ui_batch_style_transaction_groups_and_row_selection() {
     field<QCheckBox>(*dialog, "layerStylePreviewCheck")->setChecked(false);
     CHECK(process_events_until([&] { return std::as_const(doc).find_layer(child_id)->layer_style().drop_shadows[0].size == 17; }));
     dialog->accept();
-  });
+  }));
   field<QAction>(window, "layerBlendingOptionsAction")->trigger();
   CHECK(std::as_const(doc).find_layer(group_id)->layer_style().drop_shadows[0].size == 9);
   CHECK(std::as_const(doc).find_layer(child_id)->layer_style().drop_shadows[0].size == 9);
@@ -500,12 +500,12 @@ void ui_batch_style_transaction_groups_and_row_selection() {
   send_mouse(*row, QEvent::MouseButtonPress, row->rect().center(), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
   row = details();
   send_mouse(*row, QEvent::MouseButtonRelease, row->rect().center(), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = appearance_dialog("patchyLayerStyleDialog");
     CHECK(field<QLabel>(*dialog, "layerStyleSelectionSummary")->text().contains("2"));
     CHECK(list->selectedItems().size() == 2);
     dialog->accept();
-  });
+  }));
   row = details(); send_double_click(*row, row->rect().center());
   CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before + 1);
   CHECK(list->selectedItems().size() == 2);
@@ -542,13 +542,13 @@ void ui_batch_shape_transaction_cancel_and_noop() {
   QTimer::singleShot(0, [&] { appearance_dialog("shapeAppearanceDialog")->accept(); });
   MainWindowTestAccess::edit_active_shape_appearance(window);
   CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before);
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = appearance_dialog("shapeAppearanceDialog");
     field<QDoubleSpinBox>(*dialog, "shapeStrokeWidthSpin")->setValue(8);
     field<QCheckBox>(*dialog, "shapeAppearancePreviewCheck")->setChecked(false);
     CHECK(shape_vector_appearance_equal(*std::as_const(doc).find_layer(second)->vector_shape(), original));
     dialog->accept();
-  });
+  }));
   MainWindowTestAccess::edit_active_shape_appearance(window);
   CHECK(std::as_const(doc).find_layer(second)->vector_shape()->stroke.width == 8);
   CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before + 1);
@@ -574,7 +574,7 @@ void ui_batch_style_pattern_collision_cancel_undo() {
   CHECK(!preset.isEmpty());
   std::string alias;
   const auto run = [&](bool accept) {
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = appearance_dialog("patchyLayerStyleDialog");
       CHECK(QMetaObject::invokeMethod(field<QWidget>(*dialog, "layerStyleStylesBrowser"), "style_clicked",
                                       Qt::DirectConnection, Q_ARG(QString, preset)));
@@ -586,7 +586,7 @@ void ui_batch_style_pattern_collision_cancel_undo() {
       field<QCheckBox>(*dialog, "layerStylePreviewCheck")->setChecked(false);
       CHECK(previews.metadata().patterns.patterns.size() == 1);
       if (accept) dialog->accept(); else dialog->reject();
-    });
+    }));
     field<QAction>(window, "layerBlendingOptionsAction")->trigger();
   };
   const auto before = MainWindowTestAccess::active_session_undo_depth(window);
@@ -659,13 +659,13 @@ void ui_batch_shape_editor_entries_and_document_switch() {
   CHECK(canvas_opened);
   CHECK(list->selectedItems().size() == 2);
   canvas_opened = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* menu = window.findChild<QMenu*>("layerContextMenu");
     CHECK(menu);
     auto* action = field<QAction>(*menu, "layerContextEditShapeAppearanceAction");
     menu->setActiveAction(action);
     send_key(*menu, Qt::Key_Return);
-  });
+  }));
   CHECK(QMetaObject::invokeMethod(list, "customContextMenuRequested", Qt::DirectConnection,
       Q_ARG(QPoint, list->visualItemRect(list->currentItem()).center())));
   closer.stop();
@@ -707,11 +707,11 @@ void ui_batch_shape_toolbar_pattern_collision() {
   const auto before = MainWindowTestAccess::active_session_undo_depth(window);
   QTimer::singleShot(0, [&] {
     auto* menu = field<QMenu>(window, "vectorFillPaintMenu");
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* manager = appearance_dialog("patternManagerDialog");
       CHECK(field<QLineEdit>(*manager, "patternManagerNameEdit")->text() == "Batch green");
       field<QPushButton>(*manager, "patternManagerUseButton")->click();
-    });
+    }));
     field<QAction>(*menu, "vectorFillPatternAction")->trigger();
     menu->close();
   });

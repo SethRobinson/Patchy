@@ -72,7 +72,7 @@ const patchy::Layer* active_layer(patchy::ui::MainWindow& window) {
 // the dialog as `artifact` and accepts it.
 void drive_filter_dialog(const QString& filter_id, QPointF target, const QString& option_combo,
                          int option_index, const std::string& artifact, bool* drove, int attempts = 400) {
-  QTimer::singleShot(25, [=] {
+  QTimer::singleShot(25, guarded([=] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
     if (dialog == nullptr || !dialog->isVisible()) {
       CHECK(attempts > 0);
@@ -122,7 +122,7 @@ void drive_filter_dialog(const QString& filter_id, QPointF target, const QString
     save_widget_artifact(artifact, *dialog);
     *drove = true;
     dialog->accept();
-  });
+  }));
 }
 
 void ui_issue_496_stylize_and_render_filters_in_the_window() {
@@ -378,12 +378,8 @@ void ui_issue_496_flame_follow_path_and_wind_angle_dialogs() {
 
   // Wind: the angle has the dial.
   bool wind_seen = false;
-  QTimer::singleShot(50, [&] {
-    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
-    if (dialog == nullptr) {
-      return;
-    }
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto* angle = dialog->findChild<QSpinBox*>(QStringLiteral("filterAngleSpin"));
     CHECK(angle != nullptr && dialog->findChild<QWidget*>(QStringLiteral("filterAngleDial")) != nullptr);
     if (angle != nullptr) {
@@ -401,12 +397,8 @@ void ui_issue_496_flame_follow_path_and_wind_angle_dialogs() {
 
   // Flame with no path: Follow Path shows the notice, and OK changes nothing.
   bool notice_seen = false;
-  QTimer::singleShot(50, [&] {
-    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
-    if (dialog == nullptr) {
-      return;
-    }
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto* notice = dialog->findChild<QLabel*>(QStringLiteral("filterDialogNotice"));
     auto* mode = dialog->findChild<QComboBox*>(QStringLiteral("filterFlameModeCombo"));
     CHECK(notice != nullptr && mode != nullptr);
@@ -455,12 +447,8 @@ void ui_issue_496_flame_follow_path_and_wind_angle_dialogs() {
   paths_list->setCurrentRow(0);
   QApplication::processEvents();
   bool followed = false;
-  QTimer::singleShot(50, [&] {
-    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
-    CHECK(dialog != nullptr);
-    if (dialog == nullptr) {
-      return;
-    }
+  when_dialog_visible(QStringLiteral("patchyFilterDialog"), [&](QDialog& shown) {
+    auto* dialog = &shown;
     auto* notice = dialog->findChild<QLabel*>(QStringLiteral("filterDialogNotice"));
     auto* mode = dialog->findChild<QComboBox*>(QStringLiteral("filterFlameModeCombo"));
     auto* length = dialog->findChild<QSpinBox*>(QStringLiteral("filterLengthSpin"));
@@ -527,7 +515,7 @@ void ui_issue_496_long_filter_dialogs_use_two_columns() {
     const auto spec = patchy::ui::filter_dialog_spec_for(*filter);
     CHECK((spec.controls.size() >= patchy::ui::kFilterDialogTwoColumnControls) == test_case.two_columns);
     bool checked = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -563,7 +551,7 @@ void ui_issue_496_long_filter_dialogs_use_two_columns() {
       save_widget_artifact(test_case.artifact, *dialog);
       checked = true;
       dialog->reject();
-    });
+    }));
     static_cast<void>(patchy::ui::request_filter_settings(nullptr, spec, {}, {}, &source));
     CHECK(checked);
   }

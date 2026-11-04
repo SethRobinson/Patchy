@@ -677,7 +677,7 @@ void raw_develop_rejects_non_raw_bytes() {
 }
 
 void raw_decodes_real_camera_samples_if_available() {
-  const auto directory = patchy::test::source_root_path() / "local-test-fixtures" / "raw";
+  const auto directory = patchy::test::local_fixtures_root() / "raw";
   patchy::test::skip_unless_exists(directory);
   std::size_t decoded = 0;
   for (const auto& entry : std::filesystem::directory_iterator(directory)) {
@@ -870,7 +870,7 @@ void heif_reads_quadrant_fixture_if_available() {
 void heif_decodes_real_photos_if_available() {
   // Real HEICs (e.g. iPhone captures: Display P3, camera orientation) live in the
   // untracked local fixtures; remotes and codec-less machines skip.
-  const auto directory = patchy::test::source_root_path() / "local-test-fixtures" / "heif";
+  const auto directory = patchy::test::local_fixtures_root() / "heif";
   patchy::test::skip_unless_exists(directory);
   std::size_t decoded = 0;
   for (const auto& entry : std::filesystem::directory_iterator(directory)) {

@@ -966,7 +966,7 @@ void ui_layer_mask_thumbnail_right_click_opens_mask_menu() {
 
 // Answers the footer Delete prompt with `button` (an objectName, or "cancel") when it opens.
 void answer_delete_mask_prompt(bool& seen, const char* button) {
-  QTimer::singleShot(0, [&seen, button] {
+  QTimer::singleShot(0, guarded([&seen, button] {
     auto* box = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
     CHECK(box != nullptr);
     if (box == nullptr) {
@@ -982,7 +982,7 @@ void answer_delete_mask_prompt(bool& seen, const char* button) {
     if (push != nullptr) {
       push->click();
     }
-  });
+  }));
 }
 
 void ui_layer_footer_delete_removes_targeted_mask() {
@@ -1066,7 +1066,7 @@ void ui_layer_row_menu_vector_mask_submenu_adds_vector_mask() {
   QStringList top_submenus;
   QStringList vector_actions;
   bool submenu_opened = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     QMenu* row_menu = nullptr;
     for (auto* widget : QApplication::topLevelWidgets()) {
       auto* menu = qobject_cast<QMenu*>(widget);
@@ -1129,7 +1129,7 @@ void ui_layer_row_menu_vector_mask_submenu_adds_vector_mask() {
     } else {
       row_menu->close();
     }
-  });
+  }));
   auto* row = layers->itemWidget(left_item);
   auto* name = row != nullptr ? row->findChild<QWidget*>(QStringLiteral("layerRowName")) : nullptr;
   CHECK(name != nullptr);

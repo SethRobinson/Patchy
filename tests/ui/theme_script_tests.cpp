@@ -302,7 +302,7 @@ void ui_theme_script_watchdog_stops_a_runaway_loop() {
   QElapsedTimer clock;
   clock.start();
   const auto result = host.evaluate_for_testing(QStringLiteral("while (true) { ticks++; }"));
-  CHECK(clock.elapsed() < 3000);
+  CHECK(clock.elapsed() < patchy::test::time_budget_ms(3000));
   CHECK(result.startsWith(QStringLiteral("Error")));
   CHECK(host.running());  // one overrun is forgiven
   CHECK(host.evaluate_for_testing(QStringLiteral("1 + 1")) == QStringLiteral("2"));
@@ -330,7 +330,7 @@ void ui_theme_script_cpu_budget_stops_a_busy_theme() {
   QElapsedTimer clock;
   clock.start();
   CHECK(process_events_until([&host] { return !host.running(); }, 8000));
-  CHECK(clock.elapsed() < 6000);
+  CHECK(clock.elapsed() < patchy::test::time_budget_ms(6000));
   CHECK(log_contains(QStringLiteral("too much processor time")));
 }
 
@@ -344,9 +344,8 @@ void ui_theme_script_trust_prompt_and_stored_answer() {
   auto& host = ThemeScriptHost::instance();
 
   bool saw_allow = false;
-  QTimer::singleShot(50, [&saw_allow] {
-    auto* prompt = find_top_level_dialog(QStringLiteral("themeScriptTrustPrompt"));
-    CHECK(prompt != nullptr);
+  when_dialog_visible(QStringLiteral("themeScriptTrustPrompt"), [&saw_allow](QDialog& shown) {
+    auto* prompt = &shown;
     if (auto* box = qobject_cast<QMessageBox*>(prompt); box != nullptr) {
       // Asks, says what the sandbox keeps out, says to trust the author, and defaults to no.
       CHECK(box->text().contains(QStringLiteral("Allow them to run?")));
@@ -356,15 +355,13 @@ void ui_theme_script_trust_prompt_and_stored_answer() {
             box->defaultButton()->objectName() == QStringLiteral("themeScriptTrustDenyButton"));
       save_widget_artifact("theme_script_trust_prompt", *box);
     }
-    if (auto* allow = prompt != nullptr ? prompt->findChild<QPushButton*>(QStringLiteral("themeScriptTrustAllowButton"))
-                                        : nullptr;
-        allow != nullptr) {
-      saw_allow = true;
-      allow->click();
-    }
+    auto* allow = prompt->findChild<QPushButton*>(QStringLiteral("themeScriptTrustAllowButton"));
+    CHECK(allow != nullptr);
+    saw_allow = true;
+    allow->click();
   });
   apply(QStringLiteral("Ask"), false);
-  CHECK(process_events_until([&saw_allow] { return saw_allow; }, 3000));
+  CHECK(process_events_until([&saw_allow] { return saw_allow; }, 15000));
   CHECK(host.running());
   const auto v1 = patchy::ui::load_theme_by_id(QStringLiteral("Ask"));
   CHECK(patchy::ui::stored_theme_script_trust(QStringLiteral("Ask"), patchy::ui::theme_scripts_digest(*v1.theme->assets)) ==
@@ -373,18 +370,14 @@ void ui_theme_script_trust_prompt_and_stored_answer() {
   // Changed scripts ask again; this time the answer is no.
   write_bytes(themes.file(QStringLiteral("Ask/scripts/main.js")), QByteArrayLiteral("patchy.theme.log('v2');\n"));
   bool saw_deny = false;
-  QTimer::singleShot(50, [&saw_deny] {
-    auto* prompt = find_top_level_dialog(QStringLiteral("themeScriptTrustPrompt"));
-    CHECK(prompt != nullptr);
-    if (auto* deny = prompt != nullptr ? prompt->findChild<QPushButton*>(QStringLiteral("themeScriptTrustDenyButton"))
-                                       : nullptr;
-        deny != nullptr) {
-      saw_deny = true;
-      deny->click();
-    }
+  when_dialog_visible(QStringLiteral("themeScriptTrustPrompt"), [&saw_deny](QDialog& prompt) {
+    auto* deny = prompt.findChild<QPushButton*>(QStringLiteral("themeScriptTrustDenyButton"));
+    CHECK(deny != nullptr);
+    saw_deny = true;
+    deny->click();
   });
   apply(QStringLiteral("Ask"), false);
-  CHECK(process_events_until([&saw_deny] { return saw_deny; }, 3000));
+  CHECK(process_events_until([&saw_deny] { return saw_deny; }, 15000));
   CHECK(!host.running());
   // The stored no holds: no prompt, no scripts, and the rest of the theme still applies.
   apply(QStringLiteral("Ask"), false);
@@ -641,7 +634,7 @@ void ui_theme_effects_and_scripts_preferences() {
   const auto with_preferences = [&window](const std::function<void(QDialog&, QCheckBox&, QCheckBox&)>& body,
                                           bool accept) {
     bool saw = false;
-    QTimer::singleShot(0, [&saw, &body, accept] {
+    QTimer::singleShot(0, guarded([&saw, &body, accept] {
       auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -656,7 +649,7 @@ void ui_theme_effects_and_scripts_preferences() {
         saw = true;
       }
       accept ? dialog->accept() : dialog->reject();
-    });
+    }));
     require_action(window, "filePreferencesAction")->trigger();
     QApplication::processEvents();
     CHECK(saw);

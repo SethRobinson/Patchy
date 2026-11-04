@@ -354,7 +354,7 @@ void ui_palette_panel_click_sets_foreground_and_chip_tracks_mode() {
   // Leaving palette mode hides the chip and disables the snap commands. The
   // white background is off the PICO-8 palette, so the keep-look prompt
   // appears; restore the original colors to keep this test about the chip.
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* box =
         qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("convertToRgbKeepLookMessageBox")));
     CHECK(box != nullptr);
@@ -365,7 +365,7 @@ void ui_palette_panel_click_sets_foreground_and_chip_tracks_mode() {
       }
     }
     CHECK(false);
-  });
+  }));
   require_action_by_text(window, QStringLiteral("RGB Color"))->trigger();
   QApplication::processEvents();
   CHECK(!document.palette_editing().has_value());
@@ -428,7 +428,7 @@ void ui_convert_to_indexed_dialog_converts_and_undoes() {
   const auto rgb_bytes = collect_document_pixel_bytes(document);
 
   const std::function<void(int)> drive_dialog = [&](int attempts) {
-    QTimer::singleShot(0, [&, attempts] {
+    QTimer::singleShot(0, guarded([&, attempts] {
       auto* dialog = find_top_level_dialog(QStringLiteral("paletteConvertDialog"));
       if (dialog == nullptr) {
         if (attempts > 0) {
@@ -455,7 +455,7 @@ void ui_convert_to_indexed_dialog_converts_and_undoes() {
       auto* buttons = dialog->findChild<QDialogButtonBox*>();
       CHECK(buttons != nullptr);
       buttons->button(QDialogButtonBox::Ok)->click();
-    });
+    }));
   };
   drive_dialog(5);
   require_action_by_text(window, QStringLiteral("Indexed (Palette)..."))->trigger();
@@ -618,7 +618,7 @@ void ui_preferences_indexed_open_policy_persists() {
   show_window(window);
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
     CHECK(dialog != nullptr);
     auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("preferencesIndexedOpenCombo"));
@@ -629,7 +629,7 @@ void ui_preferences_indexed_open_policy_persists() {
     combo->setCurrentIndex(ask_index);
     saw_dialog = true;
     dialog->accept();
-  });
+  }));
   require_action(window, "filePreferencesAction")->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -881,7 +881,7 @@ void ui_palette_panel_copy_hex_and_updates_open_picker() {
   // callback, so the requesting dialog updates too.
   QColor live_color;
   bool drove_picker = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* request_dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
     CHECK(request_dialog != nullptr);
     send_mouse(*grid, QEvent::MouseButtonPress, cell_center(5), Qt::LeftButton, Qt::LeftButton);
@@ -895,7 +895,7 @@ void ui_palette_panel_copy_hex_and_updates_open_picker() {
     CHECK(live_color == expected);
     drove_picker = true;
     request_dialog->reject();
-  });
+  }));
   const auto result = patchy::ui::request_patchy_color(&window, QColor(1, 2, 3), QStringLiteral("Overlay Color"),
                                                        [&live_color](QColor color) { live_color = color; });
   CHECK(drove_picker);
@@ -1037,7 +1037,7 @@ void ui_convert_to_indexed_preview_zoom_and_pan() {
   QApplication::processEvents();
 
   bool drove_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("paletteConvertDialog"));
     CHECK(dialog != nullptr);
     auto* preview = dialog->findChild<QWidget*>(QStringLiteral("paletteConvertPreview"));
@@ -1082,7 +1082,7 @@ void ui_convert_to_indexed_preview_zoom_and_pan() {
     save_widget_artifact("ui_palette_convert_zoom", *dialog);
     drove_dialog = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "imageModeIndexedAction")->trigger();
   QApplication::processEvents();
   CHECK(drove_dialog);

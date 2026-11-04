@@ -665,7 +665,7 @@ void ui_layer_style_color_overlay_swatch_opens_picker() {
   auto* blending_options = require_action(window, "layerBlendingOptionsAction");
 
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&saw_dialog] {
+  QTimer::singleShot(0, guarded([&saw_dialog] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyLayerStyleDialog")) {
         continue;
@@ -680,7 +680,7 @@ void ui_layer_style_color_overlay_swatch_opens_picker() {
       CHECK(red != nullptr && green != nullptr && blue != nullptr);
 
       bool saw_picker = false;
-      QTimer::singleShot(0, [&saw_picker] {
+      QTimer::singleShot(0, guarded([&saw_picker] {
         for (auto* picker_widget : QApplication::topLevelWidgets()) {
           if (picker_widget->objectName() != QStringLiteral("patchyColorDialog") || !picker_widget->isVisible()) {
             continue;
@@ -694,7 +694,7 @@ void ui_layer_style_color_overlay_swatch_opens_picker() {
           return;
         }
         CHECK(false);
-      });
+      }));
       patch->click();
       QApplication::processEvents();
       CHECK(saw_picker);
@@ -705,7 +705,7 @@ void ui_layer_style_color_overlay_swatch_opens_picker() {
       return;
     }
     CHECK(false);
-  });
+  }));
   blending_options->trigger();
   QApplication::processEvents();
   CHECK(saw_dialog);
@@ -839,7 +839,7 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
   bool saw_non_modal_dialog = false;
   bool saw_layer_style_edit_lock = false;
   bool saw_shared_color_picker = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyLayerStyleDialog")) {
         continue;
@@ -940,7 +940,7 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
       CHECK(gradient_stop_hex->isVisible());
       CHECK(gradient_stop_location->value() == 0);
       CHECK(gradient_stop_hex->text() == QStringLiteral("#FFFFFF"));
-      QTimer::singleShot(0, [&saw_shared_color_picker] {
+      QTimer::singleShot(0, guarded([&saw_shared_color_picker] {
         for (auto* widget : QApplication::topLevelWidgets()) {
           if (widget->objectName() != QStringLiteral("patchyColorDialog") || !widget->isVisible()) {
             continue;
@@ -956,7 +956,7 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
           return;
         }
         CHECK(false);
-      });
+      }));
       gradient_stop_swatch->click();
       CHECK(gradient_stop_hex->text() == QStringLiteral("#4080C0"));
       // Click the 100% color tag under the bar to select the second stop.
@@ -968,7 +968,7 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
       CHECK(gradient_stop_hex->text() == QStringLiteral("#202020"));
       CHECK(gradient_stop_swatch->styleSheet().contains(QStringLiteral("rgb(32, 32, 32)")));
       bool saw_gradient_swatch_picker = false;
-      QTimer::singleShot(0, [&saw_gradient_swatch_picker] {
+      QTimer::singleShot(0, guarded([&saw_gradient_swatch_picker] {
         for (auto* widget : QApplication::topLevelWidgets()) {
           if (widget->objectName() != QStringLiteral("patchyColorDialog") || !widget->isVisible()) {
             continue;
@@ -981,12 +981,12 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
           return;
         }
         CHECK(false);
-      });
+      }));
       gradient_stop_swatch->click();
       CHECK(saw_gradient_swatch_picker);
       CHECK(gradient_stop_hex->text() == QStringLiteral("#DC2860"));
       bool saw_stroke_color_picker = false;
-      QTimer::singleShot(0, [&saw_stroke_color_picker] {
+      QTimer::singleShot(0, guarded([&saw_stroke_color_picker] {
         for (auto* widget : QApplication::topLevelWidgets()) {
           if (widget->objectName() != QStringLiteral("patchyColorDialog") || !widget->isVisible()) {
             continue;
@@ -999,14 +999,14 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
           return;
         }
         CHECK(false);
-      });
+      }));
       stroke_color->click();
       CHECK(saw_stroke_color_picker);
       CHECK(stroke_red->value() == 24);
       CHECK(stroke_green->value() == 48);
       CHECK(stroke_blue->value() == 72);
       bool saw_outer_glow_color_picker = false;
-      QTimer::singleShot(0, [&saw_outer_glow_color_picker] {
+      QTimer::singleShot(0, guarded([&saw_outer_glow_color_picker] {
         for (auto* widget : QApplication::topLevelWidgets()) {
           if (widget->objectName() != QStringLiteral("patchyColorDialog") || !widget->isVisible()) {
             continue;
@@ -1019,14 +1019,14 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
           return;
         }
         CHECK(false);
-      });
+      }));
       outer_glow_color->click();
       CHECK(saw_outer_glow_color_picker);
       CHECK(outer_glow_red->value() == 190);
       CHECK(outer_glow_green->value() == 170);
       CHECK(outer_glow_blue->value() == 64);
       bool saw_shadow_color_picker = false;
-      QTimer::singleShot(0, [&saw_shadow_color_picker] {
+      QTimer::singleShot(0, guarded([&saw_shadow_color_picker] {
         for (auto* widget : QApplication::topLevelWidgets()) {
           if (widget->objectName() != QStringLiteral("patchyColorDialog") || !widget->isVisible()) {
             continue;
@@ -1039,7 +1039,7 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
           return;
         }
         CHECK(false);
-      });
+      }));
       shadow_color->click();
       CHECK(saw_shadow_color_picker);
       CHECK(shadow_red->value() == 250);
@@ -1049,7 +1049,7 @@ void ui_layer_context_menu_exposes_blending_options_dialog() {
       return;
     }
     CHECK(false);
-  });
+  }));
   blending_options->trigger();
   QApplication::processEvents();
   CHECK(saw_non_modal_dialog);
@@ -1122,7 +1122,7 @@ void ui_layer_row_double_click_opens_blending_options_dialog() {
   CHECK(row_name != nullptr);
 
   bool saw_blending_options = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog"));
     CHECK(dialog != nullptr);
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
@@ -1133,7 +1133,7 @@ void ui_layer_row_double_click_opens_blending_options_dialog() {
     CHECK(categories->currentItem()->text() == QStringLiteral("Blending Options"));
     saw_blending_options = true;
     dialog->reject();
-  });
+  }));
 
   send_double_click(*row_name, row_name->rect().center());
   QApplication::processEvents();
@@ -1216,7 +1216,7 @@ void ui_layer_style_stroke_blend_mode_round_trips() {
   auto* blending_options = require_action(window, "layerBlendingOptionsAction");
 
   bool edited = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog"));
     CHECK(dialog != nullptr);
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
@@ -1250,7 +1250,7 @@ void ui_layer_style_stroke_blend_mode_round_trips() {
     stroke_overprint->setChecked(true);
     edited = true;
     qobject_cast<QDialog*>(dialog)->accept();
-  });
+  }));
   blending_options->trigger();
   QApplication::processEvents();
   CHECK(edited);
@@ -1269,7 +1269,7 @@ void ui_layer_style_stroke_blend_mode_round_trips() {
   CHECK(!layer->layer_style().drop_shadows.front().layer_conceals);
 
   bool reloaded = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog"));
     CHECK(dialog != nullptr);
     auto* stroke_blend = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleStrokeBlendModeCombo"));
@@ -1283,7 +1283,7 @@ void ui_layer_style_stroke_blend_mode_round_trips() {
     CHECK(!shadow_conceals->isChecked());
     reloaded = true;
     qobject_cast<QDialog*>(dialog)->reject();
-  });
+  }));
   blending_options->trigger();
   QApplication::processEvents();
   CHECK(reloaded);
@@ -1320,14 +1320,14 @@ void ui_layer_row_double_click_opens_folder_styles_and_edits_adjustments() {
   // Double-clicking a folder opens the layer styles dialog like any other
   // layer: group layer effects render since July 2026.
   bool folder_opened_style_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* style_dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog"));
     CHECK(find_top_level_dialog(QStringLiteral("patchyLevelsDialog")) == nullptr);
     if (style_dialog != nullptr) {
       folder_opened_style_dialog = true;
       style_dialog->reject();
     }
-  });
+  }));
   auto* folder_name = row_name_for(QStringLiteral("Folder 1"));
   send_double_click(*folder_name, folder_name->rect().center());
   QApplication::processEvents();
@@ -1336,13 +1336,13 @@ void ui_layer_row_double_click_opens_folder_styles_and_edits_adjustments() {
   // Double-clicking an adjustment layer opens its settings dialog (Levels
   // here) instead of the blending dialog.
   bool saw_levels_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     CHECK(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")) == nullptr);
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyLevelsDialog"));
     CHECK(dialog != nullptr);
     saw_levels_dialog = true;
     dialog->reject();
-  });
+  }));
   auto* levels_name = row_name_for(QStringLiteral("Levels"));
   send_double_click(*levels_name, levels_name->rect().center());
   QApplication::processEvents();
@@ -1705,7 +1705,7 @@ void ui_layer_style_copy_paste_delete_applies_to_selected_layers() {
 }
 
 void inspect_new_document_dialog_without_clipboard() {
-  QTimer::singleShot(0, [] {
+  QTimer::singleShot(0, guarded([] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyNewDocumentDialog")) {
         continue;
@@ -1809,7 +1809,7 @@ void inspect_new_document_dialog_without_clipboard() {
       return;
     }
     CHECK(false);
-  });
+  }));
 }
 
 void ui_closing_last_document_leaves_empty_workspace() {
@@ -2117,7 +2117,7 @@ void ui_document_tab_context_menu_closes_tabs_and_file_menu_closes_all() {
   const auto target_index = tabs->indexOf(tabs->widget(1));
   CHECK(target_index == 1);
   bool saw_context_menu = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       auto* menu = qobject_cast<QMenu*>(widget);
       if (menu == nullptr || menu->objectName() != QStringLiteral("documentTabContextMenu")) {
@@ -2139,7 +2139,7 @@ void ui_document_tab_context_menu_closes_tabs_and_file_menu_closes_all() {
       return;
     }
     CHECK(false);
-  });
+  }));
 
   const auto context_point = tab_bar->tabRect(target_index).center();
   QContextMenuEvent context_event(QContextMenuEvent::Mouse, context_point, tab_bar->mapToGlobal(context_point));
@@ -2360,7 +2360,7 @@ void ui_new_document_presets_and_clipboard_work() {
   // still on the clipboard) shows the card after Clipboard, first on Print, and
   // selects it with editable fields.
   bool reopened = false;
-  QTimer::singleShot(0, [&reopened] {
+  QTimer::singleShot(0, guarded([&reopened] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -2401,7 +2401,7 @@ void ui_new_document_presets_and_clipboard_work() {
     CHECK(recent->currentItem() == recent->item(1));
     reopened = true;
     dialog->reject();
-  });
+  }));
   require_action_by_text(window, QStringLiteral("New"))->trigger();
   QApplication::processEvents();
   CHECK(reopened);
@@ -2426,7 +2426,7 @@ void ui_new_document_preset_double_click_creates_document() {
   CHECK(tabs->count() == 1);
 
   bool card_seen = false;
-  QTimer::singleShot(0, [&card_seen] {
+  QTimer::singleShot(0, guarded([&card_seen] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyNewDocumentDialog")) {
         continue;
@@ -2451,7 +2451,7 @@ void ui_new_document_preset_double_click_creates_document() {
         return;
       }
     }
-  });
+  }));
   require_action_by_text(window, QStringLiteral("New"))->trigger();
   QApplication::processEvents();
   CHECK(card_seen);
@@ -2482,7 +2482,7 @@ void ui_new_document_dialog_remembers_last_settings() {
   };
 
   // Accept the 1080p card with a black background.
-  QTimer::singleShot(0, [find_card] {
+  QTimer::singleShot(0, guarded([find_card] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyNewDocumentDialog")) {
         continue;
@@ -2504,7 +2504,7 @@ void ui_new_document_dialog_remembers_last_settings() {
       return;
     }
     CHECK(false);
-  });
+  }));
   require_action(window, "fileNewAction")->trigger();
   QApplication::processEvents();
   CHECK(tabs->count() == 2);
@@ -2518,7 +2518,7 @@ void ui_new_document_dialog_remembers_last_settings() {
   clipboard_image.fill(QColor(200, 40, 90));
   QApplication::clipboard()->setImage(clipboard_image);
   QApplication::processEvents();
-  QTimer::singleShot(0, [find_card] {
+  QTimer::singleShot(0, guarded([find_card] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       if (widget->objectName() != QStringLiteral("patchyNewDocumentDialog")) {
         continue;
@@ -2561,7 +2561,7 @@ void ui_new_document_dialog_remembers_last_settings() {
       return;
     }
     CHECK(false);
-  });
+  }));
   require_action(window, "fileNewAction")->trigger();
   QApplication::processEvents();
   CHECK(tabs->count() == 2);
@@ -2654,7 +2654,7 @@ void ui_new_document_template_groups_hold_every_template() {
   };
 
   bool inspected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -2704,7 +2704,7 @@ void ui_new_document_template_groups_hold_every_template() {
     }
     inspected = true;
     dialog->reject();
-  });
+  }));
   require_action_by_text(window, QStringLiteral("New"))->trigger();
   QApplication::processEvents();
   CHECK(inspected);
@@ -2745,7 +2745,7 @@ void ui_new_document_search_filters_every_group() {
   const auto tabs_before = tabs != nullptr ? tabs->count() : 0;
 
   bool inspected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -2883,7 +2883,7 @@ void ui_new_document_search_filters_every_group() {
     CHECK(current_id() == QStringLiteral("icon-favicon-32"));
     inspected = true;
     send_key(*search, Qt::Key_Return);
-  });
+  }));
   require_action_by_text(window, QStringLiteral("New"))->trigger();
   QApplication::processEvents();
   CHECK(inspected);
@@ -2906,7 +2906,7 @@ void ui_new_document_reopens_on_the_last_picked_group() {
   // Opens the dialog, hands it to `drive`, and returns the chip that was checked on open.
   const auto run_dialog = [&window](const std::function<void(QDialog&)>& drive) {
     QString opened_on;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -2918,7 +2918,7 @@ void ui_new_document_reopens_on_the_last_picked_group() {
         }
       }
       drive(*dialog);
-    });
+    }));
     require_action_by_text(window, QStringLiteral("New"))->trigger();
     QApplication::processEvents();
     return opened_on;
@@ -2972,7 +2972,7 @@ void ui_new_document_review_captures() {
   auto&& [window, canvas] = ShownWindowFixture{};
 
   bool first_done = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -3012,13 +3012,13 @@ void ui_new_document_review_captures() {
     QApplication::processEvents();
     first_done = true;
     dialog->reject();
-  });
+  }));
   require_action_by_text(window, QStringLiteral("New"))->trigger();
   QApplication::processEvents();
   CHECK(first_done);
 
   bool reopened = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -3029,7 +3029,7 @@ void ui_new_document_review_captures() {
     save_widget_artifact("issue_222_after_last_category", *dialog);
     reopened = true;
     dialog->reject();
-  });
+  }));
   require_action_by_text(window, QStringLiteral("New"))->trigger();
   QApplication::processEvents();
   CHECK(reopened);
@@ -3063,7 +3063,7 @@ void ui_new_document_dialog_always_opens_centered() {
 
   // First open: centered; drag it to the corner and close it.
   bool moved = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -3076,7 +3076,7 @@ void ui_new_document_dialog_always_opens_centered() {
     CHECK((dialog->pos() - corner).manhattanLength() <= 12);
     moved = true;
     dialog->reject();
-  });
+  }));
   require_action_by_text(window, QStringLiteral("New"))->trigger();
   QApplication::processEvents();
   CHECK(moved);
@@ -3087,7 +3087,7 @@ void ui_new_document_dialog_always_opens_centered() {
 
   // Reopened: centered on the window again, not in the corner.
   bool reopened = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -3104,7 +3104,7 @@ void ui_new_document_dialog_always_opens_centered() {
     save_image_artifact("newdoc_centered_after_reopen", shot);
     reopened = true;
     dialog->reject();
-  });
+  }));
   require_action_by_text(window, QStringLiteral("New"))->trigger();
   QApplication::processEvents();
   CHECK(reopened);
@@ -3115,7 +3115,7 @@ namespace new_document_recent {
 // Opens New Document, hands the dialog to `drive` (which accepts or rejects it).
 void run_dialog(patchy::ui::MainWindow& window, const std::function<void(QDialog&)>& drive) {
   bool driven = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -3125,13 +3125,13 @@ void run_dialog(patchy::ui::MainWindow& window, const std::function<void(QDialog
     drive(*dialog);
     driven = true;
     // A dialog `drive` failed to close would block the suite: fail and close it.
-    QTimer::singleShot(2000, [guarded = QPointer<QDialog>(dialog)] {
+    QTimer::singleShot(2000, guarded([guarded = QPointer<QDialog>(dialog)] {
       if (guarded != nullptr && guarded->isVisible()) {
         CHECK(false);
         guarded->reject();
       }
-    });
-  });
+    }));
+  }));
   require_action_by_text(window, QStringLiteral("New"))->trigger();
   QApplication::processEvents();
   CHECK(driven);
@@ -3534,7 +3534,7 @@ void ui_new_document_dialog_remembers_unit() {
     QDoubleSpinBox* resolution{nullptr};
   };
   const auto with_dialog = [](std::function<void(const DialogFields&)> body) {
-    QTimer::singleShot(0, [body = std::move(body)] {
+    QTimer::singleShot(0, guarded([body = std::move(body)] {
       for (auto* widget : QApplication::topLevelWidgets()) {
         if (widget->objectName() != QStringLiteral("patchyNewDocumentDialog")) {
           continue;
@@ -3555,7 +3555,7 @@ void ui_new_document_dialog_remembers_unit() {
         return;
       }
       CHECK(false);
-    });
+    }));
   };
 
   // First run: the ruler unit (cm) seeds the combo and the width already reads
@@ -3996,7 +3996,7 @@ void ui_background_layer_marker_and_short_menu() {
 
 // Drives the New Layer dialog once it is up (exec_dialog nests an event loop).
 void drive_new_layer_dialog(const std::function<void(QDialog&)>& driver, bool& seen) {
-  QTimer::singleShot(0, [driver, &seen] {
+  QTimer::singleShot(0, guarded([driver, &seen] {
     auto* dialog = find_top_level_dialog(QStringLiteral("newLayerDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -4004,7 +4004,7 @@ void drive_new_layer_dialog(const std::function<void(QDialog&)>& driver, bool& s
     }
     seen = true;
     driver(*dialog);
-  });
+  }));
 }
 
 void click_dialog_ok(QDialog& dialog) {
@@ -4664,7 +4664,7 @@ void ui_document_tab_context_menu_file_actions() {
   const auto open_menu = [&](int tab_index, const QString& trigger_object_name) {
     menu_seen = false;
     file_actions_enabled = false;
-    QTimer::singleShot(0, [&, trigger_object_name] {
+    QTimer::singleShot(0, guarded([&, trigger_object_name] {
       for (auto* widget : QApplication::topLevelWidgets()) {
         auto* menu = qobject_cast<QMenu*>(widget);
         if (menu == nullptr || menu->objectName() != QStringLiteral("documentTabContextMenu")) {
@@ -4696,7 +4696,7 @@ void ui_document_tab_context_menu_file_actions() {
         return;
       }
       CHECK(false);
-    });
+    }));
     const auto context_point = tab_bar->tabRect(tab_index).center();
     QContextMenuEvent context_event(QContextMenuEvent::Mouse, context_point,
                                     tab_bar->mapToGlobal(context_point));

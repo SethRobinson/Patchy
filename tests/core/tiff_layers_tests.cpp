@@ -315,7 +315,7 @@ void collect_layers(const std::vector<Layer>& layers, std::vector<const Layer*>&
 // GIMP issue 7549's samples: Photoshop CC 2014 and 23.5 files in both byte orders
 // (gitlab.gnome.org/GNOME/gimp merge request 910), copied into local-test-fixtures.
 void tiff_layers_gimp_photoshop_samples_open_if_available() {
-  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "layered-tiff" / "gimp-mr910";
+  const auto dir = patchy::test::local_fixtures_root() / "layered-tiff" / "gimp-mr910";
   patchy::test::skip_unless_exists(dir / "ret-IBMFormat.tif");
   for (const auto* stem : {"RedBlue", "ret", "test"}) {
     std::vector<std::string> notices;
@@ -371,7 +371,7 @@ std::vector<std::uint8_t> layer_section(const std::vector<std::uint8_t>& psd) {
 // (scripts/dev/tiff/ps-save-layered-tiffs.ps1): the little-endian layer data must convert
 // to exactly the big-endian bytes, with nothing dropped, and both must open.
 void tiff_layers_photoshop_byte_order_pairs_match_if_available() {
-  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "layered-tiff" / "photoshop";
+  const auto dir = patchy::test::local_fixtures_root() / "layered-tiff" / "photoshop";
   if (!std::filesystem::exists(dir)) {
     patchy::test::skip("optional fixture missing: local-test-fixtures/layered-tiff/photoshop");
   }

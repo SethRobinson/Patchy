@@ -234,7 +234,7 @@ void ui_text_windows_named_font_data_drops_macintosh_records_if_available() {
   }
   std::cout << "[windows-names] agreeing fonts probed: " << probed.size() << '\n';
 
-  const auto futura = QStringLiteral(PATCHY_SOURCE_DIR) + QStringLiteral("/local-test-fixtures/fonts/FUTURABC.TTF");
+  const auto futura = patchy::ui::to_qstring(patchy::test::local_fixtures_root() / "fonts/FUTURABC.TTF");
   const auto original = read_all(futura);
   if (original.isEmpty()) {
     std::cout << "  note: optional fixture missing: local-test-fixtures/fonts/FUTURABC.TTF (Macintosh name records)\n";
@@ -825,7 +825,7 @@ void ui_cmyk_proof_mode_saves_cmyk() {
   // An interactive save explains the conversion; its black-ink choice is used and remembered.
   const auto jpg_path = directory.filePath(QStringLiteral("interactive.jpg"));
   bool notice_seen = false;
-  QTimer::singleShot(0, [&notice_seen] {
+  QTimer::singleShot(0, guarded([&notice_seen] {
     auto* dialog = find_top_level_dialog(QStringLiteral("cmykProofSaveDialog"));
     CHECK(dialog != nullptr);
     auto* black_ink = dialog->findChild<QCheckBox*>(QStringLiteral("cmykProofSaveBlackInkOnlyCheck"));
@@ -835,7 +835,7 @@ void ui_cmyk_proof_mode_saves_cmyk() {
     dont_show->setChecked(true);
     notice_seen = true;
     qobject_cast<QDialog*>(dialog)->accept();
-  });
+  }));
   CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, jpg_path));
   CHECK(notice_seen);
   CHECK(format_of(jpg_path) == QImage::Format_CMYK8888);
@@ -847,12 +847,12 @@ void ui_cmyk_proof_mode_saves_cmyk() {
   // A format without a CMYK form warns once per session, then saves RGB.
   const auto png_path = directory.filePath(QStringLiteral("interactive.png"));
   bool warning_seen = false;
-  QTimer::singleShot(0, [&warning_seen] {
+  QTimer::singleShot(0, guarded([&warning_seen] {
     auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("cmykProofRgbSaveMessageBox")));
     CHECK(box != nullptr);
     warning_seen = true;
     box->button(QMessageBox::Save)->click();
-  });
+  }));
   CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, png_path));
   CHECK(warning_seen);
   CHECK(QFileInfo::exists(png_path));
@@ -2468,7 +2468,7 @@ void ui_scripts_menu_context_menu_offers_script_actions() {
   QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
 
   bool saw_context_menu = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     for (auto* widget : QApplication::topLevelWidgets()) {
       auto* context_menu = qobject_cast<QMenu*>(widget);
       if (context_menu == nullptr || context_menu->objectName() != QStringLiteral("scriptMenuContextMenu")) {
@@ -2493,7 +2493,7 @@ void ui_scripts_menu_context_menu_offers_script_actions() {
       return;
     }
     CHECK(false);
-  });
+  }));
   const auto point = utilities_menu->actionGeometry(quick_export).center();
   QContextMenuEvent context_event(QContextMenuEvent::Mouse, point, utilities_menu->mapToGlobal(point));
   QApplication::sendEvent(utilities_menu, &context_event);

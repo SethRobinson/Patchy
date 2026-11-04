@@ -25,6 +25,7 @@
 #include "ui/pattern_library.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/theme_qss.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/measurement_units.hpp"
 
 #include <QApplication>
@@ -82,7 +83,7 @@ QPixmap path_outline_thumbnail(const VectorPath& path, int document_width, int d
   constexpr int kWidth = 42;
   constexpr int kHeight = 30;
   QPixmap pixmap(kWidth, kHeight);
-  pixmap.fill(QColor(52, 56, 64));
+  pixmap.fill(theme().path_thumbnail_bg);
   if (document_width > 0 && document_height > 0 && !path.empty()) {
     QPainter painter(&pixmap);
     const auto scale_x = static_cast<double>(kWidth) / document_width;
@@ -126,12 +127,12 @@ QPixmap path_outline_thumbnail(const VectorPath& path, int document_width, int d
                         to_point(b.anchor_x, b.anchor_y));
       }
     }
-    painter.setPen(QPen(QColor(220, 226, 235), 1.0));
+    painter.setPen(QPen(theme().icon_ink, 1.0));
     painter.setBrush(Qt::NoBrush);
     painter.drawPath(outline);
   }
   QPainter border(&pixmap);
-  border.setPen(QPen(QColor(150, 158, 168), 1));
+  border.setPen(QPen(theme().layer_thumbnail_border, 1));
   border.drawRect(QRect(0, 0, kWidth - 1, kHeight - 1));
   return pixmap;
 }

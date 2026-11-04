@@ -8,6 +8,7 @@
 // NOTE: canvas_widget_pen.cpp is TABLET INPUT (pressure, tilt, pen buttons),
 // not this vector Pen tool.
 #include "ui/canvas_widget.hpp"
+#include "ui/theme_palette.hpp"
 
 #include "core/document_path.hpp"
 #include "core/layer.hpp"
@@ -4280,7 +4281,7 @@ void CanvasWidget::draw_path_transform_overlay(QPainter& painter) {
   for (const auto& corner : corners) {
     box << path_point_to_screen(corner.x(), corner.y());
   }
-  painter.setPen(QPen(QColor(95, 170, 255), 1.0, Qt::DashLine));
+  painter.setPen(QPen(theme().canvas_layer_selection_border, 1.0, Qt::DashLine));
   painter.drawPolygon(box);
   painter.setPen(QPen(QColor(30, 34, 40), 1.0));
   painter.setBrush(QBrush(QColor(245, 248, 252)));

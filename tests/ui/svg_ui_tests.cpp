@@ -71,6 +71,7 @@ using patchy::test::ui::find_top_level_dialog;
 using patchy::test::ui::save_widget_artifact;
 using patchy::test::ui::SettingsValueRestorer;
 using patchy::test::ui::show_window;
+using patchy::test::ui::guarded;
 
 QString committed_svg_fixture(const char* name) {
   return QString::fromStdWString(patchy::test::committed_format_fixture_path("svg", name).wstring());
@@ -358,7 +359,7 @@ void ui_svg_save_with_text_layer_warns_and_names_it() {
   CHECK(temp.isValid());
   const auto out_path = temp.filePath(QStringLiteral("with-text.svg"));
   bool prompt_seen = false;
-  QTimer::singleShot(0, [&prompt_seen] {
+  QTimer::singleShot(0, guarded([&prompt_seen] {
     auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("flattenLayersMessageBox")));
     CHECK(box != nullptr);
     if (box == nullptr) {
@@ -369,7 +370,7 @@ void ui_svg_save_with_text_layer_warns_and_names_it() {
     CHECK(box->text().contains(QStringLiteral("text layer \"Headline\"")));
     prompt_seen = true;
     box->button(QMessageBox::Save)->click();
-  });
+  }));
   CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, out_path, patchy::ui::ImageSaveOptions{}));
   CHECK(prompt_seen);
   const auto text = read_text_file(out_path);

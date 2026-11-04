@@ -10,6 +10,11 @@ rem mid-upload never gets new html pointing at assets that are not there yet.
 rem cd to the repo root (this script lives in scripts\release) so the relative
 rem paths below resolve from any cwd.
 cd /d "%~dp0..\.."
+rem The ssh account comes from local config (upload-target.bat), never this file.
+call "%~dp0upload-target.bat"
+if errorlevel 1 (
+  goto fail
+)
 set "SITE_DIR=build\package\wasm-site"
 for %%F in (patchy.data patchy.wasm patchy.js qtloader.js patchy.data.br patchy.data.gz patchy.wasm.br patchy.wasm.gz patchy.js.br patchy.js.gz qtloader.js.br qtloader.js.gz patchy-logo.svg favicon.ico apple-touch-icon.png patchy-192.png patchy-512.png site.webmanifest NOTICE-THIRD-PARTY.md libheif-COPYING.txt .htaccess patchy.html index.html) do (
   if not exist "%SITE_DIR%\%%F" (
@@ -33,17 +38,17 @@ if not exist "%SITE_DIR%\ai-models\mobile_sam_image_encoder_int8.onnx" (
 echo Ensuring www/patchy exists on rtsoft.com...
 rem -n: ssh must not read the caller's stdin, which under an automated run can be a pipe
 rem that never closes; ssh then waits forever after the remote command is done (1.24).
-ssh -n rtsoft@rtsoft.com "mkdir -p www/patchy"
+ssh -n %UPLOAD_SSH% "mkdir -p www/patchy"
 if errorlevel 1 goto fail
 echo Uploading the wasm site to rtsoft.com/patchy...
 rem Object Selection's runtime and models first: the html goes last.
-scp -r "%SITE_DIR%\ai-models" "%SITE_DIR%\%ORT_WEB_DIR%" rtsoft@rtsoft.com:www/patchy/
+scp -r "%SITE_DIR%\ai-models" "%SITE_DIR%\%ORT_WEB_DIR%" %UPLOAD_SSH%:www/patchy/
 if errorlevel 1 goto fail
 rem scp -r from Windows creates the folders as 707, which Apache refuses
 rem (403); give them the same 775 as the rest of the site.
-ssh -n rtsoft@rtsoft.com "chmod 775 www/patchy/ai-models www/patchy/%ORT_WEB_DIR%"
+ssh -n %UPLOAD_SSH% "chmod 775 www/patchy/ai-models www/patchy/%ORT_WEB_DIR%"
 if errorlevel 1 goto fail
-scp "%SITE_DIR%\patchy.data" "%SITE_DIR%\patchy.wasm" "%SITE_DIR%\patchy.js" "%SITE_DIR%\qtloader.js" "%SITE_DIR%\patchy.data.br" "%SITE_DIR%\patchy.data.gz" "%SITE_DIR%\patchy.wasm.br" "%SITE_DIR%\patchy.wasm.gz" "%SITE_DIR%\patchy.js.br" "%SITE_DIR%\patchy.js.gz" "%SITE_DIR%\qtloader.js.br" "%SITE_DIR%\qtloader.js.gz" "%SITE_DIR%\patchy-logo.svg" "%SITE_DIR%\favicon.ico" "%SITE_DIR%\apple-touch-icon.png" "%SITE_DIR%\patchy-192.png" "%SITE_DIR%\patchy-512.png" "%SITE_DIR%\site.webmanifest" "%SITE_DIR%\NOTICE-THIRD-PARTY.md" "%SITE_DIR%\libheif-COPYING.txt" "%SITE_DIR%\.htaccess" "%SITE_DIR%\patchy.html" "%SITE_DIR%\index.html" rtsoft@rtsoft.com:www/patchy/
+scp "%SITE_DIR%\patchy.data" "%SITE_DIR%\patchy.wasm" "%SITE_DIR%\patchy.js" "%SITE_DIR%\qtloader.js" "%SITE_DIR%\patchy.data.br" "%SITE_DIR%\patchy.data.gz" "%SITE_DIR%\patchy.wasm.br" "%SITE_DIR%\patchy.wasm.gz" "%SITE_DIR%\patchy.js.br" "%SITE_DIR%\patchy.js.gz" "%SITE_DIR%\qtloader.js.br" "%SITE_DIR%\qtloader.js.gz" "%SITE_DIR%\patchy-logo.svg" "%SITE_DIR%\favicon.ico" "%SITE_DIR%\apple-touch-icon.png" "%SITE_DIR%\patchy-192.png" "%SITE_DIR%\patchy-512.png" "%SITE_DIR%\site.webmanifest" "%SITE_DIR%\NOTICE-THIRD-PARTY.md" "%SITE_DIR%\libheif-COPYING.txt" "%SITE_DIR%\.htaccess" "%SITE_DIR%\patchy.html" "%SITE_DIR%\index.html" %UPLOAD_SSH%:www/patchy/
 if errorlevel 1 goto fail
 rem The multithreaded app dies without cross-origin isolation, and .htaccess
 rem directives are IfModule-guarded (a host missing mod_headers serves the

@@ -141,7 +141,7 @@ void ui_file_info_trustmark_scan_and_download_states() {
   {
     const WatermarkModelsScope scope(false);
     bool inspected = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = find_top_level_dialog(QStringLiteral("patchyFileInfoDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -176,7 +176,7 @@ void ui_file_info_trustmark_scan_and_download_states() {
       capture_widget_artifact("ui_file_info_watermark_results_no_models", *dialog);
       inspected = true;
       dialog->reject();
-    });
+    }));
     require_action(window, "fileInfoAction")->trigger();
     QApplication::processEvents();
     CHECK(inspected);
@@ -187,7 +187,7 @@ void ui_file_info_trustmark_scan_and_download_states() {
     patchy::test::skip("the watermark models are not staged (setup-ai-deps provisions them)");
   }
   bool inspected = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyFileInfoDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -219,7 +219,7 @@ void ui_file_info_trustmark_scan_and_download_states() {
     capture_widget_artifact("ui_file_info_trustmark_found", *dialog);
     inspected = true;
     dialog->reject();
-  });
+  }));
   require_action(window, "fileInfoAction")->trigger();
   QApplication::processEvents();
   CHECK(inspected);
@@ -239,7 +239,7 @@ void ui_invisible_watermark_dialog_adds_a_readable_mark() {
   {
     const WatermarkModelsScope scope(false);
     bool inspected = false;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = find_top_level_dialog(QStringLiteral("invisibleWatermarkDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -258,7 +258,7 @@ void ui_invisible_watermark_dialog_adds_a_readable_mark() {
       capture_widget_artifact("ui_invisible_watermark_dialog_no_models", *dialog);
       inspected = true;
       dialog->reject();
-    });
+    }));
     require_action(window, "imageAddInvisibleWatermarkAction")->trigger();
     QApplication::processEvents();
     CHECK(inspected);
@@ -270,7 +270,7 @@ void ui_invisible_watermark_dialog_adds_a_readable_mark() {
     patchy::test::skip("the watermark models are not staged (setup-ai-deps provisions them)");
   }
   bool accepted = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("invisibleWatermarkDialog"));
     CHECK(dialog != nullptr);
     if (dialog == nullptr) {
@@ -294,7 +294,7 @@ void ui_invisible_watermark_dialog_adds_a_readable_mark() {
     if (buttons != nullptr) {
       buttons->button(QDialogButtonBox::Ok)->click();
     }
-  });
+  }));
   require_action(window, "imageAddInvisibleWatermarkAction")->trigger();
   QApplication::processEvents();
   CHECK(accepted);

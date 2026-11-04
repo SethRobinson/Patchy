@@ -1172,7 +1172,7 @@ void ui_layer_selection_little_everywhere_shift_range_if_available() {
   const auto elapsed = timer.elapsed();
   std::printf("Little-Everywhere Shift-select: %d rows, %lld ms\n", list->count(), static_cast<long long>(elapsed));
   CHECK(list->selectedItems().size() == list->count());
-  CHECK(elapsed < 4000);
+  CHECK(elapsed < patchy::test::time_budget_ms(4000));
   CHECK(MainWindowTestAccess::active_session_undo_depth(window) == undo);
   CHECK(MainWindowTestAccess::active_session_is_modified(window) == modified);
   CHECK(!canvas->processing_operation_active());
@@ -1453,24 +1453,24 @@ void ui_flatten_image_composites_onto_white_discards_hidden_and_undoes() {
   const auto history = MainWindowTestAccess::active_session_undo_depth(window);
 
   bool cancel_seen = false;
-  QTimer::singleShot(0, [&cancel_seen] {
+  QTimer::singleShot(0, guarded([&cancel_seen] {
     auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("flattenDiscardHiddenMessageBox")));
     CHECK(box != nullptr);
     cancel_seen = true;
     box->button(QMessageBox::Cancel)->click();
-  });
+  }));
   require_action(window, "imageFlattenAction")->trigger();
   CHECK(cancel_seen);
   CHECK(std::as_const(doc).layers().size() == original.layers().size());
   CHECK(MainWindowTestAccess::active_session_undo_depth(window) == history);
 
   bool ok_seen = false;
-  QTimer::singleShot(0, [&ok_seen] {
+  QTimer::singleShot(0, guarded([&ok_seen] {
     auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("flattenDiscardHiddenMessageBox")));
     CHECK(box != nullptr);
     ok_seen = true;
     box->button(QMessageBox::Ok)->click();
-  });
+  }));
   require_action(window, "imageFlattenAction")->trigger();
   CHECK(ok_seen);
   CHECK(!canvas->processing_operation_active());

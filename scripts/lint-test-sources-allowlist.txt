@@ -1,0 +1,27 @@
+# Sub-minute wall-clock CHECKs that predate scripts/lint-test-sources.py. Each one is a
+# throughput budget scaled by PATCHY_TEST_TIME_SCALE (patchy::test::time_budget_ms); the
+# lint fails on any such check missing here and on any line here that no longer matches.
+# Never add a line: assert the structural property instead, or move the budget to
+# patchy_perf_tests (docs/testing.md, "Test source lint"). Remove a line when its check
+# is fixed.
+wall-clock tests/ui/app_shell_tests_updates_preferences.cpp: CHECK(timer.elapsed() < patchy::test::time_budget_ms(1000))
+wall-clock tests/ui/brush_engine_stroke_tests_strokes.cpp: CHECK(elapsed_ms < patchy::test::time_budget_ms(5000))
+wall-clock tests/ui/brush_engine_stroke_tests_strokes.cpp: CHECK(elapsed_ms < patchy::test::time_budget_ms(2500))
+wall-clock tests/ui/canvas_view_tools_tests.cpp: CHECK(fill_command_ms < patchy::test::time_budget_ms(3000))
+wall-clock tests/ui/canvas_view_tools_tests.cpp: CHECK(fill_tool_ms < patchy::test::time_budget_ms(3000))
+wall-clock tests/ui/channels_panel_tests.cpp: CHECK(elapsed_ms < patchy::test::time_budget_ms(1500))
+wall-clock tests/ui/destructive_filters_gallery_tests_browse_controls.cpp: CHECK(max_zoom_paint.elapsed() < patchy::test::time_budget_ms(1500))
+wall-clock tests/ui/import_print_resolution_tests_pdf_upgrade.cpp: CHECK(elapsed_ms < patchy::test::time_budget_ms(2000))
+wall-clock tests/ui/layer_merge_tests.cpp: CHECK(elapsed < patchy::test::time_budget_ms(4000))
+wall-clock tests/ui/move_tool_processing_overlay_tests.cpp: CHECK(load_elapsed_ms < patchy::test::time_budget_ms(10000))
+wall-clock tests/ui/move_tool_processing_overlay_tests.cpp: CHECK(display_elapsed_ms < patchy::test::time_budget_ms(5000))
+wall-clock tests/ui/move_tool_processing_overlay_tests.cpp: CHECK(edit_elapsed_ms < patchy::test::time_budget_ms(3000))
+wall-clock tests/ui/move_tool_processing_overlay_tests.cpp: CHECK(timer.elapsed() < patchy::test::time_budget_ms(4000))
+wall-clock tests/ui/selection_engines_tests.cpp: CHECK(elapsed_ms < patchy::test::time_budget_ms(1500))
+wall-clock tests/ui/selection_marquee_lasso_tests_regions_lasso.cpp: CHECK(elapsed_ms < patchy::test::time_budget_ms(5000))
+wall-clock tests/ui/selection_marquee_lasso_tests_regions_lasso.cpp: CHECK(drag_ms < patchy::test::time_budget_ms(2000))
+wall-clock tests/ui/selection_marquee_lasso_tests_regions_lasso.cpp: CHECK(drag_ms < patchy::test::time_budget_ms(3000))
+wall-clock tests/ui/theme_script_tests.cpp: CHECK(clock.elapsed() < patchy::test::time_budget_ms(3000))
+wall-clock tests/ui/theme_script_tests.cpp: CHECK(clock.elapsed() < patchy::test::time_budget_ms(6000))
+wall-clock tests/ui/vector_shape_tool_tests.cpp: CHECK(load_ms < patchy::test::time_budget_ms(3000))
+wall-clock tests/ui/vector_shape_tool_tests.cpp: CHECK(open_ms < patchy::test::time_budget_ms(2500))

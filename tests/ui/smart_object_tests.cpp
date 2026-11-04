@@ -471,7 +471,7 @@ void ui_smart_object_paint_prompt_rasterize_choice() {
   const auto before_stroke = canvas_pixel(*canvas, stroke_document_point);
   const auto stroke_widget_point = canvas->widget_position_for_document_point(stroke_document_point);
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* box =
         qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("paintSmartObjectMessageBox")));
     CHECK(box != nullptr);
@@ -486,7 +486,7 @@ void ui_smart_object_paint_prompt_rasterize_choice() {
       }
     }
     CHECK(false);
-  });
+  }));
   send_mouse(*canvas, QEvent::MouseButtonPress, stroke_widget_point, Qt::LeftButton, Qt::LeftButton);
   send_mouse(*canvas, QEvent::MouseButtonRelease, stroke_widget_point, Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
@@ -533,7 +533,7 @@ void ui_smart_object_paint_prompt_edit_contents_choice() {
   const auto before_stroke = canvas_pixel(*canvas, stroke_document_point);
   const auto stroke_widget_point = canvas->widget_position_for_document_point(stroke_document_point);
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* box =
         qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("paintSmartObjectMessageBox")));
     CHECK(box != nullptr);
@@ -548,7 +548,7 @@ void ui_smart_object_paint_prompt_edit_contents_choice() {
       }
     }
     CHECK(false);
-  });
+  }));
   send_mouse(*canvas, QEvent::MouseButtonPress, stroke_widget_point, Qt::LeftButton, Qt::LeftButton);
   send_mouse(*canvas, QEvent::MouseButtonRelease, stroke_widget_point, Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
@@ -581,7 +581,7 @@ void ui_smart_object_paint_prompt_cancel_choice() {
   const auto before_stroke = canvas_pixel(*canvas, stroke_document_point);
   const auto stroke_widget_point = canvas->widget_position_for_document_point(stroke_document_point);
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* box =
         qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("paintSmartObjectMessageBox")));
     CHECK(box != nullptr);
@@ -592,7 +592,7 @@ void ui_smart_object_paint_prompt_cancel_choice() {
     auto* cancel = box->button(QMessageBox::Cancel);
     CHECK(cancel != nullptr);
     cancel->click();
-  });
+  }));
   send_mouse(*canvas, QEvent::MouseButtonPress, stroke_widget_point, Qt::LeftButton, Qt::LeftButton);
   send_mouse(*canvas, QEvent::MouseButtonRelease, stroke_widget_point, Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
@@ -623,7 +623,7 @@ void ui_smart_object_paint_prompt_locked_omits_edit_contents() {
   const QPoint stroke_document_point(48, 48);
   const auto stroke_widget_point = canvas->widget_position_for_document_point(stroke_document_point);
   bool saw_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* box =
         qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("paintSmartObjectMessageBox")));
     CHECK(box != nullptr);
@@ -640,7 +640,7 @@ void ui_smart_object_paint_prompt_locked_omits_edit_contents() {
     auto* cancel = box->button(QMessageBox::Cancel);
     CHECK(cancel != nullptr);
     cancel->click();
-  });
+  }));
   send_mouse(*canvas, QEvent::MouseButtonPress, stroke_widget_point, Qt::LeftButton, Qt::LeftButton);
   send_mouse(*canvas, QEvent::MouseButtonRelease, stroke_widget_point, Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
@@ -874,12 +874,12 @@ void ui_smart_object_edit_contents_commit_rerenders_parent() {
   CHECK(layer_list != nullptr && layer_list->currentItem() != nullptr);
   const auto row_center = layer_list->visualItemRect(layer_list->currentItem()).center();
   bool saw_style_dialog = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog"));
     CHECK(dialog != nullptr);
     saw_style_dialog = true;
     dialog->reject();
-  });
+  }));
   QMouseEvent double_click(QEvent::MouseButtonDblClick, QPointF(row_center),
                            layer_list->viewport()->mapToGlobal(row_center), Qt::LeftButton, Qt::LeftButton,
                            Qt::NoModifier);
@@ -2879,7 +2879,7 @@ void ui_smart_object_place_dialogs_remember_folder() {
 
   // Answers the next Place dialog: records its start folder, then picks `pick` (or cancels).
   const auto answer_place_dialog = [](const QString& object_name, const QString& pick, QString& started_in) {
-    QTimer::singleShot(0, [object_name, pick, &started_in] {
+    QTimer::singleShot(0, guarded([object_name, pick, &started_in] {
       auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(object_name));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -2893,7 +2893,7 @@ void ui_smart_object_place_dialogs_remember_folder() {
       dialog->setDirectory(QFileInfo(pick).absolutePath());
       dialog->selectFile(pick);
       static_cast<QDialog*>(dialog)->accept();
-    });
+    }));
   };
 
   QString started_in;
@@ -2965,7 +2965,7 @@ void ui_smart_object_edit_in_default_app_reembeds_saves() {
 
   // Edit Contents asks; Cancel leaves everything as it was.
   bool saw_box = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* box =
         qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("editSmartObjectInDefaultAppMessageBox")));
     CHECK(box != nullptr);
@@ -2979,7 +2979,7 @@ void ui_smart_object_edit_in_default_app_reembeds_saves() {
     CHECK(box->defaultButton() == edit_button);
     (void)capture_widget_artifact("ui_smart_object_edit_in_default_app_prompt", *box);
     box->button(QMessageBox::Cancel)->click();
-  });
+  }));
   const auto undo_depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
   patchy::ui::MainWindowTestAccess::open_smart_object_contents(window);
   QApplication::processEvents();
@@ -3025,14 +3025,14 @@ void ui_smart_object_edit_in_default_app_reembeds_saves() {
   auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
   CHECK(tabs != nullptr);
   bool discarded = false;
-  QTimer::singleShot(0, [&] {
+  QTimer::singleShot(0, guarded([&] {
     auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("saveChangesMessageBox")));
     CHECK(box != nullptr);
     if (box != nullptr) {
       discarded = true;
       box->button(QMessageBox::Discard)->click();
     }
-  });
+  }));
   CHECK(patchy::ui::MainWindowTestAccess::close_document_tab(window, tabs->currentIndex()));
   QApplication::processEvents();
   CHECK(discarded);
@@ -3340,7 +3340,7 @@ void ui_smart_object_missing_linked_files_dialog_lists_and_relinks() {
     entries[1].stored_path = QStringLiteral("D:\\art\\two.svg");
     entries[1].layer_names = {QStringLiteral("Logo")};
     int relink_calls = 0;
-    QTimer::singleShot(0, [&] {
+    QTimer::singleShot(0, guarded([&] {
       auto* dialog = find_top_level_dialog(QStringLiteral("missingLinksDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -3361,7 +3361,7 @@ void ui_smart_object_missing_linked_files_dialog_lists_and_relinks() {
       CHECK(path0 != nullptr && !path0->isVisible());
       dialog->findChild<QCheckBox*>(QStringLiteral("missingLinksDontShowCheck"))->setChecked(true);
       dialog->findChild<QPushButton*>(QStringLiteral("missingLinksContinueButton"))->click();
-    });
+    }));
     const auto result = patchy::ui::run_missing_links_dialog(
         &window, entries, true, [&relink_calls](const patchy::ui::MissingLinkEntry& entry) -> std::optional<QString> {
           ++relink_calls;

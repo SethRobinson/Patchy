@@ -6,6 +6,7 @@
 #include "ui/markdown_viewer_dialog.hpp"
 
 #include "ui/dialog_utils.hpp"
+#include "ui/theme_palette.hpp"
 
 #include <QColor>
 #include <QDialog>
@@ -27,7 +28,7 @@ namespace {
 
 // The Markdown importer colors links with the default palette's dark blue,
 // which is unreadable on the dark theme; repaint anchor fragments in the
-// app's accent blue (the run-spinner color).
+// app's script accent blue, read from the theme so a custom palette reaches it.
 void recolor_anchors(QTextDocument& document) {
   for (QTextBlock block = document.begin(); block != document.end(); block = block.next()) {
     for (auto it = block.begin(); !it.atEnd(); ++it) {
@@ -39,7 +40,7 @@ void recolor_anchors(QTextDocument& document) {
       cursor.setPosition(fragment.position());
       cursor.setPosition(fragment.position() + fragment.length(), QTextCursor::KeepAnchor);
       QTextCharFormat format;
-      format.setForeground(QColor(0x6f, 0xb1, 0xe8));
+      format.setForeground(theme().script_accent);
       cursor.mergeCharFormat(format);
     }
   }

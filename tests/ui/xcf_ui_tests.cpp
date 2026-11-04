@@ -50,6 +50,7 @@ namespace {
 
 using patchy::test::ui::SettingsValueRestorer;
 using patchy::test::ui::show_window;
+using patchy::test::ui::guarded;
 
 QString committed_xcf_fixture(const char* name) {
   return QString::fromStdWString(patchy::test::committed_format_fixture_path("xcf", name).wstring());
@@ -268,7 +269,7 @@ void ui_xcf_metadata_reaches_file_info() {
     CHECK(md::read_fields(info).creator_tool == "GIMP");
   }
 
-  const auto samples = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-metadata";
+  const auto samples = patchy::test::local_fixtures_root() / "xcf-metadata";
   for (const auto& [name, page] : {std::pair<const char*, const char*>{"description", "fileInfoDescriptionPage"},
                                    std::pair<const char*, const char*>{"iptc", "fileInfoIptcPage"}}) {
     const auto sample = samples / (std::string(name) + ".xcf");
@@ -280,7 +281,7 @@ void ui_xcf_metadata_reaches_file_info() {
     bool captured = false;
     QString created;
     QString application;
-    QTimer::singleShot(0, [&captured, &created, &application, name, page] {
+    QTimer::singleShot(0, guarded([&captured, &created, &application, name, page] {
       auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("patchyFileInfoDialog"));
       CHECK(dialog != nullptr);
       if (dialog == nullptr) {
@@ -306,7 +307,7 @@ void ui_xcf_metadata_reaches_file_info() {
       patchy::test::ui::save_widget_artifact(std::string("xcf-metadata/file-info-") + name, *dialog);
       captured = true;
       dialog->reject();
-    });
+    }));
     patchy::test::ui::require_action(window, "fileInfoAction")->trigger();
     QApplication::processEvents();
     CHECK(captured);
@@ -441,7 +442,7 @@ void ui_xcf_indexed_open_offers_palette_mode() {
   }
 
   // philipzae's samples (local-test-fixtures/xcf-indexed) open in Palette mode with "always".
-  const auto samples = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-indexed";
+  const auto samples = patchy::test::local_fixtures_root() / "xcf-indexed";
   if (!std::filesystem::exists(samples / "README.txt")) {
     return;
   }
@@ -584,7 +585,7 @@ void ui_xcf_outlined_text_opens_editable_with_a_stroke() {
 // For the cards (GitHub issues 508 and 509): philipzae's files as Patchy opens them, then after
 // an edit (local-test-fixtures/xcf-issue-508).
 void ui_xcf_issue_508_review_capture() {
-  const auto samples = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-issue-508";
+  const auto samples = patchy::test::local_fixtures_root() / "xcf-issue-508";
   if (!std::filesystem::exists(samples / "README.txt")) {
     return;
   }
@@ -942,7 +943,7 @@ void ui_xcf_painted_text_headless_opens_never_ask() {
 // For the #551 card: philipzae's file (local-test-fixtures/xcf-issue-547) asks about its
 // painted-on "Lock all" text layer, and Convert to Text Layers makes it editable text.
 void ui_xcf_issue_551_review_capture() {
-  const auto sample = patchy::test::source_root_path() / "local-test-fixtures" / "xcf-issue-547" / "layer-switches.xcf";
+  const auto sample = patchy::test::local_fixtures_root() / "xcf-issue-547" / "layer-switches.xcf";
   if (!std::filesystem::exists(sample)) {
     return;
   }
