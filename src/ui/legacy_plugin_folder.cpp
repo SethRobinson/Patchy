@@ -31,7 +31,7 @@ constexpr const char* kReadmeText =
     "  plug-ins are listed as unsupported. DDS textures need no plug-in: Patchy\n"
     "  opens and saves .dds files natively.\n"
     "- Plug-ins are Windows programs. On Linux, 64-bit plug-ins run inside Raven\n"
-    "  (https://useraven.org), which must be installed; the macOS build cannot\n"
+    "  (https://useraven.org), which comes with Patchy; the macOS build cannot\n"
     "  run them.\n"
     "- Each plug-in runs in a separate helper program (patchy-8bf-host32.exe or\n"
     "  patchy-8bf-host64.exe), so a crashing plug-in cannot take Patchy down. It\n"

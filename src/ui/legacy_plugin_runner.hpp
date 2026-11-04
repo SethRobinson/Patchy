@@ -125,8 +125,9 @@ private:
 #endif
 
 #ifdef Q_OS_LINUX
-// The raven program that runs the helper: PATCHY_RAVEN, raven on PATH, or a usual
-// install location. Empty when Raven is not installed.
+// The raven program that runs the helper: PATCHY_RAVEN, the bundled copy beside the
+// app (cmake/patchy_raven.cmake), raven on PATH, or a usual install location. Empty when
+// none is found.
 [[nodiscard]] QString legacy_plugin_raven_executable();
 #endif
 

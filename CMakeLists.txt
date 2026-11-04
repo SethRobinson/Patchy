@@ -551,6 +551,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_
       BUILD_ALWAYS ON
       BUILD_BYPRODUCTS "${CMAKE_BINARY_DIR}/patchy-8bf-host64.exe")
     message(STATUS "Legacy plug-in helper for Linux: patchy-8bf-host64.exe with ${PATCHY_8BF_HOST_CXX}")
+    # Raven itself is built as part of this build (or copied from PATCHY_RAVEN_DIR) into
+    # raven/ beside patchy and installed to lib/patchy/raven. Without it, the runner looks
+    # for a raven the user installed.
+    include(cmake/patchy_raven.cmake)
   else()
     message(STATUS "Legacy plug-in helper for Linux: skipped (no x86_64-w64-mingw32 compiler; set PATCHY_8BF_HOST_MINGW)")
   endif()
@@ -2074,6 +2078,10 @@ exec \"$(dirname \"$(readlink -f \"$0\")\")/patchy\" --mcp-connector \"$@\"
       if(TARGET patchy-8bf-host64)
         install(FILES "${CMAKE_BINARY_DIR}/patchy-8bf-host64.exe" DESTINATION ${CMAKE_INSTALL_BINDIR}
                 PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
+      endif()
+      if(PATCHY_BUNDLED_RAVEN)
+        install(DIRECTORY "${CMAKE_BINARY_DIR}/raven/" DESTINATION ${CMAKE_INSTALL_LIBDIR}/patchy/raven
+                USE_SOURCE_PERMISSIONS)
       endif()
     elseif(NOT EMSCRIPTEN)
       # Windows and macOS still ship a separate patchy-mcp executable: the same main.cpp

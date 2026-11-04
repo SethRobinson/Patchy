@@ -182,7 +182,7 @@ The desktop and browser builds share the editor, with these differences:
 | PSD/PSB, Affinity, Krita, GIMP, OpenRaster, Paint.NET, layered TIFF, Aseprite | Yes | Yes | Yes | Yes |
 | PDF import / export | Both (ARM64: export only) | Both | Both | Export only |
 | G'MIC Filter Library | Yes | Yes | Yes | No |
-| Photoshop filter plug-ins (.8bf) | 32-bit and 64-bit | No | 64-bit, via [Raven](https://useraven.org) | No |
+| Photoshop filter plug-ins (.8bf) | 32-bit and 64-bit | No | 64-bit, via bundled [Raven](https://useraven.org) | No |
 | AVIF import / export | Both | Both | Both | No |
 | JPEG XR import / export | Both | No | No | No |
 | HEIC/HEIF import | With OS codecs | With OS decoder | With system decoder | With browser HEVC support |
@@ -252,8 +252,7 @@ and Affinity import has format-specific limitations. See [current compatibility]
 Choose **Plugins > Open Plug-ins Folder**, copy your `.8bf` files and their supporting
 files into it, then choose **Plugins > Rescan Plug-in Folders**. Both 32-bit and 64-bit
 filters appear under **Plugins > Legacy Photoshop Plug-ins** on Windows. On Linux, 64-bit
-filters run inside [Raven](https://useraven.org), which you install separately (not in the
-Flatpak).
+filters run inside [Raven](https://useraven.org), which Patchy bundles (not in the Flatpak).
 
 Filters run on the active pixel layer, respect the selection, and apply as one undoable
 step. A separate helper isolates plug-in crashes. Plug-ins still run with your user

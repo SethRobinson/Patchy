@@ -254,12 +254,15 @@ distribution's copies and ship neither. Their license texts ship in
 `share/licenses/com.rtsoft.patchy/` as `sane-backends-COPYING.txt` and
 `libgphoto2-COPYING.txt`.
 
-## Raven (Linux, not distributed)
+## Raven (Linux)
 
 On Linux, Patchy runs 64-bit Photoshop filter plug-ins by starting the separate `raven`
 program (<https://github.com/mirkobrombin/raven>; GNU GPL version 3 or later, with its
-guest adapters under MIT) when the user has installed it. Patchy does not link, vendor
-or ship Raven; it only runs it as its own process, so no Raven code is part of Patchy.
+guest adapters under MIT and imported components under their own licenses listed in its
+`LICENSES.md`). Linux builds (`cmake/patchy_raven.cmake`) ship Raven, unmodified,
+beside Patchy in `lib/patchy/raven/` together with its `LICENSE`, `LICENSES.md`,
+`LICENSES/` and `RAVEN-SOURCE.txt`, which names the exact source commit. Raven runs as its
+own process and is not linked into Patchy; Patchy's own code stays under its MIT license.
 
 ## ONNX Runtime (desktop builds)
 

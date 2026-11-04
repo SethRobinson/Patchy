@@ -106,6 +106,15 @@ QString legacy_plugin_raven_executable() {
       !from_env.isEmpty()) {
     return from_env;
   }
+  // The Raven Patchy bundles (cmake/patchy_raven.cmake): raven/ beside the binary in the
+  // build tree, lib/patchy/raven/ in an install or the AppImage.
+  const QDir app_dir(QCoreApplication::applicationDirPath());
+  for (const auto& bundled : {app_dir.filePath(QStringLiteral("raven/raven")),
+                              app_dir.filePath(QStringLiteral("../lib/patchy/raven/raven"))}) {
+    if (const auto found = executable_if_runnable(bundled); !found.isEmpty()) {
+      return found;
+    }
+  }
   if (const auto on_path = QStandardPaths::findExecutable(QStringLiteral("raven")); !on_path.isEmpty()) {
     return on_path;
   }
