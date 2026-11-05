@@ -482,7 +482,7 @@ void wait_budget_timeout_fails_fast_and_disables_after_repeats() {
   QImage untouched = baseline;
   CHECK(!backend.compose(snapshot, untouched, &reason));
   const auto first_elapsed = std::chrono::steady_clock::now() - first_start;
-  CHECK(first_elapsed < std::chrono::seconds(5));
+  CHECK(first_elapsed < std::chrono::milliseconds(patchy::test::kWallClockBackstopMs));
   CHECK(untouched == baseline);
   CHECK(backend.state() == patchy::GpuBackendState::Lost);
   CHECK(reason.contains(QStringLiteral("wait budget")));
