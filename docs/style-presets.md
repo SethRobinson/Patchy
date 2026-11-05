@@ -39,6 +39,11 @@ three quarters of the available height (at least 520 px), scrolling the rest; th
 can drag it up to the cap (GitHub issue 606). The dark chrome is frameless, so a
 `VisibleSizeGrip` (`layerStyleSizeGrip`) at the right of the OK/Cancel row is the
 resize handle. Changing pages scrolls the shared pane back to its top (606 follow-up 3).
+Only the current page sizes the stack's contents: pages are `LayerStyleSettingsPage`s
+whose size hints read zero while hidden, so a page that fits the pane shows no scroll
+bar (606 follow-up 4), while `options_stack_full_minimum_size` (every page) still sizes
+the pane and dialog, so changing pages never resizes the window
+(`ui_layer_style_short_page_has_no_scroll_bar`).
 
 Page layout (GitHub issue 606): every form label ends in a colon and
 `align_page_label_columns` gives all page forms one label width, so every field
