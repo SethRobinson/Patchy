@@ -14928,6 +14928,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Concavity:</source>
         <translation>凹度:</translation>
     </message>
+    <message>
+        <source>Scanned image is too large</source>
+        <translation>掃描的影像太大</translation>
+    </message>
+    <message>
+        <source>Scan data arrived out of order</source>
+        <translation>掃描資料到達順序有誤</translation>
+    </message>
+    <message>
+        <source>The scanner sent image data in an unsupported layout</source>
+        <translation>掃描器傳送的影像資料格式不受支援</translation>
+    </message>
+    <message>
+        <source>The scanner sent an incomplete image</source>
+        <translation>掃描器傳送的影像不完整</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14966,6 +14982,142 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Windows Image Acquisition is unavailable (%1)</source>
         <translation>無法使用 Windows 影像取得 (%1)</translation>
+    </message>
+    <message>
+        <source>Scanner: %1</source>
+        <translation>掃描器: %1</translation>
+    </message>
+    <message>
+        <source>Camera: %1</source>
+        <translation>相機: %1</translation>
+    </message>
+    <message>
+        <source>The scanner could not be opened (%1)</source>
+        <translation>無法開啟掃描器 (%1)</translation>
+    </message>
+    <message>
+        <source>The camera could not be opened (%1)</source>
+        <translation>無法開啟相機 (%1)</translation>
+    </message>
+    <message>
+        <source>The camera image could not be downloaded (%1)</source>
+        <translation>無法下載相機影像 (%1)</translation>
+    </message>
+    <message>
+        <source>Device:</source>
+        <translation>裝置:</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>解析度:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>模式:</translation>
+    </message>
+    <message>
+        <source>Source:</source>
+        <translation>來源:</translation>
+    </message>
+    <message>
+        <source>Searching for scanners and cameras...</source>
+        <translation>正在搜尋掃描器和相機...</translation>
+    </message>
+    <message>
+        <source>Reading the camera...</source>
+        <translation>正在讀取相機...</translation>
+    </message>
+    <message>
+        <source>Opening the scanner...</source>
+        <translation>正在開啟掃描器...</translation>
+    </message>
+    <message>
+        <source>No images were found on the camera.</source>
+        <translation>相機上找不到影像。</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 dpi</translation>
+    </message>
+    <message>
+        <source>Import</source>
+        <translation>匯入</translation>
+    </message>
+    <message>
+        <source>Scan</source>
+        <translation>掃描</translation>
+    </message>
+    <message>
+        <source>Downloading from the camera...</source>
+        <translation>正在從相機下載...</translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation>正在掃描...</translation>
+    </message>
+    <message>
+        <source>Scanning needs SANE (for scanners) or libgphoto2 (for cameras). Install them from your distribution and try again.</source>
+        <translation>掃描需要 SANE（用於掃描器）或 libgphoto2（用於相機）。請從您的發行版安裝後再試一次。</translation>
+    </message>
+    <message>
+        <source>The network scanner does not answer.</source>
+        <translation>網路掃描器沒有回應。</translation>
+    </message>
+    <message>
+        <source>The network scanner at %1 does not answer.</source>
+        <translation>位於 %1 的網路掃描器沒有回應。</translation>
+    </message>
+    <message>
+        <source>Check that it is switched on and connected to the same network as this computer. If its address changed, correct or remove the old address in the scanner configuration in /etc/sane.d (airscan.conf or escl.conf).</source>
+        <translation>請檢查它是否已開機，並與這台電腦連接到同一個網路。如果它的位址已變更，請在 /etc/sane.d 中的掃描器設定（airscan.conf 或 escl.conf）裡更正或刪除舊位址。</translation>
+    </message>
+    <message>
+        <source>The device stopped responding. Check that it is switched on, the cable is connected and it is not in sleep mode, then try again.</source>
+        <translation>裝置停止回應。請檢查它是否已開機、纜線是否已連接、是否處於睡眠模式，然後再試一次。</translation>
+    </message>
+    <message>
+        <source>The scanner is in use by another program or still finishing a previous job. Close the other program or wait a moment, then try again.</source>
+        <translation>掃描器正被其他程式使用，或仍在完成上一個工作。請關閉其他程式或稍候片刻，然後再試一次。</translation>
+    </message>
+    <message>
+        <source>This user account is not allowed to use the device. Add your account to the scanner group (often &quot;scanner&quot; or &quot;lp&quot;), or install the device rules from your distribution&apos;s SANE or libgphoto2 package, then log in again.</source>
+        <translation>此使用者帳戶無權使用該裝置。請將您的帳戶加入掃描器群組（通常是「scanner」或「lp」），或安裝發行版 SANE 或 libgphoto2 套件中的裝置規則，然後重新登入。</translation>
+    </message>
+    <message>
+        <source>Paper is jammed in the scanner. Clear the jam and try again.</source>
+        <translation>掃描器卡紙。請清除卡紙後再試一次。</translation>
+    </message>
+    <message>
+        <source>The document feeder is empty. Load the pages, or choose the flatbed as the source.</source>
+        <translation>文件進紙器是空的。請放入頁面，或選擇平台作為來源。</translation>
+    </message>
+    <message>
+        <source>The scanner cover is open. Close it and try again.</source>
+        <translation>掃描器上蓋已開啟。請關閉後再試一次。</translation>
+    </message>
+    <message>
+        <source>The scanner does not accept these settings. Try another mode, resolution or source.</source>
+        <translation>掃描器不接受這些設定。請嘗試其他模式、解析度或來源。</translation>
+    </message>
+    <message>
+        <source>There is not enough memory for this scan. Try a lower resolution.</source>
+        <translation>記憶體不足，無法完成此次掃描。請嘗試較低的解析度。</translation>
+    </message>
+    <message>
+        <source>Another program is using the camera, often the file manager, which opens cameras automatically. Eject or unmount the camera there, then try again.</source>
+        <translation>另一個程式正在使用相機，通常是會自動開啟相機的檔案管理員。請在那裡退出或卸載相機，然後再試一次。</translation>
+    </message>
+    <message>
+        <source>libgphoto2 does not support this camera model. Copy the images with a card reader or the file manager instead.</source>
+        <translation>libgphoto2 不支援此相機型號。請改用讀卡機或檔案管理員複製影像。</translation>
+    </message>
+    <message>
+        <source>The camera sent damaged data. Reconnect the camera and try again.</source>
+        <translation>相機傳送了損壞的資料。請重新連接相機後再試一次。</translation>
+    </message>
+    <message>
+        <source>The image is no longer on the camera. Pick the device again to refresh the list.</source>
+        <translation>該影像已不在相機上。請重新選擇裝置以重新整理清單。</translation>
     </message>
 </context>
 <context>
@@ -32802,6 +32954,10 @@ Locked: %1</source>
     <message>
         <source>Cycle Hand Tools</source>
         <translation>循環切換手形工具</translation>
+    </message>
+    <message>
+        <source>No scanner or camera was found. Connect a scanner supported by SANE or a camera supported by gphoto2 and try again.</source>
+        <translation>找不到掃描器或相機。請連接 SANE 支援的掃描器或 gphoto2 支援的相機後再試一次。</translation>
     </message>
 </context>
 <context>

@@ -15022,6 +15022,22 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Concavity:</source>
         <translation>Wklęsłość:</translation>
     </message>
+    <message>
+        <source>Scanned image is too large</source>
+        <translation>Zeskanowany obraz jest zbyt duży</translation>
+    </message>
+    <message>
+        <source>Scan data arrived out of order</source>
+        <translation>Dane skanowania nadeszły w złej kolejności</translation>
+    </message>
+    <message>
+        <source>The scanner sent image data in an unsupported layout</source>
+        <translation>Skaner wysłał dane obrazu w nieobsługiwanym układzie</translation>
+    </message>
+    <message>
+        <source>The scanner sent an incomplete image</source>
+        <translation>Skaner wysłał niekompletny obraz</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15060,6 +15076,142 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Windows Image Acquisition is unavailable (%1)</source>
         <translation>Usługa Windows Image Acquisition jest niedostępna (%1)</translation>
+    </message>
+    <message>
+        <source>Scanner: %1</source>
+        <translation>Skaner: %1</translation>
+    </message>
+    <message>
+        <source>Camera: %1</source>
+        <translation>Aparat: %1</translation>
+    </message>
+    <message>
+        <source>The scanner could not be opened (%1)</source>
+        <translation>Nie można otworzyć skanera (%1)</translation>
+    </message>
+    <message>
+        <source>The camera could not be opened (%1)</source>
+        <translation>Nie można otworzyć aparatu (%1)</translation>
+    </message>
+    <message>
+        <source>The camera image could not be downloaded (%1)</source>
+        <translation>Nie można pobrać zdjęcia z aparatu (%1)</translation>
+    </message>
+    <message>
+        <source>Device:</source>
+        <translation>Urządzenie:</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>Rozdzielczość:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Tryb:</translation>
+    </message>
+    <message>
+        <source>Source:</source>
+        <translation>Źródło:</translation>
+    </message>
+    <message>
+        <source>Searching for scanners and cameras...</source>
+        <translation>Wyszukiwanie skanerów i aparatów...</translation>
+    </message>
+    <message>
+        <source>Reading the camera...</source>
+        <translation>Odczytywanie aparatu...</translation>
+    </message>
+    <message>
+        <source>Opening the scanner...</source>
+        <translation>Otwieranie skanera...</translation>
+    </message>
+    <message>
+        <source>No images were found on the camera.</source>
+        <translation>Nie znaleziono zdjęć w aparacie.</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 dpi</translation>
+    </message>
+    <message>
+        <source>Import</source>
+        <translation>Importuj</translation>
+    </message>
+    <message>
+        <source>Scan</source>
+        <translation>Skanuj</translation>
+    </message>
+    <message>
+        <source>Downloading from the camera...</source>
+        <translation>Pobieranie z aparatu...</translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation>Skanowanie...</translation>
+    </message>
+    <message>
+        <source>Scanning needs SANE (for scanners) or libgphoto2 (for cameras). Install them from your distribution and try again.</source>
+        <translation>Skanowanie wymaga SANE (dla skanerów) lub libgphoto2 (dla aparatów). Zainstaluj je z dystrybucji i spróbuj ponownie.</translation>
+    </message>
+    <message>
+        <source>The network scanner does not answer.</source>
+        <translation>Skaner sieciowy nie odpowiada.</translation>
+    </message>
+    <message>
+        <source>The network scanner at %1 does not answer.</source>
+        <translation>Skaner sieciowy pod adresem %1 nie odpowiada.</translation>
+    </message>
+    <message>
+        <source>Check that it is switched on and connected to the same network as this computer. If its address changed, correct or remove the old address in the scanner configuration in /etc/sane.d (airscan.conf or escl.conf).</source>
+        <translation>Sprawdź, czy jest włączony i podłączony do tej samej sieci co ten komputer. Jeśli jego adres się zmienił, popraw lub usuń stary adres w konfiguracji skanera w /etc/sane.d (airscan.conf lub escl.conf).</translation>
+    </message>
+    <message>
+        <source>The device stopped responding. Check that it is switched on, the cable is connected and it is not in sleep mode, then try again.</source>
+        <translation>Urządzenie przestało odpowiadać. Sprawdź, czy jest włączone, czy kabel jest podłączony i czy nie jest w trybie uśpienia, a potem spróbuj ponownie.</translation>
+    </message>
+    <message>
+        <source>The scanner is in use by another program or still finishing a previous job. Close the other program or wait a moment, then try again.</source>
+        <translation>Skaner jest używany przez inny program albo kończy jeszcze poprzednie zadanie. Zamknij inny program lub chwilę poczekaj, a potem spróbuj ponownie.</translation>
+    </message>
+    <message>
+        <source>This user account is not allowed to use the device. Add your account to the scanner group (often &quot;scanner&quot; or &quot;lp&quot;), or install the device rules from your distribution&apos;s SANE or libgphoto2 package, then log in again.</source>
+        <translation>To konto użytkownika nie ma dostępu do urządzenia. Dodaj swoje konto do grupy skanera (zwykle „scanner” lub „lp”) albo zainstaluj reguły urządzeń z pakietu SANE lub libgphoto2 swojej dystrybucji, a potem zaloguj się ponownie.</translation>
+    </message>
+    <message>
+        <source>Paper is jammed in the scanner. Clear the jam and try again.</source>
+        <translation>W skanerze zaciął się papier. Usuń zacięcie i spróbuj ponownie.</translation>
+    </message>
+    <message>
+        <source>The document feeder is empty. Load the pages, or choose the flatbed as the source.</source>
+        <translation>Podajnik dokumentów jest pusty. Włóż strony albo wybierz szybę jako źródło.</translation>
+    </message>
+    <message>
+        <source>The scanner cover is open. Close it and try again.</source>
+        <translation>Pokrywa skanera jest otwarta. Zamknij ją i spróbuj ponownie.</translation>
+    </message>
+    <message>
+        <source>The scanner does not accept these settings. Try another mode, resolution or source.</source>
+        <translation>Skaner nie akceptuje tych ustawień. Wybierz inny tryb, rozdzielczość lub źródło.</translation>
+    </message>
+    <message>
+        <source>There is not enough memory for this scan. Try a lower resolution.</source>
+        <translation>Za mało pamięci na to skanowanie. Wybierz niższą rozdzielczość.</translation>
+    </message>
+    <message>
+        <source>Another program is using the camera, often the file manager, which opens cameras automatically. Eject or unmount the camera there, then try again.</source>
+        <translation>Aparat jest używany przez inny program, najczęściej menedżer plików, który automatycznie otwiera aparaty. Wysuń lub odmontuj tam aparat, a potem spróbuj ponownie.</translation>
+    </message>
+    <message>
+        <source>libgphoto2 does not support this camera model. Copy the images with a card reader or the file manager instead.</source>
+        <translation>libgphoto2 nie obsługuje tego modelu aparatu. Skopiuj zdjęcia czytnikiem kart lub menedżerem plików.</translation>
+    </message>
+    <message>
+        <source>The camera sent damaged data. Reconnect the camera and try again.</source>
+        <translation>Aparat przesłał uszkodzone dane. Podłącz aparat ponownie i spróbuj jeszcze raz.</translation>
+    </message>
+    <message>
+        <source>The image is no longer on the camera. Pick the device again to refresh the list.</source>
+        <translation>Tego zdjęcia nie ma już w aparacie. Wybierz urządzenie ponownie, aby odświeżyć listę.</translation>
     </message>
 </context>
 <context>
@@ -32976,6 +33128,10 @@ Zablokowano: %1</translation>
     <message>
         <source>Cycle Hand Tools</source>
         <translation>Przełącz narzędzia rączki</translation>
+    </message>
+    <message>
+        <source>No scanner or camera was found. Connect a scanner supported by SANE or a camera supported by gphoto2 and try again.</source>
+        <translation>Nie znaleziono skanera ani aparatu. Podłącz skaner obsługiwany przez SANE lub aparat obsługiwany przez gphoto2 i spróbuj ponownie.</translation>
     </message>
 </context>
 <context>

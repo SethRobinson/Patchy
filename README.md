@@ -231,7 +231,7 @@ The desktop and browser builds share the editor, with these differences:
 | JPEG XR import / export | Both | No | No | No |
 | HEIC/HEIF import | With OS codecs | With OS decoder | With system decoder | With browser HEVC support |
 | Printing | Yes | Yes | Yes | No |
-| Scanner / camera acquisition | Both, via WIA | Scanners | No | No |
+| Scanner / camera acquisition | Both, via WIA | Scanners | Both, via SANE and gphoto2 | No |
 | Built-in JavaScript editor | Yes | Yes | Yes | Yes |
 | Command line and local MCP connector | Yes | Yes | Yes | No |
 

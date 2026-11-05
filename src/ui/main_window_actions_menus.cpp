@@ -364,7 +364,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   auto* import_menu = file_menu->addMenu(tr("I&mport"));
   bind_widget_text(import_menu, QT_TR_NOOP("I&mport"));
   import_menu->setObjectName(QStringLiteral("fileImportMenu"));
-#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS) || defined(Q_OS_LINUX)
 #ifdef Q_OS_MACOS
   auto* import_scanner_action = import_menu->addAction(tr("From &Scanner..."));
   bind_action_text(import_scanner_action, QT_TR_NOOP("From &Scanner..."));
