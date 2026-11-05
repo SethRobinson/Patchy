@@ -850,6 +850,10 @@ void ui_font_picker_hidden_matches_hint_counts_and_resets() {
   CHECK(expected >= 1);
   CHECK(!hint->isHidden());
   CHECK(hint->text().contains(QString::number(expected)));
+  for (int row = 0; row < picker->count(); ++row) {
+    std::cout << "  note: family \"" << picker->itemText(row).toStdString() << "\" monospace "
+              << index.matches(patchy::ui::FontStyleFilter::monospace, picker->itemText(row), {}) << "\n";
+  }
   std::cout << "  note: \"" << proportional.toStdString() << "\" hint: " << hint->text().toStdString() << "\n";
 
   // No search, no hint, even with a filter on.
@@ -886,6 +890,8 @@ void ui_font_picker_hidden_matches_hint_counts_and_resets() {
     CHECK(!hint->isHidden());
     CHECK(hint->text().contains(QString::number(hidden_by_monospace(letter))));
     save_widget_artifact("issue647_font_picker_hidden_matches", *popup);
+  } else {
+    std::cout << "  note: no search letter both lists and hides fonts here; no screenshot\n";
   }
 
   // Clicking the hint sets Style and Language to All and lists the hidden matches.
