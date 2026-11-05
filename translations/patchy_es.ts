@@ -7970,22 +7970,6 @@ RGB: %2, %3, %4</translation>
         <translation>Y:</translation>
     </message>
     <message>
-        <source>Top left radius:</source>
-        <translation>Radio superior izquierdo:</translation>
-    </message>
-    <message>
-        <source>Top right radius:</source>
-        <translation>Radio superior derecho:</translation>
-    </message>
-    <message>
-        <source>Bottom right radius:</source>
-        <translation>Radio inferior derecho:</translation>
-    </message>
-    <message>
-        <source>Bottom left radius:</source>
-        <translation>Radio inferior izquierdo:</translation>
-    </message>
-    <message>
         <source>No Fill</source>
         <translation>Sin relleno</translation>
     </message>
@@ -14991,6 +14975,22 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Concavity:</source>
         <translation>Concavidad:</translation>
     </message>
+    <message>
+        <source>Scanned image is too large</source>
+        <translation>La imagen escaneada es demasiado grande</translation>
+    </message>
+    <message>
+        <source>Scan data arrived out of order</source>
+        <translation>Los datos del escaneo llegaron en un orden incorrecto</translation>
+    </message>
+    <message>
+        <source>The scanner sent image data in an unsupported layout</source>
+        <translation>El escáner envió datos de imagen con una estructura no compatible</translation>
+    </message>
+    <message>
+        <source>The scanner sent an incomplete image</source>
+        <translation>El escáner envió una imagen incompleta</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15029,6 +15029,142 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Windows Image Acquisition is unavailable (%1)</source>
         <translation>Windows Image Acquisition no está disponible (%1)</translation>
+    </message>
+    <message>
+        <source>Scanner: %1</source>
+        <translation>Escáner: %1</translation>
+    </message>
+    <message>
+        <source>Camera: %1</source>
+        <translation>Cámara: %1</translation>
+    </message>
+    <message>
+        <source>The scanner could not be opened (%1)</source>
+        <translation>No se pudo abrir el escáner (%1)</translation>
+    </message>
+    <message>
+        <source>The camera could not be opened (%1)</source>
+        <translation>No se pudo abrir la cámara (%1)</translation>
+    </message>
+    <message>
+        <source>The camera image could not be downloaded (%1)</source>
+        <translation>No se pudo descargar la imagen de la cámara (%1)</translation>
+    </message>
+    <message>
+        <source>Device:</source>
+        <translation>Dispositivo:</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>Resolución:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Modo:</translation>
+    </message>
+    <message>
+        <source>Source:</source>
+        <translation>Origen:</translation>
+    </message>
+    <message>
+        <source>Searching for scanners and cameras...</source>
+        <translation>Buscando escáneres y cámaras...</translation>
+    </message>
+    <message>
+        <source>Reading the camera...</source>
+        <translation>Leyendo la cámara...</translation>
+    </message>
+    <message>
+        <source>Opening the scanner...</source>
+        <translation>Abriendo el escáner...</translation>
+    </message>
+    <message>
+        <source>No images were found on the camera.</source>
+        <translation>No se encontraron imágenes en la cámara.</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 ppp</translation>
+    </message>
+    <message>
+        <source>Import</source>
+        <translation>Importar</translation>
+    </message>
+    <message>
+        <source>Scan</source>
+        <translation>Escanear</translation>
+    </message>
+    <message>
+        <source>Downloading from the camera...</source>
+        <translation>Descargando de la cámara...</translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation>Escaneando...</translation>
+    </message>
+    <message>
+        <source>Scanning needs SANE (for scanners) or libgphoto2 (for cameras). Install them from your distribution and try again.</source>
+        <translation>Para escanear se necesita SANE (para escáneres) o libgphoto2 (para cámaras). Instálelos desde su distribución e inténtelo de nuevo.</translation>
+    </message>
+    <message>
+        <source>The network scanner does not answer.</source>
+        <translation>El escáner de red no responde.</translation>
+    </message>
+    <message>
+        <source>The network scanner at %1 does not answer.</source>
+        <translation>El escáner de red en %1 no responde.</translation>
+    </message>
+    <message>
+        <source>Check that it is switched on and connected to the same network as this computer. If its address changed, correct or remove the old address in the scanner configuration in /etc/sane.d (airscan.conf or escl.conf).</source>
+        <translation>Compruebe que esté encendido y conectado a la misma red que este equipo. Si su dirección cambió, corrija o elimine la dirección antigua en la configuración del escáner en /etc/sane.d (airscan.conf o escl.conf).</translation>
+    </message>
+    <message>
+        <source>The device stopped responding. Check that it is switched on, the cable is connected and it is not in sleep mode, then try again.</source>
+        <translation>El dispositivo dejó de responder. Compruebe que esté encendido, que el cable esté conectado y que no esté en reposo, e inténtelo de nuevo.</translation>
+    </message>
+    <message>
+        <source>The scanner is in use by another program or still finishing a previous job. Close the other program or wait a moment, then try again.</source>
+        <translation>Otro programa está usando el escáner o todavía está terminando un trabajo anterior. Cierre el otro programa o espere un momento e inténtelo de nuevo.</translation>
+    </message>
+    <message>
+        <source>This user account is not allowed to use the device. Add your account to the scanner group (often &quot;scanner&quot; or &quot;lp&quot;), or install the device rules from your distribution&apos;s SANE or libgphoto2 package, then log in again.</source>
+        <translation>Esta cuenta de usuario no tiene permiso para usar el dispositivo. Añada su cuenta al grupo del escáner (a menudo «scanner» o «lp») o instale las reglas de dispositivo del paquete SANE o libgphoto2 de su distribución, y vuelva a iniciar sesión.</translation>
+    </message>
+    <message>
+        <source>Paper is jammed in the scanner. Clear the jam and try again.</source>
+        <translation>Hay un atasco de papel en el escáner. Retire el papel atascado e inténtelo de nuevo.</translation>
+    </message>
+    <message>
+        <source>The document feeder is empty. Load the pages, or choose the flatbed as the source.</source>
+        <translation>El alimentador de documentos está vacío. Cargue las páginas o elija la superficie plana como origen.</translation>
+    </message>
+    <message>
+        <source>The scanner cover is open. Close it and try again.</source>
+        <translation>La tapa del escáner está abierta. Ciérrela e inténtelo de nuevo.</translation>
+    </message>
+    <message>
+        <source>The scanner does not accept these settings. Try another mode, resolution or source.</source>
+        <translation>El escáner no acepta esta configuración. Pruebe otro modo, resolución u origen.</translation>
+    </message>
+    <message>
+        <source>There is not enough memory for this scan. Try a lower resolution.</source>
+        <translation>No hay suficiente memoria para este escaneo. Pruebe una resolución más baja.</translation>
+    </message>
+    <message>
+        <source>Another program is using the camera, often the file manager, which opens cameras automatically. Eject or unmount the camera there, then try again.</source>
+        <translation>Otro programa está usando la cámara, a menudo el gestor de archivos, que abre las cámaras automáticamente. Expulse o desmonte la cámara allí e inténtelo de nuevo.</translation>
+    </message>
+    <message>
+        <source>libgphoto2 does not support this camera model. Copy the images with a card reader or the file manager instead.</source>
+        <translation>libgphoto2 no es compatible con este modelo de cámara. Copie las imágenes con un lector de tarjetas o el gestor de archivos.</translation>
+    </message>
+    <message>
+        <source>The camera sent damaged data. Reconnect the camera and try again.</source>
+        <translation>La cámara envió datos dañados. Vuelva a conectar la cámara e inténtelo de nuevo.</translation>
+    </message>
+    <message>
+        <source>The image is no longer on the camera. Pick the device again to refresh the list.</source>
+        <translation>La imagen ya no está en la cámara. Vuelva a elegir el dispositivo para actualizar la lista.</translation>
     </message>
 </context>
 <context>
@@ -19411,6 +19547,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Alternar entre las herramientas de mano y rotar vista</translation>
     </message>
     <message>
+        <source>Turn text, shapes or smart objects into plain pixels</source>
+        <translation>Convertir texto, formas u objetos inteligentes en píxeles</translation>
+    </message>
+    <message>
+        <source>Bake the layer effects into the pixels</source>
+        <translation>Integrar los efectos de capa en los píxeles</translation>
+    </message>
+    <message>
         <source>Leading, tracking, glyph scales and font features</source>
         <translation>Interlineado, tracking, escala de glifos y funciones de fuente</translation>
     </message>
@@ -19749,6 +19893,18 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Show only favorite fonts</source>
         <translation>Mostrar solo fuentes favoritas</translation>
+    </message>
+    <message numerus="yes">
+        <source>More matches with All Styles and All Languages: %n</source>
+        <extracomment>Under the font list while searching: fonts that match the search but are hidden by the Style or Language filter next to the search box. Clicking it sets both filters to All.</extracomment>
+        <translation>
+            <numerusform>Más coincidencias con Todos los estilos y Todos los idiomas: %n</numerusform>
+            <numerusform>Más coincidencias con Todos los estilos y Todos los idiomas: %n</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Set Style and Language to All</source>
+        <translation>Poner Estilo e Idioma en Todos</translation>
     </message>
 </context>
 <context>
@@ -32997,6 +33153,14 @@ Bloqueada: %1</translation>
     <message>
         <source>Cycle Hand Tools</source>
         <translation>Alternar herramientas de mano</translation>
+    </message>
+    <message>
+        <source>No scanner or camera was found. Connect a scanner supported by SANE or a camera supported by gphoto2 and try again.</source>
+        <translation>No se encontró ningún escáner ni cámara. Conecte un escáner compatible con SANE o una cámara compatible con gphoto2 e inténtelo de nuevo.</translation>
+    </message>
+    <message>
+        <source>Some text does not fit. Drag to enlarge the box.</source>
+        <translation>Parte del texto no cabe. Arrastre para agrandar el cuadro.</translation>
     </message>
     <message>
         <source>Alignment</source>

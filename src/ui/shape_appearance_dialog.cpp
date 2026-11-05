@@ -11,6 +11,8 @@
 
 #include "core/pattern_resource.hpp"
 #include "ui/color_panel.hpp"
+#include "ui/custom_shape_library.hpp"
+#include "ui/custom_shape_picker.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/gradient_library.hpp"
 #include "ui/gradient_manager_dialog.hpp"
@@ -46,6 +48,7 @@
 #include <QPainter>
 #include <QPen>
 #include <QPixmap>
+#include <QPointer>
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QSpinBox>
@@ -354,6 +357,97 @@ private:
   QWidget* last_row_;
 };
 
+// The left column's sections share one label column and one field column (GitHub #641).
+// Geometry and Radius are grids: label, link column, field. The link column holds the
+// chain brackets (the Image Size dialog's Width / Height link), which a QFormLayout row
+// cannot span, and stays empty on rows without one. The form sections use the link
+// column's width as their label-to-field gap, so their fields start at the same x.
+constexpr int kSectionColumnGap = 8;
+constexpr int kSectionLinkColumnWidth = 24;
+constexpr int kSectionFormFieldGap = kSectionColumnGap * 2 + kSectionLinkColumnWidth;
+
+struct GridSection {
+  QGroupBox* group{nullptr};
+  QVBoxLayout* layout{nullptr};
+  QGridLayout* grid{nullptr};
+  std::vector<QWidget*> rows;  // the field widget per grid row
+};
+
+GridSection make_grid_section(const QString& title, QWidget* parent) {
+  GridSection section;
+  section.group = new QGroupBox(title, parent);
+  section.layout = new QVBoxLayout(section.group);
+  section.layout->setContentsMargins(10, 8, 10, 8);
+  section.layout->setSpacing(4);
+  section.grid = new QGridLayout();
+  section.grid->setContentsMargins(0, 0, 0, 0);
+  section.grid->setHorizontalSpacing(kSectionColumnGap);
+  section.grid->setVerticalSpacing(8);
+  section.grid->setColumnMinimumWidth(1, kSectionLinkColumnWidth);
+  section.grid->setColumnStretch(2, 1);
+  section.layout->addLayout(section.grid);
+  return section;
+}
+
+int add_grid_widget_row(GridSection& section, const QString& label, QWidget* field) {
+  const int grid_row = static_cast<int>(section.rows.size());
+  section.grid->addWidget(new QLabel(label, section.group), grid_row, 0, Qt::AlignLeft | Qt::AlignVCenter);
+  section.grid->addWidget(field, grid_row, 2);
+  section.rows.push_back(field);
+  return grid_row;
+}
+
+// A field with its - / + steppers; `field_rows` maps the spin to its row widget.
+int add_grid_spin_row(GridSection& section, std::map<QWidget*, QWidget*>& field_rows, const QString& label,
+                      QAbstractSpinBox* spin) {
+  auto* row = wrap_spin_with_step_buttons(spin, section.group, label);
+  field_rows[spin] = row;
+  return add_grid_widget_row(section, label, row);
+}
+
+// A normal-sized checkable chain button centered on a thin bracket that reaches the first
+// and last of the `row_count` rows from `first_row`. `bracket_name` names the bracket
+// widget (its objectName), `name` the button.
+QToolButton* add_grid_link_button(GridSection& section, const char* name, const char* bracket_name,
+                                  const QString& tooltip, int first_row, int row_count) {
+  auto* button = new QToolButton(nullptr);
+  button->setObjectName(QLatin1String(name));
+  button->setProperty("geometryLink", true);
+  button->setCheckable(true);
+  button->setIcon(simple_icon(QStringLiteral("link"), QColor(220, 226, 235)));
+  button->setIconSize(QSize(18, 18));
+  button->setToolTip(tooltip);
+  button->setFixedSize(kSectionLinkColumnWidth, kSectionLinkColumnWidth);
+  auto* bracket = new LinkBracket(button, section.rows[static_cast<std::size_t>(first_row)],
+                                  section.rows[static_cast<std::size_t>(first_row + row_count - 1)], section.group);
+  bracket->setObjectName(QLatin1String(bracket_name));
+  section.grid->addWidget(bracket, first_row, 1, row_count, 1);
+  return button;
+}
+
+// One label column width for every left-column section: the widest label of them all.
+void align_section_columns(const std::vector<QFormLayout*>& forms, const std::vector<QGridLayout*>& grids) {
+  std::vector<QLabel*> labels;
+  for (auto* form : forms) {
+    form->setHorizontalSpacing(kSectionFormFieldGap);
+    form->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    for (int row = 0; row < form->rowCount(); ++row)
+      if (auto* item = form->itemAt(row, QFormLayout::LabelRole); item != nullptr)
+        if (auto* label = qobject_cast<QLabel*>(item->widget()); label != nullptr) labels.push_back(label);
+  }
+  for (auto* grid : grids)
+    for (int row = 0; row < grid->rowCount(); ++row)
+      if (auto* item = grid->itemAtPosition(row, 0); item != nullptr)
+        if (auto* label = qobject_cast<QLabel*>(item->widget()); label != nullptr) labels.push_back(label);
+  int width = 0;
+  for (auto* label : labels) {
+    label->ensurePolished();  // the sheet's font, not the default one
+    width = std::max(width, label->sizeHint().width());
+  }
+  for (auto* label : labels) label->setMinimumWidth(width);
+  for (auto* grid : grids) grid->setColumnMinimumWidth(0, width);
+}
+
 }  // namespace
 
 std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
@@ -362,7 +456,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     GradientLibrary* gradient_library,
     PatternLibrary* pattern_library, const PatternStore* document_patterns, RgbColor foreground,
     RgbColor background, const DocumentFieldUnits& units,
-    const AppearanceDialogContext<ShapeAppearanceSettings>* batch) {
+    const AppearanceDialogContext<ShapeAppearanceSettings>* batch, const ShapeAppearanceShapeSource& custom_shapes) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("shapeAppearanceDialog"));
   // Thicknesses and radii have no percent basis; positions and sizes take the
@@ -544,84 +638,95 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   });
   left_column->addWidget(layer_group);
 
-  // --- Geometry (single live-shape layers only) ---
-  if (state->settings.geometry.has_value()) {
-    const auto kind = state->settings.geometry->kind;
-    auto* geometry_group = new QGroupBox(QObject::tr("Geometry"), left_widget);
-    auto* geometry_layout = new QVBoxLayout(geometry_group);
-    geometry_layout->setContentsMargins(10, 8, 10, 8);
-    geometry_layout->setSpacing(4);
-    // A grid rather than a form: the link buttons sit between the label and
-    // the field and span the rows they tie together (the Image Size dialog's
-    // Width / Height bracket), which a QFormLayout row cannot do. Column 1 is
-    // the link column; it stays empty on the rows without a link so every
-    // label and field lines up.
-    auto* geometry_grid = new QGridLayout();
-    geometry_grid->setContentsMargins(0, 0, 0, 0);
-    geometry_grid->setHorizontalSpacing(8);
-    geometry_grid->setVerticalSpacing(8);
-    geometry_grid->setColumnMinimumWidth(1, 24);
-    geometry_grid->setColumnStretch(2, 1);
-    geometry_layout->addLayout(geometry_grid);
-    std::vector<QWidget*> geometry_rows;  // the [spin] - + row widget per grid row
-    const auto add_geometry_row = [&field_rows, geometry_grid, geometry_group,
-                                   &geometry_rows](const QString& label, QAbstractSpinBox* spin) {
-      auto* row = wrap_spin_with_step_buttons(spin, geometry_group, label);
-      field_rows[spin] = row;
-      const int grid_row = static_cast<int>(geometry_rows.size());
-      geometry_grid->addWidget(new QLabel(label, geometry_group), grid_row, 0,
-                               Qt::AlignLeft | Qt::AlignVCenter);
-      geometry_grid->addWidget(row, grid_row, 2);
-      geometry_rows.push_back(row);
-      return grid_row;
-    };
-    // A normal-sized checkable chain button centered on a thin bracket that
-    // reaches the first and last of the `row_count` rows from `first_row`.
-    // `bracket_name` names the bracket widget (its objectName), `name` the
-    // button.
-    const auto make_link_button = [geometry_grid, geometry_group, &geometry_rows](
-                                      const char* name, const char* bracket_name,
-                                      const QString& tooltip, int first_row, int row_count) {
-      auto* button = new QToolButton(nullptr);
-      button->setObjectName(QLatin1String(name));
-      button->setProperty("geometryLink", true);
-      button->setCheckable(true);
-      button->setIcon(simple_icon(QStringLiteral("link"), QColor(220, 226, 235)));
-      button->setIconSize(QSize(18, 18));
-      button->setToolTip(tooltip);
-      button->setFixedSize(24, 24);
-      auto* bracket = new LinkBracket(button, geometry_rows[static_cast<std::size_t>(first_row)],
-                                      geometry_rows[static_cast<std::size_t>(first_row + row_count - 1)],
-                                      geometry_group);
-      bracket->setObjectName(QLatin1String(bracket_name));
-      geometry_grid->addWidget(bracket, first_row, 1, row_count, 1);
-      return button;
-    };
-    const auto make_spin = [&](const char* name, double minimum, double maximum, double value) {
-      auto* spin = new UnitSpinBox(SpinUnit::Pixels, geometry_group);
-      spin->setObjectName(QLatin1String(name));
-      spin->setRange(minimum, maximum);
-      spin->setDecimals(1);
-      spin->setValue(value);
-      configure_dialog_spinbox(spin, 72);
-      return spin;
-    };
-    const auto& geometry = *state->settings.geometry;
+  // --- Geometry, Radius, Arrowheads, Polygon (GitHub #641, #642, #643, #644, #622) ---
+  // Geometry holds the shape's position and size: X, Y, Width, Height for a box shape
+  // (rectangle, ellipse, polygon) or a plain path (custom shape, Pen outline), Start / End
+  // and Weight for a line, and the Shape picker for a plain path. With several layers
+  // selected its single-layer rows are off and Weight and Shape apply to every target.
+  // Radius, Arrowheads and Polygon follow, each for the layers it edits; with several
+  // layers each field applies on its own, so only the fields changed reach the others.
+  std::optional<LiveShapeParams> line_reference;
+  std::ptrdiff_t line_count = 0;
+  std::size_t first_line_index = 0;
+  std::optional<LiveShapeParams> polygon_reference;
+  if (!multiple) {
+    if (appearance_has_editable_line(state->settings)) line_reference = state->settings.geometry;
+    if (appearance_has_editable_polygon(state->settings)) polygon_reference = state->settings.geometry;
+  } else {
+    line_count = std::count_if(batch->originals.begin(), batch->originals.end(), appearance_has_editable_line);
+    const auto first = std::find_if(batch->originals.begin(), batch->originals.end(), appearance_has_editable_line);
+    if (first != batch->originals.end()) {
+      line_reference = first->geometry;
+      first_line_index = static_cast<std::size_t>(std::distance(batch->originals.begin(), first));
+    }
+    const auto polygon = std::find_if(batch->originals.begin(), batch->originals.end(),
+                                      appearance_has_editable_polygon);
+    if (polygon != batch->originals.end()) polygon_reference = polygon->geometry;
+  }
+  // One layer: the edit changes the dialog's geometry. Several layers: the edit is the
+  // named fields, captured from the reference shape's values and replayed on every layer.
+  const auto edit_live_shape = [state, multiple, edits, properties, notify](
+                                   const std::shared_ptr<LiveShapeParams>& reference,
+                                   const std::vector<std::string>& keys,
+                                   const std::function<void(LiveShapeParams&)>& change) {
+    if (!multiple) {
+      change(*state->settings.geometry);
+      *reference = *state->settings.geometry;
+      notify({"geometry"});
+      return;
+    }
+    change(*reference);
+    ShapeAppearanceSettings source;
+    source.geometry = *reference;
+    for (const auto& property : properties)
+      if (std::find(keys.begin(), keys.end(), property.key) != keys.end()) edits->append(property.capture(source));
+    notify({}, true);
+  };
+  const auto make_spin = [](QWidget* parent, const char* name, double minimum, double maximum, double value) {
+    auto* spin = new UnitSpinBox(SpinUnit::Pixels, parent);
+    spin->setObjectName(QLatin1String(name));
+    spin->setRange(minimum, maximum);
+    spin->setDecimals(1);
+    spin->setValue(value);
+    configure_dialog_spinbox(spin, 72);
+    return spin;
+  };
+  // Every left-column section lines its fields up (GitHub #641): the label column width
+  // is shared (set once every section is built), and the forms keep the grids' link
+  // column as their label-to-field gap.
+  std::vector<QFormLayout*> left_forms{layer_form};
+  std::vector<QGridLayout*> left_grids;
+  GridSection geometry_section;
+  const auto ensure_geometry_section = [&]() -> GridSection& {
+    if (geometry_section.group == nullptr) {
+      geometry_section = make_grid_section(QObject::tr("Geometry"), left_widget);
+      geometry_section.group->setObjectName(QStringLiteral("shapeGeometryGroup"));
+      left_grids.push_back(geometry_section.grid);
+    }
+    return geometry_section;
+  };
+  const bool path_shape_layer = !multiple && state->settings.path_box.has_value();
+  if (multiple) state->settings.path_box.reset();  // position and size stay single-layer edits
+  if (state->settings.geometry.has_value() || path_shape_layer) {
+    auto& section = ensure_geometry_section();
+    auto* geometry_group = section.group;
+    const auto kind = state->settings.geometry ? state->settings.geometry->kind : LiveShapeKind::None;
     if (kind == LiveShapeKind::Line) {
-      auto* start_x = make_spin("shapeGeometryLineStartXSpin", -30000, 30000, geometry.line_start_x);
-      auto* start_y = make_spin("shapeGeometryLineStartYSpin", -30000, 30000, geometry.line_start_y);
-      auto* end_x = make_spin("shapeGeometryLineEndXSpin", -30000, 30000, geometry.line_end_x);
-      auto* end_y = make_spin("shapeGeometryLineEndYSpin", -30000, 30000, geometry.line_end_y);
+      const auto& geometry = *state->settings.geometry;
+      auto* start_x = make_spin(geometry_group, "shapeGeometryLineStartXSpin", -30000, 30000, geometry.line_start_x);
+      auto* start_y = make_spin(geometry_group, "shapeGeometryLineStartYSpin", -30000, 30000, geometry.line_start_y);
+      auto* end_x = make_spin(geometry_group, "shapeGeometryLineEndXSpin", -30000, 30000, geometry.line_end_x);
+      auto* end_y = make_spin(geometry_group, "shapeGeometryLineEndYSpin", -30000, 30000, geometry.line_end_y);
       apply_document_field_units(start_x, units, true);
       apply_document_field_units(start_y, units, false);
       apply_document_field_units(end_x, units, true);
       apply_document_field_units(end_y, units, false);
       unit_fields.insert(unit_fields.end(), {start_x, start_y, end_x, end_y});
-      add_geometry_row(QObject::tr("Start X:"), start_x);
-      add_geometry_row(QObject::tr("Start Y:"), start_y);
-      add_geometry_row(QObject::tr("End X:"), end_x);
-      add_geometry_row(QObject::tr("End Y:"), end_y);
-      // Weight and the arrowheads are in the Arrowheads section below.
+      add_grid_spin_row(section, field_rows, QObject::tr("Start X:"), start_x);
+      add_grid_spin_row(section, field_rows, QObject::tr("Start Y:"), start_y);
+      add_grid_spin_row(section, field_rows, QObject::tr("End X:"), end_x);
+      add_grid_spin_row(section, field_rows, QObject::tr("End Y:"), end_y);
+      // Weight follows End Y (the Weight row below).
       const auto apply_line = [state, notify, start_x, start_y, end_x, end_y] {
         auto& params = *state->settings.geometry;
         params.line_start_x = start_x->value();
@@ -634,26 +739,28 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
         QObject::connect(spin, &QDoubleSpinBox::valueChanged, &dialog, apply_line);
       }
     } else {
-      auto* x_spin = make_spin("shapeGeometryXSpin", -30000, 30000, geometry.left);
-      auto* y_spin = make_spin("shapeGeometryYSpin", -30000, 30000, geometry.top);
-      auto* width_spin =
-          make_spin("shapeGeometryWidthSpin", 0.5, 60000, geometry.right - geometry.left);
-      auto* height_spin =
-          make_spin("shapeGeometryHeightSpin", 0.5, 60000, geometry.bottom - geometry.top);
+      // A box: a live shape's left/top/right/bottom, or a plain path's bounds.
+      const ShapePathBox box = state->settings.geometry
+          ? ShapePathBox{state->settings.geometry->left, state->settings.geometry->top,
+                         state->settings.geometry->right, state->settings.geometry->bottom}
+          : *state->settings.path_box;
+      auto* x_spin = make_spin(geometry_group, "shapeGeometryXSpin", -30000, 30000, box.left);
+      auto* y_spin = make_spin(geometry_group, "shapeGeometryYSpin", -30000, 30000, box.top);
+      auto* width_spin = make_spin(geometry_group, "shapeGeometryWidthSpin", 0.5, 60000, box.right - box.left);
+      auto* height_spin = make_spin(geometry_group, "shapeGeometryHeightSpin", 0.5, 60000, box.bottom - box.top);
       apply_document_field_units(x_spin, units, true);
       apply_document_field_units(y_spin, units, false);
       apply_document_field_units(width_spin, units, true);
       apply_document_field_units(height_spin, units, false);
       unit_fields.insert(unit_fields.end(), {x_spin, y_spin, width_spin, height_spin});
-      add_geometry_row(QObject::tr("X:"), x_spin);
-      add_geometry_row(QObject::tr("Y:"), y_spin);
-      const int width_row = add_geometry_row(QObject::tr("Width:"), width_spin);
-      add_geometry_row(QObject::tr("Height:"), height_spin);
+      add_grid_spin_row(section, field_rows, QObject::tr("X:"), x_spin);
+      add_grid_spin_row(section, field_rows, QObject::tr("Y:"), y_spin);
+      const int width_row = add_grid_spin_row(section, field_rows, QObject::tr("Width:"), width_spin);
+      add_grid_spin_row(section, field_rows, QObject::tr("Height:"), height_spin);
       // Link keeps the aspect ratio: editing one dimension moves the other by
       // the ratio captured when the link was switched on.
-      auto* link_button = make_link_button("shapeGeometryLinkButton", "shapeGeometryLinkBracket",
-                                           QObject::tr("Keep width and height in proportion"),
-                                           width_row, 2);
+      auto* link_button = add_grid_link_button(section, "shapeGeometryLinkButton", "shapeGeometryLinkBracket",
+                                               QObject::tr("Keep width and height in proportion"), width_row, 2);
       auto link_ratio = std::make_shared<double>(1.0);
       QObject::connect(link_button, &QToolButton::toggled, &dialog,
                        [link_ratio, width_spin, height_spin](bool checked) {
@@ -677,99 +784,171 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
           width_spin->setValue(value * *link_ratio);
         }
       });
-      std::array<QDoubleSpinBox*, 4> radius_spins{nullptr, nullptr, nullptr, nullptr};
-      if (kind == LiveShapeKind::Rectangle || kind == LiveShapeKind::RoundedRectangle) {
-        // Model order TL, TR, BR, BL; a radius on a plain rect promotes it to
-        // a rounded rect (the generator clamps oversized values).
-        const std::array<const char*, 4> names{
-            "shapeGeometryRadiusTopLeftSpin", "shapeGeometryRadiusTopRightSpin",
-            "shapeGeometryRadiusBottomRightSpin", "shapeGeometryRadiusBottomLeftSpin"};
-        const std::array<QString, 4> labels{
-            QObject::tr("Top left radius:"), QObject::tr("Top right radius:"),
-            QObject::tr("Bottom right radius:"), QObject::tr("Bottom left radius:")};
-        const int first_radius_row = static_cast<int>(geometry_rows.size());
-        for (std::size_t corner = 0; corner < 4; ++corner) {
-          auto* radius_spin = make_spin(names[corner], 0, 30000, geometry.corner_radii[corner]);
-          radius_spin->set_context_provider(pixel_field_context);  // stays px; "2 mm" converts
-          radius_spins[corner] = radius_spin;
-          add_geometry_row(labels[corner], radius_spins[corner]);
+      const auto apply_box = [state, notify, x_spin, y_spin, width_spin, height_spin] {
+        const ShapePathBox edited{x_spin->value(), y_spin->value(), x_spin->value() + width_spin->value(),
+                                  y_spin->value() + height_spin->value()};
+        if (state->settings.geometry) {
+          auto& params = *state->settings.geometry;
+          params.left = edited.left;
+          params.top = edited.top;
+          params.right = edited.right;
+          params.bottom = edited.bottom;
+          notify({"geometry"});
+        } else {
+          state->settings.path_box = edited;
+          notify({"path.box"});
         }
-        // Linked, editing any corner sets all four. Starts linked when the
-        // corners already agree (the common case: one radius for the whole
-        // shape); a shape authored with distinct corners opens unlinked so
-        // one edit cannot flatten them.
-        auto* radius_link = make_link_button("shapeGeometryRadiusLinkButton",
-                                             "shapeGeometryRadiusLinkBracket",
-                                             QObject::tr("Change all four corner radii together"),
-                                             first_radius_row, 4);
-        const bool corners_agree =
-            std::abs(geometry.corner_radii[1] - geometry.corner_radii[0]) < 1e-9 &&
-            std::abs(geometry.corner_radii[2] - geometry.corner_radii[0]) < 1e-9 &&
-            std::abs(geometry.corner_radii[3] - geometry.corner_radii[0]) < 1e-9;
-
-        const bool every_shape_symmetric = batch == nullptr ||
-            std::all_of(batch->originals.begin(), batch->originals.end(), [](const auto& value) {
-              if (!appearance_has_editable_radii(value)) return true;
-              const auto& radii = value.geometry->corner_radii;
-              return std::all_of(radii.begin(), radii.end(), [&](double radius) {
-                return std::abs(radius - radii.front()) < 1e-9;
-              });
-            });
-        radius_link->setChecked(corners_agree && every_shape_symmetric);
-
-        // Connected before apply_box below (the same ordering as the W / H
-        // link) so every corner is already updated when the geometry applies.
-        for (auto* spin : radius_spins) {
-          QObject::connect(spin, &QDoubleSpinBox::valueChanged, &dialog,
-                           [radius_link, radius_spins, spin](double value) {
-            if (!radius_link->isChecked()) {
-              return;
-            }
-            for (auto* other : radius_spins) {
-              if (other != spin) {
-                QSignalBlocker blocker(other);
-                other->setValue(value);
-              }
-            }
-          });
-        }
-      }
-      const auto apply_box = [state, notify, x_spin, y_spin, width_spin, height_spin,
-                              radius_spins](const std::vector<std::string>& fields) {
-        auto& params = *state->settings.geometry;
-        params.left = x_spin->value();
-        params.top = y_spin->value();
-        params.right = x_spin->value() + width_spin->value();
-        params.bottom = y_spin->value() + height_spin->value();
-        if (radius_spins[0] != nullptr) {
-          for (std::size_t corner = 0; corner < 4; ++corner) {
-            params.corner_radii[corner] = radius_spins[corner]->value();
-          }
-          const bool any_radius =
-              params.corner_radii[0] > 0.0 || params.corner_radii[1] > 0.0 ||
-              params.corner_radii[2] > 0.0 || params.corner_radii[3] > 0.0;
-          if (params.kind == LiveShapeKind::Rectangle && any_radius) {
-            params.kind = LiveShapeKind::RoundedRectangle;
-          }
-        }
-        notify(fields);
       };
       for (auto* spin : {x_spin, y_spin, width_spin, height_spin}) {
-        QObject::connect(spin, &QDoubleSpinBox::valueChanged, &dialog,
-                         [apply_box] { apply_box({"geometry"}); });
-      }
-      for (std::size_t corner = 0; corner < radius_spins.size(); ++corner) {
-        auto* spin = radius_spins[corner];
-        if (spin != nullptr) {
-          QObject::connect(spin, &QDoubleSpinBox::valueChanged, &dialog,
-                           [apply_box, corner, &dialog] {
-            const auto* link = dialog.findChild<QToolButton*>(QStringLiteral("shapeGeometryRadiusLinkButton"));
-            if (link && link->isChecked()) apply_box({"radius.0", "radius.1", "radius.2", "radius.3"});
-            else apply_box({"radius." + std::to_string(corner)});
-          });
-        }
+        QObject::connect(spin, &QDoubleSpinBox::valueChanged, &dialog, apply_box);
       }
     }
+  }
+
+  // Weight is the row after End Y; with several lines selected the Geometry section holds
+  // it alone (or under the reference rectangle's rows) and it still applies to every line
+  // (GitHub #622 follow-up 2).
+  auto line = std::make_shared<LiveShapeParams>(line_reference.value_or(LiveShapeParams{}));
+  if (line_reference) {
+    auto& section = ensure_geometry_section();
+    auto* weight = new UnitSpinBox(SpinUnit::Pixels, section.group);
+    weight->setObjectName(QStringLiteral("shapeGeometryLineWeightSpin"));
+    weight->setRange(0.5, 1000);
+    weight->setDecimals(1);
+    weight->setValue(line->line_weight);
+    configure_dialog_spinbox(weight, 72);
+    apply_document_field_units(weight, thickness_units, true);
+    unit_fields.push_back(weight);
+    add_grid_spin_row(section, field_rows, QObject::tr("Weight:"), weight);
+    QObject::connect(weight, &QDoubleSpinBox::valueChanged, &dialog, [edit_live_shape, line](double value) {
+      edit_live_shape(line, {"line.weight"}, [value](LiveShapeParams& params) {
+        const double previous = params.line_weight;
+        params.line_weight = value;
+        tie_line_arrowheads_to_weight(params, previous);
+      });
+    });
+  }
+
+  // The Shape picker (GitHub #644): the Custom Shape tool's library. The layer does not
+  // record the shape it was stamped from, so the picker opens with none chosen; a pick
+  // replaces the outline with that shape fitted to the box above (each selected
+  // plain-path layer's own box when several are selected).
+  const bool any_path_box = multiple
+      ? std::any_of(batch->originals.begin(), batch->originals.end(),
+                    [](const ShapeAppearanceSettings& value) { return value.path_box.has_value(); })
+      : path_shape_layer;
+  if (any_path_box && custom_shapes.library && custom_shapes.library() != nullptr) {
+    auto& section = ensure_geometry_section();
+    const auto library = custom_shapes.library;
+    const auto manage = custom_shapes.manage;
+    // The popup's Shapes Manager... button opens the manager over this dialog; the list
+    // follows its changes.
+    auto combo_ref = std::make_shared<QPointer<CustomShapePickerCombo>>();
+    auto* shape_combo = new CustomShapePickerCombo(library, [library, manage, combo_ref, dialog_ptr = &dialog] {
+      if (manage) manage(dialog_ptr);
+      if (const auto* current = library(); current != nullptr && !combo_ref->isNull())
+        populate_custom_shape_combo(**combo_ref, *current);
+    }, section.group);
+    *combo_ref = shape_combo;
+    shape_combo->setObjectName(QStringLiteral("shapeGeometryCustomShapeCombo"));
+    populate_custom_shape_combo(*shape_combo, *library());
+    {
+      const QSignalBlocker blocker(shape_combo);
+      shape_combo->setCurrentIndex(-1);
+    }
+    add_grid_widget_row(section, QObject::tr("Shape:"), shape_combo);
+    QObject::connect(shape_combo, &QComboBox::currentIndexChanged, &dialog,
+                     [state, notify, library, shape_combo](int index) {
+      const auto* current = index >= 0 ? library() : nullptr;
+      const auto* entry =
+          current != nullptr ? current->find_entry_by_shape_id(shape_combo->itemData(index).toString()) : nullptr;
+      if (entry == nullptr || entry->path.empty()) return;
+      state->settings.path_shape = std::make_shared<const VectorPath>(entry->path);
+      notify({"path.shape"});
+    });
+  }
+  if (geometry_section.group != nullptr) left_column->addWidget(geometry_section.group);
+
+  // --- Radius (rectangles; GitHub #641): the four corners and their link ---
+  QVBoxLayout* radius_layout = nullptr;
+  if (appearance_has_editable_radii(state->settings)) {
+    auto section = make_grid_section(QObject::tr("Radius"), left_widget);
+    section.group->setObjectName(QStringLiteral("shapeRadiusGroup"));
+    left_grids.push_back(section.grid);
+    radius_layout = section.layout;
+    const auto& geometry = *state->settings.geometry;
+    // Model order TL, TR, BR, BL; a radius on a plain rect promotes it to
+    // a rounded rect (the generator clamps oversized values).
+    const std::array<const char*, 4> names{
+        "shapeGeometryRadiusTopLeftSpin", "shapeGeometryRadiusTopRightSpin",
+        "shapeGeometryRadiusBottomRightSpin", "shapeGeometryRadiusBottomLeftSpin"};
+    const std::array<QString, 4> labels{QObject::tr("Top left:"), QObject::tr("Top right:"),
+                                        QObject::tr("Bottom right:"), QObject::tr("Bottom left:")};
+    std::array<QDoubleSpinBox*, 4> radius_spins{nullptr, nullptr, nullptr, nullptr};
+    for (std::size_t corner = 0; corner < 4; ++corner) {
+      auto* radius_spin = make_spin(section.group, names[corner], 0, 30000, geometry.corner_radii[corner]);
+      radius_spin->set_context_provider(pixel_field_context);  // stays px; "2 mm" converts
+      radius_spins[corner] = radius_spin;
+      add_grid_spin_row(section, field_rows, labels[corner], radius_spin);
+    }
+    // Linked, editing any corner sets all four. Starts linked when the
+    // corners already agree (the common case: one radius for the whole
+    // shape); a shape authored with distinct corners opens unlinked so
+    // one edit cannot flatten them.
+    auto* radius_link = add_grid_link_button(section, "shapeGeometryRadiusLinkButton",
+                                             "shapeGeometryRadiusLinkBracket",
+                                             QObject::tr("Change all four corner radii together"), 0, 4);
+    const bool corners_agree =
+        std::abs(geometry.corner_radii[1] - geometry.corner_radii[0]) < 1e-9 &&
+        std::abs(geometry.corner_radii[2] - geometry.corner_radii[0]) < 1e-9 &&
+        std::abs(geometry.corner_radii[3] - geometry.corner_radii[0]) < 1e-9;
+    const bool every_shape_symmetric = batch == nullptr ||
+        std::all_of(batch->originals.begin(), batch->originals.end(), [](const auto& value) {
+          if (!appearance_has_editable_radii(value)) return true;
+          const auto& radii = value.geometry->corner_radii;
+          return std::all_of(radii.begin(), radii.end(), [&](double radius) {
+            return std::abs(radius - radii.front()) < 1e-9;
+          });
+        });
+    radius_link->setChecked(corners_agree && every_shape_symmetric);
+    // Connected before apply_radii below so every corner is already updated when the
+    // geometry applies.
+    for (auto* spin : radius_spins) {
+      QObject::connect(spin, &QDoubleSpinBox::valueChanged, &dialog,
+                       [radius_link, radius_spins, spin](double value) {
+        if (!radius_link->isChecked()) {
+          return;
+        }
+        for (auto* other : radius_spins) {
+          if (other != spin) {
+            QSignalBlocker blocker(other);
+            other->setValue(value);
+          }
+        }
+      });
+    }
+    const auto apply_radii = [state, notify, radius_spins](const std::vector<std::string>& fields) {
+      auto& params = *state->settings.geometry;
+      for (std::size_t corner = 0; corner < 4; ++corner) {
+        params.corner_radii[corner] = radius_spins[corner]->value();
+      }
+      const bool any_radius = std::any_of(params.corner_radii.begin(), params.corner_radii.end(),
+                                          [](double radius) { return radius > 0.0; });
+      if (params.kind == LiveShapeKind::Rectangle && any_radius) {
+        params.kind = LiveShapeKind::RoundedRectangle;
+      }
+      notify(fields);
+    };
+    for (std::size_t corner = 0; corner < radius_spins.size(); ++corner) {
+      QObject::connect(radius_spins[corner], &QDoubleSpinBox::valueChanged, &dialog,
+                       [apply_radii, corner, radius_link] {
+        if (radius_link->isChecked()) apply_radii({"radius.0", "radius.1", "radius.2", "radius.3"});
+        else apply_radii({"radius." + std::to_string(corner)});
+      });
+    }
+    left_column->addWidget(section.group);
+  }
+  if (!left_grids.empty()) {
     // The link buttons: a flat chain glyph that lights up while linked (the
     // Image Size dialog's Width / Height link).
     append_themed_style(dialog, QStringLiteral(R"(
@@ -788,29 +967,13 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
         background: @dlg_anchor_active_bg;
       }
     )"));
-    left_column->addWidget(geometry_group);
   }
 
   // --- Arrowheads (line layers; GitHub #622 follow-up) ---
-  // Weight, the Start / End heads, and the heads' Width and Length as a percent of the
-  // weight and their Concavity. One line edits its geometry in place; with several layers
-  // selected the fields show the first line's values (mixed where the lines differ) and
-  // each field applies on its own, so only the fields changed reach the other lines.
-  std::optional<LiveShapeParams> line_reference;
-  std::ptrdiff_t line_count = 0;
-  std::size_t first_line_index = 0;
-  if (!multiple) {
-    if (appearance_has_editable_line(state->settings)) line_reference = state->settings.geometry;
-  } else {
-    line_count = std::count_if(batch->originals.begin(), batch->originals.end(), appearance_has_editable_line);
-    const auto first = std::find_if(batch->originals.begin(), batch->originals.end(), appearance_has_editable_line);
-    if (first != batch->originals.end()) {
-      line_reference = first->geometry;
-      first_line_index = static_cast<std::size_t>(std::distance(batch->originals.begin(), first));
-    }
-  }
+  // The Start / End heads, and the heads' Width and Length as a percent of the weight and
+  // their Concavity. With several layers selected the fields show the first line's values
+  // (mixed where the lines differ).
   if (line_reference) {
-    auto line = std::make_shared<LiveShapeParams>(*line_reference);
     auto* arrow_group = new QGroupBox(QObject::tr("Arrowheads"), left_widget);
     arrow_group->setObjectName(QStringLiteral("shapeArrowheadsGroup"));
     auto* arrow_layout = new QVBoxLayout(arrow_group);
@@ -825,19 +988,9 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
       arrow_layout->addWidget(hint);
     }
     auto* arrow_form = new QFormLayout();
-    arrow_form->setHorizontalSpacing(10);
     arrow_form->setVerticalSpacing(8);
     arrow_layout->addLayout(arrow_form);
-
-    auto* weight = new UnitSpinBox(SpinUnit::Pixels, arrow_group);
-    weight->setObjectName(QStringLiteral("shapeGeometryLineWeightSpin"));
-    weight->setRange(0.5, 1000);
-    weight->setDecimals(1);
-    weight->setValue(line->line_weight);
-    configure_dialog_spinbox(weight, 72);
-    apply_document_field_units(weight, thickness_units, true);
-    unit_fields.push_back(weight);
-    add_spin_row(arrow_form, QObject::tr("Weight:"), weight);
+    left_forms.push_back(arrow_form);
 
     // Start and End, the Line options bar's two toggles.
     auto* ends = new QWidget(arrow_group);
@@ -894,35 +1047,11 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     };
     update_head_rows();
 
-    // One line: the edit changes the dialog's geometry. Several layers: the edit is the
-    // named fields, captured from the first line's values and replayed on every line.
-    const auto edit_line = [state, line, multiple, edits, properties, notify](
-                               const std::vector<std::string>& keys,
-                               const std::function<void(LiveShapeParams&)>& change) {
-      if (!multiple) {
-        change(*state->settings.geometry);
-        *line = *state->settings.geometry;
-        notify({"geometry"});
-        return;
-      }
-      change(*line);
-      ShapeAppearanceSettings source;
-      source.geometry = *line;
-      for (const auto& property : properties)
-        if (std::find(keys.begin(), keys.end(), property.key) != keys.end()) edits->append(property.capture(source));
-      notify({}, true);
-    };
-    QObject::connect(weight, &QDoubleSpinBox::valueChanged, &dialog, [edit_line](double value) {
-      edit_line({"line.weight"}, [value](LiveShapeParams& params) {
-        const double previous = params.line_weight;
-        params.line_weight = value;
-        tie_line_arrowheads_to_weight(params, previous);
-      });
-    });
     for (const bool at_end : {false, true}) {
       QObject::connect(at_end ? arrow_end : arrow_start, &QCheckBox::toggled, &dialog,
-                       [edit_line, update_head_rows, at_end](bool checked) {
-        edit_line({at_end ? "line.arrow_end" : "line.arrow_start"}, [at_end, checked](LiveShapeParams& params) {
+                       [edit_live_shape, line, update_head_rows, at_end](bool checked) {
+        edit_live_shape(line, {at_end ? "line.arrow_end" : "line.arrow_start"},
+                        [at_end, checked](LiveShapeParams& params) {
           (at_end ? params.arrow_end : params.arrow_start) = checked;
           // A new head gets the default size; a head the line already had keeps its own.
           if (checked) give_line_arrowheads_default_size(params);
@@ -932,16 +1061,56 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     }
     for (const bool length : {false, true}) {
       QObject::connect(length ? arrow_length : arrow_width, &QSpinBox::valueChanged, &dialog,
-                       [edit_line, length](int percent) {
-        edit_line({length ? "line.arrow_length" : "line.arrow_width"}, [length, percent](LiveShapeParams& params) {
+                       [edit_live_shape, line, length](int percent) {
+        edit_live_shape(line, {length ? "line.arrow_length" : "line.arrow_width"},
+                        [length, percent](LiveShapeParams& params) {
           (length ? params.arrow_length : params.arrow_width) = params.line_weight * percent / 100.0;
         });
       });
     }
-    QObject::connect(arrow_concavity, &QSpinBox::valueChanged, &dialog, [edit_line](int percent) {
-      edit_line({"line.arrow_concavity"}, [percent](LiveShapeParams& params) { params.arrow_concavity = percent; });
+    QObject::connect(arrow_concavity, &QSpinBox::valueChanged, &dialog, [edit_live_shape, line](int percent) {
+      edit_live_shape(line, {"line.arrow_concavity"},
+                      [percent](LiveShapeParams& params) { params.arrow_concavity = percent; });
     });
     left_column->addWidget(arrow_group);
+  }
+
+  // --- Polygon (GitHub #643): the Polygon options bar's Sides and Star inset ---
+  if (polygon_reference) {
+    auto polygon = std::make_shared<LiveShapeParams>(*polygon_reference);
+    auto* polygon_group =
+        new QGroupBox(QCoreApplication::translate("patchy::ui::MainWindow", "Polygon"), left_widget);
+    polygon_group->setObjectName(QStringLiteral("shapePolygonGroup"));
+    auto* polygon_layout = new QVBoxLayout(polygon_group);
+    polygon_layout->setContentsMargins(10, 8, 10, 8);
+    polygon_layout->setSpacing(4);
+    auto* polygon_form = new QFormLayout();
+    polygon_form->setVerticalSpacing(8);
+    polygon_layout->addLayout(polygon_form);
+    left_forms.push_back(polygon_form);
+    auto* sides = new QSpinBox(polygon_group);
+    sides->setObjectName(QStringLiteral("shapePolygonSidesSpin"));
+    sides->setRange(3, 100);
+    sides->setValue(std::clamp(polygon->polygon_sides, 3, 100));
+    configure_dialog_spinbox(sides, 72);
+    add_spin_row(polygon_form, QObject::tr("Sides:"), sides);
+    auto* star_inset = new QSpinBox(polygon_group);
+    star_inset->setObjectName(QStringLiteral("shapePolygonStarInsetSpin"));
+    star_inset->setRange(0, 99);
+    star_inset->setSuffix(percent_suffix());
+    star_inset->setValue(std::clamp(polygon->polygon_star_inset, 0, 99));
+    star_inset->setToolTip(QCoreApplication::translate(
+        "patchy::ui::MainWindow", "0 makes a plain polygon; higher values pull in star points"));
+    configure_dialog_spinbox(star_inset, 72);
+    add_spin_row(polygon_form, QCoreApplication::translate("patchy::ui::MainWindow", "Star inset:"), star_inset);
+    QObject::connect(sides, &QSpinBox::valueChanged, &dialog, [edit_live_shape, polygon](int value) {
+      edit_live_shape(polygon, {"polygon.sides"}, [value](LiveShapeParams& params) { params.polygon_sides = value; });
+    });
+    QObject::connect(star_inset, &QSpinBox::valueChanged, &dialog, [edit_live_shape, polygon](int value) {
+      edit_live_shape(polygon, {"polygon.star_inset"},
+                      [value](LiveShapeParams& params) { params.polygon_star_inset = value; });
+    });
+    left_column->addWidget(polygon_group);
   }
 
   // --- Fill ---
@@ -1219,6 +1388,8 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     notify({"density"});
   });
   left_column->addWidget(edge_group);
+  left_forms.push_back(edge_form);
+  align_section_columns(left_forms, left_grids);
 
   // --- Stroke ---
   auto* stroke_group = new QGroupBox(QObject::tr("Stroke"), right_widget);
@@ -1504,8 +1675,12 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
           return;
         }
         const auto geometry = target.geometry;
+        const auto path_box = target.path_box;
+        const auto path_shape = target.path_shape;
         target = recipe;
         target.geometry = geometry;
+        target.path_box = path_box;
+        target.path_shape = path_shape;
         if (appearance_has_editable_radii(target) && appearance_has_editable_radii(recipe)) {
           target.geometry->corner_radii = recipe.geometry->corner_radii;
           if (std::any_of(target.geometry->corner_radii.begin(), target.geometry->corner_radii.end(),
@@ -1835,6 +2010,8 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     // Factory appearance; the geometry the dialog opened with stays.
     auto restored = reset_defaults;
     restored.geometry = state->settings.geometry;
+    restored.path_box = state->settings.path_box;
+    restored.path_shape = state->settings.path_shape;
     restored.preview_enabled = state->settings.preview_enabled;
     // A fill layer's dialog resets only the Fill section it shows.
     const auto keep_hidden_sections = [fill_layer_only](ShapeAppearanceSettings& target,
@@ -1857,6 +2034,8 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
         const auto original = target;
         target = recipe;
         target.geometry = original.geometry;
+        target.path_box = original.path_box;
+        target.path_shape = original.path_shape;
         keep_hidden_sections(target, original);
       }});
       *previous = state->settings;
@@ -2357,14 +2536,16 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
         });
       }
     }
-    // The Arrowheads rows (GitHub #622 follow-up): a deliberate commit of an unchanged
-    // value still applies it to every line.
+    // The Weight, Arrowheads and Polygon rows (GitHub #622 follow-up, #643): a deliberate
+    // commit of an unchanged value still applies it to every line or polygon.
     for (const auto& [name, key] : {std::pair{"shapeGeometryLineWeightSpin", "line.weight"},
                                     std::pair{"shapeGeometryLineArrowStartCheck", "line.arrow_start"},
                                     std::pair{"shapeGeometryLineArrowEndCheck", "line.arrow_end"},
                                     std::pair{"shapeArrowWidthSpin", "line.arrow_width"},
                                     std::pair{"shapeArrowLengthSpin", "line.arrow_length"},
-                                    std::pair{"shapeArrowConcavitySpin", "line.arrow_concavity"}}) {
+                                    std::pair{"shapeArrowConcavitySpin", "line.arrow_concavity"},
+                                    std::pair{"shapePolygonSidesSpin", "polygon.sides"},
+                                    std::pair{"shapePolygonStarInsetSpin", "polygon.star_inset"}}) {
       auto* widget = dialog.findChild<QWidget*>(QLatin1String(name));
       if (widget == nullptr) continue;
       bindings->emplace_back(widget, std::vector<std::string>{key});
@@ -2393,7 +2574,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
             QStringLiteral("\n") + QObject::tr("Values from: %1").arg(batch->names[index]), left_widget);
         hint->setObjectName(QStringLiteral("shapeRadiusSelectionSummary"));
         hint->setWordWrap(true);
-        left_column->insertWidget(1, hint);
+        if (radius_layout != nullptr) radius_layout->insertWidget(0, hint);
       }
     }
     *refresh_mixed = [=] {
@@ -2417,10 +2598,12 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
         bool mixed = false;
         for (const auto& property : properties) {
           if (std::find(keys.begin(), keys.end(), property.key) == keys.end()) continue;
-          if (property.key.starts_with("radius.") || property.key.starts_with("line.")) {
-            // Compared only among the layers the field edits (rectangles, lines).
-            const auto editable = property.key.starts_with("line.") ? &appearance_has_editable_line
-                                                                    : &appearance_has_editable_radii;
+          if (property.key.starts_with("radius.") || property.key.starts_with("line.") ||
+              property.key.starts_with("polygon.")) {
+            // Compared only among the layers the field edits (rectangles, lines, polygons).
+            const auto editable = property.key.starts_with("line.")      ? &appearance_has_editable_line
+                                  : property.key.starts_with("polygon.") ? &appearance_has_editable_polygon
+                                                                         : &appearance_has_editable_radii;
             const auto reference = std::find_if(current.begin(), current.end(), editable);
             if (reference != current.end()) for (const auto& value : current)
               if (editable(value)) mixed = mixed || !property.equal(*reference, value);

@@ -98,8 +98,10 @@ fact is `hidden_lines` on the render plan (`BoxTextRenderPlan`, area `PhotoshopT
 `TextRenderPlan`, `RenderedTextPixels`), set where the gate drops a line and never under
 `keep_overflow_lines`. A live preview reports it from its own render; sessions without one lay
 the story out once per change of `text_editor_hidden_lines_key` (`build_text_render_plan`, no
-raster), so pans and repaints do no layout. Vertical type has no marker. Test:
-`ui_box_text_overflow_marker_on_bottom_right_handle`. Handles removed at a commit lose their
+raster), so pans and repaints do no layout. Vertical type has no marker. Hovering the marked
+handle shows a tooltip saying some text does not fit (`text_overflow_marker_tooltip`; hidden on a
+drag and when the plus clears). Tests: `ui_box_text_overflow_marker_on_bottom_right_handle`,
+`ui_box_text_overflow_marker_tooltip`. Handles removed at a commit lose their
 names before the deferred delete, so a re-edit right after shows fresh handles; `canvas.grab()`
 paints them, so a test that measures text ink on a live session hides them first
 (`dark_text_bounds_without_box_handles` in `psd_text_import_tests.cpp`).

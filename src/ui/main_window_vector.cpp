@@ -964,7 +964,9 @@ bool MainWindow::edit_active_shape_appearance(bool record_undo,
       this, preview_changed, context.originals.front(), defaults, &gradient_library(), &pattern_library(),
       &doc.metadata().patterns, defaults.fill.color,
       {static_cast<std::uint8_t>(background.red()), static_cast<std::uint8_t>(background.green()),
-       static_cast<std::uint8_t>(background.blue())}, dialog_field_units(), &context);
+       static_cast<std::uint8_t>(background.blue())}, dialog_field_units(), &context,
+      ShapeAppearanceShapeSource{[this]() -> const CustomShapeLibrary* { return &custom_shape_library_with_bundled(); },
+                                 [this](QWidget* parent) { open_custom_shape_manager(parent); }});
   // Save... and Delete in the dialog's Dashes row change the options bar's list too.
   rebuild_vector_stroke_dash_combo();
 
@@ -998,6 +1000,8 @@ bool MainWindow::edit_active_shape_appearance(bool record_undo,
     changed = changed || !shape_appearance_equal(shape_appearance_settings(before), shape_appearance_settings(after));
     const auto* a = before.vector_shape();
     const auto* b = after.vector_shape();
+    // A custom shape picked into the same box changes only the outline (GitHub #644).
+    changed = changed || a->path != b->path;
     for (std::size_t part = 0; part < a->parts.size(); ++part)
       changed = changed || a->parts[part].fill != b->parts[part].fill ||
                 a->parts[part].stroke != b->parts[part].stroke;

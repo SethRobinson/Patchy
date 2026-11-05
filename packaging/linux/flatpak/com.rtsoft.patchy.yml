@@ -19,6 +19,9 @@ finish-args:
   - --share=network
   # Recent files, command-line file arguments, brush and palette folders.
   - --filesystem=home
+  # USB scanners (SANE) and cameras (libgphoto2) for File > Import > From Scanner or
+  # Camera (docs/import-scanner.md). Network scanners need only --share=network.
+  - --device=all
 cleanup:
   - /include
   - /lib/cmake
@@ -43,6 +46,47 @@ modules:
         only-arches: [aarch64]
         url: https://github.com/microsoft/onnxruntime/releases/download/v1.30.0/onnxruntime-linux-aarch64-1.30.0.tgz
         sha256: e16a27a8ed330bbc698df7330b0cf56e722f354e3bcc92118682c74ef3c3e3da
+  # Scanner and camera acquisition (docs/import-scanner.md): the KDE runtime carries neither SANE
+  # nor libgphoto2, and Patchy dlopens both at run time. SANE's own gphoto2 backend stays
+  # off: cameras go through libgphoto2 directly.
+  - name: sane-backends
+    buildsystem: autotools
+    config-opts:
+      - --disable-locking
+      - --disable-rpath
+      - --without-gphoto2
+      - --without-api-spec
+    sources:
+      - type: archive
+        url: https://gitlab.com/-/project/429008/uploads/843c156420e211859e974f78f64c3ea3/sane-backends-1.4.0.tar.gz
+        sha256: f99205c903dfe2fb8990f0c531232c9a00ec9c2c66ac7cb0ce50b4af9f407a72
+      # Where the source of both libraries is published (docs/legal-licensing.md,
+      # PatchyLinuxScannerSources.zip from scripts/release/make-linux-scanner-sources.ps1).
+      - type: file
+        path: ../../../packaging/linux/flatpak/scanner-SOURCES.txt
+    post-install:
+      - install -Dm644 COPYING /app/share/licenses/com.rtsoft.patchy/sane-backends-COPYING.txt
+      - install -Dm644 LICENSE /app/share/licenses/com.rtsoft.patchy/sane-backends-LICENSE.txt
+      - install -Dm644 scanner-SOURCES.txt /app/share/licenses/com.rtsoft.patchy/scanner-SOURCES.txt
+    cleanup:
+      - /bin
+      - /sbin
+      - /share/man
+      - /share/doc
+  - name: libgphoto2
+    buildsystem: autotools
+    config-opts:
+      - --disable-static
+    sources:
+      - type: archive
+        url: https://github.com/gphoto/libgphoto2/releases/download/v2.5.32/libgphoto2-2.5.32.tar.xz
+        sha256: 495a347be21b8f970607a81e739aa91513a8479cbd73b79454a339c73e2b860e
+    post-install:
+      - install -Dm644 COPYING /app/share/licenses/com.rtsoft.patchy/libgphoto2-COPYING.txt
+    cleanup:
+      - /bin
+      - /share/man
+      - /share/doc
   # Patchy's own GEGL (docs/gegl-filters.md, "Bundled GEGL"): babl and GEGL from gimp.org's
   # tarballs with every optional dependency off; the runtime supplies GLib and json-glib.
   # Keep the versions and checksums in sync with scripts/dev/gegl/ (sources.lock). The

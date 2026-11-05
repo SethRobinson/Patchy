@@ -8356,22 +8356,6 @@ RGB: %2, %3, %4</translation>
         <translation>Соблюдайте пропорции ширины и высоты</translation>
     </message>
     <message>
-        <source>Top left radius:</source>
-        <translation>Верхний левый радиус:</translation>
-    </message>
-    <message>
-        <source>Top right radius:</source>
-        <translation>Верхний правый радиус:</translation>
-    </message>
-    <message>
-        <source>Bottom right radius:</source>
-        <translation>Нижний правый радиус:</translation>
-    </message>
-    <message>
-        <source>Bottom left radius:</source>
-        <translation>Нижний левый радиус:</translation>
-    </message>
-    <message>
         <source>Change all four corner radii together</source>
         <translation>Измените все четыре угловых радиуса вместе</translation>
     </message>
@@ -15038,6 +15022,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Concavity:</source>
         <translation>Вогнутость:</translation>
     </message>
+    <message>
+        <source>Scanned image is too large</source>
+        <translation>Отсканированное изображение слишком велико</translation>
+    </message>
+    <message>
+        <source>Scan data arrived out of order</source>
+        <translation>Данные сканирования пришли в неверном порядке</translation>
+    </message>
+    <message>
+        <source>The scanner sent image data in an unsupported layout</source>
+        <translation>Сканер передал данные изображения в неподдерживаемом формате</translation>
+    </message>
+    <message>
+        <source>The scanner sent an incomplete image</source>
+        <translation>Сканер передал неполное изображение</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15076,6 +15076,142 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Windows Image Acquisition is unavailable (%1)</source>
         <translation>Служба Windows Image Acquisition недоступна (%1)</translation>
+    </message>
+    <message>
+        <source>Scanner: %1</source>
+        <translation>Сканер: %1</translation>
+    </message>
+    <message>
+        <source>Camera: %1</source>
+        <translation>Камера: %1</translation>
+    </message>
+    <message>
+        <source>The scanner could not be opened (%1)</source>
+        <translation>Не удалось открыть сканер (%1)</translation>
+    </message>
+    <message>
+        <source>The camera could not be opened (%1)</source>
+        <translation>Не удалось открыть камеру (%1)</translation>
+    </message>
+    <message>
+        <source>The camera image could not be downloaded (%1)</source>
+        <translation>Не удалось загрузить изображение с камеры (%1)</translation>
+    </message>
+    <message>
+        <source>Device:</source>
+        <translation>Устройство:</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>Разрешение:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Режим:</translation>
+    </message>
+    <message>
+        <source>Source:</source>
+        <translation>Источник:</translation>
+    </message>
+    <message>
+        <source>Searching for scanners and cameras...</source>
+        <translation>Поиск сканеров и камер...</translation>
+    </message>
+    <message>
+        <source>Reading the camera...</source>
+        <translation>Чтение камеры...</translation>
+    </message>
+    <message>
+        <source>Opening the scanner...</source>
+        <translation>Открытие сканера...</translation>
+    </message>
+    <message>
+        <source>No images were found on the camera.</source>
+        <translation>На камере не найдено изображений.</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 dpi</translation>
+    </message>
+    <message>
+        <source>Import</source>
+        <translation>Импортировать</translation>
+    </message>
+    <message>
+        <source>Scan</source>
+        <translation>Сканировать</translation>
+    </message>
+    <message>
+        <source>Downloading from the camera...</source>
+        <translation>Загрузка с камеры...</translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation>Сканирование...</translation>
+    </message>
+    <message>
+        <source>Scanning needs SANE (for scanners) or libgphoto2 (for cameras). Install them from your distribution and try again.</source>
+        <translation>Для сканирования нужен SANE (для сканеров) или libgphoto2 (для камер). Установите их из своего дистрибутива и повторите попытку.</translation>
+    </message>
+    <message>
+        <source>The network scanner does not answer.</source>
+        <translation>Сетевой сканер не отвечает.</translation>
+    </message>
+    <message>
+        <source>The network scanner at %1 does not answer.</source>
+        <translation>Сетевой сканер по адресу %1 не отвечает.</translation>
+    </message>
+    <message>
+        <source>Check that it is switched on and connected to the same network as this computer. If its address changed, correct or remove the old address in the scanner configuration in /etc/sane.d (airscan.conf or escl.conf).</source>
+        <translation>Убедитесь, что он включён и подключён к той же сети, что и этот компьютер. Если его адрес изменился, исправьте или удалите старый адрес в настройках сканера в /etc/sane.d (airscan.conf или escl.conf).</translation>
+    </message>
+    <message>
+        <source>The device stopped responding. Check that it is switched on, the cable is connected and it is not in sleep mode, then try again.</source>
+        <translation>Устройство перестало отвечать. Убедитесь, что оно включено, кабель подключён и устройство не находится в спящем режиме, затем повторите попытку.</translation>
+    </message>
+    <message>
+        <source>The scanner is in use by another program or still finishing a previous job. Close the other program or wait a moment, then try again.</source>
+        <translation>Сканер занят другой программой или ещё завершает предыдущее задание. Закройте другую программу или подождите немного, затем повторите попытку.</translation>
+    </message>
+    <message>
+        <source>This user account is not allowed to use the device. Add your account to the scanner group (often &quot;scanner&quot; or &quot;lp&quot;), or install the device rules from your distribution&apos;s SANE or libgphoto2 package, then log in again.</source>
+        <translation>Этой учётной записи не разрешено использовать устройство. Добавьте свою учётную запись в группу сканера (обычно «scanner» или «lp») или установите правила устройств из пакета SANE или libgphoto2 вашего дистрибутива, затем войдите в систему заново.</translation>
+    </message>
+    <message>
+        <source>Paper is jammed in the scanner. Clear the jam and try again.</source>
+        <translation>В сканере застряла бумага. Устраните замятие и повторите попытку.</translation>
+    </message>
+    <message>
+        <source>The document feeder is empty. Load the pages, or choose the flatbed as the source.</source>
+        <translation>Автоподатчик документов пуст. Загрузите страницы или выберите планшет в качестве источника.</translation>
+    </message>
+    <message>
+        <source>The scanner cover is open. Close it and try again.</source>
+        <translation>Крышка сканера открыта. Закройте её и повторите попытку.</translation>
+    </message>
+    <message>
+        <source>The scanner does not accept these settings. Try another mode, resolution or source.</source>
+        <translation>Сканер не принимает эти настройки. Попробуйте другой режим, разрешение или источник.</translation>
+    </message>
+    <message>
+        <source>There is not enough memory for this scan. Try a lower resolution.</source>
+        <translation>Недостаточно памяти для этого сканирования. Попробуйте более низкое разрешение.</translation>
+    </message>
+    <message>
+        <source>Another program is using the camera, often the file manager, which opens cameras automatically. Eject or unmount the camera there, then try again.</source>
+        <translation>Камеру использует другая программа, чаще всего файловый менеджер, который автоматически открывает камеры. Извлеките или отмонтируйте камеру в нём, затем повторите попытку.</translation>
+    </message>
+    <message>
+        <source>libgphoto2 does not support this camera model. Copy the images with a card reader or the file manager instead.</source>
+        <translation>libgphoto2 не поддерживает эту модель камеры. Скопируйте изображения с помощью кардридера или файлового менеджера.</translation>
+    </message>
+    <message>
+        <source>The camera sent damaged data. Reconnect the camera and try again.</source>
+        <translation>Камера передала повреждённые данные. Переподключите камеру и повторите попытку.</translation>
+    </message>
+    <message>
+        <source>The image is no longer on the camera. Pick the device again to refresh the list.</source>
+        <translation>Этого изображения больше нет на камере. Выберите устройство снова, чтобы обновить список.</translation>
     </message>
 </context>
 <context>
@@ -19458,6 +19594,14 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Переключить инструменты «Рука» и «Поворот вида»</translation>
     </message>
     <message>
+        <source>Turn text, shapes or smart objects into plain pixels</source>
+        <translation>Превратить текст, фигуры или смарт-объекты в обычные пиксели</translation>
+    </message>
+    <message>
+        <source>Bake the layer effects into the pixels</source>
+        <translation>Вплавить эффекты слоя в пиксели</translation>
+    </message>
+    <message>
         <source>Leading, tracking, glyph scales and font features</source>
         <translation>Интерлиньяж, трекинг, масштаб глифов и функции шрифта</translation>
     </message>
@@ -19796,6 +19940,19 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Show only favorite fonts</source>
         <translation>Показывать только избранные шрифты</translation>
+    </message>
+    <message numerus="yes">
+        <source>More matches with All Styles and All Languages: %n</source>
+        <extracomment>Under the font list while searching: fonts that match the search but are hidden by the Style or Language filter next to the search box. Clicking it sets both filters to All.</extracomment>
+        <translation>
+            <numerusform>Ещё совпадения при «Все стили» и «Все языки»: %n</numerusform>
+            <numerusform>Ещё совпадения при «Все стили» и «Все языки»: %n</numerusform>
+            <numerusform>Ещё совпадения при «Все стили» и «Все языки»: %n</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Set Style and Language to All</source>
+        <translation>Выбрать «Все» для стиля и языка</translation>
     </message>
 </context>
 <context>
@@ -33083,6 +33240,14 @@ Locked: %1</source>
     <message>
         <source>Cycle Hand Tools</source>
         <translation>Сменить инструмент «Рука»</translation>
+    </message>
+    <message>
+        <source>No scanner or camera was found. Connect a scanner supported by SANE or a camera supported by gphoto2 and try again.</source>
+        <translation>Сканер или камера не найдены. Подключите сканер, поддерживаемый SANE, или камеру, поддерживаемую gphoto2, и повторите попытку.</translation>
+    </message>
+    <message>
+        <source>Some text does not fit. Drag to enlarge the box.</source>
+        <translation>Часть текста не помещается. Перетащите, чтобы увеличить рамку.</translation>
     </message>
     <message>
         <source>Alignment</source>

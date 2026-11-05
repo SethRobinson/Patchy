@@ -5,6 +5,7 @@
 #include "ui/qt_paths.hpp"
 #include "ui/text_layout.hpp"
 #include "ui/text_render.hpp"
+#include "ui/text_font_service.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/layer_metadata.hpp"
 #include "ui/font_picker.hpp"
@@ -3591,7 +3592,7 @@ void ui_text_style_picker_selects_a_face_the_flags_cannot_name() {
   if (style_combo == nullptr) {
     return;
   }
-  // Regular is always first, and the family's own faces follow.
+  // Regular is first (Arial has no lighter face), and the family's own faces follow.
   CHECK(style_combo->itemData(0).toString().isEmpty());
   const auto black_index = style_combo->findData(style);
   CHECK(black_index > 0);
@@ -3630,6 +3631,79 @@ void ui_text_style_picker_selects_a_face_the_flags_cannot_name() {
     CHECK(runs->second.rfind("v5", 0) == 0);
     CHECK(runs->second.find("\tBlack") != std::string::npos);
   }
+}
+
+// Photoshop's style list order for a many-weight family (issue 649, from the reporter's Photoshop
+// screenshot of Roboto): upright normal width, upright Condensed, Italic, Condensed Italic, each
+// block from Thin to Black, with Regular at its weight rather than on top. Pure: no font database.
+void ui_text_style_order_follows_photoshop_blocks() {
+  const QStringList photoshop{
+      QStringLiteral("Thin"), QStringLiteral("ExtraLight"), QStringLiteral("Light"), QStringLiteral("Regular"),
+      QStringLiteral("Medium"), QStringLiteral("SemiBold"), QStringLiteral("Bold"), QStringLiteral("ExtraBold"),
+      QStringLiteral("Black"),
+      QStringLiteral("Condensed Thin"), QStringLiteral("Condensed ExtraLight"), QStringLiteral("Condensed Light"),
+      QStringLiteral("Condensed Regular"), QStringLiteral("Condensed Medium"), QStringLiteral("Condensed SemiBold"),
+      QStringLiteral("Condensed Bold"), QStringLiteral("Condensed ExtraBold"), QStringLiteral("Condensed Black"),
+      QStringLiteral("Thin Italic"), QStringLiteral("ExtraLight Italic"), QStringLiteral("Light Italic"),
+      QStringLiteral("Italic"), QStringLiteral("Medium Italic"), QStringLiteral("SemiBold Italic"),
+      QStringLiteral("Bold Italic"), QStringLiteral("ExtraBold Italic"), QStringLiteral("Black Italic"),
+      QStringLiteral("Condensed Thin Italic"), QStringLiteral("Condensed ExtraLight Italic"),
+      QStringLiteral("Condensed Light Italic"), QStringLiteral("Condensed Italic"),
+      QStringLiteral("Condensed Medium Italic"), QStringLiteral("Condensed SemiBold Italic"),
+      QStringLiteral("Condensed Bold Italic"), QStringLiteral("Condensed ExtraBold Italic"),
+      QStringLiteral("Condensed Black Italic")};
+  // The reporter's jumbled order first (the old fixed four, then database order), then the rest.
+  QStringList jumbled{QStringLiteral("Regular"), QStringLiteral("Italic"), QStringLiteral("Bold"),
+                      QStringLiteral("Bold Italic"), QStringLiteral("Light"), QStringLiteral("Condensed Light Italic"),
+                      QStringLiteral("Condensed Thin"), QStringLiteral("Condensed ExtraBold Italic"),
+                      QStringLiteral("Condensed Black"), QStringLiteral("Thin"), QStringLiteral("Black Italic"),
+                      QStringLiteral("Medium")};
+  for (const auto& style : photoshop) {
+    if (!jumbled.contains(style)) {
+      jumbled.append(style);
+    }
+  }
+  CHECK(jumbled.size() == photoshop.size());
+  const auto facts_for = [](const QStringList& styles) {
+    std::vector<patchy::ui::TextStyleSortFacts> facts;
+    for (const auto& style : styles) {
+      facts.push_back(patchy::ui::TextStyleSortFacts{style, -1, false});
+    }
+    return facts;
+  };
+  // Names alone (the database knows nothing), in either input order.
+  CHECK(patchy::ui::text_styles_in_photoshop_order(facts_for(jumbled)) == photoshop);
+  QStringList reversed(photoshop.crbegin(), photoshop.crend());
+  CHECK(patchy::ui::text_styles_in_photoshop_order(facts_for(reversed)) == photoshop);
+
+  // The database's weight and italic win over the name when it knows them: a "Book" face the
+  // font declares at 350 sorts above Regular, and a "Kursiv" face it calls italic joins the
+  // italic block.
+  const std::vector<patchy::ui::TextStyleSortFacts> database{
+      {QStringLiteral("Kursiv"), 400, true},
+      {QStringLiteral("Regular"), 400, false},
+      {QStringLiteral("Book"), 350, false},
+      {QStringLiteral("Bold"), 700, false}};
+  CHECK((patchy::ui::text_styles_in_photoshop_order(database) ==
+         QStringList{QStringLiteral("Book"), QStringLiteral("Regular"), QStringLiteral("Bold"),
+                     QStringLiteral("Kursiv")}));
+
+  // Name spellings: spaces and hyphens inside a word, the width word read before the weight
+  // (ExtraCondensed Light is a Light face, not ExtraLight), condensed widths nearest normal
+  // first, then the expanded ones, and Oblique as italic.
+  const auto key = [](const QString& style) {
+    return patchy::ui::text_style_order_key(patchy::ui::TextStyleSortFacts{style, -1, false});
+  };
+  CHECK((key(QStringLiteral("Extra Light")) == patchy::ui::TextStyleOrderKey{0, 0, 200}));
+  CHECK((key(QStringLiteral("Semi-Bold Oblique")) == patchy::ui::TextStyleOrderKey{1, 0, 600}));
+  CHECK((key(QStringLiteral("ExtraCondensed Light")) == patchy::ui::TextStyleOrderKey{0, 38, 300}));
+  CHECK((key(QStringLiteral("Narrow Bold")) == patchy::ui::TextStyleOrderKey{0, 25, 700}));
+  CHECK((key(QStringLiteral("Heavy")) == patchy::ui::TextStyleOrderKey{0, 0, 900}));
+  CHECK((patchy::ui::text_styles_in_photoshop_order(facts_for(
+             {QStringLiteral("Expanded"), QStringLiteral("ExtraCondensed"), QStringLiteral("SemiCondensed"),
+              QStringLiteral("Regular"), QStringLiteral("Condensed")})) ==
+         QStringList{QStringLiteral("Regular"), QStringLiteral("SemiCondensed"), QStringLiteral("Condensed"),
+                     QStringLiteral("ExtraCondensed"), QStringLiteral("Expanded")}));
 }
 
 // The picker lists a family's REAL faces in Photoshop's order, and a face-baked display family
@@ -3688,19 +3762,28 @@ void ui_text_style_combo_lists_real_faces_in_photoshop_order() {
   auto* style_combo = window.findChild<QComboBox*>(QStringLiteral("textStyleCombo"));
   CHECK(style_combo != nullptr);
   if (style_combo != nullptr) {
-    // Photoshop's order up front (an earlier test may have added extra Arial faces such as
-    // Black; they follow the canonical four), and no duplicate rows.
+    // Photoshop's order (issue 649): upright faces by weight, then the italic ones. An earlier
+    // test may have registered Arial Black, a style of Arial here; it is the heaviest upright
+    // face, so it lands between Bold and Italic. No duplicate rows.
     CHECK(style_combo->count() >= 4);
-    CHECK(style_combo->itemData(0).toString().isEmpty());
-    CHECK(style_combo->itemData(1).toString() == QStringLiteral("Italic"));
-    CHECK(style_combo->itemData(2).toString() == QStringLiteral("Bold"));
-    CHECK(style_combo->itemData(3).toString() == QStringLiteral("Bold Italic"));
     QStringList seen;
     for (int index = 0; index < style_combo->count(); ++index) {
       const auto face = style_combo->itemData(index).toString();
       CHECK(!seen.contains(face, Qt::CaseInsensitive));
       seen.append(face);
     }
+    QStringList expected{QString(), QStringLiteral("Bold")};
+    if (seen.contains(QStringLiteral("Black"))) {
+      expected.append(QStringLiteral("Black"));
+    }
+    expected.append({QStringLiteral("Italic"), QStringLiteral("Bold Italic")});
+    QStringList known_rows;
+    for (const auto& face : seen) {
+      if (face.isEmpty() || expected.contains(face)) {
+        known_rows.append(face);
+      }
+    }
+    CHECK(known_rows == expected);
     // The run's italic flag lands the picker on the face it describes.
     CHECK(style_combo->currentData().toString() == QStringLiteral("Italic"));
   }
@@ -4583,6 +4666,7 @@ std::vector<patchy::test::TestCase> psd_text_import_tests() {
        ui_text_style_picker_selects_a_face_the_flags_cannot_name},
       {"ui_text_style_combo_lists_real_faces_in_photoshop_order",
        ui_text_style_combo_lists_real_faces_in_photoshop_order},
+      {"ui_text_style_order_follows_photoshop_blocks", ui_text_style_order_follows_photoshop_blocks},
       {"ui_picking_bold_in_style_combo_stays_flag_expressible",
        ui_picking_bold_in_style_combo_stays_flag_expressible},
       {"ui_faux_italic_shears_the_rendered_glyphs", ui_faux_italic_shears_the_rendered_glyphs},

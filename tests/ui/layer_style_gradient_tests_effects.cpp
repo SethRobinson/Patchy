@@ -3745,6 +3745,89 @@ void ui_layer_style_issue_606_layout() {
   patchy::ui::set_stored_layer_style_dialog_size({});
 }
 
+void ui_layer_style_short_page_has_no_scroll_bar() {
+  // GitHub issue 606 follow-up 4: the settings stack sized itself to its
+  // tallest page, so a short page (Color Overlay) showed a scroll bar over
+  // empty space. Only the page that shows sizes the pane's contents now; the
+  // dialog keeps its size on every page, and a page taller than the pane (Bevel
+  // & Emboss on a dialog dragged short) still scrolls.
+  patchy::ui::set_stored_layer_style_dialog_size({});
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Short Page",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  patchy::LayerColorOverlay overlay;
+  overlay.enabled = true;
+  overlay.color = patchy::RgbColor{220, 40, 40};
+  layer.layer_style().color_overlays.push_back(overlay);
+  const auto layer_id = layer.id();
+  document.add_layer(std::move(layer));
+  document.set_active_layer(layer_id);
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Short Page"));
+  show_window(window);
+
+  bool inspected = false;
+  QTimer::singleShot(0, &window, guarded([&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    QApplication::processEvents();
+    auto* scroll = dialog->findChild<QScrollArea*>(QStringLiteral("layerStyleOptionsScroll"));
+    auto* stack = dialog->findChild<QStackedWidget*>(QStringLiteral("layerStyleOptionsStack"));
+    auto* color_page = dialog->findChild<QWidget*>(QStringLiteral("layerStyleColorOverlayPage"));
+    CHECK(scroll != nullptr && stack != nullptr && color_page != nullptr);
+    if (scroll == nullptr || stack == nullptr || color_page == nullptr) {
+      dialog->reject();
+      return;
+    }
+    auto* bar = scroll->verticalScrollBar();
+    const auto opened = dialog->size();
+
+    select_layer_style_category(*dialog, QStringLiteral("Color Overlay"));
+    QApplication::processEvents();
+    std::printf("color overlay: dialog %dx%d, viewport %d, page minimum %d, stack minimum %d, bar %s max %d\n",
+                dialog->width(), dialog->height(), scroll->viewport()->height(),
+                color_page->minimumSizeHint().height(), stack->minimumSizeHint().height(),
+                bar->isVisible() ? "shown" : "hidden", bar->maximum());
+    save_image_artifact("ui_layer_style_color_overlay_no_scroll_bar", dialog->grab().toImage());
+    CHECK(stack->currentWidget() == color_page);
+    CHECK(color_page->minimumSizeHint().height() <= scroll->viewport()->height());
+    CHECK(!bar->isVisible());
+    CHECK(bar->maximum() == 0);
+    // Changing pages never resizes the dialog.
+    CHECK(dialog->size() == opened);
+
+    // The tallest pages still scroll once the dialog is shorter than them.
+    dialog->resize(dialog->width(), dialog->minimumHeight());
+    QApplication::processEvents();
+    for (const auto& page : {QStringLiteral("Bevel & Emboss"), QStringLiteral("Blending Options")}) {
+      select_layer_style_category(*dialog, page);
+      QApplication::processEvents();
+      if (!bar->isVisible()) {
+        std::printf("%s shows no scroll bar at %d px\n", qPrintable(page), dialog->height());
+      }
+      CHECK(bar->isVisible());
+      CHECK(bar->maximum() > 0);
+    }
+
+    // Back at the opening size, Color Overlay fits again.
+    dialog->resize(opened);
+    QApplication::processEvents();
+    select_layer_style_category(*dialog, QStringLiteral("Color Overlay"));
+    QApplication::processEvents();
+    CHECK(!bar->isVisible());
+    CHECK(dialog->size() == opened);
+    inspected = true;
+    dialog->reject();
+  }));
+  require_action(window, "layerBlendingOptionsAction")->trigger();
+  QApplication::processEvents();
+  CHECK(inspected);
+  patchy::ui::set_stored_layer_style_dialog_size({});
+}
+
 void ui_layer_style_knockout_and_vector_mask_hides_effects_commit() {
   // GitHub issue 191: Blending Options gains Photoshop's Knockout (None,
   // Shallow, Deep) and Vector Mask Hides Effects. The layer carries the None
@@ -3835,6 +3918,7 @@ std::vector<patchy::test::TestCase> layer_style_gradient_tests_part1() {
       {"ui_layer_style_page_titles_show_ampersands", ui_layer_style_page_titles_show_ampersands},
       {"ui_layer_style_make_default_and_reset_to_default", ui_layer_style_make_default_and_reset_to_default},
       {"ui_layer_style_issue_606_layout", ui_layer_style_issue_606_layout},
+      {"ui_layer_style_short_page_has_no_scroll_bar", ui_layer_style_short_page_has_no_scroll_bar},
       {"ui_angle_dial_sets_angle_and_altitude_from_clicks", ui_angle_dial_sets_angle_and_altitude_from_clicks},
       {"ui_layer_style_angle_dials_drive_the_fields", ui_layer_style_angle_dials_drive_the_fields},
       {"ui_layer_style_knockout_and_vector_mask_hides_effects_commit",

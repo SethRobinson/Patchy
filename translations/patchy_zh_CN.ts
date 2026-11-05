@@ -7952,22 +7952,6 @@ RGB：%2, %3, %4</translation>
         <translation>Y:</translation>
     </message>
     <message>
-        <source>Top left radius:</source>
-        <translation>左上角半径:</translation>
-    </message>
-    <message>
-        <source>Top right radius:</source>
-        <translation>右上角半径:</translation>
-    </message>
-    <message>
-        <source>Bottom right radius:</source>
-        <translation>右下角半径:</translation>
-    </message>
-    <message>
-        <source>Bottom left radius:</source>
-        <translation>左下角半径:</translation>
-    </message>
-    <message>
         <source>No Fill</source>
         <translation>无填充</translation>
     </message>
@@ -14944,6 +14928,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Concavity:</source>
         <translation>凹度:</translation>
     </message>
+    <message>
+        <source>Scanned image is too large</source>
+        <translation>扫描的图像太大</translation>
+    </message>
+    <message>
+        <source>Scan data arrived out of order</source>
+        <translation>扫描数据到达顺序有误</translation>
+    </message>
+    <message>
+        <source>The scanner sent image data in an unsupported layout</source>
+        <translation>扫描仪发送的图像数据格式不受支持</translation>
+    </message>
+    <message>
+        <source>The scanner sent an incomplete image</source>
+        <translation>扫描仪发送的图像不完整</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14982,6 +14982,142 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Windows Image Acquisition is unavailable (%1)</source>
         <translation>Windows 图像采集不可用 (%1)</translation>
+    </message>
+    <message>
+        <source>Scanner: %1</source>
+        <translation>扫描仪: %1</translation>
+    </message>
+    <message>
+        <source>Camera: %1</source>
+        <translation>相机: %1</translation>
+    </message>
+    <message>
+        <source>The scanner could not be opened (%1)</source>
+        <translation>无法打开扫描仪 (%1)</translation>
+    </message>
+    <message>
+        <source>The camera could not be opened (%1)</source>
+        <translation>无法打开相机 (%1)</translation>
+    </message>
+    <message>
+        <source>The camera image could not be downloaded (%1)</source>
+        <translation>无法下载相机图像 (%1)</translation>
+    </message>
+    <message>
+        <source>Device:</source>
+        <translation>设备:</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>分辨率:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>模式:</translation>
+    </message>
+    <message>
+        <source>Source:</source>
+        <translation>来源:</translation>
+    </message>
+    <message>
+        <source>Searching for scanners and cameras...</source>
+        <translation>正在搜索扫描仪和相机...</translation>
+    </message>
+    <message>
+        <source>Reading the camera...</source>
+        <translation>正在读取相机...</translation>
+    </message>
+    <message>
+        <source>Opening the scanner...</source>
+        <translation>正在打开扫描仪...</translation>
+    </message>
+    <message>
+        <source>No images were found on the camera.</source>
+        <translation>相机上未找到图像。</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 dpi</translation>
+    </message>
+    <message>
+        <source>Import</source>
+        <translation>导入</translation>
+    </message>
+    <message>
+        <source>Scan</source>
+        <translation>扫描</translation>
+    </message>
+    <message>
+        <source>Downloading from the camera...</source>
+        <translation>正在从相机下载...</translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation>正在扫描...</translation>
+    </message>
+    <message>
+        <source>Scanning needs SANE (for scanners) or libgphoto2 (for cameras). Install them from your distribution and try again.</source>
+        <translation>扫描需要 SANE（用于扫描仪）或 libgphoto2（用于相机）。请从您的发行版安装后重试。</translation>
+    </message>
+    <message>
+        <source>The network scanner does not answer.</source>
+        <translation>网络扫描仪没有响应。</translation>
+    </message>
+    <message>
+        <source>The network scanner at %1 does not answer.</source>
+        <translation>位于 %1 的网络扫描仪没有响应。</translation>
+    </message>
+    <message>
+        <source>Check that it is switched on and connected to the same network as this computer. If its address changed, correct or remove the old address in the scanner configuration in /etc/sane.d (airscan.conf or escl.conf).</source>
+        <translation>请检查它是否已开机，并与这台计算机连接到同一网络。如果它的地址已更改，请在 /etc/sane.d 中的扫描仪配置（airscan.conf 或 escl.conf）里更正或删除旧地址。</translation>
+    </message>
+    <message>
+        <source>The device stopped responding. Check that it is switched on, the cable is connected and it is not in sleep mode, then try again.</source>
+        <translation>设备停止响应。请检查它是否已开机、线缆是否已连接、是否处于睡眠模式，然后重试。</translation>
+    </message>
+    <message>
+        <source>The scanner is in use by another program or still finishing a previous job. Close the other program or wait a moment, then try again.</source>
+        <translation>扫描仪正被其他程序使用，或仍在完成上一个任务。请关闭其他程序或稍等片刻，然后重试。</translation>
+    </message>
+    <message>
+        <source>This user account is not allowed to use the device. Add your account to the scanner group (often &quot;scanner&quot; or &quot;lp&quot;), or install the device rules from your distribution&apos;s SANE or libgphoto2 package, then log in again.</source>
+        <translation>此用户帐户无权使用该设备。请将您的帐户加入扫描仪组（通常是“scanner”或“lp”），或安装发行版 SANE 或 libgphoto2 软件包中的设备规则，然后重新登录。</translation>
+    </message>
+    <message>
+        <source>Paper is jammed in the scanner. Clear the jam and try again.</source>
+        <translation>扫描仪卡纸。请清除卡纸后重试。</translation>
+    </message>
+    <message>
+        <source>The document feeder is empty. Load the pages, or choose the flatbed as the source.</source>
+        <translation>文档进纸器是空的。请放入页面，或选择平板作为来源。</translation>
+    </message>
+    <message>
+        <source>The scanner cover is open. Close it and try again.</source>
+        <translation>扫描仪盖板已打开。请关闭后重试。</translation>
+    </message>
+    <message>
+        <source>The scanner does not accept these settings. Try another mode, resolution or source.</source>
+        <translation>扫描仪不接受这些设置。请尝试其他模式、分辨率或来源。</translation>
+    </message>
+    <message>
+        <source>There is not enough memory for this scan. Try a lower resolution.</source>
+        <translation>内存不足，无法完成此次扫描。请尝试较低的分辨率。</translation>
+    </message>
+    <message>
+        <source>Another program is using the camera, often the file manager, which opens cameras automatically. Eject or unmount the camera there, then try again.</source>
+        <translation>另一个程序正在使用相机，通常是会自动打开相机的文件管理器。请在那里弹出或卸载相机，然后重试。</translation>
+    </message>
+    <message>
+        <source>libgphoto2 does not support this camera model. Copy the images with a card reader or the file manager instead.</source>
+        <translation>libgphoto2 不支持此相机型号。请改用读卡器或文件管理器复制图像。</translation>
+    </message>
+    <message>
+        <source>The camera sent damaged data. Reconnect the camera and try again.</source>
+        <translation>相机发送了损坏的数据。请重新连接相机后重试。</translation>
+    </message>
+    <message>
+        <source>The image is no longer on the camera. Pick the device again to refresh the list.</source>
+        <translation>该图像已不在相机上。请重新选择设备以刷新列表。</translation>
     </message>
 </context>
 <context>
@@ -19364,6 +19500,14 @@ Each item&apos;s own View setting still applies.</source>
         <translation>在抓手和旋转视图工具之间切换</translation>
     </message>
     <message>
+        <source>Turn text, shapes or smart objects into plain pixels</source>
+        <translation>将文字、形状或智能对象转换为普通像素</translation>
+    </message>
+    <message>
+        <source>Bake the layer effects into the pixels</source>
+        <translation>将图层效果烘焙到像素中</translation>
+    </message>
+    <message>
         <source>Leading, tracking, glyph scales and font features</source>
         <translation>行距、字距、字形缩放和字体功能</translation>
     </message>
@@ -19702,6 +19846,17 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Show only favorite fonts</source>
         <translation>仅显示收藏的字体</translation>
+    </message>
+    <message numerus="yes">
+        <source>More matches with All Styles and All Languages: %n</source>
+        <extracomment>Under the font list while searching: fonts that match the search but are hidden by the Style or Language filter next to the search box. Clicking it sets both filters to All.</extracomment>
+        <translation>
+            <numerusform>使用所有样式和所有语言时的更多匹配：%n</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Set Style and Language to All</source>
+        <translation>将样式和语言设为全部</translation>
     </message>
 </context>
 <context>
@@ -32911,6 +33066,14 @@ Locked: %1</source>
     <message>
         <source>Cycle Hand Tools</source>
         <translation>循环切换抓手工具</translation>
+    </message>
+    <message>
+        <source>No scanner or camera was found. Connect a scanner supported by SANE or a camera supported by gphoto2 and try again.</source>
+        <translation>未找到扫描仪或相机。请连接 SANE 支持的扫描仪或 gphoto2 支持的相机后重试。</translation>
+    </message>
+    <message>
+        <source>Some text does not fit. Drag to enlarge the box.</source>
+        <translation>部分文字放不下。拖动以放大文本框。</translation>
     </message>
     <message>
         <source>Alignment</source>

@@ -167,6 +167,67 @@ private:
   QPointF last_position_{};
 };
 
+// One settings page in the options stack. A QStackedWidget is as large as its
+// largest page (its layout, hint and height-for-width ask every page), so a
+// short page sat in a pane as tall as the tallest one and scrolled over empty
+// space (GitHub issue 606 follow-up 4). Pages other than the current one report
+// no size, so the stack and its scroll area size to the page that shows;
+// `full_minimum_size()` still gives a page's real minimum, which
+// OptionsPaneScreenCap uses so the dialog and pane keep the tallest page's
+// size and changing pages never resizes the window.
+class LayerStyleSettingsPage final : public QWidget {
+public:
+  using QWidget::QWidget;
+
+  void set_counts_toward_size(bool counts) {
+    if (counts_ != counts) {
+      counts_ = counts;
+      updateGeometry();
+    }
+  }
+
+  [[nodiscard]] QSize full_minimum_size() const {
+    return QWidget::minimumSizeHint().expandedTo(minimumSize());
+  }
+
+  [[nodiscard]] QSize sizeHint() const override { return counts_ ? QWidget::sizeHint() : QSize(0, 0); }
+  [[nodiscard]] QSize minimumSizeHint() const override {
+    return counts_ ? QWidget::minimumSizeHint() : QSize(0, 0);
+  }
+  [[nodiscard]] int heightForWidth(int width) const override {
+    return counts_ ? QWidget::heightForWidth(width) : 0;
+  }
+
+private:
+  bool counts_{true};
+};
+
+// The minimum size that holds every page of the options stack, whichever page
+// shows (see LayerStyleSettingsPage).
+QSize options_stack_full_minimum_size(const QStackedWidget& stack) {
+  QSize size(0, 0);
+  for (int index = 0; index < stack.count(); ++index) {
+    const auto* widget = stack.widget(index);
+    const auto* page = dynamic_cast<const LayerStyleSettingsPage*>(widget);
+    size = size.expandedTo(page != nullptr ? page->full_minimum_size() : widget->minimumSizeHint());
+  }
+  const auto margins = stack.contentsMargins();
+  return size.grownBy(margins);
+}
+
+// Only the current page counts toward the stack's size.
+void fit_options_stack_to_current_page(QStackedWidget& stack) {
+  for (int index = 0; index < stack.count(); ++index) {
+    if (auto* page = dynamic_cast<LayerStyleSettingsPage*>(stack.widget(index)); page != nullptr) {
+      page->set_counts_toward_size(index == stack.currentIndex());
+    }
+  }
+  if (stack.layout() != nullptr) {
+    stack.layout()->invalidate();
+  }
+  stack.updateGeometry();
+}
+
 // GitHub issue 190: on a 768 px screen the tallest settings page ran the
 // dialog past the bottom edge, OK and Cancel included. The pages sit in a
 // scroll area whose minimum follows the stacked pages up to `budget` (what the
@@ -186,7 +247,7 @@ class OptionsPaneScreenCap final : public QObject {
 public:
   // `open_height` (0: none) caps the height the dialog first opens at below the
   // screen cap (GitHub issue 606); the user can still drag it up to `max_size`.
-  OptionsPaneScreenCap(QDialog& dialog, QScrollArea& scroll, QWidget& pages, int budget, QSize max_size,
+  OptionsPaneScreenCap(QDialog& dialog, QScrollArea& scroll, QStackedWidget& pages, int budget, QSize max_size,
                        QSize restored_size, int open_height = 0)
       : QObject(&scroll), dialog_(dialog), scroll_(scroll), pages_(pages), budget_(budget),
         max_size_(max_size), restored_size_(restored_size), open_height_(open_height) {
@@ -238,7 +299,7 @@ private:
     if (dialog_.layout() == nullptr) {
       return;
     }
-    const auto pages = pages_.minimumSizeHint();
+    const auto pages = options_stack_full_minimum_size(pages_);
     shown_pages_height_ = pages.height();
     // The scroll bar room the resizable pane keeps must not push the dialog
     // past a narrow screen: take what does not fit out of the pane, which
@@ -314,7 +375,7 @@ private:
   }
 
   void sync() {
-    const auto minimum = pages_.minimumSizeHint();
+    const auto minimum = options_stack_full_minimum_size(pages_);
     if (resizable_) {
       grow_for_taller_pages(minimum.height());
     }
@@ -336,7 +397,7 @@ private:
   static constexpr int kMinimumBudget = 120;
   QDialog& dialog_;
   QScrollArea& scroll_;
-  QWidget& pages_;
+  QStackedWidget& pages_;
   int budget_;
   int width_budget_{0};  // 0 until a too-narrow screen sets one
   QSize max_size_;
@@ -1580,7 +1641,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   options_column_layout->addWidget(defaults_row);
   body->addWidget(options_column, 1);
   auto make_page = [controls](const QString& object_name) {
-    auto* page = new QWidget(controls);
+    auto* page = new LayerStyleSettingsPage(controls);
     page->setObjectName(object_name);
     auto* layout = new QVBoxLayout(page);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -1611,6 +1672,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* bevel_contour_layout = make_page(QStringLiteral("layerStyleBevelContourPage"));
   auto* bevel_texture_layout = make_page(QStringLiteral("layerStyleBevelTexturePage"));
   auto* styles_placeholder = make_page(QStringLiteral("layerStyleStylesPage"))->parentWidget();
+  // Only the page that shows sizes the stack, so a page that fits the pane
+  // shows no scroll bar (GitHub issue 606 follow-up 4).
+  QObject::connect(controls, &QStackedWidget::currentChanged, controls,
+                   [controls](int) { fit_options_stack_to_current_page(*controls); });
+  fit_options_stack_to_current_page(*controls);
 
   // --- Styles page: the preset browser -------------------------------------
   // List (the folder tree with names) or Grid (thumbnails, the name in the
@@ -4273,8 +4339,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   for (auto* layout : layouts) {
     layout->invalidate();
   }
-  const auto pages_minimum = controls->minimumSizeHint().height();
-  options_scroll->setMinimumSize(controls->minimumSizeHint());
+  const auto pages_full_minimum = options_stack_full_minimum_size(*controls);
+  const auto pages_minimum = pages_full_minimum.height();
+  options_scroll->setMinimumSize(pages_full_minimum);
   for (auto* layout : layouts) {
     layout->invalidate();
   }

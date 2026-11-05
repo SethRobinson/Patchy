@@ -33,6 +33,10 @@ repository and exports both bundles; the signed aarch64 bundle is then installed
 smoke-checked in the VM ([packaging/linux/README.md](../packaging/linux/README.md#aarch64)).
 The aarch64 build runs no test suites: its checks are the sandboxed headless smoke check,
 `patchy-mcp --check` and that install. The mac (arm64) and Linux x86_64 suites cover its code.
+Last, it runs `scripts/release/make-linux-scanner-sources.ps1`, which writes
+`build\package\PatchyLinuxScannerSources.zip`: the source of the sane-backends and libgphoto2
+the Flatpak carries, read from the manifest and uploaded with the release
+([legal-licensing.md](legal-licensing.md#scanner-and-camera-libraries-in-the-flatpak)).
 
 `build\package` must never hold a previous version's files once a new build starts. The mac and Linux builders write versioned artifacts (`Patchy-<version>.dmg`, `Patchy-<version>.flatpak`, `Patchy-<version>-aarch64.flatpak`, `Patchy-<version>-x86_64.AppImage`); `publish-github-release.ps1` publishes this version's. Unversioned copies left by the retired rtsoft.com mirror uploads are deleted by `release-mac.ps1` and `release-linux.ps1` along with the old versioned artifacts, and the Windows packager deletes its own final-named outputs before rebuilding. An agent that builds packages by hand must do the same delete before reporting the folder as release-ready.
 
