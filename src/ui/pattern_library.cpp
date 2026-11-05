@@ -7,6 +7,7 @@
 #include "ui/localization.hpp"
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -732,6 +733,90 @@ int PatternLibrary::restore_default_patterns(int newer_than_version) {
     emit changed();
   }
   return restored;
+}
+
+int PatternLibrary::remove_duplicate_default_pattern_files() {
+  struct StoredFile {
+    QString storage_id;
+    QString name;
+    QString folder;
+    QString source_id;
+    QDateTime modified;
+    std::optional<PixelBuffer> tile;  // decoded only when its pattern id has several files
+  };
+  std::vector<std::pair<QString, std::vector<StoredFile>>> by_pattern_id;
+  for (const auto& preset : factory_pattern_roster()) {
+    by_pattern_id.emplace_back(preset.id, std::vector<StoredFile>{});
+  }
+  const QDir dir(storage_dir_);
+  for (const auto& file_info : dir.entryInfoList({QStringLiteral("*.png")}, QDir::Files, QDir::Name)) {
+    const auto storage_id = file_info.completeBaseName();
+    StoredFile stored{storage_id, storage_id, {}, {}, file_info.lastModified(), std::nullopt};
+    auto pattern_id = storage_id;
+    QFile sidecar(json_path(storage_id));
+    if (sidecar.open(QIODevice::ReadOnly)) {
+      const auto object = QJsonDocument::fromJson(sidecar.readAll()).object();
+      if (const auto id = object.value(QStringLiteral("id")).toString(); !id.isEmpty()) {
+        pattern_id = id;
+      }
+      if (const auto name = object.value(QStringLiteral("name")).toString().trimmed(); !name.isEmpty()) {
+        stored.name = name;
+      }
+      stored.folder = object.value(QStringLiteral("folder")).toString().trimmed();
+      stored.source_id = object.value(QStringLiteral("sourceId")).toString();
+    }
+    const auto group = std::find_if(by_pattern_id.begin(), by_pattern_id.end(),
+                                    [&pattern_id](const auto& item) { return item.first == pattern_id; });
+    if (group != by_pattern_id.end()) {
+      group->second.push_back(std::move(stored));
+    }
+  }
+  int removed = 0;
+  for (auto& [pattern_id, files] : by_pattern_id) {
+    if (files.size() < 2) {
+      continue;
+    }
+    // Keep the stable-id file first, then the one the library shows, then the oldest.
+    const auto* shown = find_entry_by_pattern_id(pattern_id);
+    const auto rank = [&](const StoredFile& file) {
+      return file.storage_id == pattern_id ? 0 : (shown != nullptr && file.storage_id == shown->storage_id ? 1 : 2);
+    };
+    std::sort(files.begin(), files.end(), [&](const StoredFile& a, const StoredFile& b) {
+      if (rank(a) != rank(b)) {
+        return rank(a) < rank(b);
+      }
+      if (a.modified != b.modified) {
+        return a.modified < b.modified;
+      }
+      return a.storage_id < b.storage_id;
+    });
+    for (auto& file : files) {
+      file.tile = pattern_tile_from_image(QImage(png_path(file.storage_id)));
+    }
+    std::vector<bool> gone(files.size(), false);
+    for (std::size_t keep = 0; keep < files.size(); ++keep) {
+      if (gone[keep] || !files[keep].tile.has_value()) {
+        continue;
+      }
+      for (std::size_t other = keep + 1; other < files.size(); ++other) {
+        const auto& kept = files[keep];
+        const auto& copy = files[other];
+        if (gone[other] || !copy.tile.has_value() || copy.name != kept.name || copy.folder != kept.folder ||
+            copy.source_id != kept.source_id || !pattern_tiles_equal(*copy.tile, *kept.tile)) {
+          continue;
+        }
+        if (remove_entry_files(copy.storage_id)) {
+          gone[other] = true;
+          ++removed;
+        }
+      }
+    }
+  }
+  if (removed > 0) {
+    reload();  // the shown file of a pattern id may have been one of the copies
+    emit changed();
+  }
+  return removed;
 }
 
 bool PatternLibrary::has_all_default_patterns_introduced_after(

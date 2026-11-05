@@ -677,7 +677,10 @@ int stored_default_asset_version(const QSettings& settings, const QString& key) 
 #endif
 }
 
-constexpr int kDefaultTipsVersion = 4;  // v4 (July 2026): texture, dual, color, wet-edge tips
+// v4 (July 2026): texture, dual, color, wet-edge tips. v5 (November 2026): no new tips; removes
+// the duplicate defaults two processes seeded before stable default ids (GitHub issue 636).
+constexpr int kDefaultTipsVersion = 5;
+constexpr int kDuplicateDefaultTipsCleanupVersion = 5;
 
 // Seed the built-in bitmap tips once. The version gate (not an emptiness check) means a
 // user who deletes some or all of them is respected — they never come back on their own;
@@ -686,6 +689,10 @@ constexpr int kDefaultTipsVersion = 4;  // v4 (July 2026): texture, dual, color,
 // Any thread: it only touches the library it is given.
 void seed_default_brush_tips(BrushTipLibrary& library, int stored_version) {
   if (stored_version < kDefaultTipsVersion) {
+    if (stored_version < kDuplicateDefaultTipsCleanupVersion) {
+      // First, so the copies left are the ones the dynamics migration below upgrades.
+      library.remove_duplicate_default_tips();
+    }
     library.restore_default_tips(stored_version);
     if (stored_version < 2) {
       // The v2 dynamics migration. Never re-run once applied: it cannot tell "user reset
@@ -699,7 +706,13 @@ void seed_default_brush_tips(BrushTipLibrary& library, int stored_version) {
 // launches; the Pattern Manager's explicit restore command brings it back. Returns how many
 // were added. Any thread.
 int seed_default_patterns(PatternLibrary& library, int stored_version) {
-  return stored_version < kDefaultPatternsVersion ? library.restore_default_patterns(stored_version) : 0;
+  if (stored_version >= kDefaultPatternsVersion) {
+    return 0;
+  }
+  if (stored_version < kDuplicateDefaultPatternsCleanupVersion) {
+    (void)library.remove_duplicate_default_pattern_files();
+  }
+  return library.restore_default_patterns(stored_version);
 }
 
 // Runs `work` on a tracked background worker; `done` runs on the worker after the result is
@@ -993,6 +1006,10 @@ void MainWindow::set_active_brush_tip(const QString& tip_id, bool announce,
   active_automation_brush_.reset();
   if (canvas_) apply_pen_input_settings(canvas_);
   auto effective = tip_id.isEmpty() ? builtin_round_brush_tip_id() : tip_id;
+  // A duplicate default removed at startup hands its selection to the copy that stayed.
+  if (const auto kept = brush_tip_library().merged_duplicate_tip(effective); !kept.isEmpty()) {
+    effective = kept;
+  }
   const auto* entry = brush_tip_library().find_entry(effective);
   if (!is_builtin_brush_tip_id(effective) && entry == nullptr) {
     effective = builtin_round_brush_tip_id();

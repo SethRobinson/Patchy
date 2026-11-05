@@ -22,7 +22,10 @@ namespace patchy::ui {
 // without resurrecting older defaults that the user deliberately deleted.
 // Version 2 added the bundled photo-texture presets (core PhotoPatternPreset
 // table, per-entry introduced_version).
-inline constexpr int kDefaultPatternsVersion = 2;
+// Version 3 added nothing: it runs remove_duplicate_default_pattern_files() once
+// (GitHub issue 636).
+inline constexpr int kDefaultPatternsVersion = 3;
+inline constexpr int kDuplicateDefaultPatternsCleanupVersion = 3;
 
 struct PatternLibraryEntry {
   QString storage_id;  // safe UUID filename stem; never written into PSDs
@@ -142,6 +145,15 @@ public:
   // shipped generators, retaining their storage ids and fixed Photoshop ids.
   // Pair with restore_default_patterns() for the manager's factory-restore action.
   int reset_default_patterns_to_factory();
+
+  // Deletes extra files of a built-in pattern (GitHub issue 636): before stable storage ids,
+  // two Patchy processes starting on a fresh profile each seeded every default under a random
+  // storage id. The loader shows only the first file per pattern id, so the copies were
+  // hidden, but deleting the shown one brought the hidden one back. A file whose sidecar has
+  // a built-in's pattern id and the same name, folder and pixels as another file of that id
+  // is removed, keeping the stable-id file when present; an edited, renamed or moved copy
+  // stays. One-shot under the patterns/defaultPatternsVersion gate. Returns the files removed.
+  int remove_duplicate_default_pattern_files();
 
 private:
   struct OffGuiThread {};
