@@ -27,6 +27,8 @@ Assets, taken from -AssetDir (default build\package):
   Patchy-<version>-x86_64.AppImage(.zsync) -> PatchyLinux.AppImage(.zsync)
   PatchyGeglSources.zip (build-release.bat; the source of the GEGL the packages carry,
   which its licenses require beside the downloads: docs/gegl-filters.md, "Sources")
+  PatchyLinuxScannerSources.zip (release-linux.ps1; the source of the SANE and libgphoto2
+  the Flatpak carries: docs/legal-licensing.md, "Scanner and camera libraries in the Flatpak")
   (the mac and Linux builders write versioned files; stable-name copies left in
   build\package by an older run are whatever shipped then, so they are never used
   here. When -AssetDir already holds the stable names and no
@@ -48,7 +50,8 @@ param(
   [string]$Repo = 'SethRobinson/Patchy',
   [switch]$SkipAppImage,
   [switch]$SkipLinuxArm64,
-  [switch]$SkipGeglSources
+  [switch]$SkipGeglSources,
+  [switch]$SkipLinuxScannerSources
 )
 # 'Continue', not 'Stop': native stderr chatter (git, gh) would otherwise become a
 # terminating NativeCommandError under Windows PowerShell 5.1. Every native call
@@ -176,6 +179,51 @@ if (-not $SkipGeglSources) {
     Fail "PatchyGeglSources.zip does not hold exactly the archives in sources.lock ($($difference.InputObject -join ', ')); rerun make-gegl-sources.ps1"
   }
 }
+# The source of sane-backends and libgphoto2, which the Flatpak bundles carry (GPL-2+ and
+# LGPL-2.1+: the source goes with every Flatpak release; docs/legal-licensing.md).
+# -SkipLinuxScannerSources is only for backfilling a release from before the Flatpak carried them.
+if (-not $SkipLinuxScannerSources) {
+  $scannerSources = Resolve-Asset 'PatchyLinuxScannerSources.zip' $null
+  $assets['PatchyLinuxScannerSources.zip'] = $scannerSources
+  # make-linux-scanner-sources.ps1 runs at the end of release-linux.ps1: a zip older than the
+  # Flatpak bundles is from an earlier release.
+  foreach ($flatpak in @('PatchyLinux.flatpak', 'PatchyLinuxArm64.flatpak')) {
+    if ($assets.Contains($flatpak) -and
+        (Get-Item -LiteralPath $scannerSources).LastWriteTimeUtc -lt (Get-Item -LiteralPath $assets[$flatpak]).LastWriteTimeUtc) {
+      Fail "PatchyLinuxScannerSources.zip is older than $flatpak; rerun scripts\release\make-linux-scanner-sources.ps1"
+    }
+  }
+  # It must hold exactly the release archives the manifest's sane-backends and libgphoto2
+  # modules build from, and say it belongs to this version.
+  $expected = @()
+  $module = $null
+  foreach ($line in Get-Content -LiteralPath (Join-Path $repoRoot 'packaging\linux\flatpak\com.rtsoft.patchy.yml')) {
+    if ($line -match '^  - name:\s*(\S+)\s*$') { $module = $Matches[1]; continue }
+    if ($line.Trim() -and $line -notmatch '^    ') { $module = $null; continue }
+    if ($module -in @('sane-backends', 'libgphoto2') -and $line -match '^\s*url:\s*(\S+)') {
+      $expected += 'sources/' + ($Matches[1] -split '/')[-1]
+    }
+  }
+  if ($expected.Count -lt 2) { Fail 'could not read the sane-backends and libgphoto2 archives from the Flatpak manifest' }
+  Add-Type -AssemblyName System.IO.Compression.FileSystem
+  $zipFile = [System.IO.Compression.ZipFile]::OpenRead($scannerSources)
+  try {
+    $zipped = @($zipFile.Entries | Where-Object { $_.FullName.StartsWith('sources/') } | ForEach-Object { $_.FullName })
+    $readmeEntry = $zipFile.GetEntry('README.txt')
+    $readmeText = ''
+    if ($readmeEntry) {
+      $reader = New-Object System.IO.StreamReader($readmeEntry.Open())
+      try { $readmeText = $reader.ReadToEnd() } finally { $reader.Dispose() }
+    }
+  } finally { $zipFile.Dispose() }
+  $difference = @(Compare-Object -ReferenceObject $expected -DifferenceObject $zipped)
+  if ($zipped.Count -eq 0 -or $difference.Count -gt 0) {
+    Fail "PatchyLinuxScannerSources.zip does not hold exactly the manifest's scanner archives ($($difference.InputObject -join ', ')); rerun make-linux-scanner-sources.ps1"
+  }
+  if ($readmeText -notmatch ("Patchy " + [regex]::Escape($Version) + "\r?\n")) {
+    Fail "PatchyLinuxScannerSources.zip was made for another version (its README does not name Patchy $Version); rerun make-linux-scanner-sources.ps1"
+  }
+}
 # The AppImage and its zsync file (docs/appimage.md). The zsync file names the AppImage
 # by its published name, so the two always ship together. -SkipAppImage is only for
 # backfilling a release from before the AppImage existed.
@@ -269,6 +317,9 @@ if (-not $SkipLinuxArm64) {
 $geglSourcesSentence = ''
 if (-not $SkipGeglSources) {
   $geglSourcesSentence = " The source of the GEGL libraries the packages carry (GNU LGPL and GPL) is [PatchyGeglSources.zip]($base/PatchyGeglSources.zip)."
+}
+if (-not $SkipLinuxScannerSources) {
+  $geglSourcesSentence += " The source of the scanner and camera libraries in the Flatpak (sane-backends, GNU GPL; libgphoto2, GNU LGPL) is [PatchyLinuxScannerSources.zip]($base/PatchyLinuxScannerSources.zip)."
 }
 $notesText += @"
 ## Downloads
