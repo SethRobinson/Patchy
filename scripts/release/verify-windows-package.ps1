@@ -302,6 +302,16 @@ $update = Invoke-Bounded -FilePath $powershellExe -Arguments $updateArgs -Timeou
 $updateOk = (-not $update.TimedOut) -and ($update.ExitCode -eq 0) -and ($update.Output -match "update-mode check passed")
 Write-Step $updateOk "installer update mode" $(if ($update.TimedOut) { "timed out" } elseif (-not $updateOk) { "exit code " + $update.ExitCode + "; " + $update.Output } else { "" })
 
+# 3e. Every zip entry name uses forward slashes under the one Patchy/ folder. Windows tools
+#     accept backslashes, so nothing below would notice them, but Linux tools (Ark, PeaZip)
+#     keep them in the file names and unpack a flat folder (issue 651).
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zipArchive = [System.IO.Compression.ZipFile]::OpenRead($Zip)
+try { $entryNames = @($zipArchive.Entries | ForEach-Object { $_.FullName }) } finally { $zipArchive.Dispose() }
+$badEntries = @($entryNames | Where-Object { $_.Contains("\") -or -not $_.StartsWith("Patchy/") })
+Write-Step ($badEntries.Count -eq 0) "zip entry names use forward slashes under Patchy/ ($($entryNames.Count) entries)" $(if ($badEntries.Count) { "$($badEntries.Count) bad, first: " + (($badEntries | Select-Object -First 3) -join "; ") } else { "" })
+
 # 4. Unpack the zip and compare it with its own manifest, before anything runs in it.
 Expand-Archive -LiteralPath $Zip -DestinationPath $appParent -Force
 $manifestPath = Join-Path $appDir "PatchyInstallManifest.txt"

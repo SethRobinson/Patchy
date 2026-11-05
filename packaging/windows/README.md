@@ -23,7 +23,7 @@ build\package\PatchyWindowsNoInstaller.zip
 build\package\PatchyWindowsInstaller.exe
 ```
 
-`PatchyWindowsNoInstaller.zip` contains a top-level `Patchy` folder. Users can drag that folder to the desktop or another writable location and run `patchy.exe` from there.
+`PatchyWindowsNoInstaller.zip` contains a top-level `Patchy` folder. Users can drag that folder to the desktop or another writable location and run `patchy.exe` from there. `scripts\release\make-windows-zip.ps1` writes it with forward-slash entry names; never go back to Windows PowerShell's `Compress-Archive`, which writes backslashes that Linux unzip tools (Ark, PeaZip) keep in the file names (issue 651). `verify-windows-package.ps1` fails a zip with a backslash entry.
 
 `PatchyWindowsInstaller.exe` is built with Windows IExpress from the zip payload plus installer-only helper executables. It opens a small per-user setup wizard, installs to `%LOCALAPPDATA%\Programs\Patchy` by default or to a folder the user chooses, creates a Start Menu shortcut, offers a default-checked desktop shortcut, registers a Windows uninstall entry under the current user, and offers to launch Patchy when setup finishes. The wizard and update mode start Patchy through `Start-PatchyInForeground` while their own window is still up: Windows lets a new process take the foreground only while its starter owns it, so a Patchy started after the window closed opens under other windows.
 
