@@ -40,6 +40,7 @@
 #include <QScreen>
 #include <QScrollBar>
 #include <QScrollArea>
+#include <QSizeGrip>
 #include <QSpinBox>
 #include <QSlider>
 #include <QStackedWidget>
@@ -3457,23 +3458,123 @@ void ui_layer_style_issue_606_layout() {
       CHECK(mask->y() > clipped->y());
       CHECK(!mask->visibleRegion().isEmpty() || mask->isVisible());
     }
-    // Blend If uses the page's label column (GitHub issue 606 follow-up): its
-    // channel combo and ramps start where the other fields do.
+    // Blend If (GitHub issue 606 follow-ups 1 and 2): only "Blend If:" and its
+    // channel combo use the label and field columns; the This Layer and
+    // Underlying Layer rows span the section from its left edge, each title on
+    // the line with its Black and White values.
+    const auto left = [&dialog](const QWidget* widget) { return widget->mapTo(&dialog, QPoint(0, 0)).x(); };
+    const auto top = [&dialog](const QWidget* widget) { return widget->mapTo(&dialog, QPoint(0, 0)).y(); };
     auto* channel = dialog.findChild<QComboBox*>(QStringLiteral("layerStyleBlendIfChannelCombo"));
     auto* blend_if = dialog.findChild<QWidget*>(QStringLiteral("layerStyleBlendIfGroup"));
     auto* knockout = dialog.findChild<QComboBox*>(QStringLiteral("layerStyleKnockoutCombo"));
     CHECK(channel != nullptr && blend_if != nullptr && knockout != nullptr);
     if (channel != nullptr && blend_if != nullptr && knockout != nullptr) {
-      const auto left = [&dialog](const QWidget* widget) { return widget->mapTo(&dialog, QPoint(0, 0)).x(); };
       auto* row = channel->parentWidget();
       auto* form = qobject_cast<QFormLayout*>(row->parentWidget()->layout());
       CHECK(form != nullptr);
-      if (form != nullptr) {
-        auto* label = qobject_cast<QLabel*>(form->labelForField(row));
-        CHECK(label != nullptr && label->text() == QStringLiteral("Blend If:"));
-      }
+      QLabel* label = form != nullptr ? qobject_cast<QLabel*>(form->labelForField(row)) : nullptr;
+      CHECK(label != nullptr && label->text() == QStringLiteral("Blend If:"));
       CHECK(left(channel) == left(knockout));
-      CHECK(left(blend_if) == left(knockout));
+      CHECK(left(blend_if) < left(knockout));
+      if (label != nullptr) {
+        CHECK(left(blend_if) == left(label));
+      }
+      for (const auto& [title, spin_name] :
+           {std::pair{QStringLiteral("This Layer:"), QStringLiteral("layerStyleBlendIfThisBlackLowSpin")},
+            std::pair{QStringLiteral("Underlying Layer:"), QStringLiteral("layerStyleBlendIfUnderlyingBlackLowSpin")}}) {
+        QLabel* title_label = nullptr;
+        for (auto* candidate : blend_if->findChildren<QLabel*>()) {
+          if (candidate->text() == title) {
+            title_label = candidate;
+          }
+        }
+        auto* black = blend_if->findChild<QSpinBox*>(spin_name);
+        CHECK(title_label != nullptr && black != nullptr);
+        if (title_label != nullptr && black != nullptr) {
+          CHECK(left(title_label) == left(blend_if));
+          const auto title_middle = top(title_label) + title_label->height() / 2;
+          CHECK(title_middle > top(black) && title_middle < top(black) + black->height());
+          CHECK(left(black) > left(title_label) + title_label->width());
+        }
+      }
+    }
+
+    // GitHub issue 606 follow-up 3: a resize grip in the bottom right corner.
+    auto* grip = dialog.findChild<QSizeGrip*>(QStringLiteral("layerStyleSizeGrip"));
+    CHECK(grip != nullptr && grip->isVisible());
+    if (grip != nullptr) {
+      const QRect corner(grip->mapTo(&dialog, QPoint(0, 0)), grip->size());
+      CHECK(dialog.rect().contains(corner));
+      CHECK(dialog.width() - corner.right() < 24);
+      CHECK(dialog.height() - corner.bottom() < 24);
+    }
+
+    // Changing pages starts the new page at its top, not where the last one
+    // was scrolled to (issue 606 follow-up 3).
+    auto* options_scroll = dialog.findChild<QScrollArea*>(QStringLiteral("layerStyleOptionsScroll"));
+    CHECK(options_scroll != nullptr);
+    if (options_scroll != nullptr) {
+      const auto saved_size = dialog.size();
+      dialog.resize(dialog.width(), dialog.minimumHeight());
+      QApplication::processEvents();
+      auto* bar = options_scroll->verticalScrollBar();
+      for (const auto& [from, to] : {std::pair{QStringLiteral("Blending Options"), QStringLiteral("Drop Shadow")},
+                                     std::pair{QStringLiteral("Drop Shadow"), QStringLiteral("Bevel & Emboss")},
+                                     std::pair{QStringLiteral("Bevel & Emboss"), QStringLiteral("Blending Options")}}) {
+        select_layer_style_category(dialog, from);
+        CHECK(bar->maximum() > 0);
+        bar->setValue(bar->maximum());
+        QApplication::processEvents();
+        CHECK(bar->value() > 0);
+        select_layer_style_category(dialog, to);
+        if (bar->value() != 0) {
+          std::printf("%s opened scrolled to %d after %s\n", qPrintable(to), bar->value(), qPrintable(from));
+        }
+        CHECK(bar->value() == 0);
+      }
+      dialog.resize(saved_size);
+      QApplication::processEvents();
+    }
+
+    // Make Default and Reset to Default: one row under the scroll area, at its
+    // left, holding the current effect page's pair; pages without defaults
+    // hide it (issue 606 follow-up 3).
+    auto* defaults_row = dialog.findChild<QWidget*>(QStringLiteral("layerStyleDefaultsRow"));
+    CHECK(defaults_row != nullptr && options_scroll != nullptr);
+    if (defaults_row != nullptr && options_scroll != nullptr) {
+      for (const auto& [page, prefix] :
+           {std::pair{QStringLiteral("Drop Shadow"), QStringLiteral("layerStyleDropShadow")},
+            std::pair{QStringLiteral("Bevel & Emboss"), QStringLiteral("layerStyleBevel")},
+            std::pair{QStringLiteral("Color Overlay"), QStringLiteral("layerStyleColorOverlay")}}) {
+        select_layer_style_category(dialog, page);
+        CHECK(defaults_row->isVisible());
+        auto* make = dialog.findChild<QPushButton*>(prefix + QStringLiteral("MakeDefaultButton"));
+        auto* reset = dialog.findChild<QPushButton*>(prefix + QStringLiteral("ResetToDefaultButton"));
+        CHECK(make != nullptr && reset != nullptr);
+        if (make == nullptr || reset == nullptr) {
+          continue;
+        }
+        CHECK(make->isVisible() && reset->isVisible());
+        CHECK(!options_scroll->isAncestorOf(make) && !options_scroll->isAncestorOf(reset));
+        CHECK(left(make) == left(options_scroll));
+        CHECK(left(reset) > left(make));
+        CHECK(top(make) >= top(options_scroll) + options_scroll->height());
+        CHECK(top(make) + make->height() <= dialog.height());
+        int shown = 0;
+        for (auto* button : defaults_row->findChildren<QPushButton*>()) {
+          shown += button->isVisible() ? 1 : 0;
+        }
+        CHECK(shown == 2);
+      }
+      for (const auto& page : {QStringLiteral("Style Presets"), QStringLiteral("Blending Options"),
+                               QStringLiteral("Contour"), QStringLiteral("Texture")}) {
+        select_layer_style_category(dialog, page);
+        if (defaults_row->isVisible()) {
+          std::printf("defaults row shows on %s\n", qPrintable(page));
+        }
+        CHECK(!defaults_row->isVisible());
+      }
+      select_layer_style_category(dialog, QStringLiteral("Blending Options"));
     }
 
     // Style Presets: no hint text, the grid shown, an info icon with the export tip.
