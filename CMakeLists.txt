@@ -1369,8 +1369,12 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/command_search.cpp
       src/ui/hotkey_editor.hpp
       src/ui/hotkey_editor.cpp
+      src/ui/hotkey_files.hpp
+      src/ui/hotkey_files.cpp
       src/ui/hotkey_registry.hpp
       src/ui/hotkey_registry.cpp
+      src/ui/hotkey_sets.hpp
+      src/ui/hotkey_sets.cpp
       src/ui/image_document_io.cpp
       src/ui/layer_compositor_qimage.cpp
       src/ui/qimage_composite_target.hpp
@@ -2568,6 +2572,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/destructive_filters_gallery_tests_dialogs_recipes.cpp
       tests/ui/destructive_filters_gallery_tests_browse_controls.cpp
       tests/ui/pickers_notices_hotkeys_tests.cpp
+      tests/ui/hotkey_sets_tests.cpp
       tests/ui/canvas_view_tools_tests.cpp
       tests/ui/layer_context_lifecycle_tests.cpp
       tests/ui/layer_export_tests.cpp

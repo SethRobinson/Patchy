@@ -401,6 +401,7 @@ int main(int argc, char* argv[]) {
            layer_style_gradient_tests,
            destructive_filters_gallery_tests,
            pickers_notices_hotkeys_tests,
+           hotkey_sets_tests,
            canvas_view_tools_tests,
            layer_context_lifecycle_tests,
            layer_export_tests,

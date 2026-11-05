@@ -19758,6 +19758,106 @@ Each item&apos;s own View setting still applies.</source>
         <source>Set tool or layer opacity, 0% to 100% (1 = 10%, 0 = 100%, 00 = 0%; type two digits quickly for an exact value)</source>
         <translation>设置工具或图层不透明度，0% 到 100%(1 = 10%，0 = 100%，00 = 0%；快速输入两位数字可设为精确值)</translation>
     </message>
+    <message>
+        <source>Shortcut set:</source>
+        <translation>快捷键方案：</translation>
+    </message>
+    <message>
+        <source>Start from Patchy&apos;s shortcuts or from a set laid out like another editor&apos;s. You can still change any key afterwards.</source>
+        <translation>从 Patchy 的快捷键或按其他编辑器布局的方案开始。之后仍可更改任何按键。</translation>
+    </message>
+    <message>
+        <source>Patchy (default)</source>
+        <translation>Patchy（默认）</translation>
+    </message>
+    <message>
+        <source>Import...</source>
+        <translation>导入...</translation>
+    </message>
+    <message>
+        <source>Replace the shortcuts with ones saved in a hotkey file</source>
+        <translation>用快捷键文件中保存的快捷键替换当前快捷键</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>导出...</translation>
+    </message>
+    <message>
+        <source>Save your shortcut changes to a file you can keep or share</source>
+        <translation>将您更改的快捷键保存到可保留或分享的文件中</translation>
+    </message>
+    <message>
+        <source>Exported &quot;%1&quot;.</source>
+        <translation>已导出“%1”。</translation>
+    </message>
+    <message>
+        <source>Imported &quot;%1&quot;. Commands: %2. Skipped commands this Patchy does not have: %3. Skipped keys it cannot use: %4. Click OK to apply.</source>
+        <translation>已导入“%1”。命令：%2。跳过此 Patchy 没有的命令：%3。跳过无法使用的按键：%4。单击“确定”以应用。</translation>
+    </message>
+    <message>
+        <source>Export Hotkeys</source>
+        <translation>导出快捷键</translation>
+    </message>
+    <message>
+        <source>Patchy hotkeys (*.patchykeys)</source>
+        <translation>Patchy 快捷键 (*.patchykeys)</translation>
+    </message>
+    <message>
+        <source>Export failed</source>
+        <translation>导出失败</translation>
+    </message>
+    <message>
+        <source>Import Hotkeys</source>
+        <translation>导入快捷键</translation>
+    </message>
+    <message>
+        <source>Patchy hotkeys (*.patchykeys *.json)</source>
+        <translation>Patchy 快捷键 (*.patchykeys *.json)</translation>
+    </message>
+    <message>
+        <source>Import failed</source>
+        <translation>导入失败</translation>
+    </message>
+    <message>
+        <source>Replace your current shortcuts with the ones in &quot;%1&quot;? Shortcuts the file does not set go back to Patchy&apos;s defaults.</source>
+        <translation>要用“%1”中的快捷键替换当前快捷键吗？文件未设置的快捷键将恢复为 Patchy 的默认值。</translation>
+    </message>
+    <message>
+        <source>Shortcut Set</source>
+        <translation>快捷键方案</translation>
+    </message>
+    <message>
+        <source>Replace your own shortcut changes with the %1 set? Export them first to keep a copy.</source>
+        <translation>要用 %1 方案替换您自己更改的快捷键吗？请先导出以保留副本。</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>自定义</translation>
+    </message>
+    <message>
+        <source>This is not a Patchy hotkey file.</source>
+        <translation>这不是 Patchy 快捷键文件。</translation>
+    </message>
+    <message>
+        <source>Could not open the file.</source>
+        <translation>无法打开文件。</translation>
+    </message>
+    <message>
+        <source>Could not write the file.</source>
+        <translation>无法写入文件。</translation>
+    </message>
+    <message>
+        <source>Photoshop-style</source>
+        <translation>Photoshop 风格</translation>
+    </message>
+    <message>
+        <source>GIMP-style</source>
+        <translation>GIMP 风格</translation>
+    </message>
+    <message>
+        <source>Krita-style</source>
+        <translation>Krita 风格</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>

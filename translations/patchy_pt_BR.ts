@@ -19805,6 +19805,106 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Set tool or layer opacity, 0% to 100% (1 = 10%, 0 = 100%, 00 = 0%; type two digits quickly for an exact value)</source>
         <translation>Definir a opacidade da ferramenta ou da camada, 0% a 100% (1 = 10%, 0 = 100%, 00 = 0%; digite dois dígitos rápido para um valor exato)</translation>
     </message>
+    <message>
+        <source>Shortcut set:</source>
+        <translation>Conjunto de atalhos:</translation>
+    </message>
+    <message>
+        <source>Start from Patchy&apos;s shortcuts or from a set laid out like another editor&apos;s. You can still change any key afterwards.</source>
+        <translation>Comece com os atalhos do Patchy ou com um conjunto organizado como o de outro editor. Depois você ainda pode mudar qualquer tecla.</translation>
+    </message>
+    <message>
+        <source>Patchy (default)</source>
+        <translation>Patchy (padrão)</translation>
+    </message>
+    <message>
+        <source>Import...</source>
+        <translation>Importar...</translation>
+    </message>
+    <message>
+        <source>Replace the shortcuts with ones saved in a hotkey file</source>
+        <translation>Substituir os atalhos pelos salvos em um arquivo de atalhos</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>Exportar...</translation>
+    </message>
+    <message>
+        <source>Save your shortcut changes to a file you can keep or share</source>
+        <translation>Salvar suas alterações de atalhos em um arquivo que você pode guardar ou compartilhar</translation>
+    </message>
+    <message>
+        <source>Exported &quot;%1&quot;.</source>
+        <translation>&quot;%1&quot; exportado.</translation>
+    </message>
+    <message>
+        <source>Imported &quot;%1&quot;. Commands: %2. Skipped commands this Patchy does not have: %3. Skipped keys it cannot use: %4. Click OK to apply.</source>
+        <translation>&quot;%1&quot; importado. Comandos: %2. Comandos ignorados que este Patchy não tem: %3. Teclas ignoradas que ele não pode usar: %4. Clique em OK para aplicar.</translation>
+    </message>
+    <message>
+        <source>Export Hotkeys</source>
+        <translation>Exportar atalhos</translation>
+    </message>
+    <message>
+        <source>Patchy hotkeys (*.patchykeys)</source>
+        <translation>Atalhos do Patchy (*.patchykeys)</translation>
+    </message>
+    <message>
+        <source>Export failed</source>
+        <translation>Falha na exportação</translation>
+    </message>
+    <message>
+        <source>Import Hotkeys</source>
+        <translation>Importar atalhos</translation>
+    </message>
+    <message>
+        <source>Patchy hotkeys (*.patchykeys *.json)</source>
+        <translation>Atalhos do Patchy (*.patchykeys *.json)</translation>
+    </message>
+    <message>
+        <source>Import failed</source>
+        <translation>Falha na importação</translation>
+    </message>
+    <message>
+        <source>Replace your current shortcuts with the ones in &quot;%1&quot;? Shortcuts the file does not set go back to Patchy&apos;s defaults.</source>
+        <translation>Substituir seus atalhos atuais pelos de &quot;%1&quot;? Os atalhos que o arquivo não define voltam aos padrões do Patchy.</translation>
+    </message>
+    <message>
+        <source>Shortcut Set</source>
+        <translation>Conjunto de atalhos</translation>
+    </message>
+    <message>
+        <source>Replace your own shortcut changes with the %1 set? Export them first to keep a copy.</source>
+        <translation>Substituir suas próprias alterações de atalhos pelo conjunto %1? Exporte-as antes para guardar uma cópia.</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>Personalizado</translation>
+    </message>
+    <message>
+        <source>This is not a Patchy hotkey file.</source>
+        <translation>Este não é um arquivo de atalhos do Patchy.</translation>
+    </message>
+    <message>
+        <source>Could not open the file.</source>
+        <translation>Não foi possível abrir o arquivo.</translation>
+    </message>
+    <message>
+        <source>Could not write the file.</source>
+        <translation>Não foi possível gravar o arquivo.</translation>
+    </message>
+    <message>
+        <source>Photoshop-style</source>
+        <translation>Estilo Photoshop</translation>
+    </message>
+    <message>
+        <source>GIMP-style</source>
+        <translation>Estilo GIMP</translation>
+    </message>
+    <message>
+        <source>Krita-style</source>
+        <translation>Estilo Krita</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>

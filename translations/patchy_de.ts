@@ -19805,6 +19805,106 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Set tool or layer opacity, 0% to 100% (1 = 10%, 0 = 100%, 00 = 0%; type two digits quickly for an exact value)</source>
         <translation>Deckkraft von Werkzeug oder Ebene festlegen, 0 % bis 100 % (1 = 10 %, 0 = 100 %, 00 = 0 %; zwei Ziffern schnell eingeben für einen genauen Wert)</translation>
     </message>
+    <message>
+        <source>Shortcut set:</source>
+        <translation>Tastaturbefehlssatz:</translation>
+    </message>
+    <message>
+        <source>Start from Patchy&apos;s shortcuts or from a set laid out like another editor&apos;s. You can still change any key afterwards.</source>
+        <translation>Mit den Tastaturbefehlen von Patchy beginnen oder mit einem Satz, der wie in einem anderen Editor belegt ist. Jede Taste lässt sich danach weiterhin ändern.</translation>
+    </message>
+    <message>
+        <source>Patchy (default)</source>
+        <translation>Patchy (Standard)</translation>
+    </message>
+    <message>
+        <source>Import...</source>
+        <translation>Importieren...</translation>
+    </message>
+    <message>
+        <source>Replace the shortcuts with ones saved in a hotkey file</source>
+        <translation>Die Tastaturbefehle durch die in einer Tastaturbefehlsdatei gespeicherten ersetzen</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>Exportieren...</translation>
+    </message>
+    <message>
+        <source>Save your shortcut changes to a file you can keep or share</source>
+        <translation>Ihre geänderten Tastaturbefehle in einer Datei speichern, die Sie aufbewahren oder weitergeben können</translation>
+    </message>
+    <message>
+        <source>Exported &quot;%1&quot;.</source>
+        <translation>„%1“ exportiert.</translation>
+    </message>
+    <message>
+        <source>Imported &quot;%1&quot;. Commands: %2. Skipped commands this Patchy does not have: %3. Skipped keys it cannot use: %4. Click OK to apply.</source>
+        <translation>„%1“ importiert. Befehle: %2. Übersprungene Befehle, die dieses Patchy nicht hat: %3. Übersprungene Tasten, die es nicht verwenden kann: %4. Klicken Sie auf OK, um sie zu übernehmen.</translation>
+    </message>
+    <message>
+        <source>Export Hotkeys</source>
+        <translation>Tastaturbefehle exportieren</translation>
+    </message>
+    <message>
+        <source>Patchy hotkeys (*.patchykeys)</source>
+        <translation>Patchy-Tastaturbefehle (*.patchykeys)</translation>
+    </message>
+    <message>
+        <source>Export failed</source>
+        <translation>Export fehlgeschlagen</translation>
+    </message>
+    <message>
+        <source>Import Hotkeys</source>
+        <translation>Tastaturbefehle importieren</translation>
+    </message>
+    <message>
+        <source>Patchy hotkeys (*.patchykeys *.json)</source>
+        <translation>Patchy-Tastaturbefehle (*.patchykeys *.json)</translation>
+    </message>
+    <message>
+        <source>Import failed</source>
+        <translation>Import fehlgeschlagen</translation>
+    </message>
+    <message>
+        <source>Replace your current shortcuts with the ones in &quot;%1&quot;? Shortcuts the file does not set go back to Patchy&apos;s defaults.</source>
+        <translation>Ihre aktuellen Tastaturbefehle durch die aus „%1“ ersetzen? Tastaturbefehle, die die Datei nicht festlegt, kehren zu den Standards von Patchy zurück.</translation>
+    </message>
+    <message>
+        <source>Shortcut Set</source>
+        <translation>Tastaturbefehlssatz</translation>
+    </message>
+    <message>
+        <source>Replace your own shortcut changes with the %1 set? Export them first to keep a copy.</source>
+        <translation>Ihre eigenen Änderungen an den Tastaturbefehlen durch den Satz „%1“ ersetzen? Exportieren Sie sie zuerst, um eine Kopie zu behalten.</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>Benutzerdefiniert</translation>
+    </message>
+    <message>
+        <source>This is not a Patchy hotkey file.</source>
+        <translation>Dies ist keine Patchy-Tastaturbefehlsdatei.</translation>
+    </message>
+    <message>
+        <source>Could not open the file.</source>
+        <translation>Die Datei konnte nicht geöffnet werden.</translation>
+    </message>
+    <message>
+        <source>Could not write the file.</source>
+        <translation>Die Datei konnte nicht geschrieben werden.</translation>
+    </message>
+    <message>
+        <source>Photoshop-style</source>
+        <translation>Wie Photoshop</translation>
+    </message>
+    <message>
+        <source>GIMP-style</source>
+        <translation>Wie GIMP</translation>
+    </message>
+    <message>
+        <source>Krita-style</source>
+        <translation>Wie Krita</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>

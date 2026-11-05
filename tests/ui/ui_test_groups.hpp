@@ -20,6 +20,7 @@ std::vector<patchy::test::TestCase> filter_dialog_selection_tests();
 std::vector<patchy::test::TestCase> layer_style_gradient_tests();
 std::vector<patchy::test::TestCase> destructive_filters_gallery_tests();
 std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests();
+std::vector<patchy::test::TestCase> hotkey_sets_tests();
 std::vector<patchy::test::TestCase> canvas_view_tools_tests();
 std::vector<patchy::test::TestCase> layer_context_lifecycle_tests();
 std::vector<patchy::test::TestCase> layer_export_tests();

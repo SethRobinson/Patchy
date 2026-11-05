@@ -19758,6 +19758,106 @@ Each item&apos;s own View setting still applies.</source>
         <source>Set tool or layer opacity, 0% to 100% (1 = 10%, 0 = 100%, 00 = 0%; type two digits quickly for an exact value)</source>
         <translation>도구 또는 레이어 불투명도 설정, 0%-100%(1 = 10%, 0 = 100%, 00 = 0%, 두 자리를 빠르게 입력하면 정확한 값)</translation>
     </message>
+    <message>
+        <source>Shortcut set:</source>
+        <translation>단축키 세트:</translation>
+    </message>
+    <message>
+        <source>Start from Patchy&apos;s shortcuts or from a set laid out like another editor&apos;s. You can still change any key afterwards.</source>
+        <translation>Patchy 단축키 또는 다른 편집기처럼 배치된 세트에서 시작합니다. 나중에 어떤 키든 바꿀 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Patchy (default)</source>
+        <translation>Patchy(기본값)</translation>
+    </message>
+    <message>
+        <source>Import...</source>
+        <translation>가져오기...</translation>
+    </message>
+    <message>
+        <source>Replace the shortcuts with ones saved in a hotkey file</source>
+        <translation>단축키를 단축키 파일에 저장된 것으로 바꿉니다</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>내보내기...</translation>
+    </message>
+    <message>
+        <source>Save your shortcut changes to a file you can keep or share</source>
+        <translation>변경한 단축키를 보관하거나 공유할 수 있는 파일로 저장합니다</translation>
+    </message>
+    <message>
+        <source>Exported &quot;%1&quot;.</source>
+        <translation>&quot;%1&quot;을(를) 내보냈습니다.</translation>
+    </message>
+    <message>
+        <source>Imported &quot;%1&quot;. Commands: %2. Skipped commands this Patchy does not have: %3. Skipped keys it cannot use: %4. Click OK to apply.</source>
+        <translation>&quot;%1&quot;을(를) 가져왔습니다. 명령: %2. 이 Patchy에 없어 건너뛴 명령: %3. 사용할 수 없어 건너뛴 키: %4. 적용하려면 확인을 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Export Hotkeys</source>
+        <translation>단축키 내보내기</translation>
+    </message>
+    <message>
+        <source>Patchy hotkeys (*.patchykeys)</source>
+        <translation>Patchy 단축키 (*.patchykeys)</translation>
+    </message>
+    <message>
+        <source>Export failed</source>
+        <translation>내보내기 실패</translation>
+    </message>
+    <message>
+        <source>Import Hotkeys</source>
+        <translation>단축키 가져오기</translation>
+    </message>
+    <message>
+        <source>Patchy hotkeys (*.patchykeys *.json)</source>
+        <translation>Patchy 단축키 (*.patchykeys *.json)</translation>
+    </message>
+    <message>
+        <source>Import failed</source>
+        <translation>가져오기 실패</translation>
+    </message>
+    <message>
+        <source>Replace your current shortcuts with the ones in &quot;%1&quot;? Shortcuts the file does not set go back to Patchy&apos;s defaults.</source>
+        <translation>현재 단축키를 &quot;%1&quot;의 단축키로 바꾸시겠습니까? 파일에 설정되지 않은 단축키는 Patchy 기본값으로 돌아갑니다.</translation>
+    </message>
+    <message>
+        <source>Shortcut Set</source>
+        <translation>단축키 세트</translation>
+    </message>
+    <message>
+        <source>Replace your own shortcut changes with the %1 set? Export them first to keep a copy.</source>
+        <translation>직접 변경한 단축키를 %1 세트로 바꾸시겠습니까? 사본을 남기려면 먼저 내보내세요.</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>사용자 지정</translation>
+    </message>
+    <message>
+        <source>This is not a Patchy hotkey file.</source>
+        <translation>Patchy 단축키 파일이 아닙니다.</translation>
+    </message>
+    <message>
+        <source>Could not open the file.</source>
+        <translation>파일을 열 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Could not write the file.</source>
+        <translation>파일을 쓸 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Photoshop-style</source>
+        <translation>Photoshop 스타일</translation>
+    </message>
+    <message>
+        <source>GIMP-style</source>
+        <translation>GIMP 스타일</translation>
+    </message>
+    <message>
+        <source>Krita-style</source>
+        <translation>Krita 스타일</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>
