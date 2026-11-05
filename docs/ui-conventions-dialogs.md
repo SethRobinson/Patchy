@@ -16,7 +16,7 @@ A dialog function that arms async work must disarm it from a `qScopeGuard` decla
 
 Use `exec_dialog` or `run_non_modal_dialog`, never `QDialog::exec`. `place_dialog` centers or restores positions. On wasm, shrink to the canvas and scroll content that cannot fit ([wasm.md](wasm.md)). Desktop tall dialogs cap themselves with `QScrollArea`, page `sizeHint`, and `availableGeometry().height() - 40` (Shape Appearance). Unnamed dialogs have no position memory. `QProgressDialog`, `QMessageBox`, and `mark_dialog_always_centered` dialogs (About, New Document) center on the owner and discard saved positions. Saved positions off the owner's screen also recenter.
 
-A window a modal blocks shows the arrow, whatever sets its cursor (issue 504, `src/ui/blocked_window_cursor.cpp`, [wayland.md](wayland.md)).
+A window a modal blocks shows the arrow, whatever sets its cursor (issue 504, `src/ui/blocked_window_cursor.cpp`, [wayland.md](wayland.md)). Qt drops the platform's enter for a blocked window and gets no later one while the pointer stays inside, so the same filter gives the window its first mouse move or press after unblock as an enter when the widget under the pointer never got one: after File > Open Recent File the pointer came back from the menu while the Opening dialog blocked the window, the clicked list row was deleted, and the new canvas kept the arrow through every move and drag (issue 634, `ui_blocked_window_cursor_returns_after_open_recent_file`).
 
 Placement clamps the full frame to the screen's available area (no taskbars or docks), again after Show finalizes sizes and margins and on Resize, for unnamed and transient dialogs too. Automatic moves never enter position memory.
 
