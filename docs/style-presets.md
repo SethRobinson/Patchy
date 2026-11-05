@@ -36,7 +36,9 @@ the pane with OK/Cancel in view. The first Show takes any overflow left (height,
 or width on a screen narrower than the dialog's minimum) out of the pane. `ui_layer_style_dialog_fits_a_short_screen` pins
 it on the 800 x 800 offscreen screen. With no remembered size the dialog opens at most
 three quarters of the available height (at least 520 px), scrolling the rest; the user
-can drag it up to the cap (GitHub issue 606).
+can drag it up to the cap (GitHub issue 606). The dark chrome is frameless, so a
+`VisibleSizeGrip` (`layerStyleSizeGrip`) at the right of the OK/Cancel row is the
+resize handle. Changing pages scrolls the shared pane back to its top (606 follow-up 3).
 
 Page layout (GitHub issue 606): every form label ends in a colon and
 `align_page_label_columns` gives all page forms one label width, so every field
@@ -45,8 +47,10 @@ starts at one indent; a page's sub-sections (Bevel's Shading, Highlight, Shadow)
 boxes. Page titles go through `page_title`, which escapes "&" (a QGroupBox reads it as
 a mnemonic). Color rows are a swatch button plus R/G/B fields; two-choice settings are
 radio pairs (`make_two_choice_radios`). Blend If sits inside the Blending Options
-section, "Blend If:" in the label column and the channel row and ramps in the field
-column, with its values on the This Layer / Underlying Layer lines (no step buttons:
+section: "Blend If:" in the label column and the channel row in the field column;
+`layerStyleBlendIfGroup` (the This Layer / Underlying Layer lines and ramps) is a
+spanning form row from the section's left edge, each title on the line with its
+values (606 follow-ups 1 and 2; no step buttons:
 the fields step with the arrow keys and the wheel; Alt-drag still splits a handle),
 and `CheckBoxColumns` moves the mask and Show Effects boxes into a second column
 when the section is wide enough. Angle rows (`add_angle_spin_row`) put an `AngleDial`
@@ -56,8 +60,12 @@ Angle's (GitHub issue 618).
 
 ## Make Default and Reset to Default
 
-Every effect page except Style Presets, Blending Options, Contour and Texture ends
-with Make Default and Reset to Default. Make Default stores that page's values for
+Every effect page except Style Presets, Blending Options, Contour and Texture has
+Make Default and Reset to Default. All pairs (object names
+`layerStyle<Effect>MakeDefaultButton` / `ResetToDefaultButton`) live in one
+left-aligned row, `layerStyleDefaultsRow`, under the scroll area (606 follow-up 3);
+only the current page's pair shows, and the row hides (keeping its height) on the
+pages without one. Make Default stores that page's values for
 the effect under `layerStyle/effectDefaults/<token>` (bevelEmboss, stroke,
 innerShadow, innerGlow, satin, colorOverlay, gradientOverlay, patternOverlay,
 outerGlow, dropShadow; persisted identifiers) as a one-style .asl blob; the drop

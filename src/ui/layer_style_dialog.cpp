@@ -1553,7 +1553,25 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   styles_layout->setContentsMargins(0, 0, 0, 0);
   styles_layout->setSpacing(10);
   options_pane->addWidget(styles_pane);
-  body->addWidget(options_pane, 1);
+  // Make Default / Reset to Default sit under the pane, outside the scroll
+  // area, at the left (GitHub issue 606 follow-up 3); see add_default_buttons.
+  auto* options_column = new QWidget(&dialog);
+  options_column->setObjectName(QStringLiteral("layerStyleOptionsColumn"));
+  auto* options_column_layout = new QVBoxLayout(options_column);
+  options_column_layout->setContentsMargins(0, 0, 0, 0);
+  options_column_layout->setSpacing(6);
+  options_column_layout->addWidget(options_pane, 1);
+  auto* defaults_row = new QWidget(options_column);
+  defaults_row->setObjectName(QStringLiteral("layerStyleDefaultsRow"));
+  auto* defaults_row_layout = new QHBoxLayout(defaults_row);
+  defaults_row_layout->setContentsMargins(0, 0, 0, 0);
+  // The row keeps its height on pages without the buttons, so changing pages
+  // never moves the pane or resizes the dialog.
+  auto defaults_row_policy = defaults_row->sizePolicy();
+  defaults_row_policy.setRetainSizeWhenHidden(true);
+  defaults_row->setSizePolicy(defaults_row_policy);
+  options_column_layout->addWidget(defaults_row);
+  body->addWidget(options_column, 1);
   auto make_page = [controls](const QString& object_name) {
     auto* page = new QWidget(controls);
     page->setObjectName(object_name);
@@ -1951,8 +1969,9 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   };
 
   // Blend If is part of the Blending Options section (GitHub issue 606): a
-  // line above it, "Blend If:" in the page's label column and its rows in the
-  // field column, like every other row on the page.
+  // line above it and "Blend If:" with its channel combo in the page's label
+  // and field columns; the This Layer and Underlying Layer rows below span the
+  // whole section width (issue 606 follow-up 2).
   add_form_section(blending_form, blending_group, QString(), QStringLiteral("layerStyleBlendIfSection"));
   auto* blend_if_channel_widget = new QWidget(blending_group);
   blend_if_channel_widget->setObjectName(QStringLiteral("layerStyleBlendIfChannelRow"));
@@ -2011,9 +2030,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     values->setSpacing(5);
     auto* title_label = new QLabel(label_text, blend_if_group);
     title_label->setStyleSheet(QStringLiteral("font-weight: 600;"));
-    // The title gets its own line: in the field column beside it the values
-    // would widen the dialog past an 800 px screen (issue 606 follow-up).
-    blend_if_layout->addWidget(title_label);
+    values->addWidget(title_label);
+    values->addStretch(1);
     row.editor = new BlendIfRangeEditorWidget(blend_if_group);
     row.editor->setObjectName(editor_object_name);
     row.editor->set_accessibility_text(
@@ -2046,7 +2064,6 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     values->addWidget(row.white_low.spin);
     values->addWidget(new QLabel(QObject::tr("to"), blend_if_group));
     values->addWidget(row.white_high.spin);
-    values->addStretch(1);
     blend_if_layout->addLayout(values);
     blend_if_layout->addWidget(row.editor);
     return row;
@@ -2066,7 +2083,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
       label->setEnabled(enabled);
     }
   };
-  blending_form->addRow(QString(), blend_if_group);
+  blending_form->addRow(blend_if_group);
   set_blend_if_enabled(blend_if_payload_status != BlendIfPayloadStatus::Unsupported);
 
   bool loading_blend_if_controls = false;
@@ -2264,41 +2281,50 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto& shadow_green = shadow_page.shadow_green;
   auto& shadow_blue = shadow_page.shadow_blue;
 
-  // Make Default / Reset to Default at the foot of each effect page (GitHub
-  // issue 606); Style Presets, Blending Options, Contour and Texture have none.
+  // Make Default / Reset to Default for each effect page (GitHub issue 606).
+  // Every pair lives in the one row under the scroll area (issue 606
+  // follow-up 3), left-aligned, and only the current page's pair shows; Style
+  // Presets, Blending Options, Contour and Texture have none, so the row hides.
   struct DefaultButtons {
     LayerStyleEffectKind kind;
     QPushButton* make;
     QPushButton* reset;
   };
   std::vector<DefaultButtons> default_buttons;
-  const auto add_default_buttons = [&](QVBoxLayout* layout, LayerStyleEffectKind kind, const QString& object_prefix) {
-    auto* row = new QHBoxLayout();
-    row->setContentsMargins(0, 4, 0, 0);
-    row->addStretch(1);
-    auto* make = new QPushButton(QObject::tr("Make Default"), layout->parentWidget());
+  const auto add_default_buttons = [&](LayerStyleEffectKind kind, const QString& object_prefix) {
+    auto* make = new QPushButton(QObject::tr("Make Default"), defaults_row);
     make->setObjectName(object_prefix + QStringLiteral("MakeDefaultButton"));
     make->setToolTip(QObject::tr("Use these settings whenever this effect is added"));
-    auto* reset = new QPushButton(QObject::tr("Reset to Default"), layout->parentWidget());
+    auto* reset = new QPushButton(QObject::tr("Reset to Default"), defaults_row);
     reset->setObjectName(object_prefix + QStringLiteral("ResetToDefaultButton"));
     reset->setToolTip(QObject::tr("Put back the default settings of this effect"));
-    row->addWidget(make);
-    row->addWidget(reset);
-    layout->addLayout(row);
+    defaults_row_layout->addWidget(make);
+    defaults_row_layout->addWidget(reset);
     default_buttons.push_back({kind, make, reset});
   };
-  add_default_buttons(bevel_layout, LayerStyleEffectKind::BevelEmboss, QStringLiteral("layerStyleBevel"));
-  add_default_buttons(stroke_layout, LayerStyleEffectKind::Stroke, QStringLiteral("layerStyleStroke"));
-  add_default_buttons(inner_shadow_layout, LayerStyleEffectKind::InnerShadow, QStringLiteral("layerStyleInnerShadow"));
-  add_default_buttons(inner_glow_layout, LayerStyleEffectKind::InnerGlow, QStringLiteral("layerStyleInnerGlow"));
-  add_default_buttons(satin_layout, LayerStyleEffectKind::Satin, QStringLiteral("layerStyleSatin"));
-  add_default_buttons(color_overlay_layout, LayerStyleEffectKind::ColorOverlay,
-                      QStringLiteral("layerStyleColorOverlay"));
-  add_default_buttons(gradient_layout, LayerStyleEffectKind::GradientOverlay, QStringLiteral("layerStyleGradient"));
-  add_default_buttons(pattern_overlay_layout, LayerStyleEffectKind::PatternOverlay,
-                      QStringLiteral("layerStylePatternOverlay"));
-  add_default_buttons(outer_glow_layout, LayerStyleEffectKind::OuterGlow, QStringLiteral("layerStyleOuterGlow"));
-  add_default_buttons(shadow_layout, LayerStyleEffectKind::DropShadow, QStringLiteral("layerStyleDropShadow"));
+  add_default_buttons(LayerStyleEffectKind::BevelEmboss, QStringLiteral("layerStyleBevel"));
+  add_default_buttons(LayerStyleEffectKind::Stroke, QStringLiteral("layerStyleStroke"));
+  add_default_buttons(LayerStyleEffectKind::InnerShadow, QStringLiteral("layerStyleInnerShadow"));
+  add_default_buttons(LayerStyleEffectKind::InnerGlow, QStringLiteral("layerStyleInnerGlow"));
+  add_default_buttons(LayerStyleEffectKind::Satin, QStringLiteral("layerStyleSatin"));
+  add_default_buttons(LayerStyleEffectKind::ColorOverlay, QStringLiteral("layerStyleColorOverlay"));
+  add_default_buttons(LayerStyleEffectKind::GradientOverlay, QStringLiteral("layerStyleGradient"));
+  add_default_buttons(LayerStyleEffectKind::PatternOverlay, QStringLiteral("layerStylePatternOverlay"));
+  add_default_buttons(LayerStyleEffectKind::OuterGlow, QStringLiteral("layerStyleOuterGlow"));
+  add_default_buttons(LayerStyleEffectKind::DropShadow, QStringLiteral("layerStyleDropShadow"));
+  defaults_row_layout->addStretch(1);
+  // Hidden buttons add no height, so the row holds one button's height itself.
+  defaults_row->setMinimumHeight(default_buttons.front().make->sizeHint().height());
+  const auto show_default_buttons_for = [&default_buttons, defaults_row](LayerStyleEffectKind kind) {
+    bool any = false;
+    for (const auto& pair : default_buttons) {
+      const bool shown = pair.kind == kind;
+      pair.make->setVisible(shown);
+      pair.reset->setVisible(shown);
+      any = any || shown;
+    }
+    defaults_row->setVisible(any);
+  };
 
   auto item_page = [](const QListWidgetItem* item) {
     return item == nullptr ? LayerStyleCategoryPage::Blending
@@ -2664,11 +2690,19 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
 
   load_controls_from_style = [&](const QListWidgetItem* category) {
     loading_controls = true;
-    controls->setCurrentIndex(static_cast<int>(item_page(category)));
+    const auto page_index = static_cast<int>(item_page(category));
+    if (controls->currentIndex() != page_index) {
+      // Every page opens at its top (GitHub issue 606 follow-up 3), not at the
+      // scroll position the last page left in the shared scroll area.
+      controls->setCurrentIndex(page_index);
+      options_scroll->verticalScrollBar()->setValue(0);
+      options_scroll->horizontalScrollBar()->setValue(0);
+    }
     options_pane->setCurrentWidget(controls->currentWidget() == styles_placeholder
                                        ? styles_pane
                                        : static_cast<QWidget*>(options_scroll));
     const auto kind = item_kind(category);
+    show_default_buttons_for(kind);
     const auto index = std::max(0, item_effect_index(category));
     const auto* stack_ops = effect_vector_ops_for_kind(kind);
     remove_selected_instance->setEnabled(stack_ops != nullptr && stack_ops->count(style) > 0U);
@@ -3911,6 +3945,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   }
   footer->addStretch(1);
   footer->addWidget(buttons);
+  // The dark chrome is frameless, so the corner grip is the resize handle
+  // (GitHub issue 606 follow-up 3), as in Preferences.
+  auto* size_grip = new VisibleSizeGrip(&dialog);
+  size_grip->setObjectName(QStringLiteral("layerStyleSizeGrip"));
+  footer->addWidget(size_grip, 0, Qt::AlignBottom);
   root->addLayout(footer);
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
