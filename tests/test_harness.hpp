@@ -360,6 +360,126 @@ inline void write_skipped_tests_file(const std::string& suite, std::vector<Skipp
   }
 }
 
+struct TestTiming {
+  std::string name;
+  double seconds = 0.0;
+  std::string result;  // pass, fail, skip, or timeout
+};
+
+// Per-test wall times for test-artifacts/timings-<suite>.tsv (docs/testing.md, "Running and
+// filtering"): a "test\tseconds\tresult" header, then one row per test. Rows are appended and
+// flushed as each test ends, so a killed run leaves the finished tests in run order; the
+// watchdog adds the stuck test as "timeout" before it ends the process. finish() rewrites the
+// file sorted slowest first. An empty suite name keeps the times in memory only. The mutex
+// covers the one cross-thread case: the watchdog thread recording a timeout.
+class TestTimingLog {
+public:
+  explicit TestTimingLog(const std::string& suite) {
+    if (suite.empty()) {
+      return;
+    }
+    std::error_code error;
+    const auto folder = std::filesystem::current_path(error) / "test-artifacts";
+    std::filesystem::create_directories(folder, error);
+    path_ = folder / ("timings-" + suite + ".tsv");
+    display_name_ = "test-artifacts/timings-" + suite + ".tsv";
+    out_.open(path_, std::ios::binary | std::ios::trunc);
+    write_header(out_);
+    out_.flush();
+  }
+
+  TestTimingLog(const TestTimingLog&) = delete;
+  TestTimingLog& operator=(const TestTimingLog&) = delete;
+
+  void begin(const std::string& name) {
+    std::lock_guard lock(mutex_);
+    current_ = name;
+    started_ = std::chrono::steady_clock::now();
+    running_ = true;
+  }
+
+  // Ends the test begin() started with `result` (pass, fail or skip).
+  void end(const char* result) {
+    std::lock_guard lock(mutex_);
+    const std::chrono::duration<double> elapsed = std::chrono::steady_clock::now() - started_;
+    append(TestTiming{current_, elapsed.count(), result});
+    running_ = false;
+  }
+
+  // The watchdog's path: records the running test as "timeout" while its thread is stuck.
+  void record_timeout() {
+    std::lock_guard lock(mutex_);
+    if (running_) {
+      const std::chrono::duration<double> elapsed = std::chrono::steady_clock::now() - started_;
+      append(TestTiming{current_, elapsed.count(), "timeout"});
+      running_ = false;
+    }
+  }
+
+  void record(TestTiming timing) {
+    std::lock_guard lock(mutex_);
+    append(std::move(timing));
+  }
+
+  // Rewrites the file slowest first (ties by name) and returns the sorted times.
+  std::vector<TestTiming> finish() {
+    std::lock_guard lock(mutex_);
+    auto sorted = timings_;
+    std::stable_sort(sorted.begin(), sorted.end(), [](const TestTiming& left, const TestTiming& right) {
+      return left.seconds != right.seconds ? left.seconds > right.seconds : left.name < right.name;
+    });
+    if (!path_.empty()) {
+      out_.close();
+      std::ofstream out(path_, std::ios::binary | std::ios::trunc);
+      write_header(out);
+      for (const auto& timing : sorted) {
+        write_row(out, timing);
+      }
+      if (!out) {
+        std::cout << "  note: could not write " << display_name_ << "\n";
+      }
+    }
+    return sorted;
+  }
+
+  // "name 12.3 s, other 4.0 s" for the first `count` of `sorted`.
+  static std::string slowest_text(const std::vector<TestTiming>& sorted, std::size_t count) {
+    std::string text;
+    for (std::size_t index = 0; index < sorted.size() && index < count; ++index) {
+      char seconds[32] = {};
+      std::snprintf(seconds, sizeof(seconds), "%.1f", sorted[index].seconds);
+      text += (text.empty() ? "" : ", ") + sorted[index].name + " " + seconds + " s";
+    }
+    return text;
+  }
+
+private:
+  static void write_header(std::ostream& out) { out << "test\tseconds\tresult\n"; }
+
+  static void write_row(std::ostream& out, const TestTiming& timing) {
+    char seconds[32] = {};
+    std::snprintf(seconds, sizeof(seconds), "%.3f", timing.seconds);
+    out << timing.name << '\t' << seconds << '\t' << timing.result << '\n';
+  }
+
+  void append(TestTiming timing) {
+    if (out_.is_open()) {
+      write_row(out_, timing);
+      out_.flush();
+    }
+    timings_.push_back(std::move(timing));
+  }
+
+  std::filesystem::path path_;
+  std::string display_name_;
+  std::ofstream out_;
+  std::mutex mutex_;
+  std::vector<TestTiming> timings_;
+  std::string current_;
+  std::chrono::steady_clock::time_point started_{};
+  bool running_ = false;
+};
+
 inline void print_test_suite_usage(const char* program) {
   std::cerr << "usage: " << (program != nullptr ? program : "tests") << " [--list] [--exact] [filter]\n"
             << "  filter   comma-separated name substrings; a test runs when its name contains any of them\n"
@@ -457,10 +577,23 @@ inline int run_test_suite(const std::vector<TestCase>& tests, int argc, char** a
   std::array<std::size_t, 4> skipped_by_kind{};
   std::vector<std::string> failed;
   const bool require_fixtures = fixtures_required();
+  std::string suite = options.suite_name;
+  if (suite.empty() && argc > 0 && argv[0] != nullptr) {
+    suite = std::filesystem::path(argv[0]).stem().string();
+  }
+  // Declared before the watchdog, which records into it from its own thread.
+  TestTimingLog timing(suite);
   const auto started = std::chrono::steady_clock::now();
-  TestWatchdog watchdog(options.timeout_seconds, options.timeout_report);
+  TestWatchdog watchdog(options.timeout_seconds, [&timing, &options] {
+    timing.record_timeout();
+    if (options.timeout_report) {
+      options.timeout_report();
+    }
+  });
   for (const auto* test : selected) {
     watchdog.begin(test->name);
+    timing.begin(test->name);
+    const char* result = "pass";
     if (options.around_each) {
       options.around_each();
     }
@@ -472,12 +605,14 @@ inline int run_test_suite(const std::vector<TestCase>& tests, int argc, char** a
         ++passed;
         std::cout << "[PASS] " << test->name << std::endl;
       } else {
+        result = "fail";
         failed.push_back(test->name);
         for (const auto& message : deferred_failures()) {
           std::cerr << "[FAIL] " << test->name << ": " << message << std::endl;
         }
       }
     } catch (const TestSkipped& skipped_test) {
+      result = "fail";
       if (!deferred_failures().empty()) {
         // A skip after a recorded failure must not hide it: the test checked something and
         // it failed.
@@ -491,11 +626,13 @@ inline int run_test_suite(const std::vector<TestCase>& tests, int argc, char** a
         std::cerr << "[FAIL] " << test->name << ": required fixture missing (PATCHY_REQUIRE_FIXTURES=1): "
                   << skipped_test.reason << std::endl;
       } else {
+        result = "skip";
         skipped.push_back({test->name, skipped_test.reason});
         ++skipped_by_kind[static_cast<std::size_t>(skipped_test.kind)];
         std::cout << "[SKIP] " << test->name << ": " << skipped_test.reason << std::endl;
       }
     } catch (const std::exception& error) {
+      result = "fail";
       failed.push_back(test->name);
       std::cerr << "[FAIL] " << test->name << ": " << error.what() << std::endl;
       for (const auto& message : deferred_failures()) {
@@ -507,6 +644,7 @@ inline int run_test_suite(const std::vector<TestCase>& tests, int argc, char** a
       options.around_each();
     }
     watchdog.end();
+    timing.end(result);
   }
   const std::chrono::duration<double> elapsed = std::chrono::steady_clock::now() - started;
 
@@ -526,9 +664,10 @@ inline int run_test_suite(const std::vector<TestCase>& tests, int argc, char** a
   }
   std::cout << "[SUMMARY] executed " << selected.size() << ", passed " << passed << ", failed " << failed.size()
             << ", skipped " << skipped.size() << skip_classes << " in " << seconds << " s" << std::endl;
-  std::string suite = options.suite_name;
-  if (suite.empty() && argc > 0 && argv[0] != nullptr) {
-    suite = std::filesystem::path(argv[0]).stem().string();
+  // Untagged, like the "  failed:" lines: the desk and other parsers keep a suite's last
+  // [SUMMARY] line, which must stay the counts line above, byte for byte.
+  if (const auto slowest = TestTimingLog::slowest_text(timing.finish(), 5); !slowest.empty()) {
+    std::cout << "  slowest: " << slowest << std::endl;
   }
   if (!suite.empty()) {
     write_skipped_tests_file(suite, skipped);
