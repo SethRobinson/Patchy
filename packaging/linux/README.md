@@ -10,10 +10,14 @@ Patchy ships on Linux as a Flatpak (this page) and as an AppImage
   beside it. This is what `flatpak update` and the software centers read (GitHub issue
   28). `build/package/Patchy-<version>-flatpak-repo.tar` holds all three;
   `scripts\release\upload-flatpak-repo-to-rtsoft.bat` installs it on the server.
-- **The single-file bundle** `build/package/Patchy-<version>.flatpak`, published as
-  `PatchyLinux.flatpak` on GitHub Releases. It carries the
+- **The single-file bundles** `build/package/Patchy-<version>.flatpak` (x86_64) and
+  `Patchy-<version>-aarch64.flatpak`, published as `PatchyLinux.flatpak` and
+  `PatchyLinuxArm64.flatpak` on GitHub Releases. Each carries the
   repository URL and public key (`--repo-url`, `--gpg-keys`), so a bundle install gets
   the repository as its origin and updates like a repository install.
+
+The repository holds both arches (since 1.27), so the one flatpakref installs the right
+build on x86_64 and on 64-bit ARM ([aarch64](#aarch64)).
 
 Install commands, all per user (no root, no polkit prompt; GitHub issue 14):
 
@@ -156,22 +160,54 @@ host's `desktop-file-validate` or `appstreamcli validate --no-net` (each skipped
 when not installed). The AppImage ships a copy of the desktop file without the Desktop
 Entry 1.5 `SingleMainWindow` key ([docs/appimage.md](../../docs/appimage.md)).
 
-## aarch64 test builds
+## aarch64
 
 The same manifest builds for aarch64 (ONNX Runtime has an `only-arches: [aarch64]` source;
 everything else is built from source or comes from the arch's KDE runtime). It needs a native
-aarch64 Linux host: compiling under QEMU on x86_64 is far too slow. The test host is an
-Ubuntu 24.04 aarch64 VM (Lima, Apple Virtualization) on `<mac-build-host>` with flatpak,
-flatpak-builder and `org.kde.Sdk//<version>` installed as in the `make-flatpak.sh` header.
-`make-flatpak.sh` there writes `Patchy-<version>-aarch64.flatpak` (a non-x86_64 build adds
-`-<arch>`, so it can never pass for the x86_64 release file); without a signing key it is an
-update-less test bundle.
+aarch64 Linux host: compiling under QEMU on x86_64 is far too slow. The build host is an
+Ubuntu 24.04 aarch64 VM (Lima, Apple Virtualization) on `<mac-build-host>`, named by the
+`linux-arm64` entry of `scripts/remote/hosts.local.json` (`ssh`, `lima`: the VM, `limactl`).
 
-Not published yet. Shipping aarch64 needs a publish step that commits both arches' app refs
-into one repository (today `build-commit-from` copies only the ref of the build just made),
-release scripts that collect both bundles, and tests on a 16K-page kernel (Raspberry Pi 5 on
-Raspberry Pi OS, Asahi): an ELF library whose LOAD segments are aligned below 0x4000 does not
-load there.
+How a release makes it (`scripts/remote/release-linux.ps1`):
+
+1. In parallel with the x86_64 build, the release script pushes a snapshot to the mac's
+   `~/patchy.git` (`refs/snapshots/linux-arm64`) and runs that snapshot's
+   `scripts/remote/linux-arm64-vm.sh build` on the mac: it starts the VM if needed, checks
+   the snapshot out in the VM's own `~/patchy/src` (the bare repo is mounted read-only at
+   the same path) and runs `make-flatpak.sh` with no signing key and
+   `PATCHY_FLATPAK_JOBS=$(nproc)`. That build runs the sandboxed headless smoke check and
+   `patchy-mcp --check`, then writes the unsigned `Patchy-<version>-aarch64.flatpak`.
+2. The unsigned bundle goes to the linux build host's `build/flatpak-import/`, and
+   `make-flatpak.sh` there runs with
+   `PATCHY_FLATPAK_IMPORT_BUNDLES=aarch64=<path>`: it imports the bundle into
+   `build/flatpak-repo` (`flatpak build-import-bundle`), commits both arches' app refs into
+   the fresh signed publish repository, and exports a signed bundle per arch. Only this
+   run's arches are published, never a stale aarch64 ref left by an earlier run. The
+   signing key never leaves the linux build host.
+3. `linux-arm64-vm.sh verify` installs the signed aarch64 bundle in the VM, checks that its
+   origin carries the repository URL, and runs the GEGL smoke script and
+   `patchy-mcp --check` again.
+
+Every bundled ELF must have LOAD segments aligned to at least 0x4000: Raspberry Pi OS on the
+Pi 5 and Asahi Linux run 16K-page kernels, which cannot map a library aligned for 4K pages.
+The KDE SDK's toolchain and the pinned ONNX Runtime both align to 64K (checked November
+2026 with `readelf -lW`); recheck after an ONNX Runtime or runtime bump. Tested by hand on a
+Raspberry Pi 5 (Raspberry Pi OS 13, 16K pages): GEGL, Object Selection and the MCP connector
+work.
+
+VM setup (one time, on the mac; no Homebrew, so nothing the mac release uses changes):
+
+    mkdir -p ~/.patchy-tools/lima && curl -fsSL <lima release tarball for Darwin-arm64> | tar -xz -C ~/.patchy-tools/lima
+    ~/.patchy-tools/lima/bin/limactl create --tty=false --name=patchy-linux-arm64 vm.yaml
+    ~/.patchy-tools/lima/bin/limactl start --tty=false patchy-linux-arm64
+
+with `vm.yaml` holding `base: template:ubuntu-24.04`, `vmType: vz`, `cpus: 8`,
+`memory: 24GiB`, `disk: 150GiB`, `mountType: virtiofs`, and `mounts:` with only
+`location: "~/patchy.git"`, `writable: false`. Inside the VM
+(`limactl shell patchy-linux-arm64`): `sudo apt-get install -y flatpak flatpak-builder ostree
+git python3 python3-yaml desktop-file-utils appstream binutils`, then the Flathub remote and
+`org.kde.Sdk//<version>` and `org.kde.Platform//<version>` as in the `make-flatpak.sh`
+header. A runtime bump needs the new SDK in the VM too.
 
 ## Sandbox notes
 

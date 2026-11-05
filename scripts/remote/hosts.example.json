@@ -1,7 +1,8 @@
 {
-  "//": "Copy to hosts.local.json (gitignored) in the main checkout and fill in the ssh targets this machine can reach. Omit targets you do not have. windows may be one entry or a list in order of preference; optional jobs sets its build parallelism (default 8). windows-arm64 lists Windows ARM64 hosts the same way (-Target windows-arm64). wasm lists the Windows hosts that build the web release (-Target wasm, release-wasm.ps1), each with share, the UNC path of its work tree that the site is copied back from. upload is the download server the release upload scripts write to (scripts\\release\\upload-target.bat). See docs/building.md, \"Remote build machinery\".",
+  "//": "Copy to hosts.local.json (gitignored) in the main checkout and fill in the ssh targets this machine can reach. Omit targets you do not have. windows may be one entry or a list in order of preference; optional jobs sets its build parallelism (default 8). windows-arm64 lists Windows ARM64 hosts the same way (-Target windows-arm64). wasm lists the Windows hosts that build the web release (-Target wasm, release-wasm.ps1), each with share, the UNC path of its work tree that the site is copied back from. linux-arm64 is the host whose Lima VM builds the aarch64 Flatpak (lima: the VM name, limactl: its path there; packaging/linux/README.md, \"aarch64\"). upload is the download server the release upload scripts write to (scripts\\release\\upload-target.bat). See docs/building.md, \"Remote build machinery\".",
   "mac": { "ssh": "user@mac-build-host.local" },
   "linux": { "ssh": "user@linux-build-host.local" },
+  "linux-arm64": { "ssh": "user@mac-build-host.local", "lima": "patchy-linux-arm64", "limactl": "~/.patchy-tools/lima/bin/limactl" },
   "upload": { "ssh": "user@download-server.example" },
   "windows": [
     { "ssh": "windows-build-host", "workTree": "C:/patchy/src" },

@@ -23,6 +23,7 @@ Assets, taken from -AssetDir (default build\package):
   PatchyWindowsInstaller.exe, PatchyWindowsNoInstaller.zip           (stable names)
   PatchyWindowsArm64Installer.exe, PatchyWindowsArm64NoInstaller.zip (stable names)
   Patchy-<version>.dmg -> PatchyMacOS.dmg, Patchy-<version>.flatpak -> PatchyLinux.flatpak,
+  Patchy-<version>-aarch64.flatpak -> PatchyLinuxArm64.flatpak,
   Patchy-<version>-x86_64.AppImage(.zsync) -> PatchyLinux.AppImage(.zsync)
   PatchyGeglSources.zip (build-release.bat; the source of the GEGL the packages carry,
   which its licenses require beside the downloads: docs/gegl-filters.md, "Sources")
@@ -46,6 +47,7 @@ param(
   [string]$AssetDir,
   [string]$Repo = 'SethRobinson/Patchy',
   [switch]$SkipAppImage,
+  [switch]$SkipLinuxArm64,
   [switch]$SkipGeglSources
 )
 # 'Continue', not 'Stop': native stderr chatter (git, gh) would otherwise become a
@@ -145,6 +147,11 @@ $assets = [ordered]@{
   'PatchyWindowsArm64NoInstaller.zip' = Resolve-Asset 'PatchyWindowsArm64NoInstaller.zip' $null
   'PatchyMacOS.dmg'              = Resolve-Asset 'PatchyMacOS.dmg' "Patchy-$Version.dmg"
   'PatchyLinux.flatpak'          = Resolve-Asset 'PatchyLinux.flatpak' "Patchy-$Version.flatpak"
+}
+# The aarch64 Flatpak (packaging/linux/README.md, "aarch64"). -SkipLinuxArm64 is only for
+# backfilling a release from before it shipped (1.27).
+if (-not $SkipLinuxArm64) {
+  $assets['PatchyLinuxArm64.flatpak'] = Resolve-Asset 'PatchyLinuxArm64.flatpak' "Patchy-$Version-aarch64.flatpak"
 }
 # -SkipGeglSources is only for backfilling a release from before Patchy shipped its own GEGL.
 if (-not $SkipGeglSources) {
@@ -255,6 +262,10 @@ $appImageRow = ''
 if (-not $SkipAppImage) {
   $appImageRow = "`n| Linux AppImage (Ubuntu 22.04 or newer) | [PatchyLinux.AppImage]($base/PatchyLinux.AppImage) |"
 }
+$linuxArm64Row = ''
+if (-not $SkipLinuxArm64) {
+  $linuxArm64Row = "`n| Linux ARM64 Flatpak bundle (Raspberry Pi 5 and other 64-bit ARM) | [PatchyLinuxArm64.flatpak]($base/PatchyLinuxArm64.flatpak) |"
+}
 $geglSourcesSentence = ''
 if (-not $SkipGeglSources) {
   $geglSourcesSentence = " The source of the GEGL libraries the packages carry (GNU LGPL and GPL) is [PatchyGeglSources.zip]($base/PatchyGeglSources.zip)."
@@ -269,7 +280,7 @@ $notesText += @"
 | Windows 11 on Arm (ARM64) installer | [PatchyWindowsArm64Installer.exe]($base/PatchyWindowsArm64Installer.exe) |
 | Windows 11 on Arm (ARM64) portable zip | [PatchyWindowsArm64NoInstaller.zip]($base/PatchyWindowsArm64NoInstaller.zip) |
 | macOS 12+ (Apple Silicon) | [PatchyMacOS.dmg]($base/PatchyMacOS.dmg) |
-| Linux Flatpak bundle | [PatchyLinux.flatpak]($base/PatchyLinux.flatpak) |$appImageRow
+| Linux (x86_64) Flatpak bundle | [PatchyLinux.flatpak]($base/PatchyLinux.flatpak) |$linuxArm64Row$appImageRow
 
 Windows builds are code signed; the macOS app is signed and notarized. Checksums are in [SHA256SUMS.txt]($base/SHA256SUMS.txt).$geglSourcesSentence The browser version runs at [patchyimageeditor.com](https://www.patchyimageeditor.com).
 "@
@@ -291,7 +302,7 @@ chmod +x PatchyLinux.AppImage
 
 If it cannot mount itself, install FUSE 3 (``sudo apt install fuse3``, ``sudo dnf install fuse3``, ``sudo pacman -S fuse3``) or run it with ``--appimage-extract-and-run``. Menu entry and other distros: [README, AppImage](https://github.com/$Repo#appimage).
 
-Flatpak (updates with ``flatpak update``):
+Flatpak (updates with ``flatpak update``; the same command installs the ARM64 build on 64-bit ARM, such as a Raspberry Pi 5):
 
 ``````sh
 flatpak install --user https://rtsoft.com/flatpak/com.rtsoft.patchy.flatpakref

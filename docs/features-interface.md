@@ -2,7 +2,7 @@
 
 Split from [features.md](features.md): supported platforms, privacy and file metadata, panels, Search Commands, screen modes, customization, menus, languages and themes.
 
-- Cross-platform: Windows (x64, and native ARM64 without PDF import) leads, with native macOS (Apple Silicon), Linux (Flatpak and AppImage) and a browser build; see the [platform support table](../README.md#platform-support)
+- Cross-platform: Windows (x64, and native ARM64 without PDF import) leads, with native macOS (Apple Silicon), Linux (x86_64 Flatpak and AppImage; ARM64 Flatpak for the Raspberry Pi 5 and other ARM64 Linux) and a browser build; see the [platform support table](../README.md#platform-support)
 - Native C++ and Qt with CPU rendering. Large documents, high bit depths and Object Selection need more memory and time
 - No telemetry, tracking or image uploads. Optional update checks contact GitHub; one-click updates on Windows and the Linux AppImage and Object Selection's optional High Quality model download files when requested. Settings live in a plain local file; the installer leaves your file associations unchanged
 - File > File Info shows and edits a document's metadata (EXIF, XMP, IPTC, thumbnails, AI generation data), flags information you may not want to share and strips it. PSD and JPEG saves record Patchy, the save dates, color mode and document IDs as Photoshop does, with a fresh thumbnail

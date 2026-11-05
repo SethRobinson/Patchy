@@ -2,7 +2,12 @@
 # Builds the Linux Flatpak artifacts in build/package:
 #   Patchy-<version>.flatpak               the single-file bundle
 #   Patchy-<version>-flatpak-repo.tar      the signed repository users update from
-# A non-x86_64 build adds -<arch> before each suffix (Patchy-<version>-aarch64.flatpak).
+#   Patchy-<version>-<arch>.flatpak        the bundle of each imported arch (below), and of
+#                                          a build on a non-x86_64 host
+# PATCHY_FLATPAK_IMPORT_BUNDLES="aarch64=<path> ..." adds other arches built elsewhere (an
+# unsigned bundle from make-flatpak.sh on that arch) to the signed repository, so one
+# repository and one flatpakref serve every arch (packaging/linux/README.md, "aarch64").
+# PATCHY_FLATPAK_JOBS overrides the build's job count (default: every core but four).
 # Prerequisites (one-time):
 #   sudo apt-get install -y flatpak flatpak-builder ostree
 #   flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
@@ -43,16 +48,36 @@ VERSION=$(sed -nE 's/^[[:space:]]*VERSION[[:space:]]+([0-9.]+).*$/\1/p' "$ROOT/C
 [ -n "$VERSION" ] || { echo "ERROR: could not read the project version from CMakeLists.txt"; exit 1; }
 
 ARCH=$(flatpak --default-arch)
-# An arm build (aarch64 test builds, packaging/linux/README.md) names its arch so it can never
-# pass for the x86_64 release files; the x86_64 names stay what the release scripts expect.
-ARCH_SUFFIX=""
-[ "$ARCH" = "x86_64" ] || ARCH_SUFFIX="-$ARCH"
-BUNDLE="$PACKAGE_DIR/Patchy-$VERSION$ARCH_SUFFIX.flatpak"
-REPO_TAR="$PACKAGE_DIR/Patchy-$VERSION$ARCH_SUFFIX-flatpak-repo.tar"
+# Every arch but x86_64 names itself in its file names, so an arm bundle can never pass for
+# the x86_64 release files; the x86_64 names stay what the release scripts expect.
+arch_suffix() { [ "$1" = "x86_64" ] || printf -- '-%s' "$1"; }
+bundle_path() { printf '%s/Patchy-%s%s.flatpak' "$PACKAGE_DIR" "$VERSION" "$(arch_suffix "$1")"; }
+BUNDLE=$(bundle_path "$ARCH")
+REPO_TAR="$PACKAGE_DIR/Patchy-$VERSION$(arch_suffix "$ARCH")-flatpak-repo.tar"
+
+# Other arches to sign into the repository: checked before the long build.
+IMPORT_ARCHES=()
+IMPORT_FILES=()
+for entry in ${PATCHY_FLATPAK_IMPORT_BUNDLES:-}; do
+  import_arch=${entry%%=*}
+  import_file=${entry#*=}
+  if [ "$import_arch" = "$entry" ] || [ -z "$import_arch" ] || [ "$import_arch" = "$ARCH" ]; then
+    echo "ERROR: PATCHY_FLATPAK_IMPORT_BUNDLES entry '$entry' must be <other arch>=<bundle path>" >&2
+    exit 1
+  fi
+  [ -s "$import_file" ] || { echo "ERROR: the $import_arch bundle to import is missing: $import_file" >&2; exit 1; }
+  IMPORT_ARCHES+=("$import_arch")
+  IMPORT_FILES+=("$import_file")
+done
+if [ "${#IMPORT_ARCHES[@]}" -gt 0 ] && [ -z "$GPG_KEY" ]; then
+  echo "ERROR: PATCHY_FLATPAK_IMPORT_BUNDLES needs PATCHY_FLATPAK_GPG_KEY (imports only go into the signed repository)" >&2
+  exit 1
+fi
 
 mkdir -p "$PACKAGE_DIR"
-# Every core but four (at least one), so the remote machine stays usable.
-JOBS=$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 5) - 4 ))
+# Every core but four (at least one), so the remote machine stays usable. A dedicated
+# build VM passes PATCHY_FLATPAK_JOBS to use all of its cores.
+JOBS=${PATCHY_FLATPAK_JOBS:-$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 5) - 4 ))}
 [ "$JOBS" -ge 1 ] || JOBS=1
 # Delete ALL previous bundles up front (not just this version's): if the build fails,
 # nothing stale remains for the newest-file upload script to pick up by accident.
@@ -135,12 +160,25 @@ fi
 # files users point flatpak at. The bundle is exported from this same signed commit
 # with --repo-url, so a bundle install gets the repository as its origin and updates
 # from it like a repository install does.
-APP_REF="app/$APP_ID/$ARCH/master"
+# Imported arches join $REPO_DIR first, replacing any earlier import of the same arch. Only
+# this build's arch and this run's imports are published, never a stale ref of another arch
+# that an earlier run left in $REPO_DIR.
+ARCHES=("$ARCH")
+APP_REFS=("app/$APP_ID/$ARCH/master")
+for i in "${!IMPORT_ARCHES[@]}"; do
+  import_ref="app/$APP_ID/${IMPORT_ARCHES[$i]}/master"
+  flatpak build-import-bundle --no-update-summary --ref="$import_ref" "$REPO_DIR" "${IMPORT_FILES[$i]}"
+  ostree --repo="$REPO_DIR" rev-parse "$import_ref" >/dev/null \
+    || { echo "ERROR: importing ${IMPORT_FILES[$i]} did not create $import_ref" >&2; exit 1; }
+  echo "Imported $import_ref from ${IMPORT_FILES[$i]}"
+  ARCHES+=("${IMPORT_ARCHES[$i]}")
+  APP_REFS+=("$import_ref")
+done
 rm -rf "${ROOT:?}/build/flatpak-publish"
 mkdir -p "$PUBLISH_DIR"
 ostree init --repo="$PUBLISH_DIR/repo" --mode=archive-z2
 flatpak build-commit-from --src-repo="$REPO_DIR" --gpg-sign="$GPG_KEY" "${GPG_HOMEDIR_ARGS[@]}" \
-  --no-update-summary "$PUBLISH_DIR/repo" "$APP_REF"
+  --no-update-summary "$PUBLISH_DIR/repo" "${APP_REFS[@]}"
 flatpak build-update-repo --title="Patchy" --homepage=https://github.com/SethRobinson/Patchy \
   --default-branch=master --gpg-sign="$GPG_KEY" "${GPG_HOMEDIR_ARGS[@]}" \
   --generate-static-deltas "$PUBLISH_DIR/repo"
@@ -170,10 +208,13 @@ RuntimeRepo=$FLATHUB_REPO
 GPGKey=$GPG_KEY_BASE64
 EOF
 
-flatpak build-bundle --runtime-repo="$FLATHUB_REPO" --repo-url="$REPO_URL" \
-  --gpg-keys="$PUBLISH_DIR/patchy.gpg" \
-  "$PUBLISH_DIR/repo" "$BUNDLE" "$APP_ID"
-echo "Bundle written: $BUNDLE"
+for bundle_arch in "${ARCHES[@]}"; do
+  arch_bundle=$(bundle_path "$bundle_arch")
+  flatpak build-bundle --arch="$bundle_arch" --runtime-repo="$FLATHUB_REPO" --repo-url="$REPO_URL" \
+    --gpg-keys="$PUBLISH_DIR/patchy.gpg" \
+    "$PUBLISH_DIR/repo" "$arch_bundle" "$APP_ID"
+  echo "Bundle written: $arch_bundle"
+done
 
 # One tar for the upload script: the repo directory plus the two descriptor files.
 tar -C "$PUBLISH_DIR" -cf "$REPO_TAR" \

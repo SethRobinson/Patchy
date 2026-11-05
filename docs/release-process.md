@@ -26,7 +26,15 @@ Windows signs both executables, the plug-in and GEGL hosts, and the installer wi
 signed Flatpak update repository ([packaging/linux/README.md](../packaging/linux/README.md))
 and the AppImage ([appimage.md](appimage.md)).
 
-`build\package` must never hold a previous version's files once a new build starts. The mac and Linux builders write versioned artifacts (`Patchy-<version>.dmg`, `Patchy-<version>.flatpak`, `Patchy-<version>-x86_64.AppImage`); `publish-github-release.ps1` publishes this version's. Unversioned copies left by the retired rtsoft.com mirror uploads are deleted by `release-mac.ps1` and `release-linux.ps1` along with the old versioned artifacts, and the Windows packager deletes its own final-named outputs before rebuilding. An agent that builds packages by hand must do the same delete before reporting the folder as release-ready.
+The Linux builder (`release-linux.ps1`) also builds the aarch64 Flatpak in a Lima VM on the mac
+build host (the `linux-arm64` entry of `hosts.local.json`), in parallel with the x86_64 build,
+so the `linux` and `mac` targets share the mac. The linux build host signs both arches into one
+repository and exports both bundles; the signed aarch64 bundle is then installed and
+smoke-checked in the VM ([packaging/linux/README.md](../packaging/linux/README.md#aarch64)).
+The aarch64 build runs no test suites: its checks are the sandboxed headless smoke check,
+`patchy-mcp --check` and that install. The mac (arm64) and Linux x86_64 suites cover its code.
+
+`build\package` must never hold a previous version's files once a new build starts. The mac and Linux builders write versioned artifacts (`Patchy-<version>.dmg`, `Patchy-<version>.flatpak`, `Patchy-<version>-aarch64.flatpak`, `Patchy-<version>-x86_64.AppImage`); `publish-github-release.ps1` publishes this version's. Unversioned copies left by the retired rtsoft.com mirror uploads are deleted by `release-mac.ps1` and `release-linux.ps1` along with the old versioned artifacts, and the Windows packager deletes its own final-named outputs before rebuilding. An agent that builds packages by hand must do the same delete before reporting the folder as release-ready.
 
 ## Version bump checklist
 

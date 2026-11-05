@@ -37,6 +37,8 @@ checksums.
 | Linux (x86_64)            | Flatpak, from our repository   | The [command below](#linux), or [com.rtsoft.patchy.flatpakref](https://rtsoft.com/flatpak/com.rtsoft.patchy.flatpakref)            |
 | Linux (x86_64)            | Flatpak bundle (single file)   | [PatchyLinux.flatpak](https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyLinux.flatpak) (49 MB)                   |
 | Linux (x86_64)            | AppImage (Ubuntu 22.04+)       | [PatchyLinux.AppImage](https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyLinux.AppImage) (95 MB, [details](#appimage)) |
+| Linux (ARM64)             | Flatpak, from our repository   | The same [command below](#linux) ([Raspberry Pi 5 and other ARM computers](#linux-on-arm64-raspberry-pi-5-and-others)) |
+| Linux (ARM64)             | Flatpak bundle (single file)   | [PatchyLinuxArm64.flatpak](https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyLinuxArm64.flatpak) (49 MB)         |
 | Any modern browser        | Nothing to install             | [patchyimageeditor.com](https://www.patchyimageeditor.com) or [rtsoft.com/patchy](https://www.rtsoft.com/patchy/)                    |
 
 ### Linux
@@ -69,6 +71,48 @@ first. Install it with `flatpak install --user PatchyLinux.flatpak`. It still fe
 the KDE runtime from Flathub, and it updates from the same repository afterwards.
 
 My flatpak knowledge is limited, so I hope all this makes sense.  I hope to submit Patchy to Flathub eventually, but for now we have our own repository.
+
+#### Linux on ARM64 (Raspberry Pi 5 and others)
+
+The Flatpak also comes in a 64-bit ARM (ARM64, also called aarch64) build, and the command
+above picks it automatically on an ARM computer. It needs a 64-bit Linux with Flatpak.
+Tested on a Raspberry Pi 5 with Raspberry Pi OS. It should also run on:
+
+- Raspberry Pi 5, Pi 500 and Pi 4 (Pi 400) with the 64-bit Raspberry Pi OS or Ubuntu
+  Desktop for Raspberry Pi. The 32-bit Raspberry Pi OS cannot run it, and neither can a
+  Pi 3 or older. A Pi 5 with 8 GB or more is the most comfortable; a Pi 4 works but is slow
+  on large images.
+- Apple Silicon Macs running Asahi Linux (Fedora Asahi Remix has Flatpak already)
+- Boards with a Rockchip RK3588 (Orange Pi 5, Radxa Rock 5 and similar) running Armbian,
+  Ubuntu or Debian
+- Snapdragon X laptops running Linux, and other ARM64 Linux desktops
+
+On a Raspberry Pi with Raspberry Pi OS:
+
+```sh
+sudo apt install flatpak
+sudo reboot
+```
+
+The reboot adds Flatpak apps to the menu. Then install Patchy for your user (no root needed):
+
+```sh
+flatpak install --user https://rtsoft.com/flatpak/com.rtsoft.patchy.flatpakref
+```
+
+The first install also fetches the shared KDE runtime from Flathub (about 1.5 GB of disk
+space).
+Patchy then appears in the menu under Graphics, starts with `flatpak run com.rtsoft.patchy`,
+and updates with `flatpak update`.
+
+To download the single-file bundle instead:
+
+```sh
+wget https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyLinuxArm64.flatpak
+flatpak install --user PatchyLinuxArm64.flatpak
+```
+
+The bundle updates from the same repository afterwards.
 
 #### AppImage
 
@@ -176,7 +220,7 @@ The desktop and browser builds share the editor, with these differences:
 
 | Capability | Windows | macOS | Linux | Browser |
 | --- | --- | --- | --- | --- |
-| Available build | x64, ARM64 | Apple Silicon | x86-64, Flatpak / AppImage | WebAssembly |
+| Available build | x64, ARM64 | Apple Silicon | x86-64 (Flatpak / AppImage), ARM64 (Flatpak) | WebAssembly |
 | 8-bit and 16-bit editing | Yes | Yes | Yes | Yes |
 | 32-bit HDR editing | Yes | Yes | Yes | Opens converted to 16-bit |
 | PSD/PSB, Affinity, Krita, GIMP, OpenRaster, Paint.NET, layered TIFF, Aseprite | Yes | Yes | Yes | Yes |
@@ -229,6 +273,7 @@ and Affinity import has format-specific limitations. See [current compatibility]
 - Rotate View: the new Rotate View tool (R, in the Hand tool's flyout) turns the view to any angle the way you turn a sheet of paper, without changing the image. Shift snaps to 15 degrees, Esc turns the view upright again, and the options bar has an angle field and Reset View; View > Rotate View Left, Rotate View Right and Reset View Rotation, and `patchy.ui.rotation` for scripts. Painting, selections, transforms, crop, text, guides and rulers all work on a turned view. Smudge gives up R and stays on Shift+R ([issue 633](https://github.com/SethRobinson/Patchy/issues/633))
 - Hotkeys: Preferences > Hotkeys exports your shortcuts to a `.patchykeys` file and imports them as a named set of your own, and offers built-in Photoshop-style, GIMP-style and Krita-style sets. Built-in sets never change: an edit goes into a Custom set you can rename or delete ([issue 633](https://github.com/SethRobinson/Patchy/issues/633))
 - Menus: the Layer menu groups Hide & Lock, Layer Style and Fill and Adjustment Layer in submenus, Preferences moves to the Edit menu, and Revert moves to the document tab's menu ([issue 627](https://github.com/SethRobinson/Patchy/issues/627), [issue 619](https://github.com/SethRobinson/Patchy/issues/619)); Search Commands lists open documents, recent files and folders ([issue 554](https://github.com/SethRobinson/Patchy/issues/554))
+- Linux on ARM64: the Flatpak now also comes in a 64-bit ARM build for the Raspberry Pi 5 and other ARM64 Linux computers. The same install command picks it automatically, and `PatchyLinuxArm64.flatpak` is the single-file download ([details](#linux-on-arm64-raspberry-pi-5-and-others))
 - Lines: Shape Appearance has an Arrowheads section with head width, length and concavity, and the Line options bar's Weight and arrowheads edit the selected line ([issue 622](https://github.com/SethRobinson/Patchy/issues/622))
 - TIFF: multi-page TIFFs ask whether to open their pages as layers, as separate documents or only page 1 ([issue 625](https://github.com/SethRobinson/Patchy/issues/625)), and flat TIFFs that failed to open now do ([issue 623](https://github.com/SethRobinson/Patchy/issues/623))
 - Text: the font list has favorite stars with a Favorites-only toggle, and an x removes a font from Recent ([issue 630](https://github.com/SethRobinson/Patchy/issues/630), [issue 569](https://github.com/SethRobinson/Patchy/issues/569)); a text box that hides lines shows a plus on its bottom right handle ([issue 631](https://github.com/SethRobinson/Patchy/issues/631)); on macOS, text is no longer drawn heavier than its outlines ([issue 598](https://github.com/SethRobinson/Patchy/issues/598))
