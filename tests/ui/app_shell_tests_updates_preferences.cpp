@@ -76,6 +76,7 @@
 #include <QTemporaryDir>
 #include <QSizeGrip>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QMainWindow>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -838,6 +839,153 @@ void ui_blocked_window_cursor_survives_reactivation_and_tool_switches() {
   handle->removeEventFilter(&main_changes);
   qApp->removeEventFilter(blocked_filter);
   qApp->removeEventFilter(wayland_filter);
+}
+
+// GitHub issue 634 (KDE): with the Rectangular Marquee active, File > Open Recent File showed the
+// arrow over the new document's canvas from then on, through every move and drag. The platform's
+// enter for the main window arrives as the menu closes, while the Opening progress dialog blocks
+// the window, and Qt drops it; the list row that took the click is deleted when the menu
+// rebuilds, so Qt had no widget under the pointer to compare moves against and never entered the
+// new canvas, and none of its cursor changes reached the window. The pointer position Qt reports
+// can be stale on Wayland, so the unblock could not find the canvas either. The filter gives the
+// window the enter it missed on its first mouse move after the modal closes.
+void ui_blocked_window_cursor_returns_after_open_recent_file() {
+  // Put the pointer back afterwards: a later test reads canvas hover from where it rests.
+  const auto restore_pointer = qScopeGuard([pointer = QCursor::pos()] { QCursor::setPos(pointer); });
+  ensure_artifact_dir();
+  const auto first_path = QFileInfo(QStringLiteral("test-artifacts/issue634-first.png")).absoluteFilePath();
+  const auto second_path = QFileInfo(QStringLiteral("test-artifacts/issue634-second.png")).absoluteFilePath();
+  for (const auto& path : {first_path, second_path}) {
+    QImage image(160, 120, QImage::Format_RGB32);
+    image.fill(QColor(200, 200, 200));
+    CHECK(image.save(path));
+  }
+  SettingsValueRestorer recent_files_restorer(QStringLiteral("recentFiles"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("recentFiles"), QStringList{second_path, first_path});
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, first_path);
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+  QApplication::processEvents();
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr && tabs->count() == 1);
+  QWindow* handle = window.windowHandle();
+  CHECK(handle != nullptr);
+  if (tabs == nullptr || handle == nullptr) {
+    return;
+  }
+  QObject* filter = patchy::ui::create_blocked_window_cursor_filter(&window);
+  qApp->installEventFilter(filter);
+  const auto remove_filter = qScopeGuard([filter] { qApp->removeEventFilter(filter); });
+
+  // Mouse events reach each window as the platform delivers them, with no enter or leave of
+  // their own (QTest adds those when the pointer changes windows). The pointer position Qt
+  // reports stays outside the window, as a stale Wayland position can.
+  const auto send_mouse = [](QWindow* target, QEvent::Type type, QPoint point, Qt::MouseButton button,
+                             Qt::MouseButtons buttons) {
+    QMouseEvent event(type, QPointF(point), QPointF(point), QPointF(target->mapToGlobal(point)), button, buttons,
+                      Qt::NoModifier);
+    QCoreApplication::sendEvent(target, &event);
+  };
+  QCursor::setPos(window.geometry().topLeft() - QPoint(40, 40));
+  QApplication::processEvents();
+
+  // The pointer enters the window over the canvas: the marquee cursor shows.
+  auto* first_canvas = require_canvas(window);
+  const QPoint canvas_point = first_canvas->mapTo(&window, first_canvas->rect().center());
+  QEnterEvent enter_main(canvas_point, canvas_point, window.mapToGlobal(canvas_point));
+  QCoreApplication::sendEvent(handle, &enter_main);
+  send_mouse(handle, QEvent::MouseMove, canvas_point, Qt::NoButton, Qt::NoButton);
+  const auto tool_shape = first_canvas->cursor().shape();
+  CHECK(tool_shape != Qt::ArrowCursor);
+  CHECK(handle->cursor().shape() == tool_shape);
+
+  // File > Open Recent File: the pointer leaves for the menu and clicks the other file's row.
+  auto* recent_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentMenu"));
+  CHECK(recent_menu != nullptr);
+  auto* list = recent_menu != nullptr ? recent_menu->findChild<QListWidget*>(QStringLiteral("fileOpenRecentList"))
+                                      : nullptr;
+  CHECK(list != nullptr && list->count() == 2);
+  if (list == nullptr || list->count() != 2) {
+    return;
+  }
+  // Counts the times the Opening dialog blocks the main window.
+  class BlockCounter : public QObject {
+   public:
+    int count = 0;
+
+   protected:
+    bool eventFilter(QObject*, QEvent* event) override {
+      count += event->type() == QEvent::WindowBlocked ? 1 : 0;
+      return false;
+    }
+  } blocks;
+  handle->installEventFilter(&blocks);
+  QEvent leave_main(QEvent::Leave);
+  QCoreApplication::sendEvent(handle, &leave_main);
+  recent_menu->popup(window.mapToGlobal(canvas_point - QPoint(40, 40)));
+  QApplication::processEvents();
+  QWindow* menu_handle = recent_menu->windowHandle();
+  CHECK(menu_handle != nullptr && recent_menu->isVisible());
+  if (menu_handle == nullptr) {
+    return;
+  }
+  // Opening the first file put it on top; the second file's row opens a new document.
+  QListWidgetItem* second_row = nullptr;
+  for (int row = 0; row < list->count(); ++row) {
+    if (list->item(row)->data(patchy::ui::kRecentPathRole).toString() == second_path) {
+      second_row = list->item(row);
+    }
+  }
+  CHECK(second_row != nullptr);
+  if (second_row == nullptr) {
+    return;
+  }
+  const QPoint row_point = list->viewport()->mapTo(recent_menu, list->visualItemRect(second_row).center());
+  QEnterEvent enter_menu(row_point, row_point, recent_menu->mapToGlobal(row_point));
+  QCoreApplication::sendEvent(menu_handle, &enter_menu);
+  send_mouse(menu_handle, QEvent::MouseMove, row_point, Qt::NoButton, Qt::NoButton);
+  send_mouse(menu_handle, QEvent::MouseButtonPress, row_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(menu_handle, QEvent::MouseButtonRelease, row_point, Qt::LeftButton, Qt::NoButton);
+  CHECK(!recent_menu->isVisible());
+  // The closed menu's window reports the leave. The main window's enter follows while the
+  // Opening dialog blocks it, so Qt drops it (no event here).
+  QEvent leave_menu(QEvent::Leave);
+  QCoreApplication::sendEvent(menu_handle, &leave_menu);
+
+  QElapsedTimer opening;
+  opening.start();
+  while (tabs->count() < 2 && opening.elapsed() < 20000) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
+  QApplication::processEvents();
+  handle->removeEventFilter(&blocks);
+  CHECK(tabs->count() == 2);
+  CHECK(blocks.count > 0);
+  auto* canvas = require_canvas(window);
+  CHECK(canvas != first_canvas);
+
+  // The user moves over the new canvas and drags a selection: the marquee cursor shows, and
+  // the canvas's later cursor changes reach the window.
+  send_mouse(handle, QEvent::MouseMove, canvas_point + QPoint(6, 4), Qt::NoButton, Qt::NoButton);
+  send_mouse(handle, QEvent::MouseMove, canvas_point + QPoint(12, 8), Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->underMouse());
+  CHECK(canvas->cursor().shape() == tool_shape);
+  CHECK(handle->cursor().shape() == tool_shape);
+  send_mouse(handle, QEvent::MouseButtonPress, canvas_point + QPoint(12, 8), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(handle, QEvent::MouseMove, canvas_point + QPoint(40, 30), Qt::NoButton, Qt::LeftButton);
+  CHECK(handle->cursor().shape() == canvas->cursor().shape());
+  CHECK(handle->cursor().shape() != Qt::ArrowCursor);
+  send_mouse(handle, QEvent::MouseButtonRelease, canvas_point + QPoint(40, 30), Qt::LeftButton, Qt::NoButton);
+  canvas->setCursor(Qt::SizeAllCursor);
+  CHECK(handle->cursor().shape() == Qt::SizeAllCursor);
+  canvas->refresh_tool_cursor();
+  CHECK(handle->cursor().shape() == canvas->cursor().shape());
 }
 
 void ui_recent_history_checks_in_background_and_skips_network_paths() {
@@ -4458,6 +4606,8 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
        ui_blocked_window_cursor_covers_preferences_over_the_canvas},
       {"ui_blocked_window_cursor_survives_reactivation_and_tool_switches",
        ui_blocked_window_cursor_survives_reactivation_and_tool_switches},
+      {"ui_blocked_window_cursor_returns_after_open_recent_file",
+       ui_blocked_window_cursor_returns_after_open_recent_file},
       {"ui_recent_history_checks_in_background_and_skips_network_paths", ui_recent_history_checks_in_background_and_skips_network_paths},
       {"ui_open_dialog_hides_name_filter_details", ui_open_dialog_hides_name_filter_details},
       {"ui_open_dialog_lists_formats_alphabetically", ui_open_dialog_lists_formats_alphabetically},

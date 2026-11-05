@@ -14,7 +14,9 @@ namespace patchy::ui {
 // again whenever anything gives a blocked window another cursor (a widget inside it changing
 // its cursor, Qt's enter and leave dispatch, the canvas refreshing its tool cursor when the
 // application is reactivated), and on unblock gives the window the cursor of the widget under
-// the pointer, or the cursor it held before.
+// the pointer, or the cursor it held before. GitHub issue 634: Qt drops the platform's enter
+// for a blocked window, so the window's first mouse move or press after unblock sends the
+// enter Qt missed when the widget under the pointer never got one.
 
 // An event filter that applies the rule; install it on the application. Owned by `parent`.
 QObject* create_blocked_window_cursor_filter(QObject* parent);
