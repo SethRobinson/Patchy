@@ -267,13 +267,16 @@ void ui_linux_scanner_dialog_scans_sane_test_backend() {
 
   struct Pass {
     const char* name;
+    const char* mode;  // the dialog preselects Color; the gray pass picks Gray
     QByteArray test_conf;
     bool color;
+    bool one_bit;
   };
-  const std::array<Pass, 3> passes{{
-      {"rgb8", "mode Color\ndepth 8\nthree-pass false\ntest-picture \"Color pattern\"\n", true},
-      {"three_pass16", "mode Color\ndepth 16\nthree-pass true\ntest-picture \"Color pattern\"\n", true},
-      {"lineart1", "mode Gray\ndepth 1\nthree-pass false\ntest-picture \"Grid\"\n", false},
+  const std::array<Pass, 4> passes{{
+      {"rgb8", "Color", "depth 8\nthree-pass false\ntest-picture \"Color pattern\"\n", true, false},
+      {"three_pass16", "Color", "depth 16\nthree-pass true\ntest-picture \"Color pattern\"\n", true, false},
+      {"lineart1", "Gray", "depth 1\nthree-pass false\ntest-picture \"Grid\"\n", false, true},
+      {"rgb1", "Color", "depth 1\nthree-pass false\ntest-picture \"Grid\"\n", true, true},
   }};
   for (const auto& pass : passes) {
     {
@@ -282,8 +285,8 @@ void ui_linux_scanner_dialog_scans_sane_test_backend() {
       dll.write("test\n");
       QFile conf(config.filePath(QStringLiteral("test.conf")));
       CHECK(conf.open(QIODevice::WriteOnly | QIODevice::Truncate));
-      conf.write("number_of_devices 1\nresolution 50.0\ntl_x 0.0\ntl_y 0.0\nbr_x 80.0\nbr_y 100.0\n" +
-                 pass.test_conf);
+      conf.write("number_of_devices 1\nresolution 50.0\ntl_x 0.0\ntl_y 0.0\nbr_x 80.0\nbr_y 100.0\nmode " +
+                 QByteArray(pass.mode) + "\n" + pass.test_conf);
     }
     patchy::ui::MainWindow window;
     show_window(window);
@@ -310,12 +313,16 @@ void ui_linux_scanner_dialog_scans_sane_test_backend() {
       if (!clicked && ok != nullptr && ok->isEnabled()) {
         auto* resolution = dialog->findChild<QComboBox*>(QStringLiteral("linuxScannerResolutionCombo"));
         auto* devices = dialog->findChild<QComboBox*>(QStringLiteral("linuxScannerDeviceCombo"));
-        if (resolution == nullptr || resolution->findData(75) < 0 || devices == nullptr || devices->count() != 1) {
-          failure = QStringLiteral("expected one test device offering 75 dpi");
+        auto* mode = dialog->findChild<QComboBox*>(QStringLiteral("linuxScannerModeCombo"));
+        const int mode_index = mode != nullptr ? mode->findText(QLatin1String(pass.mode)) : -1;
+        if (resolution == nullptr || resolution->findData(75) < 0 || devices == nullptr || devices->count() != 1 ||
+            mode_index < 0) {
+          failure = QStringLiteral("expected one test device offering 75 dpi and the pass's mode");
           dialog->reject();
           return;
         }
         resolution->setCurrentIndex(resolution->findData(75));
+        mode->setCurrentIndex(mode_index);
         dialog->grab().save(QStringLiteral("test-artifacts/ui_linux_scanner_dialog_%1.png").arg(QLatin1String(pass.name)));
         clicked = true;
         ok->click();
@@ -345,7 +352,7 @@ void ui_linux_scanner_dialog_scans_sane_test_backend() {
     CHECK(!document.layers().empty());
     const auto image = flattened_on_white(document.layers().front().pixels());
     CHECK(image.save(QStringLiteral("test-artifacts/ui_linux_scanner_import_%1.png").arg(QLatin1String(pass.name))));
-    // The grid is black and white; the color pattern has saturated stripes.
+    // The gray grid is black and white; the color pictures have saturated stripes.
     bool dark = false;
     bool light = false;
     bool saturated = false;
@@ -358,9 +365,13 @@ void ui_linux_scanner_dialog_scans_sane_test_backend() {
       }
     }
     CHECK(saturated == pass.color);
-    if (!pass.color) {
+    if (pass.one_bit) {
       CHECK(dark);
       CHECK(light);
+      // The grid starts with a white square at the top left, as scanimage shows it: gray
+      // line art reads SANE's 1 as black, one-bit color reads it as full intensity.
+      CHECK(image.pixelColor(20, 5).value() > 215);
+      CHECK(image.pixelColor(40, 5).value() < 40);
     }
   }
 }

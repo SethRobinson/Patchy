@@ -137,6 +137,9 @@ void ScanImageAssembler::store_row(std::span<const std::uint8_t> row) {
   auto* out_row = image_.samples.data() + static_cast<std::size_t>(rows_in_frame_) * out_row_bytes;
   const int in_channels = frame_channels(frame_.format);
   const int channel_offset = three_pass_ ? pass_channel(frame_.format) : 0;
+  // One-bit gray is line art, where SANE's 1 is black; in one-bit color frames 1 is full
+  // intensity (sane-backends' test backend draws solid white as 0x00 gray, 0xff color).
+  const bool ones_are_black = frame_.format == ScanFrameFormat::Gray;
   for (int x = 0; x < image_.width; ++x) {
     for (int c = 0; c < in_channels; ++c) {
       const auto in_index = static_cast<std::size_t>(x) * static_cast<std::size_t>(in_channels) +
@@ -147,7 +150,7 @@ void ScanImageAssembler::store_row(std::span<const std::uint8_t> row) {
       switch (frame_.depth) {
         case 1: {
           const auto bit = (row[in_index / 8] >> (7 - static_cast<int>(in_index % 8))) & 1U;
-          *out = bit != 0 ? 0 : 255;
+          *out = (bit != 0) != ones_are_black ? 255 : 0;
           break;
         }
         case 8:

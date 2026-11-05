@@ -61,6 +61,13 @@ void scan_frame_expands_line_art_and_keeps_16_bit_host_order() {
   line_art.end_frame();
   CHECK((line_art.finish().samples == std::vector<std::uint8_t>{0, 255, 0}));
 
+  // One-bit color: 1 is full intensity, not black.
+  ScanImageAssembler color_line_art;
+  color_line_art.begin_frame({ScanFrameFormat::Rgb, true, 1, 2, 1, 1});
+  color_line_art.append(std::vector<std::uint8_t>{0b1010'1000});
+  color_line_art.end_frame();
+  CHECK((color_line_art.finish().samples == std::vector<std::uint8_t>{255, 0, 255, 0, 255, 0}));
+
   ScanImageAssembler deep;
   deep.begin_frame({ScanFrameFormat::Gray, true, 4, 2, 1, 16});
   const std::uint16_t samples[2]{0x1234, 0xFEDC};

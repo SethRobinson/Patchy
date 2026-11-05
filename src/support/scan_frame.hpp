@@ -27,7 +27,8 @@ struct ScanFrameParameters {
 
 // Interleaved samples, top row first. bit_depth 8: one byte per sample. bit_depth 16: two
 // bytes per sample in host byte order (SANE delivers 16-bit samples in host order).
-// One-bit line art is expanded to 8-bit gray (SANE's 1 is black).
+// One-bit samples are expanded to 8 bits: in gray line art SANE's 1 is black, in color 1 is
+// full intensity.
 struct ScanImage {
   int width{0};
   int height{0};
