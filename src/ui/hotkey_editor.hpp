@@ -53,6 +53,7 @@ public:
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
+  void changeEvent(QEvent* event) override;
 
 private:
   struct Row {
@@ -73,6 +74,8 @@ private:
   void import_clicked();
   void shortcut_set_chosen(int index);
   void sync_set_combo();
+  void retranslate_set_combo();
+  void fit_set_combo_width();
   void show_transfer_status(const QString& text);
   void build_rows(QMenuBar* menu_bar);
   QFrame* add_category_panel(const QString& title, bool dimmed);

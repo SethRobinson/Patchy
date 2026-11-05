@@ -5,6 +5,7 @@
 #include "ui/hotkey_files.hpp"
 #include "ui/hotkey_registry.hpp"
 #include "ui/hotkey_sets.hpp"
+#include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/qt_paths.hpp"
 #include "test_harness.hpp"
@@ -17,11 +18,15 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
+#include <QPushButton>
+#include <QStyle>
+#include <QStyleOptionComboBox>
 #include <QSet>
 #include <QVariant>
 #include <algorithm>
 #include <cstdio>
 #include <filesystem>
+#include <string>
 #include <vector>
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
@@ -241,7 +246,8 @@ QKeySequence first_shortcut(patchy::ui::MainWindow& window, const char* id) {
 }
 
 patchy::ui::HotkeyEditorPanel* hotkey_panel(QDialog& dialog) {
-  CHECK(select_preferences_page(dialog, QStringLiteral("Hotkeys")));
+  // The page list shows the title in the current language.
+  CHECK(select_preferences_page(dialog, QCoreApplication::translate("patchy::ui::MainWindow", "Hotkeys")));
   QApplication::processEvents();
   auto* panel = dialog.findChild<patchy::ui::HotkeyEditorPanel*>(QStringLiteral("hotkeyEditorPanel"));
   CHECK(panel != nullptr);
@@ -308,6 +314,61 @@ void ui_hotkey_editor_shortcut_set_combo_applies_set() {
   CHECK(drove);
   CHECK(window.hotkey_registry().overrides().isEmpty());
   CHECK(first_shortcut(window, "file.new") == QKeySequence(Qt::CTRL | Qt::Key_N));
+}
+
+// The Shortcut set box leaves clear room around its widest entry ("Custom" included, which
+// comes and goes) in English and in long-text languages, and the Import.../Export... buttons
+// beside it keep their full width (GitHub issue 633 follow-up: the box barely fit its text).
+void ui_hotkey_editor_shortcut_set_combo_has_room_for_its_entries() {
+  HotkeyGroupRestorer restore;
+  auto& manager = patchy::ui::LocalizationManager::instance();
+  auto&& [window, canvas] = ShownWindowFixture{};
+  for (const auto* language : {"en", "de", "fr", "ru"}) {
+    CHECK(manager.set_language(QString::fromLatin1(language), false));
+    QApplication::processEvents();
+    bool drove = false;
+    when_dialog_visible(QStringLiteral("patchyPreferencesDialog"), [&](QDialog& dialog) {
+      (void)hotkey_panel(dialog);
+      for (int pass = 0; pass < 4; ++pass) {
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
+        QApplication::processEvents();
+      }
+      auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("hotkeySetCombo"));
+      CHECK(combo != nullptr);
+      const auto metrics = combo->fontMetrics();
+      int widest = metrics.horizontalAdvance(
+          QCoreApplication::translate("patchy::ui::HotkeyEditorPanel", "Custom"));
+      for (int index = 0; index < combo->count(); ++index) {
+        widest = std::max(widest, metrics.horizontalAdvance(combo->itemText(index)));
+      }
+      QStyleOptionComboBox option;
+      option.initFrom(combo);
+      option.rect = combo->rect();
+      const auto field = combo->style()->subControlRect(QStyle::CC_ComboBox, &option,
+                                                        QStyle::SC_ComboBoxEditField, combo);
+      const int room = field.width() - widest;
+      if (room < 2 * metrics.averageCharWidth()) {
+        std::fprintf(stderr, "%s: the set box has %d px around its widest entry (%d px wide, field %d px)\n",
+                     language, room, combo->width(), field.width());
+      }
+      CHECK(room >= 2 * metrics.averageCharWidth());
+      for (const auto* name : {"hotkeyImportButton", "hotkeyExportButton"}) {
+        auto* button = dialog.findChild<QPushButton*>(QString::fromLatin1(name));
+        CHECK(button != nullptr);
+        CHECK(button->width() >= button->sizeHint().width());
+      }
+      if (std::string(language) == "de") {
+        save_widget_artifact("hotkey_editor_shortcut_set_combo_de", dialog);
+      }
+      drove = true;
+      dialog.reject();
+    });
+    require_action(window, "filePreferencesAction")->trigger();
+    QApplication::processEvents();
+    CHECK(drove);
+  }
+  CHECK(manager.set_language(QStringLiteral("en"), false));
+  QApplication::processEvents();
 }
 
 // Export writes what the page shows; Import replaces it (unknown ids skipped, reported on
@@ -403,5 +464,7 @@ std::vector<patchy::test::TestCase> hotkey_sets_tests() {
       {"ui_hotkey_sets_have_no_conflicts", ui_hotkey_sets_have_no_conflicts},
       {"ui_hotkey_editor_shortcut_set_combo_applies_set", ui_hotkey_editor_shortcut_set_combo_applies_set},
       {"ui_hotkey_editor_exports_and_imports_files", ui_hotkey_editor_exports_and_imports_files},
+      {"ui_hotkey_editor_shortcut_set_combo_has_room_for_its_entries",
+       ui_hotkey_editor_shortcut_set_combo_has_room_for_its_entries},
   };
 }
