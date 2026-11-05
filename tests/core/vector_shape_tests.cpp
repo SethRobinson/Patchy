@@ -16,6 +16,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <array>
 #include <utility>
 #include <vector>
 
@@ -199,18 +200,40 @@ void live_line_arrowheads_generate_heads() {
   line.arrow_width = 12.0;
   line.arrow_length = 16.0;
   line.arrow_concavity = 25;
+  // A head wider than the shaft makes one outline with it (GitHub #622 follow-up):
+  // start+n, start-n, then the end head from its -n side: the shaft edge meets the back
+  // edge (from the notch, pulled 25% of the length toward the tip, to the corner), the
+  // corner, the tip, the other corner, the other meeting point.
   const auto subpaths = patchy::generate_live_shape_subpaths(line);
-  CHECK(subpaths.size() == 2);
-  CHECK(subpaths[0].shape_group == 3);
-  CHECK(subpaths[1].shape_group == 3);
-  // Shaft shortens so the head has room; the head's tip sits at the endpoint.
-  CHECK(nearly(subpaths[0].anchors[2].anchor_x, 84.0));
-  const auto& head = subpaths[1].anchors;
-  CHECK(head.size() == 4);
-  CHECK(nearly(head[0].anchor_x, 100.0) && nearly(head[0].anchor_y, 0.0));
-  CHECK(nearly(head[1].anchor_x, 84.0) && nearly(head[1].anchor_y, -6.0));
-  CHECK(nearly(head[2].anchor_x, 88.0) && nearly(head[2].anchor_y, 0.0));
-  CHECK(nearly(head[3].anchor_x, 84.0) && nearly(head[3].anchor_y, 6.0));
+  CHECK(subpaths.size() == 1);
+  CHECK(subpaths[0].shape_group == 3 && subpaths[0].closed);
+  const auto& outline = subpaths[0].anchors;
+  CHECK(outline.size() == 7);
+  const std::array<std::pair<double, double>, 7> expected{{
+      {0.0, 2.0}, {0.0, -2.0}, {88.0 - 4.0 / 3.0, -2.0}, {84.0, -6.0}, {100.0, 0.0}, {84.0, 6.0}, {88.0 - 4.0 / 3.0, 2.0}}};
+  for (std::size_t index = 0; index < expected.size(); ++index) {
+    CHECK(nearly(outline[index].anchor_x, expected[index].first) && nearly(outline[index].anchor_y, expected[index].second));
+  }
+  CHECK(!outline[0].smooth);
+
+  // A convex head (negative concavity) at the start: the meeting points sit behind its base.
+  LiveShapeParams convex = line;
+  convex.arrow_end = false;
+  convex.arrow_start = true;
+  convex.arrow_concavity = -50;
+  const auto convex_paths = patchy::generate_live_shape_subpaths(convex);
+  CHECK(convex_paths.size() == 1 && convex_paths[0].anchors.size() == 7);
+  CHECK(nearly(convex_paths[0].anchors[0].anchor_x, 24.0 - 8.0 / 3.0) && nearly(convex_paths[0].anchors[0].anchor_y, 2.0));
+  CHECK(nearly(convex_paths[0].anchors[2].anchor_x, 0.0) && nearly(convex_paths[0].anchors[2].anchor_y, 0.0));
+  CHECK(nearly(convex_paths[0].anchors[6].anchor_x, 100.0) && nearly(convex_paths[0].anchors[6].anchor_y, 2.0));
+
+  // A head no wider than the shaft stays a separate polygon, the shaft stopping at its base.
+  LiveShapeParams narrow = line;
+  narrow.arrow_width = 3.0;
+  const auto narrow_paths = patchy::generate_live_shape_subpaths(narrow);
+  CHECK(narrow_paths.size() == 2);
+  CHECK(nearly(narrow_paths[0].anchors[2].anchor_x, 84.0));
+  CHECK(narrow_paths[1].anchors.size() == 4 && nearly(narrow_paths[1].anchors[0].anchor_x, 100.0));
 
   LiveShapeParams degenerate = line;
   degenerate.line_end_x = 0.0;

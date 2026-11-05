@@ -146,7 +146,10 @@ GitHub #622 follow-up) holds Weight, Start / End (`shapeGeometryLineArrowStartCh
 `EndCheck`), and Width, Length (percent of the weight, 10 to 1000% and 10 to 5000%, PS's
 Line tool ranges) and Concavity (-50 to 50%; positive pulls the back of the head toward
 the tip): `shapeArrowWidthSpin`, `shapeArrowLengthSpin`, `shapeArrowConcavitySpin`, off
-while neither head is on. The model keeps head sizes in pixels; the percent properties
+while neither head is on. A head wider than the shaft makes one outline with it
+(`line_subpaths`: the shaft edges run to where they meet the back edges), since an
+overlap would be punched out by the group's even-odd fill and a concave head would
+leave a gap behind its notch; a narrower head stays a separate polygon. The model keeps head sizes in pixels; the percent properties
 `line.arrow_width` / `line.arrow_length` and `line.arrow_concavity` let several selected
 lines take one field each, every line getting that percent of its own weight. The PSD
 reader turns a head size whose `keyOriginLine*ArrowUnitPixels` flag is off (read as a
