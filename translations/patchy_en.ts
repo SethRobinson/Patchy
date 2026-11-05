@@ -7962,22 +7962,6 @@ RGB: %2, %3, %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Top left radius:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Top right radius:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Bottom right radius:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Bottom left radius:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>No Fill</source>
         <translation type="unfinished"></translation>
     </message>
@@ -19619,6 +19603,18 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Show only favorite fonts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>More matches with All Styles and All Languages: %n</source>
+        <extracomment>Under the font list while searching: fonts that match the search but are hidden by the Style or Language filter next to the search box. Clicking it sets both filters to All.</extracomment>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Set Style and Language to All</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

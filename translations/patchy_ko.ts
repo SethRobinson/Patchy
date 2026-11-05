@@ -8312,22 +8312,6 @@ RGB: %2, %3, %4</translation>
         <translation>너비와 높이의 비율을 유지하세요.</translation>
     </message>
     <message>
-        <source>Top left radius:</source>
-        <translation>왼쪽 상단 반경:</translation>
-    </message>
-    <message>
-        <source>Top right radius:</source>
-        <translation>오른쪽 상단 반경:</translation>
-    </message>
-    <message>
-        <source>Bottom right radius:</source>
-        <translation>오른쪽 하단 반경:</translation>
-    </message>
-    <message>
-        <source>Bottom left radius:</source>
-        <translation>왼쪽 하단 반경:</translation>
-    </message>
-    <message>
         <source>Change all four corner radii together</source>
         <translation>네 모서리 반경을 모두 함께 변경</translation>
     </message>
@@ -19590,6 +19574,17 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Show only favorite fonts</source>
         <translation>즐겨찾기 글꼴만 표시</translation>
+    </message>
+    <message numerus="yes">
+        <source>More matches with All Styles and All Languages: %n</source>
+        <extracomment>Under the font list while searching: fonts that match the search but are hidden by the Style or Language filter next to the search box. Clicking it sets both filters to All.</extracomment>
+        <translation>
+            <numerusform>모든 스타일 및 모든 언어에서 추가로 일치: %n</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Set Style and Language to All</source>
+        <translation>스타일과 언어를 모두로 설정</translation>
     </message>
 </context>
 <context>

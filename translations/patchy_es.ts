@@ -7970,22 +7970,6 @@ RGB: %2, %3, %4</translation>
         <translation>Y:</translation>
     </message>
     <message>
-        <source>Top left radius:</source>
-        <translation>Radio superior izquierdo:</translation>
-    </message>
-    <message>
-        <source>Top right radius:</source>
-        <translation>Radio superior derecho:</translation>
-    </message>
-    <message>
-        <source>Bottom right radius:</source>
-        <translation>Radio inferior derecho:</translation>
-    </message>
-    <message>
-        <source>Bottom left radius:</source>
-        <translation>Radio inferior izquierdo:</translation>
-    </message>
-    <message>
         <source>No Fill</source>
         <translation>Sin relleno</translation>
     </message>
@@ -19637,6 +19621,18 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Show only favorite fonts</source>
         <translation>Mostrar solo fuentes favoritas</translation>
+    </message>
+    <message numerus="yes">
+        <source>More matches with All Styles and All Languages: %n</source>
+        <extracomment>Under the font list while searching: fonts that match the search but are hidden by the Style or Language filter next to the search box. Clicking it sets both filters to All.</extracomment>
+        <translation>
+            <numerusform>Más coincidencias con Todos los estilos y Todos los idiomas: %n</numerusform>
+            <numerusform>Más coincidencias con Todos los estilos y Todos los idiomas: %n</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Set Style and Language to All</source>
+        <translation>Poner Estilo e Idioma en Todos</translation>
     </message>
 </context>
 <context>

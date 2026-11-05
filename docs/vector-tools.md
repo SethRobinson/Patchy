@@ -141,9 +141,9 @@ line keeps its own head proportions (`tie_line_arrowheads_to_weight`, with the p
 weight; options bar, Shape Appearance and script `updateShape` alike); a head switched
 on keeps the line's own size if it has one. Selecting a
 line shows its values (`sync_line_options_from_selection`) without changing the
-next-line defaults. Shape Appearance's Arrowheads section (`shapeArrowheadsGroup`,
-GitHub #622 follow-up) holds Weight, Start / End (`shapeGeometryLineArrowStartCheck` /
-`EndCheck`), and Width, Length (percent of the weight, 10 to 1000% and 10 to 5000%, PS's
+next-line defaults. Shape Appearance has Weight in Geometry (GitHub #622 follow-up 2) and an
+Arrowheads section (`shapeArrowheadsGroup`, #622 follow-up) with Start / End
+(`shapeGeometryLineArrowStartCheck` / `EndCheck`), and Width, Length (percent of the weight, 10 to 1000% and 10 to 5000%, PS's
 Line tool ranges) and Concavity (-50 to 50%; positive pulls the back of the head toward
 the tip): `shapeArrowWidthSpin`, `shapeArrowLengthSpin`, `shapeArrowConcavitySpin`, off
 while neither head is on. A head wider than the shaft makes one outline with it

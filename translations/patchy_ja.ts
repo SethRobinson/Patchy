@@ -5963,22 +5963,6 @@ Mixed selection</source>
         <translation>Y:</translation>
     </message>
     <message>
-        <source>Top left radius:</source>
-        <translation>左上の角丸半径:</translation>
-    </message>
-    <message>
-        <source>Top right radius:</source>
-        <translation>右上の角丸半径:</translation>
-    </message>
-    <message>
-        <source>Bottom right radius:</source>
-        <translation>右下の角丸半径:</translation>
-    </message>
-    <message>
-        <source>Bottom left radius:</source>
-        <translation>左下の角丸半径:</translation>
-    </message>
-    <message>
         <source>Type:</source>
         <translation>種類:</translation>
     </message>
@@ -19590,6 +19574,17 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Show only favorite fonts</source>
         <translation>お気に入りのフォントだけを表示</translation>
+    </message>
+    <message numerus="yes">
+        <source>More matches with All Styles and All Languages: %n</source>
+        <extracomment>Under the font list while searching: fonts that match the search but are hidden by the Style or Language filter next to the search box. Clicking it sets both filters to All.</extracomment>
+        <translation>
+            <numerusform>すべてのスタイルとすべての言語での追加の一致: %n</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Set Style and Language to All</source>
+        <translation>スタイルと言語をすべてにする</translation>
     </message>
 </context>
 <context>

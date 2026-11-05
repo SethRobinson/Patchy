@@ -552,8 +552,14 @@ private:
 class FontListFilter : public QObject {
 public:
   FontListFilter(FontPickerCombo& combo, QListView& list, QLineEdit& search, QComboBox& style,
-                 QComboBox& language, QLabel& status, QObject* parent)
-      : QObject(parent), list_(list), search_(search), style_(style), language_(language), status_(status) {
+                 QComboBox& language, QLabel& status, QToolButton& hidden_matches, QObject* parent)
+      : QObject(parent),
+        list_(list),
+        search_(search),
+        style_(style),
+        language_(language),
+        status_(status),
+        hidden_matches_(hidden_matches) {
     model_ = new FontListModel(this);
     auto* source = combo.model();
     families_.reserve(source->rowCount());
@@ -629,10 +635,7 @@ public:
     }
     auto& index = FontStyleIndex::instance();
     pending_.clear();
-    const auto accepts = [&](const QString& family) {
-      if (!text.isEmpty() && !family.contains(text, Qt::CaseInsensitive)) {
-        return false;
-      }
+    const auto passes_filters = [&](const QString& family) {
       if (system.has_value() && !language_families_.contains(family)) {
         return false;
       }
@@ -645,6 +648,9 @@ public:
         return false;
       }
       return index.matches(filter, family, *traits);
+    };
+    const auto accepts = [&](const QString& family) {
+      return (text.isEmpty() || family.contains(text, Qt::CaseInsensitive)) && passes_filters(family);
     };
 
     std::vector<FontListRow> rows;
@@ -678,7 +684,28 @@ public:
         rows.push_back({FontPickerRowKind::all_header, FontPickerCombo::tr("All Fonts"), false});
       }
     }
-    if (!favorites_only_) {
+    // Search matches the Style or Language filter hides (GitHub issue 647): counted in the same
+    // pass over the family names, so the count costs no font loading. Families still waiting to be
+    // classified are not counted; they join the list or the count once they are read.
+    int hidden_matches = 0;
+    if (!text.isEmpty()) {
+      for (const auto& family : families_) {
+        if (favorites_only_ && !favorites_.contains(family)) {
+          continue;
+        }
+        if (!family.contains(text, Qt::CaseInsensitive)) {
+          continue;
+        }
+        const qsizetype pending_before = pending_.size();
+        if (passes_filters(family)) {
+          if (!favorites_only_) {
+            rows.push_back({FontPickerRowKind::family, family, false});
+          }
+        } else if (pending_.size() == pending_before) {
+          ++hidden_matches;
+        }
+      }
+    } else if (!favorites_only_) {
       for (const auto& family : families_) {
         if (accepts(family)) {
           rows.push_back({FontPickerRowKind::family, family, false});
@@ -687,6 +714,11 @@ public:
     }
     pending_.removeDuplicates();
     model_->set_rows(std::move(rows));
+    hidden_matches_.setText(
+        //: Under the font list while searching: fonts that match the search but are hidden by the
+        //: Style or Language filter next to the search box. Clicking it sets both filters to All.
+        FontPickerCombo::tr("More matches with All Styles and All Languages: %n", nullptr, hidden_matches));
+    hidden_matches_.setVisible(hidden_matches > 0);
 
     if (!previous_family.isEmpty() && select_family(previous_family, previous_recent)) {
       if (!keep_scroll) {
@@ -774,6 +806,7 @@ private:
   QComboBox& style_;
   QComboBox& language_;
   QLabel& status_;
+  QToolButton& hidden_matches_;
   FontListModel* model_{nullptr};
   QStringList families_;
   QStringList recent_;
@@ -1174,6 +1207,16 @@ void FontPickerCombo::showPopup() {
       border: 1px solid @field_inset_border;
       outline: none;
     }
+    QToolButton#textFontPickerHiddenMatchesButton {
+      color: @text_secondary;
+      border: none;
+      background: transparent;
+      padding: 0px 2px;
+    }
+    QToolButton#textFontPickerHiddenMatchesButton:hover {
+      color: @text_primary;
+      text-decoration: underline;
+    }
   )"));
 
   auto* layout = new QVBoxLayout(popup);
@@ -1259,9 +1302,21 @@ void FontPickerCombo::showPopup() {
   status->hide();
   layout->addWidget(status);
 
+  // Shown under the list while the filters hide fonts that match the search (GitHub issue 647);
+  // clicking it sets both filters to All.
+  auto* hidden_matches = new QToolButton(popup);
+  hidden_matches->setObjectName(QStringLiteral("textFontPickerHiddenMatchesButton"));
+  hidden_matches->setToolTip(tr("Set Style and Language to All"));
+  hidden_matches->setFocusPolicy(Qt::NoFocus);
+  hidden_matches->setAutoRaise(true);
+  hidden_matches->setCursor(Qt::PointingHandCursor);
+  hidden_matches->setFont(scaled_font(font(), 0.9));
+  hidden_matches->hide();
+
   auto* list = new QListView(popup);
   list->setObjectName(QStringLiteral("textFontPickerList"));
-  auto* rows = new FontListFilter(*this, *list, *search, *style_combo, *language_combo, *status, popup);
+  auto* rows = new FontListFilter(*this, *list, *search, *style_combo, *language_combo, *status, *hidden_matches,
+                                  popup);
   list->setModel(rows->model());
   auto* row_buttons = new RowButtonController(*list, *rows, list);
   list->viewport()->installEventFilter(row_buttons);
@@ -1277,6 +1332,7 @@ void FontPickerCombo::showPopup() {
   list->viewport()->setAttribute(Qt::WA_Hover, true);
   list->setMinimumSize(240, 120);
   layout->addWidget(list, 1);
+  layout->addWidget(hidden_matches, 0, Qt::AlignLeft);
 
   auto* preview = new FontPreviewPane(*this, popup);
   preview->setObjectName(QStringLiteral("textFontPickerPreview"));
@@ -1314,6 +1370,11 @@ void FontPickerCombo::showPopup() {
     auto settings = app_settings();
     settings.setValue(QString::fromLatin1(kFontPickerLanguageFilterKey), language_combo->currentData().toString());
     rows->rebuild();
+    search->setFocus();
+  });
+  connect(hidden_matches, &QToolButton::clicked, popup, [style_combo, language_combo, search] {
+    style_combo->setCurrentIndex(0);  // All Styles
+    language_combo->setCurrentIndex(0);  // All Languages
     search->setFocus();
   });
   connect(favorites_button, &QToolButton::toggled, popup, [rows, favorites_button, search](bool checked) {

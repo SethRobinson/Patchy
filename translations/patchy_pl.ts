@@ -8356,22 +8356,6 @@ RGB: %2, %3, %4</translation>
         <translation>Zachowaj proporcjonalne szerokość i wysokość</translation>
     </message>
     <message>
-        <source>Top left radius:</source>
-        <translation>Lewy górny promień:</translation>
-    </message>
-    <message>
-        <source>Top right radius:</source>
-        <translation>Prawy górny promień:</translation>
-    </message>
-    <message>
-        <source>Bottom right radius:</source>
-        <translation>Prawy dolny promień:</translation>
-    </message>
-    <message>
-        <source>Bottom left radius:</source>
-        <translation>Lewy dolny promień:</translation>
-    </message>
-    <message>
         <source>Change all four corner radii together</source>
         <translation>Zmień wszystkie cztery promienie narożników razem</translation>
     </message>
@@ -19684,6 +19668,19 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Show only favorite fonts</source>
         <translation>Pokaż tylko ulubione czcionki</translation>
+    </message>
+    <message numerus="yes">
+        <source>More matches with All Styles and All Languages: %n</source>
+        <extracomment>Under the font list while searching: fonts that match the search but are hidden by the Style or Language filter next to the search box. Clicking it sets both filters to All.</extracomment>
+        <translation>
+            <numerusform>Więcej wyników przy Wszystkie style i Wszystkie języki: %n</numerusform>
+            <numerusform>Więcej wyników przy Wszystkie style i Wszystkie języki: %n</numerusform>
+            <numerusform>Więcej wyników przy Wszystkie style i Wszystkie języki: %n</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Set Style and Language to All</source>
+        <translation>Ustaw styl i język na Wszystkie</translation>
     </message>
 </context>
 <context>

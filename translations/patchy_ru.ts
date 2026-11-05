@@ -8356,22 +8356,6 @@ RGB: %2, %3, %4</translation>
         <translation>Соблюдайте пропорции ширины и высоты</translation>
     </message>
     <message>
-        <source>Top left radius:</source>
-        <translation>Верхний левый радиус:</translation>
-    </message>
-    <message>
-        <source>Top right radius:</source>
-        <translation>Верхний правый радиус:</translation>
-    </message>
-    <message>
-        <source>Bottom right radius:</source>
-        <translation>Нижний правый радиус:</translation>
-    </message>
-    <message>
-        <source>Bottom left radius:</source>
-        <translation>Нижний левый радиус:</translation>
-    </message>
-    <message>
         <source>Change all four corner radii together</source>
         <translation>Измените все четыре угловых радиуса вместе</translation>
     </message>
@@ -19684,6 +19668,19 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Show only favorite fonts</source>
         <translation>Показывать только избранные шрифты</translation>
+    </message>
+    <message numerus="yes">
+        <source>More matches with All Styles and All Languages: %n</source>
+        <extracomment>Under the font list while searching: fonts that match the search but are hidden by the Style or Language filter next to the search box. Clicking it sets both filters to All.</extracomment>
+        <translation>
+            <numerusform>Ещё совпадения при «Все стили» и «Все языки»: %n</numerusform>
+            <numerusform>Ещё совпадения при «Все стили» и «Все языки»: %n</numerusform>
+            <numerusform>Ещё совпадения при «Все стили» и «Все языки»: %n</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Set Style and Language to All</source>
+        <translation>Выбрать «Все» для стиля и языка</translation>
     </message>
 </context>
 <context>

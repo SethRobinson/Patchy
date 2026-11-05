@@ -7970,22 +7970,6 @@ RGB: %2, %3, %4</translation>
         <translation>Y:</translation>
     </message>
     <message>
-        <source>Top left radius:</source>
-        <translation>Radius oben links:</translation>
-    </message>
-    <message>
-        <source>Top right radius:</source>
-        <translation>Radius oben rechts:</translation>
-    </message>
-    <message>
-        <source>Bottom right radius:</source>
-        <translation>Radius unten rechts:</translation>
-    </message>
-    <message>
-        <source>Bottom left radius:</source>
-        <translation>Radius unten links:</translation>
-    </message>
-    <message>
         <source>No Fill</source>
         <translation>Keine Füllung</translation>
     </message>
@@ -19637,6 +19621,18 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Show only favorite fonts</source>
         <translation>Nur Lieblingsschriften anzeigen</translation>
+    </message>
+    <message numerus="yes">
+        <source>More matches with All Styles and All Languages: %n</source>
+        <extracomment>Under the font list while searching: fonts that match the search but are hidden by the Style or Language filter next to the search box. Clicking it sets both filters to All.</extracomment>
+        <translation>
+            <numerusform>Weitere Treffer mit Alle Stile und Alle Sprachen: %n</numerusform>
+            <numerusform>Weitere Treffer mit Alle Stile und Alle Sprachen: %n</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Set Style and Language to All</source>
+        <translation>Stil und Sprache auf Alle setzen</translation>
     </message>
 </context>
 <context>

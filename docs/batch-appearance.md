@@ -24,7 +24,7 @@ painted parts, preserving their other paint properties.
 When paint types differ, the Fill and Stroke sections show how many layers
 can receive gradient or pattern parameters.
 
-Radius is the only geometry property that broadcasts. The Rectangle toolbar
+Radius broadcasts like the appearance fields. The Rectangle toolbar
 sets all four corners and retains the next-shape default. With no eligible
 rectangle it changes only that default. Shape Appearance has independently
 editable TL, TR, BR, and BL radii. Linking the corners changes no values until
@@ -34,8 +34,10 @@ every eligible rectangle has four equal corners internally.
 Eligibility requires one modeled Rectangle or RoundedRectangle origination
 covering the layer's path, with no compound paint/geometry or preserved custom
 origination. Ellipses and arbitrary paths are skipped. Mixed selections retain
-the radius section and identify its reference rectangle. Position, dimensions,
-line endpoints, and other geometry controls remain single-layer operations.
+the Radius section and identify its reference rectangle. Position, dimensions and
+line endpoints remain single-layer operations; line weight and arrowheads, polygon
+sides and star inset, and a picked custom shape (each plain-path layer gets it in its
+own box) apply per field to the layers they fit.
 
 Each target supplies its own live parameters. Radius edits preserve bounds,
 transform, group identity, combine operation, and appearance. Positive values

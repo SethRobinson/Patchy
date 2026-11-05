@@ -16,6 +16,8 @@
 #include <QCheckBox>
 #include <QDialog>
 #include <QDoubleSpinBox>
+#include <QComboBox>
+#include <QGroupBox>
 #include <QItemSelectionModel>
 #include <QLabel>
 #include <QLineEdit>
@@ -1077,6 +1079,353 @@ void ui_shape_appearance_arrowheads_multiple_lines() {
   CHECK(line_params(doc, first).arrow_width == 50 && line_params(doc, second).arrow_width == 20);
 }
 
+Layer polygon_layer(LayerId id, double left, int sides, int inset) {
+  Layer layer(id, "Polygon " + std::to_string(id), PixelBuffer());
+  LiveShapeParams params;
+  params.kind = LiveShapeKind::Polygon;
+  params.left = left; params.top = 40; params.right = left + 100; params.bottom = 140;
+  params.polygon_sides = sides; params.polygon_star_inset = inset;
+  params.index = static_cast<int>(id);
+  populate_live_shape_box_corners(params);
+  VectorShapeContent content;
+  content.path.subpaths = generate_live_shape_subpaths(params);
+  content.origination.push_back(params);
+  content.fill.kind = VectorFillKind::Solid; content.fill.color = {40, 90, 200};
+  layer.set_vector_shape(std::move(content));
+  layer.metadata()[kLayerMetadataVectorShape] = "1";
+  update_vector_shape_raster(layer, Rect::from_size(600, 400), nullptr);
+  return layer;
+}
+
+// A plain path with no live shape: a triangle stamped into a box, as the Custom Shape tool
+// writes one (or the Pen draws one).
+Layer path_layer(LayerId id, double left, double top, double width, double height) {
+  Layer layer(id, "Custom Shape " + std::to_string(id), PixelBuffer());
+  PathSubpath triangle;
+  for (const auto& [x, y] : {std::pair{0.5, 0.0}, std::pair{1.0, 1.0}, std::pair{0.0, 1.0}})
+    triangle.anchors.push_back({x, y, x, y, x, y, false});
+  VectorShapeContent content;
+  content.path.subpaths.push_back(triangle);
+  transform_vector_path(content.path, {width, 0.0, 0.0, height, left, top});
+  content.fill.kind = VectorFillKind::Solid; content.fill.color = {200, 60, 40};
+  layer.set_vector_shape(std::move(content));
+  layer.metadata()[kLayerMetadataVectorShape] = "1";
+  update_vector_shape_raster(layer, Rect::from_size(600, 400), nullptr);
+  return layer;
+}
+
+const VectorShapeContent& shape_content(const Document& doc, LayerId id) {
+  return *std::as_const(doc).find_layer(id)->vector_shape();
+}
+
+bool box_is(const std::optional<VectorPathBounds>& bounds, double left, double top, double right, double bottom) {
+  return bounds && std::abs(bounds->left - left) < 1e-6 && std::abs(bounds->top - top) < 1e-6 &&
+         std::abs(bounds->right - right) < 1e-6 && std::abs(bounds->bottom - bottom) < 1e-6;
+}
+
+bool inside(const QWidget* widget, const char* group) {
+  for (auto* parent = widget != nullptr ? widget->parentWidget() : nullptr; parent != nullptr;
+       parent = parent->parentWidget())
+    if (parent->objectName() == QLatin1String(group)) return true;
+  return false;
+}
+
+int dialog_y(QDialog& dialog, const char* name) {
+  auto* widget = dialog.findChild<QWidget*>(QLatin1String(name));
+  CHECK(widget != nullptr);
+  return widget != nullptr ? widget->mapTo(&dialog, QPoint(0, 0)).y() : 0;
+}
+
+// GitHub #642, #643: a polygon has Geometry (X, Y, Width, Height) and a Polygon section
+// above Edge with Sides and Star inset; edits preview live, Cancel restores, OK is one
+// undo step.
+void ui_shape_appearance_polygon_geometry_and_sides() {
+  VectorSettingsGuard guard;
+  MainWindow window; show_window(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  const auto id = doc.allocate_layer_id();
+  doc.add_layer(polygon_layer(id, 60, 5, 0));
+  select_batch_layers(window, {id});
+  const auto before = MainWindowTestAccess::active_session_undo_depth(window);
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    CHECK(field<QDoubleSpinBox>(dialog, "shapeGeometryXSpin")->value() == 60);
+    CHECK(field<QDoubleSpinBox>(dialog, "shapeGeometryWidthSpin")->value() == 100);
+    CHECK(dialog.findChild<QWidget*>(QStringLiteral("shapeRadiusGroup")) == nullptr);
+    auto* sides = field<QSpinBox>(dialog, "shapePolygonSidesSpin");
+    auto* inset = field<QSpinBox>(dialog, "shapePolygonStarInsetSpin");
+    CHECK(sides->value() == 5 && sides->minimum() == 3 && sides->maximum() == 100);
+    CHECK(inset->value() == 0 && inset->minimum() == 0 && inset->maximum() == 99);
+    CHECK(inside(sides, "shapePolygonGroup"));
+    // Directly above Edge, under Geometry.
+    CHECK(dialog_y(dialog, "shapePolygonGroup") > dialog_y(dialog, "shapeGeometryGroup"));
+    CHECK(dialog_y(dialog, "shapePolygonGroup") < dialog_y(dialog, "shapeFeatherSpin"));
+    sides->setValue(8);
+    CHECK(process_events_until([&] { return shape_content(doc, id).origination.front().polygon_sides == 8; }));
+    dialog.reject();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(process_events_until([&] { return !require_canvas(window)->processing_operation_active(); }));
+  CHECK(shape_content(doc, id).origination.front().polygon_sides == 5);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before);
+
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    field<QDoubleSpinBox>(dialog, "shapeGeometryXSpin")->setValue(100);
+    field<QDoubleSpinBox>(dialog, "shapeGeometryWidthSpin")->setValue(200);
+    field<QSpinBox>(dialog, "shapePolygonSidesSpin")->setValue(7);
+    field<QSpinBox>(dialog, "shapePolygonStarInsetSpin")->setValue(40);
+    CHECK(process_events_until([&] { return !require_canvas(window)->processing_operation_active(); }));
+    save_widget_artifact("ui_shape_appearance_polygon_section", dialog);
+    dialog.accept();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  const auto& params = shape_content(doc, id).origination.front();
+  CHECK(params.kind == LiveShapeKind::Polygon);
+  CHECK(params.left == 100 && params.right == 300 && params.top == 40 && params.bottom == 140);
+  CHECK(params.polygon_sides == 7 && params.polygon_star_inset == 40);
+  // The outline is regenerated: a 7-point star has 14 corners.
+  CHECK(shape_content(doc, id).path.subpaths.size() == 1);
+  CHECK(shape_content(doc, id).path.subpaths.front().anchors.size() == 14);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before + 1);
+  MainWindowTestAccess::undo(window);
+  CHECK(shape_content(doc, id).origination.front().polygon_sides == 5);
+  CHECK(shape_content(doc, id).origination.front().left == 60);
+}
+
+// GitHub #643: with several polygons selected a Polygon field applies on its own: Star
+// inset 30 reaches both and leaves each one's sides.
+void ui_shape_appearance_polygons_multiple() {
+  VectorSettingsGuard guard;
+  MainWindow window; show_window(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  const auto first = doc.allocate_layer_id(), second = doc.allocate_layer_id();
+  doc.add_layer(polygon_layer(first, 40, 5, 0));
+  doc.add_layer(polygon_layer(second, 300, 6, 10));
+  select_batch_layers(window, {first, second});
+  const auto before = MainWindowTestAccess::active_session_undo_depth(window);
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    auto* sides = field<QSpinBox>(dialog, "shapePolygonSidesSpin");
+    auto* inset = field<QSpinBox>(dialog, "shapePolygonStarInsetSpin");
+    CHECK(sides->property("appearanceMixed").toBool() && inset->property("appearanceMixed").toBool());
+    inset->setValue(30);
+    CHECK(process_events_until([&] {
+      return shape_content(doc, first).origination.front().polygon_star_inset == 30 &&
+             shape_content(doc, second).origination.front().polygon_star_inset == 30;
+    }));
+    dialog.accept();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(shape_content(doc, first).origination.front().polygon_sides == 5);
+  CHECK(shape_content(doc, second).origination.front().polygon_sides == 6);
+  CHECK(shape_content(doc, first).origination.front().polygon_star_inset == 30);
+  CHECK(shape_content(doc, second).origination.front().polygon_star_inset == 30);
+  CHECK(shape_content(doc, second).origination.front().left == 300);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before + 1);
+  MainWindowTestAccess::undo(window);
+  CHECK(shape_content(doc, first).origination.front().polygon_star_inset == 0);
+  CHECK(shape_content(doc, second).origination.front().polygon_star_inset == 10);
+}
+
+// GitHub #642: a plain path (custom shape, Pen outline) has Geometry: X, Y, Width, Height
+// of its bounds; editing them moves and scales the path, one undo step. A layer that holds
+// a modeled live shape among other paths gets none (moving it would drop the live shape).
+void ui_shape_appearance_custom_path_geometry() {
+  VectorSettingsGuard guard;
+  MainWindow window; show_window(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  const auto id = doc.allocate_layer_id();
+  doc.add_layer(path_layer(id, 50, 60, 100, 80));
+  select_batch_layers(window, {id});
+  const auto before = MainWindowTestAccess::active_session_undo_depth(window);
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    auto* x = field<QDoubleSpinBox>(dialog, "shapeGeometryXSpin");
+    auto* width = field<QDoubleSpinBox>(dialog, "shapeGeometryWidthSpin");
+    auto* height = field<QDoubleSpinBox>(dialog, "shapeGeometryHeightSpin");
+    CHECK(x->value() == 50 && field<QDoubleSpinBox>(dialog, "shapeGeometryYSpin")->value() == 60);
+    CHECK(width->value() == 100 && height->value() == 80);
+    CHECK(inside(x, "shapeGeometryGroup"));
+    // The proportion link works here too.
+    field<QToolButton>(dialog, "shapeGeometryLinkButton")->setChecked(true);
+    width->setValue(200);
+    CHECK(height->value() == 160);
+    x->setValue(120);
+    CHECK(process_events_until([&] { return box_is(shape_content(doc, id).path.bounds(), 120, 60, 320, 220); }));
+    dialog.accept();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(box_is(shape_content(doc, id).path.bounds(), 120, 60, 320, 220));
+  // Still the same triangle: the apex in the middle of the top edge.
+  const auto& apex = shape_content(doc, id).path.subpaths.front().anchors.front();
+  CHECK(std::abs(apex.anchor_x - 220) < 1e-6 && std::abs(apex.anchor_y - 60) < 1e-6);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before + 1);
+  MainWindowTestAccess::undo(window);
+  CHECK(box_is(shape_content(doc, id).path.bounds(), 50, 60, 150, 140));
+
+  // A merged layer holding a live rectangle and a plain path: no box to move.
+  auto merged = rectangle(doc.allocate_layer_id(), 300, 60, {}, {0, 0, 0});
+  auto merged_content = *std::as_const(merged).vector_shape();
+  const auto extra_layer = path_layer(merged.id(), 400, 200, 50, 50);
+  auto extra = *extra_layer.vector_shape();
+  extra.path.subpaths.front().shape_group = merged_content.path.next_shape_group();
+  merged_content.path.subpaths.push_back(extra.path.subpaths.front());
+  merged.set_vector_shape(merged_content);
+  const auto settings = shape_appearance_settings(merged);
+  CHECK(!settings.geometry && !settings.path_box);
+}
+
+// GitHub #644: a plain-path layer's Geometry ends with the Custom Shape tool's Shape picker,
+// opening with no shape chosen. A pick replaces the outline with that shape fitted to the
+// box shown (edits included), previews live, Cancel restores, OK is one undo step; with
+// several layers selected each gets the shape in its own box.
+void ui_shape_appearance_custom_shape_picker() {
+  VectorSettingsGuard guard;
+  MainWindow window; show_window(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  const auto id = doc.allocate_layer_id(), other = doc.allocate_layer_id();
+  doc.add_layer(path_layer(id, 50, 60, 100, 80));
+  doc.add_layer(path_layer(other, 300, 100, 60, 120));
+  const auto original_path = shape_content(doc, id).path;
+  select_batch_layers(window, {id});
+  const auto before = MainWindowTestAccess::active_session_undo_depth(window);
+  std::size_t picked_subpaths = 0;
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    auto* combo = field<QComboBox>(dialog, "shapeGeometryCustomShapeCombo");
+    CHECK(combo->currentIndex() == -1 && combo->count() > 0);
+    CHECK(inside(combo, "shapeGeometryGroup"));
+    CHECK(dialog_y(dialog, "shapeGeometryCustomShapeCombo") > dialog_y(dialog, "shapeGeometryHeightSpin"));
+    combo->setCurrentIndex(0);
+    CHECK(process_events_until([&] { return shape_content(doc, id).path != original_path; }));
+    dialog.reject();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(process_events_until([&] { return !require_canvas(window)->processing_operation_active(); }));
+  CHECK(shape_content(doc, id).path == original_path);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before);
+
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    field<QDoubleSpinBox>(dialog, "shapeGeometryWidthSpin")->setValue(150);
+    auto* combo = field<QComboBox>(dialog, "shapeGeometryCustomShapeCombo");
+    const auto& library = MainWindowTestAccess::custom_shape_library(window);
+    const auto* entry = library.find_entry_by_shape_id(combo->itemData(1).toString());
+    CHECK(entry != nullptr);
+    picked_subpaths = entry != nullptr ? entry->path.subpaths.size() : 0;
+    combo->setCurrentIndex(1);
+    CHECK(process_events_until([&] { return !require_canvas(window)->processing_operation_active(); }));
+    save_widget_artifact("ui_shape_appearance_custom_shape_picker", dialog);
+    dialog.accept();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(shape_content(doc, id).path.subpaths.size() == picked_subpaths);
+  CHECK(box_is(shape_content(doc, id).path.bounds(), 50, 60, 200, 140));
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before + 1);
+  MainWindowTestAccess::undo(window);
+  CHECK(shape_content(doc, id).path == original_path);
+
+  // Two plain-path layers: no single-layer box, the picker alone, each layer's own box.
+  select_batch_layers(window, {id, other});
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    CHECK(dialog.findChild<QWidget*>(QStringLiteral("shapeGeometryXSpin")) == nullptr);
+    auto* combo = field<QComboBox>(dialog, "shapeGeometryCustomShapeCombo");
+    CHECK(combo->currentIndex() == -1);
+    combo->setCurrentIndex(1);
+    QApplication::processEvents();
+    dialog.accept();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(shape_content(doc, id).path.subpaths.size() == picked_subpaths);
+  CHECK(shape_content(doc, other).path.subpaths.size() == picked_subpaths);
+  CHECK(box_is(shape_content(doc, id).path.bounds(), 50, 60, 150, 140));
+  CHECK(box_is(shape_content(doc, other).path.bounds(), 300, 100, 360, 220));
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before + 1);
+}
+
+// GitHub #641: a rectangle's four corner radii are their own Radius section under Geometry,
+// labeled Top left: and so on, with their link; every left-column section starts its
+// fields at the same x.
+void ui_shape_appearance_radius_section_layout() {
+  VectorSettingsGuard guard;
+  MainWindow window; show_window(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  const auto id = doc.allocate_layer_id();
+  doc.add_layer(rectangle(id, 40, 120, {6, 6, 6, 6}, {30, 120, 200}));
+  select_batch_layers(window, {id});
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    auto* radius_group = dialog.findChild<QGroupBox*>(QStringLiteral("shapeRadiusGroup"));
+    CHECK(radius_group != nullptr);
+    for (const char* name : {"shapeGeometryRadiusTopLeftSpin", "shapeGeometryRadiusTopRightSpin",
+                             "shapeGeometryRadiusBottomRightSpin", "shapeGeometryRadiusBottomLeftSpin",
+                             "shapeGeometryRadiusLinkButton"}) {
+      auto* widget = field<QWidget>(dialog, name);
+      CHECK(inside(widget, "shapeRadiusGroup") && !inside(widget, "shapeGeometryGroup"));
+    }
+    QStringList labels;
+    for (auto* label : radius_group->findChildren<QLabel*>()) labels.append(label->text());
+    for (const char* text : {"Top left:", "Top right:", "Bottom right:", "Bottom left:"})
+      CHECK(labels.contains(QLatin1String(text)));
+    CHECK(dialog_y(dialog, "shapeRadiusGroup") > dialog_y(dialog, "shapeGeometryGroup"));
+    CHECK(field<QToolButton>(dialog, "shapeGeometryRadiusLinkButton")->isChecked());
+    // One field column: Layer, Geometry, Radius and Edge fields start at the same x.
+    const auto x = [&](const char* name) { return field<QWidget>(dialog, name)->mapTo(&dialog, QPoint(0, 0)).x(); };
+    const int column = x("shapeGeometryXSpin");
+    CHECK(x("shapeGeometryRadiusTopLeftSpin") == column);
+    CHECK(x("shapeFeatherSpin") == column);
+    CHECK(x("shapeLayerOpacitySlider") == column);
+    // And the brackets share their column.
+    CHECK(x("shapeGeometryLinkButton") == x("shapeGeometryRadiusLinkButton"));
+    field<QDoubleSpinBox>(dialog, "shapeGeometryRadiusTopRightSpin")->setValue(14);
+    CHECK(process_events_until([&] { return !require_canvas(window)->processing_operation_active(); }));
+    save_widget_artifact("ui_shape_appearance_radius_section", dialog);
+    dialog.accept();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  for (const auto radius : shape_content(doc, id).origination.front().corner_radii) CHECK(radius == 14);
+}
+
+// GitHub #622 follow-up 2: Weight is a Geometry row after End Y for one line; with several
+// lines selected a Geometry section holds Weight alone above Arrowheads, still applying to
+// every line.
+void ui_shape_appearance_line_weight_in_geometry() {
+  VectorSettingsGuard guard;
+  MainWindow window; show_window(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  const auto first = doc.allocate_layer_id(), second = doc.allocate_layer_id();
+  doc.add_layer(line_layer(first, 10, false, true));
+  doc.add_layer(line_layer(second, 4, true, true));
+  select_batch_layers(window, {first});
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    auto* weight = field<QDoubleSpinBox>(dialog, "shapeGeometryLineWeightSpin");
+    CHECK(inside(weight, "shapeGeometryGroup") && !inside(weight, "shapeArrowheadsGroup"));
+    CHECK(dialog_y(dialog, "shapeGeometryLineWeightSpin") > dialog_y(dialog, "shapeGeometryLineEndYSpin"));
+    CHECK(dialog_y(dialog, "shapeArrowheadsGroup") > dialog_y(dialog, "shapeGeometryLineWeightSpin"));
+    CHECK(field<QWidget>(dialog, "shapeGeometryLineStartXSpin")->mapTo(&dialog, QPoint(0, 0)).x() ==
+          weight->mapTo(&dialog, QPoint(0, 0)).x());
+    save_widget_artifact("ui_shape_appearance_line_weight_in_geometry", dialog);
+    dialog.reject();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(process_events_until([&] { return !require_canvas(window)->processing_operation_active(); }));
+
+  select_batch_layers(window, {first, second});
+  const auto before = MainWindowTestAccess::active_session_undo_depth(window);
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    auto* weight = field<QDoubleSpinBox>(dialog, "shapeGeometryLineWeightSpin");
+    CHECK(inside(weight, "shapeGeometryGroup"));
+    CHECK(dialog.findChild<QWidget*>(QStringLiteral("shapeGeometryLineStartXSpin")) == nullptr);
+    CHECK(dialog_y(dialog, "shapeArrowheadsGroup") > dialog_y(dialog, "shapeGeometryGroup"));
+    CHECK(weight->property("appearanceMixed").toBool());
+    weight->setValue(6);
+    CHECK(process_events_until([&] {
+      return line_params(doc, first).line_weight == 6 && line_params(doc, second).line_weight == 6;
+    }));
+    save_widget_artifact("ui_shape_appearance_line_weight_multiple", dialog);
+    dialog.accept();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(line_params(doc, first).line_weight == 6 && line_params(doc, second).line_weight == 6);
+  // Each line's heads keep their own proportions.
+  CHECK(line_params(doc, first).arrow_width == 30 && line_params(doc, second).arrow_width == 30);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before + 1);
+}
+
 } // namespace
 
 std::vector<patchy::test::TestCase> batch_appearance_tests() {
@@ -1097,5 +1446,11 @@ std::vector<patchy::test::TestCase> batch_appearance_tests() {
     {"ui_shape_appearance_line_arrowheads", ui_shape_appearance_line_arrowheads},
     {"ui_shape_appearance_arrowhead_size", ui_shape_appearance_arrowhead_size},
     {"ui_shape_appearance_arrowheads_multiple_lines", ui_shape_appearance_arrowheads_multiple_lines},
+    {"ui_shape_appearance_polygon_geometry_and_sides", ui_shape_appearance_polygon_geometry_and_sides},
+    {"ui_shape_appearance_polygons_multiple", ui_shape_appearance_polygons_multiple},
+    {"ui_shape_appearance_custom_path_geometry", ui_shape_appearance_custom_path_geometry},
+    {"ui_shape_appearance_custom_shape_picker", ui_shape_appearance_custom_shape_picker},
+    {"ui_shape_appearance_radius_section_layout", ui_shape_appearance_radius_section_layout},
+    {"ui_shape_appearance_line_weight_in_geometry", ui_shape_appearance_line_weight_in_geometry},
   };
 }

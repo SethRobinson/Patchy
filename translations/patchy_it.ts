@@ -7970,22 +7970,6 @@ RGB: %2, %3, %4</translation>
         <translation>Y:</translation>
     </message>
     <message>
-        <source>Top left radius:</source>
-        <translation>Raggio in alto a sinistra:</translation>
-    </message>
-    <message>
-        <source>Top right radius:</source>
-        <translation>Raggio in alto a destra:</translation>
-    </message>
-    <message>
-        <source>Bottom right radius:</source>
-        <translation>Raggio in basso a destra:</translation>
-    </message>
-    <message>
-        <source>Bottom left radius:</source>
-        <translation>Raggio in basso a sinistra:</translation>
-    </message>
-    <message>
         <source>No Fill</source>
         <translation>Nessun riempimento</translation>
     </message>
@@ -19637,6 +19621,18 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Show only favorite fonts</source>
         <translation>Mostra solo i font preferiti</translation>
+    </message>
+    <message numerus="yes">
+        <source>More matches with All Styles and All Languages: %n</source>
+        <extracomment>Under the font list while searching: fonts that match the search but are hidden by the Style or Language filter next to the search box. Clicking it sets both filters to All.</extracomment>
+        <translation>
+            <numerusform>Altre corrispondenze con Tutti gli stili e Tutte le lingue: %n</numerusform>
+            <numerusform>Altre corrispondenze con Tutti gli stili e Tutte le lingue: %n</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Set Style and Language to All</source>
+        <translation>Imposta Stile e Lingua su Tutti</translation>
     </message>
 </context>
 <context>
