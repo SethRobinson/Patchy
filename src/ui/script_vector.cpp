@@ -228,7 +228,8 @@ VectorShapeContent geometry(ScriptEngineHost& host, const QJsonObject& value, do
   LiveShapeParams params;
   params.resolution = resolution;
   if (type == "line") {
-    keys(value, {"type", "x1", "y1", "x2", "y2", "weight", "arrowStart", "arrowEnd", "arrowWidth", "arrowLength"});
+    keys(value, {"type", "x1", "y1", "x2", "y2", "weight", "arrowStart", "arrowEnd", "arrowWidth", "arrowLength",
+                 "arrowConcavity"});
     params.kind = LiveShapeKind::Line;
     params.line_start_x = required_number(value, "x1"); params.line_start_y = required_number(value, "y1");
     params.line_end_x = required_number(value, "x2"); params.line_end_y = required_number(value, "y2");
@@ -237,6 +238,7 @@ VectorShapeContent geometry(ScriptEngineHost& host, const QJsonObject& value, do
     params.arrow_start = boolean(value, "arrowStart", false); params.arrow_end = boolean(value, "arrowEnd", false);
     params.arrow_width = number(value, "arrowWidth", params.line_weight * 5, 0, 30000);
     params.arrow_length = number(value, "arrowLength", params.line_weight * 10, 0, 30000);
+    params.arrow_concavity = integer(value, "arrowConcavity", 0, -50, 50);
     params.left = std::min(params.line_start_x, params.line_end_x); params.right = std::max(params.line_start_x, params.line_end_x);
     params.top = std::min(params.line_start_y, params.line_end_y); params.bottom = std::max(params.line_start_y, params.line_end_y);
   } else {
@@ -291,7 +293,7 @@ QJsonArray live_json(const std::vector<LiveShapeParams>& values) {
     if (p.kind == LiveShapeKind::Line) {
       g["x1"] = p.line_start_x; g["y1"] = p.line_start_y; g["x2"] = p.line_end_x; g["y2"] = p.line_end_y;
       g["weight"] = p.line_weight; g["arrowStart"] = p.arrow_start; g["arrowEnd"] = p.arrow_end;
-      g["arrowWidth"] = p.arrow_width; g["arrowLength"] = p.arrow_length;
+      g["arrowWidth"] = p.arrow_width; g["arrowLength"] = p.arrow_length; g["arrowConcavity"] = p.arrow_concavity;
     } else {
       g["x"] = p.left; g["y"] = p.top; g["width"] = p.right - p.left; g["height"] = p.bottom - p.top;
       if (p.kind == LiveShapeKind::RoundedRectangle) { g["radii"] = QJsonArray{p.corner_radii[0], p.corner_radii[1], p.corner_radii[2], p.corner_radii[3]}; }

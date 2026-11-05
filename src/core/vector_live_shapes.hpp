@@ -14,7 +14,9 @@
 // - ellipse: 4 smooth knots top/right/bottom/left with kappa handles;
 // - line: the width-w quad [start+n, start-n, end-n, end+n] with
 //   n = (w/2) * (-dy, dx)/|d|; arrowheads (Patchy-authored; Photoshop renders
-//   the path regardless) append head polygons in the same shape group.
+//   the path regardless) wider than the line make one outline with it (start
+//   cap, -n side, end cap, +n side), narrower ones separate head polygons in
+//   the same shape group.
 // All arithmetic is +,*,sqrt on doubles (no trig), deterministic across
 // toolchains.
 namespace patchy {

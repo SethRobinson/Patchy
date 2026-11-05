@@ -14864,10 +14864,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Fim</translation>
     </message>
     <message>
-        <source>Arrowheads:</source>
-        <translation>Pontas de seta:</translation>
-    </message>
-    <message>
         <source>Sample radius:</source>
         <translation>Raio de amostra:</translation>
     </message>
@@ -14963,6 +14959,37 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>The bar shows how much of this image the slider acts on: %1% of its color</source>
         <translation>A barra mostra quanto desta imagem o controle afeta: %1% da sua cor</translation>
+    </message>
+    <message>
+        <source>Arrowheads</source>
+        <translation>Pontas de seta</translation>
+    </message>
+    <message numerus="yes">
+        <source>Editable lines for arrowheads: %n</source>
+        <translation>
+            <numerusform>Pontas de seta: %n linha editável</numerusform>
+            <numerusform>Pontas de seta: %n linhas editáveis</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Arrowhead width, in percent of the line weight</source>
+        <translation>Largura da ponta de seta, em porcentagem da espessura da linha</translation>
+    </message>
+    <message>
+        <source>Arrowhead length, in percent of the line weight</source>
+        <translation>Comprimento da ponta de seta, em porcentagem da espessura da linha</translation>
+    </message>
+    <message>
+        <source>How far the back of the arrowhead curves in toward the tip (negative bulges out)</source>
+        <translation>Quanto a parte de trás da ponta de seta se curva em direção à ponta (negativo a projeta para fora)</translation>
+    </message>
+    <message>
+        <source>Length:</source>
+        <translation>Comprimento:</translation>
+    </message>
+    <message>
+        <source>Concavity:</source>
+        <translation>Concavidade:</translation>
     </message>
 </context>
 <context>

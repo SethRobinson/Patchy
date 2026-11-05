@@ -356,6 +356,28 @@ void ui_script_vector_psd_svg_unicode_round_trip() {
   CHECK(QFileInfo::exists(folder + '/' + name + ".svg"));
   CHECK(patterns.remove_pattern(pattern_id));
 }
+// GitHub #622 follow-up: lines take arrowConcavity, and updateShape keeps a line's head
+// proportions and concavity when the new geometry leaves them out.
+void ui_script_vector_line_arrowheads_keep_proportions() {
+  MainWindow window; show_window_empty(window);
+  run(window, R"JS(
+    var d=app.newDocument(200,120);
+    var l=d.addShape('Arrow',{type:'line',x1:20,y1:60,x2:180,y2:60,weight:4,arrowEnd:true,arrowWidth:12,arrowLength:32,arrowConcavity:20});
+    var g=l.getShape().liveShapes[0].geometry;
+    check(g.arrowConcavity===20 && g.arrowWidth===12 && g.arrowLength===32, 'created '+JSON.stringify(g));
+    l.updateShape({geometry:{type:'line',x1:20,y1:60,x2:180,y2:60,weight:8,arrowEnd:true}});
+    g=l.getShape().liveShapes[0].geometry;
+    check(g.weight===8 && g.arrowWidth===24 && g.arrowLength===64 && g.arrowConcavity===20, 'kept '+JSON.stringify(g));
+    l.updateShape({geometry:{type:'line',x1:20,y1:60,x2:180,y2:60,weight:8,arrowEnd:true,arrowWidth:40,arrowConcavity:-10}});
+    g=l.getShape().liveShapes[0].geometry;
+    check(g.arrowWidth===40 && g.arrowLength===64 && g.arrowConcavity===-10, 'named values win '+JSON.stringify(g));
+    reject(function(){l.updateShape({geometry:{type:'line',x1:0,y1:0,x2:10,y2:0,arrowConcavity:51}});});
+    reject(function(){l.updateShape({geometry:{type:'line',x1:0,y1:0,x2:10,y2:0,arrowConcavity:2.5}});});
+    var n=d.addShape('Plain',{type:'line',x1:20,y1:20,x2:180,y2:20,weight:2,arrowStart:true});
+    g=n.getShape().liveShapes[0].geometry;
+    check(g.arrowWidth===10 && g.arrowLength===20 && g.arrowConcavity===0, 'defaults '+JSON.stringify(g));
+  )JS");
+}
 }  // namespace
 std::vector<patchy::test::TestCase> vector_scripting_tests() {
   return {{"ui_script_vector_native_shapes_and_point_edits", ui_script_vector_native_shapes_and_point_edits},
@@ -365,5 +387,6 @@ std::vector<patchy::test::TestCase> vector_scripting_tests() {
     {"ui_script_vector_all_paints_and_pattern_collision", ui_script_vector_all_paints_and_pattern_collision},
     {"ui_script_vector_path_raster_painting", ui_script_vector_path_raster_painting},
     {"ui_script_vector_stroke_accepts_zero_length_dots", ui_script_vector_stroke_accepts_zero_length_dots},
-    {"ui_script_vector_psd_svg_unicode_round_trip", ui_script_vector_psd_svg_unicode_round_trip}};
+    {"ui_script_vector_psd_svg_unicode_round_trip", ui_script_vector_psd_svg_unicode_round_trip},
+    {"ui_script_vector_line_arrowheads_keep_proportions", ui_script_vector_line_arrowheads_keep_proportions}};
 }

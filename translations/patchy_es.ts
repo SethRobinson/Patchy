@@ -14864,10 +14864,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Final</translation>
     </message>
     <message>
-        <source>Arrowheads:</source>
-        <translation>Puntas de flecha:</translation>
-    </message>
-    <message>
         <source>Sample radius:</source>
         <translation>Radio de muestra:</translation>
     </message>
@@ -14963,6 +14959,37 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>The bar shows how much of this image the slider acts on: %1% of its color</source>
         <translation>La barra muestra cuánto de esta imagen afecta el regulador: %1% de su color</translation>
+    </message>
+    <message>
+        <source>Arrowheads</source>
+        <translation>Puntas de flecha</translation>
+    </message>
+    <message numerus="yes">
+        <source>Editable lines for arrowheads: %n</source>
+        <translation>
+            <numerusform>Puntas de flecha: %n línea editable</numerusform>
+            <numerusform>Puntas de flecha: %n líneas editables</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Arrowhead width, in percent of the line weight</source>
+        <translation>Ancho de la punta de flecha, en porcentaje del grosor de la línea</translation>
+    </message>
+    <message>
+        <source>Arrowhead length, in percent of the line weight</source>
+        <translation>Longitud de la punta de flecha, en porcentaje del grosor de la línea</translation>
+    </message>
+    <message>
+        <source>How far the back of the arrowhead curves in toward the tip (negative bulges out)</source>
+        <translation>Cuánto se curva hacia la punta la parte trasera de la flecha (negativo la abomba hacia fuera)</translation>
+    </message>
+    <message>
+        <source>Length:</source>
+        <translation>Longitud:</translation>
+    </message>
+    <message>
+        <source>Concavity:</source>
+        <translation>Concavidad:</translation>
     </message>
 </context>
 <context>

@@ -182,12 +182,68 @@ std::vector<PathSubpath> line_subpaths(const LiveShapeParams& params) {
 
   std::vector<PathSubpath> subpaths;
 
-  // Arrowheads shorten the shaft so heads sit tip-at-endpoint.
+  // A head wider than the shaft makes one outline with it (GitHub #622 follow-up): the
+  // shaft's edges run to where they meet the head's back edges, then around the head. One
+  // outline leaves no overlap, which the shape group's even-odd fill would punch out, and
+  // no gap behind a concave head's notch.
+  const double head_length = params.arrow_length > 0.0 ? params.arrow_length : 0.0;
+  const double head_half_width = std::max(params.arrow_width, 0.0) / 2.0;
+  const bool start_head = params.arrow_start && head_length > 0.0;
+  const bool end_head = params.arrow_end && head_length > 0.0;
+  if ((start_head || end_head) && head_half_width > half) {
+    const double concavity = static_cast<double>(params.arrow_concavity) / 100.0;
+    const double reach = half / head_half_width;  // along a back edge, notch to corner
+    const double hx = -dir_y * head_half_width;
+    const double hy = dir_x * head_half_width;
+    PathSubpath outline;
+    outline.closed = true;
+    outline.op = PathCombineOp::Add;
+    outline.shape_group = params.index;
+    // A head at (tip_x, tip_y) whose shaft runs along (toward_x, toward_y), listed from
+    // the side `first` (+1: the +n side) to the other.
+    const auto append_head = [&](double tip_x, double tip_y, double toward_x, double toward_y, double first) {
+      const double base_x = tip_x + toward_x * head_length;
+      const double base_y = tip_y + toward_y * head_length;
+      const double mid_x = base_x - toward_x * head_length * concavity;
+      const double mid_y = base_y - toward_y * head_length * concavity;
+      for (const double side : {first, -first}) {
+        const double corner_x = base_x + side * hx;
+        const double corner_y = base_y + side * hy;
+        const double join_x = mid_x + (corner_x - mid_x) * reach;
+        const double join_y = mid_y + (corner_y - mid_y) * reach;
+        if (side == first) {
+          outline.anchors.push_back(corner_anchor(join_x, join_y));
+          outline.anchors.push_back(corner_anchor(corner_x, corner_y));
+          outline.anchors.push_back(corner_anchor(tip_x, tip_y));
+        } else {
+          outline.anchors.push_back(corner_anchor(corner_x, corner_y));
+          outline.anchors.push_back(corner_anchor(join_x, join_y));
+        }
+      }
+    };
+    // Photoshop's quad order: start+n, start-n, end-n, end+n.
+    if (start_head) {
+      append_head(params.line_start_x, params.line_start_y, dir_x, dir_y, 1.0);
+    } else {
+      outline.anchors.push_back(corner_anchor(params.line_start_x + nx, params.line_start_y + ny));
+      outline.anchors.push_back(corner_anchor(params.line_start_x - nx, params.line_start_y - ny));
+    }
+    if (end_head) {
+      append_head(params.line_end_x, params.line_end_y, -dir_x, -dir_y, -1.0);
+    } else {
+      outline.anchors.push_back(corner_anchor(params.line_end_x - nx, params.line_end_y - ny));
+      outline.anchors.push_back(corner_anchor(params.line_end_x + nx, params.line_end_y + ny));
+    }
+    subpaths.push_back(std::move(outline));
+    return subpaths;
+  }
+
+  // Heads no wider than the shaft: separate polygons. The shaft shortens so heads sit
+  // tip-at-endpoint.
   double start_x = params.line_start_x;
   double start_y = params.line_start_y;
   double end_x = params.line_end_x;
   double end_y = params.line_end_y;
-  const double head_length = params.arrow_length > 0.0 ? params.arrow_length : 0.0;
   if (params.arrow_start && head_length > 0.0) {
     start_x += dir_x * head_length;
     start_y += dir_y * head_length;

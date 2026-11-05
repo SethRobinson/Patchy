@@ -241,13 +241,11 @@ void MainWindow::handle_vector_shape_drawn(LiveShapeKind kind, QRectF bounds, QP
     params.line_end_x = line_end.x();
     params.line_end_y = line_end.y();
     params.line_weight = std::max(1.0, current_vector_line_weight_);
-    // Photoshop's default arrowhead proportions: width 5x, length 10x weight.
+    // Photoshop's default arrowhead proportions: width 500%, length 1000% of the weight,
+    // the values Shape Appearance's Arrowheads section shows for a new head.
     params.arrow_start = current_line_arrow_start_;
     params.arrow_end = current_line_arrow_end_;
-    if (current_line_arrow_start_ || current_line_arrow_end_) {
-      params.arrow_width = params.line_weight * 5.0;
-      params.arrow_length = params.line_weight * 10.0;
-    }
+    give_line_arrowheads_default_size(params);
   } else {
     params.left = bounds.left();
     params.top = bounds.top();

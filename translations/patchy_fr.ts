@@ -14864,10 +14864,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Fin</translation>
     </message>
     <message>
-        <source>Arrowheads:</source>
-        <translation>Pointes de flèche :</translation>
-    </message>
-    <message>
         <source>Sample radius:</source>
         <translation>Rayon d&apos;échantillonnage :</translation>
     </message>
@@ -14963,6 +14959,37 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>The bar shows how much of this image the slider acts on: %1% of its color</source>
         <translation>La barre indique la part de cette image sur laquelle agit le curseur : %1% de sa couleur</translation>
+    </message>
+    <message>
+        <source>Arrowheads</source>
+        <translation>Pointes de flèche</translation>
+    </message>
+    <message numerus="yes">
+        <source>Editable lines for arrowheads: %n</source>
+        <translation>
+            <numerusform>Pointes de flèche : %n ligne modifiable</numerusform>
+            <numerusform>Pointes de flèche : %n lignes modifiables</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Arrowhead width, in percent of the line weight</source>
+        <translation>Largeur de la pointe de flèche, en pourcentage de l’épaisseur du trait</translation>
+    </message>
+    <message>
+        <source>Arrowhead length, in percent of the line weight</source>
+        <translation>Longueur de la pointe de flèche, en pourcentage de l’épaisseur du trait</translation>
+    </message>
+    <message>
+        <source>How far the back of the arrowhead curves in toward the tip (negative bulges out)</source>
+        <translation>De combien l’arrière de la pointe de flèche se creuse vers la pointe (négatif la bombe vers l’extérieur)</translation>
+    </message>
+    <message>
+        <source>Length:</source>
+        <translation>Longueur :</translation>
+    </message>
+    <message>
+        <source>Concavity:</source>
+        <translation>Concavité :</translation>
     </message>
 </context>
 <context>

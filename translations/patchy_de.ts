@@ -14864,10 +14864,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Ende</translation>
     </message>
     <message>
-        <source>Arrowheads:</source>
-        <translation>Pfeilspitzen:</translation>
-    </message>
-    <message>
         <source>Sample radius:</source>
         <translation>Radius:</translation>
     </message>
@@ -14963,6 +14959,37 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>The bar shows how much of this image the slider acts on: %1% of its color</source>
         <translation>Der Balken zeigt, wie viel dieses Bildes der Regler beeinflusst: %1% seiner Farbe</translation>
+    </message>
+    <message>
+        <source>Arrowheads</source>
+        <translation>Pfeilspitzen</translation>
+    </message>
+    <message numerus="yes">
+        <source>Editable lines for arrowheads: %n</source>
+        <translation>
+            <numerusform>Pfeilspitzen: %n bearbeitbare Linie</numerusform>
+            <numerusform>Pfeilspitzen: %n bearbeitbare Linien</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Arrowhead width, in percent of the line weight</source>
+        <translation>Breite der Pfeilspitze in Prozent der Linienstärke</translation>
+    </message>
+    <message>
+        <source>Arrowhead length, in percent of the line weight</source>
+        <translation>Länge der Pfeilspitze in Prozent der Linienstärke</translation>
+    </message>
+    <message>
+        <source>How far the back of the arrowhead curves in toward the tip (negative bulges out)</source>
+        <translation>Wie weit die Rückseite der Pfeilspitze zur Spitze hin einbuchtet (negativ wölbt sie nach außen)</translation>
+    </message>
+    <message>
+        <source>Length:</source>
+        <translation>Länge:</translation>
+    </message>
+    <message>
+        <source>Concavity:</source>
+        <translation>Konkavität:</translation>
     </message>
 </context>
 <context>

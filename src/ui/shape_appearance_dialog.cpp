@@ -493,12 +493,14 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   auto refresh_mixed = std::make_shared<std::function<void()>>();
   // Shows the saved stroke preset the current line settings match (set below).
   auto refresh_preset_match = std::make_shared<std::function<void()>>();
+  // `captured`: the caller already appended its edits (the multi-layer Arrowheads rows).
   const auto notify = [state, previous, edits, properties, batch, preview_changed, refresh_mixed,
-                       refresh_preset_match](const std::vector<std::string>& fields = {}) {
+                       refresh_preset_match](const std::vector<std::string>& fields = {},
+                                             bool captured = false) {
     if (batch != nullptr) {
-      if (fields.empty()) {
+      if (!captured && fields.empty()) {
         capture_appearance_edits(*edits, properties, *previous, state->settings);
-      } else {
+      } else if (!captured) {
         for (const auto& property : properties)
           if (std::find(fields.begin(), fields.end(), property.key) != fields.end())
             edits->append(property.capture(state->settings));
@@ -610,65 +612,26 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
       auto* start_y = make_spin("shapeGeometryLineStartYSpin", -30000, 30000, geometry.line_start_y);
       auto* end_x = make_spin("shapeGeometryLineEndXSpin", -30000, 30000, geometry.line_end_x);
       auto* end_y = make_spin("shapeGeometryLineEndYSpin", -30000, 30000, geometry.line_end_y);
-      auto* weight = make_spin("shapeGeometryLineWeightSpin", 0.5, 1000, geometry.line_weight);
       apply_document_field_units(start_x, units, true);
       apply_document_field_units(start_y, units, false);
       apply_document_field_units(end_x, units, true);
       apply_document_field_units(end_y, units, false);
-      apply_document_field_units(weight, thickness_units, true);
-      unit_fields.insert(unit_fields.end(), {start_x, start_y, end_x, end_y, weight});
+      unit_fields.insert(unit_fields.end(), {start_x, start_y, end_x, end_y});
       add_geometry_row(QObject::tr("Start X:"), start_x);
       add_geometry_row(QObject::tr("Start Y:"), start_y);
       add_geometry_row(QObject::tr("End X:"), end_x);
       add_geometry_row(QObject::tr("End Y:"), end_y);
-      add_geometry_row(QObject::tr("Weight:"), weight);
-      const auto apply_line = [state, notify, start_x, start_y, end_x, end_y, weight] {
+      // Weight and the arrowheads are in the Arrowheads section below.
+      const auto apply_line = [state, notify, start_x, start_y, end_x, end_y] {
         auto& params = *state->settings.geometry;
         params.line_start_x = start_x->value();
         params.line_start_y = start_y->value();
         params.line_end_x = end_x->value();
         params.line_end_y = end_y->value();
-        // The arrowhead proportions stay tied to the weight.
-        if (params.line_weight != weight->value()) {
-          params.line_weight = weight->value();
-          tie_line_arrowheads_to_weight(params);
-        }
         notify({"geometry"});
       };
-      for (auto* spin : {start_x, start_y, end_x, end_y, weight}) {
+      for (auto* spin : {start_x, start_y, end_x, end_y}) {
         QObject::connect(spin, &QDoubleSpinBox::valueChanged, &dialog, apply_line);
-      }
-      // Start and End arrowheads (GitHub #622), the Line options bar's two toggles.
-      auto* arrows = new QWidget(geometry_group);
-      auto* arrows_layout = new QHBoxLayout(arrows);
-      arrows_layout->setContentsMargins(0, 0, 0, 0);
-      arrows_layout->setSpacing(16);
-      auto* arrow_start = new QCheckBox(QObject::tr("Start"), arrows);
-      arrow_start->setObjectName(QStringLiteral("shapeGeometryLineArrowStartCheck"));
-      arrow_start->setToolTip(QCoreApplication::translate("patchy::ui::MainWindow", "Add an arrowhead at the line start"));
-      arrow_start->setChecked(geometry.arrow_start);
-      auto* arrow_end = new QCheckBox(QObject::tr("End"), arrows);
-      arrow_end->setObjectName(QStringLiteral("shapeGeometryLineArrowEndCheck"));
-      arrow_end->setToolTip(QCoreApplication::translate("patchy::ui::MainWindow", "Add an arrowhead at the line end"));
-      arrow_end->setChecked(geometry.arrow_end);
-      arrows_layout->addWidget(arrow_start);
-      arrows_layout->addWidget(arrow_end);
-      arrows_layout->addStretch(1);
-      const int arrows_row = static_cast<int>(geometry_rows.size());
-      geometry_grid->addWidget(new QLabel(QObject::tr("Arrowheads:"), geometry_group), arrows_row, 0,
-                               Qt::AlignLeft | Qt::AlignVCenter);
-      geometry_grid->addWidget(arrows, arrows_row, 2);
-      geometry_rows.push_back(arrows);
-      for (const bool at_end : {false, true}) {
-        QObject::connect(at_end ? arrow_end : arrow_start, &QCheckBox::toggled, &dialog,
-                         [state, notify, at_end](bool checked) {
-          auto& params = *state->settings.geometry;
-          (at_end ? params.arrow_end : params.arrow_start) = checked;
-          // A new head gets the default size; a head the line already had keeps its own.
-          if (checked && (params.arrow_width <= 0.0 || params.arrow_length <= 0.0))
-            tie_line_arrowheads_to_weight(params);
-          notify({"geometry"});
-        });
       }
     } else {
       auto* x_spin = make_spin("shapeGeometryXSpin", -30000, 30000, geometry.left);
@@ -826,6 +789,159 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
       }
     )"));
     left_column->addWidget(geometry_group);
+  }
+
+  // --- Arrowheads (line layers; GitHub #622 follow-up) ---
+  // Weight, the Start / End heads, and the heads' Width and Length as a percent of the
+  // weight and their Concavity. One line edits its geometry in place; with several layers
+  // selected the fields show the first line's values (mixed where the lines differ) and
+  // each field applies on its own, so only the fields changed reach the other lines.
+  std::optional<LiveShapeParams> line_reference;
+  std::ptrdiff_t line_count = 0;
+  std::size_t first_line_index = 0;
+  if (!multiple) {
+    if (appearance_has_editable_line(state->settings)) line_reference = state->settings.geometry;
+  } else {
+    line_count = std::count_if(batch->originals.begin(), batch->originals.end(), appearance_has_editable_line);
+    const auto first = std::find_if(batch->originals.begin(), batch->originals.end(), appearance_has_editable_line);
+    if (first != batch->originals.end()) {
+      line_reference = first->geometry;
+      first_line_index = static_cast<std::size_t>(std::distance(batch->originals.begin(), first));
+    }
+  }
+  if (line_reference) {
+    auto line = std::make_shared<LiveShapeParams>(*line_reference);
+    auto* arrow_group = new QGroupBox(QObject::tr("Arrowheads"), left_widget);
+    arrow_group->setObjectName(QStringLiteral("shapeArrowheadsGroup"));
+    auto* arrow_layout = new QVBoxLayout(arrow_group);
+    arrow_layout->setContentsMargins(10, 8, 10, 8);
+    arrow_layout->setSpacing(4);
+    if (multiple && line_count > 0 && first_line_index < batch->names.size()) {
+      auto* hint = new QLabel(QObject::tr("Editable lines for arrowheads: %n", nullptr, static_cast<int>(line_count)) +
+                                  QStringLiteral("\n") + QObject::tr("Values from: %1").arg(batch->names[first_line_index]),
+                              arrow_group);
+      hint->setObjectName(QStringLiteral("shapeArrowheadSelectionSummary"));
+      hint->setWordWrap(true);
+      arrow_layout->addWidget(hint);
+    }
+    auto* arrow_form = new QFormLayout();
+    arrow_form->setHorizontalSpacing(10);
+    arrow_form->setVerticalSpacing(8);
+    arrow_layout->addLayout(arrow_form);
+
+    auto* weight = new UnitSpinBox(SpinUnit::Pixels, arrow_group);
+    weight->setObjectName(QStringLiteral("shapeGeometryLineWeightSpin"));
+    weight->setRange(0.5, 1000);
+    weight->setDecimals(1);
+    weight->setValue(line->line_weight);
+    configure_dialog_spinbox(weight, 72);
+    apply_document_field_units(weight, thickness_units, true);
+    unit_fields.push_back(weight);
+    add_spin_row(arrow_form, QObject::tr("Weight:"), weight);
+
+    // Start and End, the Line options bar's two toggles.
+    auto* ends = new QWidget(arrow_group);
+    auto* ends_layout = new QHBoxLayout(ends);
+    ends_layout->setContentsMargins(0, 0, 0, 0);
+    ends_layout->setSpacing(16);
+    auto* arrow_start = new QCheckBox(QObject::tr("Start"), ends);
+    arrow_start->setObjectName(QStringLiteral("shapeGeometryLineArrowStartCheck"));
+    arrow_start->setToolTip(QCoreApplication::translate("patchy::ui::MainWindow", "Add an arrowhead at the line start"));
+    arrow_start->setChecked(line->arrow_start);
+    auto* arrow_end = new QCheckBox(QObject::tr("End"), ends);
+    arrow_end->setObjectName(QStringLiteral("shapeGeometryLineArrowEndCheck"));
+    arrow_end->setToolTip(QCoreApplication::translate("patchy::ui::MainWindow", "Add an arrowhead at the line end"));
+    arrow_end->setChecked(line->arrow_end);
+    ends_layout->addWidget(arrow_start);
+    ends_layout->addWidget(arrow_end);
+    ends_layout->addStretch(1);
+    arrow_form->addRow(QString(), ends);
+
+    const auto make_percent_spin = [arrow_group](const char* name, int minimum, int maximum, double value,
+                                                 const QString& tooltip) {
+      auto* spin = new QSpinBox(arrow_group);
+      spin->setObjectName(QLatin1String(name));
+      spin->setRange(minimum, maximum);
+      spin->setSuffix(QStringLiteral("%"));
+      spin->setValue(static_cast<int>(std::lround(std::clamp(value, static_cast<double>(minimum),
+                                                             static_cast<double>(maximum)))));
+      spin->setToolTip(tooltip);
+      configure_dialog_spinbox(spin, 72);
+      return spin;
+    };
+    auto* arrow_width = make_percent_spin("shapeArrowWidthSpin", 10, 1000, line_arrow_width_percent(*line),
+                                          QObject::tr("Arrowhead width, in percent of the line weight"));
+    auto* arrow_length = make_percent_spin("shapeArrowLengthSpin", 10, 5000, line_arrow_length_percent(*line),
+                                           QObject::tr("Arrowhead length, in percent of the line weight"));
+    auto* arrow_concavity = make_percent_spin(
+        "shapeArrowConcavitySpin", -50, 50, line->arrow_concavity,
+        QObject::tr("How far the back of the arrowhead curves in toward the tip (negative bulges out)"));
+    const std::vector<QWidget*> head_rows{add_spin_row(arrow_form, QObject::tr("Width:"), arrow_width),
+                                          add_spin_row(arrow_form, QObject::tr("Length:"), arrow_length),
+                                          add_spin_row(arrow_form, QObject::tr("Concavity:"), arrow_concavity)};
+    // Width, Length and Concavity shape the heads, so they wait for one.
+    bool any_head = false;
+    if (multiple)
+      for (const auto& value : batch->originals)
+        any_head = any_head || (appearance_has_editable_line(value) &&
+                                (value.geometry->arrow_start || value.geometry->arrow_end));
+    const auto update_head_rows = [arrow_start, arrow_end, head_rows, arrow_form, any_head] {
+      const bool on = any_head || arrow_start->isChecked() || arrow_end->isChecked();
+      for (auto* row : head_rows) {
+        row->setEnabled(on);
+        if (auto* label = arrow_form->labelForField(row)) label->setEnabled(on);
+      }
+    };
+    update_head_rows();
+
+    // One line: the edit changes the dialog's geometry. Several layers: the edit is the
+    // named fields, captured from the first line's values and replayed on every line.
+    const auto edit_line = [state, line, multiple, edits, properties, notify](
+                               const std::vector<std::string>& keys,
+                               const std::function<void(LiveShapeParams&)>& change) {
+      if (!multiple) {
+        change(*state->settings.geometry);
+        *line = *state->settings.geometry;
+        notify({"geometry"});
+        return;
+      }
+      change(*line);
+      ShapeAppearanceSettings source;
+      source.geometry = *line;
+      for (const auto& property : properties)
+        if (std::find(keys.begin(), keys.end(), property.key) != keys.end()) edits->append(property.capture(source));
+      notify({}, true);
+    };
+    QObject::connect(weight, &QDoubleSpinBox::valueChanged, &dialog, [edit_line](double value) {
+      edit_line({"line.weight"}, [value](LiveShapeParams& params) {
+        const double previous = params.line_weight;
+        params.line_weight = value;
+        tie_line_arrowheads_to_weight(params, previous);
+      });
+    });
+    for (const bool at_end : {false, true}) {
+      QObject::connect(at_end ? arrow_end : arrow_start, &QCheckBox::toggled, &dialog,
+                       [edit_line, update_head_rows, at_end](bool checked) {
+        edit_line({at_end ? "line.arrow_end" : "line.arrow_start"}, [at_end, checked](LiveShapeParams& params) {
+          (at_end ? params.arrow_end : params.arrow_start) = checked;
+          // A new head gets the default size; a head the line already had keeps its own.
+          if (checked) give_line_arrowheads_default_size(params);
+        });
+        update_head_rows();
+      });
+    }
+    for (const bool length : {false, true}) {
+      QObject::connect(length ? arrow_length : arrow_width, &QSpinBox::valueChanged, &dialog,
+                       [edit_line, length](int percent) {
+        edit_line({length ? "line.arrow_length" : "line.arrow_width"}, [length, percent](LiveShapeParams& params) {
+          (length ? params.arrow_length : params.arrow_width) = params.line_weight * percent / 100.0;
+        });
+      });
+    }
+    QObject::connect(arrow_concavity, &QSpinBox::valueChanged, &dialog, [edit_line](int percent) {
+      edit_line({"line.arrow_concavity"}, [percent](LiveShapeParams& params) { params.arrow_concavity = percent; });
+    });
+    left_column->addWidget(arrow_group);
   }
 
   // --- Fill ---
@@ -2241,6 +2357,26 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
         });
       }
     }
+    // The Arrowheads rows (GitHub #622 follow-up): a deliberate commit of an unchanged
+    // value still applies it to every line.
+    for (const auto& [name, key] : {std::pair{"shapeGeometryLineWeightSpin", "line.weight"},
+                                    std::pair{"shapeGeometryLineArrowStartCheck", "line.arrow_start"},
+                                    std::pair{"shapeGeometryLineArrowEndCheck", "line.arrow_end"},
+                                    std::pair{"shapeArrowWidthSpin", "line.arrow_width"},
+                                    std::pair{"shapeArrowLengthSpin", "line.arrow_length"},
+                                    std::pair{"shapeArrowConcavitySpin", "line.arrow_concavity"}}) {
+      auto* widget = dialog.findChild<QWidget*>(QLatin1String(name));
+      if (widget == nullptr) continue;
+      bindings->emplace_back(widget, std::vector<std::string>{key});
+      if (auto* spin = qobject_cast<QDoubleSpinBox*>(widget))
+        install_appearance_edit_intent(spin, [spin] {
+          QMetaObject::invokeMethod(spin, "valueChanged", Qt::DirectConnection, Q_ARG(double, spin->value()));
+        });
+      else if (auto* integer_spin = qobject_cast<QSpinBox*>(widget))
+        install_appearance_edit_intent(integer_spin, [integer_spin] {
+          QMetaObject::invokeMethod(integer_spin, "valueChanged", Qt::DirectConnection, Q_ARG(int, integer_spin->value()));
+        });
+    }
     if (multiple) {
       for (const char* name : {"shapeGeometryXSpin", "shapeGeometryYSpin", "shapeGeometryWidthSpin",
                                "shapeGeometryHeightSpin", "shapeGeometryLinkButton"})
@@ -2281,10 +2417,13 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
         bool mixed = false;
         for (const auto& property : properties) {
           if (std::find(keys.begin(), keys.end(), property.key) == keys.end()) continue;
-          if (property.key.starts_with("radius.")) {
-            const auto rectangle = std::find_if(current.begin(), current.end(), appearance_has_editable_radii);
-            if (rectangle != current.end()) for (const auto& value : current)
-              if (appearance_has_editable_radii(value)) mixed = mixed || !property.equal(*rectangle, value);
+          if (property.key.starts_with("radius.") || property.key.starts_with("line.")) {
+            // Compared only among the layers the field edits (rectangles, lines).
+            const auto editable = property.key.starts_with("line.") ? &appearance_has_editable_line
+                                                                    : &appearance_has_editable_radii;
+            const auto reference = std::find_if(current.begin(), current.end(), editable);
+            if (reference != current.end()) for (const auto& value : current)
+              if (editable(value)) mixed = mixed || !property.equal(*reference, value);
           } else for (const auto& value : current)
             mixed = mixed || !property.equal(current.front(), value);
         }

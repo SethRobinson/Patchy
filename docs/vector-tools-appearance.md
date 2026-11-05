@@ -34,7 +34,9 @@ reference point when on and document origin when off; offsets add either way
 (PatternTileSampler).
 
 Geometry requires one modeled origination covering every subpath: rect
-bounds and radii, ellipse bounds, or line endpoints/weight. A radius makes a
+bounds and radii, ellipse bounds, or line endpoints. A line's weight and arrowheads
+(Start, End, Width, Length, Concavity) are in its own Arrowheads section, also shown for
+a selection holding lines ([vector-tools.md](vector-tools.md#polygon-custom-shape-and-line-arrowheads)). A radius makes a
 rect rounded. Chain buttons sit between labels and fields: `shapeGeometryLinkButton` keeps W/H in the ratio captured when
 switched on; `shapeGeometryRadiusLinkButton` edits all four radii together,
 on by default only when the corners agree. Dialogs are the reviewed route; no on-canvas gizmos. The dialog also edits layer Opacity and Fill opacity,

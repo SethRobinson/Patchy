@@ -14910,10 +14910,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Koniec</translation>
     </message>
     <message>
-        <source>Arrowheads:</source>
-        <translation>Groty strzałek:</translation>
-    </message>
-    <message>
         <source>Sample radius:</source>
         <translation>Promień próbkowania:</translation>
     </message>
@@ -15009,6 +15005,38 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>The bar shows how much of this image the slider acts on: %1% of its color</source>
         <translation>Pasek pokazuje, na jaką część tego obrazu działa suwak: %1% jego koloru</translation>
+    </message>
+    <message>
+        <source>Arrowheads</source>
+        <translation>Groty strzałek</translation>
+    </message>
+    <message numerus="yes">
+        <source>Editable lines for arrowheads: %n</source>
+        <translation>
+            <numerusform>Groty strzałek: %n edytowalna linia</numerusform>
+            <numerusform>Groty strzałek: %n edytowalne linie</numerusform>
+            <numerusform>Groty strzałek: %n edytowalnych linii</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Arrowhead width, in percent of the line weight</source>
+        <translation>Szerokość grotu strzałki w procentach grubości linii</translation>
+    </message>
+    <message>
+        <source>Arrowhead length, in percent of the line weight</source>
+        <translation>Długość grotu strzałki w procentach grubości linii</translation>
+    </message>
+    <message>
+        <source>How far the back of the arrowhead curves in toward the tip (negative bulges out)</source>
+        <translation>Jak bardzo tył grotu wgina się w stronę czubka (wartość ujemna wybrzusza go na zewnątrz)</translation>
+    </message>
+    <message>
+        <source>Length:</source>
+        <translation>Długość:</translation>
+    </message>
+    <message>
+        <source>Concavity:</source>
+        <translation>Wklęsłość:</translation>
     </message>
 </context>
 <context>

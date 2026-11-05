@@ -108,7 +108,7 @@ patchy.setResult({documentId:doc.id, layerId:face.id, shape:face.getShape()});
 New shapes default to black fill and no outline, independently of toolbar settings.
 Supplying a stroke enables it by default with inside alignment. Geometry types are
 rectangle, roundedRectangle (one radius or TL/TR/BR/BL radii), ellipse, line (weight
-and arrowheads), polygon (sides and optional starInset), custom (resourceId and
+and arrowheads: width, length and concavity), polygon (sides and optional starInset), custom (resourceId and
 bounds), and path. Full-canvas fills use `addFillLayer`; empty shape geometry fails.
 
 Preview after this batch. In the next script, resolve those document/layer IDs and

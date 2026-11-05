@@ -804,7 +804,7 @@ Layer line_layer(LayerId id, double weight, bool arrow_start, bool arrow_end) {
   params.line_start_x = 60; params.line_start_y = 80.0 * static_cast<double>(id);
   params.line_end_x = 400; params.line_end_y = params.line_start_y;
   params.line_weight = weight; params.arrow_start = arrow_start; params.arrow_end = arrow_end;
-  tie_line_arrowheads_to_weight(params);
+  give_line_arrowheads_default_size(params);
   params.index = static_cast<int>(id);
   VectorShapeContent content;
   content.path.subpaths = generate_live_shape_subpaths(params);
@@ -939,6 +939,144 @@ void ui_shape_appearance_line_arrowheads() {
   CHECK(!line_params(doc, id).arrow_start && line_params(doc, id).line_weight == 6);
 }
 
+// GitHub #622 follow-up: Shape Appearance's Arrowheads section sets a line's head Width and
+// Length (percent of the weight) and Concavity, previews live, OK is one undo step, the
+// sizes survive a PSD save, and a later weight change keeps the line's own proportions.
+void ui_shape_appearance_arrowhead_size() {
+  SettingsValueRestorer arrow_start_setting(QStringLiteral("tools/lineArrowStart"));
+  SettingsValueRestorer arrow_end_setting(QStringLiteral("tools/lineArrowEnd"));
+  VectorSettingsGuard guard;
+  MainWindow window; show_window(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  const auto id = doc.allocate_layer_id(), bare = doc.allocate_layer_id();
+  doc.add_layer(line_layer(id, 6, false, true));
+  doc.add_layer(line_layer(bare, 4, false, false));
+  // A line without heads: the size rows wait for one; Cancel keeps the line.
+  select_batch_layers(window, {bare});
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    CHECK(dialog.findChild<QWidget*>(QStringLiteral("shapeArrowheadsGroup")) != nullptr);
+    auto* width = field<QSpinBox>(dialog, "shapeArrowWidthSpin");
+    CHECK(!width->isEnabled() && !field<QSpinBox>(dialog, "shapeArrowConcavitySpin")->isEnabled());
+    field<QCheckBox>(dialog, "shapeGeometryLineArrowEndCheck")->setChecked(true);
+    CHECK(width->isEnabled());
+    CHECK(process_events_until([&] { return line_params(doc, bare).arrow_end; }));
+    dialog.reject();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(process_events_until([&] { return !require_canvas(window)->processing_operation_active(); }));
+  CHECK(!line_params(doc, bare).arrow_end);
+
+  select_batch_layers(window, {id});
+  const auto before = MainWindowTestAccess::active_session_undo_depth(window);
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    auto* width = field<QSpinBox>(dialog, "shapeArrowWidthSpin");
+    auto* length = field<QSpinBox>(dialog, "shapeArrowLengthSpin");
+    auto* concavity = field<QSpinBox>(dialog, "shapeArrowConcavitySpin");
+    CHECK(width->value() == 500 && length->value() == 1000 && concavity->value() == 0);
+    CHECK(width->isEnabled() && width->minimum() == 10 && width->maximum() == 1000);
+    CHECK(length->minimum() == 10 && length->maximum() == 5000);
+    CHECK(concavity->minimum() == -50 && concavity->maximum() == 50);
+    width->setValue(300);
+    length->setValue(800);
+    concavity->setValue(25);
+    CHECK(process_events_until([&] {
+      const auto& params = line_params(doc, id);
+      return params.arrow_width == 18 && params.arrow_length == 48 && params.arrow_concavity == 25;
+    }));
+    CHECK(process_events_until([&] { return !require_canvas(window)->processing_operation_active(); }));
+    save_widget_artifact("ui_shape_appearance_arrowhead_size", dialog);
+    dialog.accept();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(line_params(doc, id).arrow_width == 18 && line_params(doc, id).arrow_length == 48);
+  CHECK(line_params(doc, id).arrow_concavity == 25 && line_params(doc, id).line_weight == 6);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before + 1);
+  // The heads are 18 px wide: the layer's outline is that tall.
+  const auto bounds = std::as_const(doc).find_layer(id)->vector_shape()->path.bounds();
+  CHECK(bounds && std::abs(bounds->bottom - bounds->top - 18.0) < 1e-6);
+  {
+    // The concave end head, zoomed in, for the review.
+    auto* canvas = require_canvas(window);
+    const auto& params = line_params(doc, id);
+    canvas->zoom_to_document_rect(QRect(static_cast<int>(params.line_end_x) - 100,
+                                        static_cast<int>(params.line_end_y) - 30, 120, 60));
+    QApplication::processEvents();
+    save_widget_artifact("ui_shape_appearance_arrowhead_canvas", *canvas);
+  }
+
+  // A Line bar weight change keeps the 300% / 800% proportions.
+  require_action_by_text(window, QStringLiteral("Line"))->trigger();
+  select_batch_layers(window, {id});
+  auto* weight = field<QDoubleSpinBox>(window, "vectorLineWeightSpin");
+  weight->setValue(10);
+  QMetaObject::invokeMethod(weight, "editingFinished", Qt::DirectConnection);
+  CHECK(line_params(doc, id).line_weight == 10);
+  CHECK(std::abs(line_params(doc, id).arrow_width - 30) < 1e-9 && std::abs(line_params(doc, id).arrow_length - 80) < 1e-9);
+  CHECK(line_params(doc, id).arrow_concavity == 25);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before + 2);
+  // And so does the dialog's Weight field.
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    CHECK(field<QSpinBox>(dialog, "shapeArrowWidthSpin")->value() == 300);
+    field<QDoubleSpinBox>(dialog, "shapeGeometryLineWeightSpin")->setValue(4);
+    QApplication::processEvents();
+    dialog.accept();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(std::abs(line_params(doc, id).arrow_width - 12) < 1e-9 && std::abs(line_params(doc, id).arrow_length - 32) < 1e-9);
+
+  // Saved and reopened, the head sizes and concavity survive.
+  const auto reopened = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(doc, {}));
+  const auto found = std::find_if(reopened.layers().begin(), reopened.layers().end(),
+                                  [&](const auto& layer) { return layer.name() == "Line " + std::to_string(id); });
+  CHECK(found != reopened.layers().end() && found->vector_shape() && found->vector_shape()->origination.size() == 1);
+  const auto& saved = found->vector_shape()->origination.front();
+  CHECK(std::abs(saved.arrow_width - 12) < 1e-9 && std::abs(saved.arrow_length - 32) < 1e-9);
+  CHECK(saved.arrow_concavity == 25 && saved.line_weight == 4);
+
+  MainWindowTestAccess::undo(window);
+  MainWindowTestAccess::undo(window);
+  CHECK(line_params(doc, id).line_weight == 6 && line_params(doc, id).arrow_width == 18);
+  MainWindowTestAccess::undo(window);
+  CHECK(line_params(doc, id).arrow_width == 30 && line_params(doc, id).arrow_length == 60);
+  CHECK(line_params(doc, id).arrow_concavity == 0);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before);
+}
+
+// GitHub #622 follow-up: with several lines selected the Arrowheads fields show mixed values
+// and a field applies on its own: Width 300% gives each line 3 times its own weight and
+// leaves the weights and heads alone.
+void ui_shape_appearance_arrowheads_multiple_lines() {
+  VectorSettingsGuard guard;
+  MainWindow window; show_window(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  const auto first = doc.allocate_layer_id(), second = doc.allocate_layer_id();
+  doc.add_layer(line_layer(first, 10, false, true));
+  doc.add_layer(line_layer(second, 4, true, true));
+  select_batch_layers(window, {first, second});
+  const auto before = MainWindowTestAccess::active_session_undo_depth(window);
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    CHECK(dialog.findChild<QLabel*>(QStringLiteral("shapeArrowheadSelectionSummary")) != nullptr);
+    auto* weight = field<QDoubleSpinBox>(dialog, "shapeGeometryLineWeightSpin");
+    auto* width = field<QSpinBox>(dialog, "shapeArrowWidthSpin");
+    CHECK(weight->property("appearanceMixed").toBool());
+    CHECK(field<QCheckBox>(dialog, "shapeGeometryLineArrowStartCheck")->property("appearanceMixed").toBool());
+    CHECK(!width->property("appearanceMixed").toBool() && width->value() == 500 && width->isEnabled());
+    width->setValue(300);
+    CHECK(process_events_until([&] {
+      return line_params(doc, first).arrow_width == 30 && line_params(doc, second).arrow_width == 12;
+    }));
+    dialog.accept();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(line_params(doc, first).arrow_width == 30 && line_params(doc, second).arrow_width == 12);
+  CHECK(line_params(doc, first).line_weight == 10 && line_params(doc, second).line_weight == 4);
+  CHECK(line_params(doc, first).arrow_length == 100 && line_params(doc, second).arrow_length == 40);
+  CHECK(!line_params(doc, first).arrow_start && line_params(doc, second).arrow_start);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before + 1);
+  MainWindowTestAccess::undo(window);
+  CHECK(line_params(doc, first).arrow_width == 50 && line_params(doc, second).arrow_width == 20);
+}
+
 } // namespace
 
 std::vector<patchy::test::TestCase> batch_appearance_tests() {
@@ -957,5 +1095,7 @@ std::vector<patchy::test::TestCase> batch_appearance_tests() {
     {"ui_batch_shape_toolbar_undo_selection_and_psd", ui_batch_shape_toolbar_undo_selection_and_psd},
     {"ui_line_options_bar_edits_selected_line", ui_line_options_bar_edits_selected_line},
     {"ui_shape_appearance_line_arrowheads", ui_shape_appearance_line_arrowheads},
+    {"ui_shape_appearance_arrowhead_size", ui_shape_appearance_arrowhead_size},
+    {"ui_shape_appearance_arrowheads_multiple_lines", ui_shape_appearance_arrowheads_multiple_lines},
   };
 }

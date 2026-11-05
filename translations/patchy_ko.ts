@@ -14818,10 +14818,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>끝</translation>
     </message>
     <message>
-        <source>Arrowheads:</source>
-        <translation>화살촉:</translation>
-    </message>
-    <message>
         <source>Sample radius:</source>
         <translation>샘플 반경:</translation>
     </message>
@@ -14917,6 +14913,36 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>The bar shows how much of this image the slider acts on: %1% of its color</source>
         <translation>막대는 이 슬라이더가 이미지의 얼마만큼에 작용하는지 보여 줍니다: 색상의 %1%</translation>
+    </message>
+    <message>
+        <source>Arrowheads</source>
+        <translation>화살촉</translation>
+    </message>
+    <message numerus="yes">
+        <source>Editable lines for arrowheads: %n</source>
+        <translation>
+            <numerusform>화살촉: 편집 가능한 선 %n개</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Arrowhead width, in percent of the line weight</source>
+        <translation>화살촉 너비(선 두께에 대한 백분율)</translation>
+    </message>
+    <message>
+        <source>Arrowhead length, in percent of the line weight</source>
+        <translation>화살촉 길이(선 두께에 대한 백분율)</translation>
+    </message>
+    <message>
+        <source>How far the back of the arrowhead curves in toward the tip (negative bulges out)</source>
+        <translation>화살촉 뒤쪽이 끝을 향해 오목하게 들어가는 정도(음수는 바깥으로 볼록)</translation>
+    </message>
+    <message>
+        <source>Length:</source>
+        <translation>길이:</translation>
+    </message>
+    <message>
+        <source>Concavity:</source>
+        <translation>오목함:</translation>
     </message>
 </context>
 <context>

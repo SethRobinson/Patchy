@@ -537,12 +537,31 @@ bool appearance_has_editable_line(const ShapeAppearanceSettings& settings) {
   return settings.geometry && settings.geometry->kind == LiveShapeKind::Line;
 }
 
-void tie_line_arrowheads_to_weight(LiveShapeParams& params) {
-  // Photoshop's default arrowhead proportions: width 5x, length 10x the weight
-  // (the Line tool and the Shape Appearance Weight field use the same rule).
+void give_line_arrowheads_default_size(LiveShapeParams& params) {
   if (!params.arrow_start && !params.arrow_end) return;
-  params.arrow_width = params.line_weight * 5.0;
-  params.arrow_length = params.line_weight * 10.0;
+  if (params.arrow_width <= 0.0) params.arrow_width = params.line_weight * kLineArrowDefaultWidthPercent / 100.0;
+  if (params.arrow_length <= 0.0) params.arrow_length = params.line_weight * kLineArrowDefaultLengthPercent / 100.0;
+}
+
+void tie_line_arrowheads_to_weight(LiveShapeParams& params, double previous_weight) {
+  // The heads keep their size relative to the weight (the Line options bar, Shape
+  // Appearance's Weight field and scripts share this rule).
+  if (previous_weight > 0.0 && params.line_weight > 0.0) {
+    const double scale = params.line_weight / previous_weight;
+    if (params.arrow_width > 0.0) params.arrow_width *= scale;
+    if (params.arrow_length > 0.0) params.arrow_length *= scale;
+  }
+  give_line_arrowheads_default_size(params);
+}
+
+double line_arrow_width_percent(const LiveShapeParams& params) {
+  return params.arrow_width > 0.0 && params.line_weight > 0.0 ? params.arrow_width / params.line_weight * 100.0
+                                                               : kLineArrowDefaultWidthPercent;
+}
+
+double line_arrow_length_percent(const LiveShapeParams& params) {
+  return params.arrow_length > 0.0 && params.line_weight > 0.0 ? params.arrow_length / params.line_weight * 100.0
+                                                                : kLineArrowDefaultLengthPercent;
 }
 
 std::vector<AppearanceProperty<ShapeAppearanceSettings>> shape_appearance_properties() {
@@ -595,8 +614,9 @@ std::vector<AppearanceProperty<ShapeAppearanceSettings>> shape_appearance_proper
       },
       [](Settings& target, double weight) {
         if (!appearance_has_editable_line(target)) return;
+        const double previous = target.geometry->line_weight;
         target.geometry->line_weight = weight;
-        tie_line_arrowheads_to_weight(*target.geometry);
+        tie_line_arrowheads_to_weight(*target.geometry, previous);
       }));
   for (const bool at_end : {false, true}) {
     result.push_back(appearance_property<Settings, bool>(
@@ -610,9 +630,41 @@ std::vector<AppearanceProperty<ShapeAppearanceSettings>> shape_appearance_proper
           auto& params = *target.geometry;
           (at_end ? params.arrow_end : params.arrow_start) = on;
           // A head switched on gets the default size; one the line already had keeps its own.
-          if (on && (params.arrow_width <= 0.0 || params.arrow_length <= 0.0)) tie_line_arrowheads_to_weight(params);
+          if (on) give_line_arrowheads_default_size(params);
         }));
   }
+  // Head width and length as a percent of the weight: each line gets the same proportion
+  // of its own weight, so a multi-line edit keeps every line's weight.
+  for (const bool length : {false, true}) {
+    const std::string key = length ? "line.arrow_length" : "line.arrow_width";
+    const auto percent = [length](const Settings& value) {
+      return length ? line_arrow_length_percent(*value.geometry) : line_arrow_width_percent(*value.geometry);
+    };
+    AppearanceProperty<Settings> property;
+    property.key = key;
+    property.equal = [percent](const Settings& a, const Settings& b) {
+      const bool left = appearance_has_editable_line(a), right = appearance_has_editable_line(b);
+      if (!left || !right) return left == right;
+      return std::abs(percent(a) - percent(b)) < 1e-9 * std::max(1.0, percent(a));
+    };
+    property.capture = [key, percent, length](const Settings& source) -> AppearanceEdit<Settings> {
+      if (!appearance_has_editable_line(source)) return {key, [](Settings&) {}};
+      return {key, [value = percent(source), length](Settings& target) {
+        if (!appearance_has_editable_line(target)) return;
+        auto& params = *target.geometry;
+        (length ? params.arrow_length : params.arrow_width) = params.line_weight * value / 100.0;
+      }};
+    };
+    result.push_back(std::move(property));
+  }
+  result.push_back(appearance_property<Settings, std::int32_t>(
+      "line.arrow_concavity",
+      [](const Settings& value) -> const std::int32_t* {
+        return appearance_has_editable_line(value) ? &value.geometry->arrow_concavity : nullptr;
+      },
+      [](Settings& target, std::int32_t concavity) {
+        if (appearance_has_editable_line(target)) target.geometry->arrow_concavity = std::clamp(concavity, -50, 50);
+      }));
   auto geometry = appearance_property<Settings, std::optional<LiveShapeParams>>(
       "geometry", [](const Settings& value) { return &value.geometry; },
       [](Settings& target, const std::optional<LiveShapeParams>& value) { target.geometry = value; });

@@ -14818,10 +14818,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>終點</translation>
     </message>
     <message>
-        <source>Arrowheads:</source>
-        <translation>箭頭:</translation>
-    </message>
-    <message>
         <source>Sample radius:</source>
         <translation>取樣半徑:</translation>
     </message>
@@ -14917,6 +14913,36 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>The bar shows how much of this image the slider acts on: %1% of its color</source>
         <translation>長條顯示此滑桿作用於該影像的多少: 其色彩的 %1%</translation>
+    </message>
+    <message>
+        <source>Arrowheads</source>
+        <translation>箭頭</translation>
+    </message>
+    <message numerus="yes">
+        <source>Editable lines for arrowheads: %n</source>
+        <translation>
+            <numerusform>箭頭：%n 條可編輯線條</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Arrowhead width, in percent of the line weight</source>
+        <translation>箭頭寬度（線條粗細的百分比）</translation>
+    </message>
+    <message>
+        <source>Arrowhead length, in percent of the line weight</source>
+        <translation>箭頭長度（線條粗細的百分比）</translation>
+    </message>
+    <message>
+        <source>How far the back of the arrowhead curves in toward the tip (negative bulges out)</source>
+        <translation>箭頭後緣向尖端凹進的程度（負值向外凸出）</translation>
+    </message>
+    <message>
+        <source>Length:</source>
+        <translation>長度:</translation>
+    </message>
+    <message>
+        <source>Concavity:</source>
+        <translation>凹度:</translation>
     </message>
 </context>
 <context>

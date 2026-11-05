@@ -2614,7 +2614,7 @@ void ui_line_arrowheads_extend_the_shape() {
   CHECK(layer != nullptr);
   const auto* content = layer->vector_shape();
   CHECK(content != nullptr);
-  CHECK(content->path.subpaths.size() == 2);  // body quad + arrowhead
+  CHECK(content->path.subpaths.size() == 1);  // body and arrowhead as one outline
   CHECK(content->origination.size() == 1);
   CHECK(content->origination[0].arrow_end);
   // The head is wider than the 6 px body: bounds reach ~15 px from the axis.

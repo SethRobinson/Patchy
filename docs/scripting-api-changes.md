@@ -21,6 +21,13 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-05 (additive and behavioral): line geometry takes `arrowConcavity` (-50..50 percent, default 0)
+and `getShape()` returns it with the line's other arrowhead values (GitHub #622 follow-up,
+[vector-tools.md](vector-tools.md#polygon-custom-shape-and-line-arrowheads)). `updateShape` with a line
+geometry replacing a line now keeps that line's head proportions, scaled with the new weight, and its
+concavity when `arrowWidth`, `arrowLength` or `arrowConcavity` are left out (they were reset to 5 and
+10 times the weight and 0). Permanent identifier: `arrowConcavity`. Pinned by
+`ui_script_vector_line_arrowheads_keep_proportions`.
 2026-11-05 (additive): `layer.colorLabel` takes and returns `"seafoam"`, `"indigo"`, `"magenta"` and
 `"fuchsia"`, Photoshop 2024's layer colors (PSD `lclr` 8 to 11, GitHub issue 635,
 [layer-panel.md](layer-panel.md#color-labels)). Permanent identifiers: those four ids and the command

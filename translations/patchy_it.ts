@@ -14864,10 +14864,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Fine</translation>
     </message>
     <message>
-        <source>Arrowheads:</source>
-        <translation>Punte di freccia:</translation>
-    </message>
-    <message>
         <source>Sample radius:</source>
         <translation>Raggio campione:</translation>
     </message>
@@ -14963,6 +14959,37 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>The bar shows how much of this image the slider acts on: %1% of its color</source>
         <translation>La barra mostra quanta parte di questa immagine è interessata dal cursore: %1% del suo colore</translation>
+    </message>
+    <message>
+        <source>Arrowheads</source>
+        <translation>Punte di freccia</translation>
+    </message>
+    <message numerus="yes">
+        <source>Editable lines for arrowheads: %n</source>
+        <translation>
+            <numerusform>Punte di freccia: %n linea modificabile</numerusform>
+            <numerusform>Punte di freccia: %n linee modificabili</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Arrowhead width, in percent of the line weight</source>
+        <translation>Larghezza della punta di freccia, in percentuale dello spessore della linea</translation>
+    </message>
+    <message>
+        <source>Arrowhead length, in percent of the line weight</source>
+        <translation>Lunghezza della punta di freccia, in percentuale dello spessore della linea</translation>
+    </message>
+    <message>
+        <source>How far the back of the arrowhead curves in toward the tip (negative bulges out)</source>
+        <translation>Quanto il retro della punta di freccia si incurva verso la punta (negativo la fa sporgere)</translation>
+    </message>
+    <message>
+        <source>Length:</source>
+        <translation>Lunghezza:</translation>
+    </message>
+    <message>
+        <source>Concavity:</source>
+        <translation>Concavità:</translation>
     </message>
 </context>
 <context>
