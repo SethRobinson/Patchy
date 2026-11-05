@@ -19591,6 +19591,17 @@ Each item&apos;s own View setting still applies.</source>
         <source>Show only favorite fonts</source>
         <translation>즐겨찾기 글꼴만 표시</translation>
     </message>
+    <message numerus="yes">
+        <source>More matches with All Styles and All Languages: %n</source>
+        <extracomment>Under the font list while searching: fonts that match the search but are hidden by the Style or Language filter next to the search box. Clicking it sets both filters to All.</extracomment>
+        <translation>
+            <numerusform>모든 스타일 및 모든 언어에서 추가로 일치: %n</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Set Style and Language to All</source>
+        <translation>스타일과 언어를 모두로 설정</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

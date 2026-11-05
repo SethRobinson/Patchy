@@ -19638,6 +19638,18 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Show only favorite fonts</source>
         <translation>Afficher uniquement les polices favorites</translation>
     </message>
+    <message numerus="yes">
+        <source>More matches with All Styles and All Languages: %n</source>
+        <extracomment>Under the font list while searching: fonts that match the search but are hidden by the Style or Language filter next to the search box. Clicking it sets both filters to All.</extracomment>
+        <translation>
+            <numerusform>Autres résultats avec Tous les styles et Toutes les langues : %n</numerusform>
+            <numerusform>Autres résultats avec Tous les styles et Toutes les langues : %n</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Set Style and Language to All</source>
+        <translation>Régler Style et Langue sur Tous</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

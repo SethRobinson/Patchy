@@ -1,5 +1,5 @@
-// The text bar font picker's Recent section (GitHub issue 569), its Favorites (GitHub issue 630)
-// and its Style and Language filters (GitHub issue 570). See docs/font-picker.md.
+// The text bar font picker's Recent section (GitHub issue 569), its Favorites (GitHub issue 630),
+// its Style and Language filters (GitHub issue 570) and the hidden-matches hint (GitHub issue 647). See docs/font-picker.md.
 #include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/font_family_filters.hpp"
@@ -791,6 +791,105 @@ void ui_font_picker_recent_remove_button_keeps_popup_open() {
   reset_picker_settings();
 }
 
+// GitHub issue 647: while searching, a line under the list counts the matches the Style or
+// Language filter hides; clicking it sets both filters to All.
+void ui_font_picker_hidden_matches_hint_counts_and_resets() {
+  register_test_fonts(TestFontRole::Verdana);
+  reset_picker_settings();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* picker = type_tool_picker(window);
+  CHECK(picker != nullptr);
+
+  auto* popup = open_picker_popup(*picker);
+  CHECK(popup != nullptr);
+  auto* search = popup->findChild<QLineEdit*>(QStringLiteral("textFontPickerSearchEdit"));
+  auto* list = popup->findChild<QListView*>(QStringLiteral("textFontPickerList"));
+  auto* style = popup->findChild<QComboBox*>(QStringLiteral("textFontPickerStyleCombo"));
+  auto* language = popup->findChild<QComboBox*>(QStringLiteral("textFontPickerLanguageCombo"));
+  auto* hint = popup->findChild<QToolButton*>(QStringLiteral("textFontPickerHiddenMatchesButton"));
+  CHECK(search != nullptr && list != nullptr && style != nullptr && language != nullptr && hint != nullptr);
+  CHECK(hint->isHidden());
+  CHECK(hint->focusPolicy() == Qt::NoFocus);
+
+  // Monospace reads no font tables, so the expected count is known up front.
+  auto& index = patchy::ui::FontStyleIndex::instance();
+  const auto hidden_by_monospace = [&](const QString& text) {
+    int hidden = 0;
+    for (int row = 0; row < picker->count(); ++row) {
+      const auto family = picker->itemText(row);
+      if (family.contains(text, Qt::CaseInsensitive) &&
+          !index.matches(patchy::ui::FontStyleFilter::monospace, family, {})) {
+        ++hidden;
+      }
+    }
+    return hidden;
+  };
+  // A family that is not monospace: searching its whole name finds at least that one.
+  QString proportional;
+  for (int row = 0; row < picker->count() && proportional.isEmpty(); ++row) {
+    if (!index.matches(patchy::ui::FontStyleFilter::monospace, picker->itemText(row), {})) {
+      proportional = picker->itemText(row);
+    }
+  }
+  if (proportional.isEmpty()) {
+    patchy::test::skip("no proportional font family on this machine");
+  }
+
+  // All Styles hides nothing, so no hint.
+  QTest::keyClicks(search, proportional);
+  QApplication::processEvents();
+  CHECK(hint->isHidden());
+  CHECK(family_rows(*list, false).contains(proportional));
+
+  // Monospace hides it: the hint counts every hidden match.
+  style->setCurrentIndex(style->findData(QStringLiteral("monospace")));
+  QApplication::processEvents();
+  CHECK(!family_rows(*list, false).contains(proportional));
+  const int expected = hidden_by_monospace(proportional);
+  CHECK(expected >= 1);
+  CHECK(!hint->isHidden());
+  CHECK(hint->text().contains(QString::number(expected)));
+  std::cout << "  note: \"" << proportional.toStdString() << "\" hint: " << hint->text().toStdString() << "\n";
+
+  // No search, no hint, even with a filter on.
+  search->clear();
+  QApplication::processEvents();
+  CHECK(hint->isHidden());
+  // A search nothing matches: no hint.
+  QTest::keyClicks(search, QStringLiteral("zz no such font 647"));
+  QApplication::processEvents();
+  CHECK(hint->isHidden());
+
+  // A short search, as in the report, for the screenshot.
+  search->clear();
+  QTest::keyClicks(search, QStringLiteral("co"));
+  QApplication::processEvents();
+  CHECK(hint->isHidden() == (hidden_by_monospace(QStringLiteral("co")) == 0));
+  save_widget_artifact("issue647_font_picker_hidden_matches", *popup);
+
+  // Clicking the hint sets Style and Language to All and lists the hidden matches.
+  search->clear();
+  QTest::keyClicks(search, proportional);
+  const auto latin = language->findData(QStringLiteral("Latin"));
+  if (latin > 0) {
+    language->setCurrentIndex(latin);
+  }
+  QApplication::processEvents();
+  CHECK(!hint->isHidden());
+  QTest::mouseClick(hint, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(style->currentData().toString() == QStringLiteral("all"));
+  CHECK(language->currentData().toString() == QStringLiteral("all"));
+  CHECK(hint->isHidden());
+  CHECK(family_rows(*list, false).contains(proportional));
+  CHECK(search->text() == proportional);
+  CHECK(popup->isVisible());
+  popup->close();
+  QApplication::processEvents();
+  reset_picker_settings();
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> font_picker_filter_tests() {
@@ -804,5 +903,6 @@ std::vector<patchy::test::TestCase> font_picker_filter_tests() {
       {"ui_font_picker_favorite_star_toggles_without_picking", ui_font_picker_favorite_star_toggles_without_picking},
       {"ui_font_picker_favorites_view_filters_and_persists", ui_font_picker_favorites_view_filters_and_persists},
       {"ui_font_picker_recent_remove_button_keeps_popup_open", ui_font_picker_recent_remove_button_keeps_popup_open},
+      {"ui_font_picker_hidden_matches_hint_counts_and_resets", ui_font_picker_hidden_matches_hint_counts_and_resets},
   };
 }

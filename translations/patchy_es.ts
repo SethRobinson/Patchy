@@ -19638,6 +19638,18 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Show only favorite fonts</source>
         <translation>Mostrar solo fuentes favoritas</translation>
     </message>
+    <message numerus="yes">
+        <source>More matches with All Styles and All Languages: %n</source>
+        <extracomment>Under the font list while searching: fonts that match the search but are hidden by the Style or Language filter next to the search box. Clicking it sets both filters to All.</extracomment>
+        <translation>
+            <numerusform>Más coincidencias con Todos los estilos y Todos los idiomas: %n</numerusform>
+            <numerusform>Más coincidencias con Todos los estilos y Todos los idiomas: %n</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Set Style and Language to All</source>
+        <translation>Poner Estilo e Idioma en Todos</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>
