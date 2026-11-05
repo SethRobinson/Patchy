@@ -19363,6 +19363,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Switch between the hand and rotate view tools</source>
         <translation>在手形和旋轉檢視工具之間切換</translation>
     </message>
+    <message>
+        <source>Turn text, shapes or smart objects into plain pixels</source>
+        <translation>將文字、形狀或智慧型物件轉換為一般像素</translation>
+    </message>
+    <message>
+        <source>Bake the layer effects into the pixels</source>
+        <translation>將圖層效果烘焙到像素中</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>

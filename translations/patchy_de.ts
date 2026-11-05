@@ -19410,6 +19410,14 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Switch between the hand and rotate view tools</source>
         <translation>Zwischen Hand und Ansicht drehen wechseln</translation>
     </message>
+    <message>
+        <source>Turn text, shapes or smart objects into plain pixels</source>
+        <translation>Text, Formen oder Smartobjekte in reine Pixel umwandeln</translation>
+    </message>
+    <message>
+        <source>Bake the layer effects into the pixels</source>
+        <translation>Die Ebeneneffekte in die Pixel einrechnen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>

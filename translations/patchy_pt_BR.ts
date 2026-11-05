@@ -19410,6 +19410,14 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Switch between the hand and rotate view tools</source>
         <translation>Alternar entre as ferramentas mão e girar vista</translation>
     </message>
+    <message>
+        <source>Turn text, shapes or smart objects into plain pixels</source>
+        <translation>Transformar texto, formas ou objetos inteligentes em pixels simples</translation>
+    </message>
+    <message>
+        <source>Bake the layer effects into the pixels</source>
+        <translation>Incorporar os efeitos da camada aos pixels</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>

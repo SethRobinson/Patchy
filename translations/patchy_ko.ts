@@ -19363,6 +19363,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Switch between the hand and rotate view tools</source>
         <translation>손 도구와 보기 회전 도구 전환</translation>
     </message>
+    <message>
+        <source>Turn text, shapes or smart objects into plain pixels</source>
+        <translation>텍스트, 모양 또는 스마트 개체를 일반 픽셀로 변환</translation>
+    </message>
+    <message>
+        <source>Bake the layer effects into the pixels</source>
+        <translation>레이어 효과를 픽셀에 적용하여 굽기</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>

@@ -19457,6 +19457,14 @@ Each item&apos;s own View setting still applies.</source>
         <source>Switch between the hand and rotate view tools</source>
         <translation>Переключить инструменты «Рука» и «Поворот вида»</translation>
     </message>
+    <message>
+        <source>Turn text, shapes or smart objects into plain pixels</source>
+        <translation>Превратить текст, фигуры или смарт-объекты в обычные пиксели</translation>
+    </message>
+    <message>
+        <source>Bake the layer effects into the pixels</source>
+        <translation>Вплавить эффекты слоя в пиксели</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>

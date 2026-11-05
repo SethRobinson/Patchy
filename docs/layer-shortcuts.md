@@ -7,12 +7,18 @@ Hotkey ids are permanent ([ui-conventions.md](ui-conventions.md), Hotkeys).
 
 The Layer menu's rows are added in one block in display order (after the lock actions in
 `build_menu_bar_actions`; GitHub issue 627): New, New Fill Layer, New Adjustment Layer; Duplicate,
-Export (`layerExportMenu`: Quick Export as PNG, Export As..., then Duplicate Layer to Document...),
-Delete; Rename, Color, Hide & Lock; Layer Style, Fill and Adjustment Layer; Layer Mask through
-Shape; Fill (`layerFillMenu`: Fill Layer / Selection, Fill With Background Color, Clear Layer /
+Rasterize (`layerRasterizeMenu`), Export (`layerExportMenu`: Quick Export as PNG, Export As..., then
+Duplicate Layer to Document...), Delete; Rename, Color, Hide & Lock; Layer Style, Fill and Adjustment
+Layer; Layer Mask, Vector Mask, Create Clipping Mask; Smart Objects, Shape; Fill (`layerFillMenu`: Fill Layer / Selection, Fill With Background Color, Clear Layer /
 Selection), Arrange, Rotate & Flip, Merge (`layerMergeMenu`: Merge Down, Merge Visible, Merge
 Visible to New Layer (Copy)). Keys fire from the submenus, and opening Merge refreshes Merge
-Visible's state. Pin: `ui_layer_menu_groups_fill_and_merge_submenus`.
+Visible's state. Pin: `ui_layer_menu_groups_fill_and_merge_submenus` (21 rows).
+
+- `layerRasterizeMenu` (Rasterize): the layer context menu's `layerContextRasterizeMenu` rows,
+  both built by `populate_layer_rasterize_menu` on the same actions: Rasterize, Rasterize (including
+  layer style); Trace Image to Shapes; on a text layer the Type menu's Convert to Shape and Create
+  Work Path. The Layer menu's copy is rebuilt on `aboutToShow` and by `show_command_search`;
+  enabled states come from `refresh_layer_controls`. Pin: `ui_issue_627_layer_menu_rasterize_submenu`.
 
 - `layerHideLockMenu` (Hide & Lock): Hide Layers, Show All Layers; Lock Layers...; the layer
   context menu's Lock entries (the shared Lock Transparent Pixels, then `layerMenuLockImagePixelsAction`,
