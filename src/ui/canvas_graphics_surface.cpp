@@ -1,3 +1,4 @@
+#include "ui/transparency_checkerboard.hpp"
 #include "ui/canvas_graphics_surface.hpp"
 
 #ifndef PATCHY_GPU_CANVAS
@@ -525,7 +526,8 @@ public:
           const auto column = static_cast<int>(std::floor((x - left) / square));
           const auto row = static_cast<int>(std::floor((y - top) / square));
           painter->fillRect(QRectF(x, y, square, square),
-                            ((column + row) & 1) == 0 ? QColor(188, 188, 188) : QColor(236, 236, 236));
+                            ((column + row) & 1) == 0 ? checkerboard_dark_square()
+                                              : checkerboard_light_square());
         }
       }
       painter->restore();
