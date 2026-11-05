@@ -1,7 +1,7 @@
 # Document tab context menu
 
-Read this before changing the menu a right-click on a document tab opens, Rename File, File >
-Revert, or what opening an already open file does.
+Read this before changing the menu a right-click on a document tab opens, Rename File, Revert,
+or what opening an already open file does.
 Floating a document (also on this menu) is in [float-windows.md](float-windows.md).
 
 `MainWindow::show_document_tab_context_menu` (src/ui/main_window_sessions.cpp) builds the
@@ -12,6 +12,7 @@ menu `documentTabContextMenu` fresh on each right-click:
 | Close / Close Others / Close All | `documentTabClose*Action` | Close Others needs a second document |
 | Float in Window | `documentTabFloatAction` | hidden on wasm |
 | Reopen Document | `documentTabReopenAction` | reloads the file in place; asks first when modified |
+| Revert | `documentTabRevertAction` | Revert below for the clicked document; shows F12 |
 | Reveal in Explorer (Finder, file manager) | `documentTabRevealAction` | per-platform label |
 | Copy File Path | `documentTabCopyPathAction` | native separators |
 | Rename File... | `documentTabRenameFileAction` | below; hidden on wasm |
@@ -102,6 +103,6 @@ untitled document; Unicode folder and names; Dark and Light captures
 Watermarks: `ui_document_tab_scan_for_watermarks` (tests/ui/file_info_tests.cpp, capture
 `ui_document_tab_menu_scan_for_watermarks`).
 
-## File > Revert
+## Revert
 
-`file.revert` (F12, GitHub issue 584; `MainWindow::revert_active_document` in main_window_files.cpp) reloads the active document from its file. Enabled for a document with a file in a format File > Open reads (or one opened by its content), never for an untitled document or an Edit Contents tab (`active_document_can_revert`). A modified document asks first (`revertDocumentMessageBox`); one with open smart object contents is refused. The file opens as a new session before the old one closes without a save prompt, so a file that no longer opens leaves the document as it was; the new tab moves to the old tab's place. Not undoable; the file is only read. Test: `ui_issue_584_revert_reloads_the_saved_file`.
+`file.revert` (F12, GitHub issue 584; `MainWindow::revert_active_document` in main_window_files.cpp) reloads the active document from its file. It has no menu-bar row since issue 619's second follow-up: the window carries `fileRevertAction` (F12, Search Commands), and the tab menu's Revert (enabled by `session_can_revert` for the clicked tab's document, off under a preview dialog) activates that document after the menu closes and runs the same command (`ui_issue_619_preferences_in_edit_and_revert_in_tab_menu`). Enabled for a document with a file in a format File > Open reads (or one opened by its content), never for an untitled document or an Edit Contents tab (`active_document_can_revert`). A modified document asks first (`revertDocumentMessageBox`); one with open smart object contents is refused. The file opens as a new session before the old one closes without a save prompt, so a file that no longer opens leaves the document as it was; the new tab moves to the old tab's place. Not undoable; the file is only read. Test: `ui_issue_584_revert_reloads_the_saved_file`.

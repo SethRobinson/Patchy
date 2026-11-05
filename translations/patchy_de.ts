@@ -19287,6 +19287,82 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Tag the layer fuchsia in the Layers panel</source>
         <translation>Die Ebene im Ebenenbedienfeld fuchsia markieren</translation>
     </message>
+    <message>
+        <source>Keep painting and filters off the layer</source>
+        <translation>Malen und Filter von der Ebene fernhalten</translation>
+    </message>
+    <message>
+        <source>Keep the layer from moving</source>
+        <translation>Die Ebene am Verschieben hindern</translation>
+    </message>
+    <message>
+        <source>Protect the layer from every change</source>
+        <translation>Die Ebene vor jeder Änderung schützen</translation>
+    </message>
+    <message>
+        <source>Open the effects dialog on its opacity and blend settings</source>
+        <translation>Den Effektdialog bei Deckkraft und Mischmodus öffnen</translation>
+    </message>
+    <message>
+        <source>Raised or carved edge effect</source>
+        <translation>Erhabener oder eingravierter Kanteneffekt</translation>
+    </message>
+    <message>
+        <source>Outline effect around the layer</source>
+        <translation>Umrisseffekt um die Ebene</translation>
+    </message>
+    <message>
+        <source>Shadow effect inside the edges</source>
+        <translation>Schatteneffekt innerhalb der Kanten</translation>
+    </message>
+    <message>
+        <source>Light effect inside the edges</source>
+        <translation>Leuchteffekt innerhalb der Kanten</translation>
+    </message>
+    <message>
+        <source>Silky inner shading effect</source>
+        <translation>Seidiger innerer Schattierungseffekt</translation>
+    </message>
+    <message>
+        <source>Tint the layer with one color, as an effect</source>
+        <translation>Die Ebene als Effekt mit einer Farbe tönen</translation>
+    </message>
+    <message>
+        <source>Cover the layer with a blend of colors, as an effect</source>
+        <translation>Die Ebene als Effekt mit einem Farbverlauf bedecken</translation>
+    </message>
+    <message>
+        <source>Cover the layer with a repeating tile, as an effect</source>
+        <translation>Die Ebene als Effekt mit einer sich wiederholenden Kachel bedecken</translation>
+    </message>
+    <message>
+        <source>Light effect around the edges</source>
+        <translation>Leuchteffekt um die Kanten</translation>
+    </message>
+    <message>
+        <source>Shadow effect cast behind the layer</source>
+        <translation>Schatteneffekt hinter der Ebene</translation>
+    </message>
+    <message>
+        <source>Take the layer&apos;s effects to paste elsewhere</source>
+        <translation>Die Effekte der Ebene zum Einfügen an anderer Stelle übernehmen</translation>
+    </message>
+    <message>
+        <source>Put copied effects on the selected layers</source>
+        <translation>Kopierte Effekte auf die ausgewählten Ebenen anwenden</translation>
+    </message>
+    <message>
+        <source>Remove every effect from the selected layers</source>
+        <translation>Alle Effekte von den ausgewählten Ebenen entfernen</translation>
+    </message>
+    <message>
+        <source>Turn the layer&apos;s effects on or off</source>
+        <translation>Die Effekte der Ebene ein- oder ausschalten</translation>
+    </message>
+    <message>
+        <source>Change the color, gradient or pattern of a fill layer</source>
+        <translation>Farbe, Verlauf oder Muster einer Füllebene ändern</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -20368,10 +20444,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>&amp;Apply Layer Mask</source>
         <translation>Ebenenmaske &amp;anwenden</translation>
-    </message>
-    <message>
-        <source>&amp;Edit Adjustment...</source>
-        <translation>&amp;Korrektur bearbeiten...</translation>
     </message>
     <message>
         <source>Edit Layer &amp;Styles...</source>
@@ -32645,6 +32717,34 @@ Fixiert: %1</translation>
     <message>
         <source>Fuchsia</source>
         <translation>Fuchsia</translation>
+    </message>
+    <message>
+        <source>&amp;Adjustment Layer Settings...</source>
+        <translation>&amp;Einstellungsebene-Einstellungen...</translation>
+    </message>
+    <message>
+        <source>&amp;Hide &amp;&amp; Lock</source>
+        <translation>Ausblenden und &amp;fixieren</translation>
+    </message>
+    <message>
+        <source>Layer &amp;Style</source>
+        <translation>Ebenen&amp;stil</translation>
+    </message>
+    <message>
+        <source>Blending Options...</source>
+        <translation>Fülloptionen...</translation>
+    </message>
+    <message>
+        <source>&amp;Fill Layer Settings...</source>
+        <translation>&amp;Füllebenen-Einstellungen...</translation>
+    </message>
+    <message>
+        <source>Fi&amp;ll and Adjustment Layer</source>
+        <translation>Füll- und Einste&amp;llungsebene</translation>
+    </message>
+    <message>
+        <source>Select a fill layer to edit its settings</source>
+        <translation>Wählen Sie eine Füllebene aus, um ihre Einstellungen zu bearbeiten</translation>
     </message>
 </context>
 <context>

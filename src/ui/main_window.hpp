@@ -525,6 +525,8 @@ public:
   // dropping unsaved changes after one question, in the same tab position.
   [[nodiscard]] bool active_document_can_revert() const;
   void revert_active_document();
+  // The same rule for any open document (the document tab's Revert, issue 619).
+  [[nodiscard]] bool session_can_revert(const DocumentSession& target_session) const;
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -1858,6 +1860,12 @@ private:
   void paste_layer_style_to_selected_layers();
   void delete_selected_layer_styles();
   void refresh_layer_style_action_states();
+  // Layer > Hide & Lock and Layer > Layer Style (GitHub issue 627): the lock checks, the
+  // style page entries' and style clipboard's enabled states, and the effects switch.
+  void refresh_layer_menu_lock_and_style_states();
+  // Layer > Fill and Adjustment Layer > Fill Layer Settings... (GitHub issue 627): the fill
+  // dialog for selected fill layers, as the layer context menu's Edit Fill Settings....
+  void edit_active_fill_layer_settings();
   // Layer color labels (GitHub issue 244): one undo step that labels every
   // selected (else the active) layer, groups included.
   void set_selected_layers_color(LayerColorLabel label);
@@ -3232,6 +3240,13 @@ private:
   // Lock Transparent Pixels (GitHub issue 529): "/" by default; on the window and in the layer
   // context menu's Lock submenu.
   QAction* layer_lock_transparent_pixels_action_{nullptr};
+  // Layer > Hide & Lock's other locks and Layer > Layer Style's pages and effects switch
+  // (GitHub issue 627; refresh_layer_menu_lock_and_style_states).
+  QAction* layer_menu_lock_image_pixels_action_{nullptr};
+  QAction* layer_menu_lock_position_action_{nullptr};
+  QAction* layer_menu_lock_all_action_{nullptr};
+  QAction* layer_menu_show_layer_styles_action_{nullptr};
+  std::vector<QAction*> layer_menu_style_page_actions_;
   QAction* layer_toggle_visibility_action_{nullptr};
   // Layer > Merge > Merge Visible (refresh_merge_visible_action_state).
   QAction* layer_merge_visible_layers_action_{nullptr};

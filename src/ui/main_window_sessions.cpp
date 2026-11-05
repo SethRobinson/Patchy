@@ -1255,6 +1255,9 @@ void MainWindow::show_document_tab_context_menu(const QPoint& position) {
   auto* float_action = menu.addAction(tr("Float in Window"));
   menu.addSeparator();
   auto* reopen_action = menu.addAction(tr("Reopen Document"));
+  // Revert (F12) left the File menu for this menu (GitHub issue 619): the window's action
+  // for the clicked document, with its key shown.
+  auto* revert_action = menu.addAction(tr("Revert"));
 #if defined(Q_OS_WIN)
   auto* reveal_action = menu.addAction(tr("Reveal in Explorer"));
 #elif defined(Q_OS_MACOS)
@@ -1272,6 +1275,11 @@ void MainWindow::show_document_tab_context_menu(const QPoint& position) {
   close_all_action->setObjectName(QStringLiteral("documentTabCloseAllAction"));
   float_action->setObjectName(QStringLiteral("documentTabFloatAction"));
   reopen_action->setObjectName(QStringLiteral("documentTabReopenAction"));
+  revert_action->setObjectName(QStringLiteral("documentTabRevertAction"));
+  if (revert_action_ != nullptr) {
+    revert_action->setShortcut(revert_action_->shortcut());  // shown only; the window's action owns the key
+    revert_action->setShortcutContext(Qt::WidgetShortcut);
+  }
   reveal_action->setObjectName(QStringLiteral("documentTabRevealAction"));
   copy_path_action->setObjectName(QStringLiteral("documentTabCopyPathAction"));
   rename_file_action->setObjectName(QStringLiteral("documentTabRenameFileAction"));
@@ -1295,6 +1303,8 @@ void MainWindow::show_document_tab_context_menu(const QPoint& position) {
   const auto session_id = target_session != nullptr ? target_session->session_id : 0;
   const bool has_path = !document_path.isEmpty();
   reopen_action->setEnabled(has_path);
+  revert_action->setEnabled(target_session != nullptr && !preview_dialog_edit_locked() &&
+                            session_can_revert(*target_session));
   reveal_action->setEnabled(has_path);
   copy_path_action->setEnabled(has_path);
   // A linked smart object's tab is the parent's link target: renaming it would break
@@ -1318,6 +1328,15 @@ void MainWindow::show_document_tab_context_menu(const QPoint& position) {
     if (auto* reopen_session = session_with_id(session_id); reopen_session != nullptr) {
       reopen_document_session(*reopen_session);
     }
+  });
+  connect(revert_action, &QAction::triggered, this, [this, session_id] {
+    // After the menu has closed, so the question and the reload do not run inside its loop.
+    QTimer::singleShot(0, this, [this, session_id] {
+      if (auto* target = session_with_id(session_id); target != nullptr) {
+        activate_document_session(*target);
+        revert_active_document();
+      }
+    });
   });
   connect(reveal_action, &QAction::triggered, this, [this, document_path] {
     reveal_path_in_file_explorer(document_path, /*is_file=*/true);

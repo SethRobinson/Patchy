@@ -66,7 +66,10 @@
 #include <QKeySequence>
 #include <QListWidget>
 #include <QMenu>
+#include <QContextMenuEvent>
 #include <QMessageBox>
+#include <QTabBar>
+#include <QTabWidget>
 #include <QMimeData>
 #include <QProgressDialog>
 #include <QPushButton>
@@ -91,6 +94,9 @@ using patchy::test::ui::save_widget_artifact;
 using patchy::test::ui::SettingsValueRestorer;
 using patchy::test::ui::show_window;
 using patchy::test::ui::guarded;
+using patchy::test::ui::ensure_artifact_dir;
+using patchy::test::ui::process_events_until;
+using patchy::test::ui::when_dialog_visible;
 
 namespace {
 
@@ -881,15 +887,15 @@ void ui_file_export_menu_actions_registered() {
         QStringLiteral("&Documents to Folder..."));
   CHECK(require_action(window, "fileExportAnimatedGifAction")->text() ==
         QStringLiteral("Layers as Animated &GIF..."));
-  // Export for Web sits in the File menu itself, under Save As and Revert, right above the
-  // Export submenu (docs/web-export.md, GitHub issue 619), and has Ctrl+Alt+Shift+S; Flat
-  // Image gave the key up.
+  // Export for Web sits in the File menu itself, under Save As, right above the Export
+  // submenu (docs/web-export.md, GitHub issue 619), and has Ctrl+Alt+Shift+S; Flat Image
+  // gave the key up.
   auto* web = require_action(window, "fileExportForWebAction");
   CHECK(!export_menu->actions().contains(web));
   if (file_menu != nullptr) {
     const auto actions = file_menu->actions();
     const auto web_index = actions.indexOf(web);
-    CHECK(web_index > 0 && actions.at(web_index - 1) == require_action(window, "fileRevertAction"));
+    CHECK(web_index > 0 && actions.at(web_index - 1) == require_action(window, "fileSaveAsAction"));
     CHECK(web_index + 1 < actions.size() && actions.at(web_index + 1) == export_menu->menuAction());
   }
   const auto* web_command = window.hotkey_registry().find_command(QStringLiteral("file.export_for_web"));
@@ -900,8 +906,9 @@ void ui_file_export_menu_actions_registered() {
 }
 
 // GitHub issue 619: the File menu is grouped by separators, with Place and Metadata
-// submenus, so it fits a short screen. Only placement changed: every command keeps its
-// object name, text and command id.
+// submenus, so it fits a short screen; Revert moved to the document tab's menu and
+// Preferences to the Edit menu (its second follow-up). Only placement changed: every
+// command keeps its object name, text and command id.
 void ui_issue_619_file_menu_groups_and_submenus() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -950,7 +957,6 @@ void ui_issue_619_file_menu_groups_and_submenus() {
       QStringLiteral("-"),
       QStringLiteral("fileSaveAction"),
       QStringLiteral("fileSaveAsAction"),
-      QStringLiteral("fileRevertAction"),
       QStringLiteral("fileExportForWebAction"),
       QStringLiteral("fileExportMenu"),
       QStringLiteral("-"),
@@ -964,8 +970,6 @@ void ui_issue_619_file_menu_groups_and_submenus() {
       QStringLiteral("-"),
       QStringLiteral("fileCloseAction"),
       QStringLiteral("fileCloseAllAction"),
-      QStringLiteral("-"),
-      QStringLiteral("filePreferencesAction"),
       QStringLiteral("-"),
       QStringLiteral("&Quit"),
   };
@@ -1224,6 +1228,156 @@ void ui_menu_separator_click_keeps_menu_open() {
   CHECK(!test.menu.isVisible());
 }
 
+// GitHub issue 619, second follow-up: Preferences... ends the Edit menu (macOS keeps it in the
+// app menu by its role), and Revert left the File menu for the document tab's context menu.
+// Both keep their command ids and keys; F12 still reverts with no menu open.
+void ui_issue_619_preferences_in_edit_and_revert_in_tab_menu() {
+  ensure_artifact_dir();
+  const auto path = QDir::current().absoluteFilePath(QStringLiteral("test-artifacts/issue_619_tab_revert.psd"));
+  QFile::remove(path);
+  {
+    patchy::ui::MainWindow writer;
+    patchy::ui::MainWindowTestAccess::create_document(writer, 32, 24);
+    CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(writer, path));
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* file_menu = window.menuBar()->actions().at(0)->menu();
+  auto* edit_menu = window.menuBar()->actions().at(1)->menu();
+  CHECK(file_menu != nullptr && edit_menu != nullptr);
+  if (file_menu == nullptr || edit_menu == nullptr) {
+    return;
+  }
+  auto* preferences = require_action(window, "filePreferencesAction");
+  auto* revert = require_action(window, "fileRevertAction");
+  CHECK(!file_menu->actions().contains(preferences));
+  CHECK(!file_menu->actions().contains(revert));
+  const auto edit_actions = edit_menu->actions();
+  CHECK(!edit_actions.isEmpty() && edit_actions.back() == preferences);
+#ifndef Q_OS_MACOS
+  CHECK(edit_actions.size() > 1 && edit_actions.at(edit_actions.size() - 2)->isSeparator());
+  CHECK(preferences->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_K));
+#endif
+  CHECK(preferences->menuRole() == QAction::PreferencesRole);
+  CHECK(preferences->text() == QStringLiteral("&Preferences..."));
+  const auto* preferences_command = window.hotkey_registry().find_command(QStringLiteral("file.preferences"));
+  CHECK(preferences_command != nullptr && preferences_command->action == preferences);
+  // Revert has no menu-bar row: the window carries it, so F12 and Search Commands reach it.
+  CHECK(window.actions().contains(revert));
+  const auto* revert_command = window.hotkey_registry().find_command(QStringLiteral("file.revert"));
+  CHECK(revert_command != nullptr && revert_command->action == revert);
+  CHECK(revert->shortcut() == QKeySequence(Qt::Key_F12));
+
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  auto* tab_bar = tabs != nullptr ? tabs->findChild<QTabBar*>() : nullptr;
+  CHECK(tab_bar != nullptr);
+  if (tab_bar == nullptr) {
+    return;
+  }
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  auto* file_canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  patchy::ui::MainWindowTestAccess::create_default_document(window);
+  QApplication::processEvents();
+  const auto file_index = tabs->indexOf(file_canvas);
+  const auto untitled_index = tabs->indexOf(patchy::ui::MainWindowTestAccess::canvas(window));
+  CHECK(file_index >= 0 && untitled_index >= 0 && file_index != untitled_index);
+  require_action(window, "layerNewAction")->trigger();  // the untitled document is the active one
+  QApplication::processEvents();
+
+  // Opens the tab's menu and reads its Revert row; trigger runs it.
+  struct Seen {
+    bool found{false};
+    bool enabled{false};
+    QKeySequence shortcut;
+    int row{-1};
+    int reopen_row{-1};
+  };
+  const auto open_tab_menu = [&](int tab_index, bool trigger, const char* capture) {
+    Seen seen;
+    QTimer::singleShot(0, [&seen, trigger, capture] {
+      for (auto* widget : QApplication::topLevelWidgets()) {
+        auto* menu = qobject_cast<QMenu*>(widget);
+        if (menu == nullptr || menu->objectName() != QStringLiteral("documentTabContextMenu")) {
+          continue;
+        }
+        const auto actions = menu->actions();
+        for (int i = 0; i < actions.size(); ++i) {
+          if (actions.at(i)->objectName() == QStringLiteral("documentTabRevertAction")) {
+            seen.found = true;
+            seen.enabled = actions.at(i)->isEnabled();
+            seen.shortcut = actions.at(i)->shortcut();
+            seen.row = i;
+          } else if (actions.at(i)->objectName() == QStringLiteral("documentTabReopenAction")) {
+            seen.reopen_row = i;
+          }
+        }
+        if (capture != nullptr) {
+          save_widget_artifact(capture, *menu);
+        }
+        QAction* revert_row = nullptr;
+        for (auto* action : actions) {
+          if (action->objectName() == QStringLiteral("documentTabRevertAction")) {
+            revert_row = action;
+          }
+        }
+        if (trigger && revert_row != nullptr) {
+          revert_row->trigger();
+        }
+        menu->close();
+        return;
+      }
+    });
+    const auto point = tab_bar->tabRect(tab_index).center();
+    QContextMenuEvent event(QContextMenuEvent::Mouse, point, tab_bar->mapToGlobal(point));
+    QApplication::sendEvent(tab_bar, &event);
+    QApplication::processEvents();
+    return seen;
+  };
+  // An untitled document has no file to go back to.
+  auto seen = open_tab_menu(untitled_index, false, nullptr);
+  CHECK(seen.found && !seen.enabled);
+  // The saved file's tab: on, right below Reopen Document, showing F12, though another
+  // document is the active one.
+  seen = open_tab_menu(file_index, false, "issue_619_document_tab_menu");
+  CHECK(seen.found && seen.enabled);
+  CHECK(seen.row == seen.reopen_row + 1);
+  CHECK(seen.shortcut == QKeySequence(Qt::Key_F12));
+
+  // Choosing it reverts that document (after one question when it has changes).
+  tabs->setCurrentWidget(file_canvas);
+  QApplication::processEvents();
+  const auto saved_layers = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).layers().size();
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  CHECK(std::as_const(patchy::ui::MainWindowTestAccess::document(window)).layers().size() == saved_layers + 1);
+  tabs->setCurrentIndex(untitled_index);
+  QApplication::processEvents();
+  when_dialog_visible(QStringLiteral("revertDocumentMessageBox"), [](QDialog& dialog) {
+    auto* box = qobject_cast<QMessageBox*>(&dialog);
+    CHECK(box != nullptr && box->button(QMessageBox::Yes) != nullptr);
+    if (box != nullptr && box->button(QMessageBox::Yes) != nullptr) {
+      box->button(QMessageBox::Yes)->click();
+    }
+  });
+  seen = open_tab_menu(file_index, true, nullptr);
+  CHECK(seen.found);
+  CHECK(process_events_until([&] {
+    return patchy::ui::MainWindowTestAccess::canvas(window) != file_canvas &&
+           QFileInfo(patchy::ui::MainWindowTestAccess::active_session_path(window)) == QFileInfo(path);
+  }));
+  CHECK(std::as_const(patchy::ui::MainWindowTestAccess::document(window)).layers().size() == saved_layers);
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  CHECK(tabs->indexOf(patchy::ui::MainWindowTestAccess::canvas(window)) == file_index);
+
+  // Review capture: the end of the Edit menu.
+  edit_menu->popup(window.mapToGlobal(QPoint(60, 30)));
+  QApplication::processEvents();
+  save_widget_artifact("issue_619_edit_menu", *edit_menu);
+  edit_menu->hide();
+  QApplication::processEvents();
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> folder_open_export_tests() {
@@ -1236,6 +1390,8 @@ std::vector<patchy::test::TestCase> folder_open_export_tests() {
       {"ui_file_export_menu_actions_registered", ui_file_export_menu_actions_registered},
       {"ui_issue_619_file_menu_groups_and_submenus", ui_issue_619_file_menu_groups_and_submenus},
       {"ui_issue_619_file_menu_review_capture", ui_issue_619_file_menu_review_capture},
+      {"ui_issue_619_preferences_in_edit_and_revert_in_tab_menu",
+       ui_issue_619_preferences_in_edit_and_revert_in_tab_menu},
       {"ui_menubar_menus_share_the_text_column", ui_menubar_menus_share_the_text_column},
       {"ui_menu_separator_click_keeps_menu_open", ui_menu_separator_click_keeps_menu_open},
       {"ui_export_documents_to_folder_writes_numbered_files", ui_export_documents_to_folder_writes_numbered_files},

@@ -5,13 +5,35 @@ lock, blend modes, selection stepping, visibility and the Lock Layers dialog. Mo
 the main window only: the Layer menu is held to at most 22 rows (`ui_main_window_renders_color_controls`).
 Hotkey ids are permanent ([ui-conventions.md](ui-conventions.md), Hotkeys).
 
-The Layer menu's rows are added in one block in display order (end of the Layer section of
-`build_menu_bar_actions`): New, New Adjustment Layer, New Fill Layer; Duplicate, Delete, Rename,
-Color, Hide Layers, Show All Layers, Lock Layers...; Layer Mask through Shape; Fill (`layerFillMenu`: Fill Layer /
-Selection, Fill With Background Color, Clear Layer / Selection), Arrange, Rotate & Flip, Merge
-(`layerMergeMenu`: Merge Down, Merge Visible, Merge Visible to New Layer (Copy)); Export. Keys fire
-from the submenus, and opening Merge refreshes Merge Visible's state. Pin:
-`ui_layer_menu_groups_fill_and_merge_submenus`.
+The Layer menu's rows are added in one block in display order (after the lock actions in
+`build_menu_bar_actions`; GitHub issue 627): New, New Fill Layer, New Adjustment Layer; Duplicate,
+Export (`layerExportMenu`: Quick Export as PNG, Export As..., then Duplicate Layer to Document...),
+Delete; Rename, Color, Hide & Lock; Layer Style, Fill and Adjustment Layer; Layer Mask through
+Shape; Fill (`layerFillMenu`: Fill Layer / Selection, Fill With Background Color, Clear Layer /
+Selection), Arrange, Rotate & Flip, Merge (`layerMergeMenu`: Merge Down, Merge Visible, Merge
+Visible to New Layer (Copy)). Keys fire from the submenus, and opening Merge refreshes Merge
+Visible's state. Pin: `ui_layer_menu_groups_fill_and_merge_submenus`.
+
+- `layerHideLockMenu` (Hide & Lock): Hide Layers, Show All Layers; Lock Layers...; the layer
+  context menu's Lock entries (the shared Lock Transparent Pixels, then `layerMenuLockImagePixelsAction`,
+  `layerMenuLockPositionAction`, Lock All `layerMenuLockAllAction`, the shared Prevent
+  Auto-Nesting). The menu's own lock actions call `set_active_layer_lock_flag` and
+  `set_active_layer_lock_all` like the context menu's.
+- `layerStyleMenu` (Layer Style): Blending Options... and one entry per effect page
+  (`layerMenuStyle*Action`, `edit_active_layer_style(effect)` as the styles button's entries),
+  the shared Copy, Paste and Delete Layer Style, then the checkable Show Layer Styles
+  (`layerMenuShowLayerStylesAction`: the active layer's effects eye, `set_layer_effects_visible`).
+  Edit Layer Styles... (`layerBlendingOptionsAction`, `layer.styles`) has no menu-bar row: the
+  window carries it for its key and Search Commands, and the layer context menu and styles button
+  keep it.
+- `layerFillAdjustmentMenu` (Fill and Adjustment Layer): Fill Layer Settings...
+  (`layerFillLayerSettingsAction`, `layer.fill_layer_settings`: the context menu's Edit Fill
+  Settings..., refused unless the selection is fill layers) and Adjustment Layer Settings...
+  (`layerEditAdjustmentAction`, `layer.edit_adjustment`).
+- `refresh_layer_menu_lock_and_style_states` sets the lock checks from the selection, the style
+  entries' enabled states (`can_edit_layer_styles`, `refresh_layer_style_action_states`) and the
+  effects switch when Hide & Lock or Layer Style opens, and before Search Commands lists them.
+  Pin: `ui_issue_627_layer_menu_submenus`.
 
 ## Opacity digits (#527)
 
@@ -81,7 +103,7 @@ text editor keeps Option+key as text (main_window.cpp ShortcutOverride). Pin:
 
 ## Hide Layers / Show Layers (#546)
 
-`layerToggleVisibilityAction` (`layer.toggle_visibility`, Layer menu; Ctrl+, on Windows and
+`layerToggleVisibilityAction` (`layer.toggle_visibility`, Layer > Hide & Lock; Ctrl+, on Windows and
 Linux, no macOS default since Cmd+, is Preferences there) hides the selected layers when any of
 them shows, else shows them all (`toggle_selected_layers_visibility`). Like the eye it is
 outside history but marks the document modified. `refresh_layer_visibility_action_text` (from
@@ -90,14 +112,14 @@ Pin: `ui_layer_hide_show_layers_toggles_selection`.
 
 ## Show All Layers (#550)
 
-`layerShowAllLayersAction` (`layer.show_all_layers`, Layer menu after Hide Layers; Ctrl+Alt+,,
+`layerShowAllLayersAction` (`layer.show_all_layers`, Layer > Hide & Lock after Hide Layers; Ctrl+Alt+,,
 Cmd+Option+, on macOS) runs the eye menu's `set_all_layers_visible(true)`: every layer at every
 depth shows, outside history, marking the document modified. Pin:
 `ui_layer_show_all_layers_shows_every_depth`.
 
 ## Lock Layers dialog (#544)
 
-Layer > Lock Layers... (`layerLockLayersAction`, `layer.lock_layers`, Ctrl+/; "/" alone stays
+Layer > Hide & Lock > Lock Layers... (`layerLockLayersAction`, `layer.lock_layers`, Ctrl+/; "/" alone stays
 Lock Transparent Pixels) runs `request_layer_locks` (src/ui/layer_lock_dialog.cpp,
 `layerLocksDialog`): All above the indented Transparent Pixels, Image Pixels and Position, then
 Prevent Auto-Nesting. Its minimum width fits the bold title plus 200 px for a system title

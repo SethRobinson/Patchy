@@ -19241,6 +19241,82 @@ Each item&apos;s own View setting still applies.</source>
         <source>Tag the layer fuchsia in the Layers panel</source>
         <translation>在圖層面板中將圖層標為紫紅</translation>
     </message>
+    <message>
+        <source>Keep painting and filters off the layer</source>
+        <translation>不讓繪畫和濾鏡作用於圖層</translation>
+    </message>
+    <message>
+        <source>Keep the layer from moving</source>
+        <translation>防止圖層移動</translation>
+    </message>
+    <message>
+        <source>Protect the layer from every change</source>
+        <translation>保護圖層不受任何變更</translation>
+    </message>
+    <message>
+        <source>Open the effects dialog on its opacity and blend settings</source>
+        <translation>在不透明度和混合設定上開啟效果對話方塊</translation>
+    </message>
+    <message>
+        <source>Raised or carved edge effect</source>
+        <translation>凸起或雕刻的邊緣效果</translation>
+    </message>
+    <message>
+        <source>Outline effect around the layer</source>
+        <translation>圖層周圍的輪廓效果</translation>
+    </message>
+    <message>
+        <source>Shadow effect inside the edges</source>
+        <translation>邊緣內側的陰影效果</translation>
+    </message>
+    <message>
+        <source>Light effect inside the edges</source>
+        <translation>邊緣內側的光效果</translation>
+    </message>
+    <message>
+        <source>Silky inner shading effect</source>
+        <translation>柔滑的內部明暗效果</translation>
+    </message>
+    <message>
+        <source>Tint the layer with one color, as an effect</source>
+        <translation>作為效果以一種顏色為圖層著色</translation>
+    </message>
+    <message>
+        <source>Cover the layer with a blend of colors, as an effect</source>
+        <translation>作為效果以顏色混合覆蓋圖層</translation>
+    </message>
+    <message>
+        <source>Cover the layer with a repeating tile, as an effect</source>
+        <translation>作為效果以重複的拼貼覆蓋圖層</translation>
+    </message>
+    <message>
+        <source>Light effect around the edges</source>
+        <translation>邊緣周圍的光效果</translation>
+    </message>
+    <message>
+        <source>Shadow effect cast behind the layer</source>
+        <translation>投在圖層後方的陰影效果</translation>
+    </message>
+    <message>
+        <source>Take the layer&apos;s effects to paste elsewhere</source>
+        <translation>取出圖層的效果以貼到別處</translation>
+    </message>
+    <message>
+        <source>Put copied effects on the selected layers</source>
+        <translation>將拷貝的效果套用到所選圖層</translation>
+    </message>
+    <message>
+        <source>Remove every effect from the selected layers</source>
+        <translation>移除所選圖層的全部效果</translation>
+    </message>
+    <message>
+        <source>Turn the layer&apos;s effects on or off</source>
+        <translation>開啟或關閉圖層的效果</translation>
+    </message>
+    <message>
+        <source>Change the color, gradient or pattern of a fill layer</source>
+        <translation>變更填滿圖層的顏色、漸層或圖樣</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -20321,10 +20397,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>&amp;Apply Layer Mask</source>
         <translation>套用圖層遮色片(&amp;A)</translation>
-    </message>
-    <message>
-        <source>&amp;Edit Adjustment...</source>
-        <translation>編輯調整(&amp;E)...</translation>
     </message>
     <message>
         <source>Edit Layer &amp;Styles...</source>
@@ -32560,6 +32632,34 @@ Locked: %1</source>
     <message>
         <source>Fuchsia</source>
         <translation>紫紅</translation>
+    </message>
+    <message>
+        <source>&amp;Adjustment Layer Settings...</source>
+        <translation>調整圖層設定(&amp;A)...</translation>
+    </message>
+    <message>
+        <source>&amp;Hide &amp;&amp; Lock</source>
+        <translation>隱藏和鎖定(&amp;H)</translation>
+    </message>
+    <message>
+        <source>Layer &amp;Style</source>
+        <translation>圖層樣式(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Blending Options...</source>
+        <translation>混合選項...</translation>
+    </message>
+    <message>
+        <source>&amp;Fill Layer Settings...</source>
+        <translation>填滿圖層設定(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>Fi&amp;ll and Adjustment Layer</source>
+        <translation>填滿和調整圖層(&amp;L)</translation>
+    </message>
+    <message>
+        <source>Select a fill layer to edit its settings</source>
+        <translation>請選取填滿圖層以編輯其設定</translation>
     </message>
 </context>
 <context>

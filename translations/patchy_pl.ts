@@ -19333,6 +19333,82 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Tag the layer fuchsia in the Layers panel</source>
         <translation>Oznacz warstwę kolorem fuksji w panelu Warstwy</translation>
     </message>
+    <message>
+        <source>Keep painting and filters off the layer</source>
+        <translation>Chroń warstwę przed malowaniem i filtrami</translation>
+    </message>
+    <message>
+        <source>Keep the layer from moving</source>
+        <translation>Nie pozwól warstwie się przesuwać</translation>
+    </message>
+    <message>
+        <source>Protect the layer from every change</source>
+        <translation>Chroń warstwę przed każdą zmianą</translation>
+    </message>
+    <message>
+        <source>Open the effects dialog on its opacity and blend settings</source>
+        <translation>Otwórz okno efektów na krycie i mieszanie</translation>
+    </message>
+    <message>
+        <source>Raised or carved edge effect</source>
+        <translation>Efekt wypukłej lub rzeźbionej krawędzi</translation>
+    </message>
+    <message>
+        <source>Outline effect around the layer</source>
+        <translation>Efekt obrysu wokół warstwy</translation>
+    </message>
+    <message>
+        <source>Shadow effect inside the edges</source>
+        <translation>Efekt cienia wewnątrz krawędzi</translation>
+    </message>
+    <message>
+        <source>Light effect inside the edges</source>
+        <translation>Efekt światła wewnątrz krawędzi</translation>
+    </message>
+    <message>
+        <source>Silky inner shading effect</source>
+        <translation>Efekt jedwabistego wewnętrznego cieniowania</translation>
+    </message>
+    <message>
+        <source>Tint the layer with one color, as an effect</source>
+        <translation>Zabarw warstwę jednym kolorem jako efekt</translation>
+    </message>
+    <message>
+        <source>Cover the layer with a blend of colors, as an effect</source>
+        <translation>Pokryj warstwę przejściem kolorów jako efekt</translation>
+    </message>
+    <message>
+        <source>Cover the layer with a repeating tile, as an effect</source>
+        <translation>Pokryj warstwę powtarzanym kafelkiem jako efekt</translation>
+    </message>
+    <message>
+        <source>Light effect around the edges</source>
+        <translation>Efekt światła wokół krawędzi</translation>
+    </message>
+    <message>
+        <source>Shadow effect cast behind the layer</source>
+        <translation>Efekt cienia rzucanego za warstwą</translation>
+    </message>
+    <message>
+        <source>Take the layer&apos;s effects to paste elsewhere</source>
+        <translation>Weź efekty warstwy, aby wkleić je gdzie indziej</translation>
+    </message>
+    <message>
+        <source>Put copied effects on the selected layers</source>
+        <translation>Nałóż skopiowane efekty na zaznaczone warstwy</translation>
+    </message>
+    <message>
+        <source>Remove every effect from the selected layers</source>
+        <translation>Usuń wszystkie efekty z zaznaczonych warstw</translation>
+    </message>
+    <message>
+        <source>Turn the layer&apos;s effects on or off</source>
+        <translation>Włącz lub wyłącz efekty warstwy</translation>
+    </message>
+    <message>
+        <source>Change the color, gradient or pattern of a fill layer</source>
+        <translation>Zmień kolor, gradient lub wzorek warstwy wypełnienia</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -20547,10 +20623,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>&amp;Apply Layer Mask</source>
         <translation>&amp;Zastosuj maskę warstwy</translation>
-    </message>
-    <message>
-        <source>&amp;Edit Adjustment...</source>
-        <translation>&amp;Edytuj dopasowanie...</translation>
     </message>
     <message>
         <source>Edit Layer &amp;Styles...</source>
@@ -32730,6 +32802,34 @@ Zablokowano: %1</translation>
     <message>
         <source>Fuchsia</source>
         <translation>Fuksja</translation>
+    </message>
+    <message>
+        <source>&amp;Adjustment Layer Settings...</source>
+        <translation>Ustawienia warstwy &amp;dopasowania...</translation>
+    </message>
+    <message>
+        <source>&amp;Hide &amp;&amp; Lock</source>
+        <translation>&amp;Ukryj i zablokuj</translation>
+    </message>
+    <message>
+        <source>Layer &amp;Style</source>
+        <translation>&amp;Styl warstwy</translation>
+    </message>
+    <message>
+        <source>Blending Options...</source>
+        <translation>Opcje mieszania...</translation>
+    </message>
+    <message>
+        <source>&amp;Fill Layer Settings...</source>
+        <translation>Ustawienia warstwy &amp;wypełnienia...</translation>
+    </message>
+    <message>
+        <source>Fi&amp;ll and Adjustment Layer</source>
+        <translation>Warstwa wypełnienia i dopasowani&amp;a</translation>
+    </message>
+    <message>
+        <source>Select a fill layer to edit its settings</source>
+        <translation>Zaznacz warstwę wypełnienia, aby edytować jej ustawienia</translation>
     </message>
 </context>
 <context>

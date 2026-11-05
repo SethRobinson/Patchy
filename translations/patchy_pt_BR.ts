@@ -19287,6 +19287,82 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Tag the layer fuchsia in the Layers panel</source>
         <translation>Marcar a camada de fúcsia no painel Camadas</translation>
     </message>
+    <message>
+        <source>Keep painting and filters off the layer</source>
+        <translation>Manter a pintura e os filtros fora da camada</translation>
+    </message>
+    <message>
+        <source>Keep the layer from moving</source>
+        <translation>Impedir que a camada se mova</translation>
+    </message>
+    <message>
+        <source>Protect the layer from every change</source>
+        <translation>Proteger a camada de qualquer alteração</translation>
+    </message>
+    <message>
+        <source>Open the effects dialog on its opacity and blend settings</source>
+        <translation>Abrir a caixa de efeitos na opacidade e mesclagem</translation>
+    </message>
+    <message>
+        <source>Raised or carved edge effect</source>
+        <translation>Efeito de borda em relevo ou entalhada</translation>
+    </message>
+    <message>
+        <source>Outline effect around the layer</source>
+        <translation>Efeito de contorno ao redor da camada</translation>
+    </message>
+    <message>
+        <source>Shadow effect inside the edges</source>
+        <translation>Efeito de sombra dentro das bordas</translation>
+    </message>
+    <message>
+        <source>Light effect inside the edges</source>
+        <translation>Efeito de luz dentro das bordas</translation>
+    </message>
+    <message>
+        <source>Silky inner shading effect</source>
+        <translation>Efeito de sombreamento interno acetinado</translation>
+    </message>
+    <message>
+        <source>Tint the layer with one color, as an effect</source>
+        <translation>Tingir a camada com uma cor, como efeito</translation>
+    </message>
+    <message>
+        <source>Cover the layer with a blend of colors, as an effect</source>
+        <translation>Cobrir a camada com uma mistura de cores, como efeito</translation>
+    </message>
+    <message>
+        <source>Cover the layer with a repeating tile, as an effect</source>
+        <translation>Cobrir a camada com um ladrilho repetido, como efeito</translation>
+    </message>
+    <message>
+        <source>Light effect around the edges</source>
+        <translation>Efeito de luz ao redor das bordas</translation>
+    </message>
+    <message>
+        <source>Shadow effect cast behind the layer</source>
+        <translation>Efeito de sombra projetada atrás da camada</translation>
+    </message>
+    <message>
+        <source>Take the layer&apos;s effects to paste elsewhere</source>
+        <translation>Pegar os efeitos da camada para colar em outro lugar</translation>
+    </message>
+    <message>
+        <source>Put copied effects on the selected layers</source>
+        <translation>Aplicar os efeitos copiados às camadas selecionadas</translation>
+    </message>
+    <message>
+        <source>Remove every effect from the selected layers</source>
+        <translation>Remover todos os efeitos das camadas selecionadas</translation>
+    </message>
+    <message>
+        <source>Turn the layer&apos;s effects on or off</source>
+        <translation>Ligar ou desligar os efeitos da camada</translation>
+    </message>
+    <message>
+        <source>Change the color, gradient or pattern of a fill layer</source>
+        <translation>Alterar a cor, o gradiente ou o padrão de uma camada de preenchimento</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -20500,10 +20576,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>&amp;Apply Layer Mask</source>
         <translation>&amp;Aplicar máscara de camada</translation>
-    </message>
-    <message>
-        <source>&amp;Edit Adjustment...</source>
-        <translation>&amp;Editar ajuste...</translation>
     </message>
     <message>
         <source>Edit Layer &amp;Styles...</source>
@@ -32645,6 +32717,34 @@ Bloqueado: %1</translation>
     <message>
         <source>Fuchsia</source>
         <translation>Fúcsia</translation>
+    </message>
+    <message>
+        <source>&amp;Adjustment Layer Settings...</source>
+        <translation>Configurações da camada de &amp;ajuste...</translation>
+    </message>
+    <message>
+        <source>&amp;Hide &amp;&amp; Lock</source>
+        <translation>&amp;Ocultar e bloquear</translation>
+    </message>
+    <message>
+        <source>Layer &amp;Style</source>
+        <translation>E&amp;stilo de camada</translation>
+    </message>
+    <message>
+        <source>Blending Options...</source>
+        <translation>Opções de mesclagem...</translation>
+    </message>
+    <message>
+        <source>&amp;Fill Layer Settings...</source>
+        <translation>Configurações da camada de preench&amp;imento...</translation>
+    </message>
+    <message>
+        <source>Fi&amp;ll and Adjustment Layer</source>
+        <translation>Camada de preenchimento e aj&amp;uste</translation>
+    </message>
+    <message>
+        <source>Select a fill layer to edit its settings</source>
+        <translation>Selecione uma camada de preenchimento para editar suas configurações</translation>
     </message>
 </context>
 <context>

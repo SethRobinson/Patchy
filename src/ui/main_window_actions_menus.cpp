@@ -431,18 +431,20 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   file_menu->addSeparator();
   auto* save_action = file_menu->addAction(tr("&Save"));
   auto* save_as_action = file_menu->addAction(tr("Save &As..."));
-  // GitHub issue 584: reload the document from its file (F12), directly under Save As
-  // (issue 619). Its enabled state follows the active document's file
-  // (refresh_revert_action), not just having a document.
-  revert_action_ = file_menu->addAction(QString());
+  // GitHub issue 584: reload the document from its file (F12). Since issue 619's second
+  // follow-up it has no File menu row: the document tab's context menu holds it, and the
+  // window keeps the action so F12 and Search Commands reach it. Its enabled state follows
+  // the active document's file (refresh_revert_action), not just having a document.
+  revert_action_ = new QAction(this);
   bind_action_text(revert_action_, QT_TR_NOOP("Re&vert"));
   revert_action_->setObjectName(QStringLiteral("fileRevertAction"));
   revert_action_->setMenuRole(QAction::NoRole);
   register_hotkey(revert_action_, "file.revert", QKeySequence(Qt::Key_F12));
   connect(revert_action_, &QAction::triggered, this, [this] { revert_active_document(); });
   revert_action_->setEnabled(false);
-  // In the File menu itself, not in the Export submenu (Seth, October 26, 2026, and again
-  // for issue 619: it is the export most people use): the web formats with live previews
+  addAction(revert_action_);
+  // In the File menu itself, not in the Export submenu (Seth, October 26, 2026, and twice
+  // more for issue 619: it is the export most people use): the web formats with live previews
   // and sizes (docs/web-export.md).
   auto* export_for_web_action = file_menu->addAction(tr("Export for &Web..."));
   bind_action_text(export_for_web_action, QT_TR_NOOP("Export for &Web..."));
@@ -593,8 +595,9 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   auto* close_action = file_menu->addAction(tr("&Close"));
   auto* close_all_action = file_menu->addAction(tr("Close &All"));
   file_menu->addSeparator();
-  auto* preferences_action = file_menu->addAction(tr("&Preferences..."));
-  file_menu->addSeparator();
+  // Preferences sits at the end of the Edit menu (issue 619's second follow-up, issue 357);
+  // macOS moves it into the app menu by its role.
+  auto* preferences_action = new QAction(tr("&Preferences..."), this);
   auto* quit_action = file_menu->addAction(tr("&Quit"));
   new_action->setObjectName(QStringLiteral("fileNewAction"));
   open_action->setObjectName(QStringLiteral("fileOpenAction"));
@@ -959,6 +962,11 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(convert_to_profile_action, "edit.convert_to_profile");
   connect(convert_to_profile_action, &QAction::triggered, this, [this] { convert_to_profile_dialog(); });
   register_document_action(convert_to_profile_action);
+#ifndef Q_OS_MACOS
+  // macOS takes Preferences out of this menu (PreferencesRole), so the line would trail.
+  edit_menu->addSeparator();
+#endif
+  edit_menu->addAction(preferences_action);
   select_all_action->setObjectName(QStringLiteral("editSelectAllAction"));
   clear_selection_action->setObjectName(QStringLiteral("editDeselectAction"));
   reselect_action->setObjectName(QStringLiteral("selectReselectAction"));
@@ -1236,7 +1244,9 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   auto* vector_mask_menu = new QMenu(tr("&Vector Mask"), layer_menu);
   vector_mask_menu->setObjectName(QStringLiteral("layerVectorMaskMenu"));
   populate_vector_mask_menu(vector_mask_menu, QStringLiteral("layer"));
-  auto* edit_adjustment_action = new QAction(tr("&Edit Adjustment..."), layer_menu);
+  // Layer > Fill and Adjustment Layer (GitHub issue 627): the text names the layer kind beside
+  // Fill Layer Settings...; the object name and the layer.edit_adjustment id stay.
+  auto* edit_adjustment_action = new QAction(tr("&Adjustment Layer Settings..."), layer_menu);
   layer_blending_options_action_ = new QAction(tr("Edit Layer &Styles..."), layer_menu);
   layer_copy_style_action_ = new QAction(tr("Copy Layer Style"), this);
   layer_paste_style_action_ = new QAction(tr("Paste Layer Style"), this);
@@ -1730,9 +1740,9 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
           [this] { relink_smart_object_contents(); });
   connect(layer_smart_object_embed_action_, &QAction::triggered, this, [this] { embed_linked_smart_object(); });
   connect(duplicate_layer_action, &QAction::triggered, this, [this] { duplicate_active_layer(); });
-  // Photoshop's Duplicate Layer dialog with a destination document. It lives
-  // in the layer context menu (the Layer menu's row count is pinned) and on
-  // the window itself, so its hotkey works without a menu-bar row.
+  // Photoshop's Duplicate Layer dialog with a destination document. It lives in the layer
+  // context menu's Export submenu and in Layer > Export (GitHub issue 627), and on the window
+  // itself, so its hotkey works while no menu is open.
   duplicate_layer_to_document_action_ = new QAction(tr("Duplicate Layer to Document..."), this);
   duplicate_layer_to_document_action_->setObjectName(QStringLiteral("layerDuplicateToDocumentAction"));
   duplicate_layer_to_document_action_->setIcon(simple_icon(QStringLiteral("dup")));
@@ -1768,10 +1778,13 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_export_menu->menuAction()->setMenuRole(QAction::NoRole);
   layer_export_menu->addAction(layer_quick_export_png_action_);
   layer_export_menu->addAction(layer_export_as_action_);
+  // As in the layer context menu's Export submenu (GitHub issue 627).
+  layer_export_menu->addSeparator();
+  layer_export_menu->addAction(duplicate_layer_to_document_action_);
+  duplicate_layer_to_document_action_->setMenuRole(QAction::NoRole);
   register_document_action(layer_export_menu->menuAction());
-  // The Layer menu's rows, in display order (Seth, October 31, 2026): five groups, with the
-  // fill and merge commands in their own submenus. ui_main_window_renders_color_controls pins
-  // the row bound (22 rows). Shortcuts still fire from the submenus.
+  // The fill and merge commands have their own submenus (Seth, October 31, 2026); shortcuts
+  // still fire from them. The Layer menu's rows are laid out below the lock commands.
   auto* layer_fill_menu = new QMenu(tr("&Fill"), layer_menu);
   layer_fill_menu->setObjectName(QStringLiteral("layerFillMenu"));
   bind_action_text(layer_fill_menu->menuAction(), QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "&Fill"));
@@ -1787,30 +1800,9 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   }
   register_document_action(layer_fill_menu->menuAction());
   register_document_action(layer_merge_menu->menuAction());
-  layer_menu->addMenu(layer_new_menu);
-  layer_menu->addMenu(new_adjustment_layer_menu);
-  layer_menu->addMenu(new_fill_layer_menu);
-  layer_menu->addSeparator();
-  layer_menu->addActions({duplicate_layer_action, delete_layer_action, rename_layer_action,
-                          layer_color_menu_->menuAction(), layer_toggle_visibility_action_, show_all_layers_action,
-                          lock_layers_action});
-  layer_menu->addSeparator();
-  layer_menu->addMenu(layer_mask_menu);
-  layer_menu->addAction(layer_clipping_mask_action_);
-  layer_menu->addMenu(vector_mask_menu);
-  layer_menu->addActions({edit_adjustment_action, layer_blending_options_action_});
-  layer_menu->addMenu(layer_smart_objects_menu);
-  layer_menu->addMenu(layer_shape_menu);
-  layer_menu->addSeparator();
-  layer_menu->addMenu(layer_fill_menu);
-  layer_menu->addMenu(layer_arrange_menu);
-  layer_menu->addMenu(layer_rotate_flip_menu);
-  layer_menu->addMenu(layer_merge_menu);
-  layer_menu->addSeparator();
-  layer_menu->addMenu(layer_export_menu);
   // Prevent Auto-Nesting (GitHub issue 246): checkable, in the layer context menu's Lock
-  // submenu beside the other locks and on the window for its hotkey. Locks have no
-  // menu-bar entry (the Layer menu's row count is pinned).
+  // submenu beside the other locks, in Layer > Hide & Lock (GitHub issue 627), and on the
+  // window for its hotkey.
   layer_prevent_auto_nesting_action_ = new QAction(tr("Prevent Auto-Nesting"), this);
   layer_prevent_auto_nesting_action_->setObjectName(QStringLiteral("layerPreventAutoNestingAction"));
   bind_action_text(layer_prevent_auto_nesting_action_, QT_TR_NOOP("Prevent Auto-Nesting"));
@@ -1845,6 +1837,146 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   });
   addAction(layer_lock_transparent_pixels_action_);
   register_document_action(layer_lock_transparent_pixels_action_);
+  // GitHub issue 627 (philipzae, November 3 and 4, 2026): the Layer menu in five groups that
+  // fit a short screen. Visibility and the locks share Hide & Lock (the layer context menu's
+  // Lock entries); the Layer Style dialog's pages, the style clipboard and the effects switch
+  // share Layer Style; fill and adjustment layer settings share one submenu.
+  // refresh_layer_menu_lock_and_style_states sets their checks and enabled states when the
+  // submenus open and before Search Commands lists them. Tests:
+  // ui_layer_menu_groups_fill_and_merge_submenus, ui_issue_627_layer_menu_submenus.
+  const auto add_lock_flag_action = [this](const char* text, const char* object_name,
+                                           std::function<void(bool)> apply) {
+    auto* action = new QAction(tr(text), this);
+    action->setObjectName(QLatin1String(object_name));
+    bind_action_text(action, text);
+    action->setMenuRole(QAction::NoRole);
+    action->setCheckable(true);
+    connect(action, &QAction::triggered, this, [apply = std::move(apply)](bool checked) { apply(checked); });
+    register_document_action(action);
+    return action;
+  };
+  layer_menu_lock_image_pixels_action_ =
+      add_lock_flag_action(QT_TR_NOOP("Lock Image Pixels"), "layerMenuLockImagePixelsAction",
+                           [this](bool checked) { set_active_layer_lock_flag(kLayerLockImagePixels, checked); });
+  layer_menu_lock_position_action_ =
+      add_lock_flag_action(QT_TR_NOOP("Lock Position"), "layerMenuLockPositionAction",
+                           [this](bool checked) { set_active_layer_lock_flag(kLayerLockPosition, checked); });
+  layer_menu_lock_all_action_ = add_lock_flag_action(QT_TR_NOOP("Lock All"), "layerMenuLockAllAction",
+                                                     [this](bool checked) { set_active_layer_lock_all(checked); });
+  auto* layer_hide_lock_menu = new QMenu(tr("&Hide && Lock"), layer_menu);
+  layer_hide_lock_menu->setObjectName(QStringLiteral("layerHideLockMenu"));
+  bind_action_text(layer_hide_lock_menu->menuAction(), QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "&Hide && Lock"));
+  layer_hide_lock_menu->addActions({layer_toggle_visibility_action_, show_all_layers_action});
+  layer_hide_lock_menu->addSeparator();
+  layer_hide_lock_menu->addAction(lock_layers_action);
+  layer_hide_lock_menu->addSeparator();
+  layer_hide_lock_menu->addActions({layer_lock_transparent_pixels_action_, layer_menu_lock_image_pixels_action_,
+                                    layer_menu_lock_position_action_});
+  layer_hide_lock_menu->addSeparator();
+  layer_hide_lock_menu->addAction(layer_menu_lock_all_action_);
+  layer_hide_lock_menu->addSeparator();
+  layer_hide_lock_menu->addAction(layer_prevent_auto_nesting_action_);
+  connect(layer_hide_lock_menu, &QMenu::aboutToShow, this, [this] { refresh_layer_menu_lock_and_style_states(); });
+  register_document_action(layer_hide_lock_menu->menuAction());
+
+  // Layer Style: one entry per page of the Layer Style dialog, as the Layers panel's
+  // styles button lists them. Edit Layer Styles... (layer.styles) left the menu bar: it
+  // stays on the window, so its key and its Search Commands row still work, and in the
+  // layer context menu and the styles button.
+  addAction(layer_blending_options_action_);
+  auto* layer_style_menu = new QMenu(tr("Layer &Style"), layer_menu);
+  layer_style_menu->setObjectName(QStringLiteral("layerStyleMenu"));
+  bind_action_text(layer_style_menu->menuAction(), QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Layer &Style"));
+  const auto add_style_page = [this, layer_style_menu](const char* text, const char* object_name,
+                                                       std::optional<LayerStyleEffect> effect) {
+    auto* action = layer_style_menu->addAction(QString());
+    action->setObjectName(QLatin1String(object_name));
+    bind_action_text(action, text);
+    action->setMenuRole(QAction::NoRole);
+    connect(action, &QAction::triggered, this, [this, effect] { edit_active_layer_style(effect); });
+    layer_menu_style_page_actions_.push_back(action);
+  };
+  add_style_page(QT_TR_NOOP("Blending Options..."), "layerMenuStyleBlendingOptionsAction", std::nullopt);
+  add_style_page(QT_TR_NOOP("Bevel && Emboss..."), "layerMenuStyleBevelEmbossAction", LayerStyleEffect::BevelEmboss);
+  add_style_page(QT_TR_NOOP("Stroke..."), "layerMenuStyleStrokeAction", LayerStyleEffect::Stroke);
+  add_style_page(QT_TR_NOOP("Inner Shadow..."), "layerMenuStyleInnerShadowAction", LayerStyleEffect::InnerShadow);
+  add_style_page(QT_TR_NOOP("Inner Glow..."), "layerMenuStyleInnerGlowAction", LayerStyleEffect::InnerGlow);
+  add_style_page(QT_TR_NOOP("Satin..."), "layerMenuStyleSatinAction", LayerStyleEffect::Satin);
+  add_style_page(QT_TR_NOOP("Color Overlay..."), "layerMenuStyleColorOverlayAction", LayerStyleEffect::ColorOverlay);
+  add_style_page(QT_TR_NOOP("Gradient Overlay..."), "layerMenuStyleGradientOverlayAction",
+                 LayerStyleEffect::GradientOverlay);
+  add_style_page(QT_TR_NOOP("Pattern Overlay..."), "layerMenuStylePatternOverlayAction",
+                 LayerStyleEffect::PatternOverlay);
+  add_style_page(QT_TR_NOOP("Outer Glow..."), "layerMenuStyleOuterGlowAction", LayerStyleEffect::OuterGlow);
+  add_style_page(QT_TR_NOOP("Drop Shadow..."), "layerMenuStyleDropShadowAction", LayerStyleEffect::DropShadow);
+  layer_style_menu->addSeparator();
+  for (auto* action : {layer_copy_style_action_, layer_paste_style_action_, layer_delete_style_action_}) {
+    action->setMenuRole(QAction::NoRole);
+    layer_style_menu->addAction(action);
+  }
+  layer_style_menu->addSeparator();
+  // The Layers panel's effects eye for the active layer (set_layer_effects_visible).
+  layer_menu_show_layer_styles_action_ = layer_style_menu->addAction(QString());
+  layer_menu_show_layer_styles_action_->setObjectName(QStringLiteral("layerMenuShowLayerStylesAction"));
+  bind_action_text(layer_menu_show_layer_styles_action_, QT_TR_NOOP("Show Layer Styles"));
+  layer_menu_show_layer_styles_action_->setMenuRole(QAction::NoRole);
+  layer_menu_show_layer_styles_action_->setCheckable(true);
+  connect(layer_menu_show_layer_styles_action_, &QAction::triggered, this, [this](bool checked) {
+    if (!has_active_document()) {
+      return;
+    }
+    if (const auto active = std::as_const(document()).active_layer_id(); active.has_value()) {
+      set_layer_effects_visible(*active, checked);
+    }
+  });
+  connect(layer_style_menu, &QMenu::aboutToShow, this, [this] { refresh_layer_menu_lock_and_style_states(); });
+  register_document_action(layer_style_menu->menuAction());
+
+  // Fill and Adjustment Layer: the settings of the active fill or adjustment layer.
+  auto* fill_layer_settings_action = new QAction(tr("&Fill Layer Settings..."), this);
+  fill_layer_settings_action->setObjectName(QStringLiteral("layerFillLayerSettingsAction"));
+  bind_action_text(fill_layer_settings_action, QT_TR_NOOP("&Fill Layer Settings..."));
+  fill_layer_settings_action->setMenuRole(QAction::NoRole);
+  register_hotkey(fill_layer_settings_action, "layer.fill_layer_settings");
+  connect(fill_layer_settings_action, &QAction::triggered, this, [this] { edit_active_fill_layer_settings(); });
+  register_document_action(fill_layer_settings_action);
+  edit_adjustment_action->setMenuRole(QAction::NoRole);
+  auto* layer_fill_adjustment_menu = new QMenu(tr("Fi&ll and Adjustment Layer"), layer_menu);
+  layer_fill_adjustment_menu->setObjectName(QStringLiteral("layerFillAdjustmentMenu"));
+  bind_action_text(layer_fill_adjustment_menu->menuAction(),
+                   QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Fi&ll and Adjustment Layer"));
+  layer_fill_adjustment_menu->addActions({fill_layer_settings_action, edit_adjustment_action});
+  register_document_action(layer_fill_adjustment_menu->menuAction());
+
+  for (auto* menu : {layer_hide_lock_menu, layer_style_menu, layer_fill_adjustment_menu}) {
+    menu->menuAction()->setMenuRole(QAction::NoRole);
+  }
+  // The Layer menu's rows, in display order (GitHub issue 627). Shortcuts fire from the
+  // submenus too.
+  layer_menu->addMenu(layer_new_menu);
+  layer_menu->addMenu(new_fill_layer_menu);
+  layer_menu->addMenu(new_adjustment_layer_menu);
+  layer_menu->addSeparator();
+  layer_menu->addAction(duplicate_layer_action);
+  layer_menu->addMenu(layer_export_menu);
+  layer_menu->addAction(delete_layer_action);
+  layer_menu->addSeparator();
+  layer_menu->addActions({rename_layer_action, layer_color_menu_->menuAction()});
+  layer_menu->addMenu(layer_hide_lock_menu);
+  layer_menu->addSeparator();
+  layer_menu->addMenu(layer_style_menu);
+  layer_menu->addMenu(layer_fill_adjustment_menu);
+  layer_menu->addSeparator();
+  layer_menu->addMenu(layer_mask_menu);
+  layer_menu->addAction(layer_clipping_mask_action_);
+  layer_menu->addMenu(vector_mask_menu);
+  layer_menu->addMenu(layer_smart_objects_menu);
+  layer_menu->addMenu(layer_shape_menu);
+  layer_menu->addSeparator();
+  layer_menu->addMenu(layer_fill_menu);
+  layer_menu->addMenu(layer_arrange_menu);
+  layer_menu->addMenu(layer_rotate_flip_menu);
+  layer_menu->addMenu(layer_merge_menu);
   // Merge Selected to New Layer (Copy) (GitHub issue 475): Photoshop's Ctrl+Alt+E. In the layer
   // context menu's Merge submenu and on the window (the Layer menu's row count is pinned).
   layer_merge_selected_to_new_action_ = new QAction(tr("Merge Selected to New Layer (Copy)"), this);
@@ -3271,6 +3403,7 @@ void MainWindow::show_command_search() {
   refresh_merge_visible_action_state();
   refresh_layer_color_action_states();
   refresh_layer_visibility_action_text();
+  refresh_layer_menu_lock_and_style_states();
   refresh_appimage_menu_entry_action();
   rebuild_scripts_menu();
   refresh_recent_history();

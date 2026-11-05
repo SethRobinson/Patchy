@@ -19241,6 +19241,82 @@ Each item&apos;s own View setting still applies.</source>
         <source>Tag the layer fuchsia in the Layers panel</source>
         <translation>레이어 패널에서 레이어를 푸시아로 태그</translation>
     </message>
+    <message>
+        <source>Keep painting and filters off the layer</source>
+        <translation>칠하기와 필터가 레이어에 닿지 않게 하기</translation>
+    </message>
+    <message>
+        <source>Keep the layer from moving</source>
+        <translation>레이어가 움직이지 않게 하기</translation>
+    </message>
+    <message>
+        <source>Protect the layer from every change</source>
+        <translation>레이어를 모든 변경으로부터 보호</translation>
+    </message>
+    <message>
+        <source>Open the effects dialog on its opacity and blend settings</source>
+        <translation>효과 대화 상자를 불투명도와 혼합 설정에서 열기</translation>
+    </message>
+    <message>
+        <source>Raised or carved edge effect</source>
+        <translation>도드라지거나 새긴 가장자리 효과</translation>
+    </message>
+    <message>
+        <source>Outline effect around the layer</source>
+        <translation>레이어 둘레의 윤곽선 효과</translation>
+    </message>
+    <message>
+        <source>Shadow effect inside the edges</source>
+        <translation>가장자리 안쪽의 그림자 효과</translation>
+    </message>
+    <message>
+        <source>Light effect inside the edges</source>
+        <translation>가장자리 안쪽의 빛 효과</translation>
+    </message>
+    <message>
+        <source>Silky inner shading effect</source>
+        <translation>매끄러운 안쪽 음영 효과</translation>
+    </message>
+    <message>
+        <source>Tint the layer with one color, as an effect</source>
+        <translation>효과로 레이어를 한 가지 색으로 물들이기</translation>
+    </message>
+    <message>
+        <source>Cover the layer with a blend of colors, as an effect</source>
+        <translation>효과로 레이어를 색 혼합으로 덮기</translation>
+    </message>
+    <message>
+        <source>Cover the layer with a repeating tile, as an effect</source>
+        <translation>효과로 레이어를 반복 타일로 덮기</translation>
+    </message>
+    <message>
+        <source>Light effect around the edges</source>
+        <translation>가장자리 둘레의 빛 효과</translation>
+    </message>
+    <message>
+        <source>Shadow effect cast behind the layer</source>
+        <translation>레이어 뒤로 드리우는 그림자 효과</translation>
+    </message>
+    <message>
+        <source>Take the layer&apos;s effects to paste elsewhere</source>
+        <translation>레이어의 효과를 가져와 다른 곳에 붙여넣기</translation>
+    </message>
+    <message>
+        <source>Put copied effects on the selected layers</source>
+        <translation>복사한 효과를 선택한 레이어에 적용</translation>
+    </message>
+    <message>
+        <source>Remove every effect from the selected layers</source>
+        <translation>선택한 레이어에서 모든 효과 제거</translation>
+    </message>
+    <message>
+        <source>Turn the layer&apos;s effects on or off</source>
+        <translation>레이어의 효과 켜기 또는 끄기</translation>
+    </message>
+    <message>
+        <source>Change the color, gradient or pattern of a fill layer</source>
+        <translation>채우기 레이어의 색상, 그라디언트 또는 패턴 변경</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -20453,10 +20529,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>&amp;Apply Layer Mask</source>
         <translation>레이어 마스크 적용(&amp;A)</translation>
-    </message>
-    <message>
-        <source>&amp;Edit Adjustment...</source>
-        <translation>조정 편집(&amp;E)...</translation>
     </message>
     <message>
         <source>Edit Layer &amp;Styles...</source>
@@ -32560,6 +32632,34 @@ Locked: %1</source>
     <message>
         <source>Fuchsia</source>
         <translation>푸시아</translation>
+    </message>
+    <message>
+        <source>&amp;Adjustment Layer Settings...</source>
+        <translation>조정 레이어 설정(&amp;A)...</translation>
+    </message>
+    <message>
+        <source>&amp;Hide &amp;&amp; Lock</source>
+        <translation>숨기기 및 잠금(&amp;H)</translation>
+    </message>
+    <message>
+        <source>Layer &amp;Style</source>
+        <translation>레이어 스타일(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Blending Options...</source>
+        <translation>혼합 옵션...</translation>
+    </message>
+    <message>
+        <source>&amp;Fill Layer Settings...</source>
+        <translation>채우기 레이어 설정(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>Fi&amp;ll and Adjustment Layer</source>
+        <translation>채우기 및 조정 레이어(&amp;L)</translation>
+    </message>
+    <message>
+        <source>Select a fill layer to edit its settings</source>
+        <translation>설정을 편집할 채우기 레이어를 선택하세요</translation>
     </message>
 </context>
 <context>
