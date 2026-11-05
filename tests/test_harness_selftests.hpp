@@ -7,6 +7,7 @@
 #include "local_psd_fixtures.hpp"
 #include "test_harness.hpp"
 
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -80,6 +81,27 @@ inline bool contains(const std::string& text, const std::string& part) {
   return text.find(part) != std::string::npos;
 }
 
+inline std::string read_artifact(const std::string& file_name) {
+  std::ifstream in(std::filesystem::path("test-artifacts") / file_name, std::ios::binary);
+  return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+}
+
+inline std::vector<std::string> split_lines(const std::string& text) {
+  std::vector<std::string> lines;
+  std::istringstream in(text);
+  for (std::string line; std::getline(in, line);) {
+    lines.push_back(line);
+  }
+  return lines;
+}
+
+// Spins (no sleep: wasm has no threads) so one inner test is clearly the slowest.
+inline void spin_for_milliseconds(int milliseconds) {
+  const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(milliseconds);
+  while (std::chrono::steady_clock::now() < until) {
+  }
+}
+
 inline std::vector<TestCase> test_harness_selftests() {
   return {
       {"test_harness_fails_a_skip_after_a_recorded_failure",
@@ -110,8 +132,7 @@ inline std::vector<TestCase> test_harness_selftests() {
          });
          CHECK(run.exit_code == 0);
          CHECK(contains(run.out, "skipped 4 (fixture 1, platform 1, feature 1, other 1) in "));
-         std::ifstream in(std::filesystem::path("test-artifacts") / "skipped-harness_selftest.txt", std::ios::binary);
-         const std::string record((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+         const auto record = read_artifact("skipped-harness_selftest.txt");
          CHECK(record ==
                "alpha_platform\tWindows only (one-click update)\n"
                "mid_fixture\toptional fixture missing: local-test-fixtures/no-such-folder/absent.psd\n"
@@ -122,6 +143,46 @@ inline std::vector<TestCase> test_harness_selftests() {
                SkipKind::fixture);
          CHECK(classify_skip_reason("this build has no AVIF codec") == SkipKind::feature);
          CHECK(classify_skip_reason("Arial is not installed") == SkipKind::platform);
+       }},
+      {"test_harness_writes_test_timings_slowest_first",
+       [] {
+         const auto run = run_inner_suite({
+             {"quick_pass", [] {}},
+             {"quick_skip", [] { skip(SkipKind::platform, "macOS only"); }},
+             {"slow_pass", [] { spin_for_milliseconds(60); }},
+             {"quick_fail", [] { throw std::runtime_error("broke"); }},
+         });
+         CHECK(run.exit_code == 1);
+         CHECK(contains(run.out, "[SUMMARY] executed 4, passed 2, failed 1, skipped 1 (platform 1) in "));
+         CHECK(contains(run.out, " s\n  slowest: slow_pass 0."));
+         const auto lines = split_lines(read_artifact("timings-harness_selftest.tsv"));
+         CHECK(lines.size() == 5);
+         CHECK(lines[0] == "test\tseconds\tresult");
+         CHECK(lines[1].starts_with("slow_pass\t0.") && lines[1].ends_with("\tpass"));
+         std::string results;
+         for (std::size_t index = 2; index < lines.size(); ++index) {
+           results += lines[index].substr(lines[index].rfind('\t') + 1) + " ";
+         }
+         CHECK(contains(results, "pass ") && contains(results, "skip ") && contains(results, "fail "));
+       }},
+      {"test_harness_timing_log_keeps_a_timeout_and_sorts_on_finish",
+       [] {
+         TestTimingLog log("harness_selftest_timeout");
+         log.begin("stuck_test");
+         log.record_timeout();
+         // What a killed or timed-out run leaves: the rows so far, in run order.
+         const auto partial = split_lines(read_artifact("timings-harness_selftest_timeout.tsv"));
+         CHECK(partial.size() == 2);
+         CHECK(partial[1].starts_with("stuck_test\t") && partial[1].ends_with("\ttimeout"));
+         log.record({"two_seconds", 2.0, "pass"});
+         log.record({"five_seconds", 5.0, "fail"});
+         const auto sorted = log.finish();
+         CHECK(sorted.size() == 3 && sorted[0].name == "five_seconds" && sorted[2].name == "stuck_test");
+         CHECK(TestTimingLog::slowest_text(sorted, 2) == "five_seconds 5.0 s, two_seconds 2.0 s");
+         const auto lines = split_lines(read_artifact("timings-harness_selftest_timeout.tsv"));
+         CHECK(lines.size() == 4);
+         CHECK(lines[1] == "five_seconds\t5.000\tfail");
+         CHECK(lines[2] == "two_seconds\t2.000\tpass");
        }},
       {"test_harness_require_fixtures_fails_fixture_skips",
        [] {
