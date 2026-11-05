@@ -14991,6 +14991,22 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Concavity:</source>
         <translation>Konkavität:</translation>
     </message>
+    <message>
+        <source>Scanned image is too large</source>
+        <translation>Das gescannte Bild ist zu groß</translation>
+    </message>
+    <message>
+        <source>Scan data arrived out of order</source>
+        <translation>Scandaten kamen in falscher Reihenfolge an</translation>
+    </message>
+    <message>
+        <source>The scanner sent image data in an unsupported layout</source>
+        <translation>Der Scanner hat Bilddaten in einem nicht unterstützten Format gesendet</translation>
+    </message>
+    <message>
+        <source>The scanner sent an incomplete image</source>
+        <translation>Der Scanner hat ein unvollständiges Bild gesendet</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

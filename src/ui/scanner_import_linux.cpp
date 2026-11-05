@@ -14,6 +14,7 @@
 
 #include "support/scan_frame.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/localization.hpp"
 
 #include <QComboBox>
 #include <QCoreApplication>
@@ -813,8 +814,9 @@ ScannerAcquireResult run_scan(Session& session, const ScannerSettings& settings)
     }
   } catch (const std::exception& error) {
     sane.cancel(handle);
+    // ScanImageAssembler throws catalog text (PATCHY_TRANSLATE_NOOP in scan_frame.cpp).
     return failure(QCoreApplication::translate("ScannerImport", "The scan could not be completed (%1)")
-                       .arg(QString::fromUtf8(error.what())));
+                       .arg(translate_data_text(error.what())));
   }
   // A completed scan still needs sane_cancel to return the device to its idle state.
   sane.cancel(handle);

@@ -14944,6 +14944,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Concavity:</source>
         <translation>凹度:</translation>
     </message>
+    <message>
+        <source>Scanned image is too large</source>
+        <translation>扫描的图像太大</translation>
+    </message>
+    <message>
+        <source>Scan data arrived out of order</source>
+        <translation>扫描数据到达顺序有误</translation>
+    </message>
+    <message>
+        <source>The scanner sent image data in an unsupported layout</source>
+        <translation>扫描仪发送的图像数据格式不受支持</translation>
+    </message>
+    <message>
+        <source>The scanner sent an incomplete image</source>
+        <translation>扫描仪发送的图像不完整</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

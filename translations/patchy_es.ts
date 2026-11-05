@@ -14991,6 +14991,22 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Concavity:</source>
         <translation>Concavidad:</translation>
     </message>
+    <message>
+        <source>Scanned image is too large</source>
+        <translation>La imagen escaneada es demasiado grande</translation>
+    </message>
+    <message>
+        <source>Scan data arrived out of order</source>
+        <translation>Los datos del escaneo llegaron en un orden incorrecto</translation>
+    </message>
+    <message>
+        <source>The scanner sent image data in an unsupported layout</source>
+        <translation>El escáner envió datos de imagen con una estructura no compatible</translation>
+    </message>
+    <message>
+        <source>The scanner sent an incomplete image</source>
+        <translation>El escáner envió una imagen incompleta</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

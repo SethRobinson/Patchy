@@ -15038,6 +15038,22 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Concavity:</source>
         <translation>Wklęsłość:</translation>
     </message>
+    <message>
+        <source>Scanned image is too large</source>
+        <translation>Zeskanowany obraz jest zbyt duży</translation>
+    </message>
+    <message>
+        <source>Scan data arrived out of order</source>
+        <translation>Dane skanowania nadeszły w złej kolejności</translation>
+    </message>
+    <message>
+        <source>The scanner sent image data in an unsupported layout</source>
+        <translation>Skaner wysłał dane obrazu w nieobsługiwanym układzie</translation>
+    </message>
+    <message>
+        <source>The scanner sent an incomplete image</source>
+        <translation>Skaner wysłał niekompletny obraz</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -14991,6 +14991,22 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Concavity:</source>
         <translation>Concavidade:</translation>
     </message>
+    <message>
+        <source>Scanned image is too large</source>
+        <translation>A imagem digitalizada é grande demais</translation>
+    </message>
+    <message>
+        <source>Scan data arrived out of order</source>
+        <translation>Os dados da digitalização chegaram fora de ordem</translation>
+    </message>
+    <message>
+        <source>The scanner sent image data in an unsupported layout</source>
+        <translation>O scanner enviou dados de imagem em um formato sem suporte</translation>
+    </message>
+    <message>
+        <source>The scanner sent an incomplete image</source>
+        <translation>O scanner enviou uma imagem incompleta</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

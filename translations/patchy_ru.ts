@@ -15038,6 +15038,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Concavity:</source>
         <translation>Вогнутость:</translation>
     </message>
+    <message>
+        <source>Scanned image is too large</source>
+        <translation>Отсканированное изображение слишком велико</translation>
+    </message>
+    <message>
+        <source>Scan data arrived out of order</source>
+        <translation>Данные сканирования пришли в неверном порядке</translation>
+    </message>
+    <message>
+        <source>The scanner sent image data in an unsupported layout</source>
+        <translation>Сканер передал данные изображения в неподдерживаемом формате</translation>
+    </message>
+    <message>
+        <source>The scanner sent an incomplete image</source>
+        <translation>Сканер передал неполное изображение</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

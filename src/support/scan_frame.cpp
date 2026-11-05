@@ -1,5 +1,7 @@
 #include "support/scan_frame.hpp"
 
+#include "support/translate_noop.hpp"
+
 #include <algorithm>
 #include <cstring>
 #include <limits>
@@ -30,7 +32,7 @@ int pass_channel(ScanFrameFormat format) {
 
 std::size_t checked_multiply(std::size_t a, std::size_t b) {
   if (a != 0 && b > std::numeric_limits<std::size_t>::max() / a) {
-    throw std::invalid_argument("scan image is too large");
+    throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "Scanned image is too large"));
   }
   return a * b;
 }
@@ -39,34 +41,34 @@ std::size_t checked_multiply(std::size_t a, std::size_t b) {
 
 void ScanImageAssembler::begin_frame(const ScanFrameParameters& parameters) {
   if (complete_) {
-    throw std::logic_error("scan already complete");
+    throw std::logic_error(PATCHY_TRANSLATE_NOOP("QObject", "Scan data arrived out of order"));
   }
   if (in_frame_) {
-    throw std::logic_error("previous scan frame not ended");
+    throw std::logic_error(PATCHY_TRANSLATE_NOOP("QObject", "Scan data arrived out of order"));
   }
   const auto format_value = static_cast<int>(parameters.format);
   if (format_value < 0 || format_value > static_cast<int>(ScanFrameFormat::Blue)) {
-    throw std::invalid_argument("unsupported scan frame format");
+    throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "The scanner sent image data in an unsupported layout"));
   }
   if (parameters.depth != 1 && parameters.depth != 8 && parameters.depth != 16) {
-    throw std::invalid_argument("unsupported scan sample depth");
+    throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "The scanner sent image data in an unsupported layout"));
   }
   if (parameters.pixels_per_line <= 0 || parameters.bytes_per_line <= 0 || parameters.lines < -1) {
-    throw std::invalid_argument("invalid scan frame geometry");
+    throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "The scanner sent image data in an unsupported layout"));
   }
   const auto bits_per_line = checked_multiply(
       checked_multiply(static_cast<std::size_t>(parameters.pixels_per_line),
                        static_cast<std::size_t>(frame_channels(parameters.format))),
       static_cast<std::size_t>(parameters.depth));
   if (static_cast<std::size_t>(parameters.bytes_per_line) < (bits_per_line + 7) / 8) {
-    throw std::invalid_argument("scan line stride is shorter than its pixels");
+    throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "The scanner sent image data in an unsupported layout"));
   }
 
   const bool color_pass = is_single_pass_color(parameters.format);
   if (passes_seen_ == 0) {
     three_pass_ = color_pass;
     if (!three_pass_ && !parameters.last_frame) {
-      throw std::invalid_argument("single-frame scan announced further frames");
+      throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "The scanner sent image data in an unsupported layout"));
     }
     image_ = {};
     image_.width = parameters.pixels_per_line;
@@ -80,11 +82,11 @@ void ScanImageAssembler::begin_frame(const ScanFrameParameters& parameters) {
     }
   } else {
     if (!three_pass_ || !color_pass) {
-      throw std::invalid_argument("scan frame does not continue a three-pass scan");
+      throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "The scanner sent image data in an unsupported layout"));
     }
     if (parameters.pixels_per_line != frame_.pixels_per_line || parameters.depth != frame_.depth ||
         parameters.bytes_per_line != frame_.bytes_per_line) {
-      throw std::invalid_argument("three-pass scan frames differ in geometry");
+      throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "The scanner sent image data in an unsupported layout"));
     }
   }
   frame_ = parameters;
@@ -96,7 +98,7 @@ void ScanImageAssembler::begin_frame(const ScanFrameParameters& parameters) {
 
 void ScanImageAssembler::append(std::span<const std::uint8_t> bytes) {
   if (!in_frame_) {
-    throw std::logic_error("scan data outside a frame");
+    throw std::logic_error(PATCHY_TRANSLATE_NOOP("QObject", "Scan data arrived out of order"));
   }
   const auto stride = static_cast<std::size_t>(frame_.bytes_per_line);
   while (!bytes.empty()) {
@@ -121,7 +123,7 @@ void ScanImageAssembler::append(std::span<const std::uint8_t> bytes) {
 void ScanImageAssembler::store_row(std::span<const std::uint8_t> row) {
   const bool first_pass = passes_seen_ == 0;
   if (!first_pass && rows_in_frame_ >= image_.height) {
-    throw std::runtime_error("three-pass scan frames differ in height");
+    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "The scanner sent an incomplete image"));
   }
   const auto out_sample_bytes = static_cast<std::size_t>(image_.bit_depth / 8);
   const auto out_row_bytes =
@@ -129,7 +131,7 @@ void ScanImageAssembler::store_row(std::span<const std::uint8_t> row) {
   if (first_pass) {
     const auto new_size = image_.samples.size() + out_row_bytes;
     if (new_size < image_.samples.size()) {
-      throw std::runtime_error("scan image is too large");
+      throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Scanned image is too large"));
     }
     image_.samples.resize(new_size);
     ++image_.height;
@@ -167,33 +169,33 @@ void ScanImageAssembler::store_row(std::span<const std::uint8_t> row) {
 
 void ScanImageAssembler::end_frame() {
   if (!in_frame_) {
-    throw std::logic_error("no scan frame to end");
+    throw std::logic_error(PATCHY_TRANSLATE_NOOP("QObject", "Scan data arrived out of order"));
   }
   in_frame_ = false;
   pending_row_.clear();  // a partial trailing line is not a line
   if (frame_.lines >= 0 && rows_in_frame_ < frame_.lines) {
-    throw std::runtime_error("the scanner delivered fewer lines than announced");
+    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "The scanner sent an incomplete image"));
   }
   if (passes_seen_ > 0 && rows_in_frame_ != image_.height) {
-    throw std::runtime_error("three-pass scan frames differ in height");
+    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "The scanner sent an incomplete image"));
   }
   ++passes_seen_;
   if (frame_.last_frame) {
     if (three_pass_ && passes_seen_ != 3) {
-      throw std::runtime_error("three-pass scan ended before all colors arrived");
+      throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "The scanner sent an incomplete image"));
     }
     if (image_.height == 0) {
-      throw std::runtime_error("the scanner delivered no image lines");
+      throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "The scanner sent an incomplete image"));
     }
     complete_ = true;
   } else if (three_pass_ && passes_seen_ >= 3) {
-    throw std::runtime_error("three-pass scan announced a fourth frame");
+    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "The scanner sent an incomplete image"));
   }
 }
 
 ScanImage ScanImageAssembler::finish() {
   if (!complete_) {
-    throw std::logic_error("scan is not complete");
+    throw std::logic_error(PATCHY_TRANSLATE_NOOP("QObject", "Scan data arrived out of order"));
   }
   auto image = std::move(image_);
   image_ = {};

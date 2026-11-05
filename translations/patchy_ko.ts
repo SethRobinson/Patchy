@@ -14944,6 +14944,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Concavity:</source>
         <translation>오목함:</translation>
     </message>
+    <message>
+        <source>Scanned image is too large</source>
+        <translation>스캔한 이미지가 너무 큽니다</translation>
+    </message>
+    <message>
+        <source>Scan data arrived out of order</source>
+        <translation>스캔 데이터가 잘못된 순서로 도착했습니다</translation>
+    </message>
+    <message>
+        <source>The scanner sent image data in an unsupported layout</source>
+        <translation>스캐너가 지원되지 않는 구조의 이미지 데이터를 보냈습니다</translation>
+    </message>
+    <message>
+        <source>The scanner sent an incomplete image</source>
+        <translation>스캐너가 불완전한 이미지를 보냈습니다</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

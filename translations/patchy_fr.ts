@@ -14991,6 +14991,22 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Concavity:</source>
         <translation>Concavité :</translation>
     </message>
+    <message>
+        <source>Scanned image is too large</source>
+        <translation>L&apos;image numérisée est trop grande</translation>
+    </message>
+    <message>
+        <source>Scan data arrived out of order</source>
+        <translation>Les données de numérisation sont arrivées dans le désordre</translation>
+    </message>
+    <message>
+        <source>The scanner sent image data in an unsupported layout</source>
+        <translation>Le scanner a envoyé des données d&apos;image dans une structure non prise en charge</translation>
+    </message>
+    <message>
+        <source>The scanner sent an incomplete image</source>
+        <translation>Le scanner a envoyé une image incomplète</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -14974,6 +14974,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Concavity:</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Scanned image is too large</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scan data arrived out of order</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The scanner sent image data in an unsupported layout</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The scanner sent an incomplete image</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
