@@ -39,9 +39,10 @@ inline constexpr LayerLockFlags kLayerLockAll =
 inline constexpr LayerLockFlags kLayerLockArtboardAutonest = 1U << 3U;
 inline constexpr LayerLockFlags kLayerLockStoredFlags = kLayerLockAll | kLayerLockArtboardAutonest;
 
-// Layers panel color labels (GitHub issue 244). The values are Photoshop's own
-// 'lclr' indices, so they are a file-format contract. Other indices from a newer
-// file are kept on the layer and shown as no color.
+// Layers panel color labels (GitHub issues 244, 635). The values are Photoshop's own
+// 'lclr' indices, so they are a file-format contract: 1..7 since CS, 8..11 added by
+// Photoshop 2024. Other indices from a newer file are kept on the layer and shown as
+// no color.
 using LayerColorLabel = std::uint16_t;
 inline constexpr LayerColorLabel kLayerColorNone = 0U;
 inline constexpr LayerColorLabel kLayerColorRed = 1U;
@@ -51,11 +52,22 @@ inline constexpr LayerColorLabel kLayerColorGreen = 4U;
 inline constexpr LayerColorLabel kLayerColorBlue = 5U;
 inline constexpr LayerColorLabel kLayerColorViolet = 6U;
 inline constexpr LayerColorLabel kLayerColorGray = 7U;
-inline constexpr LayerColorLabel kLayerColorLast = kLayerColorGray;
-// The stable ids "none", "red", "orange", "yellow", "green", "blue", "violet" and
-// "gray" (script values and the theme's layerColor property; permanent). An index
-// Patchy does not know reads as "none".
+inline constexpr LayerColorLabel kLayerColorSeafoam = 8U;
+inline constexpr LayerColorLabel kLayerColorIndigo = 9U;
+inline constexpr LayerColorLabel kLayerColorMagenta = 10U;
+inline constexpr LayerColorLabel kLayerColorFuchsia = 11U;
+inline constexpr LayerColorLabel kLayerColorLast = kLayerColorFuchsia;
+// The stable ids "none", "red", "orange", "yellow", "green", "blue", "violet",
+// "gray", "seafoam", "indigo", "magenta" and "fuchsia" (script values and the
+// theme's layerColor property; permanent). An index Patchy does not know reads as
+// "none".
 [[nodiscard]] std::string_view layer_color_label_id(LayerColorLabel label) noexcept;
+// Every known label in menu order: None, then by hue, Gray last (Photoshop's order
+// since it added 8..11).
+inline constexpr std::array<LayerColorLabel, kLayerColorLast + 1U> kLayerColorMenuOrder{
+    kLayerColorNone,    kLayerColorRed,    kLayerColorOrange,  kLayerColorYellow,
+    kLayerColorGreen,   kLayerColorSeafoam, kLayerColorBlue,   kLayerColorIndigo,
+    kLayerColorMagenta, kLayerColorFuchsia, kLayerColorViolet, kLayerColorGray};
 [[nodiscard]] std::optional<LayerColorLabel> layer_color_label_from_id(std::string_view id) noexcept;
 
 struct Rect {

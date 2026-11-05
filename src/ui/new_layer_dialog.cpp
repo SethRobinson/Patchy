@@ -114,7 +114,7 @@ std::optional<NewLayerSettings> request_new_layer_settings(QWidget* parent, cons
   auto* color_combo = new QComboBox(&dialog);
   color_combo->setObjectName(QStringLiteral("newLayerColorCombo"));
   for (std::size_t index = 0; index < colors.size(); ++index) {
-    color_combo->addItem(colors[index].swatch, colors[index].name, static_cast<int>(index));
+    color_combo->addItem(colors[index].swatch, colors[index].name, static_cast<int>(colors[index].label));
   }
   form->addRow(NewLayerDialogStrings::tr("Color:"), color_combo);
 

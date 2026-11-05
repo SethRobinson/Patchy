@@ -19242,6 +19242,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Recent Folder</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Tag the layer seafoam in the Layers panel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tag the layer indigo in the Layers panel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tag the layer magenta in the Layers panel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tag the layer fuchsia in the Layers panel</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32423,6 +32439,18 @@ Locked: %1</source>
     </message>
     <message>
         <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Seafoam</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Indigo</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fuchsia</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

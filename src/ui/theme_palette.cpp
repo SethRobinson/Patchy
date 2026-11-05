@@ -189,6 +189,10 @@ const ThemePalette& dark_palette() {
       .layer_color_blue = rgb(0x4a90e2),
       .layer_color_violet = rgb(0xa070d8),
       .layer_color_gray = rgb(0x8c9299),
+      .layer_color_seafoam = rgb(0x3cbf9c),
+      .layer_color_indigo = rgb(0x6152d9),
+      .layer_color_magenta = rgb(0xd054c6),
+      .layer_color_fuchsia = rgb(0xe84f8e),
 
       // Bright accent.
       .accent_bright = rgb(0x31a8ff),
@@ -742,6 +746,10 @@ const ThemePalette& light_palette() {
     light.layer_color_blue = rgb(0x2f76c9);
     light.layer_color_violet = rgb(0x8352c4);
     light.layer_color_gray = rgb(0x7a8088);
+    light.layer_color_seafoam = rgb(0x1f9c7c);
+    light.layer_color_indigo = rgb(0x4a3cc2);
+    light.layer_color_magenta = rgb(0xb2359f);
+    light.layer_color_fuchsia = rgb(0xcc2f6c);
 
     // The favorite font star: a deeper gold that holds against a near-white list.
     light.font_favorite_star = rgb(0xc99a0e);
@@ -973,6 +981,10 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
       PATCHY_THEME_ROLE(layer_color_blue),
       PATCHY_THEME_ROLE(layer_color_violet),
       PATCHY_THEME_ROLE(layer_color_gray),
+      PATCHY_THEME_ROLE(layer_color_seafoam),
+      PATCHY_THEME_ROLE(layer_color_indigo),
+      PATCHY_THEME_ROLE(layer_color_magenta),
+      PATCHY_THEME_ROLE(layer_color_fuchsia),
 
       PATCHY_THEME_ROLE(accent_bright),
       PATCHY_THEME_ROLE(accent_bright_hover),

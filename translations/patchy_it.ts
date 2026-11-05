@@ -19259,6 +19259,22 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Recent Folder</source>
         <translation>Cartella recente</translation>
     </message>
+    <message>
+        <source>Tag the layer seafoam in the Layers panel</source>
+        <translation>Contrassegna il livello in verde acqua nel pannello Livelli</translation>
+    </message>
+    <message>
+        <source>Tag the layer indigo in the Layers panel</source>
+        <translation>Contrassegna il livello in indaco nel pannello Livelli</translation>
+    </message>
+    <message>
+        <source>Tag the layer magenta in the Layers panel</source>
+        <translation>Contrassegna il livello in magenta nel pannello Livelli</translation>
+    </message>
+    <message>
+        <source>Tag the layer fuchsia in the Layers panel</source>
+        <translation>Contrassegna il livello in fucsia nel pannello Livelli</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32505,6 +32521,18 @@ Bloccato: %1</translation>
     <message>
         <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
         <translation>Se attivo, la lettera di un gruppo di strumenti seleziona il primo strumento e Maiusc con la lettera scorre il gruppo. Se disattivo, premere di nuovo la lettera passa allo strumento successivo del gruppo.</translation>
+    </message>
+    <message>
+        <source>Seafoam</source>
+        <translation>Verde acqua</translation>
+    </message>
+    <message>
+        <source>Indigo</source>
+        <translation>Indaco</translation>
+    </message>
+    <message>
+        <source>Fuchsia</source>
+        <translation>Fucsia</translation>
     </message>
 </context>
 <context>

@@ -21,6 +21,11 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-05 (additive): `layer.colorLabel` takes and returns `"seafoam"`, `"indigo"`, `"magenta"` and
+`"fuchsia"`, Photoshop 2024's layer colors (PSD `lclr` 8 to 11, GitHub issue 635,
+[layer-panel.md](layer-panel.md#color-labels)). Permanent identifiers: those four ids and the command
+ids `layer.color_seafoam`, `layer.color_indigo`, `layer.color_magenta` and `layer.color_fuchsia`.
+Pinned by `ui_script_layer_color_label`.
 2026-11-03 (additive): `doc.selection.smooth(radius)` and `doc.selection.feather(radius)`, Select >
 Smooth and Select > Feather (GitHub issue 614, [selection-modify.md](selection-modify.md)): Smooth
 takes a whole radius 1..500, Feather 0.1..1000; both work on soft selections at any bit depth, do

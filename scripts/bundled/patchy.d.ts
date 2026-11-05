@@ -322,7 +322,9 @@ interface PatchyArtboard {
 }
 
 /** Layers panel color labels, saved to PSD as Photoshop's own layer colors. */
-type PatchyLayerColorLabel = "none" | "red" | "orange" | "yellow" | "green" | "blue" | "violet" | "gray";
+type PatchyLayerColorLabel =
+  | "none" | "red" | "orange" | "yellow" | "green" | "blue" | "violet" | "gray"
+  | "seafoam" | "indigo" | "magenta" | "fuchsia";
 
 interface PatchyLayer {
   /** Decimal string identity, scoped to this open document. Re-query after undo/reopen. */

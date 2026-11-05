@@ -19259,6 +19259,22 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Recent Folder</source>
         <translation>Zuletzt verwendeter Ordner</translation>
     </message>
+    <message>
+        <source>Tag the layer seafoam in the Layers panel</source>
+        <translation>Die Ebene im Ebenenbedienfeld meergrün markieren</translation>
+    </message>
+    <message>
+        <source>Tag the layer indigo in the Layers panel</source>
+        <translation>Die Ebene im Ebenenbedienfeld indigo markieren</translation>
+    </message>
+    <message>
+        <source>Tag the layer magenta in the Layers panel</source>
+        <translation>Die Ebene im Ebenenbedienfeld magenta markieren</translation>
+    </message>
+    <message>
+        <source>Tag the layer fuchsia in the Layers panel</source>
+        <translation>Die Ebene im Ebenenbedienfeld fuchsia markieren</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32505,6 +32521,18 @@ Fixiert: %1</translation>
     <message>
         <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
         <translation>Wenn aktiviert, wählt der Buchstabe einer Werkzeuggruppe ihr erstes Werkzeug, und Umschalt mit dem Buchstaben wechselt durch die Gruppe. Wenn deaktiviert, wechselt erneutes Drücken des Buchstabens zum nächsten Werkzeug der Gruppe.</translation>
+    </message>
+    <message>
+        <source>Seafoam</source>
+        <translation>Meergrün</translation>
+    </message>
+    <message>
+        <source>Indigo</source>
+        <translation>Indigo</translation>
+    </message>
+    <message>
+        <source>Fuchsia</source>
+        <translation>Fuchsia</translation>
     </message>
 </context>
 <context>

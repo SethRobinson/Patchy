@@ -4115,13 +4115,16 @@ void ui_new_layer_dialog_applies_each_field_and_cancel_adds_nothing() {
         }
         CHECK(name->text() == QStringLiteral("Layer 2"));  // default_new_layer_name: one layer so far
         CHECK(clip->isEnabled() && !clip->isChecked());
-        CHECK(color->count() == 8 && color->currentIndex() == 0 && color->currentText() == QStringLiteral("None"));
+        CHECK(color->count() == 12 && color->currentIndex() == 0 && color->currentText() == QStringLiteral("None"));
         CHECK(color->itemText(3) == QStringLiteral("Yellow") && !color->itemIcon(3).isNull());
+        // Hue order, as in the Layer Color menu: Seafoam (lclr 8) sits after Green (#635).
+        CHECK(color->itemText(5) == QStringLiteral("Seafoam") &&
+              color->itemData(5).toInt() == static_cast<int>(patchy::kLayerColorSeafoam));
         CHECK(mode->currentData().toInt() == static_cast<int>(patchy::BlendMode::Normal));
         CHECK(opacity->value() == 100 && opacity->minimum() == 0 && opacity->maximum() == 100);
         name->setText(QStringLiteral("Glaze"));
         clip->setChecked(true);
-        color->setCurrentIndex(static_cast<int>(patchy::kLayerColorYellow));
+        color->setCurrentIndex(color->findData(static_cast<int>(patchy::kLayerColorYellow)));
         mode->setCurrentIndex(mode->findData(static_cast<int>(patchy::BlendMode::Multiply)));
         opacity->setValue(40);
         for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
