@@ -1,5 +1,6 @@
 #include <QScrollBar>
 
+#include "core/pattern_presets.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/canvas_widget_shared.hpp"
 #include "ui/brush_dynamics_popup.hpp"
@@ -25,6 +26,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileDialog>
@@ -36,6 +38,7 @@
 #include <QListWidget>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonValue>
 #include <QSizeGrip>
 #include <QSlider>
 #include <QIODevice>
@@ -596,7 +599,7 @@ void ui_default_brush_tips_carry_curated_dynamics() {
     CHECK(custom != nullptr);
     CHECK(std::abs(custom->dynamics.scatter - 9.5) < 1e-9);
     CHECK(custom->dynamics.count == 7);
-    CHECK(patchy::ui::app_settings().value(QStringLiteral("brushes/defaultTipsVersion")).toInt() == 4);
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("brushes/defaultTipsVersion")).toInt() == 5);
 
     // "Restore Default Brushes" also un-messes customized defaults: spacing, tip shape, and
     // dynamics all reset to factory (the migration above deliberately left them alone).
@@ -2545,7 +2548,7 @@ void ui_default_brush_tips_seed_once_and_render_sheet() {
     CHECK(!has_chalk);      // the deliberate deletion is respected across the upgrade
     CHECK(has_snowflake);   // the tip introduced after v2 is seeded
     CHECK(upgraded.entries().size() == specs.size() - 1);
-    CHECK(patchy::ui::app_settings().value(QStringLiteral("brushes/defaultTipsVersion")).toInt() == 4);
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("brushes/defaultTipsVersion")).toInt() == 5);
   }
 
   // A stale MASK (a tip seeded before a generator artwork fix) also heals via the factory
@@ -2618,6 +2621,180 @@ void ui_default_tips_and_patterns_seed_once_when_two_processes_race() {
     CHECK(reopened.entries().size() == static_cast<std::size_t>(seeded));
   }
   clear_brush_tip_test_state();
+  clear_pattern_test_state();
+}
+
+// Helpers for the GitHub issue 636 tests: a library seeded twice before stable default ids
+// held each default under random ids. These recreate such files from the stable ones.
+QStringList storage_file_stems(const QString& dir) {
+  QStringList stems;
+  for (const auto& info : QDir(dir).entryInfoList({QStringLiteral("*.png")}, QDir::Files, QDir::Name)) {
+    stems.append(info.completeBaseName());
+  }
+  stems.sort();
+  return stems;
+}
+
+QString storage_file(const QString& dir, const QString& stem, const char* suffix) {
+  return dir + QLatin1Char('/') + stem + QLatin1String(suffix);
+}
+
+void copy_storage_files(const QString& dir, const QString& from, const QString& to, int age_seconds) {
+  for (const auto* suffix : {".png", ".json"}) {
+    CHECK(QFile::copy(storage_file(dir, from, suffix), storage_file(dir, to, suffix)));
+  }
+  QFile png(storage_file(dir, to, ".png"));
+  CHECK(png.open(QIODevice::ReadWrite));
+  CHECK(png.setFileTime(QDateTime::currentDateTime().addSecs(-age_seconds), QFileDevice::FileModificationTime));
+}
+
+void remove_storage_files(const QString& dir, const QString& stem) {
+  CHECK(QFile::remove(storage_file(dir, stem, ".png")));
+  CHECK(QFile::remove(storage_file(dir, stem, ".json")));
+}
+
+void edit_sidecar(const QString& path, const QString& key, const QJsonValue& value) {
+  QFile file(path);
+  CHECK(file.open(QIODevice::ReadOnly));
+  auto object = QJsonDocument::fromJson(file.readAll()).object();
+  file.close();
+  object.insert(key, value);
+  CHECK(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+  CHECK(file.write(QJsonDocument(object).toJson()) > 0);
+}
+
+QString old_seed_copy_id(char copy, std::size_t index) {
+  return QStringLiteral("0%1636000-0000-4000-8000-%2").arg(QLatin1Char(copy)).arg(index, 12, 10, QLatin1Char('0'));
+}
+
+// GitHub issue 636: libraries seeded twice before stable default ids keep both copies of
+// every default. The v5 defaults bump removes identical copies once and leaves edited,
+// renamed and moved ones; a deleted default stays deleted; the current tip follows its copy.
+void ui_default_tip_duplicates_collapse_once_on_upgrade() {
+  SettingsValueRestorer saved_tip(QStringLiteral("tools/brushTip"));
+  clear_brush_tip_test_state();
+  const auto dir = brush_tip_test_storage_dir();
+  const auto specs = patchy::ui::generate_default_brush_tips();
+  CHECK(specs.size() >= 7);
+  {
+    patchy::ui::BrushTipLibrary seeded(dir);
+    CHECK(seeded.restore_default_tips(0) == static_cast<int>(specs.size()));
+  }
+  const auto stable = [&](std::size_t index) { return patchy::ui::default_brush_tip_id(specs[index]); };
+  const auto copy_a = [](std::size_t index) { return old_seed_copy_id('a', index); };
+  const auto copy_b = [](std::size_t index) { return old_seed_copy_id('b', index); };
+  for (std::size_t index = 0; index < specs.size(); ++index) {
+    copy_storage_files(dir, stable(index), copy_a(index), 7200);
+    copy_storage_files(dir, stable(index), copy_b(index), 3600);
+  }
+  remove_storage_files(dir, stable(0));  // a profile seeded only before stable ids
+  edit_sidecar(storage_file(dir, copy_b(1), ".json"), QStringLiteral("spacing"), 0.9);
+  edit_sidecar(storage_file(dir, copy_b(2), ".json"), QStringLiteral("name"), QStringLiteral("Mine"));
+  edit_sidecar(storage_file(dir, copy_b(3), ".json"), QStringLiteral("folder"), QStringLiteral("Elsewhere"));
+  for (const auto& stem : {stable(4), copy_a(4), copy_b(4)}) {
+    remove_storage_files(dir, stem);  // deleted by the user
+  }
+  {
+    QImage mask(storage_file(dir, copy_b(5), ".png"));
+    CHECK(!mask.isNull());
+    mask = mask.convertToFormat(QImage::Format_Grayscale8);
+    const QPoint center(mask.width() / 2, mask.height() / 2);
+    auto* pixel = mask.scanLine(center.y()) + center.x();
+    *pixel = static_cast<uchar>(*pixel > 128 ? 0 : 255);
+    CHECK(mask.save(storage_file(dir, copy_b(5), ".png"), "PNG"));
+  }
+  auto settings = patchy::ui::app_settings();
+  settings.setValue(QStringLiteral("brushes/defaultTipsVersion"), 4);
+  settings.setValue(QStringLiteral("tools/brushTip"), copy_b(0));
+  settings.sync();
+
+  QStringList expected;
+  for (std::size_t index = 0; index < specs.size(); ++index) {
+    if (index == 0) {
+      expected << copy_a(0);  // the oldest copy stays when no stable file exists
+    } else if (index != 4) {
+      expected << stable(index);
+    }
+  }
+  expected << copy_b(1) << copy_b(2) << copy_b(3) << copy_b(5);
+  expected.sort();
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto& library = window.brush_tip_library();
+    CHECK(storage_file_stems(dir) == expected);
+    CHECK(library.entries().size() == static_cast<std::size_t>(expected.size()));
+    CHECK(library.merged_duplicate_tip(copy_b(0)) == copy_a(0));
+    auto* picker = window.findChild<patchy::ui::BrushTipPicker*>(QStringLiteral("brushTipPicker"));
+    CHECK(picker != nullptr);
+    CHECK(picker->current_tip_id() == copy_a(0));
+    CHECK(library.remove_duplicate_default_tips() == 0);
+    CHECK(library.find_entry(stable(4)) == nullptr);
+  }
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("brushes/defaultTipsVersion")).toInt() == 5);
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    CHECK(window.brush_tip_library().entries().size() == static_cast<std::size_t>(expected.size()));
+    CHECK(storage_file_stems(dir) == expected);
+  }
+  clear_brush_tip_test_state();
+}
+
+// The pattern side of GitHub issue 636: the loader showed one file per pattern id, so the
+// copies were hidden, but deleting the shown one brought a hidden one back.
+void ui_default_pattern_duplicate_files_collapse_once_on_upgrade() {
+  clear_pattern_test_state();
+  const auto dir = pattern_test_storage_dir();
+  const auto presets = patchy::builtin_pattern_presets();
+  CHECK(presets.size() >= 4);
+  {
+    patchy::ui::PatternLibrary seeded(dir);
+    CHECK(seeded.restore_default_patterns(0) > 0);
+  }
+  const auto stable = [&](std::size_t index) { return QString::fromLatin1(presets[index].id); };
+  const auto copy_a = [](std::size_t index) { return old_seed_copy_id('a', index); };
+  const auto copy_b = [](std::size_t index) { return old_seed_copy_id('b', index); };
+  for (std::size_t index = 0; index < 4; ++index) {
+    copy_storage_files(dir, stable(index), copy_a(index), 7200);
+    copy_storage_files(dir, stable(index), copy_b(index), 3600);
+  }
+  const auto before = storage_file_stems(dir);
+  remove_storage_files(dir, stable(0));  // a profile seeded only before stable ids
+  edit_sidecar(storage_file(dir, copy_b(1), ".json"), QStringLiteral("name"), QStringLiteral("Mine"));
+  for (const auto& stem : {stable(2), copy_a(2), copy_b(2)}) {
+    remove_storage_files(dir, stem);  // deleted by the user
+  }
+  auto settings = patchy::ui::app_settings();
+  settings.setValue(QStringLiteral("patterns/defaultPatternsVersion"), 2);
+  settings.sync();
+
+  const QStringList removed{stable(0), copy_b(0), copy_a(1), stable(2), copy_a(2),
+                            copy_b(2), copy_a(3), copy_b(3)};
+  QStringList expected;
+  for (const auto& stem : before) {
+    if (!removed.contains(stem)) {
+      expected << stem;
+    }
+  }
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto& library = window.pattern_library();
+    CHECK(storage_file_stems(dir) == expected);
+    CHECK(library.find_entry_by_pattern_id(stable(2)) == nullptr);
+    const auto* kept = library.find_entry_by_pattern_id(stable(0));
+    CHECK(kept != nullptr && kept->storage_id == copy_a(0));
+    CHECK(library.remove_duplicate_default_pattern_files() == 0);
+  }
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("patterns/defaultPatternsVersion")).toInt() ==
+        patchy::ui::kDefaultPatternsVersion);
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    (void)window.pattern_library();
+    CHECK(storage_file_stems(dir) == expected);
+  }
   clear_pattern_test_state();
 }
 
@@ -2703,6 +2880,9 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part2() {
       {"ui_default_brush_tips_seed_once_and_render_sheet", ui_default_brush_tips_seed_once_and_render_sheet},
       {"ui_default_tips_and_patterns_seed_once_when_two_processes_race",
      ui_default_tips_and_patterns_seed_once_when_two_processes_race},
+    {"ui_default_tip_duplicates_collapse_once_on_upgrade", ui_default_tip_duplicates_collapse_once_on_upgrade},
+    {"ui_default_pattern_duplicate_files_collapse_once_on_upgrade",
+     ui_default_pattern_duplicate_files_collapse_once_on_upgrade},
     {"ui_brush_tip_restores_on_startup", ui_brush_tip_restores_on_startup},
   };
 }

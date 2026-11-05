@@ -313,6 +313,7 @@ BrushTipLibrary::BrushTipLibrary(BrushTipLibraryLoad load, QObject* parent, Adop
   }
   tip_cache_ = std::move(load.tip_cache);
   loaded_signature_ = std::move(load.loaded_signature);
+  merged_duplicate_tips_ = std::move(load.merged_duplicate_tips);
 }
 
 QString BrushTipLibrary::resolved_storage_dir(QString storage_dir) {
@@ -337,6 +338,7 @@ BrushTipLibraryLoad BrushTipLibrary::load_off_gui_thread(const QString& storage_
   load.entries = std::move(library.entries_);
   load.tip_cache = std::move(library.tip_cache_);
   load.loaded_signature = std::move(library.loaded_signature_);
+  load.merged_duplicate_tips = std::move(library.merged_duplicate_tips_);
   return load;
 }
 
@@ -732,6 +734,78 @@ int BrushTipLibrary::reset_default_tips_to_factory() {
     emit changed();
   }
   return reset;
+}
+
+int BrushTipLibrary::remove_duplicate_default_tips() {
+  // The folder and name a seeded default carried in the interface language of the day, or
+  // in English.
+  const auto folder = default_brush_tips_folder_name();
+  const auto english_folder = QStringLiteral("Patchy Defaults");
+  const auto same_content = [this](const BrushTipEntry& a, const BrushTipEntry& b) {
+    if (a.name != b.name || a.folder != b.folder || a.spacing != b.spacing ||
+        a.base_angle_degrees != b.base_angle_degrees || a.base_roundness != b.base_roundness ||
+        a.tool_flow_percent != b.tool_flow_percent || a.tool_airbrush != b.tool_airbrush ||
+        a.size != b.size || !persisted_dynamics_equal(a.dynamics, b.dynamics)) {
+      return false;
+    }
+    const auto a_tip = tip(a.id);
+    const auto b_tip = tip(b.id);
+    return a_tip != nullptr && b_tip != nullptr && a_tip->width == b_tip->width &&
+           a_tip->height == b_tip->height && a_tip->mask == b_tip->mask;
+  };
+  QStringList removed_ids;
+  for (const auto& spec : generate_default_brush_tips()) {
+    const auto default_id = default_brush_tip_id(spec);
+    struct Candidate {
+      QString id;
+      QDateTime modified;
+    };
+    std::vector<Candidate> candidates;
+    for (const auto& entry : entries_) {
+      const auto in_defaults = entry.folder == folder || entry.folder == english_folder;
+      if (entry.id == default_id || (in_defaults && (entry.name == spec.name || entry.name == spec.key))) {
+        candidates.push_back({entry.id, QFileInfo(png_path(entry.id)).lastModified()});
+      }
+    }
+    if (candidates.size() < 2) {
+      continue;
+    }
+    // Keep the stable-id file first, then the oldest copy; the id breaks ties.
+    std::sort(candidates.begin(), candidates.end(), [&default_id](const Candidate& a, const Candidate& b) {
+      if ((a.id == default_id) != (b.id == default_id)) {
+        return a.id == default_id;
+      }
+      if (a.modified != b.modified) {
+        return a.modified < b.modified;
+      }
+      return a.id < b.id;
+    });
+    std::vector<bool> merged(candidates.size(), false);
+    for (std::size_t keep = 0; keep < candidates.size(); ++keep) {
+      if (merged[keep]) {
+        continue;
+      }
+      const auto* kept = find_entry(candidates[keep].id);
+      for (std::size_t other = keep + 1; other < candidates.size(); ++other) {
+        const auto* copy = find_entry(candidates[other].id);
+        if (!merged[other] && kept != nullptr && copy != nullptr && same_content(*kept, *copy)) {
+          merged[other] = true;
+          removed_ids.append(copy->id);
+          merged_duplicate_tips_.emplace_back(copy->id, kept->id);
+        }
+      }
+    }
+  }
+  return remove_tips(removed_ids);
+}
+
+QString BrushTipLibrary::merged_duplicate_tip(const QString& id) const {
+  for (const auto& [removed, kept] : merged_duplicate_tips_) {
+    if (removed == id) {
+      return kept;
+    }
+  }
+  return {};
 }
 
 int BrushTipLibrary::apply_default_tip_dynamics() {

@@ -63,6 +63,7 @@ struct BrushTipLibraryLoad {
   std::vector<QImage> thumbnails;      // parallel to entries
   std::vector<std::pair<QString, std::shared_ptr<const patchy::BrushTip>>> tip_cache;
   QByteArray loaded_signature;
+  std::vector<std::pair<QString, QString>> merged_duplicate_tips;  // removed id, kept id
 };
 
 class BrushTipLibrary : public BrushTipLibraryBase {
@@ -124,6 +125,17 @@ public:
   // customizations survive upgrades). Returns the number of tips reset.
   int reset_default_tips_to_factory();
 
+  // Deletes extra copies of a built-in default (GitHub issue 636): before stable default ids,
+  // two Patchy processes starting on a fresh profile each seeded the whole set under random
+  // ids. Copies that share a default's name and folder and have identical pixels and settings
+  // collapse to one (the default_brush_tip_id file when present, else the oldest file); a copy
+  // the user edited, renamed or moved stays. One-shot under the brushes/defaultTipsVersion
+  // gate. Returns the number of tips removed.
+  int remove_duplicate_default_tips();
+  // The tip a removed duplicate was merged into, so a stored reference (the current tip
+  // setting) follows it; empty for any other id.
+  [[nodiscard]] QString merged_duplicate_tip(const QString& id) const;
+
   bool rename_tip(const QString& id, const QString& name);
   bool remove_tip(const QString& id);
   // Removes every listed tip, emitting changed() once at the end. Returns the removed count.
@@ -148,6 +160,7 @@ private:
   bool off_gui_thread_ = false;
   std::vector<std::pair<QString, QImage>> pending_thumbnails_;
   QByteArray loaded_signature_;
+  std::vector<std::pair<QString, QString>> merged_duplicate_tips_;
   QString add_tip_internal(const QString& name, const QImage& coverage_mask, double spacing,
                            const QString& folder, const patchy::BrushDynamics& dynamics = {},
                            double base_angle_degrees = 0.0, double base_roundness = 100.0,
