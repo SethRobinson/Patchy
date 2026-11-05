@@ -300,6 +300,16 @@ the popover narrow by capping each row's visible pattern hint
 ([file-formats.md](file-formats.md), "Open-dialog filter contract"); it cannot change the
 cap or the scrollbar.
 
+## Text-input console warnings
+
+On compositors that offer `text-input-v3` (labwc on Raspberry Pi OS, other wlroots
+compositors), Qt prints `qt.qpa.wayland.textinput: ... Trying to disable <surface> but 0x0 is
+focused` each time focus leaves a text field before Qt turns input off for that surface, so
+every dialog close added a line. Nothing is wrong. `main.cpp` turns the category's warnings off
+with `QLoggingCategory::setFilterRules` before the QApplication exists; `QT_LOGGING_RULES`
+takes precedence over that rule, so `QT_LOGGING_RULES="qt.qpa.wayland.textinput.warning=true"`
+shows them again.
+
 ## Reproducing on a headless GNOME Shell
 
 `scripts/dev/wayland-gnome/gnome-rig.sh` runs the installed Flatpak on a headless mutter

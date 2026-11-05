@@ -45,6 +45,7 @@
 #include <QImageReader>
 #include <QLocalServer>
 #include <QLocalSocket>
+#include <QLoggingCategory>
 #include <QRect>
 #include <QSaveFile>
 #include <QSettings>
@@ -490,6 +491,10 @@ int main(int argc, char* argv[]) {
   }
 #endif
 #ifdef Q_OS_LINUX
+  // Qt's text-input-v3 code warns "Trying to disable ... but 0x0 is focused" whenever focus
+  // leaves a text field before Qt turns input off for it (every dialog close on labwc and other
+  // wlroots compositors): harmless noise (docs/wayland.md). QT_LOGGING_RULES still overrides.
+  QLoggingCategory::setFilterRules(QStringLiteral("qt.qpa.wayland.textinput.warning=false"));
   // Qt loads Flatpak's portal theme even with the offscreen platform. Its
   // synchronous appearance query can block startup on an absent desktop portal,
   // before MCP can observe client EOF. Offscreen runs need no desktop session
