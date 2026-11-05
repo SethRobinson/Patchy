@@ -194,8 +194,14 @@ not render nothing).
   answers nothing, which emptied the picker and diverted Ctrl+B/Ctrl+I to faux.
   `available_text_family_styles` resolves through `text_style_query_family`, probes the four flag
   combinations with `QRawFont` (forcing Qt's lazy per-family population), re-queries for faces
-  only the database knows (Light, Semibold, Black), orders the four standard faces first, and
-  caches per family with `fontDatabaseChanged` invalidation. A family that is not installed still
+  only the database knows (Light, Semibold, Black), sorts them in Photoshop's order, and caches
+  per family with `fontDatabaseChanged` invalidation.
+- **Style order is Photoshop's** (issue 649; `text_style_order_key`, `text_styles_in_photoshop_order`):
+  upright before italic, then width (normal, condensed nearest normal first, then expanded), then
+  weight Thin to Black, then the name. Weight and italic come from `QFontDatabase::weight`/`italic`
+  when the database lists the face, else from the name's words; width always comes from the name.
+  Regular sits at weight 400, not on top; the picker adds a Regular row (the empty style) at that
+  spot when the family lists none. A family that is not installed still
   offers the four standard faces so the toggles never synthesize on top of a substituted face.
 - New text seeds from the picker (`add_text_at`).
 - On export, `photoshop_font_name_for_run` resolves the recorded style (or the face split off a

@@ -24,6 +24,22 @@ struct TextStyleFlags {
   bool italic{false};
 };
 
+// What the style list sort knows about one face (GitHub issue 649). An unknown weight comes from
+// the face name instead; the width always does (text_style_order_key).
+struct TextStyleSortFacts {
+  QString style;
+  int weight{-1};      // 1-1000 on the OpenType scale (QFontDatabase::weight); <= 0 unknown
+  bool italic{false};  // the database calls the face italic (the name can still say so)
+};
+
+// Sort key of one face in the style list, compared lexicographically: italic, width block, weight.
+struct TextStyleOrderKey {
+  int italic{0};
+  int width_block{0};
+  int weight{400};
+  friend bool operator==(const TextStyleOrderKey&, const TextStyleOrderKey&) = default;
+};
+
 struct TextFontProblems {
   QStringList not_installed;  // absent from the font database
   QStringList no_glyphs;      // installed, with no glyph for any character asked of it
@@ -65,6 +81,9 @@ QString canonical_text_display_family(const QString& family);
 QString installed_text_family(const QString& family);
 QString default_text_family();
 QStringList available_text_family_styles(const QString& family);
+TextStyleOrderKey text_style_order_key(const TextStyleSortFacts& facts);
+QStringList text_styles_in_photoshop_order(std::vector<TextStyleSortFacts> faces);
+QStringList order_text_family_styles(const QString& family, const QStringList& styles);
 QString text_style_query_family(const QString& family);
 TextStyleFlags text_style_flags_for_name(const QString& style);
 TextStyleFlags text_style_flags_for_style(const QString& family, const QString& style);

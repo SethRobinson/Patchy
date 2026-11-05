@@ -301,6 +301,27 @@ QString text_style_query_family(const QString& family) {
   return resolved;
 }
 
+namespace {
+
+// The database's weight and italic for each of `styles` of `query_family` (a resolved family,
+// text_style_query_family); a face it does not list keeps an unknown weight.
+std::vector<TextStyleSortFacts> text_style_sort_facts(const QString& query_family, const QStringList& styles) {
+  std::vector<TextStyleSortFacts> facts;
+  facts.reserve(static_cast<std::size_t>(styles.size()));
+  for (const auto& style : styles) {
+    TextStyleSortFacts face;
+    face.style = style;
+    if (!query_family.isEmpty()) {
+      face.weight = QFontDatabase::weight(query_family, style);
+      face.italic = QFontDatabase::italic(query_family, style);
+    }
+    facts.push_back(std::move(face));
+  }
+  return facts;
+}
+
+}  // namespace
+
 QStringList available_text_family_styles(const QString& family) {
   // Rebuilt on every caret move via the options-bar sync, so cache per family. User font drops
   // and the registry fallback registration both fire fontDatabaseChanged, which resets it.
@@ -361,25 +382,125 @@ QStringList available_text_family_styles(const QString& family) {
       styles.append(style);
     }
   }
-  // Photoshop's ordering: the four standard faces first, then the rest as the database lists
-  // them.
-  QStringList ordered;
-  for (const auto& canonical : {QStringLiteral("Regular"), QStringLiteral("Italic"),
-                                QStringLiteral("Bold"), QStringLiteral("Bold Italic")}) {
-    for (const auto& style : styles) {
-      if (style.compare(canonical, Qt::CaseInsensitive) == 0) {
-        ordered.append(style);
+  const auto ordered = text_styles_in_photoshop_order(text_style_sort_facts(query_family, styles));
+  cache.insert(cache_key, ordered);
+  return ordered;
+}
+
+namespace {
+
+struct TextStyleWord {
+  QLatin1StringView word;
+  int value;
+};
+
+// Width words of a face name (spaces, hyphens and underscores removed, case folded) and their
+// QFont::Stretch percentage. Compound words come before the words they contain.
+constexpr TextStyleWord kTextStyleWidthWords[] = {
+    {QLatin1StringView("ultracondensed"), 50},  {QLatin1StringView("ultracompressed"), 50},
+    {QLatin1StringView("ultranarrow"), 50},     {QLatin1StringView("extracondensed"), 62},
+    {QLatin1StringView("extracompressed"), 62}, {QLatin1StringView("extranarrow"), 62},
+    {QLatin1StringView("semicondensed"), 87},   {QLatin1StringView("semicompressed"), 87},
+    {QLatin1StringView("seminarrow"), 87},      {QLatin1StringView("condensed"), 75},
+    {QLatin1StringView("compressed"), 75},      {QLatin1StringView("narrow"), 75},
+    {QLatin1StringView("ultraexpanded"), 200},  {QLatin1StringView("ultraextended"), 200},
+    {QLatin1StringView("ultrawide"), 200},      {QLatin1StringView("extraexpanded"), 150},
+    {QLatin1StringView("extraextended"), 150},  {QLatin1StringView("extrawide"), 150},
+    {QLatin1StringView("semiexpanded"), 112},   {QLatin1StringView("semiextended"), 112},
+    {QLatin1StringView("semiwide"), 112},       {QLatin1StringView("expanded"), 125},
+    {QLatin1StringView("extended"), 125},       {QLatin1StringView("wide"), 125},
+};
+
+// Weight words and their OpenType weight, compound words first ("extralight" before "light",
+// "semibold" before "bold"). A name with none of them is the regular weight.
+constexpr TextStyleWord kTextStyleWeightWords[] = {
+    {QLatin1StringView("extrablack"), 950}, {QLatin1StringView("ultrablack"), 950},
+    {QLatin1StringView("extralight"), 200}, {QLatin1StringView("ultralight"), 200},
+    {QLatin1StringView("extrabold"), 800},  {QLatin1StringView("ultrabold"), 800},
+    {QLatin1StringView("semibold"), 600},   {QLatin1StringView("demibold"), 600},
+    {QLatin1StringView("semilight"), 350},  {QLatin1StringView("demilight"), 350},
+    {QLatin1StringView("hairline"), 100},   {QLatin1StringView("thin"), 100},
+    {QLatin1StringView("light"), 300},      {QLatin1StringView("medium"), 500},
+    {QLatin1StringView("bold"), 700},       {QLatin1StringView("black"), 900},
+    {QLatin1StringView("heavy"), 900},      {QLatin1StringView("demi"), 600},
+};
+
+}  // namespace
+
+// Photoshop's style list order (GitHub issue 649, from the reporter's Photoshop screenshot of
+// Roboto): upright faces before italic ones, within each the normal width before the condensed
+// and then the expanded widths, and within each width block the weight from Thin to Black.
+// Regular has no special place: it sits at weight 400 of the upright normal block.
+TextStyleOrderKey text_style_order_key(const TextStyleSortFacts& facts) {
+  auto words = facts.style.toCaseFolded();
+  words.remove(QLatin1Char(' '));
+  words.remove(QLatin1Char('-'));
+  words.remove(QLatin1Char('_'));
+  TextStyleOrderKey key;
+  const bool italic = facts.italic || words.contains(QLatin1StringView("italic")) ||
+                      words.contains(QLatin1StringView("oblique"));
+  key.italic = italic ? 1 : 0;
+  int stretch = 100;
+  for (const auto& width : kTextStyleWidthWords) {
+    if (const auto at = words.indexOf(width.word); at >= 0) {
+      stretch = width.value;
+      words.remove(at, width.word.size());  // "ExtraCondensed Light" must not read as ExtraLight
+      break;
+    }
+  }
+  // Normal width first, then the condensed widths nearest normal first, then the expanded ones.
+  key.width_block = stretch == 100 ? 0 : (stretch < 100 ? 100 - stretch : stretch);
+  if (facts.weight > 0) {
+    key.weight = facts.weight;
+  } else {
+    for (const auto& weight : kTextStyleWeightWords) {
+      if (words.contains(weight.word)) {
+        key.weight = weight.value;
         break;
       }
     }
   }
-  for (const auto& style : styles) {
-    if (!ordered.contains(style, Qt::CaseInsensitive)) {
-      ordered.append(style);
-    }
+  return key;
+}
+
+// Sorts faces by text_style_order_key; equal keys fall back to the name, so the order never
+// depends on the database's listing order.
+QStringList text_styles_in_photoshop_order(std::vector<TextStyleSortFacts> faces) {
+  std::vector<std::pair<TextStyleOrderKey, QString>> keyed;
+  keyed.reserve(faces.size());
+  for (auto& face : faces) {
+    const auto key = text_style_order_key(face);
+    keyed.emplace_back(key, std::move(face.style));
   }
-  cache.insert(cache_key, ordered);
+  std::sort(keyed.begin(), keyed.end(), [](const auto& left, const auto& right) {
+    const auto& a = left.first;
+    const auto& b = right.first;
+    if (a.italic != b.italic) {
+      return a.italic < b.italic;
+    }
+    if (a.width_block != b.width_block) {
+      return a.width_block < b.width_block;
+    }
+    if (a.weight != b.weight) {
+      return a.weight < b.weight;
+    }
+    if (const auto folded = left.second.compare(right.second, Qt::CaseInsensitive); folded != 0) {
+      return folded < 0;
+    }
+    return left.second < right.second;
+  });
+  QStringList ordered;
+  ordered.reserve(static_cast<qsizetype>(keyed.size()));
+  for (auto& entry : keyed) {
+    ordered.append(std::move(entry.second));
+  }
   return ordered;
+}
+
+// `styles` of the display family `family` in Photoshop's order, with the database's weight and
+// italic for each face it lists.
+QStringList order_text_family_styles(const QString& family, const QStringList& styles) {
+  return text_styles_in_photoshop_order(text_style_sort_facts(text_style_query_family(family), styles));
 }
 
 // Bold/italic as the face name AND the font database describe them, unioned. The name is
