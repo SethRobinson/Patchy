@@ -765,7 +765,7 @@ QString photoshop_style_template() {
     QLabel#layerMaskThumbnail[layerTargetActive="true"],
     QLabel#layerVectorMaskThumbnail[layerTargetActive="true"],
     QLabel#layerSmartFilterMaskThumbnail[layerTargetActive="true"] {
-      border: 1px solid @accent_bright;
+      border: 2px solid @accent_bright;
       padding: 0;
     }
     QToolButton#maskEditModeChip {
