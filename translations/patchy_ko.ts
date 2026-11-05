@@ -11838,8 +11838,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>양:</translation>
     </message>
     <message>
-        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
-        <translation>배경: 스택의 맨 아래에 머물며 투명도나 레이어 스타일을 가질 수 없습니다. 마우스 오른쪽 버튼으로 클릭하고 배경에서 레이어로를 선택하면 일반 레이어가 됩니다.</translation>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Click to make it an ordinary layer.</source>
+        <translation>배경: 스택의 맨 아래에 머물며 투명도나 레이어 스타일을 가질 수 없습니다. 클릭하면 일반 레이어가 됩니다.</translation>
     </message>
     <message>
         <source>iPhone 16 Pro</source>
@@ -14828,6 +14828,67 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Feather radius:</source>
         <translation>페더 반경:</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is damaged</source>
+        <translation>TIFF의 이미지 데이터가 손상되었습니다</translation>
+    </message>
+    <message>
+        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <translation>Patchy는 이 TIFF의 샘플 구성을 읽을 수 없습니다</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <translation>TIFF의 이미지 데이터가 잘렸거나 손상되었습니다. 누락된 부분은 빈 상태로 열렸습니다.</translation>
+    </message>
+    <message>
+        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
+        <translation>TIFF의 추가 채널 일부를 제외했습니다. 문서에는 채널을 최대 56개까지 둘 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>The TIFF has no pages to open</source>
+        <translation>TIFF에 열 페이지가 없습니다</translation>
+    </message>
+    <message>
+        <source>The pages&apos; extra channels were left out: they belong to single pages, not the layered document.</source>
+        <translation>페이지의 추가 채널은 제외되었습니다. 이 채널은 레이어 문서가 아니라 개별 페이지에 속합니다.</translation>
+    </message>
+    <message>
+        <source>Multi-Page TIFF</source>
+        <translation>다중 페이지 TIFF</translation>
+    </message>
+    <message>
+        <source>%1 holds %2 pages. How should Patchy open them?</source>
+        <translation>%1에 %2개의 페이지가 있습니다. Patchy에서 어떻게 열까요?</translation>
+    </message>
+    <message>
+        <source>Pages as Layers puts every page on its own layer in one document, page 1 on top. Separate Documents opens every page in its own tab.</source>
+        <translation>&apos;페이지를 레이어로&apos;는 모든 페이지를 한 문서의 각 레이어에 넣고 1페이지를 맨 위에 둡니다. &apos;별도 문서&apos;는 모든 페이지를 각각의 탭에서 엽니다.</translation>
+    </message>
+    <message>
+        <source>Pages as Layers</source>
+        <translation>페이지를 레이어로</translation>
+    </message>
+    <message>
+        <source>Separate Documents</source>
+        <translation>별도 문서</translation>
+    </message>
+    <message>
+        <source>First Page Only</source>
+        <translation>첫 페이지만</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF: opened %1 pages as layers</source>
+        <translation>다중 페이지 TIFF: %1개 페이지를 레이어로 열었습니다</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF: opened %1 pages as separate documents</source>
+        <translation>다중 페이지 TIFF: %1개 페이지를 별도 문서로 열었습니다</translation>
+    </message>
+    <message>
+        <source>Pages Patchy could not read were left out: %1</source>
+        <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
+        <translation>Patchy가 읽을 수 없는 페이지는 제외되었습니다: %1</translation>
     </message>
     <message>
         <source>Reds:</source>
@@ -19152,6 +19213,34 @@ Each item&apos;s own View setting still applies.</source>
         <source>Soften the selection edge</source>
         <translation>선택 영역 가장자리 부드럽게</translation>
     </message>
+    <message>
+        <source>Open Document</source>
+        <translation>열린 문서</translation>
+    </message>
+    <message>
+        <source>Recent File</source>
+        <translation>최근 파일</translation>
+    </message>
+    <message>
+        <source>Recent Folder</source>
+        <translation>최근 폴더</translation>
+    </message>
+    <message>
+        <source>Tag the layer seafoam in the Layers panel</source>
+        <translation>레이어 패널에서 레이어를 시폼으로 태그</translation>
+    </message>
+    <message>
+        <source>Tag the layer indigo in the Layers panel</source>
+        <translation>레이어 패널에서 레이어를 남색으로 태그</translation>
+    </message>
+    <message>
+        <source>Tag the layer magenta in the Layers panel</source>
+        <translation>레이어 패널에서 레이어를 마젠타로 태그</translation>
+    </message>
+    <message>
+        <source>Tag the layer fuchsia in the Layers panel</source>
+        <translation>레이어 패널에서 레이어를 푸시아로 태그</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -19351,6 +19440,34 @@ Each item&apos;s own View setting still applies.</source>
         <source>Other</source>
         <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
         <translation>기타</translation>
+    </message>
+    <message>
+        <source>Favorites</source>
+        <translation>즐겨찾기</translation>
+    </message>
+    <message>
+        <source>No favorites yet. Click the star beside a font to add it.</source>
+        <translation>아직 즐겨찾기가 없습니다. 글꼴 옆의 별을 클릭하면 추가됩니다.</translation>
+    </message>
+    <message>
+        <source>No favorite fonts match the search or filters.</source>
+        <translation>검색이나 필터와 일치하는 즐겨찾기 글꼴이 없습니다.</translation>
+    </message>
+    <message>
+        <source>Remove from Recent</source>
+        <translation>최근 사용에서 제거</translation>
+    </message>
+    <message>
+        <source>Remove from favorites</source>
+        <translation>즐겨찾기에서 제거</translation>
+    </message>
+    <message>
+        <source>Add to favorites</source>
+        <translation>즐겨찾기에 추가</translation>
+    </message>
+    <message>
+        <source>Show only favorite fonts</source>
+        <translation>즐겨찾기 글꼴만 표시</translation>
     </message>
 </context>
 <context>
@@ -32324,6 +32441,26 @@ Locked: %1</source>
         <source>Contract by:</source>
         <translation>축소량:</translation>
     </message>
+    <message>
+        <source>Use Shift for tool switch</source>
+        <translation>Shift 키로 도구 전환</translation>
+    </message>
+    <message>
+        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation>켜면 도구 그룹의 문자 키는 그룹의 첫 도구를 선택하고, Shift와 문자 키로 그룹 안을 차례로 전환합니다. 끄면 문자 키를 다시 누를 때 그룹의 다음 도구로 넘어갑니다.</translation>
+    </message>
+    <message>
+        <source>Seafoam</source>
+        <translation>시폼</translation>
+    </message>
+    <message>
+        <source>Indigo</source>
+        <translation>남색</translation>
+    </message>
+    <message>
+        <source>Fuchsia</source>
+        <translation>푸시아</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34642,10 +34779,6 @@ Locked: %1</source>
         <translation>오픈 소스 사진 편집. 영원히 무료이며 구독이 필요하지 않습니다.</translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation>새 문서...</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>열기...</translation>
     </message>
@@ -34708,6 +34841,18 @@ Locked: %1</source>
     <message>
         <source>Remove from Recent Files</source>
         <translation>최근 파일에서 제거</translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation>새로 만들기...</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>클립보드</translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
+        <translation>클립보드의 이미지로 새 문서 만들기</translation>
     </message>
 </context>
 <context>

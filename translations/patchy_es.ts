@@ -11873,8 +11873,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Cantidad:</translation>
     </message>
     <message>
-        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
-        <translation>Fondo: se queda al final de la pila, sin transparencia ni estilos de capa. Haga clic con el botón derecho y elija Capa a partir de fondo para convertirlo en una capa normal.</translation>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Click to make it an ordinary layer.</source>
+        <translation>Fondo: se queda al final de la pila, sin transparencia ni estilos de capa. Haga clic para convertirlo en una capa normal.</translation>
     </message>
     <message>
         <source>iPhone 16 Pro</source>
@@ -14874,6 +14874,67 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Feather radius:</source>
         <translation>Radio de calado:</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is damaged</source>
+        <translation>Los datos de imagen del TIFF están dañados</translation>
+    </message>
+    <message>
+        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <translation>Patchy no puede leer la disposición de muestras de este TIFF</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <translation>Los datos de imagen del TIFF están incompletos o dañados; la parte que falta se abrió vacía.</translation>
+    </message>
+    <message>
+        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
+        <translation>Se omitieron algunos canales adicionales del TIFF: un documento admite como máximo 56 canales.</translation>
+    </message>
+    <message>
+        <source>The TIFF has no pages to open</source>
+        <translation>El TIFF no tiene páginas que abrir</translation>
+    </message>
+    <message>
+        <source>The pages&apos; extra channels were left out: they belong to single pages, not the layered document.</source>
+        <translation>Se omitieron los canales adicionales de las páginas: pertenecen a páginas individuales, no al documento con capas.</translation>
+    </message>
+    <message>
+        <source>Multi-Page TIFF</source>
+        <translation>TIFF de varias páginas</translation>
+    </message>
+    <message>
+        <source>%1 holds %2 pages. How should Patchy open them?</source>
+        <translation>%1 contiene %2 páginas. ¿Cómo debe abrirlas Patchy?</translation>
+    </message>
+    <message>
+        <source>Pages as Layers puts every page on its own layer in one document, page 1 on top. Separate Documents opens every page in its own tab.</source>
+        <translation>Páginas como capas coloca cada página en su propia capa de un documento, con la página 1 arriba. Documentos separados abre cada página en su propia pestaña.</translation>
+    </message>
+    <message>
+        <source>Pages as Layers</source>
+        <translation>Páginas como capas</translation>
+    </message>
+    <message>
+        <source>Separate Documents</source>
+        <translation>Documentos separados</translation>
+    </message>
+    <message>
+        <source>First Page Only</source>
+        <translation>Solo la primera página</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF: opened %1 pages as layers</source>
+        <translation>TIFF de varias páginas: se abrieron %1 páginas como capas</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF: opened %1 pages as separate documents</source>
+        <translation>TIFF de varias páginas: se abrieron %1 páginas como documentos separados</translation>
+    </message>
+    <message>
+        <source>Pages Patchy could not read were left out: %1</source>
+        <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
+        <translation>Se omitieron las páginas que Patchy no pudo leer: %1</translation>
     </message>
     <message>
         <source>Reds:</source>
@@ -19198,6 +19259,34 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Soften the selection edge</source>
         <translation>Suavizar el borde de la selección</translation>
     </message>
+    <message>
+        <source>Open Document</source>
+        <translation>Documento abierto</translation>
+    </message>
+    <message>
+        <source>Recent File</source>
+        <translation>Archivo reciente</translation>
+    </message>
+    <message>
+        <source>Recent Folder</source>
+        <translation>Carpeta reciente</translation>
+    </message>
+    <message>
+        <source>Tag the layer seafoam in the Layers panel</source>
+        <translation>Marcar la capa en verde agua en el panel Capas</translation>
+    </message>
+    <message>
+        <source>Tag the layer indigo in the Layers panel</source>
+        <translation>Marcar la capa en índigo en el panel Capas</translation>
+    </message>
+    <message>
+        <source>Tag the layer magenta in the Layers panel</source>
+        <translation>Marcar la capa en magenta en el panel Capas</translation>
+    </message>
+    <message>
+        <source>Tag the layer fuchsia in the Layers panel</source>
+        <translation>Marcar la capa en fucsia en el panel Capas</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -19397,6 +19486,34 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Other</source>
         <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
         <translation>Otras</translation>
+    </message>
+    <message>
+        <source>Favorites</source>
+        <translation>Favoritos</translation>
+    </message>
+    <message>
+        <source>No favorites yet. Click the star beside a font to add it.</source>
+        <translation>Aún no hay favoritos. Haga clic en la estrella junto a una fuente para añadirla.</translation>
+    </message>
+    <message>
+        <source>No favorite fonts match the search or filters.</source>
+        <translation>Ninguna fuente favorita coincide con la búsqueda o los filtros.</translation>
+    </message>
+    <message>
+        <source>Remove from Recent</source>
+        <translation>Quitar de recientes</translation>
+    </message>
+    <message>
+        <source>Remove from favorites</source>
+        <translation>Quitar de favoritos</translation>
+    </message>
+    <message>
+        <source>Add to favorites</source>
+        <translation>Añadir a favoritos</translation>
+    </message>
+    <message>
+        <source>Show only favorite fonts</source>
+        <translation>Mostrar solo fuentes favoritas</translation>
     </message>
 </context>
 <context>
@@ -32409,6 +32526,26 @@ Bloqueada: %1</translation>
         <source>Contract by:</source>
         <translation>Contraer en:</translation>
     </message>
+    <message>
+        <source>Use Shift for tool switch</source>
+        <translation>Usar Mayús para cambiar de herramienta</translation>
+    </message>
+    <message>
+        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation>Si está activado, la letra de un grupo de herramientas selecciona su primera herramienta y Mayús con la letra recorre el grupo. Si está desactivado, al pulsar de nuevo la letra se pasa a la siguiente herramienta del grupo.</translation>
+    </message>
+    <message>
+        <source>Seafoam</source>
+        <translation>Verde agua</translation>
+    </message>
+    <message>
+        <source>Indigo</source>
+        <translation>Índigo</translation>
+    </message>
+    <message>
+        <source>Fuchsia</source>
+        <translation>Fucsia</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34728,10 +34865,6 @@ Bloqueada: %1</translation>
         <translation>Edición de fotos de código abierto. Gratis para siempre, sin suscripciones.</translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation>Nuevo documento...</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>Abrir...</translation>
     </message>
@@ -34794,6 +34927,18 @@ Bloqueada: %1</translation>
     <message>
         <source>Remove from Recent Files</source>
         <translation>Quitar de archivos recientes</translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation>Nuevo...</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>Portapapeles</translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
+        <translation>Nuevo documento a partir de la imagen del portapapeles</translation>
     </message>
 </context>
 <context>

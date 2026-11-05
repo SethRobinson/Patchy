@@ -11838,8 +11838,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>數量:</translation>
     </message>
     <message>
-        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
-        <translation>背景：它一律位於堆疊底部，沒有透明度，也沒有圖層樣式。在它上面按一下滑鼠右鍵並選擇「從背景建立圖層」，即可將其變為一般圖層。</translation>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Click to make it an ordinary layer.</source>
+        <translation>背景：它一律位於堆疊底部，沒有透明度，也沒有圖層樣式。按一下即可將其變為一般圖層。</translation>
     </message>
     <message>
         <source>iPhone 16 Pro</source>
@@ -14828,6 +14828,67 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Feather radius:</source>
         <translation>羽化半徑:</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is damaged</source>
+        <translation>TIFF 的影像資料已損毀</translation>
+    </message>
+    <message>
+        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <translation>Patchy 無法讀取此 TIFF 的取樣配置</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <translation>TIFF 的影像資料不完整或已損毀；缺少的部分以空白開啟。</translation>
+    </message>
+    <message>
+        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
+        <translation>已略過 TIFF 的部分額外色版：一份文件最多保留 56 個色版。</translation>
+    </message>
+    <message>
+        <source>The TIFF has no pages to open</source>
+        <translation>TIFF 中沒有可開啟的頁面</translation>
+    </message>
+    <message>
+        <source>The pages&apos; extra channels were left out: they belong to single pages, not the layered document.</source>
+        <translation>已略過頁面的額外色版：它們屬於單一頁面，而非分層文件。</translation>
+    </message>
+    <message>
+        <source>Multi-Page TIFF</source>
+        <translation>多頁 TIFF</translation>
+    </message>
+    <message>
+        <source>%1 holds %2 pages. How should Patchy open them?</source>
+        <translation>%1 包含 %2 頁。Patchy 應如何開啟它們？</translation>
+    </message>
+    <message>
+        <source>Pages as Layers puts every page on its own layer in one document, page 1 on top. Separate Documents opens every page in its own tab.</source>
+        <translation>「頁面作為圖層」會將每一頁放在一份文件中各自的圖層上，第 1 頁在最上層。「個別文件」會在各自的分頁中開啟每一頁。</translation>
+    </message>
+    <message>
+        <source>Pages as Layers</source>
+        <translation>頁面作為圖層</translation>
+    </message>
+    <message>
+        <source>Separate Documents</source>
+        <translation>個別文件</translation>
+    </message>
+    <message>
+        <source>First Page Only</source>
+        <translation>僅第一頁</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF: opened %1 pages as layers</source>
+        <translation>多頁 TIFF：已將 %1 頁開啟為圖層</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF: opened %1 pages as separate documents</source>
+        <translation>多頁 TIFF：已將 %1 頁開啟為個別文件</translation>
+    </message>
+    <message>
+        <source>Pages Patchy could not read were left out: %1</source>
+        <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
+        <translation>已略過 Patchy 無法讀取的頁面：%1</translation>
     </message>
     <message>
         <source>Reds:</source>
@@ -19152,6 +19213,34 @@ Each item&apos;s own View setting still applies.</source>
         <source>Soften the selection edge</source>
         <translation>柔化選取範圍邊緣</translation>
     </message>
+    <message>
+        <source>Open Document</source>
+        <translation>開啟的文件</translation>
+    </message>
+    <message>
+        <source>Recent File</source>
+        <translation>最近使用的檔案</translation>
+    </message>
+    <message>
+        <source>Recent Folder</source>
+        <translation>最近使用的資料夾</translation>
+    </message>
+    <message>
+        <source>Tag the layer seafoam in the Layers panel</source>
+        <translation>在圖層面板中將圖層標為海沫綠</translation>
+    </message>
+    <message>
+        <source>Tag the layer indigo in the Layers panel</source>
+        <translation>在圖層面板中將圖層標為靛藍</translation>
+    </message>
+    <message>
+        <source>Tag the layer magenta in the Layers panel</source>
+        <translation>在圖層面板中將圖層標為洋紅</translation>
+    </message>
+    <message>
+        <source>Tag the layer fuchsia in the Layers panel</source>
+        <translation>在圖層面板中將圖層標為紫紅</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -19351,6 +19440,34 @@ Each item&apos;s own View setting still applies.</source>
         <source>Other</source>
         <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
         <translation>其他</translation>
+    </message>
+    <message>
+        <source>Favorites</source>
+        <translation>我的最愛</translation>
+    </message>
+    <message>
+        <source>No favorites yet. Click the star beside a font to add it.</source>
+        <translation>還沒有我的最愛。按一下字體旁的星號即可加入。</translation>
+    </message>
+    <message>
+        <source>No favorite fonts match the search or filters.</source>
+        <translation>沒有符合搜尋或篩選條件的我的最愛字體。</translation>
+    </message>
+    <message>
+        <source>Remove from Recent</source>
+        <translation>從最近使用中移除</translation>
+    </message>
+    <message>
+        <source>Remove from favorites</source>
+        <translation>從我的最愛移除</translation>
+    </message>
+    <message>
+        <source>Add to favorites</source>
+        <translation>加入我的最愛</translation>
+    </message>
+    <message>
+        <source>Show only favorite fonts</source>
+        <translation>僅顯示我的最愛字體</translation>
     </message>
 </context>
 <context>
@@ -32324,6 +32441,26 @@ Locked: %1</source>
         <source>Contract by:</source>
         <translation>縮減量:</translation>
     </message>
+    <message>
+        <source>Use Shift for tool switch</source>
+        <translation>使用 Shift 鍵切換工具</translation>
+    </message>
+    <message>
+        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation>開啟時，工具群組的字母鍵選取群組內第一個工具，Shift 加字母鍵在群組內依序切換。關閉時，再按一次字母鍵會切換到群組內下一個工具。</translation>
+    </message>
+    <message>
+        <source>Seafoam</source>
+        <translation>海沫綠</translation>
+    </message>
+    <message>
+        <source>Indigo</source>
+        <translation>靛藍</translation>
+    </message>
+    <message>
+        <source>Fuchsia</source>
+        <translation>紫紅</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34642,10 +34779,6 @@ Locked: %1</source>
         <translation>開放原始碼的相片編輯軟體。永久免費，無需訂閱。</translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation>開新文件...</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>開啟...</translation>
     </message>
@@ -34708,6 +34841,18 @@ Locked: %1</source>
     <message>
         <source>Remove from Recent Files</source>
         <translation>從最近使用的檔案中移除</translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation>開新檔案...</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>剪貼簿</translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
+        <translation>以剪貼簿中的影像開新檔案</translation>
     </message>
 </context>
 <context>

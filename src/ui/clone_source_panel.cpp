@@ -376,8 +376,10 @@ void CloneSourcePanel::refresh() {
   {
     const QSignalBlocker x_blocker(offset_x_spin_);
     const QSignalBlocker y_blocker(offset_y_spin_);
-    offset_x_spin_->setValue(state_.offset.x());
-    offset_y_spin_->setValue(state_.offset.y());
+    // An empty slot has no offset to show (GitHub issue 632).
+    const auto offset = source_set ? state_.offset : QPoint();
+    offset_x_spin_->setValue(offset.x());
+    offset_y_spin_->setValue(offset.y());
   }
   QString offset_note;
   if (source_set && !state_.aligned) {

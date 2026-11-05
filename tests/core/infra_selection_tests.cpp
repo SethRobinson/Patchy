@@ -1473,6 +1473,29 @@ void cli_mcp_connector_flag_is_first_argument_only() {
   CHECK(argc == 1);
 }
 
+// Inside an AppImage the patchy binary takes `patchy-mcp` as the first argument as well,
+// so the command Help > Set up AI Control prints works in AppImages whose AppRun is not
+// Patchy's (GitHub issue 535). Outside one a file named patchy-mcp still opens.
+void cli_mcp_connector_appimage_argument_needs_appimage() {
+  const auto first = [](const char* appimage, std::initializer_list<const char*> args) {
+    std::vector<const char*> argv(args);
+    return patchy::mcp_connector_argument_first(static_cast<int>(argv.size()), argv.data(), appimage);
+  };
+  const char* appimage = "/home/someone/Apps/Patchy-anylinux-x86_64.AppImage";
+  CHECK(first(appimage, {"patchy", "patchy-mcp"}));
+  CHECK(first(appimage, {"patchy", "patchy-mcp", "--check"}));
+  CHECK(first(appimage, {"patchy", "--mcp-connector", "--attach"}));
+  CHECK(first(nullptr, {"patchy", "--mcp-connector"}));
+  CHECK(!first(nullptr, {"patchy", "patchy-mcp"}));
+  CHECK(!first("", {"patchy", "patchy-mcp"}));
+  CHECK(!first(appimage, {"patchy"}));
+  CHECK(!first(appimage, {"patchy", "a.psd", "patchy-mcp"}));
+  CHECK(!first(appimage, {"patchy", "./patchy-mcp"}));
+  CHECK(!first(appimage, {"patchy", "patchy-mcp.png"}));
+  CHECK(!first(appimage, {"patchy", "--", "patchy-mcp"}));
+  CHECK(!patchy::mcp_connector_argument_first(0, nullptr, appimage));
+}
+
 // Off, nothing is recorded; on, nested scopes come back parent first with their
 // depth, marks keep their order, and both reports name every event.
 void startup_trace_records_nested_phases_and_reports() {
@@ -1772,6 +1795,7 @@ std::vector<patchy::test::TestCase> infra_selection_tests() {
       {"cli_headless_flag_matches_exact_token", cli_headless_flag_matches_exact_token},
       {"cli_startup_benchmark_flag_reads_value", cli_startup_benchmark_flag_reads_value},
       {"cli_mcp_connector_flag_is_first_argument_only", cli_mcp_connector_flag_is_first_argument_only},
+      {"cli_mcp_connector_appimage_argument_needs_appimage", cli_mcp_connector_appimage_argument_needs_appimage},
       {"startup_trace_records_nested_phases_and_reports", startup_trace_records_nested_phases_and_reports},
   };
 }

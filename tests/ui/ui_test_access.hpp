@@ -316,6 +316,8 @@ public:
   static Document& session_document(MainWindow& window, std::size_t index);
 
   static QString session_title(MainWindow& window, std::size_t index);
+  // The active session's Import Notes (what the open said about the file).
+  static QStringList active_session_import_notes(MainWindow& window);
 
   static bool session_cmyk_proof(MainWindow& window, std::size_t index);
 

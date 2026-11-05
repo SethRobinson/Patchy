@@ -24,6 +24,7 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/layer_list_widget.hpp"
+#include "ui/tool_cursors.hpp"
 #include "ui/ui_profile.hpp"
 
 #include <QAbstractButton>
@@ -211,6 +212,9 @@ CurvesDialogHooks curves_canvas_hooks(CanvasWidget* canvas,
     if (mode == CurvesCanvasMode::None || !sample_changed) {
       return;
     }
+    // The black, gray and white point pickers sample a color: the plain eyedropper, with no
+    // foreground/background badge since a click sets neither (GitHub issue 638). The Curves
+    // on-image drag adjusts a point rather than picking a color, so it keeps the cross.
     canvas->set_transient_read_interaction(
         [sample_input_color, sample_changed = std::move(sample_changed)](const CanvasReadGesture& gesture) {
           auto color = gesture.phase == CanvasReadPhase::Press
@@ -218,7 +222,7 @@ CurvesDialogHooks curves_canvas_hooks(CanvasWidget* canvas,
                            : QColor{};
           sample_changed(CurvesCanvasSample{color, gesture});
         },
-        Qt::CrossCursor);
+        mode == CurvesCanvasMode::Targeted ? QCursor(Qt::CrossCursor) : eyedropper_cursor());
   };
   hooks.clear_canvas_mode = [canvas] { canvas->clear_transient_read_interaction(); };
   hooks.clipping_changed = [canvas](std::optional<CurvesClippingMode> mode, CurvesChannel channel) {

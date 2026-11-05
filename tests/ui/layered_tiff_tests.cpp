@@ -1,13 +1,17 @@
 // Layered TIFF through the app's open path (docs/tiff.md): Photoshop layers in tag 37724
-// open as layers, damaged layer data falls back to the composite with a note, and a
-// multi-page TIFF opens page 1 with a note.
+// open as layers, damaged layer data falls back to the composite with a note, a
+// multi-page TIFF opens page 1 with a note, and a flat TIFF Qt refuses opens through
+// Patchy's own decoder.
 #include "core/document.hpp"
+#include "core/pixel_depth.hpp"
 #include "psd/psd_tiff.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/image_save_options_dialog.hpp"
 #include "ui/main_window.hpp"
 #include "ui/qt_paths.hpp"
 #include "layered_tiff_fixture.hpp"
+#include "flat_tiff_fixture.hpp"
+#include "local_psd_fixtures.hpp"
 #include "test_harness.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
@@ -23,6 +27,8 @@
 #include <QDir>
 #include <QFile>
 #include <QListWidget>
+#include <QMessageBox>
+#include <QAbstractButton>
 #include <QStatusBar>
 #include <QWidget>
 #include <algorithm>
@@ -30,6 +36,7 @@
 #include <optional>
 #include <array>
 #include <cstdint>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -59,6 +66,262 @@ int layer_count(const std::vector<patchy::Layer>& layers) {
     count += 1 + layer_count(layer.children());
   }
   return count;
+}
+
+// Answers the multi-page TIFF question (tiffPagesMessageBox) with the named button once it
+// shows; `asked` counts the questions seen. Polls, because the open runs other event loops
+// before it asks.
+class TiffPagesAnswer {
+ public:
+  TiffPagesAnswer(QString button, int* asked) : button_(std::move(button)), asked_(asked) {
+    timer_.setInterval(5);
+    QObject::connect(&timer_, &QTimer::timeout, [this] {
+      auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("tiffPagesMessageBox")));
+      if (box == nullptr || !box->isVisible()) {
+        return;
+      }
+      ++*asked_;
+      if (auto* button = box->findChild<QAbstractButton*>(button_); button != nullptr) {
+        button->click();
+      } else {
+        patchy::test::report_failure("tiffPagesMessageBox has no button " + button_.toStdString());
+        box->reject();
+      }
+    });
+    timer_.start();
+  }
+
+ private:
+  QString button_;
+  int* asked_;
+  QTimer timer_;
+};
+
+// A multi-page TIFF of mixed pages: page 1 8-bit RGB (Qt reads it), page 2 a larger 16-bit
+// page, page 3 32-bit float with unspecified extra samples (only the fallback decoder
+// reads it), page 4 in a compression neither decoder has, page 5 palette with a PageName.
+QString write_mixed_pages_tiff(const QString& name) {
+  namespace flat = patchy::test::flat_tiff;
+  flat::Spec first;
+  first.width = 8;
+  first.height = 6;
+  first.value = [](std::uint32_t, std::uint32_t, std::uint32_t sample) { return sample == 0U ? 200.0 : 10.0; };
+  flat::Spec second;
+  second.kind = flat::Kind::U16;
+  second.width = 14;
+  second.height = 5;
+  second.value = [](std::uint32_t, std::uint32_t, std::uint32_t sample) { return sample == 2U ? 65535.0 : 0.0; };
+  flat::Spec third;
+  third.kind = flat::Kind::F32;
+  third.samples = 7;
+  third.extra = std::vector<std::uint16_t>{0, 0, 0, 0};  // Qt refuses this layout (issue 623)
+  third.width = 6;
+  third.height = 10;
+  third.value = [](std::uint32_t, std::uint32_t, std::uint32_t) { return 0.5; };
+  flat::Spec unreadable = first;
+  unreadable.compression = 50000;
+  flat::Spec palette;
+  palette.photometric = 3;
+  palette.samples = 1;
+  palette.width = 4;
+  palette.height = 4;
+  palette.color_map = std::vector<std::uint16_t>(3U * 256U, 0);
+  palette.color_map[1] = 65535;  // index 1: red
+  palette.page_name = "Named page";
+  palette.value = [](std::uint32_t, std::uint32_t, std::uint32_t) { return 1.0; };
+  return write_file(name, flat::write_tiff(std::vector<flat::Spec>{first, second, third, unreadable, palette}));
+}
+
+struct DeepEditingOn {
+  DeepEditingOn() { patchy::set_deep_editing_override(true); }
+  ~DeepEditingOn() { patchy::set_deep_editing_override(std::nullopt); }
+};
+
+// GitHub issue 625: Pages as Layers stacks every page it can read, page 1 on top, on the
+// largest page's canvas at the highest depth; the unreadable page is named in one note.
+void ui_multi_page_tiff_opens_pages_as_layers() {
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  SettingsValueRestorer target_setting(QStringLiteral("imports/tiffPagesTarget"));
+  patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  DeepEditingOn deep;
+  const auto path = write_mixed_pages_tiff(QStringLiteral("mixed-pages.tif"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto sessions_before = MainWindowTestAccess::session_count(window);
+  int asked = 0;
+  {
+    TiffPagesAnswer answer(QStringLiteral("tiffPagesLayersButton"), &asked);
+    MainWindowTestAccess::open_document_path(window, path);
+    QApplication::processEvents();
+  }
+  CHECK(asked == 1);
+  CHECK(MainWindowTestAccess::session_count(window) == sessions_before + 1U);
+  const auto& document = std::as_const(MainWindowTestAccess::document(window));
+  CHECK(document.width() == 14 && document.height() == 10);
+  CHECK(document.color_state().bit_depth == patchy::BitDepth::Float32);
+  CHECK(document.channels().empty());
+  CHECK(document.file_info().source_format == "TIFF");
+  const auto& layers = document.layers();
+  CHECK(layers.size() == 4U);
+  if (layers.size() == 4U) {
+    CHECK(layers[0].name() == "Named page");
+    CHECK(layers[1].name() == "Page 3");
+    CHECK(layers[2].name() == "Page 2");
+    CHECK(layers[3].name() == "Page 1");
+    CHECK(document.active_layer_id() == layers[3].id());
+    CHECK(layers[3].bounds().width == 8 && layers[3].bounds().height == 6);
+    CHECK(layers[2].bounds().width == 14 && layers[2].bounds().height == 5);
+    for (const auto& layer : layers) {
+      CHECK(layer.visible());
+      CHECK(layer.bounds().x == 0 && layer.bounds().y == 0);
+    }
+    // The palette page expanded to RGB: red, opaque.
+    std::vector<float> row(4U);
+    patchy::load_rgba_row(layers[0].pixels(), 0, 0, 1, patchy::DeepDomain::Linear, row);
+    CHECK(std::fabs(row[0] - 255.0F) < 0.5F && std::fabs(row[1]) < 0.5F && std::fabs(row[3] - 255.0F) < 0.5F);
+  }
+  const auto& notes = MainWindowTestAccess::active_session_import_notes(window);
+  CHECK(notes.join(QLatin1Char('\n')).contains(QStringLiteral("opened 4 pages as layers")));
+  CHECK(notes.join(QLatin1Char('\n')).contains(QStringLiteral("left out: 4")));
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("imports/tiffPagesTarget")).toString() ==
+        QStringLiteral("layers"));
+  window.grab().save(QDir(artifact_dir()).absoluteFilePath(QStringLiteral("pages-as-layers.png")));
+}
+
+// Separate Documents opens one tab per readable page ("file - Page N"), page 1 active;
+// Cancel opens nothing; a script's app.open gets page 1 without being asked.
+void ui_multi_page_tiff_separate_documents_cancel_and_scripts() {
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  SettingsValueRestorer target_setting(QStringLiteral("imports/tiffPagesTarget"));
+  patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  DeepEditingOn deep;
+  const auto path = write_mixed_pages_tiff(QStringLiteral("mixed-pages-documents.tif"));
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    const auto before = MainWindowTestAccess::session_count(window);
+    int asked = 0;
+    {
+      TiffPagesAnswer answer(QStringLiteral("tiffPagesDocumentsButton"), &asked);
+      MainWindowTestAccess::open_document_path(window, path);
+      QApplication::processEvents();
+    }
+    CHECK(asked == 1);
+    CHECK(MainWindowTestAccess::session_count(window) == before + 4U);
+    if (MainWindowTestAccess::session_count(window) == before + 4U) {
+      CHECK(MainWindowTestAccess::session_title(window, before) ==
+            QStringLiteral("mixed-pages-documents.tif - Page 1"));
+      CHECK(MainWindowTestAccess::session_title(window, before + 3U) ==
+            QStringLiteral("mixed-pages-documents.tif - Page 5"));
+      CHECK(MainWindowTestAccess::active_session_title(window) ==
+            QStringLiteral("mixed-pages-documents.tif - Page 1"));
+      const auto& second = std::as_const(MainWindowTestAccess::session_document(window, before + 1U));
+      CHECK(second.width() == 14 && second.height() == 5);
+      CHECK(second.color_state().bit_depth == patchy::BitDepth::UInt16);
+      const auto& third = std::as_const(MainWindowTestAccess::session_document(window, before + 2U));
+      CHECK(third.color_state().bit_depth == patchy::BitDepth::Float32);
+      CHECK(third.channels().size() == 4U);
+    }
+    const auto& first = std::as_const(MainWindowTestAccess::document(window));
+    CHECK(first.width() == 8 && first.height() == 6);
+    CHECK(MainWindowTestAccess::active_session_import_notes(window).join(QLatin1Char('\n')).contains(
+        QStringLiteral("opened 4 pages as separate documents")));
+  }
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    const auto before = MainWindowTestAccess::session_count(window);
+    int asked = 0;
+    {
+      TiffPagesAnswer answer(QStringLiteral("tiffPagesCancelButton"), &asked);
+      MainWindowTestAccess::open_document_path(window, path);
+      QApplication::processEvents();
+    }
+    CHECK(asked == 1);
+    CHECK(MainWindowTestAccess::session_count(window) == before);
+  }
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    int asked = 0;
+    {
+      TiffPagesAnswer answer(QStringLiteral("tiffPagesCancelButton"), &asked);
+      const auto source = QStringLiteral(R"JS(
+        const d = app.open('%1');
+        console.log('layers=' + d.layers.length + ' width=' + d.width);
+      )JS")
+                              .arg(path);
+      CHECK(patchy::test::ui::scripting_support::run_script(window, source));
+    }
+    CHECK(asked == 0);
+    CHECK(patchy::test::ui::scripting_support::backlog_contains(window, QStringLiteral("layers=1 width=8")));
+  }
+}
+
+// GitHub issue 625's own samples (tlnagy/exampletiffs, copied into
+// local-test-fixtures/tiff-pages, not committed): mri.tif's 27 palette PackBits pages and
+// shapes_multi_color.tif's five pages of mixed types all open as layers.
+void ui_multi_page_tiff_samples_open_as_layers_if_available() {
+  const auto dir = patchy::test::local_fixtures_root() / "tiff-pages";
+  patchy::test::skip_unless_exists(dir / "mri.tif");
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  SettingsValueRestorer target_setting(QStringLiteral("imports/tiffPagesTarget"));
+  patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  DeepEditingOn deep;
+  struct Sample {
+    const char* file;
+    std::size_t pages;
+  };
+  for (const auto& sample : {Sample{"mri.tif", 27U}, Sample{"shapes_multi_color.tif", 5U}}) {
+    const auto path = patchy::ui::to_qstring(dir / sample.file);
+    if (!QFileInfo::exists(path)) {
+      continue;
+    }
+    patchy::ui::MainWindow window;
+    window.resize(1280, 860);
+    show_window(window);
+    int asked = 0;
+    {
+      TiffPagesAnswer answer(QStringLiteral("tiffPagesLayersButton"), &asked);
+      MainWindowTestAccess::open_document_path(window, path);
+      QApplication::processEvents();
+    }
+    CHECK(asked == 1);
+    const auto& document = std::as_const(MainWindowTestAccess::document(window));
+    CHECK(document.layers().size() == sample.pages);
+    const auto notes = MainWindowTestAccess::active_session_import_notes(window).join(QLatin1Char('\n'));
+    CHECK(!notes.contains(QStringLiteral("left out")));
+    std::cout << "[INFO] " << sample.file << ": " << document.width() << "x" << document.height() << ", "
+              << document.layers().size() << " layers, " << static_cast<int>(document.color_state().bit_depth)
+              << "-bit; notes: " << notes.toStdString() << "\n";
+    if (sample.pages == 5U && document.layers().size() == 5U) {
+      // Every page is the same picture in another encoding: the 12-bit page (4, which only
+      // the fallback decoder reads) and the planar page (5) match page 1.
+      const auto& page_one = document.layers()[4].pixels();
+      for (const std::size_t index : {std::size_t{1}, std::size_t{0}}) {
+        const auto& page = document.layers()[index].pixels();
+        CHECK(page.width() == page_one.width() && page.height() == page_one.height());
+        double total = 0.0;
+        std::vector<float> a(static_cast<std::size_t>(page.width()) * 4U);
+        std::vector<float> b(a.size());
+        for (std::int32_t y = 0; y < page.height(); ++y) {
+          patchy::load_rgba_row(page_one, y, 0, page.width(), patchy::DeepDomain::Encoded, a);
+          patchy::load_rgba_row(page, y, 0, page.width(), patchy::DeepDomain::Encoded, b);
+          for (std::size_t i = 0; i < a.size(); ++i) {
+            total += std::fabs(a[i] - b[i]);
+          }
+        }
+        const auto mean = total / (static_cast<double>(page.width()) * page.height() * 4.0);
+        std::cout << "[INFO] page " << (5U - index) << " differs from page 1 by " << mean << " levels on average\n";
+        CHECK(mean < 2.0);
+      }
+    }
+    for (int step = 0; step < 10; ++step) {
+      QApplication::processEvents();
+    }
+    window.grab().save(QDir(artifact_dir()).absoluteFilePath(QString::fromLatin1(sample.file) +
+                                                              QStringLiteral("-as-layers.png")));
+  }
 }
 
 void ui_layered_tiff_opens_with_its_layers() {
@@ -122,15 +385,74 @@ void ui_layered_tiff_with_damaged_layers_opens_the_composite() {
 void ui_multi_page_tiff_opens_its_first_page_with_a_note() {
   SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
   patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  SettingsValueRestorer target_setting(QStringLiteral("imports/tiffPagesTarget"));
   const auto path = write_file(QStringLiteral("pages.tif"), fixture::tiff_file(true, 8, 6, 8, false, {}, 2, 3));
   patchy::ui::MainWindow window;
   show_window(window);
-  MainWindowTestAccess::open_document_path(window, path);
-  QApplication::processEvents();
+  int asked = 0;
+  {
+    TiffPagesAnswer answer(QStringLiteral("tiffPagesFirstButton"), &asked);
+    MainWindowTestAccess::open_document_path(window, path);
+    QApplication::processEvents();
+  }
+  CHECK(asked == 1);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("imports/tiffPagesTarget")).toString() ==
+        QStringLiteral("first"));
   const auto& document = std::as_const(MainWindowTestAccess::document(window));
   CHECK(document.width() == 8 && document.height() == 6);
   CHECK(document.layers().size() == 1U);
   CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("3 pages")));
+}
+
+// GitHub issue 623: 32-bit float RGB with four unspecified extra samples, which Qt's TIFF
+// plug-in refuses, opens through psd::read_flat_tiff as a 32-bit document whose extras are
+// alpha channels; page 2 adds the page note.
+void ui_flat_tiff_qt_refuses_opens_through_the_fallback_decoder() {
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  SettingsValueRestorer target_setting(QStringLiteral("imports/tiffPagesTarget"));
+  namespace flat = patchy::test::flat_tiff;
+  flat::Spec page;
+  page.kind = flat::Kind::F32;
+  page.samples = 7;
+  page.extra = std::vector<std::uint16_t>{0, 0, 0, 0};
+  page.width = 24;
+  page.height = 12;
+  page.value = [](std::uint32_t x, std::uint32_t, std::uint32_t sample) {
+    return sample >= 3U ? 0.1 * (sample - 2U) : (sample == 0U && x < 12U ? 1.0 : 0.25);
+  };
+  flat::Spec second = page;
+  second.kind = flat::Kind::U8;
+  second.samples = 3;
+  second.extra.clear();
+  second.value = [](std::uint32_t, std::uint32_t, std::uint32_t) { return 9.0; };
+  const auto path = write_file(QStringLiteral("float-extras.tif"), flat::write_tiff(std::vector<flat::Spec>{page, second}));
+  CHECK(QImage(path).isNull());  // Qt alone cannot read it
+  // With deep editing on the file keeps its depth; with it off (the suite's default, and
+  // PATCHY_DEEP_EDITING=0) it opens at 8 bits like every other deep file.
+  struct DeepEditingOverride {
+    ~DeepEditingOverride() { patchy::set_deep_editing_override(std::nullopt); }
+  } restore_deep_editing;
+  for (const bool deep : {true, false}) {
+    patchy::set_deep_editing_override(deep);
+    patchy::ui::MainWindow window;
+    show_window(window);
+    int asked = 0;
+    {
+      TiffPagesAnswer answer(QStringLiteral("tiffPagesFirstButton"), &asked);
+      MainWindowTestAccess::open_document_path(window, path);
+      QApplication::processEvents();
+    }
+    CHECK(asked == 1);
+    const auto& document = std::as_const(MainWindowTestAccess::document(window));
+    CHECK(document.width() == 24 && document.height() == 12);
+    CHECK(document.color_state().bit_depth == (deep ? patchy::BitDepth::Float32 : patchy::BitDepth::UInt8));
+    CHECK(document.layers().size() == 1U);
+    CHECK(!document.layers().empty() && document.layers().front().name() == "float-extras");
+    CHECK(document.channels().size() == 4U);
+    CHECK(document.file_info().source_format == "TIFF");
+    CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("2 pages")));
+  }
 }
 
 
@@ -275,6 +597,13 @@ std::vector<patchy::test::TestCase> layered_tiff_ui_tests() {
       {"ui_layered_tiff_with_damaged_layers_opens_the_composite",
        ui_layered_tiff_with_damaged_layers_opens_the_composite},
       {"ui_multi_page_tiff_opens_its_first_page_with_a_note", ui_multi_page_tiff_opens_its_first_page_with_a_note},
+      {"ui_multi_page_tiff_opens_pages_as_layers", ui_multi_page_tiff_opens_pages_as_layers},
+      {"ui_multi_page_tiff_separate_documents_cancel_and_scripts",
+       ui_multi_page_tiff_separate_documents_cancel_and_scripts},
+      {"ui_multi_page_tiff_samples_open_as_layers_if_available",
+       ui_multi_page_tiff_samples_open_as_layers_if_available},
+      {"ui_flat_tiff_qt_refuses_opens_through_the_fallback_decoder",
+       ui_flat_tiff_qt_refuses_opens_through_the_fallback_decoder},
       {"ui_layered_tiff_save_keeps_layers_and_flat_saves_stay_flat",
        ui_layered_tiff_save_keeps_layers_and_flat_saves_stay_flat},
       {"ui_tiff_options_dialog_offers_keep_layers", ui_tiff_options_dialog_offers_keep_layers},

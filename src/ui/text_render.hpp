@@ -26,6 +26,7 @@ struct RenderedTextPixels {
   PixelBuffer pixels;
   QRectF local_rect;
   TextLayoutMetrics metrics;
+  bool hidden_lines{false};  // TextRenderPlan::hidden_lines
 };
 
 
@@ -89,6 +90,9 @@ struct TextRenderPlan {
   bool vertical{false};
   bool area{false};
   VerticalTextLayoutPlan vertical_plan;
+  // A box frame or area contour hid one or more lines of the story: what the Type tool's
+  // overflow marker shows (issue 631). Never set under TextToolSettings::keep_overflow_lines.
+  bool hidden_lines{false};
 };
 
 

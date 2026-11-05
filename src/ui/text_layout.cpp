@@ -252,7 +252,11 @@ bool box_text_line_overflows_frame(qreal line_top, qreal line_ascent, qreal fram
 
 std::vector<BoxTextLineRenderItem> boxed_text_line_render_items(const QTextDocument& document, QRectF gate_rect,
                                                                 qreal frame_bottom, qreal top_bleed,
-                                                                qreal bottom_bleed, qreal horizontal_bleed) {
+                                                                qreal bottom_bleed, qreal horizontal_bleed,
+                                                                bool* hidden_lines) {
+  if (hidden_lines != nullptr) {
+    *hidden_lines = false;
+  }
   gate_rect = gate_rect.normalized();
   std::vector<BoxTextLineRenderItem> items;
   if (!std::isfinite(gate_rect.left()) || !std::isfinite(gate_rect.top()) ||
@@ -285,6 +289,9 @@ std::vector<BoxTextLineRenderItem> boxed_text_line_render_items(const QTextDocum
         continue;
       }
       if (box_text_line_overflows_frame(line_top, line.ascent(), frame_bottom, first_line)) {
+        if (hidden_lines != nullptr) {
+          *hidden_lines = true;
+        }
         return items;  // hidden overflow, every later line included
       }
       first_line = false;
@@ -323,8 +330,10 @@ BoxTextRenderPlan boxed_text_render_plan(const QTextDocument& document, const QF
   // are kept by the FRAME, or an overflow line baked into an older raster would keep itself.
   // A non-finite frame bottom keeps every line (box_text_line_overflows_frame).
   const auto frame_bottom = keep_overflow_lines ? std::numeric_limits<qreal>::infinity() : frame_rect.bottom();
-  BoxTextRenderPlan plan{gate_rect, boxed_text_line_render_items(document, gate_rect, frame_bottom, top_bleed,
-                                                                 bottom_bleed, kHorizontalBleed)};
+  bool hidden_lines = false;
+  auto lines = boxed_text_line_render_items(document, gate_rect, frame_bottom, top_bleed, bottom_bleed,
+                                            kHorizontalBleed, &hidden_lines);
+  BoxTextRenderPlan plan{gate_rect, std::move(lines), hidden_lines};
   if (plan.lines.empty()) {
     return plan;
   }

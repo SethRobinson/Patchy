@@ -3566,133 +3566,211 @@ void a5_brush_stroke_perf() {
   }
 }
 
-// Clone Stamp strokes on the 3580x5370 photo GitHub issue 597 lagged on: 204 and 529 px, hard
-// and soft, at fit (2 widget px per move, about 13 image px) and 100% (12 px, "slow" 3 px).
-// "burst" folds 8 extra positions into every move, the samples a
+// Clone Stamp strokes on the 3580x5370 photo GitHub issue 597 lagged on (204 and 529 px) and
+// the 858x619 image of its follow-up (93 px), hard and soft, at fit (2 widget px per move) and
+// 100% (12 px, "slow" 3 px). "burst" folds 8 extra positions into every move, the samples a
 // 1000 Hz mouse leaves behind a slow frame (each is its own stroke segment, issue 165).
+// press_ms is the stroke's mouse press through its first painted frame (the follow-up's lag at
+// stroke start), first after the Alt-click and again for a second stroke on the same source.
 // PATCHY_PERF_CLONE_FULL_WALK=1 turns the stamp's row spans and continued-segment skip off,
 // the walk before the fix.
 void clone_stamp_stroke_perf() {
   isolate_perf_settings();
-  constexpr int kWidth = 3580;
-  constexpr int kHeight = 5370;
-  const auto image_path = std::filesystem::absolute("test-artifacts/perf_clone_stamp_3580x5370.png");
-  {
-    std::filesystem::create_directories(image_path.parent_path());
-    QImage image(kWidth, kHeight, QImage::Format_RGB32);
-    for (int y = 0; y < kHeight; ++y) {
-      auto* row = reinterpret_cast<QRgb*>(image.scanLine(y));
-      for (int x = 0; x < kWidth; ++x) {
-        row[x] = qRgb((x / 7) % 256, (y / 9) % 256, ((x + y) / 13) % 256);
-      }
-    }
-    CHECK(image.save(patchy::ui::to_qstring(image_path)));
-  }
-  patchy::ui::MainWindow window;
-  window.resize(1600, 1000);
-  if (qEnvironmentVariableIsSet("PATCHY_PERF_ONSCREEN")) {
-    window.showMaximized();
-  } else {
-    window.show();
-  }
-  QApplication::processEvents();
-  patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(image_path));
-  QApplication::processEvents();
-  auto* canvas = active_canvas(window);
-  CHECK(canvas != nullptr);
-  if (canvas == nullptr) {
-    return;
-  }
-  const auto settle = [canvas] {
-    const auto started = Clock::now();
-    while (!canvas->render_settled() && std::chrono::duration<double>(Clock::now() - started).count() < 60.0) {
-      canvas->repaint();
-      QApplication::processEvents();
-    }
+  struct Case {
+    int width;
+    int height;
+    std::vector<int> sizes;
+    QPoint stroke_start;
+    QPoint source;
   };
-  canvas->set_tool(patchy::ui::CanvasTool::Clone);
-  canvas->set_brush_opacity(100);
-  canvas->set_clone_stamp_skip_enabled_for_testing(!qEnvironmentVariableIsSet("PATCHY_PERF_CLONE_FULL_WALK"));
-  const auto send = [canvas](QEvent::Type type, QPointF position, Qt::MouseButton button, Qt::MouseButtons buttons,
-                             Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
-    QMouseEvent event(type, position, canvas->mapToGlobal(position), button, buttons, modifiers);
-    QApplication::sendEvent(canvas, &event);
-  };
-  struct Pass {
-    const char* label;
-    double zoom;
-    double step;
-    int folded;
-  };
-  for (const auto& pass : {Pass{"fit", 0.0, 2.0, 0}, Pass{"fit_burst", 0.0, 2.0, 8}, Pass{"100%", 1.0, 12.0, 0},
-                           Pass{"100%_burst", 1.0, 12.0, 8}, Pass{"100%_slow", 1.0, 3.0, 0}}) {
-    const std::string label = pass.label;
-    for (const int softness : {0, 100}) {
-      for (const int brush_size : {204, 529}) {
-        if (pass.zoom == 0.0) {
-          canvas->fit_to_view();
-        } else {
-          canvas->set_zoom_centered(pass.zoom);
+  for (const auto& image_case : {Case{858, 619, {93}, QPoint(560, 300), QPoint(200, 260)},
+                                 Case{3580, 5370, {204, 529}, QPoint(2000, 2700), QPoint(900, 2600)}}) {
+    const auto image_path = std::filesystem::absolute(
+        "test-artifacts/perf_clone_stamp_" + std::to_string(image_case.width) + "x" +
+        std::to_string(image_case.height) + ".png");
+    {
+      std::filesystem::create_directories(image_path.parent_path());
+      QImage image(image_case.width, image_case.height, QImage::Format_RGB32);
+      for (int y = 0; y < image_case.height; ++y) {
+        auto* row = reinterpret_cast<QRgb*>(image.scanLine(y));
+        for (int x = 0; x < image_case.width; ++x) {
+          row[x] = qRgb((x / 7) % 256, (y / 9) % 256, ((x + y) / 13) % 256);
         }
-        canvas->set_brush_size(brush_size);
-        canvas->set_brush_softness(softness);
-        settle();
-        // Document points, so the source and the stroke land on the image at every zoom: the
-        // source 1100 px left of the stroke start.
-        const auto start = QPointF(canvas->widget_position_for_document_point(QPoint(2000, 2700)));
-        const auto at = [&](double index) {
-          return start + QPointF(pass.step * index, pass.step * 3.0 * std::sin(index * 0.15));
-        };
-        const auto source = QPointF(canvas->widget_position_for_document_point(QPoint(900, 2600)));
-        send(QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
-        send(QEvent::MouseButtonRelease, source, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
-        int current = 0;
-        canvas->set_coalesced_mouse_positions_provider([&](const QMouseEvent&) -> std::vector<QPointF> {
-          std::vector<QPointF> folded;
-          for (int sample = 1; sample <= pass.folded; ++sample) {
-            folded.push_back(at(current - 1 + static_cast<double>(sample) / (pass.folded + 1)));
-          }
-          return folded;
-        });
-        send(QEvent::MouseButtonPress, at(0), Qt::LeftButton, Qt::LeftButton);
+      }
+      CHECK(image.save(patchy::ui::to_qstring(image_path)));
+    }
+    patchy::ui::MainWindow window;
+    window.resize(1600, 1000);
+    if (qEnvironmentVariableIsSet("PATCHY_PERF_ONSCREEN")) {
+      window.showMaximized();
+    } else {
+      window.show();
+    }
+    QApplication::processEvents();
+    patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(image_path));
+    QApplication::processEvents();
+    auto* canvas = active_canvas(window);
+    CHECK(canvas != nullptr);
+    if (canvas == nullptr) {
+      return;
+    }
+    const auto settle = [canvas] {
+      const auto started = Clock::now();
+      while (!canvas->render_settled() && std::chrono::duration<double>(Clock::now() - started).count() < 60.0) {
         canvas->repaint();
-        std::vector<double> move_ms;
-        std::vector<double> paint_ms;
-        const auto cpu_before = process_cpu_ms();
-        const auto stroke_ms = elapsed_ms([&] {
-          for (int index = 1; index <= 60; ++index) {
-            current = index;
-            move_ms.push_back(elapsed_ms([&] { send(QEvent::MouseMove, at(index), Qt::NoButton, Qt::LeftButton); }));
-            paint_ms.push_back(elapsed_ms([&] { canvas->repaint(); }));
+        QApplication::processEvents();
+      }
+    };
+    canvas->set_tool(patchy::ui::CanvasTool::Clone);
+    canvas->set_brush_opacity(100);
+    canvas->set_clone_stamp_skip_enabled_for_testing(!qEnvironmentVariableIsSet("PATCHY_PERF_CLONE_FULL_WALK"));
+    const auto send = [canvas](QEvent::Type type, QPointF position, Qt::MouseButton button, Qt::MouseButtons buttons,
+                               Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+      QMouseEvent event(type, position, canvas->mapToGlobal(position), button, buttons, modifiers);
+      QApplication::sendEvent(canvas, &event);
+    };
+    // A press as the event loop delivers it: the press, whatever it posted, then the frame.
+    const auto timed_press = [&](QPointF position) {
+      return elapsed_ms([&] {
+        send(QEvent::MouseButtonPress, position, Qt::LeftButton, Qt::LeftButton);
+        QApplication::processEvents();
+        canvas->repaint();
+      });
+    };
+    struct Pass {
+      const char* label;
+      double zoom;
+      double step;
+      int folded;
+    };
+    for (const auto& pass : {Pass{"fit", 0.0, 2.0, 0}, Pass{"fit_burst", 0.0, 2.0, 8}, Pass{"100%", 1.0, 12.0, 0},
+                             Pass{"100%_burst", 1.0, 12.0, 8}, Pass{"100%_slow", 1.0, 3.0, 0}}) {
+      const std::string label = pass.label;
+      for (const int softness : {0, 100}) {
+        for (const int brush_size : image_case.sizes) {
+          if (pass.zoom == 0.0) {
+            canvas->fit_to_view();
+          } else {
+            canvas->set_zoom_centered(pass.zoom);
           }
-        });
-        const auto stroke_cpu = process_cpu_ms() - cpu_before;
-        const auto release_ms = elapsed_ms([&] {
-          send(QEvent::MouseButtonRelease, at(60), Qt::LeftButton, Qt::NoButton);
+          canvas->set_brush_size(brush_size);
+          canvas->set_brush_softness(softness);
+          settle();
+          // Document points, so the source and the stroke land on the image at every zoom.
+          const auto start = QPointF(canvas->widget_position_for_document_point(image_case.stroke_start));
+          const auto at = [&](double index) {
+            return start + QPointF(pass.step * index, pass.step * 3.0 * std::sin(index * 0.15));
+          };
+          const auto source = QPointF(canvas->widget_position_for_document_point(image_case.source));
+          send(QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+          send(QEvent::MouseButtonRelease, source, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+          send(QEvent::MouseMove, at(0), Qt::NoButton, Qt::NoButton);
+          QApplication::processEvents();
+          canvas->repaint();
+          int current = 0;
+          canvas->set_coalesced_mouse_positions_provider([&](const QMouseEvent&) -> std::vector<QPointF> {
+            std::vector<QPointF> folded;
+            for (int sample = 1; sample <= pass.folded; ++sample) {
+              folded.push_back(at(current - 1 + static_cast<double>(sample) / (pass.folded + 1)));
+            }
+            return folded;
+          });
+          const auto press_ms = timed_press(at(0));
+          std::vector<double> move_ms;
+          std::vector<double> events_ms;
+          std::vector<double> paint_ms;
+          const auto cpu_before = process_cpu_ms();
+          const auto stroke_ms = elapsed_ms([&] {
+            for (int index = 1; index <= 60; ++index) {
+              current = index;
+              move_ms.push_back(
+                  elapsed_ms([&] { send(QEvent::MouseMove, at(index), Qt::NoButton, Qt::LeftButton); }));
+              events_ms.push_back(elapsed_ms([] { QApplication::processEvents(); }));
+              paint_ms.push_back(elapsed_ms([&] { canvas->repaint(); }));
+            }
+          });
+          const auto stroke_cpu = process_cpu_ms() - cpu_before;
+          const auto release_ms = elapsed_ms([&] {
+            send(QEvent::MouseButtonRelease, at(60), Qt::LeftButton, Qt::NoButton);
+            QApplication::processEvents();
+            settle();
+          });
+          canvas->set_coalesced_mouse_positions_provider({});
+          // A second stroke on the same source (Aligned keeps the offset): press, frame, release.
+          const auto second = at(0) + QPointF(0.0, 40.0);
+          send(QEvent::MouseMove, second, Qt::NoButton, Qt::NoButton);
+          QApplication::processEvents();
+          canvas->repaint();
+          const auto repeat_press_ms = timed_press(second);
+          send(QEvent::MouseButtonRelease, second, Qt::LeftButton, Qt::NoButton);
           QApplication::processEvents();
           settle();
+          const auto summary = [](std::vector<double> values) {
+            std::sort(values.begin(), values.end());
+            double total = 0.0;
+            for (const auto value : values) {
+              total += value;
+            }
+            std::ostringstream text;
+            text << std::fixed << std::setprecision(2) << "avg=" << total / static_cast<double>(values.size())
+                 << " median=" << values[values.size() / 2] << " max=" << values.back();
+            return text.str();
+          };
+          std::cout << std::fixed << std::setprecision(2) << "[PERF] clonestamp " << image_case.width << "x"
+                    << image_case.height << " " << label << " zoom=" << canvas->zoom() << " size=" << brush_size
+                    << " softness=" << softness << " segments_per_move=" << pass.folded + 1
+                    << " press_ms=" << press_ms << " repeat_press_ms=" << repeat_press_ms
+                    << " stroke_ms=" << stroke_ms << " stroke_cpu_ms=" << stroke_cpu
+                    << " release_ms=" << release_ms << " move_ms " << summary(move_ms) << " events_ms "
+                    << summary(events_ms) << " paint_ms "
+                    << summary(paint_ms) << '\n';
+          patchy::ui::MainWindowTestAccess::undo(window);
+          patchy::ui::MainWindowTestAccess::undo(window);
+          settle();
+        }
+      }
+    }
+    // A queue of 240 moves 3 px apart at 100%, as Wayland delivers a fast mouse (every motion,
+    // uncompressed), handled one by one ("off") and coalesced per event-loop pass ("on",
+    // every position still its own sample): until the canvas paints again and in total.
+    for (const int brush_size : image_case.sizes) {
+      for (const bool coalesce : {false, true}) {
+        canvas->set_zoom_centered(1.0);
+        canvas->set_brush_size(brush_size);
+        canvas->set_brush_softness(100);
+        canvas->set_drag_move_coalescing_for_testing(coalesce
+                                                         ? patchy::ui::CanvasWidget::DragMoveCoalescing::AllMoves
+                                                         : patchy::ui::CanvasWidget::DragMoveCoalescing::Off);
+        settle();
+        const auto start = QPointF(canvas->widget_position_for_document_point(image_case.stroke_start));
+        const auto at = [&](double index) { return start + QPointF(3.0 * index, 9.0 * std::sin(index * 0.15)); };
+        const auto source = QPointF(canvas->widget_position_for_document_point(image_case.source));
+        send(QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+        send(QEvent::MouseButtonRelease, source, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+        const auto press_ms = timed_press(at(0));
+        const auto coalesced_before = canvas->render_cache_diagnostics().drag_moves_coalesced;
+        for (int index = 1; index <= 240; ++index) {
+          QApplication::postEvent(canvas, new QMouseEvent(QEvent::MouseMove, at(index), canvas->mapToGlobal(at(index)),
+                                                          Qt::NoButton, Qt::LeftButton, Qt::NoModifier));
+        }
+        const auto drain_ms = elapsed_ms([] {
+          QApplication::processEvents();
+          QApplication::processEvents();
         });
-        canvas->set_coalesced_mouse_positions_provider({});
-        const auto summary = [](std::vector<double> values) {
-          std::sort(values.begin(), values.end());
-          double total = 0.0;
-          for (const auto value : values) {
-            total += value;
-          }
-          std::ostringstream text;
-          text << std::fixed << std::setprecision(2) << "avg=" << total / static_cast<double>(values.size())
-               << " median=" << values[values.size() / 2] << " max=" << values.back();
-          return text.str();
-        };
-        std::cout << std::fixed << std::setprecision(2) << "[PERF] clonestamp " << label
-                  << " zoom=" << canvas->zoom() << " size=" << brush_size << " softness=" << softness
-                  << " segments_per_move=" << pass.folded + 1 << " stroke_ms=" << stroke_ms
-                  << " stroke_cpu_ms=" << stroke_cpu << " release_ms=" << release_ms << " move_ms "
-                  << summary(move_ms) << " paint_ms " << summary(paint_ms) << '\n';
+        const auto frame_ms = elapsed_ms([canvas] { canvas->repaint(); });
+        const auto coalesced = canvas->render_cache_diagnostics().drag_moves_coalesced - coalesced_before;
+        send(QEvent::MouseButtonRelease, at(240), Qt::LeftButton, Qt::NoButton);
+        QApplication::processEvents();
+        settle();
+        std::cout << std::fixed << std::setprecision(2) << "[PERF] clonestamp " << image_case.width << "x"
+                  << image_case.height << " queued240 coalesce=" << (coalesce ? "on" : "off")
+                  << " size=" << brush_size << " softness=100 press_ms=" << press_ms << " drain_ms=" << drain_ms
+                  << " frame_ms=" << frame_ms << " moves_coalesced=" << coalesced << '\n';
         patchy::ui::MainWindowTestAccess::undo(window);
         settle();
       }
     }
+    canvas->set_drag_move_coalescing_for_testing(patchy::ui::CanvasWidget::DragMoveCoalescing::Default);
   }
 }
 

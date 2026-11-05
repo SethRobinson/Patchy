@@ -500,6 +500,11 @@ QString MainWindowTestAccess::session_title(MainWindow& window, std::size_t inde
   return window.sessions_.at(index)->title;
 }
 
+QStringList MainWindowTestAccess::active_session_import_notes(MainWindow& window) {
+  const auto* session = window.active_session();
+  return session != nullptr ? session->import_notes : QStringList();
+}
+
 bool MainWindowTestAccess::session_cmyk_proof(MainWindow& window, std::size_t index) {
   return window.sessions_.at(index)->cmyk_proof;
 }

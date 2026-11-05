@@ -11838,8 +11838,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>数量:</translation>
     </message>
     <message>
-        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
-        <translation>背景：它始终位于堆栈底部，没有透明度，也没有图层样式。右键单击它并选择“从背景生成图层”即可将其变为普通图层。</translation>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Click to make it an ordinary layer.</source>
+        <translation>背景：它始终位于堆栈底部，没有透明度，也没有图层样式。单击即可将其变为普通图层。</translation>
     </message>
     <message>
         <source>iPhone 16 Pro</source>
@@ -14828,6 +14828,67 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Feather radius:</source>
         <translation>羽化半径:</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is damaged</source>
+        <translation>TIFF 的图像数据已损坏</translation>
+    </message>
+    <message>
+        <source>Patchy cannot read this TIFF&apos;s sample layout</source>
+        <translation>Patchy 无法读取此 TIFF 的采样布局</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s image data is cut short or damaged; the missing part opened empty.</source>
+        <translation>TIFF 的图像数据不完整或已损坏；缺失部分以空白打开。</translation>
+    </message>
+    <message>
+        <source>Some of the TIFF&apos;s extra channels were left out: a document keeps at most 56 channels.</source>
+        <translation>已略去 TIFF 的部分额外通道：一个文档最多保留 56 个通道。</translation>
+    </message>
+    <message>
+        <source>The TIFF has no pages to open</source>
+        <translation>TIFF 中没有可打开的页面</translation>
+    </message>
+    <message>
+        <source>The pages&apos; extra channels were left out: they belong to single pages, not the layered document.</source>
+        <translation>已省略页面的额外通道：它们属于单个页面，而不属于分层文档。</translation>
+    </message>
+    <message>
+        <source>Multi-Page TIFF</source>
+        <translation>多页 TIFF</translation>
+    </message>
+    <message>
+        <source>%1 holds %2 pages. How should Patchy open them?</source>
+        <translation>%1 包含 %2 页。Patchy 应如何打开它们？</translation>
+    </message>
+    <message>
+        <source>Pages as Layers puts every page on its own layer in one document, page 1 on top. Separate Documents opens every page in its own tab.</source>
+        <translation>“页面作为图层”会将每一页放在一个文档中各自的图层上，第 1 页在最上面。“单独的文档”会在各自的标签页中打开每一页。</translation>
+    </message>
+    <message>
+        <source>Pages as Layers</source>
+        <translation>页面作为图层</translation>
+    </message>
+    <message>
+        <source>Separate Documents</source>
+        <translation>单独的文档</translation>
+    </message>
+    <message>
+        <source>First Page Only</source>
+        <translation>仅第一页</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF: opened %1 pages as layers</source>
+        <translation>多页 TIFF：已将 %1 页作为图层打开</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF: opened %1 pages as separate documents</source>
+        <translation>多页 TIFF：已将 %1 页作为单独的文档打开</translation>
+    </message>
+    <message>
+        <source>Pages Patchy could not read were left out: %1</source>
+        <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
+        <translation>已省略 Patchy 无法读取的页面：%1</translation>
     </message>
     <message>
         <source>Reds:</source>
@@ -19152,6 +19213,34 @@ Each item&apos;s own View setting still applies.</source>
         <source>Soften the selection edge</source>
         <translation>柔化选区边缘</translation>
     </message>
+    <message>
+        <source>Open Document</source>
+        <translation>打开的文档</translation>
+    </message>
+    <message>
+        <source>Recent File</source>
+        <translation>最近使用的文件</translation>
+    </message>
+    <message>
+        <source>Recent Folder</source>
+        <translation>最近使用的文件夹</translation>
+    </message>
+    <message>
+        <source>Tag the layer seafoam in the Layers panel</source>
+        <translation>在图层面板中将图层标为海沫绿</translation>
+    </message>
+    <message>
+        <source>Tag the layer indigo in the Layers panel</source>
+        <translation>在图层面板中将图层标为靛蓝</translation>
+    </message>
+    <message>
+        <source>Tag the layer magenta in the Layers panel</source>
+        <translation>在图层面板中将图层标为洋红</translation>
+    </message>
+    <message>
+        <source>Tag the layer fuchsia in the Layers panel</source>
+        <translation>在图层面板中将图层标为紫红</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -19351,6 +19440,34 @@ Each item&apos;s own View setting still applies.</source>
         <source>Other</source>
         <extracomment>Fonts whose files state no style (none of the entries above).</extracomment>
         <translation>其他</translation>
+    </message>
+    <message>
+        <source>Favorites</source>
+        <translation>收藏</translation>
+    </message>
+    <message>
+        <source>No favorites yet. Click the star beside a font to add it.</source>
+        <translation>还没有收藏。点击字体旁边的星标即可收藏。</translation>
+    </message>
+    <message>
+        <source>No favorite fonts match the search or filters.</source>
+        <translation>没有符合搜索或筛选条件的收藏字体。</translation>
+    </message>
+    <message>
+        <source>Remove from Recent</source>
+        <translation>从最近使用中移除</translation>
+    </message>
+    <message>
+        <source>Remove from favorites</source>
+        <translation>取消收藏</translation>
+    </message>
+    <message>
+        <source>Add to favorites</source>
+        <translation>添加到收藏</translation>
+    </message>
+    <message>
+        <source>Show only favorite fonts</source>
+        <translation>仅显示收藏的字体</translation>
     </message>
 </context>
 <context>
@@ -32324,6 +32441,26 @@ Locked: %1</source>
         <source>Contract by:</source>
         <translation>收缩量:</translation>
     </message>
+    <message>
+        <source>Use Shift for tool switch</source>
+        <translation>使用 Shift 键切换工具</translation>
+    </message>
+    <message>
+        <source>When on, a tool group&apos;s letter selects its first tool and Shift with the letter moves through the group. When off, pressing the letter again moves to the group&apos;s next tool.</source>
+        <translation>开启时，工具组的字母键选择组内第一个工具，Shift 加字母键在组内依次切换。关闭时，再次按字母键切换到组内下一个工具。</translation>
+    </message>
+    <message>
+        <source>Seafoam</source>
+        <translation>海沫绿</translation>
+    </message>
+    <message>
+        <source>Indigo</source>
+        <translation>靛蓝</translation>
+    </message>
+    <message>
+        <source>Fuchsia</source>
+        <translation>紫红</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34642,10 +34779,6 @@ Locked: %1</source>
         <translation>开源照片编辑。永久免费，无需订阅。</translation>
     </message>
     <message>
-        <source>New Document...</source>
-        <translation>新建文档...</translation>
-    </message>
-    <message>
         <source>Open...</source>
         <translation>打开...</translation>
     </message>
@@ -34708,6 +34841,18 @@ Locked: %1</source>
     <message>
         <source>Remove from Recent Files</source>
         <translation>从最近使用的文件中移除</translation>
+    </message>
+    <message>
+        <source>New...</source>
+        <translation>新建...</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>剪贴板</translation>
+    </message>
+    <message>
+        <source>New document from the image on the clipboard</source>
+        <translation>用剪贴板中的图像新建文档</translation>
     </message>
 </context>
 <context>

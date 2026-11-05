@@ -840,6 +840,9 @@ bool CanvasWidget::brush_outline_uses_overlay() const {
   if (brush_outline_hidden()) {
     return false;  // Show Outline is off: no outline at any size (GitHub issue 517)
   }
+  if (transient_read_callback_) {
+    return false;  // a dialog's picker owns the pointer (GitHub issue 638)
+  }
   // Where a Clone or Healing press would be refused (no source yet) the pointer is the
   // not-allowed cursor, so the footprint is painted on the canvas at every size: the
   // circle stays while [ and ] resize it (GitHub issue 516).
@@ -1371,7 +1374,7 @@ std::optional<QLineF> CanvasWidget::stroke_connect_preview_line() const {
   const auto held = stroke_connect_preview_modifiers_ & (Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier);
   if (held != Qt::ShiftModifier || !stroke_connect_preview_pointer_inside_ || !last_stroke_end_document_.has_value() ||
       document_ == nullptr || painting_ || spacebar_panning_ || panning_ || brush_adjust_dragging_ ||
-      move_drag_pending_ || moving_layer_ || !isVisible() ||
+      move_drag_pending_ || moving_layer_ || !isVisible() || transient_read_callback_ ||
       !tool_supports_shift_click_stroke_connect(effective_tool_for_input())) {
     return std::nullopt;
   }
@@ -3084,6 +3087,7 @@ void CanvasWidget::clear_clone_source() {
   }
   invalidate_clone_overlay();
   clone_source_set_ = false;
+  clone_source_offset_ = QPoint();  // the offset goes with the point (GitHub issue 632)
   clone_aligned_offset_set_ = false;
   update();              // the source marker goes
   update_tool_cursor();  // a press is refused again: the not-allowed cursor returns
@@ -3176,6 +3180,7 @@ void CanvasWidget::set_clone_overlay_opacity(int percent) {
 // resize, where it is the size preview (issue 516).
 bool CanvasWidget::clone_overlay_active() const {
   return clone_overlay_shown_ && retouch_source_tool_active() && clone_source_set_ && !painting_ &&
+         !transient_read_callback_ &&
          (!clone_overlay_alt_held_ || brush_adjust_dragging_) && brush_hover_position_valid_ &&
          !spacebar_panning_ && document_ != nullptr && !render_cache_.isNull() &&
          render_cache_.size() == QSize(document_->width(), document_->height());
@@ -3321,6 +3326,7 @@ void CanvasWidget::set_brush_overlay_opacity(int percent) {
 // panning, or drawing a polygonal preview (GitHub issue 517).
 bool CanvasWidget::brush_overlay_active() const {
   return brush_overlay_shown_ && tool_ == CanvasTool::Brush && !painting_ && brush_hover_position_valid_ &&
+         !transient_read_callback_ &&
          !spacebar_panning_ && preview_points_.empty() && document_ != nullptr;
 }
 

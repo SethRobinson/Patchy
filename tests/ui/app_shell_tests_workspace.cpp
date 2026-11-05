@@ -263,7 +263,7 @@ void ui_startup_opens_empty_workspace_with_start_panel() {
   CHECK(!require_action(window, "filePlaceEmbeddedAction")->isEnabled());
   save_widget_artifact("ui_start_panel", window);
 
-  // The New Document button runs the regular dialog flow and the panel hides.
+  // The New button runs the regular New Document dialog flow and the panel hides.
   accept_new_document_dialog(400, 300);
   new_button->click();
   QApplication::processEvents();
@@ -276,6 +276,105 @@ void ui_startup_opens_empty_workspace_with_start_panel() {
   QApplication::processEvents();
   CHECK(tabs->count() == 0);
   CHECK(panel->isVisible());
+}
+
+// GitHub issue 626: New..., Clipboard, Open... in that order, in the row the two buttons
+// used to fill. Clipboard is File > Open from Clipboard: disabled without an image on the
+// clipboard, and a click opens that image as a new document.
+void ui_start_panel_clipboard_button_follows_open_from_clipboard() {
+  // No recent files: the captures show the buttons without any machine's paths.
+  SettingsValueRestorer restore_recent(QStringLiteral("recentFiles"));
+  patchy::ui::app_settings().remove(QStringLiteral("recentFiles"));
+  QApplication::clipboard()->clear();
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  using Access = patchy::ui::MainWindowTestAccess;
+  auto* panel = window.findChild<QWidget*>(QStringLiteral("startPanel"));
+  auto* column = window.findChild<QWidget*>(QStringLiteral("startPanelColumn"));
+  auto* new_button = window.findChild<QPushButton*>(QStringLiteral("startPanelNewButton"));
+  auto* clipboard_button = window.findChild<QPushButton*>(QStringLiteral("startPanelClipboardButton"));
+  auto* open_button = window.findChild<QPushButton*>(QStringLiteral("startPanelOpenButton"));
+  CHECK(panel != nullptr && column != nullptr && new_button != nullptr && clipboard_button != nullptr &&
+        open_button != nullptr);
+  if (panel == nullptr || column == nullptr || new_button == nullptr || clipboard_button == nullptr ||
+      open_button == nullptr) {
+    return;
+  }
+  CHECK(panel->isVisible());
+  CHECK(new_button->text() == QStringLiteral("New..."));
+  CHECK(open_button->text() == QStringLiteral("Open..."));
+#ifdef Q_OS_WASM
+  CHECK(!clipboard_button->isVisible());
+  CHECK(!clipboard_button->isEnabled());
+#else
+  auto* action = require_action(window, "fileOpenClipboardAction");
+  CHECK(clipboard_button->text() == QStringLiteral("Clipboard"));
+  CHECK(!clipboard_button->toolTip().isEmpty());
+  CHECK(clipboard_button->isVisible());
+  // The three buttons fit the column side by side; checked again below in every language,
+  // Light theme included.
+  const auto check_button_row = [&](const QString& context) {
+    for (auto* button : {new_button, clipboard_button, open_button}) {
+      const auto fits = button->width() >= button->sizeHint().width() &&
+                        column->rect().contains(QRect(button->mapTo(column, QPoint(0, 0)), button->size()));
+      if (!fits) {
+        std::printf("%s: %s is %d px (hint %d) at x %d in a %d px column\n", qPrintable(context),
+                    qPrintable(button->text()), button->width(), button->sizeHint().width(), button->x(),
+                    column->width());
+      }
+      CHECK(fits);
+    }
+    CHECK(new_button->geometry().right() < clipboard_button->geometry().left());
+    CHECK(clipboard_button->geometry().right() < open_button->geometry().left());
+  };
+  QApplication::processEvents();
+  check_button_row(QStringLiteral("en"));
+  CHECK(!action->isEnabled());
+  CHECK(!clipboard_button->isEnabled());
+
+  QImage image(23, 17, QImage::Format_RGB32);
+  image.fill(QColor(200, 120, 40));
+  QApplication::clipboard()->setImage(image);
+  QApplication::processEvents();
+  CHECK(action->isEnabled());
+  CHECK(clipboard_button->isEnabled());
+  save_widget_artifact("ui_start_panel_clipboard_enabled", *panel);
+  QApplication::clipboard()->setText(QStringLiteral("Plain text is not an image"));
+  QApplication::processEvents();
+  CHECK(!clipboard_button->isEnabled());
+  save_widget_artifact("ui_start_panel_clipboard_disabled", *panel);
+
+  {
+    ColorSchemeRestorer light(patchy::ui::ColorSchemePreference::Light);
+    LanguageRestorer restore_language;
+    QApplication::clipboard()->setImage(image);
+    for (const auto& language : patchy::ui::LocalizationManager::instance().languages()) {
+      patchy::ui::LocalizationManager::instance().set_language(language.code, false);
+      // Each nested layout level posts its own LayoutRequest; let the column settle.
+      process_events_for(50);
+      check_button_row(language.code);
+      if (language.code == QStringLiteral("de")) {
+        CHECK(clipboard_button->text() == QStringLiteral("Zwischenablage"));
+        save_widget_artifact("ui_start_panel_clipboard_light_de", *panel);
+      }
+    }
+  }
+  {
+    ColorSchemeRestorer light(patchy::ui::ColorSchemePreference::Light);
+    QApplication::processEvents();
+    save_widget_artifact("ui_start_panel_clipboard_light", *panel);
+  }
+
+  CHECK(clipboard_button->isEnabled());
+  clipboard_button->click();
+  QApplication::processEvents();
+  CHECK(Access::session_count(window) == 1U);
+  CHECK(!panel->isVisible());
+  const auto& document = std::as_const(Access::document(window));
+  CHECK(document.width() == image.width());
+  CHECK(document.height() == image.height());
+#endif
+  QApplication::clipboard()->clear();
 }
 
 void ui_start_panel_recent_files_open_on_click() {
@@ -5327,6 +5426,8 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_derived_font_sizes_scale_in_points_and_pixels", ui_derived_font_sizes_scale_in_points_and_pixels},
       {"ui_startup_opens_empty_workspace_with_start_panel", ui_startup_opens_empty_workspace_with_start_panel},
       {"ui_start_panel_recent_files_open_on_click", ui_start_panel_recent_files_open_on_click},
+      {"ui_start_panel_clipboard_button_follows_open_from_clipboard",
+       ui_start_panel_clipboard_button_follows_open_from_clipboard},
       {"ui_large_document_session_keeps_loading_responsive", ui_large_document_session_keeps_loading_responsive},
       {"ui_start_panel_recent_files_scroll_and_context_menu", ui_start_panel_recent_files_scroll_and_context_menu},
       {"ui_start_panel_recent_row_remove_button_and_menu", ui_start_panel_recent_row_remove_button_and_menu},

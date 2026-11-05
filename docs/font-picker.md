@@ -1,8 +1,8 @@
 # Font picker popup
 
 The text bar's font family control (`FontPickerCombo`, `src/ui/font_picker.*`) is a `QFontComboBox`
-whose popup is Patchy's own: a search box, Style and Language filters, the family list (a Recent
-section on top) and a hover/keyboard preview pane. The Resolve Missing Fonts dialog uses the same
+whose popup is Patchy's own: a search box, Style and Language filters, the Favorites toggle, the
+family list (a Recent section on top, or only the Favorites) and a hover/keyboard preview pane. The Resolve Missing Fonts dialog uses the same
 control. Text-session rules for the popup (its objectName, picks that must apply) are in
 [text-tool.md](text-tool.md#options-bar-while-an-editor-is-open).
 
@@ -18,6 +18,15 @@ control. Text-session rules for the popup (its objectName, picks that must apply
   follow-up).
 - A pick commits by family name (`findText`), not by row: the same family can be both a Recent row
   and a full-list row.
+- Row buttons (`font_picker_row_button_rect`, `FontPickerRowButton`): every family row has the
+  favorite star at its right; Recent rows have the remove x rightmost with the star just left of
+  it. Their space is reserved on every row so names never re-elide on hover. A favorite's star is
+  filled in `font_favorite_star` always; an empty star and the x show on the hovered row only, in
+  `text_secondary` (`text_primary` over the button). `RowButtonController`, an event filter on the
+  list's viewport, owns presses inside a button rect: the row is neither selected nor picked, the
+  action runs queued on release over the same button (it rebuilds the model), and a double click
+  toggles twice. Clicks elsewhere on the row and all keyboard handling are untouched; there is no
+  keyboard shortcut for the buttons.
 - The popup opens on the current family's Recent row with the list at the top, so the section is in
   view; a current family that is not recent opens centered in the full list.
 
@@ -30,6 +39,23 @@ control. Text-session rules for the popup (its objectName, picks that must apply
 - The section (header, its rows, the All Fonts header) shows only while the search box is empty:
   while searching the matches are the list. The Style and Language filters apply to it as to the
   full list; when nothing recent passes, no headers show.
+
+- The x on a Recent row (issue 569 follow-up) removes the family from the stored list
+  (`remove_recent_font_family`) and rebuilds the rows keeping the scroll position; the popup stays
+  open and the section hides when nothing recent is left.
+
+## Favorites (issue 630)
+
+- The star toggles a family in `ui/textFontPickerFavoriteFamilies` (a string list in the order
+  added; persisted identifier). Families no longer installed stay stored but never show. The
+  model's `kFontPickerFavoriteRole` reads the popup's set of installed favorites.
+- The star `QToolButton` (`textFontPickerFavoritesButton`, checkable, `Qt::NoFocus`) right of the
+  Language combo switches to the Favorites view: a Favorites header, then every favorite that
+  passes the search and both filters, in the full list's order; Recent and All Fonts hide. It is
+  a separate toggle, not a Style entry, because favorites are not a style. With nothing to list,
+  an `empty_note` row (unselectable) says how to add favorites or that none match. The toggle
+  persists in `ui/textFontPickerFavoritesOnly` (bool), like the filters. Unstarring a row in the
+  Favorites view removes it at once.
 
 ## Style and Language filters (issue 570)
 
@@ -88,5 +114,6 @@ signature changed is read again.
 `tests/core/font_style_class_tests.cpp` (`font_style_class_*`: synthetic OS/2 tables and the
 bundled web fonts) and `tests/ui/font_picker_filter_tests.cpp` (`ui_font_picker_*`: Recent order,
 cap, missing families, header skipping, filters, persistence, the rule's color in both schemes,
-list height, Enter in an open list, Other); the popup's older cases are
+list height, Enter in an open list, Other, the favorite star, the Favorites view with filters and
+persistence, the Recent x); the popup's older cases are
 `ui_text_font_picker_*` in `tests/ui/text_editor_font_picker_tests.cpp`.

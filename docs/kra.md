@@ -56,7 +56,8 @@ plus per-type ones below. `<masks>` holds a layer's masks; a group lists its mas
   `channellockflags` with alpha `0` is the alpha lock (Lock Transparency); `locked="1"` is
   Lock All.
 - Color labels in Krita's menu order: 1 blue, 2 green, 3 yellow, 4 orange, 5 brown (opens
-  orange), 6 red, 7 purple, 8 gray.
+  orange), 6 red, 7 purple, 8 gray. Krita has no match for Photoshop 2024's Seafoam, Indigo,
+  Magenta or Fuchsia, so none maps to them.
 
 ## Tiles
 

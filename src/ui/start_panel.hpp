@@ -14,7 +14,7 @@ class QPushButton;
 namespace patchy::ui {
 
 // The empty-workspace start panel: shown (as an overlay filling the document tab
-// area) whenever no document sessions exist. Offers New Document / Open buttons
+// area) whenever no document sessions exist. Offers New, Clipboard and Open buttons
 // and a clickable recent-files list, and carries the app branding (artwork,
 // tagline, version, links) plus the startup update-check status; MainWindow owns
 // visibility and geometry.
@@ -35,8 +35,13 @@ class StartPanel final : public QWidget {
   // status shows if the panel reappears later.
   void set_update_status(const QString& text);
 
+  // Enables the Clipboard button; MainWindow mirrors File > Open from Clipboard's
+  // enabled state here (an image on the clipboard). Always off in the browser build.
+  void set_clipboard_available(bool available);
+
  signals:
   void new_document_requested();
+  void open_clipboard_requested();
   void open_requested();
   void recent_file_requested(const QString& path);
   // Right-click on a recent row; MainWindow builds the menu so it shares the
@@ -67,6 +72,7 @@ class StartPanel final : public QWidget {
   QLineEdit* recent_filter_edit_{nullptr};
   QListWidget* recent_list_{nullptr};
   QLabel* update_status_label_{nullptr};
+  QPushButton* clipboard_button_{nullptr};
 };
 
 }  // namespace patchy::ui

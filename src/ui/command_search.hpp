@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QIcon>
 #include <QPoint>
 #include <QPointer>
 #include <QString>
@@ -23,6 +24,16 @@ class HotkeyRegistry;
 // (command_search_exempt, docs/command-search.md "Descriptions").
 inline constexpr const char* kCommandSearchDataEntryProperty = "patchy.commandSearchDataEntry";
 
+// What a Search Commands row is (GitHub issue 554 follow-up 3): its kind icon, and for the
+// rows built from data their label ("Open Document: patchy.jpg"). Not persisted.
+enum class CommandSearchKind { menu, tool, panel, key, open_document, recent_file, recent_folder };
+
+// Set (an int CommandSearchKind) on menu actions the search lists as another kind than a menu
+// command: the Window menu's panel and toolbar entries (panel). The Window menu's documents
+// and the Open Recent entries (open_document, recent_file, recent_folder) are left out of
+// the menu walk: MainWindow::show_command_search lists them as rows of their own.
+inline constexpr const char* kCommandSearchKindProperty = "patchy.commandSearchKind";
+
 // Help > Search Commands (GitHub issue 554; docs/command-search.md).
 
 // A menu label without its "opens a dialog" ellipsis ("Levels..." -> "Levels").
@@ -43,7 +54,21 @@ struct MenuCommandEntry {
   QString path;  // "Filter › Blur": the menus the command sits in; "Tools"; empty for a key outside them
   QString description{};  // short "what it does" line, searched and shown on the row
   QString id{};  // the hotkey command id, else the action's objectName: what descriptions are keyed by
+  CommandSearchKind kind = CommandSearchKind::menu;
+  QString tooltip{};  // shown instead of the description (a file's full path)
+  // Runs the row when it has no action (recent files and folders); called after the popup closed.
+  std::function<void()> run{};
 };
+
+// "Open Document", "Recent File", "Recent Folder": the label before a data row's name;
+// empty for the other kinds.
+[[nodiscard]] QString command_search_kind_label(CommandSearchKind kind);
+// The kind's own small icon (theme ink): what a row shows when its action has no icon.
+[[nodiscard]] QIcon command_search_kind_icon(CommandSearchKind kind);
+// A row for a recent file or folder: its file name under `kind`'s label, the full path as
+// the tooltip, `run` on Enter.
+[[nodiscard]] MenuCommandEntry command_search_path_entry(CommandSearchKind kind, const QString& path,
+                                                         std::function<void()> run);
 
 // What the command search lists: every enabled, visible menu-bar command, in menu order.
 // A command reachable from two menus is listed once, at its first place.

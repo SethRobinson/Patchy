@@ -3902,6 +3902,63 @@ void ui_duplicate_background_layer_makes_unlocked_copy() {
 // GitHub issue 274: the Background's row shows one padlock that names it (Seth: no italic
 // name), and its shorter right-click menu offers Layer from Background, which makes it an
 // ordinary "Layer 0" in one undo step. Delete Layer and Merge Visible need another layer.
+// GitHub #629: a left click on the Background's padlock runs Layer from Background ("Layer 0",
+// its locks cleared, one undo step) without changing the selection or starting a drag.
+void ui_background_padlock_click_makes_ordinary_layer() {
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock"));
+  CHECK(layer_list != nullptr && layers_dock != nullptr);
+  const auto background_badge = [&]() -> QLabel* {
+    auto* row = layer_list->itemWidget(layer_list->item(layer_list->count() - 1));
+    if (row == nullptr) {
+      return nullptr;
+    }
+    for (auto* badge : row->findChildren<QLabel*>(QStringLiteral("layerLockBadge"))) {
+      if (badge->property("layerBackgroundBadge").toBool()) {
+        return badge;
+      }
+    }
+    return nullptr;
+  };
+  auto* badge = background_badge();
+  CHECK(badge != nullptr);
+  if (badge == nullptr) {
+    return;
+  }
+  CHECK(badge->isVisible());
+  CHECK(badge->cursor().shape() == Qt::PointingHandCursor);
+  CHECK(badge->toolTip().contains(QStringLiteral("Click to make it an ordinary layer")));
+  save_widget_artifact("issue629_background_padlock_before", *layers_dock);
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Paint Layer"))->isSelected());
+
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  const auto undo_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  QTest::mouseClick(badge, Qt::LeftButton, Qt::NoModifier, badge->rect().center());
+  QApplication::processEvents();
+  QApplication::processEvents();
+
+  const auto& bottom = std::as_const(doc).layers().front();
+  CHECK(bottom.name() == "Layer 0");
+  CHECK(patchy::background_layer(std::as_const(doc).layers(), doc.width(), doc.height()) == nullptr);
+  CHECK((patchy::layer_lock_flags(bottom) &
+         (patchy::kLayerLockPosition | patchy::kLayerLockTransparentPixels | patchy::kLayerLockArtboardAutonest)) ==
+        0U);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth + 1);
+  CHECK(background_badge() == nullptr);
+  // The selection stays where it was: the click converts, it does not pick the row.
+  CHECK(require_layer_item(*layer_list, QStringLiteral("Paint Layer"))->isSelected());
+  CHECK(!require_layer_item(*layer_list, QStringLiteral("Layer 0"))->isSelected());
+  CHECK(std::as_const(doc).layers().size() == 2U);
+  save_widget_artifact("issue629_background_padlock_after", *layers_dock);
+
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(std::as_const(doc).layers().front().name() == "Background");
+  CHECK(patchy::background_layer(std::as_const(doc).layers(), doc.width(), doc.height()) != nullptr);
+  CHECK(background_badge() != nullptr);
+}
+
 void ui_background_layer_marker_and_short_menu() {
   auto&& [window, canvas] = ShownWindowFixture{};
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
@@ -4058,13 +4115,16 @@ void ui_new_layer_dialog_applies_each_field_and_cancel_adds_nothing() {
         }
         CHECK(name->text() == QStringLiteral("Layer 2"));  // default_new_layer_name: one layer so far
         CHECK(clip->isEnabled() && !clip->isChecked());
-        CHECK(color->count() == 8 && color->currentIndex() == 0 && color->currentText() == QStringLiteral("None"));
+        CHECK(color->count() == 12 && color->currentIndex() == 0 && color->currentText() == QStringLiteral("None"));
         CHECK(color->itemText(3) == QStringLiteral("Yellow") && !color->itemIcon(3).isNull());
+        // Hue order, as in the Layer Color menu: Seafoam (lclr 8) sits after Green (#635).
+        CHECK(color->itemText(5) == QStringLiteral("Seafoam") &&
+              color->itemData(5).toInt() == static_cast<int>(patchy::kLayerColorSeafoam));
         CHECK(mode->currentData().toInt() == static_cast<int>(patchy::BlendMode::Normal));
         CHECK(opacity->value() == 100 && opacity->minimum() == 0 && opacity->maximum() == 100);
         name->setText(QStringLiteral("Glaze"));
         clip->setChecked(true);
-        color->setCurrentIndex(static_cast<int>(patchy::kLayerColorYellow));
+        color->setCurrentIndex(color->findData(static_cast<int>(patchy::kLayerColorYellow)));
         mode->setCurrentIndex(mode->findData(static_cast<int>(patchy::BlendMode::Multiply)));
         opacity->setValue(40);
         for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
@@ -5141,6 +5201,7 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
       {"ui_background_layer_stays_at_bottom_and_takes_no_styles",
        ui_background_layer_stays_at_bottom_and_takes_no_styles},
       {"ui_background_layer_marker_and_short_menu", ui_background_layer_marker_and_short_menu},
+      {"ui_background_padlock_click_makes_ordinary_layer", ui_background_padlock_click_makes_ordinary_layer},
       {"ui_duplicate_background_layer_makes_unlocked_copy", ui_duplicate_background_layer_makes_unlocked_copy},
       {"ui_new_layer_dialog_applies_each_field_and_cancel_adds_nothing",
        ui_new_layer_dialog_applies_each_field_and_cancel_adds_nothing},

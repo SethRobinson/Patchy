@@ -189,6 +189,10 @@ const ThemePalette& dark_palette() {
       .layer_color_blue = rgb(0x4a90e2),
       .layer_color_violet = rgb(0xa070d8),
       .layer_color_gray = rgb(0x8c9299),
+      .layer_color_seafoam = rgb(0x3cbf9c),
+      .layer_color_indigo = rgb(0x6152d9),
+      .layer_color_magenta = rgb(0xd054c6),
+      .layer_color_fuchsia = rgb(0xe84f8e),
 
       // Bright accent.
       .accent_bright = rgb(0x31a8ff),
@@ -232,6 +236,7 @@ const ThemePalette& dark_palette() {
       .list_row_hover_bg = rgb(0x33373d),
       .preview_pane_bg = rgb(0x252525),
       .preview_pane_muted_text = rgb(0x9a9a9a),
+      .font_favorite_star = rgb(0xe3b53b),
       .accent_control = rgb(0x4c9aff),
       .accent_ring = rgb(0x63a6ff),
 
@@ -741,6 +746,13 @@ const ThemePalette& light_palette() {
     light.layer_color_blue = rgb(0x2f76c9);
     light.layer_color_violet = rgb(0x8352c4);
     light.layer_color_gray = rgb(0x7a8088);
+    light.layer_color_seafoam = rgb(0x1f9c7c);
+    light.layer_color_indigo = rgb(0x4a3cc2);
+    light.layer_color_magenta = rgb(0xb2359f);
+    light.layer_color_fuchsia = rgb(0xcc2f6c);
+
+    // The favorite font star: a deeper gold that holds against a near-white list.
+    light.font_favorite_star = rgb(0xc99a0e);
 
     // Icon ink. The flip lands close, but these are the most-looked-at pixels in
     // the app and deserve exact values.
@@ -969,6 +981,10 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
       PATCHY_THEME_ROLE(layer_color_blue),
       PATCHY_THEME_ROLE(layer_color_violet),
       PATCHY_THEME_ROLE(layer_color_gray),
+      PATCHY_THEME_ROLE(layer_color_seafoam),
+      PATCHY_THEME_ROLE(layer_color_indigo),
+      PATCHY_THEME_ROLE(layer_color_magenta),
+      PATCHY_THEME_ROLE(layer_color_fuchsia),
 
       PATCHY_THEME_ROLE(accent_bright),
       PATCHY_THEME_ROLE(accent_bright_hover),
@@ -1004,6 +1020,7 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
       PATCHY_THEME_ROLE(list_row_hover_bg),
       PATCHY_THEME_ROLE(preview_pane_bg),
       PATCHY_THEME_ROLE(preview_pane_muted_text),
+      PATCHY_THEME_ROLE(font_favorite_star),
       PATCHY_THEME_ROLE(accent_control),
       PATCHY_THEME_ROLE(accent_ring),
 

@@ -5,13 +5,14 @@
 // APPDIR to the mount, so anything shown to the user, stored, or compared across
 // launches names the .AppImage file, never applicationFilePath(). See docs/appimage.md.
 
+#include "support/cli_flags.hpp"
+
 #include <QString>
 
 namespace patchy::ui {
 
-// The argument the AppImage's AppRun takes to start the bundled patchy-mcp connector
-// instead of the app (packaging/linux/appimage/AppRun).
-inline constexpr char kAppImageConnectorArgument[] = "patchy-mcp";
+// The connector argument, `<file>.AppImage patchy-mcp`, is kAppImageConnectorArgument in
+// support/cli_flags.hpp: Patchy's AppRun and the patchy binary itself both accept it.
 // Set to 1 by AppRun when it chose QT_QPA_PLATFORMTHEME itself, so a companion Patchy starts
 // gets the user's own setting back (src/ui/companion_apps.cpp).
 inline constexpr char kAppRunSetPlatformThemeVariable[] = "PATCHY_APPRUN_SET_PLATFORMTHEME";

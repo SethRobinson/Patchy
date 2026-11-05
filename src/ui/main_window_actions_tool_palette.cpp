@@ -64,6 +64,7 @@
 #include <QPushButton>
 #include <QRect>
 #include <QScreen>
+#include <QShortcutEvent>
 #include <QSize>
 #include <QString>
 #include <QStringLiteral>
@@ -439,6 +440,35 @@ protected:
 private:
   std::function<void()> on_right_press_;
   std::function<void()> on_left_double_click_;
+};
+
+// Watches the shortcut a tool group's first member fires (GitHub issue 628): when the key is
+// the group's own plain letter and `handle` takes it, the member's own trigger is skipped.
+// Any other key the member carries (a user's own binding) passes through untouched. A held
+// letter does not repeat, so holding it never spins through the group.
+class ToolGroupLetterFilter final : public QObject {
+public:
+  ToolGroupLetterFilter(QAction* member, QKeySequence letter, std::function<bool()> handle)
+      : QObject(member), letter_(std::move(letter)), handle_(std::move(handle)) {
+    member->setAutoRepeat(false);
+    member->installEventFilter(this);
+  }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::Shortcut) {
+      const auto* shortcut = static_cast<QShortcutEvent*>(event);
+      if (!shortcut->isAmbiguous() && shortcut->key() == letter_ && handle_()) {
+        event->accept();
+        return true;
+      }
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  QKeySequence letter_;
+  std::function<bool()> handle_;
 };
 
 // A plain tool button: shows its tool, and a left or a right press selects it and opens no
@@ -1406,6 +1436,7 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   // right-click menu and a Preferences button open the dialog.
   tool_palette_customization_ = stored_tool_palette_customization();
   tool_flyout_open_mode_ = stored_tool_flyout_open_mode();
+  use_shift_for_tool_switch_ = stored_use_shift_for_tool_switch();
   customize_tool_palette_action_ = new QAction(tr("Customize Tool Palette..."), this);
   customize_tool_palette_action_->setObjectName(QStringLiteral("windowCustomizeToolPaletteAction"));
   bind_action_text(customize_tool_palette_action_,
@@ -1453,6 +1484,10 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   // actions that share a sequence, so the members carry no Shift default of their
   // own; a user override that puts Shift+<letter> back on a member wins through
   // the registry's resolution and suppresses the cycle default.
+  // With Preferences' "Use Shift for tool switch" off (GitHub issue 628) the group's plain
+  // letter, which the first member carries, walks the group too: from a tool outside the
+  // group it selects the member the button shows, from a member the next one, wrapping.
+  // Only that letter is taken over; a key the user bound to a member still selects it.
   const auto configure_tool_flyout = [this, &cluster](QToolBar* palette, QMenu* menu, QToolButton* button,
                                                       QAction* default_action, const QList<QAction*>& actions,
                                                       const char* cycle_source, const char* cycle_object_name,
@@ -1519,12 +1554,14 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     // Listed after the members so the flyout shows the key that walks it.
     menu->addSeparator();
     menu->addAction(cycle);
-    // The cycle walks the members the flyout shows (ToolPaletteLayout::cycle_members).
-    QObject::connect(cycle, &QAction::triggered, button, [this, button, all_members = actions] {
+    // The cycle walks the members the flyout shows (ToolPaletteLayout::cycle_members). From a
+    // tool outside the group, the cycle steps past the member the button shows and the plain
+    // letter (with Shift not required) selects it.
+    const auto step_group = [this, button, all_members = actions](bool from_outside_selects_shown) {
       const auto members =
           tool_palette_layout_ != nullptr ? tool_palette_layout_->cycle_members(button) : all_members;
       if (members.isEmpty()) {
-        return;
+        return false;
       }
       int current = -1;
       for (int i = 0; i < members.size(); ++i) {
@@ -1533,10 +1570,22 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
         }
       }
       if (current < 0) {
-        current = static_cast<int>(members.indexOf(button->defaultAction()));
+        const auto shown = static_cast<int>(members.indexOf(button->defaultAction()));
+        if (from_outside_selects_shown && shown >= 0) {
+          members[shown]->trigger();
+          return true;
+        }
+        current = shown;
       }
       members[(current + 1) % members.size()]->trigger();
-    });
+      return true;
+    };
+    QObject::connect(cycle, &QAction::triggered, button, [step_group] { step_group(false); });
+    if (!cycle_shortcut.isEmpty()) {
+      new ToolGroupLetterFilter(default_action, QKeySequence(cycle_shortcut[0].key()), [this, step_group] {
+        return !use_shift_for_tool_switch_ && step_group(true);
+      });
+    }
     // Each member's own plain button, shown instead of the group's when it holds one tool or
     // with no tool groups (GitHub issue 499).
     QList<QToolButton*> member_buttons;
@@ -2102,6 +2151,13 @@ void MainWindow::apply_tool_palette_preferences(ToolbarIconSize icon_size, ToolF
   follow("toolPaletteIconSizeCombo", toolbar_icon_size_token(icon_size));
   follow("preferencesToolFlyoutOpenCombo", tool_flyout_open_mode_token(flyout_open_mode));
   follow("toolPaletteFlyoutOpenCombo", tool_flyout_open_mode_token(flyout_open_mode));
+}
+
+void MainWindow::set_use_shift_for_tool_switch(bool use_shift) {
+  if (use_shift != stored_use_shift_for_tool_switch()) {
+    set_stored_use_shift_for_tool_switch(use_shift);
+  }
+  use_shift_for_tool_switch_ = use_shift;
 }
 
 void MainWindow::show_tool_palette_context_menu(const QPoint& global_position) {

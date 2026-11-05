@@ -202,6 +202,7 @@
 #include <functional>
 #include <future>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <set>
@@ -1538,9 +1539,218 @@ bool open_layered_tiff(const QString& path, const QFileInfo& info, Document& ope
   return true;
 }
 
+// How a multi-page TIFF opens (docs/tiff.md, "Multi-page TIFF"). FirstPage is the
+// non-interactive default (CLI, scripts, Files as Layers), as page 1 is for a PDF there.
+enum class TiffPagesChoice { FirstPage, Layers, Documents };
+
+// The file's pages, read from a memory map so the interactive open can ask before the
+// worker load reads the whole file; empty for a layered (Photoshop) TIFF, which opens
+// with its layers, and for anything that is not a TIFF.
+std::vector<psd::TiffPage> probe_tiff_pages(const QString& path) {
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly) || file.size() <= 0) {
+    return {};
+  }
+  const auto size = static_cast<std::size_t>(file.size());
+  auto* mapped = file.map(0, file.size());
+  if (mapped == nullptr) {
+    return {};
+  }
+  const auto unmap = qScopeGuard([&file, mapped] { file.unmap(mapped); });
+  const std::span<const std::uint8_t> bytes(reinterpret_cast<const std::uint8_t*>(mapped), size);
+  try {
+    if (psd::tiff_has_photoshop_layers(bytes)) {
+      return {};
+    }
+    return psd::tiff_pages(bytes);
+  } catch (const std::exception&) {
+    return {};
+  }
+}
+
+// The question a multi-page TIFF asks on an interactive open; nullopt when cancelled. The
+// last answer is the default button next time (imports/tiffPagesTarget).
+std::optional<TiffPagesChoice> ask_tiff_pages_choice(QWidget* parent, const QString& file_name, std::size_t pages) {
+  const auto key = QStringLiteral("imports/tiffPagesTarget");
+  const auto remembered = app_settings().value(key, QStringLiteral("layers")).toString();
+  QMessageBox box(parent);
+  box.setObjectName(QStringLiteral("tiffPagesMessageBox"));
+  box.setIcon(QMessageBox::Question);
+  box.setWindowTitle(QObject::tr("Multi-Page TIFF"));
+  box.setText(QObject::tr("%1 holds %2 pages. How should Patchy open them?")
+                  .arg(file_name)
+                  .arg(static_cast<qulonglong>(pages)));
+  box.setInformativeText(QObject::tr("Pages as Layers puts every page on its own layer in one document, page 1 "
+                                     "on top. Separate Documents opens every page in its own tab."));
+  auto* layers = box.addButton(QObject::tr("Pages as Layers"), QMessageBox::AcceptRole);
+  layers->setObjectName(QStringLiteral("tiffPagesLayersButton"));
+  auto* documents = box.addButton(QObject::tr("Separate Documents"), QMessageBox::AcceptRole);
+  documents->setObjectName(QStringLiteral("tiffPagesDocumentsButton"));
+  auto* first = box.addButton(QObject::tr("First Page Only"), QMessageBox::AcceptRole);
+  first->setObjectName(QStringLiteral("tiffPagesFirstButton"));
+  auto* cancel = box.addButton(QMessageBox::Cancel);
+  cancel->setObjectName(QStringLiteral("tiffPagesCancelButton"));
+  box.setEscapeButton(cancel);
+  box.setDefaultButton(remembered == QStringLiteral("documents") ? documents
+                       : remembered == QStringLiteral("first")   ? first
+                                                                 : layers);
+  exec_dialog(box);
+  const auto* clicked = box.clickedButton();
+  if (clicked == layers) {
+    app_settings().setValue(key, QStringLiteral("layers"));
+    return TiffPagesChoice::Layers;
+  }
+  if (clicked == documents) {
+    app_settings().setValue(key, QStringLiteral("documents"));
+    return TiffPagesChoice::Documents;
+  }
+  if (clicked == first) {
+    app_settings().setValue(key, QStringLiteral("first"));
+    return TiffPagesChoice::FirstPage;
+  }
+  return std::nullopt;
+}
+
+// One page of a multi-page TIFF as a flat document: Qt's reader at the page's directory,
+// then (page 1 only) the JPEG-in-TIFF reader, then Patchy's own decoder. nullopt when none
+// can read it. `cmyk` is set when Qt handed over CMYK pixels (converted to RGB here).
+std::optional<Document> decode_tiff_page(const QString& path, std::span<const std::uint8_t> bytes,
+                                         const psd::TiffPage& page, const std::string& layer_name,
+                                         QStringList& notices, bool& cmyk) {
+  const auto size_matches = [&page](const QImage& image) {
+    const auto width = static_cast<std::uint32_t>(image.width());
+    const auto height = static_cast<std::uint32_t>(image.height());
+    return (width == page.width && height == page.height) || (width == page.height && height == page.width);
+  };
+  QImageReader reader(path);
+  reader.setFormat("tiff");
+  reader.setAutoTransform(true);
+  QImage image;
+  if (page.directory_index <= static_cast<std::size_t>(std::numeric_limits<int>::max()) &&
+      (page.directory_index == 0U || reader.jumpToImage(static_cast<int>(page.directory_index)))) {
+    image = reader.read();
+  }
+  if (image.isNull() && page.directory_index == 0U && tiff_jpeg::is_jpeg_compressed_tiff(bytes)) {
+    image = tiff_jpeg::read_jpeg_compressed_tiff(bytes).image;
+  }
+  if (!image.isNull() && size_matches(image)) {
+    if (image.format() == QImage::Format_CMYK8888) {
+      QString profile_name;
+      const auto rgb = srgb_image_from_cmyk(image, profile_name);
+      if (rgb.isNull()) {
+        return std::nullopt;
+      }
+      cmyk = true;
+      auto document = document_from_qimage(rgb, layer_name);
+      apply_imported_image_density(document, bytes, image);
+      return document;
+    }
+    auto document = document_from_qimage(image, layer_name);
+    apply_imported_image_density(document, bytes, image);
+    return document;
+  }
+  std::vector<std::string> page_notices;
+  psd::FlatTiffReadOptions options;
+  options.directory_offset = page.directory_offset;
+  options.layer_name = layer_name;
+  options.notices = &page_notices;
+  try {
+    auto document = psd::read_flat_tiff(bytes, options);
+    for (const auto& notice : page_notices) {
+      if (const auto text = translated_file_message(notice); !notices.contains(text)) {
+        notices.push_back(text);
+      }
+    }
+    return document;
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+}
+
+// A multi-page TIFF opened as layers (one document) or as separate documents (page 1 in
+// `opened`, the rest in `extra_documents`), docs/tiff.md "Multi-page TIFF". False when no
+// page decodes: the caller then opens it the single-page way, whose error names the cause.
+bool open_tiff_pages(const QString& path, TiffPagesChoice choice, Document& opened, QString& document_title,
+                     std::vector<PdfImportedDocument>& extra_documents, QStringList& import_notices,
+                     bool& cmyk_source) {
+  const auto bytes = read_all_file_bytes(path);
+  const auto pages = psd::tiff_pages(bytes);
+  if (pages.size() < 2U) {
+    return false;
+  }
+  std::vector<psd::TiffPageDocument> decoded;
+  std::vector<std::size_t> numbers;
+  QStringList skipped;
+  QStringList notices;
+  for (std::size_t index = 0; index < pages.size(); ++index) {
+    const auto number = index + 1U;
+    const auto layer_name = pages[index].name.empty()
+                                ? QObject::tr("Page %1").arg(static_cast<qulonglong>(number)).toStdString()
+                                : pages[index].name;
+    bool cmyk = false;
+    auto document = decode_tiff_page(path, bytes, pages[index], layer_name, notices, cmyk);
+    if (!document.has_value()) {
+      skipped.push_back(QString::number(static_cast<qulonglong>(number)));
+      continue;
+    }
+    if (decoded.empty()) {
+      cmyk_source = cmyk;
+    }
+    decoded.push_back({std::move(*document), layer_name});
+    numbers.push_back(number);
+  }
+  if (decoded.empty()) {
+    return false;
+  }
+  const auto decoded_count = static_cast<qulonglong>(decoded.size());
+  if (choice == TiffPagesChoice::Layers) {
+    // Uniform alpha (unused padding) goes before the merge, as on a flat open; meaningful
+    // alpha stays layer transparency (the mask preference is for single flat images).
+    for (auto& page : decoded) {
+      (void)prepare_flat_image_alpha(page.document, false);
+    }
+    std::vector<std::string> merge_notices;
+    opened = psd::tiff_pages_as_layers(std::move(decoded), &merge_notices);
+    for (const auto& notice : merge_notices) {
+      notices.push_back(translated_file_message(notice));
+    }
+    import_notices.push_back(QObject::tr("Multi-page TIFF: opened %1 pages as layers").arg(decoded_count));
+  } else {
+    for (std::size_t index = 0; index < decoded.size(); ++index) {
+      const auto title = QObject::tr("Page %1").arg(static_cast<qulonglong>(numbers[index]));
+      if (index == 0U) {
+        opened = std::move(decoded[index].document);
+        document_title = title;
+      } else {
+        extra_documents.push_back({std::move(decoded[index].document), title});
+      }
+    }
+    import_notices.push_back(
+        QObject::tr("Multi-page TIFF: opened %1 pages as separate documents").arg(decoded_count));
+  }
+  if (!skipped.isEmpty()) {
+    //: %1 lists page numbers, such as "3, 5".
+    import_notices.push_back(
+        QObject::tr("Pages Patchy could not read were left out: %1").arg(skipped.join(QStringLiteral(", "))));
+  }
+  import_notices.append(notices);
+  if (!deep_editing_enabled()) {
+    if (opened.color_state().bit_depth != BitDepth::UInt8) {
+      convert_document_depth(opened, BitDepth::UInt8);
+    }
+    for (auto& extra : extra_documents) {
+      if (extra.document.color_state().bit_depth != BitDepth::UInt8) {
+        convert_document_depth(extra.document, BitDepth::UInt8);
+      }
+    }
+  }
+  return true;
+}
+
 // Opens `path` with the reader for `extension`, which is the file's own extension except
 // when load_document_from_path opens it by its content (GitHub issue 362).
-OpenDocumentResult load_document_from_path_as(const QString& path, const QString& extension) {
+OpenDocumentResult load_document_from_path_as(const QString& path, const QString& extension,
+                                              TiffPagesChoice tiff_pages = TiffPagesChoice::FirstPage) {
   const auto info = QFileInfo(path);
   // Qt's reader picks its plugin by the file name; one opened by content is told the format.
   const auto set_reader_format = [&](QImageReader& reader) {
@@ -1637,17 +1847,46 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
         image = qimage_from_deep_jpeg(jpeg_deep::read_deep_jpeg(bytes));
       }
     }
-    if (image.isNull()) {
-      throw std::runtime_error(open_failure_reason(reader.errorString(), path, extension).toStdString());
-    }
-    orientation_applied = reader.transformation() != QImageIOHandler::TransformationNone;
     // A multi-page TIFF opens its first page, as in Photoshop; pages are separate images
     // (scans, faxes, GIMP's layers-as-pages export), not a layer stack (docs/tiff.md).
-    if (is_tiff_extension(extension)) {
+    const auto note_tiff_pages = [&] {
       if (const auto pages = psd::tiff_page_count(read_all_file_bytes(path)); pages > 1U) {
         import_notices.push_back(
             QObject::tr("This TIFF holds %1 pages; Patchy opened the first one.").arg(static_cast<qulonglong>(pages)));
       }
+    };
+    if (image.isNull() && is_tiff_extension(extension)) {
+      // Layouts Qt's TIFF plug-in refuses (float samples with extra channels, 32-bit
+      // integers, planar float; GitHub issue 623) go through Patchy's own flat decoder,
+      // which keeps the file's depth and opens unspecified extra samples as alpha channels.
+      std::vector<std::string> tiff_notices;
+      psd::FlatTiffReadOptions tiff_options;
+      tiff_options.layer_name = info.completeBaseName().toStdString();
+      tiff_options.notices = &tiff_notices;
+      QString fallback_error;
+      try {
+        opened = psd::read_flat_tiff(read_all_file_bytes(path), tiff_options);
+      } catch (const std::exception& error) {
+        fallback_error = translated_file_message(error.what());
+      }
+      if (fallback_error.isEmpty()) {
+        if (!deep_editing_enabled() && opened.color_state().bit_depth != BitDepth::UInt8) {
+          convert_document_depth(opened, BitDepth::UInt8);
+        }
+        for (const auto& notice : tiff_notices) {
+          import_notices.push_back(translated_file_message(notice));
+        }
+        note_tiff_pages();
+        return;
+      }
+      throw std::runtime_error(open_failure_reason(fallback_error, path, extension).toStdString());
+    }
+    if (image.isNull()) {
+      throw std::runtime_error(open_failure_reason(reader.errorString(), path, extension).toStdString());
+    }
+    orientation_applied = reader.transformation() != QImageIOHandler::TransformationNone;
+    if (is_tiff_extension(extension)) {
+      note_tiff_pages();
     }
     // Animated GIFs import every frame as a layer, frame 1 on TOP and all layers visible,
     // each frame's delay stamped as a trailing seconds token ("Frame 3 0.4s") that the
@@ -1714,11 +1953,18 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
     opened = document_from_qimage(image, info.completeBaseName().toStdString());
     apply_imported_image_density(opened, read_all_file_bytes(path), image);
   };
+  // A multi-page TIFF the interactive open asked about (load_document_interactive_once):
+  // its pages as layers or as separate documents. FirstPage takes the single-page path.
+  QString document_title;
+  std::vector<PdfImportedDocument> extra_documents;
   // PDF before the registry, like PSD: the reader is Qt PDF, which cannot live in the
   // Qt-free format registry. This is the non-interactive path (CLI opens, tests, scripts,
   // Files as Layers), so it renders page 1 at the remembered resolution and says so; Open
   // and Reopen go through the page picker in load_document_interactive first.
-  if (is_pdf_extension(extension)) {
+  if (tiff_pages != TiffPagesChoice::FirstPage && is_tiff_extension(extension) &&
+      open_tiff_pages(path, tiff_pages, opened, document_title, extra_documents, import_notices, cmyk_source)) {
+    pixels_in_source_space = !cmyk_source;
+  } else if (is_pdf_extension(extension)) {
     PdfImportOptions pdf_options;
     pdf_options.resolution_ppi =
         app_settings().value(QStringLiteral("imports/pdfResolution"), pdf_options.resolution_ppi).toInt();
@@ -1908,8 +2154,23 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
   } else {
     opened.clear_active_layer();
   }
-  OpenDocumentResult result{std::move(opened),         info.fileName(), extension, std::move(import_notices),
-                            force_import_notices_popup, {},              {}};
+  // Further pages opened as separate documents get the same finishing as page 1.
+  for (auto& extra : extra_documents) {
+    auto& page = extra.document;
+    if (page.color_state().bit_depth == BitDepth::Float32 && !depth_supported_on_platform(BitDepth::Float32)) {
+      convert_document_depth(page, BitDepth::UInt16);
+    }
+    prepare_flat_image_alpha(page,
+                             app_settings().value(QStringLiteral("imports/flatAlphaAsLayerMask"), false).toBool());
+    capture_file_info(page, path, pixels_in_source_space, orientation_applied);
+    QStringList page_notices;  // the same notes page 1 already gave
+    convert_opened_rgb_profile(page, page_notices, cmyk_source);
+    if (const auto default_layer_id = default_non_group_layer_id(page.layers()); default_layer_id.has_value()) {
+      page.set_active_layer(*default_layer_id);
+    }
+  }
+  OpenDocumentResult result{std::move(opened),         info.fileName(),          extension, std::move(import_notices),
+                            force_import_notices_popup, std::move(document_title), std::move(extra_documents)};
   result.cmyk_source = cmyk_source;
   result.blocked_link_servers = std::move(blocked_link_servers);
   return result;
@@ -1930,14 +2191,14 @@ bool is_plain_raster_extension(const QString& extension) {
 // what the bytes are; a PNG named .jpg (or another plain-image swap) reads as what it is;
 // any other known extension opens by name first and by content only when that fails. The
 // result's content_extension says it happened, so Save asks for a name that fits.
-OpenDocumentResult load_document_from_path(QString path) {
+OpenDocumentResult load_document_from_path(QString path, TiffPagesChoice tiff_pages = TiffPagesChoice::FirstPage) {
   // "name.xcf.gz" and its kin: the last extension alone says nothing (docs/xcf.md).
   const auto extension = xcf::is_compressed_xcf_file_name(QFileInfo(path).fileName().toStdString())
                              ? QStringLiteral("xcf")
                              : QFileInfo(path).suffix().toLower();
   const auto sniffed = formats::sniff_openable_image_format(read_file_head_bytes(path));
   if (!sniffed.has_value() || formats::extensions_share_format(sniffed->extension, extension.toStdString())) {
-    return load_document_from_path_as(path, extension);
+    return load_document_from_path_as(path, extension, tiff_pages);
   }
   const auto content_extension = QString::fromStdString(sniffed->extension);
   const auto open_by_content = [&] {
@@ -1966,14 +2227,14 @@ OpenDocumentResult load_document_from_path(QString path) {
       // the content reader's error names the real problem.
       const auto content_error = std::current_exception();
       try {
-        return load_document_from_path_as(path, extension);
+        return load_document_from_path_as(path, extension, tiff_pages);
       } catch (const std::exception&) {
         std::rethrow_exception(content_error);
       }
     }
   }
   try {
-    return load_document_from_path_as(path, extension);
+    return load_document_from_path_as(path, extension, tiff_pages);
   } catch (const std::exception&) {
     return open_by_content();
   }
@@ -2167,6 +2428,19 @@ std::optional<OpenDocumentResult> load_document_interactive_once(QWidget* parent
     return loaded;
   }
 
+  // A multi-page TIFF asks how to open its pages before the worker load (docs/tiff.md,
+  // "Multi-page TIFF"); a running script never sees the question and gets page 1.
+  auto tiff_pages = TiffPagesChoice::FirstPage;
+  if (interactive && allow_raw_dialog && is_tiff_extension(extension)) {
+    if (const auto pages = probe_tiff_pages(path); pages.size() > 1U) {
+      const auto choice = ask_tiff_pages_choice(parent, info.fileName(), pages.size());
+      if (!choice.has_value()) {
+        return std::nullopt;
+      }
+      tiff_pages = *choice;
+    }
+  }
+
   QProgressDialog progress(MainWindow::tr("Opening %1...").arg(info.fileName()), QString(), 0, 0, parent);
   progress.setObjectName(QStringLiteral("openProgressDialog"));
   progress.setWindowTitle(
@@ -2199,9 +2473,9 @@ std::optional<OpenDocumentResult> load_document_interactive_once(QWidget* parent
   const auto error = std::make_shared<std::exception_ptr>();
   QEventLoop wait_loop;
   auto* app = QCoreApplication::instance();
-  run_tracked_background_worker([&loaded, error, app, &wait_loop, path] {
+  run_tracked_background_worker([&loaded, error, app, &wait_loop, path, tiff_pages] {
     try {
-      loaded = load_document_from_path(path);
+      loaded = load_document_from_path(path, tiff_pages);
     } catch (...) {
       *error = std::current_exception();
     }
@@ -2216,7 +2490,7 @@ std::optional<OpenDocumentResult> load_document_interactive_once(QWidget* parent
   }
   return loaded;
 #else
-  auto open_future = launch_async([path] { return load_document_from_path(path); });
+  auto open_future = launch_async([path, tiff_pages] { return load_document_from_path(path, tiff_pages); });
   while (open_future.wait_for(std::chrono::milliseconds(15)) != std::future_status::ready) {
     QApplication::processEvents(QEventLoop::AllEvents, 15);
   }
@@ -2344,6 +2618,8 @@ void MainWindow::open_document() {
   if (paths.isEmpty()) {
     remember_open_directory(browsed_directory);
   }
+  begin_open_batch();
+  const auto open_batch = qScopeGuard([this] { end_open_batch(); });
   for (const auto& path : paths) {
     open_document_path(path);
   }
@@ -2379,6 +2655,8 @@ int MainWindow::open_folder_path(const QString& directory) {
     show_status_error(tr("No supported images in %1").arg(native_directory));
     return 0;
   }
+  begin_open_batch();
+  const auto open_batch = qScopeGuard([this] { end_open_batch(); });
   const int total = static_cast<int>(paths.size());
   auto folder_name = QFileInfo(QDir(directory).absolutePath()).fileName();
   if (folder_name.isEmpty()) {
@@ -2458,9 +2736,13 @@ int MainWindow::open_folder_path(const QString& directory) {
       }
       ++opened;
       // Background files drop their ordinary notes (no status bar of their own), but a
-      // data-loss note must not go unseen just because the file was not first.
+      // data-loss note must not go unseen just because the file was not first. It waits
+      // for the folder to finish opening, like the first file's prompts (GitHub issue 624).
       if (loaded->force_import_notices_popup && !unattended_automation()) {
-        show_import_notices_popup(this, loaded->file_name, loaded->import_notices, true);
+        run_or_hold_open_prompts((*sessions_.rbegin())->session_id,
+                                 [this, file_name = loaded->file_name, notes = loaded->import_notices] {
+                                   show_import_notices_popup(this, file_name, notes, true);
+                                 });
       }
     } catch (const std::exception& error) {
       failed.push_back(QFileInfo(path).fileName());
@@ -2556,6 +2838,8 @@ bool MainWindow::paste_clipboard_text_paths(bool as_layers) {
       add_files_as_layers_interactive(openable, std::nullopt, tr("Paste in Place"));
     }
   } else {
+    begin_open_batch();
+    const auto open_batch = qScopeGuard([this] { end_open_batch(); });
     for (const auto& path : openable) {
       open_document_path(path);
     }
@@ -2921,6 +3205,8 @@ bool MainWindow::open_dropped_files(QDropEvent* event) {
     if (!font_paths.isEmpty()) {
       show_user_font_drop_result(user_fonts::add_user_fonts(font_paths));
     }
+    begin_open_batch();
+    const auto open_batch = qScopeGuard([this] { end_open_batch(); });
     for (const auto& path : paths) {
       open_document_path(path);
     }
@@ -2971,6 +3257,8 @@ void MainWindow::show_user_font_drop_result(const user_fonts::AddFontsResult& re
 }
 
 void MainWindow::open_command_line_files(const QStringList& paths) {
+  begin_open_batch();
+  const auto open_batch = qScopeGuard([this] { end_open_batch(); });
   for (const auto& path : paths) {
     if (path.isEmpty()) {
       continue;
@@ -3150,6 +3438,59 @@ void MainWindow::convert_af_image_layers(Document& target) {
                blocks.end());
 }
 
+void MainWindow::begin_open_batch() {
+  ++open_batch_depth_;
+}
+
+void MainWindow::end_open_batch() {
+  if (open_batch_depth_ > 0) {
+    --open_batch_depth_;
+  }
+  if (open_batch_depth_ > 0 || held_open_prompts_.empty()) {
+    return;
+  }
+  auto held = std::exchange(held_open_prompts_, {});
+  // One event-loop turn later, like a single open's prompts (GitHub issue 593): the last
+  // file's tab is fit and drawn first, and every open progress dialog is gone.
+  QMetaObject::invokeMethod(
+      this, [this, held = std::move(held)]() mutable { run_held_open_prompts(std::move(held)); },
+      Qt::QueuedConnection);
+}
+
+void MainWindow::run_or_hold_open_prompts(std::int64_t session_id, std::function<void()> prompts) {
+  if (open_batch_depth_ > 0) {
+    held_open_prompts_.emplace_back(session_id, std::move(prompts));
+    return;
+  }
+  QMetaObject::invokeMethod(this, std::move(prompts), Qt::QueuedConnection);
+}
+
+// A batch's prompts run in open order, each with its own file's tab active (the notes
+// and questions are about that file, and the palette, missing-link and missing-font
+// dialogs act on the active document), then the tab the batch ended on is active again.
+void MainWindow::run_held_open_prompts(std::vector<std::pair<std::int64_t, std::function<void()>>> held) {
+  if (shutting_down_) {
+    return;
+  }
+  const auto* landed = active_session();
+  const auto landed_id = landed != nullptr ? landed->session_id : 0;
+  bool switched = false;
+  for (auto& [session_id, prompts] : held) {
+    auto* target = session_with_id(session_id);
+    if (target == nullptr) {
+      continue;  // closed since it opened
+    }
+    if (target != active_session()) {
+      activate_document_session(*target);
+      switched = true;
+    }
+    prompts();
+  }
+  if (auto* back = session_with_id(landed_id); switched && back != nullptr && back != active_session()) {
+    activate_document_session(*back);
+  }
+}
+
 void MainWindow::open_document_path(QString path, OpenExisting existing) {
   if (preview_dialog_edit_locked()) {
     show_preview_dialog_edit_lock_message();
@@ -3269,7 +3610,7 @@ void MainWindow::open_document_path(QString path, OpenExisting existing) {
         !unattended_automation() && is_photoshop_document_extension(loaded->extension) &&
         app_settings().value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool();
     open_extra_imported_page_sessions(loaded_file_name, std::move(loaded->extra_documents), loaded->pdf_color_mode,
-                                      loaded->pdf_bit_depth.value_or(BitDepth::UInt8), loaded->import_notices);
+                                      loaded->pdf_bit_depth, loaded->import_notices);
     update_undo_redo_actions();
     fire_theme_event(ThemeSoundEvent::DocumentOpened,
                      {{QStringLiteral("width"), std::as_const(document()).width()},
@@ -3356,7 +3697,7 @@ void MainWindow::open_document_path(QString path, OpenExisting existing) {
       show_resolve_missing_fonts_dialog(true);
     };
     if (defer_prompts) {
-      QMetaObject::invokeMethod(this, std::move(prompts), Qt::QueuedConnection);
+      run_or_hold_open_prompts(opened_session_id, std::move(prompts));
     } else {
       prompts();
     }
@@ -3578,7 +3919,7 @@ void MainWindow::merge_imported_pdf_pages(Document& first, const QString& first_
 
 void MainWindow::open_extra_imported_page_sessions(const QString& file_name,
                                                   std::vector<PdfImportedDocument> pages, PdfImportColorMode mode,
-                                                  BitDepth depth, QStringList& notices) {
+                                                  std::optional<BitDepth> depth, QStringList& notices) {
   if (pages.empty()) {
     return;
   }
@@ -3609,7 +3950,9 @@ void MainWindow::open_extra_imported_page_sessions(const QString& file_name,
       const UiProfileScope profile_scope("pdf_pages.pending_layers", profile_detail);
       render_pending_pdf_text_layers(page.document);
       render_pending_pdf_image_layers(page.document);
-      finish_imported_pdf_document(page.document, mode, depth, notices);
+      if (depth.has_value()) {
+        finish_imported_pdf_document(page.document, mode, *depth, notices);
+      }
     }
     {
       // In the background: page 1 stays the active document, and each of these fits
@@ -3734,7 +4077,7 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
     update_document_action_state();
     refresh_document_tab_titles();
     open_extra_imported_page_sessions(loaded->file_name, std::move(loaded->extra_documents), loaded->pdf_color_mode,
-                                      loaded->pdf_bit_depth.value_or(BitDepth::UInt8), loaded->import_notices);
+                                      loaded->pdf_bit_depth, loaded->import_notices);
     // Reopen changes no tab, so a clean one still confirms itself; notes show
     // alone, like an open's.
     if (loaded->import_notices.isEmpty()) {
@@ -6959,6 +7302,7 @@ void MainWindow::rebuild_recent_files_menu() {
       action->setToolTip(path);
       action->setData(path);
       action->setProperty(kCommandSearchDataEntryProperty, true);
+      action->setProperty(kCommandSearchKindProperty, static_cast<int>(CommandSearchKind::recent_file));
       connect(action, &QAction::triggered, this, [this, path] { open_recent_document(path); });
     };
 
@@ -7241,6 +7585,8 @@ void MainWindow::open_recent_folder(const QString& dir) {
   const auto paths = get_open_file_names(this, tr("Open"), start_dir, open_file_filter(), &selected_filter,
                                          QStringLiteral("openFileDialog"), FilterNameDetails::Hidden);
   remember_open_filter(paths.isEmpty() ? QString() : selected_filter);
+  begin_open_batch();
+  const auto open_batch = qScopeGuard([this] { end_open_batch(); });
   for (const auto& path : paths) {
     open_document_path(path);
   }
@@ -7260,6 +7606,7 @@ void MainWindow::rebuild_recent_folders_menu() {
       action->setToolTip(dir);
       action->setData(dir);
       action->setProperty(kCommandSearchDataEntryProperty, true);
+      action->setProperty(kCommandSearchKindProperty, static_cast<int>(CommandSearchKind::recent_folder));
       connect(action, &QAction::triggered, this, [this, dir] { open_recent_folder(dir); });
     };
 

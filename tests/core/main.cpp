@@ -215,6 +215,7 @@ int main(int argc, char** argv) {
            invisible_watermark_tests,
            trustmark_tests,
            tiff_layers_tests,
+           tiff_flat_tests,
            hdr_display_tests,
            red_eye_tests,
            perspective_planes_tests,

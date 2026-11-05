@@ -34,6 +34,28 @@ inline constexpr const char kMcpConnectorFlag[] = "--mcp-connector";
   return argv != nullptr && argc >= 2 && argv[1] != nullptr && std::strcmp(argv[1], kMcpConnectorFlag) == 0;
 }
 
+// The argument that starts the connector from an AppImage: `<file>.AppImage patchy-mcp
+// [args]`, the form Help > Set up AI Control prints (docs/appimage.md). Patchy's own AppRun
+// turns it into --mcp-connector; a repackaged AppImage with its own AppRun (Anylinux's
+// sharun one, GitHub issue 535) passes it to the patchy binary as it is, so the binary
+// accepts it too.
+inline constexpr const char kAppImageConnectorArgument[] = "patchy-mcp";
+
+// True when main() starts the connector because argv[1] is --mcp-connector, or, inside an
+// AppImage, patchy-mcp. `appimage` is the APPIMAGE file of the AppImage this binary runs
+// from (nullptr or empty outside one). Outside an AppImage a file named patchy-mcp still
+// opens as an image. Either way main() drops argv[1] before parsing. A symlink to the
+// AppImage named patchy-mcp is left to AppRun: ARGV0 is inherited by every process the
+// connector starts, and Anylinux's AppRun unsets it.
+[[nodiscard]] inline bool mcp_connector_argument_first(int argc, const char* const* argv,
+                                                       const char* appimage) noexcept {
+  if (mcp_connector_flag_first(argc, argv)) {
+    return true;
+  }
+  return appimage != nullptr && *appimage != '\0' && argv != nullptr && argc >= 2 &&
+         argv[1] != nullptr && std::strcmp(argv[1], kAppImageConnectorArgument) == 0;
+}
+
 // Removes argv[1] in place (argv[argc] stays the terminating null), so the connector sees
 // the same arguments as the separate patchy-mcp executable.
 inline void drop_first_argument(int& argc, char** argv) noexcept {
