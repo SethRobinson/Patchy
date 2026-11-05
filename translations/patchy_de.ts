@@ -7970,22 +7970,6 @@ RGB: %2, %3, %4</translation>
         <translation>Y:</translation>
     </message>
     <message>
-        <source>Top left radius:</source>
-        <translation>Radius oben links:</translation>
-    </message>
-    <message>
-        <source>Top right radius:</source>
-        <translation>Radius oben rechts:</translation>
-    </message>
-    <message>
-        <source>Bottom right radius:</source>
-        <translation>Radius unten rechts:</translation>
-    </message>
-    <message>
-        <source>Bottom left radius:</source>
-        <translation>Radius unten links:</translation>
-    </message>
-    <message>
         <source>No Fill</source>
         <translation>Keine Füllung</translation>
     </message>

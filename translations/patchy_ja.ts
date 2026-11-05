@@ -5963,22 +5963,6 @@ Mixed selection</source>
         <translation>Y:</translation>
     </message>
     <message>
-        <source>Top left radius:</source>
-        <translation>左上の角丸半径:</translation>
-    </message>
-    <message>
-        <source>Top right radius:</source>
-        <translation>右上の角丸半径:</translation>
-    </message>
-    <message>
-        <source>Bottom right radius:</source>
-        <translation>右下の角丸半径:</translation>
-    </message>
-    <message>
-        <source>Bottom left radius:</source>
-        <translation>左下の角丸半径:</translation>
-    </message>
-    <message>
         <source>Type:</source>
         <translation>種類:</translation>
     </message>

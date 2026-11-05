@@ -8312,22 +8312,6 @@ RGB: %2, %3, %4</translation>
         <translation>너비와 높이의 비율을 유지하세요.</translation>
     </message>
     <message>
-        <source>Top left radius:</source>
-        <translation>왼쪽 상단 반경:</translation>
-    </message>
-    <message>
-        <source>Top right radius:</source>
-        <translation>오른쪽 상단 반경:</translation>
-    </message>
-    <message>
-        <source>Bottom right radius:</source>
-        <translation>오른쪽 하단 반경:</translation>
-    </message>
-    <message>
-        <source>Bottom left radius:</source>
-        <translation>왼쪽 하단 반경:</translation>
-    </message>
-    <message>
         <source>Change all four corner radii together</source>
         <translation>네 모서리 반경을 모두 함께 변경</translation>
     </message>

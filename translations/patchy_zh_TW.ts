@@ -7952,22 +7952,6 @@ RGB：%2, %3, %4</translation>
         <translation>Y:</translation>
     </message>
     <message>
-        <source>Top left radius:</source>
-        <translation>左上圓角半徑:</translation>
-    </message>
-    <message>
-        <source>Top right radius:</source>
-        <translation>右上圓角半徑:</translation>
-    </message>
-    <message>
-        <source>Bottom right radius:</source>
-        <translation>右下圓角半徑:</translation>
-    </message>
-    <message>
-        <source>Bottom left radius:</source>
-        <translation>左下圓角半徑:</translation>
-    </message>
-    <message>
         <source>No Fill</source>
         <translation>無填色</translation>
     </message>

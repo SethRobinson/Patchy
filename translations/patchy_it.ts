@@ -7970,22 +7970,6 @@ RGB: %2, %3, %4</translation>
         <translation>Y:</translation>
     </message>
     <message>
-        <source>Top left radius:</source>
-        <translation>Raggio in alto a sinistra:</translation>
-    </message>
-    <message>
-        <source>Top right radius:</source>
-        <translation>Raggio in alto a destra:</translation>
-    </message>
-    <message>
-        <source>Bottom right radius:</source>
-        <translation>Raggio in basso a destra:</translation>
-    </message>
-    <message>
-        <source>Bottom left radius:</source>
-        <translation>Raggio in basso a sinistra:</translation>
-    </message>
-    <message>
         <source>No Fill</source>
         <translation>Nessun riempimento</translation>
     </message>

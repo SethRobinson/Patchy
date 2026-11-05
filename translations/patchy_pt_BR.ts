@@ -8334,22 +8334,6 @@ RGB: %2, %3, %4</translation>
         <translation>Mantenha a largura e a altura proporcionais</translation>
     </message>
     <message>
-        <source>Top left radius:</source>
-        <translation>Raio superior esquerdo:</translation>
-    </message>
-    <message>
-        <source>Top right radius:</source>
-        <translation>Raio superior direito:</translation>
-    </message>
-    <message>
-        <source>Bottom right radius:</source>
-        <translation>Raio inferior direito:</translation>
-    </message>
-    <message>
-        <source>Bottom left radius:</source>
-        <translation>Raio inferior esquerdo:</translation>
-    </message>
-    <message>
         <source>Change all four corner radii together</source>
         <translation>Altere todos os raios dos quatro cantos juntos</translation>
     </message>

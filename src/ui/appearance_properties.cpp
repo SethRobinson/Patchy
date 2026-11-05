@@ -513,10 +513,21 @@ ShapeAppearanceSettings shape_appearance_settings(const Layer& layer) {
       content->parts.empty()) {
     const auto& params = content->origination.front();
     if ((params.kind == LiveShapeKind::Rectangle || params.kind == LiveShapeKind::RoundedRectangle ||
-         params.kind == LiveShapeKind::Ellipse || params.kind == LiveShapeKind::Line) &&
+         params.kind == LiveShapeKind::Ellipse || params.kind == LiveShapeKind::Line ||
+         params.kind == LiveShapeKind::Polygon) &&
         std::all_of(content->path.subpaths.begin(), content->path.subpaths.end(),
                     [&](const auto& path) { return path.shape_group == params.index; }))
       result.geometry = params;
+  }
+  // A plain path (a custom shape, a Pen outline; GitHub #642): Geometry moves and scales
+  // its bounds. A layer holding a modeled live shape keeps it instead (moving the path
+  // would drop it); an unmodeled origination read from a file is dropped by the edit.
+  if (!result.geometry && content->parts.empty() && !content->path.empty() &&
+      std::none_of(content->origination.begin(), content->origination.end(), [](const LiveShapeParams& params) {
+        return params.kind != LiveShapeKind::None && params.raw_descriptor.empty();
+      })) {
+    if (const auto bounds = content->path.bounds())
+      result.path_box = ShapePathBox{bounds->left, bounds->top, bounds->right, bounds->bottom};
   }
   return result;
 }
@@ -535,6 +546,23 @@ bool appearance_has_editable_radii(const ShapeAppearanceSettings& settings) {
 
 bool appearance_has_editable_line(const ShapeAppearanceSettings& settings) {
   return settings.geometry && settings.geometry->kind == LiveShapeKind::Line;
+}
+
+bool appearance_has_editable_polygon(const ShapeAppearanceSettings& settings) {
+  return settings.geometry && settings.geometry->kind == LiveShapeKind::Polygon;
+}
+
+void fit_vector_path_to_box(VectorPath& path, const ShapePathBox& box) {
+  const auto bounds = path.bounds();
+  if (!bounds) return;
+  const auto axis = [](double from_low, double from_high, double to_low, double to_high) {
+    const double extent = from_high - from_low;
+    const double scale = extent > 1e-9 ? (to_high - to_low) / extent : 1.0;
+    return std::pair{scale, to_low - from_low * scale};
+  };
+  const auto [scale_x, offset_x] = axis(bounds->left, bounds->right, box.left, box.right);
+  const auto [scale_y, offset_y] = axis(bounds->top, bounds->bottom, box.top, box.bottom);
+  transform_vector_path(path, {scale_x, 0.0, 0.0, scale_y, offset_x, offset_y});
 }
 
 void give_line_arrowheads_default_size(LiveShapeParams& params) {
@@ -665,6 +693,34 @@ std::vector<AppearanceProperty<ShapeAppearanceSettings>> shape_appearance_proper
       [](Settings& target, std::int32_t concavity) {
         if (appearance_has_editable_line(target)) target.geometry->arrow_concavity = std::clamp(concavity, -50, 50);
       }));
+  // Polygon sides and star inset (GitHub #643): several selected polygons take one field
+  // each, as Arrowheads does lines; other shapes ignore them.
+  for (const bool inset : {false, true}) {
+    result.push_back(appearance_property<Settings, std::int32_t>(
+        inset ? "polygon.star_inset" : "polygon.sides",
+        [inset](const Settings& value) -> const std::int32_t* {
+          if (!appearance_has_editable_polygon(value)) return nullptr;
+          return inset ? &value.geometry->polygon_star_inset : &value.geometry->polygon_sides;
+        },
+        [inset](Settings& target, std::int32_t number) {
+          if (!appearance_has_editable_polygon(target)) return;
+          if (inset) target.geometry->polygon_star_inset = std::clamp(number, 0, 99);
+          else target.geometry->polygon_sides = std::clamp(number, 3, 100);
+        }));
+  }
+  // A plain path's box and a picked custom shape (GitHub #642, #644); layers without a
+  // path box ignore them, so a custom shape pick reaches only plain-path layers, each
+  // fitted to its own box.
+  result.push_back(appearance_property<Settings, ShapePathBox>(
+      "path.box", [](const Settings& value) { return value.path_box ? &*value.path_box : nullptr; },
+      [](Settings& target, const ShapePathBox& box) {
+        if (target.path_box) target.path_box = box;
+      }));
+  result.push_back(appearance_property<Settings, std::shared_ptr<const VectorPath>>(
+      "path.shape", [](const Settings& value) { return value.path_shape ? &value.path_shape : nullptr; },
+      [](Settings& target, const std::shared_ptr<const VectorPath>& shape) {
+        if (target.path_box) target.path_shape = shape;
+      }));
   auto geometry = appearance_property<Settings, std::optional<LiveShapeParams>>(
       "geometry", [](const Settings& value) { return &value.geometry; },
       [](Settings& target, const std::optional<LiveShapeParams>& value) { target.geometry = value; });
@@ -754,7 +810,7 @@ std::vector<AppearanceProperty<LayerStyleSettings>> layer_style_properties(const
 
 bool shape_appearance_equal(const ShapeAppearanceSettings& a, const ShapeAppearanceSettings& b) {
   return a.fill == b.fill && a.stroke == b.stroke && a.geometry == b.geometry &&
-         a.layer_opacity == b.layer_opacity && a.fill_opacity == b.fill_opacity &&
+         a.path_box == b.path_box && a.path_shape == b.path_shape && a.layer_opacity == b.layer_opacity && a.fill_opacity == b.fill_opacity &&
          a.feather == b.feather && a.density == b.density;
 }
 
@@ -838,6 +894,28 @@ VectorShapeContent assemble_shape_appearance(const VectorShapeContent& original,
       content.path.subpaths.push_back(std::move(path));
     }
     content.origination.front() = params;
+  }
+  // A plain path (GitHub #642, #644): a picked custom shape replaces the outline, and the
+  // outline is fitted to the box, so a pick lands in the box the dialog shows.
+  if (settings.path_box && !settings.geometry && content.parts.empty() && !content.path.empty()) {
+    const auto bounds = content.path.bounds();
+    const bool moved = bounds && ShapePathBox{bounds->left, bounds->top, bounds->right, bounds->bottom} !=
+                                     *settings.path_box;
+    if (settings.path_shape && !settings.path_shape->empty()) {
+      // One shape unit, as the Custom Shape tool stamps it: the layer's first group and op.
+      const auto group = content.path.subpaths.front().shape_group;
+      const auto op = content.path.subpaths.front().op;
+      content.path.subpaths = settings.path_shape->subpaths;
+      for (auto& subpath : content.path.subpaths) {
+        subpath.shape_group = group;
+        subpath.op = op;
+      }
+    }
+    if (moved || settings.path_shape) {
+      fit_vector_path_to_box(content.path, *settings.path_box);
+      // The path no longer matches any origination it was read with.
+      content.origination.clear();
+    }
   }
   return content;
 }
