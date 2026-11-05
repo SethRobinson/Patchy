@@ -23,9 +23,12 @@
 #include <QSet>
 #include <QSignalBlocker>
 #include <QStandardPaths>
+#include <QStyle>
+#include <QStyleOptionComboBox>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <algorithm>
 #include <array>
 #include <functional>
 #include <utility>
@@ -373,10 +376,11 @@ QWidget* HotkeyEditorPanel::build_set_row(QWidget* parent) {
   set_combo_->setObjectName(QStringLiteral("hotkeySetCombo"));
   set_combo_->setToolTip(tr("Start from Patchy's shortcuts or from a set laid out like another editor's. "
                             "You can still change any key afterwards."));
-  set_combo_->addItem(tr("Patchy (default)"), QString::fromLatin1(kPatchyHotkeySetId));
+  set_combo_->addItem(QString(), QString::fromLatin1(kPatchyHotkeySetId));
   for (const auto& set : builtin_hotkey_sets()) {
-    set_combo_->addItem(tr(set.label), QString::fromLatin1(set.id));
+    set_combo_->addItem(QString(), QString::fromLatin1(set.id));
   }
+  retranslate_set_combo();
   label->setBuddy(set_combo_);
   row_layout->addWidget(set_combo_);
   row_layout->addStretch(1);
@@ -503,6 +507,59 @@ void HotkeyEditorPanel::shortcut_set_chosen(int index) {
     return;
   }
   apply_shortcut_set(set_id);
+}
+
+// Item texts come from their sources so a language change can redo them in place.
+void HotkeyEditorPanel::retranslate_set_combo() {
+  if (set_combo_ == nullptr) {
+    return;
+  }
+  for (int index = 0; index < set_combo_->count(); ++index) {
+    const auto id = set_combo_->itemData(index).toString();
+    if (id.isEmpty()) {
+      set_combo_->setItemText(index, tr("Custom"));
+    } else if (id == QLatin1String(kPatchyHotkeySetId)) {
+      set_combo_->setItemText(index, tr("Patchy (default)"));
+    } else if (const auto* set = find_builtin_hotkey_set(id); set != nullptr) {
+      set_combo_->setItemText(index, tr(set->label));
+    }
+  }
+  fit_set_combo_width();
+}
+
+// The box keeps clear room around its widest entry, "Custom" included though that entry
+// exists only some of the time, so the box neither looks crammed nor changes width when it
+// comes and goes (GitHub issue 633 follow-up): the style's width for that text (frame, padding,
+// drop arrow) plus three average characters.
+void HotkeyEditorPanel::fit_set_combo_width() {
+  if (set_combo_ == nullptr) {
+    return;
+  }
+  set_combo_->ensurePolished();
+  const auto metrics = set_combo_->fontMetrics();
+  QStringList texts{tr("Custom")};
+  for (int index = 0; index < set_combo_->count(); ++index) {
+    texts << set_combo_->itemText(index);
+  }
+  int widest = 0;
+  for (const auto& text : texts) {
+    widest = std::max(widest, metrics.horizontalAdvance(text));
+  }
+  QStyleOptionComboBox option;
+  option.initFrom(set_combo_);
+  option.editable = false;
+  const auto content = QSize(widest + 3 * metrics.averageCharWidth(), metrics.height());
+  const int width = set_combo_->style()->sizeFromContents(QStyle::CT_ComboBox, &option, content, set_combo_).width();
+  set_combo_->setMinimumWidth(std::max(width, set_combo_->minimumSizeHint().width()));
+}
+
+void HotkeyEditorPanel::changeEvent(QEvent* event) {
+  QWidget::changeEvent(event);
+  if (event->type() == QEvent::LanguageChange) {
+    retranslate_set_combo();
+  } else if (event->type() == QEvent::StyleChange || event->type() == QEvent::FontChange) {
+    fit_set_combo_width();
+  }
 }
 
 // The combo shows the set the staged shortcuts equal, or "Custom" (an entry that exists only

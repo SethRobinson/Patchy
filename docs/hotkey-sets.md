@@ -24,7 +24,7 @@ Preferences > Hotkeys (`HotkeyEditorPanel`, `src/ui/hotkey_editor.cpp`) edits th
 
 ## Shortcut sets
 
-`src/ui/hotkey_sets.cpp`. The combo lists Patchy (default), Photoshop-style, GIMP-style and Krita-style. A set is a list of overrides on top of Patchy's defaults (`HotkeySetEntry`: command id, PortableText keys joined by newlines, optional macOS keys); choosing one stages exactly `hotkey_set_overrides(set)`, so any key can still be changed and Export saves the result. The combo shows whichever set the staged map equals (`matching_hotkey_set_id`), or a "Custom" entry that exists only while the map matches none. Switching from Custom to a set asks first; switching between sets does not (nothing hand-made is lost).
+`src/ui/hotkey_sets.cpp`. The combo lists Patchy (default), Photoshop-style, GIMP-style and Krita-style. A set is a list of overrides on top of Patchy's defaults (`HotkeySetEntry`: command id, PortableText keys joined by newlines, optional macOS keys); choosing one stages exactly `hotkey_set_overrides(set)`, so any key can still be changed and Export saves the result. The combo shows whichever set the staged map equals (`matching_hotkey_set_id`), or a "Custom" entry that exists only while the map matches none. Switching from Custom to a set asks first; switching between sets does not (nothing hand-made is lost). The box is as wide as its widest entry in the current language, Custom included, plus three average characters (`fit_set_combo_width`, redone on a language or style change), so it neither looks crammed nor jumps when Custom comes and goes.
 
 Rules for the tables:
 
