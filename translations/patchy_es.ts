@@ -3803,10 +3803,6 @@
         <translation>datos de texto</translation>
     </message>
     <message>
-        <source>%1: extracted editable PSD text from %2 and preserved the original PSD text block; the current pixels use the PSD raster preview until the text is edited.</source>
-        <translation>%1: se extrajo texto PSD editable de %2 y se conservó el bloque de texto PSD original; los píxeles actuales usan la previsualización rasterizada del PSD hasta que se edite el texto.</translation>
-    </message>
-    <message>
         <source>%1 is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may appear as an unsupported adjustment in other editors.</source>
         <translation>%1 es una capa de ajuste nativa de Patchy; se conserva en los PSD de Patchy, pero puede aparecer como un ajuste no compatible en otros editores.</translation>
     </message>

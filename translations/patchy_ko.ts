@@ -3863,10 +3863,6 @@
         <translation>텍스트 데이터</translation>
     </message>
     <message>
-        <source>%1: extracted editable PSD text from %2 and preserved the original PSD text block; the current pixels use the PSD raster preview until the text is edited.</source>
-        <translation>%1: %2에서 편집 가능한 PSD 텍스트를 추출하고 원본 PSD 텍스트 블록을 보존했습니다. 현재 픽셀은 텍스트가 편집될 때까지 PSD 래스터 미리 보기를 사용합니다.</translation>
-    </message>
-    <message>
         <source>%1 is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may appear as an unsupported adjustment in other editors.</source>
         <translation>%1은(는) Patchy 고유 조정 레이어입니다. Patchy PSD로 저장하고 다시 열어도 유지되지만, 다른 편집기에서는 지원되지 않는 조정으로 표시될 수 있습니다.</translation>
     </message>

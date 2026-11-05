@@ -3795,10 +3795,6 @@
         <translation>文字資料</translation>
     </message>
     <message>
-        <source>%1: extracted editable PSD text from %2 and preserved the original PSD text block; the current pixels use the PSD raster preview until the text is edited.</source>
-        <translation>%1：已從 %2 擷取可編輯的 PSD 文字並保留原始的 PSD 文字區塊；在編輯文字之前，目前的像素會使用 PSD 的點陣預視。</translation>
-    </message>
-    <message>
         <source>%1 is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may appear as an unsupported adjustment in other editors.</source>
         <translation>%1 是 Patchy 原生的調整圖層；在 Patchy 中儲存並重新開啟 PSD 後仍可保留，但在其他編輯器中可能顯示為不受支援的調整。</translation>
     </message>

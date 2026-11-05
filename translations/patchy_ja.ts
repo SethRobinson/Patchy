@@ -2959,10 +2959,6 @@ RGB: %2, %3, %4</translation>
         <translation>テキストデータ</translation>
     </message>
     <message>
-        <source>%1: extracted editable PSD text from %2 and preserved the original PSD text block; the current pixels use the PSD raster preview until the text is edited.</source>
-        <translation>%1: %2 から編集可能な PSD テキストを抽出し、元の PSD テキストブロックを保持しました。テキストを編集するまでは現在のピクセルに PSD のラスタープレビューを使用します。</translation>
-    </message>
-    <message>
         <source>%1 is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may appear as an unsupported adjustment in other editors.</source>
         <translation>%1 は Patchy 独自の調整レイヤーです。Patchy の PSD では保存して開き直しても保持されますが、他のエディターでは未対応の調整として表示される場合があります。</translation>
     </message>

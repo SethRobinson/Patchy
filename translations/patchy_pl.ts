@@ -3879,10 +3879,6 @@
         <translation>dane tekstowe</translation>
     </message>
     <message>
-        <source>%1: extracted editable PSD text from %2 and preserved the original PSD text block; the current pixels use the PSD raster preview until the text is edited.</source>
-        <translation>%1: wyodrębniono edytowalny tekst PSD z %2 i zachowano oryginalny blok tekstu PSD; bieżące piksele korzystają z podglądu rastrowego PSD do czasu edycji tekstu.</translation>
-    </message>
-    <message>
         <source>%1 is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may appear as an unsupported adjustment in other editors.</source>
         <translation>%1 to natywna warstwa dopasowania Patchy; jest zachowywana przy ponownym zapisie PSD w Patchy, ale inne edytory mogą rozpoznać ją jako nieobsługiwane dopasowanie.</translation>
     </message>

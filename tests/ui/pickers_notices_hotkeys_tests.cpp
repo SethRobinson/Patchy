@@ -1220,6 +1220,30 @@ void ui_compatibility_report_is_empty_for_issue_559_files_if_available() {
     CHECK(warnings.isEmpty());
   }
 }
+// The reporter's Patchy 1.26 file from GitHub issue 646 (saved on Linux: a Background, a paint
+// layer and six point text layers) reopens with nothing to report, and so does Patchy's own
+// resave of it: text Patchy reads and lays out adds no line.
+void ui_compatibility_report_is_empty_for_issue_646_text_psd_if_available() {
+  const auto path = patchy::test::local_fixtures_root() / "issue-646" / "patchy-linux-text-layers.psd";
+  patchy::test::skip_unless_exists(path);
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  int text_layers = 0;
+  for (const auto& layer : document.layers()) {
+    text_layers += patchy::layer_is_text(layer) ? 1 : 0;
+  }
+  CHECK(text_layers == 6);
+  auto warnings = patchy::ui::compatibility_warnings_for_document(document);
+  if (!warnings.isEmpty()) {
+    std::fprintf(stderr, "  original: %s\n", qPrintable(warnings.join(QLatin1Char('\n'))));
+  }
+  CHECK(warnings.isEmpty());
+  const auto resaved = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  warnings = patchy::ui::compatibility_warnings_for_document(resaved);
+  if (!warnings.isEmpty()) {
+    std::fprintf(stderr, "  resaved: %s\n", qPrintable(warnings.join(QLatin1Char('\n'))));
+  }
+  CHECK(warnings.isEmpty());
+}
 // With the popup preference on, a PSD whose layers carry only routine Photoshop blocks opens
 // without the report; on a file with a real unknown block, "Don't show this again" turns the
 // preference off (GitHub issue 559).
@@ -5777,6 +5801,8 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
        ui_compatibility_report_is_empty_for_patchy_saved_background},
       {"ui_compatibility_report_is_empty_for_issue_559_files_if_available",
        ui_compatibility_report_is_empty_for_issue_559_files_if_available},
+      {"ui_compatibility_report_is_empty_for_issue_646_text_psd_if_available",
+       ui_compatibility_report_is_empty_for_issue_646_text_psd_if_available},
       {"ui_compatibility_report_dont_show_turns_popup_preference_off",
        ui_compatibility_report_dont_show_turns_popup_preference_off},
       {"ui_compatibility_report_treats_native_adjustment_blocks_as_known",
