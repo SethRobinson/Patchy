@@ -19394,6 +19394,14 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Switch between the hand and rotate view tools</source>
         <translation>Basculer entre les outils Main et Rotation de l&apos;affichage</translation>
     </message>
+    <message>
+        <source>Turn text, shapes or smart objects into plain pixels</source>
+        <translation>Convertir le texte, les formes ou les objets dynamiques en pixels</translation>
+    </message>
+    <message>
+        <source>Bake the layer effects into the pixels</source>
+        <translation>Intégrer les effets de calque aux pixels</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>

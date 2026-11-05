@@ -19441,6 +19441,14 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Switch between the hand and rotate view tools</source>
         <translation>Przełączaj między rączką a obrotem widoku</translation>
     </message>
+    <message>
+        <source>Turn text, shapes or smart objects into plain pixels</source>
+        <translation>Zamień tekst, kształty lub inteligentne obiekty na zwykłe piksele</translation>
+    </message>
+    <message>
+        <source>Bake the layer effects into the pixels</source>
+        <translation>Wtop efekty warstwy w piksele</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>

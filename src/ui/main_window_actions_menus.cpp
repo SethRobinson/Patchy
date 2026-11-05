@@ -1948,7 +1948,20 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_fill_adjustment_menu->addActions({fill_layer_settings_action, edit_adjustment_action});
   register_document_action(layer_fill_adjustment_menu->menuAction());
 
-  for (auto* menu : {layer_hide_lock_menu, layer_style_menu, layer_fill_adjustment_menu}) {
+  // Rasterize (GitHub issue 627 follow-up): the Layers panel context menu's Rasterize submenu,
+  // on the same actions and builder; rebuilt on opening so the text rows follow the active layer.
+  layer_menu_rasterize_menu_ = new QMenu(tr("Rasterize"), layer_menu);
+  layer_menu_rasterize_menu_->setObjectName(QStringLiteral("layerRasterizeMenu"));
+  for (auto* action : {layer_rasterize_action_, layer_rasterize_layer_style_action_, layer_trace_image_action_}) {
+    action->setMenuRole(QAction::NoRole);
+  }
+  bind_action_text(layer_menu_rasterize_menu_->menuAction(), QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Rasterize"));
+  populate_layer_rasterize_menu(layer_menu_rasterize_menu_);
+  connect(layer_menu_rasterize_menu_, &QMenu::aboutToShow, this,
+          [this] { populate_layer_rasterize_menu(layer_menu_rasterize_menu_); });
+  register_document_action(layer_menu_rasterize_menu_->menuAction());
+
+  for (auto* menu : {layer_hide_lock_menu, layer_style_menu, layer_fill_adjustment_menu, layer_menu_rasterize_menu_}) {
     menu->menuAction()->setMenuRole(QAction::NoRole);
   }
   // The Layer menu's rows, in display order (GitHub issue 627). Shortcuts fire from the
@@ -1958,6 +1971,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_menu->addMenu(new_adjustment_layer_menu);
   layer_menu->addSeparator();
   layer_menu->addAction(duplicate_layer_action);
+  layer_menu->addMenu(layer_menu_rasterize_menu_);
   layer_menu->addMenu(layer_export_menu);
   layer_menu->addAction(delete_layer_action);
   layer_menu->addSeparator();
@@ -1968,8 +1982,9 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_menu->addMenu(layer_fill_adjustment_menu);
   layer_menu->addSeparator();
   layer_menu->addMenu(layer_mask_menu);
-  layer_menu->addAction(layer_clipping_mask_action_);
   layer_menu->addMenu(vector_mask_menu);
+  layer_menu->addAction(layer_clipping_mask_action_);
+  layer_menu->addSeparator();
   layer_menu->addMenu(layer_smart_objects_menu);
   layer_menu->addMenu(layer_shape_menu);
   layer_menu->addSeparator();
@@ -3435,6 +3450,7 @@ void MainWindow::show_command_search() {
   refresh_layer_color_action_states();
   refresh_layer_visibility_action_text();
   refresh_layer_menu_lock_and_style_states();
+  populate_layer_rasterize_menu(layer_menu_rasterize_menu_);
   refresh_appimage_menu_entry_action();
   rebuild_scripts_menu();
   refresh_recent_history();

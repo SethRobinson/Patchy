@@ -12,6 +12,7 @@
 #include <QCheckBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QEventLoop>
 #include <QFont>
 #include <QFontMetrics>
 #include <QLayout>
@@ -21,6 +22,7 @@
 #include <QPushButton>
 #include <QStatusBar>
 #include <QTest>
+#include <QTimer>
 #include <QToolButton>
 #include <algorithm>
 #include <array>
@@ -475,9 +477,11 @@ void ui_layer_menu_hosts_export_lock_and_hide_entries() {
   const auto actions = layer_menu->actions();
   CHECK(std::count_if(actions.begin(), actions.end(), [](const QAction* action) { return !action->isSeparator(); }) <=
         22);
-  // Export sits between Duplicate Layer and Delete Layer (#627).
+  // Export sits between Duplicate Layer (and its Rasterize submenu) and Delete Layer (#627).
   const auto export_row = actions.indexOf(export_menu->menuAction());
-  CHECK(export_row > 0 && actions.at(export_row - 1) == require_action(window, "layerDuplicateAction"));
+  CHECK(export_row > 1 && actions.at(export_row - 2) == require_action(window, "layerDuplicateAction"));
+  auto* rasterize_menu = window.findChild<QMenu*>(QStringLiteral("layerRasterizeMenu"));
+  CHECK(rasterize_menu != nullptr && export_row > 0 && actions.at(export_row - 1) == rasterize_menu->menuAction());
   CHECK(export_row + 1 < actions.size() && actions.at(export_row + 1) == require_action(window, "layerDeleteAction"));
   CHECK(export_menu->menuAction()->menuRole() == QAction::NoRole);
   auto* quick = require_hotkey_action(window, QStringLiteral("layer.quick_export_png"));
@@ -564,10 +568,14 @@ void ui_layer_menu_groups_fill_and_merge_submenus() {
   }
   CHECK((layer_menu_rows(*layer_menu) ==
          QStringList{"layerNewMenu", "layerNewFillMenu", "layerNewAdjustmentMenu", "-", "layerDuplicateAction",
-                     "layerExportMenu", "layerDeleteAction", "-", "layerRenameAction", "layerColorMenu",
-                     "layerHideLockMenu", "-", "layerStyleMenu", "layerFillAdjustmentMenu", "-", "layerMaskMenu",
-                     "layerClippingMaskAction", "layerVectorMaskMenu", "layerSmartObjectsMenu", "layerShapeMenu", "-",
-                     "layerFillMenu", "layerArrangeMenu", "layerRotateFlipMenu", "layerMergeMenu"}));
+                     "layerRasterizeMenu", "layerExportMenu", "layerDeleteAction", "-", "layerRenameAction",
+                     "layerColorMenu", "layerHideLockMenu", "-", "layerStyleMenu", "layerFillAdjustmentMenu", "-",
+                     "layerMaskMenu", "layerVectorMaskMenu", "layerClippingMaskAction", "-", "layerSmartObjectsMenu",
+                     "layerShapeMenu", "-", "layerFillMenu", "layerArrangeMenu", "layerRotateFlipMenu",
+                     "layerMergeMenu"}));
+  const auto top_rows = layer_menu->actions();
+  CHECK(std::count_if(top_rows.begin(), top_rows.end(), [](const QAction* action) { return !action->isSeparator(); }) ==
+        21);
   // Accelerators stay unique on each level.
   for (auto* menu : {layer_menu, fill_menu, merge_menu}) {
     QStringList keys;
@@ -811,6 +819,139 @@ void ui_issue_627_layer_menu_submenus() {
   QApplication::processEvents();
 }
 
+// The Layers panel context menu's Rasterize rows for `id`, by object name ("-" for a separator).
+QStringList context_rasterize_rows(patchy::ui::MainWindow& window, patchy::LayerId id) {
+  auto* list = layer_list(window);
+  if (list == nullptr) {
+    return {};
+  }
+  const auto ids = row_ids(*list);
+  const auto row = static_cast<int>(std::find(ids.begin(), ids.end(), id) - ids.begin());
+  CHECK(row < list->count());
+  if (row >= list->count()) {
+    return {};
+  }
+  QStringList rows;
+  bool saw_menu = false;
+  int poll_attempts = 0;
+  QTimer poller;
+  QObject::connect(&poller, &QTimer::timeout, [&] {
+    if (++poll_attempts > 500) {
+      poller.stop();
+      return;
+    }
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu != nullptr && menu->objectName() == QStringLiteral("layerContextMenu") && menu->isVisible()) {
+        saw_menu = true;
+        if (auto* rasterize = menu->findChild<QMenu*>(QStringLiteral("layerContextRasterizeMenu"));
+            rasterize != nullptr) {
+          for (auto* action : rasterize->actions()) {
+            rows << (action->isSeparator() ? QStringLiteral("-") : action->objectName());
+          }
+        }
+        menu->close();
+        poller.stop();
+        return;
+      }
+    }
+  });
+  poller.start(10);
+  const auto position = list->visualItemRect(list->item(row)).center();
+  QMetaObject::invokeMethod(
+      &window, [&window, position] { Access::show_layer_context_menu(window, position); }, Qt::QueuedConnection);
+  QApplication::processEvents();
+  for (int i = 0; i < 200 && !saw_menu && poll_attempts <= 500; ++i) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
+  poller.stop();
+  CHECK(saw_menu);
+  return rows;
+}
+
+// GitHub issue 627 follow-up: Layer > Rasterize sits under Duplicate Layer and holds the Layers
+// panel context menu's Rasterize rows (one builder, the same actions), the text rows only while
+// a text layer is active.
+void ui_issue_627_layer_menu_rasterize_submenu() {
+  patchy::Document document(140, 96, patchy::PixelFormat::rgba8());
+  const auto photo_id = document.add_layer(square_layer(document, "Photo", QColor(220, 60, 50))).id();
+  patchy::Layer text_layer(document.allocate_layer_id(), "Text: Raster", patchy::LayerKind::Text);
+  text_layer.set_bounds(patchy::Rect{24, 24, 96, 36});
+  text_layer.metadata()[patchy::kLayerMetadataText] = "Raster";
+  text_layer.metadata()[patchy::kLayerMetadataTextSize] = "28";
+  text_layer.metadata()[patchy::kLayerMetadataTextColor] = "#000000";
+  const auto text_id = document.add_layer(std::move(text_layer)).id();
+  document.set_active_layer(text_id);
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Rasterize Menu"));
+  show_window(window);
+  QApplication::processEvents();
+
+  auto* layer_menu = window.findChild<QMenu*>(QStringLiteral("layerMenu"));
+  auto* rasterize_menu = window.findChild<QMenu*>(QStringLiteral("layerRasterizeMenu"));
+  CHECK(layer_menu != nullptr && rasterize_menu != nullptr);
+  if (layer_menu == nullptr || rasterize_menu == nullptr) {
+    return;
+  }
+  CHECK(rasterize_menu->title() == QStringLiteral("Rasterize"));
+  CHECK(rasterize_menu->menuAction()->menuRole() == QAction::NoRole);
+  const auto duplicate_row = layer_menu->actions().indexOf(require_action(window, "layerDuplicateAction"));
+  CHECK(duplicate_row >= 0 && layer_menu->actions().value(duplicate_row + 1) == rasterize_menu->menuAction());
+  const auto layer_menu_rows = [&window, rasterize_menu] {
+    rasterize_menu->popup(window.mapToGlobal(QPoint(200, 60)));
+    QApplication::processEvents();
+    QStringList rows;
+    for (auto* action : rasterize_menu->actions()) {
+      rows << (action->isSeparator() ? QStringLiteral("-") : action->objectName());
+      // macOS merges menu items by role and title.
+      CHECK(action->isSeparator() || action->menuRole() == QAction::NoRole);
+    }
+    rasterize_menu->hide();
+    QApplication::processEvents();
+    return rows;
+  };
+  const QStringList pixel_rows{"layerRasterizeAction", "layerRasterizeLayerStyleAction", "-",
+                               "layerTraceImageAction"};
+  const QStringList text_rows = pixel_rows + QStringList{"-", "typeConvertToShapeAction", "typeCreateWorkPathAction"};
+  auto* rasterize = require_action(window, "layerRasterizeAction");
+
+  Access::select_layers(window, {text_id}, text_id);
+  QApplication::processEvents();
+  CHECK(layer_menu_rows() == text_rows);
+  CHECK(rasterize->isEnabled());
+  CHECK(context_rasterize_rows(window, text_id) == text_rows);
+
+  Access::select_layers(window, {photo_id}, photo_id);
+  QApplication::processEvents();
+  CHECK(layer_menu_rows() == pixel_rows);
+  CHECK(!rasterize->isEnabled());
+  CHECK(context_rasterize_rows(window, photo_id) == pixel_rows);
+
+  // Review captures (issue desk): the Layer menu and its Rasterize submenu on a text layer.
+  Access::select_layers(window, {text_id}, text_id);
+  QApplication::processEvents();
+  {
+    ColorSchemeRestorer restore(patchy::ui::ColorSchemePreference::Dark);
+    layer_menu->popup(window.mapToGlobal(QPoint(120, 40)));
+    QApplication::processEvents();
+    save_widget_artifact("issue_627_fu_layer_menu", *layer_menu);
+    rasterize_menu->popup(window.mapToGlobal(QPoint(420, 120)));
+    QApplication::processEvents();
+    save_widget_artifact("issue_627_fu_layer_rasterize_menu", *rasterize_menu);
+    rasterize_menu->hide();
+    layer_menu->hide();
+    QApplication::processEvents();
+  }
+
+  // Rasterize from the Layer menu turns the text layer into pixels, one undo step.
+  const auto depth = Access::active_session_undo_depth(window);
+  rasterize->trigger();
+  QApplication::processEvents();
+  const auto* rasterized = std::as_const(Access::document(window)).find_layer(text_id);
+  CHECK(rasterized != nullptr && rasterized->kind() == patchy::LayerKind::Pixel);
+  CHECK(Access::active_session_undo_depth(window) == depth + 1);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_menu_commands_tests() {
@@ -824,5 +965,6 @@ std::vector<patchy::test::TestCase> layer_menu_commands_tests() {
       {"ui_layer_menu_hosts_export_lock_and_hide_entries", ui_layer_menu_hosts_export_lock_and_hide_entries},
       {"ui_layer_menu_groups_fill_and_merge_submenus", ui_layer_menu_groups_fill_and_merge_submenus},
       {"ui_issue_627_layer_menu_submenus", ui_issue_627_layer_menu_submenus},
+      {"ui_issue_627_layer_menu_rasterize_submenu", ui_issue_627_layer_menu_rasterize_submenu},
   };
 }

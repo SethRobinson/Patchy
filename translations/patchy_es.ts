@@ -19394,6 +19394,14 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Switch between the hand and rotate view tools</source>
         <translation>Alternar entre las herramientas de mano y rotar vista</translation>
     </message>
+    <message>
+        <source>Turn text, shapes or smart objects into plain pixels</source>
+        <translation>Convertir texto, formas u objetos inteligentes en píxeles</translation>
+    </message>
+    <message>
+        <source>Bake the layer effects into the pixels</source>
+        <translation>Integrar los efectos de capa en los píxeles</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>

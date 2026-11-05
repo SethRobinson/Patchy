@@ -19394,6 +19394,14 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Switch between the hand and rotate view tools</source>
         <translation>Alterna tra gli strumenti mano e ruota vista</translation>
     </message>
+    <message>
+        <source>Turn text, shapes or smart objects into plain pixels</source>
+        <translation>Trasforma testo, forme o oggetti avanzati in pixel semplici</translation>
+    </message>
+    <message>
+        <source>Bake the layer effects into the pixels</source>
+        <translation>Incorpora gli effetti del livello nei pixel</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
