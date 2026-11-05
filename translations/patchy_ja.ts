@@ -19229,6 +19229,82 @@ Each item&apos;s own View setting still applies.</source>
         <source>Tag the layer fuchsia in the Layers panel</source>
         <translation>レイヤーパネルでレイヤーをフューシャでタグ付け</translation>
     </message>
+    <message>
+        <source>Keep painting and filters off the layer</source>
+        <translation>ペイントやフィルターがレイヤーに及ばないようにする</translation>
+    </message>
+    <message>
+        <source>Keep the layer from moving</source>
+        <translation>レイヤーが動かないようにする</translation>
+    </message>
+    <message>
+        <source>Protect the layer from every change</source>
+        <translation>レイヤーをあらゆる変更から保護</translation>
+    </message>
+    <message>
+        <source>Open the effects dialog on its opacity and blend settings</source>
+        <translation>効果ダイアログを不透明度と描画モードの設定で開く</translation>
+    </message>
+    <message>
+        <source>Raised or carved edge effect</source>
+        <translation>盛り上がった、または彫り込んだエッジの効果</translation>
+    </message>
+    <message>
+        <source>Outline effect around the layer</source>
+        <translation>レイヤーの周りの輪郭の効果</translation>
+    </message>
+    <message>
+        <source>Shadow effect inside the edges</source>
+        <translation>エッジの内側の影の効果</translation>
+    </message>
+    <message>
+        <source>Light effect inside the edges</source>
+        <translation>エッジの内側の光の効果</translation>
+    </message>
+    <message>
+        <source>Silky inner shading effect</source>
+        <translation>なめらかな内側の陰影の効果</translation>
+    </message>
+    <message>
+        <source>Tint the layer with one color, as an effect</source>
+        <translation>効果としてレイヤーを 1 色で色付け</translation>
+    </message>
+    <message>
+        <source>Cover the layer with a blend of colors, as an effect</source>
+        <translation>効果としてレイヤーを色のブレンドで覆う</translation>
+    </message>
+    <message>
+        <source>Cover the layer with a repeating tile, as an effect</source>
+        <translation>効果としてレイヤーを繰り返しタイルで覆う</translation>
+    </message>
+    <message>
+        <source>Light effect around the edges</source>
+        <translation>エッジの周りの光の効果</translation>
+    </message>
+    <message>
+        <source>Shadow effect cast behind the layer</source>
+        <translation>レイヤーの後ろに落ちる影の効果</translation>
+    </message>
+    <message>
+        <source>Take the layer&apos;s effects to paste elsewhere</source>
+        <translation>レイヤーの効果を取り込んで別の場所にペースト</translation>
+    </message>
+    <message>
+        <source>Put copied effects on the selected layers</source>
+        <translation>コピーした効果を選択したレイヤーに適用</translation>
+    </message>
+    <message>
+        <source>Remove every effect from the selected layers</source>
+        <translation>選択したレイヤーからすべての効果を削除</translation>
+    </message>
+    <message>
+        <source>Turn the layer&apos;s effects on or off</source>
+        <translation>レイヤーの効果のオンとオフを切り替え</translation>
+    </message>
+    <message>
+        <source>Change the color, gradient or pattern of a fill layer</source>
+        <translation>塗りつぶしレイヤーのカラー、グラデーション、パターンを変更</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -20931,10 +21007,6 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
     <message>
         <source>&amp;Apply Layer Mask</source>
         <translation>レイヤーマスクを適用(&amp;A)</translation>
-    </message>
-    <message>
-        <source>&amp;Edit Adjustment...</source>
-        <translation>調整を編集(&amp;E)...</translation>
     </message>
     <message>
         <source>Edit Layer &amp;Styles...</source>
@@ -32448,6 +32520,34 @@ Locked: %1</source>
     <message>
         <source>Fuchsia</source>
         <translation>フューシャ</translation>
+    </message>
+    <message>
+        <source>&amp;Adjustment Layer Settings...</source>
+        <translation>調整レイヤーの設定(&amp;A)...</translation>
+    </message>
+    <message>
+        <source>&amp;Hide &amp;&amp; Lock</source>
+        <translation>非表示とロック(&amp;H)</translation>
+    </message>
+    <message>
+        <source>Layer &amp;Style</source>
+        <translation>レイヤースタイル(&amp;S)</translation>
+    </message>
+    <message>
+        <source>Blending Options...</source>
+        <translation>描画オプション...</translation>
+    </message>
+    <message>
+        <source>&amp;Fill Layer Settings...</source>
+        <translation>塗りつぶしレイヤーの設定(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>Fi&amp;ll and Adjustment Layer</source>
+        <translation>塗りつぶしと調整レイヤー(&amp;L)</translation>
+    </message>
+    <message>
+        <source>Select a fill layer to edit its settings</source>
+        <translation>設定を編集する塗りつぶしレイヤーを選択してください</translation>
     </message>
 </context>
 <context>

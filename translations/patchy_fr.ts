@@ -19275,6 +19275,82 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Tag the layer fuchsia in the Layers panel</source>
         <translation>Marquer le calque en fuchsia dans le panneau Calques</translation>
     </message>
+    <message>
+        <source>Keep painting and filters off the layer</source>
+        <translation>Empêcher la peinture et les filtres sur le calque</translation>
+    </message>
+    <message>
+        <source>Keep the layer from moving</source>
+        <translation>Empêcher le calque de bouger</translation>
+    </message>
+    <message>
+        <source>Protect the layer from every change</source>
+        <translation>Protéger le calque de toute modification</translation>
+    </message>
+    <message>
+        <source>Open the effects dialog on its opacity and blend settings</source>
+        <translation>Ouvrir la boîte des effets sur son opacité et sa fusion</translation>
+    </message>
+    <message>
+        <source>Raised or carved edge effect</source>
+        <translation>Effet de bord en relief ou gravé</translation>
+    </message>
+    <message>
+        <source>Outline effect around the layer</source>
+        <translation>Effet de contour autour du calque</translation>
+    </message>
+    <message>
+        <source>Shadow effect inside the edges</source>
+        <translation>Effet d&apos;ombre à l&apos;intérieur des bords</translation>
+    </message>
+    <message>
+        <source>Light effect inside the edges</source>
+        <translation>Effet de lumière à l&apos;intérieur des bords</translation>
+    </message>
+    <message>
+        <source>Silky inner shading effect</source>
+        <translation>Effet d&apos;ombrage intérieur soyeux</translation>
+    </message>
+    <message>
+        <source>Tint the layer with one color, as an effect</source>
+        <translation>Teinter le calque d&apos;une couleur, en effet</translation>
+    </message>
+    <message>
+        <source>Cover the layer with a blend of colors, as an effect</source>
+        <translation>Couvrir le calque d&apos;un mélange de couleurs, en effet</translation>
+    </message>
+    <message>
+        <source>Cover the layer with a repeating tile, as an effect</source>
+        <translation>Couvrir le calque d&apos;un motif répété, en effet</translation>
+    </message>
+    <message>
+        <source>Light effect around the edges</source>
+        <translation>Effet de lumière autour des bords</translation>
+    </message>
+    <message>
+        <source>Shadow effect cast behind the layer</source>
+        <translation>Effet d&apos;ombre projetée derrière le calque</translation>
+    </message>
+    <message>
+        <source>Take the layer&apos;s effects to paste elsewhere</source>
+        <translation>Prendre les effets du calque pour les coller ailleurs</translation>
+    </message>
+    <message>
+        <source>Put copied effects on the selected layers</source>
+        <translation>Appliquer les effets copiés aux calques sélectionnés</translation>
+    </message>
+    <message>
+        <source>Remove every effect from the selected layers</source>
+        <translation>Retirer tous les effets des calques sélectionnés</translation>
+    </message>
+    <message>
+        <source>Turn the layer&apos;s effects on or off</source>
+        <translation>Activer ou désactiver les effets du calque</translation>
+    </message>
+    <message>
+        <source>Change the color, gradient or pattern of a fill layer</source>
+        <translation>Changer la couleur, le dégradé ou le motif d&apos;un calque de remplissage</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -20256,10 +20332,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>&amp;Apply Layer Mask</source>
         <translation>&amp;Appliquer le masque de fusion</translation>
-    </message>
-    <message>
-        <source>&amp;Edit Adjustment...</source>
-        <translation>&amp;Modifier le réglage...</translation>
     </message>
     <message>
         <source>Edit Layer &amp;Styles...</source>
@@ -32533,6 +32605,34 @@ Verrouillé : %1</translation>
     <message>
         <source>Fuchsia</source>
         <translation>Fuchsia</translation>
+    </message>
+    <message>
+        <source>&amp;Adjustment Layer Settings...</source>
+        <translation>Paramètres du calque de régl&amp;age...</translation>
+    </message>
+    <message>
+        <source>&amp;Hide &amp;&amp; Lock</source>
+        <translation>&amp;Masquer et verrouiller</translation>
+    </message>
+    <message>
+        <source>Layer &amp;Style</source>
+        <translation>&amp;Style de calque</translation>
+    </message>
+    <message>
+        <source>Blending Options...</source>
+        <translation>Options de fusion...</translation>
+    </message>
+    <message>
+        <source>&amp;Fill Layer Settings...</source>
+        <translation>Paramètres du calque de rempl&amp;issage...</translation>
+    </message>
+    <message>
+        <source>Fi&amp;ll and Adjustment Layer</source>
+        <translation>Ca&amp;lque de remplissage et de réglage</translation>
+    </message>
+    <message>
+        <source>Select a fill layer to edit its settings</source>
+        <translation>Sélectionnez un calque de remplissage pour modifier ses paramètres</translation>
     </message>
 </context>
 <context>

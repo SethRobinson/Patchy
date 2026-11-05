@@ -19275,6 +19275,82 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Tag the layer fuchsia in the Layers panel</source>
         <translation>Contrassegna il livello in fucsia nel pannello Livelli</translation>
     </message>
+    <message>
+        <source>Keep painting and filters off the layer</source>
+        <translation>Tieni pittura e filtri lontani dal livello</translation>
+    </message>
+    <message>
+        <source>Keep the layer from moving</source>
+        <translation>Impedisci al livello di spostarsi</translation>
+    </message>
+    <message>
+        <source>Protect the layer from every change</source>
+        <translation>Proteggi il livello da ogni modifica</translation>
+    </message>
+    <message>
+        <source>Open the effects dialog on its opacity and blend settings</source>
+        <translation>Apri la finestra effetti su opacità e fusione</translation>
+    </message>
+    <message>
+        <source>Raised or carved edge effect</source>
+        <translation>Effetto bordo in rilievo o inciso</translation>
+    </message>
+    <message>
+        <source>Outline effect around the layer</source>
+        <translation>Effetto contorno attorno al livello</translation>
+    </message>
+    <message>
+        <source>Shadow effect inside the edges</source>
+        <translation>Effetto ombra dentro i bordi</translation>
+    </message>
+    <message>
+        <source>Light effect inside the edges</source>
+        <translation>Effetto luce dentro i bordi</translation>
+    </message>
+    <message>
+        <source>Silky inner shading effect</source>
+        <translation>Effetto ombreggiatura interna setosa</translation>
+    </message>
+    <message>
+        <source>Tint the layer with one color, as an effect</source>
+        <translation>Colora il livello con una tinta, come effetto</translation>
+    </message>
+    <message>
+        <source>Cover the layer with a blend of colors, as an effect</source>
+        <translation>Copri il livello con una sfumatura di colori, come effetto</translation>
+    </message>
+    <message>
+        <source>Cover the layer with a repeating tile, as an effect</source>
+        <translation>Copri il livello con una tessera ripetuta, come effetto</translation>
+    </message>
+    <message>
+        <source>Light effect around the edges</source>
+        <translation>Effetto luce attorno ai bordi</translation>
+    </message>
+    <message>
+        <source>Shadow effect cast behind the layer</source>
+        <translation>Effetto ombra proiettata dietro il livello</translation>
+    </message>
+    <message>
+        <source>Take the layer&apos;s effects to paste elsewhere</source>
+        <translation>Prendi gli effetti del livello da incollare altrove</translation>
+    </message>
+    <message>
+        <source>Put copied effects on the selected layers</source>
+        <translation>Applica gli effetti copiati ai livelli selezionati</translation>
+    </message>
+    <message>
+        <source>Remove every effect from the selected layers</source>
+        <translation>Rimuovi tutti gli effetti dai livelli selezionati</translation>
+    </message>
+    <message>
+        <source>Turn the layer&apos;s effects on or off</source>
+        <translation>Attiva o disattiva gli effetti del livello</translation>
+    </message>
+    <message>
+        <source>Change the color, gradient or pattern of a fill layer</source>
+        <translation>Cambia colore, sfumatura o pattern di un livello di riempimento</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -20256,10 +20332,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>&amp;Apply Layer Mask</source>
         <translation>&amp;Applica maschera di livello</translation>
-    </message>
-    <message>
-        <source>&amp;Edit Adjustment...</source>
-        <translation>Modifica r&amp;egolazione...</translation>
     </message>
     <message>
         <source>Edit Layer &amp;Styles...</source>
@@ -32533,6 +32605,34 @@ Bloccato: %1</translation>
     <message>
         <source>Fuchsia</source>
         <translation>Fucsia</translation>
+    </message>
+    <message>
+        <source>&amp;Adjustment Layer Settings...</source>
+        <translation>Impostazioni livello di &amp;regolazione...</translation>
+    </message>
+    <message>
+        <source>&amp;Hide &amp;&amp; Lock</source>
+        <translation>&amp;Nascondi e blocca</translation>
+    </message>
+    <message>
+        <source>Layer &amp;Style</source>
+        <translation>&amp;Stile livello</translation>
+    </message>
+    <message>
+        <source>Blending Options...</source>
+        <translation>Opzioni di fusione...</translation>
+    </message>
+    <message>
+        <source>&amp;Fill Layer Settings...</source>
+        <translation>Impostazioni livello di r&amp;iempimento...</translation>
+    </message>
+    <message>
+        <source>Fi&amp;ll and Adjustment Layer</source>
+        <translation>&amp;Livello di riempimento e regolazione</translation>
+    </message>
+    <message>
+        <source>Select a fill layer to edit its settings</source>
+        <translation>Seleziona un livello di riempimento per modificarne le impostazioni</translation>
     </message>
 </context>
 <context>

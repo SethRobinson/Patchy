@@ -19321,6 +19321,82 @@ Each item&apos;s own View setting still applies.</source>
         <source>Tag the layer fuchsia in the Layers panel</source>
         <translation>Пометить слой цветом фуксии на панели слоёв</translation>
     </message>
+    <message>
+        <source>Keep painting and filters off the layer</source>
+        <translation>Не допускать рисование и фильтры на слое</translation>
+    </message>
+    <message>
+        <source>Keep the layer from moving</source>
+        <translation>Не давать слою сдвигаться</translation>
+    </message>
+    <message>
+        <source>Protect the layer from every change</source>
+        <translation>Защитить слой от любых изменений</translation>
+    </message>
+    <message>
+        <source>Open the effects dialog on its opacity and blend settings</source>
+        <translation>Открыть окно эффектов на непрозрачности и наложении</translation>
+    </message>
+    <message>
+        <source>Raised or carved edge effect</source>
+        <translation>Эффект выпуклого или вырезанного края</translation>
+    </message>
+    <message>
+        <source>Outline effect around the layer</source>
+        <translation>Эффект контура вокруг слоя</translation>
+    </message>
+    <message>
+        <source>Shadow effect inside the edges</source>
+        <translation>Эффект тени внутри краёв</translation>
+    </message>
+    <message>
+        <source>Light effect inside the edges</source>
+        <translation>Эффект света внутри краёв</translation>
+    </message>
+    <message>
+        <source>Silky inner shading effect</source>
+        <translation>Эффект мягкой внутренней растушёвки</translation>
+    </message>
+    <message>
+        <source>Tint the layer with one color, as an effect</source>
+        <translation>Тонировать слой одним цветом как эффект</translation>
+    </message>
+    <message>
+        <source>Cover the layer with a blend of colors, as an effect</source>
+        <translation>Покрыть слой переходом цветов как эффект</translation>
+    </message>
+    <message>
+        <source>Cover the layer with a repeating tile, as an effect</source>
+        <translation>Покрыть слой повторяющейся плиткой как эффект</translation>
+    </message>
+    <message>
+        <source>Light effect around the edges</source>
+        <translation>Эффект света вокруг краёв</translation>
+    </message>
+    <message>
+        <source>Shadow effect cast behind the layer</source>
+        <translation>Эффект тени, отбрасываемой за слоем</translation>
+    </message>
+    <message>
+        <source>Take the layer&apos;s effects to paste elsewhere</source>
+        <translation>Взять эффекты слоя, чтобы вставить их в другом месте</translation>
+    </message>
+    <message>
+        <source>Put copied effects on the selected layers</source>
+        <translation>Применить скопированные эффекты к выбранным слоям</translation>
+    </message>
+    <message>
+        <source>Remove every effect from the selected layers</source>
+        <translation>Убрать все эффекты с выбранных слоёв</translation>
+    </message>
+    <message>
+        <source>Turn the layer&apos;s effects on or off</source>
+        <translation>Включить или выключить эффекты слоя</translation>
+    </message>
+    <message>
+        <source>Change the color, gradient or pattern of a fill layer</source>
+        <translation>Изменить цвет, градиент или узор слоя-заливки</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -20435,10 +20511,6 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>&amp;Apply Layer Mask</source>
         <translation>&amp;Применить маску слоя</translation>
-    </message>
-    <message>
-        <source>&amp;Edit Adjustment...</source>
-        <translation>&amp;Изменить коррекцию...</translation>
     </message>
     <message>
         <source>Edit Layer &amp;Styles...</source>
@@ -32618,6 +32690,34 @@ Locked: %1</source>
     <message>
         <source>Fuchsia</source>
         <translation>Фуксия</translation>
+    </message>
+    <message>
+        <source>&amp;Adjustment Layer Settings...</source>
+        <translation>Параметры &amp;корректирующего слоя...</translation>
+    </message>
+    <message>
+        <source>&amp;Hide &amp;&amp; Lock</source>
+        <translation>&amp;Скрыть и заблокировать</translation>
+    </message>
+    <message>
+        <source>Layer &amp;Style</source>
+        <translation>Сти&amp;ль слоя</translation>
+    </message>
+    <message>
+        <source>Blending Options...</source>
+        <translation>Параметры наложения...</translation>
+    </message>
+    <message>
+        <source>&amp;Fill Layer Settings...</source>
+        <translation>Параметры слоя-&amp;заливки...</translation>
+    </message>
+    <message>
+        <source>Fi&amp;ll and Adjustment Layer</source>
+        <translation>Слой-заливка и корректирую&amp;щий слой</translation>
+    </message>
+    <message>
+        <source>Select a fill layer to edit its settings</source>
+        <translation>Выберите слой-заливку, чтобы изменить его параметры</translation>
     </message>
 </context>
 <context>

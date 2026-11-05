@@ -2,7 +2,7 @@
 
 File > Export for Web... (`file.export_for_web`, Ctrl+Alt+Shift+S; action
 `fileExportForWebAction`) writes a copy of the document in a web format from a dialog with live,
-real encoded previews and sizes. It sits in the File menu itself, under Save As and Revert and right above the Export submenu,
+real encoded previews and sizes. It sits in the File menu itself, under Save As and right above the Export submenu,
 not inside it (Seth, October 26, 2026, and again for GitHub issue 619: it is the export most
 people use). Export > Flat Image still covers every format and has no default key (a user's own
 binding keeps working). "Save for Web" is another product's command name, and the layout (a

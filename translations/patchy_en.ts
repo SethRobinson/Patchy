@@ -19258,6 +19258,82 @@ Each item&apos;s own View setting still applies.</source>
         <source>Tag the layer fuchsia in the Layers panel</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Keep painting and filters off the layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep the layer from moving</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Protect the layer from every change</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open the effects dialog on its opacity and blend settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Raised or carved edge effect</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Outline effect around the layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shadow effect inside the edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Light effect inside the edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Silky inner shading effect</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tint the layer with one color, as an effect</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cover the layer with a blend of colors, as an effect</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cover the layer with a repeating tile, as an effect</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Light effect around the edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shadow effect cast behind the layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Take the layer&apos;s effects to paste elsewhere</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Put copied effects on the selected layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove every effect from the selected layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn the layer&apos;s effects on or off</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Change the color, gradient or pattern of a fill layer</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -20238,10 +20314,6 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>&amp;Apply Layer Mask</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&amp;Edit Adjustment...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -32451,6 +32523,34 @@ Locked: %1</source>
     </message>
     <message>
         <source>Fuchsia</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Adjustment Layer Settings...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Hide &amp;&amp; Lock</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer &amp;Style</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blending Options...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Fill Layer Settings...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fi&amp;ll and Adjustment Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select a fill layer to edit its settings</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

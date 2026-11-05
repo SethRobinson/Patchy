@@ -3557,6 +3557,64 @@ void MainWindow::set_selected_layers_color(LayerColorLabel label) {
   refresh_layer_color_action_states();
 }
 
+void MainWindow::refresh_layer_menu_lock_and_style_states() {
+  const bool has_document = has_active_document() && !preview_dialog_edit_locked();
+  const auto ids = has_document ? selected_or_active_layer_ids() : std::vector<LayerId>{};
+  const auto all_selected_have_lock = [this, &ids](LayerLockFlags flag) {
+    return !ids.empty() && std::all_of(ids.begin(), ids.end(), [this, flag](LayerId id) {
+      const auto* layer = std::as_const(document()).find_layer(id);
+      return layer != nullptr && (layer_lock_flags(*layer) & flag) == flag;
+    });
+  };
+  // The layer context menu's Lock submenu checks these the same way.
+  const std::array<std::pair<QAction*, LayerLockFlags>, 5> locks{{
+      {layer_lock_transparent_pixels_action_, kLayerLockTransparentPixels},
+      {layer_menu_lock_image_pixels_action_, kLayerLockImagePixels},
+      {layer_menu_lock_position_action_, kLayerLockPosition},
+      {layer_menu_lock_all_action_, kLayerLockAll},
+      {layer_prevent_auto_nesting_action_, kLayerLockArtboardAutonest},
+  }};
+  for (const auto& [action, flag] : locks) {
+    if (action != nullptr) {
+      action->setChecked(all_selected_have_lock(flag));
+    }
+  }
+  refresh_layer_style_action_states();
+  const bool can_edit = has_document && can_edit_layer_styles();
+  for (auto* action : layer_menu_style_page_actions_) {
+    action->setEnabled(can_edit);
+  }
+  if (layer_menu_show_layer_styles_action_ != nullptr) {
+    const Layer* active = nullptr;
+    if (has_document) {
+      if (const auto id = std::as_const(document()).active_layer_id(); id.has_value()) {
+        active = std::as_const(document()).find_layer(*id);
+      }
+    }
+    const bool has_style = active != nullptr && !active->layer_style().empty();
+    layer_menu_show_layer_styles_action_->setEnabled(
+        has_style && !layer_is_effectively_locked(std::as_const(document()).layers(), active->id()));
+    layer_menu_show_layer_styles_action_->setChecked(has_style && active->layer_style().effects_visible);
+  }
+}
+
+void MainWindow::edit_active_fill_layer_settings() {
+  if (!has_active_document()) {
+    return;
+  }
+  const auto shape_ids = editable_selected_shape_layer_ids();
+  const bool only_fill_layers =
+      !shape_ids.empty() && std::all_of(shape_ids.begin(), shape_ids.end(), [this](LayerId id) {
+        const auto* layer = std::as_const(document()).find_layer(id);
+        return layer != nullptr && layer_is_fill_layer(*layer);
+      });
+  if (!only_fill_layers) {
+    show_status_error(tr("Select a fill layer to edit its settings"));
+    return;
+  }
+  edit_active_shape_appearance();
+}
+
 void MainWindow::refresh_layer_style_action_states() {
   bool can_copy = false;
   bool can_paste = false;

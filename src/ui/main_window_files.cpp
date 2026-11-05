@@ -3718,14 +3718,18 @@ void MainWindow::open_document_path(QString path, OpenExisting existing) {
 
 bool MainWindow::active_document_can_revert() const {
   const auto* current = active_session();
-  if (current == nullptr || current->path.isEmpty() || current->smart_object_link.has_value()) {
+  return current != nullptr && session_can_revert(*current);
+}
+
+bool MainWindow::session_can_revert(const DocumentSession& target_session) const {
+  if (target_session.path.isEmpty() || target_session.smart_object_link.has_value()) {
     return false;
   }
   // A file Patchy opened by its content reopens the same way; otherwise its extension
   // must be one File > Open reads (a session's file always is, unless a save wrote a
   // format Patchy cannot read back).
-  return !current->content_extension.isEmpty() ||
-         openable_file_extensions().contains(QFileInfo(current->path).suffix(), Qt::CaseInsensitive);
+  return !target_session.content_extension.isEmpty() ||
+         openable_file_extensions().contains(QFileInfo(target_session.path).suffix(), Qt::CaseInsensitive);
 }
 
 void MainWindow::refresh_revert_action() {
@@ -3734,7 +3738,7 @@ void MainWindow::refresh_revert_action() {
   }
 }
 
-// File > Revert (GitHub issue 584). The file is loaded as a new session first, so a file
+// Revert (GitHub issue 584; F12 and the document tab's menu since issue 619). The file is loaded as a new session first, so a file
 // that no longer opens leaves the document as it was; then the old session closes without
 // a save prompt and the new tab takes its place. The file on disk is only read.
 void MainWindow::revert_active_document() {

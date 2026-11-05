@@ -1,6 +1,7 @@
 // Layer selection stepping (#541), the Lock Layers dialog (#544), Layer > Export (#545),
 // Hide / Show Layers (#546), Show All Layers (#550) and the eye's Alt-click hint (#549):
 // commands and default keys philipzae asked for.
+#include "core/layer.hpp"
 #include "core/layer_metadata.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/layer_lock_dialog.hpp"
@@ -460,8 +461,8 @@ void ui_layer_lock_layers_dialog_applies_and_undoes() {
   CHECK(flags_of(ids.top) == patchy::kLayerLockImagePixels);
 }
 
-// The new Layer menu rows (Hide Layers, Show All Layers, Lock Layers..., the Export submenu last)
-// within the menu's 22-row bound (21 until Show All Layers, #550), the export keys (#545), and the menu for review in both schemes.
+// The Layer menu's Hide & Lock and Export entries (#544 to #550, #627) within the menu's 22-row
+// bound, the export keys (#545), and the menu for review in both schemes.
 void ui_layer_menu_hosts_export_lock_and_hide_entries() {
   patchy::ui::MainWindow window;
   (void)add_stack(window, QStringLiteral("Layer Menu"));
@@ -474,11 +475,22 @@ void ui_layer_menu_hosts_export_lock_and_hide_entries() {
   const auto actions = layer_menu->actions();
   CHECK(std::count_if(actions.begin(), actions.end(), [](const QAction* action) { return !action->isSeparator(); }) <=
         22);
-  CHECK(actions.back() == export_menu->menuAction());
+  // Export sits between Duplicate Layer and Delete Layer (#627).
+  const auto export_row = actions.indexOf(export_menu->menuAction());
+  CHECK(export_row > 0 && actions.at(export_row - 1) == require_action(window, "layerDuplicateAction"));
+  CHECK(export_row + 1 < actions.size() && actions.at(export_row + 1) == require_action(window, "layerDeleteAction"));
   CHECK(export_menu->menuAction()->menuRole() == QAction::NoRole);
   auto* quick = require_hotkey_action(window, QStringLiteral("layer.quick_export_png"));
   auto* export_as = require_hotkey_action(window, QStringLiteral("layer.export_as"));
-  CHECK((export_menu->actions() == QList<QAction*>{quick, export_as}));
+  auto* to_document = require_hotkey_action(window, QStringLiteral("layer.duplicate_to_document"));
+  const auto export_actions = export_menu->actions();
+  CHECK(export_actions.size() == 4);
+  if (export_actions.size() == 4) {
+    // Duplicate Layer to Document... after a line, as in the layer context menu's Export.
+    CHECK(export_actions.at(0) == quick && export_actions.at(1) == export_as);
+    CHECK(export_actions.at(2)->isSeparator() && export_actions.at(3) == to_document);
+  }
+  CHECK(to_document->menuRole() == QAction::NoRole);
   CHECK(quick->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Apostrophe));
   CHECK(export_as->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::ALT | Qt::Key_Apostrophe));
   // The keys survive a portable-text round trip (the hotkey file) and stay apart from View > Grid.
@@ -489,11 +501,19 @@ void ui_layer_menu_hosts_export_lock_and_hide_entries() {
   CHECK(QKeySequence::fromString(QStringLiteral("Ctrl+Shift+'"), QKeySequence::PortableText) == quick->shortcut());
   CHECK(require_hotkey_action(window, QStringLiteral("view.grid"))->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::Key_Apostrophe));
-  const auto color = actions.indexOf(window.findChild<QMenu*>(QStringLiteral("layerColorMenu"))->menuAction());
-  CHECK(color > 0);
-  CHECK(actions.indexOf(require_action(window, "layerToggleVisibilityAction")) == color + 1);
-  CHECK(actions.indexOf(require_action(window, "layerShowAllLayersAction")) == color + 2);
-  CHECK(actions.indexOf(require_action(window, "layerLockLayersAction")) == color + 3);
+  // Hide Layers, Show All Layers and Lock Layers... open Layer > Hide & Lock (#627).
+  auto* hide_lock = window.findChild<QMenu*>(QStringLiteral("layerHideLockMenu"));
+  CHECK(hide_lock != nullptr);
+  if (hide_lock != nullptr) {
+    const auto rows = hide_lock->actions();
+    CHECK(rows.size() > 3);
+    if (rows.size() > 3) {
+      CHECK(rows.at(0) == require_action(window, "layerToggleVisibilityAction"));
+      CHECK(rows.at(1) == require_action(window, "layerShowAllLayersAction"));
+      CHECK(rows.at(2)->isSeparator());
+      CHECK(rows.at(3) == require_action(window, "layerLockLayersAction"));
+    }
+  }
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore(scheme);
     const bool dark = scheme == patchy::ui::ColorSchemePreference::Dark;
@@ -529,8 +549,9 @@ QStringList layer_menu_rows(QMenu& menu) {
   return rows;
 }
 
-// The reorganized Layer menu (Seth, October 31, 2026): five groups, with the fill and merge
-// commands in Fill and Merge submenus that keep their shortcuts, which still fire from there.
+// The reorganized Layer menu (Seth, October 31, 2026; GitHub issue 627): six groups, with the
+// fill and merge commands in Fill and Merge submenus that keep their shortcuts, which still
+// fire from there.
 void ui_layer_menu_groups_fill_and_merge_submenus() {
   patchy::ui::MainWindow window;
   const auto ids = add_stack(window, QStringLiteral("Layer Groups"));
@@ -542,12 +563,11 @@ void ui_layer_menu_groups_fill_and_merge_submenus() {
     return;
   }
   CHECK((layer_menu_rows(*layer_menu) ==
-         QStringList{"layerNewMenu", "layerNewAdjustmentMenu", "layerNewFillMenu", "-", "layerDuplicateAction",
-                     "layerDeleteAction", "layerRenameAction", "layerColorMenu", "layerToggleVisibilityAction",
-                     "layerShowAllLayersAction", "layerLockLayersAction", "-", "layerMaskMenu", "layerClippingMaskAction", "layerVectorMaskMenu",
-                     "layerEditAdjustmentAction", "layerBlendingOptionsAction", "layerSmartObjectsMenu",
-                     "layerShapeMenu", "-", "layerFillMenu", "layerArrangeMenu", "layerRotateFlipMenu",
-                     "layerMergeMenu", "-", "layerExportMenu"}));
+         QStringList{"layerNewMenu", "layerNewFillMenu", "layerNewAdjustmentMenu", "-", "layerDuplicateAction",
+                     "layerExportMenu", "layerDeleteAction", "-", "layerRenameAction", "layerColorMenu",
+                     "layerHideLockMenu", "-", "layerStyleMenu", "layerFillAdjustmentMenu", "-", "layerMaskMenu",
+                     "layerClippingMaskAction", "layerVectorMaskMenu", "layerSmartObjectsMenu", "layerShapeMenu", "-",
+                     "layerFillMenu", "layerArrangeMenu", "layerRotateFlipMenu", "layerMergeMenu"}));
   // Accelerators stay unique on each level.
   for (auto* menu : {layer_menu, fill_menu, merge_menu}) {
     QStringList keys;
@@ -630,6 +650,167 @@ void ui_layer_menu_groups_fill_and_merge_submenus() {
   }
 }
 
+// GitHub issue 627: Layer > Hide & Lock, Layer > Layer Style and Layer > Fill and Adjustment
+// Layer. Their entries share the layer context menu's actions or handlers, so checks follow the
+// selection, and the moved commands keep their command ids (Edit Layer Styles... stays on the
+// window for its key and Search Commands).
+void ui_issue_627_layer_menu_submenus() {
+  patchy::ui::MainWindow window;
+  const auto ids = add_stack(window, QStringLiteral("Layer Menu Submenus"));
+  auto* hide_lock = window.findChild<QMenu*>(QStringLiteral("layerHideLockMenu"));
+  auto* style_menu = window.findChild<QMenu*>(QStringLiteral("layerStyleMenu"));
+  auto* fill_adjustment = window.findChild<QMenu*>(QStringLiteral("layerFillAdjustmentMenu"));
+  CHECK(hide_lock != nullptr && style_menu != nullptr && fill_adjustment != nullptr);
+  if (hide_lock == nullptr || style_menu == nullptr || fill_adjustment == nullptr) {
+    return;
+  }
+  CHECK(hide_lock->title() == QStringLiteral("&Hide && Lock"));
+  CHECK(style_menu->title() == QStringLiteral("Layer &Style"));
+  CHECK(fill_adjustment->title() == QStringLiteral("Fi&ll and Adjustment Layer"));
+  const auto rows = [](QMenu& menu) {
+    QStringList names;
+    for (auto* action : menu.actions()) {
+      names.append(action->isSeparator() ? QStringLiteral("-") : action->objectName());
+      // macOS merges menu items by role and title ("Options" means Preferences there).
+      CHECK(action->isSeparator() || action->menuRole() == QAction::NoRole);
+    }
+    CHECK(menu.menuAction()->menuRole() == QAction::NoRole);
+    return names;
+  };
+  CHECK((rows(*hide_lock) ==
+         QStringList{"layerToggleVisibilityAction", "layerShowAllLayersAction", "-", "layerLockLayersAction", "-",
+                     "layerLockTransparentPixelsAction", "layerMenuLockImagePixelsAction",
+                     "layerMenuLockPositionAction", "-", "layerMenuLockAllAction", "-",
+                     "layerPreventAutoNestingAction"}));
+  CHECK((rows(*style_menu) ==
+         QStringList{"layerMenuStyleBlendingOptionsAction", "layerMenuStyleBevelEmbossAction",
+                     "layerMenuStyleStrokeAction", "layerMenuStyleInnerShadowAction", "layerMenuStyleInnerGlowAction",
+                     "layerMenuStyleSatinAction", "layerMenuStyleColorOverlayAction",
+                     "layerMenuStyleGradientOverlayAction", "layerMenuStylePatternOverlayAction",
+                     "layerMenuStyleOuterGlowAction", "layerMenuStyleDropShadowAction", "-", "layerCopyStyleAction",
+                     "layerPasteStyleAction", "layerDeleteStyleAction", "-", "layerMenuShowLayerStylesAction"}));
+  CHECK((rows(*fill_adjustment) == QStringList{"layerFillLayerSettingsAction", "layerEditAdjustmentAction"}));
+  CHECK(require_action(window, "layerMenuStyleBlendingOptionsAction")->text() == QStringLiteral("Blending Options..."));
+  CHECK(require_action(window, "layerMenuStyleBevelEmbossAction")->text() == QStringLiteral("Bevel && Emboss..."));
+  CHECK(require_action(window, "layerFillLayerSettingsAction")->text() == QStringLiteral("&Fill Layer Settings..."));
+
+  // Command ids are persisted: the renamed and moved commands keep theirs.
+  auto* adjustment = require_hotkey_action(window, QStringLiteral("layer.edit_adjustment"));
+  CHECK(adjustment == require_action(window, "layerEditAdjustmentAction"));
+  CHECK(adjustment->text() == QStringLiteral("&Adjustment Layer Settings..."));
+  CHECK(require_hotkey_action(window, QStringLiteral("layer.fill_layer_settings")) ==
+        require_action(window, "layerFillLayerSettingsAction"));
+  auto* edit_styles = require_hotkey_action(window, QStringLiteral("layer.styles"));
+  CHECK(edit_styles == require_action(window, "layerBlendingOptionsAction"));
+  CHECK(edit_styles->text() == QStringLiteral("Edit Layer &Styles..."));
+  CHECK(window.actions().contains(edit_styles));
+  for (const auto* id : {"layer.toggle_visibility", "layer.show_all_layers", "layer.lock_layers",
+                         "layer.lock_transparent_pixels", "layer.prevent_auto_nesting"}) {
+    auto* action = require_hotkey_action(window, QString::fromLatin1(id));
+    CHECK(hide_lock->actions().contains(action));
+  }
+
+  // The checks follow the selection when the submenu opens, as the context menu's Lock submenu.
+  const auto flags_of = [&window](patchy::LayerId id) {
+    const auto* layer = std::as_const(Access::document(window)).find_layer(id);
+    return layer != nullptr ? patchy::layer_lock_flags(*layer) : patchy::kLayerLockNone;
+  };
+  if (auto* top = Access::document(window).find_layer(ids.top); top != nullptr) {
+    patchy::set_layer_lock_flag(*top, patchy::kLayerLockPosition, true);
+  }
+  Access::select_layers(window, {ids.top}, ids.top);
+  QApplication::processEvents();
+  auto* lock_position = require_action(window, "layerMenuLockPositionAction");
+  auto* lock_image = require_action(window, "layerMenuLockImagePixelsAction");
+  auto* lock_all = require_action(window, "layerMenuLockAllAction");
+  hide_lock->popup(window.mapToGlobal(QPoint(200, 60)));
+  QApplication::processEvents();
+  CHECK(lock_position->isChecked());
+  CHECK(!lock_image->isChecked() && !lock_all->isChecked());
+  hide_lock->hide();
+  QApplication::processEvents();
+  const auto depth = Access::active_session_undo_depth(window);
+  lock_image->trigger();
+  QApplication::processEvents();
+  CHECK(flags_of(ids.top) == (patchy::kLayerLockPosition | patchy::kLayerLockImagePixels));
+  CHECK(Access::active_session_undo_depth(window) == depth + 1);
+  lock_position->trigger();
+  QApplication::processEvents();
+  CHECK(flags_of(ids.top) == patchy::kLayerLockImagePixels);
+  lock_image->trigger();
+  QApplication::processEvents();
+  CHECK(flags_of(ids.top) == patchy::kLayerLockNone);
+
+  // Layer Style: no style yet, so the clipboard's Delete and the effects switch are off; the
+  // pages open the one dialog.
+  style_menu->popup(window.mapToGlobal(QPoint(200, 60)));
+  QApplication::processEvents();
+  auto* show_styles = require_action(window, "layerMenuShowLayerStylesAction");
+  CHECK(show_styles->isCheckable());
+  CHECK(!show_styles->isEnabled());
+  CHECK(!require_action(window, "layerDeleteStyleAction")->isEnabled());
+  CHECK(require_action(window, "layerCopyStyleAction")->isEnabled());
+  CHECK(require_action(window, "layerMenuStyleDropShadowAction")->isEnabled());
+  style_menu->hide();
+  QApplication::processEvents();
+  bool saw_dialog = false;
+  when_dialog_visible(QStringLiteral("patchyLayerStyleDialog"), [&saw_dialog](QDialog& dialog) {
+    saw_dialog = true;
+    dialog.accept();
+  });
+  require_action(window, "layerMenuStyleDropShadowAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+  const auto style_of_top = [&window, &ids]() -> patchy::LayerStyle {
+    const auto* layer = std::as_const(Access::document(window)).find_layer(ids.top);
+    return layer != nullptr ? layer->layer_style() : patchy::LayerStyle{};
+  };
+  CHECK(style_of_top().drop_shadows.size() == 1U);
+  CHECK(style_of_top().effects_visible);
+  style_menu->popup(window.mapToGlobal(QPoint(200, 60)));
+  QApplication::processEvents();
+  CHECK(show_styles->isEnabled() && show_styles->isChecked());
+  CHECK(require_action(window, "layerDeleteStyleAction")->isEnabled());
+  style_menu->hide();
+  QApplication::processEvents();
+  show_styles->trigger();
+  QApplication::processEvents();
+  CHECK(!style_of_top().effects_visible);
+  CHECK(style_of_top().drop_shadows.size() == 1U);
+  style_menu->popup(window.mapToGlobal(QPoint(200, 60)));
+  QApplication::processEvents();
+  CHECK(show_styles->isEnabled() && !show_styles->isChecked());
+  style_menu->hide();
+  QApplication::processEvents();
+
+  // Fill Layer Settings... refuses a pixel layer and leaves it as it was.
+  const auto fill_depth = Access::active_session_undo_depth(window);
+  require_action(window, "layerFillLayerSettingsAction")->trigger();
+  QApplication::processEvents();
+  CHECK(Access::active_session_undo_depth(window) == fill_depth);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Select a fill layer to edit its settings"));
+
+  // Review captures (issue desk): the Layer menu and its new submenus.
+  auto* layer_menu = window.findChild<QMenu*>(QStringLiteral("layerMenu"));
+  CHECK(layer_menu != nullptr);
+  if (layer_menu == nullptr) {
+    return;
+  }
+  ColorSchemeRestorer restore(patchy::ui::ColorSchemePreference::Dark);
+  layer_menu->popup(window.mapToGlobal(QPoint(120, 40)));
+  QApplication::processEvents();
+  save_widget_artifact("issue_627_layer_menu", *layer_menu);
+  for (auto* submenu : {hide_lock, style_menu, fill_adjustment}) {
+    submenu->popup(window.mapToGlobal(QPoint(420, 120)));
+    QApplication::processEvents();
+    save_widget_artifact("issue_627_" + submenu->objectName().toStdString(), *submenu);
+    submenu->hide();
+    QApplication::processEvents();
+  }
+  layer_menu->hide();
+  QApplication::processEvents();
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_menu_commands_tests() {
@@ -642,5 +823,6 @@ std::vector<patchy::test::TestCase> layer_menu_commands_tests() {
       {"ui_layer_lock_layers_dialog_applies_and_undoes", ui_layer_lock_layers_dialog_applies_and_undoes},
       {"ui_layer_menu_hosts_export_lock_and_hide_entries", ui_layer_menu_hosts_export_lock_and_hide_entries},
       {"ui_layer_menu_groups_fill_and_merge_submenus", ui_layer_menu_groups_fill_and_merge_submenus},
+      {"ui_issue_627_layer_menu_submenus", ui_issue_627_layer_menu_submenus},
   };
 }

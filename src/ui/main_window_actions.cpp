@@ -193,7 +193,7 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {disable_layer_mask_action_, QT_TR_NOOP("&Disable Layer Mask")},
       {invert_layer_mask_action_, QT_TR_NOOP("&Invert Layer Mask")},
       {apply_layer_mask_action_, QT_TR_NOOP("&Apply Layer Mask")},
-      {ctx.edit_adjustment_action, QT_TR_NOOP("&Edit Adjustment...")},
+      {ctx.edit_adjustment_action, QT_TR_NOOP("&Adjustment Layer Settings...")},
       {layer_blending_options_action_, QT_TR_NOOP("Edit Layer &Styles...")},
       {layer_copy_style_action_, QT_TR_NOOP("Copy Layer Style")},
       {layer_paste_style_action_, QT_TR_NOOP("Paste Layer Style")},

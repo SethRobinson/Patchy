@@ -49,8 +49,8 @@ runs `move_layers_for_drop` on the CLONES, so the originals never move; the copi
 the selection under one snapshot. `ui_layer_alt_drag_duplicates_in_panel` pins it.
 
 The same core backs Duplicate Layer to Document... (`layerDuplicateToDocumentAction`, hotkey
-id `layer.duplicate_to_document`, in the layer context menu's Export submenu and on the window itself since
-the Layer menu's row count is pinned): its dialog (`duplicateLayerToDocumentDialog`) takes
+id `layer.duplicate_to_document`, in the layer context menu's Export submenu, Layer > Export (#627) and on
+the window itself): its dialog (`duplicateLayerToDocumentDialog`) takes
 a name for a lone copy (`duplicateLayerNameEdit`) and a destination
 (`duplicateLayerTargetCombo`: every other open document, then New Document, a fresh
 session of the source's size and print resolution), always keep-position. The scripting
