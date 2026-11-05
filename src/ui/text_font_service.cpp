@@ -1151,6 +1151,31 @@ void configure_text_font_smoothing(QFont& font, int anti_alias) {
   font.setHintingPreference(QFont::PreferNoHinting);
 }
 
+#ifndef Q_OS_WIN
+namespace {
+// Whether the face Qt picked for `family` really is that family (or that family's face, as in
+// "Arial Black" = "Arial" + "Black"), not a substitute: a substitute's PostScript name would
+// name a font the document never used.
+bool face_names_requested_family(const QString& family, const QRawFont& raw, const OpenTypeFaceNames& names) {
+  const auto wanted = compact_text_family_key(family);
+  if (wanted.isEmpty()) return false;
+  for (const auto& name : {names.family, names.typographic_family, names.full_name, names.postscript_name,
+                           raw.familyName()}) {
+    if (!name.isEmpty() && compact_text_family_key(name) == wanted) return true;
+  }
+  for (const auto& face_family : {names.family, names.typographic_family, raw.familyName()}) {
+    for (const auto& face_style : {names.subfamily, names.typographic_subfamily, raw.styleName()}) {
+      if (!face_family.isEmpty() && !face_style.isEmpty() &&
+          compact_text_family_key(face_family + face_style) == wanted) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+}  // namespace
+#endif
+
 // Public (ui/psd_font_resolver.hpp): points the PSD reader's PostScript font-name
 // resolution at the font database. On Windows the hook is installed but never
 // consulted (the reader keeps its pinned DirectWrite -> registry -> heuristic
@@ -1165,15 +1190,32 @@ void install_font_database_psd_font_resolver() {
   });
 #endif
 #ifndef Q_OS_WIN
-  psd::set_area_text_font_resolver([](std::string_view family, std::string_view style,
-                                     bool bold, bool italic) -> std::optional<std::string> {
+  // Off Windows the PSD writer names every authored run's face by the PostScript name in its
+  // OpenType name table, as DirectWrite does on Windows (GitHub issue 646). Not installed on
+  // Windows: photoshop_font_name_for_run's DirectWrite chain is pinned there.
+  psd::set_font_face_name_resolver([](std::string_view family, std::string_view style,
+                                      bool bold, bool italic) -> std::optional<std::string> {
     const auto display_family = QString::fromUtf8(family.data(), static_cast<qsizetype>(family.size()));
     const auto display_style = QString::fromUtf8(style.data(), static_cast<qsizetype>(style.size()));
     const auto font = render_text_font_for_display_family(display_family, 24, bold, italic, 3, display_style);
     const auto systems = QFontDatabase::writingSystems(font.family());
     const auto raw = QRawFont::fromFont(font, systems.isEmpty() ? QFontDatabase::Any : systems.front());
+    if (!raw.isValid()) return std::nullopt;
     const auto names = parse_opentype_face_names(raw.fontTable("name"));
     if (!names || names->postscript_name.isEmpty()) return std::nullopt;
+    const auto requested = QString::fromStdString(psd::family_name_for_photoshop_fallback(family));
+    if (!face_names_requested_family(requested, raw, *names)) return std::nullopt;
+    // A variable font's name table names only its default instance: name the run's own face
+    // (its recorded style, else what its bold/italic flags ask for), else the face Qt picked.
+    if (const auto fvar = raw.fontTable("fvar"); !fvar.isEmpty()) {
+      const auto flags_face = text_style_name_for_flags(bold, italic);
+      for (const auto& face : {display_style, flags_face.isEmpty() ? QStringLiteral("Regular") : flags_face,
+                               raw.styleName()}) {
+        if (const auto instance = variable_instance_postscript_name(fvar, raw.fontTable("name"), face)) {
+          return instance->toStdString();
+        }
+      }
+    }
     return names->postscript_name.toStdString();
   });
 #endif

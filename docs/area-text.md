@@ -114,9 +114,10 @@ next incoming control, next anchor. Segments form one closed contour. An optiona
 six-number `/0/2/2` affine maps these into text-local space; the layer's `TySh`
 transform maps them into document space. `TySh` carries box type, orientation,
 transform, text and formatting; the document frame supplies its shape.
-On platforms without DirectWrite, newly authored area frames resolve each face's
-PostScript name from its OpenType name table for both native font lists. A display
-family such as `Arial` is not interchangeable with Photoshop's `ArialMT` face name.
+On platforms without DirectWrite, authored text (area frames included) resolves each
+face's PostScript name from its OpenType name table for both native font lists
+([font-resolution.md](font-resolution.md)). A display family such as `Arial` is not
+interchangeable with Photoshop's `ArialMT` face name.
 
 Untouched imports keep their frame, text object and saved raster. Edited objects
 author their native frame from the renderer's local boundary. Unrecognized native

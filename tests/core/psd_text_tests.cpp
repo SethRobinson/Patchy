@@ -12,6 +12,7 @@
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
 #include "psd/psd_text_runs.hpp"
+#include "psd/psd_text_engine_block.hpp"
 #include "psd/psd_document_io.hpp"
 #include "render/compositor.hpp"
 #include "test_harness.hpp"
@@ -2558,6 +2559,73 @@ void psd_text_engine_data_keeps_an_uninstalled_cjk_font_name() {
   CHECK(metadata.at(patchy::kLayerMetadataTextFont) == "\xe6\xb5\x8b\xe8\xaf\x95\xe4\xbd\x93\xe7\x94\xb2\xe4\xb9\x99");
 }
 
+// A run's font is written under a name Photoshop can look up (GitHub issue 646): never Qt's
+// " [Foundry]" display suffix ("Roboto Mono [GOOG]"), and off Windows the installed face's
+// PostScript name from the GUI's resolver, in both the TySh and its Txt2 twin.
+void psd_text_font_names_drop_qt_foundry_suffix() {
+  using patchy::psd::family_name_for_photoshop_fallback;
+  CHECK(family_name_for_photoshop_fallback("Roboto Mono [GOOG]") == "Roboto Mono");
+  CHECK(family_name_for_photoshop_fallback("Roboto Slab [GOOG] ") == "Roboto Slab");
+  CHECK(family_name_for_photoshop_fallback("Roboto") == "Roboto");
+  CHECK(family_name_for_photoshop_fallback("") == "Arial");
+  CHECK(family_name_for_photoshop_fallback("[GOOG]") == "[GOOG]");
+  CHECK(family_name_for_photoshop_fallback("Odd [Name") == "Odd [Name");
+
+  const auto write_with_family = [](const std::string& family) {
+    patchy::Document document(240, 120, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_rgb(240, 120, 255, 255, 255));
+    patchy::Layer text_layer(document.allocate_layer_id(), "Text: Mono", solid_rgba(180, 64, 0, 0, 0, 0));
+    auto& layer = document.add_layer(std::move(text_layer));
+    layer.set_bounds(patchy::Rect{12, 18, 180, 64});
+    layer.metadata()[patchy::kLayerMetadataText] = "Mono";
+    layer.metadata()[patchy::kLayerMetadataTextRuns] = "v1\n0\t4\t20\t0\t0\t#000000\t" + family;
+    layer.metadata()[patchy::kLayerMetadataTextFlow] = "point";
+    layer.metadata()[patchy::kLayerMetadataTextFont] = family;
+    layer.metadata()[patchy::kLayerMetadataTextSize] = "20";
+    layer.metadata()[patchy::kLayerMetadataTextColor] = "#000000";
+    layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+    return patchy::psd::DocumentIo::write_layered_rgb8(document);
+  };
+  const auto contains = [](const std::vector<std::uint8_t>& haystack, const std::string& name) {
+    const auto needle = utf16be_test_bytes(name);
+    return std::search(haystack.begin(), haystack.end(), needle.begin(), needle.end()) != haystack.end();
+  };
+  const auto txt2_payload = [](const std::vector<std::uint8_t>& bytes) {
+    const auto read = patchy::psd::DocumentIo::read(bytes);
+    for (const auto& block : read.metadata().unknown_psd_resources) {
+      if (block.key == "Txt2") return block.payload;
+    }
+    return std::vector<std::uint8_t>{};
+  };
+
+  // No face is installed under this family anywhere, so every platform keeps the family itself.
+  const auto bytes = write_with_family("Patchy Issue Six Four Six [GOOG]");
+  const auto tysh = psd_layer_block_payload(psd_layer_extra_data(bytes, 1), "TySh");
+  CHECK(tysh.has_value());
+  const auto txt2 = txt2_payload(bytes);
+  CHECK(!txt2.empty());
+  if (tysh.has_value()) {
+    CHECK(contains(*tysh, "Patchy Issue Six Four Six"));
+    CHECK(!contains(*tysh, "[GOOG]"));
+  }
+  CHECK(contains(txt2, "Patchy Issue Six Four Six"));
+  CHECK(!contains(txt2, "[GOOG]"));
+
+#ifndef _WIN32
+  // Off Windows the GUI's font-database resolver names the face; DirectWrite does on Windows.
+  patchy::psd::set_font_face_name_resolver(
+      [](std::string_view family, std::string_view, bool, bool) -> std::optional<std::string> {
+        if (family == "Roboto Mono [GOOG]") return std::string("RobotoMono-Regular");
+        return std::nullopt;
+      });
+  const auto resolved = write_with_family("Roboto Mono [GOOG]");
+  patchy::psd::set_font_face_name_resolver(nullptr);
+  const auto resolved_tysh = psd_layer_block_payload(psd_layer_extra_data(resolved, 1), "TySh");
+  CHECK(resolved_tysh.has_value() && contains(*resolved_tysh, "RobotoMono-Regular"));
+  CHECK(contains(txt2_payload(resolved), "RobotoMono-Regular"));
+#endif
+}
+
 void psd_writer_emits_photoshop_text_line_breaks() {
   patchy::Document document(240, 120, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background", solid_rgb(240, 120, 255, 255, 255));
@@ -3368,6 +3436,7 @@ std::vector<patchy::test::TestCase> psd_text_tests() {
       {"psd_text_font_names_keep_non_ascii_characters", psd_text_font_names_keep_non_ascii_characters},
       {"psd_text_engine_data_keeps_an_uninstalled_cjk_font_name",
        psd_text_engine_data_keeps_an_uninstalled_cjk_font_name},
+      {"psd_text_font_names_drop_qt_foundry_suffix", psd_text_font_names_drop_qt_foundry_suffix},
       {"psd_writer_emits_photoshop_text_line_breaks",
        psd_writer_emits_photoshop_text_line_breaks},
       {"psd_writer_emits_v2_paragraph_layout",

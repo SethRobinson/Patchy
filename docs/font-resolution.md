@@ -202,7 +202,13 @@ not render nothing).
   compound display family) to that face's PostScript name: "Arial" + "Black" writes `Arial-Black`
   instead of flattening onto `Arial-BoldMT`. Style-empty runs keep the weight-based lookup
   byte-identical; a split whose remainder names no real face exports verbatim like any unknown
-  family.
+  family. That is the DirectWrite chain on Windows. Elsewhere the GUI's
+  `set_font_face_name_resolver` hook (installed by `install_font_database_psd_font_resolver`)
+  writes the PostScript name from the resolved face's OpenType name table, for point, box and
+  area text, and only when that face really is the requested family (or family + style), never a
+  substitute's (#646). Without a face, the family is written without Qt's " [Foundry]" suffix
+  (`family_name_for_photoshop_fallback`; Linux lists duplicates as "Roboto Mono [GOOG]", which
+  Photoshop cannot find).
 - `textStyleCombo` needs the `is_text_option_widget` exemption or focusing it auto-commits.
 
 ## Photoshop 5.x `tySh` faces
