@@ -1,4 +1,4 @@
-// Linux scanner and camera acquisition (docs/import.md): SANE for scanners, libgphoto2 for
+// Linux scanner and camera acquisition (docs/import-scanner.md): SANE for scanners, libgphoto2 for
 // cameras. Both libraries are loaded with dlopen at run time like fontconfig and libheif, so
 // the build needs no development packages and the AppImage bundles neither: the user's
 // distro supplies the drivers. The C ABI mirrored below is the stable public subset of

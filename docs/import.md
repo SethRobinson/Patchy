@@ -2,16 +2,13 @@
 
 The File > Import features, the folder open/export pair, plus the seamless-tiling tooling (preview window, in-canvas tiling mode, seam shifting). File-format readers live in [file-formats.md](file-formats.md); the platform-specific scanner backends are also inventoried in [platform-sites.md](platform-sites.md).
 
+Related documents:
+
+- [import-scanner.md](import-scanner.md): scanner and camera acquisition per platform (WIA, ImageKit, SANE and libgphoto2 on Linux), the Linux device dialog, SANE frame assembly, failure messages and the fake-scanner test hooks.
+
 ## Scanner import
 
-- Windows uses WIA (`scanner_import_win.cpp`); macOS uses ImageKit/ImageCaptureCore (`scanner_import_mac.mm`). macOS exposes scanners only (no cameras) and acquisition is single-image.
-- Linux (`scanner_import_linux.cpp`) dlopens `libsane.so.1` for scanners and `libgphoto2.so.6` for cameras at run time, like fontconfig and libheif: no headers at build time, nothing bundled in the AppImage (the Flatpak builds both, with `--device=all`). Linux has no system acquisition UI, so Patchy shows its own dialog (`linuxScannerDialog`): one device list for scanners and cameras like the WIA picker, then resolution (300 dpi when offered), mode (Color when offered) and source for a scanner, or the camera's image list (newest last, preselected). It is synchronous like WIA (`acquire_image_from_scanner`), so Scan and Divide Photos loops the same way. Every library call runs on one worker thread at a time; Cancel calls `sane_cancel`, which SANE allows during a blocked read, and the dialog waits for the worker before closing. A failed scan or download stays in the dialog with the error so the user can retry. With neither library installed the command reports what to install; with no device it reports NoDevice.
-- SANE frames are assembled by the Qt-free `support::ScanImageAssembler` (`src/support/scan_frame.hpp`, `scan_frame_*` core tests): gray, RGB or three-pass color frames, padded strides, unknown line counts, one-bit line art expanded to 8-bit gray, 16-bit samples kept in host order. Scans are written as PNG to the temp folder; the device DPI comes from SANE's `resolution` option (`SANE_Fixed` or `SANE_Int`). Camera files are copied byte for byte with their own extension and open through the normal loader, raw included.
-- Errors name a cause and a next step, not only the library's text: `support::classify_sane_failure` and `classify_gphoto_failure` map status codes to `AcquireFailureCause` (network scanner unreachable, with the `ip=` address airscan reports; connection lost; busy; permissions; jam; empty feeder; cover open; rejected settings; camera held by the file manager; unsupported model), and the dialog appends the matching explanation under the headline. An I/O error is "unreachable" only for the `airscan:`, `escl:` and `net:` backends.
-- The Windows scan dialog is the system UI (`IWiaDevMgr2::GetImageDlg`), so its DPI and file-type defaults come from the selected Windows scan profile, not from Patchy; GetImageDlg offers no way to preseed them. Users who want 600 DPI as the default edit the profile in Windows Fax and Scan (Tools, then Scan Settings).
-- Qt's image allocation limit is disabled at startup (`main.cpp`): the 256 MB default rejected large-bed 600 DPI scans with a bare "Unable to read image data".
-- `PATCHY_FAKE_SCANNER_FILE=<path>` bypasses native scanner acquisition for offscreen scanner-import tests.
-- The macOS AppKit sheet MUST complete asynchronously after returning to the native run loop: a nested `QEventLoop` makes every sheet control ignore mouse input.
+Acquisition per platform, the Linux device dialog and its tests: [import-scanner.md](import-scanner.md). Photocopy and Divide Scanned Photos below call the same `acquire_image_from_scanner`.
 
 ## Photocopy (scanner to printer)
 

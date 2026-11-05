@@ -20,7 +20,7 @@ finish-args:
   # Recent files, command-line file arguments, brush and palette folders.
   - --filesystem=home
   # USB scanners (SANE) and cameras (libgphoto2) for File > Import > From Scanner or
-  # Camera (docs/import.md). Network scanners need only --share=network.
+  # Camera (docs/import-scanner.md). Network scanners need only --share=network.
   - --device=all
 cleanup:
   - /include
@@ -46,7 +46,7 @@ modules:
         only-arches: [aarch64]
         url: https://github.com/microsoft/onnxruntime/releases/download/v1.30.0/onnxruntime-linux-aarch64-1.30.0.tgz
         sha256: e16a27a8ed330bbc698df7330b0cf56e722f354e3bcc92118682c74ef3c3e3da
-  # Scanner and camera acquisition (docs/import.md): the KDE runtime carries neither SANE
+  # Scanner and camera acquisition (docs/import-scanner.md): the KDE runtime carries neither SANE
   # nor libgphoto2, and Patchy dlopens both at run time. SANE's own gphoto2 backend stays
   # off: cameras go through libgphoto2 directly.
   - name: sane-backends

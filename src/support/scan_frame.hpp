@@ -1,7 +1,7 @@
 #pragma once
 
 // Assembles the raw frames a SANE scanner backend delivers into one interleaved image
-// (docs/import.md, Linux scanner acquisition). Qt-free so the frame rules are pinned by
+// (docs/import-scanner.md). Qt-free so the frame rules are pinned by
 // core tests without a scanner or libsane.
 
 #include <cstddef>

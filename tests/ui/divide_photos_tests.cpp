@@ -16,7 +16,7 @@
 // Divide Scanned Photos: the scan-and-divide import, the Image-menu command on
 // the current document, the editable region preview, the Straighten / Fix
 // Perspective checkbox semantics, and the numbered folder save. All scanner
-// paths run offscreen through PATCHY_FAKE_SCANNER_FILE (docs/import.md).
+// paths run offscreen through PATCHY_FAKE_SCANNER_FILE (docs/import-scanner.md).
 #include "core/document.hpp"
 #include "core/pixel_buffer.hpp"
 #include "ui/app_settings.hpp"
