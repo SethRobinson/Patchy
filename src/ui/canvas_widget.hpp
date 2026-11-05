@@ -24,6 +24,7 @@
 #include "ui/curves_clipping_preview.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/measurement_units.hpp"
+#include "ui/pointer_lock.hpp"
 #include "ui/ruler_tool.hpp"
 #include "ui/selection_outline.hpp"
 #include "ui/stroke_pixel_map.hpp"
@@ -3194,6 +3195,10 @@ private:
   void apply_hand_cursor(Qt::KeyboardModifiers modifiers);
   void begin_brush_adjust_drag(QPoint widget_position, bool from_tablet = false);
   void update_brush_adjust_drag(QPoint widget_position);
+  // Mouse motion during the drag: absolute widget positions from mouse events, relative
+  // deltas from a pointer lock (GitHub issue 637, docs/wayland-pointer-lock.md).
+  void brush_adjust_pointer_moved(QPoint widget_position);
+  void brush_adjust_pointer_moved_relative(QPointF delta);
   void end_brush_adjust_drag(bool commit);
   void draw_brush_adjust_overlay(QPainter& painter) const;
   void draw_brush_adjust_readout(QPainter& painter, QPointF center, double radius) const;
@@ -3585,6 +3590,18 @@ private:
   QPoint brush_adjust_origin_widget_{};
   QPoint brush_adjust_current_widget_{};
   bool brush_adjust_from_tablet_{false};
+  // The disc follows the pointer instead of staying on the press point: a pen, or a mouse
+  // whose pointer can be neither moved back nor locked (Wayland without the protocols).
+  bool brush_adjust_pointer_centered_{false};
+  // A mouse drag on Wayland locks the pointer on the press point (GitHub issue 637).
+  std::unique_ptr<PointerLockSession> brush_adjust_pointer_lock_;
+  bool brush_adjust_pointer_locked_{false};
+  // The lock ended mid-drag: the next absolute position re-anchors the offset below.
+  bool brush_adjust_rebase_pointer_{false};
+  // The drag position the size math reads, and what absolute positions add to reach it
+  // after a lock ended mid-drag (the pointer did not travel while it was locked).
+  QPointF brush_adjust_drag_position_{};
+  QPointF brush_adjust_pointer_offset_{};
   int brush_adjust_start_size_{12};
   int brush_adjust_start_softness_{75};
   std::optional<QPointF> last_stroke_end_document_{};

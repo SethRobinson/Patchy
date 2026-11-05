@@ -499,6 +499,7 @@ int main(int argc, char* argv[]) {
            theme_script_tests,
            painted_chrome_scheme_tests,
            readme_screenshot_tests,
+           brush_adjust_pointer_lock_tests,
            // Last: registers serif and monospaced faces earlier text tests must not see.
            missing_font_type_tests,
        }) {

@@ -8,6 +8,11 @@ so the Wayland dock-drag problems of GitHub issue 102 no longer exist; the KWin 
 test rigs are in [linux-testing.md](linux-testing.md) (the GNOME rig's commands also under
 "Reproducing on a headless GNOME Shell" below).
 
+Related documents:
+
+- [wayland-pointer-lock.md](wayland-pointer-lock.md): the pointer lock that keeps the
+  Alt+right-drag brush resize on its press point (GitHub issue 637).
+
 ## The frameless window chrome (Linux, X11 and Wayland)
 
 Linux builds (the native `linux-release` binary, the AppImage and the Flatpak) draw the
@@ -210,6 +215,13 @@ does the same over the real modal dialogs while the canvas changes its brush cur
 main()'s order over Preferences through Alt+Tab, a tool switch, the Colors and Themes page
 and the pointer leaving the dialog. Offscreen cannot show the compositor's cursor.
 
+## The brush-resize drag (GitHub issue 637)
+
+Wayland lets no client move the pointer, so `QCursor::setPos` cannot put it back on the
+press point after an Alt+right-drag brush resize. A mouse drag locks the pointer there
+instead (pointer-constraints plus relative-pointer, both required); without them the disc
+follows the pointer as for a pen. Details: [wayland-pointer-lock.md](wayland-pointer-lock.md).
+
 ## A window taller than the screen (GitHub issue 108)
 
 Qt's `QScreen::availableGeometry` on Wayland is the whole output: no protocol reports a
@@ -298,7 +310,10 @@ draws its own title bar there). `start-shell` (with `MON=1366x768` for that lapt
 `--run-script` to it (the script file must live under `$HOME`: the sandbox hides `/tmp`),
 and `drive` reads pointer and key commands on stdin (`gnome-input.py`: `move X Y` in output pixels,
 `rel DX DY` for the motion of a drag, `press`, `release`, `click`, `kdown SYM`/`kup SYM`
-(X keysyms, to hold modifiers), `sleep MS`, `shot NAME` through `org.gnome.Shell.Screenshot`).
+(X keysyms, to hold modifiers), `sleep MS`, `shot NAME` through `org.gnome.Shell.Screenshot`;
+`rpress`/`rrelease` for the right button, `kcdown`/`kcup CODE` (evdev keycodes, which hold
+modifiers reliably; send one key first, the virtual keyboard drops its very first press),
+`pointer` (prints Mutter's pointer position), `shotc` (a shot with the pointer).
 The pointer is `org.gnome.Mutter.RemoteDesktop` relative motion anchored at the bottom-left
 corner, because the top-left one is the Activities hot corner and opens the overview; if
 the overview is up anyway, `gdbus call ... org.gnome.Shell.Eval 'Main.overview.hide()'`.
