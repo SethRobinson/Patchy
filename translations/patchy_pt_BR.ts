@@ -19622,6 +19622,18 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Show only favorite fonts</source>
         <translation>Mostrar apenas fontes favoritas</translation>
     </message>
+    <message numerus="yes">
+        <source>More matches with All Styles and All Languages: %n</source>
+        <extracomment>Under the font list while searching: fonts that match the search but are hidden by the Style or Language filter next to the search box. Clicking it sets both filters to All.</extracomment>
+        <translation>
+            <numerusform>Mais resultados com Todos os estilos e Todos os idiomas: %n</numerusform>
+            <numerusform>Mais resultados com Todos os estilos e Todos os idiomas: %n</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Set Style and Language to All</source>
+        <translation>Definir Estilo e Idioma como Todos</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

@@ -79,6 +79,15 @@ hands Enter to any popup open above the font popup.
   field states them reliably (handwriting fonts carry the Script class, blackletter the
   Ornamental one).
 
+### Hidden matches (issue 647)
+
+While the search box has text, `textFontPickerHiddenMatchesButton` (a flat `QToolButton` under the
+list, `text_secondary` ink) counts the families that match the search but fail the Style or
+Language filter ("More matches with All Styles and All Languages: %n"); in the Favorites view it
+counts favorites only. It hides at zero, with an empty search, and while every filter is All.
+Clicking it sets both combos to All. The count comes from the same pass over family names as the
+rows, so it loads no font; families still waiting to be classified are not counted until read.
+
 ### Style classification
 
 `src/core/font_style_class.*` (Qt-free) reads the OS/2 table; `FontStyleIndex`
@@ -115,5 +124,5 @@ signature changed is read again.
 bundled web fonts) and `tests/ui/font_picker_filter_tests.cpp` (`ui_font_picker_*`: Recent order,
 cap, missing families, header skipping, filters, persistence, the rule's color in both schemes,
 list height, Enter in an open list, Other, the favorite star, the Favorites view with filters and
-persistence, the Recent x); the popup's older cases are
+persistence, the Recent x, the hidden-matches hint); the popup's older cases are
 `ui_text_font_picker_*` in `tests/ui/text_editor_font_picker_tests.cpp`.

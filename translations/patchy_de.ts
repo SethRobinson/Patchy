@@ -19622,6 +19622,18 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Show only favorite fonts</source>
         <translation>Nur Lieblingsschriften anzeigen</translation>
     </message>
+    <message numerus="yes">
+        <source>More matches with All Styles and All Languages: %n</source>
+        <extracomment>Under the font list while searching: fonts that match the search but are hidden by the Style or Language filter next to the search box. Clicking it sets both filters to All.</extracomment>
+        <translation>
+            <numerusform>Weitere Treffer mit Alle Stile und Alle Sprachen: %n</numerusform>
+            <numerusform>Weitere Treffer mit Alle Stile und Alle Sprachen: %n</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Set Style and Language to All</source>
+        <translation>Stil und Sprache auf Alle setzen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>
