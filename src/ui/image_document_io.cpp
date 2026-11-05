@@ -1639,6 +1639,47 @@ std::vector<RenderedDocumentPatch> qimage_patches_from_document_region(const Doc
   return render_document_region(document, document_region, preserve_alpha, nullptr);
 }
 
+std::vector<RenderedDocumentPatch> qimage_patches_from_document_region_banded(const Document& document,
+                                                                              const QRegion& document_region,
+                                                                              bool preserve_alpha) {
+  const QRect canvas_rect(0, 0, document.width(), document.height());
+  const auto workers = max_blocking_fanout_workers(patchy::hardware_worker_threads());
+  std::vector<QRect> rects;
+  for (const auto& rect : document_region.intersected(canvas_rect)) {
+    if (rect.isEmpty()) {
+      continue;
+    }
+    // Bands of at least 64 rows, about one per worker over the whole region.
+    const int bands = std::clamp(std::min(workers, rect.height() / 64), 1, 16);
+    const int rows = (rect.height() + bands - 1) / bands;
+    for (int top = rect.top(); top <= rect.bottom(); top += rows) {
+      rects.push_back(QRect(rect.left(), top, rect.width(), std::min(rows, rect.bottom() + 1 - top)));
+    }
+  }
+  std::vector<RenderedDocumentPatch> patches;
+  if (rects.empty()) {
+    return patches;
+  }
+  auto images = rects.size() >= 2U && workers >= 2 &&
+                        !qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED")
+                    ? render_document_rects_parallel(document, rects, preserve_alpha, nullptr,
+                                                     std::min<int>(workers, static_cast<int>(rects.size())))
+                    : std::vector<QImage>{};
+  if (images.empty()) {
+    images.reserve(rects.size());
+    for (const auto& rect : rects) {
+      images.push_back(render_document_rect(document, rect, preserve_alpha, nullptr));
+    }
+  }
+  patches.reserve(rects.size());
+  for (std::size_t index = 0; index < rects.size(); ++index) {
+    if (!images[index].isNull()) {
+      patches.push_back(RenderedDocumentPatch{rects[index], std::move(images[index])});
+    }
+  }
+  return patches;
+}
+
 std::optional<Rect> linked_mask_bounds_for_layer_bounds_override(const Document& document, LayerId layer_id,
                                                                  Rect bounds) {
   const auto* layer = document.find_layer(layer_id);

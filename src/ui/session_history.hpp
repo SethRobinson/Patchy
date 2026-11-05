@@ -9,12 +9,23 @@
 #include <QString>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 namespace patchy::ui {
 
 struct DocumentSession;
 class DocumentSessionStore;
+
+// The document region that can render differently between two states of one
+// document, or nullopt when only a full refresh is safe (structure changed,
+// canvas resized, or a document-wide rendering input like the editing palette,
+// grid, or guides differs). Layer revisions are app-globally unique, so equal
+// revision + equal visibility means identical rendering for that layer. The
+// region holds each changed layer's effect bounds; callers add the document's
+// effect padding for effects of enclosing groups. Undo/redo and the canvas's
+// region-only preview refreshes (GitHub #601) use it.
+[[nodiscard]] std::optional<QRegion> history_restore_changed_region(const Document& before, const Document& after);
 
 struct HistoryRefreshRegion {
   bool full{false};

@@ -226,6 +226,10 @@ int preview_composite_level_for_zoom(double zoom) noexcept;
 // be patched in place (GitHub issue 165: rebuilding the chain on every brush
 // frame cost the whole composite per repaint).
 QImage halved_display_mip(const QImage& source);
+// The same image, its rows split across up to `workers` threads (bands of at
+// least 64 rows). For background refreshes that build a large frame's chain
+// off the GUI thread (GitHub #601 follow-up).
+QImage halved_display_mip(const QImage& source, int workers);
 // The rect of a halved_display_mip output that a change to source_rect touches.
 QRect halved_display_mip_rect(QRect source_rect) noexcept;
 // Recompute target_rect of target (halved_display_mip(source)'s size and
