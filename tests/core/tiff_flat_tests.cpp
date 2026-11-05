@@ -6,6 +6,7 @@
 #include "core/document_depth.hpp"
 #include "core/pixel_depth.hpp"
 #include "psd/psd_tiff.hpp"
+#include "local_psd_fixtures.hpp"
 #include "test_harness.hpp"
 #include "unicode_path_names.hpp"
 #include "flat_tiff_fixture.hpp"
@@ -311,7 +312,7 @@ void tiff_flat_unsupported_layouts_throw() {
   spec.value = [](std::uint32_t, std::uint32_t, std::uint32_t) { return 1.0; };
   auto bytes = write_tiff(spec);
   CHECK(!refuses(bytes));
-  // Patch single entries: CMYK, JPEG compression, signed samples, 10-bit samples.
+  // Patch single entries: CMYK, JPEG compression, signed samples, 7-bit samples.
   const auto patch = [&](std::uint16_t tag, std::uint16_t value) {
     auto copy = bytes;
     const auto directory = copy[4] | (copy[5] << 8U) | (copy[6] << 16U) | (copy[7] << 24U);
@@ -337,7 +338,7 @@ void tiff_flat_unsupported_layouts_throw() {
   CHECK(refuses(patch(262, 5)));
   CHECK(refuses(patch(259, 7)));
   CHECK(refuses(patch(339, 2)));
-  CHECK(refuses(patch(258, 10)));
+  CHECK(refuses(patch(258, 7)));
   CHECK(refuses({}));
   CHECK(refuses({'I', 'I', 43, 0, 8, 0, 0, 0}));  // BigTIFF
 }
@@ -422,7 +423,7 @@ void tiff_flat_12_bit_samples_open_at_16_bits() {
         spec.little = little;
         spec.planar = planar;
         spec.compression = compression;
-        spec.kind = Kind::U12;
+        spec.kind = Kind::Packed;
         spec.width = 9;  // odd: 27 samples, so chunky rows end on half a byte
         spec.rows_per_strip = 3;
         spec.value = value;
@@ -444,7 +445,7 @@ void tiff_flat_12_bit_samples_open_at_16_bits() {
   }
   // Differencing is not defined at 12 bits.
   Spec predicted;
-  predicted.kind = Kind::U12;
+  predicted.kind = Kind::Packed;
   predicted.compression = 5;
   predicted.predictor = 2;
   predicted.value = value;
@@ -455,6 +456,188 @@ void tiff_flat_12_bit_samples_open_at_16_bits() {
     threw = true;
   }
   CHECK(threw);
+}
+
+// Every packed width from 9 to 15 bits (GitHub issue 653: 10 and 14-bit files) opens at 16
+// bits like 12-bit samples: chunky and planar, strips and tiles, uncompressed, LZW and
+// Zstandard, both byte orders.
+void tiff_flat_packed_9_to_15_bit_samples_open_at_16_bits() {
+  int cases = 0;
+  for (std::uint32_t bits = 9; bits <= 15U; ++bits) {
+    const auto max = static_cast<double>((1U << bits) - 1U);
+    const auto value = [max](std::uint32_t x, std::uint32_t y, std::uint32_t sample) {
+      return std::fmod(x * 397.0 + y * 6151.0 + sample * 12011.0 + x * y * 13.0, max + 1.0);
+    };
+    for (const bool little : {true, false}) {
+      for (const bool planar : {false, true}) {
+        for (const std::uint32_t tile : {0U, 16U}) {
+          for (const std::uint16_t compression : {std::uint16_t{1}, std::uint16_t{5}, std::uint16_t{50000}}) {
+            Spec spec;
+            spec.little = little;
+            spec.planar = planar;
+            spec.tile = tile;
+            spec.compression = compression;
+            spec.kind = Kind::Packed;
+            spec.bits = bits;
+            spec.width = 21;  // odd: chunky rows end mid-byte at every width
+            spec.height = 19;
+            spec.rows_per_strip = 4;
+            spec.value = value;
+            const auto document = patchy::psd::read_flat_tiff(write_tiff(spec));
+            CHECK(document.color_state().bit_depth == BitDepth::UInt16);
+            const auto& pixels = layer_pixels(document);
+            bool exact = true;
+            for (std::uint32_t y = 0; y < spec.height; ++y) {
+              for (std::uint32_t x = 0; x < spec.width; ++x) {
+                for (std::uint32_t sample = 0; sample < 3U; ++sample) {
+                  const auto expected = std::floor((value(x, y, sample) * 65535.0 + std::floor(max / 2.0)) / max);
+                  exact = exact &&
+                          stored(pixels, static_cast<std::int32_t>(x), static_cast<std::int32_t>(y), sample) == expected;
+                }
+              }
+            }
+            if (!exact) {
+              std::cerr << "packed mismatch: bits " << bits << " little " << little << " planar " << planar << " tile "
+                        << tile << " compression " << compression << '\n';
+            }
+            CHECK(exact);
+            ++cases;
+          }
+        }
+      }
+    }
+  }
+  CHECK(cases == 7 * 24);
+  // The extremes reach the ends of the 16-bit range.
+  Spec ends;
+  ends.kind = Kind::Packed;
+  ends.bits = 14;
+  ends.value = [](std::uint32_t x, std::uint32_t, std::uint32_t) { return x % 2U == 0U ? 0.0 : 16383.0; };
+  const auto document = patchy::psd::read_flat_tiff(write_tiff(ends));
+  CHECK(stored(layer_pixels(document), 0, 0, 0) == 0.0);
+  CHECK(stored(layer_pixels(document), 1, 0, 2) == 65535.0);
+}
+
+// Zstandard (50000, and 34926 from older tag lists) with no predictor, horizontal
+// differencing and floating point prediction, chunky and planar, strips and tiles, both
+// byte orders (GitHub issue 653).
+void tiff_flat_zstd_decodes_with_predictors() {
+  int cases = 0;
+  for (const auto kind : {Kind::U8, Kind::U16, Kind::F32}) {
+    const double max = kind == Kind::U8 ? 255.0 : 65535.0;
+    for (const bool little : {true, false}) {
+      for (const bool planar : {false, true}) {
+        for (const std::uint32_t tile : {0U, 16U}) {
+          for (const std::uint16_t predictor : {std::uint16_t{1}, std::uint16_t{2}, std::uint16_t{3}}) {
+            if ((predictor == 3U) != (kind == Kind::F32) && predictor != 1U) {
+              continue;  // 2 for integers, 3 for floats
+            }
+            for (const std::uint16_t compression : {std::uint16_t{50000}, std::uint16_t{34926}}) {
+              Spec spec;
+              spec.little = little;
+              spec.kind = kind;
+              spec.samples = 4;
+              spec.extra = std::vector<std::uint16_t>{2};
+              spec.width = 37;
+              spec.height = 29;
+              spec.planar = planar;
+              spec.tile = tile;
+              spec.rows_per_strip = 5;
+              spec.compression = compression;
+              spec.predictor = predictor;
+              const bool real = kind == Kind::F32;
+              spec.value = [max, real](std::uint32_t x, std::uint32_t y, std::uint32_t sample) {
+                return real ? (sample == 3U ? 1.0 : pattern(x, y, sample, 255.0) / 256.0) : pattern(x, y, sample, max);
+              };
+              const auto document = patchy::psd::read_flat_tiff(write_tiff(spec));
+              const auto& pixels = layer_pixels(document);
+              bool same = true;
+              for (std::uint32_t y = 0; y < spec.height; ++y) {
+                for (std::uint32_t x = 0; x < spec.width; ++x) {
+                  for (std::uint32_t c = 0; c < 4U; ++c) {
+                    same = same && stored(pixels, static_cast<std::int32_t>(x), static_cast<std::int32_t>(y), c) ==
+                                       spec.value(x, y, c);
+                  }
+                }
+              }
+              if (!same) {
+                std::cerr << "zstd mismatch: kind " << static_cast<int>(kind) << " little " << little << " planar "
+                          << planar << " tile " << tile << " predictor " << predictor << " compression " << compression
+                          << '\n';
+              }
+              CHECK(same);
+              ++cases;
+            }
+          }
+        }
+      }
+    }
+  }
+  CHECK(cases == 3 * 8 * 2 * 2);
+  // A frame cut short leaves the rest empty and says so; garbage is not a frame.
+  Spec spec;
+  spec.compression = 50000;
+  spec.value = [](std::uint32_t, std::uint32_t, std::uint32_t) { return 200.0; };
+  auto bytes = write_tiff(spec);
+  const std::array<std::uint8_t, 4> magic{0x28, 0xB5, 0x2F, 0xFD};
+  const auto at = std::search(bytes.begin(), bytes.end(), magic.begin(), magic.end());
+  CHECK(at != bytes.end());
+  for (const std::uint8_t fill : {std::uint8_t{0x00}, std::uint8_t{0xFF}}) {
+    auto damaged = bytes;
+    std::fill(damaged.begin() + (at - bytes.begin()), damaged.begin() + (at - bytes.begin()) + 4, fill);
+    std::vector<std::string> notices;
+    patchy::psd::FlatTiffReadOptions options;
+    options.notices = &notices;
+    const auto document = patchy::psd::read_flat_tiff(damaged, options);
+    CHECK(stored(layer_pixels(document), 0, 0, 0) == 0.0);
+    CHECK(notices.size() == 1U);
+  }
+}
+
+// GitHub issue 653's samples (tlnagy/exampletiffs, copied into local-test-fixtures/tiff-flat,
+// not committed): 14-bit LZW chunky, 10-bit LZW planar and 8-bit Zstandard RGB. Each is the
+// picture of shapes_multi_color.tif's 8-bit page 1 (copied beside them).
+void tiff_flat_issue_653_samples_open_if_available() {
+  const auto dir = patchy::test::local_fixtures_root() / "tiff-flat";
+  patchy::test::skip_unless_exists(dir / "shapes_multi_color.tif");
+  const auto reference = patchy::psd::read_flat_tiff_file(dir / "shapes_multi_color.tif");
+  CHECK(reference.width() == 128 && reference.height() == 72);
+  CHECK(reference.color_state().bit_depth == BitDepth::UInt8);
+  struct Sample {
+    const char* file;
+    BitDepth depth;
+  };
+  for (const auto& sample : {Sample{"shapes_lzw_14bps.tif", BitDepth::UInt16},
+                             Sample{"shapes_lzw_planar_10bps.tif", BitDepth::UInt16},
+                             Sample{"shapes_zstd.tif", BitDepth::UInt8}}) {
+    patchy::test::skip_unless_exists(dir / sample.file);
+    std::vector<std::string> notices;
+    patchy::psd::FlatTiffReadOptions options;
+    options.notices = &notices;
+    const auto document = patchy::psd::read_flat_tiff_file(dir / sample.file, options);
+    CHECK(notices.empty());
+    CHECK(document.width() == 128 && document.height() == 72);
+    CHECK(document.color_state().bit_depth == sample.depth);
+    const auto& pixels = layer_pixels(document);
+    const auto& expected = layer_pixels(reference);
+    double total = 0.0;
+    double largest = 0.0;
+    std::vector<float> a(128U * 4U);
+    std::vector<float> b(a.size());
+    for (std::int32_t y = 0; y < 72; ++y) {
+      patchy::load_rgba_row(expected, y, 0, 128, patchy::DeepDomain::Encoded, a);
+      patchy::load_rgba_row(pixels, y, 0, 128, patchy::DeepDomain::Encoded, b);
+      for (std::size_t i = 0; i < a.size(); ++i) {
+        total += std::fabs(a[i] - b[i]);
+        largest = std::max(largest, static_cast<double>(std::fabs(a[i] - b[i])));
+      }
+    }
+    const auto mean = total / (128.0 * 72.0 * 4.0);
+    std::cout << "[INFO] " << sample.file << " differs from the 8-bit reference by " << mean << " levels on average, "
+              << largest << " at most\n";
+    CHECK(mean < 0.1);
+    CHECK(largest < 1.0);
+  }
 }
 
 // Pages decode by directory offset (multi-page TIFF, docs/tiff.md).
@@ -639,6 +822,9 @@ std::vector<patchy::test::TestCase> tiff_flat_tests() {
       {"tiff_flat_unsupported_layouts_throw", tiff_flat_unsupported_layouts_throw},
       {"tiff_flat_damaged_data_throws_or_opens", tiff_flat_damaged_data_throws_or_opens},
       {"tiff_flat_12_bit_samples_open_at_16_bits", tiff_flat_12_bit_samples_open_at_16_bits},
+      {"tiff_flat_packed_9_to_15_bit_samples_open_at_16_bits", tiff_flat_packed_9_to_15_bit_samples_open_at_16_bits},
+      {"tiff_flat_zstd_decodes_with_predictors", tiff_flat_zstd_decodes_with_predictors},
+      {"tiff_flat_issue_653_samples_open_if_available", tiff_flat_issue_653_samples_open_if_available},
       {"tiff_flat_reads_any_page_by_directory_offset", tiff_flat_reads_any_page_by_directory_offset},
       {"tiff_flat_unicode_path_opens", tiff_flat_unicode_path_opens},
       {"tiff_pages_lists_pages_names_and_chain_indexes", tiff_pages_lists_pages_names_and_chain_indexes},
