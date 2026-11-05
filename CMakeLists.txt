@@ -1446,6 +1446,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/wayland_popup_anchor.cpp
       src/ui/wayland_pointer_cursor.hpp
       src/ui/wayland_pointer_cursor.cpp
+      src/ui/pointer_lock.hpp
+      src/ui/pointer_lock.cpp
       src/ui/blocked_window_cursor.hpp
       src/ui/blocked_window_cursor.cpp
       src/ui/spin_box_edit_field_fix.hpp
@@ -1873,6 +1875,24 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
         target_sources(patchy_ui PRIVATE src/ui/portal_color_pick.cpp src/ui/portal_color_pick.hpp)
         target_link_libraries(patchy_ui PRIVATE Qt6::DBus)
         target_compile_definitions(patchy_ui PUBLIC PATCHY_HAVE_QT_DBUS=1)
+      endif()
+      # The brush-resize drag locks the pointer on Wayland (GitHub issue 637,
+      # src/ui/wayland_pointer_lock.cpp). Qt's QPA native interface hands out the window's
+      # wl_surface (Qt 6.10 and later ship that as the separate Qt6GuiPrivate package; 6.8
+      # defines the target with Qt6Gui). libwayland-client is looked up at run time in the
+      # copy Qt's Wayland plug-in loaded, so nothing new is linked and X11 sessions load nothing.
+      # Only QPlatformNativeInterface's long-stable virtual nativeResourceForWindow and
+      # QPlatformWindow::devicePixelRatio are used (no private symbols are imported), so the
+      # private-module notice Qt 6.10 prints at configure time is switched off for this lookup.
+      if(NOT TARGET Qt6::GuiPrivate)
+        set(QT_NO_PRIVATE_MODULE_WARNING ON)
+        find_package(Qt6GuiPrivate QUIET)
+        unset(QT_NO_PRIVATE_MODULE_WARNING)
+      endif()
+      if(TARGET Qt6::GuiPrivate)
+        target_sources(patchy_ui PRIVATE src/ui/wayland_pointer_lock.cpp src/ui/wayland_pointer_lock.hpp)
+        target_link_libraries(patchy_ui PRIVATE Qt6::GuiPrivate)
+        target_compile_definitions(patchy_ui PRIVATE PATCHY_HAVE_WAYLAND_POINTER_LOCK=1)
       endif()
     endif()
     if(WIN32)
@@ -2658,6 +2678,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/color_dock_panel_tests.cpp
       tests/ui/hdr_color_choice_tests.cpp
       tests/ui/clone_source_tests.cpp
+      tests/ui/brush_adjust_pointer_lock_tests.cpp
       tests/ui/history_stroke_patch_tests.cpp
       tests/ui/file_info_tests.cpp
       tests/ui/web_export_tests.cpp

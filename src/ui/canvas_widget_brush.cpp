@@ -984,6 +984,36 @@ void CanvasWidget::begin_brush_adjust_drag(QPoint widget_position, bool from_tab
   brush_adjust_current_widget_ = widget_position;
   brush_adjust_start_size_ = active_outline_brush_size();
   brush_adjust_start_softness_ = brush_softness_;
+  brush_adjust_pointer_centered_ = from_tablet;
+  brush_adjust_pointer_locked_ = false;
+  brush_adjust_rebase_pointer_ = false;
+  brush_adjust_drag_position_ = QPointF(widget_position);
+  brush_adjust_pointer_offset_ = QPointF();
+  brush_adjust_pointer_lock_.reset();
+  if (!from_tablet) {
+    // A mouse gesture ends with the pointer back on the press point. Where the app cannot
+    // move the pointer (Wayland), lock it there for the drag instead; the compositor sends
+    // the motion as relative deltas (GitHub issue 637).
+    PointerLockEvents events;
+    events.locked = [this]() {
+      if (brush_adjust_dragging_) {
+        brush_adjust_pointer_locked_ = true;
+      }
+    };
+    events.unlocked = [this]() {
+      if (brush_adjust_pointer_locked_) {
+        brush_adjust_pointer_locked_ = false;
+        brush_adjust_rebase_pointer_ = true;
+      }
+    };
+    events.relative_motion = [this](QPointF delta) { brush_adjust_pointer_moved_relative(delta); };
+    brush_adjust_pointer_lock_ = lock_pointer_at(*this, widget_position, std::move(events));
+    if (brush_adjust_pointer_lock_ == nullptr && !platform_can_move_pointer()) {
+      // Neither moved back nor locked: center the disc on the pointer, as for a pen, so the
+      // gesture ends with the brush under the pointer at the size it shows.
+      brush_adjust_pointer_centered_ = true;
+    }
+  }
   clear_move_hover_outline();
   // The anchored overlay is the size readout; hide the pointer so it does not
   // fight with the preview circle (Photoshop hides it too).
@@ -1002,7 +1032,7 @@ void CanvasWidget::update_brush_adjust_drag(QPoint widget_position) {
   // finish under it); its radius has to outgrow the pen's own travel or the
   // trailing edge stays pinned and the disc reads as growing from a corner.
   const auto document_dx = static_cast<double>(delta.x()) / std::max(zoom_, 0.0001);
-  const auto diameter_per_pixel = brush_adjust_from_tablet_ ? 4.0 : 2.0;
+  const auto diameter_per_pixel = brush_adjust_pointer_centered_ ? 4.0 : 2.0;
   // Quick Select sizes its own brush (GitHub issue 428) and has no softness to drag.
   const bool quick_select = tool_ == CanvasTool::QuickSelect;
   const auto new_size = std::clamp(
@@ -1017,8 +1047,8 @@ void CanvasWidget::update_brush_adjust_drag(QPoint widget_position) {
                 brush_adjust_start_softness_ - static_cast<int>(std::lround(static_cast<double>(delta.y()) * 0.4)),
                 0, 100);
   if (new_size == active_outline_brush_size() && new_softness == brush_softness_) {
-    if (brush_adjust_from_tablet_) {
-      update();  // the pen-centered preview moves even when the values do not
+    if (brush_adjust_pointer_centered_) {
+      update();  // the pointer-centered preview moves even when the values do not
     }
     return;
   }
@@ -1031,11 +1061,40 @@ void CanvasWidget::update_brush_adjust_drag(QPoint widget_position) {
   update();
 }
 
+void CanvasWidget::brush_adjust_pointer_moved(QPoint widget_position) {
+  if (brush_adjust_pointer_locked_) {
+    // A locked pointer does not move; Qt's synthesized moves carry the stale position.
+    return;
+  }
+  if (brush_adjust_rebase_pointer_) {
+    // The lock ended mid-drag with the pointer still where it was locked: carry on from
+    // the drag position instead of jumping back to it.
+    brush_adjust_rebase_pointer_ = false;
+    brush_adjust_pointer_offset_ = brush_adjust_drag_position_ - QPointF(widget_position);
+  }
+  brush_adjust_drag_position_ = QPointF(widget_position) + brush_adjust_pointer_offset_;
+  update_brush_adjust_drag(brush_adjust_drag_position_.toPoint());
+}
+
+void CanvasWidget::brush_adjust_pointer_moved_relative(QPointF delta) {
+  if (!brush_adjust_dragging_ || !brush_adjust_pointer_locked_) {
+    return;
+  }
+  brush_adjust_drag_position_ += delta;
+  update_brush_adjust_drag(brush_adjust_drag_position_.toPoint());
+}
+
 void CanvasWidget::end_brush_adjust_drag(bool commit) {
   if (!brush_adjust_dragging_) {
     return;
   }
   brush_adjust_dragging_ = false;
+  // Ending the lock leaves the pointer on the press point: it never moved while locked,
+  // and the compositor applies the position hint set there.
+  const bool pointer_held_by_lock = brush_adjust_pointer_locked_;
+  brush_adjust_pointer_locked_ = false;
+  brush_adjust_rebase_pointer_ = false;
+  brush_adjust_pointer_lock_.reset();
   if (!commit) {
     if (tool_ == CanvasTool::QuickSelect) {
       quick_select_size_ = brush_adjust_start_size_;
@@ -1044,13 +1103,25 @@ void CanvasWidget::end_brush_adjust_drag(bool commit) {
       brush_softness_ = brush_adjust_start_softness_;
     }
   }
-  if (!brush_adjust_from_tablet_) {
+  if (!brush_adjust_from_tablet_ && brush_adjust_pointer_centered_) {
+    // The disc followed the pointer: the brush stays under it.
+    last_mouse_position_ = brush_adjust_current_widget_;
+    brush_hover_widget_position_ = brush_adjust_current_widget_;
+  } else if (!brush_adjust_from_tablet_ && !pointer_held_by_lock && !platform_can_move_pointer()) {
+    // The lock never held (or ended early) and the pointer cannot be moved back: the
+    // brush goes where the pointer really is.
+    const auto pointer = (brush_adjust_drag_position_ - brush_adjust_pointer_offset_).toPoint();
+    last_mouse_position_ = pointer;
+    brush_hover_widget_position_ = pointer;
+  } else if (!brush_adjust_from_tablet_) {
     // A mouse is a relative device, so snap the pointer back to the gesture
     // anchor and the brush stays centered on the spot that was being adjusted
-    // (Photoshop does the same). A pen is absolute — its pointer cannot be
-    // moved — so its preview is centered on the pen during the drag and the
+    // (Photoshop does the same). A pen is absolute (its pointer cannot be
+    // moved), so its preview is centered on the pen during the drag and the
     // gesture already ends with the brush under the pen.
-    move_pointer_to_global_position(mapToGlobal(brush_adjust_origin_widget_));
+    if (!pointer_held_by_lock) {
+      move_pointer_to_global_position(mapToGlobal(brush_adjust_origin_widget_));
+    }
     last_mouse_position_ = brush_adjust_origin_widget_;
     // The hovered brush (and the clone overlay under it) is back on the anchor at
     // once, before the warped pointer's move arrives (GitHub issue 516).
@@ -1072,7 +1143,7 @@ void CanvasWidget::draw_brush_adjust_overlay(QPainter& painter) const {
   // the gesture finishes with the brush already under the pen — the radius
   // grows faster than the pen travels (see update_brush_adjust_drag), which
   // keeps both edges expanding instead of pinning the trailing one.
-  const QPointF center(brush_adjust_from_tablet_ ? brush_adjust_current_widget_ : brush_adjust_origin_widget_);
+  const QPointF center(brush_adjust_pointer_centered_ ? brush_adjust_current_widget_ : brush_adjust_origin_widget_);
   const auto radius = std::max(1.5, static_cast<double>(active_outline_brush_size()) * zoom_ / 2.0);
   const auto softness = tool_ == CanvasTool::QuickSelect ? 0 : brush_softness_;
   painter.save();
@@ -3191,7 +3262,7 @@ bool CanvasWidget::clone_overlay_active() const {
 // (GitHub issue 516: the overlay followed the pointer and showed beside the disc).
 QPoint CanvasWidget::clone_overlay_center_widget() const {
   if (brush_adjust_dragging_) {
-    return brush_adjust_from_tablet_ ? brush_adjust_current_widget_ : brush_adjust_origin_widget_;
+    return brush_adjust_pointer_centered_ ? brush_adjust_current_widget_ : brush_adjust_origin_widget_;
   }
   return brush_hover_widget_position_;
 }

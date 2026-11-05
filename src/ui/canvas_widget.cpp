@@ -529,6 +529,8 @@ void CanvasWidget::set_tool(CanvasTool tool) {
   const auto tool_changed = tool_ != tool;
   const auto old_transform_controls_rect = move_transform_controls_rect();
   if (tool_changed) {
+    // The resize drag belongs to the old tool's brush; it also holds the pointer lock.
+    end_brush_adjust_drag(true);
     close_canvas_context_menu();
     hide_eyedropper_sample_outline();
     if (pen_session_active_) {

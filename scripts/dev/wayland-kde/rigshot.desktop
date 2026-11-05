@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Patchy rig screenshot
+Exec=/usr/bin/python3.13
+NoDisplay=true
+X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2

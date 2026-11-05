@@ -100,6 +100,7 @@ std::vector<patchy::test::TestCase> history_panel_tests();
 std::vector<patchy::test::TestCase> color_dock_panel_tests();
 std::vector<patchy::test::TestCase> hdr_color_choice_tests();
 std::vector<patchy::test::TestCase> clone_source_tests();
+std::vector<patchy::test::TestCase> brush_adjust_pointer_lock_tests();
 std::vector<patchy::test::TestCase> history_stroke_patch_tests();
 std::vector<patchy::test::TestCase> file_info_tests();
 std::vector<patchy::test::TestCase> web_export_tests();

@@ -1891,7 +1891,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   }
   if (brush_adjust_dragging_) {
     if ((event->buttons() & Qt::RightButton) != 0) {
-      update_brush_adjust_drag(event->pos());
+      brush_adjust_pointer_moved(event->pos());
     } else {
       // The right-button release was lost (see the tablet path): commit
       // instead of tracking a button nobody is holding.
@@ -2671,6 +2671,8 @@ void CanvasWidget::focusInEvent(QFocusEvent* event) {
 void CanvasWidget::hideEvent(QHideEvent* event) {
   // A hidden tab misses Shift's release; it shows no stale line when it comes back.
   hide_stroke_connect_preview();
+  // Never leave the pointer locked on a surface that is going away (GitHub issue 637).
+  end_brush_adjust_drag(true);
   QWidget::hideEvent(event);
 }
 
