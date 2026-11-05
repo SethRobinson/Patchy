@@ -9134,13 +9134,29 @@ void MainWindow::refresh_text_style_combo(const QString& family, const QString& 
     return item_font;
   };
   // Regular is the face every family has and the one nothing needs to record, so it is the
-  // empty style everywhere below the UI; only the picker spells it out.
-  text_style_combo_->addItem(tr("Regular"), QString());
-  text_style_combo_->setItemData(0, style_item_font(QStringLiteral("Regular")), Qt::FontRole);
-  for (const auto& style : available_text_family_styles(family)) {
+  // empty style everywhere below the UI; only the picker spells it out. It sits at its weight in
+  // Photoshop's order (available_text_family_styles), not on top (issue 649); a family that
+  // lists no Regular or Normal face still gets the row, sorted in at weight 400.
+  const auto is_regular_key = [](const QString& style) {
     const auto key = style.trimmed().toCaseFolded();
-    if (key.isEmpty() || key == QStringLiteral("regular") || key == QStringLiteral("normal")) {
-      continue;  // already the first row
+    return key.isEmpty() || key == QStringLiteral("regular") || key == QStringLiteral("normal");
+  };
+  auto styles = available_text_family_styles(family);
+  if (std::none_of(styles.cbegin(), styles.cend(), is_regular_key)) {
+    styles.append(QStringLiteral("Regular"));
+    styles = order_text_family_styles(family, styles);
+  }
+  bool regular_added = false;
+  for (const auto& style : styles) {
+    if (is_regular_key(style)) {
+      if (regular_added) {
+        continue;  // Regular and Normal both name the one empty style
+      }
+      regular_added = true;
+      text_style_combo_->addItem(tr("Regular"), QString());
+      text_style_combo_->setItemData(text_style_combo_->count() - 1, style_item_font(QStringLiteral("Regular")),
+                                     Qt::FontRole);
+      continue;
     }
     text_style_combo_->addItem(style, style);
     text_style_combo_->setItemData(text_style_combo_->count() - 1, style_item_font(style), Qt::FontRole);
@@ -9161,6 +9177,12 @@ void MainWindow::refresh_text_style_combo(const QString& family, const QString& 
         text_style_combo_->setCurrentIndex(index);
         return;
       }
+    }
+  }
+  for (int index = 0; index < text_style_combo_->count(); ++index) {
+    if (text_style_combo_->itemData(index).toString().isEmpty()) {
+      text_style_combo_->setCurrentIndex(index);  // Regular, wherever its weight put it
+      return;
     }
   }
   text_style_combo_->setCurrentIndex(0);
