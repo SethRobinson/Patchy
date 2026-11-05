@@ -533,6 +533,7 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas, const std::funct
   refresh_layer_controls();
   refresh_channel_panel();
   refresh_document_info();
+  sync_rotate_view_angle_spin();
   refresh_history_panel();
   refresh_color_buttons();
   if (quick_mask_action_ != nullptr) {

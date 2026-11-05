@@ -166,6 +166,7 @@ bool tool_sets_layer_opacity_with_digit_keys(CanvasTool tool) noexcept {
     case CanvasTool::PatchTool:
     case CanvasTool::ContentAwareMove:
     case CanvasTool::RedEye:
+    case CanvasTool::RotateView:
       return true;
     default:
       return false;
@@ -748,6 +749,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     }
     panning_ = true;
     setCursor(Qt::ClosedHandCursor);
+    return;
+  }
+
+  if (tool_ == CanvasTool::RotateView && event->button() == Qt::LeftButton && document_ != nullptr) {
+    begin_rotate_view_drag(event->position());
+    event->accept();
     return;
   }
 
@@ -1974,6 +1981,11 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     }
     return;
   }
+  if (rotating_view_) {
+    update_rotate_view_drag(event->position(), event->modifiers());
+    event->accept();
+    return;
+  }
 
   if (transient_read_dragging_) {
     const auto phase = (event->buttons() & Qt::LeftButton) != 0 ? CanvasReadPhase::Drag
@@ -2791,6 +2803,11 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
   if (panning_) {
     panning_ = false;
     update_tool_cursor();
+    return;
+  }
+  if (rotating_view_ && (event->button() == Qt::LeftButton || (event->buttons() & Qt::LeftButton) == 0)) {
+    end_rotate_view_drag(false);
+    event->accept();
     return;
   }
 
@@ -3912,6 +3929,12 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
   }
   // A modifier or Escape acts on the drag where the pointer really is.
   flush_pending_drag_move();
+  if (rotating_view_ && event->key() == Qt::Key_Escape && event->modifiers() == Qt::NoModifier) {
+    // Escape during a Rotate View drag puts the drag's angle back.
+    end_rotate_view_drag(true);
+    event->accept();
+    return;
+  }
   if (move_layer_selection_gesture_ && event->key() == Qt::Key_Escape) {
     cancel_move_layer_selection();
     event->accept();
@@ -4541,6 +4564,14 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
       event->accept();
       return;
     }
+  }
+  // A turned view takes an unused Escape first, with any tool: the quick way back upright
+  // (docs/view-navigation-rotation.md). Every cancelable session above returned already.
+  if (event->key() == Qt::Key_Escape && event->modifiers() == Qt::NoModifier && !event->isAutoRepeat() &&
+      view_rotation_degrees_ != 0.0 && !pointer_gesture_active() && !transforming_layer_ && !warping_layer_) {
+    set_view_rotation(0.0);
+    event->accept();
+    return;
   }
   // A full-screen screen mode takes the unused Escape before layer deselection
   // (GitHub issue 212): it is the way back without menus, so it must not depend

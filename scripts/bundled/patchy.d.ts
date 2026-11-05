@@ -1719,6 +1719,13 @@ interface PatchyUi {
    * connector's window preview) see the view; document previews never do.
    */
   zoom: number;
+  /**
+   * The active document's view rotation in degrees, clockwise, in (-180, 180]: the Rotate
+   * View tool's angle. Reads 0 with no document. Setting wraps any finite angle and turns
+   * the view about its center; throws for NaN or with no document. Only the view turns,
+   * never the pixels, so only window captures see it.
+   */
+  rotation: number;
   /** View > Fit on Screen for the active document; throws with no document. */
   fitOnScreen(): void;
   /**

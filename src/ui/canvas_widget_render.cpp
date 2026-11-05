@@ -785,7 +785,12 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
         QRect(top_left, QSize(bottom_right.x() - top_left.x(), bottom_right.y() - top_left.y()));
   }
   const QRectF target_rect = pixel_aligned_view ? QRectF(pixel_aligned_target_rect) : exact_target_rect;
-  draw_canvas_backdrop(painter, target_rect, exposed_rect);
+  // A rotated view draws its backdrop, tiles and document under the view transform
+  // (paint_rotated_document); everything axis-aligned below is the upright view's.
+  const bool rotated_view = !view_axis_aligned();
+  if (!rotated_view) {
+    draw_canvas_backdrop(painter, target_rect, exposed_rect);
+  }
 
   prepare_vector_preview();
   transform_vector_preview_drawn_ = false;
@@ -831,7 +836,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
     }
   }
 
-  if (tiling_preview_enabled_) {
+  if (tiling_preview_enabled_ && !rotated_view) {
     // Ghost tiles go under everything: the center tile draws over the 1 px overlap and
     // every overlay stays center-only on top.
     draw_tiling_preview(painter, target_rect, pixel_aligned_view, exposed_rect);
@@ -841,18 +846,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   const auto draw_scaled_image = [&painter, &target_rect, pixel_aligned_view,
                                   &pixel_aligned_target_rect, this, exposed_rect](const QImage& image) {
     if (!image.isNull()) {
-      const QImage& unproofed_image =
-          (&image == &render_cache_ && zoom_ < 1.0)
-              ? display_image_for_zoom()
-              : (&image == &curves_clipping_preview_image_ && zoom_ < 1.0)
-                    ? curves_clipping_display_image_for_zoom()
-                    : (&image == &move_base_cache_ && zoom_ < 1.0)
-                          ? move_base_display_image_for_zoom()
-                          : (&image == &transform_base_cache_ && zoom_ < 1.0)
-                                ? transform_base_display_image_for_zoom()
-                                : (&image == &warp_base_cache_ && zoom_ < 1.0)
-                                      ? warp_base_display_image_for_zoom()
-                                      : image;
+      const QImage& unproofed_image = display_source_for_zoom(image);
       // The clipping preview is a diagnostic picture of the composite, not artwork.
       const QImage& display_image =
           &image == &curves_clipping_preview_image_ ? unproofed_image : proof_display_image(unproofed_image);
@@ -956,139 +950,146 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
       (!transform_source_image_.isNull() || !transform_multi_snapshot_.isNull());
   const bool draw_warp_overlay = warping_layer_ && (!warp_preview_patches_.empty() || !warp_base_cache_.isNull());
 
-  painter.save();
-  painter.setClipRect(target_rect);
-  painter.setRenderHint(QPainter::SmoothPixmapTransform, uses_smooth_display_scaling(view_zoom(), deep_pixel_renderer));
-  if (draw_transform_overlay) {
-    // Base excludes the transformed layer; the composited-preview patches
-    // (when the layer needs one) draw the transformed result over it, so no
-    // checkerboard wipe is needed under them.
-    draw_scaled_image(transform_base_cache_);
-    for (const auto& patch : transform_preview_patches_) {
-      draw_document_patch(patch, false);
-    }
-    // A shape layer's session shows its transformed path sharp between drags when
-    // Dynamic Vector Preview is on (the frame renders the document as committed).
-    transform_vector_preview_drawn_ = draw_vector_preview(painter, exposed_rect);
-  } else if (draw_warp_overlay) {
-    // Base (layer hidden) plus the warped layer's bounded patches: the
-    // full-document warp preview composite this replaced was the warp drag's
-    // dominant per-move cost.
-    draw_scaled_image(warp_base_cache_.isNull() ? render_cache_ : warp_base_cache_);
-    for (const auto& patch : warp_preview_patches_) {
-      draw_document_patch(patch, warp_base_cache_.isNull());
-    }
-  } else if (moving_layer_ && !moving_layers_.empty()) {
-    const bool proxy_preview =
-        move_drag_uses_proxy_preview_ && !move_proxy_image_.isNull() && !move_base_cache_.isNull();
-    const bool base_excludes_layer =
-        (proxy_preview || !moving_layers_use_outline_preview_) && !move_base_cache_.isNull();
-    if (base_excludes_layer) {
-      draw_scaled_image(move_base_cache_);
-    } else {
-      draw_scaled_image(render_cache_);
-    }
-    if (proxy_preview) {
-      // Translated snapshot of the moving subtree. Blend modes against the
-      // real backdrop and content clipped at the canvas edge are approximated
-      // until release, and at deep-zoom levels the plain blit skips the
-      // per-pixel renderer's grid (a heavy latch above 800% zoom is a corner
-      // case).
-      const auto proxy_target =
-          widget_rect_for_document_rect(QRectF(move_proxy_document_rect_.translated(move_preview_delta_)));
-      const QImage& proxy_image = proof_display_image(move_proxy_image_);
-      // The snapshot holds the moving content without its artboard's clip: clip the blit
-      // to the artboard it lands in, as the release will (docs/artboards.md).
-      const auto clip = move_proxy_clip_document_rect(move_preview_delta_);
-      if (clip.has_value()) {
-        painter.save();
-        painter.setClipRect(widget_rect_for_document_rect(QRectF(*clip)), Qt::IntersectClip);
+  if (rotated_view) {
+    paint_rotated_document(painter, exposed_rect, draw_transform_overlay, draw_warp_overlay);
+  } else {
+    painter.save();
+    painter.setClipRect(target_rect);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, uses_smooth_display_scaling(view_zoom(), deep_pixel_renderer));
+    if (draw_transform_overlay) {
+      // Base excludes the transformed layer; the composited-preview patches
+      // (when the layer needs one) draw the transformed result over it, so no
+      // checkerboard wipe is needed under them.
+      draw_scaled_image(transform_base_cache_);
+      for (const auto& patch : transform_preview_patches_) {
+        draw_document_patch(patch, false);
       }
-      painter.drawImage(proxy_target, proxy_image, QRectF(proxy_image.rect()));
-      if (clip.has_value()) {
-        painter.restore();
+      // A shape layer's session shows its transformed path sharp between drags when
+      // Dynamic Vector Preview is on (the frame renders the document as committed).
+      transform_vector_preview_drawn_ = draw_vector_preview(painter, exposed_rect);
+    } else if (draw_warp_overlay) {
+      // Base (layer hidden) plus the warped layer's bounded patches: the
+      // full-document warp preview composite this replaced was the warp drag's
+      // dominant per-move cost.
+      draw_scaled_image(warp_base_cache_.isNull() ? render_cache_ : warp_base_cache_);
+      for (const auto& patch : warp_preview_patches_) {
+        draw_document_patch(patch, warp_base_cache_.isNull());
       }
-    } else {
-      for (const auto& patch : move_preview_patches_) {
-        draw_document_patch(patch, !base_excludes_layer);
+    } else if (moving_layer_ && !moving_layers_.empty()) {
+      const bool proxy_preview =
+          move_drag_uses_proxy_preview_ && !move_proxy_image_.isNull() && !move_base_cache_.isNull();
+      const bool base_excludes_layer =
+          (proxy_preview || !moving_layers_use_outline_preview_) && !move_base_cache_.isNull();
+      if (base_excludes_layer) {
+        draw_scaled_image(move_base_cache_);
+      } else {
+        draw_scaled_image(render_cache_);
       }
-    }
-  } else if (move_commit_job_.has_value() && !move_commit_hold_base_.isNull() &&
-             !(deep_pixel_renderer && move_commit_hold_scale_level_ > 0)) {
-    // Deferred Move commit: the accurate patches are still rendering, so keep
-    // the commit-time preview frame (base plus the moved content at its
-    // committed place). Transient by construction: the raw smooth downscale
-    // at zoom < 1 is acceptable, and a mip-sized hold skips the deep-zoom
-    // per-pixel renderer like the transform hold does.
-    draw_scaled_image(move_commit_hold_base_);
-    if (!move_commit_hold_proxy_.isNull()) {
-      const QImage& hold_proxy = proof_display_image(move_commit_hold_proxy_);
-      if (move_commit_hold_proxy_clip_.has_value()) {
-        painter.save();
-        painter.setClipRect(widget_rect_for_document_rect(QRectF(*move_commit_hold_proxy_clip_)), Qt::IntersectClip);
-      }
-      painter.drawImage(widget_rect_for_document_rect(QRectF(move_commit_hold_proxy_rect_)), hold_proxy,
-                        QRectF(hold_proxy.rect()));
-      if (move_commit_hold_proxy_clip_.has_value()) {
-        painter.restore();
-      }
-    } else {
-      for (const auto& patch : move_commit_hold_patches_) {
-        if (!patch.image.isNull() && !patch.document_rect.isEmpty()) {
-          const QImage& hold_patch = proof_display_image(patch.image);
-          painter.drawImage(widget_rect_for_document_rect(QRectF(patch.document_rect)), hold_patch,
-                            QRectF(hold_patch.rect()));
+      if (proxy_preview) {
+        // Translated snapshot of the moving subtree. Blend modes against the
+        // real backdrop and content clipped at the canvas edge are approximated
+        // until release, and at deep-zoom levels the plain blit skips the
+        // per-pixel renderer's grid (a heavy latch above 800% zoom is a corner
+        // case).
+        const auto proxy_target =
+            widget_rect_for_document_rect(QRectF(move_proxy_document_rect_.translated(move_preview_delta_)));
+        const QImage& proxy_image = proof_display_image(move_proxy_image_);
+        // The snapshot holds the moving content without its artboard's clip: clip the blit
+        // to the artboard it lands in, as the release will (docs/artboards.md).
+        const auto clip = move_proxy_clip_document_rect(move_preview_delta_);
+        if (clip.has_value()) {
+          painter.save();
+          painter.setClipRect(widget_rect_for_document_rect(QRectF(*clip)), Qt::IntersectClip);
+        }
+        painter.drawImage(proxy_target, proxy_image, QRectF(proxy_image.rect()));
+        if (clip.has_value()) {
+          painter.restore();
+        }
+      } else {
+        for (const auto& patch : move_preview_patches_) {
+          draw_document_patch(patch, !base_excludes_layer);
         }
       }
-    }
-  } else if (patch_tool_dragging_ && !patch_tool_source_image_.isNull()) {
-    // Patch / Content-Aware Move drag: the untouched composite plus, for Patch
-    // Destination and Content-Aware Move, a raw ghost of the region at the pointer
-    // offset (Patch Source shows only the outline); the heal is one-shot at release.
-    draw_scaled_image(render_cache_);
-    draw_patch_tool_drag_preview(painter);
-  } else {
-    // Committed Free Transform whose render-cache refresh has not landed yet:
-    // keep the commit-time preview frame on screen instead of the stale
-    // pre-commit cache (which flashed the layer at its old geometry). The
-    // processing-operation check covers the synchronous region-patch route,
-    // whose event pump can deliver paints while the cache flags still read
-    // clean. Transient by construction, so the raw smooth downscale at
-    // zoom < 1 (the hold has no mip chain) is acceptable; a mip-sized hold
-    // skips the deep-zoom per-pixel renderer, which expects full-res sources.
-    const bool commit_hold_engaged =
-        !transform_commit_hold_image_.isNull() &&
-        (render_cache_dirty_ || async_render_cache_in_flight_ || processing_operation_active()) &&
-        !(deep_pixel_renderer && transform_commit_hold_scale_level_ > 0);
-    if (commit_hold_engaged) {
-      draw_scaled_image(transform_commit_hold_image_);
-    } else {
-      if (!transform_commit_hold_image_.isNull() && render_settled()) {
-        clear_transform_commit_hold();
+    } else if (move_commit_job_.has_value() && !move_commit_hold_base_.isNull() &&
+               !(deep_pixel_renderer && move_commit_hold_scale_level_ > 0)) {
+      // Deferred Move commit: the accurate patches are still rendering, so keep
+      // the commit-time preview frame (base plus the moved content at its
+      // committed place). Transient by construction: the raw smooth downscale
+      // at zoom < 1 is acceptable, and a mip-sized hold skips the deep-zoom
+      // per-pixel renderer like the transform hold does.
+      draw_scaled_image(move_commit_hold_base_);
+      if (!move_commit_hold_proxy_.isNull()) {
+        const QImage& hold_proxy = proof_display_image(move_commit_hold_proxy_);
+        if (move_commit_hold_proxy_clip_.has_value()) {
+          painter.save();
+          painter.setClipRect(widget_rect_for_document_rect(QRectF(*move_commit_hold_proxy_clip_)), Qt::IntersectClip);
+        }
+        painter.drawImage(widget_rect_for_document_rect(QRectF(move_commit_hold_proxy_rect_)), hold_proxy,
+                          QRectF(hold_proxy.rect()));
+        if (move_commit_hold_proxy_clip_.has_value()) {
+          painter.restore();
+        }
+      } else {
+        for (const auto& patch : move_commit_hold_patches_) {
+          if (!patch.image.isNull() && !patch.document_rect.isEmpty()) {
+            const QImage& hold_patch = proof_display_image(patch.image);
+            painter.drawImage(widget_rect_for_document_rect(QRectF(patch.document_rect)), hold_patch,
+                              QRectF(hold_patch.rect()));
+          }
+        }
       }
-      draw_scaled_image(curves_clipping_mode_.has_value() && !curves_clipping_preview_image_.isNull()
-                            ? curves_clipping_preview_image_
-                            : render_cache_);
-      transform_vector_preview_drawn_ = draw_vector_preview(painter, exposed_rect) && transforming_layer_;
+    } else if (patch_tool_dragging_ && !patch_tool_source_image_.isNull()) {
+      // Patch / Content-Aware Move drag: the untouched composite plus, for Patch
+      // Destination and Content-Aware Move, a raw ghost of the region at the pointer
+      // offset (Patch Source shows only the outline); the heal is one-shot at release.
+      draw_scaled_image(render_cache_);
+      draw_patch_tool_drag_preview(painter);
+    } else {
+      // Committed Free Transform whose render-cache refresh has not landed yet:
+      // keep the commit-time preview frame on screen instead of the stale
+      // pre-commit cache (which flashed the layer at its old geometry). The
+      // processing-operation check covers the synchronous region-patch route,
+      // whose event pump can deliver paints while the cache flags still read
+      // clean. Transient by construction, so the raw smooth downscale at
+      // zoom < 1 (the hold has no mip chain) is acceptable; a mip-sized hold
+      // skips the deep-zoom per-pixel renderer, which expects full-res sources.
+      const bool commit_hold_engaged =
+          !transform_commit_hold_image_.isNull() &&
+          (render_cache_dirty_ || async_render_cache_in_flight_ || processing_operation_active()) &&
+          !(deep_pixel_renderer && transform_commit_hold_scale_level_ > 0);
+      if (commit_hold_engaged) {
+        draw_scaled_image(transform_commit_hold_image_);
+      } else {
+        if (!transform_commit_hold_image_.isNull() && render_settled()) {
+          clear_transform_commit_hold();
+        }
+        draw_scaled_image(curves_clipping_mode_.has_value() && !curves_clipping_preview_image_.isNull()
+                              ? curves_clipping_preview_image_
+                              : render_cache_);
+        transform_vector_preview_drawn_ = draw_vector_preview(painter, exposed_rect) && transforming_layer_;
+      }
     }
-  }
-  if (!curves_clipping_mode_.has_value()) {
-    if (channel_view_.group == ChannelViewGroup::Color && channel_view_visible_count(channel_view_) == 2) {
-      // Channel visibility (docs/channels.md): two of Red, Green and Blue shown zero the
-      // third over the drawn frame, so the cost follows the exposed screen area and every
-      // render path (stroke patches, drag previews) is covered.
-      painter.save();
-      painter.setCompositionMode(QPainter::CompositionMode_Multiply);
-      const auto shown = [this](int index) {
-        return channel_view_shows(channel_view_, ChannelViewGroup::Color, index) ? 255 : 0;
-      };
-      painter.fillRect(target_rect.intersected(QRectF(exposed_rect)), QColor(shown(0), shown(1), shown(2)));
-      painter.restore();
+    if (!curves_clipping_mode_.has_value()) {
+      if (channel_view_.group == ChannelViewGroup::Color && channel_view_visible_count(channel_view_) == 2) {
+        // Channel visibility (docs/channels.md): two of Red, Green and Blue shown zero the
+        // third over the drawn frame, so the cost follows the exposed screen area and every
+        // render path (stroke patches, drag previews) is covered.
+        painter.save();
+        painter.setCompositionMode(QPainter::CompositionMode_Multiply);
+        const auto shown = [this](int index) {
+          return channel_view_shows(channel_view_, ChannelViewGroup::Color, index) ? 255 : 0;
+        };
+        painter.fillRect(target_rect.intersected(QRectF(exposed_rect)), QColor(shown(0), shown(1), shown(2)));
+        painter.restore();
+      }
+      draw_mask_display_overlay(painter, target_rect, pixel_aligned_view, pixel_aligned_target_rect);
     }
-    draw_mask_display_overlay(painter, target_rect, pixel_aligned_view, pixel_aligned_target_rect);
+    painter.restore();
   }
-  painter.restore();
 
+  // Rect-based overlays compute in the upright frame and turn with a rotated view.
+  std::optional<UprightOverlayScope> upright_overlays;
+  upright_overlays.emplace(*this, &painter);
   const auto draw_layer_outline = [&](const QRect& outline_rect) {
     if (!outline_rect.isEmpty()) {
       draw_move_layer_outline(painter, widget_position(outline_rect.topLeft()),
@@ -1121,34 +1122,56 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   } else {
     draw_move_transform_controls(painter);
   }
-  draw_grid_overlay(painter, target_rect, exposed_rect);
+  upright_overlays.reset();
+  if (rotated_view) {
+    draw_rotated_grid_overlay(painter, exposed_rect);
+  } else {
+    draw_grid_overlay(painter, target_rect, exposed_rect);
+  }
   draw_guides_overlay(painter);
+  upright_overlays.emplace(*this, &painter);
   draw_artboard_overlay(painter);
   draw_move_snap_guides(painter);
+  upright_overlays.reset();
   // With artboards the canvas has no fixed size of its own, so only the artboards are
   // outlined (GitHub issue 278).
   const auto border_rect = target_rect.adjusted(0.5, 0.5, -0.5, -0.5);
-  if (!border_rect.isEmpty() && (document_ == nullptr || !document_has_artboards(std::as_const(*document_)))) {
+  if (rotated_view) {
+    draw_rotated_document_border(painter);
+  } else if (!border_rect.isEmpty() &&
+             (document_ == nullptr || !document_has_artboards(std::as_const(*document_)))) {
     painter.setPen(theme().canvas_document_border);
     painter.drawRect(border_rect);
   }
   draw_selection_overlay(painter);
+  upright_overlays.emplace(*this, &painter);
   draw_marquee_resize_handles(painter);
+  upright_overlays.reset();
   draw_patch_tool_drag_outline(painter);
   draw_quick_select_stroke_overlay(painter);
+  upright_overlays.emplace(*this, &painter);
   draw_object_select_overlay(painter);
+  upright_overlays.reset();
   draw_spot_heal_stroke_overlay(painter);
+  upright_overlays.emplace(*this, &painter);
   draw_red_eye_overlay(painter);
+  upright_overlays.reset();
   draw_pen_overlay(painter);
   draw_path_edit_overlay(painter);
+  upright_overlays.emplace(*this, &painter);
   draw_shape_preview(painter, exposed_rect);
   draw_crop_overlay(painter);
+  upright_overlays.reset();
   draw_perspective_crop_overlay(painter);
   draw_ruler_overlay(painter);
+  upright_overlays.emplace(*this, &painter);
   draw_move_layer_selection(painter);
+  upright_overlays.reset();
   draw_drag_size_readout(painter);
   draw_transform_drag_readout(painter);
+  upright_overlays.emplace(*this, &painter);
   draw_text_rect_preview(painter);
+  upright_overlays.reset();
   draw_clone_source_overlay(painter);
   if ((tool_ == CanvasTool::Clone || tool_ == CanvasTool::Healing) && painting_ &&
       retouch_source_indicator_.has_value()) {
@@ -1186,7 +1209,10 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
     painter.restore();
   }
   draw_preview_point_handles(painter);
+  upright_overlays.emplace(*this, &painter);
   draw_zoom_preview(painter);
+  upright_overlays.reset();
+  draw_rotate_view_compass(painter);
   draw_rulers(painter);
   {
     // The pointer overlays stay off the rulers and their corner (GitHub issue 472).
@@ -1213,6 +1239,28 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
                            vertical_scroll_bar_->width(), horizontal_scroll_bar_->height()),
                      theme().canvas_scrollbar_track);
   }
+}
+
+const QImage& CanvasWidget::display_source_for_zoom(const QImage& image) {
+  if (zoom_ >= 1.0) {
+    return image;
+  }
+  if (&image == &render_cache_) {
+    return display_image_for_zoom();
+  }
+  if (&image == &curves_clipping_preview_image_) {
+    return curves_clipping_display_image_for_zoom();
+  }
+  if (&image == &move_base_cache_) {
+    return move_base_display_image_for_zoom();
+  }
+  if (&image == &transform_base_cache_) {
+    return transform_base_display_image_for_zoom();
+  }
+  if (&image == &warp_base_cache_) {
+    return warp_base_display_image_for_zoom();
+  }
+  return image;
 }
 
 QImage CanvasWidget::render_document_image() const {
@@ -2686,6 +2734,16 @@ void CanvasWidget::draw_guides_overlay(QPainter& painter) const {
     pen.setCosmetic(true);
     painter.setPen(pen);
     const auto pixels = static_cast<double>(position_32) / 32.0;
+    if (!view_axis_aligned()) {
+      // A rotated view: the guide is a document line, spanned across the whole view.
+      const auto span = view_transform().document_bounds_of_widget_rect(view);
+      const auto vertical = orientation == GuideOrientation::Vertical;
+      const auto from = vertical ? QPointF(pixels, span.top()) : QPointF(span.left(), pixels);
+      const auto to = vertical ? QPointF(pixels, span.bottom()) : QPointF(span.right(), pixels);
+      painter.setRenderHint(QPainter::Antialiasing, true);
+      painter.drawLine(widget_position_f(from), widget_position_f(to));
+      return;
+    }
     if (orientation == GuideOrientation::Vertical) {
       const auto x = pixel_aligned_coordinate(widget_position_f(QPointF(pixels, 0.0)).x(), zoom_);
       if (x >= view.left() - 2.0 && x <= view.right() + 2.0) {
@@ -2742,17 +2800,29 @@ void CanvasWidget::draw_rulers(QPainter& painter) const {
     return QString::number(value, 'g', 6);
   };
 
+  // A rotated view (docs/view-navigation-rotation.md): turned a quarter or a half, each
+  // ruler reads the document axis that runs along it; at any other angle no document
+  // axis does, so the rulers keep their bands without ticks.
+  const auto angle = view_rotation_degrees_;
+  const bool quarter_turn = angle == 90.0 || angle == -90.0;
+  const bool rulers_have_an_axis = angle == 0.0 || angle == 180.0 || quarter_turn;
   const auto draw_axis = [&](bool horizontal) {
-    const auto pixels_per_unit = pixels_per_unit_for_axis(horizontal);
+    if (!rulers_have_an_axis) {
+      return;
+    }
+    const bool document_x = horizontal != quarter_turn;
+    const auto pixels_per_unit = pixels_per_unit_for_axis(document_x);
     const auto steps = ruler_tick_steps(ruler_unit_, pixels_per_unit * zoom_);
     const auto minor = steps.major / steps.subdivisions;
     const auto origin = document_position_f(QPointF(0.0, 0.0));
-    const auto start_units = (horizontal ? origin.x() : origin.y()) / pixels_per_unit;
-    const auto end_units =
-        (horizontal ? document_position_f(QPointF(width(), 0.0)).x()
-                    : document_position_f(QPointF(0.0, height())).y()) /
-        pixels_per_unit;
-    const auto extent = static_cast<double>(horizontal ? document_->width() : document_->height());
+    const auto far_end = horizontal ? document_position_f(QPointF(width(), 0.0))
+                                    : document_position_f(QPointF(0.0, height()));
+    auto start_units = (document_x ? origin.x() : origin.y()) / pixels_per_unit;
+    auto end_units = (document_x ? far_end.x() : far_end.y()) / pixels_per_unit;
+    if (start_units > end_units) {
+      std::swap(start_units, end_units);
+    }
+    const auto extent = static_cast<double>(document_x ? document_->width() : document_->height());
     const auto first_index = static_cast<long long>(std::floor(start_units / minor)) - 1;
     const auto last_index = static_cast<long long>(std::ceil(end_units / minor)) + 1;
     for (auto index = first_index; index <= last_index; ++index) {
@@ -2764,14 +2834,16 @@ void CanvasWidget::draw_rulers(QPainter& painter) const {
       const bool is_major =
           ((index % steps.subdivisions) + steps.subdivisions) % steps.subdivisions == 0;
       const int length = is_major ? 11 : 6;
+      const auto tick = widget_position_f(document_x ? QPointF(document_coordinate, 0.0)
+                                                     : QPointF(0.0, document_coordinate));
       if (horizontal) {
-        const auto x = widget_position_f(QPointF(document_coordinate, 0.0)).x();
+        const auto x = tick.x();
         painter.drawLine(QPointF(x, kTopRulerHeight - 1), QPointF(x, kTopRulerHeight - 1 - length));
         if (is_major) {
           painter.drawText(QPointF(x + 3.0, static_cast<double>(metrics.ascent() + 2)), tick_label(value));
         }
       } else {
-        const auto y = widget_position_f(QPointF(0.0, document_coordinate)).y();
+        const auto y = tick.y();
         painter.drawLine(QPointF(kLeftRulerWidth - 1, y), QPointF(kLeftRulerWidth - 1 - length, y));
         if (is_major) {
           painter.drawText(QRectF(2.0, y + 2.0, kLeftRulerWidth - 8.0, metrics.height()), Qt::AlignRight,
@@ -3226,38 +3298,49 @@ void CanvasWidget::refresh_mask_display_image(QRegion document_region) {
 
 void CanvasWidget::draw_mask_display_overlay(QPainter& painter, const QRectF& target_rect, bool pixel_aligned_view,
                                              QRect pixel_aligned_target_rect) {
+  if (mask_display_overlay_image() == nullptr) {
+    return;
+  }
+  if (pixel_aligned_view) {
+    painter.drawImage(pixel_aligned_target_rect, mask_display_image_, mask_display_image_.rect());
+  } else {
+    painter.drawImage(target_rect, mask_display_image_, QRectF(mask_display_image_.rect()));
+  }
+}
+
+const QImage* CanvasWidget::mask_display_overlay_image() {
   if ((!quick_mask_active_ && mask_display_mode_ == MaskDisplayMode::None) ||
       document_ == nullptr) {
-    return;
+    return nullptr;
   }
   LayerId expected_layer_id = 0;
   if (quick_mask_active_) {
     // The temporary mask is always shown as a red masked-area overlay.
   } else if (layer_edit_target_ == LayerEditTarget::SmartFilterMask) {
     if (!editing_smart_filter_mask()) {
-      return;
+      return nullptr;
     }
   } else if (layer_edit_target_ == LayerEditTarget::Mask) {
     if (!document_->active_layer_id().has_value()) {
-      return;
+      return nullptr;
     }
     const auto* layer = static_cast<const Layer*>(document_->find_layer(*document_->active_layer_id()));
     if (layer == nullptr || !layer->mask().has_value()) {
-      return;
+      return nullptr;
     }
     expected_layer_id = layer->id();
     if (mask_display_mode_ == MaskDisplayMode::Overlay && layer->mask()->disabled) {
       // A disabled mask hides nothing, so there is no coverage to mark.
-      return;
+      return nullptr;
     }
   } else if (layer_edit_target_ == LayerEditTarget::DocumentChannel) {
     if (active_document_channel_const() == nullptr) {
-      return;
+      return nullptr;
     }
   } else if (!is_component_preview(layer_edit_target_) ||
              (!is_cmyk_plate(layer_edit_target_) && channel_view_visible_count(channel_view_) > 1)) {
     // Several color channels shown draw the composite with the hidden one zeroed instead.
-    return;
+    return nullptr;
   }
 
   const QSize document_size(document_->width(), document_->height());
@@ -3277,13 +3360,9 @@ void CanvasWidget::draw_mask_display_overlay(QPainter& painter, const QRectF& ta
     refresh_mask_display_image(QRegion(QRect(QPoint(), document_size)));
   }
   if (mask_display_image_.isNull()) {
-    return;
+    return nullptr;
   }
-  if (pixel_aligned_view) {
-    painter.drawImage(pixel_aligned_target_rect, mask_display_image_, mask_display_image_.rect());
-  } else {
-    painter.drawImage(target_rect, mask_display_image_, QRectF(mask_display_image_.rect()));
-  }
+  return &mask_display_image_;
 }
 
 }  // namespace patchy::ui

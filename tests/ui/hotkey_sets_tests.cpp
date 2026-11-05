@@ -15,10 +15,13 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
+#include <QMessageBox>
 #include <QPushButton>
+#include <QToolButton>
 #include <QStyle>
 #include <QStyleOptionComboBox>
 #include <QSet>
@@ -65,6 +68,7 @@ public:
 
 private:
   QHash<QString, QVariant> saved_;
+  SettingsGroupRestorer sets_{QStringLiteral("hotkeySets")};
 };
 
 std::vector<HotkeyCommand> sample_commands() {
@@ -269,6 +273,13 @@ void ui_hotkey_editor_shortcut_set_combo_applies_set() {
     CHECK(combo != nullptr);
     CHECK(combo->count() == 4);
     CHECK(combo->currentData().toString() == QStringLiteral("patchy"));
+    // Every shipped set says it is built in, so nobody expects to edit it in place.
+    CHECK(combo->itemText(combo->findData(QStringLiteral("patchy"))) == QStringLiteral("Patchy default (built-in)"));
+    CHECK(combo->itemText(combo->findData(QStringLiteral("photoshop"))) ==
+          QStringLiteral("Photoshop-style (built-in)"));
+    for (int index = 0; index < combo->count(); ++index) {
+      CHECK(combo->itemText(index).endsWith(QStringLiteral(" (built-in)")));
+    }
     const int gimp_index = combo->findData(QStringLiteral("gimp"));
     CHECK(gimp_index > 0);
     combo->setCurrentIndex(gimp_index);
@@ -352,7 +363,15 @@ void ui_hotkey_editor_shortcut_set_combo_has_room_for_its_entries() {
                      language, room, combo->width(), field.width());
       }
       CHECK(room >= 2 * metrics.averageCharWidth());
-      for (const auto* name : {"hotkeyImportButton", "hotkeyExportButton"}) {
+      // Nothing overlaps the box: the dialog is wide enough for the whole row.
+      auto* rename = dialog.findChild<QPushButton*>(QStringLiteral("hotkeySetRenameButton"));
+      CHECK(rename != nullptr);
+      if (rename != nullptr && combo->geometry().right() >= rename->geometry().left()) {
+        std::fprintf(stderr, "%s: the set box (right %d) runs under Rename... (left %d)\n", language,
+                     combo->geometry().right(), rename->geometry().left());      }
+      CHECK(rename != nullptr && combo->geometry().right() < rename->geometry().left());
+      for (const auto* name :
+           {"hotkeyImportButton", "hotkeyExportButton", "hotkeySetRenameButton", "hotkeySetDeleteButton"}) {
         auto* button = dialog.findChild<QPushButton*>(QString::fromLatin1(name));
         CHECK(button != nullptr);
         CHECK(button->width() >= button->sizeHint().width());
@@ -371,8 +390,9 @@ void ui_hotkey_editor_shortcut_set_combo_has_room_for_its_entries() {
   QApplication::processEvents();
 }
 
-// Export writes what the page shows; Import replaces it (unknown ids skipped, reported on
-// the page) and OK applies it; Cancel keeps the shortcuts as they were.
+// Export writes what the page shows; Import adds the file as a set of the user's own, named
+// after the file (unknown ids skipped, reported on the page), and OK applies and stores it;
+// Cancel keeps the shortcuts and sets as they were. Both remember the folder they used.
 void ui_hotkey_editor_exports_and_imports_files() {
   HotkeyGroupRestorer restore;
   auto&& [window, canvas] = ShownWindowFixture{};
@@ -393,6 +413,7 @@ void ui_hotkey_editor_exports_and_imports_files() {
     const auto result = panel->import_from_file(import_path);
     CHECK(result.ok);
     CHECK(result.skipped_commands == 1);
+    CHECK(panel->user_shortcut_sets().size() == 1);
     drove = true;
     dialog.reject();
   });
@@ -400,13 +421,16 @@ void ui_hotkey_editor_exports_and_imports_files() {
   QApplication::processEvents();
   CHECK(drove);
   CHECK(window.hotkey_registry().overrides().isEmpty());
+  CHECK(patchy::ui::load_user_hotkey_sets(window.hotkey_registry().commands()).empty());
+  CHECK(QFileInfo(patchy::ui::hotkey_file_folder()) == QFileInfo(QFileInfo(import_path).absolutePath()));
   CHECK(first_shortcut(window, "file.new") == QKeySequence(Qt::CTRL | Qt::Key_N));
 
   drove = false;
   when_dialog_visible(QStringLiteral("patchyPreferencesDialog"), [&](QDialog& dialog) {
     auto* panel = hotkey_panel(dialog);
-    // Something staged beforehand is replaced, not merged.
+    // Something staged beforehand is replaced, not merged, and the built-in set keeps its keys.
     panel->apply_shortcut_set(QStringLiteral("krita"));
+    const auto krita = panel->staged_overrides();
     const auto result = panel->import_from_file(import_path);
     CHECK(result.ok);
     CHECK(result.skipped_commands == 1);
@@ -416,8 +440,22 @@ void ui_hotkey_editor_exports_and_imports_files() {
     CHECK(status->text().contains(QStringLiteral("shared.patchykeys")));
     auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("hotkeySetCombo"));
     CHECK(combo != nullptr);
-    CHECK(combo->currentData().toString().isEmpty());  // Custom
-    CHECK(combo->count() == 5);
+    CHECK(combo->currentText() == QStringLiteral("shared"));
+    CHECK(combo->currentData().toString() == panel->active_shortcut_set_id());
+    CHECK(combo->count() == 6);  // four built-in sets, a separator, "shared"
+    auto* rename = dialog.findChild<QPushButton*>(QStringLiteral("hotkeySetRenameButton"));
+    auto* remove = dialog.findChild<QPushButton*>(QStringLiteral("hotkeySetDeleteButton"));
+    CHECK(rename != nullptr && rename->isEnabled());
+    CHECK(remove != nullptr && remove->isEnabled());
+    // A second import of the same file gets a name of its own.
+    CHECK(panel->import_from_file(import_path).ok);
+    CHECK(combo->currentText() == QStringLiteral("shared 2"));
+    panel->delete_shortcut_set(panel->active_shortcut_set_id());
+    CHECK(panel->active_shortcut_set_id() == QStringLiteral("patchy"));
+    CHECK(!rename->isEnabled() && !remove->isEnabled());
+    panel->apply_shortcut_set(QStringLiteral("krita"));
+    CHECK(same_overrides(panel->staged_overrides(), krita));
+    panel->apply_shortcut_set(panel->user_shortcut_sets().front().id);
     QString error;
     CHECK(panel->export_to_file(export_path, &error));
     drove = true;
@@ -433,10 +471,13 @@ void ui_hotkey_editor_exports_and_imports_files() {
   CHECK(exported.ok);
   CHECK(same_overrides(exported.overrides, window.hotkey_registry().overrides()));
 
-  // A file that is not a hotkey file leaves the page as it was.
+  // A file that is not a hotkey file leaves the page as it was; the stored set opens selected.
   drove = false;
   when_dialog_visible(QStringLiteral("patchyPreferencesDialog"), [&](QDialog& dialog) {
     auto* panel = hotkey_panel(dialog);
+    CHECK(panel->user_shortcut_sets().size() == 1);
+    CHECK(panel->active_shortcut_set_id() == panel->user_shortcut_sets().front().id);
+    CHECK(panel->user_shortcut_sets().front().name == QStringLiteral("shared"));
     const auto before = panel->staged_overrides();
     {
       QFile file(import_path);
@@ -454,6 +495,100 @@ void ui_hotkey_editor_exports_and_imports_files() {
   CHECK(drove);
 }
 
+// Built-in sets never change (Seth, November 5, 2026): changing a key in one moves the keys
+// into the Custom set, the built-in set keeps its own, and a second edit of a built-in set
+// asks before replacing what Custom holds. Rename names Custom (then a set like any import),
+// Delete removes a set of the user's own, and both reach the stored sets on OK.
+void ui_hotkey_editor_built_in_sets_stay_unchanged() {
+  HotkeyGroupRestorer restore;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  const auto& commands = window.hotkey_registry().commands();
+  const auto photoshop =
+      patchy::ui::hotkey_set_overrides(*patchy::ui::find_builtin_hotkey_set(u"photoshop"), commands);
+  const auto gimp = patchy::ui::hotkey_set_overrides(*patchy::ui::find_builtin_hotkey_set(u"gimp"), commands);
+  CHECK(!photoshop.isEmpty() && !gimp.isEmpty());
+  // An edit through the page: the row's reset button puts one command back to Patchy's key.
+  const auto reset_row = [](QDialog& dialog, const QString& id) {
+    auto* reset = dialog.findChild<QToolButton*>(QStringLiteral("hotkeyRowReset.") + id);
+    CHECK(reset != nullptr);
+    if (reset != nullptr) {
+      reset->click();
+    }
+    process_events_for(30);
+  };
+  HotkeyOverrideMap mine;
+  bool drove = false;
+  when_dialog_visible(QStringLiteral("patchyPreferencesDialog"), [&](QDialog& dialog) {
+    auto* panel = hotkey_panel(dialog);
+    auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("hotkeySetCombo"));
+    CHECK(combo != nullptr);
+    panel->apply_shortcut_set(QStringLiteral("photoshop"));
+    reset_row(dialog, photoshop.constBegin().key());
+    CHECK(panel->active_shortcut_set_id() == QStringLiteral("custom"));
+    CHECK(combo->currentText() == QStringLiteral("Custom"));
+    CHECK(panel->staged_overrides().size() == photoshop.size() - 1);
+    mine = panel->staged_overrides();
+    // The built-in set kept its keys, and the same edit again needs no question.
+    panel->apply_shortcut_set(QStringLiteral("photoshop"));
+    CHECK(same_overrides(panel->staged_overrides(), photoshop));
+    reset_row(dialog, photoshop.constBegin().key());
+    CHECK(panel->active_shortcut_set_id() == QStringLiteral("custom"));
+    // A different edit of another built-in set asks first; Cancel undoes the edit.
+    panel->apply_shortcut_set(QStringLiteral("gimp"));
+    bool asked = false;
+    when_dialog_visible(QStringLiteral("hotkeyCustomReplaceMessageBox"), [&](QDialog& box) {
+      asked = true;
+      auto* message = qobject_cast<QMessageBox*>(&box);
+      auto* cancel = message != nullptr ? message->button(QMessageBox::Cancel) : nullptr;
+      CHECK(cancel != nullptr);
+      if (cancel != nullptr) {
+        cancel->click();
+      }
+    });
+    reset_row(dialog, gimp.constBegin().key());
+    process_events_until([&] { return asked; });
+    process_events_for(30);
+    CHECK(asked);
+    CHECK(panel->active_shortcut_set_id() == QStringLiteral("gimp"));
+    CHECK(same_overrides(panel->staged_overrides(), gimp));
+    // Rename: names that read like another set's are refused, in any letter case.
+    CHECK(!panel->rename_shortcut_set(QStringLiteral("custom"), QStringLiteral("photoshop-STYLE")));
+    CHECK(!panel->rename_shortcut_set(QStringLiteral("custom"), QStringLiteral("  ")));
+    CHECK(panel->rename_shortcut_set(QStringLiteral("custom"), QStringLiteral("Mine")));
+    CHECK(panel->user_shortcut_sets().size() == 1);
+    CHECK(panel->user_shortcut_sets().front().id != QStringLiteral("custom"));
+    panel->apply_shortcut_set(panel->user_shortcut_sets().front().id);
+    CHECK(combo->currentText() == QStringLiteral("Mine"));
+    CHECK(same_overrides(panel->staged_overrides(), mine));
+    save_widget_artifact("hotkey_editor_own_set", dialog);
+    drove = true;
+    dialog.accept();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(drove);
+  CHECK(same_overrides(window.hotkey_registry().overrides(), mine));
+
+  // Stored: the page opens on "Mine"; Delete falls back to Patchy's defaults.
+  drove = false;
+  when_dialog_visible(QStringLiteral("patchyPreferencesDialog"), [&](QDialog& dialog) {
+    auto* panel = hotkey_panel(dialog);
+    CHECK(panel->user_shortcut_sets().size() == 1);
+    CHECK(panel->active_shortcut_set_id() == panel->user_shortcut_sets().front().id);
+    CHECK(panel->user_shortcut_sets().front().name == QStringLiteral("Mine"));
+    panel->delete_shortcut_set(panel->active_shortcut_set_id());
+    CHECK(panel->active_shortcut_set_id() == QStringLiteral("patchy"));
+    CHECK(panel->staged_overrides().isEmpty());
+    drove = true;
+    dialog.accept();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(drove);
+  CHECK(window.hotkey_registry().overrides().isEmpty());
+  CHECK(patchy::ui::load_user_hotkey_sets(commands).empty());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> hotkey_sets_tests() {
@@ -464,6 +599,7 @@ std::vector<patchy::test::TestCase> hotkey_sets_tests() {
       {"ui_hotkey_sets_have_no_conflicts", ui_hotkey_sets_have_no_conflicts},
       {"ui_hotkey_editor_shortcut_set_combo_applies_set", ui_hotkey_editor_shortcut_set_combo_applies_set},
       {"ui_hotkey_editor_exports_and_imports_files", ui_hotkey_editor_exports_and_imports_files},
+      {"ui_hotkey_editor_built_in_sets_stay_unchanged", ui_hotkey_editor_built_in_sets_stay_unchanged},
       {"ui_hotkey_editor_shortcut_set_combo_has_room_for_its_entries",
        ui_hotkey_editor_shortcut_set_combo_has_room_for_its_entries},
   };

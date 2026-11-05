@@ -4976,6 +4976,44 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
                            QT_TR_NOOP("Zoom until the image fills the window (View > Fill Screen)"),
                            [](CanvasWidget& canvas) { canvas.fill_to_view(); });
 
+  // Rotate View (docs/view-navigation-rotation.md): the view's angle, typed or read back
+  // while dragging, and Reset View, which turns the view upright.
+  add_option_label(QT_TR_NOOP("Rotation Angle:"), {CanvasTool::RotateView});
+  rotate_view_angle_spin_ = new UnitSpinBox(SpinUnit::Degrees, toolbar);
+  rotate_view_angle_spin_->setObjectName(QStringLiteral("rotateViewAngleSpin"));
+  rotate_view_angle_spin_->setRange(-180.0, 180.0);
+  rotate_view_angle_spin_->setDecimals(1);
+  rotate_view_angle_spin_->setWrapping(true);
+  rotate_view_angle_spin_->setSingleStep(15.0);
+  rotate_view_angle_spin_->setKeyboardTracking(false);
+  rotate_view_angle_spin_->setMinimumWidth(ui_text_length(72));
+  configure_dialog_spinbox(rotate_view_angle_spin_, 72);
+  allow_while_locked(rotate_view_angle_spin_);
+  bind_tooltip(rotate_view_angle_spin_,
+               QT_TR_NOOP("The view's angle, clockwise. Only the view turns; the image does not change"));
+  add_option_widget(rotate_view_angle_spin_, {CanvasTool::RotateView});
+  register_retranslation([this] {
+    if (rotate_view_angle_spin_ != nullptr) {
+      rotate_view_angle_spin_->refresh_suffix();
+    }
+  });
+  connect(rotate_view_angle_spin_, &QDoubleSpinBox::valueChanged, this, [this](double value) {
+    if (canvas_ != nullptr && !syncing_rotate_view_angle_) {
+      canvas_->set_view_rotation(value);
+    }
+  });
+  rotate_view_reset_button_ = new QPushButton(tr("Reset View"), toolbar);
+  rotate_view_reset_button_->setObjectName(QStringLiteral("rotateViewResetButton"));
+  bind_widget_text(rotate_view_reset_button_, QT_TR_NOOP("Reset View"));
+  bind_tooltip(rotate_view_reset_button_, QT_TR_NOOP("Turn the view upright again (View > Reset View Rotation)"));
+  allow_while_locked(rotate_view_reset_button_);
+  add_option_widget(rotate_view_reset_button_, {CanvasTool::RotateView});
+  connect(rotate_view_reset_button_, &QPushButton::clicked, this, [this] {
+    if (canvas_ != nullptr) {
+      canvas_->set_view_rotation(0.0);
+    }
+  });
+
   add_option_label(QT_TR_NOOP("Font:"), {CanvasTool::Text});
   text_font_combo_ = new FontPickerCombo(toolbar);
   text_font_combo_->setObjectName(QStringLiteral("textFontCombo"));

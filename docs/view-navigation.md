@@ -6,6 +6,7 @@ Related documents:
 
 - [view-navigation-zoom-tool.md](view-navigation-zoom-tool.md): the Zoom tool (options bar, click direction, view presets, click, marquee, Scrubby Zoom), the Hand tool's preset row and zoom clicks, and the pen ZoomCanvas drag.
 - [view-navigation-status-bar.md](view-navigation-status-bar.md): the status-bar zoom box with its presets menu and Fit button, the document info field, and the selection readout.
+- [view-navigation-rotation.md](view-navigation-rotation.md): view rotation (the Rotate View tool, the view transform every mapping goes through, rotated drawing and the upright overlay frame).
 
 ## Zoom model
 

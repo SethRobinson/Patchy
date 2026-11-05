@@ -189,6 +189,9 @@ double grid_cycle_pixels(std::int32_t cycle_32) noexcept;
 // Zoom-level display policy helpers, shared by the render TU's paint/display
 // cache code and the view/event/shape-preview code still in canvas_widget.cpp.
 bool uses_pixel_aligned_view(double zoom) noexcept;
+// A rotated view (docs/view-navigation-rotation.md) resamples every pixel, so it smooths
+// below the magnification where single pixels read as squares and stays nearest above it.
+bool uses_smooth_rotated_display_scaling(double zoom) noexcept;
 bool uses_deep_zoom_pixel_renderer(double zoom) noexcept;
 // A stored pixel grid threshold if it is one of kPixelGridMinZoomPercentChoices
 // (canvas_types.hpp), otherwise the default.

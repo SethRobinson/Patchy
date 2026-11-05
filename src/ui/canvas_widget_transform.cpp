@@ -2890,10 +2890,11 @@ void CanvasWidget::draw_transform_clip_group_preview(QPainter& painter) const {
   if (source.isNull()) {
     return;
   }
-  const QTransform document_to_widget(zoom_, 0.0, 0.0, zoom_, pan_.x(), pan_.y());
+  const auto document_to_widget = view_transform().to_widget();
   const auto source_to_widget = transform_session_image_to_document(source) * document_to_widget;
   const auto target =
-      source_to_widget.mapRect(QRectF(source.rect())).toAlignedRect().adjusted(-1, -1, 1, 1).intersected(rect());
+      source_to_widget.mapRect(QRectF(source.rect())).toAlignedRect().adjusted(-1, -1, 1, 1).intersected(
+          overlay_view_rect());
   if (target.isEmpty()) {
     return;
   }
@@ -3831,8 +3832,10 @@ void CanvasWidget::apply_session_transform_cursor(QPoint widget_point, Qt::Keybo
     return;
   }
   if (transform_handle_is_corner(handle) || transform_handle_is_edge(handle)) {
-    // Right's base direction is 0 degrees, so the handle's own direction picks the shape.
-    set_transform_cursor_for_handle(TransformHandle::Right, distorted_transform_handle_direction(handle));
+    // Right's base direction is 0 degrees, so the handle's own direction picks the shape. It is
+    // measured on screen, so the view's turn, which the helper adds, comes back off.
+    set_transform_cursor_for_handle(TransformHandle::Right,
+                                    distorted_transform_handle_direction(handle) - view_rotation_degrees_);
     return;
   }
   set_transform_cursor_for_handle(handle);
@@ -4309,7 +4312,7 @@ void CanvasWidget::set_transform_cursor_for_handle(TransformHandle handle, doubl
       direction = 315.0;
       break;
   }
-  const auto step = static_cast<long>(std::lround((direction + angle_degrees) / 45.0));
+  const auto step = static_cast<long>(std::lround((direction + angle_degrees + view_rotation_degrees_) / 45.0));
   static constexpr std::array<Qt::CursorShape, 4> kResizeCursors = {Qt::SizeHorCursor, Qt::SizeFDiagCursor,
                                                                     Qt::SizeVerCursor, Qt::SizeBDiagCursor};
   setCursor(kResizeCursors[static_cast<std::size_t>(((step % 4) + 4) % 4)]);
@@ -4326,6 +4329,8 @@ void CanvasWidget::set_transform_cursor_at(QPoint widget_point, TransformHandle 
 
 QCursor CanvasWidget::transform_rotate_cursor_at(QPoint widget_point, QRectF document_rect, double angle_degrees,
                                                  bool stem_counts) const {
+  widget_point = upright_overlay_point(widget_point);
+  const UprightOverlayScope upright(*this);
   if (stem_counts) {
     constexpr double kStemHit = 14.0;
     const auto stem = transform_handle_position(TransformHandle::Rotate, document_rect, angle_degrees);
@@ -4341,7 +4346,7 @@ QCursor CanvasWidget::transform_rotate_cursor_at(QPoint widget_point, QRectF doc
   const auto right = local.x() >= 0.0;
   const auto below = local.y() >= 0.0;
   const auto corner_direction = right ? (below ? 45.0 : 315.0) : (below ? 135.0 : 225.0);
-  return corner_rotate_cursor(corner_direction + angle_degrees);
+  return corner_rotate_cursor(corner_direction + angle_degrees + view_rotation_degrees_);
 }
 
 QPointF CanvasWidget::transform_handle_position(TransformHandle handle) const {
@@ -4420,7 +4425,7 @@ void CanvasWidget::draw_free_transform(QPainter& painter) const {
       painter.setRenderHint(QPainter::SmoothPixmapTransform,
                             transform_interpolation_ != TransformInterpolation::NearestNeighbor);
       const auto delta = transform_session_delta();
-      const QTransform document_to_widget(zoom_, 0.0, 0.0, zoom_, pan_.x(), pan_.y());
+      const auto document_to_widget = view_transform().to_widget();
       painter.setTransform(delta * document_to_widget, true);
       painter.drawImage(QRectF(transform_multi_snapshot_rect_), transform_multi_snapshot_,
                         QRectF(transform_multi_snapshot_.rect()));
@@ -4441,7 +4446,7 @@ void CanvasWidget::draw_free_transform(QPainter& painter) const {
     painter.setOpacity(transform_proxy_layer_opacity_);
     if (transform_is_distorted()) {
       // Skew/Distort/Perspective: the quad's homography maps the proxy directly.
-      const QTransform document_to_widget(zoom_, 0.0, 0.0, zoom_, pan_.x(), pan_.y());
+      const auto document_to_widget = view_transform().to_widget();
       painter.setTransform(transform_session_image_to_document(transform_proxy_image_) * document_to_widget, true);
       painter.drawImage(QRectF(transform_proxy_image_.rect()), transform_proxy_image_,
                         QRectF(transform_proxy_image_.rect()));
@@ -4460,7 +4465,7 @@ void CanvasWidget::draw_free_transform(QPainter& painter) const {
                           transform_interpolation_ != TransformInterpolation::NearestNeighbor);
     const auto& source = transform_preview_source_image();
     if (transform_is_distorted()) {
-      const QTransform document_to_widget(zoom_, 0.0, 0.0, zoom_, pan_.x(), pan_.y());
+      const auto document_to_widget = view_transform().to_widget();
       painter.setTransform(transform_session_image_to_document(source) * document_to_widget, true);
       painter.drawImage(QRectF(source.rect()), source, QRectF(source.rect()));
     } else {
@@ -4583,6 +4588,8 @@ CanvasWidget::TransformHandle CanvasWidget::transform_handle_for_session_mode(Tr
 
 CanvasWidget::TransformHandle CanvasWidget::transform_handle_at(QPoint widget_point, QRectF document_rect,
                                                                 double angle_degrees, TransformHitZones zones) const {
+  widget_point = upright_overlay_point(widget_point);
+  const UprightOverlayScope upright(*this);
   constexpr double kHandleHit = 14.0;
   // EdgesAndCorners (GitHub issue 176), in widget pixels of the box's own frame:
   // each edge resizes within kEdgeGrabOutside outside its line and up to half a

@@ -19437,6 +19437,26 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Change the color, gradient or pattern of a fill layer</source>
         <translation>Zmień kolor, gradient lub wzorek warstwy wypełnienia</translation>
     </message>
+    <message>
+        <source>Turn the canvas counterclockwise on screen</source>
+        <translation>Obróć obszar roboczy na ekranie w lewo</translation>
+    </message>
+    <message>
+        <source>Turn the canvas clockwise on screen</source>
+        <translation>Obróć obszar roboczy na ekranie w prawo</translation>
+    </message>
+    <message>
+        <source>Turn the canvas upright again</source>
+        <translation>Wyprostuj obszar roboczy z powrotem</translation>
+    </message>
+    <message>
+        <source>Turn the canvas on screen like a sheet of paper</source>
+        <translation>Obracaj obszar roboczy na ekranie jak kartkę papieru</translation>
+    </message>
+    <message>
+        <source>Switch between the hand and rotate view tools</source>
+        <translation>Przełączaj między rączką a obrotem widoku</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -19961,36 +19981,16 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Zestaw skrótów:</translation>
     </message>
     <message>
-        <source>Start from Patchy&apos;s shortcuts or from a set laid out like another editor&apos;s. You can still change any key afterwards.</source>
-        <translation>Zacznij od skrótów Patchy lub od zestawu ułożonego jak w innym edytorze. Każdy klawisz możesz potem zmienić.</translation>
-    </message>
-    <message>
-        <source>Patchy (default)</source>
-        <translation>Patchy (domyślny)</translation>
-    </message>
-    <message>
         <source>Import...</source>
         <translation>Importuj...</translation>
-    </message>
-    <message>
-        <source>Replace the shortcuts with ones saved in a hotkey file</source>
-        <translation>Zastąp skróty tymi zapisanymi w pliku skrótów</translation>
     </message>
     <message>
         <source>Export...</source>
         <translation>Eksportuj...</translation>
     </message>
     <message>
-        <source>Save your shortcut changes to a file you can keep or share</source>
-        <translation>Zapisz zmiany skrótów w pliku, który możesz zachować lub udostępnić</translation>
-    </message>
-    <message>
         <source>Exported &quot;%1&quot;.</source>
         <translation>Wyeksportowano „%1”.</translation>
-    </message>
-    <message>
-        <source>Imported &quot;%1&quot;. Commands: %2. Skipped commands this Patchy does not have: %3. Skipped keys it cannot use: %4. Click OK to apply.</source>
-        <translation>Zaimportowano „%1”. Polecenia: %2. Pominięte polecenia, których ten Patchy nie ma: %3. Pominięte klawisze, których nie może użyć: %4. Kliknij OK, aby zastosować.</translation>
     </message>
     <message>
         <source>Export Hotkeys</source>
@@ -20017,16 +20017,8 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Import nie powiódł się</translation>
     </message>
     <message>
-        <source>Replace your current shortcuts with the ones in &quot;%1&quot;? Shortcuts the file does not set go back to Patchy&apos;s defaults.</source>
-        <translation>Zastąpić bieżące skróty skrótami z „%1”? Skróty, których plik nie ustawia, wrócą do domyślnych ustawień Patchy.</translation>
-    </message>
-    <message>
         <source>Shortcut Set</source>
         <translation>Zestaw skrótów</translation>
-    </message>
-    <message>
-        <source>Replace your own shortcut changes with the %1 set? Export them first to keep a copy.</source>
-        <translation>Zastąpić własne zmiany skrótów zestawem %1? Najpierw je wyeksportuj, aby zachować kopię.</translation>
     </message>
     <message>
         <source>Custom</source>
@@ -20055,6 +20047,79 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Krita-style</source>
         <translation>Styl Krita</translation>
+    </message>
+    <message>
+        <source>Patchy default</source>
+        <translation>Domyślny Patchy</translation>
+    </message>
+    <message>
+        <source>%1 (built-in)</source>
+        <extracomment>A shortcut set shipped with Patchy, in the Preferences &gt; Hotkeys set list. %1 is its name.</extracomment>
+        <translation>%1 (wbudowany)</translation>
+    </message>
+    <message>
+        <source>Built-in sets never change: changing a key in one puts your keys in the Custom set. Rename it to keep it as a set of your own.</source>
+        <translation>Wbudowane zestawy nigdy się nie zmieniają: zmiana klawisza w jednym z nich przenosi Twoje klawisze do zestawu Niestandardowy. Zmień jego nazwę, aby zachować go jako własny zestaw.</translation>
+    </message>
+    <message>
+        <source>Rename...</source>
+        <translation>Zmień nazwę...</translation>
+    </message>
+    <message>
+        <source>Name this set of yours</source>
+        <translation>Nadaj nazwę temu własnemu zestawowi</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Usuń</translation>
+    </message>
+    <message>
+        <source>Remove this set of yours</source>
+        <translation>Usuń ten własny zestaw</translation>
+    </message>
+    <message>
+        <source>Add the shortcuts saved in a hotkey file as a set of your own</source>
+        <translation>Dodaj skróty zapisane w pliku jako własny zestaw</translation>
+    </message>
+    <message>
+        <source>Save the shortcuts shown to a file you can keep or share</source>
+        <translation>Zapisz pokazane skróty w pliku, który można zachować lub udostępnić</translation>
+    </message>
+    <message>
+        <source>Imported &quot;%1&quot; as the set &quot;%2&quot;. Commands: %3. Skipped commands this Patchy does not have: %4. Skipped keys it cannot use: %5. Click OK to apply.</source>
+        <translation>Zaimportowano „%1” jako zestaw „%2”. Polecenia: %3. Pominięte polecenia, których ten Patchy nie ma: %4. Pominięte klawisze, których nie można użyć: %5. Kliknij OK, aby zastosować.</translation>
+    </message>
+    <message>
+        <source>Set name:</source>
+        <translation>Nazwa zestawu:</translation>
+    </message>
+    <message>
+        <source>A shortcut set named &quot;%1&quot; already exists. Choose another name.</source>
+        <translation>Zestaw skrótów o nazwie „%1” już istnieje. Wybierz inną nazwę.</translation>
+    </message>
+    <message>
+        <source>Rename Shortcut Set</source>
+        <translation>Zmień nazwę zestawu skrótów</translation>
+    </message>
+    <message>
+        <source>Delete Shortcut Set</source>
+        <translation>Usuń zestaw skrótów</translation>
+    </message>
+    <message>
+        <source>Delete the shortcut set &quot;%1&quot;? Patchy&apos;s default shortcuts take its place.</source>
+        <translation>Usunąć zestaw skrótów „%1”? Jego miejsce zajmą domyślne skróty Patchy.</translation>
+    </message>
+    <message>
+        <source>Imported shortcuts</source>
+        <translation>Zaimportowane skróty</translation>
+    </message>
+    <message>
+        <source>%1 is built in and never changes, so your change goes into the Custom set, which already holds other changes. Replace them? To keep them, click Cancel and rename Custom first.</source>
+        <translation>%1 jest wbudowany i nigdy się nie zmienia, więc zmiana trafia do zestawu Niestandardowy, który zawiera już inne zmiany. Zastąpić je? Aby je zachować, kliknij Anuluj i najpierw zmień nazwę zestawu Niestandardowy.</translation>
+    </message>
+    <message>
+        <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
+        <translation>%1 jest wbudowany, więc Twoje zmiany są w zestawie Niestandardowy. Zmień jego nazwę, aby zachować go jako własny zestaw.</translation>
     </message>
 </context>
 <context>
@@ -32859,6 +32924,54 @@ Zablokowano: %1</translation>
         <source>Select a fill layer to edit its settings</source>
         <translation>Zaznacz warstwę wypełnienia, aby edytować jej ustawienia</translation>
     </message>
+    <message>
+        <source>Rotate View Left</source>
+        <translation>Obróć widok w lewo</translation>
+    </message>
+    <message>
+        <source>Rotate View Right</source>
+        <translation>Obróć widok w prawo</translation>
+    </message>
+    <message>
+        <source>Reset View Rotation</source>
+        <translation>Wyzeruj obrót widoku</translation>
+    </message>
+    <message>
+        <source>Rotation Angle:</source>
+        <translation>Kąt obrotu:</translation>
+    </message>
+    <message>
+        <source>The view&apos;s angle, clockwise. Only the view turns; the image does not change</source>
+        <translation>Kąt widoku, zgodnie z ruchem wskazówek zegara. Obraca się tylko widok, obraz się nie zmienia</translation>
+    </message>
+    <message>
+        <source>Reset View</source>
+        <translation>Wyzeruj widok</translation>
+    </message>
+    <message>
+        <source>Turn the view upright again (View &gt; Reset View Rotation)</source>
+        <translation>Wyprostuj widok z powrotem (Widok &gt; Wyzeruj obrót widoku)</translation>
+    </message>
+    <message>
+        <source>Drag to turn the view, Shift snaps to 15 degrees. Esc or Reset View turns it upright. The image does not change.</source>
+        <translation>Przeciągnij, aby obrócić widok, Shift przyciąga co 15 stopni. Esc lub Wyzeruj widok go prostuje. Obraz się nie zmienia.</translation>
+    </message>
+    <message>
+        <source>Rotate View: drag to turn the view like a sheet of paper, Shift snaps to 15 degrees. Esc turns it upright. Only the view turns; the image is unchanged.</source>
+        <translation>Obrót widoku: przeciągnij, aby obracać widok jak kartkę papieru, Shift przyciąga co 15 stopni. Esc go prostuje. Obraca się tylko widok, obraz się nie zmienia.</translation>
+    </message>
+    <message>
+        <source>Hand Tools</source>
+        <translation>Narzędzia rączki</translation>
+    </message>
+    <message>
+        <source>Rotate View</source>
+        <translation>Obrót widoku</translation>
+    </message>
+    <message>
+        <source>Cycle Hand Tools</source>
+        <translation>Przełącz narzędzia rączki</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35119,6 +35232,14 @@ Zablokowano: %1</translation>
     <message>
         <source>feather needs a radius from %1 to %2.</source>
         <translation>feather wymaga promienia od %1 do %2.</translation>
+    </message>
+    <message>
+        <source>rotation needs a number of degrees.</source>
+        <translation>rotation wymaga liczby stopni.</translation>
+    </message>
+    <message>
+        <source>No document is open to rotate the view of.</source>
+        <translation>Żaden dokument nie jest otwarty do obrócenia widoku.</translation>
     </message>
 </context>
 <context>

@@ -1,6 +1,12 @@
 #include "ui/hotkey_sets.hpp"
 
+#include "ui/app_settings.hpp"
+#include "ui/hotkey_files.hpp"
+
 #include <QCoreApplication>
+#include <QDir>
+#include <QFileInfo>
+#include <QStandardPaths>
 #include <QKeySequence>
 #include <QStringList>
 #include <algorithm>
@@ -94,6 +100,8 @@ constexpr std::array kGimpEntries{
     // Fuzzy Select; Shift+letter tool keys replace the group cycles that used them.
     HotkeySetEntry{"tools.move", "M"},
     HotkeySetEntry{"tools.marquee", "R"},
+    // GIMP rotates the view with Shift+middle drag, not a tool key: R goes to Rectangle Select.
+    HotkeySetEntry{"tools.rotate_view", ""},
     HotkeySetEntry{"tools.elliptical_marquee", "E"},
     HotkeySetEntry{"tools.lasso", "F"},
     HotkeySetEntry{"tools.magnetic_lasso", "I"},
@@ -179,7 +187,16 @@ const HotkeyCommand* find_command(const std::vector<HotkeyCommand>& commands, co
   return it != commands.end() ? &*it : nullptr;
 }
 
-bool override_maps_equivalent(const HotkeyOverrideMap& a, const HotkeyOverrideMap& b) {
+// Settings keys: persisted identifiers (docs/hotkey-sets.md "Your own sets"). A group of its
+// own, never under "hotkeys", whose every child key the registry reads as a command id.
+const QString kSetsGroup = QStringLiteral("hotkeySets");
+const QString kActiveKey = QStringLiteral("hotkeySets/active");
+const QString kLastFolderKey = QStringLiteral("hotkeySets/lastFolder");
+const QString kUserArray = QStringLiteral("user");
+
+}  // namespace
+
+bool hotkey_override_maps_equivalent(const HotkeyOverrideMap& a, const HotkeyOverrideMap& b) {
   if (a.size() != b.size()) {
     return false;
   }
@@ -191,8 +208,6 @@ bool override_maps_equivalent(const HotkeyOverrideMap& a, const HotkeyOverrideMa
   }
   return true;
 }
-
-}  // namespace
 
 std::span<const HotkeySet> builtin_hotkey_sets() {
   return kHotkeySets;
@@ -229,11 +244,72 @@ QString matching_hotkey_set_id(const HotkeyOverrideMap& overrides, const std::ve
     return QString::fromLatin1(kPatchyHotkeySetId);
   }
   for (const auto& set : kHotkeySets) {
-    if (override_maps_equivalent(overrides, hotkey_set_overrides(set, commands))) {
+    if (hotkey_override_maps_equivalent(overrides, hotkey_set_overrides(set, commands))) {
       return QString::fromLatin1(set.id);
     }
   }
   return {};
+}
+
+std::vector<UserHotkeySet> load_user_hotkey_sets(const std::vector<HotkeyCommand>& commands) {
+  std::vector<UserHotkeySet> sets;
+  auto settings = app_settings();
+  settings.beginGroup(kSetsGroup);
+  const int count = settings.beginReadArray(kUserArray);
+  for (int index = 0; index < count; ++index) {
+    settings.setArrayIndex(index);
+    const auto id = settings.value(QStringLiteral("id")).toString();
+    const auto stored = settings.value(QStringLiteral("shortcuts")).toString().toUtf8();
+    auto read = hotkey_overrides_from_json(stored, commands);
+    const bool duplicate = std::any_of(sets.begin(), sets.end(), [&id](const UserHotkeySet& set) { return set.id == id; });
+    if (id.isEmpty() || duplicate || !read.ok) {
+      continue;
+    }
+    sets.push_back({id, settings.value(QStringLiteral("name")).toString(), std::move(read.overrides)});
+  }
+  settings.endArray();
+  settings.endGroup();
+  return sets;
+}
+
+QString load_active_hotkey_set_id() {
+  return app_settings().value(kActiveKey).toString();
+}
+
+void store_user_hotkey_sets(const std::vector<UserHotkeySet>& sets, const QString& active_id) {
+  auto settings = app_settings();
+  const auto last_folder = settings.value(kLastFolderKey);
+  settings.remove(kSetsGroup);
+  settings.beginGroup(kSetsGroup);
+  settings.beginWriteArray(kUserArray, static_cast<int>(sets.size()));
+  for (int index = 0; index < static_cast<int>(sets.size()); ++index) {
+    const auto& set = sets[static_cast<std::size_t>(index)];
+    settings.setArrayIndex(index);
+    settings.setValue(QStringLiteral("id"), set.id);
+    settings.setValue(QStringLiteral("name"), set.name);
+    settings.setValue(QStringLiteral("shortcuts"), QString::fromUtf8(hotkey_overrides_to_json(set.overrides)));
+  }
+  settings.endArray();
+  settings.endGroup();
+  settings.setValue(kActiveKey, active_id);
+  if (last_folder.isValid()) {
+    settings.setValue(kLastFolderKey, last_folder);
+  }
+  settings.sync();
+}
+
+QString hotkey_file_folder() {
+  const auto stored = app_settings().value(kLastFolderKey).toString();
+  if (!stored.isEmpty() && QFileInfo(stored).isDir()) {
+    return stored;
+  }
+  return QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+}
+
+void remember_hotkey_file_folder(const QString& file_path) {
+  auto settings = app_settings();
+  settings.setValue(kLastFolderKey, QFileInfo(file_path).absolutePath());
+  settings.sync();
 }
 
 }  // namespace patchy::ui

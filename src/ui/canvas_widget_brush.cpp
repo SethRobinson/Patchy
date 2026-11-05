@@ -803,13 +803,25 @@ bool CanvasWidget::apply_brush_tip_cursor() {
     return false;
   }
 
-  const auto extent = std::clamp(std::max(outline.width(), outline.height()) + 7, 17, 168);
+  // A rotated view turns the tip on screen with the document (docs/view-navigation-rotation.md).
+  const bool turned = view_rotation_degrees_ != 0.0;
+  const auto span = turned ? static_cast<int>(std::ceil(std::hypot(outline.width(), outline.height())))
+                           : std::max(outline.width(), outline.height());
+  const auto extent = std::clamp(span + 7, 17, 168);
   QPixmap pixmap(extent, extent);
   pixmap.fill(Qt::transparent);
   QPainter painter(&pixmap);
   painter.setRenderHint(QPainter::Antialiasing, false);
   const QPoint center(extent / 2, extent / 2);
-  painter.drawImage(QPoint(center.x() - outline.width() / 2, center.y() - outline.height() / 2), outline);
+  if (turned) {
+    painter.save();
+    painter.translate(center);
+    painter.rotate(view_rotation_degrees_);
+    painter.drawImage(QPoint(-outline.width() / 2, -outline.height() / 2), outline);
+    painter.restore();
+  } else {
+    painter.drawImage(QPoint(center.x() - outline.width() / 2, center.y() - outline.height() / 2), outline);
+  }
   paint_brush_center_cross(painter, center);
   painter.end();
   setCursor(QCursor(pixmap, center.x(), center.y()));
@@ -935,9 +947,19 @@ void CanvasWidget::draw_brush_hover_outline(QPainter& painter) const {
     }
     if (!brush_outline_overlay_image_.isNull()) {
       painter.setRenderHint(QPainter::Antialiasing, false);
-      painter.drawImage(QPoint(center.x() - brush_outline_overlay_image_.width() / 2,
-                               center.y() - brush_outline_overlay_image_.height() / 2),
-                        brush_outline_overlay_image_);
+      if (view_rotation_degrees_ != 0.0) {
+        // A rotated view turns the tip with the document.
+        painter.save();
+        painter.translate(QPointF(center));
+        painter.rotate(view_rotation_degrees_);
+        painter.drawImage(QPoint(-brush_outline_overlay_image_.width() / 2, -brush_outline_overlay_image_.height() / 2),
+                          brush_outline_overlay_image_);
+        painter.restore();
+      } else {
+        painter.drawImage(QPoint(center.x() - brush_outline_overlay_image_.width() / 2,
+                                 center.y() - brush_outline_overlay_image_.height() / 2),
+                          brush_outline_overlay_image_);
+      }
     }
   } else {
     // Large procedural brush: the same outline the cursor draws, just unbounded.
@@ -948,7 +970,7 @@ void CanvasWidget::draw_brush_hover_outline(QPainter& painter) const {
       if (square) {
         painter.save();
         painter.translate(QPointF(center));
-        painter.rotate(brush_base_angle_degrees_);
+        painter.rotate(brush_base_angle_degrees_ + view_rotation_degrees_);
         painter.drawRect(QRectF(-half, -half, 2.0 * half, 2.0 * half));
         painter.restore();
       } else {
@@ -3311,9 +3333,7 @@ void CanvasWidget::draw_clone_source_overlay(QPainter& painter) const {
   const auto anchor = QPointF(clone_source_point_ - offset) + QPointF(0.5, 0.5);
   const auto source_center = QPointF(clone_source_point_) + QPointF(0.5, 0.5);
   // Source document coordinates to widget coordinates (the last call applies first).
-  QTransform to_widget;
-  to_widget.translate(pan_.x(), pan_.y());
-  to_widget.scale(zoom_, zoom_);
+  auto to_widget = view_transform().to_widget();
   to_widget.translate(anchor.x(), anchor.y());
   to_widget.rotate(transform.rotation_degrees);
   // The flips mirror before the scale and the turn, as CloneSourceMapping does.
@@ -3515,6 +3535,32 @@ void CanvasWidget::draw_brush_dab_overlay(QPainter& painter) const {
   const QRectF target(center.x() - brush_overlay_image_center_.x() * ratio,
                       center.y() - brush_overlay_image_center_.y() * ratio, brush_overlay_image_.width() * ratio,
                       brush_overlay_image_.height() * ratio);
+  if (view_rotation_degrees_ != 0.0) {
+    // A rotated view: the dab image is document-aligned, so it turns about the pointer and
+    // clips to the document's on-screen outline.
+    const auto document_outline =
+        view_transform().map_document_rect(QRectF(0.0, 0.0, document_->width(), document_->height()));
+    QPainterPath area;
+    area.addPolygon(document_outline);
+    area.closeSubpath();
+    QTransform turn;
+    turn.translate(center.x(), center.y());
+    turn.rotate(view_rotation_degrees_);
+    turn.translate(-center.x(), -center.y());
+    const auto drawn = turn.mapRect(target).intersected(document_outline.boundingRect());
+    if (drawn.isEmpty()) {
+      return;
+    }
+    painter.save();
+    painter.setClipPath(area, Qt::IntersectClip);
+    painter.setOpacity(static_cast<double>(brush_overlay_opacity_) / 100.0);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    painter.setTransform(turn, true);
+    painter.drawImage(target, brush_overlay_image_);
+    painter.restore();
+    brush_overlay_drawn_rect_ = drawn.toAlignedRect().adjusted(-2, -2, 2, 2);
+    return;
+  }
   const QRectF document_area(widget_position_f(QPointF(0.0, 0.0)),
                              widget_position_f(QPointF(document_->width(), document_->height())));
   const auto clip = target.intersected(document_area);

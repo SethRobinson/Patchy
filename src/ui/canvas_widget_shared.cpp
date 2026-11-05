@@ -620,6 +620,10 @@ bool uses_smooth_display_scaling(double zoom, bool deep_pixel_renderer) noexcept
   return std::abs(zoom - std::round(zoom)) > kWholeZoomTolerance;
 }
 
+bool uses_smooth_rotated_display_scaling(double zoom) noexcept {
+  return std::isfinite(zoom) && zoom < kSmoothMagnificationLimit;
+}
+
 QRgb pixel_grid_line_color(QRgb pixel) noexcept {
   // The pixel as it shows over a light backdrop (the transparency checkerboard's tone),
   // then pushed toward black when light or toward white when dark, which keeps its hue:

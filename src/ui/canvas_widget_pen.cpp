@@ -116,6 +116,17 @@ CanvasWidget::PenInputSample CanvasWidget::pen_input_sample_from_tablet_event(co
       sample.rotation_available && std::isfinite(event.rotation()) ? static_cast<double>(event.rotation()) : 0.0;
   sample.z_available = capabilities.testFlag(QInputDevice::Capability::ZPosition);
   sample.z = sample.z_available && std::isfinite(event.z()) ? static_cast<float>(event.z()) : 0.0F;
+  if (view_rotation_degrees_ != 0.0) {
+    // The tilt direction and barrel rotation are screen angles and the brush reads them on
+    // the document, so a rotated view turns them back (docs/view-navigation-rotation.md).
+    const CanvasViewTransform turn(1.0, QPointF(), view_rotation_degrees_, QSizeF());
+    const auto tilt = turn.map_vector_to_document(QPointF(sample.x_tilt, sample.y_tilt));
+    sample.x_tilt = static_cast<float>(tilt.x());
+    sample.y_tilt = static_cast<float>(tilt.y());
+    if (sample.rotation_available) {
+      sample.rotation_degrees = CanvasViewTransform::normalized_angle(sample.rotation_degrees - view_rotation_degrees_);
+    }
+  }
   return sample;
 }
 

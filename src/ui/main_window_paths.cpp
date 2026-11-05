@@ -983,7 +983,11 @@ void MainWindow::stroke_active_path() {
   canvas_->set_tool(CanvasTool::Brush);
   const auto origin = canvas_->widget_position_for_document_point(QPoint(0, 0));
   const auto zoom = canvas_->zoom();
+  const bool view_axis_aligned = canvas_->view_axis_aligned();
   const auto widget_point = [&](QPointF document_point) {
+    if (!view_axis_aligned) {
+      return canvas_->widget_position_f(document_point);
+    }
     return QPointF(origin.x() + document_point.x() * zoom,
                    origin.y() + document_point.y() * zoom);
   };

@@ -441,6 +441,9 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"view.clear_guides", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Remove all guides")},
     {"view.fill_screen", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Zoom until the image fills the window")},
     {"view.zoom_200", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Zoom to twice the size")},
+    {"view.rotate_left", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Turn the canvas counterclockwise on screen")},
+    {"view.rotate_right", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Turn the canvas clockwise on screen")},
+    {"view.rotate_reset", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Turn the canvas upright again")},
     {"view.vector_preview", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show shape edits live while dragging")},
     {"view.proof_colors", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Preview the print colors")},
     {"view.gamut_warning", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Mark colors that cannot print")},
@@ -541,6 +544,7 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"tools.ruler", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Measure distances and angles")},
     {"tools.type", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add text")},
     {"tools.hand", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Scroll the view")},
+    {"tools.rotate_view", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Turn the canvas on screen like a sheet of paper")},
     {"tools.zoom", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Zoom in and out")},
     {"tools.pen", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Draw paths and curves")},
     {"tools.path_select", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Select and move whole shapes")},
@@ -563,6 +567,7 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"tools.cycle.tone", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between dodge, burn and sponge")},
     {"tools.cycle.pen", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the pen tools")},
     {"tools.cycle.path_select", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the path selection tools")},
+    {"tools.cycle.hand", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the hand and rotate view tools")},
     {"tools.cycle.shape", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the shape tools")},
     {"tools.cycle.pick", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the eyedropper and ruler")},
     // Color and brush keys
@@ -1026,7 +1031,7 @@ QIcon command_search_kind_icon(CommandSearchKind kind) {
     painter.save();
     painter.setCompositionMode(QPainter::CompositionMode_Clear);
     painter.setPen(Qt::NoPen);
-    painter.setBrush(Qt::black);
+    painter.setBrush(Qt::black);  // color-literal-ok: Clear mode ignores the color
     painter.drawEllipse(center, 4.4, 4.4);
     painter.restore();
     painter.setPen(QPen(ink, 1.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));

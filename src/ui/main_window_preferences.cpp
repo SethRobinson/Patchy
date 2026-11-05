@@ -2283,6 +2283,15 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
       list_scroll->widget()->ensurePolished();
       page_content_width = std::max(page_content_width, 12 + list_scroll->widget()->minimumSizeHint().width() +
                                                             list_scroll->verticalScrollBar()->sizeHint().width());
+      // The search and shortcut set rows above it, after the same 12 px page margin: their
+      // right inset is 12 px, widened by the list's scroll bar while that shows.
+      if (const auto* header = page_stack->findChild<QWidget*>(QStringLiteral("hotkeyEditorHeader"));
+          header != nullptr && header->layout() != nullptr) {
+        const int inset = header->layout()->contentsMargins().right();
+        page_content_width =
+            std::max(page_content_width, 12 + header->minimumSizeHint().width() - inset + 12 +
+                                             list_scroll->verticalScrollBar()->sizeHint().width());
+      }
     }
     page_stack->setMinimumWidth(page_content_width + 2 * page_stack->frameWidth());
 

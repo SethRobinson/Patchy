@@ -188,4 +188,32 @@ SelectionOutlineScreenPaths build_selection_outline_screen_paths(const std::vect
   return paths;
 }
 
+SelectionOutlineScreenPaths build_selection_outline_screen_paths(const std::vector<OutlineLoop>& loops,
+                                                                 const QTransform& map,
+                                                                 const QRectF& device_viewport) {
+  SelectionOutlineScreenPaths paths;
+  const auto scale = std::hypot(map.m11(), map.m12());
+  if (loops.empty() || !(scale > 0.0)) {
+    return paths;
+  }
+  for (const auto& loop : loops) {
+    if (loop.points.size() < 3) {
+      continue;
+    }
+    if (!device_viewport.intersects(map.mapRect(QRectF(loop.bounds)))) {
+      continue;
+    }
+    double perimeter = 0.0;
+    for (qsizetype index = 0; index < loop.points.size(); ++index) {
+      const auto& from = loop.points[index];
+      const auto& to = loop.points[(index + 1) % loop.points.size()];
+      perimeter += (std::abs(to.x() - from.x()) + std::abs(to.y() - from.y())) * scale;
+    }
+    auto& path = perimeter < kMinMarchingPerimeter ? paths.pinpoint : paths.marching;
+    path.addPolygon(map.map(loop.points));
+    path.closeSubpath();
+  }
+  return paths;
+}
+
 }  // namespace patchy::ui

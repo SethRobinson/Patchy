@@ -353,10 +353,12 @@ void CanvasWidget::update_perspective_crop_cursor(QPoint widget_point) {
     setCursor(transform_gesture_cursor(TransformGestureCursor::Distort));
   } else if (part >= kPerspectiveCropPartEdge && part < kPerspectiveCropPartEdge + 4) {
     // Right's base direction is 0 degrees, so the edge's own direction picks the shape
-    // (the distorted Free Transform box's rule).
+    // (the distorted Free Transform box's rule). The quad is on screen already, so the
+    // view's turn, which the helper adds, comes back off.
     set_transform_cursor_for_handle(
         TransformHandle::Right,
-        transform_quad_handle_direction(quad, kEdgeHandles[static_cast<std::size_t>(part - kPerspectiveCropPartEdge)]));
+        transform_quad_handle_direction(quad, kEdgeHandles[static_cast<std::size_t>(part - kPerspectiveCropPartEdge)]) -
+            view_rotation_degrees_);
   } else if (part == kPerspectiveCropPartRotate) {
     // The corner the pointer is nearest picks the rotate cursor's orientation.
     std::size_t nearest = 0;

@@ -314,6 +314,8 @@ QRectF CanvasWidget::artboard_label_widget_rect(const Layer& artboard) const {
 }
 
 std::optional<LayerId> CanvasWidget::artboard_label_at(QPoint widget_point) const {
+  widget_point = upright_overlay_point(widget_point);
+  const UprightOverlayScope upright(*this);
   // Names hidden by View > Extras take no clicks either.
   if (document_ == nullptr || !extra_shown(ViewExtra::ArtboardNames)) {
     return std::nullopt;
@@ -348,6 +350,8 @@ QRectF CanvasWidget::artboard_add_button_widget_rect(QRect artboard_rect, int si
 }
 
 int CanvasWidget::artboard_add_button_at(QPoint widget_point) const {
+  widget_point = upright_overlay_point(widget_point);
+  const UprightOverlayScope upright(*this);
   if (tool_ != CanvasTool::Artboard || document_ == nullptr || artboard_drag_active()) {
     return -1;
   }
@@ -369,6 +373,8 @@ int CanvasWidget::artboard_add_button_at(QPoint widget_point) const {
 }
 
 CanvasWidget::TransformHandle CanvasWidget::artboard_handle_at(QPoint widget_point) const {
+  widget_point = upright_overlay_point(widget_point);
+  const UprightOverlayScope upright(*this);
   if (tool_ != CanvasTool::Artboard || document_ == nullptr) {
     return TransformHandle::None;
   }
@@ -724,7 +730,14 @@ void CanvasWidget::update_artboard_tool_cursor(QPoint widget_point) {
     setCursor(Qt::PointingHandCursor);
     return;
   }
-  switch (artboard_drag_mode_ == ArtboardDragMode::Resize ? artboard_drag_handle_ : artboard_handle_at(widget_point)) {
+  const auto handle =
+      artboard_drag_mode_ == ArtboardDragMode::Resize ? artboard_drag_handle_ : artboard_handle_at(widget_point);
+  if (view_rotation_degrees_ != 0.0 && handle != TransformHandle::None && handle != TransformHandle::Move) {
+    // A rotated view: the resize cursor follows the handle's on-screen direction.
+    set_transform_cursor_for_handle(handle, 0.0);
+    return;
+  }
+  switch (handle) {
     case TransformHandle::TopLeft:
     case TransformHandle::BottomRight:
       setCursor(Qt::SizeFDiagCursor);

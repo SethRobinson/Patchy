@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.26)
 
 project(
   Patchy
-  VERSION 1.26
+  VERSION 1.27
   DESCRIPTION "A native, PSD-oriented image editor foundation"
   LANGUAGES CXX
 )
@@ -1261,6 +1261,10 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/canvas_widget.cpp
       src/ui/canvas_widget_shared.hpp
       src/ui/canvas_widget_shared.cpp
+      src/ui/canvas_view_transform.hpp
+      src/ui/canvas_view_transform.cpp
+      src/ui/canvas_widget_render_rotated.cpp
+      src/ui/canvas_widget_rotate_view.cpp
       src/ui/clipboard_text_paths.hpp
       src/ui/clipboard_text_paths.cpp
       src/ui/canvas_alt_space_filter.hpp
@@ -2574,6 +2578,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/pickers_notices_hotkeys_tests.cpp
       tests/ui/hotkey_sets_tests.cpp
       tests/ui/canvas_view_tools_tests.cpp
+      tests/ui/view_rotation_tests.cpp
       tests/ui/layer_context_lifecycle_tests.cpp
       tests/ui/layer_export_tests.cpp
       tests/ui/layer_menu_commands_tests.cpp

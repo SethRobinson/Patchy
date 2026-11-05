@@ -1632,6 +1632,10 @@ private:
     const auto current_zoom = zoom();
     const QPointF document_local(editor_point.x() / current_zoom, editor_point.y() / current_zoom);
     const auto document_point = active_text_transform().map(document_local);
+    if (canvas_ != nullptr && !canvas_->view_axis_aligned()) {
+      // A rotated view (docs/view-navigation-rotation.md): the canvas's own mapping turns it.
+      return canvas_->widget_position_f(document_point);
+    }
     const auto origin = document_origin_on_canvas();
     return QPointF(origin.x() + document_point.x() * current_zoom,
                    origin.y() + document_point.y() * current_zoom);
@@ -1647,8 +1651,10 @@ private:
 
     const auto current_zoom = zoom();
     const auto origin = document_origin_on_canvas();
-    const QPointF document_point((canvas_point.x() - origin.x()) / current_zoom,
-                                 (canvas_point.y() - origin.y()) / current_zoom);
+    const QPointF document_point = canvas_ != nullptr && !canvas_->view_axis_aligned()
+                                       ? canvas_->document_point_for_widget_position(canvas_point)
+                                       : QPointF((canvas_point.x() - origin.x()) / current_zoom,
+                                                 (canvas_point.y() - origin.y()) / current_zoom);
     const auto document_local = inverse.map(document_point);
     return QPointF(document_local.x() * current_zoom, document_local.y() * current_zoom);
   }
@@ -10960,8 +10966,11 @@ void MainWindow::remove_text_editor_transform_overlay(QTextEdit* editor) {
 
 void MainWindow::update_text_editor_transform_overlay(QTextEdit* editor) {
   const bool area = editor != nullptr && text_editor_area(*editor).has_value();
+  // A rotated view edits new point text through the overlay too (its provisional layer).
+  const bool rotated_view = canvas_ != nullptr && !canvas_->view_axis_aligned();
   const auto target_id = editor == nullptr ? QVariant() : editor->property("patchy.editingLayerId").isValid()
-      ? editor->property("patchy.editingLayerId") : area ? editor->property(kTextEditorProvisionalLayerProperty) : QVariant();
+      ? editor->property("patchy.editingLayerId")
+      : (area || rotated_view) ? editor->property(kTextEditorProvisionalLayerProperty) : QVariant();
   if (canvas_ == nullptr || editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool() ||
       !editor->property(kTextEditorPreviewPaintProperty).toBool() ||
       editor->property("patchy.usesPsdTextFrame").toBool() ||
@@ -10978,11 +10987,14 @@ void MainWindow::update_text_editor_transform_overlay(QTextEdit* editor) {
   }
 
   auto transform = text_transform_for_editor_or_layer(*editor, *layer);
-  if (area && !transform) {
+  if ((area || rotated_view) && !transform) {
     transform = QTransform::fromTranslate(editor->property("patchy.documentTextX").toDouble(),
                                           editor->property("patchy.documentTextY").toDouble());
   }
-  if (!transform.has_value() || (!area && !qtransform_has_non_translation_linear_part(*transform))) {
+  // A rotated view edits even plain text through the overlay: the inline editor is an
+  // upright widget and cannot turn with the canvas (docs/view-navigation-rotation.md).
+  if (!transform.has_value() ||
+      (!area && !qtransform_has_non_translation_linear_part(*transform) && !rotated_view)) {
     remove_text_editor_transform_overlay(editor);
     return;
   }
@@ -11246,7 +11258,7 @@ bool text_editor_render_hides_lines(const QTextEdit& editor, double zoom) {
                                                   display_text_family_from_font(editor.font()));
   }
   // Color does not move a line, so the preview's fallback (the primary color) is not needed.
-  const QColor text_color(Qt::black);
+  const QColor text_color(Qt::black);  // color-literal-ok: layout input only, never drawn
   TextToolSettings settings{document_text->toPlainText(),
                             QString(),
                             text_family,
@@ -11746,10 +11758,13 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   // force one anyway (kTextEditorForceBakedPreviewProperty) so its on-screen glyphs come from the same
   // render_text_pixels rasterizer the committed layer uses -- no antialiasing/position shift on edit.
   const auto force_baked_preview = editor->property(kTextEditorForceBakedPreviewProperty).toBool();
+  // A rotated view always previews on the canvas: the editor widget cannot turn with it, so the
+  // transformed overlay edits over the turned preview (docs/view-navigation-rotation.md).
+  const auto rotated_view = !canvas_->view_axis_aligned();
   const auto needs_text_preview =
       source != nullptr && source_was_visible &&
       (layer_requires_text_editor_preview(*source) || extended_box_preview || line_aware_box_preview ||
-       force_baked_preview);
+       force_baked_preview || rotated_view);
   editor->setProperty(kTextEditorPreviewEnabledProperty, needs_text_preview);
   if (!needs_text_preview) {
     // No preview: the editor widget itself draws the glyphs, so the committed layer has to go.
@@ -12025,17 +12040,35 @@ std::optional<LayerId> MainWindow::take_provisional_text_layer(QTextEdit* editor
   return provisional_id;
 }
 
+void MainWindow::sync_rotate_view_angle_spin() {
+  if (rotate_view_angle_spin_ == nullptr) {
+    return;
+  }
+  const auto angle = canvas_ != nullptr ? canvas_->view_rotation() : 0.0;
+  if (std::abs(rotate_view_angle_spin_->value() - angle) < 0.05) {
+    return;
+  }
+  syncing_rotate_view_angle_ = true;
+  rotate_view_angle_spin_->setValue(angle);
+  syncing_rotate_view_angle_ = false;
+}
+
 void MainWindow::handle_canvas_view_changed(CanvasWidget* canvas) {
   if (canvas == nullptr || canvas != canvas_) {
     return;
   }
   refresh_document_info();
+  sync_rotate_view_angle_spin();
   auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   if (editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
     return;
   }
   relayout_text_editor(editor, false);
   reset_text_editor_scroll(editor);
+  if (!canvas->view_axis_aligned() && !editor->property(kTextEditorPreviewPaintProperty).toBool()) {
+    // The view turned mid-session: switch to the canvas preview the overlay edits over.
+    schedule_text_editor_preview(editor);
+  }
 }
 
 void MainWindow::apply_text_alignment_to_active_editor(Qt::Alignment alignment) {

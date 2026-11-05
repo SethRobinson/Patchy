@@ -19390,6 +19390,26 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Change the color, gradient or pattern of a fill layer</source>
         <translation>Farbe, Verlauf oder Muster einer Füllebene ändern</translation>
     </message>
+    <message>
+        <source>Turn the canvas counterclockwise on screen</source>
+        <translation>Arbeitsfläche auf dem Bildschirm gegen den Uhrzeigersinn drehen</translation>
+    </message>
+    <message>
+        <source>Turn the canvas clockwise on screen</source>
+        <translation>Arbeitsfläche auf dem Bildschirm im Uhrzeigersinn drehen</translation>
+    </message>
+    <message>
+        <source>Turn the canvas upright again</source>
+        <translation>Arbeitsfläche wieder gerade ausrichten</translation>
+    </message>
+    <message>
+        <source>Turn the canvas on screen like a sheet of paper</source>
+        <translation>Arbeitsfläche auf dem Bildschirm wie ein Blatt Papier drehen</translation>
+    </message>
+    <message>
+        <source>Switch between the hand and rotate view tools</source>
+        <translation>Zwischen Hand und Ansicht drehen wechseln</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -19913,36 +19933,16 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Tastaturbefehlssatz:</translation>
     </message>
     <message>
-        <source>Start from Patchy&apos;s shortcuts or from a set laid out like another editor&apos;s. You can still change any key afterwards.</source>
-        <translation>Mit den Tastaturbefehlen von Patchy beginnen oder mit einem Satz, der wie in einem anderen Editor belegt ist. Jede Taste lässt sich danach weiterhin ändern.</translation>
-    </message>
-    <message>
-        <source>Patchy (default)</source>
-        <translation>Patchy (Standard)</translation>
-    </message>
-    <message>
         <source>Import...</source>
         <translation>Importieren...</translation>
-    </message>
-    <message>
-        <source>Replace the shortcuts with ones saved in a hotkey file</source>
-        <translation>Die Tastaturbefehle durch die in einer Tastaturbefehlsdatei gespeicherten ersetzen</translation>
     </message>
     <message>
         <source>Export...</source>
         <translation>Exportieren...</translation>
     </message>
     <message>
-        <source>Save your shortcut changes to a file you can keep or share</source>
-        <translation>Ihre geänderten Tastaturbefehle in einer Datei speichern, die Sie aufbewahren oder weitergeben können</translation>
-    </message>
-    <message>
         <source>Exported &quot;%1&quot;.</source>
         <translation>„%1“ exportiert.</translation>
-    </message>
-    <message>
-        <source>Imported &quot;%1&quot;. Commands: %2. Skipped commands this Patchy does not have: %3. Skipped keys it cannot use: %4. Click OK to apply.</source>
-        <translation>„%1“ importiert. Befehle: %2. Übersprungene Befehle, die dieses Patchy nicht hat: %3. Übersprungene Tasten, die es nicht verwenden kann: %4. Klicken Sie auf OK, um sie zu übernehmen.</translation>
     </message>
     <message>
         <source>Export Hotkeys</source>
@@ -19969,16 +19969,8 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Import fehlgeschlagen</translation>
     </message>
     <message>
-        <source>Replace your current shortcuts with the ones in &quot;%1&quot;? Shortcuts the file does not set go back to Patchy&apos;s defaults.</source>
-        <translation>Ihre aktuellen Tastaturbefehle durch die aus „%1“ ersetzen? Tastaturbefehle, die die Datei nicht festlegt, kehren zu den Standards von Patchy zurück.</translation>
-    </message>
-    <message>
         <source>Shortcut Set</source>
         <translation>Tastaturbefehlssatz</translation>
-    </message>
-    <message>
-        <source>Replace your own shortcut changes with the %1 set? Export them first to keep a copy.</source>
-        <translation>Ihre eigenen Änderungen an den Tastaturbefehlen durch den Satz „%1“ ersetzen? Exportieren Sie sie zuerst, um eine Kopie zu behalten.</translation>
     </message>
     <message>
         <source>Custom</source>
@@ -20007,6 +19999,79 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Krita-style</source>
         <translation>Wie Krita</translation>
+    </message>
+    <message>
+        <source>Patchy default</source>
+        <translation>Patchy-Standard</translation>
+    </message>
+    <message>
+        <source>%1 (built-in)</source>
+        <extracomment>A shortcut set shipped with Patchy, in the Preferences &gt; Hotkeys set list. %1 is its name.</extracomment>
+        <translation>%1 (integriert)</translation>
+    </message>
+    <message>
+        <source>Built-in sets never change: changing a key in one puts your keys in the Custom set. Rename it to keep it as a set of your own.</source>
+        <translation>Integrierte Sätze ändern sich nie: Wenn Sie in einem eine Taste ändern, landen Ihre Tasten im Satz „Benutzerdefiniert“. Benennen Sie ihn um, um ihn als eigenen Satz zu behalten.</translation>
+    </message>
+    <message>
+        <source>Rename...</source>
+        <translation>Umbenennen...</translation>
+    </message>
+    <message>
+        <source>Name this set of yours</source>
+        <translation>Diesem eigenen Satz einen Namen geben</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Löschen</translation>
+    </message>
+    <message>
+        <source>Remove this set of yours</source>
+        <translation>Diesen eigenen Satz entfernen</translation>
+    </message>
+    <message>
+        <source>Add the shortcuts saved in a hotkey file as a set of your own</source>
+        <translation>Die Tastaturbefehle aus einer Datei als eigenen Satz hinzufügen</translation>
+    </message>
+    <message>
+        <source>Save the shortcuts shown to a file you can keep or share</source>
+        <translation>Die angezeigten Tastaturbefehle in einer Datei speichern, die Sie behalten oder weitergeben können</translation>
+    </message>
+    <message>
+        <source>Imported &quot;%1&quot; as the set &quot;%2&quot;. Commands: %3. Skipped commands this Patchy does not have: %4. Skipped keys it cannot use: %5. Click OK to apply.</source>
+        <translation>„%1“ wurde als Satz „%2“ importiert. Befehle: %3. Übersprungene Befehle, die dieses Patchy nicht kennt: %4. Übersprungene unbrauchbare Tasten: %5. Klicken Sie auf OK, um sie anzuwenden.</translation>
+    </message>
+    <message>
+        <source>Set name:</source>
+        <translation>Name des Satzes:</translation>
+    </message>
+    <message>
+        <source>A shortcut set named &quot;%1&quot; already exists. Choose another name.</source>
+        <translation>Es gibt bereits einen Tastaturbefehlssatz namens „%1“. Wählen Sie einen anderen Namen.</translation>
+    </message>
+    <message>
+        <source>Rename Shortcut Set</source>
+        <translation>Tastaturbefehlssatz umbenennen</translation>
+    </message>
+    <message>
+        <source>Delete Shortcut Set</source>
+        <translation>Tastaturbefehlssatz löschen</translation>
+    </message>
+    <message>
+        <source>Delete the shortcut set &quot;%1&quot;? Patchy&apos;s default shortcuts take its place.</source>
+        <translation>Den Tastaturbefehlssatz „%1“ löschen? Patchys Standard-Tastaturbefehle treten an seine Stelle.</translation>
+    </message>
+    <message>
+        <source>Imported shortcuts</source>
+        <translation>Importierte Tastaturbefehle</translation>
+    </message>
+    <message>
+        <source>%1 is built in and never changes, so your change goes into the Custom set, which already holds other changes. Replace them? To keep them, click Cancel and rename Custom first.</source>
+        <translation>%1 ist integriert und ändert sich nie, daher landet Ihre Änderung im Satz „Benutzerdefiniert“, der bereits andere Änderungen enthält. Diese ersetzen? Um sie zu behalten, klicken Sie auf Abbrechen und benennen Sie „Benutzerdefiniert“ zuerst um.</translation>
+    </message>
+    <message>
+        <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
+        <translation>%1 ist integriert, daher stehen Ihre Änderungen im Satz „Benutzerdefiniert“. Benennen Sie ihn um, um ihn als eigenen Satz zu behalten.</translation>
     </message>
 </context>
 <context>
@@ -32773,6 +32838,54 @@ Fixiert: %1</translation>
         <source>Select a fill layer to edit its settings</source>
         <translation>Wählen Sie eine Füllebene aus, um ihre Einstellungen zu bearbeiten</translation>
     </message>
+    <message>
+        <source>Rotate View Left</source>
+        <translation>Ansicht nach links drehen</translation>
+    </message>
+    <message>
+        <source>Rotate View Right</source>
+        <translation>Ansicht nach rechts drehen</translation>
+    </message>
+    <message>
+        <source>Reset View Rotation</source>
+        <translation>Ansichtsdrehung zurücksetzen</translation>
+    </message>
+    <message>
+        <source>Rotation Angle:</source>
+        <translation>Drehwinkel:</translation>
+    </message>
+    <message>
+        <source>The view&apos;s angle, clockwise. Only the view turns; the image does not change</source>
+        <translation>Der Winkel der Ansicht im Uhrzeigersinn. Nur die Ansicht dreht sich, das Bild bleibt unverändert</translation>
+    </message>
+    <message>
+        <source>Reset View</source>
+        <translation>Ansicht zurücksetzen</translation>
+    </message>
+    <message>
+        <source>Turn the view upright again (View &gt; Reset View Rotation)</source>
+        <translation>Die Ansicht wieder gerade ausrichten (Ansicht &gt; Ansichtsdrehung zurücksetzen)</translation>
+    </message>
+    <message>
+        <source>Drag to turn the view, Shift snaps to 15 degrees. Esc or Reset View turns it upright. The image does not change.</source>
+        <translation>Ziehen dreht die Ansicht, Umschalt rastet in 15-Grad-Schritten ein. Esc oder Ansicht zurücksetzen richtet sie wieder gerade aus. Das Bild ändert sich nicht.</translation>
+    </message>
+    <message>
+        <source>Rotate View: drag to turn the view like a sheet of paper, Shift snaps to 15 degrees. Esc turns it upright. Only the view turns; the image is unchanged.</source>
+        <translation>Ansicht drehen: Ziehen dreht die Ansicht wie ein Blatt Papier, Umschalt rastet in 15-Grad-Schritten ein. Esc richtet sie wieder gerade aus. Nur die Ansicht dreht sich, das Bild bleibt unverändert.</translation>
+    </message>
+    <message>
+        <source>Hand Tools</source>
+        <translation>Hand-Werkzeuge</translation>
+    </message>
+    <message>
+        <source>Rotate View</source>
+        <translation>Ansicht drehen</translation>
+    </message>
+    <message>
+        <source>Cycle Hand Tools</source>
+        <translation>Hand-Werkzeuge durchschalten</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35032,6 +35145,14 @@ Fixiert: %1</translation>
     <message>
         <source>feather needs a radius from %1 to %2.</source>
         <translation>feather benötigt einen Radius von %1 bis %2.</translation>
+    </message>
+    <message>
+        <source>rotation needs a number of degrees.</source>
+        <translation>rotation benötigt eine Gradzahl.</translation>
+    </message>
+    <message>
+        <source>No document is open to rotate the view of.</source>
+        <translation>Es ist kein Dokument geöffnet, dessen Ansicht gedreht werden kann.</translation>
     </message>
 </context>
 <context>

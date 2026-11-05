@@ -145,6 +145,7 @@
     <file alias="tool-polygon.svg">icons/tool-polygon.svg</file>
     <file alias="tool-custom-shape.svg">icons/tool-custom-shape.svg</file>
     <file alias="tool-pan.svg">icons/tool-pan.svg</file>
+    <file alias="tool-rotate-view.svg">icons/tool-rotate-view.svg</file>
     <file alias="tool-zoom.svg">icons/tool-zoom.svg</file>
     <file alias="tool-flyout-corner.svg">icons/tool-flyout-corner.svg</file>
   </qresource>

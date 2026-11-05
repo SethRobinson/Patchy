@@ -920,6 +920,8 @@ const char* tool_action_source(CanvasTool tool) {
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Convert Point");
     case CanvasTool::Artboard:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Artboard");
+    case CanvasTool::RotateView:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Rotate View");
   }
   return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Tool");
 }

@@ -19390,6 +19390,26 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Change the color, gradient or pattern of a fill layer</source>
         <translation>Changer la couleur, le dégradé ou le motif d&apos;un calque de remplissage</translation>
     </message>
+    <message>
+        <source>Turn the canvas counterclockwise on screen</source>
+        <translation>Faire pivoter la zone de travail à l&apos;écran dans le sens antihoraire</translation>
+    </message>
+    <message>
+        <source>Turn the canvas clockwise on screen</source>
+        <translation>Faire pivoter la zone de travail à l&apos;écran dans le sens horaire</translation>
+    </message>
+    <message>
+        <source>Turn the canvas upright again</source>
+        <translation>Remettre la zone de travail droite</translation>
+    </message>
+    <message>
+        <source>Turn the canvas on screen like a sheet of paper</source>
+        <translation>Faire pivoter la zone de travail à l&apos;écran comme une feuille de papier</translation>
+    </message>
+    <message>
+        <source>Switch between the hand and rotate view tools</source>
+        <translation>Basculer entre les outils Main et Rotation de l&apos;affichage</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -19913,36 +19933,16 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Jeu de raccourcis :</translation>
     </message>
     <message>
-        <source>Start from Patchy&apos;s shortcuts or from a set laid out like another editor&apos;s. You can still change any key afterwards.</source>
-        <translation>Partir des raccourcis de Patchy ou d&apos;un jeu organisé comme celui d&apos;un autre éditeur. Vous pouvez ensuite modifier n&apos;importe quelle touche.</translation>
-    </message>
-    <message>
-        <source>Patchy (default)</source>
-        <translation>Patchy (par défaut)</translation>
-    </message>
-    <message>
         <source>Import...</source>
         <translation>Importer...</translation>
-    </message>
-    <message>
-        <source>Replace the shortcuts with ones saved in a hotkey file</source>
-        <translation>Remplacer les raccourcis par ceux enregistrés dans un fichier de raccourcis</translation>
     </message>
     <message>
         <source>Export...</source>
         <translation>Exporter...</translation>
     </message>
     <message>
-        <source>Save your shortcut changes to a file you can keep or share</source>
-        <translation>Enregistrer vos modifications de raccourcis dans un fichier à conserver ou à partager</translation>
-    </message>
-    <message>
         <source>Exported &quot;%1&quot;.</source>
         <translation>« %1 » exporté.</translation>
-    </message>
-    <message>
-        <source>Imported &quot;%1&quot;. Commands: %2. Skipped commands this Patchy does not have: %3. Skipped keys it cannot use: %4. Click OK to apply.</source>
-        <translation>« %1 » importé. Commandes : %2. Commandes ignorées, absentes de ce Patchy : %3. Touches ignorées, inutilisables : %4. Cliquez sur OK pour appliquer.</translation>
     </message>
     <message>
         <source>Export Hotkeys</source>
@@ -19969,16 +19969,8 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Échec de l&apos;importation</translation>
     </message>
     <message>
-        <source>Replace your current shortcuts with the ones in &quot;%1&quot;? Shortcuts the file does not set go back to Patchy&apos;s defaults.</source>
-        <translation>Remplacer vos raccourcis actuels par ceux de « %1 » ? Les raccourcis que le fichier ne définit pas reprennent les valeurs par défaut de Patchy.</translation>
-    </message>
-    <message>
         <source>Shortcut Set</source>
         <translation>Jeu de raccourcis</translation>
-    </message>
-    <message>
-        <source>Replace your own shortcut changes with the %1 set? Export them first to keep a copy.</source>
-        <translation>Remplacer vos propres modifications de raccourcis par le jeu %1 ? Exportez-les d&apos;abord pour en garder une copie.</translation>
     </message>
     <message>
         <source>Custom</source>
@@ -20007,6 +19999,79 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Krita-style</source>
         <translation>Style Krita</translation>
+    </message>
+    <message>
+        <source>Patchy default</source>
+        <translation>Patchy par défaut</translation>
+    </message>
+    <message>
+        <source>%1 (built-in)</source>
+        <extracomment>A shortcut set shipped with Patchy, in the Preferences &gt; Hotkeys set list. %1 is its name.</extracomment>
+        <translation>%1 (intégré)</translation>
+    </message>
+    <message>
+        <source>Built-in sets never change: changing a key in one puts your keys in the Custom set. Rename it to keep it as a set of your own.</source>
+        <translation>Les jeux intégrés ne changent jamais : modifier une touche dans l&apos;un d&apos;eux place vos touches dans le jeu Personnalisé. Renommez-le pour le garder comme jeu à vous.</translation>
+    </message>
+    <message>
+        <source>Rename...</source>
+        <translation>Renommer...</translation>
+    </message>
+    <message>
+        <source>Name this set of yours</source>
+        <translation>Nommer ce jeu à vous</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Supprimer</translation>
+    </message>
+    <message>
+        <source>Remove this set of yours</source>
+        <translation>Retirer ce jeu à vous</translation>
+    </message>
+    <message>
+        <source>Add the shortcuts saved in a hotkey file as a set of your own</source>
+        <translation>Ajouter les raccourcis d&apos;un fichier comme jeu à vous</translation>
+    </message>
+    <message>
+        <source>Save the shortcuts shown to a file you can keep or share</source>
+        <translation>Enregistrer les raccourcis affichés dans un fichier à garder ou à partager</translation>
+    </message>
+    <message>
+        <source>Imported &quot;%1&quot; as the set &quot;%2&quot;. Commands: %3. Skipped commands this Patchy does not have: %4. Skipped keys it cannot use: %5. Click OK to apply.</source>
+        <translation>« %1 » importé comme jeu « %2 ». Commandes : %3. Commandes ignorées que ce Patchy n&apos;a pas : %4. Touches ignorées inutilisables : %5. Cliquez sur OK pour appliquer.</translation>
+    </message>
+    <message>
+        <source>Set name:</source>
+        <translation>Nom du jeu :</translation>
+    </message>
+    <message>
+        <source>A shortcut set named &quot;%1&quot; already exists. Choose another name.</source>
+        <translation>Un jeu de raccourcis nommé « %1 » existe déjà. Choisissez un autre nom.</translation>
+    </message>
+    <message>
+        <source>Rename Shortcut Set</source>
+        <translation>Renommer le jeu de raccourcis</translation>
+    </message>
+    <message>
+        <source>Delete Shortcut Set</source>
+        <translation>Supprimer le jeu de raccourcis</translation>
+    </message>
+    <message>
+        <source>Delete the shortcut set &quot;%1&quot;? Patchy&apos;s default shortcuts take its place.</source>
+        <translation>Supprimer le jeu de raccourcis « %1 » ? Les raccourcis par défaut de Patchy le remplacent.</translation>
+    </message>
+    <message>
+        <source>Imported shortcuts</source>
+        <translation>Raccourcis importés</translation>
+    </message>
+    <message>
+        <source>%1 is built in and never changes, so your change goes into the Custom set, which already holds other changes. Replace them? To keep them, click Cancel and rename Custom first.</source>
+        <translation>%1 est intégré et ne change jamais : votre modification va donc dans le jeu Personnalisé, qui contient déjà d&apos;autres modifications. Les remplacer ? Pour les garder, cliquez sur Annuler et renommez d&apos;abord Personnalisé.</translation>
+    </message>
+    <message>
+        <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
+        <translation>%1 est intégré : vos modifications sont donc dans le jeu Personnalisé. Renommez-le pour le garder comme jeu à vous.</translation>
     </message>
 </context>
 <context>
@@ -32773,6 +32838,54 @@ Verrouillé : %1</translation>
         <source>Select a fill layer to edit its settings</source>
         <translation>Sélectionnez un calque de remplissage pour modifier ses paramètres</translation>
     </message>
+    <message>
+        <source>Rotate View Left</source>
+        <translation>Faire pivoter l&apos;affichage à gauche</translation>
+    </message>
+    <message>
+        <source>Rotate View Right</source>
+        <translation>Faire pivoter l&apos;affichage à droite</translation>
+    </message>
+    <message>
+        <source>Reset View Rotation</source>
+        <translation>Réinitialiser la rotation de l&apos;affichage</translation>
+    </message>
+    <message>
+        <source>Rotation Angle:</source>
+        <translation>Angle de rotation :</translation>
+    </message>
+    <message>
+        <source>The view&apos;s angle, clockwise. Only the view turns; the image does not change</source>
+        <translation>L&apos;angle de l&apos;affichage, dans le sens horaire. Seul l&apos;affichage pivote, l&apos;image ne change pas</translation>
+    </message>
+    <message>
+        <source>Reset View</source>
+        <translation>Réinitialiser l&apos;affichage</translation>
+    </message>
+    <message>
+        <source>Turn the view upright again (View &gt; Reset View Rotation)</source>
+        <translation>Remettre l&apos;affichage droit (Affichage &gt; Réinitialiser la rotation de l&apos;affichage)</translation>
+    </message>
+    <message>
+        <source>Drag to turn the view, Shift snaps to 15 degrees. Esc or Reset View turns it upright. The image does not change.</source>
+        <translation>Faites glisser pour faire pivoter l&apos;affichage, Maj aligne par pas de 15 degrés. Échap ou Réinitialiser l&apos;affichage le remet droit. L&apos;image ne change pas.</translation>
+    </message>
+    <message>
+        <source>Rotate View: drag to turn the view like a sheet of paper, Shift snaps to 15 degrees. Esc turns it upright. Only the view turns; the image is unchanged.</source>
+        <translation>Rotation de l&apos;affichage : faites glisser pour faire pivoter l&apos;affichage comme une feuille de papier, Maj aligne par pas de 15 degrés. Échap le remet droit. Seul l&apos;affichage pivote, l&apos;image ne change pas.</translation>
+    </message>
+    <message>
+        <source>Hand Tools</source>
+        <translation>Outils Main</translation>
+    </message>
+    <message>
+        <source>Rotate View</source>
+        <translation>Rotation de l&apos;affichage</translation>
+    </message>
+    <message>
+        <source>Cycle Hand Tools</source>
+        <translation>Alterner les outils Main</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35032,6 +35145,14 @@ Verrouillé : %1</translation>
     <message>
         <source>feather needs a radius from %1 to %2.</source>
         <translation>feather nécessite un rayon compris entre %1 et %2.</translation>
+    </message>
+    <message>
+        <source>rotation needs a number of degrees.</source>
+        <translation>rotation nécessite un nombre de degrés.</translation>
+    </message>
+    <message>
+        <source>No document is open to rotate the view of.</source>
+        <translation>Aucun document n&apos;est ouvert dont faire pivoter l&apos;affichage.</translation>
     </message>
 </context>
 <context>

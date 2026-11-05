@@ -255,7 +255,9 @@ void ui_tool_palette_customize_hidden_tools_keep_hotkeys() {
   const int full_height = palette->sizeHint().height();
 
   ToolPaletteCustomization customization;
-  customization.hidden_tools = {QStringLiteral("tools.hand"), QStringLiteral("tools.red_eye")};
+  // Hiding both Hand tools (Hand and Rotate View) takes their slot off the palette.
+  customization.hidden_tools = {QStringLiteral("tools.hand"), QStringLiteral("tools.rotate_view"),
+                                QStringLiteral("tools.red_eye")};
   window.apply_tool_palette_customization(customization);
   settle();
   CHECK(!on_palette(*palette, hand_button));
@@ -925,7 +927,7 @@ void ui_tool_palette_customize_dialog_applies_cancels_and_resets() {
   settle();
   auto* window_menu_action = require_action(window, "windowCustomizeToolPaletteAction");
 
-  // Untick Hand and Red Eye, pick two columns, OK.
+  // Untick Zoom and Red Eye, pick two columns, OK.
   bool ran = false;
   when_customize_dialog_opens([&](QDialog& dialog) {
     ran = true;
@@ -938,9 +940,9 @@ void ui_tool_palette_customize_dialog_applies_cancels_and_resets() {
     }
     // The default column runs past the preview's 10 rows, so a hidden tool shows in the row count.
     const int preview_rows = preview->property("toolRows").toInt();
-    if (auto* hand = tree_row(*tree, QStringLiteral("Hand")); hand != nullptr) {
-      CHECK(hand->checkState(0) == Qt::Checked);
-      hand->setCheckState(0, Qt::Unchecked);
+    if (auto* zoom = tree_row(*tree, QStringLiteral("Zoom")); zoom != nullptr) {
+      CHECK(zoom->checkState(0) == Qt::Checked);
+      zoom->setCheckState(0, Qt::Unchecked);
     }
     QApplication::processEvents();
     CHECK(preview->property("toolRows").toInt() == preview_rows - 1);
@@ -952,9 +954,9 @@ void ui_tool_palette_customize_dialog_applies_cancels_and_resets() {
     }
     // Rows have room (GitHub issue 213 follow-up): a tool row and a member row at least 24 px,
     // a cluster heading taller than a row.
-    if (auto* hand = tree_row(*tree, QStringLiteral("Hand")); hand != nullptr) {
-      CHECK(tree->visualItemRect(hand).height() >= 24);
-      CHECK(tree->visualItemRect(hand->parent()).height() > tree->visualItemRect(hand).height());
+    if (auto* zoom = tree_row(*tree, QStringLiteral("Zoom")); zoom != nullptr) {
+      CHECK(tree->visualItemRect(zoom).height() >= 24);
+      CHECK(tree->visualItemRect(zoom->parent()).height() > tree->visualItemRect(zoom).height());
     }
     if (auto* patch = tree_row(*tree, QStringLiteral("Patch")); patch != nullptr) {
       CHECK(tree->visualItemRect(patch).height() >= 24);
@@ -970,19 +972,19 @@ void ui_tool_palette_customize_dialog_applies_cancels_and_resets() {
   CHECK(ran);
   settle();
   auto expected = ToolPaletteCustomization{};
-  expected.hidden_tools = {QStringLiteral("tools.hand"), QStringLiteral("tools.red_eye")};
+  expected.hidden_tools = {QStringLiteral("tools.red_eye"), QStringLiteral("tools.zoom")};
   expected.two_columns = true;
   CHECK(window.tool_palette_customization() == expected);
   CHECK(patchy::ui::stored_tool_palette_customization() == expected);
-  CHECK(!on_palette(*palette, button_named(window, "handToolButton")));
+  CHECK(!on_palette(*palette, button_named(window, "zoomToolButton")));
 
   // A new window starts with the stored choice.
   {
     patchy::ui::MainWindow second;
     CHECK(second.tool_palette_customization() == expected);
     auto* second_palette = second.findChild<QToolBar*>(QStringLiteral("toolPalette"));
-    auto* second_hand = second.findChild<QToolButton*>(QStringLiteral("handToolButton"));
-    CHECK(second_palette != nullptr && second_hand != nullptr && !second_palette->isAncestorOf(second_hand));
+    auto* second_zoom = second.findChild<QToolButton*>(QStringLiteral("zoomToolButton"));
+    CHECK(second_palette != nullptr && second_zoom != nullptr && !second_palette->isAncestorOf(second_zoom));
   }
 
   // Cancel keeps the choice, whatever was ticked.
@@ -1012,8 +1014,8 @@ void ui_tool_palette_customize_dialog_applies_cancels_and_resets() {
     QApplication::processEvents();
     auto* tree = dialog.findChild<QTreeWidget*>(QStringLiteral("toolPaletteCustomizeTree"));
     if (tree != nullptr) {
-      if (auto* hand = tree_row(*tree, QStringLiteral("Hand")); hand != nullptr) {
-        CHECK(hand->checkState(0) == Qt::Checked);
+      if (auto* zoom = tree_row(*tree, QStringLiteral("Zoom")); zoom != nullptr) {
+        CHECK(zoom->checkState(0) == Qt::Checked);
       }
     }
     CHECK(dialog.findChild<QRadioButton*>(QStringLiteral("toolPaletteOneColumnRadio"))->isChecked());
@@ -1032,7 +1034,7 @@ void ui_tool_palette_customize_dialog_applies_cancels_and_resets() {
       CHECK(!settings.contains(QString::fromLatin1(key)));
     }
   }
-  CHECK(on_palette(*palette, button_named(window, "handToolButton")));
+  CHECK(on_palette(*palette, button_named(window, "zoomToolButton")));
 
   // The palette's right-click menu leads with Customize Tool Palette....
   const QPoint position(palette->width() / 2, palette->height() - 2);
