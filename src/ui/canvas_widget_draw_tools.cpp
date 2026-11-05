@@ -1691,7 +1691,7 @@ void CanvasWidget::pick_color(QPoint point) {
 // snapped to the document grid, in the brush outline's cursor ink.
 std::optional<QRect> CanvasWidget::eyedropper_sample_outline_widget_rect() const {
   if (!eyedropper_hover_position_valid_ || tool_ != CanvasTool::Eyedropper || document_ == nullptr ||
-      spacebar_panning_ || !eyedropper_sample_outline_visible(eyedropper_sample_size_, zoom_)) {
+      spacebar_panning_ || transient_read_callback_ || !eyedropper_sample_outline_visible(eyedropper_sample_size_, zoom_)) {
     return std::nullopt;
   }
   const auto point = document_position(eyedropper_hover_widget_position_);
