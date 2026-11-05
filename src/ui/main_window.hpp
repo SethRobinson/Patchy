@@ -2134,6 +2134,13 @@ private:
   // work path, the text kept (GitHub issue 598; main_window_text_outlines.cpp).
   void convert_text_layers_to_shapes();
   void create_work_path_from_text();
+  // Type > Rasterize Type Layer (GitHub issue 650): Layer > Rasterize for the selected text
+  // layers only.
+  void rasterize_text_layers();
+  // Checks the Type menu's Alignment, Direction, Orientation, Anti-Alias and OpenType entries
+  // from the live session or the selected text layer, and turns off a submenu with nothing to
+  // act on (GitHub issue 650).
+  void refresh_type_menu_states();
   // Trace Image to Shapes: the active pixel layer through the image-trace
   // dialog into a group of shape layers above it (the source is hidden).
   void trace_image_to_shapes();
@@ -3748,6 +3755,11 @@ private:
   QAction* type_tool_action_{nullptr};
   QAction* type_convert_to_shape_action_{nullptr};
   QAction* type_create_work_path_action_{nullptr};
+  QMenu* type_alignment_menu_{nullptr};
+  QMenu* type_direction_menu_{nullptr};
+  QMenu* type_orientation_menu_{nullptr};
+  QMenu* type_anti_alias_menu_{nullptr};
+  QMenu* type_opentype_menu_{nullptr};
   QActionGroup* tool_action_group_{nullptr};
   QAction* float_document_action_{nullptr};
   QAction* window_panels_separator_{nullptr};

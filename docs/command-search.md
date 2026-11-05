@@ -51,7 +51,7 @@ Code: `src/ui/command_search.cpp`, `MainWindow::show_command_search` in
   (issue 554), and it is still searched.
 - Some menus refresh their commands only when they open (`aboutToShow`).
   `show_command_search` runs the same refreshers first (Smart Object, merge, layer color and
-  visibility states, the AppImage entry), rebuilds File > Scripts and the Window menu's
+  visibility states, the Type menu's submenus, the AppImage entry), rebuilds File > Scripts and the Window menu's
   document entries, so the list matches what the menus would show. A new menu that refreshes
   its commands in `aboutToShow` adds its refresher there too. Never emit `aboutToShow` instead:
   some handlers disable commands only while their menu is open.

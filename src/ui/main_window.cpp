@@ -12267,6 +12267,90 @@ void MainWindow::sync_text_alignment_buttons_from_editor() {
   sync_text_paragraph_dialog_from_editor();
 }
 
+void MainWindow::refresh_type_menu_states() {
+  if (type_alignment_menu_ == nullptr || type_direction_menu_ == nullptr || type_orientation_menu_ == nullptr ||
+      type_anti_alias_menu_ == nullptr || type_opentype_menu_ == nullptr) {
+    return;
+  }
+  // Read like the options bar and the Character and Paragraph panels: the live session, else
+  // the first selected editable text layer; with neither, the values the next new layer takes.
+  auto* editor =
+      canvas_ != nullptr ? canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) : nullptr;
+  const bool editable = has_active_document() && canvas_ != nullptr && !preview_dialog_edit_locked();
+  const bool session_open =
+      editable && editor != nullptr && !editor->property(kTextEditorFinishedProperty).toBool();
+  const auto* layer = editable && !session_open ? text_character_target_layer() : nullptr;
+  const auto inputs = layer != nullptr ? text_render_inputs_from_layer(*layer) : std::nullopt;
+  const bool has_target = session_open || inputs.has_value();
+  Qt::Alignment alignment = Qt::AlignLeft;
+  auto direction = Qt::LayoutDirectionAuto;
+  bool vertical = text_vertical_next_;
+  int anti_alias = text_smoothing_combo_value(text_smoothing_combo_);
+  QTextCharFormat format;
+  if (session_open) {
+    alignment = editor->alignment();
+    direction = editor->textCursor().blockFormat().layoutDirection();
+    vertical = text_editor_is_vertical(*editor);
+    anti_alias = std::clamp(editor->property("patchy.documentTextAntiAlias").toInt(), 0, 16);
+    format = text_editor_reference_format(*editor);
+  } else if (inputs.has_value()) {
+    const auto built = build_text_render_document(inputs->settings, inputs->color, inputs->max_width,
+                                                  inputs->paragraph_runs, inputs->rich_text_runs, 1.0);
+    const auto block = built.document->begin().blockFormat();
+    alignment = block.alignment();
+    direction = block.layoutDirection();
+    vertical = layer_text_is_vertical(*layer);
+    if (const auto found = layer->metadata().find(kLayerMetadataTextAntiAlias);
+        found != layer->metadata().end() && !found->second.empty()) {
+      anti_alias = std::clamp(QString::fromStdString(found->second).toInt(), 0, 16);
+    }
+    format = QTextCursor(built.document.get()).charFormat();
+  }
+  const auto alignment_name = paragraph_alignment_name(alignment);
+  const auto styles = text_character_styles_from_format(format);
+  // In apply_text_character_style_to_active_editor order, as the Character panel checks them.
+  const std::array<bool, 14> style_checked{styles.caps == 2,
+                                           styles.caps == 1,
+                                           styles.baseline == 1,
+                                           styles.baseline == 2,
+                                           styles.underline,
+                                           styles.strikethrough,
+                                           styles.ordinals,
+                                           styles.fractions,
+                                           styles.ligatures,
+                                           styles.contextual_alternates,
+                                           styles.discretionary_ligatures,
+                                           styles.swash,
+                                           styles.stylistic_alternates,
+                                           styles.titling_alternates};
+  for (auto* action : type_alignment_menu_->actions()) {
+    action->setChecked(
+        paragraph_alignment_name(Qt::Alignment::fromInt(action->data().toInt())) == alignment_name);
+  }
+  for (auto* action : type_direction_menu_->actions()) {
+    action->setChecked(action->data().toInt() == static_cast<int>(direction));
+  }
+  for (auto* action : type_orientation_menu_->actions()) {
+    action->setChecked((action->data().toInt() != 0) == vertical);
+  }
+  for (auto* action : type_anti_alias_menu_->actions()) {
+    action->setChecked(action->data().toInt() == anti_alias);
+  }
+  for (auto* action : type_opentype_menu_->actions()) {
+    const auto index = action->data().toInt();
+    action->setChecked(has_target && index >= 0 && index < static_cast<int>(style_checked.size()) &&
+                       style_checked[static_cast<std::size_t>(index)]);
+  }
+  // Paragraph and character settings need text to change; orientation and smoothing also set
+  // what the Type tool's next new layer takes, as their options-bar controls do.
+  const bool text_tool = editable && current_tool_ == CanvasTool::Text;
+  type_alignment_menu_->menuAction()->setEnabled(has_target);
+  type_direction_menu_->menuAction()->setEnabled(has_target);
+  type_opentype_menu_->menuAction()->setEnabled(has_target);
+  type_orientation_menu_->menuAction()->setEnabled(has_target || text_tool);
+  type_anti_alias_menu_->menuAction()->setEnabled(has_target || text_tool);
+}
+
 void MainWindow::apply_text_family_to_active_editor() {
   if (canvas_ == nullptr || applying_text_options_to_layers_) {
     return;

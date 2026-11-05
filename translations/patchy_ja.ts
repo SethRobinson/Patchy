@@ -19363,6 +19363,118 @@ Each item&apos;s own View setting still applies.</source>
         <source>Switch between the hand and rotate view tools</source>
         <translation>手のひらツールと回転ビューツールを切り替え</translation>
     </message>
+    <message>
+        <source>Leading, tracking, glyph scales and font features</source>
+        <translation>行送り、トラッキング、字形の比率、フォント機能</translation>
+    </message>
+    <message>
+        <source>Paragraph alignment, indents and spacing</source>
+        <translation>段落の配置、インデント、間隔</translation>
+    </message>
+    <message>
+        <source>Line the text up on its left edge</source>
+        <translation>テキストを左端に揃える</translation>
+    </message>
+    <message>
+        <source>Center each line of text</source>
+        <translation>テキストの各行を中央に揃える</translation>
+    </message>
+    <message>
+        <source>Line the text up on its right edge</source>
+        <translation>テキストを右端に揃える</translation>
+    </message>
+    <message>
+        <source>Spread each line across the text box</source>
+        <translation>各行をテキストボックスの幅いっぱいに広げる</translation>
+    </message>
+    <message>
+        <source>Let the first letter set the reading direction</source>
+        <translation>最初の文字で読む方向を決める</translation>
+    </message>
+    <message>
+        <source>Paragraphs read from the left side</source>
+        <translation>段落を左から読む</translation>
+    </message>
+    <message>
+        <source>Paragraphs read from the right side, as in Arabic or Hebrew</source>
+        <translation>段落を右から読む (アラビア語やヘブライ語など)</translation>
+    </message>
+    <message>
+        <source>Set the text in rows</source>
+        <translation>テキストを横組みにする</translation>
+    </message>
+    <message>
+        <source>Set the text in columns, top to bottom</source>
+        <translation>テキストを縦組みにする (上から下へ)</translation>
+    </message>
+    <message>
+        <source>Hard, jagged letter edges</source>
+        <translation>硬くギザギザした文字の縁</translation>
+    </message>
+    <message>
+        <source>The sharpest smoothed letter edges</source>
+        <translation>最もシャープな滑らかな文字の縁</translation>
+    </message>
+    <message>
+        <source>Slightly sharp smoothed letter edges</source>
+        <translation>ややシャープな滑らかな文字の縁</translation>
+    </message>
+    <message>
+        <source>Heavier smoothed letter edges</source>
+        <translation>太めの滑らかな文字の縁</translation>
+    </message>
+    <message>
+        <source>The softest letter edges</source>
+        <translation>最も柔らかい文字の縁</translation>
+    </message>
+    <message>
+        <source>Letter edges drawn like Windows LCD text</source>
+        <translation>Windows の LCD テキストのような文字の縁</translation>
+    </message>
+    <message>
+        <source>Letter edges drawn like Windows text</source>
+        <translation>Windows のテキストのような文字の縁</translation>
+    </message>
+    <message>
+        <source>Join letter pairs such as fi and fl</source>
+        <translation>fi や fl などの文字の組を結合する</translation>
+    </message>
+    <message>
+        <source>Letter shapes that change with their neighbors</source>
+        <translation>前後の文字に応じて形が変わる字形</translation>
+    </message>
+    <message>
+        <source>Decorative letter joins such as ct and st</source>
+        <translation>ct や st などの装飾的な結合</translation>
+    </message>
+    <message>
+        <source>Flourished letter shapes</source>
+        <translation>飾り付きの字形</translation>
+    </message>
+    <message>
+        <source>The font&apos;s alternate letter designs</source>
+        <translation>フォントの代替字形</translation>
+    </message>
+    <message>
+        <source>Capitals drawn for large headings</source>
+        <translation>大きな見出し用の大文字</translation>
+    </message>
+    <message>
+        <source>Raised letters after numbers, as in 1st and 2nd</source>
+        <translation>1st や 2nd のように数字の後の文字を上付きにする</translation>
+    </message>
+    <message>
+        <source>Draw 1/2 as a stacked fraction</source>
+        <translation>1/2 を分数の形で表示する</translation>
+    </message>
+    <message>
+        <source>Turn the text layers into pixels</source>
+        <translation>テキストレイヤーをピクセルに変換する</translation>
+    </message>
+    <message>
+        <source>Bend text into an arc, flag or wave</source>
+        <translation>テキストを円弧、旗、波の形に曲げる</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32799,6 +32911,62 @@ Locked: %1</source>
     <message>
         <source>Cycle Hand Tools</source>
         <translation>手のひらツールを切り替え</translation>
+    </message>
+    <message>
+        <source>Alignment</source>
+        <translation>配置</translation>
+    </message>
+    <message>
+        <source>Direction</source>
+        <translation>方向</translation>
+    </message>
+    <message>
+        <source>Orientation</source>
+        <translation>文字の向き</translation>
+    </message>
+    <message>
+        <source>Anti-Alias</source>
+        <translation>アンチエイリアス</translation>
+    </message>
+    <message>
+        <source>OpenType</source>
+        <translation>OpenType</translation>
+    </message>
+    <message>
+        <source>Standard Ligatures</source>
+        <translation>標準合字</translation>
+    </message>
+    <message>
+        <source>Contextual Alternates</source>
+        <translation>前後関係に依存する字形</translation>
+    </message>
+    <message>
+        <source>Discretionary Ligatures</source>
+        <translation>任意の合字</translation>
+    </message>
+    <message>
+        <source>Swash</source>
+        <translation>スワッシュ字形</translation>
+    </message>
+    <message>
+        <source>Stylistic Alternates</source>
+        <translation>スタイル代替字</translation>
+    </message>
+    <message>
+        <source>Titling Alternates</source>
+        <translation>タイトル用字形</translation>
+    </message>
+    <message>
+        <source>Ordinals</source>
+        <translation>序数</translation>
+    </message>
+    <message>
+        <source>Fractions</source>
+        <translation>分数</translation>
+    </message>
+    <message>
+        <source>Rasterize Type Layer</source>
+        <translation>テキストレイヤーをラスタライズ</translation>
     </message>
 </context>
 <context>

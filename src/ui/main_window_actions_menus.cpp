@@ -3435,6 +3435,7 @@ void MainWindow::show_command_search() {
   refresh_layer_color_action_states();
   refresh_layer_visibility_action_text();
   refresh_layer_menu_lock_and_style_states();
+  refresh_type_menu_states();
   refresh_appimage_menu_entry_action();
   rebuild_scripts_menu();
   refresh_recent_history();

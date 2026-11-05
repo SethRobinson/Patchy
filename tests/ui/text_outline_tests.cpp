@@ -3,6 +3,7 @@
 // outlines. The shape must cover the pixels the text drew (point, area, vertical and warped
 // text), keep the layer's own properties, undo in one step, survive a PSD round trip, and the
 // outline grouping must fill like the nonzero glyph outlines it came from.
+// Also the Type menu's rows and submenus (GitHub issue 650).
 #include "core/document.hpp"
 #include "core/document_path.hpp"
 #include "core/layer_metadata.hpp"
@@ -25,6 +26,7 @@
 #include <QMenu>
 #include <QPainter>
 #include <QPainterPath>
+#include <QStringList>
 
 #include <algorithm>
 #include <cmath>
@@ -33,6 +35,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -583,6 +586,275 @@ void ui_text_outline_review_captures() {
   }
 }
 
+// The Type menu (GitHub issue 650): its rows top to bottom; a separator is "-", a submenu its
+// menu's objectName.
+QMenu* type_menu(MainWindow& window) {
+  auto* menu = window.findChild<QMenu*>(QStringLiteral("typeMenu"));
+  CHECK(menu != nullptr);
+  return menu;
+}
+
+QStringList menu_rows(const QMenu& menu) {
+  QStringList rows;
+  for (const auto* action : menu.actions()) {
+    rows << (action->isSeparator() ? QStringLiteral("-")
+             : action->menu() != nullptr ? action->menu()->objectName()
+                                         : action->objectName());
+  }
+  return rows;
+}
+
+// Opens and closes the menu, so its aboutToShow refresh runs as it does for a user.
+void open_type_menu(MainWindow& window) {
+  if (auto* menu = type_menu(window); menu != nullptr) {
+    menu->popup(window.mapToGlobal(QPoint(200, 40)));
+    QApplication::processEvents();
+    menu->close();
+    QApplication::processEvents();
+  }
+}
+
+bool action_checked(MainWindow& window, const char* object_name) {
+  auto* action = patchy::test::ui::require_action(window, object_name);
+  return action != nullptr && action->isChecked();
+}
+
+bool submenu_enabled(MainWindow& window, const char* object_name) {
+  auto* menu = window.findChild<QMenu*>(QLatin1String(object_name));
+  CHECK(menu != nullptr);
+  return menu != nullptr && menu->menuAction()->isEnabled();
+}
+
+QString metadata_value(MainWindow& window, patchy::LayerId id, const char* key) {
+  const auto* layer = std::as_const(MainWindowTestAccess::document(window)).find_layer(id);
+  if (layer == nullptr) {
+    return {};
+  }
+  const auto found = layer->metadata().find(key);
+  return found == layer->metadata().end() ? QString() : QString::fromStdString(found->second);
+}
+
+// Column `column` of the layer's first paragraph run (2: alignment, 9: direction).
+QString first_paragraph_field(MainWindow& window, patchy::LayerId id, int column) {
+  const auto runs = metadata_value(window, id, patchy::kLayerMetadataTextParagraphRuns);
+  for (const auto& line : runs.split(QLatin1Char('\n'))) {
+    const auto fields = line.trimmed().split(QLatin1Char('\t'));
+    if (fields.size() >= 3) {
+      return fields.size() > column ? fields[column] : QString();
+    }
+  }
+  return {};
+}
+
+// The rows, their order, macOS roles, and which submenus are on: a selected text layer turns
+// every one on; a pixel layer alone turns them off, except Orientation and Anti-Alias while the
+// Type tool is active (they set the next new layer). The Type tool is not a row; T still picks it.
+void ui_type_menu_rows_and_enabled_states() {
+  MainWindow window;
+  patchy::test::ui::show_window_empty(window);
+  const auto id = add_point_text(window);
+  auto* menu = type_menu(window);
+  if (menu == nullptr) {
+    return;
+  }
+  const QStringList expected{QStringLiteral("typeCharacterPanelAction"), QStringLiteral("typeParagraphPanelAction"),
+                             QStringLiteral("-"),
+                             QStringLiteral("typeAlignmentMenu"), QStringLiteral("typeDirectionMenu"),
+                             QStringLiteral("typeOrientationMenu"), QStringLiteral("-"),
+                             QStringLiteral("typeAntiAliasMenu"), QStringLiteral("typeOpenTypeMenu"),
+                             QStringLiteral("-"),
+                             QStringLiteral("typeCreateWorkPathAction"), QStringLiteral("typeConvertToShapeAction"),
+                             QStringLiteral("-"),
+                             QStringLiteral("typeRasterizeAction"), QStringLiteral("typeWarpTextAction"),
+                             QStringLiteral("-"),
+                             QStringLiteral("typeResolveMissingFontsAction")};
+  const auto rows = menu_rows(*menu);
+  if (rows != expected) {
+    std::fprintf(stderr, "Type menu rows: %s\n", rows.join(QLatin1Char(',')).toUtf8().constData());
+  }
+  CHECK(rows == expected);
+  auto* type_tool = patchy::test::ui::require_hotkey_action(window, QStringLiteral("tools.type"));
+  CHECK(type_tool != nullptr && !menu->actions().contains(type_tool));
+  CHECK(type_tool != nullptr && type_tool->shortcut() == QKeySequence(Qt::Key_T));
+  const std::vector<std::pair<const char*, int>> submenus{{"typeAlignmentMenu", 4}, {"typeDirectionMenu", 3},
+                                                          {"typeOrientationMenu", 2}, {"typeAntiAliasMenu", 7},
+                                                          {"typeOpenTypeMenu", 8}};
+  for (const auto& [name, count] : submenus) {
+    auto* submenu = window.findChild<QMenu*>(QLatin1String(name));
+    CHECK(submenu != nullptr);
+    if (submenu == nullptr) {
+      continue;
+    }
+    CHECK(submenu->actions().size() == count);
+    CHECK(submenu->menuAction()->menuRole() == QAction::NoRole);
+    for (const auto* action : submenu->actions()) {
+      CHECK(action->isCheckable());
+      CHECK(action->menuRole() == QAction::NoRole);
+      CHECK(!action->objectName().isEmpty());
+    }
+  }
+  for (const auto* action : menu->actions()) {
+    CHECK(action->isSeparator() || action->menuRole() == QAction::NoRole);
+  }
+
+  // A selected text layer: everything on, and the checks read the layer.
+  select_only(window, id);
+  open_type_menu(window);
+  for (const auto& submenu : submenus) {
+    CHECK(submenu_enabled(window, submenu.first));
+  }
+  CHECK(action_checked(window, "typeAlignLeftAction"));
+  CHECK(action_checked(window, "typeDirectionAutoAction"));
+  CHECK(action_checked(window, "typeOrientationHorizontalAction"));
+  CHECK(action_checked(window, "typeOpenTypeLigaturesAction"));  // on in new text, as in Photoshop
+  CHECK(!action_checked(window, "typeOpenTypeSwashAction"));
+  const auto anti_alias = metadata_value(window, id, patchy::kLayerMetadataTextAntiAlias);
+  if (auto* anti_alias_menu = window.findChild<QMenu*>(QStringLiteral("typeAntiAliasMenu"));
+      anti_alias_menu != nullptr && !anti_alias.isEmpty()) {
+    for (const auto* action : anti_alias_menu->actions()) {
+      CHECK(action->isChecked() == (action->data().toInt() == anti_alias.toInt()));
+    }
+  }
+
+  // Only the pixel background selected, with the Move tool: nothing to act on.
+  std::optional<patchy::LayerId> pixel_layer;
+  for (const auto& layer : MainWindowTestAccess::document(window).layers()) {
+    if (!patchy::layer_is_text(layer)) {
+      pixel_layer = layer.id();
+    }
+  }
+  CHECK(pixel_layer.has_value());
+  if (!pixel_layer.has_value()) {
+    return;
+  }
+  select_only(window, *pixel_layer);
+  if (auto* move = patchy::test::ui::require_hotkey_action(window, QStringLiteral("tools.move")); move != nullptr) {
+    move->trigger();
+  }
+  open_type_menu(window);
+  for (const auto& submenu : submenus) {
+    CHECK(!submenu_enabled(window, submenu.first));
+  }
+  // The entries themselves stay on, so a key bound to one still fires.
+  CHECK(patchy::test::ui::require_action(window, "typeAlignCenterAction")->isEnabled());
+  // The Type tool: orientation and smoothing seed the next new layer.
+  if (type_tool != nullptr) {
+    type_tool->trigger();
+  }
+  open_type_menu(window);
+  CHECK(submenu_enabled(window, "typeOrientationMenu"));
+  CHECK(submenu_enabled(window, "typeAntiAliasMenu"));
+  CHECK(!submenu_enabled(window, "typeAlignmentMenu"));
+  CHECK(!submenu_enabled(window, "typeDirectionMenu"));
+  CHECK(!submenu_enabled(window, "typeOpenTypeMenu"));
+}
+
+// Each submenu applies to the selected text layer through its control's path: one undo step per
+// pick, and the menu's checks follow.
+void ui_type_menu_applies_to_selected_text_layer() {
+  MainWindow window;
+  patchy::test::ui::show_window_empty(window);
+  const auto id = add_point_text(window);
+  select_only(window, id);
+  const auto trigger = [&window](const char* object_name) {
+    auto* action = patchy::test::ui::require_action(window, object_name);
+    const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+    if (action != nullptr) {
+      action->trigger();
+    }
+    QApplication::processEvents();
+    const auto added = MainWindowTestAccess::active_session_undo_depth(window) - depth;
+    if (added != 1U) {
+      std::fprintf(stderr, "%s added %zu undo steps\n", object_name, added);
+    }
+    CHECK(added == 1U);
+  };
+
+  trigger("typeAlignCenterAction");
+  CHECK(first_paragraph_field(window, id, 2) == QStringLiteral("center"));
+  trigger("typeAlignJustifyAction");
+  CHECK(first_paragraph_field(window, id, 2) == QStringLiteral("justify"));
+  open_type_menu(window);
+  CHECK(action_checked(window, "typeAlignJustifyAction"));
+  CHECK(!action_checked(window, "typeAlignCenterAction"));
+
+  trigger("typeDirectionRightToLeftAction");
+  CHECK(first_paragraph_field(window, id, 9) == QStringLiteral("rtl"));
+
+  trigger("typeAntiAliasCrispAction");
+  CHECK(metadata_value(window, id, patchy::kLayerMetadataTextAntiAlias).toInt() == patchy::kTextAntiAliasCrisp);
+  open_type_menu(window);
+  CHECK(action_checked(window, "typeAntiAliasCrispAction"));
+
+  // A toggle flips what the text has, whatever check the action showed last.
+  trigger("typeOpenTypeSwashAction");
+  open_type_menu(window);
+  CHECK(action_checked(window, "typeOpenTypeSwashAction"));
+  trigger("typeOpenTypeSwashAction");
+  open_type_menu(window);
+  CHECK(!action_checked(window, "typeOpenTypeSwashAction"));
+
+  trigger("typeOrientationVerticalAction");
+  CHECK(metadata_value(window, id, patchy::kLayerMetadataTextOrientation) == QStringLiteral("vertical"));
+  open_type_menu(window);
+  CHECK(action_checked(window, "typeOrientationVerticalAction"));
+
+  // One undo puts the orientation back alone.
+  MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(metadata_value(window, id, patchy::kLayerMetadataTextOrientation) != QStringLiteral("vertical"));
+  CHECK(metadata_value(window, id, patchy::kLayerMetadataTextAntiAlias).toInt() == patchy::kTextAntiAliasCrisp);
+
+  // Rasterize Type Layer: the text layer becomes pixels, one step.
+  trigger("typeRasterizeAction");
+  const auto* layer = std::as_const(MainWindowTestAccess::document(window)).find_layer(id);
+  CHECK(layer != nullptr && !patchy::layer_is_text(*layer));
+}
+
+// Review capture for the desk card: the Type menu with its OpenType submenu beside it.
+void ui_type_menu_review_capture() {
+  MainWindow window;
+  patchy::test::ui::show_window_empty(window);
+  const auto id = add_point_text(window);
+  select_only(window, id);
+  auto* menu = type_menu(window);
+  auto* opentype = window.findChild<QMenu*>(QStringLiteral("typeOpenTypeMenu"));
+  if (menu == nullptr || opentype == nullptr) {
+    return;
+  }
+  menu->popup(window.mapToGlobal(QPoint(200, 40)));
+  QApplication::processEvents();
+  const auto menu_image = patchy::test::ui::capture_widget_artifact("ui_type_menu", *menu);
+  const auto row = menu->actionGeometry(opentype->menuAction());
+  opentype->popup(menu->mapToGlobal(QPoint(menu->width() - 4, row.top())));
+  QApplication::processEvents();
+  const auto opentype_image = patchy::test::ui::capture_widget_artifact("ui_type_menu_opentype", *opentype);
+  opentype->close();
+  menu->close();
+  QApplication::processEvents();
+  if (menu_image.isNull() || opentype_image.isNull()) {
+    return;
+  }
+  // Side by side in device pixels, the submenu level with its row.
+  const auto ratio = menu_image.devicePixelRatio();
+  const int offset_x = menu_image.width() - static_cast<int>(4 * ratio);
+  const int offset_y = static_cast<int>(row.top() * ratio);
+  QImage sheet(std::max(menu_image.width(), offset_x + opentype_image.width()),
+               std::max(menu_image.height(), offset_y + opentype_image.height()), QImage::Format_ARGB32_Premultiplied);
+  sheet.fill(Qt::transparent);
+  {
+    // At 1:1, so a high-DPI grab is not drawn at half size.
+    auto left = menu_image;
+    auto right = opentype_image;
+    left.setDevicePixelRatio(1.0);
+    right.setDevicePixelRatio(1.0);
+    QPainter painter(&sheet);
+    painter.drawImage(QPoint(0, 0), left);
+    painter.drawImage(QPoint(offset_x, offset_y), right);
+  }
+  patchy::test::ui::save_image_artifact("ui_type_menu_with_opentype", sheet);
+}
+
 // The outline grouping fills like nonzero winding: nested contours share a group (a hole), a
 // solid contour inside another is dropped, crossing contours become separate united groups.
 void ui_text_outline_groups_follow_nonzero_fill() {
@@ -665,5 +937,8 @@ std::vector<patchy::test::TestCase> text_outline_tests() {
       {"ui_text_outline_commands_in_menus", ui_text_outline_commands_in_menus},
       {"ui_text_outline_groups_follow_nonzero_fill", ui_text_outline_groups_follow_nonzero_fill},
       {"ui_text_outline_review_captures", ui_text_outline_review_captures},
+      {"ui_type_menu_rows_and_enabled_states", ui_type_menu_rows_and_enabled_states},
+      {"ui_type_menu_applies_to_selected_text_layer", ui_type_menu_applies_to_selected_text_layer},
+      {"ui_type_menu_review_capture", ui_type_menu_review_capture},
   };
 }

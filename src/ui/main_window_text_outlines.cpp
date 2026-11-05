@@ -1,6 +1,6 @@
 // Type > Convert to Shape and Type > Create Work Path (GitHub issue 598;
 // docs/text-outlines.md): text layers as vector outlines, from the glyph outlines the text
-// renderer draws (text_layer_outlines), never a raster trace.
+// renderer draws (text_layer_outlines), never a raster trace. Also Type > Rasterize Type Layer.
 #include "core/document_path.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
@@ -147,6 +147,22 @@ void MainWindow::create_work_path_from_text() {
   }
   target_document_path_row(work_id);
   statusBar()->showMessage(tr("Made a work path from the text."));
+}
+
+// Type > Rasterize Type Layer (GitHub issue 650): Layer > Rasterize's path, given only the
+// selected text layers, so a shape or Smart Object selected beside them stays as it is.
+void MainWindow::rasterize_text_layers() {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+  finish_active_text_editor();
+  const auto targets =
+      text_layer_targets(std::as_const(document()), rasterize_target_layer_ids(selected_or_active_layer_ids()));
+  if (targets.empty()) {
+    show_status_error(tr("Select a text layer first."));
+    return;
+  }
+  rasterize_layer_ids(targets);
 }
 
 }  // namespace patchy::ui

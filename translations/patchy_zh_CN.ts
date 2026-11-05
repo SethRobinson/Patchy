@@ -19363,6 +19363,118 @@ Each item&apos;s own View setting still applies.</source>
         <source>Switch between the hand and rotate view tools</source>
         <translation>在抓手和旋转视图工具之间切换</translation>
     </message>
+    <message>
+        <source>Leading, tracking, glyph scales and font features</source>
+        <translation>行距、字距、字形缩放和字体功能</translation>
+    </message>
+    <message>
+        <source>Paragraph alignment, indents and spacing</source>
+        <translation>段落对齐、缩进和间距</translation>
+    </message>
+    <message>
+        <source>Line the text up on its left edge</source>
+        <translation>将文字沿左边缘对齐</translation>
+    </message>
+    <message>
+        <source>Center each line of text</source>
+        <translation>将每行文字居中</translation>
+    </message>
+    <message>
+        <source>Line the text up on its right edge</source>
+        <translation>将文字沿右边缘对齐</translation>
+    </message>
+    <message>
+        <source>Spread each line across the text box</source>
+        <translation>将每行文字铺满文本框宽度</translation>
+    </message>
+    <message>
+        <source>Let the first letter set the reading direction</source>
+        <translation>由第一个字母决定阅读方向</translation>
+    </message>
+    <message>
+        <source>Paragraphs read from the left side</source>
+        <translation>段落从左侧开始阅读</translation>
+    </message>
+    <message>
+        <source>Paragraphs read from the right side, as in Arabic or Hebrew</source>
+        <translation>段落从右侧开始阅读，如阿拉伯语或希伯来语</translation>
+    </message>
+    <message>
+        <source>Set the text in rows</source>
+        <translation>将文字横排</translation>
+    </message>
+    <message>
+        <source>Set the text in columns, top to bottom</source>
+        <translation>将文字从上到下竖排</translation>
+    </message>
+    <message>
+        <source>Hard, jagged letter edges</source>
+        <translation>生硬、有锯齿的字母边缘</translation>
+    </message>
+    <message>
+        <source>The sharpest smoothed letter edges</source>
+        <translation>最锐利的平滑字母边缘</translation>
+    </message>
+    <message>
+        <source>Slightly sharp smoothed letter edges</source>
+        <translation>稍锐利的平滑字母边缘</translation>
+    </message>
+    <message>
+        <source>Heavier smoothed letter edges</source>
+        <translation>较粗的平滑字母边缘</translation>
+    </message>
+    <message>
+        <source>The softest letter edges</source>
+        <translation>最柔和的字母边缘</translation>
+    </message>
+    <message>
+        <source>Letter edges drawn like Windows LCD text</source>
+        <translation>像 Windows LCD 文字那样绘制字母边缘</translation>
+    </message>
+    <message>
+        <source>Letter edges drawn like Windows text</source>
+        <translation>像 Windows 文字那样绘制字母边缘</translation>
+    </message>
+    <message>
+        <source>Join letter pairs such as fi and fl</source>
+        <translation>连接 fi 和 fl 等字母组合</translation>
+    </message>
+    <message>
+        <source>Letter shapes that change with their neighbors</source>
+        <translation>随相邻字母变化的字形</translation>
+    </message>
+    <message>
+        <source>Decorative letter joins such as ct and st</source>
+        <translation>ct 和 st 等装饰性连字</translation>
+    </message>
+    <message>
+        <source>Flourished letter shapes</source>
+        <translation>带花饰的字形</translation>
+    </message>
+    <message>
+        <source>The font&apos;s alternate letter designs</source>
+        <translation>字体的替代字母设计</translation>
+    </message>
+    <message>
+        <source>Capitals drawn for large headings</source>
+        <translation>为大标题设计的大写字母</translation>
+    </message>
+    <message>
+        <source>Raised letters after numbers, as in 1st and 2nd</source>
+        <translation>数字后的上标字母，如 1st 和 2nd</translation>
+    </message>
+    <message>
+        <source>Draw 1/2 as a stacked fraction</source>
+        <translation>将 1/2 显示为堆叠分数</translation>
+    </message>
+    <message>
+        <source>Turn the text layers into pixels</source>
+        <translation>将文字图层转换为像素</translation>
+    </message>
+    <message>
+        <source>Bend text into an arc, flag or wave</source>
+        <translation>将文字弯曲成弧形、旗帜或波浪</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32799,6 +32911,62 @@ Locked: %1</source>
     <message>
         <source>Cycle Hand Tools</source>
         <translation>循环切换抓手工具</translation>
+    </message>
+    <message>
+        <source>Alignment</source>
+        <translation>对齐</translation>
+    </message>
+    <message>
+        <source>Direction</source>
+        <translation>段落方向</translation>
+    </message>
+    <message>
+        <source>Orientation</source>
+        <translation>排版方向</translation>
+    </message>
+    <message>
+        <source>Anti-Alias</source>
+        <translation>消除锯齿</translation>
+    </message>
+    <message>
+        <source>OpenType</source>
+        <translation>OpenType</translation>
+    </message>
+    <message>
+        <source>Standard Ligatures</source>
+        <translation>标准连字</translation>
+    </message>
+    <message>
+        <source>Contextual Alternates</source>
+        <translation>上下文替代字</translation>
+    </message>
+    <message>
+        <source>Discretionary Ligatures</source>
+        <translation>自由连字</translation>
+    </message>
+    <message>
+        <source>Swash</source>
+        <translation>花饰字</translation>
+    </message>
+    <message>
+        <source>Stylistic Alternates</source>
+        <translation>风格替代字</translation>
+    </message>
+    <message>
+        <source>Titling Alternates</source>
+        <translation>标题替代字</translation>
+    </message>
+    <message>
+        <source>Ordinals</source>
+        <translation>序数</translation>
+    </message>
+    <message>
+        <source>Fractions</source>
+        <translation>分数</translation>
+    </message>
+    <message>
+        <source>Rasterize Type Layer</source>
+        <translation>栅格化文字图层</translation>
     </message>
 </context>
 <context>
