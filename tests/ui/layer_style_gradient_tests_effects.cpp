@@ -301,9 +301,10 @@ void ui_layer_style_blend_if_preview_off_accumulates_and_cancel_restores() {
     CHECK(preview != nullptr && preview->isChecked());
     CHECK(black_high != nullptr);
     black_high->setValue(28);
-    QTest::qWait(80);
-    CHECK(!previews.empty());
-    CHECK(previews.back().blend_if.channels[0].this_layer.black_high == 28);
+    // The preview arrives on the coalescing timer; a fixed wait was too short on a busy ARM64 host.
+    CHECK(QTest::qWaitFor(
+        [&] { return !previews.empty() && previews.back().blend_if.channels[0].this_layer.black_high == 28; },
+        5000));
 
     preview->setChecked(false);
     QApplication::processEvents();
