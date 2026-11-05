@@ -241,12 +241,15 @@ void ui_scanner_import_creates_untitled_document() {
   CHECK(QFileInfo::exists(scan_path));
 }
 
-#if defined(Q_OS_LINUX)
 // Drives the real Linux scanner dialog (scanner_import_linux.cpp) against SANE's "test"
 // backend, the fake scanner sane-backends ships: device list, Fixed-type resolution, an
 // 8-bit RGB scan, a 16-bit three-pass scan and 1-bit line art, each imported as a document.
-// Skips where libsane is not installed (the Flatpak SDK test environment has none).
+// Skips where libsane is not installed (the Flatpak SDK test environment has none). Registered
+// on every platform so a shared filter naming it selects a test everywhere.
 void ui_linux_scanner_dialog_scans_sane_test_backend() {
+#if !defined(Q_OS_LINUX)
+  patchy::test::skip(patchy::test::SkipKind::platform, "the SANE scanner dialog is Linux only");
+#else
   if (!QLibrary(QStringLiteral("sane"), 1).load()) {
     patchy::test::skip(patchy::test::SkipKind::feature, "libsane.so.1 is not installed");
   }
@@ -374,8 +377,8 @@ void ui_linux_scanner_dialog_scans_sane_test_backend() {
       CHECK(image.pixelColor(40, 5).value() < 40);
     }
   }
-}
 #endif
+}
 
 void ui_photocopy_dialog_previews_clipping_at_actual_size() {
   std::filesystem::create_directories("test-artifacts");
@@ -2175,9 +2178,7 @@ std::vector<patchy::test::TestCase> import_print_resolution_tests_part1() {
       {"ui_layer_context_menu_keeps_edit_styles_on_top", ui_layer_context_menu_keeps_edit_styles_on_top},
       {"ui_file_import_menu_actions_registered", ui_file_import_menu_actions_registered},
       {"ui_scanner_import_creates_untitled_document", ui_scanner_import_creates_untitled_document},
-#if defined(Q_OS_LINUX)
       {"ui_linux_scanner_dialog_scans_sane_test_backend", ui_linux_scanner_dialog_scans_sane_test_backend},
-#endif
       {"ui_photocopy_dialog_previews_clipping_at_actual_size", ui_photocopy_dialog_previews_clipping_at_actual_size},
       {"ui_aseprite_open_adopts_palette_and_builds_layer_tree", ui_aseprite_open_adopts_palette_and_builds_layer_tree},
       {"ui_export_scale_writes_nearest_neighbor_pixels", ui_export_scale_writes_nearest_neighbor_pixels},
