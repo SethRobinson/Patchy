@@ -19390,6 +19390,26 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Change the color, gradient or pattern of a fill layer</source>
         <translation>Cambiar el color, degradado o motivo de una capa de relleno</translation>
     </message>
+    <message>
+        <source>Turn the canvas counterclockwise on screen</source>
+        <translation>Girar el lienzo en pantalla en sentido antihorario</translation>
+    </message>
+    <message>
+        <source>Turn the canvas clockwise on screen</source>
+        <translation>Girar el lienzo en pantalla en sentido horario</translation>
+    </message>
+    <message>
+        <source>Turn the canvas upright again</source>
+        <translation>Volver a poner el lienzo derecho</translation>
+    </message>
+    <message>
+        <source>Turn the canvas on screen like a sheet of paper</source>
+        <translation>Girar el lienzo en pantalla como una hoja de papel</translation>
+    </message>
+    <message>
+        <source>Switch between the hand and rotate view tools</source>
+        <translation>Alternar entre las herramientas de mano y rotar vista</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -19913,36 +19933,16 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Conjunto de atajos:</translation>
     </message>
     <message>
-        <source>Start from Patchy&apos;s shortcuts or from a set laid out like another editor&apos;s. You can still change any key afterwards.</source>
-        <translation>Empiece con los atajos de Patchy o con un conjunto organizado como el de otro editor. Después puede seguir cambiando cualquier tecla.</translation>
-    </message>
-    <message>
-        <source>Patchy (default)</source>
-        <translation>Patchy (predeterminado)</translation>
-    </message>
-    <message>
         <source>Import...</source>
         <translation>Importar...</translation>
-    </message>
-    <message>
-        <source>Replace the shortcuts with ones saved in a hotkey file</source>
-        <translation>Reemplazar los atajos por los guardados en un archivo de atajos</translation>
     </message>
     <message>
         <source>Export...</source>
         <translation>Exportar...</translation>
     </message>
     <message>
-        <source>Save your shortcut changes to a file you can keep or share</source>
-        <translation>Guardar sus cambios de atajos en un archivo que puede conservar o compartir</translation>
-    </message>
-    <message>
         <source>Exported &quot;%1&quot;.</source>
         <translation>Se exportó «%1».</translation>
-    </message>
-    <message>
-        <source>Imported &quot;%1&quot;. Commands: %2. Skipped commands this Patchy does not have: %3. Skipped keys it cannot use: %4. Click OK to apply.</source>
-        <translation>Se importó «%1». Comandos: %2. Comandos omitidos que este Patchy no tiene: %3. Teclas omitidas que no puede usar: %4. Haga clic en Aceptar para aplicarlos.</translation>
     </message>
     <message>
         <source>Export Hotkeys</source>
@@ -19969,16 +19969,8 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Error al importar</translation>
     </message>
     <message>
-        <source>Replace your current shortcuts with the ones in &quot;%1&quot;? Shortcuts the file does not set go back to Patchy&apos;s defaults.</source>
-        <translation>¿Reemplazar sus atajos actuales por los de «%1»? Los atajos que el archivo no define vuelven a los valores predeterminados de Patchy.</translation>
-    </message>
-    <message>
         <source>Shortcut Set</source>
         <translation>Conjunto de atajos</translation>
-    </message>
-    <message>
-        <source>Replace your own shortcut changes with the %1 set? Export them first to keep a copy.</source>
-        <translation>¿Reemplazar sus propios cambios de atajos por el conjunto %1? Expórtelos primero para conservar una copia.</translation>
     </message>
     <message>
         <source>Custom</source>
@@ -20007,6 +19999,79 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Krita-style</source>
         <translation>Estilo Krita</translation>
+    </message>
+    <message>
+        <source>Patchy default</source>
+        <translation>Patchy predeterminado</translation>
+    </message>
+    <message>
+        <source>%1 (built-in)</source>
+        <extracomment>A shortcut set shipped with Patchy, in the Preferences &gt; Hotkeys set list. %1 is its name.</extracomment>
+        <translation>%1 (integrado)</translation>
+    </message>
+    <message>
+        <source>Built-in sets never change: changing a key in one puts your keys in the Custom set. Rename it to keep it as a set of your own.</source>
+        <translation>Los conjuntos integrados nunca cambian: si cambias una tecla en uno, tus teclas pasan al conjunto Personalizado. Cámbiale el nombre para conservarlo como un conjunto propio.</translation>
+    </message>
+    <message>
+        <source>Rename...</source>
+        <translation>Cambiar nombre...</translation>
+    </message>
+    <message>
+        <source>Name this set of yours</source>
+        <translation>Poner nombre a este conjunto propio</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Eliminar</translation>
+    </message>
+    <message>
+        <source>Remove this set of yours</source>
+        <translation>Quitar este conjunto propio</translation>
+    </message>
+    <message>
+        <source>Add the shortcuts saved in a hotkey file as a set of your own</source>
+        <translation>Añadir los atajos guardados en un archivo como un conjunto propio</translation>
+    </message>
+    <message>
+        <source>Save the shortcuts shown to a file you can keep or share</source>
+        <translation>Guardar los atajos mostrados en un archivo que puedes conservar o compartir</translation>
+    </message>
+    <message>
+        <source>Imported &quot;%1&quot; as the set &quot;%2&quot;. Commands: %3. Skipped commands this Patchy does not have: %4. Skipped keys it cannot use: %5. Click OK to apply.</source>
+        <translation>Se importó «%1» como el conjunto «%2». Comandos: %3. Comandos omitidos que este Patchy no tiene: %4. Teclas omitidas que no puede usar: %5. Haz clic en Aceptar para aplicarlos.</translation>
+    </message>
+    <message>
+        <source>Set name:</source>
+        <translation>Nombre del conjunto:</translation>
+    </message>
+    <message>
+        <source>A shortcut set named &quot;%1&quot; already exists. Choose another name.</source>
+        <translation>Ya existe un conjunto de atajos llamado «%1». Elige otro nombre.</translation>
+    </message>
+    <message>
+        <source>Rename Shortcut Set</source>
+        <translation>Cambiar nombre del conjunto de atajos</translation>
+    </message>
+    <message>
+        <source>Delete Shortcut Set</source>
+        <translation>Eliminar conjunto de atajos</translation>
+    </message>
+    <message>
+        <source>Delete the shortcut set &quot;%1&quot;? Patchy&apos;s default shortcuts take its place.</source>
+        <translation>¿Eliminar el conjunto de atajos «%1»? Los atajos predeterminados de Patchy ocuparán su lugar.</translation>
+    </message>
+    <message>
+        <source>Imported shortcuts</source>
+        <translation>Atajos importados</translation>
+    </message>
+    <message>
+        <source>%1 is built in and never changes, so your change goes into the Custom set, which already holds other changes. Replace them? To keep them, click Cancel and rename Custom first.</source>
+        <translation>%1 es integrado y nunca cambia, así que tu cambio va al conjunto Personalizado, que ya contiene otros cambios. ¿Reemplazarlos? Para conservarlos, haz clic en Cancelar y cambia antes el nombre de Personalizado.</translation>
+    </message>
+    <message>
+        <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
+        <translation>%1 es integrado, así que tus cambios están en el conjunto Personalizado. Cámbiale el nombre para conservarlo como un conjunto propio.</translation>
     </message>
 </context>
 <context>
@@ -32773,6 +32838,54 @@ Bloqueada: %1</translation>
         <source>Select a fill layer to edit its settings</source>
         <translation>Selecciona una capa de relleno para editar su configuración</translation>
     </message>
+    <message>
+        <source>Rotate View Left</source>
+        <translation>Rotar vista a la izquierda</translation>
+    </message>
+    <message>
+        <source>Rotate View Right</source>
+        <translation>Rotar vista a la derecha</translation>
+    </message>
+    <message>
+        <source>Reset View Rotation</source>
+        <translation>Restablecer rotación de la vista</translation>
+    </message>
+    <message>
+        <source>Rotation Angle:</source>
+        <translation>Ángulo de rotación:</translation>
+    </message>
+    <message>
+        <source>The view&apos;s angle, clockwise. Only the view turns; the image does not change</source>
+        <translation>El ángulo de la vista, en sentido horario. Solo gira la vista; la imagen no cambia</translation>
+    </message>
+    <message>
+        <source>Reset View</source>
+        <translation>Restablecer vista</translation>
+    </message>
+    <message>
+        <source>Turn the view upright again (View &gt; Reset View Rotation)</source>
+        <translation>Volver a poner la vista derecha (Vista &gt; Restablecer rotación de la vista)</translation>
+    </message>
+    <message>
+        <source>Drag to turn the view, Shift snaps to 15 degrees. Esc or Reset View turns it upright. The image does not change.</source>
+        <translation>Arrastre para girar la vista; Mayús ajusta en pasos de 15 grados. Esc o Restablecer vista la pone derecha. La imagen no cambia.</translation>
+    </message>
+    <message>
+        <source>Rotate View: drag to turn the view like a sheet of paper, Shift snaps to 15 degrees. Esc turns it upright. Only the view turns; the image is unchanged.</source>
+        <translation>Rotar vista: arrastre para girar la vista como una hoja de papel; Mayús ajusta en pasos de 15 grados. Esc la pone derecha. Solo gira la vista; la imagen no cambia.</translation>
+    </message>
+    <message>
+        <source>Hand Tools</source>
+        <translation>Herramientas de mano</translation>
+    </message>
+    <message>
+        <source>Rotate View</source>
+        <translation>Rotar vista</translation>
+    </message>
+    <message>
+        <source>Cycle Hand Tools</source>
+        <translation>Alternar herramientas de mano</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35032,6 +35145,14 @@ Bloqueada: %1</translation>
     <message>
         <source>feather needs a radius from %1 to %2.</source>
         <translation>feather necesita un radio de %1 a %2.</translation>
+    </message>
+    <message>
+        <source>rotation needs a number of degrees.</source>
+        <translation>rotation necesita un número de grados.</translation>
+    </message>
+    <message>
+        <source>No document is open to rotate the view of.</source>
+        <translation>No hay ningún documento abierto cuya vista girar.</translation>
     </message>
 </context>
 <context>

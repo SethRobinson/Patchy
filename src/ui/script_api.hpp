@@ -692,6 +692,13 @@ public:
   Q_PROPERTY(double zoom READ zoom WRITE set_zoom)
   [[nodiscard]] double zoom() const;
   void set_zoom(double percent);
+  // The active document's view rotation in degrees, clockwise, in (-180, 180] (0 with no
+  // document): docs/view-navigation-rotation.md. Setting wraps any finite angle and turns
+  // the view about its center; throws for NaN or with no document. Pixels never change;
+  // only window captures see it.
+  Q_PROPERTY(double rotation READ rotation WRITE set_rotation)
+  [[nodiscard]] double rotation() const;
+  void set_rotation(double degrees);
   // View > Fit on Screen for the active document; throws with no document.
   Q_INVOKABLE void fitOnScreen();
   // The active 32-bit document's preview exposure in stops (the status bar's Exposure

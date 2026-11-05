@@ -765,7 +765,7 @@ QString photoshop_style_template() {
     QLabel#layerMaskThumbnail[layerTargetActive="true"],
     QLabel#layerVectorMaskThumbnail[layerTargetActive="true"],
     QLabel#layerSmartFilterMaskThumbnail[layerTargetActive="true"] {
-      border: 2px solid @accent_bright;
+      border: 1px solid @accent_bright;
       padding: 0;
     }
     QToolButton#maskEditModeChip {
@@ -1048,11 +1048,14 @@ QString photoshop_style_template() {
       min-height: 30px;
       max-height: 30px;
     }
-    /* :hover too, so the hover rule above cannot outrank a drop target under the cursor. */
+    /* :hover too, so the hover rule above cannot outrank a drop target under the cursor.
+       The border stays 1 px like the footer rule's: a style sheet adds the border outside
+       min-width/max-width, so a wider one grew the button under a dragged layer and wrapped
+       the footer row. */
     QPushButton[layerDropActive="true"], QToolButton[layerDropActive="true"],
     QPushButton[layerDropActive="true"]:hover, QToolButton[layerDropActive="true"]:hover {
       background: @layer_drop_bg;
-      border: 2px solid @accent_bright;
+      border: 1px solid @accent_bright;
       padding: 0;
     }
     QStatusBar {

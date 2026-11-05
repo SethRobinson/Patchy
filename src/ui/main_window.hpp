@@ -3483,6 +3483,11 @@ private:
   QPushButton* zoom_actual_pixels_button_{nullptr};
   QPushButton* zoom_fit_screen_button_{nullptr};
   QPushButton* zoom_fill_screen_button_{nullptr};
+  // Rotate View tool options (docs/view-navigation-rotation.md).
+  UnitSpinBox* rotate_view_angle_spin_{nullptr};
+  QPushButton* rotate_view_reset_button_{nullptr};
+  bool syncing_rotate_view_angle_{false};
+  void sync_rotate_view_angle_spin();
   QCheckBox* wand_sample_all_layers_check_{nullptr};
   QCheckBox* quick_select_sample_all_layers_check_{nullptr};
   QCheckBox* quick_select_enhance_edge_check_{nullptr};

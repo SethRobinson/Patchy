@@ -12,17 +12,18 @@
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QHash>
+#include <QInputDialog>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMenuBar>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSet>
 #include <QSignalBlocker>
-#include <QStandardPaths>
 #include <QStyle>
 #include <QStyleOptionComboBox>
 #include <QTimer>
@@ -169,6 +170,7 @@ private:
 HotkeyEditorPanel::HotkeyEditorPanel(HotkeyRegistry& registry, QMenuBar* menu_bar, QWidget* parent)
     : QWidget(parent), registry_(registry), staged_(registry.overrides()) {
   setObjectName(QStringLiteral("hotkeyEditorPanel"));
+  load_shortcut_sets();
 
   // The search row and hint stay put above the command list, which scrolls on its own
   // (GitHub issue 561). Preferences hosts the panel with no right inset, so the list's
@@ -233,10 +235,8 @@ HotkeyEditorPanel::HotkeyEditorPanel(HotkeyRegistry& registry, QMenuBar* menu_ba
     list_scroll_->verticalScrollBar()->setValue(0);
   });
   connect(reset_all_button, &QPushButton::clicked, this, [this] {
-    QTimer::singleShot(0, this, [this] {
-      staged_.clear();
-      refresh_rows();
-    });
+    // Patchy's defaults as a set: the user's own sets keep their keys.
+    QTimer::singleShot(0, this, [this] { apply_shortcut_set(QString::fromLatin1(kPatchyHotkeySetId)); });
   });
   connect(set_combo_, &QComboBox::activated, this, [this](int index) {
     QTimer::singleShot(0, this, [this, index] { shortcut_set_chosen(index); });
@@ -362,36 +362,79 @@ bool HotkeyEditorPanel::eventFilter(QObject* watched, QEvent* event) {
 }
 
 void HotkeyEditorPanel::commit() {
+  store_user_hotkey_sets(user_sets_, active_set_id_);
   registry_.apply_overrides(staged_);
 }
 
+// Which set the page opens on: the one last applied when the registry still holds its keys.
+// Keys changed elsewhere (a script's binding, an older Patchy) go into that user set, or
+// into Custom when a built-in set was active and they no longer match one.
+void HotkeyEditorPanel::load_shortcut_sets() {
+  user_sets_ = load_user_hotkey_sets(registry_.commands());
+  active_set_id_ = load_active_hotkey_set_id();
+  if (auto* set = find_user_set(active_set_id_); set != nullptr) {
+    set->overrides = staged_;
+    return;
+  }
+  if (is_builtin_set(active_set_id_) &&
+      hotkey_override_maps_equivalent(staged_, builtin_set_overrides(active_set_id_))) {
+    return;
+  }
+  if (const auto match = matching_hotkey_set_id(staged_, registry_.commands()); !match.isEmpty()) {
+    active_set_id_ = match;
+    return;
+  }
+  put_staged_in_custom_set();
+}
+
+// Two lines under one label: the set box with the buttons that act on the set shown, then the
+// file buttons. One line held too few pixels for six controls in German and Russian.
 QWidget* HotkeyEditorPanel::build_set_row(QWidget* parent) {
   auto* row = new QWidget(parent);
-  auto* row_layout = new QHBoxLayout(row);
-  row_layout->setContentsMargins(0, 0, 0, 0);
-  row_layout->setSpacing(8);
+  auto* grid = new QGridLayout(row);
+  grid->setContentsMargins(0, 0, 0, 0);
+  grid->setHorizontalSpacing(8);
+  grid->setVerticalSpacing(6);
+  grid->setColumnStretch(1, 1);
+  auto* set_line = new QHBoxLayout();
+  set_line->setSpacing(8);
+  auto* file_line = new QHBoxLayout();
+  file_line->setSpacing(8);
   auto* label = new QLabel(tr("Shortcut set:"), row);
-  row_layout->addWidget(label);
+  grid->addWidget(label, 0, 0);
+  grid->addLayout(set_line, 0, 1);
+  grid->addLayout(file_line, 1, 1);
+  auto* row_layout = set_line;
   set_combo_ = new QComboBox(row);
   set_combo_->setObjectName(QStringLiteral("hotkeySetCombo"));
-  set_combo_->setToolTip(tr("Start from Patchy's shortcuts or from a set laid out like another editor's. "
-                            "You can still change any key afterwards."));
-  set_combo_->addItem(QString(), QString::fromLatin1(kPatchyHotkeySetId));
-  for (const auto& set : builtin_hotkey_sets()) {
-    set_combo_->addItem(QString(), QString::fromLatin1(set.id));
-  }
-  retranslate_set_combo();
+  set_combo_->setToolTip(tr("Built-in sets never change: changing a key in one puts your keys in the Custom "
+                            "set. Rename it to keep it as a set of your own."));
+  // Built after Preferences fits its other combos' lists, so the panel asks for its own: the
+  // open list shows every entry whole (GitHub issue 489).
+  fit_combo_popup_to_entries(*set_combo_);
   label->setBuddy(set_combo_);
   row_layout->addWidget(set_combo_);
+  rename_set_button_ = new QPushButton(tr("Rename..."), row);
+  rename_set_button_->setObjectName(QStringLiteral("hotkeySetRenameButton"));
+  rename_set_button_->setToolTip(tr("Name this set of yours"));
+  row_layout->addWidget(rename_set_button_);
+  delete_set_button_ = new QPushButton(tr("Delete"), row);
+  delete_set_button_->setObjectName(QStringLiteral("hotkeySetDeleteButton"));
+  delete_set_button_->setToolTip(tr("Remove this set of yours"));
+  row_layout->addWidget(delete_set_button_);
   row_layout->addStretch(1);
   auto* import_button = new QPushButton(tr("Import..."), row);
   import_button->setObjectName(QStringLiteral("hotkeyImportButton"));
-  import_button->setToolTip(tr("Replace the shortcuts with ones saved in a hotkey file"));
-  row_layout->addWidget(import_button);
+  import_button->setToolTip(tr("Add the shortcuts saved in a hotkey file as a set of your own"));
+  file_line->addWidget(import_button);
   auto* export_button = new QPushButton(tr("Export..."), row);
   export_button->setObjectName(QStringLiteral("hotkeyExportButton"));
-  export_button->setToolTip(tr("Save your shortcut changes to a file you can keep or share"));
-  row_layout->addWidget(export_button);
+  export_button->setToolTip(tr("Save the shortcuts shown to a file you can keep or share"));
+  file_line->addWidget(export_button);
+  file_line->addStretch(1);
+  rebuild_set_combo();
+  connect(rename_set_button_, &QPushButton::clicked, this, [this] { rename_clicked(); });
+  connect(delete_set_button_, &QPushButton::clicked, this, [this] { delete_clicked(); });
   connect(import_button, &QPushButton::clicked, this, [this] { import_clicked(); });
   connect(export_button, &QPushButton::clicked, this, [this] { export_clicked(); });
   return row;
@@ -401,23 +444,32 @@ bool HotkeyEditorPanel::export_to_file(const QString& path, QString* error) {
   if (!write_hotkey_file(path, staged_, error)) {
     return false;
   }
+  remember_hotkey_file_folder(path);
   show_transfer_status(tr("Exported \"%1\".").arg(QFileInfo(path).fileName()));
   return true;
 }
 
-HotkeyFileReadResult HotkeyEditorPanel::import_from_file(const QString& path) {
+HotkeyFileReadResult HotkeyEditorPanel::import_from_file(const QString& path, const QString& set_name) {
   auto result = read_hotkey_file(path, registry_.commands());
   if (!result.ok) {
     return result;
+  }
+  remember_hotkey_file_folder(path);
+  auto name = set_name.trimmed();
+  if (name.isEmpty()) {
+    name = unique_set_name(QFileInfo(path).completeBaseName().trimmed());
   }
   staged_.clear();
   for (auto it = result.overrides.constBegin(); it != result.overrides.constEnd(); ++it) {
     stage_override(it.key(), it.value());
   }
+  const auto id = next_user_set_id();
+  user_sets_.push_back({id, name, staged_});
+  active_set_id_ = id;
   refresh_rows();
-  show_transfer_status(tr("Imported \"%1\". Commands: %2. Skipped commands this Patchy does not have: %3. "
-                          "Skipped keys it cannot use: %4. Click OK to apply.")
-                           .arg(QFileInfo(path).fileName())
+  show_transfer_status(tr("Imported \"%1\" as the set \"%2\". Commands: %3. Skipped commands this Patchy does not "
+                          "have: %4. Skipped keys it cannot use: %5. Click OK to apply.")
+                           .arg(QFileInfo(path).fileName(), name)
                            .arg(result.overrides.size())
                            .arg(result.skipped_commands)
                            .arg(result.skipped_keys));
@@ -425,20 +477,117 @@ HotkeyFileReadResult HotkeyEditorPanel::import_from_file(const QString& path) {
 }
 
 void HotkeyEditorPanel::apply_shortcut_set(const QString& set_id) {
-  if (set_id == QLatin1String(kPatchyHotkeySetId)) {
-    staged_.clear();
-  } else if (const auto* set = find_builtin_hotkey_set(set_id); set != nullptr) {
-    staged_ = hotkey_set_overrides(*set, registry_.commands());
+  if (const auto* set = find_user_set(set_id); set != nullptr) {
+    staged_ = set->overrides;
+  } else if (is_builtin_set(set_id)) {
+    staged_ = builtin_set_overrides(set_id);
   } else {
     return;
   }
+  active_set_id_ = set_id;
   show_transfer_status(QString());
   refresh_rows();
 }
 
+bool HotkeyEditorPanel::rename_shortcut_set(const QString& set_id, const QString& name) {
+  auto* set = find_user_set(set_id);
+  const auto trimmed = name.trimmed();
+  if (set == nullptr || trimmed.isEmpty() || set_name_taken(trimmed, set_id)) {
+    return false;
+  }
+  set->name = trimmed;
+  // A named set is no longer the Custom set: the next edit of a built-in starts a new Custom.
+  if (set->id == QLatin1String(kCustomHotkeySetId)) {
+    set->id = next_user_set_id();
+    if (active_set_id_ == QLatin1String(kCustomHotkeySetId)) {
+      active_set_id_ = set->id;
+    }
+  }
+  rebuild_set_combo();
+  return true;
+}
+
+void HotkeyEditorPanel::delete_shortcut_set(const QString& set_id) {
+  const auto it = std::find_if(user_sets_.begin(), user_sets_.end(),
+                               [&set_id](const UserHotkeySet& set) { return set.id == set_id; });
+  if (it == user_sets_.end()) {
+    return;
+  }
+  user_sets_.erase(it);
+  if (active_set_id_ == set_id) {
+    apply_shortcut_set(QString::fromLatin1(kPatchyHotkeySetId));
+  } else {
+    rebuild_set_combo();
+  }
+}
+
+std::optional<QString> HotkeyEditorPanel::ask_set_name(const QString& title, const QString& initial,
+                                                       const QString& except_id) {
+  auto text = initial;
+  for (;;) {
+    QInputDialog dialog(this);
+    dialog.setObjectName(QStringLiteral("hotkeySetNameDialog"));
+    dialog.setWindowTitle(title);
+    dialog.setLabelText(tr("Set name:"));
+    dialog.setInputMode(QInputDialog::TextInput);
+    dialog.setTextValue(text);
+    if (exec_dialog(dialog) != QDialog::Accepted) {
+      return std::nullopt;
+    }
+    text = dialog.textValue().trimmed();
+    if (text.isEmpty()) {
+      continue;
+    }
+    if (!set_name_taken(text, except_id)) {
+      return text;
+    }
+    show_critical_message(this, title,
+                          tr("A shortcut set named \"%1\" already exists. Choose another name.").arg(text),
+                          QStringLiteral("hotkeySetNameTakenMessageBox"));
+  }
+}
+
+void HotkeyEditorPanel::rename_clicked() {
+  const auto* set = find_user_set(active_set_id_);
+  if (set == nullptr) {
+    return;
+  }
+  const auto id = set->id;
+  const auto name = ask_set_name(tr("Rename Shortcut Set"), set->name, id);
+  if (name.has_value()) {
+    rename_shortcut_set(id, *name);
+  }
+}
+
+void HotkeyEditorPanel::delete_clicked() {
+  const auto* set = find_user_set(active_set_id_);
+  if (set == nullptr) {
+    return;
+  }
+  const auto id = set->id;
+  if (show_warning_message(this, tr("Delete Shortcut Set"),
+                           tr("Delete the shortcut set \"%1\"? Patchy's default shortcuts take its place.")
+                               .arg(user_set_display_name(*set)),
+                           QMessageBox::Ok | QMessageBox::Cancel, QMessageBox::Cancel,
+                           QStringLiteral("hotkeySetDeleteMessageBox")) != QMessageBox::Ok) {
+    return;
+  }
+  delete_shortcut_set(id);
+}
+
 void HotkeyEditorPanel::export_clicked() {
-  const auto documents = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-  const auto initial = QDir(documents).filePath(QStringLiteral("Patchy hotkeys.") + QLatin1String(kHotkeyFileSuffix));
+  // The file is named after the set shown, without characters a file name cannot hold.
+  auto base = shortcut_set_name(active_set_id_);
+  if (const auto* set = find_user_set(active_set_id_); set != nullptr) {
+    base = user_set_display_name(*set);
+  }
+  static const QRegularExpression unsafe(QStringLiteral(R"([\\/:*?"<>|])"));
+  base = base.replace(unsafe, QStringLiteral("_")).trimmed();
+  if (base.isEmpty()) {
+    base = QStringLiteral("Patchy hotkeys");
+  }
+  const auto initial =
+      QDir(hotkey_file_folder()).filePath(base + QLatin1Char('.') + QLatin1String(kHotkeyFileSuffix));
   auto path = get_save_file_name(this, tr("Export Hotkeys"), initial, tr("Patchy hotkeys (*.patchykeys)"), nullptr,
                                  QStringLiteral("hotkeyExportFileDialog"));
   if (path.isEmpty()) {
@@ -456,29 +605,25 @@ void HotkeyEditorPanel::export_clicked() {
 }
 
 void HotkeyEditorPanel::import_clicked() {
-  const auto path = get_open_file_name(this, tr("Import Hotkeys"),
-                                       QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation),
+  const auto path = get_open_file_name(this, tr("Import Hotkeys"), hotkey_file_folder(),
                                        tr("Patchy hotkeys (*.patchykeys *.json)"), nullptr,
                                        QStringLiteral("hotkeyImportFileDialog"));
   if (path.isEmpty()) {
     return;
   }
-  // Read first, so a file that is not a hotkey file never asks to replace anything.
+  // Read first, so a file that is not a hotkey file never asks for a name.
   const auto preview = read_hotkey_file(path, registry_.commands());
   if (!preview.ok) {
     show_critical_message(this, tr("Import failed"), preview.error, QStringLiteral("hotkeyImportFailedMessageBox"));
     return;
   }
-  if (!staged_.isEmpty() &&
-      show_warning_message(this, tr("Import Hotkeys"),
-                           tr("Replace your current shortcuts with the ones in \"%1\"? Shortcuts the file does "
-                              "not set go back to Patchy's defaults.")
-                               .arg(QFileInfo(path).fileName()),
-                           QMessageBox::Ok | QMessageBox::Cancel, QMessageBox::Ok,
-                           QStringLiteral("hotkeyImportConfirmMessageBox")) != QMessageBox::Ok) {
+  remember_hotkey_file_folder(path);
+  const auto name =
+      ask_set_name(tr("Import Hotkeys"), unique_set_name(QFileInfo(path).completeBaseName().trimmed()), QString());
+  if (!name.has_value()) {
     return;
   }
-  const auto result = import_from_file(path);
+  const auto result = import_from_file(path, *name);
   if (!result.ok) {
     show_critical_message(this, tr("Import failed"), result.error, QStringLiteral("hotkeyImportFailedMessageBox"));
   }
@@ -489,40 +634,152 @@ void HotkeyEditorPanel::shortcut_set_chosen(int index) {
     return;
   }
   const auto set_id = set_combo_->itemData(index).toString();
-  const auto current = matching_hotkey_set_id(staged_, registry_.commands());
-  if (set_id.isEmpty() || set_id == current) {
-    sync_set_combo();
+  if (set_id.isEmpty() || set_id == active_set_id_) {
+    rebuild_set_combo();
     return;
   }
-  // Only changes the user made by hand are worth a question: switching between the
-  // built-in sets loses nothing that cannot be picked again.
-  if (current.isEmpty() && !staged_.isEmpty() &&
-      show_warning_message(this, tr("Shortcut Set"),
-                           tr("Replace your own shortcut changes with the %1 set? Export them first to keep a "
-                              "copy.")
-                               .arg(set_combo_->itemText(index)),
-                           QMessageBox::Ok | QMessageBox::Cancel, QMessageBox::Ok,
-                           QStringLiteral("hotkeySetConfirmMessageBox")) != QMessageBox::Ok) {
-    sync_set_combo();
-    return;
-  }
+  // Nothing is lost: every set, Custom included, keeps its keys.
   apply_shortcut_set(set_id);
 }
 
-// Item texts come from their sources so a language change can redo them in place.
-void HotkeyEditorPanel::retranslate_set_combo() {
+QString HotkeyEditorPanel::shortcut_set_name(const QString& set_id) const {
+  if (set_id == QLatin1String(kPatchyHotkeySetId)) {
+    return tr("Patchy default");
+  }
+  if (const auto* set = find_builtin_hotkey_set(set_id); set != nullptr) {
+    return tr(set->label);
+  }
+  return QString();
+}
+
+QString HotkeyEditorPanel::user_set_display_name(const UserHotkeySet& set) const {
+  return set.name.isEmpty() ? tr("Custom") : set.name;
+}
+
+bool HotkeyEditorPanel::is_builtin_set(const QString& set_id) const {
+  return set_id == QLatin1String(kPatchyHotkeySetId) || find_builtin_hotkey_set(set_id) != nullptr;
+}
+
+HotkeyOverrideMap HotkeyEditorPanel::builtin_set_overrides(const QString& set_id) const {
+  if (const auto* set = find_builtin_hotkey_set(set_id); set != nullptr) {
+    return hotkey_set_overrides(*set, registry_.commands());
+  }
+  return {};
+}
+
+UserHotkeySet* HotkeyEditorPanel::find_user_set(const QString& set_id) {
+  const auto it = std::find_if(user_sets_.begin(), user_sets_.end(),
+                               [&set_id](const UserHotkeySet& set) { return set.id == set_id; });
+  return it != user_sets_.end() ? &*it : nullptr;
+}
+
+QString HotkeyEditorPanel::next_user_set_id() const {
+  int highest = 0;
+  for (const auto& set : user_sets_) {
+    if (set.id.startsWith(QLatin1String("user-"))) {
+      highest = std::max(highest, set.id.mid(5).toInt());
+    }
+  }
+  return QStringLiteral("user-%1").arg(highest + 1);
+}
+
+// Names are unique among the user's sets and never repeat a built-in set's or Custom's, in
+// any letter case, so the list never shows two entries that read alike.
+bool HotkeyEditorPanel::set_name_taken(const QString& name, const QString& except_id) const {
+  const auto same = [&name](const QString& other) { return name.compare(other, Qt::CaseInsensitive) == 0; };
+  if (same(tr("Custom")) || same(shortcut_set_name(QString::fromLatin1(kPatchyHotkeySetId)))) {
+    return true;
+  }
+  for (const auto& set : builtin_hotkey_sets()) {
+    if (same(tr(set.label))) {
+      return true;
+    }
+  }
+  return std::any_of(user_sets_.begin(), user_sets_.end(), [&](const UserHotkeySet& set) {
+    return set.id != except_id && !set.name.isEmpty() && same(set.name);
+  });
+}
+
+QString HotkeyEditorPanel::unique_set_name(const QString& base) const {
+  const auto start = base.isEmpty() ? tr("Imported shortcuts") : base;
+  if (!set_name_taken(start, QString())) {
+    return start;
+  }
+  for (int number = 2;; ++number) {
+    const auto candidate = QStringLiteral("%1 %2").arg(start).arg(number);
+    if (!set_name_taken(candidate, QString())) {
+      return candidate;
+    }
+  }
+}
+
+void HotkeyEditorPanel::put_staged_in_custom_set() {
+  if (auto* custom = find_user_set(QString::fromLatin1(kCustomHotkeySetId)); custom != nullptr) {
+    custom->overrides = staged_;
+  } else {
+    user_sets_.push_back({QString::fromLatin1(kCustomHotkeySetId), QString(), staged_});
+  }
+  active_set_id_ = QString::fromLatin1(kCustomHotkeySetId);
+}
+
+// Every change to the staged keys lands here (refresh_rows). A user set takes the change; a
+// built-in set never does: its keys move to the Custom set, after a question when Custom
+// already holds other keys (Cancel undoes the change).
+void HotkeyEditorPanel::note_staged_change() {
+  if (auto* set = find_user_set(active_set_id_); set != nullptr) {
+    set->overrides = staged_;
+    return;
+  }
+  const auto expected = builtin_set_overrides(active_set_id_);
+  if (hotkey_override_maps_equivalent(staged_, expected)) {
+    return;
+  }
+  const auto builtin_name = shortcut_set_name(active_set_id_);
+  const auto* custom = find_user_set(QString::fromLatin1(kCustomHotkeySetId));
+  if (custom != nullptr && !hotkey_override_maps_equivalent(custom->overrides, staged_) &&
+      show_warning_message(this, tr("Shortcut Set"),
+                           tr("%1 is built in and never changes, so your change goes into the Custom set, which "
+                              "already holds other changes. Replace them? To keep them, click Cancel and rename "
+                              "Custom first.")
+                               .arg(builtin_name),
+                           QMessageBox::Ok | QMessageBox::Cancel, QMessageBox::Cancel,
+                           QStringLiteral("hotkeyCustomReplaceMessageBox")) != QMessageBox::Ok) {
+    staged_ = expected;
+    refresh_rows();
+    return;
+  }
+  put_staged_in_custom_set();
+  show_transfer_status(
+      tr("%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.")
+          .arg(builtin_name));
+}
+
+// The list: Patchy's and the other built-in sets, then the user's own after a separator.
+void HotkeyEditorPanel::rebuild_set_combo() {
   if (set_combo_ == nullptr) {
     return;
   }
-  for (int index = 0; index < set_combo_->count(); ++index) {
-    const auto id = set_combo_->itemData(index).toString();
-    if (id.isEmpty()) {
-      set_combo_->setItemText(index, tr("Custom"));
-    } else if (id == QLatin1String(kPatchyHotkeySetId)) {
-      set_combo_->setItemText(index, tr("Patchy (default)"));
-    } else if (const auto* set = find_builtin_hotkey_set(id); set != nullptr) {
-      set_combo_->setItemText(index, tr(set->label));
-    }
+  const QSignalBlocker blocker(set_combo_);
+  set_combo_->clear();
+  //: A shortcut set shipped with Patchy, in the Preferences > Hotkeys set list. %1 is its name.
+  const auto builtin_text = [this](const QString& id) { return tr("%1 (built-in)").arg(shortcut_set_name(id)); };
+  set_combo_->addItem(builtin_text(QString::fromLatin1(kPatchyHotkeySetId)), QString::fromLatin1(kPatchyHotkeySetId));
+  for (const auto& set : builtin_hotkey_sets()) {
+    set_combo_->addItem(builtin_text(QString::fromLatin1(set.id)), QString::fromLatin1(set.id));
+  }
+  if (!user_sets_.empty()) {
+    set_combo_->insertSeparator(set_combo_->count());
+  }
+  for (const auto& set : user_sets_) {
+    set_combo_->addItem(user_set_display_name(set), set.id);
+  }
+  set_combo_->setCurrentIndex(set_combo_->findData(active_set_id_));
+  const bool own_set = find_user_set(active_set_id_) != nullptr;
+  if (rename_set_button_ != nullptr) {
+    rename_set_button_->setEnabled(own_set);
+  }
+  if (delete_set_button_ != nullptr) {
+    delete_set_button_->setEnabled(own_set);
   }
   fit_set_combo_width();
 }
@@ -530,25 +787,24 @@ void HotkeyEditorPanel::retranslate_set_combo() {
 // The box keeps clear room around its widest entry, "Custom" included though that entry
 // exists only some of the time, so the box neither looks crammed nor changes width when it
 // comes and goes (GitHub issue 633 follow-up): the style's width for that text (frame, padding,
-// drop arrow) plus three average characters.
+// drop arrow) plus four average characters. A long name of the user's own counts up to 32
+// characters; longer ones are elided in the box and shown whole in the open list.
 void HotkeyEditorPanel::fit_set_combo_width() {
   if (set_combo_ == nullptr) {
     return;
   }
   set_combo_->ensurePolished();
   const auto metrics = set_combo_->fontMetrics();
-  QStringList texts{tr("Custom")};
+  int widest = metrics.horizontalAdvance(tr("Custom"));
   for (int index = 0; index < set_combo_->count(); ++index) {
-    texts << set_combo_->itemText(index);
-  }
-  int widest = 0;
-  for (const auto& text : texts) {
-    widest = std::max(widest, metrics.horizontalAdvance(text));
+    const int text = metrics.horizontalAdvance(set_combo_->itemText(index));
+    const bool own_name = find_user_set(set_combo_->itemData(index).toString()) != nullptr;
+    widest = std::max(widest, own_name ? std::min(text, 32 * metrics.averageCharWidth()) : text);
   }
   QStyleOptionComboBox option;
   option.initFrom(set_combo_);
   option.editable = false;
-  const auto content = QSize(widest + 3 * metrics.averageCharWidth(), metrics.height());
+  const auto content = QSize(widest + 4 * metrics.averageCharWidth(), metrics.height());
   const int width = set_combo_->style()->sizeFromContents(QStyle::CT_ComboBox, &option, content, set_combo_).width();
   set_combo_->setMinimumWidth(std::max(width, set_combo_->minimumSizeHint().width()));
 }
@@ -556,32 +812,15 @@ void HotkeyEditorPanel::fit_set_combo_width() {
 void HotkeyEditorPanel::changeEvent(QEvent* event) {
   QWidget::changeEvent(event);
   if (event->type() == QEvent::LanguageChange) {
-    retranslate_set_combo();
+    rebuild_set_combo();
   } else if (event->type() == QEvent::StyleChange || event->type() == QEvent::FontChange) {
     fit_set_combo_width();
   }
 }
 
-// The combo shows the set the staged shortcuts equal, or "Custom" (an entry that exists only
-// while that is true, so it cannot be picked) once they match none.
 void HotkeyEditorPanel::sync_set_combo() {
-  if (set_combo_ == nullptr) {
-    return;
-  }
-  const QSignalBlocker blocker(set_combo_);
-  const auto current = matching_hotkey_set_id(staged_, registry_.commands());
-  const auto custom_index = set_combo_->findData(QString());
-  if (current.isEmpty()) {
-    if (custom_index < 0) {
-      set_combo_->addItem(tr("Custom"), QString());
-    }
-    set_combo_->setCurrentIndex(set_combo_->findData(QString()));
-    return;
-  }
-  if (custom_index >= 0) {
-    set_combo_->removeItem(custom_index);
-  }
-  set_combo_->setCurrentIndex(set_combo_->findData(current));
+  note_staged_change();
+  rebuild_set_combo();
 }
 
 void HotkeyEditorPanel::show_transfer_status(const QString& text) {

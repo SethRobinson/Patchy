@@ -2775,6 +2775,37 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   auto* fill_screen = view_menu->addAction(tr("Fi&ll Screen"));
   auto* zoom_reset = view_menu->addAction(tr("&Actual Pixels"));
   auto* zoom_200 = view_menu->addAction(tr("200%"));
+  // View rotation (docs/view-navigation-rotation.md): 15-degree steps and back upright; the
+  // Rotate View tool (R) turns it freely. Only the view turns, so none of these is undoable.
+  {
+    constexpr double kRotateViewStepDegrees = 15.0;
+    const struct {
+      const char* text;
+      const char* object_name;
+      const char* id;
+      double step;
+    } rotate_commands[] = {
+        {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Rotate View Left"), "viewRotateLeftAction", "view.rotate_left",
+         -kRotateViewStepDegrees},
+        {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Rotate View Right"), "viewRotateRightAction", "view.rotate_right",
+         kRotateViewStepDegrees},
+        {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Reset View Rotation"), "viewRotateResetAction", "view.rotate_reset",
+         0.0},
+    };
+    for (const auto& command : rotate_commands) {
+      auto* action = view_menu->addAction(QString());
+      bind_action_text(action, command.text);
+      action->setObjectName(QString::fromLatin1(command.object_name));
+      register_hotkey(action, QString::fromLatin1(command.id));
+      connect(action, &QAction::triggered, this, [this, step = command.step] {
+        if (canvas_ == nullptr) {
+          return;
+        }
+        canvas_->set_view_rotation(step == 0.0 ? 0.0 : canvas_->view_rotation() + step);
+      });
+      register_document_action(action);
+    }
+  }
   view_vector_preview_action_ = view_menu->addAction(tr("Dynamic Vector Preview"));
   view_vector_preview_action_->setObjectName(QStringLiteral("viewVectorPreviewAction"));
   view_vector_preview_action_->setCheckable(true);

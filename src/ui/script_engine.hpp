@@ -585,6 +585,8 @@ public:
   // view; document previews never do. Available in connector sessions.
   [[nodiscard]] double view_zoom_percent() const;
   void set_view_zoom_percent(double percent);
+  [[nodiscard]] double view_rotation_degrees() const;
+  void set_view_rotation_degrees(double degrees);
   // The active 32-bit document's preview exposure (stops), set through the status bar's
   // Exposure box so the canvas repaints as for a user edit. Setting throws without one.
   [[nodiscard]] double view_preview_exposure() const;

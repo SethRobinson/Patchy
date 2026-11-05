@@ -509,6 +509,12 @@ void tent_psb_zoom_step_perf_if_available() {
     QApplication::processEvents();
   }
 
+  // PATCHY_PERF_ZOOM_ROTATION=<degrees> sweeps a rotated view (docs/view-navigation-rotation.md):
+  // the rotated draw path in place of the upright pixel-aligned and deep-zoom renderers.
+  if (qEnvironmentVariableIsSet("PATCHY_PERF_ZOOM_ROTATION")) {
+    canvas->set_view_rotation(qEnvironmentVariable("PATCHY_PERF_ZOOM_ROTATION").toDouble());
+  }
+
   // Start where a user starts on a huge document: fit-to-view (mip territory),
   // then sweep up through 100% into the deep-zoom pixel renderer and back.
   canvas->fit_to_view();

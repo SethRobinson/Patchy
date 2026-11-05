@@ -308,8 +308,8 @@ void ui_artboard_move_tool_moves_artboards_and_auto_nests() {
 
 // Prevent Auto-Nesting (GitHub issue 246): with Auto-Nest Layers on, a locked layer dragged
 // over an artboard moves but stays where it is in the tree, and a locked artboard takes
-// nothing in. The registered Prevent Auto-Nesting action (no menu-bar entry; the layer
-// context menu's Lock submenu shows it) sets it and shows the selection's state; the row
+// nothing in. The registered Prevent Auto-Nesting action (Layer > Hide & Lock since #627, and
+// the layer context menu's Lock submenu) sets it and shows the selection's state; the row
 // shows its badge.
 void ui_artboard_prevent_auto_nesting_keeps_layer_in_place() {
   SettingsValueRestorer nest_restorer(QStringLiteral("tools/artboardAutoNest"));
@@ -334,10 +334,10 @@ void ui_artboard_prevent_auto_nesting_keeps_layer_in_place() {
   auto* action = require_action(window, "layerPreventAutoNestingAction");
   CHECK(action->isCheckable() && action->menuRole() == QAction::NoRole);
   CHECK(require_hotkey_action(window, QStringLiteral("layer.prevent_auto_nesting")) == action);
-  // On the window for its hotkey, in no menu-bar menu.
+  // On the window for its hotkey; in the menu bar only under Layer > Hide & Lock (#627).
   CHECK(window.actions().contains(action));
   for (auto* menu : window.menuBar()->findChildren<QMenu*>()) {
-    CHECK(!menu->actions().contains(action));
+    CHECK(menu->actions().contains(action) == (menu->objectName() == QStringLiteral("layerHideLockMenu")));
   }
 
   MainWindowTestAccess::select_layers(window, {loose}, loose);

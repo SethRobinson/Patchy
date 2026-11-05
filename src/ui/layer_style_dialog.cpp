@@ -126,6 +126,13 @@ protected:
       const auto *mouse = static_cast<QMouseEvent *>(event);
       const auto delta = mouse->position() - last_position_;
       last_position_ = mouse->position();
+      if (!canvas_->view_axis_aligned()) {
+        // A rotated view: the drag in document pixels, whatever its screen direction.
+        const auto document_delta = canvas_->view_transform().map_vector_to_document(delta);
+        moved_(static_cast<float>(document_delta.x() * 100.0 / std::max(1, layer_bounds_.width)),
+               static_cast<float>(document_delta.y() * 100.0 / std::max(1, layer_bounds_.height)));
+        return true;
+      }
       const auto origin = canvas_->widget_position_for_document_point(
           QPoint(layer_bounds_.x, layer_bounds_.y));
       const auto opposite = canvas_->widget_position_for_document_point(

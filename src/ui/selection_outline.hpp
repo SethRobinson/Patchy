@@ -6,6 +6,7 @@
 #include <QRect>
 #include <QRectF>
 #include <QRegion>
+#include <QTransform>
 
 #include <vector>
 
@@ -61,5 +62,10 @@ struct SelectionOutlineScreenPaths {
 // loops already in device coordinates (trace_device_selection_outlines).
 [[nodiscard]] SelectionOutlineScreenPaths build_selection_outline_screen_paths(
     const std::vector<OutlineLoop>& loops, double zoom, QPointF pan, const QRectF& device_viewport);
+
+// The same for any similarity map (a rotated canvas view, docs/view-navigation-rotation.md):
+// each loop's points go through `map`, whose uniform scale classifies short loops.
+[[nodiscard]] SelectionOutlineScreenPaths build_selection_outline_screen_paths(
+    const std::vector<OutlineLoop>& loops, const QTransform& map, const QRectF& device_viewport);
 
 }  // namespace patchy::ui

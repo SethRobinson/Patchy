@@ -19343,6 +19343,26 @@ Each item&apos;s own View setting still applies.</source>
         <source>Change the color, gradient or pattern of a fill layer</source>
         <translation>塗りつぶしレイヤーのカラー、グラデーション、パターンを変更</translation>
     </message>
+    <message>
+        <source>Turn the canvas counterclockwise on screen</source>
+        <translation>画面上でカンバスを反時計回りに回転</translation>
+    </message>
+    <message>
+        <source>Turn the canvas clockwise on screen</source>
+        <translation>画面上でカンバスを時計回りに回転</translation>
+    </message>
+    <message>
+        <source>Turn the canvas upright again</source>
+        <translation>カンバスの回転を元に戻す</translation>
+    </message>
+    <message>
+        <source>Turn the canvas on screen like a sheet of paper</source>
+        <translation>紙を回すように画面上でカンバスを回転</translation>
+    </message>
+    <message>
+        <source>Switch between the hand and rotate view tools</source>
+        <translation>手のひらツールと回転ビューツールを切り替え</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -19865,36 +19885,16 @@ Each item&apos;s own View setting still applies.</source>
         <translation>ショートカットセット:</translation>
     </message>
     <message>
-        <source>Start from Patchy&apos;s shortcuts or from a set laid out like another editor&apos;s. You can still change any key afterwards.</source>
-        <translation>Patchy のショートカット、または他のエディターと同じ配置のセットから始めます。あとからどのキーも変更できます。</translation>
-    </message>
-    <message>
-        <source>Patchy (default)</source>
-        <translation>Patchy（既定）</translation>
-    </message>
-    <message>
         <source>Import...</source>
         <translation>読み込み...</translation>
-    </message>
-    <message>
-        <source>Replace the shortcuts with ones saved in a hotkey file</source>
-        <translation>ショートカットをホットキーファイルに保存されたものに置き換えます</translation>
     </message>
     <message>
         <source>Export...</source>
         <translation>書き出し...</translation>
     </message>
     <message>
-        <source>Save your shortcut changes to a file you can keep or share</source>
-        <translation>変更したショートカットを、保存や共有ができるファイルに保存します</translation>
-    </message>
-    <message>
         <source>Exported &quot;%1&quot;.</source>
         <translation>「%1」を書き出しました。</translation>
-    </message>
-    <message>
-        <source>Imported &quot;%1&quot;. Commands: %2. Skipped commands this Patchy does not have: %3. Skipped keys it cannot use: %4. Click OK to apply.</source>
-        <translation>「%1」を読み込みました。コマンド: %2。この Patchy にないためスキップしたコマンド: %3。使用できないためスキップしたキー: %4。OK をクリックすると適用されます。</translation>
     </message>
     <message>
         <source>Export Hotkeys</source>
@@ -19921,16 +19921,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>読み込みに失敗しました</translation>
     </message>
     <message>
-        <source>Replace your current shortcuts with the ones in &quot;%1&quot;? Shortcuts the file does not set go back to Patchy&apos;s defaults.</source>
-        <translation>現在のショートカットを「%1」のものに置き換えますか？ファイルで設定されていないショートカットは Patchy の既定に戻ります。</translation>
-    </message>
-    <message>
         <source>Shortcut Set</source>
         <translation>ショートカットセット</translation>
-    </message>
-    <message>
-        <source>Replace your own shortcut changes with the %1 set? Export them first to keep a copy.</source>
-        <translation>自分で変更したショートカットを %1 のセットに置き換えますか？コピーを残すには先に書き出してください。</translation>
     </message>
     <message>
         <source>Custom</source>
@@ -19959,6 +19951,79 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Krita-style</source>
         <translation>Krita 風</translation>
+    </message>
+    <message>
+        <source>Patchy default</source>
+        <translation>Patchy 標準</translation>
+    </message>
+    <message>
+        <source>%1 (built-in)</source>
+        <extracomment>A shortcut set shipped with Patchy, in the Preferences &gt; Hotkeys set list. %1 is its name.</extracomment>
+        <translation>%1（組み込み）</translation>
+    </message>
+    <message>
+        <source>Built-in sets never change: changing a key in one puts your keys in the Custom set. Rename it to keep it as a set of your own.</source>
+        <translation>組み込みのセットは変わりません。組み込みのセットでキーを変更すると、キーは「カスタム」セットに入ります。自分のセットとして残すには名前を変更してください。</translation>
+    </message>
+    <message>
+        <source>Rename...</source>
+        <translation>名前を変更...</translation>
+    </message>
+    <message>
+        <source>Name this set of yours</source>
+        <translation>この自分のセットに名前を付けます</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>削除</translation>
+    </message>
+    <message>
+        <source>Remove this set of yours</source>
+        <translation>この自分のセットを削除します</translation>
+    </message>
+    <message>
+        <source>Add the shortcuts saved in a hotkey file as a set of your own</source>
+        <translation>ホットキーファイルのショートカットを自分のセットとして追加します</translation>
+    </message>
+    <message>
+        <source>Save the shortcuts shown to a file you can keep or share</source>
+        <translation>表示中のショートカットを保存や共有できるファイルに保存します</translation>
+    </message>
+    <message>
+        <source>Imported &quot;%1&quot; as the set &quot;%2&quot;. Commands: %3. Skipped commands this Patchy does not have: %4. Skipped keys it cannot use: %5. Click OK to apply.</source>
+        <translation>「%1」をセット「%2」として読み込みました。コマンド: %3。この Patchy にないため飛ばしたコマンド: %4。使えないため飛ばしたキー: %5。OK をクリックすると適用されます。</translation>
+    </message>
+    <message>
+        <source>Set name:</source>
+        <translation>セット名:</translation>
+    </message>
+    <message>
+        <source>A shortcut set named &quot;%1&quot; already exists. Choose another name.</source>
+        <translation>「%1」という名前のショートカットセットは既にあります。別の名前を選んでください。</translation>
+    </message>
+    <message>
+        <source>Rename Shortcut Set</source>
+        <translation>ショートカットセットの名前を変更</translation>
+    </message>
+    <message>
+        <source>Delete Shortcut Set</source>
+        <translation>ショートカットセットを削除</translation>
+    </message>
+    <message>
+        <source>Delete the shortcut set &quot;%1&quot;? Patchy&apos;s default shortcuts take its place.</source>
+        <translation>ショートカットセット「%1」を削除しますか? Patchy の標準ショートカットが代わりに使われます。</translation>
+    </message>
+    <message>
+        <source>Imported shortcuts</source>
+        <translation>読み込んだショートカット</translation>
+    </message>
+    <message>
+        <source>%1 is built in and never changes, so your change goes into the Custom set, which already holds other changes. Replace them? To keep them, click Cancel and rename Custom first.</source>
+        <translation>%1 は組み込みで変わらないため、変更は「カスタム」セットに入りますが、そこには既に別の変更があります。置き換えますか? 残すには、キャンセルをクリックして先に「カスタム」の名前を変更してください。</translation>
+    </message>
+    <message>
+        <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
+        <translation>%1 は組み込みのため、変更は「カスタム」セットに入りました。自分のセットとして残すには名前を変更してください。</translation>
     </message>
 </context>
 <context>
@@ -32687,6 +32752,54 @@ Locked: %1</source>
         <source>Select a fill layer to edit its settings</source>
         <translation>設定を編集する塗りつぶしレイヤーを選択してください</translation>
     </message>
+    <message>
+        <source>Rotate View Left</source>
+        <translation>ビューを左に回転</translation>
+    </message>
+    <message>
+        <source>Rotate View Right</source>
+        <translation>ビューを右に回転</translation>
+    </message>
+    <message>
+        <source>Reset View Rotation</source>
+        <translation>ビューの回転をリセット</translation>
+    </message>
+    <message>
+        <source>Rotation Angle:</source>
+        <translation>回転角度:</translation>
+    </message>
+    <message>
+        <source>The view&apos;s angle, clockwise. Only the view turns; the image does not change</source>
+        <translation>ビューの角度 (時計回り)。回転するのはビューだけで、画像は変わりません</translation>
+    </message>
+    <message>
+        <source>Reset View</source>
+        <translation>ビューをリセット</translation>
+    </message>
+    <message>
+        <source>Turn the view upright again (View &gt; Reset View Rotation)</source>
+        <translation>ビューの回転を元に戻します (表示 &gt; ビューの回転をリセット)</translation>
+    </message>
+    <message>
+        <source>Drag to turn the view, Shift snaps to 15 degrees. Esc or Reset View turns it upright. The image does not change.</source>
+        <translation>ドラッグでビューを回転、Shift で 15 度刻み。Esc または「ビューをリセット」で元に戻します。画像は変わりません。</translation>
+    </message>
+    <message>
+        <source>Rotate View: drag to turn the view like a sheet of paper, Shift snaps to 15 degrees. Esc turns it upright. Only the view turns; the image is unchanged.</source>
+        <translation>回転ビュー: ドラッグで紙を回すようにビューを回転、Shift で 15 度刻み。Esc で元に戻します。回転するのはビューだけで、画像は変わりません。</translation>
+    </message>
+    <message>
+        <source>Hand Tools</source>
+        <translation>手のひらツール</translation>
+    </message>
+    <message>
+        <source>Rotate View</source>
+        <translation>回転ビュー</translation>
+    </message>
+    <message>
+        <source>Cycle Hand Tools</source>
+        <translation>手のひらツールを切り替え</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34945,6 +35058,14 @@ Locked: %1</source>
     <message>
         <source>feather needs a radius from %1 to %2.</source>
         <translation>feather の半径は %1 から %2 の範囲で指定してください。</translation>
+    </message>
+    <message>
+        <source>rotation needs a number of degrees.</source>
+        <translation>rotation には角度 (度) の数値が必要です。</translation>
+    </message>
+    <message>
+        <source>No document is open to rotate the view of.</source>
+        <translation>ビューを回転するドキュメントが開かれていません。</translation>
     </message>
 </context>
 <context>

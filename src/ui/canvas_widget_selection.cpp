@@ -1211,12 +1211,27 @@ void CanvasWidget::shift_selection_outline(QPoint step) noexcept {
 void CanvasWidget::ensure_selection_outline_screen_path() const {
   const auto viewport = rect();
   if (selection_outline_screen_valid_ && selection_outline_screen_zoom_ == zoom_ &&
-      selection_outline_screen_pan_ == pan_ && selection_outline_screen_viewport_ == viewport) {
+      selection_outline_screen_pan_ == pan_ && selection_outline_screen_angle_ == view_rotation_degrees_ &&
+      selection_outline_screen_viewport_ == viewport) {
     return;
   }
   const auto& outline_region = selection_display_region_.isEmpty() ? selection_ : selection_display_region_;
   const auto padded_viewport = QRectF(viewport).adjusted(-2.0, -2.0, 2.0, 2.0);
-  if (zoom_ < 1.0) {
+  if (!view_axis_aligned()) {
+    // A rotated view maps the document-space loops (the device-resolution trace
+    // below is axis-aligned by construction).
+    if (selection_outline_dirty_) {
+      selection_outline_loops_ = trace_selection_outlines(outline_region);
+      ++selection_outline_trace_count_;
+      selection_outline_dirty_ = false;
+      selection_outline_offset_ = {};
+    }
+    QTransform map;
+    map.translate(selection_outline_offset_.x(), selection_outline_offset_.y());
+    selection_outline_screen_paths_ =
+        build_selection_outline_screen_paths(selection_outline_loops_, map * view_transform().to_widget(),
+                                             padded_viewport);
+  } else if (zoom_ < 1.0) {
     // Below 100% the outline is resolved at device resolution like the artwork
     // itself, so it is retraced whenever zoom/pan/viewport change and the
     // document-space loop cache stays untouched (and stays dirty). The one
@@ -1256,6 +1271,7 @@ void CanvasWidget::ensure_selection_outline_screen_path() const {
   }
   selection_outline_screen_zoom_ = zoom_;
   selection_outline_screen_pan_ = pan_;
+  selection_outline_screen_angle_ = view_rotation_degrees_;
   selection_outline_screen_viewport_ = viewport;
   selection_outline_screen_valid_ = true;
 }
@@ -1267,8 +1283,7 @@ void CanvasWidget::draw_transform_selection_outline(QPainter& painter) const {
   if (transform_selection_outline_.empty() || !transform_selection_source_is_current()) {
     return;
   }
-  const QTransform document_to_widget(zoom_, 0.0, 0.0, zoom_, pan_.x(), pan_.y());
-  const auto map = transform_session_delta() * document_to_widget;
+  const auto map = transform_session_delta() * view_transform().to_widget();
   QPainterPath marching;
   QPainterPath pinpoint;
   for (const auto& loop : transform_selection_outline_) {
@@ -1610,6 +1625,8 @@ std::optional<QRect> CanvasWidget::resizable_marquee_rect() const {
 }
 
 CanvasWidget::TransformHandle CanvasWidget::marquee_resize_handle_at(QPoint widget_point) const {
+  widget_point = upright_overlay_point(widget_point);
+  const UprightOverlayScope upright(*this);
   const auto rect = resizable_marquee_rect();
   // Unlike the interior move, the handles ignore the combine modifiers: Alt on
   // a handle is the symmetric resize (so the cursor must not promise Subtract)

@@ -2,6 +2,7 @@
 
 #include "ui/script_stroke.hpp"
 #include "ui/canvas_types.hpp"
+#include "ui/canvas_view_transform.hpp"
 #include "ui/coalesced_pointer_input.hpp"
 
 #include "color/color_management.hpp"
@@ -246,6 +247,18 @@ public:
   // instead of set_zoom, which preserves pan and can leave the canvas mostly
   // off screen.
   void set_zoom_centered(double zoom);
+  // View rotation (docs/view-navigation-rotation.md): the on-screen angle of the
+  // document in degrees, clockwise, wrapped into (-180, 180]. It turns only the view;
+  // the pixels never change. Setting it pivots on the view area's center, keeping the
+  // document point there in place. Per canvas, not saved, like zoom.
+  [[nodiscard]] double view_rotation() const noexcept;
+  void set_view_rotation(double degrees);
+  // The current document <-> widget mapping (zoom, pan and rotation together).
+  [[nodiscard]] CanvasViewTransform view_transform() const noexcept;
+  // True while a Rotate View tool drag is turning the view.
+  [[nodiscard]] bool rotating_view() const noexcept;
+  // True while the view is upright (rotation 0): the axis-aligned fast paths apply.
+  [[nodiscard]] bool view_axis_aligned() const noexcept;
   // In-canvas seamless tiling mode (View > Seamless Tiling in Window): paints wrap
   // copies of the committed composite around the document so tile seams are visible
   // and update live while painting. Overlays/gizmos and session previews stay on the
@@ -1774,6 +1787,7 @@ private:
     int diameter{0};
     int extent{0};
     bool one_pixel{false};
+    double view_rotation{0.0};
     QCursor cursor{};
   };
 
@@ -1954,6 +1968,50 @@ private:
   // The displayed composite over `area` (inside the document), like compose_document_pixel.
   [[nodiscard]] QImage compose_document_rect(QRect area) const;
   void draw_checkerboard(QPainter& painter, const QRectF& rect, QRect exposed_rect) const;
+  // The upright overlay frame (docs/view-navigation-rotation.md). Rect-based overlays
+  // (transform and crop boxes, artboard frames, drag rectangles) and their hit-tests
+  // compute as if the view were upright; the painter turns that frame about pan_ onto
+  // the rotated screen, and screen points enter it through upright_overlay_point. While a
+  // scope is open view_transform() reports angle 0. No-op while the view is upright.
+  class UprightOverlayScope {
+   public:
+    explicit UprightOverlayScope(const CanvasWidget& canvas, QPainter* painter = nullptr);
+    ~UprightOverlayScope();
+    UprightOverlayScope(const UprightOverlayScope&) = delete;
+    UprightOverlayScope& operator=(const UprightOverlayScope&) = delete;
+
+   private:
+    const CanvasWidget& canvas_;
+    QPainter* painter_{nullptr};
+    bool active_{false};
+  };
+  // Upright frame -> screen (identity while upright).
+  [[nodiscard]] QTransform upright_overlay_to_widget() const;
+  // A screen point in the upright frame; unchanged while upright or inside a scope.
+  [[nodiscard]] QPointF upright_overlay_point(QPointF widget_point) const;
+  [[nodiscard]] QPoint upright_overlay_point(QPoint widget_point) const;
+  // The widget rect, or inside a scope the upright-frame bounds of what the screen shows
+  // (culls and shields drawn in the frame use it instead of rect()).
+  [[nodiscard]] QRect overlay_view_rect() const;
+  [[nodiscard]] QRect overlay_exposed_rect(QRect exposed_rect) const;
+  void begin_rotate_view_drag(QPointF widget_position);
+  void update_rotate_view_drag(QPointF widget_position, Qt::KeyboardModifiers modifiers);
+  void end_rotate_view_drag(bool cancel);
+  void draw_rotate_view_compass(QPainter& painter) const;
+  // Rotated-view drawing (canvas_widget_render_rotated.cpp, docs/view-navigation-rotation.md).
+  // The upright view never calls these; paintEvent keeps its axis-aligned path for it.
+  void paint_rotated_document(QPainter& painter, QRect exposed_rect, bool draw_transform_overlay,
+                              bool draw_warp_overlay);
+  void draw_rotated_checkerboard(QPainter& painter, const QRectF& document_rect, QRect exposed_rect) const;
+  void draw_rotated_canvas_backdrop(QPainter& painter, QRect exposed_rect) const;
+  void draw_rotated_tiling_preview(QPainter& painter, QRect exposed_rect);
+  void draw_rotated_grid_overlay(QPainter& painter, QRect exposed_rect) const;
+  void draw_rotated_document_border(QPainter& painter) const;
+  // `image` stretched over `document_rect` under the current view, any rotation.
+  void draw_image_over_document_rect(QPainter& painter, const QRectF& document_rect, const QImage& image) const;
+  // The image a full-document draw of `image` shows at the current zoom: its display
+  // mip below 100% for the caches that keep one, otherwise the image itself.
+  [[nodiscard]] const QImage& display_source_for_zoom(const QImage& image);
   void draw_deep_zoom_image(QPainter& painter, const QImage& image, QRect exposed_rect) const;
   // The deep-zoom renderer for the document pixels of document_rect held in `image`:
   // one deep_zoom_raster blit of the exposed part, pixel grid included. With `grid_only`
@@ -2083,6 +2141,8 @@ private:
   [[nodiscard]] std::optional<GrayscaleEditTarget> active_grayscale_edit_target(QRect required_rect = {});
   [[nodiscard]] bool editing_grayscale_target() const noexcept;
   void refresh_mask_display_image(QRegion document_region);
+  // The mask/channel display overlay image, refreshed when stale, or nullptr when none shows.
+  [[nodiscard]] const QImage* mask_display_overlay_image();
   void draw_mask_display_overlay(QPainter& painter, const QRectF& target_rect, bool pixel_aligned_view,
                                  QRect pixel_aligned_target_rect);
   [[nodiscard]] bool active_layer_locks_transparent_pixels() const noexcept;
@@ -3239,7 +3299,19 @@ private:
 
   Document* document_{nullptr};
   double zoom_{1.0};
+  // The widget position of the top-left of the zoomed, rotated document's bounding box
+  // (the document origin itself while the view is upright); see CanvasViewTransform.
   QPointF pan_{40.0, 40.0};
+  // Clockwise degrees in (-180, 180]; 0 keeps every axis-aligned path.
+  double view_rotation_degrees_{0.0};
+  // Open UprightOverlayScope count: while nonzero the view reports angle 0.
+  mutable int upright_overlay_depth_{0};
+  // Rotate View tool drag (canvas_widget_rotate_view.cpp).
+  bool rotating_view_{false};
+  bool rotate_view_pointer_valid_{false};
+  double rotate_view_start_angle_{0.0};
+  double rotate_view_start_pointer_degrees_{0.0};
+  QPointF rotate_view_pivot_{};
   // The viewport size pan_ was last placed or re-anchored for; invalid until something
   // places the view. A hidden tab's resize arrives at show time without an old size, so
   // the re-anchor reads this instead.
@@ -3993,6 +4065,7 @@ private:
   mutable bool selection_outline_screen_valid_{false};
   mutable double selection_outline_screen_zoom_{0.0};
   mutable QPointF selection_outline_screen_pan_;
+  mutable double selection_outline_screen_angle_{0.0};
   mutable QRect selection_outline_screen_viewport_;
   // Rasterized selection_ for the per-pixel lookups behind selection_alpha_at
   // when the region holds more than a few rectangles: QRegion::contains scans

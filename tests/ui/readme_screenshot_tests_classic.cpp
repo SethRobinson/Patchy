@@ -1,5 +1,6 @@
 #include <QPoint>
 #include <QString>
+#include <cstdio>
 #include "ui/canvas_widget.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/document_path.hpp"
@@ -313,6 +314,10 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
   painter.setPen(QColor(225, 230, 238));
   for (std::size_t index = 0; index < artifacts.size(); ++index) {
     const auto path = std::filesystem::path("test-artifacts") / artifacts[index];
+    if (!std::filesystem::exists(path)) {
+      // Written by an earlier test in the same run: name it, so a skip or failure upstream is findable.
+      std::fprintf(stderr, "contact sheet artifact missing: %s\n", path.generic_string().c_str());
+    }
     CHECK(std::filesystem::exists(path));
     QImage image(QString::fromStdString(path.string()));
     CHECK(!image.isNull());

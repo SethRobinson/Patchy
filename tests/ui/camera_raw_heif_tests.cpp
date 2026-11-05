@@ -213,8 +213,10 @@ void raw_test_write(const QString& path, const QByteArray& bytes) {
 // dialog must eventually close by itself or through the driver. Two
 // full-resolution 26 MP ARW develops finish well inside this on an idle machine;
 // the old 30 s limit was close enough to the honest cost that a concurrent build
-// pushed it over.
-constexpr qint64 kRawDialogDeadlineMs = 120000;
+// pushed it over, and 120 s still tripped late in a full suite on a laptop host
+// (November 5, 2026; 35 s on the dev box). Two dialogs stay inside the UI suite's
+// 600 s per-test watchdog.
+constexpr qint64 kRawDialogDeadlineMs = 240000;
 
 std::optional<patchy::ui::RawDevelopOutcome> raw_test_dialog(
     const QString& path, const std::function<void(QDialog&)>& step) {

@@ -42,5 +42,25 @@ inline constexpr const char* kPatchyHotkeySetId = "patchy";
 // kPatchyHotkeySetId for an empty map, a set's id when `overrides` equal that set's, else empty.
 [[nodiscard]] QString matching_hotkey_set_id(const HotkeyOverrideMap& overrides,
                                              const std::vector<HotkeyCommand>& commands);
+// Whether two override maps bind the same keys (each list compared as a set of keys).
+[[nodiscard]] bool hotkey_override_maps_equivalent(const HotkeyOverrideMap& a, const HotkeyOverrideMap& b);
+
+// Sets the user owns (docs/hotkey-sets.md "Your own sets"): imported files, the Custom set an
+// edit of a built-in set turns into, and either one renamed. Built-in sets never change.
+// The id of the unnamed Custom set; a named set's id is "user-<n>". Ids are persisted.
+inline constexpr const char* kCustomHotkeySetId = "custom";
+struct UserHotkeySet {
+  QString id;
+  QString name;  // empty for the Custom set, which shows as "Custom" in the current language
+  HotkeyOverrideMap overrides;
+};
+// The stored sets, read against the registered commands (unknown ids and keys are dropped).
+[[nodiscard]] std::vector<UserHotkeySet> load_user_hotkey_sets(const std::vector<HotkeyCommand>& commands);
+// The set Preferences > Hotkeys last applied: kPatchyHotkeySetId, a built-in id or a user set id.
+[[nodiscard]] QString load_active_hotkey_set_id();
+void store_user_hotkey_sets(const std::vector<UserHotkeySet>& sets, const QString& active_id);
+// The folder Import... and Export... open in: the last one used, else Documents.
+[[nodiscard]] QString hotkey_file_folder();
+void remember_hotkey_file_folder(const QString& file_path);
 
 }  // namespace patchy::ui

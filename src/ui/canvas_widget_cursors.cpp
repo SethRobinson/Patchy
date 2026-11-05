@@ -375,6 +375,10 @@ void CanvasWidget::update_tool_cursor() {
     apply_hand_cursor(QApplication::keyboardModifiers());
     return;
   }
+  if (tool_ == CanvasTool::RotateView) {
+    setCursor(rotating_view_ ? QCursor(Qt::ClosedHandCursor) : rotate_cursor());
+    return;
+  }
   if (transient_read_callback_) {
     setCursor(transient_read_cursor_);
     return;
@@ -564,15 +568,16 @@ void CanvasWidget::update_tool_cursor() {
           brush_cursor_cache_->brush_size == brush_size_ &&
           brush_cursor_cache_->brush_softness == brush_softness_ &&
           brush_cursor_cache_->diameter == diameter && brush_cursor_cache_->extent == extent &&
-          brush_cursor_cache_->one_pixel == one_pixel) {
+          brush_cursor_cache_->one_pixel == one_pixel &&
+          brush_cursor_cache_->view_rotation == view_rotation_degrees_) {
         setCursor(brush_cursor_cache_->cursor);
         return true;
       }
       return false;
     };
     const auto cache_brush_cursor = [&](bool one_pixel, int diameter, int extent, QCursor cursor) {
-      brush_cursor_cache_ =
-          BrushCursorCache{tool_, brush_size_, brush_softness_, diameter, extent, one_pixel, std::move(cursor)};
+      brush_cursor_cache_ = BrushCursorCache{tool_,  brush_size_, brush_softness_,         diameter,
+                                             extent, one_pixel,   view_rotation_degrees_, std::move(cursor)};
       setCursor(brush_cursor_cache_->cursor);
     };
 
@@ -615,7 +620,8 @@ void CanvasWidget::update_tool_cursor() {
       if (square) {
         painter.save();
         painter.translate(center);
-        painter.rotate(brush_base_angle_degrees_);
+        // The tip's own angle, turned with a rotated view.
+        painter.rotate(brush_base_angle_degrees_ + view_rotation_degrees_);
         painter.drawRect(QRectF(-half, -half, 2.0 * half, 2.0 * half));
         painter.restore();
       } else {

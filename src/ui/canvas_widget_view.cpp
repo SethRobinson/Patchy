@@ -67,10 +67,110 @@ double constrained_document_axis(double pan, double viewport_span, double docume
   return std::clamp(pan, range.minimum, range.maximum);
 }
 
+// The pan that centers the (rotated) document's bounding box in `area`.
+QPointF centered_pan(const QRectF& area, const CanvasViewTransform& view) noexcept {
+  const auto extent = view.extent();
+  const auto offset = view.bounds_offset();
+  return QPointF(area.left() + (area.width() - extent.width()) / 2.0 - offset.x(),
+                 area.top() + (area.height() - extent.height()) / 2.0 - offset.y());
+}
+
 }  // namespace
 
 double CanvasWidget::zoom() const noexcept {
   return zoom_;
+}
+
+CanvasViewTransform CanvasWidget::view_transform() const noexcept {
+  const QSizeF document_size = document_ != nullptr ? QSizeF(document_->width(), document_->height()) : QSizeF();
+  const auto angle = upright_overlay_depth_ > 0 ? 0.0 : view_rotation_degrees_;
+  return CanvasViewTransform(zoom_, pan_, angle, document_size);
+}
+
+bool CanvasWidget::view_axis_aligned() const noexcept {
+  return upright_overlay_depth_ > 0 || view_rotation_degrees_ == 0.0;
+}
+
+CanvasWidget::UprightOverlayScope::UprightOverlayScope(const CanvasWidget& canvas, QPainter* painter)
+    : canvas_(canvas), active_(canvas.view_rotation_degrees_ != 0.0) {
+  if (!active_) {
+    return;
+  }
+  // Only the outermost scope turns the painter; a nested one is already in the frame.
+  if (painter != nullptr && canvas_.upright_overlay_depth_ == 0) {
+    painter_ = painter;
+    painter_->save();
+    painter_->setTransform(canvas_.upright_overlay_to_widget(), true);
+  }
+  ++canvas_.upright_overlay_depth_;
+}
+
+CanvasWidget::UprightOverlayScope::~UprightOverlayScope() {
+  if (!active_) {
+    return;
+  }
+  --canvas_.upright_overlay_depth_;
+  if (painter_ != nullptr) {
+    painter_->restore();
+  }
+}
+
+QTransform CanvasWidget::upright_overlay_to_widget() const {
+  if (view_rotation_degrees_ == 0.0) {
+    return {};
+  }
+  // The rotated view is the upright one turned about the document origin's screen point.
+  const auto turn = CanvasViewTransform(1.0, QPointF(), view_rotation_degrees_, QSizeF()).to_widget();
+  return QTransform::fromTranslate(-pan_.x(), -pan_.y()) * turn * QTransform::fromTranslate(pan_.x(), pan_.y());
+}
+
+QPointF CanvasWidget::upright_overlay_point(QPointF widget_point) const {
+  if (view_rotation_degrees_ == 0.0 || upright_overlay_depth_ > 0) {
+    return widget_point;
+  }
+  const CanvasViewTransform turn(1.0, QPointF(), view_rotation_degrees_, QSizeF());
+  return pan_ + turn.map_vector_to_document(widget_point - pan_);
+}
+
+QPoint CanvasWidget::upright_overlay_point(QPoint widget_point) const {
+  return upright_overlay_point(QPointF(widget_point)).toPoint();
+}
+
+QRect CanvasWidget::overlay_view_rect() const {
+  return overlay_exposed_rect(rect());
+}
+
+QRect CanvasWidget::overlay_exposed_rect(QRect exposed_rect) const {
+  if (view_rotation_degrees_ == 0.0 || upright_overlay_depth_ == 0) {
+    return exposed_rect;
+  }
+  return upright_overlay_to_widget().inverted().mapRect(QRectF(exposed_rect)).toAlignedRect().adjusted(-1, -1, 1, 1);
+}
+
+double CanvasWidget::view_rotation() const noexcept {
+  return view_rotation_degrees_;
+}
+
+void CanvasWidget::set_view_rotation(double degrees) {
+  const auto angle = CanvasViewTransform::normalized_angle(degrees);
+  if (angle == view_rotation_degrees_) {
+    return;
+  }
+  if (document_ == nullptr || document_->width() <= 0 || document_->height() <= 0) {
+    view_rotation_degrees_ = angle;
+    update();
+    notify_view_changed();
+    return;
+  }
+  // Pivot on the view area's center: the document point there stays there.
+  const auto pivot = view_content_rect().center();
+  const auto document_anchor = view_transform().map_to_document(pivot);
+  view_rotation_degrees_ = angle;
+  pan_ = view_transform().pan_placing(document_anchor, pivot);
+  constrain_pan();
+  update_tool_cursor();
+  update();
+  notify_view_changed();
 }
 
 double CanvasWidget::view_zoom() const noexcept {
@@ -115,30 +215,33 @@ void CanvasWidget::set_zoom_centered(double zoom) {
   // document bounds: when a geometry change left the view off-center, a raw
   // center anchor can sit in the grey margin and pin empty space, pushing the
   // document almost entirely off screen at the new zoom.
-  const QPointF document_anchor(
-      std::clamp((viewport_center.x() - pan_.x()) / zoom_, 0.0, static_cast<double>(document_->width())),
-      std::clamp((viewport_center.y() - pan_.y()) / zoom_, 0.0, static_cast<double>(document_->height())));
+  const auto center_point = view_transform().map_to_document(viewport_center);
+  const QPointF document_anchor(std::clamp(center_point.x(), 0.0, static_cast<double>(document_->width())),
+                                std::clamp(center_point.y(), 0.0, static_cast<double>(document_->height())));
   const auto old_zoom = zoom_;
   const auto old_pan = pan_;
   zoom_ = clamped;
-  pan_ = QPointF(viewport_center.x() - document_anchor.x() * zoom_,
-                 viewport_center.y() - document_anchor.y() * zoom_);
+  pan_ = view_transform().pan_placing(document_anchor, viewport_center);
   // Photoshop's scroll model, applied per axis at preset time: a document
   // that fits the window is centered, and one that overflows never shows grey
   // past its edges (hand-tool overscroll stays free afterwards).
   // Both measured in the view area, so neither the rulers nor the scroll bars
-  // cover a document edge.
-  const auto document_width = static_cast<double>(document_->width()) * zoom_;
-  const auto document_height = static_cast<double>(document_->height()) * zoom_;
+  // cover a document edge. A rotated view applies the rule to the document's
+  // bounding box.
+  const auto view = view_transform();
+  const auto extent = view.extent();
+  const auto offset = view.bounds_offset();
+  const auto document_width = extent.width();
+  const auto document_height = extent.height();
   if (document_width <= area.width()) {
-    pan_.setX(area.left() + (area.width() - document_width) / 2.0);
+    pan_.setX(area.left() + (area.width() - document_width) / 2.0 - offset.x());
   } else {
-    pan_.setX(std::clamp(pan_.x(), area.right() - document_width, area.left()));
+    pan_.setX(std::clamp(pan_.x() + offset.x(), area.right() - document_width, area.left()) - offset.x());
   }
   if (document_height <= area.height()) {
-    pan_.setY(area.top() + (area.height() - document_height) / 2.0);
+    pan_.setY(area.top() + (area.height() - document_height) / 2.0 - offset.y());
   } else {
-    pan_.setY(std::clamp(pan_.y(), area.bottom() - document_height, area.top()));
+    pan_.setY(std::clamp(pan_.y() + offset.y(), area.bottom() - document_height, area.top()) - offset.y());
   }
   constrain_pan();
   if (std::abs(old_zoom - zoom_) < 0.0001 && (pan_ - old_pan).manhattanLength() < 0.01) {
@@ -154,15 +257,13 @@ void CanvasWidget::zoom_at_widget_point(QPointF widget_position, double factor) 
   if (factor <= 0.0 || !std::isfinite(factor)) {
     return;
   }
-  const QPointF document_anchor((widget_position.x() - pan_.x()) / zoom_,
-                                (widget_position.y() - pan_.y()) / zoom_);
+  const auto document_anchor = view_transform().map_to_document(widget_position);
   const auto old_zoom = zoom_;
   zoom_ = clamp_logical_zoom(zoom_ * factor);
   if (std::abs(old_zoom - zoom_) < 0.0001) {
     return;
   }
-  pan_ = QPointF(widget_position.x() - document_anchor.x() * zoom_,
-                 widget_position.y() - document_anchor.y() * zoom_);
+  pan_ = view_transform().pan_placing(document_anchor, widget_position);
   constrain_pan();
   update_tool_cursor();
   update();
@@ -193,10 +294,12 @@ void CanvasWidget::fit_to_view() {
   const auto area = view_content_rect();
   const auto available_width = std::max(1.0, area.width() - 2.0 * kFitMarginPerSide);
   const auto available_height = std::max(1.0, area.height() - 2.0 * kFitMarginPerSide);
-  zoom_ = clamp_logical_zoom(std::min(available_width / static_cast<double>(document_->width()),
-                                      available_height / static_cast<double>(document_->height())));
-  pan_ = QPointF(area.left() + (area.width() - static_cast<double>(document_->width()) * zoom_) / 2.0,
-                 area.top() + (area.height() - static_cast<double>(document_->height()) * zoom_) / 2.0);
+  const auto unit_extent = CanvasViewTransform(1.0, QPointF(), view_rotation_degrees_,
+                                               QSizeF(document_->width(), document_->height()))
+                               .extent();
+  zoom_ = clamp_logical_zoom(
+      std::min(available_width / unit_extent.width(), available_height / unit_extent.height()));
+  pan_ = centered_pan(area, view_transform());
   constrain_pan();
   update();
   notify_view_changed();
@@ -216,10 +319,11 @@ void CanvasWidget::fill_to_view() {
   }
 
   const auto area = view_content_rect();
-  zoom_ = clamp_logical_zoom(std::max(area.width() / static_cast<double>(document_->width()),
-                                      area.height() / static_cast<double>(document_->height())));
-  pan_ = QPointF(area.left() + (area.width() - static_cast<double>(document_->width()) * zoom_) / 2.0,
-                 area.top() + (area.height() - static_cast<double>(document_->height()) * zoom_) / 2.0);
+  const auto unit_extent = CanvasViewTransform(1.0, QPointF(), view_rotation_degrees_,
+                                               QSizeF(document_->width(), document_->height()))
+                               .extent();
+  zoom_ = clamp_logical_zoom(std::max(area.width() / unit_extent.width(), area.height() / unit_extent.height()));
+  pan_ = centered_pan(area, view_transform());
   constrain_pan();
   update();
   notify_view_changed();
@@ -231,8 +335,7 @@ void CanvasWidget::center_document_in_view() {
   }
 
   const auto area = view_content_rect();
-  pan_ = QPointF(area.left() + (area.width() - static_cast<double>(document_->width()) * zoom_) / 2.0,
-                 area.top() + (area.height() - static_cast<double>(document_->height()) * zoom_) / 2.0);
+  pan_ = centered_pan(area, view_transform());
   constrain_pan();
   update();
   notify_view_changed();
@@ -264,8 +367,11 @@ void CanvasWidget::scroll_view(ViewScroll scroll) {
     }
     return std::min(pan, std::max(pan - area_span, last));
   };
-  const auto image_width = static_cast<double>(document_->width()) * zoom_;
-  const auto image_height = static_cast<double>(document_->height()) * zoom_;
+  // A rotated view pages over the document's bounding box.
+  const auto view = view_transform();
+  const auto image_width = view.extent().width();
+  const auto image_height = view.extent().height();
+  const auto offset = view.bounds_offset();
   int horizontal = 0;
   int vertical = 0;
   switch (scroll) {
@@ -290,10 +396,10 @@ void CanvasWidget::scroll_view(ViewScroll scroll) {
   }
   const auto old_pan = pan_;
   if (horizontal != 0) {
-    pan_.setX(axis(pan_.x(), area.left(), area.width(), image_width, horizontal));
+    pan_.setX(axis(pan_.x() + offset.x(), area.left(), area.width(), image_width, horizontal) - offset.x());
   }
   if (vertical != 0) {
-    pan_.setY(axis(pan_.y(), area.top(), area.height(), image_height, vertical));
+    pan_.setY(axis(pan_.y() + offset.y(), area.top(), area.height(), image_height, vertical) - offset.y());
   }
   constrain_pan();
   if (pan_ == old_pan) {
@@ -319,12 +425,23 @@ void CanvasWidget::zoom_to_document_rect(QRect document_rect) {
   const auto area = view_content_rect();
   const auto available_width = std::max(1.0, area.width() - 2.0 * kFitMarginPerSide);
   const auto available_height = std::max(1.0, area.height() - 2.0 * kFitMarginPerSide);
-  zoom_ = clamp_logical_zoom(std::min(available_width / std::max(1.0, static_cast<double>(document_rect.width())),
-                                      available_height / std::max(1.0, static_cast<double>(document_rect.height()))));
-  pan_ = QPointF(area.left() + (area.width() - static_cast<double>(document_rect.width()) * zoom_) / 2.0 -
-                     static_cast<double>(document_rect.x()) * zoom_,
-                 area.top() + (area.height() - static_cast<double>(document_rect.height()) * zoom_) / 2.0 -
-                     static_cast<double>(document_rect.y()) * zoom_);
+  if (view_axis_aligned()) {
+    zoom_ = clamp_logical_zoom(
+        std::min(available_width / std::max(1.0, static_cast<double>(document_rect.width())),
+                 available_height / std::max(1.0, static_cast<double>(document_rect.height()))));
+    pan_ = QPointF(area.left() + (area.width() - static_cast<double>(document_rect.width()) * zoom_) / 2.0 -
+                       static_cast<double>(document_rect.x()) * zoom_,
+                   area.top() + (area.height() - static_cast<double>(document_rect.height()) * zoom_) / 2.0 -
+                       static_cast<double>(document_rect.y()) * zoom_);
+  } else {
+    // Rotated: fit the rect's on-screen bounding box and center the rect.
+    const auto unit_bounds =
+        CanvasViewTransform(1.0, QPointF(), view_rotation_degrees_, QSizeF(document_->width(), document_->height()))
+            .widget_bounds_of_document_rect(QRectF(document_rect));
+    zoom_ = clamp_logical_zoom(std::min(available_width / std::max(1.0, unit_bounds.width()),
+                                        available_height / std::max(1.0, unit_bounds.height())));
+    pan_ = view_transform().pan_placing(QRectF(document_rect).center(), area.center());
+  }
   constrain_pan();
   update_tool_cursor();
   update();
@@ -385,11 +502,15 @@ bool CanvasWidget::constrain_pan() noexcept {
     return false;
   }
 
+  // Per axis on the document's bounding box (the document itself while upright).
+  const auto view = view_transform();
+  const auto extent = view.extent();
+  const auto offset = view.bounds_offset();
   const auto constrained =
-      QPointF(constrained_document_axis(pan_.x(), static_cast<double>(width()),
-                                        static_cast<double>(document_->width()) * zoom_),
-              constrained_document_axis(pan_.y(), static_cast<double>(height()),
-                                        static_cast<double>(document_->height()) * zoom_));
+      QPointF(constrained_document_axis(pan_.x() + offset.x(), static_cast<double>(width()), extent.width()) -
+                  offset.x(),
+              constrained_document_axis(pan_.y() + offset.y(), static_cast<double>(height()), extent.height()) -
+                  offset.y());
   if (constrained == pan_) {
     return false;
   }
@@ -419,11 +540,18 @@ bool CanvasWidget::keep_view_centered_across_resize(QSize old_size) noexcept {
   const auto area = view_content_rect();
   const auto band_width = static_cast<double>(width()) - area.width();
   const auto band_height = static_cast<double>(height()) - area.height();
+  const auto view = view_transform();
+  const auto extent = view.extent();
+  const auto offset = view.bounds_offset();
   const auto old_pan = pan_;
-  pan_ = QPointF(area.left() + axis(pan_.x() - area.left(), static_cast<double>(old_size.width()) - band_width,
-                                    area.width(), static_cast<double>(document_->width()) * zoom_),
-                 area.top() + axis(pan_.y() - area.top(), static_cast<double>(old_size.height()) - band_height,
-                                   area.height(), static_cast<double>(document_->height()) * zoom_));
+  pan_ = QPointF(area.left() +
+                     axis(pan_.x() + offset.x() - area.left(),
+                          static_cast<double>(old_size.width()) - band_width, area.width(), extent.width()) -
+                     offset.x(),
+                 area.top() +
+                     axis(pan_.y() + offset.y() - area.top(),
+                          static_cast<double>(old_size.height()) - band_height, area.height(), extent.height()) -
+                     offset.y());
   return pan_ != old_pan;
 }
 
@@ -431,7 +559,7 @@ void CanvasWidget::shift_view_for_document_offset(QPoint document_shift) {
   if (document_shift.isNull()) {
     return;
   }
-  pan_ -= QPointF(document_shift) * zoom_;
+  pan_ -= view_transform().map_vector_to_widget(QPointF(document_shift));
   constrain_pan();
   update();
   notify_view_changed();
@@ -479,10 +607,11 @@ void CanvasWidget::sync_scroll_bars() {
       // maximum and value are rounded independently, hence the explicit clamp.
       bar.setValue(std::clamp(qRound(range.maximum - pan), 0, maximum));
     };
-    sync_axis(*horizontal_scroll_bar_, pan_.x(), static_cast<double>(width()),
-              static_cast<double>(document_->width()) * zoom_);
-    sync_axis(*vertical_scroll_bar_, pan_.y(), static_cast<double>(height()),
-              static_cast<double>(document_->height()) * zoom_);
+    const auto view = view_transform();
+    const auto extent = view.extent();
+    const auto offset = view.bounds_offset();
+    sync_axis(*horizontal_scroll_bar_, pan_.x() + offset.x(), static_cast<double>(width()), extent.width());
+    sync_axis(*vertical_scroll_bar_, pan_.y() + offset.y(), static_cast<double>(height()), extent.height());
     horizontal_scroll_bar_->raise();  // stay above later-created children (inline text editor)
     vertical_scroll_bar_->raise();
   }
@@ -495,12 +624,14 @@ void CanvasWidget::handle_scroll_bar_value_changed(Qt::Orientation orientation, 
   }
   const bool horizontal = orientation == Qt::Horizontal;
   const auto viewport_span = static_cast<double>(horizontal ? width() : height());
-  const auto document_span =
-      static_cast<double>(horizontal ? document_->width() : document_->height()) * zoom_;
+  const auto view = view_transform();
+  const auto document_span = horizontal ? view.extent().width() : view.extent().height();
   if (viewport_span <= 0.0 || document_span <= 0.0) {
     return;
   }
-  const auto target = pan_axis_range(viewport_span, document_span).maximum - static_cast<double>(value);
+  const auto offset = horizontal ? view.bounds_offset().x() : view.bounds_offset().y();
+  const auto target =
+      pan_axis_range(viewport_span, document_span).maximum - static_cast<double>(value) - offset;
   auto& component = horizontal ? pan_.rx() : pan_.ry();
   if (component == target) {
     return;
@@ -555,6 +686,12 @@ QPointF CanvasWidget::zoom_click_anchor(QPointF widget_pos) const {
   // frame rather than toward the empty space under the cursor.
   if (document_ == nullptr) {
     return widget_pos;
+  }
+  if (!view_axis_aligned()) {
+    const auto view = view_transform();
+    const auto point = view.map_to_document(widget_pos);
+    return view.map_to_widget(QPointF(std::clamp(point.x(), 0.0, static_cast<double>(document_->width())),
+                                      std::clamp(point.y(), 0.0, static_cast<double>(document_->height()))));
   }
   const QRectF frame(widget_position_f(QPointF(0.0, 0.0)),
                      widget_position_f(QPointF(document_->width(), document_->height())));
@@ -613,6 +750,10 @@ void CanvasWidget::draw_zoom_preview(QPainter& painter) const {
 }
 
 QPoint CanvasWidget::document_position(const QPoint& widget_position) const {
+  if (!view_axis_aligned()) {
+    const auto point = view_transform().map_to_document(QPointF(widget_position));
+    return QPoint(static_cast<int>(std::floor(point.x())), static_cast<int>(std::floor(point.y())));
+  }
   const auto coordinate_from_widget = [this](int widget_coordinate, double pan, int limit) {
     auto coordinate = static_cast<int>(std::floor((static_cast<double>(widget_coordinate) - pan) / zoom_));
     if (document_ == nullptr || !deep_zoom_pixels_active()) {
@@ -635,7 +776,7 @@ QPoint CanvasWidget::document_position(const QPoint& widget_position) const {
 }
 
 QPointF CanvasWidget::document_position_f(QPointF widget_position) const {
-  return QPointF((widget_position.x() - pan_.x()) / zoom_, (widget_position.y() - pan_.y()) / zoom_);
+  return view_transform().map_to_document(widget_position);
 }
 
 QPointF CanvasWidget::stroke_position_f(QPointF widget_position) const {
@@ -647,12 +788,12 @@ QPointF CanvasWidget::widget_position_for_stroke_point(QPointF stroke_point) con
 }
 
 QPoint CanvasWidget::widget_position(const QPoint& document_position) const {
-  return QPoint(static_cast<int>(std::round(pan_.x() + static_cast<double>(document_position.x()) * zoom_)),
-                static_cast<int>(std::round(pan_.y() + static_cast<double>(document_position.y()) * zoom_)));
+  const auto point = view_transform().map_to_widget(QPointF(document_position));
+  return QPoint(static_cast<int>(std::round(point.x())), static_cast<int>(std::round(point.y())));
 }
 
 QPointF CanvasWidget::widget_position_f(QPointF document_position) const {
-  return QPointF(pan_.x() + document_position.x() * zoom_, pan_.y() + document_position.y() * zoom_);
+  return view_transform().map_to_widget(document_position);
 }
 
 void CanvasWidget::begin_zoom_drag(QPointF widget_position) {

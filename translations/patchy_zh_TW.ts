@@ -19343,6 +19343,26 @@ Each item&apos;s own View setting still applies.</source>
         <source>Change the color, gradient or pattern of a fill layer</source>
         <translation>變更填滿圖層的顏色、漸層或圖樣</translation>
     </message>
+    <message>
+        <source>Turn the canvas counterclockwise on screen</source>
+        <translation>在螢幕上逆時針旋轉畫布</translation>
+    </message>
+    <message>
+        <source>Turn the canvas clockwise on screen</source>
+        <translation>在螢幕上順時針旋轉畫布</translation>
+    </message>
+    <message>
+        <source>Turn the canvas upright again</source>
+        <translation>將畫布轉回正向</translation>
+    </message>
+    <message>
+        <source>Turn the canvas on screen like a sheet of paper</source>
+        <translation>像轉動紙張一樣在螢幕上旋轉畫布</translation>
+    </message>
+    <message>
+        <source>Switch between the hand and rotate view tools</source>
+        <translation>在手形和旋轉檢視工具之間切換</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -19865,36 +19885,16 @@ Each item&apos;s own View setting still applies.</source>
         <translation>快速鍵方案：</translation>
     </message>
     <message>
-        <source>Start from Patchy&apos;s shortcuts or from a set laid out like another editor&apos;s. You can still change any key afterwards.</source>
-        <translation>從 Patchy 的快速鍵或依其他編輯器配置的方案開始。之後仍可變更任何按鍵。</translation>
-    </message>
-    <message>
-        <source>Patchy (default)</source>
-        <translation>Patchy（預設）</translation>
-    </message>
-    <message>
         <source>Import...</source>
         <translation>匯入...</translation>
-    </message>
-    <message>
-        <source>Replace the shortcuts with ones saved in a hotkey file</source>
-        <translation>以快速鍵檔案中儲存的快速鍵取代目前的快速鍵</translation>
     </message>
     <message>
         <source>Export...</source>
         <translation>匯出...</translation>
     </message>
     <message>
-        <source>Save your shortcut changes to a file you can keep or share</source>
-        <translation>將您變更的快速鍵儲存到可保留或分享的檔案中</translation>
-    </message>
-    <message>
         <source>Exported &quot;%1&quot;.</source>
         <translation>已匯出「%1」。</translation>
-    </message>
-    <message>
-        <source>Imported &quot;%1&quot;. Commands: %2. Skipped commands this Patchy does not have: %3. Skipped keys it cannot use: %4. Click OK to apply.</source>
-        <translation>已匯入「%1」。命令：%2。略過此 Patchy 沒有的命令：%3。略過無法使用的按鍵：%4。按一下「確定」以套用。</translation>
     </message>
     <message>
         <source>Export Hotkeys</source>
@@ -19921,16 +19921,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>匯入失敗</translation>
     </message>
     <message>
-        <source>Replace your current shortcuts with the ones in &quot;%1&quot;? Shortcuts the file does not set go back to Patchy&apos;s defaults.</source>
-        <translation>要以「%1」中的快速鍵取代目前的快速鍵嗎？檔案未設定的快速鍵會恢復為 Patchy 的預設值。</translation>
-    </message>
-    <message>
         <source>Shortcut Set</source>
         <translation>快速鍵方案</translation>
-    </message>
-    <message>
-        <source>Replace your own shortcut changes with the %1 set? Export them first to keep a copy.</source>
-        <translation>要以 %1 方案取代您自己變更的快速鍵嗎？請先匯出以保留副本。</translation>
     </message>
     <message>
         <source>Custom</source>
@@ -19959,6 +19951,79 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Krita-style</source>
         <translation>Krita 風格</translation>
+    </message>
+    <message>
+        <source>Patchy default</source>
+        <translation>Patchy 預設</translation>
+    </message>
+    <message>
+        <source>%1 (built-in)</source>
+        <extracomment>A shortcut set shipped with Patchy, in the Preferences &gt; Hotkeys set list. %1 is its name.</extracomment>
+        <translation>%1（內建）</translation>
+    </message>
+    <message>
+        <source>Built-in sets never change: changing a key in one puts your keys in the Custom set. Rename it to keep it as a set of your own.</source>
+        <translation>內建方案永遠不會變更：在內建方案中變更按鍵後，你的按鍵會放入「自訂」方案。重新命名它即可作為你自己的方案保留。</translation>
+    </message>
+    <message>
+        <source>Rename...</source>
+        <translation>重新命名...</translation>
+    </message>
+    <message>
+        <source>Name this set of yours</source>
+        <translation>為你的這個方案命名</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>刪除</translation>
+    </message>
+    <message>
+        <source>Remove this set of yours</source>
+        <translation>移除你的這個方案</translation>
+    </message>
+    <message>
+        <source>Add the shortcuts saved in a hotkey file as a set of your own</source>
+        <translation>將快速鍵檔案中儲存的快速鍵加入為你自己的方案</translation>
+    </message>
+    <message>
+        <source>Save the shortcuts shown to a file you can keep or share</source>
+        <translation>將顯示的快速鍵儲存到可保留或分享的檔案</translation>
+    </message>
+    <message>
+        <source>Imported &quot;%1&quot; as the set &quot;%2&quot;. Commands: %3. Skipped commands this Patchy does not have: %4. Skipped keys it cannot use: %5. Click OK to apply.</source>
+        <translation>已將「%1」匯入為方案「%2」。命令：%3。此版本 Patchy 沒有而略過的命令：%4。無法使用而略過的按鍵：%5。按一下「確定」套用。</translation>
+    </message>
+    <message>
+        <source>Set name:</source>
+        <translation>方案名稱：</translation>
+    </message>
+    <message>
+        <source>A shortcut set named &quot;%1&quot; already exists. Choose another name.</source>
+        <translation>已有名為「%1」的快速鍵方案。請換一個名稱。</translation>
+    </message>
+    <message>
+        <source>Rename Shortcut Set</source>
+        <translation>重新命名快速鍵方案</translation>
+    </message>
+    <message>
+        <source>Delete Shortcut Set</source>
+        <translation>刪除快速鍵方案</translation>
+    </message>
+    <message>
+        <source>Delete the shortcut set &quot;%1&quot;? Patchy&apos;s default shortcuts take its place.</source>
+        <translation>刪除快速鍵方案「%1」？將改用 Patchy 的預設快速鍵。</translation>
+    </message>
+    <message>
+        <source>Imported shortcuts</source>
+        <translation>匯入的快速鍵</translation>
+    </message>
+    <message>
+        <source>%1 is built in and never changes, so your change goes into the Custom set, which already holds other changes. Replace them? To keep them, click Cancel and rename Custom first.</source>
+        <translation>%1 是內建方案，永遠不會變更，所以你的變更會放入「自訂」方案，而該方案已有其他變更。要取代它們嗎？若要保留，請按一下「取消」並先重新命名「自訂」。</translation>
+    </message>
+    <message>
+        <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
+        <translation>%1 是內建方案，所以你的變更已放入「自訂」方案。重新命名它即可作為你自己的方案保留。</translation>
     </message>
 </context>
 <context>
@@ -32687,6 +32752,54 @@ Locked: %1</source>
         <source>Select a fill layer to edit its settings</source>
         <translation>請選取填滿圖層以編輯其設定</translation>
     </message>
+    <message>
+        <source>Rotate View Left</source>
+        <translation>向左旋轉檢視</translation>
+    </message>
+    <message>
+        <source>Rotate View Right</source>
+        <translation>向右旋轉檢視</translation>
+    </message>
+    <message>
+        <source>Reset View Rotation</source>
+        <translation>重設檢視旋轉</translation>
+    </message>
+    <message>
+        <source>Rotation Angle:</source>
+        <translation>旋轉角度:</translation>
+    </message>
+    <message>
+        <source>The view&apos;s angle, clockwise. Only the view turns; the image does not change</source>
+        <translation>檢視的角度，順時針。只旋轉檢視，影像不變</translation>
+    </message>
+    <message>
+        <source>Reset View</source>
+        <translation>重設檢視</translation>
+    </message>
+    <message>
+        <source>Turn the view upright again (View &gt; Reset View Rotation)</source>
+        <translation>將檢視轉回正向 (檢視 &gt; 重設檢視旋轉)</translation>
+    </message>
+    <message>
+        <source>Drag to turn the view, Shift snaps to 15 degrees. Esc or Reset View turns it upright. The image does not change.</source>
+        <translation>拖曳以旋轉檢視，Shift 以 15 度為步長。Esc 或「重設檢視」將其轉回正向。影像不變。</translation>
+    </message>
+    <message>
+        <source>Rotate View: drag to turn the view like a sheet of paper, Shift snaps to 15 degrees. Esc turns it upright. Only the view turns; the image is unchanged.</source>
+        <translation>旋轉檢視：拖曳以像轉動紙張一樣旋轉檢視，Shift 以 15 度為步長。Esc 將其轉回正向。只旋轉檢視，影像不變。</translation>
+    </message>
+    <message>
+        <source>Hand Tools</source>
+        <translation>手形工具</translation>
+    </message>
+    <message>
+        <source>Rotate View</source>
+        <translation>旋轉檢視</translation>
+    </message>
+    <message>
+        <source>Cycle Hand Tools</source>
+        <translation>循環切換手形工具</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34945,6 +35058,14 @@ Locked: %1</source>
     <message>
         <source>feather needs a radius from %1 to %2.</source>
         <translation>feather 需要介於 %1 和 %2 之間的半徑。</translation>
+    </message>
+    <message>
+        <source>rotation needs a number of degrees.</source>
+        <translation>rotation 需要度數。</translation>
+    </message>
+    <message>
+        <source>No document is open to rotate the view of.</source>
+        <translation>沒有可旋轉檢視的開啟文件。</translation>
     </message>
 </context>
 <context>

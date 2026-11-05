@@ -2,6 +2,7 @@
 
 #include "ui/hotkey_files.hpp"
 #include "ui/hotkey_registry.hpp"
+#include "ui/hotkey_sets.hpp"
 
 #include <QHash>
 #include <QString>
@@ -16,6 +17,7 @@ class QKeySequence;
 class QLabel;
 class QLineEdit;
 class QMenuBar;
+class QPushButton;
 class QScrollArea;
 class QVBoxLayout;
 class QToolButton;
@@ -45,11 +47,18 @@ public:
   // file or confirmed (tests and automation call these directly). Like every edit on the
   // page, an import or a set only stages: OK applies it.
   [[nodiscard]] bool export_to_file(const QString& path, QString* error);
-  // Replaces the staged set with the file's on success; leaves it alone on failure.
-  HotkeyFileReadResult import_from_file(const QString& path);
-  // "patchy" restores the defaults; otherwise a builtin_hotkey_sets() id.
+  // Adds the file's shortcuts as a set of the user's own named `set_name` (empty: the file's
+  // name, made unique) and selects it; changes nothing on failure.
+  HotkeyFileReadResult import_from_file(const QString& path, const QString& set_name = QString());
+  // kPatchyHotkeySetId, a builtin_hotkey_sets() id or a user set id.
   void apply_shortcut_set(const QString& set_id);
+  // Rename... and Delete for the user's own sets. Renaming Custom makes it a named set. False
+  // when the name is empty or another set has it (ignoring letter case).
+  bool rename_shortcut_set(const QString& set_id, const QString& name);
+  void delete_shortcut_set(const QString& set_id);
   [[nodiscard]] const HotkeyOverrideMap& staged_overrides() const noexcept { return staged_; }
+  [[nodiscard]] const QString& active_shortcut_set_id() const noexcept { return active_set_id_; }
+  [[nodiscard]] const std::vector<UserHotkeySet>& user_shortcut_sets() const noexcept { return user_sets_; }
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -72,9 +81,25 @@ private:
   QWidget* build_set_row(QWidget* parent);
   void export_clicked();
   void import_clicked();
+  void rename_clicked();
+  void delete_clicked();
   void shortcut_set_chosen(int index);
+  void load_shortcut_sets();
   void sync_set_combo();
-  void retranslate_set_combo();
+  void note_staged_change();
+  void rebuild_set_combo();
+  void put_staged_in_custom_set();
+  [[nodiscard]] std::optional<QString> ask_set_name(const QString& title, const QString& initial,
+                                                    const QString& except_id);
+  // A built-in set's name without the "(built-in)" the combo adds; empty for other ids.
+  [[nodiscard]] QString shortcut_set_name(const QString& set_id) const;
+  [[nodiscard]] QString user_set_display_name(const UserHotkeySet& set) const;
+  [[nodiscard]] bool is_builtin_set(const QString& set_id) const;
+  [[nodiscard]] HotkeyOverrideMap builtin_set_overrides(const QString& set_id) const;
+  [[nodiscard]] UserHotkeySet* find_user_set(const QString& set_id);
+  [[nodiscard]] QString next_user_set_id() const;
+  [[nodiscard]] bool set_name_taken(const QString& name, const QString& except_id) const;
+  [[nodiscard]] QString unique_set_name(const QString& base) const;
   void fit_set_combo_width();
   void show_transfer_status(const QString& text);
   void build_rows(QMenuBar* menu_bar);
@@ -103,7 +128,12 @@ private:
   std::vector<Row> rows_;
   QHash<QFrame*, QString> panel_titles_;
   QLineEdit* search_edit_{nullptr};
+  // The user's own sets and the set shown, staged like the keys: OK stores them.
+  std::vector<UserHotkeySet> user_sets_;
+  QString active_set_id_;
   QComboBox* set_combo_{nullptr};
+  QPushButton* rename_set_button_{nullptr};
+  QPushButton* delete_set_button_{nullptr};
   QLabel* transfer_status_{nullptr};
   QWidget* header_{nullptr};
   QScrollArea* list_scroll_{nullptr};

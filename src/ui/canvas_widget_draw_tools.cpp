@@ -363,7 +363,8 @@ void CanvasWidget::draw_shape_preview(QPainter& painter, QRect exposed_rect) {
           QRect(top_left, QSize(bottom_right.x() - top_left.x(), bottom_right.y() - top_left.y()));
     }
     const QRectF target_rect = pixel_aligned_view ? QRectF(pixel_aligned_target_rect) : exact_target_rect;
-    const auto preview_rect = target_rect.toAlignedRect().intersected(exposed_rect).intersected(rect());
+    const auto preview_rect =
+        target_rect.toAlignedRect().intersected(overlay_exposed_rect(exposed_rect)).intersected(overlay_view_rect());
     if (!preview_rect.isEmpty()) {
       QImage source(preview_rect.size(), QImage::Format_ARGB32_Premultiplied);
       source.fill(Qt::transparent);
@@ -740,10 +741,7 @@ bool CanvasWidget::draw_shape_appearance_preview(QPainter& painter,
   // widget-from-document view onto their placement so tiles track zoom/pan.
   // ObjectMode gradients span the painted path's bounds and solid colors are
   // position-free - both stay untouched.
-  const auto document_origin = widget_position_f(QPointF(0.0, 0.0));
-  QTransform view;
-  view.translate(document_origin.x(), document_origin.y());
-  view.scale(zoom_, zoom_);
+  const auto view = view_transform().to_widget();
   const auto widget_space_brush = [&view](QBrush brush) {
     if (brush.style() == Qt::TexturePattern) {
       brush.setTransform(brush.transform() * view);
@@ -773,7 +771,7 @@ bool CanvasWidget::draw_shape_appearance_preview(QPainter& painter,
       painter.setClipPath(path, Qt::IntersectClip);
     } else if (appearance.stroke_alignment == VectorStrokeAlignment::Outside) {
       QPainterPath outside;
-      outside.addRect(QRectF(rect()).adjusted(-band_width, -band_width, band_width, band_width));
+      outside.addRect(QRectF(overlay_view_rect()).adjusted(-band_width, -band_width, band_width, band_width));
       painter.setClipPath(outside.subtracted(path), Qt::IntersectClip);
     }
     painter.setBrush(Qt::NoBrush);
@@ -972,6 +970,10 @@ QRect CanvasWidget::move_snap_guides_widget_rect() const {
     const auto x0 = widget_position_f(QPointF(left, 0.0)).x() - kSnapGuideOverhangPixels;
     const auto x1 = widget_position_f(QPointF(right, 0.0)).x() + kSnapGuideOverhangPixels;
     rect = rect.united(QRectF(x0, y - 1.5, x1 - x0, 3.0).toAlignedRect());
+  }
+  if (!view_axis_aligned()) {
+    // Drawn in the upright frame and turned: repaint the view rather than map the lines.
+    return this->rect();
   }
   // A document-edge line at deep zoom is enormous; only the visible part matters.
   return rect.intersected(this->rect());

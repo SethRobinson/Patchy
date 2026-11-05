@@ -21,6 +21,12 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-05 (additive): `patchy.ui.rotation`, the active document's view rotation in degrees,
+clockwise, in (-180, 180] ([view-navigation-rotation.md](view-navigation-rotation.md)). Setting wraps
+any finite angle and turns the view about its center; NaN or no document throws; 0 with no document.
+Only the view turns. Permanent identifiers: `rotation`, the tool id `tools.rotate_view`, the command
+ids `view.rotate_left`, `view.rotate_right`, `view.rotate_reset` and `tools.cycle.hand`. Pinned by
+`ui_script_ui_view_rotation`.
 2026-11-05 (additive and behavioral): line geometry takes `arrowConcavity` (-50..50 percent, default 0)
 and `getShape()` returns it with the line's other arrowhead values (GitHub #622 follow-up,
 [vector-tools.md](vector-tools.md#polygon-custom-shape-and-line-arrowheads)). `updateShape` with a line

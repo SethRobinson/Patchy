@@ -5956,8 +5956,9 @@ void ui_tool_button_right_click_selects_plain_tool() {
     const char* button_name;
     patchy::ui::CanvasTool tool;
   };
+  // The Hand shares a flyout with Rotate View, so Type stands in for a third plain tool.
   const PlainTool plain_tools[] = {{"toolEraserAction", "eraserToolButton", patchy::ui::CanvasTool::Eraser},
-                                   {"toolHandAction", "handToolButton", patchy::ui::CanvasTool::Pan},
+                                   {"toolTypeAction", "typeToolButton", patchy::ui::CanvasTool::Text},
                                    {"toolZoomAction", "zoomToolButton", patchy::ui::CanvasTool::Zoom}};
   for (const auto& plain : plain_tools) {
     auto* action = require_action(window, plain.action_name);
@@ -12027,6 +12028,37 @@ void ui_layer_action_button_foreign_drag_never_repolishes_in_filter() {
   button->setStyle(nullptr);
 }
 
+// A layer dragged over a Layers footer button highlights it without changing its size: a
+// wider drop border once grew the button under the pointer and wrapped the footer row.
+void ui_layer_action_button_drop_highlight_keeps_its_size() {
+  auto&& [window, canvas] = ShownWindowFixture{};
+  for (const auto* name : {"layerNewButton", "layerNewFolderButton", "layerDuplicateButton", "layerDeleteButton"}) {
+    auto* button = window.findChild<QPushButton*>(QString::fromLatin1(name));
+    CHECK(button != nullptr);
+    CHECK(button->property("layerDropAction").isValid());
+    const auto repolish = [button] {
+      button->style()->unpolish(button);
+      button->style()->polish(button);
+      QApplication::processEvents();
+    };
+    const auto minimum = button->minimumSize();
+    const auto maximum = button->maximumSize();
+    const auto geometry = button->geometry();
+    button->setProperty("layerDropActive", true);
+    repolish();
+    if (button->minimumSize() != minimum || button->maximumSize() != maximum) {
+      std::fprintf(stderr, "%s: drop highlight changed min %dx%d -> %dx%d, max %dx%d -> %dx%d\n", name,
+                   minimum.width(), minimum.height(), button->minimumWidth(), button->minimumHeight(),
+                   maximum.width(), maximum.height(), button->maximumWidth(), button->maximumHeight());
+    }
+    CHECK(button->minimumSize() == minimum);
+    CHECK(button->maximumSize() == maximum);
+    CHECK(button->geometry() == geometry);
+    button->setProperty("layerDropActive", false);
+    repolish();
+  }
+}
+
 void ui_menu_disabled_items_render_grayed() {
   // The app stylesheet styles QMenu::item text, so without an explicit :disabled rule
   // disabled entries rendered in the same bright color as enabled ones and were only
@@ -12261,6 +12293,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_short_panel_scroll_bar_drags_by_handle", ui_short_panel_scroll_bar_drags_by_handle},
       {"ui_layer_action_button_foreign_drag_never_repolishes_in_filter",
        ui_layer_action_button_foreign_drag_never_repolishes_in_filter},
+      {"ui_layer_action_button_drop_highlight_keeps_its_size", ui_layer_action_button_drop_highlight_keeps_its_size},
       {"ui_menu_disabled_items_render_grayed", ui_menu_disabled_items_render_grayed},
   };
 }

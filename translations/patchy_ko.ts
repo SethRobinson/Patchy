@@ -19343,6 +19343,26 @@ Each item&apos;s own View setting still applies.</source>
         <source>Change the color, gradient or pattern of a fill layer</source>
         <translation>채우기 레이어의 색상, 그라디언트 또는 패턴 변경</translation>
     </message>
+    <message>
+        <source>Turn the canvas counterclockwise on screen</source>
+        <translation>화면에서 캔버스를 시계 반대 방향으로 회전</translation>
+    </message>
+    <message>
+        <source>Turn the canvas clockwise on screen</source>
+        <translation>화면에서 캔버스를 시계 방향으로 회전</translation>
+    </message>
+    <message>
+        <source>Turn the canvas upright again</source>
+        <translation>캔버스를 다시 똑바로 세움</translation>
+    </message>
+    <message>
+        <source>Turn the canvas on screen like a sheet of paper</source>
+        <translation>종이를 돌리듯 화면에서 캔버스를 회전</translation>
+    </message>
+    <message>
+        <source>Switch between the hand and rotate view tools</source>
+        <translation>손 도구와 보기 회전 도구 전환</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -19865,36 +19885,16 @@ Each item&apos;s own View setting still applies.</source>
         <translation>단축키 세트:</translation>
     </message>
     <message>
-        <source>Start from Patchy&apos;s shortcuts or from a set laid out like another editor&apos;s. You can still change any key afterwards.</source>
-        <translation>Patchy 단축키 또는 다른 편집기처럼 배치된 세트에서 시작합니다. 나중에 어떤 키든 바꿀 수 있습니다.</translation>
-    </message>
-    <message>
-        <source>Patchy (default)</source>
-        <translation>Patchy(기본값)</translation>
-    </message>
-    <message>
         <source>Import...</source>
         <translation>가져오기...</translation>
-    </message>
-    <message>
-        <source>Replace the shortcuts with ones saved in a hotkey file</source>
-        <translation>단축키를 단축키 파일에 저장된 것으로 바꿉니다</translation>
     </message>
     <message>
         <source>Export...</source>
         <translation>내보내기...</translation>
     </message>
     <message>
-        <source>Save your shortcut changes to a file you can keep or share</source>
-        <translation>변경한 단축키를 보관하거나 공유할 수 있는 파일로 저장합니다</translation>
-    </message>
-    <message>
         <source>Exported &quot;%1&quot;.</source>
         <translation>&quot;%1&quot;을(를) 내보냈습니다.</translation>
-    </message>
-    <message>
-        <source>Imported &quot;%1&quot;. Commands: %2. Skipped commands this Patchy does not have: %3. Skipped keys it cannot use: %4. Click OK to apply.</source>
-        <translation>&quot;%1&quot;을(를) 가져왔습니다. 명령: %2. 이 Patchy에 없어 건너뛴 명령: %3. 사용할 수 없어 건너뛴 키: %4. 적용하려면 확인을 클릭하세요.</translation>
     </message>
     <message>
         <source>Export Hotkeys</source>
@@ -19921,16 +19921,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>가져오기 실패</translation>
     </message>
     <message>
-        <source>Replace your current shortcuts with the ones in &quot;%1&quot;? Shortcuts the file does not set go back to Patchy&apos;s defaults.</source>
-        <translation>현재 단축키를 &quot;%1&quot;의 단축키로 바꾸시겠습니까? 파일에 설정되지 않은 단축키는 Patchy 기본값으로 돌아갑니다.</translation>
-    </message>
-    <message>
         <source>Shortcut Set</source>
         <translation>단축키 세트</translation>
-    </message>
-    <message>
-        <source>Replace your own shortcut changes with the %1 set? Export them first to keep a copy.</source>
-        <translation>직접 변경한 단축키를 %1 세트로 바꾸시겠습니까? 사본을 남기려면 먼저 내보내세요.</translation>
     </message>
     <message>
         <source>Custom</source>
@@ -19959,6 +19951,79 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Krita-style</source>
         <translation>Krita 스타일</translation>
+    </message>
+    <message>
+        <source>Patchy default</source>
+        <translation>Patchy 기본값</translation>
+    </message>
+    <message>
+        <source>%1 (built-in)</source>
+        <extracomment>A shortcut set shipped with Patchy, in the Preferences &gt; Hotkeys set list. %1 is its name.</extracomment>
+        <translation>%1 (기본 제공)</translation>
+    </message>
+    <message>
+        <source>Built-in sets never change: changing a key in one puts your keys in the Custom set. Rename it to keep it as a set of your own.</source>
+        <translation>기본 제공 세트는 바뀌지 않습니다. 기본 제공 세트에서 키를 바꾸면 키가 사용자 지정 세트에 들어갑니다. 내 세트로 유지하려면 이름을 바꾸세요.</translation>
+    </message>
+    <message>
+        <source>Rename...</source>
+        <translation>이름 바꾸기...</translation>
+    </message>
+    <message>
+        <source>Name this set of yours</source>
+        <translation>내 세트의 이름 정하기</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>삭제</translation>
+    </message>
+    <message>
+        <source>Remove this set of yours</source>
+        <translation>내 세트 제거</translation>
+    </message>
+    <message>
+        <source>Add the shortcuts saved in a hotkey file as a set of your own</source>
+        <translation>단축키 파일에 저장된 단축키를 내 세트로 추가</translation>
+    </message>
+    <message>
+        <source>Save the shortcuts shown to a file you can keep or share</source>
+        <translation>표시된 단축키를 보관하거나 공유할 수 있는 파일로 저장</translation>
+    </message>
+    <message>
+        <source>Imported &quot;%1&quot; as the set &quot;%2&quot;. Commands: %3. Skipped commands this Patchy does not have: %4. Skipped keys it cannot use: %5. Click OK to apply.</source>
+        <translation>&quot;%1&quot;을(를) &quot;%2&quot; 세트로 가져왔습니다. 명령: %3. 이 Patchy에 없어 건너뛴 명령: %4. 사용할 수 없어 건너뛴 키: %5. 적용하려면 확인을 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Set name:</source>
+        <translation>세트 이름:</translation>
+    </message>
+    <message>
+        <source>A shortcut set named &quot;%1&quot; already exists. Choose another name.</source>
+        <translation>&quot;%1&quot;(이)라는 단축키 세트가 이미 있습니다. 다른 이름을 선택하세요.</translation>
+    </message>
+    <message>
+        <source>Rename Shortcut Set</source>
+        <translation>단축키 세트 이름 바꾸기</translation>
+    </message>
+    <message>
+        <source>Delete Shortcut Set</source>
+        <translation>단축키 세트 삭제</translation>
+    </message>
+    <message>
+        <source>Delete the shortcut set &quot;%1&quot;? Patchy&apos;s default shortcuts take its place.</source>
+        <translation>단축키 세트 &quot;%1&quot;을(를) 삭제할까요? Patchy 기본 단축키가 대신 사용됩니다.</translation>
+    </message>
+    <message>
+        <source>Imported shortcuts</source>
+        <translation>가져온 단축키</translation>
+    </message>
+    <message>
+        <source>%1 is built in and never changes, so your change goes into the Custom set, which already holds other changes. Replace them? To keep them, click Cancel and rename Custom first.</source>
+        <translation>%1은(는) 기본 제공 세트라 바뀌지 않으므로 변경 내용은 사용자 지정 세트에 들어가는데, 이 세트에는 이미 다른 변경 내용이 있습니다. 바꿀까요? 유지하려면 취소를 클릭하고 먼저 사용자 지정 세트의 이름을 바꾸세요.</translation>
+    </message>
+    <message>
+        <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
+        <translation>%1은(는) 기본 제공 세트이므로 변경 내용은 사용자 지정 세트에 있습니다. 내 세트로 유지하려면 이름을 바꾸세요.</translation>
     </message>
 </context>
 <context>
@@ -32687,6 +32752,54 @@ Locked: %1</source>
         <source>Select a fill layer to edit its settings</source>
         <translation>설정을 편집할 채우기 레이어를 선택하세요</translation>
     </message>
+    <message>
+        <source>Rotate View Left</source>
+        <translation>보기 왼쪽으로 회전</translation>
+    </message>
+    <message>
+        <source>Rotate View Right</source>
+        <translation>보기 오른쪽으로 회전</translation>
+    </message>
+    <message>
+        <source>Reset View Rotation</source>
+        <translation>보기 회전 초기화</translation>
+    </message>
+    <message>
+        <source>Rotation Angle:</source>
+        <translation>회전 각도:</translation>
+    </message>
+    <message>
+        <source>The view&apos;s angle, clockwise. Only the view turns; the image does not change</source>
+        <translation>보기의 각도(시계 방향)입니다. 보기만 회전하며 이미지는 바뀌지 않습니다</translation>
+    </message>
+    <message>
+        <source>Reset View</source>
+        <translation>보기 초기화</translation>
+    </message>
+    <message>
+        <source>Turn the view upright again (View &gt; Reset View Rotation)</source>
+        <translation>보기를 다시 똑바로 세웁니다(보기 &gt; 보기 회전 초기화)</translation>
+    </message>
+    <message>
+        <source>Drag to turn the view, Shift snaps to 15 degrees. Esc or Reset View turns it upright. The image does not change.</source>
+        <translation>드래그하여 보기를 회전하고 Shift는 15도 단위로 맞춥니다. Esc 또는 보기 초기화로 똑바로 세웁니다. 이미지는 바뀌지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Rotate View: drag to turn the view like a sheet of paper, Shift snaps to 15 degrees. Esc turns it upright. Only the view turns; the image is unchanged.</source>
+        <translation>보기 회전: 종이를 돌리듯 드래그하여 보기를 회전하고 Shift는 15도 단위로 맞춥니다. Esc로 똑바로 세웁니다. 보기만 회전하며 이미지는 바뀌지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Hand Tools</source>
+        <translation>손 도구</translation>
+    </message>
+    <message>
+        <source>Rotate View</source>
+        <translation>보기 회전</translation>
+    </message>
+    <message>
+        <source>Cycle Hand Tools</source>
+        <translation>손 도구 전환</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34945,6 +35058,14 @@ Locked: %1</source>
     <message>
         <source>feather needs a radius from %1 to %2.</source>
         <translation>feather에는 %1에서 %2 사이의 반경이 필요합니다.</translation>
+    </message>
+    <message>
+        <source>rotation needs a number of degrees.</source>
+        <translation>rotation에는 각도(도) 숫자가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>No document is open to rotate the view of.</source>
+        <translation>보기를 회전할 문서가 열려 있지 않습니다.</translation>
     </message>
 </context>
 <context>

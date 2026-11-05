@@ -287,6 +287,7 @@ void CanvasWidget::set_document_after_canvas_growth(Document* document, QPoint d
 
 bool CanvasWidget::pointer_gesture_active() const noexcept {
   return move_layer_selection_gesture_.has_value() || painting_ || drawing_shape_ || dragging_text_rect_ ||
+         rotating_view_ ||
          move_drag_pending_ ||
          moving_layer_ || dragging_transform_ || dragging_warp_handle_ || selecting_ ||
          lassoing_ || quick_selecting_ || object_selecting_ || spot_healing_stroke_active_ ||
@@ -2197,6 +2198,14 @@ QPoint CanvasWidget::layer_position(const Layer& layer, QPoint document_point) c
 }
 
 QRect CanvasWidget::widget_rect_for_document_rect(QRect document_rect) const {
+  if (!view_axis_aligned()) {
+    // A rotated view: the on-screen bounding box of the rect (repaints and clips;
+    // outlines that must follow the rotation map the corners instead).
+    return view_transform()
+        .widget_bounds_of_document_rect(QRectF(document_rect))
+        .toAlignedRect()
+        .adjusted(-2, -2, 2, 2);
+  }
   const auto top_left = widget_position(document_rect.topLeft());
   const auto bottom_right = widget_position(document_rect.bottomRight() + QPoint(1, 1));
   return QRect(top_left, bottom_right).normalized().adjusted(-2, -2, 2, 2);
@@ -2215,9 +2224,8 @@ QRect CanvasWidget::widget_repaint_rect_for_document_rect(QRect document_rect) c
 }
 
 QRectF CanvasWidget::widget_rect_for_document_rect(QRectF document_rect) const {
-  const auto top_left = widget_position_f(document_rect.topLeft());
-  const auto bottom_right = widget_position_f(document_rect.bottomRight());
-  return QRectF(top_left, bottom_right).normalized();
+  // The rect itself while upright; its on-screen bounding box under a rotated view.
+  return view_transform().widget_bounds_of_document_rect(document_rect);
 }
 
 void CanvasWidget::emit_info_for_widget_position(QPoint widget_position) const {

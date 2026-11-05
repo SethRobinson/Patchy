@@ -19437,6 +19437,26 @@ Each item&apos;s own View setting still applies.</source>
         <source>Change the color, gradient or pattern of a fill layer</source>
         <translation>Изменить цвет, градиент или узор слоя-заливки</translation>
     </message>
+    <message>
+        <source>Turn the canvas counterclockwise on screen</source>
+        <translation>Повернуть холст на экране против часовой стрелки</translation>
+    </message>
+    <message>
+        <source>Turn the canvas clockwise on screen</source>
+        <translation>Повернуть холст на экране по часовой стрелке</translation>
+    </message>
+    <message>
+        <source>Turn the canvas upright again</source>
+        <translation>Вернуть холст в прямое положение</translation>
+    </message>
+    <message>
+        <source>Turn the canvas on screen like a sheet of paper</source>
+        <translation>Поворачивать холст на экране, как лист бумаги</translation>
+    </message>
+    <message>
+        <source>Switch between the hand and rotate view tools</source>
+        <translation>Переключить инструменты «Рука» и «Поворот вида»</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -19961,36 +19981,16 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Набор горячих клавиш:</translation>
     </message>
     <message>
-        <source>Start from Patchy&apos;s shortcuts or from a set laid out like another editor&apos;s. You can still change any key afterwards.</source>
-        <translation>Начните с горячих клавиш Patchy или с набора, устроенного как в другом редакторе. Любую клавишу можно потом изменить.</translation>
-    </message>
-    <message>
-        <source>Patchy (default)</source>
-        <translation>Patchy (по умолчанию)</translation>
-    </message>
-    <message>
         <source>Import...</source>
         <translation>Импорт...</translation>
-    </message>
-    <message>
-        <source>Replace the shortcuts with ones saved in a hotkey file</source>
-        <translation>Заменить горячие клавиши сохранёнными в файле горячих клавиш</translation>
     </message>
     <message>
         <source>Export...</source>
         <translation>Экспорт...</translation>
     </message>
     <message>
-        <source>Save your shortcut changes to a file you can keep or share</source>
-        <translation>Сохранить изменённые горячие клавиши в файл, который можно хранить или передать другим</translation>
-    </message>
-    <message>
         <source>Exported &quot;%1&quot;.</source>
         <translation>Экспортировано: «%1».</translation>
-    </message>
-    <message>
-        <source>Imported &quot;%1&quot;. Commands: %2. Skipped commands this Patchy does not have: %3. Skipped keys it cannot use: %4. Click OK to apply.</source>
-        <translation>Импортировано: «%1». Команд: %2. Пропущено команд, которых нет в этой версии Patchy: %3. Пропущено клавиш, которые нельзя использовать: %4. Нажмите OK, чтобы применить.</translation>
     </message>
     <message>
         <source>Export Hotkeys</source>
@@ -20017,16 +20017,8 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Импорт не удался</translation>
     </message>
     <message>
-        <source>Replace your current shortcuts with the ones in &quot;%1&quot;? Shortcuts the file does not set go back to Patchy&apos;s defaults.</source>
-        <translation>Заменить текущие горячие клавиши клавишами из «%1»? Клавиши, которые файл не задаёт, вернутся к значениям Patchy по умолчанию.</translation>
-    </message>
-    <message>
         <source>Shortcut Set</source>
         <translation>Набор горячих клавиш</translation>
-    </message>
-    <message>
-        <source>Replace your own shortcut changes with the %1 set? Export them first to keep a copy.</source>
-        <translation>Заменить ваши изменения горячих клавиш набором «%1»? Сначала экспортируйте их, чтобы сохранить копию.</translation>
     </message>
     <message>
         <source>Custom</source>
@@ -20055,6 +20047,79 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Krita-style</source>
         <translation>Как в Krita</translation>
+    </message>
+    <message>
+        <source>Patchy default</source>
+        <translation>Patchy по умолчанию</translation>
+    </message>
+    <message>
+        <source>%1 (built-in)</source>
+        <extracomment>A shortcut set shipped with Patchy, in the Preferences &gt; Hotkeys set list. %1 is its name.</extracomment>
+        <translation>%1 (встроенный)</translation>
+    </message>
+    <message>
+        <source>Built-in sets never change: changing a key in one puts your keys in the Custom set. Rename it to keep it as a set of your own.</source>
+        <translation>Встроенные наборы никогда не меняются: если изменить клавишу в одном из них, ваши клавиши попадут в набор «Пользовательский». Переименуйте его, чтобы сохранить как собственный набор.</translation>
+    </message>
+    <message>
+        <source>Rename...</source>
+        <translation>Переименовать...</translation>
+    </message>
+    <message>
+        <source>Name this set of yours</source>
+        <translation>Дать имя этому собственному набору</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Удалить</translation>
+    </message>
+    <message>
+        <source>Remove this set of yours</source>
+        <translation>Удалить этот собственный набор</translation>
+    </message>
+    <message>
+        <source>Add the shortcuts saved in a hotkey file as a set of your own</source>
+        <translation>Добавить сочетания из файла как собственный набор</translation>
+    </message>
+    <message>
+        <source>Save the shortcuts shown to a file you can keep or share</source>
+        <translation>Сохранить показанные сочетания в файл, который можно хранить или передать</translation>
+    </message>
+    <message>
+        <source>Imported &quot;%1&quot; as the set &quot;%2&quot;. Commands: %3. Skipped commands this Patchy does not have: %4. Skipped keys it cannot use: %5. Click OK to apply.</source>
+        <translation>«%1» импортирован как набор «%2». Команды: %3. Пропущены команды, которых нет в этой версии Patchy: %4. Пропущены непригодные клавиши: %5. Нажмите ОК, чтобы применить.</translation>
+    </message>
+    <message>
+        <source>Set name:</source>
+        <translation>Имя набора:</translation>
+    </message>
+    <message>
+        <source>A shortcut set named &quot;%1&quot; already exists. Choose another name.</source>
+        <translation>Набор горячих клавиш с именем «%1» уже есть. Выберите другое имя.</translation>
+    </message>
+    <message>
+        <source>Rename Shortcut Set</source>
+        <translation>Переименование набора горячих клавиш</translation>
+    </message>
+    <message>
+        <source>Delete Shortcut Set</source>
+        <translation>Удаление набора горячих клавиш</translation>
+    </message>
+    <message>
+        <source>Delete the shortcut set &quot;%1&quot;? Patchy&apos;s default shortcuts take its place.</source>
+        <translation>Удалить набор горячих клавиш «%1»? Его место займут стандартные сочетания Patchy.</translation>
+    </message>
+    <message>
+        <source>Imported shortcuts</source>
+        <translation>Импортированные сочетания</translation>
+    </message>
+    <message>
+        <source>%1 is built in and never changes, so your change goes into the Custom set, which already holds other changes. Replace them? To keep them, click Cancel and rename Custom first.</source>
+        <translation>%1 встроенный и никогда не меняется, поэтому изменение попадёт в набор «Пользовательский», где уже есть другие изменения. Заменить их? Чтобы сохранить их, нажмите «Отмена» и сначала переименуйте «Пользовательский».</translation>
+    </message>
+    <message>
+        <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
+        <translation>%1 встроенный, поэтому ваши изменения в наборе «Пользовательский». Переименуйте его, чтобы сохранить как собственный набор.</translation>
     </message>
 </context>
 <context>
@@ -32859,6 +32924,54 @@ Locked: %1</source>
         <source>Select a fill layer to edit its settings</source>
         <translation>Выберите слой-заливку, чтобы изменить его параметры</translation>
     </message>
+    <message>
+        <source>Rotate View Left</source>
+        <translation>Повернуть вид влево</translation>
+    </message>
+    <message>
+        <source>Rotate View Right</source>
+        <translation>Повернуть вид вправо</translation>
+    </message>
+    <message>
+        <source>Reset View Rotation</source>
+        <translation>Сбросить поворот вида</translation>
+    </message>
+    <message>
+        <source>Rotation Angle:</source>
+        <translation>Угол поворота:</translation>
+    </message>
+    <message>
+        <source>The view&apos;s angle, clockwise. Only the view turns; the image does not change</source>
+        <translation>Угол вида по часовой стрелке. Поворачивается только вид, изображение не меняется</translation>
+    </message>
+    <message>
+        <source>Reset View</source>
+        <translation>Сбросить вид</translation>
+    </message>
+    <message>
+        <source>Turn the view upright again (View &gt; Reset View Rotation)</source>
+        <translation>Вернуть вид в прямое положение (Вид &gt; Сбросить поворот вида)</translation>
+    </message>
+    <message>
+        <source>Drag to turn the view, Shift snaps to 15 degrees. Esc or Reset View turns it upright. The image does not change.</source>
+        <translation>Перетащите, чтобы повернуть вид, Shift задаёт шаг 15 градусов. Esc или «Сбросить вид» выпрямляет его. Изображение не меняется.</translation>
+    </message>
+    <message>
+        <source>Rotate View: drag to turn the view like a sheet of paper, Shift snaps to 15 degrees. Esc turns it upright. Only the view turns; the image is unchanged.</source>
+        <translation>Поворот вида: перетащите, чтобы поворачивать вид, как лист бумаги, Shift задаёт шаг 15 градусов. Esc выпрямляет его. Поворачивается только вид, изображение не меняется.</translation>
+    </message>
+    <message>
+        <source>Hand Tools</source>
+        <translation>Инструменты «Рука»</translation>
+    </message>
+    <message>
+        <source>Rotate View</source>
+        <translation>Поворот вида</translation>
+    </message>
+    <message>
+        <source>Cycle Hand Tools</source>
+        <translation>Сменить инструмент «Рука»</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35119,6 +35232,14 @@ Locked: %1</source>
     <message>
         <source>feather needs a radius from %1 to %2.</source>
         <translation>feather требует радиуса от %1 до %2.</translation>
+    </message>
+    <message>
+        <source>rotation needs a number of degrees.</source>
+        <translation>rotation требует число градусов.</translation>
+    </message>
+    <message>
+        <source>No document is open to rotate the view of.</source>
+        <translation>Ни один документ не открыт для поворота вида.</translation>
     </message>
 </context>
 <context>

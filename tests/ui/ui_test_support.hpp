@@ -28,6 +28,7 @@
 #include <QPointingDevice>
 #include <QRect>
 #include <QRegion>
+#include <QHash>
 #include <QSettings>
 #include <QString>
 #include <QStringList>
@@ -166,6 +167,38 @@ private:
   QString key_;
   bool had_value_{false};
   QVariant value_;
+};
+
+// Snapshots every key under a settings group (subgroups and arrays included), clears the
+// group, and puts the snapshot back on destruction.
+class SettingsGroupRestorer {
+public:
+  explicit SettingsGroupRestorer(QString group) : group_(std::move(group)) {
+    auto settings = patchy::ui::app_settings();
+    settings.beginGroup(group_);
+    for (const auto& key : settings.allKeys()) {
+      saved_.insert(key, settings.value(key));
+    }
+    settings.endGroup();
+    settings.remove(group_);
+    settings.sync();
+  }
+  ~SettingsGroupRestorer() {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(group_);
+    settings.beginGroup(group_);
+    for (auto it = saved_.constBegin(); it != saved_.constEnd(); ++it) {
+      settings.setValue(it.key(), it.value());
+    }
+    settings.endGroup();
+    settings.sync();
+  }
+  SettingsGroupRestorer(const SettingsGroupRestorer&) = delete;
+  SettingsGroupRestorer& operator=(const SettingsGroupRestorer&) = delete;
+
+private:
+  QString group_;
+  QHash<QString, QVariant> saved_;
 };
 
 // The MainWindow constructor loads tools/* settings, so pin the vector keys

@@ -3050,7 +3050,10 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action(window, "toolSpotHealingAction")->shortcut().isEmpty());
   CHECK(require_action(window, "toolCycleHealingAction")->shortcut() == QKeySequence(Qt::SHIFT | Qt::Key_J));
   CHECK(require_action(window, "toolPatchAction")->shortcut().isEmpty());
-  CHECK(require_action_by_text(window, QStringLiteral("Smudge"))->shortcut() == QKeySequence(Qt::Key_R));
+  // R is Rotate View, as in Photoshop; Smudge stays on the detail group's Shift+R.
+  CHECK(require_action_by_text(window, QStringLiteral("Smudge"))->shortcut().isEmpty());
+  CHECK(require_action(window, "toolRotateViewAction")->shortcut() == QKeySequence(Qt::Key_R));
+  CHECK(require_action(window, "toolCycleHandAction")->shortcut() == QKeySequence(Qt::SHIFT | Qt::Key_H));
   CHECK(require_action(window, "toolBlurAction")->shortcut().isEmpty());
   CHECK(require_action(window, "toolCycleDetailAction")->shortcut() == QKeySequence(Qt::SHIFT | Qt::Key_R));
   CHECK(require_action(window, "toolSharpenAction")->shortcut().isEmpty());
@@ -3086,7 +3089,7 @@ void ui_photoshop_shortcuts_are_registered() {
   };
   tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Move")));
   tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Brush")));
-  tooltip_matches_shortcut(require_action_by_text(window, QStringLiteral("Smudge")));
+  tooltip_matches_shortcut(require_action(window, "toolRotateViewAction"));
   tooltip_matches_shortcut(require_action(window, "toolCycleDetailAction"));
   tooltip_matches_shortcut(require_action(window, "toolDodgeAction"));
   tooltip_matches_shortcut(require_action(window, "toolCycleToningAction"));
@@ -4075,10 +4078,13 @@ public:
   }
 private:
   QHash<QString, QVariant> saved_;
+  // The user's own shortcut sets (docs/hotkey-sets.md): an edit made by a test lands there.
+  SettingsGroupRestorer sets_{QStringLiteral("hotkeySets")};
 };
 void clear_hotkey_overrides() {
   auto settings = patchy::ui::app_settings();
   settings.remove(QStringLiteral("hotkeys"));
+  settings.remove(QStringLiteral("hotkeySets"));
   settings.sync();
 }
 void ui_hotkey_resolution_rules() {
@@ -4800,6 +4806,12 @@ void ui_command_search_lists_tools_keys_and_descriptions() {
     const bool object_select_built = patchy::ai::segmentation_available();
     for (const auto& id : patchy::ui::command_search_described_ids()) {
       if (!object_select_built && id == QStringLiteral("tools.object_select")) {
+        continue;
+      }
+      // The Clear Recent entries exist only while their list holds something
+      // (rebuild_recent_files_menu), which depends on the machine's history.
+      if ((id == QStringLiteral("fileClearRecentAction") || id == QStringLiteral("fileClearRecentFoldersAction")) &&
+          window.findChild<QAction*>(id) == nullptr) {
         continue;
       }
       if (!listed_ids.contains(id) && !other_platforms.contains(id)) {

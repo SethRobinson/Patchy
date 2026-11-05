@@ -363,6 +363,7 @@ int main(int argc, char* argv[]) {
     // would otherwise leave the overrides in the shared store permanently and
     // fail every later default-shortcut assertion.
     settings.remove(QStringLiteral("hotkeys"));
+    settings.remove(QStringLiteral("hotkeySets"));
     settings.remove(QStringLiteral("preferences/language"));
     settings.remove(QStringLiteral("preferences/colorScheme"));
     settings.setValue(QStringLiteral("updates/checkOnStartup"), false);
@@ -403,6 +404,7 @@ int main(int argc, char* argv[]) {
            pickers_notices_hotkeys_tests,
            hotkey_sets_tests,
            canvas_view_tools_tests,
+           view_rotation_tests,
            layer_context_lifecycle_tests,
            layer_export_tests,
            layer_menu_commands_tests,

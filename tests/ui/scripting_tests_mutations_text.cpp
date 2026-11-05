@@ -1316,6 +1316,8 @@ void ui_script_remove_object_heals_selection() {
   CHECK(backlog_contains(window, QStringLiteral("variation=2 method=contentAware patches=true")));
   CHECK(backlog_contains(window, QStringLiteral("option-refused=true")));
   CHECK(!backlog_contains(window, QStringLiteral("option-no-throw")));
+  // Healed from the layer the script just filled, not from a composite missing it (the
+  // render cache before the script's queued refresh reached the canvas, GitHub #597).
   CHECK(backlog_contains(window, QStringLiteral("healed=40,80,160,255")));
   CHECK(backlog_contains(window, QStringLiteral("refused=true")));
   CHECK(!backlog_contains(window, QStringLiteral("no-throw")));

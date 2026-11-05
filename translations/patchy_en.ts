@@ -19373,6 +19373,26 @@ Each item&apos;s own View setting still applies.</source>
         <source>Change the color, gradient or pattern of a fill layer</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Turn the canvas counterclockwise on screen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn the canvas clockwise on screen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn the canvas upright again</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn the canvas on screen like a sheet of paper</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Switch between the hand and rotate view tools</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -19896,19 +19916,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Start from Patchy&apos;s shortcuts or from a set laid out like another editor&apos;s. You can still change any key afterwards.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Patchy (default)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Import...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Replace the shortcuts with ones saved in a hotkey file</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -19916,15 +19924,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Save your shortcut changes to a file you can keep or share</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Exported &quot;%1&quot;.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Imported &quot;%1&quot;. Commands: %2. Skipped commands this Patchy does not have: %3. Skipped keys it cannot use: %4. Click OK to apply.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -19952,15 +19952,7 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Replace your current shortcuts with the ones in &quot;%1&quot;? Shortcuts the file does not set go back to Patchy&apos;s defaults.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Shortcut Set</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Replace your own shortcut changes with the %1 set? Export them first to keep a copy.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -19989,6 +19981,79 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>Krita-style</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy default</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 (built-in)</source>
+        <extracomment>A shortcut set shipped with Patchy, in the Preferences &gt; Hotkeys set list. %1 is its name.</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Built-in sets never change: changing a key in one puts your keys in the Custom set. Rename it to keep it as a set of your own.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rename...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Name this set of yours</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove this set of yours</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add the shortcuts saved in a hotkey file as a set of your own</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save the shortcuts shown to a file you can keep or share</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Imported &quot;%1&quot; as the set &quot;%2&quot;. Commands: %3. Skipped commands this Patchy does not have: %4. Skipped keys it cannot use: %5. Click OK to apply.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Set name:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A shortcut set named &quot;%1&quot; already exists. Choose another name.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rename Shortcut Set</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete Shortcut Set</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete the shortcut set &quot;%1&quot;? Patchy&apos;s default shortcuts take its place.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Imported shortcuts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 is built in and never changes, so your change goes into the Custom set, which already holds other changes. Replace them? To keep them, click Cancel and rename Custom first.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -32692,6 +32757,54 @@ Locked: %1</source>
         <source>Select a fill layer to edit its settings</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Rotate View Left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rotate View Right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset View Rotation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rotation Angle:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The view&apos;s angle, clockwise. Only the view turns; the image does not change</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset View</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn the view upright again (View &gt; Reset View Rotation)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag to turn the view, Shift snaps to 15 degrees. Esc or Reset View turns it upright. The image does not change.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rotate View: drag to turn the view like a sheet of paper, Shift snaps to 15 degrees. Esc turns it upright. Only the view turns; the image is unchanged.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hand Tools</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rotate View</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cycle Hand Tools</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -34950,6 +35063,14 @@ Locked: %1</source>
     </message>
     <message>
         <source>feather needs a radius from %1 to %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>rotation needs a number of degrees.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No document is open to rotate the view of.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

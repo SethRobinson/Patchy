@@ -69,7 +69,8 @@ void CanvasWidget::invalidate_vector_preview() noexcept {
 }
 
 bool CanvasWidget::vector_preview_available_for_view() const noexcept {
-  return vector_preview_enabled_ && document_ != nullptr && isVisible() &&
+  // The sharp vector frame is rendered axis-aligned; a rotated view shows the composite.
+  return vector_preview_enabled_ && document_ != nullptr && isVisible() && view_axis_aligned() &&
       view_zoom() > 1.0 && !pointer_gesture_active() &&
       (!transforming_layer_ || free_transform_vector_preview_possible()) && !warping_layer_ && !tiling_preview_enabled_ &&
       layer_edit_target_ == LayerEditTarget::Content && !quick_mask_active_ &&

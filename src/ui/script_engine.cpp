@@ -1961,6 +1961,10 @@ bool ScriptEngineHost::remove_object_in_selection(std::int64_t session_id, Layer
   options.tone_match = tone_match;
   options.feather = feather;
   options.record_history = false;
+  // The script's earlier edits wait in pending_refresh_ until the next flush, so the canvas
+  // render cache can look settled while missing them; Remove Object samples that cache
+  // (retouch_source_snapshot, GitHub #597) and would heal from the stale composite.
+  flush_pending_refresh();
   const auto result = canvas->remove_object_in_selection(options);
   if (!result.applied) {
     throw_js_error(result.error);
@@ -3989,6 +3993,23 @@ QJSValue ScriptEngineHost::side_panel_state(const QString& name) {
 double ScriptEngineHost::view_zoom_percent() const {
   const auto* canvas = session_canvas(active_session_id());
   return canvas != nullptr ? canvas->view_zoom() * 100.0 : 0.0;
+}
+
+double ScriptEngineHost::view_rotation_degrees() const {
+  const auto* canvas = session_canvas(active_session_id());
+  return canvas != nullptr ? canvas->view_rotation() : 0.0;
+}
+
+void ScriptEngineHost::set_view_rotation_degrees(double degrees) {
+  pump_progress_indicator();
+  auto* canvas = session_canvas(active_session_id());
+  if (canvas == nullptr) {
+    throw_js_error(tr("No document is open to rotate the view of."));
+    return;
+  }
+  // Wraps into (-180, 180] and pivots on the view center; the view-changed notification
+  // refreshes the Rotate View options bar.
+  canvas->set_view_rotation(degrees);
 }
 
 bool ScriptEngineHost::view_proof_colors() const { return window_.view_proof_colors_action_->isChecked(); }

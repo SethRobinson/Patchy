@@ -189,6 +189,8 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.convert_point");
     case CanvasTool::Artboard:
       return QStringLiteral("tools.artboard");
+    case CanvasTool::RotateView:
+      return QStringLiteral("tools.rotate_view");
   }
   return QStringLiteral("tools.unknown");
 }
@@ -233,6 +235,9 @@ const char* tool_tooltip_detail_source(CanvasTool tool) {
     case CanvasTool::Ruler:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Drag to measure, Shift keeps 45 degrees. Drag an end or the line to adjust "
              "it, %ALT%+drag an end to measure an angle.");
+    case CanvasTool::RotateView:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Drag to turn the view, Shift snaps to 15 degrees. Esc or Reset View turns "
+             "it upright. The image does not change.");
     default:
       return nullptr;
   }
@@ -288,6 +293,9 @@ const char* tool_activation_hint_source(CanvasTool tool) {
     case CanvasTool::ContentAwareMove:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Content-Aware Move: draw around an object, then drag the selection to its new place. "
              "Move fills the spot it leaves, Extend keeps the original.");
+    case CanvasTool::RotateView:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Rotate View: drag to turn the view like a sheet of paper, Shift snaps to 15 "
+             "degrees. Esc turns it upright. Only the view turns; the image is unchanged.");
     // The selection tools name their Shift / Alt combinations (GitHub issue 192); the
     // cursor already shows the drag, resize and move gestures. Shift+Alt intersects
     // everywhere except Quick Select and Object Selection, which treat it as Add.
@@ -1400,6 +1408,9 @@ QIcon tool_icon(CanvasTool tool) {
     case CanvasTool::Artboard:
       name = "tool-artboard";
       break;
+    case CanvasTool::RotateView:
+      name = "tool-rotate-view";
+      break;
   }
   return themed_svg_icon(QLatin1String(name));
 }
@@ -1723,7 +1734,7 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   detail_menu->setObjectName(QStringLiteral("detailToolMenu"));
   bind_widget_text(detail_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Detail Tools"));
   auto* smudge_action =
-      create_flyout_tool_action(detail_menu, tr("Smudge"), CanvasTool::Smudge, QKeySequence(Qt::Key_R));
+      create_flyout_tool_action(detail_menu, tr("Smudge"), CanvasTool::Smudge, QKeySequence());
   auto* mixer_brush_action = create_flyout_tool_action(
       detail_menu, tr("Mixer Brush"), CanvasTool::MixerBrush, QKeySequence());
   auto* blur_action = create_flyout_tool_action(detail_menu, tr("Blur"), CanvasTool::BlurBrush, QKeySequence());
@@ -1821,7 +1832,19 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   configure_tool_flyout(tool_palette, pick_menu, pick_tool_button, pick_action, {pick_action, ruler_action},
                         QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Cycle Pick Tools"),
                         "toolCyclePickAction", "tools.cycle.pick", QKeySequence(Qt::SHIFT | Qt::Key_I));
-  add_tool_action(tool_palette, tool_group, tr("Hand"), CanvasTool::Pan, QKeySequence(Qt::Key_H), cluster);
+  // Hand and Rotate View share a slot, as in Photoshop (docs/view-navigation-rotation.md).
+  // The group button keeps the Hand's handToolButton name.
+  auto* hand_menu = new ToolFlyoutMenu(tr("Hand Tools"), tool_palette);
+  hand_menu->setObjectName(QStringLiteral("handToolMenu"));
+  bind_widget_text(hand_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Hand Tools"));
+  auto* hand_action = create_flyout_tool_action(hand_menu, tr("Hand"), CanvasTool::Pan, QKeySequence(Qt::Key_H));
+  auto* rotate_view_action =
+      create_flyout_tool_action(hand_menu, tr("Rotate View"), CanvasTool::RotateView, QKeySequence(Qt::Key_R));
+  auto* hand_tool_button = new QToolButton(tool_palette);
+  hand_tool_button->setObjectName(QStringLiteral("handToolButton"));
+  configure_tool_flyout(tool_palette, hand_menu, hand_tool_button, hand_action, {hand_action, rotate_view_action},
+                        QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Cycle Hand Tools"),
+                        "toolCycleHandAction", "tools.cycle.hand", QKeySequence(Qt::SHIFT | Qt::Key_H));
   add_tool_action(tool_palette, tool_group, tr("Zoom"), CanvasTool::Zoom, QKeySequence(Qt::Key_Z), cluster);
   if (auto* zoom_button = findChild<QToolButton*>(QStringLiteral("zoomToolButton")); zoom_button != nullptr) {
     zoom_button->installEventFilter(new MouseDoubleClickFilter(

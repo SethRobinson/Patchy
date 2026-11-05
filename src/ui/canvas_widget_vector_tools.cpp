@@ -797,10 +797,7 @@ void CanvasWidget::draw_pen_overlay(QPainter& painter) {
   if (tool_ != CanvasTool::Pen || !pen_session_active_ || pen_anchors_.empty()) {
     return;
   }
-  const auto to_screen = [this](double x, double y) {
-    const auto origin = widget_position_for_document_point(QPoint(0, 0));
-    return QPointF(origin.x() + x * zoom_, origin.y() + y * zoom_);
-  };
+  const auto to_screen = [this](double x, double y) { return path_point_to_screen(x, y); };
 
   painter.save();
   painter.setRenderHint(QPainter::Antialiasing, true);
@@ -1818,6 +1815,9 @@ void CanvasWidget::prune_extra_path_selection() {
 }
 
 QPointF CanvasWidget::path_point_to_screen(double x, double y) const {
+  if (!view_axis_aligned()) {
+    return widget_position_f(QPointF(x, y));
+  }
   const auto origin = widget_position_for_document_point(QPoint(0, 0));
   return QPointF(origin.x() + x * zoom_, origin.y() + y * zoom_);
 }
@@ -3955,8 +3955,10 @@ void CanvasWidget::apply_path_transform_cursor(QPoint widget_point, Qt::Keyboard
     return;
   }
   if (transform_handle_is_corner(handle) || transform_handle_is_edge(handle)) {
-    // Right's base direction is 0 degrees, so the handle's own direction picks the shape.
-    set_transform_cursor_for_handle(TransformHandle::Right, transform_quad_handle_direction(screen, handle));
+    // Right's base direction is 0 degrees, so the handle's own direction picks the shape. It is
+    // measured on screen, so the view's turn, which the helper adds, comes back off.
+    set_transform_cursor_for_handle(TransformHandle::Right,
+                                    transform_quad_handle_direction(screen, handle) - view_rotation_degrees_);
     return;
   }
   set_transform_cursor_for_handle(handle);

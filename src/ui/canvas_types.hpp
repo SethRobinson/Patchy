@@ -96,7 +96,9 @@ enum class CanvasTool {
   // October 2026 Ruler (append-only: values ride persisted settings).
   Ruler,
   // November 2026 Content-Aware Move (append-only: values ride persisted settings).
-  ContentAwareMove
+  ContentAwareMove,
+  // November 2026 Rotate View (append-only: values ride persisted settings).
+  RotateView
 };
 
 // The tools that draw a lasso outline and drag the selected region (the Patch tool's

@@ -300,7 +300,8 @@ bool CanvasWidget::pixel_grid_drawn() const noexcept {
 }
 
 bool CanvasWidget::deep_zoom_pixels_active() const noexcept {
-  return uses_deep_zoom_pixel_renderer(view_zoom()) || pixel_grid_drawn();
+  // The per-device-pixel raster is axis-aligned; a rotated view draws under its transform.
+  return view_rotation_degrees_ == 0.0 && (uses_deep_zoom_pixel_renderer(view_zoom()) || pixel_grid_drawn());
 }
 
 void CanvasWidget::set_guides_visible(bool visible) noexcept {
@@ -944,10 +945,12 @@ int CanvasWidget::guide_at_widget_position(QPoint widget_position) const {
 }
 
 GuideOrientation CanvasWidget::guide_orientation_from_ruler(QPoint widget_position) const noexcept {
-  if (widget_position.y() < kTopRulerHeight && widget_position.x() >= kLeftRulerWidth) {
-    return GuideOrientation::Horizontal;
-  }
-  return GuideOrientation::Vertical;
+  const bool top_ruler = widget_position.y() < kTopRulerHeight && widget_position.x() >= kLeftRulerWidth;
+  // A guide runs along its ruler on screen. Turned more than 45 degrees, the screen's
+  // horizontal is nearer the document's y axis, so the guide takes the other orientation.
+  const auto turn = std::abs(view_rotation_degrees_);
+  const bool axes_swapped = turn > 45.0 && turn < 135.0;
+  return top_ruler != axes_swapped ? GuideOrientation::Horizontal : GuideOrientation::Vertical;
 }
 
 bool CanvasWidget::widget_position_in_ruler(QPoint widget_position) const noexcept {

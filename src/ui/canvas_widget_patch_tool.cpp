@@ -1003,7 +1003,8 @@ void CanvasWidget::draw_patch_tool_drag_outline(QPainter& painter) const {
   painter.save();
   painter.setRenderHint(QPainter::Antialiasing, false);
   const auto origin = widget_position_f(QPointF(patch_tool_drag_delta_));
-  const QTransform document_to_widget(zoom_, 0.0, 0.0, zoom_, origin.x(), origin.y());
+  const auto view = view_transform().to_widget();
+  const QTransform document_to_widget(view.m11(), view.m12(), view.m21(), view.m22(), origin.x(), origin.y());
   const auto path = document_to_widget.map(patch_tool_outline_path_);
   painter.setBrush(Qt::NoBrush);
   // The marching-ants black/white pair is deliberately theme-exempt, like the

@@ -4585,6 +4585,16 @@ void ScriptUiObject::set_zoom(double percent) {
   host_.set_view_zoom_percent(percent);
 }
 
+double ScriptUiObject::rotation() const { const ScriptApiCall api_call(host_); return host_.view_rotation_degrees(); }
+void ScriptUiObject::set_rotation(double degrees) {
+  const ScriptApiCall api_call(host_);
+  if (!std::isfinite(degrees)) {
+    host_.throw_js_error(ScriptEngineHost::tr("rotation needs a number of degrees."));
+    return;
+  }
+  host_.set_view_rotation_degrees(degrees);
+}
+
 void ScriptUiObject::fitOnScreen() { const ScriptApiCall api_call(host_); host_.fit_view_on_screen(); }
 bool ScriptUiObject::proof_colors() const { const ScriptApiCall api_call(host_); return host_.view_proof_colors(); }
 void ScriptUiObject::set_proof_colors(bool enabled) { const ScriptApiCall api_call(host_); host_.set_view_proof_colors(enabled); }
