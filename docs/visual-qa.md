@@ -101,6 +101,8 @@ Useful diagnostic variables:
 - `QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES=1` makes `patchy.exe --help` and command-line parse errors print to the redirected stdout/stderr instead of a modal Win32 message box (patchy.exe is a GUI-subsystem binary), which is what an automated `--help` check needs.
 - `PATCHY_UI_PROFILE=1` prints stderr timing lines for instrumented UI stages (layer-panel rebuild phases, layer-style dialog open/close, undo snapshots).
 - `PATCHY_PERF_SAMPLER=1` (patchy_perf_tests only) samples the main thread's stacks every 10 ms and prints the hottest ones at exit.
+- `PATCHY_RENDER_BACKEND=auto|webgpu|cpu|opengl|vulkan|metal|d3d11|d3d12` selects the graphics preference; unset means `cpu`, and only `webgpu`/`gpu` probes Dawn, and only when it was found at configure time. `auto` uses Qt Quick/RHI for presentation only. A hardware scene graph or Dawn adapter can still fall back to the complete CPU compositor when the document is outside the GPU capability matrix. See [GPU canvas and document composition](gpu-canvas.md).
+- `PATCHY_GPU_CANVAS=auto|cpu` is the older compatibility alias for the same preference.
 
 ## Checksums and corpus fixtures
 
