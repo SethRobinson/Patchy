@@ -848,29 +848,41 @@ void ui_blocked_window_cursor_survives_reactivation_and_tool_switches() {
 // rebuilds, so Qt had no widget under the pointer to compare moves against and never entered the
 // new canvas, and none of its cursor changes reached the window. The pointer position Qt reports
 // can be stale on Wayland, so the unblock could not find the canvas either. The filter gives the
-// window the enter it missed on its first mouse move after the modal closes.
-void ui_blocked_window_cursor_returns_after_open_recent_file() {
+// window the enter it missed on its first mouse move after the modal closes. The rule is not the
+// marquee's: whichever tool is active gets its cursor back, and File > Open Recent Folder, which
+// shows the Open dialog before the Opening dialog, ends the same way (the follow-up to 634).
+enum class OpenRecentRoute { file, folder };
+
+void check_tool_cursor_returns_after_open_recent(const QString& tool_text, OpenRecentRoute route) {
   // Put the pointer back afterwards: a later test reads canvas hover from where it rests.
   const auto restore_pointer = qScopeGuard([pointer = QCursor::pos()] { QCursor::setPos(pointer); });
   ensure_artifact_dir();
-  const auto first_path = QFileInfo(QStringLiteral("test-artifacts/issue634-first.png")).absoluteFilePath();
-  const auto second_path = QFileInfo(QStringLiteral("test-artifacts/issue634-second.png")).absoluteFilePath();
+  const bool folder = route == OpenRecentRoute::folder;
+  const auto dir = QFileInfo(folder ? QStringLiteral("test-artifacts/issue634-recent-folder")
+                                    : QStringLiteral("test-artifacts"))
+                       .absoluteFilePath();
+  CHECK(QDir().mkpath(dir));
+  const auto first_path = dir + QStringLiteral("/issue634-first.png");
+  const auto second_path = dir + QStringLiteral("/issue634-second.png");
   for (const auto& path : {first_path, second_path}) {
     QImage image(160, 120, QImage::Format_RGB32);
     image.fill(QColor(200, 200, 200));
     CHECK(image.save(path));
   }
   SettingsValueRestorer recent_files_restorer(QStringLiteral("recentFiles"));
+  SettingsValueRestorer recent_folders_restorer(QStringLiteral("recentFolders"));
+  SettingsValueRestorer last_open_directory_restorer(QStringLiteral("lastOpenDirectory"));
   {
     auto settings = patchy::ui::app_settings();
     settings.setValue(QStringLiteral("recentFiles"), QStringList{second_path, first_path});
+    settings.setValue(QStringLiteral("recentFolders"), QStringList{dir});
     settings.sync();
   }
   patchy::ui::MainWindow window;
   show_window_empty(window);
   patchy::ui::MainWindowTestAccess::open_document_path(window, first_path);
   QApplication::processEvents();
-  require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+  require_action_by_text(window, tool_text)->trigger();
   QApplication::processEvents();
   auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
   CHECK(tabs != nullptr && tabs->count() == 1);
@@ -895,7 +907,7 @@ void ui_blocked_window_cursor_returns_after_open_recent_file() {
   QCursor::setPos(window.geometry().topLeft() - QPoint(40, 40));
   QApplication::processEvents();
 
-  // The pointer enters the window over the canvas: the marquee cursor shows.
+  // The pointer enters the window over the canvas: the tool's cursor shows.
   auto* first_canvas = require_canvas(window);
   const QPoint canvas_point = first_canvas->mapTo(&window, first_canvas->rect().center());
   QEnterEvent enter_main(canvas_point, canvas_point, window.mapToGlobal(canvas_point));
@@ -905,16 +917,18 @@ void ui_blocked_window_cursor_returns_after_open_recent_file() {
   CHECK(tool_shape != Qt::ArrowCursor);
   CHECK(handle->cursor().shape() == tool_shape);
 
-  // File > Open Recent File: the pointer leaves for the menu and clicks the other file's row.
-  auto* recent_menu = window.findChild<QMenu*>(QStringLiteral("fileOpenRecentMenu"));
+  // File > Open Recent File (or Folder): the pointer leaves for the menu and clicks the other
+  // file's row (or the folder's).
+  const auto prefix = folder ? QStringLiteral("fileOpenRecentFolder") : QStringLiteral("fileOpenRecent");
+  auto* recent_menu = window.findChild<QMenu*>(prefix + QStringLiteral("Menu"));
   CHECK(recent_menu != nullptr);
-  auto* list = recent_menu != nullptr ? recent_menu->findChild<QListWidget*>(QStringLiteral("fileOpenRecentList"))
-                                      : nullptr;
-  CHECK(list != nullptr && list->count() == 2);
-  if (list == nullptr || list->count() != 2) {
+  auto* list =
+      recent_menu != nullptr ? recent_menu->findChild<QListWidget*>(prefix + QStringLiteral("List")) : nullptr;
+  CHECK(list != nullptr && list->count() > 0);
+  if (list == nullptr || list->count() == 0) {
     return;
   }
-  // Counts the times the Opening dialog blocks the main window.
+  // Counts the times the Open and Opening dialogs block the main window.
   class BlockCounter : public QObject {
    public:
     int count = 0;
@@ -935,18 +949,58 @@ void ui_blocked_window_cursor_returns_after_open_recent_file() {
   if (menu_handle == nullptr) {
     return;
   }
-  // Opening the first file put it on top; the second file's row opens a new document.
-  QListWidgetItem* second_row = nullptr;
+  // Opening the first file put it on top; the second file's row opens a new document, and the
+  // folder's row shows the Open dialog in that folder.
+  const auto row_path = folder ? dir : second_path;
+  QListWidgetItem* target_row = nullptr;
   for (int row = 0; row < list->count(); ++row) {
-    if (list->item(row)->data(patchy::ui::kRecentPathRole).toString() == second_path) {
-      second_row = list->item(row);
+    if (QFileInfo(list->item(row)->data(patchy::ui::kRecentPathRole).toString()).absoluteFilePath() ==
+        QFileInfo(row_path).absoluteFilePath()) {
+      target_row = list->item(row);
     }
   }
-  CHECK(second_row != nullptr);
-  if (second_row == nullptr) {
+  CHECK(target_row != nullptr);
+  if (target_row == nullptr) {
     return;
   }
-  const QPoint row_point = list->viewport()->mapTo(recent_menu, list->visualItemRect(second_row).center());
+  // The Open dialog: the pointer enters it and picks the second file; the closing dialog's window
+  // reports the leave, and the main window's enter that follows is dropped while a dialog still
+  // blocks it (the Open dialog until it hides, then the Opening dialog).
+  bool picked = false;
+  QTimer picker;
+  picker.setInterval(10);
+  QObject::connect(&picker, &QTimer::timeout, guarded([&] {
+    auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("openFileDialog")));
+    if (dialog == nullptr || !dialog->isVisible()) {
+      return;
+    }
+    picker.stop();
+    CHECK(QFileInfo(dialog->directory().absolutePath()) == QFileInfo(dir));
+    QWindow* dialog_handle = dialog->windowHandle();
+    CHECK(dialog_handle != nullptr);
+    const QPoint inside(dialog->width() / 2, dialog->height() / 2);
+    if (dialog_handle != nullptr) {
+      QEnterEvent enter_dialog(inside, inside, dialog->mapToGlobal(inside));
+      QCoreApplication::sendEvent(dialog_handle, &enter_dialog);
+      send_mouse(dialog_handle, QEvent::MouseMove, inside, Qt::NoButton, Qt::NoButton);
+    }
+    auto* name_edit = dialog->findChild<QLineEdit*>(QStringLiteral("fileNameEdit"));
+    CHECK(name_edit != nullptr);
+    if (name_edit != nullptr) {
+      name_edit->setText(QFileInfo(second_path).fileName());
+    }
+    QApplication::processEvents();
+    picked = true;
+    static_cast<QDialog*>(dialog)->accept();
+    if (dialog_handle != nullptr) {
+      QEvent leave_dialog(QEvent::Leave);
+      QCoreApplication::sendEvent(dialog_handle, &leave_dialog);
+    }
+  }));
+  if (folder) {
+    picker.start();
+  }
+  const QPoint row_point = list->viewport()->mapTo(recent_menu, list->visualItemRect(target_row).center());
   QEnterEvent enter_menu(row_point, row_point, recent_menu->mapToGlobal(row_point));
   QCoreApplication::sendEvent(menu_handle, &enter_menu);
   send_mouse(menu_handle, QEvent::MouseMove, row_point, Qt::NoButton, Qt::NoButton);
@@ -965,13 +1019,16 @@ void ui_blocked_window_cursor_returns_after_open_recent_file() {
   }
   QApplication::processEvents();
   handle->removeEventFilter(&blocks);
+  picker.stop();
+  CHECK(picked == folder);
   CHECK(tabs->count() == 2);
-  CHECK(blocks.count > 0);
+  CHECK(blocks.count > (folder ? 1 : 0));
+  CHECK(QFileInfo(patchy::ui::MainWindowTestAccess::active_session_path(window)) == QFileInfo(second_path));
   auto* canvas = require_canvas(window);
   CHECK(canvas != first_canvas);
 
-  // The user moves over the new canvas and drags a selection: the marquee cursor shows, and
-  // the canvas's later cursor changes reach the window.
+  // The user moves over the new canvas and drags: the tool's cursor shows, and the canvas's
+  // later cursor changes reach the window.
   send_mouse(handle, QEvent::MouseMove, canvas_point + QPoint(6, 4), Qt::NoButton, Qt::NoButton);
   send_mouse(handle, QEvent::MouseMove, canvas_point + QPoint(12, 8), Qt::NoButton, Qt::NoButton);
   CHECK(canvas->underMouse());
@@ -986,6 +1043,18 @@ void ui_blocked_window_cursor_returns_after_open_recent_file() {
   CHECK(handle->cursor().shape() == Qt::SizeAllCursor);
   canvas->refresh_tool_cursor();
   CHECK(handle->cursor().shape() == canvas->cursor().shape());
+}
+
+void ui_blocked_window_cursor_returns_after_open_recent_file() {
+  check_tool_cursor_returns_after_open_recent(QStringLiteral("Marquee"), OpenRecentRoute::file);
+}
+
+void ui_blocked_window_cursor_returns_after_open_recent_file_with_brush() {
+  check_tool_cursor_returns_after_open_recent(QStringLiteral("Brush"), OpenRecentRoute::file);
+}
+
+void ui_blocked_window_cursor_returns_after_open_recent_folder_with_brush() {
+  check_tool_cursor_returns_after_open_recent(QStringLiteral("Brush"), OpenRecentRoute::folder);
 }
 
 void ui_recent_history_checks_in_background_and_skips_network_paths() {
@@ -4608,6 +4677,10 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
        ui_blocked_window_cursor_survives_reactivation_and_tool_switches},
       {"ui_blocked_window_cursor_returns_after_open_recent_file",
        ui_blocked_window_cursor_returns_after_open_recent_file},
+      {"ui_blocked_window_cursor_returns_after_open_recent_file_with_brush",
+       ui_blocked_window_cursor_returns_after_open_recent_file_with_brush},
+      {"ui_blocked_window_cursor_returns_after_open_recent_folder_with_brush",
+       ui_blocked_window_cursor_returns_after_open_recent_folder_with_brush},
       {"ui_recent_history_checks_in_background_and_skips_network_paths", ui_recent_history_checks_in_background_and_skips_network_paths},
       {"ui_open_dialog_hides_name_filter_details", ui_open_dialog_hides_name_filter_details},
       {"ui_open_dialog_lists_formats_alphabetically", ui_open_dialog_lists_formats_alphabetically},
