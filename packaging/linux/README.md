@@ -156,6 +156,23 @@ host's `desktop-file-validate` or `appstreamcli validate --no-net` (each skipped
 when not installed). The AppImage ships a copy of the desktop file without the Desktop
 Entry 1.5 `SingleMainWindow` key ([docs/appimage.md](../../docs/appimage.md)).
 
+## aarch64 test builds
+
+The same manifest builds for aarch64 (ONNX Runtime has an `only-arches: [aarch64]` source;
+everything else is built from source or comes from the arch's KDE runtime). It needs a native
+aarch64 Linux host: compiling under QEMU on x86_64 is far too slow. The test host is an
+Ubuntu 24.04 aarch64 VM (Lima, Apple Virtualization) on `<mac-build-host>` with flatpak,
+flatpak-builder and `org.kde.Sdk//<version>` installed as in the `make-flatpak.sh` header.
+`make-flatpak.sh` there writes `Patchy-<version>-aarch64.flatpak` (a non-x86_64 build adds
+`-<arch>`, so it can never pass for the x86_64 release file); without a signing key it is an
+update-less test bundle.
+
+Not published yet. Shipping aarch64 needs a publish step that commits both arches' app refs
+into one repository (today `build-commit-from` copies only the ref of the build just made),
+release scripts that collect both bundles, and tests on a 16K-page kernel (Raspberry Pi 5 on
+Raspberry Pi OS, Asahi): an ELF library whose LOAD segments are aligned below 0x4000 does not
+load there.
+
 ## Sandbox notes
 
 Known Wayland caveats (accepted for v1): a second launch raises the running window

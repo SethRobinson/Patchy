@@ -2,6 +2,7 @@
 # Builds the Linux Flatpak artifacts in build/package:
 #   Patchy-<version>.flatpak               the single-file bundle
 #   Patchy-<version>-flatpak-repo.tar      the signed repository users update from
+# A non-x86_64 build adds -<arch> before each suffix (Patchy-<version>-aarch64.flatpak).
 # Prerequisites (one-time):
 #   sudo apt-get install -y flatpak flatpak-builder ostree
 #   flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
@@ -40,6 +41,14 @@ fi
 
 VERSION=$(sed -nE 's/^[[:space:]]*VERSION[[:space:]]+([0-9.]+).*$/\1/p' "$ROOT/CMakeLists.txt" | head -1)
 [ -n "$VERSION" ] || { echo "ERROR: could not read the project version from CMakeLists.txt"; exit 1; }
+
+ARCH=$(flatpak --default-arch)
+# An arm build (aarch64 test builds, packaging/linux/README.md) names its arch so it can never
+# pass for the x86_64 release files; the x86_64 names stay what the release scripts expect.
+ARCH_SUFFIX=""
+[ "$ARCH" = "x86_64" ] || ARCH_SUFFIX="-$ARCH"
+BUNDLE="$PACKAGE_DIR/Patchy-$VERSION$ARCH_SUFFIX.flatpak"
+REPO_TAR="$PACKAGE_DIR/Patchy-$VERSION$ARCH_SUFFIX-flatpak-repo.tar"
 
 mkdir -p "$PACKAGE_DIR"
 # Every core but four (at least one), so the remote machine stays usable.
@@ -114,8 +123,8 @@ if [ -z "$GPG_KEY" ]; then
   echo "NOTE: PATCHY_FLATPAK_GPG_KEY is not set: no repository is built, and installs of" >&2
   echo "this bundle will not update through flatpak. Not a release artifact." >&2
   flatpak build-bundle --runtime-repo="$FLATHUB_REPO" \
-    "$REPO_DIR" "$PACKAGE_DIR/Patchy-$VERSION.flatpak" "$APP_ID"
-  echo "Bundle written: $PACKAGE_DIR/Patchy-$VERSION.flatpak"
+    "$REPO_DIR" "$BUNDLE" "$APP_ID"
+  echo "Bundle written: $BUNDLE"
   exit 0
 fi
 
@@ -126,7 +135,6 @@ fi
 # files users point flatpak at. The bundle is exported from this same signed commit
 # with --repo-url, so a bundle install gets the repository as its origin and updates
 # from it like a repository install does.
-ARCH=$(flatpak --default-arch)
 APP_REF="app/$APP_ID/$ARCH/master"
 rm -rf "${ROOT:?}/build/flatpak-publish"
 mkdir -p "$PUBLISH_DIR"
@@ -164,10 +172,10 @@ EOF
 
 flatpak build-bundle --runtime-repo="$FLATHUB_REPO" --repo-url="$REPO_URL" \
   --gpg-keys="$PUBLISH_DIR/patchy.gpg" \
-  "$PUBLISH_DIR/repo" "$PACKAGE_DIR/Patchy-$VERSION.flatpak" "$APP_ID"
-echo "Bundle written: $PACKAGE_DIR/Patchy-$VERSION.flatpak"
+  "$PUBLISH_DIR/repo" "$BUNDLE" "$APP_ID"
+echo "Bundle written: $BUNDLE"
 
 # One tar for the upload script: the repo directory plus the two descriptor files.
-tar -C "$PUBLISH_DIR" -cf "$PACKAGE_DIR/Patchy-$VERSION-flatpak-repo.tar" \
+tar -C "$PUBLISH_DIR" -cf "$REPO_TAR" \
   repo patchy.flatpakrepo "$APP_ID.flatpakref"
-echo "Repository written: $PACKAGE_DIR/Patchy-$VERSION-flatpak-repo.tar"
+echo "Repository written: $REPO_TAR"
