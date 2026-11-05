@@ -861,12 +861,32 @@ void ui_font_picker_hidden_matches_hint_counts_and_resets() {
   QApplication::processEvents();
   CHECK(hint->isHidden());
 
-  // A short search, as in the report, for the screenshot.
-  search->clear();
-  QTest::keyClicks(search, QStringLiteral("co"));
-  QApplication::processEvents();
-  CHECK(hint->isHidden() == (hidden_by_monospace(QStringLiteral("co")) == 0));
-  save_widget_artifact("issue647_font_picker_hidden_matches", *popup);
+  // A short search, as in the report, for the screenshot: the first letter that both lists
+  // monospace families and hides others.
+  QString letter;
+  for (char c = 'a'; c <= 'z' && letter.isEmpty(); ++c) {
+    const auto candidate = QString(QLatin1Char(c));
+    int shown = 0;
+    for (int row = 0; row < picker->count(); ++row) {
+      const auto family = picker->itemText(row);
+      shown += family.contains(candidate, Qt::CaseInsensitive) &&
+                       index.matches(patchy::ui::FontStyleFilter::monospace, family, {})
+                   ? 1
+                   : 0;
+    }
+    if (shown > 0 && hidden_by_monospace(candidate) > 0) {
+      letter = candidate;
+    }
+  }
+  if (!letter.isEmpty()) {
+    search->clear();
+    QTest::keyClicks(search, letter);
+    QApplication::processEvents();
+    CHECK(!family_rows(*list, false).isEmpty());
+    CHECK(!hint->isHidden());
+    CHECK(hint->text().contains(QString::number(hidden_by_monospace(letter))));
+    save_widget_artifact("issue647_font_picker_hidden_matches", *popup);
+  }
 
   // Clicking the hint sets Style and Language to All and lists the hidden matches.
   search->clear();
