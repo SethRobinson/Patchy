@@ -487,11 +487,23 @@ double word_to_dpi(SaneWord word, int type) {
   return support::sane_resolution_to_dpi(word, type == kSaneTypeFixed);
 }
 
-void read_resolution_choices(SaneHandle handle, ScannerSettings& settings) {
+// The "resolution" option, when it is one SANE_Int or SANE_Fixed word: get and set copy
+// `size` bytes, so a vector-valued option would overrun the single word read here.
+int find_resolution_option(SaneHandle handle, const SaneOptionDescriptor** descriptor_out) {
   const SaneOptionDescriptor* descriptor = nullptr;
   const int index = find_option(handle, "resolution", &descriptor);
   if (index < 0 || descriptor == nullptr || (descriptor->type != kSaneTypeInt && descriptor->type != kSaneTypeFixed) ||
-      descriptor->size < static_cast<int>(sizeof(SaneWord))) {
+      descriptor->size != static_cast<int>(sizeof(SaneWord))) {
+    return -1;
+  }
+  *descriptor_out = descriptor;
+  return index;
+}
+
+void read_resolution_choices(SaneHandle handle, ScannerSettings& settings) {
+  const SaneOptionDescriptor* descriptor = nullptr;
+  const int index = find_resolution_option(handle, &descriptor);
+  if (index < 0) {
     return;
   }
   SaneWord current = 0;
@@ -658,18 +670,20 @@ void set_string_option(SaneHandle handle, const char* name, const QString& value
 
 void set_resolution_option(SaneHandle handle, int dpi) {
   const SaneOptionDescriptor* descriptor = nullptr;
-  const int index = find_option(handle, "resolution", &descriptor);
+  const int index = find_resolution_option(handle, &descriptor);
   if (index < 0 || !option_settable(descriptor) || dpi <= 0) {
     return;
   }
-  SaneWord word = descriptor->type == kSaneTypeFixed ? static_cast<SaneWord>(dpi) << 16 : static_cast<SaneWord>(dpi);
+  // SANE_Fixed is 16.16: keep the shifted value inside a signed word.
+  const SaneWord whole = static_cast<SaneWord>(std::min(dpi, 32767));
+  SaneWord word = descriptor->type == kSaneTypeFixed ? whole * 65536 : static_cast<SaneWord>(dpi);
   sane_library().control_option(handle, index, kSaneActionSetValue, &word, nullptr);
 }
 
 double read_resolution_dpi(SaneHandle handle) {
   const SaneOptionDescriptor* descriptor = nullptr;
-  const int index = find_option(handle, "resolution", &descriptor);
-  if (index < 0 || descriptor == nullptr) {
+  const int index = find_resolution_option(handle, &descriptor);
+  if (index < 0) {
     return 0.0;
   }
   SaneWord word = 0;
@@ -808,8 +822,7 @@ ScannerAcquireResult run_scan(Session& session, const ScannerSettings& settings)
   const auto scan = assembler.finish();
   const auto image = image_from_scan(scan);
   if (image.isNull()) {
-    return failure(QCoreApplication::translate("ScannerImport", "The scan could not be completed (%1)")
-                       .arg(QStringLiteral("out of memory")));
+    return failure(failure_explanation(support::AcquireFailureCause::OutOfMemory, {}));
   }
   const auto path = temporary_scan_path(QStringLiteral("png"));
   if (path.isEmpty()) {
