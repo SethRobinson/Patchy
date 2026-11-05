@@ -323,17 +323,25 @@ public:
   void set_selected_custom_color();
   void start_screen_pick();
   void finish_screen_pick(QPoint global_position, bool sample, bool background = false);
-  // The Alt pick (PatchyColorPicker::set_background_pick_handler).
+  // The Alt pick and the right-button pick (PatchyColorPicker::set_background_pick_handler;
+  // GitHub issues 365 and 639). Without a handler both are plain input.
   void set_background_pick_handler(std::function<void(QColor)> handler);
+  [[nodiscard]] bool has_background_pick() const noexcept { return static_cast<bool>(background_pick_handler_); }
   [[nodiscard]] bool alt_picks_background(Qt::KeyboardModifiers modifiers) const {
     return background_pick_handler_ && (modifiers & Qt::AltModifier) != 0;
   }
+  // A press that sets the background: Alt with the left button, or the right button.
+  [[nodiscard]] bool press_picks_background(Qt::MouseButton button, Qt::KeyboardModifiers modifiers) const {
+    return background_pick_handler_ &&
+           (button == Qt::RightButton || (button == Qt::LeftButton && (modifiers & Qt::AltModifier) != 0));
+  }
   void pick_background(QColor color);
   bool begin_field_pick(Qt::KeyboardModifiers modifiers, Qt::MouseButton button = Qt::LeftButton) override {
-    if (button != Qt::LeftButton) {
+    // The right button picks only where it sets the background (the Foreground Color window).
+    if (button != Qt::LeftButton && !(button == Qt::RightButton && has_background_pick())) {
       return false;
     }
-    field_picks_background_ = alt_picks_background(modifiers);
+    field_picks_background_ = press_picks_background(button, modifiers);
     if (!field_drag_active_) {
       field_drag_active_ = true;
       emit owner_.color_drag_started();
@@ -446,7 +454,7 @@ private:
   std::array<QColor, kCustomColorCount> custom_colors_{};
   QPointer<ScreenColorOverlay> overlay_;
   std::function<void(QColor)> background_pick_handler_;
-  // Set by an Alt press on the field, hue strip or wheel, for that press's whole drag.
+  // Set by an Alt or right press on the field, hue strip or wheel, for that press's whole drag.
   bool field_picks_background_{false};
   // From an accepted press on the field, hue strip or wheel to its release
   // (PatchyColorPicker::color_drag_active).
@@ -496,6 +504,13 @@ protected:
     if (index < 0 || !picker_.palette_grid_accepts_color_drops()) { return; }
     set_selected(index);
     QMenu menu(this);
+    // Where a right-click sets the background (read-only palettes in the Foreground Color
+    // window), an editable palette keeps its menu and lists that pick in it.
+    if (picker_.has_background_pick()) {
+      auto* background = menu.addAction(PatchyColorPicker::tr("Set as Background Color"));
+      background->setObjectName(QStringLiteral("paletteSetBackgroundAction"));
+      QObject::connect(background, &QAction::triggered, this, [this, index] { picker_.pick_background(color_at(index)); });
+    }
     auto* rename = menu.addAction(picker_.palette_entry_name(index).isEmpty() ? PatchyColorPicker::tr("Set Name")
                                                                            : PatchyColorPicker::tr("Rename"));
     rename->setObjectName(QStringLiteral("paletteRenameAction"));
@@ -533,6 +548,14 @@ protected:
       }
       press_position_ = event->position().toPoint();
       pressed_index_ = index;
+      event->accept();
+      return;
+    }
+    if (event->button() == Qt::RightButton && index >= 0 && picker_.has_background_pick() &&
+        !picker_.palette_grid_accepts_color_drops()) {
+      // A read-only palette has no right-click menu: the right button picks the background,
+      // like an Alt-click. Editable palettes get their menu (contextMenuEvent).
+      picker_.pick_background(colors_[static_cast<std::size_t>(index)]);
       event->accept();
       return;
     }
@@ -693,6 +716,12 @@ protected:
         return;
       }
     }
+    if (event->button() == Qt::RightButton && picker_.has_background_pick()) {
+      // The right button sets the background like an Alt-click (GitHub issue 639).
+      picker_.pick_background(picker_.custom_color(slot_));
+      event->accept();
+      return;
+    }
     QPushButton::mousePressEvent(event);
   }
 
@@ -840,9 +869,11 @@ protected:
   }
 
   void mousePressEvent(QMouseEvent* event) override {
-    if (event->button() == Qt::LeftButton) {
+    // Left, or right where it sets the background (begin_field_pick decides); the press's
+    // button owns the drag until its release.
+    if (pick_button_ == Qt::NoButton && picker_.begin_field_pick(event->modifiers(), event->button())) {
+      pick_button_ = event->button();
       active_ = hit_test(event->position().toPoint());
-      picker_.begin_field_pick(event->modifiers());
       apply(event->position().toPoint());
       event->accept();
       return;
@@ -851,7 +882,7 @@ protected:
   }
 
   void mouseMoveEvent(QMouseEvent* event) override {
-    if ((event->buttons() & Qt::LeftButton) != 0 && active_ != Region::None) {
+    if (pick_button_ != Qt::NoButton && (event->buttons() & pick_button_) != 0 && active_ != Region::None) {
       apply(event->position().toPoint());
       event->accept();
       return;
@@ -860,10 +891,13 @@ protected:
   }
 
   void mouseReleaseEvent(QMouseEvent* event) override {
-    if (event->button() == Qt::LeftButton) {
+    if (pick_button_ != Qt::NoButton && event->button() == pick_button_) {
+      pick_button_ = Qt::NoButton;
+      active_ = Region::None;
       picker_.end_field_pick();
+      event->accept();
+      return;
     }
-    active_ = Region::None;
     QWidget::mouseReleaseEvent(event);
   }
 
@@ -919,6 +953,7 @@ private:
 
   PatchyColorPickerPrivate& picker_;
   Region active_{Region::None};
+  Qt::MouseButton pick_button_{Qt::NoButton};
 };
 
 // "Sliders" tab: one gradient track per colour channel. The track previews the
@@ -2167,16 +2202,21 @@ void PatchyColorPickerPrivate::set_background_pick_handler(std::function<void(QC
     return;
   }
   // Alt held over a surface that picks shows the background cursor (the docked Color
-  // panel's mechanism). The Sliders tab is left out: a slider moves one channel.
-  for (QWidget* widget : {static_cast<QWidget*>(palette_grid_), static_cast<QWidget*>(color_plane_),
-                          static_cast<QWidget*>(hue_slider_), static_cast<QWidget*>(wheel_)}) {
+  // panel's mechanism), and so does a right press where it picks (GitHub issue 639). The
+  // palette grid opts out of the right press: an editable palette opens its menu there.
+  // The Sliders tab is left out: a slider moves one channel.
+  if (palette_grid_ != nullptr) {
+    new BackgroundPickCursor(palette_grid_);
+  }
+  for (QWidget* widget : {static_cast<QWidget*>(color_plane_), static_cast<QWidget*>(hue_slider_),
+                          static_cast<QWidget*>(wheel_)}) {
     if (widget != nullptr) {
-      new BackgroundPickCursor(widget);
+      new BackgroundPickCursor(widget, true);
     }
   }
   for (auto* button : custom_buttons_) {
     if (button != nullptr) {
-      new BackgroundPickCursor(button);
+      new BackgroundPickCursor(button, true);
     }
   }
 }

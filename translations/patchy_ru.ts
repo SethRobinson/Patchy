@@ -33072,6 +33072,10 @@ Locked: %1</source>
         <source>Add the current color at the front of the custom colors, or replace the selected box (click a box to select it)</source>
         <translation>Добавляет текущий цвет в начало собственных цветов или заменяет выбранное поле (щёлкните поле, чтобы выбрать его)</translation>
     </message>
+    <message>
+        <source>Set as Background Color</source>
+        <translation>Установить как цвет фона</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PathsPanel</name>

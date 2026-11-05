@@ -32905,6 +32905,10 @@ Locked: %1</source>
         <source>Add the current color at the front of the custom colors, or replace the selected box (click a box to select it)</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Set as Background Color</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PathsPanel</name>
