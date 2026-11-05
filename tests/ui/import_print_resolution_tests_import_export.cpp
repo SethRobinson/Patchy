@@ -25,6 +25,9 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
+#include <QDialogButtonBox>
+#include <QElapsedTimer>
+#include <QLibrary>
 #include <QDoubleSpinBox>
 #include <QEventLoop>
 #include <QFile>
@@ -237,6 +240,131 @@ void ui_scanner_import_creates_untitled_document() {
   // Fake fixtures are retained; only files returned by native acquisition are temporary.
   CHECK(QFileInfo::exists(scan_path));
 }
+
+#if defined(Q_OS_LINUX)
+// Drives the real Linux scanner dialog (scanner_import_linux.cpp) against SANE's "test"
+// backend, the fake scanner sane-backends ships: device list, Fixed-type resolution, an
+// 8-bit RGB scan, a 16-bit three-pass scan and 1-bit line art, each imported as a document.
+// Skips where libsane is not installed (the Flatpak SDK test environment has none).
+void ui_linux_scanner_dialog_scans_sane_test_backend() {
+  if (!QLibrary(QStringLiteral("sane"), 1).load()) {
+    patchy::test::skip(patchy::test::SkipKind::feature, "libsane.so.1 is not installed");
+  }
+  QTemporaryDir config;
+  CHECK(config.isValid());
+  const bool had_config_dir = qEnvironmentVariableIsSet("SANE_CONFIG_DIR");
+  const auto previous_config_dir = qgetenv("SANE_CONFIG_DIR");
+  // No trailing colon: SANE reads only this folder, so the host's backends stay out.
+  qputenv("SANE_CONFIG_DIR", config.path().toUtf8());
+  const auto env_guard = qScopeGuard([had_config_dir, previous_config_dir] {
+    if (had_config_dir) {
+      qputenv("SANE_CONFIG_DIR", previous_config_dir);
+    } else {
+      qunsetenv("SANE_CONFIG_DIR");
+    }
+  });
+  std::filesystem::create_directories("test-artifacts");
+
+  struct Pass {
+    const char* name;
+    QByteArray test_conf;
+    bool color;
+  };
+  const std::array<Pass, 3> passes{{
+      {"rgb8", "mode Color\ndepth 8\nthree-pass false\ntest-picture \"Color pattern\"\n", true},
+      {"three_pass16", "mode Color\ndepth 16\nthree-pass true\ntest-picture \"Color pattern\"\n", true},
+      {"lineart1", "mode Gray\ndepth 1\nthree-pass false\ntest-picture \"Grid\"\n", false},
+  }};
+  for (const auto& pass : passes) {
+    {
+      QFile dll(config.filePath(QStringLiteral("dll.conf")));
+      CHECK(dll.open(QIODevice::WriteOnly | QIODevice::Truncate));
+      dll.write("test\n");
+      QFile conf(config.filePath(QStringLiteral("test.conf")));
+      CHECK(conf.open(QIODevice::WriteOnly | QIODevice::Truncate));
+      conf.write("number_of_devices 1\nresolution 50.0\ntl_x 0.0\ntl_y 0.0\nbr_x 80.0\nbr_y 100.0\n" +
+                 pass.test_conf);
+    }
+    patchy::ui::MainWindow window;
+    show_window(window);
+    QString failure;
+    bool clicked = false;
+    QElapsedTimer elapsed;
+    elapsed.start();
+    QTimer driver;
+    driver.setInterval(20);
+    QObject::connect(&driver, &QTimer::timeout, [&] {
+      auto* modal = QApplication::activeModalWidget();
+      auto* dialog = qobject_cast<QDialog*>(modal);
+      if (modal != nullptr && (dialog == nullptr || dialog->objectName() != QStringLiteral("linuxScannerDialog"))) {
+        // A message box instead of the dialog (no device, a failed import): record it and close it.
+        failure = QStringLiteral("unexpected window ") + modal->objectName();
+        modal->close();
+        return;
+      }
+      if (dialog == nullptr) {
+        return;
+      }
+      auto* buttons = dialog->findChild<QDialogButtonBox*>();
+      auto* ok = buttons != nullptr ? buttons->button(QDialogButtonBox::Ok) : nullptr;
+      if (!clicked && ok != nullptr && ok->isEnabled()) {
+        auto* resolution = dialog->findChild<QComboBox*>(QStringLiteral("linuxScannerResolutionCombo"));
+        auto* devices = dialog->findChild<QComboBox*>(QStringLiteral("linuxScannerDeviceCombo"));
+        if (resolution == nullptr || resolution->findData(75) < 0 || devices == nullptr || devices->count() != 1) {
+          failure = QStringLiteral("expected one test device offering 75 dpi");
+          dialog->reject();
+          return;
+        }
+        resolution->setCurrentIndex(resolution->findData(75));
+        dialog->grab().save(QStringLiteral("test-artifacts/ui_linux_scanner_dialog_%1.png").arg(QLatin1String(pass.name)));
+        clicked = true;
+        ok->click();
+        return;
+      }
+      if (elapsed.elapsed() > 60000) {
+        auto* status = dialog->findChild<QLabel*>(QStringLiteral("linuxScannerStatusLabel"));
+        failure = status != nullptr && !status->text().isEmpty() ? status->text()
+                                                                  : QStringLiteral("the dialog never became ready");
+        dialog->reject();
+      }
+    });
+    driver.start();
+    patchy::ui::MainWindowTestAccess::import_from_scanner(window);
+    driver.stop();
+    if (!failure.isEmpty()) {
+      std::cerr << pass.name << ": " << failure.toStdString() << '\n';
+    }
+    CHECK(failure.isEmpty());
+    CHECK(clicked);
+
+    const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    // 80 x 100 mm at 75 dpi.
+    CHECK(std::abs(document.width() - 236) <= 1);
+    CHECK(std::abs(document.height() - 295) <= 1);
+    CHECK(document.print_settings().horizontal_ppi == 75.0);
+    CHECK(!document.layers().empty());
+    const auto image = flattened_on_white(document.layers().front().pixels());
+    CHECK(image.save(QStringLiteral("test-artifacts/ui_linux_scanner_import_%1.png").arg(QLatin1String(pass.name))));
+    // The grid is black and white; the color pattern has saturated stripes.
+    bool dark = false;
+    bool light = false;
+    bool saturated = false;
+    for (int y = 0; y < image.height(); y += 3) {
+      for (int x = 0; x < image.width(); x += 3) {
+        const auto color = image.pixelColor(x, y);
+        dark = dark || color.value() < 40;
+        light = light || color.value() > 215;
+        saturated = saturated || (color.saturation() > 200 && color.value() > 150);
+      }
+    }
+    CHECK(saturated == pass.color);
+    if (!pass.color) {
+      CHECK(dark);
+      CHECK(light);
+    }
+  }
+}
+#endif
 
 void ui_photocopy_dialog_previews_clipping_at_actual_size() {
   std::filesystem::create_directories("test-artifacts");
@@ -2036,6 +2164,9 @@ std::vector<patchy::test::TestCase> import_print_resolution_tests_part1() {
       {"ui_layer_context_menu_keeps_edit_styles_on_top", ui_layer_context_menu_keeps_edit_styles_on_top},
       {"ui_file_import_menu_actions_registered", ui_file_import_menu_actions_registered},
       {"ui_scanner_import_creates_untitled_document", ui_scanner_import_creates_untitled_document},
+#if defined(Q_OS_LINUX)
+      {"ui_linux_scanner_dialog_scans_sane_test_backend", ui_linux_scanner_dialog_scans_sane_test_backend},
+#endif
       {"ui_photocopy_dialog_previews_clipping_at_actual_size", ui_photocopy_dialog_previews_clipping_at_actual_size},
       {"ui_aseprite_open_adopts_palette_and_builds_layer_tree", ui_aseprite_open_adopts_palette_and_builds_layer_tree},
       {"ui_export_scale_writes_nearest_neighbor_pixels", ui_export_scale_writes_nearest_neighbor_pixels},
