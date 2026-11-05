@@ -14926,10 +14926,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Конец</translation>
     </message>
     <message>
-        <source>Arrowheads:</source>
-        <translation>Наконечники:</translation>
-    </message>
-    <message>
         <source>Sample radius:</source>
         <translation>Радиус выборки:</translation>
     </message>
@@ -14997,6 +14993,38 @@ Each item&apos;s own View setting still applies.</source>
         <source>Pages Patchy could not read were left out: %1</source>
         <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
         <translation>Страницы, которые Patchy не смог прочитать, пропущены: %1</translation>
+    </message>
+    <message>
+        <source>Arrowheads</source>
+        <translation>Наконечники</translation>
+    </message>
+    <message numerus="yes">
+        <source>Editable lines for arrowheads: %n</source>
+        <translation>
+            <numerusform>Наконечники: %n редактируемая линия</numerusform>
+            <numerusform>Наконечники: %n редактируемые линии</numerusform>
+            <numerusform>Наконечники: %n редактируемых линий</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Arrowhead width, in percent of the line weight</source>
+        <translation>Ширина наконечника в процентах от толщины линии</translation>
+    </message>
+    <message>
+        <source>Arrowhead length, in percent of the line weight</source>
+        <translation>Длина наконечника в процентах от толщины линии</translation>
+    </message>
+    <message>
+        <source>How far the back of the arrowhead curves in toward the tip (negative bulges out)</source>
+        <translation>Насколько задний край наконечника вогнут к острию (отрицательное значение выгибает его наружу)</translation>
+    </message>
+    <message>
+        <source>Length:</source>
+        <translation>Длина:</translation>
+    </message>
+    <message>
+        <source>Concavity:</source>
+        <translation>Вогнутость:</translation>
     </message>
 </context>
 <context>

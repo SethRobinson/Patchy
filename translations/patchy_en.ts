@@ -14863,10 +14863,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Arrowheads:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Sample radius:</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14933,6 +14929,37 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Pages Patchy could not read were left out: %1</source>
         <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Arrowheads</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Editable lines for arrowheads: %n</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Arrowhead width, in percent of the line weight</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Arrowhead length, in percent of the line weight</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How far the back of the arrowhead curves in toward the tip (negative bulges out)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Length:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Concavity:</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

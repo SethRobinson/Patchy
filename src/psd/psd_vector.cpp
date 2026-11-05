@@ -476,6 +476,17 @@ std::optional<std::vector<LiveShapeParams>> parse_vector_origination_block(
           static_cast<std::int32_t>(descriptor_number(entry, "keyOriginLineArrConc", 0.0));
       params.arrow_width_unit_pixels = descriptor_bool(entry, "keyOriginLineWidthArrowUnitPixels", true);
       params.arrow_length_unit_pixels = descriptor_bool(entry, "keyOriginLineLengthArrowUnitPixels", true);
+      // A head size whose unit flag is off is a percent of the weight; the model keeps
+      // pixels (the generator, scripts and Shape Appearance read them), and the writer
+      // writes them back as pixels with the flag on, which Photoshop reads unchanged.
+      if (!params.arrow_width_unit_pixels) {
+        params.arrow_width = params.arrow_width * params.line_weight / 100.0;
+        params.arrow_width_unit_pixels = true;
+      }
+      if (!params.arrow_length_unit_pixels) {
+        params.arrow_length = params.arrow_length * params.line_weight / 100.0;
+        params.arrow_length_unit_pixels = true;
+      }
     }
     if (params.kind == LiveShapeKind::Custom) {
       // Unmodeled origination: keep the entry's exact descriptor bytes for

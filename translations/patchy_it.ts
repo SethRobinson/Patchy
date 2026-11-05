@@ -14880,10 +14880,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Fine</translation>
     </message>
     <message>
-        <source>Arrowheads:</source>
-        <translation>Punte di freccia:</translation>
-    </message>
-    <message>
         <source>Sample radius:</source>
         <translation>Raggio campione:</translation>
     </message>
@@ -14951,6 +14947,37 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Pages Patchy could not read were left out: %1</source>
         <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
         <translation>Le pagine che Patchy non è riuscito a leggere sono state omesse: %1</translation>
+    </message>
+    <message>
+        <source>Arrowheads</source>
+        <translation>Punte di freccia</translation>
+    </message>
+    <message numerus="yes">
+        <source>Editable lines for arrowheads: %n</source>
+        <translation>
+            <numerusform>Punte di freccia: %n linea modificabile</numerusform>
+            <numerusform>Punte di freccia: %n linee modificabili</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Arrowhead width, in percent of the line weight</source>
+        <translation>Larghezza della punta di freccia, in percentuale dello spessore della linea</translation>
+    </message>
+    <message>
+        <source>Arrowhead length, in percent of the line weight</source>
+        <translation>Lunghezza della punta di freccia, in percentuale dello spessore della linea</translation>
+    </message>
+    <message>
+        <source>How far the back of the arrowhead curves in toward the tip (negative bulges out)</source>
+        <translation>Quanto il retro della punta di freccia si incurva verso la punta (negativo la fa sporgere)</translation>
+    </message>
+    <message>
+        <source>Length:</source>
+        <translation>Lunghezza:</translation>
+    </message>
+    <message>
+        <source>Concavity:</source>
+        <translation>Concavità:</translation>
     </message>
 </context>
 <context>

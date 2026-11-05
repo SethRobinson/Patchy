@@ -2125,7 +2125,12 @@ type PatchyVectorGeometry =
       radius?: number; /** TL, TR, BR, BL */ radii?: [number, number, number, number]}
   | {type: "ellipse"; x: number; y: number; width: number; height: number}
   | {type: "line"; x1: number; y1: number; x2: number; y2: number; weight?: number;
-      arrowStart?: boolean; arrowEnd?: boolean; arrowWidth?: number; arrowLength?: number}
+      /** Head width and length in px: default 5 and 10 times the weight. In updateShape a line
+       * replacing a line keeps its head proportions (scaled with the weight) and concavity
+       * unless given. */
+      arrowStart?: boolean; arrowEnd?: boolean; arrowWidth?: number; arrowLength?: number;
+      /** -50..50 percent: positive curves the back of the head in toward the tip. Default 0. */
+      arrowConcavity?: number}
   | {type: "polygon"; cx: number; cy: number; radius: number; sides?: number;
       /** 0..99 percent, default 0 */ starInset?: number; /** degrees, default -90 */ angle?: number}
   | {type: "custom"; resourceId: string; x: number; y: number; width: number; height: number}

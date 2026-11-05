@@ -14834,10 +14834,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>終点</translation>
     </message>
     <message>
-        <source>Arrowheads:</source>
-        <translation>矢じり:</translation>
-    </message>
-    <message>
         <source>Sample radius:</source>
         <translation>サンプル半径:</translation>
     </message>
@@ -14905,6 +14901,36 @@ Each item&apos;s own View setting still applies.</source>
         <source>Pages Patchy could not read were left out: %1</source>
         <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
         <translation>Patchy が読み込めなかったページは省略されました: %1</translation>
+    </message>
+    <message>
+        <source>Arrowheads</source>
+        <translation>矢じり</translation>
+    </message>
+    <message numerus="yes">
+        <source>Editable lines for arrowheads: %n</source>
+        <translation>
+            <numerusform>矢じり：編集可能な線 %n 本</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Arrowhead width, in percent of the line weight</source>
+        <translation>矢じりの幅（線の太さに対するパーセント）</translation>
+    </message>
+    <message>
+        <source>Arrowhead length, in percent of the line weight</source>
+        <translation>矢じりの長さ（線の太さに対するパーセント）</translation>
+    </message>
+    <message>
+        <source>How far the back of the arrowhead curves in toward the tip (negative bulges out)</source>
+        <translation>矢じりの後端が先端に向かってへこむ量（負の値で外側にふくらみます）</translation>
+    </message>
+    <message>
+        <source>Length:</source>
+        <translation>長さ:</translation>
+    </message>
+    <message>
+        <source>Concavity:</source>
+        <translation>凹み:</translation>
     </message>
 </context>
 <context>

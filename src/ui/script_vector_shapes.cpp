@@ -1,4 +1,5 @@
 #include "core/vector_compound.hpp"
+#include "core/vector_live_shapes.hpp"
 #include "core/artboard.hpp"
 #include "ui/script_vector.hpp"
 #include "ui/script_api.hpp"
@@ -125,7 +126,31 @@ void ScriptLayerObject::updateShape(const QJSValue& changes) {
     auto patterns = old_doc.metadata().patterns;
     const auto before = to_qrect(layer_render_bounds(original));
     if (args.contains("geometry")) {
-      auto fresh = geometry(host_, child_object(args, "geometry"), old_doc.print_settings().horizontal_ppi);
+      const auto geometry_args = child_object(args, "geometry");
+      auto fresh = geometry(host_, geometry_args, old_doc.print_settings().horizontal_ppi);
+      // A line replacing a line keeps that line's arrowhead proportions and concavity unless
+      // the geometry names them, so a weight change scales its heads (GitHub #622 follow-up).
+      const auto replaced = std::find_if(content.origination.begin(), content.origination.end(), [&](const auto& p) {
+        return p.kind == LiveShapeKind::Line &&
+               (args.contains("group") ? p.index == integer(args, "group", 0, 0, 2147483646)
+                                       : content.origination.size() == 1);
+      });
+      if (replaced != content.origination.end() && fresh.origination.size() == 1 &&
+          fresh.origination.front().kind == LiveShapeKind::Line && replaced->line_weight > 0.0) {
+        auto& line = fresh.origination.front();
+        const double scale = line.line_weight / replaced->line_weight;
+        bool regenerate = false;
+        if (!geometry_args.contains("arrowWidth") && replaced->arrow_width > 0.0) {
+          line.arrow_width = replaced->arrow_width * scale; regenerate = true;
+        }
+        if (!geometry_args.contains("arrowLength") && replaced->arrow_length > 0.0) {
+          line.arrow_length = replaced->arrow_length * scale; regenerate = true;
+        }
+        if (!geometry_args.contains("arrowConcavity")) {
+          line.arrow_concavity = replaced->arrow_concavity; regenerate = true;
+        }
+        if (regenerate) fresh.path.subpaths = generate_live_shape_subpaths(line);
+      }
       if (args.contains("group")) {
         const auto group = integer(args, "group", 0, 0, 2147483646);
         auto first = std::find_if(content.path.subpaths.begin(), content.path.subpaths.end(), [group](const auto& p) { return p.shape_group == group; });

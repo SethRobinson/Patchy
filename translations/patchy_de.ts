@@ -14880,10 +14880,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>Ende</translation>
     </message>
     <message>
-        <source>Arrowheads:</source>
-        <translation>Pfeilspitzen:</translation>
-    </message>
-    <message>
         <source>Sample radius:</source>
         <translation>Radius:</translation>
     </message>
@@ -14951,6 +14947,37 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Pages Patchy could not read were left out: %1</source>
         <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
         <translation>Seiten, die Patchy nicht lesen konnte, wurden ausgelassen: %1</translation>
+    </message>
+    <message>
+        <source>Arrowheads</source>
+        <translation>Pfeilspitzen</translation>
+    </message>
+    <message numerus="yes">
+        <source>Editable lines for arrowheads: %n</source>
+        <translation>
+            <numerusform>Pfeilspitzen: %n bearbeitbare Linie</numerusform>
+            <numerusform>Pfeilspitzen: %n bearbeitbare Linien</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Arrowhead width, in percent of the line weight</source>
+        <translation>Breite der Pfeilspitze in Prozent der Linienstärke</translation>
+    </message>
+    <message>
+        <source>Arrowhead length, in percent of the line weight</source>
+        <translation>Länge der Pfeilspitze in Prozent der Linienstärke</translation>
+    </message>
+    <message>
+        <source>How far the back of the arrowhead curves in toward the tip (negative bulges out)</source>
+        <translation>Wie weit die Rückseite der Pfeilspitze zur Spitze hin einbuchtet (negativ wölbt sie nach außen)</translation>
+    </message>
+    <message>
+        <source>Length:</source>
+        <translation>Länge:</translation>
+    </message>
+    <message>
+        <source>Concavity:</source>
+        <translation>Konkavität:</translation>
     </message>
 </context>
 <context>

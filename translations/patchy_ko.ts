@@ -14834,10 +14834,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>끝</translation>
     </message>
     <message>
-        <source>Arrowheads:</source>
-        <translation>화살촉:</translation>
-    </message>
-    <message>
         <source>Sample radius:</source>
         <translation>샘플 반경:</translation>
     </message>
@@ -14905,6 +14901,36 @@ Each item&apos;s own View setting still applies.</source>
         <source>Pages Patchy could not read were left out: %1</source>
         <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
         <translation>Patchy가 읽을 수 없는 페이지는 제외되었습니다: %1</translation>
+    </message>
+    <message>
+        <source>Arrowheads</source>
+        <translation>화살촉</translation>
+    </message>
+    <message numerus="yes">
+        <source>Editable lines for arrowheads: %n</source>
+        <translation>
+            <numerusform>화살촉: 편집 가능한 선 %n개</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Arrowhead width, in percent of the line weight</source>
+        <translation>화살촉 너비(선 두께에 대한 백분율)</translation>
+    </message>
+    <message>
+        <source>Arrowhead length, in percent of the line weight</source>
+        <translation>화살촉 길이(선 두께에 대한 백분율)</translation>
+    </message>
+    <message>
+        <source>How far the back of the arrowhead curves in toward the tip (negative bulges out)</source>
+        <translation>화살촉 뒤쪽이 끝을 향해 오목하게 들어가는 정도(음수는 바깥으로 볼록)</translation>
+    </message>
+    <message>
+        <source>Length:</source>
+        <translation>길이:</translation>
+    </message>
+    <message>
+        <source>Concavity:</source>
+        <translation>오목함:</translation>
     </message>
 </context>
 <context>

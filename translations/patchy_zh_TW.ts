@@ -14834,10 +14834,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>終點</translation>
     </message>
     <message>
-        <source>Arrowheads:</source>
-        <translation>箭頭:</translation>
-    </message>
-    <message>
         <source>Sample radius:</source>
         <translation>取樣半徑:</translation>
     </message>
@@ -14905,6 +14901,36 @@ Each item&apos;s own View setting still applies.</source>
         <source>Pages Patchy could not read were left out: %1</source>
         <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
         <translation>已略過 Patchy 無法讀取的頁面：%1</translation>
+    </message>
+    <message>
+        <source>Arrowheads</source>
+        <translation>箭頭</translation>
+    </message>
+    <message numerus="yes">
+        <source>Editable lines for arrowheads: %n</source>
+        <translation>
+            <numerusform>箭頭：%n 條可編輯線條</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Arrowhead width, in percent of the line weight</source>
+        <translation>箭頭寬度（線條粗細的百分比）</translation>
+    </message>
+    <message>
+        <source>Arrowhead length, in percent of the line weight</source>
+        <translation>箭頭長度（線條粗細的百分比）</translation>
+    </message>
+    <message>
+        <source>How far the back of the arrowhead curves in toward the tip (negative bulges out)</source>
+        <translation>箭頭後緣向尖端凹進的程度（負值向外凸出）</translation>
+    </message>
+    <message>
+        <source>Length:</source>
+        <translation>長度:</translation>
+    </message>
+    <message>
+        <source>Concavity:</source>
+        <translation>凹度:</translation>
     </message>
 </context>
 <context>

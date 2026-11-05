@@ -925,6 +925,69 @@ void psd_authored_shape_layer_writes_native_blocks() {
   CHECK(metrics.max_channel_delta == 0);
 }
 
+// GitHub #622 follow-up: a line's custom arrowhead width, length and concavity survive a
+// save and reopen (pixels with the unit-pixels flags on), and a head size stored as a percent
+// of the weight (flag off) opens as pixels.
+void psd_line_arrowhead_size_round_trips() {
+  patchy::Document document(200, 120, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("bg", patchy::test::solid_rgba(200, 120, 255, 255, 255, 255));
+  patchy::Layer shape(document.allocate_layer_id(), "Line 1", patchy::PixelBuffer());
+  patchy::LiveShapeParams params;
+  params.kind = patchy::LiveShapeKind::Line;
+  params.line_start_x = 20; params.line_start_y = 60; params.line_end_x = 180; params.line_end_y = 60;
+  params.line_weight = 6;
+  params.arrow_start = true; params.arrow_end = true;
+  params.arrow_width = 18; params.arrow_length = 48; params.arrow_concavity = 25;
+  patchy::VectorShapeContent content;
+  content.path.subpaths = patchy::generate_live_shape_subpaths(params);
+  if (const auto bounds = content.path.bounds()) {
+    params.left = bounds->left; params.top = bounds->top; params.right = bounds->right; params.bottom = bounds->bottom;
+  }
+  content.origination = {params};
+  content.fill.kind = patchy::VectorFillKind::Solid;
+  content.fill.color = patchy::RgbColor{0, 0, 0};
+  shape.set_vector_shape(content);
+  shape.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+  patchy::update_vector_shape_raster(shape, patchy::Rect::from_size(200, 120), nullptr);
+  document.add_layer(std::move(shape));
+
+  auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto reread = patchy::psd::DocumentIo::read(written, {});
+  const auto* line = reread.layers()[1].vector_shape();
+  CHECK(line != nullptr && line->origination.size() == 1);
+  const auto& back = line->origination[0];
+  CHECK(back.kind == patchy::LiveShapeKind::Line && back.arrow_start && back.arrow_end);
+  CHECK(std::fabs(back.arrow_width - 18.0) < 1e-9 && std::fabs(back.arrow_length - 48.0) < 1e-9);
+  CHECK(back.arrow_concavity == 25);
+  CHECK(back.arrow_width_unit_pixels && back.arrow_length_unit_pixels);
+
+  // The same bytes with the flags off and the sizes as percents of the weight (300% and 800%).
+  const auto patch = [&written](std::string_view key, auto apply) {
+    const std::vector<std::uint8_t> needle(key.begin(), key.end());
+    const auto found = std::search(written.begin(), written.end(), needle.begin(), needle.end());
+    CHECK(found != written.end());
+    apply(static_cast<std::size_t>(std::distance(written.begin(), found)) + key.size());
+  };
+  const auto put_double = [&written](std::size_t at, double value) {
+    CHECK(std::memcmp(written.data() + at, "doub", 4) == 0);
+    const auto bits = std::bit_cast<std::uint64_t>(value);
+    for (int byte = 0; byte < 8; ++byte)
+      written[at + 4 + static_cast<std::size_t>(byte)] = static_cast<std::uint8_t>(bits >> (56 - 8 * byte));
+  };
+  const auto put_false = [&written](std::size_t at) {
+    CHECK(std::memcmp(written.data() + at, "bool", 4) == 0);
+    written[at + 4] = 0;
+  };
+  patch("keyOriginLineArrWdth", [&](std::size_t at) { put_double(at, 300.0); });
+  patch("keyOriginLineArrLngth", [&](std::size_t at) { put_double(at, 800.0); });
+  patch("keyOriginLineWidthArrowUnitPixels", put_false);
+  patch("keyOriginLineLengthArrowUnitPixels", put_false);
+  const auto percent = patchy::psd::DocumentIo::read(written, {});
+  const auto& converted = percent.layers()[1].vector_shape()->origination[0];
+  CHECK(std::fabs(converted.arrow_width - 18.0) < 1e-9 && std::fabs(converted.arrow_length - 48.0) < 1e-9);
+  CHECK(converted.arrow_width_unit_pixels && converted.arrow_length_unit_pixels);
+}
+
 // GitHub #582: Shape Appearance switches a fill layer (no path) between Solid Color,
 // Gradient and Pattern. Each save writes only the new type's content block, no vmsk,
 // and the file reopens as a full-canvas fill layer of that type, like Photoshop's
@@ -3062,6 +3125,7 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
        psd_legacy_vscg_stroke_only_shape_paint_fallback_and_lock},
       {"psd_shape_first_ops_fixture_renders", psd_shape_first_ops_fixture_renders},
       {"psd_shape_live_fixture_parses_origination", psd_shape_live_fixture_parses_origination},
+      {"psd_line_arrowhead_size_round_trips", psd_line_arrowhead_size_round_trips},
       {"psd_vector_mask_fixture_masks_pixels", psd_vector_mask_fixture_masks_pixels},
       {"psd_both_masks_fixture_parses_parameters", psd_both_masks_fixture_parses_parameters},
       {"psd_both_masks_with_vector_parameters_keeps_real_user_mask",

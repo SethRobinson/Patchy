@@ -14880,10 +14880,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Fim</translation>
     </message>
     <message>
-        <source>Arrowheads:</source>
-        <translation>Pontas de seta:</translation>
-    </message>
-    <message>
         <source>Sample radius:</source>
         <translation>Raio de amostra:</translation>
     </message>
@@ -14951,6 +14947,37 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Pages Patchy could not read were left out: %1</source>
         <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
         <translation>As páginas que o Patchy não conseguiu ler foram deixadas de fora: %1</translation>
+    </message>
+    <message>
+        <source>Arrowheads</source>
+        <translation>Pontas de seta</translation>
+    </message>
+    <message numerus="yes">
+        <source>Editable lines for arrowheads: %n</source>
+        <translation>
+            <numerusform>Pontas de seta: %n linha editável</numerusform>
+            <numerusform>Pontas de seta: %n linhas editáveis</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Arrowhead width, in percent of the line weight</source>
+        <translation>Largura da ponta de seta, em porcentagem da espessura da linha</translation>
+    </message>
+    <message>
+        <source>Arrowhead length, in percent of the line weight</source>
+        <translation>Comprimento da ponta de seta, em porcentagem da espessura da linha</translation>
+    </message>
+    <message>
+        <source>How far the back of the arrowhead curves in toward the tip (negative bulges out)</source>
+        <translation>Quanto a parte de trás da ponta de seta se curva em direção à ponta (negativo a projeta para fora)</translation>
+    </message>
+    <message>
+        <source>Length:</source>
+        <translation>Comprimento:</translation>
+    </message>
+    <message>
+        <source>Concavity:</source>
+        <translation>Concavidade:</translation>
     </message>
 </context>
 <context>
