@@ -2,8 +2,8 @@
 
 // Synthetic flat TIFFs (docs/tiff.md, "Flat fallback decoder") for the core and UI suites:
 // either byte order, chunky or planar, strips or tiles, no compression, LZW (libtiff's
-// encoder rules), Deflate or PackBits, predictors 2 and 3, any sample kind the decoder
-// reads, extra samples, a color map, and several pages.
+// encoder rules), Deflate, PackBits or Zstandard (stored blocks), predictors 2 and 3, any
+// sample kind the decoder reads, extra samples, a color map, and several pages.
 
 // miniz's zlib-compatibility aliases would rename identifiers; keep only the mz_* names.
 #ifndef MINIZ_NO_ZLIB_COMPATIBLE_NAMES
@@ -25,13 +25,13 @@
 
 namespace patchy::test::flat_tiff {
 
-// U12: 12-bit samples packed most significant bit first (no predictor).
-enum class Kind { U8, U12, U16, U32, F16, F32, F64 };
+// Packed: Spec::bits (9 to 15) wide samples packed most significant bit first (no predictor).
+enum class Kind { U8, Packed, U16, U32, F16, F32, F64 };
 
 inline std::size_t kind_bytes(Kind kind) {
   switch (kind) {
     case Kind::U8: return 1;
-    case Kind::U12:
+    case Kind::Packed:
     case Kind::U16:
     case Kind::F16: return 2;
     case Kind::U32:
@@ -59,6 +59,7 @@ struct Spec {
   std::uint32_t height{7};
   std::uint16_t photometric{2};
   Kind kind{Kind::U8};
+  std::uint32_t bits{12};  // Kind::Packed's sample width
   std::uint16_t samples{3};
   std::vector<std::uint16_t> extra;  // ExtraSamples values (omitted when empty)
   bool planar{false};
@@ -94,7 +95,7 @@ inline void encode_sample(std::vector<std::uint8_t>& out, Kind kind, double valu
   std::uint64_t raw = 0;
   switch (kind) {
     case Kind::U8:
-    case Kind::U12:
+    case Kind::Packed:
     case Kind::U16:
     case Kind::U32: raw = static_cast<std::uint64_t>(std::llround(value)); break;
     case Kind::F16: raw = float_to_half(value); break;
@@ -228,8 +229,34 @@ inline std::vector<std::uint8_t> lzw(const std::vector<std::uint8_t>& in) {
   return out;
 }
 
+// A Zstandard frame of stored (raw) blocks: the vendored library only decodes, and the
+// reporter's file (#653) covers real compressed blocks. The frame header carries a 4-byte
+// content size and the single-segment flag; blocks hold at most 128 KB.
+inline std::vector<std::uint8_t> zstd_stored(const std::vector<std::uint8_t>& data) {
+  std::vector<std::uint8_t> out{0x28, 0xB5, 0x2F, 0xFD, 0xA0};
+  for (int shift = 0; shift < 32; shift += 8) {
+    out.push_back(static_cast<std::uint8_t>((data.size() >> shift) & 0xFFU));
+  }
+  constexpr std::size_t kBlock = 128U * 1024U;
+  std::size_t at = 0;
+  do {
+    const auto size = std::min(kBlock, data.size() - at);
+    const bool last = at + size == data.size();
+    const auto header = static_cast<std::uint32_t>((size << 3U) | (last ? 1U : 0U));  // block type 0: raw
+    out.push_back(static_cast<std::uint8_t>(header & 0xFFU));
+    out.push_back(static_cast<std::uint8_t>((header >> 8U) & 0xFFU));
+    out.push_back(static_cast<std::uint8_t>((header >> 16U) & 0xFFU));
+    out.insert(out.end(), data.begin() + static_cast<std::ptrdiff_t>(at),
+               data.begin() + static_cast<std::ptrdiff_t>(at + size));
+    at += size;
+  } while (at < data.size());
+  return out;
+}
+
 inline std::vector<std::uint8_t> compress(const std::vector<std::uint8_t>& data, std::uint16_t compression) {
   switch (compression) {
+    case 34926:
+    case 50000: return zstd_stored(data);
     case 5: return lzw(data);
     case 8: {
       auto bound = mz_compressBound(static_cast<mz_ulong>(data.size()));
@@ -275,22 +302,27 @@ inline std::vector<Entry> append_page(Writer& writer, const Spec& spec) {
               const auto which = spec.planar ? plane : sample;
               const bool inside = x < spec.width && y < spec.height;
               const double value = inside ? spec.value(x, y, which) : 0.0;
-              if (spec.kind == Kind::U12) {
-                packed_row.push_back(static_cast<std::uint16_t>(std::llround(value)) & 0x0FFFU);
+              if (spec.kind == Kind::Packed) {
+                packed_row.push_back(static_cast<std::uint16_t>(std::llround(value) & ((1LL << spec.bits) - 1)));
               } else {
                 encode_sample(data, spec.kind, value, spec.little);
               }
             }
           }
-          // 12-bit rows: most significant bit first, each row starting on a byte.
-          for (std::size_t index = 0; index < packed_row.size(); index += 2U) {
-            const auto first = packed_row[index];
-            const auto second = index + 1U < packed_row.size() ? packed_row[index + 1U] : std::uint16_t{0};
-            data.push_back(static_cast<std::uint8_t>(first >> 4U));
-            data.push_back(static_cast<std::uint8_t>(((first & 0x0FU) << 4U) | (second >> 8U)));
-            if (index + 1U < packed_row.size()) {
-              data.push_back(static_cast<std::uint8_t>(second & 0xFFU));
+          // Packed rows: most significant bit first, each row starting on a byte.
+          std::uint32_t accumulator = 0;
+          std::uint32_t pending = 0;
+          for (const auto sample : packed_row) {
+            accumulator = (accumulator << spec.bits) | sample;
+            pending += spec.bits;
+            while (pending >= 8U) {
+              data.push_back(static_cast<std::uint8_t>((accumulator >> (pending - 8U)) & 0xFFU));
+              pending -= 8U;
             }
+            accumulator &= (1U << pending) - 1U;
+          }
+          if (pending > 0U) {
+            data.push_back(static_cast<std::uint8_t>((accumulator << (8U - pending)) & 0xFFU));
           }
         }
         apply_predictor(data, static_cast<std::size_t>(segment_width) * per_segment_samples * kind_bytes(spec.kind),
@@ -305,7 +337,7 @@ inline std::vector<Entry> append_page(Writer& writer, const Spec& spec) {
       }
     }
   }
-  const auto bits = spec.kind == Kind::U12 ? 12U : static_cast<std::uint32_t>(kind_bytes(spec.kind) * 8U);
+  const auto bits = spec.kind == Kind::Packed ? spec.bits : static_cast<std::uint32_t>(kind_bytes(spec.kind) * 8U);
   const std::uint32_t format = is_float(spec.kind) ? 3U : 1U;
   std::vector<Entry> entries{
       {256, 4, {spec.width}},

@@ -140,16 +140,22 @@ finds nothing specific, the decoder's own message.
 - Structure: either byte order, classic TIFF only (BigTIFF is refused), chunky or planar,
   strips or tiles, one shared BitsPerSample and SampleFormat, FillOrder 1.
 - Compression: none, PackBits (32773), LZW (5, the TIFF 6.0 MSB-first form; old-style LZW
-  is refused) and Deflate (8, 32946) through miniz; predictor 2 (integer differencing at the
-  sample width) and 3 (floating point: byte planes, most significant first) after LZW or
-  Deflate.
-- Samples: 8, 12, 16, 32-bit unsigned integers and 16, 32, 64-bit floats; Photometric 0/1 gray
-  (WhiteIsZero inverted), 2 RGB, 3 palette (8-bit indexes, ColorMap narrowed to 8 bits).
-  Gray and palette open as RGB, like every other flat import. 12-bit samples (packed most
-  significant bit first, each row on a byte; Qt refuses them) take no predictor. CMYK, YCbCr,
-  Lab, signed and 1/2/4-bit samples are refused (Qt reads most of those).
-- Depth: 8-bit samples open as an 8-bit document, 12-bit as 16-bit (scaled to the full
-  range), 16-bit as 16-bit, 32-bit integers as
+  is refused), Deflate (8, 32946) through miniz and Zstandard (50000, and 34926 from older
+  tag lists; GitHub issue 653) through the vendored decoder `src/formats/zstd/zstddeclib.c`
+  (compiled into `patchy_psd`, which `patchy_formats` reaches for Affinity files); predictor
+  2 (integer differencing at the sample width) and 3 (floating point: byte planes, most
+  significant first) after LZW, Deflate or Zstandard. Zstandard decodes frame by frame
+  straight into the segment's expected size (`ZSTD_decompressDCtx`, no window buffer
+  whatever the frame header asks), and a frame that fails ends the segment.
+- Samples: 8, 9 to 15, 16, 32-bit unsigned integers and 16, 32, 64-bit floats; Photometric
+  0/1 gray (WhiteIsZero inverted), 2 RGB, 3 palette (8-bit indexes, ColorMap narrowed to 8
+  bits). Gray and palette open as RGB, like every other flat import. 9 to 15-bit samples
+  (packed most significant bit first, each row on a byte; Qt refuses them; issue 625's
+  12-bit page, issue 653's 10 and 14-bit files) take no predictor. CMYK, YCbCr, Lab, signed
+  and 1 to 7-bit samples are refused (Qt reads most of those).
+- Depth: 8-bit samples open as an 8-bit document, 9 to 15-bit as 16-bit (scaled to the full
+  range, `(v * 65535 + max / 2) / max` with `max = 2^bits - 1`), 16-bit as 16-bit, 32-bit
+  integers as
   16-bit (rounded top 16 bits: integer data is display-encoded), and every float width as a
   32-bit document whose values are linear light (NaN and infinities become 0). Without deep
   editing (`PATCHY_DEEP_EDITING=0`) the open converts to 8 bits.
@@ -220,8 +226,10 @@ Core `tiff_pages_*` (tests/core/tiff_flat_tests.cpp) cover the page walk (previe
 indexes, PageName) and the layer assembly (canvas, depth, order, channels). Core `tiff_flat_*`
 (the same file) cover the fallback decoder on files from
 `tests/flat_tiff_fixture.hpp` (every layout, compression and predictor in both orders, the
-#623 layout, float widths, 12 and 32-bit integers, alpha and channels, gray and palette, refusals,
-damage, pages by directory, Unicode paths); UI
+#623 layout, float widths, 9 to 15 and 32-bit integers, Zstandard as stored blocks, alpha and
+channels, gray and palette, refusals, damage, pages by directory, Unicode paths) and issue
+653's files from `local-test-fixtures/tiff-flat` when present (compared with the 8-bit page 1
+of `shapes_multi_color.tif` copied beside them); UI
 `ui_flat_tiff_qt_refuses_opens_through_the_fallback_decoder` drives the app open.
 
 Core `tiff_layers_*` (tests/core/tiff_layers_tests.cpp) on synthetic files from

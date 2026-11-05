@@ -25,7 +25,8 @@ if(APPLE)
 endif()
 
 # The vendored miniz (src/formats/miniz/miniz.c, zlib inflate/deflate for zip-compressed
-# PSD channels and the Aseprite format; compiled into patchy_psd) and Little CMS
+# PSD channels and the Aseprite format; compiled into patchy_psd), the zstd decoder
+# (src/formats/zstd/zstddeclib.c, Zstandard TIFF and Affinity data; patchy_psd) and Little CMS
 # (src/color/lcms2/, ICC color management for CMYK PSD import) are plain C.
 enable_language(C)
 
@@ -423,6 +424,7 @@ add_library(patchy_psd
   src/formats/acv_curves_io.cpp
   src/formats/photoshop_adjustment_presets.cpp
   src/formats/miniz/miniz.c
+  src/formats/zstd/zstddeclib.c
   src/psd/abr_reader.cpp
   src/psd/asl_io.cpp
   src/psd/csh_io.cpp
@@ -730,7 +732,6 @@ add_library(patchy_formats
   src/formats/stb/stb_dxt_impl.c
   src/formats/bcdec/bcdec_impl.c
   src/formats/bc7enc/bc7enc.c
-  src/formats/zstd/zstddeclib.c
 )
 # patchy_libraw stays PRIVATE: only raw_document_io.cpp touches LibRaw types; the public
 # raw_document_io.hpp is LibRaw-free like the rest of the formats API. patchy_filters is
