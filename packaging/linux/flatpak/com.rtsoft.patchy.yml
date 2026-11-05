@@ -60,8 +60,14 @@ modules:
       - type: archive
         url: https://gitlab.com/-/project/429008/uploads/843c156420e211859e974f78f64c3ea3/sane-backends-1.4.0.tar.gz
         sha256: f99205c903dfe2fb8990f0c531232c9a00ec9c2c66ac7cb0ce50b4af9f407a72
+      # Where the source of both libraries is published (docs/legal-licensing.md,
+      # PatchyLinuxScannerSources.zip from scripts/release/make-linux-scanner-sources.ps1).
+      - type: file
+        path: ../../../packaging/linux/flatpak/scanner-SOURCES.txt
     post-install:
       - install -Dm644 COPYING /app/share/licenses/com.rtsoft.patchy/sane-backends-COPYING.txt
+      - install -Dm644 LICENSE /app/share/licenses/com.rtsoft.patchy/sane-backends-LICENSE.txt
+      - install -Dm644 scanner-SOURCES.txt /app/share/licenses/com.rtsoft.patchy/scanner-SOURCES.txt
     cleanup:
       - /bin
       - /sbin

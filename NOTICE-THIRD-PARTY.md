@@ -246,13 +246,19 @@ the Linux build uses the Flatpak runtime's `libgomp`.
 ## SANE and libgphoto2 (Linux Flatpak only)
 
 The Flatpak carries sane-backends 1.4.0 (<https://gitlab.com/sane-project/backends>;
-GNU GPL version 2 or later with the SANE exception that permits linking `libsane`)
-and libgphoto2 2.5.32 (<https://github.com/gphoto/libgphoto2>; GNU LGPL version 2.1
-or later), built unmodified from the release tarballs. Patchy loads both with `dlopen`
-at run time for scanner and camera import; the AppImage and native builds use the
-distribution's copies and ship neither. Their license texts ship in
-`share/licenses/com.rtsoft.patchy/` as `sane-backends-COPYING.txt` and
-`libgphoto2-COPYING.txt`.
+GNU GPL version 2 or later, with SANE's exception that permits linking on `libsane` and
+most backends; its `LICENSE` file says not every backend carries it) and libgphoto2
+2.5.32 (<https://github.com/gphoto/libgphoto2>; GNU LGPL version 2.1 or later), built
+unmodified from the release tarballs. Patchy loads both with `dlopen` at run time for
+scanner and camera import; the AppImage and native builds use the distribution's copies
+and ship neither. Their license texts ship in `share/licenses/com.rtsoft.patchy/` as
+`sane-backends-COPYING.txt`, `sane-backends-LICENSE.txt` and `libgphoto2-COPYING.txt`.
+
+Source code: the corresponding source of both, the exact release tarballs the Flatpak
+manifest names with the manifest that builds them, is `PatchyLinuxScannerSources.zip`,
+published with every Patchy release on GitHub next to the Flatpak bundles
+(<https://github.com/SethRobinson/Patchy/releases>, the release of that version). The
+Flatpak's `scanner-SOURCES.txt` says the same.
 
 ## ONNX Runtime (desktop builds)
 
