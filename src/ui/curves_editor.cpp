@@ -234,7 +234,9 @@ class CurvesGraphWidget final : public QWidget {
 public:
   explicit CurvesGraphWidget(QWidget* parent = nullptr) : QWidget(parent) {
     setObjectName(QStringLiteral("curvesGraph"));
-    setMinimumSize(300, 300);
+    // Short enough that the Input/Output column beside it sets the dialog's minimum height
+    // (#592 follow-up 3); the graph stays square inside whatever it is given.
+    setMinimumSize(300, 160);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(true);

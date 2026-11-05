@@ -9,12 +9,14 @@
 #include "test_harness.hpp"
 #include "ui/adjustment_presets.hpp"
 #include "ui/curves_editor.hpp"
+#include "ui/curves_presets.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/theme_manager.hpp"
 #include "unicode_path_names.hpp"
 
 #include <QAbstractButton>
+#include <QAbstractItemView>
 #include <QAbstractSpinBox>
 #include <QApplication>
 #include <QCheckBox>
@@ -25,10 +27,12 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QImage>
 #include <QInputDialog>
 #include <QLabel>
 #include <QListWidget>
 #include <QMessageBox>
+#include <QPainter>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSlider>
@@ -697,11 +701,20 @@ void ui_adjustment_presets_levels_presets_fields_and_eyedroppers() {
 
 void ui_adjustment_presets_curves_layout_and_user_presets() {
   clear_user_presets(AdjustmentPresetKind::Curves);
+  const auto export_path = artifact_path(QStringLiteral("ui-curves-export.acv"));
+  const auto import_path = artifact_path(QStringLiteral("Curves Import.acv"));
+  QFile::remove(export_path);
+  patchy::CurvesAdjustment imported;
+  imported.rgb = {{0, 0}, {70, 40}, {190, 220}, {255, 255}};
+  imported.blue = {{0, 20}, {255, 235}};
+  patchy::acv::write_file(patchy::ui::to_filesystem_path(import_path), imported);
+  const auto shipped = patchy::ui::builtin_curves_presets();
   // Owned by a parent carrying the app style sheet, as in the app, so it opens at its real size.
   const auto themed_parent = make_themed_dialog_parent();
   auto& parent = *themed_parent;
   parent.show();
   QApplication::processEvents();
+  const auto hue_saturation_lefts = hue_saturation_preset_left_edges(parent);
   bool checked = false;
   QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyCurvesDialog"));
@@ -710,8 +723,8 @@ void ui_adjustment_presets_curves_layout_and_user_presets() {
       return;
     }
     process_events_for(60);
-    auto* list = child<QListWidget>(*dialog, "curvesPresetList");
-    auto* editor = child<QWidget>(*dialog, "curvesEditor");
+    auto* presets = child<QComboBox>(*dialog, "curvesPresetCombo");
+    auto* editor = child<patchy::ui::CurvesEditorWidget>(*dialog, "curvesEditor");
     auto* tabs = child<QTabBar>(*dialog, "curvesChannelTabs");
     auto* input = child<QSpinBox>(*dialog, "curvesInputSpin");
     auto* auto_button = child<QPushButton>(*dialog, "curvesAutoButton");
@@ -720,17 +733,26 @@ void ui_adjustment_presets_curves_layout_and_user_presets() {
     auto* remove = child<QPushButton>(*dialog, "curvesDeletePresetButton");
     auto* import = child<QPushButton>(*dialog, "curvesImportPresetButton");
     auto* export_button = child<QPushButton>(*dialog, "curvesExportPresetButton");
-    if (list == nullptr || editor == nullptr || tabs == nullptr || input == nullptr || auto_button == nullptr ||
+    if (presets == nullptr || editor == nullptr || tabs == nullptr || input == nullptr || auto_button == nullptr ||
         reset == nullptr || save == nullptr || remove == nullptr || import == nullptr || export_button == nullptr) {
       dialog->reject();
       return;
     }
+    // The icon strip is gone (#592 follow-up 3): a Preset combo as in Levels and
+    // Hue/Saturation, each entry with its curve's thumbnail.
+    CHECK(dialog->findChild<QListWidget*>() == nullptr);
     CHECK(dialog->findChild<QPushButton*>(QStringLiteral("curvesLoadPresetButton")) == nullptr);
     CHECK(import->text() == QStringLiteral("Import...") && export_button->text() == QStringLiteral("Export..."));
     CHECK(save->text() == QStringLiteral("Save...") && remove->text() == QStringLiteral("Delete"));
-    // Top to bottom (#592): the preset list, its buttons, a separator, the canvas tools, the
-    // editor. Input, Output, Auto, Reset and Before form a column right of the graph, each
-    // label above its field and a gap before the buttons. OK is as wide as Cancel.
+    CHECK(presets->count() == static_cast<int>(shipped.size()) + 1);
+    CHECK(presets->currentData().toString() == QStringLiteral("curves.default"));
+    CHECK(presets->itemText(0) == QStringLiteral("Custom"));
+    for (int index = 0; index < presets->count(); ++index) {
+      CHECK(!presets->itemIcon(index).isNull());
+    }
+    // Top to bottom (#592): Preset with its buttons under the combo, a separator, the canvas
+    // tools, the editor. Input, Output, Auto, Reset and Before form a column right of the
+    // graph, each label above its field and a gap before the buttons. OK is as wide as Cancel.
     auto* output = child<QSpinBox>(*dialog, "curvesOutputSpin");
     auto* graph = child<QWidget>(*dialog, "curvesGraph");
     auto* separator = child<QWidget>(*dialog, "curvesPresetSeparator");
@@ -738,52 +760,42 @@ void ui_adjustment_presets_curves_layout_and_user_presets() {
     auto* both = child<QPushButton>(*dialog, "curvesClippingPreviewButton");
     auto* before = child<QPushButton>(*dialog, "curvesBeforeButton");
     auto* preview = child<QCheckBox>(*dialog, "curvesPreviewCheck");
+    auto* label = child<QLabel>(*dialog, "curvesPresetLabel");
     auto* buttons = dialog->findChild<QDialogButtonBox*>();
     if (output == nullptr || graph == nullptr || separator == nullptr || target == nullptr || both == nullptr ||
-        before == nullptr || preview == nullptr || buttons == nullptr) {
+        before == nullptr || preview == nullptr || label == nullptr || buttons == nullptr) {
       dialog->reject();
       return;
     }
-    const auto list_box = geometry_in(*list, *dialog);
-    const auto save_box = geometry_in(*save, *dialog);
-    CHECK(save_box.top() > list_box.bottom());
-    for (auto* button : {remove, import, export_button}) {
-      CHECK(geometry_in(*button, *dialog).center().y() == save_box.center().y());
-    }
-    // #592 follow-up 2: each of the four is as wide as Highlights, and the row is centered
-    // under the strip.
-    auto* highlights = child<QPushButton>(*dialog, "curvesHighlightClippingButton");
-    if (highlights == nullptr) {
-      dialog->reject();
-      return;
-    }
-    const auto check_preset_buttons = [&] {
-      const auto strip = geometry_in(*list, *dialog);
-      const auto first = geometry_in(*save, *dialog);
-      const auto last = geometry_in(*export_button, *dialog);
-      std::cerr << "curves preset buttons: highlights " << highlights->width() << ", buttons " << save->width() << ' '
-                << remove->width() << ' ' << import->width() << ' ' << export_button->width() << ", row "
-                << first.left() << ".." << last.right() << ", strip " << strip.left() << ".." << strip.right()
-                << '\n';
-      for (auto* button : {save, remove, import, export_button}) {
-        CHECK(button->width() == highlights->width());
-        CHECK(geometry_in(*button, *dialog).top() == first.top());
-      }
-      CHECK(std::abs((first.left() + last.right()) - (strip.left() + strip.right())) <= 2);
+    CHECK(label->text() == QStringLiteral("Preset:") && label->buddy() == presets);
+    const auto check_preset_rows = [&] {
+      check_preset_button_row_spans(*dialog, "curves", *presets);
+      CHECK(geometry_in(*separator, *dialog).top() > geometry_in(*save, *dialog).bottom());
+      CHECK(geometry_in(*target, *dialog).top() > geometry_in(*separator, *dialog).bottom());
     };
-    check_preset_buttons();
-    CHECK(geometry_in(*separator, *dialog).top() > save_box.bottom());
-    CHECK(geometry_in(*target, *dialog).top() > geometry_in(*separator, *dialog).bottom());
+    check_preset_rows();
+    // The combo starts where the Hue/Saturation and Levels ones do.
+    {
+      std::array<int, 2> lefts{};
+      for (std::size_t index = 0; index < kBothSchemes.size(); ++index) {
+        ColorSchemeRestorer restore(kBothSchemes[index]);
+        process_events_for(60);
+        lefts[index] = geometry_in(*presets, *dialog).left();
+      }
+      std::cerr << "curves preset left " << lefts[0] << ' ' << lefts[1] << ", hue/saturation "
+                << hue_saturation_lefts[0] << ' ' << hue_saturation_lefts[1] << '\n';
+      CHECK(lefts == hue_saturation_lefts);
+    }
     CHECK(geometry_in(*both, *dialog).center().y() == geometry_in(*target, *dialog).center().y());
     CHECK(geometry_in(*tabs, *dialog).top() > geometry_in(*target, *dialog).bottom());
     const auto graph_box = geometry_in(*graph, *dialog);
     QLabel* input_caption = nullptr;
     QLabel* output_caption = nullptr;
-    for (auto* label : editor->findChildren<QLabel*>()) {
-      if (label->buddy() == input) {
-        input_caption = label;
-      } else if (label->buddy() == output) {
-        output_caption = label;
+    for (auto* caption : editor->findChildren<QLabel*>()) {
+      if (caption->buddy() == input) {
+        input_caption = caption;
+      } else if (caption->buddy() == output) {
+        output_caption = caption;
       }
     }
     CHECK(input_caption != nullptr && output_caption != nullptr);
@@ -809,74 +821,125 @@ void ui_adjustment_presets_curves_layout_and_user_presets() {
     CHECK(std::abs(geometry_in(*preview, *dialog).center().y() - geometry_in(*ok, *dialog).center().y()) <= 4);
     CHECK(geometry_in(*preview, *dialog).right() < geometry_in(*ok, *dialog).left());
     // Tab order follows the layout.
-    const std::vector<QWidget*> order{list, save, remove, import, export_button, target};
-    CHECK(focus_chain(list, static_cast<int>(order.size())) == order);
+    const std::vector<QWidget*> order{presets, save, remove, import, export_button, target};
+    CHECK(focus_chain(presets, static_cast<int>(order.size())) == order);
     const std::vector<QWidget*> column_order{input, output, auto_button, reset, before, preview, ok};
     CHECK(focus_chain(input, static_cast<int>(column_order.size())) == column_order);
     CHECK(tabs->tabIcon(0).isNull() && !tabs->tabIcon(1).isNull());
-    // Opened under the theme (compact buttons), it is narrower than the first round's 560 px
-    // minimum. Qt caps a new window's height at 2/3 of the screen, and the offscreen screen is
-    // short, so the dialog is given its size hint here, as on a desktop screen.
+    // Qt caps a new window's height at 2/3 of the screen, and the offscreen screen is short,
+    // so the dialog is given its size hint here, as on a desktop screen.
     dialog->resize(dialog->sizeHint());
     process_events_for(60);
-    std::cerr << "curves dialog size " << dialog->width() << 'x' << dialog->height() << ", strip "
-              << list->height() << " (min " << list->minimumHeight() << "), graph " << graph->height() << '\n';
+    std::cerr << "curves dialog size " << dialog->width() << 'x' << dialog->height() << ", minimum "
+              << dialog->minimumSizeHint().width() << 'x' << dialog->minimumSizeHint().height() << ", graph "
+              << graph->width() << 'x' << graph->height() << '\n';
     CHECK(dialog->width() < 560);
-    CHECK(graph->height() >= graph->minimumHeight());
-    // The strip has one size at every dialog size (#592 follow-up 2): it shows whole cells
-    // only, spans the column at the opening size and stays whole at the minimum size.
-    const auto strip_size = list->size();
-    const auto check_strip = [&] {
-      CHECK(list->size() == strip_size);
-      CHECK(list->minimumSize() == list->maximumSize());
-      const auto cell = list->gridSize().width();
-      const auto viewport_width = list->viewport()->width();
-      std::cerr << "curves strip " << list->width() << 'x' << list->height() << ", viewport " << viewport_width
-                << 'x' << list->viewport()->height() << ", cell " << cell << ", dialog " << dialog->width() << 'x'
-                << dialog->height() << '\n';
-      CHECK(cell >= 98 && viewport_width % cell == 0);
-      CHECK(list->viewport()->height() >= list->gridSize().height());
-      CHECK(geometry_in(*list, *dialog).left() >= 0 && geometry_in(*list, *dialog).right() < dialog->width());
-      check_preset_buttons();
-    };
-    check_strip();
-    CHECK(list->width() <= editor->width() && list->width() > editor->width() - list->gridSize().width());
+    CHECK(graph->height() >= 300);
+    capture_both_schemes(*dialog, "ui_curves_presets_dialog");
+    // At its minimum size (#592 follow-up 3) the column beside the graph sets the height: the
+    // graph ends near Before, and the dialog is far below the old 600 px.
     dialog->resize(dialog->minimumSizeHint());
     process_events_for(60);
-    check_strip();
-    dialog->resize(dialog->sizeHint() + QSize(240, 160));
-    process_events_for(60);
-    check_strip();
-    dialog->resize(dialog->sizeHint());
-    process_events_for(60);
-    capture_both_schemes(*dialog, "ui_curves_presets_dialog");
-
-    // Save a shipped curve as a user preset: it joins the strip and stays selected.
-    CHECK(!remove->isEnabled());
-    for (int row = 0; row < list->count(); ++row) {
-      if (list->item(row)->data(Qt::UserRole + 1).toString() == QStringLiteral("curves.matte")) {
-        list->setCurrentRow(row);
-      }
+    {
+      const auto before_bottom = geometry_in(*before, *dialog).bottom();
+      const auto graph_bottom = geometry_in(*graph, *dialog).bottom();
+      std::cerr << "curves minimum " << dialog->width() << 'x' << dialog->height() << ", graph " << graph->width()
+                << 'x' << graph->height() << ", before bottom " << before_bottom << ", graph bottom " << graph_bottom
+                << '\n';
+      CHECK(dialog->height() < 480);
+      CHECK(graph_bottom >= before_bottom && graph_bottom - before_bottom <= 12);
+      CHECK(graph->height() >= graph->minimumHeight());
+      check_preset_rows();
+      capture_both_schemes(*dialog, "ui_curves_presets_dialog_minimum");
     }
-    const auto count = list->count();
+    // Larger, the graph grows with the dialog.
+    const auto minimum_graph = graph->size();
+    dialog->resize(dialog->minimumSizeHint() + QSize(200, 200));
+    process_events_for(60);
+    CHECK(graph->height() >= minimum_graph.height() + 150 && graph->width() >= minimum_graph.width() + 150);
+    check_preset_rows();
+    dialog->resize(dialog->minimumSizeHint());
+    process_events_for(60);
+    // The combo open: every entry with its icon.
+    for (const auto scheme : kBothSchemes) {
+      ColorSchemeRestorer restore(scheme);
+      process_events_for(60);
+      presets->showPopup();
+      process_events_for(120);
+      auto* popup = presets->view() != nullptr ? presets->view()->window() : nullptr;
+      CHECK(popup != nullptr && popup->isVisible());
+      if (popup != nullptr && popup->isVisible()) {
+        // Plain grabs, the list drawn where it sits: the theme check flags Qt's private popup
+        // container (QComboBoxPrivateContainer), whose own background the themed list covers.
+        const auto dialog_shot = dialog->grab().toImage();
+        const auto popup_shot = popup->grab().toImage();
+        const auto offset = popup->mapToGlobal(QPoint(0, 0)) - dialog->mapToGlobal(QPoint(0, 0));
+        const auto bounds = QRect(QPoint(0, 0), dialog->size()).united(QRect(offset, popup->size()));
+        QImage shot(bounds.size(), QImage::Format_ARGB32_Premultiplied);
+        shot.fill(Qt::transparent);
+        {
+          QPainter painter(&shot);
+          painter.drawImage(-bounds.topLeft(), dialog_shot);
+          painter.drawImage(offset - bounds.topLeft(), popup_shot);
+        }
+        save_image_artifact(scheme == patchy::ui::ColorSchemePreference::Dark ? "ui_curves_presets_combo_open_dark"
+                                                                              : "ui_curves_presets_combo_open_light",
+                            shot);
+      }
+      presets->hidePopup();
+      process_events_for(60);
+    }
+
+    // Choosing a preset sets the curve; editing it selects Custom, whose icon follows.
+    const auto icon_image = [&](int index) { return presets->itemIcon(index).pixmap(QSize(30, 20)).toImage(); };
+    choose(*presets, shipped[2].id);
+    CHECK(editor->adjustment() == shipped[2].adjustment);
+    const auto custom_icon = icon_image(0);
+    output->setValue(output->value() > 200 ? output->value() - 40 : output->value() + 40);
+    CHECK(presets->currentData().toString() == QStringLiteral("custom"));
+    CHECK(icon_image(0) != custom_icon);
+
+    // Save a shipped curve as a user preset: it joins the combo after a separator and stays
+    // selected while it equals the shipped one.
+    choose(*presets, QStringLiteral("curves.matte"));
+    CHECK(!remove->isEnabled());
+    const auto count = presets->count();
     answer_preset_name(QStringLiteral("My Matte"));
     save->click();
-    CHECK(list->count() == count + 1);
-    CHECK(list->currentItem() != nullptr &&
-          list->currentItem()->data(Qt::UserRole + 1).toString() == QStringLiteral("user:My Matte"));
+    CHECK(presets->count() == count + 2);  // The separator and the preset.
+    CHECK(presets->currentData().toString() == QStringLiteral("user:My Matte"));
+    CHECK(!presets->itemIcon(presets->currentIndex()).isNull());
     CHECK(remove->isEnabled());
     const auto saved_path =
         patchy::ui::user_adjustment_preset_path(AdjustmentPresetKind::Curves, QStringLiteral("My Matte"));
     CHECK(QFileInfo::exists(saved_path));
+    // Another preset and back.
+    choose(*presets, QStringLiteral("curves.default"));
+    CHECK(!remove->isEnabled());
+    choose(*presets, QStringLiteral("user:My Matte"));
+    CHECK(remove->isEnabled());
+    // Export writes the current curve.
+    answer_file(QStringLiteral("curvesPresetExportFileDialog"), export_path);
+    export_button->click();
+    CHECK(QFileInfo::exists(export_path));
+    if (QFileInfo::exists(export_path)) {
+      CHECK(patchy::acv::read_file(patchy::ui::to_filesystem_path(export_path)) == editor->adjustment());
+    }
     answer_yes(QStringLiteral("adjustmentPresetDeleteMessageBox"));
     remove->click();
-    CHECK(list->count() == count && !QFileInfo::exists(saved_path));
+    CHECK(presets->count() == count && !QFileInfo::exists(saved_path));
+    // Import adds the file under its name and applies it.
+    answer_file(QStringLiteral("curvesPresetImportFileDialog"), import_path);
+    import->click();
+    CHECK(presets->currentData().toString() == QStringLiteral("user:Curves Import"));
+    CHECK(editor->adjustment() == imported);
+    CHECK(remove->isEnabled());
     checked = true;
     dialog->accept();
   }));
   const auto result = patchy::ui::request_curves_settings(&parent, {});
   CHECK(checked);
-  CHECK(result.has_value());
+  CHECK(result.has_value() && *result == imported);
   clear_user_presets(AdjustmentPresetKind::Curves);
 }
 
@@ -917,7 +980,23 @@ void ui_adjustment_presets_black_white_user_presets() {
     }
     // A column of buttons to the right of the strip; no user section yet.
     CHECK(geometry_in(*save, *dialog).left() > geometry_in(*strip, *dialog).right());
-    CHECK(geometry_in(*export_button, *dialog).bottom() <= geometry_in(*strip, *dialog).bottom());
+    // The strip is one row of tiles high and ends where Export... does (#528 follow-up 2).
+    {
+      const auto strip_box = geometry_in(*strip, *dialog);
+      const auto save_box = geometry_in(*save, *dialog);
+      const auto export_box = geometry_in(*export_button, *dialog);
+      auto* first_tile = dialog->findChild<QAbstractButton*>(QStringLiteral("blackWhitePreset_custom"));
+      CHECK(first_tile != nullptr);
+      std::cerr << "black & white strip " << strip_box.top() << ".." << strip_box.bottom() << ", viewport "
+                << strip->viewport()->height() << ", tile " << (first_tile != nullptr ? first_tile->height() : 0)
+                << ", buttons " << save_box.top() << ".." << export_box.bottom() << '\n';
+      CHECK(std::abs(strip_box.top() - save_box.top()) <= 1);
+      CHECK(strip_box.bottom() >= export_box.bottom() && strip_box.bottom() - export_box.bottom() <= 3);
+      if (first_tile != nullptr) {
+        CHECK(strip->viewport()->height() >= first_tile->height());
+        CHECK(strip->viewport()->height() < 2 * first_tile->height());
+      }
+    }
     CHECK(header->isHidden() && !remove->isEnabled());
 
     reds->setValue(77);

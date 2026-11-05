@@ -3393,16 +3393,8 @@
         <translation>그림자 및 하이라이트 클리핑을 함께 표시</translation>
     </message>
     <message>
-        <source>Curves presets</source>
-        <translation>곡선 사전 설정</translation>
-    </message>
-    <message>
         <source>Custom</source>
         <translation>사용자 지정</translation>
-    </message>
-    <message>
-        <source>Current custom curve</source>
-        <translation>현재 사용자 지정 곡선</translation>
     </message>
     <message>
         <source>Save...</source>
@@ -13979,20 +13971,12 @@ Each item&apos;s own View setting still applies.</source>
         <translation>%1 및 변환되는 회색</translation>
     </message>
     <message>
-        <source>This slider acts on %1% of the image&apos;s color</source>
-        <translation>이 슬라이더는 이미지 색상의 %1%에 작용합니다</translation>
-    </message>
-    <message>
         <source>Black &amp; White presets</source>
         <translation>흑백 사전 설정</translation>
     </message>
     <message>
         <source>The current slider settings</source>
         <translation>현재 슬라이더 설정</translation>
-    </message>
-    <message>
-        <source>Bars: how much of this image each slider acts on.</source>
-        <translation>막대: 각 슬라이더가 이 이미지에 얼마나 작용하는지 보여 줍니다.</translation>
     </message>
     <message>
         <source>Hearts and Stars</source>
@@ -14905,6 +14889,34 @@ Each item&apos;s own View setting still applies.</source>
         <source>Pages Patchy could not read were left out: %1</source>
         <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
         <translation>Patchy가 읽을 수 없는 페이지는 제외되었습니다: %1</translation>
+    </message>
+    <message>
+        <source>Reds:</source>
+        <translation>빨강 계열:</translation>
+    </message>
+    <message>
+        <source>Yellows:</source>
+        <translation>노랑 계열:</translation>
+    </message>
+    <message>
+        <source>Greens:</source>
+        <translation>녹색 계열:</translation>
+    </message>
+    <message>
+        <source>Cyans:</source>
+        <translation>청록 계열:</translation>
+    </message>
+    <message>
+        <source>Blues:</source>
+        <translation>파랑 계열:</translation>
+    </message>
+    <message>
+        <source>Magentas:</source>
+        <translation>마젠타 계열:</translation>
+    </message>
+    <message>
+        <source>The bar shows how much of this image the slider acts on: %1% of its color</source>
+        <translation>막대는 이 슬라이더가 이미지의 얼마만큼에 작용하는지 보여 줍니다: 색상의 %1%</translation>
     </message>
 </context>
 <context>

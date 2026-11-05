@@ -3395,16 +3395,8 @@
         <translation>Pokaż jednocześnie obcięcie cieni i świateł</translation>
     </message>
     <message>
-        <source>Curves presets</source>
-        <translation>Wstępne ustawienia krzywych</translation>
-    </message>
-    <message>
         <source>Custom</source>
         <translation>Niestandardowe</translation>
-    </message>
-    <message>
-        <source>Current custom curve</source>
-        <translation>Bieżąca krzywa niestandardowa</translation>
     </message>
     <message>
         <source>Save...</source>
@@ -14067,20 +14059,12 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>%1 i szarość, w którą się zmieniają</translation>
     </message>
     <message>
-        <source>This slider acts on %1% of the image&apos;s color</source>
-        <translation>Ten suwak działa na %1% koloru obrazu</translation>
-    </message>
-    <message>
         <source>Black &amp; White presets</source>
         <translation>Ustawienia wstępne czerni i bieli</translation>
     </message>
     <message>
         <source>The current slider settings</source>
         <translation>Bieżące ustawienia suwaków</translation>
-    </message>
-    <message>
-        <source>Bars: how much of this image each slider acts on.</source>
-        <translation>Paski: jak dużą część tego obrazu zmienia każdy suwak.</translation>
     </message>
     <message>
         <source>Hearts and Stars</source>
@@ -14997,6 +14981,34 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Pages Patchy could not read were left out: %1</source>
         <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
         <translation>Pominięto strony, których Patchy nie mógł odczytać: %1</translation>
+    </message>
+    <message>
+        <source>Reds:</source>
+        <translation>Czerwienie:</translation>
+    </message>
+    <message>
+        <source>Yellows:</source>
+        <translation>Żółcie:</translation>
+    </message>
+    <message>
+        <source>Greens:</source>
+        <translation>Zielenie:</translation>
+    </message>
+    <message>
+        <source>Cyans:</source>
+        <translation>Cyjany:</translation>
+    </message>
+    <message>
+        <source>Blues:</source>
+        <translation>Błękity:</translation>
+    </message>
+    <message>
+        <source>Magentas:</source>
+        <translation>Magenty:</translation>
+    </message>
+    <message>
+        <source>The bar shows how much of this image the slider acts on: %1% of its color</source>
+        <translation>Pasek pokazuje, na jaką część tego obrazu działa suwak: %1% jego koloru</translation>
     </message>
 </context>
 <context>

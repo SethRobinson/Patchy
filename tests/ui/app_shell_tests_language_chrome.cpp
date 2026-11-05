@@ -1341,8 +1341,8 @@ void ui_language_catalog_covers_dialog_status_and_properties() {
   const auto curves_summary =
       QCoreApplication::translate("QObject", "Curves: RGB %1, Red %2, Green %3, Blue %4 points");
   CHECK(curves_summary == QStringLiteral("トーンカーブ: RGB %1、赤 %2、緑 %3、青 %4 ポイント"));
-  const auto curves_presets = QCoreApplication::translate("QObject", "Curves presets");
-  CHECK(curves_presets == QStringLiteral("トーンカーブのプリセット"));
+  const auto black_white_reds = QCoreApplication::translate("QObject", "Reds:");
+  CHECK(black_white_reds == QStringLiteral("レッド系:"));
   const auto medium_contrast = QCoreApplication::translate("QObject", "Medium Contrast");
   CHECK(medium_contrast == QStringLiteral("中程度のコントラスト"));
   const auto soft_glow = QCoreApplication::translate("QObject", "Soft Glow");

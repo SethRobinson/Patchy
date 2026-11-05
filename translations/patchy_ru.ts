@@ -3395,16 +3395,8 @@
         <translation>Показать отсечение в тенях и светах одновременно</translation>
     </message>
     <message>
-        <source>Curves presets</source>
-        <translation>Предварительные настройки кривых</translation>
-    </message>
-    <message>
         <source>Custom</source>
         <translation>Заказной</translation>
-    </message>
-    <message>
-        <source>Current custom curve</source>
-        <translation>Текущая пользовательская кривая</translation>
     </message>
     <message>
         <source>Save...</source>
@@ -14067,20 +14059,12 @@ Each item&apos;s own View setting still applies.</source>
         <translation>%1 и серый, в который они превращаются</translation>
     </message>
     <message>
-        <source>This slider acts on %1% of the image&apos;s color</source>
-        <translation>Этот ползунок действует на %1% цвета изображения</translation>
-    </message>
-    <message>
         <source>Black &amp; White presets</source>
         <translation>Наборы для черно-белого</translation>
     </message>
     <message>
         <source>The current slider settings</source>
         <translation>Текущие значения ползунков</translation>
-    </message>
-    <message>
-        <source>Bars: how much of this image each slider acts on.</source>
-        <translation>Полосы: насколько каждый ползунок влияет на это изображение.</translation>
     </message>
     <message>
         <source>Hearts and Stars</source>
@@ -14997,6 +14981,34 @@ Each item&apos;s own View setting still applies.</source>
         <source>Pages Patchy could not read were left out: %1</source>
         <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
         <translation>Страницы, которые Patchy не смог прочитать, пропущены: %1</translation>
+    </message>
+    <message>
+        <source>Reds:</source>
+        <translation>Красные:</translation>
+    </message>
+    <message>
+        <source>Yellows:</source>
+        <translation>Желтые:</translation>
+    </message>
+    <message>
+        <source>Greens:</source>
+        <translation>Зелёные:</translation>
+    </message>
+    <message>
+        <source>Cyans:</source>
+        <translation>Голубые:</translation>
+    </message>
+    <message>
+        <source>Blues:</source>
+        <translation>Синие:</translation>
+    </message>
+    <message>
+        <source>Magentas:</source>
+        <translation>Пурпурные:</translation>
+    </message>
+    <message>
+        <source>The bar shows how much of this image the slider acts on: %1% of its color</source>
+        <translation>Полоса показывает, на какую часть этого изображения действует ползунок: %1% его цвета</translation>
     </message>
 </context>
 <context>

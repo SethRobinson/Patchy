@@ -3330,15 +3330,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Curves presets</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Custom</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Current custom curve</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -14006,19 +13998,11 @@ Each item&apos;s own View setting still applies.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>This slider acts on %1% of the image&apos;s color</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Black &amp; White presets</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The current slider settings</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Bars: how much of this image each slider acts on.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -14933,6 +14917,34 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Pages Patchy could not read were left out: %1</source>
         <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reds:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yellows:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Greens:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cyans:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blues:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Magentas:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The bar shows how much of this image the slider acts on: %1% of its color</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

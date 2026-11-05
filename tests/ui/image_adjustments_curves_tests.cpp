@@ -36,6 +36,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFormLayout>
 #include <QFontMetrics>
 #include <QImage>
 #include <QKeySequence>
@@ -2894,48 +2895,43 @@ void ui_curves_preset_thumbnails_apply_all_channels_and_track_custom() {
   QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("patchyCurvesDialog"));
     CHECK(dialog != nullptr);
-    auto* preset_list = dialog->findChild<QListWidget*>(QStringLiteral("curvesPresetList"));
+    // The Preset combo (#592 follow-up 3): Custom and the shipped presets, each with its
+    // thumbnail as the entry's icon.
+    auto* preset_combo = dialog->findChild<QComboBox*>(QStringLiteral("curvesPresetCombo"));
     auto* editor = dialog->findChild<patchy::ui::CurvesEditorWidget*>(QStringLiteral("curvesEditor"));
     auto* graph = dialog->findChild<QWidget*>(QStringLiteral("curvesGraph"));
-    CHECK(preset_list != nullptr);
+    CHECK(preset_combo != nullptr);
     CHECK(editor != nullptr);
     CHECK(graph != nullptr);
-    CHECK(preset_list->count() == static_cast<int>(presets.size()) + 1);
-    CHECK(preset_list->currentItem() != nullptr);
-    CHECK(preset_list->currentItem()->data(Qt::UserRole + 1).toString() == QStringLiteral("curves.default"));
-
-    QListWidgetItem* warm_item = nullptr;
-    QListWidgetItem* strong_item = nullptr;
-    for (int row = 0; row < preset_list->count(); ++row) {
-      auto* item = preset_list->item(row);
-      CHECK(item != nullptr);
-      if (row > 0) {
-        CHECK(!item->icon().isNull());
-      }
-      if (item->data(Qt::UserRole + 1).toString() == QStringLiteral("curves.warm")) {
-        warm_item = item;
-      }
-      if (item->data(Qt::UserRole + 1).toString() == QStringLiteral("curves.strong_contrast")) {
-        strong_item = item;
-      }
+    if (preset_combo == nullptr || editor == nullptr || graph == nullptr) {
+      dialog->reject();
+      return;
     }
-    CHECK(warm_item != nullptr);
-    CHECK(strong_item != nullptr);
+    CHECK(preset_combo->count() == static_cast<int>(presets.size()) + 1);
+    CHECK(preset_combo->currentData().toString() == QStringLiteral("curves.default"));
+    for (int row = 0; row < preset_combo->count(); ++row) {
+      CHECK(!preset_combo->itemIcon(row).isNull());
+    }
+    const auto choose_preset = [preset_combo](const QString& id) {
+      const auto index = preset_combo->findData(id);
+      CHECK(index > 0);
+      preset_combo->setCurrentIndex(index);
+      Q_EMIT preset_combo->activated(index);
+      QApplication::processEvents();
+    };
 
-    preset_list->setCurrentItem(warm_item);
-    QApplication::processEvents();
+    choose_preset(QStringLiteral("curves.warm"));
     CHECK(editor->adjustment() == presets[6].adjustment);
     CHECK(editor->adjustment().red != editor->adjustment().blue);
 
     click_curves_graph(*graph, 108, 183);
     QApplication::processEvents();
-    CHECK(preset_list->currentItem() == preset_list->item(0));
-    CHECK(preset_list->currentItem()->data(Qt::UserRole + 1).toString().isEmpty());
-    CHECK(preset_list->currentItem()->text() == QStringLiteral("Custom"));
-    CHECK(!preset_list->currentItem()->icon().isNull());
+    CHECK(preset_combo->currentIndex() == 0);
+    CHECK(preset_combo->currentData().toString() == QStringLiteral("custom"));
+    CHECK(preset_combo->currentText() == QStringLiteral("Custom"));
+    CHECK(!preset_combo->itemIcon(0).isNull());
 
-    preset_list->setCurrentItem(strong_item);
-    QApplication::processEvents();
+    choose_preset(QStringLiteral("curves.strong_contrast"));
     CHECK(editor->adjustment() == presets[2].adjustment);
     dialog->grab().save(QStringLiteral("test-artifacts/ui_curves_presets.png"));
     inspected = true;
@@ -4677,11 +4673,29 @@ void ui_black_white_dialog_presets_and_measurement() {
       CHECK(strip != nullptr && strip->verticalScrollBar()->isVisible() && strip->verticalScrollBar()->maximum() > 0);
       CHECK(dialog->findChild<QLabel*>(QStringLiteral("blackWhitePresetNeutralHeader")) != nullptr);
       CHECK(dialog->findChild<QLabel*>(QStringLiteral("blackWhitePresetTintedHeader")) != nullptr);
-      CHECK(dialog->findChild<QLabel*>(QStringLiteral("blackWhiteInfluenceNote")) != nullptr);
+      // No note under the strip (#528 follow-up 2): each bar's tooltip says what it shows, and
+      // every field label ends with a colon.
+      CHECK(dialog->findChild<QLabel*>(QStringLiteral("blackWhiteInfluenceNote")) == nullptr);
+      auto* form = dialog->findChild<QFormLayout*>();
+      CHECK(form != nullptr);
       for (const auto* key : keys) {
         CHECK(dialog->findChild<QWidget*>(QStringLiteral("blackWhite%1Chip").arg(QLatin1String(key))) != nullptr);
-        CHECK(dialog->findChild<QWidget*>(QStringLiteral("blackWhite%1Influence").arg(QLatin1String(key))) !=
-              nullptr);
+        auto* meter = dialog->findChild<QWidget*>(QStringLiteral("blackWhite%1Influence").arg(QLatin1String(key)));
+        CHECK(meter != nullptr && meter->toolTip().startsWith(QStringLiteral("The bar shows how much of this image")));
+        auto* spin = dialog->findChild<QSpinBox*>(QStringLiteral("blackWhite%1Spin").arg(QLatin1String(key)));
+        auto* caption = form != nullptr && spin != nullptr ? form->labelForField(spin->parentWidget()) : nullptr;
+        CHECK(caption != nullptr);
+        if (auto* text = qobject_cast<QLabel*>(caption)) {
+          CHECK(text->text() == QLatin1String(key) + QStringLiteral(":"));
+        }
+      }
+      for (const auto& [name, caption_text] : {std::pair{"blackWhiteTintHueSpin", "Hue:"},
+                                               std::pair{"blackWhiteTintSaturationSpin", "Saturation:"}}) {
+        auto* spin = dialog->findChild<QSpinBox*>(QString::fromLatin1(name));
+        auto* caption = form != nullptr && spin != nullptr ? qobject_cast<QLabel*>(form->labelForField(spin->parentWidget()))
+                                                           : nullptr;
+        CHECK(caption != nullptr && caption->text() == QString::fromLatin1(caption_text));
+        CHECK(spin != nullptr && !spin->accessibleName().endsWith(QLatin1Char(':')));
       }
       dialog_checked = true;
       dialog->reject();

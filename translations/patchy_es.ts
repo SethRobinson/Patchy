@@ -3330,16 +3330,8 @@
         <translation>Mostrar juntos los recortes de sombras e iluminaciones</translation>
     </message>
     <message>
-        <source>Curves presets</source>
-        <translation>Ajustes preestablecidos de curvas</translation>
-    </message>
-    <message>
         <source>Custom</source>
         <translation>Personalizado</translation>
-    </message>
-    <message>
-        <source>Current custom curve</source>
-        <translation>Curva personalizada actual</translation>
     </message>
     <message>
         <source>Save...</source>
@@ -14023,20 +14015,12 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>%1 y el gris en que se convierten</translation>
     </message>
     <message>
-        <source>This slider acts on %1% of the image&apos;s color</source>
-        <translation>Este regulador actúa sobre el %1% del color de la imagen</translation>
-    </message>
-    <message>
         <source>Black &amp; White presets</source>
         <translation>Ajustes preestablecidos de blanco y negro</translation>
     </message>
     <message>
         <source>The current slider settings</source>
         <translation>Los valores actuales de los reguladores</translation>
-    </message>
-    <message>
-        <source>Bars: how much of this image each slider acts on.</source>
-        <translation>Barras: cuánto de esta imagen afecta cada regulador.</translation>
     </message>
     <message>
         <source>Hearts and Stars</source>
@@ -14951,6 +14935,34 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Pages Patchy could not read were left out: %1</source>
         <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
         <translation>Se omitieron las páginas que Patchy no pudo leer: %1</translation>
+    </message>
+    <message>
+        <source>Reds:</source>
+        <translation>Rojos:</translation>
+    </message>
+    <message>
+        <source>Yellows:</source>
+        <translation>Amarillos:</translation>
+    </message>
+    <message>
+        <source>Greens:</source>
+        <translation>Verdes:</translation>
+    </message>
+    <message>
+        <source>Cyans:</source>
+        <translation>Cianes:</translation>
+    </message>
+    <message>
+        <source>Blues:</source>
+        <translation>Azules:</translation>
+    </message>
+    <message>
+        <source>Magentas:</source>
+        <translation>Magentas:</translation>
+    </message>
+    <message>
+        <source>The bar shows how much of this image the slider acts on: %1% of its color</source>
+        <translation>La barra muestra cuánto de esta imagen afecta el regulador: %1% de su color</translation>
     </message>
 </context>
 <context>

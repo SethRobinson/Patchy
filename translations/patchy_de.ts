@@ -3330,16 +3330,8 @@
         <translation>Beschnitt in Tiefen und Lichtern zusammen anzeigen</translation>
     </message>
     <message>
-        <source>Curves presets</source>
-        <translation>Gradationskurven-Vorgaben</translation>
-    </message>
-    <message>
         <source>Custom</source>
         <translation>Benutzerdefiniert</translation>
-    </message>
-    <message>
-        <source>Current custom curve</source>
-        <translation>Aktuelle benutzerdefinierte Kurve</translation>
     </message>
     <message>
         <source>Save...</source>
@@ -14023,20 +14015,12 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>%1 und das Grau, das daraus wird</translation>
     </message>
     <message>
-        <source>This slider acts on %1% of the image&apos;s color</source>
-        <translation>Dieser Regler wirkt auf %1% der Bildfarbe</translation>
-    </message>
-    <message>
         <source>Black &amp; White presets</source>
         <translation>Schwarzweiß-Vorgaben</translation>
     </message>
     <message>
         <source>The current slider settings</source>
         <translation>Die aktuellen Reglerwerte</translation>
-    </message>
-    <message>
-        <source>Bars: how much of this image each slider acts on.</source>
-        <translation>Balken: wie viel dieses Bildes jeder Regler beeinflusst.</translation>
     </message>
     <message>
         <source>Hearts and Stars</source>
@@ -14951,6 +14935,34 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Pages Patchy could not read were left out: %1</source>
         <extracomment>%1 lists page numbers, such as &quot;3, 5&quot;.</extracomment>
         <translation>Seiten, die Patchy nicht lesen konnte, wurden ausgelassen: %1</translation>
+    </message>
+    <message>
+        <source>Reds:</source>
+        <translation>Rottöne:</translation>
+    </message>
+    <message>
+        <source>Yellows:</source>
+        <translation>Gelbtöne:</translation>
+    </message>
+    <message>
+        <source>Greens:</source>
+        <translation>Grüntöne:</translation>
+    </message>
+    <message>
+        <source>Cyans:</source>
+        <translation>Cyantöne:</translation>
+    </message>
+    <message>
+        <source>Blues:</source>
+        <translation>Blautöne:</translation>
+    </message>
+    <message>
+        <source>Magentas:</source>
+        <translation>Magentatöne:</translation>
+    </message>
+    <message>
+        <source>The bar shows how much of this image the slider acts on: %1% of its color</source>
+        <translation>Der Balken zeigt, wie viel dieses Bildes der Regler beeinflusst: %1% seiner Farbe</translation>
     </message>
 </context>
 <context>
