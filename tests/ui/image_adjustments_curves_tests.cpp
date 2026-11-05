@@ -10,6 +10,7 @@
 #include "ui/adjustment_presets.hpp"
 #include "ui/curves_presets.hpp"
 #include "ui/filter_workflows.hpp"
+#include "ui/tool_cursors.hpp"
 #include "core/document_depth.hpp"
 #include "core/pixel_depth.hpp"
 #include "formats/acv_curves_io.hpp"
@@ -44,6 +45,9 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QMouseEvent>
+#include <QPainter>
+#include <QPen>
+#include <QPixmap>
 #include <QProgressDialog>
 #include <QPushButton>
 #include <QRadioButton>
@@ -2719,6 +2723,137 @@ void ui_curves_canvas_sampler_reads_below_preview_and_escape_closes() {
   CHECK(base->content_revision() == base_content_revision);
 }
 
+bool shows_plain_eyedropper_cursor(const QWidget& widget) {
+  const auto cursor = widget.cursor();
+  const auto expected = patchy::ui::eyedropper_cursor();
+  return cursor.shape() == Qt::BitmapCursor && cursor.hotSpot() == expected.hotSpot() &&
+         cursor.pixmap().toImage() == expected.pixmap().toImage();
+}
+
+// The Levels and Curves black, gray and white point pickers show the plain eyedropper over
+// the canvas, and the active tool's brush outline gives way to it; turning the picker off or
+// closing the dialog brings the tool's cursor and outline back (GitHub issue 638).
+// The canvas around `hover` with the pointer the canvas set drawn on top: its pixmap for a
+// bitmap cursor, a plain cross for Qt's cross shape (a widget grab has no OS pointer).
+QImage canvas_crop_with_pointer(patchy::ui::CanvasWidget& canvas, QPoint hover) {
+  auto image = canvas.grab().toImage().convertToFormat(QImage::Format_ARGB32);
+  {
+    QPainter painter(&image);
+    const auto cursor = canvas.cursor();
+    if (cursor.shape() == Qt::BitmapCursor) {
+      painter.drawPixmap(hover - cursor.hotSpot(), cursor.pixmap());
+    } else if (cursor.shape() == Qt::CrossCursor) {
+      for (const auto& pen : {QPen(Qt::white, 3.0), QPen(Qt::black, 1.0)}) {
+        painter.setPen(pen);
+        painter.drawLine(hover - QPoint(10, 0), hover + QPoint(10, 0));
+        painter.drawLine(hover - QPoint(0, 10), hover + QPoint(0, 10));
+      }
+    }
+  }
+  return image.copy(QRect(hover - QPoint(160, 160), QSize(321, 321)).intersected(image.rect()));
+}
+
+void check_point_pickers_replace_brush_cursor(const char* action_name, const char* dialog_name,
+                                              std::array<const char*, 3> picker_names,
+                                              const char* artifact_name) {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_primary_color(QColor(96, 140, 190));
+  use_solid_fill_settings(canvas);
+  require_action(window, "layerFillForegroundAction")->trigger();
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  canvas->set_zoom_centered(1.0);
+  canvas->set_brush_size(250);  // too big for an OS cursor: the outline is painted on the canvas
+  QApplication::processEvents();
+  const auto hover = canvas->widget_position_for_document_point(QPoint(120, 120));
+  const auto settled_grab = [canvas] {
+    CHECK(process_events_until([canvas] { return canvas->render_settled(); }, 10000));
+    QApplication::processEvents();
+    return canvas->grab().toImage();
+  };
+  const auto leave = [canvas] {
+    QEvent event(QEvent::Leave);
+    QApplication::sendEvent(canvas, &event);
+  };
+  const auto hover_grab = [&] {
+    send_mouse(*canvas, QEvent::MouseMove, hover, Qt::NoButton, Qt::NoButton);
+    return settled_grab();
+  };
+
+  bool ran = false;
+  QImage baseline;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = find_top_level_dialog(QString::fromLatin1(dialog_name));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    std::array<QAbstractButton*, 3> pickers{};
+    for (std::size_t index = 0; index < pickers.size(); ++index) {
+      pickers[index] = dialog->findChild<QAbstractButton*>(QString::fromLatin1(picker_names[index]));
+      CHECK(pickers[index] != nullptr);
+      if (pickers[index] == nullptr) {
+        dialog->reject();
+        return;
+      }
+    }
+    process_events_for(150);
+    leave();
+    baseline = settled_grab();
+    // The Brush tool's outline shows over the canvas before a picker is on.
+    CHECK(hover_grab() != baseline);
+    CHECK(!shows_plain_eyedropper_cursor(*canvas));
+
+    for (auto* picker : pickers) {
+      picker->click();
+      const auto frame = hover_grab();
+      if (picker == pickers.front()) {
+        save_image_artifact(artifact_name, canvas_crop_with_pointer(*canvas, hover));
+      }
+      CHECK(canvas->has_transient_read_interaction());
+      CHECK(shows_plain_eyedropper_cursor(*canvas));
+      CHECK(frame == baseline);  // no brush outline, only the pointer
+    }
+    // Turning the picker off brings the tool back.
+    pickers.back()->click();
+    CHECK(!canvas->has_transient_read_interaction());
+    CHECK(!shows_plain_eyedropper_cursor(*canvas));
+    CHECK(hover_grab() != baseline);
+
+    // Closing the dialog with a picker on also ends it.
+    pickers.front()->click();
+    CHECK(shows_plain_eyedropper_cursor(*canvas));
+    ran = true;
+    dialog->reject();
+  }));
+  require_action(window, action_name)->trigger();
+  QApplication::processEvents();
+
+  CHECK(ran);
+  CHECK(!canvas->has_transient_read_interaction());
+  CHECK(!shows_plain_eyedropper_cursor(*canvas));
+  leave();
+  const auto after_close_baseline = settled_grab();
+  CHECK(hover_grab() != after_close_baseline);
+}
+
+void ui_levels_point_pickers_show_eyedropper_and_hide_brush_outline() {
+  check_point_pickers_replace_brush_cursor("imageAdjustLevelsAction", "patchyLevelsDialog",
+                                           {"levelsBlackPointButton", "levelsGrayPointButton",
+                                            "levelsWhitePointButton"},
+                                           "ui_levels_point_picker_cursor");
+}
+
+void ui_curves_point_pickers_show_eyedropper_and_hide_brush_outline() {
+  check_point_pickers_replace_brush_cursor("imageAdjustCurvesAction", "patchyCurvesDialog",
+                                           {"curvesBlackPointButton", "curvesGrayPointButton",
+                                            "curvesWhitePointButton"},
+                                           "ui_curves_point_picker_cursor");
+}
+
 void ui_curves_preset_thumbnails_apply_all_channels_and_track_custom() {
   const auto presets = patchy::ui::builtin_curves_presets();
   CHECK(presets.size() == 8U);
@@ -4915,6 +5050,10 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
        ui_curves_canvas_tools_before_and_clipping_hooks},
       {"ui_curves_canvas_sampler_reads_below_preview_and_escape_closes",
        ui_curves_canvas_sampler_reads_below_preview_and_escape_closes},
+      {"ui_levels_point_pickers_show_eyedropper_and_hide_brush_outline",
+       ui_levels_point_pickers_show_eyedropper_and_hide_brush_outline},
+      {"ui_curves_point_pickers_show_eyedropper_and_hide_brush_outline",
+       ui_curves_point_pickers_show_eyedropper_and_hide_brush_outline},
       {"ui_curves_preset_thumbnails_apply_all_channels_and_track_custom",
        ui_curves_preset_thumbnails_apply_all_channels_and_track_custom},
       {"ui_curves_destructive_and_adjustment_luts_match",

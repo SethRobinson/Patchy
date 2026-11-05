@@ -1586,6 +1586,9 @@ void CanvasWidget::set_transient_read_interaction(
   transient_read_callback_ = std::move(callback);
   transient_read_cursor_ = std::move(cursor);
   update_tool_cursor();
+  // The tool's hover overlays (brush outline, dab and clone previews, Shift line, sample
+  // square) give way to the dialog's picker cursor (GitHub issue 638): repaint once.
+  update();
 }
 
 void CanvasWidget::clear_transient_read_interaction() {
@@ -1601,6 +1604,9 @@ void CanvasWidget::clear_transient_read_interaction() {
                                Qt::NoModifier, CanvasReadPhase::Cancel});
   }
   update_tool_cursor();
+  if (callback) {
+    update();  // the tool's hover overlays come back (GitHub issue 638)
+  }
 }
 
 bool CanvasWidget::has_transient_read_interaction() const noexcept {
