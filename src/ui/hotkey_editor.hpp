@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ui/hotkey_files.hpp"
 #include "ui/hotkey_registry.hpp"
 
 #include <QHash>
@@ -8,6 +9,7 @@
 #include <optional>
 #include <vector>
 
+class QComboBox;
 class QFrame;
 class QHBoxLayout;
 class QKeySequence;
@@ -39,6 +41,16 @@ public:
   // Fills the search field (Script Manager's "Assign Hotkey..." lands on the script's row).
   void set_search_text(const QString& text);
 
+  // What Export..., Import... and the "Shortcut set" combo run once the user has picked a
+  // file or confirmed (tests and automation call these directly). Like every edit on the
+  // page, an import or a set only stages: OK applies it.
+  [[nodiscard]] bool export_to_file(const QString& path, QString* error);
+  // Replaces the staged set with the file's on success; leaves it alone on failure.
+  HotkeyFileReadResult import_from_file(const QString& path);
+  // "patchy" restores the defaults; otherwise a builtin_hotkey_sets() id.
+  void apply_shortcut_set(const QString& set_id);
+  [[nodiscard]] const HotkeyOverrideMap& staged_overrides() const noexcept { return staged_; }
+
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
 
@@ -56,6 +68,12 @@ private:
     QString search_haystack;
   };
 
+  QWidget* build_set_row(QWidget* parent);
+  void export_clicked();
+  void import_clicked();
+  void shortcut_set_chosen(int index);
+  void sync_set_combo();
+  void show_transfer_status(const QString& text);
   void build_rows(QMenuBar* menu_bar);
   QFrame* add_category_panel(const QString& title, bool dimmed);
   Row& add_command_row(QFrame* panel, const HotkeyCommand* command, const QString& label);
@@ -82,6 +100,8 @@ private:
   std::vector<Row> rows_;
   QHash<QFrame*, QString> panel_titles_;
   QLineEdit* search_edit_{nullptr};
+  QComboBox* set_combo_{nullptr};
+  QLabel* transfer_status_{nullptr};
   QWidget* header_{nullptr};
   QScrollArea* list_scroll_{nullptr};
   QVBoxLayout* list_layout_{nullptr};

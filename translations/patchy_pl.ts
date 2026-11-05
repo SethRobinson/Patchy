@@ -19840,6 +19840,106 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Set tool or layer opacity, 0% to 100% (1 = 10%, 0 = 100%, 00 = 0%; type two digits quickly for an exact value)</source>
         <translation>Ustaw krycie narzędzia lub warstwy, 0%-100% (1 = 10%, 0 = 100%, 00 = 0%; wpisz szybko dwie cyfry, aby podać dokładną wartość)</translation>
     </message>
+    <message>
+        <source>Shortcut set:</source>
+        <translation>Zestaw skrótów:</translation>
+    </message>
+    <message>
+        <source>Start from Patchy&apos;s shortcuts or from a set laid out like another editor&apos;s. You can still change any key afterwards.</source>
+        <translation>Zacznij od skrótów Patchy lub od zestawu ułożonego jak w innym edytorze. Każdy klawisz możesz potem zmienić.</translation>
+    </message>
+    <message>
+        <source>Patchy (default)</source>
+        <translation>Patchy (domyślny)</translation>
+    </message>
+    <message>
+        <source>Import...</source>
+        <translation>Importuj...</translation>
+    </message>
+    <message>
+        <source>Replace the shortcuts with ones saved in a hotkey file</source>
+        <translation>Zastąp skróty tymi zapisanymi w pliku skrótów</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>Eksportuj...</translation>
+    </message>
+    <message>
+        <source>Save your shortcut changes to a file you can keep or share</source>
+        <translation>Zapisz zmiany skrótów w pliku, który możesz zachować lub udostępnić</translation>
+    </message>
+    <message>
+        <source>Exported &quot;%1&quot;.</source>
+        <translation>Wyeksportowano „%1”.</translation>
+    </message>
+    <message>
+        <source>Imported &quot;%1&quot;. Commands: %2. Skipped commands this Patchy does not have: %3. Skipped keys it cannot use: %4. Click OK to apply.</source>
+        <translation>Zaimportowano „%1”. Polecenia: %2. Pominięte polecenia, których ten Patchy nie ma: %3. Pominięte klawisze, których nie może użyć: %4. Kliknij OK, aby zastosować.</translation>
+    </message>
+    <message>
+        <source>Export Hotkeys</source>
+        <translation>Eksportuj skróty</translation>
+    </message>
+    <message>
+        <source>Patchy hotkeys (*.patchykeys)</source>
+        <translation>Skróty Patchy (*.patchykeys)</translation>
+    </message>
+    <message>
+        <source>Export failed</source>
+        <translation>Eksport nie powiódł się</translation>
+    </message>
+    <message>
+        <source>Import Hotkeys</source>
+        <translation>Importuj skróty</translation>
+    </message>
+    <message>
+        <source>Patchy hotkeys (*.patchykeys *.json)</source>
+        <translation>Skróty Patchy (*.patchykeys *.json)</translation>
+    </message>
+    <message>
+        <source>Import failed</source>
+        <translation>Import nie powiódł się</translation>
+    </message>
+    <message>
+        <source>Replace your current shortcuts with the ones in &quot;%1&quot;? Shortcuts the file does not set go back to Patchy&apos;s defaults.</source>
+        <translation>Zastąpić bieżące skróty skrótami z „%1”? Skróty, których plik nie ustawia, wrócą do domyślnych ustawień Patchy.</translation>
+    </message>
+    <message>
+        <source>Shortcut Set</source>
+        <translation>Zestaw skrótów</translation>
+    </message>
+    <message>
+        <source>Replace your own shortcut changes with the %1 set? Export them first to keep a copy.</source>
+        <translation>Zastąpić własne zmiany skrótów zestawem %1? Najpierw je wyeksportuj, aby zachować kopię.</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>Niestandardowy</translation>
+    </message>
+    <message>
+        <source>This is not a Patchy hotkey file.</source>
+        <translation>To nie jest plik skrótów Patchy.</translation>
+    </message>
+    <message>
+        <source>Could not open the file.</source>
+        <translation>Nie można otworzyć pliku.</translation>
+    </message>
+    <message>
+        <source>Could not write the file.</source>
+        <translation>Nie można zapisać pliku.</translation>
+    </message>
+    <message>
+        <source>Photoshop-style</source>
+        <translation>Styl Photoshop</translation>
+    </message>
+    <message>
+        <source>GIMP-style</source>
+        <translation>Styl GIMP</translation>
+    </message>
+    <message>
+        <source>Krita-style</source>
+        <translation>Styl Krita</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>

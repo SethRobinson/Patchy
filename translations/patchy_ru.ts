@@ -19840,6 +19840,106 @@ Each item&apos;s own View setting still applies.</source>
         <source>Set tool or layer opacity, 0% to 100% (1 = 10%, 0 = 100%, 00 = 0%; type two digits quickly for an exact value)</source>
         <translation>Установить непрозрачность инструмента или слоя, 0–100 % (1 = 10 %, 0 = 100 %, 00 = 0 %; быстро введите две цифры для точного значения)</translation>
     </message>
+    <message>
+        <source>Shortcut set:</source>
+        <translation>Набор горячих клавиш:</translation>
+    </message>
+    <message>
+        <source>Start from Patchy&apos;s shortcuts or from a set laid out like another editor&apos;s. You can still change any key afterwards.</source>
+        <translation>Начните с горячих клавиш Patchy или с набора, устроенного как в другом редакторе. Любую клавишу можно потом изменить.</translation>
+    </message>
+    <message>
+        <source>Patchy (default)</source>
+        <translation>Patchy (по умолчанию)</translation>
+    </message>
+    <message>
+        <source>Import...</source>
+        <translation>Импорт...</translation>
+    </message>
+    <message>
+        <source>Replace the shortcuts with ones saved in a hotkey file</source>
+        <translation>Заменить горячие клавиши сохранёнными в файле горячих клавиш</translation>
+    </message>
+    <message>
+        <source>Export...</source>
+        <translation>Экспорт...</translation>
+    </message>
+    <message>
+        <source>Save your shortcut changes to a file you can keep or share</source>
+        <translation>Сохранить изменённые горячие клавиши в файл, который можно хранить или передать другим</translation>
+    </message>
+    <message>
+        <source>Exported &quot;%1&quot;.</source>
+        <translation>Экспортировано: «%1».</translation>
+    </message>
+    <message>
+        <source>Imported &quot;%1&quot;. Commands: %2. Skipped commands this Patchy does not have: %3. Skipped keys it cannot use: %4. Click OK to apply.</source>
+        <translation>Импортировано: «%1». Команд: %2. Пропущено команд, которых нет в этой версии Patchy: %3. Пропущено клавиш, которые нельзя использовать: %4. Нажмите OK, чтобы применить.</translation>
+    </message>
+    <message>
+        <source>Export Hotkeys</source>
+        <translation>Экспорт горячих клавиш</translation>
+    </message>
+    <message>
+        <source>Patchy hotkeys (*.patchykeys)</source>
+        <translation>Горячие клавиши Patchy (*.patchykeys)</translation>
+    </message>
+    <message>
+        <source>Export failed</source>
+        <translation>Экспорт не удался</translation>
+    </message>
+    <message>
+        <source>Import Hotkeys</source>
+        <translation>Импорт горячих клавиш</translation>
+    </message>
+    <message>
+        <source>Patchy hotkeys (*.patchykeys *.json)</source>
+        <translation>Горячие клавиши Patchy (*.patchykeys *.json)</translation>
+    </message>
+    <message>
+        <source>Import failed</source>
+        <translation>Импорт не удался</translation>
+    </message>
+    <message>
+        <source>Replace your current shortcuts with the ones in &quot;%1&quot;? Shortcuts the file does not set go back to Patchy&apos;s defaults.</source>
+        <translation>Заменить текущие горячие клавиши клавишами из «%1»? Клавиши, которые файл не задаёт, вернутся к значениям Patchy по умолчанию.</translation>
+    </message>
+    <message>
+        <source>Shortcut Set</source>
+        <translation>Набор горячих клавиш</translation>
+    </message>
+    <message>
+        <source>Replace your own shortcut changes with the %1 set? Export them first to keep a copy.</source>
+        <translation>Заменить ваши изменения горячих клавиш набором «%1»? Сначала экспортируйте их, чтобы сохранить копию.</translation>
+    </message>
+    <message>
+        <source>Custom</source>
+        <translation>Пользовательский</translation>
+    </message>
+    <message>
+        <source>This is not a Patchy hotkey file.</source>
+        <translation>Это не файл горячих клавиш Patchy.</translation>
+    </message>
+    <message>
+        <source>Could not open the file.</source>
+        <translation>Не удалось открыть файл.</translation>
+    </message>
+    <message>
+        <source>Could not write the file.</source>
+        <translation>Не удалось записать файл.</translation>
+    </message>
+    <message>
+        <source>Photoshop-style</source>
+        <translation>Как в Photoshop</translation>
+    </message>
+    <message>
+        <source>GIMP-style</source>
+        <translation>Как в GIMP</translation>
+    </message>
+    <message>
+        <source>Krita-style</source>
+        <translation>Как в Krita</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>

@@ -1,8 +1,13 @@
 #include "ui/hotkey_editor.hpp"
 #include "ui/command_search.hpp"
+#include "ui/dialog_utils.hpp"
+#include "ui/hotkey_sets.hpp"
 #include "ui/theme_qss.hpp"
 
 #include <QAction>
+#include <QComboBox>
+#include <QDir>
+#include <QFileInfo>
 #include <QFrame>
 #include <QGridLayout>
 #include <QHBoxLayout>
@@ -16,6 +21,8 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSet>
+#include <QSignalBlocker>
+#include <QStandardPaths>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -189,6 +196,13 @@ HotkeyEditorPanel::HotkeyEditorPanel(HotkeyRegistry& registry, QMenuBar* menu_ba
   reset_all_button->setToolTip(tr("Restore every hotkey to its default"));
   top_layout->addWidget(reset_all_button);
   header_layout->addWidget(top_row);
+  header_layout->addWidget(build_set_row(header_));
+  transfer_status_ = new QLabel(header_);
+  transfer_status_->setObjectName(QStringLiteral("hotkeyTransferStatus"));
+  transfer_status_->setProperty("hotkeyDim", true);
+  transfer_status_->setWordWrap(true);
+  transfer_status_->hide();
+  header_layout->addWidget(transfer_status_);
 
   auto* hint = new QLabel(
       tr("Click a shortcut to change it. Backspace clears it. Esc cancels. Changes apply when you click OK."),
@@ -220,6 +234,9 @@ HotkeyEditorPanel::HotkeyEditorPanel(HotkeyRegistry& registry, QMenuBar* menu_ba
       staged_.clear();
       refresh_rows();
     });
+  });
+  connect(set_combo_, &QComboBox::activated, this, [this](int index) {
+    QTimer::singleShot(0, this, [this, index] { shortcut_set_chosen(index); });
   });
 
   // Set before build_rows() creates its hundreds of command-row widgets: a
@@ -343,6 +360,179 @@ bool HotkeyEditorPanel::eventFilter(QObject* watched, QEvent* event) {
 
 void HotkeyEditorPanel::commit() {
   registry_.apply_overrides(staged_);
+}
+
+QWidget* HotkeyEditorPanel::build_set_row(QWidget* parent) {
+  auto* row = new QWidget(parent);
+  auto* row_layout = new QHBoxLayout(row);
+  row_layout->setContentsMargins(0, 0, 0, 0);
+  row_layout->setSpacing(8);
+  auto* label = new QLabel(tr("Shortcut set:"), row);
+  row_layout->addWidget(label);
+  set_combo_ = new QComboBox(row);
+  set_combo_->setObjectName(QStringLiteral("hotkeySetCombo"));
+  set_combo_->setToolTip(tr("Start from Patchy's shortcuts or from a set laid out like another editor's. "
+                            "You can still change any key afterwards."));
+  set_combo_->addItem(tr("Patchy (default)"), QString::fromLatin1(kPatchyHotkeySetId));
+  for (const auto& set : builtin_hotkey_sets()) {
+    set_combo_->addItem(tr(set.label), QString::fromLatin1(set.id));
+  }
+  label->setBuddy(set_combo_);
+  row_layout->addWidget(set_combo_);
+  row_layout->addStretch(1);
+  auto* import_button = new QPushButton(tr("Import..."), row);
+  import_button->setObjectName(QStringLiteral("hotkeyImportButton"));
+  import_button->setToolTip(tr("Replace the shortcuts with ones saved in a hotkey file"));
+  row_layout->addWidget(import_button);
+  auto* export_button = new QPushButton(tr("Export..."), row);
+  export_button->setObjectName(QStringLiteral("hotkeyExportButton"));
+  export_button->setToolTip(tr("Save your shortcut changes to a file you can keep or share"));
+  row_layout->addWidget(export_button);
+  connect(import_button, &QPushButton::clicked, this, [this] { import_clicked(); });
+  connect(export_button, &QPushButton::clicked, this, [this] { export_clicked(); });
+  return row;
+}
+
+bool HotkeyEditorPanel::export_to_file(const QString& path, QString* error) {
+  if (!write_hotkey_file(path, staged_, error)) {
+    return false;
+  }
+  show_transfer_status(tr("Exported \"%1\".").arg(QFileInfo(path).fileName()));
+  return true;
+}
+
+HotkeyFileReadResult HotkeyEditorPanel::import_from_file(const QString& path) {
+  auto result = read_hotkey_file(path, registry_.commands());
+  if (!result.ok) {
+    return result;
+  }
+  staged_.clear();
+  for (auto it = result.overrides.constBegin(); it != result.overrides.constEnd(); ++it) {
+    stage_override(it.key(), it.value());
+  }
+  refresh_rows();
+  show_transfer_status(tr("Imported \"%1\". Commands: %2. Skipped commands this Patchy does not have: %3. "
+                          "Skipped keys it cannot use: %4. Click OK to apply.")
+                           .arg(QFileInfo(path).fileName())
+                           .arg(result.overrides.size())
+                           .arg(result.skipped_commands)
+                           .arg(result.skipped_keys));
+  return result;
+}
+
+void HotkeyEditorPanel::apply_shortcut_set(const QString& set_id) {
+  if (set_id == QLatin1String(kPatchyHotkeySetId)) {
+    staged_.clear();
+  } else if (const auto* set = find_builtin_hotkey_set(set_id); set != nullptr) {
+    staged_ = hotkey_set_overrides(*set, registry_.commands());
+  } else {
+    return;
+  }
+  show_transfer_status(QString());
+  refresh_rows();
+}
+
+void HotkeyEditorPanel::export_clicked() {
+  const auto documents = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+  const auto initial = QDir(documents).filePath(QStringLiteral("Patchy hotkeys.") + QLatin1String(kHotkeyFileSuffix));
+  auto path = get_save_file_name(this, tr("Export Hotkeys"), initial, tr("Patchy hotkeys (*.patchykeys)"), nullptr,
+                                 QStringLiteral("hotkeyExportFileDialog"));
+  if (path.isEmpty()) {
+    return;
+  }
+  if (QFileInfo(path).suffix().isEmpty()) {
+    path += QLatin1Char('.') + QLatin1String(kHotkeyFileSuffix);
+  }
+  QString error;
+  if (!export_to_file(path, &error)) {
+    show_critical_message(this, tr("Export failed"), error, QStringLiteral("hotkeyExportFailedMessageBox"));
+    return;
+  }
+  offer_browser_download_for_saved_file(path);
+}
+
+void HotkeyEditorPanel::import_clicked() {
+  const auto path = get_open_file_name(this, tr("Import Hotkeys"),
+                                       QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation),
+                                       tr("Patchy hotkeys (*.patchykeys *.json)"), nullptr,
+                                       QStringLiteral("hotkeyImportFileDialog"));
+  if (path.isEmpty()) {
+    return;
+  }
+  // Read first, so a file that is not a hotkey file never asks to replace anything.
+  const auto preview = read_hotkey_file(path, registry_.commands());
+  if (!preview.ok) {
+    show_critical_message(this, tr("Import failed"), preview.error, QStringLiteral("hotkeyImportFailedMessageBox"));
+    return;
+  }
+  if (!staged_.isEmpty() &&
+      show_warning_message(this, tr("Import Hotkeys"),
+                           tr("Replace your current shortcuts with the ones in \"%1\"? Shortcuts the file does "
+                              "not set go back to Patchy's defaults.")
+                               .arg(QFileInfo(path).fileName()),
+                           QMessageBox::Ok | QMessageBox::Cancel, QMessageBox::Ok,
+                           QStringLiteral("hotkeyImportConfirmMessageBox")) != QMessageBox::Ok) {
+    return;
+  }
+  const auto result = import_from_file(path);
+  if (!result.ok) {
+    show_critical_message(this, tr("Import failed"), result.error, QStringLiteral("hotkeyImportFailedMessageBox"));
+  }
+}
+
+void HotkeyEditorPanel::shortcut_set_chosen(int index) {
+  if (set_combo_ == nullptr || index < 0 || index >= set_combo_->count()) {
+    return;
+  }
+  const auto set_id = set_combo_->itemData(index).toString();
+  const auto current = matching_hotkey_set_id(staged_, registry_.commands());
+  if (set_id.isEmpty() || set_id == current) {
+    sync_set_combo();
+    return;
+  }
+  // Only changes the user made by hand are worth a question: switching between the
+  // built-in sets loses nothing that cannot be picked again.
+  if (current.isEmpty() && !staged_.isEmpty() &&
+      show_warning_message(this, tr("Shortcut Set"),
+                           tr("Replace your own shortcut changes with the %1 set? Export them first to keep a "
+                              "copy.")
+                               .arg(set_combo_->itemText(index)),
+                           QMessageBox::Ok | QMessageBox::Cancel, QMessageBox::Ok,
+                           QStringLiteral("hotkeySetConfirmMessageBox")) != QMessageBox::Ok) {
+    sync_set_combo();
+    return;
+  }
+  apply_shortcut_set(set_id);
+}
+
+// The combo shows the set the staged shortcuts equal, or "Custom" (an entry that exists only
+// while that is true, so it cannot be picked) once they match none.
+void HotkeyEditorPanel::sync_set_combo() {
+  if (set_combo_ == nullptr) {
+    return;
+  }
+  const QSignalBlocker blocker(set_combo_);
+  const auto current = matching_hotkey_set_id(staged_, registry_.commands());
+  const auto custom_index = set_combo_->findData(QString());
+  if (current.isEmpty()) {
+    if (custom_index < 0) {
+      set_combo_->addItem(tr("Custom"), QString());
+    }
+    set_combo_->setCurrentIndex(set_combo_->findData(QString()));
+    return;
+  }
+  if (custom_index >= 0) {
+    set_combo_->removeItem(custom_index);
+  }
+  set_combo_->setCurrentIndex(set_combo_->findData(current));
+}
+
+void HotkeyEditorPanel::show_transfer_status(const QString& text) {
+  if (transfer_status_ == nullptr) {
+    return;
+  }
+  transfer_status_->setText(text);
+  transfer_status_->setVisible(!text.isEmpty());
 }
 
 QFrame* HotkeyEditorPanel::add_category_panel(const QString& title, bool dimmed) {
@@ -573,6 +763,7 @@ void HotkeyEditorPanel::refresh_rows() {
   }
 
   filter_rows();
+  sync_set_combo();
 }
 
 void HotkeyEditorPanel::filter_rows() {
