@@ -7962,22 +7962,6 @@ RGB: %2, %3, %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Top left radius:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Top right radius:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Bottom right radius:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Bottom left radius:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>No Fill</source>
         <translation type="unfinished"></translation>
     </message>

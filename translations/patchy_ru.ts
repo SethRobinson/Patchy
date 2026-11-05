@@ -8356,22 +8356,6 @@ RGB: %2, %3, %4</translation>
         <translation>Соблюдайте пропорции ширины и высоты</translation>
     </message>
     <message>
-        <source>Top left radius:</source>
-        <translation>Верхний левый радиус:</translation>
-    </message>
-    <message>
-        <source>Top right radius:</source>
-        <translation>Верхний правый радиус:</translation>
-    </message>
-    <message>
-        <source>Bottom right radius:</source>
-        <translation>Нижний правый радиус:</translation>
-    </message>
-    <message>
-        <source>Bottom left radius:</source>
-        <translation>Нижний левый радиус:</translation>
-    </message>
-    <message>
         <source>Change all four corner radii together</source>
         <translation>Измените все четыре угловых радиуса вместе</translation>
     </message>

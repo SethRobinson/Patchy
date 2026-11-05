@@ -8356,22 +8356,6 @@ RGB: %2, %3, %4</translation>
         <translation>Zachowaj proporcjonalne szerokość i wysokość</translation>
     </message>
     <message>
-        <source>Top left radius:</source>
-        <translation>Lewy górny promień:</translation>
-    </message>
-    <message>
-        <source>Top right radius:</source>
-        <translation>Prawy górny promień:</translation>
-    </message>
-    <message>
-        <source>Bottom right radius:</source>
-        <translation>Prawy dolny promień:</translation>
-    </message>
-    <message>
-        <source>Bottom left radius:</source>
-        <translation>Lewy dolny promień:</translation>
-    </message>
-    <message>
         <source>Change all four corner radii together</source>
         <translation>Zmień wszystkie cztery promienie narożników razem</translation>
     </message>

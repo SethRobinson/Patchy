@@ -33,10 +33,25 @@ rows are a nested form in their picker row's field column (#552).
 reference point when on and document origin when off; offsets add either way
 (PatternTileSampler).
 
-Geometry requires one modeled origination covering every subpath: rect
-bounds and radii, ellipse bounds, or line endpoints. A line's weight and arrowheads
-(Start, End, Width, Length, Concavity) are in its own Arrowheads section, also shown for
-a selection holding lines ([vector-tools.md](vector-tools.md#polygon-custom-shape-and-line-arrowheads)). A radius makes a
+The left column is Layer, Geometry (`shapeGeometryGroup`), Radius (`shapeRadiusGroup`),
+Arrowheads, Polygon (`shapePolygonGroup`) and Edge. Every section lines its fields up
+(#641): Geometry and Radius are grids (label, link column, field), the others forms whose
+label-to-field gap is the link column, and `align_section_columns` gives all of them the
+widest label's width. Geometry (X, Y, Width, Height, or a line's Start, End and Weight)
+needs one modeled origination covering every subpath (rect, ellipse or polygon bounds,
+line endpoints) or, for a plain path with no modeled origination (custom shape, Pen
+outline; #642), the path's bounds (`ShapeAppearanceSettings::path_box`): a changed box
+moves and scales the path (`fit_vector_path_to_box`) and drops any unmodeled origination
+read from the file. A plain path's Geometry ends with the Custom Shape tool's Shape picker
+(`shapeGeometryCustomShapeCombo`, #644): the layer keeps no preset id, so it opens with no
+shape chosen, and a pick replaces the outline (`path_shape`, one shape group) with that
+preset stretched to the box shown. Radius holds the four corners, Top left: to Bottom left:
+(#641); Polygon holds Sides and Star inset (#643). With several layers selected the
+single-layer rows (X, Y, Width, Height, Start, End) are off or absent; Weight
+(#622 follow-up 2) sits in a Geometry box of its own when no single shape is shown, and
+Weight, Shape, Radius, Arrowheads and Polygon apply per field to the layers they fit. A
+line's arrowheads (Start, End, Width, Length, Concavity) are its Arrowheads section
+([vector-tools.md](vector-tools.md#polygon-custom-shape-and-line-arrowheads)). A radius makes a
 rect rounded. Chain buttons sit between labels and fields: `shapeGeometryLinkButton` keeps W/H in the ratio captured when
 switched on; `shapeGeometryRadiusLinkButton` edits all four radii together,
 on by default only when the corners agree. Dialogs are the reviewed route; no on-canvas gizmos. The dialog also edits layer Opacity and Fill opacity,

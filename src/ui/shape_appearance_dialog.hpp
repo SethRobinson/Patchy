@@ -7,6 +7,7 @@
 #include <QString>
 
 #include <functional>
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -18,19 +19,37 @@ struct PatternStore;
 
 namespace patchy::ui {
 
+class CustomShapeLibrary;
 class GradientLibrary;
 class PatternLibrary;
 
+// Geometry's box for a shape layer drawn as a plain path (a custom shape, a Pen outline;
+// GitHub #642): the path's bounds (VectorPath::bounds) in document pixels.
+struct ShapePathBox {
+  double left{0.0};
+  double top{0.0};
+  double right{0.0};
+  double bottom{0.0};
+
+  friend bool operator==(const ShapePathBox&, const ShapePathBox&) = default;
+};
+
 // The editable appearance of a shape/fill layer. `geometry` carries the
 // layer's single live-shape origination when the caller allows editing it
-// (rect/rounded-rect bounds and radii, ellipse bounds, line endpoints and
-// weight); the dialog edits the params in place and the caller regenerates
-// the subpaths. Dialog-based geometry editing is the reviewed patent route;
-// on-canvas live-shape gizmos stay excluded (docs/vector-tools.md).
+// (rect/rounded-rect bounds and radii, ellipse and polygon bounds, polygon sides
+// and star inset, line endpoints and weight); the dialog edits the params in place
+// and the caller regenerates the subpaths. Dialog-based geometry editing is the
+// reviewed patent route; on-canvas live-shape gizmos stay excluded (docs/vector-tools.md).
 struct ShapeAppearanceSettings {
   VectorFill fill;
   VectorStroke stroke;
   std::optional<LiveShapeParams> geometry;
+  // A layer whose path has no live shape to regenerate (a custom shape, a Pen outline;
+  // GitHub #642): its bounds. A changed box moves and scales the path.
+  std::optional<ShapePathBox> path_box;
+  // A custom shape picked in Geometry (GitHub #644): a unit-box library path that
+  // replaces the layer's outline, fitted to `path_box`. Only set by that pick.
+  std::shared_ptr<const VectorPath> path_shape;
   // Layer transparency (the Layers panel values) and the shape's vector-mask
   // Feather / Density (VectorShapeContent::feather/density), all PSD-native.
   float layer_opacity{1.0F};
@@ -98,12 +117,21 @@ inline constexpr int kSavedStrokePresetRow = 1000;
 // edge; the geometry in `initial` is kept). `units` presents the geometry,
 // line weight and stroke width fields in the ruler unit through the document
 // PPI (docs/resolution-units.md); every value stays document pixels.
+// The custom shape library behind Geometry's Shape picker (GitHub #644): `library` returns it
+// with the bundled pack loaded, `manage` opens the Shapes Manager over `parent`. Without a
+// library the picker is left out.
+struct ShapeAppearanceShapeSource {
+  std::function<const CustomShapeLibrary*()> library;
+  std::function<void(QWidget* parent)> manage;
+};
+
 [[nodiscard]] std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     QWidget* parent, std::function<void(const ShapeAppearanceSettings&)> preview_changed,
     ShapeAppearanceSettings initial, ShapeAppearanceSettings reset_defaults,
     GradientLibrary* gradient_library,
     PatternLibrary* pattern_library, const PatternStore* document_patterns, RgbColor foreground,
     RgbColor background, const DocumentFieldUnits& units = {},
-    const AppearanceDialogContext<ShapeAppearanceSettings>* batch = nullptr);
+    const AppearanceDialogContext<ShapeAppearanceSettings>* batch = nullptr,
+    const ShapeAppearanceShapeSource& custom_shapes = {});
 
 }  // namespace patchy::ui
