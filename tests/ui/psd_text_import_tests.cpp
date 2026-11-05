@@ -73,6 +73,25 @@ namespace {
 
 using namespace patchy::test::ui;
 
+// dark_document_bounds with the Type tool's box resize handles hidden: canvas.grab() paints
+// them (canvas children with dark borders, just outside the frame), so a re-edit measure that
+// keeps them reads their squares as text ink. A re-edit right after a commit shows them since
+// issue 631 (the old handles no longer get reused and then deleted).
+std::optional<QRect> dark_text_bounds_without_box_handles(patchy::ui::CanvasWidget& canvas, QRect document_rect) {
+  std::vector<QWidget*> hidden;
+  for (auto* child : canvas.findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly)) {
+    if (child->isVisible() && child->property("patchy.textResizeHandle").toBool()) {
+      child->hide();
+      hidden.push_back(child);
+    }
+  }
+  auto bounds = dark_document_bounds(canvas, document_rect);
+  for (auto* child : hidden) {
+    child->show();
+  }
+  return bounds;
+}
+
 void ui_imported_psd_text_uses_photoshop_frame_after_commit() {
   ensure_artifact_dir();
   const auto saved_path =
@@ -1304,12 +1323,16 @@ void ui_imported_psd_box_text_reedit_after_commit_preserves_descender_bleed() {
   CHECK(editor->property("patchy.previewPaintsText").toBool());
   CHECK(editor->property("patchy.textPreviewLayerId").isValid());
   process_events_for(160);
-  const auto reedit_bounds = dark_document_bounds(*canvas, QRect(35, 35, 230, 100));
+  // The re-edit right after the commit keeps its resize handles (issue 631).
+  const auto* top_left_handle =
+      canvas->findChild<QWidget*>(QStringLiteral("textBoxResizeHandleTopLeft"), Qt::FindDirectChildrenOnly);
+  CHECK(top_left_handle != nullptr && top_left_handle->isVisible());
+  const auto reedit_bounds = dark_text_bounds_without_box_handles(*canvas, QRect(35, 35, 230, 100));
   CHECK(reedit_bounds.has_value());
   CHECK(std::abs(reedit_bounds->top() - first_committed_bounds->top()) <= 1);
   CHECK(std::abs(reedit_bounds->bottom() - first_committed_bounds->bottom()) <= 1);
 
-  const auto reedit_descender_bounds = dark_document_bounds(*canvas, QRect(40, kFrameBottom, 190, 24));
+  const auto reedit_descender_bounds = dark_text_bounds_without_box_handles(*canvas, QRect(40, kFrameBottom, 190, 24));
   CHECK(reedit_descender_bounds.has_value());
   CHECK(reedit_descender_bounds->bottom() >= kFrameBottom);
 
@@ -1417,7 +1440,7 @@ void ui_imported_psd_box_text_line_clip_renders_full_visible_line_after_edit() {
   CHECK(reedit_line.has_value());
   const auto reedit_lower_bounds = dark_bounds_in_editor_line_lower_half(*canvas, *reedit_line);
   CHECK(reedit_lower_bounds.has_value());
-  const auto reedit_bounds = dark_document_bounds(*canvas, QRect(40, 40, 340, 135));
+  const auto reedit_bounds = dark_text_bounds_without_box_handles(*canvas, QRect(40, 40, 340, 135));
   CHECK(reedit_bounds.has_value());
   CHECK(std::abs(reedit_bounds->top() - committed_bounds->top()) <= 1);
   // Both keep the third line. Known gap: the PSD-frame commit still crops that line's
