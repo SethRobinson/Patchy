@@ -787,6 +787,50 @@ void exact_squared_distance_transform_matches_bruteforce() {
   }
 }
 
+// A plane large enough for the parallel column and row passes (GitHub #601
+// follow-up): the field and the nearest-source map equal brute force, so the
+// split across workers changes nothing.
+void exact_squared_distance_transform_parallel_matches_bruteforce() {
+  constexpr int width = 700;
+  constexpr int height = 520;
+  std::vector<std::pair<int, int>> sources;
+  std::uint32_t state = 12345U;
+  for (int index = 0; index < 24; ++index) {
+    state = state * 1664525U + 1013904223U;
+    const auto sx = static_cast<int>((state >> 8U) % width);
+    state = state * 1664525U + 1013904223U;
+    const auto sy = static_cast<int>((state >> 8U) % height);
+    sources.emplace_back(sx, sy);
+  }
+  std::vector<float> field(static_cast<std::size_t>(width) * height, patchy::render_detail::kEdtUnreached);
+  for (const auto& [sx, sy] : sources) {
+    field[static_cast<std::size_t>(sy) * width + sx] = 0.0F;
+  }
+  std::vector<int> nearest;
+  patchy::render_detail::exact_squared_distance_transform(field, width, height, &nearest);
+  CHECK(nearest.size() == field.size());
+  bool fields_match = true;
+  bool sources_match = true;
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      int expected = 1 << 30;
+      for (const auto& [sx, sy] : sources) {
+        expected = std::min(expected, (x - sx) * (x - sx) + (y - sy) * (y - sy));
+      }
+      const auto index = static_cast<std::size_t>(y) * width + x;
+      fields_match = fields_match && field[index] == static_cast<float>(expected);
+      const auto source = nearest[index];
+      const auto source_x = source % width;
+      const auto source_y = source / width;
+      sources_match = sources_match && source >= 0 &&
+                      field[static_cast<std::size_t>(source)] == 0.0F &&
+                      (x - source_x) * (x - source_x) + (y - source_y) * (y - source_y) == expected;
+    }
+  }
+  CHECK(fields_match);
+  CHECK(sources_match);
+}
+
 void layer_stroke_center_band_width_matches_size() {
   // Photoshop's Center stroke spans size/2 outward + size/2 inward (total = size).
   // The legacy dilation grew size in BOTH directions, doubling the band.
@@ -1429,6 +1473,8 @@ std::vector<patchy::test::TestCase> stroke_mask_effects_tests() {
       {"psd_photoshop_stroke_masked_fixture_matches", psd_photoshop_stroke_masked_fixture_matches},
       {"exact_squared_distance_transform_matches_bruteforce",
        exact_squared_distance_transform_matches_bruteforce},
+      {"exact_squared_distance_transform_parallel_matches_bruteforce",
+       exact_squared_distance_transform_parallel_matches_bruteforce},
       {"layer_stroke_center_band_width_matches_size", layer_stroke_center_band_width_matches_size},
       {"layer_stroke_center_has_no_seam_on_antialiased_contour",
        layer_stroke_center_has_no_seam_on_antialiased_contour},

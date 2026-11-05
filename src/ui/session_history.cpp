@@ -28,11 +28,8 @@ void collect_layer_render_signatures(const std::vector<Layer>& layers, std::vect
   }
 }
 
-// The document region that can render differently between two history states,
-// or nullopt when only a full refresh is safe (structure changed, canvas
-// resized, or a document-wide rendering input like the editing palette, grid,
-// or guides differs). Layer revisions are app-globally unique, so equal
-// revision + equal visibility means identical rendering for that layer.
+}  // namespace
+
 std::optional<QRegion> history_restore_changed_region(const Document& before, const Document& after) {
   if (before.width() != after.width() || before.height() != after.height()) {
     return std::nullopt;
@@ -82,8 +79,6 @@ std::optional<QRegion> history_restore_changed_region(const Document& before, co
   }
   return changed;
 }
-
-}  // namespace
 
 void SessionHistory::record_push(State state, QString action_label) {
   // The stored snapshot is the PRE-edit document, so it takes over the label

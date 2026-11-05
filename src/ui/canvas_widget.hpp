@@ -1821,6 +1821,10 @@ private:
   void set_document_internal(Document* document, bool preserve_frame_for_same_size,
                              bool normal_composite_unchanged = false);
   void start_async_render_cache_refresh();
+  // The region a preview refresh must re-render over the frame on screen, or
+  // nullopt for a full render (GitHub #601 follow-up).
+  [[nodiscard]] std::optional<QRegion> async_preview_region(const Document& snapshot) const;
+  void install_async_frame(QImage image, std::vector<QImage> mips, const std::shared_ptr<const Document>& snapshot);
   void document_changed_async_preview_impl(bool preserve_scaled_document);
   void cancel_async_render_cache_refresh() noexcept;
   void invalidate_vector_preview() noexcept;
@@ -3251,6 +3255,13 @@ private:
   // async_render_cache_generation_ once an invalidation outdated that
   // snapshot; only then does a repaint mark the refresh pending.
   std::uint64_t async_render_cache_in_flight_generation_{0};
+  // The document whose render is in render_cache_ (a background refresh's
+  // snapshot), with the cache key of that frame. Kept only while a preview
+  // dialog holds the canvas (edit_locked_): the next preview refresh renders
+  // just the region that changed since then over a copy of the frame
+  // (GitHub #601 follow-up). Any other write to the cache changes its key.
+  std::shared_ptr<const Document> render_cache_snapshot_{};
+  qint64 render_cache_snapshot_key_{0};
   std::vector<QImage> display_mip_cache_{};
   QSize display_mip_source_size_{};
   QPoint last_mouse_position_{};

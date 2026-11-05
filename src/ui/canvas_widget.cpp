@@ -618,6 +618,16 @@ void CanvasWidget::set_edit_locked(bool locked) noexcept {
     return;
   }
   edit_locked_ = locked;
+  // A preview dialog's first refresh can render only what it changed when the
+  // settled frame's document is known (GitHub #601 follow-up). The copy shares
+  // layer pixels with the live document, so it lives only while the lock does.
+  render_cache_snapshot_.reset();
+  render_cache_snapshot_key_ = 0;
+  if (edit_locked_ && document_ != nullptr && !render_cache_dirty_ && !render_cache_.isNull() &&
+      render_cache_.size() == QSize(document_->width(), document_->height())) {
+    render_cache_snapshot_ = std::make_shared<const Document>(*document_);
+    render_cache_snapshot_key_ = render_cache_.cacheKey();
+  }
   if (edit_locked_) {
     close_canvas_context_menu();
     clear_move_hover_outline();

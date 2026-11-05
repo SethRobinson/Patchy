@@ -2,11 +2,13 @@
 
 #include "core/pixel_depth.hpp"
 #include "core/vector_shape.hpp"
+#include "core/worker_budget.hpp"
 #include "render/layer_render_facade.hpp"
 #include "render/style_mask_cache.hpp"
 
 #include <algorithm>
 #include <cmath>
+#include <future>
 #include <utility>
 
 namespace patchy::render_detail {
@@ -103,60 +105,106 @@ void squared_distance_transform_1d(const float* f, float* d, int* v, double* z, 
   }
 }
 
+// Runs body(begin, end) over [0, count) in contiguous chunks of at least
+// kMinLines lines, across workers when the plane is large. Every 1D pass of the
+// distance transform reads and writes only its own line (plus, in the row pass,
+// the finished column pass), so the result is the sequential one whatever the
+// split (GitHub #601 follow-up: a 241 px Stroke's field on a 1200x1400 layer).
+template <typename Body>
+void for_each_line_chunk(int count, std::int64_t plane_pixels, Body&& body) {
+  constexpr int kMinLines = 64;
+  constexpr std::int64_t kMinParallelPixels = 256 * 1024;
+  const int chunks =
+      plane_pixels < kMinParallelPixels
+          ? 1
+          : std::clamp(std::min(max_blocking_fanout_workers(std::min(patchy::hardware_worker_threads(), 16)),
+                                count / kMinLines),
+                       1, 16);
+  if (chunks < 2) {
+    body(0, count);
+    return;
+  }
+  const int per_chunk = (count + chunks - 1) / chunks;
+  std::vector<std::future<void>> jobs;
+  jobs.reserve(static_cast<std::size_t>(chunks));
+  for (int begin = 0; begin < count; begin += per_chunk) {
+    const int end = std::min(count, begin + per_chunk);
+    jobs.push_back(std::async(std::launch::async, [&body, begin, end] { body(begin, end); }));
+  }
+  for (auto& job : jobs) {
+    job.get();
+  }
+}
+
 void exact_squared_distance_transform(std::vector<float>& field, int width, int height,
                                       std::vector<int>* sources) {
   if (width <= 0 || height <= 0) {
     return;
   }
   const auto n = std::max(width, height);
-  std::vector<float> f(static_cast<std::size_t>(n), 0.0F);
-  std::vector<float> d(static_cast<std::size_t>(n), 0.0F);
-  std::vector<int> v(static_cast<std::size_t>(n), 0);
-  std::vector<double> z(static_cast<std::size_t>(n) + 1U, 0.0);
-  std::vector<int> arg;
+  const auto plane_pixels = static_cast<std::int64_t>(width) * static_cast<std::int64_t>(height);
   // Column pass: each pixel learns the row of its nearest source within its
   // own column; the row pass then picks the column whose column-distance plus
   // horizontal offset is smallest, so that column's recorded row completes the
   // source. The lower envelope yields the argmin for free.
   std::vector<int> source_rows;
   if (sources != nullptr) {
-    arg.assign(static_cast<std::size_t>(n), 0);
     source_rows.assign(static_cast<std::size_t>(width) * static_cast<std::size_t>(height), 0);
     sources->assign(source_rows.size(), -1);
   }
-  for (int x = 0; x < width; ++x) {
-    for (int y = 0; y < height; ++y) {
-      f[static_cast<std::size_t>(y)] = field[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + x];
-    }
-    squared_distance_transform_1d(f.data(), d.data(), v.data(), z.data(), height,
-                                  sources != nullptr ? arg.data() : nullptr);
-    for (int y = 0; y < height; ++y) {
-      const auto index = static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + x;
-      field[index] = d[static_cast<std::size_t>(y)];
-      if (sources != nullptr) {
-        source_rows[index] = arg[static_cast<std::size_t>(y)];
+  struct Scratch {
+    std::vector<float> f;
+    std::vector<float> d;
+    std::vector<int> v;
+    std::vector<double> z;
+    std::vector<int> arg;
+    Scratch(int n, bool with_sources)
+        : f(static_cast<std::size_t>(n), 0.0F),
+          d(static_cast<std::size_t>(n), 0.0F),
+          v(static_cast<std::size_t>(n), 0),
+          z(static_cast<std::size_t>(n) + 1U, 0.0),
+          arg(with_sources ? static_cast<std::size_t>(n) : 0U, 0) {}
+  };
+  for_each_line_chunk(width, plane_pixels, [&](int begin, int end) {
+    Scratch scratch(n, sources != nullptr);
+    for (int x = begin; x < end; ++x) {
+      for (int y = 0; y < height; ++y) {
+        scratch.f[static_cast<std::size_t>(y)] =
+            field[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + x];
       }
-    }
-  }
-  for (int y = 0; y < height; ++y) {
-    auto* row = field.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(width);
-    std::copy(row, row + width, f.data());
-    squared_distance_transform_1d(f.data(), d.data(), v.data(), z.data(), width,
-                                  sources != nullptr ? arg.data() : nullptr);
-    std::copy(d.data(), d.data() + width, row);
-    if (sources != nullptr) {
-      for (int x = 0; x < width; ++x) {
+      squared_distance_transform_1d(scratch.f.data(), scratch.d.data(), scratch.v.data(), scratch.z.data(), height,
+                                    sources != nullptr ? scratch.arg.data() : nullptr);
+      for (int y = 0; y < height; ++y) {
         const auto index = static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + x;
-        if (row[x] >= kEdtUnreached * 0.5F) {
-          continue;
+        field[index] = scratch.d[static_cast<std::size_t>(y)];
+        if (sources != nullptr) {
+          source_rows[index] = scratch.arg[static_cast<std::size_t>(y)];
         }
-        const auto source_x = arg[static_cast<std::size_t>(x)];
-        const auto source_y = source_rows[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
-                                          static_cast<std::size_t>(source_x)];
-        (*sources)[index] = source_y * width + source_x;
       }
     }
-  }
+  });
+  for_each_line_chunk(height, plane_pixels, [&](int begin, int end) {
+    Scratch scratch(n, sources != nullptr);
+    for (int y = begin; y < end; ++y) {
+      auto* row = field.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(width);
+      std::copy(row, row + width, scratch.f.data());
+      squared_distance_transform_1d(scratch.f.data(), scratch.d.data(), scratch.v.data(), scratch.z.data(), width,
+                                    sources != nullptr ? scratch.arg.data() : nullptr);
+      std::copy(scratch.d.data(), scratch.d.data() + width, row);
+      if (sources != nullptr) {
+        for (int x = 0; x < width; ++x) {
+          const auto index = static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + x;
+          if (row[x] >= kEdtUnreached * 0.5F) {
+            continue;
+          }
+          const auto source_x = scratch.arg[static_cast<std::size_t>(x)];
+          const auto source_y = source_rows[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
+                                            static_cast<std::size_t>(source_x)];
+          (*sources)[index] = source_y * width + source_x;
+        }
+      }
+    }
+  });
 }
 
 void exact_squared_distance_transform(std::vector<float>& field, int width, int height) {

@@ -410,6 +410,12 @@ struct CanvasRenderCacheDiagnostics {
   // Document changes under an open preview dialog that refreshed in the
   // background instead of patching the canvas on the GUI thread (GitHub #601).
   int live_preview_async_refreshes{0};
+  // Background preview refreshes that rendered only the region that changed
+  // since the frame on screen, over a copy of it (GitHub #601 follow-up).
+  int region_preview_refreshes{0};
+  // Background refreshes whose display mip chain was built on the worker, so a
+  // zoomed-out canvas installs the frame without a GUI-thread rebuild.
+  int background_display_mips{0};
   int partial_patches{0};
   // Times a zoomed-out paint built the composite's display mip chain from the
   // full-resolution image. Partial patches update the chain in place, so a

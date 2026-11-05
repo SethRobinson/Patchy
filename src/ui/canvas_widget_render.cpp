@@ -25,6 +25,7 @@
 #include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/measurement_units.hpp"
+#include "ui/session_history.hpp"
 #include "ui/theme_palette.hpp"
 
 #include <QApplication>
@@ -1295,67 +1296,173 @@ QImage CanvasWidget::render_document_image_with_processing(const std::vector<Lay
   }
 }
 
+namespace {
+
+// What a background canvas refresh hands back: the frame and, when the canvas
+// is zoomed out, its display mip chain built on the worker. Building the chain
+// on the GUI thread took 70 to 100 ms per 3580x5370 frame on an i9-11900KF,
+// once per landed preview, and stalled dialog slider drags (GitHub #601).
+struct AsyncCanvasFrame {
+  QImage image;
+  std::vector<QImage> mips;
+};
+
+void extend_display_mips(const QImage& image, std::vector<QImage>& mips, int target_level) {
+  const int workers = max_blocking_fanout_workers(patchy::hardware_worker_threads());
+  while (static_cast<int>(mips.size()) < target_level) {
+    const auto& previous = mips.empty() ? image : mips.back();
+    const QSize next_size(std::max(1, (previous.width() + 1) / 2), std::max(1, (previous.height() + 1) / 2));
+    if (next_size == previous.size()) {
+      break;
+    }
+    mips.push_back(halved_display_mip(previous, workers));
+  }
+}
+
+}  // namespace
+
+std::optional<QRegion> CanvasWidget::async_preview_region(const Document& snapshot) const {
+  static const bool disabled = qEnvironmentVariableIsSet("PATCHY_REGION_PREVIEW_OFF");
+  if (disabled || !async_render_cache_explicit_hold_ || render_cache_snapshot_ == nullptr ||
+      render_cache_.isNull() || render_cache_.cacheKey() != render_cache_snapshot_key_ ||
+      render_cache_.size() != QSize(snapshot.width(), snapshot.height()) || palette_snap_context() != nullptr) {
+    return std::nullopt;
+  }
+  auto changed = history_restore_changed_region(*render_cache_snapshot_, snapshot);
+  // Nothing changed since a region frame: the full render that settles it.
+  if (!changed.has_value() || changed->isEmpty()) {
+    return std::nullopt;
+  }
+  // Group effects reach past a child's own effect bounds (the same padding the
+  // GUI-thread patch path adds).
+  if (const auto padding = document_effect_padding(snapshot); padding > 0) {
+    *changed = outset_region(*changed, padding);
+  }
+  const QRect canvas_rect(0, 0, snapshot.width(), snapshot.height());
+  *changed = changed->intersected(canvas_rect);
+  const auto canvas_area = static_cast<std::int64_t>(snapshot.width()) * snapshot.height();
+  if (region_area(*changed) * 2 > canvas_area || changed->rectCount() > kMaxDirtyRegionRects) {
+    return std::nullopt;
+  }
+  return changed;
+}
+
 void CanvasWidget::start_async_render_cache_refresh() {
   if (document_ == nullptr) {
     return;
   }
-  auto document_snapshot = std::make_shared<Document>(*document_);
+  auto document_snapshot = std::make_shared<const Document>(*document_);
   const QSize snapshot_size(document_snapshot->width(), document_snapshot->height());
   async_render_cache_in_flight_ = true;
   async_render_cache_pending_ = false;
   note_background_refresh_state();
   const auto generation = ++async_render_cache_generation_;
   async_render_cache_in_flight_generation_ = generation;
+  // Under a preview dialog, render only what changed since the frame on screen
+  // over a copy of it (GitHub #601 follow-up). Such a frame is a preview: the
+  // cache stays dirty and a full render settles it once the changes stop.
+  auto region = async_preview_region(*document_snapshot);
+  QImage base_frame;
+  std::vector<QImage> base_mips;
+  if (region.has_value()) {
+    base_frame = render_cache_;
+    if (!display_mip_cache_.empty() && display_mip_source_size_ == render_cache_.size()) {
+      base_mips = display_mip_cache_;
+    }
+  }
+  // The chain paint would build for this zoom (display_image_for_zoom); a zoom
+  // change before the frame lands extends or rebuilds it there as before. A
+  // palette display quantizes the frame on install, so its chain stays there.
+  const int mip_level =
+      zoom_ < 1.0 && palette_snap_context() == nullptr ? display_mip_level_for_zoom(view_zoom()) : 0;
   auto* app = QApplication::instance();
   QPointer<CanvasWidget> widget(this);
-  run_tracked_background_worker([app, widget, generation, snapshot_size, document_snapshot = std::move(document_snapshot)] {
-    auto image = std::make_shared<QImage>();
+  run_tracked_background_worker([app, widget, generation, snapshot_size, document_snapshot, region,
+                                 base_frame = std::move(base_frame), base_mips = std::move(base_mips),
+                                 mip_level]() mutable {
+    auto frame = std::make_shared<AsyncCanvasFrame>();
     try {
       if (const auto delay = processing_render_test_delay_ms(); delay > 0) {
         std::this_thread::sleep_for(std::chrono::milliseconds(delay));
       }
-      *image = qimage_from_document(*document_snapshot, true).convertToFormat(QImage::Format_RGBA8888);
+      // PATCHY_ZOOM_TRACE timings (docs/interactive-previews.md#dialog-slider-drags).
+      ZoomTraceScope trace_worker(region.has_value() ? "async_refresh_region" : "async_refresh_full", 0.0);
+      if (region.has_value()) {
+        frame->image = std::move(base_frame);
+        frame->mips = std::move(base_mips);
+        const auto patches = qimage_patches_from_document_region_banded(*document_snapshot, *region, true);
+        {
+          QPainter painter(&frame->image);
+          painter.setCompositionMode(QPainter::CompositionMode_Source);
+          for (const auto& patch : patches) {
+            painter.drawImage(patch.document_rect.topLeft(), patch.image.convertToFormat(QImage::Format_RGBA8888));
+          }
+        }
+        // Each mip level recomputes only the blocks under the region, as
+        // patch_display_mip_cache does for GUI-thread patches.
+        for (const auto& patch : patches) {
+          auto rect = patch.document_rect.intersected(frame->image.rect());
+          const QImage* source = &frame->image;
+          for (auto& level : frame->mips) {
+            rect = halved_display_mip_rect(rect);
+            if (rect.isEmpty()) {
+              break;
+            }
+            refresh_halved_display_mip(*source, level, rect);
+            source = &level;
+          }
+        }
+      } else {
+        frame->image = qimage_from_document(*document_snapshot, true).convertToFormat(QImage::Format_RGBA8888);
+      }
+      ZoomTraceScope trace_mips("async_refresh_mips", 0.0);
+      extend_display_mips(frame->image, frame->mips, mip_level);
     } catch (...) {
-      image.reset();
+      frame.reset();
     }
     if (app == nullptr) {
       return;
     }
     QMetaObject::invokeMethod(
         app,
-        [widget, generation, snapshot_size, image = std::move(image)]() mutable {
+        [widget, generation, snapshot_size, document_snapshot = std::move(document_snapshot),
+         region_frame = region.has_value(), frame = std::move(frame)]() mutable {
           if (widget == nullptr) {
             return;
           }
+          ZoomTraceScope trace_install("async_refresh_install", widget->zoom_);
           const auto has_pending = widget->async_render_cache_pending_;
           widget->async_render_cache_in_flight_ = false;
           widget->async_render_cache_pending_ = false;
-          if (has_pending) {
+          const bool usable = generation == widget->async_render_cache_generation_ && frame != nullptr &&
+                              !frame->image.isNull() && widget->document_ != nullptr &&
+                              snapshot_size == QSize(widget->document_->width(), widget->document_->height());
+          if (has_pending || region_frame) {
             // A preview that keeps changing (a dialog slider dragged on a large
             // image, GitHub #601) would otherwise show nothing until it pauses:
             // show this frame, newer than the one on screen, while the next
-            // refresh runs. The cache stays dirty, so exact-pixel readers still
-            // render the current document, and the hold keeps paint from doing
-            // so on the GUI thread.
-            if (generation == widget->async_render_cache_generation_ &&
-                widget->async_render_cache_explicit_hold_ && widget->render_cache_dirty_ && image != nullptr &&
-                !image->isNull() && widget->document_ != nullptr &&
-                snapshot_size == QSize(widget->document_->width(), widget->document_->height())) {
-              widget->quantize_image_for_palette_display(*image);
-              widget->render_cache_ = std::move(*image);
-              widget->invalidate_display_mip_cache();
+            // refresh runs. A region frame is a preview too: the full render
+            // that follows it once the changes stop settles the cache. The
+            // cache stays dirty, so exact-pixel readers still render the
+            // current document, and the hold keeps paint from doing so on the
+            // GUI thread.
+            if (usable && widget->async_render_cache_explicit_hold_ && widget->render_cache_dirty_) {
+              widget->install_async_frame(std::move(frame->image), std::move(frame->mips), document_snapshot);
               ++widget->render_cache_diagnostics_.intermediate_refreshes;
+              if (region_frame) {
+                ++widget->render_cache_diagnostics_.region_preview_refreshes;
+              }
               if (widget->isVisible()) {
                 widget->update();
               }
             }
-            widget->start_async_render_cache_refresh();
-            return;
+            if (has_pending || (usable && widget->async_render_cache_explicit_hold_)) {
+              widget->start_async_render_cache_refresh();
+              return;
+            }
           }
           widget->note_background_refresh_state();
-          if (generation != widget->async_render_cache_generation_ || image == nullptr || image->isNull() ||
-              widget->document_ == nullptr ||
-              snapshot_size != QSize(widget->document_->width(), widget->document_->height())) {
+          if (!usable || region_frame) {
             if (generation == widget->async_render_cache_generation_) {
               widget->async_render_cache_explicit_hold_ = false;
               widget->update();
@@ -1368,12 +1475,10 @@ void CanvasWidget::start_async_render_cache_refresh() {
           // completion always matches the current document. The retained move
           // base/proxy derive from that same content, so this must NOT call
           // invalidate_retained_move_caches().
-          widget->quantize_image_for_palette_display(*image);
-          widget->render_cache_ = std::move(*image);
+          widget->install_async_frame(std::move(frame->image), std::move(frame->mips), document_snapshot);
           widget->render_cache_dirty_ = false;
           widget->async_render_cache_explicit_hold_ = false;
           ++widget->render_cache_diagnostics_.full_refreshes;
-          widget->invalidate_display_mip_cache();
           widget->refresh_curves_clipping_preview();
           if (CanvasWidget::is_component_preview(widget->layer_edit_target_)) {
             widget->mask_display_image_ = QImage();
@@ -1384,6 +1489,25 @@ void CanvasWidget::start_async_render_cache_refresh() {
         },
         Qt::QueuedConnection);
   });
+}
+
+void CanvasWidget::install_async_frame(QImage image, std::vector<QImage> mips,
+                                       const std::shared_ptr<const Document>& snapshot) {
+  quantize_image_for_palette_display(image);
+  render_cache_ = std::move(image);
+  invalidate_display_mip_cache();
+  if (!mips.empty() && palette_snap_context() == nullptr) {
+    display_mip_cache_ = std::move(mips);
+    display_mip_source_size_ = render_cache_.size();
+    ++render_cache_diagnostics_.background_display_mips;
+  }
+  if (edit_locked_) {
+    render_cache_snapshot_ = snapshot;
+    render_cache_snapshot_key_ = render_cache_.cacheKey();
+  } else {
+    render_cache_snapshot_.reset();
+    render_cache_snapshot_key_ = 0;
+  }
 }
 
 void CanvasWidget::cancel_async_render_cache_refresh() noexcept {

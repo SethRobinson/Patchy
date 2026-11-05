@@ -44,6 +44,7 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
+#include <future>
 #include <limits>
 #include <optional>
 #include <utility>
@@ -824,9 +825,11 @@ void average_display_mip_pixel(const std::array<const std::uint8_t*, 4>& block, 
   }
 }
 
-// Writes target_rect of target from source; source and target share a format
-// that display_mip_layout supports.
-void halve_display_mip_rows(const QImage& source, QImage& target, QRect target_rect, DisplayMipLayout layout) {
+// Writes target_rect of the target rows at target_bits from source; source and
+// target share a format that display_mip_layout supports. Takes the target's
+// detached bits so disjoint rects can fill from several threads.
+void halve_display_mip_rows(const QImage& source, std::uint8_t* target_bits, qsizetype target_bytes_per_line,
+                            QRect target_rect, DisplayMipLayout layout) {
   const int source_width = source.width();
   const int source_height = source.height();
   for (int y = target_rect.top(); y <= target_rect.bottom(); ++y) {
@@ -834,7 +837,7 @@ void halve_display_mip_rows(const QImage& source, QImage& target, QRect target_r
     const bool two_rows = top + 1 < source_height;
     const auto* row0 = source.constScanLine(top);
     const auto* row1 = source.constScanLine(two_rows ? top + 1 : top);
-    auto* out = target.scanLine(y);
+    auto* out = target_bits + static_cast<std::ptrdiff_t>(y) * target_bytes_per_line;
     for (int x = target_rect.left(); x <= target_rect.right(); ++x) {
       const int left = x * 2;
       const bool two_columns = left + 1 < source_width;
@@ -869,7 +872,35 @@ QImage halved_display_mip(const QImage& source) {
   if (target.isNull()) {
     return {};
   }
-  halve_display_mip_rows(source, target, target.rect(), *layout);
+  halve_display_mip_rows(source, target.bits(), target.bytesPerLine(), target.rect(), *layout);
+  return target;
+}
+
+QImage halved_display_mip(const QImage& source, int workers) {
+  const auto layout = display_mip_layout(source.format());
+  const int target_height = std::max(1, (source.height() + 1) / 2);
+  const int bands = std::clamp(std::min(workers, target_height / 64), 1, 16);
+  if (source.isNull() || !layout.has_value() || bands < 2) {
+    return halved_display_mip(source);
+  }
+  QImage target(std::max(1, (source.width() + 1) / 2), target_height, source.format());
+  if (target.isNull()) {
+    return {};
+  }
+  // Detach here, on the launching thread; the bands only write their rows.
+  auto* bits = target.bits();
+  const auto bytes_per_line = target.bytesPerLine();
+  const int rows_per_band = (target_height + bands - 1) / bands;
+  std::vector<std::future<void>> jobs;
+  for (int top = 0; top < target_height; top += rows_per_band) {
+    const QRect band(0, top, target.width(), std::min(rows_per_band, target_height - top));
+    jobs.push_back(std::async(std::launch::async, [&source, bits, bytes_per_line, band, layout] {
+      halve_display_mip_rows(source, bits, bytes_per_line, band, *layout);
+    }));
+  }
+  for (auto& job : jobs) {
+    job.get();
+  }
   return target;
 }
 
@@ -889,7 +920,7 @@ void refresh_halved_display_mip(const QImage& source, QImage& target, QRect targ
   }
   if (const auto layout = display_mip_layout(source.format());
       layout.has_value() && target.format() == source.format()) {
-    halve_display_mip_rows(source, target, target_rect, *layout);
+    halve_display_mip_rows(source, target.bits(), target.bytesPerLine(), target_rect, *layout);
     return;
   }
   // An unsupported source went through ARGB32_Premultiplied: convert only the

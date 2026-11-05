@@ -83,6 +83,12 @@ private:
 [[nodiscard]] std::vector<RenderedDocumentPatch> qimage_patches_from_document_region(const Document& document,
                                                                                      const QRegion& document_region,
                                                                                      bool preserve_alpha);
+// The region split into row bands rendered across workers. PREVIEW-ONLY (the
+// canvas's region preview refreshes under a dialog, GitHub #601 follow-up): a
+// band's windowed style masks can differ slightly from the unbanded render, so
+// the result must never reach a commit or a settled render cache.
+[[nodiscard]] std::vector<RenderedDocumentPatch> qimage_patches_from_document_region_banded(
+    const Document& document, const QRegion& document_region, bool preserve_alpha);
 [[nodiscard]] QImage qimage_from_document_rect_with_layer_bounds(
     const Document& document, QRect document_rect, bool preserve_alpha,
     const std::vector<std::pair<LayerId, Rect>>& layer_bounds);

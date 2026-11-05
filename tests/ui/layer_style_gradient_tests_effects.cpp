@@ -886,6 +886,121 @@ void ui_layer_style_stroke_size_drag_stays_responsive_on_large_image() {
   CHECK(stroke_size_in_document() == 181);
 }
 
+// GitHub #601 follow-up, the reporter's second video: a 3580 x 5370 photo
+// zoomed to fit, a small layer, Stroke Size dragged from 4 to over 200, then
+// Opacity. Each preview frame that landed made the GUI thread rebuild the
+// zoomed-out display mips of the whole frame (70 to 146 ms per frame on an
+// i9-11900KF), so the handle froze; the drag took five times its length. The
+// worker now builds the mips with the frame and, under the dialog, re-renders
+// only what changed over the frame on screen; a full render settles it.
+void ui_layer_style_drag_on_zoomed_out_large_image_never_stalls() {
+  constexpr int kWidth = 3580;
+  constexpr int kHeight = 5370;
+  const auto format = patchy::PixelFormat::rgba8();
+  patchy::Document document(kWidth, kHeight, format);
+  // Photo-like noise, so no solid-color shortcut makes the composite cheap.
+  patchy::PixelBuffer background(kWidth, kHeight, format);
+  for (int y = 0; y < kHeight; ++y) {
+    auto* row = background.pixel(0, y);
+    for (int x = 0; x < kWidth; ++x) {
+      auto hash = static_cast<std::uint32_t>(x) * 2654435761U ^ static_cast<std::uint32_t>(y) * 2246822519U;
+      hash ^= hash >> 13U;
+      row[x * 4 + 0] = static_cast<std::uint8_t>((x * 255 / kWidth + (hash & 31U)) & 255U);
+      row[x * 4 + 1] = static_cast<std::uint8_t>((y * 255 / kHeight + ((hash >> 5U) & 31U)) & 255U);
+      row[x * 4 + 2] = static_cast<std::uint8_t>((hash >> 10U) & 255U);
+      row[x * 4 + 3] = 255;
+    }
+  }
+  document.add_pixel_layer("Background", std::move(background));
+  patchy::Layer layer(document.allocate_layer_id(), "Layer 2", solid_pixels(760, 900, format, QColor(150, 130, 130)));
+  layer.set_bounds(patchy::Rect{1400, 2000, 760, 900});
+  patchy::LayerStroke stroke;
+  stroke.enabled = true;
+  stroke.size = 4.0F;
+  stroke.color = {255, 0, 0};
+  layer.layer_style().strokes = {stroke};
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = true;
+  shadow.size = 5.0F;
+  layer.layer_style().drop_shadows = {shadow};
+  const auto layer_id = layer.id();
+  document.add_layer(std::move(layer));
+  document.set_active_layer(layer_id);
+
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Zoomed Out Drag"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->force_refresh();
+  canvas->fit_to_view();
+  QApplication::processEvents();
+  CHECK(canvas->view_zoom() < 0.25);
+
+  struct Drag {
+    const char* category;
+    const char* spin;
+    int from;
+    int to;
+    int step;
+  };
+  const std::vector<Drag> drags{{"Stroke", "layerStyleStrokeSizeSpin", 4, 241, 3},
+                                {"Stroke", "layerStyleStrokeOpacitySpin", 100, 10, -2},
+                                {"Drop Shadow", "layerStyleDropShadowSizeSpin", 5, 250, 3}};
+  bool exercised = false;
+  bool settled_exactly = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+    CHECK(categories != nullptr);
+    for (const auto& drag : drags) {
+      for (int row = 0; row < categories->count(); ++row) {
+        if (categories->item(row)->text() == QLatin1String(drag.category)) {
+          categories->setCurrentRow(row);
+          break;
+        }
+      }
+      QApplication::processEvents();
+      auto* spin = dialog->findChild<QSpinBox*>(QLatin1String(drag.spin));
+      CHECK(spin != nullptr);
+      const auto before = canvas->render_cache_diagnostics();
+      const auto timing = drive_slider_drag(*canvas, slider_drag_values(drag.from, drag.to, drag.step),
+                                            [spin](int value) { spin->setValue(value); });
+      const auto after = canvas->render_cache_diagnostics();
+      std::printf("[601] zoomed out %s: %d steps in %lld ms, worst event pass %lld ms, settle %lld ms, %d preview "
+                  "frames (%d region), %d with worker mips, %d GUI mip rebuilds\n",
+                  drag.spin, timing.steps, static_cast<long long>(timing.total_ms),
+                  static_cast<long long>(timing.worst_pass_ms), static_cast<long long>(timing.settle_ms),
+                  after.intermediate_refreshes - before.intermediate_refreshes,
+                  after.region_preview_refreshes - before.region_preview_refreshes,
+                  after.background_display_mips - before.background_display_mips,
+                  after.display_mip_rebuilds - before.display_mip_rebuilds);
+      std::fflush(stdout);
+      // Before: 98 to 146 ms on the i9-11900KF, one mip rebuild per frame.
+      CHECK(timing.worst_pass_ms < 60);
+      CHECK(after.display_mip_rebuilds == before.display_mip_rebuilds);
+      CHECK(after.background_display_mips > before.background_display_mips);
+      CHECK(after.region_preview_refreshes > before.region_preview_refreshes);
+      CHECK(after.awaited_renders == before.awaited_renders);
+    }
+    settled_exactly = wait_for_canvas_to_match_document(window, *canvas);
+    exercised = true;
+    QTimer::singleShot(0, dialog, [dialog] { dialog->accept(); });
+  }));
+  require_action(window, "layerBlendingOptionsAction")->trigger();
+  QApplication::processEvents();
+  CHECK(exercised);
+  // The region preview frames never stand as the settled canvas: it equals a
+  // fresh full render of the final values.
+  CHECK(settled_exactly);
+  const auto* edited = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(layer_id);
+  CHECK(edited != nullptr && edited->layer_style().strokes.size() == 1U &&
+        edited->layer_style().drop_shadows.size() == 1U);
+  CHECK(std::lround(edited->layer_style().strokes.front().size) == 241);
+  CHECK(std::abs(edited->layer_style().strokes.front().opacity - 0.10F) <= 0.001F);
+  CHECK(std::lround(edited->layer_style().drop_shadows.front().size) == 248);
+}
+
 // Levels on a layer over a third of a large canvas: the previews land as
 // background canvas refreshes, never a GUI-thread patch or an awaited render.
 void ui_levels_drag_stays_responsive_on_large_image() {
@@ -3633,6 +3748,8 @@ std::vector<patchy::test::TestCase> layer_style_gradient_tests_part1() {
       {"ui_layer_style_stroke_size_drag_stays_responsive_on_large_image",
        ui_layer_style_stroke_size_drag_stays_responsive_on_large_image},
       {"ui_levels_drag_stays_responsive_on_large_image", ui_levels_drag_stays_responsive_on_large_image},
+      {"ui_layer_style_drag_on_zoomed_out_large_image_never_stalls",
+       ui_layer_style_drag_on_zoomed_out_large_image_never_stalls},
       {"ui_gaussian_blur_drag_stays_responsive_on_large_image",
        ui_gaussian_blur_drag_stays_responsive_on_large_image},
       {"ui_slider_drag_moves_coalesce_to_the_latest_position",
