@@ -14983,6 +14983,142 @@ Each item&apos;s own View setting still applies.</source>
         <source>Windows Image Acquisition is unavailable (%1)</source>
         <translation>Windows 이미지 획득을 사용할 수 없습니다(%1)</translation>
     </message>
+    <message>
+        <source>Scanner: %1</source>
+        <translation>스캐너: %1</translation>
+    </message>
+    <message>
+        <source>Camera: %1</source>
+        <translation>카메라: %1</translation>
+    </message>
+    <message>
+        <source>The scanner could not be opened (%1)</source>
+        <translation>스캐너를 열 수 없습니다 (%1)</translation>
+    </message>
+    <message>
+        <source>The camera could not be opened (%1)</source>
+        <translation>카메라를 열 수 없습니다 (%1)</translation>
+    </message>
+    <message>
+        <source>The camera image could not be downloaded (%1)</source>
+        <translation>카메라 이미지를 다운로드할 수 없습니다 (%1)</translation>
+    </message>
+    <message>
+        <source>Device:</source>
+        <translation>장치:</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>해상도:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>모드:</translation>
+    </message>
+    <message>
+        <source>Source:</source>
+        <translation>소스:</translation>
+    </message>
+    <message>
+        <source>Searching for scanners and cameras...</source>
+        <translation>스캐너와 카메라를 찾는 중...</translation>
+    </message>
+    <message>
+        <source>Reading the camera...</source>
+        <translation>카메라를 읽는 중...</translation>
+    </message>
+    <message>
+        <source>Opening the scanner...</source>
+        <translation>스캐너를 여는 중...</translation>
+    </message>
+    <message>
+        <source>No images were found on the camera.</source>
+        <translation>카메라에서 이미지를 찾을 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 dpi</translation>
+    </message>
+    <message>
+        <source>Import</source>
+        <translation>가져오기</translation>
+    </message>
+    <message>
+        <source>Scan</source>
+        <translation>스캔</translation>
+    </message>
+    <message>
+        <source>Downloading from the camera...</source>
+        <translation>카메라에서 다운로드하는 중...</translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation>스캔하는 중...</translation>
+    </message>
+    <message>
+        <source>Scanning needs SANE (for scanners) or libgphoto2 (for cameras). Install them from your distribution and try again.</source>
+        <translation>스캔하려면 SANE(스캐너용) 또는 libgphoto2(카메라용)가 필요합니다. 배포판에서 설치한 후 다시 시도하세요.</translation>
+    </message>
+    <message>
+        <source>The network scanner does not answer.</source>
+        <translation>네트워크 스캐너가 응답하지 않습니다.</translation>
+    </message>
+    <message>
+        <source>The network scanner at %1 does not answer.</source>
+        <translation>%1의 네트워크 스캐너가 응답하지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Check that it is switched on and connected to the same network as this computer. If its address changed, correct or remove the old address in the scanner configuration in /etc/sane.d (airscan.conf or escl.conf).</source>
+        <translation>전원이 켜져 있고 이 컴퓨터와 같은 네트워크에 연결되어 있는지 확인하세요. 주소가 바뀌었다면 /etc/sane.d의 스캐너 설정(airscan.conf 또는 escl.conf)에서 이전 주소를 고치거나 삭제하세요.</translation>
+    </message>
+    <message>
+        <source>The device stopped responding. Check that it is switched on, the cable is connected and it is not in sleep mode, then try again.</source>
+        <translation>장치가 응답하지 않습니다. 전원이 켜져 있고 케이블이 연결되어 있으며 절전 모드가 아닌지 확인한 후 다시 시도하세요.</translation>
+    </message>
+    <message>
+        <source>The scanner is in use by another program or still finishing a previous job. Close the other program or wait a moment, then try again.</source>
+        <translation>다른 프로그램이 스캐너를 사용 중이거나 이전 작업을 마무리하는 중입니다. 다른 프로그램을 닫거나 잠시 기다린 후 다시 시도하세요.</translation>
+    </message>
+    <message>
+        <source>This user account is not allowed to use the device. Add your account to the scanner group (often &quot;scanner&quot; or &quot;lp&quot;), or install the device rules from your distribution&apos;s SANE or libgphoto2 package, then log in again.</source>
+        <translation>이 사용자 계정은 장치를 사용할 권한이 없습니다. 계정을 스캐너 그룹(보통 &quot;scanner&quot; 또는 &quot;lp&quot;)에 추가하거나 배포판의 SANE 또는 libgphoto2 패키지에서 장치 규칙을 설치한 후 다시 로그인하세요.</translation>
+    </message>
+    <message>
+        <source>Paper is jammed in the scanner. Clear the jam and try again.</source>
+        <translation>스캐너에 용지가 걸렸습니다. 걸린 용지를 제거한 후 다시 시도하세요.</translation>
+    </message>
+    <message>
+        <source>The document feeder is empty. Load the pages, or choose the flatbed as the source.</source>
+        <translation>문서 공급기가 비어 있습니다. 페이지를 넣거나 원본으로 평판을 선택하세요.</translation>
+    </message>
+    <message>
+        <source>The scanner cover is open. Close it and try again.</source>
+        <translation>스캐너 덮개가 열려 있습니다. 덮개를 닫은 후 다시 시도하세요.</translation>
+    </message>
+    <message>
+        <source>The scanner does not accept these settings. Try another mode, resolution or source.</source>
+        <translation>스캐너가 이 설정을 받아들이지 않습니다. 다른 모드, 해상도 또는 소스를 시도하세요.</translation>
+    </message>
+    <message>
+        <source>There is not enough memory for this scan. Try a lower resolution.</source>
+        <translation>이 스캔에 필요한 메모리가 부족합니다. 더 낮은 해상도를 시도하세요.</translation>
+    </message>
+    <message>
+        <source>Another program is using the camera, often the file manager, which opens cameras automatically. Eject or unmount the camera there, then try again.</source>
+        <translation>다른 프로그램이 카메라를 사용 중입니다. 보통 카메라를 자동으로 여는 파일 관리자입니다. 그곳에서 카메라를 꺼내거나 마운트 해제한 후 다시 시도하세요.</translation>
+    </message>
+    <message>
+        <source>libgphoto2 does not support this camera model. Copy the images with a card reader or the file manager instead.</source>
+        <translation>libgphoto2가 이 카메라 모델을 지원하지 않습니다. 대신 카드 리더기나 파일 관리자로 이미지를 복사하세요.</translation>
+    </message>
+    <message>
+        <source>The camera sent damaged data. Reconnect the camera and try again.</source>
+        <translation>카메라가 손상된 데이터를 보냈습니다. 카메라를 다시 연결한 후 다시 시도하세요.</translation>
+    </message>
+    <message>
+        <source>The image is no longer on the camera. Pick the device again to refresh the list.</source>
+        <translation>이미지가 더 이상 카메라에 없습니다. 장치를 다시 선택해 목록을 새로 고치세요.</translation>
+    </message>
 </context>
 <context>
     <name>ScriptFolders</name>
@@ -32799,6 +32935,10 @@ Locked: %1</source>
     <message>
         <source>Cycle Hand Tools</source>
         <translation>손 도구 전환</translation>
+    </message>
+    <message>
+        <source>No scanner or camera was found. Connect a scanner supported by SANE or a camera supported by gphoto2 and try again.</source>
+        <translation>스캐너나 카메라를 찾을 수 없습니다. SANE을 지원하는 스캐너나 gphoto2를 지원하는 카메라를 연결한 후 다시 시도하세요.</translation>
     </message>
 </context>
 <context>

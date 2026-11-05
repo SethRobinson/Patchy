@@ -15030,6 +15030,142 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Windows Image Acquisition is unavailable (%1)</source>
         <translation>Windows Image Acquisition n&apos;est pas disponible (%1)</translation>
     </message>
+    <message>
+        <source>Scanner: %1</source>
+        <translation>Scanner : %1</translation>
+    </message>
+    <message>
+        <source>Camera: %1</source>
+        <translation>Appareil photo : %1</translation>
+    </message>
+    <message>
+        <source>The scanner could not be opened (%1)</source>
+        <translation>Impossible d&apos;ouvrir le scanner (%1)</translation>
+    </message>
+    <message>
+        <source>The camera could not be opened (%1)</source>
+        <translation>Impossible d&apos;ouvrir l&apos;appareil photo (%1)</translation>
+    </message>
+    <message>
+        <source>The camera image could not be downloaded (%1)</source>
+        <translation>Impossible de télécharger l&apos;image de l&apos;appareil photo (%1)</translation>
+    </message>
+    <message>
+        <source>Device:</source>
+        <translation>Périphérique :</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>Résolution :</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Mode :</translation>
+    </message>
+    <message>
+        <source>Source:</source>
+        <translation>Source :</translation>
+    </message>
+    <message>
+        <source>Searching for scanners and cameras...</source>
+        <translation>Recherche de scanners et d&apos;appareils photo...</translation>
+    </message>
+    <message>
+        <source>Reading the camera...</source>
+        <translation>Lecture de l&apos;appareil photo...</translation>
+    </message>
+    <message>
+        <source>Opening the scanner...</source>
+        <translation>Ouverture du scanner...</translation>
+    </message>
+    <message>
+        <source>No images were found on the camera.</source>
+        <translation>Aucune image n&apos;a été trouvée sur l&apos;appareil photo.</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 ppp</translation>
+    </message>
+    <message>
+        <source>Import</source>
+        <translation>Importer</translation>
+    </message>
+    <message>
+        <source>Scan</source>
+        <translation>Numériser</translation>
+    </message>
+    <message>
+        <source>Downloading from the camera...</source>
+        <translation>Téléchargement depuis l&apos;appareil photo...</translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation>Numérisation...</translation>
+    </message>
+    <message>
+        <source>Scanning needs SANE (for scanners) or libgphoto2 (for cameras). Install them from your distribution and try again.</source>
+        <translation>La numérisation nécessite SANE (pour les scanners) ou libgphoto2 (pour les appareils photo). Installez-les depuis votre distribution et réessayez.</translation>
+    </message>
+    <message>
+        <source>The network scanner does not answer.</source>
+        <translation>Le scanner réseau ne répond pas.</translation>
+    </message>
+    <message>
+        <source>The network scanner at %1 does not answer.</source>
+        <translation>Le scanner réseau à l&apos;adresse %1 ne répond pas.</translation>
+    </message>
+    <message>
+        <source>Check that it is switched on and connected to the same network as this computer. If its address changed, correct or remove the old address in the scanner configuration in /etc/sane.d (airscan.conf or escl.conf).</source>
+        <translation>Vérifiez qu&apos;il est allumé et connecté au même réseau que cet ordinateur. Si son adresse a changé, corrigez ou supprimez l&apos;ancienne adresse dans la configuration du scanner dans /etc/sane.d (airscan.conf ou escl.conf).</translation>
+    </message>
+    <message>
+        <source>The device stopped responding. Check that it is switched on, the cable is connected and it is not in sleep mode, then try again.</source>
+        <translation>Le périphérique ne répond plus. Vérifiez qu&apos;il est allumé, que le câble est branché et qu&apos;il n&apos;est pas en veille, puis réessayez.</translation>
+    </message>
+    <message>
+        <source>The scanner is in use by another program or still finishing a previous job. Close the other program or wait a moment, then try again.</source>
+        <translation>Le scanner est utilisé par un autre programme ou termine encore une tâche précédente. Fermez l&apos;autre programme ou patientez un instant, puis réessayez.</translation>
+    </message>
+    <message>
+        <source>This user account is not allowed to use the device. Add your account to the scanner group (often &quot;scanner&quot; or &quot;lp&quot;), or install the device rules from your distribution&apos;s SANE or libgphoto2 package, then log in again.</source>
+        <translation>Ce compte utilisateur n&apos;est pas autorisé à utiliser le périphérique. Ajoutez votre compte au groupe du scanner (souvent « scanner » ou « lp »), ou installez les règles de périphérique du paquet SANE ou libgphoto2 de votre distribution, puis reconnectez-vous.</translation>
+    </message>
+    <message>
+        <source>Paper is jammed in the scanner. Clear the jam and try again.</source>
+        <translation>Du papier est coincé dans le scanner. Dégagez-le et réessayez.</translation>
+    </message>
+    <message>
+        <source>The document feeder is empty. Load the pages, or choose the flatbed as the source.</source>
+        <translation>Le chargeur de documents est vide. Chargez les pages ou choisissez la vitre comme source.</translation>
+    </message>
+    <message>
+        <source>The scanner cover is open. Close it and try again.</source>
+        <translation>Le capot du scanner est ouvert. Fermez-le et réessayez.</translation>
+    </message>
+    <message>
+        <source>The scanner does not accept these settings. Try another mode, resolution or source.</source>
+        <translation>Le scanner n&apos;accepte pas ces réglages. Essayez un autre mode, une autre résolution ou une autre source.</translation>
+    </message>
+    <message>
+        <source>There is not enough memory for this scan. Try a lower resolution.</source>
+        <translation>La mémoire est insuffisante pour cette numérisation. Essayez une résolution plus basse.</translation>
+    </message>
+    <message>
+        <source>Another program is using the camera, often the file manager, which opens cameras automatically. Eject or unmount the camera there, then try again.</source>
+        <translation>Un autre programme utilise l&apos;appareil photo, souvent le gestionnaire de fichiers, qui ouvre les appareils automatiquement. Éjectez ou démontez l&apos;appareil depuis celui-ci, puis réessayez.</translation>
+    </message>
+    <message>
+        <source>libgphoto2 does not support this camera model. Copy the images with a card reader or the file manager instead.</source>
+        <translation>libgphoto2 ne prend pas en charge ce modèle d&apos;appareil photo. Copiez plutôt les images avec un lecteur de cartes ou le gestionnaire de fichiers.</translation>
+    </message>
+    <message>
+        <source>The camera sent damaged data. Reconnect the camera and try again.</source>
+        <translation>L&apos;appareil photo a envoyé des données endommagées. Reconnectez-le et réessayez.</translation>
+    </message>
+    <message>
+        <source>The image is no longer on the camera. Pick the device again to refresh the list.</source>
+        <translation>L&apos;image n&apos;est plus sur l&apos;appareil photo. Sélectionnez de nouveau le périphérique pour actualiser la liste.</translation>
+    </message>
 </context>
 <context>
     <name>ScriptFolders</name>
@@ -32885,6 +33021,10 @@ Verrouillé : %1</translation>
     <message>
         <source>Cycle Hand Tools</source>
         <translation>Alterner les outils Main</translation>
+    </message>
+    <message>
+        <source>No scanner or camera was found. Connect a scanner supported by SANE or a camera supported by gphoto2 and try again.</source>
+        <translation>Aucun scanner ni appareil photo n&apos;a été trouvé. Connectez un scanner pris en charge par SANE ou un appareil photo pris en charge par gphoto2, puis réessayez.</translation>
     </message>
 </context>
 <context>

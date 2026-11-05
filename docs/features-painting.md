@@ -20,4 +20,4 @@ Split from [features.md](features.md): painting and retouching tools, brushes, t
 - Filter Gallery with live full-resolution preview, stacks, favorites and Saved Looks; Stylize and Render add angled Wind, Tiles, Extrude, Solarize, Find Edges, Trace Contour, Diffuse, Fibers, Difference Clouds, Lens Flare and Flame (14 presets, path mode); Liquify with warp, twirl, pucker, bloat and freeze brushes
 - Perspective Planes: put layers, pastes and paint on flat surfaces in perspective
 - Photoshop-compatible document resolution, physical measurement units, rulers, image sizing and printing
-- Pen/stylus pressure and size dynamics, GUI scaling, scanner import (Windows and macOS), camera import (Windows) and command line options
+- Pen/stylus pressure and size dynamics, GUI scaling, scanner import (desktop builds), camera import (Windows, Linux) and command line options

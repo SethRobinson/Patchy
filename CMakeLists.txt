@@ -178,6 +178,7 @@ add_library(patchy_core
   src/core/document_recovery_store.cpp
   src/support/atomic_file_write.cpp
   src/support/random_uuid.cpp
+  src/support/scan_frame.cpp
   src/support/byte_order.hpp
   src/support/decode_budget.hpp
   src/support/network_path.hpp
@@ -1874,6 +1875,11 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       target_sources(patchy_ui PRIVATE src/ui/fontconfig_font_class.cpp src/ui/fontconfig_font_class.hpp)
       target_compile_definitions(patchy_ui PUBLIC PATCHY_HAVE_FONTCONFIG_QUERY=1)
       target_link_libraries(patchy_ui PRIVATE ${CMAKE_DL_LIBS})
+      if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        # SANE scanner and libgphoto2 camera acquisition (File > Import > From Scanner or
+        # Camera...), both dlopened at run time like fontconfig: no headers, nothing bundled.
+        target_sources(patchy_ui PRIVATE src/ui/scanner_import_linux.cpp)
+      endif()
       # "Pick Screen Color" on Wayland goes through the XDG desktop portal
       # (src/ui/portal_color_pick.cpp, GitHub issue 128). Looked up as a separate
       # package for the same reason as Qt6Pdf above: a kit without QtDBus keeps
@@ -2475,6 +2481,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/psd_vector_fixtures_tests.cpp
     tests/core/psd_writer_stability_tests.cpp
     tests/core/jxr_tests.cpp
+    tests/core/scan_frame_tests.cpp
     tests/core/rttex_tests.cpp
     tests/core/dds_tests.cpp
     tests/core/ora_tests.cpp
