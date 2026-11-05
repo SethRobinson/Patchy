@@ -291,14 +291,21 @@ void visual_contact_sheet_contains_new_feature_artifacts() {
       "ui_filter_edge_detect.png",
       "ui_marching_ants_zoom_100.png",
   };
-#ifndef Q_OS_WIN
-  // Produced by the Windows-only bundled legacy 8BF shim tests, which [SKIP] on this
-  // platform (see ui_bundled_legacy_plugin_action_applies_filter).
-  std::erase_if(artifacts, [](const std::string& name) {
-    return name == "ui_legacy_plugin_greyscale.png" || name == "ui_transparency_checkerboard.png" ||
-           name == "ui_transparent_copy_paste.png";
-  });
+  // Produced by the bundled legacy 8BF shim tests (ui_bundled_legacy_plugin_action_applies_filter,
+  // ui_transparency_checkerboard_and_copy_paste_preserve_alpha), which [SKIP] off Windows and,
+  // on Windows, without the Filter Foundry fixtures (require_filter_foundry_fixtures).
+#ifdef Q_OS_WIN
+  const bool legacy_shim_captures =
+      std::filesystem::exists(patchy::test::filter_foundry_fixture_path("Greyscale64.8bf"));
+#else
+  const bool legacy_shim_captures = false;
 #endif
+  if (!legacy_shim_captures) {
+    std::erase_if(artifacts, [](const std::string& name) {
+      return name == "ui_legacy_plugin_greyscale.png" || name == "ui_transparency_checkerboard.png" ||
+             name == "ui_transparent_copy_paste.png";
+    });
+  }
 
   constexpr int kColumns = 4;
   constexpr int kCellWidth = 280;
