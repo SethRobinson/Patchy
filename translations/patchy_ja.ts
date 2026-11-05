@@ -32800,6 +32800,10 @@ Locked: %1</source>
         <source>Cycle Hand Tools</source>
         <translation>手のひらツールを切り替え</translation>
     </message>
+    <message>
+        <source>Some text does not fit. Drag to enlarge the box.</source>
+        <translation>一部のテキストが収まりません。ドラッグしてボックスを広げてください。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

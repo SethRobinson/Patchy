@@ -32972,6 +32972,10 @@ Zablokowano: %1</translation>
         <source>Cycle Hand Tools</source>
         <translation>Przełącz narzędzia rączki</translation>
     </message>
+    <message>
+        <source>Some text does not fit. Drag to enlarge the box.</source>
+        <translation>Część tekstu się nie mieści. Przeciągnij, aby powiększyć ramkę.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

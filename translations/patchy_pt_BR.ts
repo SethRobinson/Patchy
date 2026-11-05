@@ -32886,6 +32886,10 @@ Bloqueado: %1</translation>
         <source>Cycle Hand Tools</source>
         <translation>Alternar ferramentas de mão</translation>
     </message>
+    <message>
+        <source>Some text does not fit. Drag to enlarge the box.</source>
+        <translation>Parte do texto não cabe. Arraste para aumentar a caixa.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

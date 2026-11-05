@@ -32805,6 +32805,10 @@ Locked: %1</source>
         <source>Cycle Hand Tools</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Some text does not fit. Drag to enlarge the box.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

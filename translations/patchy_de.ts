@@ -32886,6 +32886,10 @@ Fixiert: %1</translation>
         <source>Cycle Hand Tools</source>
         <translation>Hand-Werkzeuge durchschalten</translation>
     </message>
+    <message>
+        <source>Some text does not fit. Drag to enlarge the box.</source>
+        <translation>Ein Teil des Textes passt nicht hinein. Ziehen, um den Rahmen zu vergrößern.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
