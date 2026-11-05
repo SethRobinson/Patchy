@@ -32900,6 +32900,10 @@ Locked: %1</source>
         <source>Add the current color at the front of the custom colors, or replace the selected box (click a box to select it)</source>
         <translation>現在の色をカスタム色の先頭に追加するか、選択中のボックスを置き換えます (ボックスをクリックして選択)</translation>
     </message>
+    <message>
+        <source>Set as Background Color</source>
+        <translation>背景色に設定</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PathsPanel</name>

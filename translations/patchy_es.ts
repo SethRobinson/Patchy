@@ -32986,6 +32986,10 @@ Bloqueada: %1</translation>
         <source>Add the current color at the front of the custom colors, or replace the selected box (click a box to select it)</source>
         <translation>Añade el color actual al principio de los colores personalizados o reemplaza la casilla seleccionada (haga clic en una casilla para seleccionarla)</translation>
     </message>
+    <message>
+        <source>Set as Background Color</source>
+        <translation>Establecer como color de fondo</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PathsPanel</name>

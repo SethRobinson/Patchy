@@ -8,7 +8,8 @@
 // to CMYK sliders in the working CMYK space (the issue's follow-up). A drag in the field
 // keeps its per-move work small: no gradient re-render, no settings write until the
 // release (GitHub issue 464). The row under the cube shows the foreground as hex and R, G,
-// B, and typing, Ctrl+V or a number sets it (GitHub issue 577).
+// B, and typing, Ctrl+V or a number sets it (GitHub issue 577). In the Foreground Color window
+// a right-click or right-drag sets the background like Alt (GitHub issue 639).
 #include "color/color_management.hpp"
 #include "core/document.hpp"
 #include "core/palette_presets.hpp"
@@ -25,6 +26,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
+#include <QComboBox>
 #include <QColor>
 #include <QContextMenuEvent>
 #include <QDataStream>
@@ -40,6 +42,7 @@
 #include <QSpinBox>
 #include <QSplitter>
 #include <QTabBar>
+#include <QTabWidget>
 #include <QTest>
 #include <QTimer>
 #include <QToolButton>
@@ -600,16 +603,6 @@ void ui_color_picker_foreground_window_alt_pick_sets_background() {
     return;
   }
 
-  // The shared Square field still ignores right-button input in a color window.
-  const auto foreground_before_right = canvas->primary_color();
-  const auto background_before_right = canvas->secondary_color();
-  const QPoint right_pick(plane->width() / 3, plane->height() / 3);
-  send_mouse(*plane, QEvent::MouseButtonPress, right_pick, Qt::RightButton, Qt::RightButton);
-  send_mouse(*plane, QEvent::MouseMove, right_pick + QPoint(5, 5), Qt::NoButton, Qt::RightButton);
-  send_mouse(*plane, QEvent::MouseButtonRelease, right_pick, Qt::RightButton, Qt::NoButton);
-  CHECK(canvas->primary_color().rgb() == foreground_before_right.rgb());
-  CHECK(canvas->secondary_color().rgb() == background_before_right.rgb());
-
   // Plain clicks on two swatches set the foreground, as before.
   click(*grid, picker_cell(0));
   const auto first = canvas->primary_color();
@@ -686,6 +679,296 @@ void ui_color_picker_background_window_alt_click_is_a_plain_click() {
   CHECK(!shows_background_cursor(*grid));
   CHECK(grid->cursor().shape() == Qt::PointingHandCursor);
   send_key(window, QEvent::KeyRelease, Qt::Key_Alt, Qt::NoModifier);
+  dialog->close();
+  QApplication::processEvents();
+}
+
+void right_click(QWidget& widget, QPoint point) {
+  send_mouse(widget, QEvent::MouseButtonPress, point, Qt::RightButton, Qt::RightButton);
+  send_mouse(widget, QEvent::MouseButtonRelease, point, Qt::RightButton, Qt::NoButton);
+  QApplication::processEvents();
+}
+
+// A right-button drag from `from` to `to`; `during` runs while the button is still down.
+template <typename During>
+void right_drag(QWidget& widget, QPoint from, QPoint to, During during) {
+  send_mouse(widget, QEvent::MouseButtonPress, from, Qt::RightButton, Qt::RightButton);
+  send_mouse(widget, QEvent::MouseMove, (from + to) / 2, Qt::NoButton, Qt::RightButton);
+  send_mouse(widget, QEvent::MouseMove, to, Qt::NoButton, Qt::RightButton);
+  during();
+  send_mouse(widget, QEvent::MouseButtonRelease, to, Qt::RightButton, Qt::NoButton);
+  QApplication::processEvents();
+}
+
+// Shows the picker window's Wheel tab and returns the wheel, laid out.
+QWidget* show_wheel_tab(QDialog& dialog) {
+  auto* tabs = dialog.findChild<QTabWidget*>(QStringLiteral("patchyColorPickerTabs"));
+  auto* wheel = dialog.findChild<QWidget*>(QStringLiteral("patchyColorWheel"));
+  CHECK(tabs != nullptr && wheel != nullptr);
+  if (tabs == nullptr || wheel == nullptr) {
+    return nullptr;
+  }
+  tabs->setCurrentWidget(wheel->parentWidget());
+  QApplication::processEvents();
+  CHECK(wheel->isVisible() && wheel->width() >= 80 && wheel->height() >= 80);
+  return wheel;
+}
+
+// A point on the wheel's hue ring at `degrees` (counter-clockwise from 3 o'clock).
+QPoint wheel_ring_point(const QWidget& wheel, double degrees) {
+  const double radius = std::min(wheel.width(), wheel.height()) / 2.0 - 2.0 - 8.0;
+  const double radians = degrees * 3.14159265358979323846 / 180.0;
+  return QPoint(static_cast<int>(std::lround(wheel.width() / 2.0 + radius * std::cos(radians))),
+                static_cast<int>(std::lround(wheel.height() / 2.0 - radius * std::sin(radians))));
+}
+
+// The hue the wheel's ring gives at `point` (ColorWheelWidget's own mapping).
+int wheel_hue_at(const QWidget& wheel, QPoint point) {
+  double degrees = std::atan2(wheel.height() / 2.0 - point.y(), point.x() - wheel.width() / 2.0) * 180.0 /
+                   3.14159265358979323846;
+  if (degrees < 0.0) {
+    degrees += 360.0;
+  }
+  return static_cast<int>(std::lround(degrees)) % 360;
+}
+
+// GitHub issue 639: in the Foreground Color window a right-click or right-drag does what an
+// Alt-click does on the Square field, hue strip and Wheel, and a right-click does on custom
+// colors and read-only palette swatches; the window keeps showing the foreground.
+void ui_color_picker_foreground_window_right_pick_sets_background() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* dialog = open_color_window(window, "foregroundColorButton");
+  if (dialog == nullptr) {
+    return;
+  }
+  auto* picker = dialog->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
+  auto* grid = dialog->findChild<QWidget*>(QStringLiteral("patchyColorPaletteGrid"));
+  auto* plane = dialog->findChild<QWidget*>(QStringLiteral("patchyColorPlane"));
+  auto* strip = dialog->findChild<QWidget*>(QStringLiteral("patchyHueSlider"));
+  auto* add_custom = dialog->findChild<QPushButton*>(QStringLiteral("patchySetCustomColorButton"));
+  const auto customs = dialog->findChildren<QPushButton*>(QStringLiteral("patchyCustomColorSwatch"));
+  CHECK(picker != nullptr && grid != nullptr && plane != nullptr && strip != nullptr && add_custom != nullptr &&
+        !customs.isEmpty());
+  if (picker == nullptr || grid == nullptr || plane == nullptr || strip == nullptr || add_custom == nullptr ||
+      customs.isEmpty()) {
+    return;
+  }
+
+  // Read-only swatches (Basic colors): a right-click sets the background.
+  click(*grid, picker_cell(0));
+  const auto first = canvas->primary_color();
+  click(*grid, picker_cell(1));
+  const auto second = canvas->primary_color();
+  CHECK(first.rgb() != second.rgb());
+  right_click(*grid, picker_cell(0));
+  CHECK(canvas->secondary_color().rgb() == first.rgb());
+  CHECK(canvas->primary_color().rgb() == second.rgb());
+  CHECK(picker->currentColor().rgb() == second.rgb());
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Background color changed"));
+
+  // The Square field: a right-click gives the background what a plain click there gives
+  // the foreground, and a right-drag follows the pointer with the background cursor shown.
+  const QPoint spot(plane->width() * 3 / 4, plane->height() / 4);
+  right_click(*plane, spot);
+  const auto right_picked = canvas->secondary_color();
+  CHECK(right_picked.rgb() != first.rgb());
+  CHECK(canvas->primary_color().rgb() == second.rgb());
+  CHECK(picker->currentColor().rgb() == second.rgb());
+  const QPoint drag_end(plane->width() / 4, plane->height() * 2 / 3);
+  bool cursor_during_drag = false;
+  right_drag(*plane, QPoint(plane->width() / 2, plane->height() / 2), drag_end,
+             [&] { cursor_during_drag = shows_background_cursor(*plane); });
+  CHECK(cursor_during_drag);
+  CHECK(!shows_background_cursor(*plane));
+  const auto dragged = canvas->secondary_color();
+  CHECK(dragged.rgb() != right_picked.rgb());
+  CHECK(canvas->primary_color().rgb() == second.rgb());
+  CHECK(picker->currentColor().rgb() == second.rgb());
+  click(*plane, spot);
+  CHECK(canvas->primary_color().rgb() == right_picked.rgb());
+  click(*plane, drag_end);
+  CHECK(canvas->primary_color().rgb() == dragged.rgb());
+  const auto foreground = canvas->primary_color();
+
+  // The hue strip: that hue at full strength; a right-drag ends on the release point's hue.
+  const QPoint strip_spot(strip->width() / 2, strip->height() / 3);
+  right_click(*strip, strip_spot);
+  CHECK(canvas->secondary_color().rgb() == QColor::fromHsv(strip_hue_at(strip_spot.y(), strip->height()), 255, 255).rgb());
+  CHECK(canvas->primary_color().rgb() == foreground.rgb());
+  const QPoint strip_end(strip->width() / 2, strip->height() * 2 / 3);
+  right_drag(*strip, strip_spot, strip_end, [] {});
+  CHECK(canvas->secondary_color().rgb() == QColor::fromHsv(strip_hue_at(strip_end.y(), strip->height()), 255, 255).rgb());
+  CHECK(canvas->primary_color().rgb() == foreground.rgb());
+  CHECK(picker->currentColor().rgb() == foreground.rgb());
+
+  // A custom color: a right-click sets the background and leaves the slot unselected.
+  click(*grid, picker_cell(3));
+  const auto third = canvas->primary_color();
+  add_custom->click();
+  QApplication::processEvents();
+  click(*grid, picker_cell(1));
+  CHECK(canvas->primary_color().rgb() == second.rgb());
+  right_click(*customs.front(), QPoint(customs.front()->width() / 2, customs.front()->height() / 2));
+  CHECK(canvas->secondary_color().rgb() == third.rgb());
+  CHECK(canvas->primary_color().rgb() == second.rgb());
+  CHECK(picker->currentColor().rgb() == second.rgb());
+
+  // The Wheel: its ring gives that hue at full strength, a right-drag the release point's hue;
+  // the window's own color stays.
+  auto* wheel = show_wheel_tab(*dialog);
+  if (wheel != nullptr) {
+    const QPoint ring_start = wheel_ring_point(*wheel, 0.0);
+    const QPoint ring_end = wheel_ring_point(*wheel, 120.0);
+    right_click(*wheel, ring_start);
+    CHECK(canvas->secondary_color().rgb() == QColor::fromHsv(wheel_hue_at(*wheel, ring_start), 255, 255).rgb());
+    CHECK(canvas->primary_color().rgb() == second.rgb());
+    bool wheel_cursor = false;
+    right_drag(*wheel, ring_start, ring_end, [&] { wheel_cursor = shows_background_cursor(*wheel); });
+    CHECK(wheel_cursor);
+    CHECK(wheel_hue_at(*wheel, ring_end) != wheel_hue_at(*wheel, ring_start));
+    CHECK(canvas->secondary_color().rgb() == QColor::fromHsv(wheel_hue_at(*wheel, ring_end), 255, 255).rgb());
+    CHECK(canvas->primary_color().rgb() == second.rgb());
+    CHECK(picker->currentColor().rgb() == second.rgb());
+    // The inner square: what a plain click there gives the foreground.
+    const QPoint inner(wheel->width() / 2 + 6, wheel->height() / 2 - 6);
+    right_click(*wheel, inner);
+    const auto inner_picked = canvas->secondary_color();
+    CHECK(canvas->primary_color().rgb() == second.rgb());
+    click(*wheel, inner);
+    CHECK(canvas->primary_color().rgb() == inner_picked.rgb());
+  }
+  dialog->close();
+  QApplication::processEvents();
+}
+
+// Runs the palette grid's right-click menu at `point` and returns the object names of its
+// actions; `trigger` names one to run, and a nonempty `artifact` saves the window with the menu.
+QStringList palette_menu_actions(QWidget& grid, QPoint point, const QString& trigger = {},
+                                 const std::string& artifact = {}) {
+  QStringList names;
+  QTimer::singleShot(0, &grid, [&] {
+    auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+    if (menu == nullptr) {
+      return;
+    }
+    if (!artifact.empty()) {
+      save_window_popup_artifact(artifact, *grid.window(), grid, *menu);
+    }
+    QAction* chosen = nullptr;
+    for (auto* action : menu->actions()) {
+      names << action->objectName();
+      if (!trigger.isEmpty() && action->objectName() == trigger) {
+        chosen = action;
+      }
+    }
+    menu->close();
+    if (chosen != nullptr) {
+      chosen->trigger();
+    }
+  });
+  QContextMenuEvent context(QContextMenuEvent::Mouse, point, grid.mapToGlobal(point));
+  QApplication::sendEvent(&grid, &context);
+  QApplication::processEvents();
+  return names;
+}
+
+// GitHub issue 639: an editable palette (here the document's) keeps its Set Name / Rename
+// menu in the Foreground Color window, which adds Set as Background Color; a right press
+// there opens the menu and picks nothing. The Background Color window's menu has no entry.
+void ui_color_picker_foreground_window_palette_menu_sets_background() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  CHECK(run_script(window, "app.activeDocument.setPalette(['#102030','#a0b0c0','#c04020']);"));
+  QApplication::processEvents();
+  for (const char* chip : {"foregroundColorButton", "backgroundColorButton"}) {
+    const bool foreground_window = QLatin1String(chip) == QLatin1String("foregroundColorButton");
+    auto* dialog = open_color_window(window, chip);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("patchyColorPaletteCombo"));
+    auto* grid = dialog->findChild<QWidget*>(QStringLiteral("patchyColorPaletteGrid"));
+    CHECK(combo != nullptr && grid != nullptr);
+    if (combo == nullptr || grid == nullptr) {
+      return;
+    }
+    combo->setCurrentIndex(combo->findData(QStringLiteral("current")));
+    QApplication::processEvents();
+    CHECK(grid->property("paletteColorCount").toInt() == 3);
+
+    const auto foreground = canvas->primary_color();
+    const auto background = canvas->secondary_color();
+    right_click(*grid, picker_cell(0));
+    CHECK(canvas->primary_color().rgb() == foreground.rgb());
+    CHECK(canvas->secondary_color().rgb() == background.rgb());
+
+    const auto names = palette_menu_actions(*grid, picker_cell(2), QStringLiteral("paletteSetBackgroundAction"),
+                                            foreground_window ? "issue639_foreground_window_palette_menu"
+                                                              : "issue639_background_window_palette_menu");
+    CHECK(names.contains(QStringLiteral("paletteRenameAction")));
+    CHECK(names.contains(QStringLiteral("paletteSetBackgroundAction")) == foreground_window);
+    if (foreground_window) {
+      CHECK(names.indexOf(QStringLiteral("paletteSetBackgroundAction")) == 0);
+      CHECK(canvas->secondary_color().rgb() == QColor(0xc0, 0x40, 0x20).rgb());
+    } else {
+      CHECK(canvas->secondary_color().rgb() == background.rgb());
+    }
+    CHECK(canvas->primary_color().rgb() == foreground.rgb());
+    dialog->close();
+    // The window deletes itself on close: flush that so the next lookup finds the new one.
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QApplication::processEvents();
+  }
+}
+
+// GitHub issue 639: a picker without the background pick (the Background Color window here,
+// as Layer Style's color pickers) keeps plain right-click behavior: nothing is picked.
+void ui_color_picker_without_background_pick_ignores_right_click() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* dialog = open_color_window(window, "backgroundColorButton");
+  if (dialog == nullptr) {
+    return;
+  }
+  auto* picker = dialog->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
+  auto* grid = dialog->findChild<QWidget*>(QStringLiteral("patchyColorPaletteGrid"));
+  auto* plane = dialog->findChild<QWidget*>(QStringLiteral("patchyColorPlane"));
+  auto* strip = dialog->findChild<QWidget*>(QStringLiteral("patchyHueSlider"));
+  auto* custom = dialog->findChild<QPushButton*>(QStringLiteral("patchyCustomColorSwatch"));
+  CHECK(picker != nullptr && grid != nullptr && plane != nullptr && strip != nullptr && custom != nullptr);
+  if (picker == nullptr || grid == nullptr || plane == nullptr || strip == nullptr || custom == nullptr) {
+    return;
+  }
+  click(*grid, picker_cell(2));
+  const auto foreground = canvas->primary_color();
+  const auto background = canvas->secondary_color();
+  const auto unchanged = [&] {
+    return canvas->primary_color().rgb() == foreground.rgb() && canvas->secondary_color().rgb() == background.rgb() &&
+           picker->currentColor().rgb() == background.rgb();
+  };
+  right_click(*grid, picker_cell(5));
+  CHECK(unchanged());
+  right_drag(*plane, QPoint(plane->width() / 3, plane->height() / 3), QPoint(plane->width() * 2 / 3, plane->height() / 2),
+             [] {});
+  CHECK(unchanged());
+  CHECK(!shows_background_cursor(*plane));
+  right_drag(*strip, QPoint(strip->width() / 2, strip->height() / 4), QPoint(strip->width() / 2, strip->height() / 2),
+             [] {});
+  CHECK(unchanged());
+  right_click(*custom, QPoint(custom->width() / 2, custom->height() / 2));
+  CHECK(unchanged());
+  if (auto* wheel = show_wheel_tab(*dialog); wheel != nullptr) {
+    right_drag(*wheel, wheel_ring_point(*wheel, 0.0), wheel_ring_point(*wheel, 120.0), [] {});
+    CHECK(unchanged());
+    right_click(*wheel, QPoint(wheel->width() / 2, wheel->height() / 2));
+    CHECK(unchanged());
+  }
+  // The read-only grid has no menu here either.
+  CHECK(palette_menu_actions(*grid, picker_cell(1)).isEmpty());
   dialog->close();
   QApplication::processEvents();
 }
@@ -1613,6 +1896,12 @@ std::vector<patchy::test::TestCase> color_dock_panel_tests() {
        ui_color_picker_foreground_window_alt_pick_sets_background},
       {"ui_color_picker_background_window_alt_click_is_a_plain_click",
        ui_color_picker_background_window_alt_click_is_a_plain_click},
+      {"ui_color_picker_foreground_window_right_pick_sets_background",
+       ui_color_picker_foreground_window_right_pick_sets_background},
+      {"ui_color_picker_foreground_window_palette_menu_sets_background",
+       ui_color_picker_foreground_window_palette_menu_sets_background},
+      {"ui_color_picker_without_background_pick_ignores_right_click",
+       ui_color_picker_without_background_pick_ignores_right_click},
       {"ui_color_panel_view_menu_switches_views", ui_color_panel_view_menu_switches_views},
       {"ui_color_panel_sliders_set_foreground", ui_color_panel_sliders_set_foreground},
       {"ui_color_panel_sliders_follow_color_changes_elsewhere",

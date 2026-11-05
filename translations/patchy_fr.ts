@@ -32986,6 +32986,10 @@ Verrouillé : %1</translation>
         <source>Add the current color at the front of the custom colors, or replace the selected box (click a box to select it)</source>
         <translation>Ajoute la couleur actuelle en tête des couleurs personnalisées, ou remplace la case sélectionnée (cliquez sur une case pour la sélectionner)</translation>
     </message>
+    <message>
+        <source>Set as Background Color</source>
+        <translation>Définir comme couleur d&apos;arrière-plan</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PathsPanel</name>

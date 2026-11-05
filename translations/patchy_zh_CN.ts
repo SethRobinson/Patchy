@@ -32900,6 +32900,10 @@ Locked: %1</source>
         <source>Add the current color at the front of the custom colors, or replace the selected box (click a box to select it)</source>
         <translation>将当前颜色添加到自定颜色的最前面，或替换所选色块（点击色块可选中）</translation>
     </message>
+    <message>
+        <source>Set as Background Color</source>
+        <translation>设为背景色</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::PathsPanel</name>

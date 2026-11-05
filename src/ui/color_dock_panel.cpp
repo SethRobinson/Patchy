@@ -231,8 +231,9 @@ ColorDockPanel::ColorDockPanel(QAction* swap_colors, QAction* default_colors, QW
   hue_strip_->setMinimumSize(HueSliderWidget::kDefaultWidth, kFieldMinimumHeight);
   hue_strip_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
   hue_strip_->setFocusPolicy(Qt::NoFocus);
-  // Alt over either shows the background cursor; the picker window's field and strip,
-  // which edit one color, do not get one.
+  // Alt over either shows the background cursor, and a right press does too (a right
+  // pick sets the background). The Foreground Color window does the same through its
+  // background pick handler; the other picker windows edit one color and do neither.
   field_cursor_ = new BackgroundPickCursor(field_, true);
   hue_strip_cursor_ = new BackgroundPickCursor(hue_strip_, true);
   auto* cube_row = new QHBoxLayout;
