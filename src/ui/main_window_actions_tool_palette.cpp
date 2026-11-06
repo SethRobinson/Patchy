@@ -1929,7 +1929,7 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     return action;
   };
   QMenu* type_menu = ctx.type_menu;
-  const auto add_type_submenu = [this, type_menu](const char* source, const char* object_name) {
+  const auto add_type_submenu = [type_menu](const char* source, const char* object_name) {
     auto* menu = type_menu->addMenu(QString());
     bind_action_text(menu->menuAction(), source);
     menu->setObjectName(QString::fromLatin1(object_name));

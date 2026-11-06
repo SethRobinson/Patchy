@@ -1127,7 +1127,7 @@ QIcon missing_font_badge_icon(const QWidget& widget) {
   painter.drawPath(triangle);
   painter.setCompositionMode(QPainter::CompositionMode_Clear);
   painter.setPen(Qt::NoPen);
-  painter.setBrush(Qt::black);
+  painter.setBrush(Qt::black);  // color-literal-ok: Clear mode only uses the alpha
   painter.drawRect(QRectF(centre - 1.0, top + 4.5, 2.0, 5.0));
   painter.drawRect(QRectF(centre - 1.0, top + 10.5, 2.0, 2.0));
   painter.end();
