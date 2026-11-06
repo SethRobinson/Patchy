@@ -112,7 +112,6 @@
 #include <QStylePainter>
 #include <QTimer>
 #include <QToolButton>
-#include <QToolTip>
 #include <QVBoxLayout>
 #include <QVariant>
 #include <QWidget>
@@ -3157,7 +3156,89 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   return row;
 }
 
+// Names a footer button's drop action while a layer drag is over it (local-033). A child
+// of the window, not a QToolTip: the tip is a top-level window of its own, and with a large
+// pointer Qt puts a one-line tip beside the point instead of below it, over the next
+// button. A drag crossing that window left Patchy (no-drop cursor, highlight gone) until
+// the tip closed. This one is drawn inside the window and lets the drag pass through it.
+class LayerDropHint final : public QWidget {
+public:
+  explicit LayerDropHint(QWidget* parent) : QWidget(parent) {
+    setObjectName(QStringLiteral("layerDropHint"));
+    setAttribute(Qt::WA_TransparentForMouseEvents);
+    setFocusPolicy(Qt::NoFocus);
+    hide();
+  }
+
+  void set_text(const QString& text) {
+    ensurePolished();
+    if (text_ == text && !size().isEmpty()) {
+      return;
+    }
+    text_ = text;
+    setAccessibleName(text_);
+    const auto metrics = fontMetrics();
+    resize(metrics.horizontalAdvance(text_) + 2 * kPaddingX, metrics.height() + 2 * kPaddingY);
+    update();
+  }
+
+protected:
+  void paintEvent(QPaintEvent* /*event*/) override {
+    QPainter painter(this);
+    // The menu colors, so the hint stands off the list rows it overlaps.
+    painter.fillRect(rect(), theme().menu_bg);
+    painter.setPen(QPen(theme().menu_border, 1));
+    painter.drawRect(rect().adjusted(0, 0, -1, -1));
+    painter.setPen(theme().text_primary);
+    painter.drawText(rect(), Qt::AlignCenter, text_);
+  }
+
+private:
+  static constexpr int kPaddingX = 6;
+  static constexpr int kPaddingY = 3;
+  QString text_;
+};
+
 }  // namespace
+
+void MainWindow::show_layer_drop_hint(QWidget* button) {
+  auto* host = button != nullptr ? button->window() : nullptr;
+  if (host == nullptr) {
+    return;
+  }
+  if (layer_drop_hint_ != nullptr && layer_drop_hint_->parentWidget() != host) {
+    layer_drop_hint_->hide();
+    layer_drop_hint_->deleteLater();
+    layer_drop_hint_.clear();
+  }
+  if (layer_drop_hint_ == nullptr) {
+    layer_drop_hint_ = new LayerDropHint(host);
+  }
+  auto* hint = static_cast<LayerDropHint*>(layer_drop_hint_.data());
+  // What the drop does, which for New Layer is a duplicate, not the button's click tooltip.
+  const auto action = button->property("layerDropAction").toString();
+  hint->set_text(action == QStringLiteral("delete")   ? tr("Delete Layer")
+                 : action == QStringLiteral("folder") ? tr("New Folder")
+                                                      : tr("Duplicate Layer"));
+  // Above the button, clear of the pointer; below it only when the window has no room above.
+  constexpr int kGap = 4;
+  const QRect button_rect(button->mapTo(host, QPoint(0, 0)), button->size());
+  const auto x = std::clamp(button_rect.center().x() - hint->width() / 2, 0,
+                            std::max(0, host->width() - hint->width()));
+  auto y = button_rect.top() - kGap - hint->height();
+  if (y < 0) {
+    y = button_rect.bottom() + 1 + kGap;
+  }
+  hint->move(x, y);
+  hint->raise();
+  hint->show();
+}
+
+void MainWindow::hide_layer_drop_hint() {
+  if (layer_drop_hint_ != nullptr) {
+    layer_drop_hint_->hide();
+  }
+}
 
 bool MainWindow::handle_layer_action_button_drag_event(QObject* watched, QEvent* event) {
   auto* button = qobject_cast<QWidget*>(watched);
@@ -3166,6 +3247,7 @@ bool MainWindow::handle_layer_action_button_drag_event(QObject* watched, QEvent*
   }
 
   if (preview_dialog_edit_locked()) {
+    hide_layer_drop_hint();
     if (auto* drop_event = dynamic_cast<QDropEvent*>(event); drop_event != nullptr) {
       // Color drags (the color picker's swatch drag-and-drop) never touch the
       // document; let them through the lock so e.g. a layer-style picker's
@@ -3196,18 +3278,10 @@ bool MainWindow::handle_layer_action_button_drag_event(QObject* watched, QEvent*
       button->update();
     });
   };
-  const auto hide_tooltip = [] {
-    QToolTip::hideText();
-  };
-  const auto show_tooltip = [button] {
-    if (!button->toolTip().isEmpty()) {
-      QToolTip::showText(button->mapToGlobal(button->rect().center()), button->toolTip(), button);
-    }
-  };
 
   if (event->type() == QEvent::DragLeave) {
     set_drop_active(false);
-    hide_tooltip();
+    hide_layer_drop_hint();
     event->accept();
     return true;
   }
@@ -3217,10 +3291,16 @@ bool MainWindow::handle_layer_action_button_drag_event(QObject* watched, QEvent*
   }
 
   auto* drop_event = static_cast<QDropEvent*>(event);
+  if (event->type() == QEvent::DragMove && button->property("layerDropActive").toBool()) {
+    // The enter already read the layers and showed the hint: a move only answers.
+    drop_event->setDropAction(Qt::MoveAction);
+    drop_event->accept();
+    return true;
+  }
   auto ids = layer_ids_from_mime_data(drop_event->mimeData());
   if (ids.empty()) {
     set_drop_active(false);
-    hide_tooltip();
+    hide_layer_drop_hint();
     return false;
   }
 
@@ -3228,7 +3308,7 @@ bool MainWindow::handle_layer_action_button_drag_event(QObject* watched, QEvent*
   drop_event->accept();
   if (event->type() == QEvent::Drop) {
     set_drop_active(false);
-    hide_tooltip();
+    hide_layer_drop_hint();
     if (button->property("layerDropAction").toString() == QStringLiteral("delete")) {
       delete_layers(std::move(ids));
     } else if (button->property("layerDropAction").toString() == QStringLiteral("folder")) {
@@ -3238,7 +3318,7 @@ bool MainWindow::handle_layer_action_button_drag_event(QObject* watched, QEvent*
     }
   } else {
     set_drop_active(true);
-    show_tooltip();
+    show_layer_drop_hint(button);
   }
   return true;
 }

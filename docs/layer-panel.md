@@ -112,6 +112,8 @@ Delete Layer (menu, footer button, Delete key, trash drop) runs `MainWindow::del
 
 Drags onto another document, Duplicate Layer, Alt-drop duplicates, Duplicate Layer to Document and layer export: [layer-drag-duplicate.md](layer-drag-duplicate.md).
 
+Footer drop targets: a layer drag over New Layer or Duplicate duplicates, over New Folder groups, over Delete deletes (`handle_layer_action_button_drag_event`, `layerDropAction`). The entry reads the layer ids, sets `layerDropActive` (one deferred repolish, never from inside the filter: issue 62) and shows `layerDropHint`, a child of the window above the button that names the drop and is transparent to input; moves only accept. Never a QToolTip there (local-033): the tip is its own top-level window, a large pointer (Windows pointer size 48) makes Qt put a one-line tip beside the point, over the next button, and a drag crossing it left Patchy until the tip closed (`ui_layer_footer_drop_hint_stays_clear_of_pointer`).
+
 ## File drops onto the panel
 
 OS files dragged onto the list become layers of the active document: [import.md](import.md#files-as-layers) has the panel-side drag rules.
