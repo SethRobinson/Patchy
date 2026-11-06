@@ -6369,6 +6369,11 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
       set_layer_opacity_from_digit_keys(percent);
     }
   });
+  canvas->set_airbrush_flow_digit_callback([this, canvas] {
+    if (canvas == canvas_) {
+      show_airbrush_flow_digit_cue();
+    }
+  });
   canvas->set_active_layer_changed_callback([this, canvas](LayerId layer_id) {
     if (canvas != canvas_) {
       return;

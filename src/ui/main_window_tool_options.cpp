@@ -106,6 +106,8 @@
 #include <QMessageBox>
 #include <QModelIndex>
 #include <QObject>
+#include <QEasingCurve>
+#include <QPaintEvent>
 #include <QPainter>
 #include <QPen>
 #include <QPoint>
@@ -114,6 +116,7 @@
 #include <QPushButton>
 #include <QRect>
 #include <QScopeGuard>
+#include <QVariantAnimation>
 #include <QSet>
 #include <QSettings>
 #include <QSignalBlocker>
@@ -1482,6 +1485,93 @@ void MainWindow::reset_pending_layer_opacity_edit() {
   pending_layer_opacity_ids_.clear();
   pending_layer_opacity_value_.reset();
   pending_layer_opacity_edit_active_ = false;
+}
+
+namespace {
+
+// A brief accent outline and tint over one options-bar control that fades out over about a
+// second: "this value just changed", without taking focus or needing a dismissal (local-035,
+// a bare digit setting Flow because Airbrush is on). One overlay per control, a sibling
+// stacked above it and transparent to the mouse; a repeat restarts the fade.
+constexpr int kOptionAttentionPulseMs = 1000;
+
+class OptionAttentionPulse final : public QWidget {
+public:
+  explicit OptionAttentionPulse(QWidget* target) : QWidget(target->parentWidget()), target_(target) {
+    setObjectName(target->objectName() + QStringLiteral("AttentionPulse"));
+    setAttribute(Qt::WA_TransparentForMouseEvents);
+    setAttribute(Qt::WA_NoSystemBackground);
+    setFocusPolicy(Qt::NoFocus);
+    setProperty("pulseActive", false);
+    fade_.setDuration(kOptionAttentionPulseMs);
+    fade_.setStartValue(1.0);
+    fade_.setEndValue(0.0);
+    fade_.setEasingCurve(QEasingCurve::InQuad);
+    connect(&fade_, &QVariantAnimation::valueChanged, this, [this](const QVariant& value) {
+      strength_ = value.toReal();
+      update();
+    });
+    connect(&fade_, &QVariantAnimation::finished, this, [this] {
+      setProperty("pulseActive", false);
+      hide();
+    });
+    hide();
+  }
+
+  void start() {
+    if (target_ == nullptr || !target_->isVisible()) {
+      return;
+    }
+    fade_.stop();
+    strength_ = 1.0;
+    setGeometry(target_->geometry().adjusted(-2, -2, 2, 2));
+    setProperty("pulseActive", true);
+    show();
+    raise();
+    update();
+    fade_.start();
+  }
+
+protected:
+  void paintEvent(QPaintEvent* event) override {
+    static_cast<void>(event);
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    auto line = theme().accent_bright;
+    line.setAlphaF(static_cast<float>(strength_));
+    auto fill = theme().accent_bright;
+    fill.setAlphaF(static_cast<float>(0.18 * strength_));
+    painter.setPen(QPen(line, 2.0));
+    painter.setBrush(fill);
+    painter.drawRoundedRect(QRectF(rect()).adjusted(1.0, 1.0, -1.0, -1.0), 4.0, 4.0);
+  }
+
+private:
+  QPointer<QWidget> target_;
+  qreal strength_{0.0};
+  QVariantAnimation fade_;
+};
+
+void pulse_option_attention(QWidget* target) {
+  if (target == nullptr || target->parentWidget() == nullptr) {
+    return;
+  }
+  // No Q_OBJECT on the overlay, so look it up as a QWidget by name.
+  auto* pulse = dynamic_cast<OptionAttentionPulse*>(target->parentWidget()->findChild<QWidget*>(
+      target->objectName() + QStringLiteral("AttentionPulse"), Qt::FindDirectChildrenOnly));
+  if (pulse == nullptr) {
+    pulse = new OptionAttentionPulse(target);
+  }
+  pulse->start();
+}
+
+}  // namespace
+
+void MainWindow::show_airbrush_flow_digit_cue() {
+  // The status message names Airbrush too; with the options bar hidden it is the only cue.
+  for (const auto* name : {"brushFlowSpin", "brushAirbrushCheck"}) {
+    pulse_option_attention(findChild<QWidget*>(QLatin1String(name)));
+  }
 }
 
 void MainWindow::set_layer_opacity_from_digit_keys(int percent) {

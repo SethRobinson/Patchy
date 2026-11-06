@@ -17162,6 +17162,10 @@ Do you want to replace it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Merged the points</source>
         <translation type="unfinished"></translation>
     </message>

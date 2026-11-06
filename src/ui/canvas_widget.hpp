@@ -1576,6 +1576,10 @@ public:
   // Digit keys with a tool that has no opacity of its own (Move, the selection and path
   // tools; GitHub issue 527) ask the host to set the selected layers' opacity to `percent`.
   void set_layer_opacity_digit_callback(std::function<void(int)> callback);
+  // A bare digit set the Brush's Flow because Airbrush is on (the Photoshop swap): the host
+  // flashes the options bar's Flow field and Airbrush box so the change does not look like
+  // a bug (local-035).
+  void set_airbrush_flow_digit_callback(std::function<void()> callback);
   // The 0-9 opacity keys (and Shift+digits for Flow). keyPressEvent calls it, and so does the
   // main window for a digit typed while a panel or the tool palette has focus (GitHub issue
   // 562). False when the key is not one the current tool takes.
@@ -4632,6 +4636,7 @@ private:
   std::function<bool(QPointF, bool)> text_entry_selection_drag_callback_;
   std::function<void(LayerId)> active_layer_changed_callback_;
   std::function<void(int)> layer_opacity_digit_callback_;
+  std::function<void()> airbrush_flow_digit_callback_;
   std::function<void(std::vector<LayerId>, LayerId)> layer_selection_requested_callback_;
   std::function<bool(std::vector<LayerId>)> move_duplicate_requested_callback_;
   std::function<void(QString)> status_callback_;

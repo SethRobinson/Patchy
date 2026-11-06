@@ -17180,6 +17180,10 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Wählen Sie mit der Direktauswahl zwei Endpunkte zum Verbinden oder einen Punkt eines offenen Pfads zum Schließen aus</translation>
     </message>
     <message>
+        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
+        <translation>Pinselfluss: %1% (Airbrush ist an; Umschalt+Ziffer legt die Deckkraft fest)</translation>
+    </message>
+    <message>
         <source>Merged the points</source>
         <translation>Punkte zusammengeführt</translation>
     </message>

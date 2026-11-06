@@ -17180,6 +17180,10 @@ Deseja substituí-lo?</translation>
         <translation>Selecione com Seleção direta dois pontos finais para unir, ou um ponto de um demarcador aberto para fechá-lo</translation>
     </message>
     <message>
+        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
+        <translation>Fluxo do pincel: %1% (Aerógrafo ativado; Shift+número define a opacidade)</translation>
+    </message>
+    <message>
         <source>Merged the points</source>
         <translation>Pontos mesclados</translation>
     </message>

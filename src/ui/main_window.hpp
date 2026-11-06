@@ -2554,6 +2554,9 @@ private:
   // layers' opacity through the Layers panel's field. A run of digits (a two-digit entry
   // included) is one undo entry; it ends a second after the last digit.
   void set_layer_opacity_from_digit_keys(int percent);
+  // A bare digit set the Brush's Flow because Airbrush is on: a short fading accent outline
+  // on the options bar's Flow field and Airbrush box (local-035). Never takes focus.
+  void show_airbrush_flow_digit_cue();
   void set_active_layer_fill_opacity(int value);
   void apply_pending_layer_fill_opacity();
   void finish_pending_layer_fill_opacity_edit();

@@ -17180,6 +17180,10 @@ Voulez-vous le remplacer ?</translation>
         <translation>Sélectionnez avec Sélection directe deux extrémités à joindre, ou un point d&apos;un tracé ouvert pour le fermer</translation>
     </message>
     <message>
+        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
+        <translation>Flux du pinceau : %1% (Aérographe activé ; Maj+chiffre règle l&apos;opacité)</translation>
+    </message>
+    <message>
         <source>Merged the points</source>
         <translation>Points fusionnés</translation>
     </message>
