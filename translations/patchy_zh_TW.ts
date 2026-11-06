@@ -17138,10 +17138,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>請用直接選取工具選取要連接的兩個端點，或選取開放路徑上的一個錨點以封閉它</translation>
     </message>
     <message>
-        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
-        <translation>筆刷流量:%1%(噴槍已開啟；Shift+數字設定不透明度)</translation>
-    </message>
-    <message>
         <source>Merged the points</source>
         <translation>已合併錨點</translation>
     </message>

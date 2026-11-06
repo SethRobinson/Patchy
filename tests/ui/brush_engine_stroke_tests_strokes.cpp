@@ -1345,24 +1345,30 @@ void ui_brush_opacity_and_flow_digit_keys_set_values() {
   QApplication::processEvents();
   CHECK(paint_bytes() != before);
 
-  // Shift targets Flow while Airbrush is off. With Airbrush on, Photoshop's
-  // shortcut assignment flips: bare digits target Flow and Shift targets
-  // Opacity.
+  // Shift targets Flow. Airbrush does not swap the two (local-035; Photoshop
+  // does): bare digits stay on Opacity and Shift+digits on Flow.
   send_key(canvas, Qt::Key_4, Qt::ShiftModifier);
   CHECK(canvas.brush_flow() == 40);
   send_key(canvas, Qt::Key_5, Qt::ShiftModifier);
   CHECK(canvas.brush_flow() == 45);
+  CHECK(canvas.brush_opacity() == 100);
   canvas.set_brush_build_up(true);
-  send_key(canvas, Qt::Key_6, Qt::ShiftModifier);
+  QTest::qWait(900);
+  send_key(canvas, Qt::Key_6);
   CHECK(canvas.brush_opacity() == 60);
-  send_key(canvas, Qt::Key_3);
+  CHECK(canvas.brush_flow() == 45);
+  QTest::qWait(900);
+  send_key(canvas, Qt::Key_3, Qt::ShiftModifier);
   CHECK(canvas.brush_flow() == 30);
+  CHECK(canvas.brush_opacity() == 60);
   // "00" sets Flow to 0% too.
   QTest::qWait(900);
-  send_key(canvas, Qt::Key_0);
-  send_key(canvas, Qt::Key_0);
+  send_key(canvas, Qt::Key_0, Qt::ShiftModifier);
+  send_key(canvas, Qt::Key_0, Qt::ShiftModifier);
   CHECK(canvas.brush_flow() == 0);
+  CHECK(canvas.brush_opacity() == 60);
   canvas.set_brush_flow(30);
+  canvas.set_brush_build_up(false);
 
   // The gradient tool routes digits to the gradient opacity instead, "00" included.
   canvas.set_tool(patchy::ui::CanvasTool::Gradient);

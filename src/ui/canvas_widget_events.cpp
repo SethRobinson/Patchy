@@ -4706,10 +4706,11 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
 }
 
 bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modifiers, bool auto_repeat) {
-  // Photoshop-style numeric entry: Brush uses Shift+digits for Flow, except
-  // while Airbrush is on, when bare digits set Flow and Shift+digits set
-  // Opacity. Pattern Stamp uses bare digits for Opacity and Shift+digits for
-  // Flow. Other painting tools keep the historical bare-digit Opacity path.
+  // Numeric entry: Brush and Pattern Stamp take bare digits for Opacity and
+  // Shift+digits for Flow, with Airbrush on or off (Photoshop swaps the two
+  // while Airbrush is on; Patchy does not, since Airbrush is easy to leave on
+  // and the digits then seemed to stop changing opacity). Other painting tools
+  // keep the bare-digit Opacity path.
   if (auto_repeat || key < Qt::Key_0 || key > Qt::Key_9) {
     return false;
   }
@@ -4727,9 +4728,7 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
       (shift && tool_ != CanvasTool::Brush && tool_ != CanvasTool::PatternStamp)) {
     return false;
   }
-  const auto targets_flow =
-      (tool_ == CanvasTool::Brush && (brush_build_up_ ? !shift : shift)) ||
-      (tool_ == CanvasTool::PatternStamp && shift);
+  const auto targets_flow = shift;
   if (opacity_pending_digit_ >= 0 &&
       (targets_flow != opacity_digit_targets_flow_ || targets_layer != opacity_digit_targets_layer_)) {
     opacity_pending_digit_ = -1;
@@ -4760,10 +4759,7 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
   if (targets_flow) {
     set_brush_flow(value);
     if (status_callback_) {
-      // Bare digits reach Flow only with Airbrush on, which is easy to miss (GitHub issue 562).
-      status_callback_(tool_ == CanvasTool::Brush && brush_build_up_ && !shift
-                           ? tr("Brush flow: %1% (Airbrush is on; Shift+number sets opacity)").arg(brush_flow_)
-                           : tr("Brush flow: %1%").arg(brush_flow_));
+      status_callback_(tr("Brush flow: %1%").arg(brush_flow_));
     }
   } else if (tool_ == CanvasTool::Gradient) {
     set_gradient_opacity(value);

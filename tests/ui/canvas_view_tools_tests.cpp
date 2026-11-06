@@ -10638,9 +10638,9 @@ void ui_opacity_digit_keys_work_from_panels() {
   CHECK(window.statusBar()->currentMessage() == QStringLiteral("Layer opacity: 50%"));
 }
 
-// GitHub issue 562 follow-up: bare digits set the Brush's Flow while Airbrush is on, so the
-// options bar's Airbrush box must always show the canvas's state: across tool and document
-// switches and preset picks. The status message names Airbrush when a bare digit sets Flow.
+// GitHub issue 562 follow-up: the options bar's Airbrush box must always show the canvas's
+// state: across tool and document switches and preset picks. With Airbrush on, bare digits
+// still set the Brush's Opacity and Shift+digits its Flow (local-035).
 void ui_brush_airbrush_box_follows_canvas_state() {
   patchy::ui::MainWindow window;
   window.add_document_session(status_info_test_document(), QStringLiteral("First"));
@@ -10680,12 +10680,18 @@ void ui_brush_airbrush_box_follows_canvas_state() {
   auto* canvas = require_canvas(window);
   canvas->set_brush_flow(100);
   canvas->set_brush_opacity(100);
-  send_key(*canvas, Qt::Key_4);
-  CHECK(canvas->brush_flow() == 40);
-  CHECK(canvas->brush_opacity() == 100);
-  CHECK(window.statusBar()->currentMessage() ==
-        QStringLiteral("Brush flow: 40% (Airbrush is on; Shift+number sets opacity)"));
+  send_key(*canvas, Qt::Key_5);
+  CHECK(canvas->brush_opacity() == 50);
+  CHECK(canvas->brush_flow() == 100);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Brush opacity: 50%"));
   process_events_for(900);
+  send_key(*canvas, Qt::Key_3, Qt::ShiftModifier);
+  CHECK(canvas->brush_flow() == 30);
+  CHECK(canvas->brush_opacity() == 50);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Brush flow: 30%"));
+  process_events_for(900);
+  canvas->set_brush_flow(100);
+  canvas->set_brush_opacity(100);
 
   // The Airbrush preset turns it on, and a preset without it clears the box and the canvas
   // together.
