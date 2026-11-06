@@ -147,6 +147,16 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.28" date="2026-11-07">
+      <description>
+        <ul>
+          <li>OpenAI Image Tools with your own API key: create, edit, remove, expand, animate and describe</li>
+          <li>Linked layers, and a command that reverses the order of selected layers</li>
+          <li>Scanner and camera import on Linux through SANE and libgphoto2</li>
+          <li>Shape Appearance and Type menu additions, and a missing-font badge</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.27" date="2026-11-05">
       <description>
         <ul>

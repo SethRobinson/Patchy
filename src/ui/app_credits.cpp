@@ -22,6 +22,7 @@ QString contributors_link_html(const QString& link_color) {
       {"ifloppy", "https://github.com/ifloppy"},
       {"lucastucious", "https://github.com/lucastucious"},
       {"softwaregames1", "https://github.com/softwaregames1"},
+      {"chiddekel", "https://github.com/chiddekel"},
       {"c-sanchez", "https://github.com/c-sanchez"},
       {"egofree71", "https://github.com/egofree71"},
       {"PorkingMane", "https://github.com/PorkingMane"},
@@ -44,6 +45,7 @@ QString contributors_link_html(const QString& link_color) {
       {"Uthopik", "https://github.com/Uthopik"},
       {"spgrhy-lab", "https://github.com/spgrhy-lab"},
       {"saeedsabe", "https://github.com/saeedsabe"},
+      {"LiveFreeDead", "https://github.com/LiveFreeDead"},
   };
 
   QStringList links;
