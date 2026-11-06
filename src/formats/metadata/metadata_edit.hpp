@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 // Editing, stripping and save preparation for File Info (docs/file-info.md). Qt-free.
@@ -28,6 +29,8 @@ struct FileInfoFields {
   CopyrightStatus copyright_status{CopyrightStatus::Unknown};  // xmpRights:Marked
   std::string copyright_notice;      // dc:rights
   std::string copyright_url;         // xmpRights:WebStatement
+  std::string data_mining;           // plus:DataMining, a PLUS DMI URI (kDataMiningValues); empty = not set
+  std::string other_constraints;     // plus:OtherConstraints (Lang Alt)
   // IPTC
   std::string headline;              // photoshop:Headline
   std::string date_created;          // photoshop:DateCreated
@@ -52,6 +55,23 @@ struct FileInfoFields {
 
   bool operator==(const FileInfoFields&) const = default;
 };
+
+// The PLUS Data Mining vocabulary (IPTC Photo Metadata 2023.1 and later, plus:DataMining), in the
+// specification's order. The URIs are what files store; never rewrite a value outside this list.
+inline constexpr std::array<std::string_view, 9> kDataMiningValues{
+    "http://ns.useplus.org/ldf/vocab/DMI-UNSPECIFIED",
+    "http://ns.useplus.org/ldf/vocab/DMI-ALLOWED",
+    "http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-AIMLTRAINING",
+    "http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-GENAIMLTRAINING",
+    "http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-EXCEPTSEARCHENGINEINDEXING",
+    "http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED",
+    "http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-SEECONSTRAINT",
+    "http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-SEEEMBEDDEDRIGHTSEXPR",
+    "http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-SEELINKEDRIGHTSEXPR",
+};
+// The index of `value` in kDataMiningValues, ignoring ASCII case and surrounding whitespace
+// (PLUS 2.0.1 changed the identifiers' case), or nullopt for a value outside the vocabulary.
+[[nodiscard]] std::optional<std::size_t> data_mining_value_index(std::string_view value) noexcept;
 
 // Reads the fields with the Metadata Working Group rules: XMP first; legacy IPTC-IIM
 // when XMP lacks the value or the 1061 digest shows another program edited the IIM;

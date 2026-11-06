@@ -22,6 +22,7 @@
 #include <QAbstractButton>
 #include <QApplication>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QDate>
 #include <QDialog>
 #include <QDir>
@@ -54,7 +55,7 @@ struct SaveMetadataScope {
          {patchy::ui::kSaveMetadataModeSettingKey, patchy::ui::kSaveMetadataNameSettingKey,
           patchy::ui::kSaveMetadataCopyrightSettingKey, patchy::ui::kSaveMetadataEmailSettingKey,
           patchy::ui::kSaveMetadataWebsiteSettingKey, patchy::ui::kSaveMetadataAskSettingKey,
-          patchy::ui::kFileInfoPrivacyNoticeSettingKey}) {
+          patchy::ui::kSaveMetadataDataMiningSettingKey, patchy::ui::kFileInfoPrivacyNoticeSettingKey}) {
       settings.remove(QLatin1String(key));
     }
   }
@@ -318,6 +319,102 @@ void ui_save_metadata_prompt_cases() {
         std::vector<std::string>{"Ann Example"});
 }
 
+// #658: the Preferences "Data mining" default (Not set by default, persisted as the PLUS URI),
+// added by Personal only where the file has no plus:DataMining, also to a file that already
+// names the user; a value already there is never replaced.
+void ui_save_metadata_data_mining_default() {
+  const SaveMetadataScope scope;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const QString generative = QStringLiteral("http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-GENAIMLTRAINING");
+  run_preferences_dialog(window, /*accept=*/true, [&generative](QDialog& dialog) {
+    CHECK(select_preferences_page(dialog, QStringLiteral("Metadata and Watermarks")));
+    auto* personal = dialog.findChild<QRadioButton*>(QStringLiteral("preferencesSavedMetadataPersonalRadio"));
+    auto* name = dialog.findChild<QLineEdit*>(QStringLiteral("preferencesSavedMetadataNameEdit"));
+    auto* ask = dialog.findChild<QCheckBox*>(QStringLiteral("preferencesSavedMetadataAskCheck"));
+    auto* mining = dialog.findChild<QComboBox*>(QStringLiteral("preferencesSavedMetadataDataMiningCombo"));
+    CHECK(personal != nullptr && name != nullptr && ask != nullptr && mining != nullptr);
+    if (personal == nullptr || name == nullptr || ask == nullptr || mining == nullptr) {
+      return;
+    }
+    CHECK(mining->currentIndex() == 0 && mining->currentData().toString().isEmpty());  // Not set
+    CHECK(!mining->isEnabled());
+    personal->setChecked(true);
+    CHECK(mining->isEnabled());
+    name->setText(QStringLiteral("Ann Example"));
+    ask->setChecked(false);
+    mining->setCurrentIndex(mining->findData(generative));
+    CHECK(mining->currentText() == QStringLiteral("Prohibited for generative AI/ML training"));
+    dialog.resize(dialog.width(), std::max(dialog.height(), 900));
+    QApplication::processEvents();
+    capture_widget_artifact("ui_preferences_saved_metadata_data_mining", dialog);
+  });
+  CHECK(patchy::ui::app_settings().value(QLatin1String(patchy::ui::kSaveMetadataDataMiningSettingKey)).toString() ==
+        generative);
+  CHECK(patchy::ui::stored_personal_save_metadata().data_mining == generative);
+  const auto dir = artifact_dir();
+
+  new_document(window, QStringLiteral("Mining"));
+  CHECK(!save_answering(window, dir + QStringLiteral("/mining.jpg"), QMessageBox::AcceptRole));
+  const auto jpeg = md::read_fields(saved_info(dir + QStringLiteral("/mining.jpg")));
+  CHECK(jpeg.data_mining == generative.toStdString());
+  CHECK(jpeg.authors == std::vector<std::string>{"Ann Example"});
+  CHECK(MainWindowTestAccess::save_document_to_path(window, dir + QStringLiteral("/mining.psd")));
+  CHECK(md::read_fields(saved_info(dir + QStringLiteral("/mining.psd"))).data_mining == generative.toStdString());
+
+  // A file that already names the user still gets the data mining value.
+  new_document(window, QStringLiteral("Named"));
+  {
+    auto& info = MainWindowTestAccess::document(window).file_info();
+    const auto before = md::read_fields(info);
+    auto after = before;
+    after.authors = {"Ann Example"};
+    md::apply_fields(info, before, after);
+  }
+  CHECK(!save_answering(window, dir + QStringLiteral("/named.png"), QMessageBox::AcceptRole));
+  CHECK(md::read_fields(saved_info(dir + QStringLiteral("/named.png"))).data_mining == generative.toStdString());
+
+  // A value already there is kept.
+  new_document(window, QStringLiteral("Allowed"));
+  const std::string allowed = "http://ns.useplus.org/ldf/vocab/DMI-ALLOWED";
+  {
+    auto& info = MainWindowTestAccess::document(window).file_info();
+    const auto before = md::read_fields(info);
+    auto after = before;
+    after.data_mining = allowed;
+    md::apply_fields(info, before, after);
+  }
+  CHECK(!save_answering(window, dir + QStringLiteral("/allowed.psd"), QMessageBox::AcceptRole));
+  CHECK(md::read_fields(saved_info(dir + QStringLiteral("/allowed.psd"))).data_mining == allowed);
+
+  // With asking on, a file that names the user but lacks the value asks about the value alone.
+  patchy::ui::set_stored_personal_save_metadata({QStringLiteral("Ann Example"), {}, {}, {}, true, generative});
+  new_document(window, QStringLiteral("Ask"));
+  {
+    auto& info = MainWindowTestAccess::document(window).file_info();
+    const auto before = md::read_fields(info);
+    auto after = before;
+    after.authors = {"Ann Example"};
+    md::apply_fields(info, before, after);
+  }
+  QString informative;
+  CHECK(save_answering(window, dir + QStringLiteral("/ask.png"), QMessageBox::AcceptRole, false, &informative));
+  CHECK(informative.contains(QStringLiteral("Prohibited for generative AI/ML training")));
+  CHECK(!informative.contains(QStringLiteral("Name:")));
+  CHECK(md::read_fields(saved_info(dir + QStringLiteral("/ask.png"))).data_mining == generative.toStdString());
+
+  CHECK(run_script(window, QStringLiteral(R"JS(
+var p = app.saveMetadataPreferences;
+if (p.dataMining !== "http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-GENAIMLTRAINING") throw new Error(JSON.stringify(p));
+function throws(f) { try { f(); } catch (e) { return true; } return false; }
+if (!throws(function () { app.setSaveMetadataPreferences({dataMining: "prohibited"}); })) throw new Error("uri");
+app.setSaveMetadataPreferences({dataMining: ""});
+if (app.saveMetadataPreferences.dataMining !== "") throw new Error("clear");
+console.log("data-mining-prefs-ok");
+)JS")));
+  CHECK(backlog_contains(window, QStringLiteral("data-mining-prefs-ok")));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> save_metadata_tests() {
@@ -325,5 +422,6 @@ std::vector<patchy::test::TestCase> save_metadata_tests() {
       {"ui_save_metadata_preferences_page_persists", ui_save_metadata_preferences_page_persists},
       {"ui_save_metadata_modes_for_psd_and_jpeg", ui_save_metadata_modes_for_psd_and_jpeg},
       {"ui_save_metadata_prompt_cases", ui_save_metadata_prompt_cases},
+      {"ui_save_metadata_data_mining_default", ui_save_metadata_data_mining_default},
   };
 }

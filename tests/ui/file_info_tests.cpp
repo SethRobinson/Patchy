@@ -75,6 +75,7 @@
 #include <QTimer>
 #include "local_psd_fixtures.hpp"
 #include <QFileInfo>
+#include <QComboBox>
 #include <QScrollArea>
 #include <QTreeWidget>
 #include "test_harness.hpp"
@@ -1610,6 +1611,102 @@ void ui_document_tab_scan_for_watermarks() {
 
 }  // namespace
 
+// #658: the Description page's Data Mining combo and Other Constraints line. A vocabulary
+// value is chosen and saved; a value outside the vocabulary shows as "Other" and survives an
+// edit of another field unchanged.
+void ui_file_info_data_mining_field() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  MainWindowTestAccess::create_document(window, 320, 240);
+  QApplication::processEvents();
+  const std::string prohibited = "http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-AIMLTRAINING";
+  bool edited = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyFileInfoDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("fileInfoDataMiningCombo"));
+    auto* constraints = dialog->findChild<QLineEdit*>(QStringLiteral("fileInfoOtherConstraintsEdit"));
+    auto* author = dialog->findChild<QLineEdit*>(QStringLiteral("fileInfoAuthorEdit"));
+    CHECK(combo != nullptr && constraints != nullptr && author != nullptr);
+    if (combo == nullptr || constraints == nullptr || author == nullptr) {
+      dialog->reject();
+      return;
+    }
+    // "Not set", then the nine PLUS values.
+    CHECK(combo->count() == 10);
+    CHECK(combo->currentIndex() == 0 && combo->currentData().toString().isEmpty());
+    const auto item = combo->findData(QString::fromStdString(prohibited));
+    CHECK(item == 3);
+    combo->setCurrentIndex(item);
+    CHECK(combo->currentText() == QStringLiteral("Prohibited for AI/ML training"));
+    author->setText(QStringLiteral("Ann Example"));
+    constraints->setText(QStringLiteral("No use in generative models."));
+    dialog->resize(940, 720);
+    QApplication::processEvents();
+    for (auto* parent = combo->parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
+      if (auto* scroll = qobject_cast<QScrollArea*>(parent)) {
+        scroll->ensureWidgetVisible(constraints);
+        break;
+      }
+    }
+    QApplication::processEvents();
+    capture_widget_artifact("ui_file_info_data_mining", *dialog);
+    edited = true;
+    dialog->accept();
+  }));
+  require_action(window, "fileInfoAction")->trigger();
+  QApplication::processEvents();
+  CHECK(edited);
+  const auto fields = md::read_fields(MainWindowTestAccess::document(window).file_info());
+  CHECK(fields.data_mining == prohibited);
+  CHECK(fields.other_constraints == "No use in generative models.");
+  const auto path = artifact_dir() + QStringLiteral("/data-mining.jpg");
+  QFile::remove(path);
+  CHECK(MainWindowTestAccess::save_document_to_path_flatten_confirmed(window, path, patchy::ui::ImageSaveOptions{}));
+  const auto saved = md::read_fields(md::extract_file_info_from_path(patchy::ui::to_filesystem_path(path)));
+  CHECK(saved.data_mining == prohibited);
+  CHECK(saved.other_constraints == "No use in generative models.");
+
+  // A value from outside the vocabulary.
+  const std::string custom = "http://example.com/vocab/DMI-CUSTOM";
+  {
+    auto& info = MainWindowTestAccess::document(window).file_info();
+    const auto before = md::read_fields(info);
+    auto after = before;
+    after.data_mining = custom;
+    CHECK(md::apply_fields(info, before, after));
+  }
+  bool checked = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyFileInfoDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("fileInfoDataMiningCombo"));
+    auto* title = dialog->findChild<QLineEdit*>(QStringLiteral("fileInfoTitleEdit"));
+    CHECK(combo != nullptr && title != nullptr);
+    if (combo == nullptr || title == nullptr) {
+      dialog->reject();
+      return;
+    }
+    CHECK(combo->count() == 11);
+    CHECK(combo->currentText() == QStringLiteral("Other: %1").arg(QString::fromStdString(custom)));
+    title->setText(QStringLiteral("Edited"));
+    checked = true;
+    dialog->accept();
+  }));
+  require_action(window, "fileInfoAction")->trigger();
+  QApplication::processEvents();
+  CHECK(checked);
+  const auto kept = md::read_fields(MainWindowTestAccess::document(window).file_info());
+  CHECK(kept.title == "Edited");
+  CHECK(kept.data_mining == custom);
+}
+
 std::vector<patchy::test::TestCase> file_info_tests() {
   return {
       {"ui_file_info_opens_views_edits_and_undoes", ui_file_info_opens_views_edits_and_undoes},
@@ -1628,5 +1725,6 @@ std::vector<patchy::test::TestCase> file_info_tests() {
       {"ui_file_info_gimp_offsets_gps_and_source_type", ui_file_info_gimp_offsets_gps_and_source_type},
       {"ui_file_info_scans_for_watermarks", ui_file_info_scans_for_watermarks},
       {"ui_document_tab_scan_for_watermarks", ui_document_tab_scan_for_watermarks},
+      {"ui_file_info_data_mining_field", ui_file_info_data_mining_field},
   };
 }

@@ -1305,6 +1305,103 @@ void edit_fields_follow_mwg_and_mirror_legacy_blocks() {
   CHECK(md::read_fields(info).city == "Tacoma");
 }
 
+// #658: IPTC Data Mining (plus:DataMining, a PLUS vocabulary URI) and Other Constraints
+// (plus:OtherConstraints, Lang Alt): each value is written, read back from XMP, a JPEG and a
+// PSD, kept by Export's Copyright and Contact Info and dropped by Strip All Metadata.
+void metadata_data_mining_round_trips() {
+  CHECK(md::kDataMiningValues.size() == 9U);
+  CHECK(md::data_mining_value_index("http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-AIMLTRAINING") == 2U);
+  CHECK(md::data_mining_value_index(" http://ns.useplus.org/ldf/vocab/dmi-prohibited-genaimltraining ") == 3U);
+  CHECK(!md::data_mining_value_index("http://ns.useplus.org/ldf/vocab/DMI-SOMETHING-NEW").has_value());
+  CHECK(!md::data_mining_value_index("").has_value());
+
+  Bytes plain_jpeg{0xFF, 0xD8};
+  append(plain_jpeg, jpeg_segment(0xE0, Bytes{'J', 'F', 'I', 'F', 0, 1, 2, 1, 0, 72, 0, 72, 0, 0}));
+  append(plain_jpeg, jpeg_segment(0xDA, Bytes{1, 1, 0, 0, 63, 0}));
+  plain_jpeg.insert(plain_jpeg.end(), {0x12, 0x34, 0xFF, 0xD9});
+
+  for (const auto uri : md::kDataMiningValues) {
+    patchy::Document document(4, 3, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", patchy::PixelBuffer(4, 3, patchy::PixelFormat::rgb8()));
+    auto& info = document.file_info();
+    const auto before = md::read_fields(info);
+    CHECK(before.data_mining.empty() && before.other_constraints.empty());
+    auto after = before;
+    after.data_mining = std::string(uri);
+    after.other_constraints = "No training of image generators.";
+    after.title = "Harbor";
+    CHECK(md::apply_fields(info, before, after));
+    const auto packet = md::parse_xmp(*info.xmp);
+    CHECK(packet.has_value());
+    if (!packet) {
+      continue;
+    }
+    // A simple property holding the URI, and a Lang Alt, as the PLUS specification writes them.
+    const auto* mining = packet->find(md::xmp_ns::kPlus, "DataMining");
+    CHECK(mining != nullptr && mining->value.kind == md::XmpValue::Kind::Simple && mining->value.text == uri);
+    const auto* constraints = packet->find(md::xmp_ns::kPlus, "OtherConstraints");
+    CHECK(constraints != nullptr && constraints->value.kind == md::XmpValue::Kind::Alt);
+    const std::string xml(info.xmp->begin(), info.xmp->end());
+    CHECK(xml.find("xmlns:plus=\"http://ns.useplus.org/ldf/xmp/1.0/\"") != std::string::npos);
+    CHECK(md::read_fields(info).data_mining == uri);
+    CHECK(md::read_fields(info).other_constraints == "No training of image generators.");
+
+    const auto jpeg = md::extract_file_info(
+        md::inject_metadata(plain_jpeg, "jpg", md::prepare_save_metadata(document, md::MetadataPolicy::All, 4, 3)));
+    CHECK(md::read_fields(jpeg).data_mining == uri);
+    const auto psd = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+    CHECK(md::read_fields(psd.file_info()).data_mining == uri);
+    CHECK(md::read_fields(psd.file_info()).other_constraints == "No training of image generators.");
+
+    const auto copyright = md::prepare_save_metadata(document, md::MetadataPolicy::CopyrightAndContact, 4, 3);
+    const auto reduced = md::parse_xmp(bytes_of(copyright.xmp));
+    CHECK(reduced.has_value() && reduced->text(md::xmp_ns::kPlus, "DataMining") == uri);
+    CHECK(reduced.has_value() && reduced->text(md::xmp_ns::kPlus, "OtherConstraints") ==
+                                     "No training of image generators.");
+    CHECK(reduced.has_value() && reduced->find(md::xmp_ns::kDc, "title") == nullptr);
+
+    // Clearing the field removes the property.
+    auto cleared = md::read_fields(info);
+    const auto set = cleared;
+    cleared.data_mining.clear();
+    CHECK(md::apply_fields(info, set, cleared));
+    CHECK(md::parse_xmp(*info.xmp)->find(md::xmp_ns::kPlus, "DataMining") == nullptr);
+
+    md::strip_metadata(document, true);
+    CHECK(md::read_fields(document.file_info()).data_mining.empty());
+    CHECK(md::read_fields(document.file_info()).other_constraints.empty());
+  }
+
+  // A value outside the vocabulary, and a known one in another case or as rdf:resource, is
+  // read as stored and survives an edit of another field unchanged.
+  for (const std::string stored : {"http://example.com/vocab/DMI-CUSTOM", "http://ns.useplus.org/ldf/vocab/dmi-allowed"}) {
+    patchy::DocumentFileInfo info;
+    const std::string xmp =
+        "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">"
+        "<rdf:Description rdf:about=\"\" xmlns:plus=\"http://ns.useplus.org/ldf/xmp/1.0/\" "
+        "xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><plus:DataMining rdf:resource=\"" +
+        stored + "\"/></rdf:Description></rdf:RDF></x:xmpmeta>";
+    info.xmp = patchy::make_metadata_bytes(bytes_of(xmp));
+    const auto before = md::read_fields(info);
+    CHECK(before.data_mining == stored);
+    auto after = before;
+    after.title = "Edited";
+    CHECK(md::apply_fields(info, before, after));
+    CHECK(md::read_fields(info).data_mining == stored);
+    CHECK(md::read_fields(info).title == "Edited");
+  }
+
+  // Byte canaries: a document without the field writes no plus: property.
+  patchy::Document plain(2, 2, patchy::PixelFormat::rgb8());
+  auto& plain_info = plain.file_info();
+  auto fields = md::read_fields(plain_info);
+  const auto untouched = fields;
+  fields.title = "Plain";
+  CHECK(md::apply_fields(plain_info, untouched, fields));
+  const std::string plain_xml(plain_info.xmp->begin(), plain_info.xmp->end());
+  CHECK(plain_xml.find("useplus") == std::string::npos);
+}
+
 void strip_and_targeted_removals() {
   patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
   document.file_info() = sample_info();
@@ -1931,6 +2028,7 @@ void metadata_save_stamp_acceptance_files() {
 std::vector<patchy::test::TestCase> file_info_metadata_tests() {
   return {
       {"metadata_xmp_date_is_iso_8601_with_the_offset", metadata_xmp_date_is_iso_8601_with_the_offset},
+      {"metadata_data_mining_round_trips", metadata_data_mining_round_trips},
       {"metadata_save_stamp_records_creation_and_each_save", metadata_save_stamp_records_creation_and_each_save},
       {"metadata_save_stamp_keeps_another_applications_record", metadata_save_stamp_keeps_another_applications_record},
       {"metadata_save_stamp_records_a_new_instance_per_save", metadata_save_stamp_records_a_new_instance_per_save},
