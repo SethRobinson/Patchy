@@ -5354,10 +5354,6 @@
         <translation> s</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
-        <translation>Cada camada visível de nível superior se torna um quadro, começando pela camada do topo. Camadas ocultas são ignoradas. Um nome de camada que termina com um tempo, como &quot;piscar 0.25s&quot;, substitui o atraso padrão desse quadro. A animação se repete indefinidamente.</translation>
-    </message>
-    <message>
         <source>%1: %2</source>
         <translation>%1: %2</translation>
     </message>
@@ -9083,10 +9079,6 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Play count:</source>
         <translation>Número de reproduções:</translation>
-    </message>
-    <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
-        <translation>Cada camada visível de nível superior vira um quadro, começando pela camada de cima. Um tempo no final do nome, como &quot;blink 0.033s&quot;, define a duração do quadro. A contagem inclui a primeira reprodução.</translation>
     </message>
     <message>
         <source>Animated WebP: imported %1 frames as layers</source>
@@ -12929,10 +12921,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Configurações de WebP</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
-        <translation>Cada camada visível de nível superior vira um quadro, começando pela camada do topo.</translation>
-    </message>
-    <message>
         <source>PNG settings</source>
         <translation>Configurações de PNG</translation>
     </message>
@@ -14987,6 +14975,18 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>The scanner sent an incomplete image</source>
         <translation>O scanner enviou uma imagem incompleta</translation>
     </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
+        <translation>Cada camada visível de nível superior se torna um quadro, começando pela camada do topo. Camadas ocultas são ignoradas. Uma camada chamada &quot;all&quot; é desenhada em todos os quadros em vez de ser um, e cada camada dentro de um grupo chamado &quot;all&quot; é um quadro próprio. Um nome de camada que termina com um tempo, como &quot;piscar 0.25s&quot;, substitui o atraso padrão desse quadro. A animação se repete indefinidamente.</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
+        <translation>Cada camada visível de nível superior vira um quadro, começando pela camada de cima. Uma camada chamada &quot;all&quot; é desenhada em todos os quadros em vez de ser um, e cada camada dentro de um grupo chamado &quot;all&quot; é um quadro próprio. Um tempo no final do nome, como &quot;blink 0.033s&quot;, define a duração do quadro. A contagem inclui a primeira reprodução.</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
+        <translation>Cada camada visível de nível superior vira um quadro, começando pela camada do topo. Uma camada chamada &quot;all&quot; é desenhada em todos os quadros em vez de ser um, e cada camada dentro de um grupo chamado &quot;all&quot; é um quadro próprio.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15620,10 +15620,6 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <translation>Definir duração e Remover duração alteram todas as camadas de nível superior em vez de só as selecionadas.</translation>
     </message>
     <message>
-        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
-        <translation>Os quadros são as camadas de nível superior, a de cima primeiro, como a exportação de GIF, WebP e PNG animados as grava. Um tempo no final do nome da camada, como &quot;blink 0.25s&quot;, define a duração do quadro.</translation>
-    </message>
-    <message>
         <source>No layers</source>
         <translation>Sem camadas</translation>
     </message>
@@ -15646,6 +15642,10 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>Frame delay:</source>
         <translation>Duração do quadro:</translation>
+    </message>
+    <message>
+        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation>Os quadros são as camadas de nível superior, a de cima primeiro, como a exportação de GIF, WebP e PNG animados as grava. Uma camada chamada &quot;all&quot; é desenhada em todos os quadros em vez de ser um, e cada camada dentro de um grupo chamado &quot;all&quot; é um quadro próprio. Um tempo no final do nome da camada, como &quot;blink 0.25s&quot;, define a duração do quadro.</translation>
     </message>
 </context>
 <context>

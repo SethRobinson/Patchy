@@ -5167,10 +5167,6 @@
         <translation> 秒</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
-        <translation>每个可见的顶层图层成为一帧,最上方的图层为第一帧。隐藏图层会被跳过。以时间结尾的图层名称(如“blink 0.25s”)会覆盖该帧的默认延迟。动画将无限循环。</translation>
-    </message>
-    <message>
         <source>%1: %2</source>
         <translation>%1: %2</translation>
     </message>
@@ -9057,10 +9053,6 @@ RGB：%2, %3, %4</translation>
         <translation>播放次数:</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
-        <translation>每个可见的顶层图层生成一帧，从最上面的图层开始。名称末尾的时间（如 &quot;blink 0.033s&quot;）指定该帧的显示时长。播放次数包含首次播放。</translation>
-    </message>
-    <message>
         <source>Animated WebP: imported %1 frames as layers</source>
         <translation>动画 WebP: 已将 %1 帧导入为图层</translation>
     </message>
@@ -12893,10 +12885,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>WebP 设置</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
-        <translation>每个可见的顶层图层成为一帧，最上面的图层在前。</translation>
-    </message>
-    <message>
         <source>PNG settings</source>
         <translation>PNG 设置</translation>
     </message>
@@ -14940,6 +14928,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>The scanner sent an incomplete image</source>
         <translation>扫描仪发送的图像不完整</translation>
     </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
+        <translation>每个可见的顶层图层成为一帧,最上方的图层为第一帧。隐藏图层会被跳过。名为 &quot;all&quot; 的图层不作为一帧，而是绘制在每一帧中；名为 &quot;all&quot; 的组中的每个图层各成一帧。以时间结尾的图层名称(如“blink 0.25s”)会覆盖该帧的默认延迟。动画将无限循环。</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
+        <translation>每个可见的顶层图层生成一帧，从最上面的图层开始。名为 &quot;all&quot; 的图层不作为一帧，而是绘制在每一帧中；名为 &quot;all&quot; 的组中的每个图层各成一帧。名称末尾的时间（如 &quot;blink 0.033s&quot;）指定该帧的显示时长。播放次数包含首次播放。</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
+        <translation>每个可见的顶层图层成为一帧，最上面的图层在前。名为 &quot;all&quot; 的图层不作为一帧，而是绘制在每一帧中；名为 &quot;all&quot; 的组中的每个图层各成一帧。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15573,10 +15573,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>“设置时间”和“移除时间”作用于所有顶层图层，而不只是所选图层。</translation>
     </message>
     <message>
-        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
-        <translation>帧就是顶层图层，从上到下，与动画 GIF、WebP 和 PNG 导出写入的顺序相同。图层名称末尾的时间（如 &quot;blink 0.25s&quot;）指定该帧的显示时长。</translation>
-    </message>
-    <message>
         <source>No layers</source>
         <translation>没有图层</translation>
     </message>
@@ -15599,6 +15595,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Frame delay:</source>
         <translation>帧间隔:</translation>
+    </message>
+    <message>
+        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation>帧就是顶层图层，从上到下，与动画 GIF、WebP 和 PNG 导出写入的顺序相同。名为 &quot;all&quot; 的图层不作为一帧，而是绘制在每一帧中；名为 &quot;all&quot; 的组中的每个图层各成一帧。图层名称末尾的时间（如 &quot;blink 0.25s&quot;）指定该帧的显示时长。</translation>
     </message>
 </context>
 <context>

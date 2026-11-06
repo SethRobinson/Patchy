@@ -5363,10 +5363,6 @@
         <translation> s</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
-        <translation>Każda widoczna warstwa najwyższego poziomu staje się jedną klatką, zaczynając od górnej warstwy. Ukryte warstwy są pomijane. Nazwa warstwy zakończona czasem, np. „blink 0.25s”, zastępuje domyślny czas tej klatki. Animacja jest zapętlona bez końca.</translation>
-    </message>
-    <message>
         <source>%1: %2</source>
         <translation>%1: %2</translation>
     </message>
@@ -9111,10 +9107,6 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Play count:</source>
         <translation>Liczba odtworzeń:</translation>
-    </message>
-    <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
-        <translation>Każda widoczna warstwa najwyższego poziomu staje się jedną klatką, zaczynając od górnej. Czas na końcu nazwy, np. &quot;blink 0.033s&quot;, określa czas wyświetlania klatki. Liczba odtworzeń obejmuje pierwsze odtworzenie.</translation>
     </message>
     <message>
         <source>Animated WebP: imported %1 frames as layers</source>
@@ -12965,10 +12957,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Ustawienia WebP</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
-        <translation>Każda widoczna warstwa najwyższego poziomu staje się jedną klatką, zaczynając od górnej warstwy.</translation>
-    </message>
-    <message>
         <source>PNG settings</source>
         <translation>Ustawienia PNG</translation>
     </message>
@@ -15034,6 +15022,18 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>The scanner sent an incomplete image</source>
         <translation>Skaner wysłał niekompletny obraz</translation>
     </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
+        <translation>Każda widoczna warstwa najwyższego poziomu staje się jedną klatką, zaczynając od górnej warstwy. Ukryte warstwy są pomijane. Warstwa o nazwie &quot;all&quot; jest rysowana w każdej klatce, zamiast być osobną klatką, a każda warstwa w grupie o nazwie &quot;all&quot; jest osobną klatką. Nazwa warstwy zakończona czasem, np. „blink 0.25s”, zastępuje domyślny czas tej klatki. Animacja jest zapętlona bez końca.</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
+        <translation>Każda widoczna warstwa najwyższego poziomu staje się jedną klatką, zaczynając od górnej. Warstwa o nazwie &quot;all&quot; jest rysowana w każdej klatce, zamiast być osobną klatką, a każda warstwa w grupie o nazwie &quot;all&quot; jest osobną klatką. Czas na końcu nazwy, np. &quot;blink 0.033s&quot;, określa czas wyświetlania klatki. Liczba odtworzeń obejmuje pierwsze odtworzenie.</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
+        <translation>Każda widoczna warstwa najwyższego poziomu staje się jedną klatką, zaczynając od górnej warstwy. Warstwa o nazwie &quot;all&quot; jest rysowana w każdej klatce, zamiast być osobną klatką, a każda warstwa w grupie o nazwie &quot;all&quot; jest osobną klatką.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15667,10 +15667,6 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Ustaw czas i Usuń czas zmieniają wszystkie warstwy najwyższego poziomu zamiast tylko wybranych.</translation>
     </message>
     <message>
-        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
-        <translation>Klatki to warstwy najwyższego poziomu, od góry, tak jak zapisuje je eksport animowanego GIF, WebP i PNG. Czas na końcu nazwy warstwy, np. &quot;blink 0.25s&quot;, określa czas wyświetlania klatki.</translation>
-    </message>
-    <message>
         <source>No layers</source>
         <translation>Brak warstw</translation>
     </message>
@@ -15693,6 +15689,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>Frame delay:</source>
         <translation>Czas klatki:</translation>
+    </message>
+    <message>
+        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation>Klatki to warstwy najwyższego poziomu, od góry, tak jak zapisuje je eksport animowanego GIF, WebP i PNG. Warstwa o nazwie &quot;all&quot; jest rysowana w każdej klatce, zamiast być osobną klatką, a każda warstwa w grupie o nazwie &quot;all&quot; jest osobną klatką. Czas na końcu nazwy warstwy, np. &quot;blink 0.25s&quot;, określa czas wyświetlania klatki.</translation>
     </message>
 </context>
 <context>

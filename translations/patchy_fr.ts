@@ -5175,10 +5175,6 @@
         <translation> s</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
-        <translation>Chaque calque de premier niveau visible devient une image, en commençant par le calque du haut. Les calques masqués sont ignorés. Un nom de calque se terminant par une durée, comme « blink 0.25s », remplace le délai par défaut pour cette image. L&apos;animation se répète indéfiniment.</translation>
-    </message>
-    <message>
         <source>%1: %2</source>
         <translation>%1 : %2</translation>
     </message>
@@ -9085,10 +9081,6 @@ RVB : %2, %3, %4</translation>
         <translation>Nombre de lectures :</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
-        <translation>Chaque calque visible de premier niveau devient une image, en commençant par le calque du haut. Une durée à la fin du nom, comme &quot;blink 0.033s&quot;, définit la durée de cette image. Le nombre inclut la première lecture.</translation>
-    </message>
-    <message>
         <source>Animated WebP: imported %1 frames as layers</source>
         <translation>WebP animé : %1 images importées comme calques</translation>
     </message>
@@ -12929,10 +12921,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Réglages WebP</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
-        <translation>Chaque calque visible de premier niveau devient une image, le calque du haut en premier.</translation>
-    </message>
-    <message>
         <source>PNG settings</source>
         <translation>Réglages PNG</translation>
     </message>
@@ -14987,6 +14975,18 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>The scanner sent an incomplete image</source>
         <translation>Le scanner a envoyé une image incomplète</translation>
     </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
+        <translation>Chaque calque de premier niveau visible devient une image, en commençant par le calque du haut. Les calques masqués sont ignorés. Un calque nommé &quot;all&quot; est dessiné dans chaque image au lieu d&apos;en être une, et chaque calque d&apos;un groupe nommé &quot;all&quot; est une image à part entière. Un nom de calque se terminant par une durée, comme « blink 0.25s », remplace le délai par défaut pour cette image. L&apos;animation se répète indéfiniment.</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
+        <translation>Chaque calque visible de premier niveau devient une image, en commençant par le calque du haut. Un calque nommé &quot;all&quot; est dessiné dans chaque image au lieu d&apos;en être une, et chaque calque d&apos;un groupe nommé &quot;all&quot; est une image à part entière. Une durée à la fin du nom, comme &quot;blink 0.033s&quot;, définit la durée de cette image. Le nombre inclut la première lecture.</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
+        <translation>Chaque calque visible de premier niveau devient une image, le calque du haut en premier. Un calque nommé &quot;all&quot; est dessiné dans chaque image au lieu d&apos;en être une, et chaque calque d&apos;un groupe nommé &quot;all&quot; est une image à part entière.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15620,10 +15620,6 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <translation>Définir la durée et Supprimer la durée modifient tous les calques de premier niveau au lieu des seuls calques sélectionnés.</translation>
     </message>
     <message>
-        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
-        <translation>Les images sont les calques de premier niveau, celui du haut en premier, comme les écrit l&apos;export GIF, WebP et PNG animés. Une durée à la fin du nom du calque, comme « blink 0.25s », définit la durée de cette image.</translation>
-    </message>
-    <message>
         <source>No layers</source>
         <translation>Aucun calque</translation>
     </message>
@@ -15646,6 +15642,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
     <message>
         <source>Frame delay:</source>
         <translation>Durée d&apos;image :</translation>
+    </message>
+    <message>
+        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation>Les images sont les calques de premier niveau, celui du haut en premier, comme les écrit l&apos;export GIF, WebP et PNG animés. Un calque nommé &quot;all&quot; est dessiné dans chaque image au lieu d&apos;en être une, et chaque calque d&apos;un groupe nommé &quot;all&quot; est une image à part entière. Une durée à la fin du nom du calque, comme « blink 0.25s », définit la durée de cette image.</translation>
     </message>
 </context>
 <context>

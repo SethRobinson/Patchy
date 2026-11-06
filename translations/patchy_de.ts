@@ -5175,10 +5175,6 @@
         <translation> s</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
-        <translation>Jede sichtbare Ebene der obersten Hierarchieebene wird zu einem Frame, beginnend mit der obersten Ebene. Ausgeblendete Ebenen werden übersprungen. Ein Ebenenname, der mit einer Zeitangabe endet, etwa &quot;blink 0.25s&quot;, überschreibt die Standardverzögerung für diesen Frame. Die Animation läuft in einer Endlosschleife.</translation>
-    </message>
-    <message>
         <source>%1: %2</source>
         <translation>%1: %2</translation>
     </message>
@@ -9085,10 +9081,6 @@ RGB: %2, %3, %4</translation>
         <translation>Anzahl der Wiedergaben:</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
-        <translation>Jede sichtbare Ebene auf oberster Ebene wird zu einem Bild, beginnend mit der obersten Ebene. Eine Zeitangabe am Namensende, etwa &quot;blink 0.033s&quot;, legt die Bilddauer fest. Die Anzahl enthält die erste Wiedergabe.</translation>
-    </message>
-    <message>
         <source>Animated WebP: imported %1 frames as layers</source>
         <translation>WebP-Animation: %1 Bilder als Ebenen importiert</translation>
     </message>
@@ -12929,10 +12921,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>WebP-Einstellungen</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
-        <translation>Jede sichtbare oberste Ebene wird zu einem Frame, die oberste Ebene zuerst.</translation>
-    </message>
-    <message>
         <source>PNG settings</source>
         <translation>PNG-Einstellungen</translation>
     </message>
@@ -14987,6 +14975,18 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>The scanner sent an incomplete image</source>
         <translation>Der Scanner hat ein unvollständiges Bild gesendet</translation>
     </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
+        <translation>Jede sichtbare Ebene der obersten Hierarchieebene wird zu einem Frame, beginnend mit der obersten Ebene. Ausgeblendete Ebenen werden übersprungen. Eine Ebene namens &quot;all&quot; wird in jeden Frame gezeichnet, statt selbst einer zu sein, und jede Ebene in einer Gruppe namens &quot;all&quot; ist ein eigener Frame. Ein Ebenenname, der mit einer Zeitangabe endet, etwa &quot;blink 0.25s&quot;, überschreibt die Standardverzögerung für diesen Frame. Die Animation läuft in einer Endlosschleife.</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
+        <translation>Jede sichtbare Ebene auf oberster Ebene wird zu einem Bild, beginnend mit der obersten Ebene. Eine Ebene namens &quot;all&quot; wird in jedes Bild gezeichnet, statt selbst eines zu sein, und jede Ebene in einer Gruppe namens &quot;all&quot; ist ein eigenes Bild. Eine Zeitangabe am Namensende, etwa &quot;blink 0.033s&quot;, legt die Bilddauer fest. Die Anzahl enthält die erste Wiedergabe.</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
+        <translation>Jede sichtbare oberste Ebene wird zu einem Frame, die oberste Ebene zuerst. Eine Ebene namens &quot;all&quot; wird in jeden Frame gezeichnet, statt selbst einer zu sein, und jede Ebene in einer Gruppe namens &quot;all&quot; ist ein eigener Frame.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15620,10 +15620,6 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <translation>&quot;Zeit festlegen&quot; und &quot;Zeit entfernen&quot; ändern alle Ebenen auf oberster Ebene statt nur der ausgewählten.</translation>
     </message>
     <message>
-        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
-        <translation>Bilder sind die Ebenen auf oberster Ebene, die oberste zuerst, so wie der Export als animiertes GIF, WebP und PNG sie schreibt. Eine Zeitangabe am Namensende, etwa &quot;blink 0.25s&quot;, legt die Bilddauer fest.</translation>
-    </message>
-    <message>
         <source>No layers</source>
         <translation>Keine Ebenen</translation>
     </message>
@@ -15646,6 +15642,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>Frame delay:</source>
         <translation>Bilddauer:</translation>
+    </message>
+    <message>
+        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation>Bilder sind die Ebenen auf oberster Ebene, die oberste zuerst, so wie der Export als animiertes GIF, WebP und PNG sie schreibt. Eine Ebene namens &quot;all&quot; wird in jedes Bild gezeichnet, statt selbst eines zu sein, und jede Ebene in einer Gruppe namens &quot;all&quot; ist ein eigenes Bild. Eine Zeitangabe am Namensende, etwa &quot;blink 0.25s&quot;, legt die Bilddauer fest.</translation>
     </message>
 </context>
 <context>
