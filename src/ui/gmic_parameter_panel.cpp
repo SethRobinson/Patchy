@@ -225,6 +225,7 @@ void GmicParameterPanel::set_filter(const gmic::Filter& filter, const std::vecto
         for (const auto& choice : parameter.choices) {
           combo->addItem(from_gmic(choice));
         }
+        fit_combo_to_entries(*combo);  // every choice whole, closed and open (GitHub issue 655)
         connect(combo, qOverload<int>(&QComboBox::currentIndexChanged), this, [this, live](int) { changed(live); });
         binding.read = [combo] { return std::to_string(std::max(0, combo->currentIndex())); };
         binding.write = [combo](const std::string& value) {

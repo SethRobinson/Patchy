@@ -201,6 +201,8 @@ void FilterParameterPanel::rebuild(const FilterDialogSpec& spec,
                              : combo->findData(QString::fromStdString(*selected));
       combo->setCurrentIndex(index >= 0 ? index
                                         : (combo->count() > 0 ? 0 : -1));
+      // Every choice whole, closed and open (GitHub issue 655).
+      fit_combo_to_entries(*combo);
       column_form->addRow(control.label, combo);
       QObject::connect(combo, qOverload<int>(&QComboBox::currentIndexChanged),
                        this, [this, key, combo](int) {

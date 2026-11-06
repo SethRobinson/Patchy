@@ -72,6 +72,7 @@
 #include <QStringList>
 #include <QStyle>
 #include <QStyleOptionButton>
+#include <QStyleOptionComboBox>
 #include <QStyleOptionMenuItem>
 #include <QStyleOptionViewItem>
 #include <QStyledItemDelegate>
@@ -2357,6 +2358,103 @@ int combo_list_entry_width(const QComboBox& combo, int row) {
     width = std::max(width, kProbeWidth - text_room + text_width);
   }
   return width;
+}
+
+int combo_box_text_room(const QComboBox& combo, int box_width) {
+  QStyleOptionComboBox option;
+  option.initFrom(&combo);
+  option.editable = combo.isEditable();
+  option.frame = combo.hasFrame();
+  option.iconSize = combo.iconSize();
+  option.subControls = QStyle::SC_All;
+  option.rect = QRect(0, 0, box_width < 0 ? combo.width() : box_width, std::max(combo.height(), 1));
+  const auto field = combo.style()->subControlRect(QStyle::CC_ComboBox, &option, QStyle::SC_ComboBoxEditField, &combo);
+  return field.width() - 2;
+}
+
+int combo_box_entry_width(const QComboBox& combo, int row) {
+  const auto text = combo.itemText(row);
+  if (text.isEmpty()) {
+    return 0;
+  }
+  int width = combo.fontMetrics().horizontalAdvance(text);
+  if (!combo.itemIcon(row).isNull()) {
+    width += combo.iconSize().width() + 4;  // QCommonStyle's gap after the label's icon
+  }
+  return width;
+}
+
+namespace {
+
+constexpr char kEntryFitBoxProperty[] = "patchy.entryFitBox";
+constexpr char kEntryFitAlsoProperty[] = "patchy.entryFitAlso";
+
+// The minimum width that shows the widest entry whole in the closed box. The edit field grows
+// one for one with the box, so the shortfall at the size hint is added to it.
+void apply_combo_entry_minimum_width(QComboBox& combo) {
+  int widest = 0;
+  for (int row = 0; row < combo.count(); ++row) {
+    widest = std::max(widest, combo_box_entry_width(combo, row));
+  }
+  for (const auto& text : combo.property(kEntryFitAlsoProperty).toStringList()) {
+    widest = std::max(widest, combo.fontMetrics().horizontalAdvance(text));
+  }
+  const int hint = combo.sizeHint().width();
+  const int needed = hint + std::max(0, widest - combo_box_text_room(combo, hint));
+  if (combo.minimumWidth() != needed) {
+    combo.setMinimumWidth(needed);
+  }
+}
+
+// Remeasures the closed box (fit_combo_to_entries) when what it is drawn with changes.
+class ComboBoxEntryFit final : public QObject {
+public:
+  explicit ComboBoxEntryFit(QComboBox& combo) : QObject(&combo), combo_(&combo) {}
+
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (watched == combo_) {
+      switch (event->type()) {
+        case QEvent::Polish:
+        case QEvent::Show:
+        case QEvent::FontChange:
+        case QEvent::StyleChange:
+          apply_combo_entry_minimum_width(*combo_);
+          break;
+        default:
+          break;
+      }
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  QComboBox* combo_;
+};
+
+}  // namespace
+
+void fit_combo_to_entries(QComboBox& combo, const QStringList& also_fits) {
+  combo.setProperty(kEntryFitAlsoProperty, also_fits);
+  fit_combo_popup_to_entries(combo);
+  combo.setSizeAdjustPolicy(QComboBox::AdjustToContents);
+  if (!combo.property(kEntryFitBoxProperty).toBool()) {
+    combo.setProperty(kEntryFitBoxProperty, true);
+    combo.installEventFilter(new ComboBoxEntryFit(combo));
+    // Entries added, removed or renamed later (a language change) count too.
+    QPointer<QComboBox> guarded(&combo);
+    const auto remeasure = [guarded] {
+      if (guarded != nullptr) {
+        apply_combo_entry_minimum_width(*guarded);
+      }
+    };
+    auto* model = combo.model();
+    QObject::connect(model, &QAbstractItemModel::rowsInserted, &combo, remeasure);
+    QObject::connect(model, &QAbstractItemModel::rowsRemoved, &combo, remeasure);
+    QObject::connect(model, &QAbstractItemModel::dataChanged, &combo, remeasure);
+    QObject::connect(model, &QAbstractItemModel::modelReset, &combo, remeasure);
+  }
+  combo.ensurePolished();  // the style sheet's padding counts toward the width
+  apply_combo_entry_minimum_width(combo);
 }
 
 void fit_combo_popup_to_entries(QComboBox& combo) {

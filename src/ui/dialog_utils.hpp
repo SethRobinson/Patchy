@@ -262,6 +262,23 @@ void fit_combo_popup_to_entries(QComboBox& combo);
 // style draw it (the menu-style rows of Fusion and macOS, the inset text of Windows 11's list
 // rows); 0 for a separator.
 [[nodiscard]] int combo_list_entry_width(const QComboBox& combo, int row);
+// The room `combo`'s closed box has for its text when `box_width` wide (its own width when
+// negative), as its style and style sheet draw the label: the edit field, drop-down arrow and
+// padding taken off, less a pixel a side.
+[[nodiscard]] int combo_box_text_room(const QComboBox& combo, int box_width = -1);
+// The width `combo`'s closed box shows entry `row` in: its text with the combo's font, plus the
+// icon and its gap when the entry has one; 0 for a separator.
+[[nodiscard]] int combo_box_entry_width(const QComboBox& combo, int row);
+// Sizes `combo` so every entry shows whole, closed and open (GitHub issue 655): the box gets a
+// minimum width from its widest entry, measured with the font, style and style sheet it is drawn
+// with (combo_box_text_room), and the open list is widened to its entries
+// (fit_combo_popup_to_entries), which matters where the list is a menu (Fusion, Linux), whose
+// rows need more room than the box. Remeasured when the entries, font or style change and each
+// time the box is shown. `also_fits` names entries the list adds later (New Layer's neutral
+// color), so the box does not grow when they arrive. Call it on every combo built from a list
+// the code does not size by hand (dialog choice lists, generated filter settings). Test helper:
+// tests/ui/combo_fit_checks.hpp.
+void fit_combo_to_entries(QComboBox& combo, const QStringList& also_fits = {});
 // For a dialog whose pages scroll (GitHub issue 92): a combo box, spin box or slider inside
 // a scroll area under `root` ignores the mouse wheel unless it holds keyboard focus (a click
 // or Tab; their focus policy drops from WheelFocus to StrongFocus), so a wheel that passes

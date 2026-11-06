@@ -4407,9 +4407,23 @@ void ui_layer_arrange_bring_to_front_and_send_to_back() {
   }
 }
 
-// GitHub issue 410: "Clip to the layer below" sits under Name in the field column, and a
-// Fill row under Mode offers the mode's neutral color with a swatch and its name; a mode
-// without one says so in plain text instead of showing a dimmed checkbox.
+// The New Layer dialog's Fill list (GitHub issues 410, 654): the entry with `token` chosen,
+// or false when the list does not offer it.
+bool choose_new_layer_fill(QDialog& dialog, const QString& token) {
+  auto* fill = dialog.findChild<QComboBox*>(QStringLiteral("newLayerFillCombo"));
+  CHECK(fill != nullptr);
+  const int index = fill != nullptr ? fill->findData(token) : -1;
+  if (index < 0) {
+    return false;
+  }
+  fill->setCurrentIndex(index);
+  return true;
+}
+
+// GitHub issues 410 and 654: "Clip to the layer below" sits under Name in the field column, and
+// a Fill row under Mode holds Edit > Fill's Contents list and swatch, starting at Transparent.
+// The mode's neutral color is listed last while the mode has one; choosing a mode without one
+// takes it out again and the list goes back to Transparent.
 void ui_new_layer_dialog_places_options_and_neutral_fill_follows_mode() {
   using Access = patchy::ui::MainWindowTestAccess;
   auto&& [window, canvas] = ShownWindowFixture{};
@@ -4422,15 +4436,13 @@ void ui_new_layer_dialog_places_options_and_neutral_fill_follows_mode() {
         auto* name = dialog.findChild<QLineEdit*>(QStringLiteral("newLayerNameEdit"));
         auto* clip = dialog.findChild<QCheckBox*>(QStringLiteral("newLayerClipCheck"));
         auto* mode = dialog.findChild<QComboBox*>(QStringLiteral("newLayerModeCombo"));
-        auto* fill_row = dialog.findChild<QWidget*>(QStringLiteral("newLayerNeutralFillRow"));
-        auto* neutral = dialog.findChild<QCheckBox*>(QStringLiteral("newLayerNeutralFillCheck"));
-        auto* swatch = dialog.findChild<QLabel*>(QStringLiteral("newLayerNeutralFillSwatch"));
-        auto* color_name = dialog.findChild<QLabel*>(QStringLiteral("newLayerNeutralFillName"));
-        auto* note = dialog.findChild<QLabel*>(QStringLiteral("newLayerNeutralFillNote"));
+        auto* fill_row = dialog.findChild<QWidget*>(QStringLiteral("newLayerFillRow"));
+        auto* fill = dialog.findChild<QComboBox*>(QStringLiteral("newLayerFillCombo"));
+        auto* swatch = dialog.findChild<QPushButton*>(QStringLiteral("newLayerFillColorSwatch"));
         CHECK(form != nullptr && name != nullptr && clip != nullptr && mode != nullptr && fill_row != nullptr &&
-              neutral != nullptr && swatch != nullptr && color_name != nullptr && note != nullptr);
+              fill != nullptr && swatch != nullptr);
         if (form == nullptr || name == nullptr || clip == nullptr || mode == nullptr || fill_row == nullptr ||
-            neutral == nullptr || swatch == nullptr || color_name == nullptr || note == nullptr) {
+            fill == nullptr || swatch == nullptr) {
           dialog.reject();
           return;
         }
@@ -4451,17 +4463,34 @@ void ui_new_layer_dialog_places_options_and_neutral_fill_follows_mode() {
         auto* fill_label = qobject_cast<QLabel*>(form->labelForField(fill_row));
         CHECK(fill_label != nullptr && fill_label->text() == QStringLiteral("Fill:"));
         CHECK(clip->text() == QStringLiteral("Clip to the layer below"));
-        CHECK(neutral->text() == QStringLiteral("Neutral color"));
         // Lined up with the fields, not the labels.
         CHECK(clip->mapTo(&dialog, QPoint()).x() == name->mapTo(&dialog, QPoint()).x());
         CHECK(fill_row->mapTo(&dialog, QPoint()).x() == mode->mapTo(&dialog, QPoint()).x());
 
-        // Normal has no neutral color: the note shows, readable (enabled), and the checkbox hides.
-        CHECK(!neutral->isVisibleTo(&dialog) && !neutral->isChecked());
-        CHECK(note->isVisibleTo(&dialog) && note->isEnabled());
-        CHECK(note->text() == QStringLiteral("This mode has no neutral color"));
+        // Normal: Transparent first and chosen, Edit > Fill's colors after it, no neutral entry;
+        // the swatch hides (keeping its room) while nothing fills the layer.
+        const QStringList expected{QStringLiteral("transparent"), QString(),
+                                   QStringLiteral("foreground"),  QStringLiteral("background"),
+                                   QStringLiteral("color"),       QString(),
+                                   QStringLiteral("black"),       QStringLiteral("gray50"),
+                                   QStringLiteral("white")};
+        CHECK(fill->count() == expected.size());
+        for (int index = 0; index < std::min<int>(fill->count(), expected.size()); ++index) {
+          const bool separator =
+              fill->itemData(index, Qt::AccessibleDescriptionRole).toString() == QStringLiteral("separator");
+          CHECK(separator == expected[index].isEmpty());
+          CHECK(fill->itemData(index).toString() == expected[index]);
+        }
+        CHECK(fill->itemText(0) == QStringLiteral("Transparent"));
+        CHECK(fill->itemText(2) == QStringLiteral("Foreground Color"));
+        CHECK(fill->currentData().toString() == QStringLiteral("transparent"));
+        CHECK(!swatch->isVisibleTo(&dialog));
+        const auto swatch_center = [swatch] {
+          const auto image = swatch->grab().toImage();
+          return image.pixelColor(image.width() / 2, image.height() / 2);
+        };
         enum class Expect { White, Black, Gray, None };
-        const std::array<std::pair<patchy::BlendMode, Expect>, 26> expected{{
+        const std::array<std::pair<patchy::BlendMode, Expect>, 26> modes{{
             {patchy::BlendMode::Darken, Expect::White},       {patchy::BlendMode::Multiply, Expect::White},
             {patchy::BlendMode::ColorBurn, Expect::White},    {patchy::BlendMode::LinearBurn, Expect::White},
             {patchy::BlendMode::DarkerColor, Expect::White},  {patchy::BlendMode::Divide, Expect::White},
@@ -4476,38 +4505,39 @@ void ui_new_layer_dialog_places_options_and_neutral_fill_follows_mode() {
             {patchy::BlendMode::Dissolve, Expect::None},      {patchy::BlendMode::Hue, Expect::None},
             {patchy::BlendMode::Luminosity, Expect::None},    {patchy::BlendMode::Color, Expect::None},
         }};
-        for (const auto& [blend, want] : expected) {
+        for (const auto& [blend, want] : modes) {
           const auto index = mode->findData(static_cast<int>(blend));
           CHECK(index >= 0);
           mode->setCurrentIndex(index);
+          const int neutral_index = fill->findData(QStringLiteral("neutral"));
           const bool offered = want != Expect::None;
-          CHECK(neutral->isVisibleTo(&dialog) == offered && neutral->isEnabled() == offered);
-          CHECK(swatch->isVisibleTo(&dialog) == offered && color_name->isVisibleTo(&dialog) == offered);
-          CHECK(note->isVisibleTo(&dialog) == !offered);
+          CHECK((neutral_index >= 0) == offered);
           if (!offered) {
+            CHECK(fill->count() == expected.size());
             continue;
           }
-          const QString expected_name = want == Expect::White   ? QStringLiteral("White")
-                                        : want == Expect::Black ? QStringLiteral("Black")
-                                                                : QStringLiteral("50% gray");
-          CHECK(color_name->text() == expected_name);
+          // Last, after a separator.
+          CHECK(neutral_index == fill->count() - 1);
+          CHECK(fill->itemData(neutral_index - 1, Qt::AccessibleDescriptionRole).toString() ==
+                QStringLiteral("separator"));
+          CHECK(fill->itemText(neutral_index) == QStringLiteral("Neutral Color for This Mode"));
+          fill->setCurrentIndex(neutral_index);
+          QApplication::processEvents();
+          CHECK(swatch->isVisibleTo(&dialog));
           const int value = want == Expect::White ? 255 : want == Expect::Black ? 0 : 128;
-          const auto swatch_image = swatch->pixmap().toImage();
-          CHECK(!swatch_image.isNull());
-          if (!swatch_image.isNull()) {
-            const auto center = swatch_image.pixelColor(swatch_image.width() / 2, swatch_image.height() / 2);
-            CHECK(center.red() == value && center.green() == value && center.blue() == value);
-          }
+          const auto center = swatch_center();
+          CHECK(center.red() == value && center.green() == value && center.blue() == value);
+          fill->setCurrentIndex(0);
         }
         int offered = 0;
         for (int index = 0; index < mode->count(); ++index) {
           if (mode->itemData(index).isValid()) {
             mode->setCurrentIndex(index);
-            offered += neutral->isEnabled() ? 1 : 0;
+            offered += fill->findData(QStringLiteral("neutral")) >= 0 ? 1 : 0;
           }
         }
         CHECK(offered == 20);
-        // The row keeps its height whichever side shows, so the dialog does not jump.
+        // The row keeps its height whatever is chosen, so the dialog does not jump.
         mode->setCurrentIndex(mode->findData(static_cast<int>(patchy::BlendMode::Normal)));
         QApplication::processEvents();
         const auto height_without = fill_row->height();
@@ -4520,7 +4550,7 @@ void ui_new_layer_dialog_places_options_and_neutral_fill_follows_mode() {
                                dialog);
         }
         mode->setCurrentIndex(mode->findData(static_cast<int>(patchy::BlendMode::Overlay)));
-        neutral->setChecked(true);
+        CHECK(choose_new_layer_fill(dialog, QStringLiteral("neutral")));
         QApplication::processEvents();
         CHECK(fill_row->height() == height_without);
         CHECK(dialog.height() == dialog_height_without);
@@ -4531,9 +4561,10 @@ void ui_new_layer_dialog_places_options_and_neutral_fill_follows_mode() {
                                                                                  : "issue410_new_layer_dialog_light",
                                dialog);
         }
-        // A checked fill is not applied once the mode has none.
+        // A mode without a neutral color takes the entry out: the list goes back to Transparent.
         mode->setCurrentIndex(mode->findData(static_cast<int>(patchy::BlendMode::Hue)));
-        CHECK(!neutral->isEnabled());
+        CHECK(fill->findData(QStringLiteral("neutral")) < 0);
+        CHECK(fill->currentData().toString() == QStringLiteral("transparent"));
         click_dialog_ok(dialog);
       },
       seen);
@@ -4560,15 +4591,13 @@ void ui_new_layer_dialog_neutral_fill_fills_layer_at_each_depth() {
     drive_new_layer_dialog(
         [blend](QDialog& dialog) {
           auto* mode = dialog.findChild<QComboBox*>(QStringLiteral("newLayerModeCombo"));
-          auto* neutral = dialog.findChild<QCheckBox*>(QStringLiteral("newLayerNeutralFillCheck"));
-          CHECK(mode != nullptr && neutral != nullptr);
-          if (mode == nullptr || neutral == nullptr) {
+          CHECK(mode != nullptr);
+          if (mode == nullptr) {
             dialog.reject();
             return;
           }
           mode->setCurrentIndex(mode->findData(static_cast<int>(blend)));
-          CHECK(neutral->isEnabled());
-          neutral->setChecked(true);
+          CHECK(choose_new_layer_fill(dialog, QStringLiteral("neutral")));
           click_dialog_ok(dialog);
         },
         seen);
@@ -4609,6 +4638,88 @@ void ui_new_layer_dialog_neutral_fill_fills_layer_at_each_depth() {
         CHECK(std::abs(pixel[0] - item.expected) < 0.01F);
         CHECK(std::abs(pixel[1] - item.expected) < 0.01F);
         CHECK(std::abs(pixel[2] - item.expected) < 0.01F);
+        CHECK(pixel[3] == 255.0F);
+      }
+      // One step: undo takes the filled layer away whole.
+      Access::undo(window);
+      QApplication::processEvents();
+      CHECK(doc.layers().size() == layers_before);
+    }
+  }
+  patchy::set_deep_editing_override(std::nullopt);
+}
+
+// GitHub issue 654: every color in the New Layer dialog's Fill list fills the new layer, opaque,
+// in the one New layer undo step, at 8 and 16 bits (the 8-bit color at the document's depth, as
+// Edit > Fill puts it); Transparent leaves it empty. Color... takes the swatch's color. Saves the
+// dialog with Foreground Color chosen.
+void ui_new_layer_dialog_fill_choices_fill_the_layer() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  patchy::set_deep_editing_override(true);
+  struct Choice {
+    const char* token;
+    QColor expected;  // invalid: transparent
+  };
+  const QColor foreground(200, 40, 30);
+  const QColor background(20, 90, 220);
+  const QColor picked(10, 170, 60);
+  const std::array<Choice, 7> choices{{
+      {"transparent", QColor()},
+      {"foreground", foreground},
+      {"background", background},
+      {"color", picked},
+      {"black", QColor(0, 0, 0)},
+      {"gray50", QColor(128, 128, 128)},
+      {"white", QColor(255, 255, 255)},
+  }};
+  for (const auto* mode_action : {static_cast<const char*>(nullptr), "imageMode16BitAction"}) {
+    auto&& [window, canvas] = ShownWindowFixture{};
+    if (mode_action != nullptr) {
+      require_action(window, mode_action)->trigger();
+      QApplication::processEvents();
+    }
+    canvas->set_primary_color(foreground);
+    canvas->set_secondary_color(background);
+    const auto& doc = std::as_const(Access::document(window));
+    const auto depth = doc.color_state().bit_depth;
+    CHECK(depth == (mode_action != nullptr ? patchy::BitDepth::UInt16 : patchy::BitDepth::UInt8));
+    for (const auto& choice : choices) {
+      const auto layers_before = doc.layers().size();
+      const auto history = Access::active_session_undo_depth(window);
+      bool seen = false;
+      const QString token = QString::fromLatin1(choice.token);
+      drive_new_layer_dialog(
+          [token, picked, depth](QDialog& dialog) {
+            auto* swatch = dialog.findChild<QPushButton*>(QStringLiteral("newLayerFillColorSwatch"));
+            CHECK(swatch != nullptr);
+            if (swatch != nullptr && token == QStringLiteral("color")) {
+              swatch->setProperty("fillColor", picked);  // as the picker would
+            }
+            CHECK(choose_new_layer_fill(dialog, token));
+            QApplication::processEvents();
+            CHECK(swatch == nullptr || swatch->isVisibleTo(&dialog) == (token != QStringLiteral("transparent")));
+            if (token == QStringLiteral("foreground") && depth == patchy::BitDepth::UInt8) {
+              save_widget_artifact("issue654_new_layer_dialog_fill_foreground", dialog);
+            }
+            click_dialog_ok(dialog);
+          },
+          seen);
+      require_action(window, "layerNewWithDialogAction")->trigger();
+      QApplication::processEvents();
+      CHECK(seen);
+      CHECK(doc.layers().size() == layers_before + 1U);
+      CHECK(Access::active_session_undo_depth(window) == history + 1);
+      const auto& added = doc.layers().back();
+      CHECK(added.pixels().format().bit_depth == depth);
+      for (const auto& [x, y] : {std::pair{0, 0}, std::pair{doc.width() - 1, doc.height() - 1}}) {
+        const auto pixel = patchy::load_pixel(added.pixels().format(), added.pixels().pixel(x, y));
+        if (!choice.expected.isValid()) {
+          CHECK(pixel[3] == 0.0F);
+          continue;
+        }
+        CHECK(std::abs(pixel[0] - static_cast<float>(choice.expected.red())) < 0.01F);
+        CHECK(std::abs(pixel[1] - static_cast<float>(choice.expected.green())) < 0.01F);
+        CHECK(std::abs(pixel[2] - static_cast<float>(choice.expected.blue())) < 0.01F);
         CHECK(pixel[3] == 255.0F);
       }
       // One step: undo takes the filled layer away whole.
@@ -5213,6 +5324,7 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
        ui_new_layer_dialog_places_options_and_neutral_fill_follows_mode},
       {"ui_new_layer_dialog_neutral_fill_fills_layer_at_each_depth",
        ui_new_layer_dialog_neutral_fill_fills_layer_at_each_depth},
+      {"ui_new_layer_dialog_fill_choices_fill_the_layer", ui_new_layer_dialog_fill_choices_fill_the_layer},
       {"ui_merge_down_into_position_locked_background_works",
        ui_merge_down_into_position_locked_background_works},
       {"ui_first_tab_still_draws_after_second_tab_created", ui_first_tab_still_draws_after_second_tab_created},

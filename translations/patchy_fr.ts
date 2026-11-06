@@ -157,6 +157,18 @@
         <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
         <translation>Mode et Opacité définissent le mode de fusion et l&apos;opacité du nouveau calque</translation>
     </message>
+    <message>
+        <source>Transparent</source>
+        <translation>Transparent</translation>
+    </message>
+    <message>
+        <source>Neutral Color for This Mode</source>
+        <translation>Couleur neutre pour ce mode</translation>
+    </message>
+    <message>
+        <source>Fill with the color that leaves the image unchanged in this blend mode</source>
+        <translation>Remplir avec la couleur qui laisse l&apos;image inchangée dans ce mode de fusion</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -767,32 +779,8 @@
         <translation>Écrêter le nouveau calque sur le calque inférieur</translation>
     </message>
     <message>
-        <source>White</source>
-        <translation>Blanc</translation>
-    </message>
-    <message>
-        <source>Black</source>
-        <translation>Noir</translation>
-    </message>
-    <message>
-        <source>50% gray</source>
-        <translation>Gris 50 %</translation>
-    </message>
-    <message>
         <source>Clip to the layer below</source>
         <translation>Écrêter sur le calque inférieur</translation>
-    </message>
-    <message>
-        <source>Neutral color</source>
-        <translation>Couleur neutre</translation>
-    </message>
-    <message>
-        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
-        <translation>Remplir le nouveau calque avec la couleur qui laisse l&apos;image inchangée dans ce mode</translation>
-    </message>
-    <message>
-        <source>This mode has no neutral color</source>
-        <translation>Ce mode n&apos;a pas de couleur neutre</translation>
     </message>
     <message>
         <source>Fill:</source>

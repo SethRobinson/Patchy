@@ -157,6 +157,18 @@
         <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
         <translation>Режим и Непрозрачность задают режим наложения и непрозрачность нового слоя</translation>
     </message>
+    <message>
+        <source>Transparent</source>
+        <translation>Прозрачный</translation>
+    </message>
+    <message>
+        <source>Neutral Color for This Mode</source>
+        <translation>Нейтральный цвет для этого режима</translation>
+    </message>
+    <message>
+        <source>Fill with the color that leaves the image unchanged in this blend mode</source>
+        <translation>Залить цветом, который не меняет изображение в этом режиме наложения</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -768,32 +780,8 @@
         <translation>Обтравить новый слой по слою под ним</translation>
     </message>
     <message>
-        <source>White</source>
-        <translation>Белый</translation>
-    </message>
-    <message>
-        <source>Black</source>
-        <translation>Черный</translation>
-    </message>
-    <message>
-        <source>50% gray</source>
-        <translation>50% серого</translation>
-    </message>
-    <message>
         <source>Clip to the layer below</source>
         <translation>Обтравка по слою ниже</translation>
-    </message>
-    <message>
-        <source>Neutral color</source>
-        <translation>Нейтральный цвет</translation>
-    </message>
-    <message>
-        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
-        <translation>Залить новый слой цветом, который не меняет изображение в этом режиме</translation>
-    </message>
-    <message>
-        <source>This mode has no neutral color</source>
-        <translation>У этого режима нет нейтрального цвета</translation>
     </message>
     <message>
         <source>Fill:</source>

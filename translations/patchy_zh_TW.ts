@@ -157,6 +157,18 @@
         <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
         <translation>模式和不透明度會設定新圖層的混合模式和不透明度</translation>
     </message>
+    <message>
+        <source>Transparent</source>
+        <translation>透明</translation>
+    </message>
+    <message>
+        <source>Neutral Color for This Mode</source>
+        <translation>此模式的中性色</translation>
+    </message>
+    <message>
+        <source>Fill with the color that leaves the image unchanged in this blend mode</source>
+        <translation>用在此混合模式下不改變影像的顏色填色</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -766,32 +778,8 @@
         <translation>將新圖層剪裁至下方圖層</translation>
     </message>
     <message>
-        <source>White</source>
-        <translation>白色</translation>
-    </message>
-    <message>
-        <source>Black</source>
-        <translation>黑色</translation>
-    </message>
-    <message>
-        <source>50% gray</source>
-        <translation>50% 灰色</translation>
-    </message>
-    <message>
         <source>Clip to the layer below</source>
         <translation>剪裁至下方圖層</translation>
-    </message>
-    <message>
-        <source>Neutral color</source>
-        <translation>中性色</translation>
-    </message>
-    <message>
-        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
-        <translation>以在此模式下不改變影像的顏色填滿新圖層</translation>
-    </message>
-    <message>
-        <source>This mode has no neutral color</source>
-        <translation>此模式沒有中性色</translation>
     </message>
     <message>
         <source>Fill:</source>

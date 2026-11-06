@@ -1641,11 +1641,13 @@ void MainWindow::add_layer(const NewLayerSettings* settings, bool below) {
 
   push_undo_snapshot(tr("New layer"));
   const auto depth = std::as_const(doc).color_state().bit_depth;
+  const auto format = with_bit_depth(PixelFormat::rgba8(), depth);
   auto layer_pixels =
       settings != nullptr && settings->neutral_fill.has_value()
           ? neutral_fill_pixels(doc.width(), doc.height(), depth, *settings->neutral_fill)
-          : make_solid_pixels(doc.width(), doc.height(), QColor(0, 0, 0, 0),
-                              with_bit_depth(PixelFormat::rgba8(), depth));
+      : settings != nullptr && settings->fill_color.has_value()
+          ? make_solid_pixels(doc.width(), doc.height(), settings->fill_color->toRgb(), format)
+          : make_solid_pixels(doc.width(), doc.height(), QColor(0, 0, 0, 0), format);
   Layer layer(doc.allocate_layer_id(), name.toStdString(), std::move(layer_pixels));
   const auto layer_id = layer.id();
   layer.set_opacity(settings != nullptr ? settings->opacity : 1.0F);
@@ -1702,7 +1704,9 @@ void MainWindow::add_layer_with_dialog() {
   }
   const auto settings = request_new_layer_settings(this, default_new_layer_name(doc),
                                                    new_layer_has_clip_base(doc, anchor_id),
-                                                   doc.color_state().bit_depth, colors);
+                                                   doc.color_state().bit_depth, colors,
+                                                   canvas_ != nullptr ? canvas_->primary_color() : QColor(Qt::black),
+                                                   canvas_ != nullptr ? canvas_->secondary_color() : QColor(Qt::white));
   if (!settings.has_value() || active_session() == nullptr || active_session()->session_id != session_id) {
     return;
   }

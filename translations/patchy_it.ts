@@ -157,6 +157,18 @@
         <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
         <translation>Modalità e Opacità impostano il metodo di fusione e l&apos;opacità del nuovo livello</translation>
     </message>
+    <message>
+        <source>Transparent</source>
+        <translation>Trasparente</translation>
+    </message>
+    <message>
+        <source>Neutral Color for This Mode</source>
+        <translation>Colore neutro per questo metodo</translation>
+    </message>
+    <message>
+        <source>Fill with the color that leaves the image unchanged in this blend mode</source>
+        <translation>Riempi con il colore che lascia l&apos;immagine invariata in questo metodo di fusione</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -767,32 +779,8 @@
         <translation>Ritaglia il nuovo livello sul livello sottostante</translation>
     </message>
     <message>
-        <source>White</source>
-        <translation>Bianco</translation>
-    </message>
-    <message>
-        <source>Black</source>
-        <translation>Nero</translation>
-    </message>
-    <message>
-        <source>50% gray</source>
-        <translation>Grigio 50%</translation>
-    </message>
-    <message>
         <source>Clip to the layer below</source>
         <translation>Ritaglia sul livello sottostante</translation>
-    </message>
-    <message>
-        <source>Neutral color</source>
-        <translation>Colore neutro</translation>
-    </message>
-    <message>
-        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
-        <translation>Riempi il nuovo livello con il colore che lascia l&apos;immagine invariata in questo metodo</translation>
-    </message>
-    <message>
-        <source>This mode has no neutral color</source>
-        <translation>Questo metodo non ha un colore neutro</translation>
     </message>
     <message>
         <source>Fill:</source>

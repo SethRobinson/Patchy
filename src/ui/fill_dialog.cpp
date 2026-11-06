@@ -1,4 +1,5 @@
-// Edit > Fill... (GitHub issues 530, 575; docs/fill-command.md).
+// Edit > Fill... (GitHub issues 530, 575, 655; docs/fill-command.md) and the Contents list it
+// shares with Layer > New > New Layer (GitHub issue 654).
 #include "ui/fill_dialog.hpp"
 
 #include "ui/app_settings.hpp"
@@ -58,9 +59,31 @@ QString fill_contents_name(FillContents contents) {
       return QCoreApplication::translate("FillDialog", "White");
     case FillContents::ContentAware:
       return QCoreApplication::translate("FillDialog", "Content-Aware");
+    case FillContents::Transparent:
+      return QCoreApplication::translate("FillDialog", "Transparent");
+    case FillContents::Neutral:
+      return QCoreApplication::translate("FillDialog", "Neutral Color for This Mode");
   }
   return {};
 }
+
+// Every Contents value, for reading a list entry's token back (fill_contents_from_token reads
+// only Edit > Fill's).
+constexpr std::array<FillContents, 9> kAllFillContents{
+    FillContents::Foreground,   FillContents::Background,  FillContents::Color,
+    FillContents::Black,        FillContents::Gray50,      FillContents::White,
+    FillContents::ContentAware, FillContents::Transparent, FillContents::Neutral};
+
+FillContents any_fill_contents_from_token(const QString& token, FillContents fallback) {
+  for (const auto contents : kAllFillContents) {
+    if (token == QLatin1String(fill_contents_token(contents))) {
+      return contents;
+    }
+  }
+  return fallback;
+}
+
+QString fill_contents_data(FillContents contents) { return QString::fromLatin1(fill_contents_token(contents)); }
 
 ThemedQss fill_swatch_style(QColor color) {
   return ThemedQss(QStringLiteral("QPushButton#editFillColorSwatch { background: rgb(%1, %2, %3); "
@@ -91,6 +114,10 @@ const char* fill_contents_token(FillContents contents) noexcept {
       return "white";
     case FillContents::ContentAware:
       return "contentAware";
+    case FillContents::Transparent:
+      return "transparent";
+    case FillContents::Neutral:
+      return "neutral";
   }
   return "foreground";
 }
@@ -119,9 +146,180 @@ QColor fill_contents_color(const FillDialogSettings& settings, QColor foreground
     case FillContents::White:
       return QColor(255, 255, 255);
     case FillContents::ContentAware:
+    case FillContents::Transparent:
+    case FillContents::Neutral:
       return foreground;
   }
   return foreground;
+}
+
+FillContentsField::FillContentsField(QWidget* parent, QHBoxLayout* row, const FillContentsFieldOptions& options)
+    : QObject(nullptr), foreground_(options.foreground), background_(options.background) {
+  combo_ = new QComboBox(parent);
+  combo_->setObjectName(options.combo_object_name);
+  setParent(combo_);
+  for (std::size_t at = 0; at < options.choices.size(); ++at) {
+    const auto contents = options.choices[at];
+    if (contents == FillContents::Neutral) {
+      has_neutral_choice_ = true;
+      continue;  // listed while set_neutral_color gives it a color
+    }
+    if (combo_->count() > 0 &&
+        (options.choices[at - 1] == FillContents::Transparent || contents == FillContents::Black ||
+         contents == FillContents::ContentAware)) {
+      combo_->insertSeparator(combo_->count());
+    }
+    combo_->addItem(fill_contents_name(contents), fill_contents_data(contents));
+  }
+  combo_->setCurrentIndex(std::max(0, index_of(options.initial)));
+  previous_index_ = combo_->currentIndex();
+  // Wide enough for the longest entry in the current language, closed and open (issues 575, 655).
+  fit_combo_to_entries(*combo_, has_neutral_choice_ ? QStringList{fill_contents_name(FillContents::Neutral)}
+                                                    : QStringList{});
+  row->addWidget(combo_, 1);
+
+  swatch_ = new QPushButton(parent);
+  swatch_->setObjectName(options.swatch_object_name);
+  swatch_->setAccessibleName(QCoreApplication::translate("FillDialog", "Fill color"));
+  swatch_->setToolTip(QCoreApplication::translate("FillDialog", "Choose a color to fill with"));
+  swatch_->setCursor(Qt::PointingHandCursor);
+  swatch_->setFocusPolicy(Qt::StrongFocus);
+  swatch_->setFixedSize(49, 24);
+  swatch_->setProperty(kFillSwatchColorProperty, options.color);
+  // A choice without a color hides the swatch but keeps its room, so nothing shifts.
+  auto swatch_policy = swatch_->sizePolicy();
+  swatch_policy.setRetainSizeWhenHidden(true);
+  swatch_->setSizePolicy(swatch_policy);
+  row->addWidget(swatch_);
+  refresh_swatch();
+
+  QObject::connect(combo_, &QComboBox::activated, this, [this](int index) {
+    if (index == index_of(FillContents::Color)) {
+      pick_color();
+    } else {
+      previous_index_ = index;
+    }
+  });
+  QObject::connect(combo_, &QComboBox::currentIndexChanged, this, [this](int) { refresh_swatch(); });
+  QObject::connect(swatch_, &QPushButton::clicked, this, [this] { pick_color(); });
+}
+
+int FillContentsField::index_of(FillContents contents) const { return combo_->findData(fill_contents_data(contents)); }
+
+FillContents FillContentsField::contents() const {
+  return any_fill_contents_from_token(combo_->currentData().toString(), FillContents::Foreground);
+}
+
+void FillContentsField::set_contents(FillContents contents) {
+  if (const int index = index_of(contents); index >= 0) {
+    combo_->setCurrentIndex(index);
+    previous_index_ = index;
+  }
+}
+
+QColor FillContentsField::chosen_color() const { return swatch_->property(kFillSwatchColorProperty).value<QColor>(); }
+
+QColor FillContentsField::fill_color() const {
+  switch (contents()) {
+    case FillContents::Transparent:
+    case FillContents::ContentAware:
+      return {};
+    case FillContents::Neutral:
+      return neutral_.value_or(QColor());
+    default:
+      break;
+  }
+  FillDialogSettings shown;
+  shown.contents = contents();
+  shown.color = chosen_color();
+  return fill_contents_color(shown, foreground_, background_);
+}
+
+void FillContentsField::set_choice_enabled(FillContents contents, bool enabled, const QString& disabled_tooltip) {
+  const int index = index_of(contents);
+  auto* model = qobject_cast<QStandardItemModel*>(combo_->model());
+  auto* item = model != nullptr && index >= 0 ? model->item(index) : nullptr;
+  if (item == nullptr) {
+    return;
+  }
+  item->setFlags(enabled ? item->flags() | Qt::ItemIsEnabled | Qt::ItemIsSelectable
+                         : item->flags() & ~(Qt::ItemIsEnabled | Qt::ItemIsSelectable));
+  combo_->setItemData(index, enabled ? QVariant() : QVariant(disabled_tooltip), Qt::ToolTipRole);
+}
+
+void FillContentsField::set_neutral_color(std::optional<QColor> color) {
+  if (!has_neutral_choice_) {
+    return;
+  }
+  neutral_ = color;
+  const int index = index_of(FillContents::Neutral);
+  if (color.has_value() && index < 0) {
+    combo_->insertSeparator(combo_->count());
+    combo_->addItem(fill_contents_name(FillContents::Neutral), fill_contents_data(FillContents::Neutral));
+    combo_->setItemData(combo_->count() - 1,
+                        QCoreApplication::translate(
+                            "FillDialog", "Fill with the color that leaves the image unchanged in this blend mode"),
+                        Qt::ToolTipRole);
+  } else if (!color.has_value() && index >= 0) {
+    if (combo_->currentIndex() == index) {
+      combo_->setCurrentIndex(0);
+    }
+    if (previous_index_ >= index - 1) {
+      previous_index_ = 0;
+    }
+    combo_->removeItem(index);
+    combo_->removeItem(index - 1);  // its separator
+  }
+  refresh_swatch();
+}
+
+void FillContentsField::refresh_swatch() {
+  const auto color = fill_color();
+  swatch_->setVisible(color.isValid());
+  if (color.isValid()) {
+    set_themed_style(*swatch_, fill_swatch_style(color));
+  }
+}
+
+// From the color the swatch showed under the previous choice; Cancel goes back to that choice
+// and color.
+void FillContentsField::pick_color() {
+  const int color_index = index_of(FillContents::Color);
+  if (color_index < 0) {
+    return;
+  }
+  const auto original = chosen_color();
+  const auto before =
+      any_fill_contents_from_token(combo_->itemData(previous_index_).toString(), FillContents::Foreground);
+  QColor initial;
+  if (before == FillContents::Neutral) {
+    initial = neutral_.value_or(QColor());
+  } else if (before != FillContents::Transparent && before != FillContents::ContentAware) {
+    FillDialogSettings shown;
+    shown.contents = before;
+    shown.color = original;
+    initial = fill_contents_color(shown, foreground_, background_);
+  }
+  if (!initial.isValid()) {
+    initial = original.isValid() ? original : foreground_;
+  }
+  swatch_->setProperty(kFillSwatchColorProperty, initial);
+  combo_->setCurrentIndex(color_index);
+  refresh_swatch();
+  const auto selected = request_patchy_color(combo_->window(), initial,
+                                             QCoreApplication::translate("FillDialog", "Fill Color"),
+                                             [this](QColor color) {
+                                               swatch_->setProperty(kFillSwatchColorProperty, color);
+                                               refresh_swatch();
+                                             });
+  if (selected.has_value()) {
+    swatch_->setProperty(kFillSwatchColorProperty, *selected);
+    previous_index_ = color_index;
+  } else {
+    swatch_->setProperty(kFillSwatchColorProperty, original);
+    combo_->setCurrentIndex(previous_index_);
+  }
+  refresh_swatch();
 }
 
 FillDialogSettings load_fill_dialog_settings() {
@@ -167,54 +365,24 @@ std::optional<FillDialogSettings> request_fill_settings(QWidget* parent, QColor 
   auto* contents_form = new QFormLayout(contents_box);
   contents_form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
   auto* contents_row = new QHBoxLayout();
-  auto* contents_combo = new QComboBox(contents_box);
-  contents_combo->setObjectName(QStringLiteral("editFillContentsCombo"));
-  for (const auto contents : kFillContentsOrder) {
-    if (contents == FillContents::Black || contents == FillContents::ContentAware) {
-      contents_combo->insertSeparator(contents_combo->count());
-    }
-    contents_combo->addItem(fill_contents_name(contents), QString::fromLatin1(fill_contents_token(contents)));
-  }
-  const auto content_aware_index =
-      contents_combo->findData(QString::fromLatin1(fill_contents_token(FillContents::ContentAware)));
-  if (!content_aware_available) {
-    if (auto* model = qobject_cast<QStandardItemModel*>(contents_combo->model()); model != nullptr) {
-      if (auto* item = model->item(content_aware_index); item != nullptr) {
-        item->setFlags(item->flags() & ~(Qt::ItemIsEnabled | Qt::ItemIsSelectable));
-      }
-    }
-    contents_combo->setItemData(
-        content_aware_index,
-        QCoreApplication::translate("FillDialog", "Make a selection to fill it from its surroundings"),
-        Qt::ToolTipRole);
-  }
   const auto initial_contents =
       remembered.contents == FillContents::ContentAware && !content_aware_available ? FillContents::Foreground
                                                                                     : remembered.contents;
-  contents_combo->setCurrentIndex(
-      std::max(0, contents_combo->findData(QString::fromLatin1(fill_contents_token(initial_contents)))));
-  // Wide enough for the longest entry in the current language (issue 575 cropped
-  // "Foreground Color" and "Background Color").
-  contents_combo->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-  contents_combo->ensurePolished();  // the style sheet's padding counts toward the width
-  contents_combo->setMinimumWidth(contents_combo->sizeHint().width());
-  contents_row->addWidget(contents_combo, 1);
-
-  // The swatch shows the color the fill will use. Its property holds the Color... choice and
-  // is that choice's source of truth, so automation can set it without driving the picker.
-  auto* color_swatch = new QPushButton(contents_box);
-  color_swatch->setObjectName(QStringLiteral("editFillColorSwatch"));
-  color_swatch->setAccessibleName(QCoreApplication::translate("FillDialog", "Fill color"));
-  color_swatch->setToolTip(QCoreApplication::translate("FillDialog", "Choose a color to fill with"));
-  color_swatch->setCursor(Qt::PointingHandCursor);
-  color_swatch->setFocusPolicy(Qt::StrongFocus);
-  color_swatch->setFixedSize(49, 24);
-  color_swatch->setProperty(kFillSwatchColorProperty, remembered.color);
-  // Content-Aware has no color: the swatch hides but keeps its room so nothing shifts.
-  auto swatch_policy = color_swatch->sizePolicy();
-  swatch_policy.setRetainSizeWhenHidden(true);
-  color_swatch->setSizePolicy(swatch_policy);
-  contents_row->addWidget(color_swatch);
+  FillContentsFieldOptions field_options;
+  field_options.choices.assign(kFillContentsOrder.begin(), kFillContentsOrder.end());
+  field_options.initial = initial_contents;
+  field_options.color = remembered.color;
+  field_options.foreground = foreground;
+  field_options.background = background;
+  field_options.combo_object_name = QStringLiteral("editFillContentsCombo");
+  field_options.swatch_object_name = QStringLiteral("editFillColorSwatch");
+  auto* field = new FillContentsField(contents_box, contents_row, field_options);
+  auto* contents_combo = field->combo();
+  if (!content_aware_available) {
+    field->set_choice_enabled(
+        FillContents::ContentAware, false,
+        QCoreApplication::translate("FillDialog", "Make a selection to fill it from its surroundings"));
+  }
   contents_form->addRow(QCoreApplication::translate("FillDialog", "Contents:"), contents_row);
   auto* new_layer_check = new QCheckBox(QCoreApplication::translate("FillDialog", "Add to New Layer"), contents_box);
   new_layer_check->setObjectName(QStringLiteral("editFillContentAwareNewLayerCheck"));
@@ -224,53 +392,7 @@ std::optional<FillDialogSettings> request_fill_settings(QWidget* parent, QColor 
   contents_form->addRow(QString(), new_layer_check);
   layout->addWidget(contents_box);
 
-  const auto current_contents = [contents_combo] {
-    return fill_contents_from_token(contents_combo->currentData().toString(), FillContents::Foreground);
-  };
-  const auto update_swatch = [color_swatch, current_contents, foreground, background] {
-    FillDialogSettings shown;
-    shown.contents = current_contents();
-    shown.color = color_swatch->property(kFillSwatchColorProperty).value<QColor>();
-    set_themed_style(*color_swatch, fill_swatch_style(fill_contents_color(shown, foreground, background)));
-  };
-  update_swatch();
-  // Color... (from the list or a swatch click) opens the picker at once, starting from the color
-  // the swatch showed under the previous choice; Cancel goes back to that choice and color.
-  auto previous_index = std::make_shared<int>(contents_combo->currentIndex());
-  const auto color_index = contents_combo->findData(QString::fromLatin1(fill_contents_token(FillContents::Color)));
-  const auto pick_color = [&dialog, contents_combo, color_swatch, update_swatch, previous_index, color_index,
-                           foreground, background] {
-    const auto original = color_swatch->property(kFillSwatchColorProperty).value<QColor>();
-    FillDialogSettings before;
-    before.contents = fill_contents_from_token(contents_combo->itemData(*previous_index).toString(),
-                                               FillContents::Foreground);
-    before.color = original;
-    const auto initial = fill_contents_color(before, foreground, background);
-    color_swatch->setProperty(kFillSwatchColorProperty, initial);
-    contents_combo->setCurrentIndex(color_index);
-    const auto selected = request_patchy_color(&dialog, initial, QCoreApplication::translate("FillDialog", "Fill Color"),
-                                               [color_swatch, update_swatch](QColor color) {
-                                                 color_swatch->setProperty(kFillSwatchColorProperty, color);
-                                                 update_swatch();
-                                               });
-    if (selected.has_value()) {
-      color_swatch->setProperty(kFillSwatchColorProperty, *selected);
-      *previous_index = color_index;
-    } else {
-      color_swatch->setProperty(kFillSwatchColorProperty, original);
-      contents_combo->setCurrentIndex(*previous_index);
-    }
-    update_swatch();
-  };
-  QObject::connect(contents_combo, &QComboBox::activated, &dialog,
-                   [previous_index, color_index, pick_color](int index) {
-                     if (index == color_index) {
-                       pick_color();
-                     } else {
-                       *previous_index = index;
-                     }
-                   });
-  QObject::connect(color_swatch, &QPushButton::clicked, &dialog, pick_color);
+  const auto current_contents = [field] { return field->contents(); };
 
   auto* blending_box = new QGroupBox(QCoreApplication::translate("FillDialog", "Blending"), &dialog);
   auto* form = new QFormLayout(blending_box);
@@ -312,12 +434,11 @@ std::optional<FillDialogSettings> request_fill_settings(QWidget* parent, QColor 
       label->setEnabled(enabled);
     }
   };
-  const auto update_content_aware = [current_contents, color_swatch, new_layer_check, blending_box, mode_combo,
+  const auto update_content_aware = [current_contents, new_layer_check, blending_box, mode_combo,
                                      opacity_row, preserve_check, set_enabled_with_label, behind_data,
                                      clear_data] {
     const bool content_aware = current_contents() == FillContents::ContentAware;
     const bool layer_modes_only = content_aware && new_layer_check->isChecked();
-    color_swatch->setVisible(!content_aware);
     new_layer_check->setEnabled(content_aware);
     set_enabled_with_label(mode_combo, !content_aware || layer_modes_only);
     set_enabled_with_label(opacity_row, !content_aware || layer_modes_only);
@@ -342,10 +463,7 @@ std::optional<FillDialogSettings> request_fill_settings(QWidget* parent, QColor 
   };
   update_content_aware();
   QObject::connect(contents_combo, &QComboBox::currentIndexChanged, &dialog,
-                   [update_swatch, update_content_aware](int) {
-                     update_swatch();
-                     update_content_aware();
-                   });
+                   [update_content_aware](int) { update_content_aware(); });
   QObject::connect(new_layer_check, &QCheckBox::toggled, &dialog,
                    [update_content_aware](bool) { update_content_aware(); });
 
@@ -362,7 +480,7 @@ std::optional<FillDialogSettings> request_fill_settings(QWidget* parent, QColor 
 
   FillDialogSettings chosen;
   chosen.contents = current_contents();
-  chosen.color = color_swatch->property(kFillSwatchColorProperty).value<QColor>();
+  chosen.color = field->chosen_color();
   if (!chosen.color.isValid()) {
     chosen.color = remembered.color;
   }
