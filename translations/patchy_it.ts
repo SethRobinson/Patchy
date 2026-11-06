@@ -5175,10 +5175,6 @@
         <translation> s</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
-        <translation>Ogni livello principale visibile diventa un fotogramma, a partire dal livello più in alto. I livelli nascosti vengono ignorati. Un nome di livello che termina con un tempo, come &quot;blink 0.25s&quot;, sostituisce il ritardo predefinito per quel fotogramma. L&apos;animazione si ripete all&apos;infinito.</translation>
-    </message>
-    <message>
         <source>%1: %2</source>
         <translation>%1: %2</translation>
     </message>
@@ -9085,10 +9081,6 @@ RGB: %2, %3, %4</translation>
         <translation>Numero di riproduzioni:</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
-        <translation>Ogni livello visibile di primo livello diventa un fotogramma, partendo da quello più in alto. Un tempo alla fine del nome, come &quot;blink 0.033s&quot;, imposta la durata del fotogramma. Il conteggio include la prima riproduzione.</translation>
-    </message>
-    <message>
         <source>Animated WebP: imported %1 frames as layers</source>
         <translation>WebP animato: %1 fotogrammi importati come livelli</translation>
     </message>
@@ -12929,10 +12921,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Impostazioni WebP</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
-        <translation>Ogni livello visibile di primo livello diventa un fotogramma, a partire dal livello superiore.</translation>
-    </message>
-    <message>
         <source>PNG settings</source>
         <translation>Impostazioni PNG</translation>
     </message>
@@ -14987,6 +14975,18 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>The scanner sent an incomplete image</source>
         <translation>Lo scanner ha inviato un&apos;immagine incompleta</translation>
     </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
+        <translation>Ogni livello principale visibile diventa un fotogramma, a partire dal livello più in alto. I livelli nascosti vengono ignorati. Un livello chiamato &quot;all&quot; viene disegnato in ogni fotogramma invece di esserne uno, e ogni livello dentro un gruppo chiamato &quot;all&quot; è un fotogramma a sé. Un nome di livello che termina con un tempo, come &quot;blink 0.25s&quot;, sostituisce il ritardo predefinito per quel fotogramma. L&apos;animazione si ripete all&apos;infinito.</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
+        <translation>Ogni livello visibile di primo livello diventa un fotogramma, partendo da quello più in alto. Un livello chiamato &quot;all&quot; viene disegnato in ogni fotogramma invece di esserne uno, e ogni livello dentro un gruppo chiamato &quot;all&quot; è un fotogramma a sé. Un tempo alla fine del nome, come &quot;blink 0.033s&quot;, imposta la durata del fotogramma. Il conteggio include la prima riproduzione.</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
+        <translation>Ogni livello visibile di primo livello diventa un fotogramma, a partire dal livello superiore. Un livello chiamato &quot;all&quot; viene disegnato in ogni fotogramma invece di esserne uno, e ogni livello dentro un gruppo chiamato &quot;all&quot; è un fotogramma a sé.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15620,10 +15620,6 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <translation>Imposta tempo e Rimuovi tempo modificano tutti i livelli di primo livello invece dei soli livelli selezionati.</translation>
     </message>
     <message>
-        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
-        <translation>I fotogrammi sono i livelli di primo livello, dall&apos;alto verso il basso, come li scrive l&apos;esportazione GIF, WebP e PNG animati. Un tempo alla fine del nome, come &quot;blink 0.25s&quot;, imposta la durata del fotogramma.</translation>
-    </message>
-    <message>
         <source>No layers</source>
         <translation>Nessun livello</translation>
     </message>
@@ -15646,6 +15642,10 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>Frame delay:</source>
         <translation>Durata del fotogramma:</translation>
+    </message>
+    <message>
+        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation>I fotogrammi sono i livelli di primo livello, dall&apos;alto verso il basso, come li scrive l&apos;esportazione GIF, WebP e PNG animati. Un livello chiamato &quot;all&quot; viene disegnato in ogni fotogramma invece di esserne uno, e ogni livello dentro un gruppo chiamato &quot;all&quot; è un fotogramma a sé. Un tempo alla fine del nome, come &quot;blink 0.25s&quot;, imposta la durata del fotogramma.</translation>
     </message>
 </context>
 <context>

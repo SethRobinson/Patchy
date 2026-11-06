@@ -5345,10 +5345,6 @@
         <translation> 초</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
-        <translation>표시되는 각 최상위 레이어는 하나의 프레임이 되며 맨 위 레이어가 먼저 표시됩니다. 숨겨진 레이어는 건너뜁니다. &quot;blink 0.25s&quot;와 같이 시간으로 끝나는 레이어 이름은 해당 프레임의 기본 지연을 재정의합니다. 애니메이션이 영원히 반복됩니다.</translation>
-    </message>
-    <message>
         <source>%1: %2</source>
         <translation>%1: %2</translation>
     </message>
@@ -9055,10 +9051,6 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Play count:</source>
         <translation>재생 횟수:</translation>
-    </message>
-    <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
-        <translation>표시된 최상위 레이어를 위에서부터 각각 한 프레임으로 만듭니다. 이름 끝에 &quot;blink 0.033s&quot;처럼 시간을 붙이면 해당 프레임의 표시 시간이 됩니다. 재생 횟수에는 첫 재생도 포함됩니다.</translation>
     </message>
     <message>
         <source>Animated WebP: imported %1 frames as layers</source>
@@ -12893,10 +12885,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>WebP 설정</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
-        <translation>보이는 각 최상위 레이어가 한 프레임이 되며 맨 위 레이어가 처음입니다.</translation>
-    </message>
-    <message>
         <source>PNG settings</source>
         <translation>PNG 설정</translation>
     </message>
@@ -14940,6 +14928,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>The scanner sent an incomplete image</source>
         <translation>스캐너가 불완전한 이미지를 보냈습니다</translation>
     </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
+        <translation>표시되는 각 최상위 레이어는 하나의 프레임이 되며 맨 위 레이어가 먼저 표시됩니다. 숨겨진 레이어는 건너뜁니다. 이름이 &quot;all&quot;인 레이어는 프레임이 되지 않고 모든 프레임에 그려지며, 이름이 &quot;all&quot;인 그룹 안의 각 레이어는 각각 하나의 프레임이 됩니다. &quot;blink 0.25s&quot;와 같이 시간으로 끝나는 레이어 이름은 해당 프레임의 기본 지연을 재정의합니다. 애니메이션이 영원히 반복됩니다.</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
+        <translation>표시된 최상위 레이어를 위에서부터 각각 한 프레임으로 만듭니다. 이름이 &quot;all&quot;인 레이어는 프레임이 되지 않고 모든 프레임에 그려지며, 이름이 &quot;all&quot;인 그룹 안의 각 레이어는 각각 하나의 프레임이 됩니다. 이름 끝에 &quot;blink 0.033s&quot;처럼 시간을 붙이면 해당 프레임의 표시 시간이 됩니다. 재생 횟수에는 첫 재생도 포함됩니다.</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
+        <translation>보이는 각 최상위 레이어가 한 프레임이 되며 맨 위 레이어가 처음입니다. 이름이 &quot;all&quot;인 레이어는 프레임이 되지 않고 모든 프레임에 그려지며, 이름이 &quot;all&quot;인 그룹 안의 각 레이어는 각각 하나의 프레임이 됩니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15573,10 +15573,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>시간 설정과 시간 제거가 선택한 레이어만이 아니라 모든 최상위 레이어를 바꿉니다.</translation>
     </message>
     <message>
-        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
-        <translation>애니메이션 GIF, WebP, PNG 내보내기와 같이 최상위 레이어가 위에서부터 프레임이 됩니다. 레이어 이름 끝에 &quot;blink 0.25s&quot;처럼 시간을 붙이면 해당 프레임의 표시 시간이 됩니다.</translation>
-    </message>
-    <message>
         <source>No layers</source>
         <translation>레이어가 없습니다.</translation>
     </message>
@@ -15599,6 +15595,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Frame delay:</source>
         <translation>프레임 지연:</translation>
+    </message>
+    <message>
+        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation>애니메이션 GIF, WebP, PNG 내보내기와 같이 최상위 레이어가 위에서부터 프레임이 됩니다. 이름이 &quot;all&quot;인 레이어는 프레임이 되지 않고 모든 프레임에 그려지며, 이름이 &quot;all&quot;인 그룹 안의 각 레이어는 각각 하나의 프레임이 됩니다. 레이어 이름 끝에 &quot;blink 0.25s&quot;처럼 시간을 붙이면 해당 프레임의 표시 시간이 됩니다.</translation>
     </message>
 </context>
 <context>

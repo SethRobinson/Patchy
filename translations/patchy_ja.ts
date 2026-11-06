@@ -1107,10 +1107,6 @@ RGB: %2, %3, %4</translation>
         <translation> 秒</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
-        <translation>表示されているトップレベルの各レイヤーが 1 フレームになり、いちばん上のレイヤーが最初のフレームです。非表示のレイヤーは使われません。レイヤー名が「blink 0.25s」のように時間で終わる場合、そのフレームでは既定のフレーム間隔の代わりにその時間が使われます。アニメーションは無限にループします。</translation>
-    </message>
-    <message>
         <source>Animated GIF: imported %1 frames as layers</source>
         <translation>アニメーション GIF: %1 フレームをレイヤーとして読み込みました</translation>
     </message>
@@ -9057,10 +9053,6 @@ Mixed selection</source>
         <translation>再生回数:</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
-        <translation>表示されている最上位レイヤーを、上から順に1フレームずつ書き出します。「blink 0.033s」のように名前の末尾に時間を指定すると、そのフレームの表示時間になります。再生回数には初回の再生も含まれます。</translation>
-    </message>
-    <message>
         <source>Animated WebP: imported %1 frames as layers</source>
         <translation>アニメーションWebP: %1フレームをレイヤーとして読み込みました</translation>
     </message>
@@ -12893,10 +12885,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>WebP 設定</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
-        <translation>表示中の最上位レイヤーがそれぞれ 1 フレームになり、一番上のレイヤーが最初です。</translation>
-    </message>
-    <message>
         <source>PNG settings</source>
         <translation>PNG 設定</translation>
     </message>
@@ -14940,6 +14928,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>The scanner sent an incomplete image</source>
         <translation>スキャナーから送られた画像が不完全です</translation>
     </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
+        <translation>表示されているトップレベルの各レイヤーが 1 フレームになり、いちばん上のレイヤーが最初のフレームです。非表示のレイヤーは使われません。「all」という名前のレイヤーはフレームにならず、すべてのフレームに描画されます。「all」という名前のグループ内の各レイヤーは、それぞれ 1 フレームになります。レイヤー名が「blink 0.25s」のように時間で終わる場合、そのフレームでは既定のフレーム間隔の代わりにその時間が使われます。アニメーションは無限にループします。</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
+        <translation>表示されている最上位レイヤーを、上から順に1フレームずつ書き出します。「all」という名前のレイヤーはフレームにならず、すべてのフレームに描画されます。「all」という名前のグループ内の各レイヤーは、それぞれ 1 フレームになります。「blink 0.033s」のように名前の末尾に時間を指定すると、そのフレームの表示時間になります。再生回数には初回の再生も含まれます。</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
+        <translation>表示中の最上位レイヤーがそれぞれ 1 フレームになり、一番上のレイヤーが最初です。「all」という名前のレイヤーはフレームにならず、すべてのフレームに描画されます。「all」という名前のグループ内の各レイヤーは、それぞれ 1 フレームになります。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15573,10 +15573,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>「時間を設定」と「時間を削除」を、選択したレイヤーだけでなくすべての最上位レイヤーに適用します。</translation>
     </message>
     <message>
-        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
-        <translation>アニメーション GIF、WebP、PNG の書き出しと同じく、最上位レイヤーが上から順にフレームになります。「blink 0.25s」のようにレイヤー名の末尾に時間を指定すると、そのフレームの表示時間になります。</translation>
-    </message>
-    <message>
         <source>No layers</source>
         <translation>レイヤーがありません</translation>
     </message>
@@ -15599,6 +15595,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Frame delay:</source>
         <translation>フレーム表示時間:</translation>
+    </message>
+    <message>
+        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation>アニメーション GIF、WebP、PNG の書き出しと同じく、最上位レイヤーが上から順にフレームになります。「all」という名前のレイヤーはフレームにならず、すべてのフレームに描画されます。「all」という名前のグループ内の各レイヤーは、それぞれ 1 フレームになります。「blink 0.25s」のようにレイヤー名の末尾に時間を指定すると、そのフレームの表示時間になります。</translation>
     </message>
 </context>
 <context>

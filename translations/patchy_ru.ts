@@ -5363,10 +5363,6 @@
         <translation> с</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
-        <translation>Каждый видимый слой верхнего уровня становится кадром, начиная с верхнего. Скрытые слои пропускаются. Время в конце имени слоя, например «blink 0.25s», заменяет стандартную задержку этого кадра. Анимация повторяется бесконечно.</translation>
-    </message>
-    <message>
         <source>%1: %2</source>
         <translation>%1: %2</translation>
     </message>
@@ -9111,10 +9107,6 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Play count:</source>
         <translation>Число воспроизведений:</translation>
-    </message>
-    <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
-        <translation>Каждый видимый слой верхнего уровня становится кадром, начиная с самого верхнего. Время в конце имени, например &quot;blink 0.033s&quot;, задаёт длительность кадра. Число воспроизведений включает первое.</translation>
     </message>
     <message>
         <source>Animated WebP: imported %1 frames as layers</source>
@@ -12965,10 +12957,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Параметры WebP</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
-        <translation>Каждый видимый слой верхнего уровня становится одним кадром, верхний слой первый.</translation>
-    </message>
-    <message>
         <source>PNG settings</source>
         <translation>Параметры PNG</translation>
     </message>
@@ -15034,6 +15022,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>The scanner sent an incomplete image</source>
         <translation>Сканер передал неполное изображение</translation>
     </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
+        <translation>Каждый видимый слой верхнего уровня становится кадром, начиная с верхнего. Скрытые слои пропускаются. Слой с именем &quot;all&quot; не становится кадром, а рисуется в каждом кадре; каждый слой внутри группы с именем &quot;all&quot; становится отдельным кадром. Время в конце имени слоя, например «blink 0.25s», заменяет стандартную задержку этого кадра. Анимация повторяется бесконечно.</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
+        <translation>Каждый видимый слой верхнего уровня становится кадром, начиная с самого верхнего. Слой с именем &quot;all&quot; не становится кадром, а рисуется в каждом кадре; каждый слой внутри группы с именем &quot;all&quot; становится отдельным кадром. Время в конце имени, например &quot;blink 0.033s&quot;, задаёт длительность кадра. Число воспроизведений включает первое.</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
+        <translation>Каждый видимый слой верхнего уровня становится одним кадром, верхний слой первый. Слой с именем &quot;all&quot; не становится кадром, а рисуется в каждом кадре; каждый слой внутри группы с именем &quot;all&quot; становится отдельным кадром.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15667,10 +15667,6 @@ Each item&apos;s own View setting still applies.</source>
         <translation>«Установить время» и «Удалить время» меняют все слои верхнего уровня, а не только выбранные.</translation>
     </message>
     <message>
-        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
-        <translation>Кадры это слои верхнего уровня, сверху вниз, как их записывает экспорт анимированных GIF, WebP и PNG. Время в конце имени слоя, например &quot;blink 0.25s&quot;, задаёт длительность кадра.</translation>
-    </message>
-    <message>
         <source>No layers</source>
         <translation>Нет слоёв</translation>
     </message>
@@ -15693,6 +15689,10 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Frame delay:</source>
         <translation>Длительность кадра:</translation>
+    </message>
+    <message>
+        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation>Кадры это слои верхнего уровня, сверху вниз, как их записывает экспорт анимированных GIF, WebP и PNG. Слой с именем &quot;all&quot; не становится кадром, а рисуется в каждом кадре; каждый слой внутри группы с именем &quot;all&quot; становится отдельным кадром. Время в конце имени слоя, например &quot;blink 0.25s&quot;, задаёт длительность кадра.</translation>
     </message>
 </context>
 <context>

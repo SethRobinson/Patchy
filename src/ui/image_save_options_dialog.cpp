@@ -705,6 +705,10 @@ std::optional<ExportSectionWidgets> finish_options_dialog(QVBoxLayout* content, 
   }
   if (for_export) {
     finish_export_dialog_size(dialog);
+  } else if (auto* layout = dialog.layout(); layout != nullptr && layout->hasHeightForWidth()) {
+    // The branch resize() heights predate longer wrapped notes (the animation explanation's
+    // "all" sentence, a translation): grow to what the wrapped labels need at this width.
+    dialog.resize(dialog.width(), std::max(dialog.height(), layout->totalHeightForWidth(dialog.width())));
   }
   return section;
 }
@@ -754,8 +758,10 @@ AnimationTimingControls create_animation_timing_controls(QWidget* parent, Animat
   if (kind == AnimationTimingKind::Gif) {
     controls.explanation = new QLabel(
         QObject::tr("Each visible top-level layer becomes one frame, with the top layer first. Hidden layers "
-                    "are skipped. A layer name ending in a time, like \"blink 0.25s\", overrides the default "
-                    "delay for that frame. The animation loops forever."),
+                    "are skipped. A layer named \"all\" is drawn in every frame instead of being one, and "
+                    "each layer inside a group named \"all\" is its own frame. A layer name ending in a "
+                    "time, like \"blink 0.25s\", overrides the default delay for that frame. The animation "
+                    "loops forever."),
         parent);
   } else {
     controls.forever_check = new QCheckBox(QObject::tr("Forever"), controls.controls);
@@ -770,7 +776,9 @@ AnimationTimingControls create_animation_timing_controls(QWidget* parent, Animat
     QObject::connect(controls.forever_check, &QCheckBox::toggled, plays, [plays](bool checked) { plays->setEnabled(!checked); });
     set_animation_timing_loop_count(controls, loop_count);
     controls.explanation = new QLabel(QObject::tr("Each visible top-level layer becomes one frame, with the top layer first. "
-        "A name ending in a time, like \"blink 0.033s\", sets that frame's delay. Play count includes the first play."),
+        "A layer named \"all\" is drawn in every frame instead of being one, and each layer inside a group "
+        "named \"all\" is its own frame. A name ending in a time, like \"blink 0.033s\", sets that frame's "
+        "delay. Play count includes the first play."),
         parent);
   }
   controls.explanation->setObjectName(object_prefix + QStringLiteral("AnimationExplanationLabel"));

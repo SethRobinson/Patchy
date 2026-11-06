@@ -75,7 +75,8 @@ The dialog opens at its minimum size the first time, then at the size it last cl
   shared helper `create_animation_timing_controls` (image_save_options_dialog): "Default frame
   delay:" (GIF in centiseconds, 2 decimals; the others 3 decimals up to `kMaxFrameDelayMs`; a layer
   name's `0.25s` token wins), Forever / Play count for WebP, JPEG XL and APNG (GIF loops forever,
-  its explanation says so) and the dialogs' explanation. The delay is one value
+  its explanation says so) and the dialogs' explanation (which names the "all" layer rules, as the
+  check's tooltip does; [animation.md](animation.md#frames-and-layers-named-all)). The delay is one value
   (`animation_frame_delay_ms`): editing it in one format's row updates the others. Play counts
   (`webp_loop_count`, `jxl_loop_count`, `apng_loop_count`) start from the document's metadata
   (`webp.loop_count`, `jxl.loop_count`, `apng.loop_count`) and are written back after an animated

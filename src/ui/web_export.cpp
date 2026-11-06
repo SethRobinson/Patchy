@@ -2044,7 +2044,9 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
                                       const char* timing_prefix, int loop_count) {
     auto* animate = new QCheckBox(QObject::tr("Animation from visible layers"), animation_group);
     animate->setObjectName(QLatin1String(check_name));
-    animate->setToolTip(QObject::tr("Each visible top-level layer becomes one frame, with the top layer first."));
+    animate->setToolTip(QObject::tr("Each visible top-level layer becomes one frame, with the top layer first. "
+                                    "A layer named \"all\" is drawn in every frame instead of being one, and "
+                                    "each layer inside a group named \"all\" is its own frame."));
     animation_layout->addWidget(animate);
     auto timing = create_animation_timing_controls(animation_group, kind, QLatin1String(timing_prefix),
                                                    settings.animation_frame_delay_ms, loop_count);

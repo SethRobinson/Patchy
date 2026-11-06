@@ -338,7 +338,9 @@ AnimationPreviewWindow::AnimationPreviewWindow(
 
   auto* hint = new QLabel(
       tr("Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export "
-         "writes them. A layer name ending in a time, like \"blink 0.25s\", sets that frame's delay."),
+         "writes them. A layer named \"all\" is drawn in every frame instead of being one, and each "
+         "layer inside a group named \"all\" is its own frame. A layer name ending in a time, like "
+         "\"blink 0.25s\", sets that frame's delay."),
       this);
   hint->setObjectName(QStringLiteral("animationPreviewHintLabel"));
   hint->setWordWrap(true);

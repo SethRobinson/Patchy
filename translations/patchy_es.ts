@@ -5175,10 +5175,6 @@
         <translation> s</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
-        <translation>Cada capa visible de nivel superior se convierte en un fotograma, empezando por la capa superior. Las capas ocultas se omiten. Un nombre de capa que termine en un tiempo, como &quot;blink 0.25s&quot;, sustituye el retardo predeterminado de ese fotograma. La animación se repite indefinidamente.</translation>
-    </message>
-    <message>
         <source>%1: %2</source>
         <translation>%1: %2</translation>
     </message>
@@ -9085,10 +9081,6 @@ RGB: %2, %3, %4</translation>
         <translation>Número de reproducciones:</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
-        <translation>Cada capa visible de nivel superior se convierte en un fotograma, empezando por la capa superior. Un tiempo al final del nombre, como &quot;blink 0.033s&quot;, establece la duración del fotograma. El número incluye la primera reproducción.</translation>
-    </message>
-    <message>
         <source>Animated WebP: imported %1 frames as layers</source>
         <translation>WebP animado: %1 fotogramas importados como capas</translation>
     </message>
@@ -12929,10 +12921,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Ajustes de WebP</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first.</source>
-        <translation>Cada capa visible de nivel superior se convierte en un fotograma, empezando por la capa superior.</translation>
-    </message>
-    <message>
         <source>PNG settings</source>
         <translation>Ajustes de PNG</translation>
     </message>
@@ -14987,6 +14975,18 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>The scanner sent an incomplete image</source>
         <translation>El escáner envió una imagen incompleta</translation>
     </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
+        <translation>Cada capa visible de nivel superior se convierte en un fotograma, empezando por la capa superior. Las capas ocultas se omiten. Una capa llamada &quot;all&quot; se dibuja en todos los fotogramas en lugar de ser uno, y cada capa dentro de un grupo llamado &quot;all&quot; es su propio fotograma. Un nombre de capa que termine en un tiempo, como &quot;blink 0.25s&quot;, sustituye el retardo predeterminado de ese fotograma. La animación se repite indefinidamente.</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
+        <translation>Cada capa visible de nivel superior se convierte en un fotograma, empezando por la capa superior. Una capa llamada &quot;all&quot; se dibuja en todos los fotogramas en lugar de ser uno, y cada capa dentro de un grupo llamado &quot;all&quot; es su propio fotograma. Un tiempo al final del nombre, como &quot;blink 0.033s&quot;, establece la duración del fotograma. El número incluye la primera reproducción.</translation>
+    </message>
+    <message>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
+        <translation>Cada capa visible de nivel superior se convierte en un fotograma, empezando por la capa superior. Una capa llamada &quot;all&quot; se dibuja en todos los fotogramas en lugar de ser uno, y cada capa dentro de un grupo llamado &quot;all&quot; es su propio fotograma.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -15620,10 +15620,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Definir tiempo y Quitar tiempo cambian todas las capas de nivel superior en lugar de solo las seleccionadas.</translation>
     </message>
     <message>
-        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
-        <translation>Los fotogramas son las capas de nivel superior, primero la de arriba, tal como las escribe la exportación de GIF, WebP y PNG animados. Un tiempo al final del nombre de capa, como &quot;blink 0.25s&quot;, establece la duración del fotograma.</translation>
-    </message>
-    <message>
         <source>No layers</source>
         <translation>No hay capas</translation>
     </message>
@@ -15646,6 +15642,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
     <message>
         <source>Frame delay:</source>
         <translation>Duración de fotograma:</translation>
+    </message>
+    <message>
+        <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation>Los fotogramas son las capas de nivel superior, primero la de arriba, tal como las escribe la exportación de GIF, WebP y PNG animados. Una capa llamada &quot;all&quot; se dibuja en todos los fotogramas en lugar de ser uno, y cada capa dentro de un grupo llamado &quot;all&quot; es su propio fotograma. Un tiempo al final del nombre de capa, como &quot;blink 0.25s&quot;, establece la duración del fotograma.</translation>
     </message>
 </context>
 <context>

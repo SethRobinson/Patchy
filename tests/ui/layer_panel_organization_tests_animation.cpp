@@ -21,6 +21,8 @@
 #include "ui/app_settings.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/image_save_options.hpp"
+#include "ui/image_save_options_dialog.hpp"
+#include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "test_harness.hpp"
 #include "ui_test_access.hpp"
@@ -40,6 +42,7 @@
 #include <QPointer>
 #include <QPushButton>
 #include <QTest>
+#include <QTimer>
 #include <QToolButton>
 #include <cstdlib>
 #include <cstdio>
@@ -277,6 +280,118 @@ void ui_animation_preview_plays_all_layers() {
   CHECK(!panel->playing());
   CHECK(visibility() == start);
   CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+}
+
+// Whether `text` carries the "all" note in any shipped language (the keyword stays "all").
+bool mentions_all_layers(const QString& text) {
+  return text.contains(QStringLiteral("\"all\"")) || text.contains(QStringLiteral("「all」"));
+}
+
+// Opens one animation options dialog (parented to `window`, so it carries the app theme),
+// checks its explanation names the "all" rules and no label clips, captures it when
+// `capture` is set, and cancels.
+void check_animation_options_dialog(patchy::ui::MainWindow& window, const QString& object_name,
+                                    const QString& label_name, const std::string& capture,
+                                    const std::function<bool(QWidget*)>& open) {
+  bool saw_dialog = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = find_top_level_dialog(object_name);
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) return;
+    auto* label = dialog->findChild<QLabel*>(label_name);
+    CHECK(label != nullptr);
+    if (label != nullptr) {
+      CHECK(mentions_all_layers(label->text()));
+      CHECK(label->wordWrap());
+    }
+    const auto clipped = clipped_labels(*dialog);
+    for (const auto& entry : clipped) {
+      std::fprintf(stderr, "clipped label in %s: %s\n", object_name.toStdString().c_str(), entry.toStdString().c_str());
+    }
+    CHECK(clipped.isEmpty());
+    if (!capture.empty()) {
+      save_widget_artifact(capture, *dialog);
+    }
+    saw_dialog = true;
+    dialog->reject();
+  }));
+  CHECK(!open(&window));
+  CHECK(saw_dialog);
+}
+
+void ui_animation_texts_explain_all_layers_in_every_language() {
+  AnimationPreviewSettingsReset preview_settings;
+  auto& localization = patchy::ui::LocalizationManager::instance();
+  const auto original_language = localization.current_language();
+  const QSize document_size(16, 12);
+  for (const auto* code : {"en", "de", "es", "fr", "it", "ja", "ko", "pl", "pt_BR", "ru", "zh_CN", "zh_TW"}) {
+    const auto language = QString::fromLatin1(code);
+    CHECK(localization.set_language(language, false));
+    const bool capture = language == QStringLiteral("en") || language == QStringLiteral("de");
+    const auto shot = [&](const char* name) { return capture ? std::string(name) + "_" + code : std::string(); };
+
+    patchy::ui::MainWindow window;
+    window.add_document_session(animation_test_document(), QStringLiteral("Animation"));
+    show_window(window);
+
+    // The Animation Preview's note under the groups.
+    auto* panel = open_animation_preview(window);
+    CHECK(panel != nullptr);
+    if (panel != nullptr) {
+      auto* hint = panel->findChild<QLabel*>(QStringLiteral("animationPreviewHintLabel"));
+      CHECK(hint != nullptr);
+      if (hint != nullptr) CHECK(mentions_all_layers(hint->text()));
+      CHECK(clipped_labels(*panel).isEmpty());
+      if (capture) save_widget_artifact("animation_preview_all_note_" + std::string(code), *panel);
+      panel->close();
+      QApplication::processEvents();
+    }
+
+    patchy::ui::ImageSaveOptions defaults;
+    // Save As .gif on a layered document, then File > Export > Layers as Animated GIF.
+    check_animation_options_dialog(window, QStringLiteral("gifSaveOptionsDialog"),
+                                   QStringLiteral("gifAnimationExplanationLabel"), shot("gif_save_options_all_note"),
+                                   [&](QWidget* parent) {
+                                     return patchy::ui::prompt_gif_save_options(parent, defaults, true, false, true,
+                                                                                document_size)
+                                         .has_value();
+                                   });
+    check_animation_options_dialog(window, QStringLiteral("gifSaveOptionsDialog"),
+                                   QStringLiteral("gifAnimationExplanationLabel"), shot("gif_export_options_all_note"),
+                                   [&](QWidget* parent) {
+                                     return patchy::ui::prompt_gif_save_options(parent, defaults, false, true, true,
+                                                                                document_size)
+                                         .has_value();
+                                   });
+    // Save As .webp / .jxl offering the animation, and Layers as Animated PNG.
+    auto offered = defaults;
+    offered.offer_animation = true;
+    offered.has_visible_frames = true;
+    check_animation_options_dialog(window, QStringLiteral("webpSaveOptionsDialog"),
+                                   QStringLiteral("webpAnimationExplanationLabel"), std::string(),
+                                   [&](QWidget* parent) {
+                                     return patchy::ui::prompt_image_save_options(parent, QStringLiteral("webp"),
+                                                                                  offered, false, document_size)
+                                         .has_value();
+                                   });
+    check_animation_options_dialog(window, QStringLiteral("jxlSaveOptionsDialog"),
+                                   QStringLiteral("jxlAnimationExplanationLabel"), std::string(),
+                                   [&](QWidget* parent) {
+                                     return patchy::ui::prompt_image_save_options(parent, QStringLiteral("jxl"),
+                                                                                  offered, false, document_size)
+                                         .has_value();
+                                   });
+    auto apng = defaults;
+    apng.apng_animate = true;
+    check_animation_options_dialog(window, QStringLiteral("apngSaveOptionsDialog"),
+                                   QStringLiteral("apngAnimationExplanationLabel"), std::string(),
+                                   [&](QWidget* parent) {
+                                     return patchy::ui::prompt_image_save_options(parent, QStringLiteral("png"), apng,
+                                                                                  true, document_size)
+                                         .has_value();
+                                   });
+  }
+  CHECK(localization.set_language(original_language.isEmpty() ? QStringLiteral("en") : original_language, false));
 }
 
 void ui_animation_preview_plays_visible_layers_and_restores() {
@@ -889,5 +1004,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests_animation_par
       {"ui_animated_export_all_layers_trim_includes_shared_layers",
        ui_animated_export_all_layers_trim_includes_shared_layers},
       {"ui_animation_preview_plays_all_layers", ui_animation_preview_plays_all_layers},
+      {"ui_animation_texts_explain_all_layers_in_every_language",
+       ui_animation_texts_explain_all_layers_in_every_language},
   };
 }
