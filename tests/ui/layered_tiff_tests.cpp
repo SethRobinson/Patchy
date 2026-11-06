@@ -188,6 +188,80 @@ void ui_multi_page_tiff_opens_pages_as_layers() {
   window.grab().save(QDir(artifact_dir()).absoluteFilePath(QStringLiteral("pages-as-layers.png")));
 }
 
+// The text of the Import Notes box an interactive open shows, or nullopt when none shows.
+// Polls on a repeating timer: the box comes up a few event-loop turns after the open.
+std::optional<QString> open_capturing_import_notes(patchy::ui::MainWindow& window, const QString& path,
+                                                   const QString& tiff_button) {
+  std::optional<QString> shown;
+  QTimer poller;
+  QObject::connect(&poller, &QTimer::timeout, [&shown] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* box = qobject_cast<QMessageBox*>(widget);
+      if (box != nullptr && box->objectName() == QStringLiteral("importNoticesMessageBox") && box->isVisible()) {
+        shown = box->text();
+        box->accept();
+        return;
+      }
+    }
+  });
+  poller.start(5);
+  int asked = 0;
+  {
+    TiffPagesAnswer answer(tiff_button, &asked);
+    MainWindowTestAccess::open_document_path(window, path);
+    for (int turn = 0; turn < 20; ++turn) {
+      QApplication::processEvents();
+    }
+  }
+  CHECK(asked == 1);
+  poller.stop();
+  return shown;
+}
+
+// #625 follow-up (philipzae): with the Import Notes box turned on (imports/showPsdWarningsAndInfo),
+// the note that only repeats the page choice just made goes to the status bar alone; pages
+// that could not be read still bring up the box, without the page-choice note in it.
+void ui_multi_page_tiff_page_choice_stays_out_of_import_notes() {
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  SettingsValueRestorer target_setting(QStringLiteral("imports/tiffPagesTarget"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), true);
+  DeepEditingOn deep;
+  namespace flat = patchy::test::flat_tiff;
+  flat::Spec page;
+  page.width = 8;
+  page.height = 6;
+  page.value = [](std::uint32_t, std::uint32_t, std::uint32_t sample) { return sample == 0U ? 200.0 : 10.0; };
+  const auto clean =
+      write_file(QStringLiteral("clean-pages.tif"), flat::write_tiff(std::vector<flat::Spec>{page, page, page}));
+  struct Case {
+    const char* button;
+    const char* note;
+  };
+  for (const auto& entry : {Case{"tiffPagesLayersButton", "opened 3 pages as layers"},
+                            Case{"tiffPagesDocumentsButton", "opened 3 pages as separate documents"},
+                            Case{"tiffPagesFirstButton", "holds 3 pages"}}) {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    const auto shown = open_capturing_import_notes(window, clean, QString::fromLatin1(entry.button));
+    if (shown.has_value()) {
+      patchy::test::report_failure(std::string(entry.button) + ": Import Notes box showed: " + shown->toStdString());
+    }
+    CHECK(MainWindowTestAccess::active_session_import_notes(window).join(QLatin1Char('\n')).contains(
+        QString::fromLatin1(entry.note)));
+    CHECK(window.statusBar()->currentMessage().contains(QString::fromLatin1(entry.note)));
+  }
+  const auto mixed = write_mixed_pages_tiff(QStringLiteral("mixed-pages-notes.tif"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto shown = open_capturing_import_notes(window, mixed, QStringLiteral("tiffPagesLayersButton"));
+  CHECK(shown.has_value());
+  if (shown.has_value()) {
+    CHECK(shown->contains(QStringLiteral("left out: 4")));
+    CHECK(!shown->contains(QStringLiteral("pages as layers")));
+  }
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("opened 4 pages as layers")));
+}
+
 // Separate Documents opens one tab per readable page ("file - Page N"), page 1 active;
 // Cancel opens nothing; a script's app.open gets page 1 without being asked.
 void ui_multi_page_tiff_separate_documents_cancel_and_scripts() {
@@ -598,6 +672,8 @@ std::vector<patchy::test::TestCase> layered_tiff_ui_tests() {
        ui_layered_tiff_with_damaged_layers_opens_the_composite},
       {"ui_multi_page_tiff_opens_its_first_page_with_a_note", ui_multi_page_tiff_opens_its_first_page_with_a_note},
       {"ui_multi_page_tiff_opens_pages_as_layers", ui_multi_page_tiff_opens_pages_as_layers},
+      {"ui_multi_page_tiff_page_choice_stays_out_of_import_notes",
+       ui_multi_page_tiff_page_choice_stays_out_of_import_notes},
       {"ui_multi_page_tiff_separate_documents_cancel_and_scripts",
        ui_multi_page_tiff_separate_documents_cancel_and_scripts},
       {"ui_multi_page_tiff_samples_open_as_layers_if_available",
