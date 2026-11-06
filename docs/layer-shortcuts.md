@@ -52,7 +52,8 @@ dialogs, float windows and open menus keep their digits. The tools are listed in
 (canvas_widget_events.cpp): Move, Artboard, the marquees, lassos, Magic Wand, Quick Select, Object
 Selection, Pick, Ruler, Type (while not editing), Hand, Zoom, the Pen and path tools, Polygon,
 Custom Shape, Patch, Content-Aware Move and Red Eye. Tools in `tool_supports_opacity_digit_keys` keep the digits for
-their own Opacity or Flow ([brushes.md](brushes.md)). Fill, Dodge, Burn, Sponge, Blur, Sharpen,
+their own Opacity or Flow ([brushes.md](brushes.md)); on the Brush and Pattern Stamp bare digits set
+Opacity and Shift+digits Flow, Airbrush on or off (no Photoshop-style swap). Fill, Dodge, Burn, Sponge, Blur, Sharpen,
 Mixer Brush and Spot Healing ignore them (their own amounts may take the keys later), and so do
 the crop tools. No tool takes them during a pointer drag (`pointer_gesture_active`) or a Free
 Transform, Warp or path transform, whose commit owns the next history entry.
