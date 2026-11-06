@@ -3184,8 +3184,9 @@ public:
 protected:
   void paintEvent(QPaintEvent* /*event*/) override {
     QPainter painter(this);
-    painter.fillRect(rect(), theme().panel_bg);
-    painter.setPen(QPen(theme().panel_border_strong, 1));
+    // The menu colors, so the hint stands off the list rows it overlaps.
+    painter.fillRect(rect(), theme().menu_bg);
+    painter.setPen(QPen(theme().menu_border, 1));
     painter.drawRect(rect().adjusted(0, 0, -1, -1));
     painter.setPen(theme().text_primary);
     painter.drawText(rect(), Qt::AlignCenter, text_);
