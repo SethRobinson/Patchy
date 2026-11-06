@@ -14940,6 +14940,66 @@ Do you want to replace it?</source>
         <translation>移動ツールの変形コントロール</translation>
     </message>
     <message>
+        <source>Other: %1</source>
+        <translation>その他: %1</translation>
+    </message>
+    <message>
+        <source>IPTC Data Mining: whether the image may be used for data mining such as AI training. It is a declaration; nothing enforces it.</source>
+        <translation>IPTC データマイニング: 画像を AI の学習などのデータマイニングに使ってよいかどうか。宣言であり、強制するものはありません。</translation>
+    </message>
+    <message>
+        <source>Data Mining:</source>
+        <translation>データマイニング:</translation>
+    </message>
+    <message>
+        <source>Other Constraints:</source>
+        <translation>その他の制約:</translation>
+    </message>
+    <message>
+        <source>Further limits on use, in your own words</source>
+        <translation>その他の使用制限 (自由記述)</translation>
+    </message>
+    <message>
+        <source>Unspecified</source>
+        <translation>指定なし</translation>
+    </message>
+    <message>
+        <source>Allowed</source>
+        <translation>許可</translation>
+    </message>
+    <message>
+        <source>Prohibited for AI/ML training</source>
+        <translation>AI/ML の学習には使用禁止</translation>
+    </message>
+    <message>
+        <source>Prohibited for generative AI/ML training</source>
+        <translation>生成 AI/ML の学習には使用禁止</translation>
+    </message>
+    <message>
+        <source>Prohibited except for search engine indexing</source>
+        <translation>検索エンジンのインデックス作成を除き禁止</translation>
+    </message>
+    <message>
+        <source>Prohibited</source>
+        <translation>禁止</translation>
+    </message>
+    <message>
+        <source>Prohibited, see Other Constraints</source>
+        <translation>禁止 (その他の制約を参照)</translation>
+    </message>
+    <message>
+        <source>Prohibited, see the embedded rights expression</source>
+        <translation>禁止 (埋め込まれた権利表現を参照)</translation>
+    </message>
+    <message>
+        <source>Prohibited, see the linked rights expression</source>
+        <translation>禁止 (リンクされた権利表現を参照)</translation>
+    </message>
+    <message>
+        <source>Not set</source>
+        <translation>未設定</translation>
+    </message>
+    <message>
         <source>Linked layer. Click to select the layers linked to it.</source>
         <translation>リンクされたレイヤー。クリックで、リンクしているレイヤーを選択します。</translation>
     </message>
@@ -30587,10 +30647,6 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>ファイルに追加する前に確認する</translation>
     </message>
     <message>
-        <source>Your name, copyright and contact go into PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF files that do not name you yet, beside any author already there. Metadata a file already carries is kept; File &gt; File Info &gt; Strip All Metadata removes it. Exports follow the Metadata choice in the Export dialog.</source>
-        <translation>まだあなたの名前がない PSD、JPEG、PNG、TIFF、WebP、GIF、JPEG XL、AVIF ファイルに、既存の作者と並べて名前、著作権、連絡先が入ります。ファイルにすでにあるメタデータは残ります。ファイル &gt; ファイル情報 &gt; すべてのメタデータを削除 で消せます。書き出しは書き出しダイアログのメタデータの選択に従います。</translation>
-    </message>
-    <message>
         <source>Use “%1”</source>
         <translation>「%1」を使う</translation>
     </message>
@@ -33279,6 +33335,22 @@ Locked: %1</source>
     <message>
         <source>Reverse layers</source>
         <translation>レイヤーを逆順にする</translation>
+    </message>
+    <message>
+        <source>Data mining:</source>
+        <translation>データマイニング:</translation>
+    </message>
+    <message>
+        <source>Your name, copyright and contact go into PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF files that do not name you yet, beside any author already there. The data mining choice (IPTC, for example prohibiting AI training) goes into files that have none; it is a declaration that nothing enforces. Metadata a file already carries is kept; File &gt; File Info &gt; Strip All Metadata removes it. Exports follow the Metadata choice in the Export dialog.</source>
+        <translation>名前、著作権、連絡先は、まだあなたの名前がない PSD、JPEG、PNG、TIFF、WebP、GIF、JPEG XL、AVIF ファイルに、既存の作成者と並べて追加されます。データマイニングの設定 (IPTC。たとえば AI の学習の禁止) は、設定のないファイルに追加されます。これは宣言であり、強制するものはありません。ファイルにすでにあるメタデータは保持されます。ファイル &gt; ファイル情報 &gt; すべてのメタデータを削除 で削除できます。書き出しは書き出しダイアログのメタデータの選択に従います。</translation>
+    </message>
+    <message>
+        <source>Add your data mining choice to this file?</source>
+        <translation>データマイニングの設定をこのファイルに追加しますか?</translation>
+    </message>
+    <message>
+        <source>Data mining: %1</source>
+        <translation>データマイニング: %1</translation>
     </message>
     <message>
         <source>&amp;Link Layers</source>
@@ -36287,6 +36359,14 @@ Locked: %1</source>
     <message>
         <source>No document is open to rotate the view of.</source>
         <translation>ビューを回転するドキュメントが開かれていません。</translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences: dataMining must be &quot;&quot; or a PLUS Data Mining URI.</source>
+        <translation>setSaveMetadataPreferences: dataMining は &quot;&quot; または PLUS Data Mining の URI である必要があります。</translation>
+    </message>
+    <message>
+        <source>&quot;&quot; or a PLUS Data Mining URI such as &quot;http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-AIMLTRAINING&quot;</source>
+        <translation>&quot;&quot; または &quot;http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-AIMLTRAINING&quot; のような PLUS Data Mining の URI</translation>
     </message>
     <message>
         <source>linkGroup must be 0 or a positive whole number</source>

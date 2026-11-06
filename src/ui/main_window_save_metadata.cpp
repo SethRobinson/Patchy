@@ -1,5 +1,5 @@
 // Preferences > Metadata and Watermarks, "Saved metadata" (docs/file-info-save-stamp.md, "Saved
-// metadata preference"): the user's name, copyright and contact added on save.
+// metadata preference"): the user's name, copyright, contact and data mining choice added on save.
 
 #include "ui/main_window.hpp"
 
@@ -20,8 +20,12 @@ bool MainWindow::add_personal_metadata_for_save(const QString& extension, bool q
   }
   auto personal = stored_personal_save_metadata();
   auto& target = session();
-  if (personal.name.isEmpty() || target.personal_save_metadata_skipped ||
-      file_info_names_creator(std::as_const(target.document).file_info(), personal.name)) {
+  const auto& info = std::as_const(target.document).file_info();
+  // The name goes into files that do not name the user yet; the data mining choice into
+  // files that have none (#658). Either one is reason enough to add (and to ask).
+  const bool add_name = !personal.name.isEmpty() && !file_info_names_creator(info, personal.name);
+  const bool add_data_mining = personal_data_mining_missing(info, personal);
+  if (target.personal_save_metadata_skipped || (!add_name && !add_data_mining)) {
     return false;
   }
   if (personal.ask) {
@@ -33,13 +37,19 @@ bool MainWindow::add_personal_metadata_for_save(const QString& extension, bool q
     box.setObjectName(QStringLiteral("savePersonalMetadataPrompt"));
     box.setIcon(QMessageBox::Question);
     box.setWindowTitle(tr("Add Your Name and Copyright"));
-    box.setText(tr("Add your name and copyright to this file?"));
+    box.setText(add_name ? tr("Add your name and copyright to this file?")
+                         : tr("Add your data mining choice to this file?"));
     QStringList details;
-    details << tr("Name: %1").arg(personal.name);
-    if (!personal.copyright.isEmpty()) {
-      details << tr("Copyright: %1").arg(personal.copyright);
+    if (add_name) {
+      details << tr("Name: %1").arg(personal.name);
+      if (!personal.copyright.isEmpty()) {
+        details << tr("Copyright: %1").arg(personal.copyright);
+      }
     }
-    if (!creators.isEmpty()) {
+    if (add_data_mining) {
+      details << tr("Data mining: %1").arg(data_mining_label(personal.data_mining));
+    }
+    if (add_name && !creators.isEmpty()) {
       details << tr("The file already names %1. Your name is added beside it; nothing is replaced.")
                      .arg(creators.join(QStringLiteral(", ")));
     }

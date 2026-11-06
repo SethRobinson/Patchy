@@ -10,6 +10,8 @@ those of 2026-10-01 to 2026-10-19 in
 [scripting-api-changes-2026-10-01-to-19.md](scripting-api-changes-2026-10-01-to-19.md), and
 those of 2026-10-20 to 2026-10-28 in
 [scripting-api-changes-2026-10-20-to-28.md](scripting-api-changes-2026-10-20-to-28.md).
+those of 2026-10-20 to 2026-10-29 in
+[scripting-api-changes-2026-10-20-to-29.md](scripting-api-changes-2026-10-20-to-29.md).
 
 Rollover: once this file passes 27,000 bytes, move its oldest entries, unchanged and in order,
 out of it until about 12,000 bytes remain, so the next rollover is weeks away. They go into the
@@ -25,6 +27,14 @@ Every entry below is API 1.
 Link Layers, #656): layers sharing a nonzero number are linked; 0 is unlinked, and a layer whose
 partners are gone reads 0. `patchy.ui.toolPalette`'s layer button ids take `"link"`, the Layers
 footer's Link Layers button, hidden by default.
+2026-11-06 (additive): IPTC Data Mining (#658). `doc.fileInfo` and `doc.setFileInfo` gain `dataMining`
+(plus:DataMining: `""` for not set, else a PLUS vocabulary URI such as
+`"http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-AIMLTRAINING"`; setFileInfo also accepts the value the
+document already has and throws for any other string) and `otherConstraints` (plus:OtherConstraints, a
+string). `app.saveMetadataPreferences` and `app.setSaveMetadataPreferences` gain `dataMining` (the
+Personal default, `""` or a vocabulary URI; settings key `saveMetadata/dataMining`). Permanent
+identifiers: the key names, the settings key and the URIs, which are IPTC's. Pinned by
+`ui_script_file_info_data_mining` and `ui_save_metadata_data_mining_default`.
 
 2026-11-06 (behavioral): `app.listFonts()` names families without Qt's " [Foundry]" suffix and lists
 a family two foundries install once (Linux, #646 follow-up); a text family given with the suffix

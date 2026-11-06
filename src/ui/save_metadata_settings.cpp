@@ -3,10 +3,12 @@
 #include "formats/metadata/metadata_edit.hpp"
 #include "ui/app_settings.hpp"
 
+#include <QObject>
 #include <QSettings>
 #include <QStringList>
 
 #include <algorithm>
+#include <array>
 
 namespace patchy::ui {
 
@@ -55,6 +57,7 @@ PersonalSaveMetadata stored_personal_save_metadata() {
   personal.copyright = settings.value(QLatin1String(kSaveMetadataCopyrightSettingKey)).toString().trimmed();
   personal.email = settings.value(QLatin1String(kSaveMetadataEmailSettingKey)).toString().trimmed();
   personal.website = settings.value(QLatin1String(kSaveMetadataWebsiteSettingKey)).toString().trimmed();
+  personal.data_mining = settings.value(QLatin1String(kSaveMetadataDataMiningSettingKey)).toString().trimmed();
   personal.ask = settings.value(QLatin1String(kSaveMetadataAskSettingKey), true).toBool();
   return personal;
 }
@@ -65,11 +68,45 @@ void set_stored_personal_save_metadata(const PersonalSaveMetadata& personal) {
   settings.setValue(QLatin1String(kSaveMetadataCopyrightSettingKey), personal.copyright.trimmed());
   settings.setValue(QLatin1String(kSaveMetadataEmailSettingKey), personal.email.trimmed());
   settings.setValue(QLatin1String(kSaveMetadataWebsiteSettingKey), personal.website.trimmed());
+  settings.setValue(QLatin1String(kSaveMetadataDataMiningSettingKey), personal.data_mining.trimmed());
   settings.setValue(QLatin1String(kSaveMetadataAskSettingKey), personal.ask);
 }
 
 QString suggested_copyright_notice(const QString& name, int year) {
   return QStringLiteral("© %1 %2").arg(year).arg(name.trimmed()).trimmed();
+}
+
+QVector<DataMiningChoice> data_mining_choices() {
+  // Labels follow the PLUS vocabulary's own wording (IPTC Photo Metadata, Data Mining).
+  const std::array<QString, metadata::kDataMiningValues.size()> labels{
+      QObject::tr("Unspecified"),
+      QObject::tr("Allowed"),
+      QObject::tr("Prohibited for AI/ML training"),
+      QObject::tr("Prohibited for generative AI/ML training"),
+      QObject::tr("Prohibited except for search engine indexing"),
+      QObject::tr("Prohibited"),
+      QObject::tr("Prohibited, see Other Constraints"),
+      QObject::tr("Prohibited, see the embedded rights expression"),
+      QObject::tr("Prohibited, see the linked rights expression"),
+  };
+  QVector<DataMiningChoice> choices;
+  choices.push_back({QString(), QObject::tr("Not set")});
+  for (std::size_t i = 0; i < labels.size(); ++i) {
+    const auto uri = metadata::kDataMiningValues[i];
+    choices.push_back({QString::fromLatin1(uri.data(), static_cast<qsizetype>(uri.size())), labels[i]});
+  }
+  return choices;
+}
+
+QString data_mining_label(const QString& uri) {
+  const auto trimmed = uri.trimmed();
+  if (trimmed.isEmpty()) {
+    return data_mining_choices().front().label;
+  }
+  if (const auto index = metadata::data_mining_value_index(trimmed.toStdString())) {
+    return data_mining_choices().at(static_cast<qsizetype>(*index) + 1).label;
+  }
+  return trimmed;
 }
 
 bool save_format_carries_metadata(const QString& extension) {
@@ -118,7 +155,14 @@ bool add_personal_save_metadata(DocumentFileInfo& info, const PersonalSaveMetada
   if (!personal.website.isEmpty() && after.contact_url.empty()) {
     after.contact_url = personal.website.toStdString();
   }
+  if (!personal.data_mining.isEmpty() && after.data_mining.empty()) {
+    after.data_mining = personal.data_mining.toStdString();
+  }
   return metadata::apply_fields(info, before, after);
+}
+
+bool personal_data_mining_missing(const DocumentFileInfo& info, const PersonalSaveMetadata& personal) {
+  return !personal.data_mining.isEmpty() && metadata::read_fields(info).data_mining.empty();
 }
 
 }  // namespace patchy::ui

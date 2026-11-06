@@ -1398,14 +1398,29 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   metadata_website_edit->setObjectName(QStringLiteral("preferencesSavedMetadataWebsiteEdit"));
   metadata_website_edit->setPlaceholderText(tr("Optional"));
   metadata_form->addRow(tr("Website:"), metadata_website_edit);
+  // IPTC Data Mining (plus:DataMining, #658): stored as the PLUS URI, "Not set" by default.
+  auto* metadata_data_mining_combo = new QComboBox(metadata_group);
+  metadata_data_mining_combo->setObjectName(QStringLiteral("preferencesSavedMetadataDataMiningCombo"));
+  for (const auto& choice : data_mining_choices()) {
+    metadata_data_mining_combo->addItem(choice.label, choice.uri);
+  }
+  if (const auto index = metadata_data_mining_combo->findData(entry_personal.data_mining); index >= 0) {
+    metadata_data_mining_combo->setCurrentIndex(index);
+  } else if (!entry_personal.data_mining.isEmpty()) {
+    metadata_data_mining_combo->addItem(data_mining_label(entry_personal.data_mining), entry_personal.data_mining);
+    metadata_data_mining_combo->setCurrentIndex(metadata_data_mining_combo->count() - 1);
+  }
+  metadata_form->addRow(tr("Data mining:"), metadata_data_mining_combo);
   auto* metadata_ask_check = new WrappingCheckBox(tr("Ask before adding them to a file"), metadata_group);
   metadata_ask_check->setObjectName(QStringLiteral("preferencesSavedMetadataAskCheck"));
   metadata_ask_check->setChecked(entry_personal.ask);
   metadata_form->addRow(metadata_ask_check);
   auto* metadata_help = new QLabel(
       tr("Your name, copyright and contact go into PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF files that "
-         "do not name you yet, beside any author already there. Metadata a file already carries is kept; File > "
-         "File Info > Strip All Metadata removes it. Exports follow the Metadata choice in the Export dialog."),
+         "do not name you yet, beside any author already there. The data mining choice (IPTC, for example "
+         "prohibiting AI training) goes into files that have none; it is a declaration that nothing enforces. "
+         "Metadata a file already carries is kept; File > File Info > Strip All Metadata removes it. Exports "
+         "follow the Metadata choice in the Export dialog."),
       metadata_group);
   metadata_help->setObjectName(QStringLiteral("preferencesSavedMetadataHelp"));
   metadata_help->setWordWrap(true);
@@ -1419,11 +1434,11 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   const int current_year = QDate::currentDate().year();
   const auto refresh_metadata_fields = [metadata_personal_radio, metadata_name_edit, metadata_copyright_edit,
                                         metadata_suggest_button, metadata_email_edit, metadata_website_edit,
-                                        metadata_ask_check, current_year] {
+                                        metadata_data_mining_combo, metadata_ask_check, current_year] {
     const bool personal = metadata_personal_radio->isChecked();
     for (QWidget* field : std::initializer_list<QWidget*>{metadata_name_edit, metadata_copyright_edit,
                                                           metadata_email_edit, metadata_website_edit,
-                                                          metadata_ask_check}) {
+                                                          metadata_data_mining_combo, metadata_ask_check}) {
       field->setEnabled(personal);
     }
     const auto suggestion = suggested_copyright_notice(metadata_name_edit->text(), current_year);
@@ -2381,9 +2396,10 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     set_stored_save_metadata_mode(metadata_none_radio->isChecked()       ? SaveMetadataMode::None
                                   : metadata_personal_radio->isChecked() ? SaveMetadataMode::Personal
                                                                          : SaveMetadataMode::Basic);
-    set_stored_personal_save_metadata(PersonalSaveMetadata{metadata_name_edit->text(), metadata_copyright_edit->text(),
-                                                           metadata_email_edit->text(), metadata_website_edit->text(),
-                                                           metadata_ask_check->isChecked()});
+    set_stored_personal_save_metadata(PersonalSaveMetadata{
+        metadata_name_edit->text(), metadata_copyright_edit->text(), metadata_email_edit->text(),
+        metadata_website_edit->text(), metadata_ask_check->isChecked(),
+        metadata_data_mining_combo->currentData().toString()});
     set_stored_show_file_info_privacy_notice(privacy_notice_check->isChecked());
     settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), psd_import_warnings_check->isChecked());
     settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), raw_develop_check->isChecked());

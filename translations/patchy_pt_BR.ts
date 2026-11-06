@@ -14987,6 +14987,66 @@ Deseja substituí-lo?</translation>
         <translation>Controles de transformação com a ferramenta Mover</translation>
     </message>
     <message>
+        <source>Other: %1</source>
+        <translation>Outro: %1</translation>
+    </message>
+    <message>
+        <source>IPTC Data Mining: whether the image may be used for data mining such as AI training. It is a declaration; nothing enforces it.</source>
+        <translation>IPTC Data Mining: se a imagem pode ser usada para mineração de dados, como treinamento de IA. É uma declaração; nada a impõe.</translation>
+    </message>
+    <message>
+        <source>Data Mining:</source>
+        <translation>Mineração de dados:</translation>
+    </message>
+    <message>
+        <source>Other Constraints:</source>
+        <translation>Outras restrições:</translation>
+    </message>
+    <message>
+        <source>Further limits on use, in your own words</source>
+        <translation>Outros limites de uso, com suas próprias palavras</translation>
+    </message>
+    <message>
+        <source>Unspecified</source>
+        <translation>Não especificado</translation>
+    </message>
+    <message>
+        <source>Allowed</source>
+        <translation>Permitido</translation>
+    </message>
+    <message>
+        <source>Prohibited for AI/ML training</source>
+        <translation>Proibido para treinamento de IA/AM</translation>
+    </message>
+    <message>
+        <source>Prohibited for generative AI/ML training</source>
+        <translation>Proibido para treinamento de IA/AM generativa</translation>
+    </message>
+    <message>
+        <source>Prohibited except for search engine indexing</source>
+        <translation>Proibido exceto para indexação por mecanismos de busca</translation>
+    </message>
+    <message>
+        <source>Prohibited</source>
+        <translation>Proibido</translation>
+    </message>
+    <message>
+        <source>Prohibited, see Other Constraints</source>
+        <translation>Proibido, veja Outras restrições</translation>
+    </message>
+    <message>
+        <source>Prohibited, see the embedded rights expression</source>
+        <translation>Proibido, veja a expressão de direitos incorporada</translation>
+    </message>
+    <message>
+        <source>Prohibited, see the linked rights expression</source>
+        <translation>Proibido, veja a expressão de direitos vinculada</translation>
+    </message>
+    <message>
+        <source>Not set</source>
+        <translation>Não definido</translation>
+    </message>
+    <message>
         <source>Linked layer. Click to select the layers linked to it.</source>
         <translation>Camada vinculada. Clique para selecionar as camadas vinculadas a ela.</translation>
     </message>
@@ -30672,10 +30732,6 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <translation>Perguntar antes de adicioná-los a um arquivo</translation>
     </message>
     <message>
-        <source>Your name, copyright and contact go into PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF files that do not name you yet, beside any author already there. Metadata a file already carries is kept; File &gt; File Info &gt; Strip All Metadata removes it. Exports follow the Metadata choice in the Export dialog.</source>
-        <translation>Seu nome, direitos autorais e contato vão para arquivos PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL e AVIF que ainda não citam você, ao lado de qualquer autor já presente. Os metadados que um arquivo já contém são mantidos; Arquivo &gt; Informações do arquivo &gt; Remover todos os metadados os retira. As exportações seguem a escolha de Metadados da caixa Exportar.</translation>
-    </message>
-    <message>
         <source>Use “%1”</source>
         <translation>Usar “%1”</translation>
     </message>
@@ -33367,6 +33423,22 @@ Bloqueado: %1</translation>
     <message>
         <source>Reverse layers</source>
         <translation>Inverter camadas</translation>
+    </message>
+    <message>
+        <source>Data mining:</source>
+        <translation>Mineração de dados:</translation>
+    </message>
+    <message>
+        <source>Your name, copyright and contact go into PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF files that do not name you yet, beside any author already there. The data mining choice (IPTC, for example prohibiting AI training) goes into files that have none; it is a declaration that nothing enforces. Metadata a file already carries is kept; File &gt; File Info &gt; Strip All Metadata removes it. Exports follow the Metadata choice in the Export dialog.</source>
+        <translation>Seu nome, copyright e contato vão para arquivos PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL e AVIF que ainda não citam você, ao lado de qualquer autor já presente. A escolha de mineração de dados (IPTC, por exemplo proibir treinamento de IA) vai para arquivos que não têm nenhuma; é uma declaração que nada impõe. Os metadados que um arquivo já tem são mantidos; Arquivo &gt; Informações do arquivo &gt; Remover todos os metadados os remove. As exportações seguem a escolha de metadados da caixa de diálogo Exportar.</translation>
+    </message>
+    <message>
+        <source>Add your data mining choice to this file?</source>
+        <translation>Adicionar sua escolha de mineração de dados a este arquivo?</translation>
+    </message>
+    <message>
+        <source>Data mining: %1</source>
+        <translation>Mineração de dados: %1</translation>
     </message>
     <message>
         <source>&amp;Link Layers</source>
@@ -36379,6 +36451,14 @@ Bloqueado: %1</translation>
     <message>
         <source>No document is open to rotate the view of.</source>
         <translation>Nenhum documento está aberto para girar a vista.</translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences: dataMining must be &quot;&quot; or a PLUS Data Mining URI.</source>
+        <translation>setSaveMetadataPreferences: dataMining deve ser &quot;&quot; ou um URI PLUS Data Mining.</translation>
+    </message>
+    <message>
+        <source>&quot;&quot; or a PLUS Data Mining URI such as &quot;http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-AIMLTRAINING&quot;</source>
+        <translation>&quot;&quot; ou um URI PLUS Data Mining como &quot;http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-AIMLTRAINING&quot;</translation>
     </message>
     <message>
         <source>linkGroup must be 0 or a positive whole number</source>

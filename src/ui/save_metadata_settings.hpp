@@ -7,6 +7,8 @@
 #include "core/document_file_info.hpp"
 
 #include <QString>
+#include <QStringList>
+#include <QVector>
 
 #include <optional>
 
@@ -25,6 +27,8 @@ inline constexpr auto kSaveMetadataCopyrightSettingKey = "saveMetadata/copyright
 inline constexpr auto kSaveMetadataEmailSettingKey = "saveMetadata/contactEmail";
 inline constexpr auto kSaveMetadataWebsiteSettingKey = "saveMetadata/contactWebsite";
 inline constexpr auto kSaveMetadataAskSettingKey = "saveMetadata/askBeforeAdding";
+// The plus:DataMining value Personal adds: a PLUS DMI URI, empty for none (#658).
+inline constexpr auto kSaveMetadataDataMiningSettingKey = "saveMetadata/dataMining";
 // File Info's notice about information a document carries that the user may not want to
 // share (its Don't Show Again button and the Preferences checkbox).
 inline constexpr auto kFileInfoPrivacyNoticeSettingKey = "fileInfo/showPrivacyNotice";
@@ -39,6 +43,7 @@ struct PersonalSaveMetadata {
   QString email;
   QString website;
   bool ask{true};  // ask before adding them to a file that lacks the name
+  QString data_mining;  // plus:DataMining to add: a URI from metadata::kDataMiningValues, or empty
 };
 
 [[nodiscard]] SaveMetadataMode stored_save_metadata_mode();  // Basic by default
@@ -51,6 +56,17 @@ void set_stored_personal_save_metadata(const PersonalSaveMetadata& personal);
 // "© 2026 Ann Example": the copyright line the Suggest button fills in.
 [[nodiscard]] QString suggested_copyright_notice(const QString& name, int year);
 
+// One choice of File Info's and Preferences' Data mining combos: the URI files store and its
+// translated label. "Not set" (an empty URI) comes first, then the PLUS vocabulary in order.
+struct DataMiningChoice {
+  QString uri;
+  QString label;
+};
+[[nodiscard]] QVector<DataMiningChoice> data_mining_choices();
+// The label for a stored value: a vocabulary entry's label (any letter case), else the raw
+// value itself (a value from a newer vocabulary or another program).
+[[nodiscard]] QString data_mining_label(const QString& uri);
+
 // True for the formats a save writes File Info metadata into: PSD, PSB, JPEG, PNG, TIFF,
 // WebP, GIF, JPEG XL, AVIF (and PDF's /Info author). BMP, TGA, ICO, DDS, Proton, JPEG XR
 // and SVG carry none.
@@ -62,8 +78,11 @@ void set_stored_personal_save_metadata(const PersonalSaveMetadata& personal);
 [[nodiscard]] QStringList file_info_creators(const DocumentFileInfo& info);
 
 // Adds the personal fields: the name beside any creators already there (never replacing
-// one), and the copyright notice, email and website only where the file has none. Sets
+// one), and the copyright notice, email, website and data mining value only where the file
+// has none. Sets
 // the copyright status to Copyrighted when it adds a notice. True when anything changed.
 bool add_personal_save_metadata(DocumentFileInfo& info, const PersonalSaveMetadata& personal);
+// The file has no data mining value and `personal` names one to add.
+[[nodiscard]] bool personal_data_mining_missing(const DocumentFileInfo& info, const PersonalSaveMetadata& personal);
 
 }  // namespace patchy::ui

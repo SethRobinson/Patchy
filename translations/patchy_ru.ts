@@ -15034,6 +15034,66 @@ Do you want to replace it?</source>
         <translation>Элементы управления преобразованием при инструменте «Перемещение»</translation>
     </message>
     <message>
+        <source>Other: %1</source>
+        <translation>Другое: %1</translation>
+    </message>
+    <message>
+        <source>IPTC Data Mining: whether the image may be used for data mining such as AI training. It is a declaration; nothing enforces it.</source>
+        <translation>IPTC Data Mining: можно ли использовать изображение для интеллектуального анализа данных, например обучения ИИ. Это заявление; ничто его не обеспечивает.</translation>
+    </message>
+    <message>
+        <source>Data Mining:</source>
+        <translation>Анализ данных:</translation>
+    </message>
+    <message>
+        <source>Other Constraints:</source>
+        <translation>Другие ограничения:</translation>
+    </message>
+    <message>
+        <source>Further limits on use, in your own words</source>
+        <translation>Другие ограничения использования, своими словами</translation>
+    </message>
+    <message>
+        <source>Unspecified</source>
+        <translation>Не указано</translation>
+    </message>
+    <message>
+        <source>Allowed</source>
+        <translation>Разрешено</translation>
+    </message>
+    <message>
+        <source>Prohibited for AI/ML training</source>
+        <translation>Запрещено для обучения ИИ/МО</translation>
+    </message>
+    <message>
+        <source>Prohibited for generative AI/ML training</source>
+        <translation>Запрещено для обучения генеративного ИИ/МО</translation>
+    </message>
+    <message>
+        <source>Prohibited except for search engine indexing</source>
+        <translation>Запрещено, кроме индексации поисковыми системами</translation>
+    </message>
+    <message>
+        <source>Prohibited</source>
+        <translation>Запрещено</translation>
+    </message>
+    <message>
+        <source>Prohibited, see Other Constraints</source>
+        <translation>Запрещено, см. «Другие ограничения»</translation>
+    </message>
+    <message>
+        <source>Prohibited, see the embedded rights expression</source>
+        <translation>Запрещено, см. встроенное выражение прав</translation>
+    </message>
+    <message>
+        <source>Prohibited, see the linked rights expression</source>
+        <translation>Запрещено, см. связанное выражение прав</translation>
+    </message>
+    <message>
+        <source>Not set</source>
+        <translation>Не задано</translation>
+    </message>
+    <message>
         <source>Linked layer. Click to select the layers linked to it.</source>
         <translation>Связанный слой. Нажмите, чтобы выделить связанные с ним слои.</translation>
     </message>
@@ -30757,10 +30817,6 @@ Patchy может скачать обновление, заменить этот
         <translation>Спрашивать перед добавлением в файл</translation>
     </message>
     <message>
-        <source>Your name, copyright and contact go into PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF files that do not name you yet, beside any author already there. Metadata a file already carries is kept; File &gt; File Info &gt; Strip All Metadata removes it. Exports follow the Metadata choice in the Export dialog.</source>
-        <translation>Ваше имя, авторские права и контакты добавляются в файлы PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL и AVIF, где вас ещё нет, рядом с уже указанным автором. Метаданные, которые уже есть в файле, сохраняются; «Файл &gt; Сведения о файле &gt; Удалить все метаданные» их убирает. Экспорт следует выбору «Метаданные» в окне экспорта.</translation>
-    </message>
-    <message>
         <source>Use “%1”</source>
         <translation>Использовать «%1»</translation>
     </message>
@@ -33455,6 +33511,22 @@ Locked: %1</source>
     <message>
         <source>Reverse layers</source>
         <translation>Обратить порядок слоёв</translation>
+    </message>
+    <message>
+        <source>Data mining:</source>
+        <translation>Анализ данных:</translation>
+    </message>
+    <message>
+        <source>Your name, copyright and contact go into PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF files that do not name you yet, beside any author already there. The data mining choice (IPTC, for example prohibiting AI training) goes into files that have none; it is a declaration that nothing enforces. Metadata a file already carries is kept; File &gt; File Info &gt; Strip All Metadata removes it. Exports follow the Metadata choice in the Export dialog.</source>
+        <translation>Ваше имя, авторское право и контакты добавляются в файлы PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL и AVIF, где вы ещё не указаны, рядом с уже указанным автором. Выбор по анализу данных (IPTC, например запрет обучения ИИ) добавляется в файлы, где его нет; это заявление, которое ничто не обеспечивает. Метаданные, уже имеющиеся в файле, сохраняются; «Файл &gt; Сведения о файле &gt; Удалить все метаданные» удаляет их. Экспорт следует выбору метаданных в диалоге экспорта.</translation>
+    </message>
+    <message>
+        <source>Add your data mining choice to this file?</source>
+        <translation>Добавить ваш выбор по анализу данных в этот файл?</translation>
+    </message>
+    <message>
+        <source>Data mining: %1</source>
+        <translation>Анализ данных: %1</translation>
     </message>
     <message>
         <source>&amp;Link Layers</source>
@@ -36471,6 +36543,14 @@ Locked: %1</source>
     <message>
         <source>No document is open to rotate the view of.</source>
         <translation>Ни один документ не открыт для поворота вида.</translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences: dataMining must be &quot;&quot; or a PLUS Data Mining URI.</source>
+        <translation>setSaveMetadataPreferences: dataMining должен быть &quot;&quot; или URI PLUS Data Mining.</translation>
+    </message>
+    <message>
+        <source>&quot;&quot; or a PLUS Data Mining URI such as &quot;http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-AIMLTRAINING&quot;</source>
+        <translation>&quot;&quot; или URI PLUS Data Mining, например &quot;http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-AIMLTRAINING&quot;</translation>
     </message>
     <message>
         <source>linkGroup must be 0 or a positive whole number</source>
