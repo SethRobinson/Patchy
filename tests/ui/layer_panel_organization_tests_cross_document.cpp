@@ -648,7 +648,7 @@ void ui_layer_footer_drop_hint_stays_clear_of_pointer() {
         auto* host = hint->parentWidget();
         const QRect dock_rect(dock->mapTo(host, QPoint(0, 0)), dock->size());
         QDir().mkpath(QStringLiteral("test-artifacts"));
-        (void)host->grab(dock_rect).save(QStringLiteral("test-artifacts/layer-footer-drop-hint.png"));
+        (void)host->grab(dock_rect.united(hint->geometry())).save(QStringLiteral("test-artifacts/layer-footer-drop-hint.png"));
       }
     }
 
