@@ -1429,14 +1429,14 @@ void MainWindow::create_docks() {
     if (target == LayerCtrlClickTarget::MaskThumbnail && (modifiers & Qt::ShiftModifier) != 0) {
       const auto disabled = std::as_const(*layer).mask().has_value() && std::as_const(*layer).mask()->disabled;
       document().set_active_layer(id);
-      set_active_layer_mask_disabled(!disabled);
+      set_active_layer_mask_disabled(!disabled, MaskCommandScope::ActiveLayer);
       return;
     }
     if (target == LayerCtrlClickTarget::VectorMaskThumbnail && (modifiers & Qt::ShiftModifier) != 0) {
       const auto* mask = std::as_const(*layer).vector_mask();
       if (mask != nullptr) {
         document().set_active_layer(id);
-        set_active_layer_vector_mask_disabled(!mask->disabled);
+        set_active_layer_vector_mask_disabled(!mask->disabled, MaskCommandScope::ActiveLayer);
       }
       return;
     }
