@@ -1556,8 +1556,9 @@ void pulse_option_attention(QWidget* target) {
   if (target == nullptr || target->parentWidget() == nullptr) {
     return;
   }
-  auto* pulse = target->parentWidget()->findChild<OptionAttentionPulse*>(
-      target->objectName() + QStringLiteral("AttentionPulse"), Qt::FindDirectChildrenOnly);
+  // No Q_OBJECT on the overlay, so look it up as a QWidget by name.
+  auto* pulse = dynamic_cast<OptionAttentionPulse*>(target->parentWidget()->findChild<QWidget*>(
+      target->objectName() + QStringLiteral("AttentionPulse"), Qt::FindDirectChildrenOnly));
   if (pulse == nullptr) {
     pulse = new OptionAttentionPulse(target);
   }
