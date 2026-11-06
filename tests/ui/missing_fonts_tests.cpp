@@ -294,7 +294,11 @@ void ui_options_bar_names_a_missing_font_family() {
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   auto document = white_document();
   const auto installed = patchy::ui::default_text_family();
-  const auto missing_id = document.add_layer(missing_font_text_layer(document, "Missing", kMissing, 40)).id();
+  // A plausible name for the screenshots; the test's own made-up name where a host has it.
+  const auto missing = patchy::ui::available_text_family_match(QStringLiteral("Brightwell Sans")).has_value()
+                           ? kMissing
+                           : QStringLiteral("Brightwell Sans");
+  const auto missing_id = document.add_layer(missing_font_text_layer(document, "Missing", missing, 40)).id();
   const auto installed_id = document.add_layer(missing_font_text_layer(document, "Installed", installed, 120)).id();
 
   MainWindow window;
@@ -314,8 +318,8 @@ void ui_options_bar_names_a_missing_font_family() {
     QApplication::processEvents();
   };
   const auto check_shows_missing = [&] {
-    CHECK(picker->missing_family() == kMissing);
-    CHECK(edit->text() == kMissing);
+    CHECK(picker->missing_family() == missing);
+    CHECK(edit->text() == missing);
     CHECK(edit->font().italic());
     CHECK(edit->cursorPosition() == 0);  // the name reads from its start
     CHECK(badge() != nullptr);
@@ -323,15 +327,15 @@ void ui_options_bar_names_a_missing_font_family() {
       CHECK(!action->icon().isNull());
       CHECK(action->toolTip() == edit->toolTip());
     }
-    CHECK(edit->toolTip() == QStringLiteral("Font is missing on this computer: %1").arg(kMissing));
+    CHECK(edit->toolTip() == QStringLiteral("Font is missing on this computer: %1").arg(missing));
     // The row stays an installed family: the popup and new type start from it.
     const auto row = picker->row_family();
-    CHECK(!row.isEmpty() && row != kMissing);
+    CHECK(!row.isEmpty() && row != missing);
     CHECK(patchy::ui::available_text_family_match(row).has_value());
   };
   const auto check_plain = [&] {
     CHECK(picker->missing_family().isEmpty());
-    CHECK(edit->text() != kMissing);
+    CHECK(edit->text() != missing);
     CHECK(edit->text() == picker->itemText(picker->currentIndex()));
     CHECK(!edit->font().italic());
     CHECK(badge() == nullptr);
