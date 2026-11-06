@@ -2395,13 +2395,16 @@ void MainWindow::choose_gradient_preset() {
                              });
 }
 
-void MainWindow::step_active_tool_preset(int direction) {
+void MainWindow::step_active_tool_preset(int direction, bool to_end) {
   if (canvas_ == nullptr) {
     return;
   }
   // The next index after `current` in a list of `count`, wrapping; with no current entry
-  // Next starts at the first and Previous at the last.
-  const auto stepped = [direction](qsizetype current, qsizetype count) {
+  // Next starts at the first and Previous at the last. First and Last (to_end) go straight there.
+  const auto stepped = [direction, to_end](qsizetype current, qsizetype count) {
+    if (to_end) {
+      return direction > 0 ? count - 1 : qsizetype{0};
+    }
     if (current < 0) {
       return direction > 0 ? qsizetype{0} : count - 1;
     }

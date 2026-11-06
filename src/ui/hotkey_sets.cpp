@@ -22,23 +22,30 @@ namespace {
 // per group (Shift+letter walks the group), and keys for commands Patchy lacks stay out.
 constexpr std::array kPhotoshopEntries{
     HotkeySetEntry{"file.close_all", "Ctrl+Alt+W"},
+    // New Layer without its dialog (GitHub issue 645). Photoshop has no Open from Clipboard.
+    HotkeySetEntry{"layer.new", "Ctrl+Alt+Shift+N"},
+    HotkeySetEntry{"file.open_clipboard", ""},
+    // macOS: Cmd+, hides layers and Cmd+K opens Preferences, as on Windows (issue 645).
+    HotkeySetEntry{"layer.toggle_visibility", "Ctrl+,"},
+    HotkeySetEntry{"file.preferences", "Ctrl+K"},
     HotkeySetEntry{"edit.redo", "Ctrl+Shift+Z"},
     HotkeySetEntry{"edit.cut", "Ctrl+X\nF2"},
     HotkeySetEntry{"edit.copy", "Ctrl+C\nF3"},
     HotkeySetEntry{"edit.paste", "Ctrl+V\nF4"},
     HotkeySetEntry{"layer.rename", ""},
-    HotkeySetEntry{"select.inverse", "Ctrl+Shift+I\nShift+F7"},
     HotkeySetEntry{"layer.merge_visible", "Ctrl+Shift+E"},
     HotkeySetEntry{"layer.merge_visible_in_place", "Ctrl+Alt+Shift+E"},
     HotkeySetEntry{"layer.move_up", "Ctrl+]"},
     HotkeySetEntry{"layer.move_down", "Ctrl+["},
     HotkeySetEntry{"image.rotate_cw", ""},
     HotkeySetEntry{"image.rotate_ccw", ""},
-    HotkeySetEntry{"view.actual_pixels", "Ctrl+1\nCtrl+Alt+0"},
     HotkeySetEntry{"view.proof_colors", "Ctrl+Y"},
     HotkeySetEntry{"view.gamut_warning", "Ctrl+Shift+Y"},
     HotkeySetEntry{"window.brush_settings", "F5"},
     HotkeySetEntry{"window.force_refresh", ""},
+    // Adobe's table: Ctrl+Page Up/Down scroll one screen left or right (issue 645).
+    HotkeySetEntry{"view.scroll_page_left", "Ctrl+PgUp"},
+    HotkeySetEntry{"view.scroll_page_right", "Ctrl+PgDown"},
 };
 
 // GIMP-style: the GIMP 3.0 User Manual (docs.gimp.org/3.0/en: the tool pages, the menu
@@ -59,6 +66,9 @@ constexpr std::array kGimpEntries{
     HotkeySetEntry{"edit.transform_scale", "Shift+S"},
     HotkeySetEntry{"edit.transform_rotate", "Shift+R"},
     HotkeySetEntry{"edit.transform_perspective", "Shift+P"},
+    // The Shear tool's Shift+H (issue 645); GIMP has no Hand tool group to cycle.
+    HotkeySetEntry{"edit.transform_skew", "Shift+H"},
+    HotkeySetEntry{"tools.cycle.hand", ""},
     HotkeySetEntry{"filter.liquify", "W"},
     HotkeySetEntry{"filter.last", "Ctrl+F"},
     HotkeySetEntry{"help.search_commands", "/"},
@@ -87,7 +97,8 @@ constexpr std::array kGimpEntries{
     HotkeySetEntry{"view.zoom_out", "-"},
     HotkeySetEntry{"view.fit_on_screen", "Ctrl+Shift+J"},
     HotkeySetEntry{"layer.via_cut", ""},
-    HotkeySetEntry{"view.selection_edges", "Ctrl+T"},
+    // View > Show Selection shows or hides the marching ants alone (issue 645); Extras keeps Ctrl+H.
+    HotkeySetEntry{"view.show_selection_edges", "Ctrl+T"},
     HotkeySetEntry{"view.rulers", "Ctrl+Shift+R"},
     HotkeySetEntry{"view.guides", "Ctrl+Shift+T"},
     HotkeySetEntry{"view.screen_mode_full", "F11"},
@@ -146,6 +157,28 @@ constexpr std::array kKritaEntries{
     HotkeySetEntry{"layer.toggle_clipping_mask", "Ctrl+Shift+G"},
     HotkeySetEntry{"layer.move_up", "Ctrl+PgUp"},
     HotkeySetEntry{"layer.move_down", "Ctrl+PgDown"},
+    // Issue 645: Page Up and Page Down activate the next layer up or down, Edit > Paste into New
+    // Image is Ctrl+Shift+N (new layers are Ins), View > Soft Proofing and Out of Gamut Warnings
+    // are Ctrl+Y and Ctrl+Shift+Y, Show Grid is Ctrl+Shift+', Ctrl+[ and Ctrl+] rotate the
+    // canvas, Select > Display Selection is Ctrl+H, Shift+I shows the color selector and V is
+    // the Straight Line tool.
+    HotkeySetEntry{"select.layer_above", "PgUp"},
+    HotkeySetEntry{"select.layer_below", "PgDown"},
+    HotkeySetEntry{"view.scroll_page_up", ""},
+    HotkeySetEntry{"view.scroll_page_down", ""},
+    HotkeySetEntry{"file.open_clipboard", "Ctrl+Shift+N"},
+    HotkeySetEntry{"layer.new_with_dialog", ""},
+    HotkeySetEntry{"view.proof_colors", "Ctrl+Y"},
+    HotkeySetEntry{"view.gamut_warning", "Ctrl+Shift+Y"},
+    HotkeySetEntry{"view.grid", "Ctrl+Shift+'"},
+    HotkeySetEntry{"layer.quick_export_png", ""},
+    HotkeySetEntry{"view.rotate_left", "Ctrl+["},
+    HotkeySetEntry{"view.rotate_right", "Ctrl+]"},
+    HotkeySetEntry{"image.rotate_ccw", ""},
+    HotkeySetEntry{"image.rotate_cw", ""},
+    HotkeySetEntry{"view.show_selection_edges", "Ctrl+H"},
+    HotkeySetEntry{"view.selection_edges", ""},
+    HotkeySetEntry{"tools.line", "V"},
     HotkeySetEntry{"layer.fill", "Shift+Backspace"},
     HotkeySetEntry{"edit.fill", "Shift+F5"},
     HotkeySetEntry{"select.deselect", "Ctrl+Shift+A"},
@@ -156,7 +189,8 @@ constexpr std::array kKritaEntries{
     HotkeySetEntry{"window.brush_settings", "F5"},
     HotkeySetEntry{"window.force_refresh", ""},
     HotkeySetEntry{"window.brush_tips", "F6"},
-    HotkeySetEntry{"window.panel_color", ""},
+    HotkeySetEntry{"window.panel_color", "Shift+I"},
+    HotkeySetEntry{"tools.cycle.pick", ""},
     HotkeySetEntry{"help.search_commands", "Ctrl+Return\nCtrl+F\nCtrl+Shift+/"},
     HotkeySetEntry{"tools.move", "T"},
     HotkeySetEntry{"tools.type", ""},

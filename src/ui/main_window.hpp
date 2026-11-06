@@ -2698,8 +2698,9 @@ private:
   void choose_gradient_preset();
   void apply_gradient_preset_entry(const GradientLibraryEntry& entry);
   // Previous Preset / Next Preset (GitHub issue 543): steps the active tool's preset list
-  // (the brush Preset combo or the gradient presets), wrapping at the ends.
-  void step_active_tool_preset(int direction);
+  // (the brush Preset combo or the gradient presets), wrapping at the ends. With to_end,
+  // First Preset / Last Preset (issue 645): -1 picks the first entry, 1 the last.
+  void step_active_tool_preset(int direction, bool to_end = false);
   void refresh_gradient_controls_from_canvas();
   [[nodiscard]] QColor current_text_color() const;
   void load_tool_settings();

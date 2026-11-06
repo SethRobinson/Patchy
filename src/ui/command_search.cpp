@@ -110,6 +110,7 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"file.print", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Print the image")},
     {"file.close", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Close the document")},
     {"file.preferences", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Settings and options")},
+    {"edit.keyboard_shortcuts", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Open Preferences on the Hotkeys page")},
     {"file.quit", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Exit Patchy")},
     {"fileClearRecentAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Empty the list of recent files")},
     {"fileClearRecentFoldersAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Empty the list of recent folders")},
@@ -611,6 +612,8 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"brush.harder", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Harden the brush edge")},
     {"brush.preset_previous", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Pick the previous brush preset")},
     {"brush.preset_next", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Pick the next brush preset")},
+    {"brush.preset_first", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Pick the first brush preset in the list")},
+    {"brush.preset_last", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Pick the last brush preset in the list")},
 };
 
 // The non-menu hotkey categories the search lists, with their row path. Panel commands
