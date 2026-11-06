@@ -4874,6 +4874,9 @@ void ui_clone_stroke_coalesces_queued_moves_and_keeps_bytes() {
 // every move, must leave the bytes the whole-image source left, and undo must restore the
 // photo exactly.
 void ui_clone_lazy_source_keeps_bytes_and_undo_restores() {
+  // Each window saves its Sample choice on close; a later retouch test expects the default.
+  SettingsValueRestorer saved_sample(QStringLiteral("tools/retouchSampleLayers"));
+  SettingsValueRestorer saved_legacy_sample(QStringLiteral("tools/retouchSampleAllLayers"));
   struct Case {
     const char* name;
     patchy::ui::CanvasTool tool;

@@ -2135,8 +2135,10 @@ void ui_script_text_font_option_applies() {
     console.log('plain=' + JSON.stringify(doc.addLayer('Plain').textFont));
   )JS")
                              .arg(js_string(first), js_string(second))));
-  CHECK(backlog_contains(window, QStringLiteral("first=") + first));
-  CHECK(backlog_contains(window, QStringLiteral("second=") + second));
+  // textFont names the family without a Linux foundry suffix ("C059 [urw]" reads "C059";
+  // GitHub issue 646), which also shows a suffixed name resolves.
+  CHECK(backlog_contains(window, QStringLiteral("first=") + patchy::ui::font_family_without_foundry(first)));
+  CHECK(backlog_contains(window, QStringLiteral("second=") + patchy::ui::font_family_without_foundry(second)));
   CHECK(backlog_contains(window, QStringLiteral("font not available, rendered with a fallback: Patchy No Such Family")));
   CHECK(backlog_contains(window, QStringLiteral("plain=\"\"")));
 }

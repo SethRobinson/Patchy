@@ -57,6 +57,7 @@
 #include <QJsonDocument>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QScrollArea>
 #include <QSpinBox>
 #include <QStatusBar>
 #include <QTemporaryDir>
@@ -84,6 +85,19 @@
 namespace {
 using namespace patchy::test::ui;
 using patchy::ui::MainWindowTestAccess;
+
+// The Properties section scrolls, and in the 1180x780 test window the artboard fields sit below
+// the part it shows, past the window's bottom edge. Bring a field into view before pressing it,
+// as a user would: a press out there lands in the frameless window's resize band instead.
+void scroll_into_view(QWidget& widget) {
+  for (auto* parent = widget.parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
+    if (auto* area = qobject_cast<QScrollArea*>(parent); area != nullptr) {
+      area->ensureWidgetVisible(&widget, 0, 0);
+      QApplication::processEvents();
+      return;
+    }
+  }
+}
 
 patchy::Document board_document(int width, int height) {
   patchy::Document document(width, height, patchy::PixelFormat::rgba8());
@@ -492,6 +506,7 @@ void ui_artboard_properties_fields_scrub_as_one_undo_step() {
     };
     const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
     const int drag_start = QApplication::startDragDistance();
+    scroll_into_view(*x_label);
     const auto origin = x_label->rect().center();
     send_mouse(*x_label, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
     send_mouse(*x_label, QEvent::MouseMove, origin + QPoint(drag_start + 10, 0), Qt::NoButton, Qt::LeftButton);
@@ -537,6 +552,7 @@ void ui_artboard_properties_fields_scrub_as_one_undo_step() {
     if (editor == nullptr) {
       return;
     }
+    scroll_into_view(*width);
     const QPoint field_point(editor->width() / 2, editor->height() / 2);
     send_mouse(*editor, QEvent::MouseButtonPress, field_point, Qt::LeftButton, Qt::LeftButton);
     send_mouse(*editor, QEvent::MouseMove, field_point + QPoint(drag_start + 5, 0), Qt::NoButton, Qt::LeftButton);
@@ -553,6 +569,7 @@ void ui_artboard_properties_fields_scrub_as_one_undo_step() {
     auto* x_editor = x->findChild<QLineEdit*>();
     CHECK(x_editor != nullptr);
     if (x_editor != nullptr) {
+      scroll_into_view(*x);
       x->setFocus(Qt::MouseFocusReason);
       const QPoint x_point(x_editor->width() / 2, x_editor->height() / 2);
       send_mouse(*x_editor, QEvent::MouseButtonPress, x_point, Qt::LeftButton, Qt::LeftButton);
@@ -643,6 +660,7 @@ void check_artboard_scrub_costs_a_handle_drag(patchy::ui::MainWindow& window, pa
   // The same kind of change by scrubbing the W label: the document must stay untouched
   // until the release, which commits one undo step.
   const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+  scroll_into_view(*w_label);
   const auto origin = w_label->rect().center();
   send_mouse(*w_label, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
   double scrub_step_ms = 0.0;
