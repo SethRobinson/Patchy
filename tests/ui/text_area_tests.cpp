@@ -7,6 +7,7 @@
 #include "formats/ico_document_io.hpp"
 #include "formats/tga_document_io.hpp"
 #include "ui/main_window.hpp"
+#include "ui/font_face_name_index.hpp"
 #include "test_harness.hpp"
 #include <QApplication>
 #include <QEventLoop>
@@ -381,6 +382,117 @@ void ui_text_area_psd_uses_postscript_font_names() {
     const auto& globals=reopened.metadata().unknown_psd_resources;
     CHECK(std::any_of(globals.begin(),globals.end(),[&](const auto& b){return b.key=="Txt2" && contains(b);}));
   }
+}
+
+// Point and box text name their faces by PostScript name too, on every platform (GitHub issue
+// 646: Linux wrote Qt family names, "Roboto Mono [GOOG]", which Photoshop could not find). A
+// family with no installed face keeps its own name instead of a substitute's.
+void ui_text_point_psd_uses_postscript_font_names() {
+  MainWindow window; show_window_empty(window);
+  const bool arial = QFontDatabase::families().contains(QStringLiteral("Arial"));
+  const auto family = arial ? QStringLiteral("Arial") : QStringLiteral("Liberation Sans");
+  CHECK(QFontDatabase::families().contains(family));
+  run(window,QStringLiteral(R"JS(
+    var d=app.newDocument(400,300);
+    for(var i=0;i<4;i++) {
+      var t=d.addTextLayer('Font',{x:20,y:40+50*i,font:'%1',size:24,bold:!!(i&1),italic:!!(i&2)});
+      t.name='Font '+i;
+    }
+    var m=d.addTextLayer('Missing',{x:200,y:40,font:'Patchy Issue Six Four Six',size:24});
+    m.name='Missing';
+  )JS").arg(family));
+  const auto bytes = psd::DocumentIo::write_layered_rgb8(MainWindowTestAccess::document(window));
+  const auto reopened = psd::DocumentIo::read(bytes);
+  const std::array<std::string,4> names = arial
+      ? std::array<std::string,4>{"ArialMT","Arial-BoldMT","Arial-ItalicMT","Arial-BoldItalicMT"}
+      : std::array<std::string,4>{"LiberationSans","LiberationSans-Bold","LiberationSans-Italic","LiberationSans-BoldItalic"};
+  const auto check_name = [&](const std::string& layer_name, const std::string& font_name) {
+    std::vector<std::uint8_t> needle{0xfe,0xff};
+    for(const auto c:font_name) {needle.push_back(0);needle.push_back(static_cast<std::uint8_t>(c));}
+    const auto contains = [&](const UnknownPsdBlock& block) {
+      return std::search(block.payload.begin(),block.payload.end(),needle.begin(),needle.end())!=block.payload.end();
+    };
+    const auto* layer=layer_named(reopened,layer_name);
+    CHECK(layer!=nullptr);if(!layer)return;
+    const bool in_tysh = std::any_of(layer->unknown_psd_blocks().begin(),layer->unknown_psd_blocks().end(),
+                                     [&](const auto& b){return b.key=="TySh" && contains(b);});
+    if(!in_tysh) std::fprintf(stderr,"  %s: TySh lacks %s\n",layer_name.c_str(),font_name.c_str());
+    CHECK(in_tysh);
+    const auto& globals=reopened.metadata().unknown_psd_resources;
+    CHECK(std::any_of(globals.begin(),globals.end(),[&](const auto& b){return b.key=="Txt2" && contains(b);}));
+  };
+  for(std::size_t i=0;i<names.size();++i) check_name("Font "+std::to_string(i),names[i]);
+  check_name("Missing","Patchy Issue Six Four Six");
+}
+
+// A variable font's name id 6 names only its default instance; a run on another instance is
+// written under that instance's PostScript name (GitHub issue 646: Google's Roboto Mono and
+// Roboto Slab ship as variable fonts).
+void ui_text_variable_font_instances_get_their_own_postscript_names() {
+  const auto put_u16 = [](QByteArray& bytes, quint16 value) {
+    bytes.append(static_cast<char>(value >> 8U));
+    bytes.append(static_cast<char>(value & 0xFFU));
+  };
+  const auto name_table = [&](const std::vector<std::pair<quint16, QString>>& records) {
+    QByteArray table;
+    QByteArray strings;
+    put_u16(table, 0);
+    put_u16(table, static_cast<quint16>(records.size()));
+    put_u16(table, static_cast<quint16>(6 + 12 * records.size()));
+    for (const auto& [id, text] : records) {
+      QByteArray encoded;
+      for (const auto ch : text) put_u16(encoded, ch.unicode());
+      for (const quint16 value : {quint16{3}, quint16{1}, quint16{0x0409}, id, static_cast<quint16>(encoded.size()),
+                                  static_cast<quint16>(strings.size())}) {
+        put_u16(table, value);
+      }
+      strings.append(encoded);
+    }
+    return table + strings;
+  };
+  // One wght axis; instances (subfamily name id, optional PostScript name id).
+  const auto fvar_table = [&](const std::vector<std::pair<quint16, quint16>>& instances, bool with_postscript_ids) {
+    QByteArray table;
+    const quint16 instance_size = with_postscript_ids ? 10 : 8;
+    for (const quint16 value : {quint16{1}, quint16{0}, quint16{16}, quint16{2}, quint16{1}, quint16{20},
+                                static_cast<quint16>(instances.size()), instance_size}) {
+      put_u16(table, value);
+    }
+    table.append("wght", 4);
+    for (int i = 0; i < 6; ++i) put_u16(table, 0);  // min, default, max (Fixed)
+    put_u16(table, 0);                              // flags
+    put_u16(table, 256);                            // axis name id
+    for (const auto& [subfamily, postscript] : instances) {
+      put_u16(table, subfamily);
+      put_u16(table, 0);
+      put_u16(table, 0);
+      put_u16(table, 0);  // wght coordinate
+      if (with_postscript_ids) put_u16(table, postscript);
+    }
+    return table;
+  };
+  std::vector<std::pair<quint16, QString>> records{
+      {1, QStringLiteral("Roboto Mono")},     {2, QStringLiteral("Thin")},
+      {6, QStringLiteral("RobotoMono-Thin")}, {16, QStringLiteral("Roboto Mono")},
+      {256, QStringLiteral("Weight")},        {257, QStringLiteral("Thin")},
+      {258, QStringLiteral("Regular")},       {259, QStringLiteral("Bold")},
+      {260, QStringLiteral("Semi Bold")},     {261, QStringLiteral("RobotoMono-BoldCustom")}};
+  const auto names = name_table(records);
+  const auto plain = fvar_table({{257, 0}, {258, 0}, {259, 0}, {260, 0}}, false);
+  using patchy::ui::variable_instance_postscript_name;
+  CHECK(variable_instance_postscript_name(plain, names, QStringLiteral("Regular")) == QStringLiteral("RobotoMono-Regular"));
+  CHECK(variable_instance_postscript_name(plain, names, QStringLiteral("bold")) == QStringLiteral("RobotoMono-Bold"));
+  CHECK(variable_instance_postscript_name(plain, names, QStringLiteral("SemiBold")) == QStringLiteral("RobotoMono-SemiBold"));
+  CHECK(!variable_instance_postscript_name(plain, names, QStringLiteral("Medium")).has_value());
+  CHECK(!variable_instance_postscript_name(QByteArray(), names, QStringLiteral("Regular")).has_value());
+  // The instance's own PostScript name record wins; 0xFFFF means it has none.
+  const auto with_ids = fvar_table({{258, 0xFFFF}, {259, 261}}, true);
+  CHECK(variable_instance_postscript_name(with_ids, names, QStringLiteral("Bold")) == QStringLiteral("RobotoMono-BoldCustom"));
+  CHECK(variable_instance_postscript_name(with_ids, names, QStringLiteral("Regular")) == QStringLiteral("RobotoMono-Regular"));
+  // The variations PostScript name prefix (name id 25) replaces the family.
+  records.push_back({25, QStringLiteral("RobotoMonoVF")});
+  CHECK(variable_instance_postscript_name(plain, name_table(records), QStringLiteral("Bold")) ==
+        QStringLiteral("RobotoMonoVF-Bold"));
 }
 
 void ui_text_area_type_tool_creation_cancel_and_boundary_edit() {
@@ -822,6 +934,9 @@ std::vector<patchy::test::TestCase> text_area_tests() {
           {"ui_text_area_depth_edit_transform_and_roundtrip",ui_text_area_depth_edit_transform_and_roundtrip},
           {"ui_text_area_empty_and_large_frames",ui_text_area_empty_and_large_frames},
           {"ui_text_area_psd_uses_postscript_font_names",ui_text_area_psd_uses_postscript_font_names},
+          {"ui_text_point_psd_uses_postscript_font_names",ui_text_point_psd_uses_postscript_font_names},
+          {"ui_text_variable_font_instances_get_their_own_postscript_names",
+           ui_text_variable_font_instances_get_their_own_postscript_names},
           {"ui_text_area_type_tool_creation_cancel_and_boundary_edit",ui_text_area_type_tool_creation_cancel_and_boundary_edit},
           {"ui_box_text_overflow_hides_lines_below_the_frame",ui_box_text_overflow_hides_lines_below_the_frame},
           {"ui_box_text_overflow_photoshop_story_survives_edit_and_round_trip",

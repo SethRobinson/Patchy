@@ -340,6 +340,71 @@ std::optional<OpenTypeFaceNames> parse_opentype_face_names(const QByteArray& nam
   return names;
 }
 
+std::optional<QString> variable_instance_postscript_name(const QByteArray& fvar_table,
+                                                       const QByteArray& name_table, const QString& subfamily) {
+  constexpr int kFvarHeaderBytes = 16;
+  constexpr quint16 kNameVariationsPrefix = 25;
+  const auto wanted = compact_text_family_key(subfamily);
+  if (fvar_table.size() < kFvarHeaderBytes || wanted.isEmpty()) {
+    return std::nullopt;
+  }
+  const int axes_offset = read_u16(fvar_table, 4);
+  const int axis_count = read_u16(fvar_table, 8);
+  const int axis_size = read_u16(fvar_table, 10);
+  const int instance_count = read_u16(fvar_table, 12);
+  const int instance_size = read_u16(fvar_table, 14);
+  const int coordinates_end = 4 + axis_count * 4;
+  if (axes_offset < kFvarHeaderBytes || axis_size < 20 || instance_size < coordinates_end) {
+    return std::nullopt;
+  }
+  QHash<quint16, std::pair<int, QString>> best;
+  for (const auto& record : opentype_name_records(name_table)) {
+    const auto rank = name_record_rank(record.platform, record.language);
+    if (rank >= 5 || record.text.isEmpty()) {
+      continue;
+    }
+    const auto found = best.find(record.name_id);
+    if (found == best.end() || rank < found->first) {
+      best.insert(record.name_id, {rank, record.text});
+    }
+  }
+  const auto name_for = [&best](quint16 id) { return best.contains(id) ? best.value(id).second : QString(); };
+  const auto postscript_chars = [](const QString& text) {
+    QString out;
+    for (const auto character : text) {
+      if (character.unicode() < 128U && character.isLetterOrNumber()) out += character;
+    }
+    return out;
+  };
+  const int instances_at = axes_offset + axis_count * axis_size;
+  for (int instance = 0; instance < instance_count; ++instance) {
+    const int at = instances_at + instance * instance_size;
+    if (at + instance_size > fvar_table.size()) {
+      break;
+    }
+    const auto instance_subfamily = name_for(read_u16(fvar_table, at));
+    if (compact_text_family_key(instance_subfamily) != wanted) {
+      continue;
+    }
+    if (instance_size >= coordinates_end + 2) {
+      const auto id = read_u16(fvar_table, at + coordinates_end);
+      if (id != 0xFFFFU) {
+        if (const auto own = name_for(id); !own.isEmpty()) return own;
+      }
+    }
+    auto prefix = name_for(kNameVariationsPrefix);
+    if (prefix.isEmpty()) prefix = name_for(kNameTypographicFamily);
+    if (prefix.isEmpty()) prefix = name_for(kNameFamily);
+    prefix = postscript_chars(prefix);
+    const auto face = postscript_chars(instance_subfamily);
+    if (prefix.isEmpty() || face.isEmpty()) {
+      return std::nullopt;
+    }
+    return prefix + QLatin1Char('-') + face;
+  }
+  return std::nullopt;
+}
+
 QByteArray opentype_table(const QByteArray& font, const char* tag) {
   const auto location = locate_table(font, tag);
   return location.has_value() ? font.mid(location->offset, location->length) : QByteArray();

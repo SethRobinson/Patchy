@@ -58,6 +58,17 @@ struct OpenTypeFaceNames {
 // family, full or PostScript name yields nullopt, as does a malformed one.
 [[nodiscard]] std::optional<OpenTypeFaceNames> parse_opentype_face_names(const QByteArray& name_table);
 
+// The PostScript name of a variable font's named instance whose subfamily is `subfamily`
+// ("Bold"), from its `fvar` and `name` tables: the instance's own PostScript name record when it
+// has one, else Adobe's rule (Technical Note 5902): the variations prefix (name id 25, else the
+// typographic or plain family) and the subfamily, each without spaces or punctuation, joined by
+// '-' ("RobotoMono-Bold"). A variable font's name id 6 names only its default instance, so a
+// bold run written under it would open in Photoshop as the default weight. Nullopt when the
+// font has no fvar table or no instance with that subfamily.
+[[nodiscard]] std::optional<QString> variable_instance_postscript_name(const QByteArray& fvar_table,
+                                                                       const QByteArray& name_table,
+                                                                       const QString& subfamily);
+
 // One table of a single sfnt font (TrueType or CFF; not a `ttcf` collection). Empty when absent.
 [[nodiscard]] QByteArray opentype_table(const QByteArray& font, const char* tag);
 

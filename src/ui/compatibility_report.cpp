@@ -132,11 +132,9 @@ void append_layer_warnings(const Layer& layer, QStringList& warnings, bool nativ
                               "preview because the PSD text pixels were not visible.")
                        .arg(QString::fromStdString(layer.name()), source_block.isEmpty() ? QObject::tr("text data")
                                                                                          : source_block);
-    } else if (!source_block.isEmpty()) {
-      warnings << QObject::tr("%1: extracted editable PSD text from %2 and preserved the original PSD text block; "
-                              "the current pixels use the PSD raster preview until the text is edited.")
-                       .arg(QString::fromStdString(layer.name()), source_block);
     }
+    // Text Patchy reads and lays out (its own PSDs and ordinary Photoshop type) adds no line:
+    // showing Photoshop's raster until an edit is how every editor opens PSD type (issue 646).
   }
   if (layer_is_smart_object(layer)) {
     if (const auto warning = smart_object_layer_warning(layer); !warning.isEmpty()) {

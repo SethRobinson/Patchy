@@ -21,11 +21,19 @@
 
 namespace patchy::psd {
 
-// The GUI supplies native face names for newly authored area frames on platforms
-// without DirectWrite. Ordinary point/box output keeps its established codec.
-using AreaTextFontResolver = std::optional<std::string> (*)(std::string_view family,
+// On platforms without DirectWrite the GUI supplies each authored run's PostScript face name
+// (from the installed face's OpenType name table) for point, box and area text alike, so
+// Photoshop finds the font (GitHub issue 646: Linux wrote "Roboto Mono [GOOG]"). It returns
+// std::nullopt when the family is not installed; the run then keeps
+// family_name_for_photoshop_fallback(family).
+using FontFaceNameResolver = std::optional<std::string> (*)(std::string_view family,
     std::string_view style, bool bold, bool italic);
-void set_area_text_font_resolver(AreaTextFontResolver resolver);
+void set_font_face_name_resolver(FontFaceNameResolver resolver);
+
+// The name a run is written under when no platform lookup names its face: the family without
+// the " [Foundry]" suffix Qt adds when two foundries share a family name ("Roboto Mono [GOOG]"
+// -> "Roboto Mono"), "Arial" when empty.
+[[nodiscard]] std::string family_name_for_photoshop_fallback(std::string_view family);
 
 // What one type layer's text object is authored from (document pixels, the TySh engine units).
 struct TextEngineInputs {
