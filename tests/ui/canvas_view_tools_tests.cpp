@@ -5138,9 +5138,11 @@ void ui_view_extras_hides_move_transform_controls() {
   using patchy::ui::view_extra_bit;
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(96, 72, patchy::PixelFormat::rgba8(), QColor(235, 235, 235)));
-  auto& paint = document.add_pixel_layer("Paint", solid_pixels(40, 30, patchy::PixelFormat::rgba8(), QColor(60, 130, 230)));
+  patchy::Layer paint(document.allocate_layer_id(), "Paint",
+                      solid_pixels(40, 30, patchy::PixelFormat::rgba8(), QColor(60, 130, 230)));
   paint.set_bounds(patchy::Rect{28, 20, 40, 30});
   const auto paint_id = paint.id();
+  document.add_layer(std::move(paint));
   document.set_active_layer(paint_id);
   patchy::ui::CanvasWidget canvas;
   canvas.resize(420, 320);
