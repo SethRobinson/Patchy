@@ -94,7 +94,7 @@ void set_personal(bool ask) {
   patchy::ui::set_stored_save_metadata_mode(patchy::ui::SaveMetadataMode::Personal);
   patchy::ui::set_stored_personal_save_metadata(
       {QStringLiteral("Ann Example"), QStringLiteral("© 2026 Ann Example"), QStringLiteral("ann@example.com"),
-       QStringLiteral("https://example.com"), ask});
+       QStringLiteral("https://example.com"), ask, QString()});
 }
 
 QMessageBox* visible_message_box(const QString& name) {

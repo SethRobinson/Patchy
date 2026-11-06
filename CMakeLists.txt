@@ -148,9 +148,10 @@ if(NOT MSVC)
     PROPERTIES COMPILE_OPTIONS "-std=gnu2x"
   )
   # bc7enc declares its init function without a prototype and keeps a few unused helpers.
+  # GCC cannot see that m_num_pixels is at most 16 and flags the selector copy loop.
   set_source_files_properties(
     src/formats/bc7enc/bc7enc.c
-    PROPERTIES COMPILE_OPTIONS "-ffp-contract=off;-Wno-strict-prototypes;-Wno-unused-function"
+    PROPERTIES COMPILE_OPTIONS "-ffp-contract=off;-Wno-strict-prototypes;-Wno-unused-function;$<$<C_COMPILER_ID:GNU>:-Wno-stringop-overflow>"
   )
 endif()
 

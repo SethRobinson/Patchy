@@ -2624,7 +2624,7 @@ void MainWindow::schedule_vector_appearance_apply() {
 
 void MainWindow::apply_selected_shape_corner_radius(double radius) {
   ShapeAppearanceSettings settings;
-  settings.geometry = LiveShapeParams{};
+  settings.geometry.emplace();
   settings.geometry->kind = LiveShapeKind::RoundedRectangle;
   settings.geometry->corner_radii.fill(radius);
   auto edits = std::make_shared<AppearanceEdits<ShapeAppearanceSettings>>();
@@ -2637,7 +2637,7 @@ void MainWindow::apply_selected_shape_corner_radius(double radius) {
 void MainWindow::apply_selected_line_weight(double weight) {
   // Queued like Radius: a spin drag or held arrow is one undo step.
   ShapeAppearanceSettings settings;
-  settings.geometry = LiveShapeParams{};
+  settings.geometry.emplace();
   settings.geometry->kind = LiveShapeKind::Line;
   settings.geometry->line_weight = weight;
   auto edits = std::make_shared<AppearanceEdits<ShapeAppearanceSettings>>();
@@ -2652,7 +2652,7 @@ void MainWindow::apply_selected_line_arrowhead(bool at_end, bool on) {
   finish_pending_shape_appearance_edit();
   if (!has_active_document() || !vector_appearance_controls_live()) return;
   ShapeAppearanceSettings settings;
-  settings.geometry = LiveShapeParams{};
+  settings.geometry.emplace();
   settings.geometry->kind = LiveShapeKind::Line;
   (at_end ? settings.geometry->arrow_end : settings.geometry->arrow_start) = on;
   const std::string key = at_end ? "line.arrow_end" : "line.arrow_start";
