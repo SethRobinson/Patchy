@@ -29,6 +29,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPointer>
 #include <QScreen>
 #include <QScrollBar>
 #include <QSet>
@@ -1508,7 +1509,12 @@ void FontPickerCombo::showPopup() {
     if (source_row < 0) {
       return;
     }
-    popup->close();
+    // Hide now, close (and so delete, WA_DeleteOnClose) only once the pick has gone through. The
+    // pick can open a modal prompt (a selected layer's missing font asks first), and on macOS that
+    // prompt's event loop runs the popup's deferred delete: the search field or list emitting this
+    // signal, and this slot, were freed under it (a crash on Return in the search field).
+    const QPointer<QWidget> alive(popup);
+    popup->hide();
     setCurrentIndex(source_row);  // fires currentFontChanged through the stock combo path
     // ... unless the control was ALREADY parked on that row while its current font named a
     // different family. A missing font cannot be a row (it is not in the database), so a type
@@ -1523,6 +1529,9 @@ void FontPickerCombo::showPopup() {
     }
     setFocus(Qt::OtherFocusReason);  // land focus on a text-option widget, not a dying popup
     emit activated(currentIndex());  // a user pick, like the stock popup's (records it as recent)
+    if (alive != nullptr) {
+      alive->close();
+    }
   };
   connect(list, &QListView::clicked, popup, commit);
   connect(search, &QLineEdit::returnPressed, popup, [list, commit] { commit(list->currentIndex()); });
