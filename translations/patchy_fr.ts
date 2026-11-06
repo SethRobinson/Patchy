@@ -14983,6 +14983,13 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
         <translation>Chaque calque visible de premier niveau devient une image, le calque du haut en premier. Un calque nommé &quot;all&quot; est dessiné dans chaque image au lieu d&apos;en être une, et chaque calque d&apos;un groupe nommé &quot;all&quot; est une image à part entière.</translation>
     </message>
+    <message>
+        <source>%1 already exists.
+Do you want to replace it?</source>
+        <extracomment>Save dialog: the typed name got the picked file type&apos;s extension and that file exists</extracomment>
+        <translation>%1 existe déjà.
+Voulez-vous le remplacer ?</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

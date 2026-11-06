@@ -32,6 +32,7 @@
 #include "ui/appimage_environment.hpp"
 #include "ui/mcp_attachment.hpp"
 #include "ui/qt_paths.hpp"
+#include "ui/dialog_utils.hpp"
 #include "unicode_path_names.hpp"
 #include "test_harness.hpp"
 #include <patchy_version.hpp>
@@ -1439,6 +1440,251 @@ void update_platform_prefers_windows_arm64_on_arm64_pcs() {
   CHECK(arm64_build.status == patchy::ui::UpdateCheckStatus::MissingPlatform);
   CHECK(arm64_build.platform == arm64);
   CHECK(!arm64_build.update.has_value());
+}
+
+// Save dialogs: the file name follows the picked file type, and the picked type wins over
+// a typed extension of another listed type (GitHub issue 651).
+const QStringList& save_name_test_filters() {
+  static const QStringList filters{
+      QStringLiteral("Photoshop Document (*.psd)"), QStringLiteral("PNG Image (*.png)"),
+      QStringLiteral("JPEG Image (*.jpg *.jpeg)"), QStringLiteral("TIFF Image (*.tif *.tiff)"),
+      QStringLiteral("GIMP Image (*.xcf *.xcf.gz)")};
+  return filters;
+}
+
+void save_name_for_picked_filter_follows_the_picked_type() {
+  using patchy::ui::save_name_for_picked_filter;
+  const auto& filters = save_name_test_filters();
+  const auto& psd = filters[0];
+  const auto& png = filters[1];
+  const auto& jpeg = filters[2];
+  const auto& tiff = filters[3];
+  const auto& xcf = filters[4];
+  const auto rename = [&](const char* name, const QString& filter) {
+    return save_name_for_picked_filter(QString::fromUtf8(name), filter, filters);
+  };
+
+  CHECK(rename("Test.png", jpeg) == QStringLiteral("Test.jpg"));
+  CHECK(rename("Test.jpg", png) == QStringLiteral("Test.png"));
+  CHECK(rename("Test.png", psd) == QStringLiteral("Test.psd"));
+  CHECK(rename("C:/work/Test.png", jpeg) == QStringLiteral("C:/work/Test.jpg"));
+  CHECK(rename("C:\\work\\Test.png", jpeg) == QStringLiteral("C:\\work\\Test.jpg"));
+  CHECK(rename("/home/me/my.photos/Test.png", tiff) == QStringLiteral("/home/me/my.photos/Test.tif"));
+  // Capitals stay capitals; mixed case takes the row's spelling.
+  CHECK(rename("Test.PNG", jpeg) == QStringLiteral("Test.JPG"));
+  CHECK(rename("Test.Png", jpeg) == QStringLiteral("Test.jpg"));
+  // The user's variant stays when the picked row already lists it.
+  CHECK(rename("Test.jpeg", jpeg) == QStringLiteral("Test.jpeg"));
+  CHECK(rename("Test.JPEG", jpeg) == QStringLiteral("Test.JPEG"));
+  CHECK(rename("Test.TIFF", tiff) == QStringLiteral("Test.TIFF"));
+  CHECK(rename("Test.jpeg", tiff) == QStringLiteral("Test.tif"));
+  CHECK(rename("Test.tiff", jpeg) == QStringLiteral("Test.jpg"));
+  // Two-part extensions are one extension; unlisted ones are left alone.
+  CHECK(rename("art.xcf.gz", png) == QStringLiteral("art.png"));
+  CHECK(rename("art.png", xcf) == QStringLiteral("art.xcf"));
+  CHECK(rename("art.xcf.gz", xcf) == QStringLiteral("art.xcf.gz"));
+  CHECK(rename("notes.tar.gz", jpeg) == QStringLiteral("notes.tar.gz"));
+  CHECK(rename("photo.final", jpeg) == QStringLiteral("photo.final"));
+  CHECK(rename("Test", jpeg) == QStringLiteral("Test"));
+  CHECK(rename("", jpeg).isEmpty());
+  // A name that is only an extension, or an extension only in the folder, is no extension.
+  CHECK(rename(".png", jpeg) == QStringLiteral(".png"));
+  CHECK(rename("C:/shots.png/Test", jpeg) == QStringLiteral("C:/shots.png/Test"));
+
+  // Catch-all rows keep the name as typed.
+  const QStringList with_catch_all{QStringLiteral("All Supported (*.psd *.png *.jpg *.jpeg)"), psd, png, jpeg,
+                                   QStringLiteral("All Files (*)"), QStringLiteral("Anything (*.*)")};
+  for (const auto& row : {with_catch_all[0], with_catch_all[4], with_catch_all[5]}) {
+    CHECK(save_name_for_picked_filter(QStringLiteral("Test.png"), row, with_catch_all) == QStringLiteral("Test.png"));
+  }
+  CHECK(save_name_for_picked_filter(QStringLiteral("Test.png"), jpeg, with_catch_all) == QStringLiteral("Test.jpg"));
+  // A row whose list also holds another row's extension is still one type.
+  const QStringList overlapping{png, QStringLiteral("Animated PNG (*.apng *.png)"), jpeg};
+  CHECK(save_name_for_picked_filter(QStringLiteral("Test.jpg"), overlapping[1], overlapping) ==
+        QStringLiteral("Test.apng"));
+  CHECK(save_name_for_picked_filter(QStringLiteral("Test.png"), overlapping[1], overlapping) ==
+        QStringLiteral("Test.png"));
+  // Hidden-details rows ("Name (hint) (patterns)") read the last pattern list; Qt's
+  // semicolon spelling works too.
+  const QStringList open_style{QStringLiteral("PNG Image (*.png) (*.png)"),
+                               QStringLiteral("JPEG Image (*.jpg and more) (*.jpg;*.jpeg)")};
+  CHECK(save_name_for_picked_filter(QStringLiteral("Test.png"), open_style[1], open_style) ==
+        QStringLiteral("Test.jpg"));
+
+  // Unicode names keep every character but the extension.
+  const auto stem = QString::fromUtf8(patchy::test::utf8_string(patchy::test::kUnicodeCombinedStem));
+  const auto folder = QString::fromUtf8(patchy::test::utf8_string(patchy::test::kUnicodeDirName));
+  CHECK(save_name_for_picked_filter(folder + QLatin1Char('/') + stem + QStringLiteral(".png"), jpeg, filters) ==
+        folder + QLatin1Char('/') + stem + QStringLiteral(".jpg"));
+}
+
+// Picks a row of Qt's own file dialog the way a click on its type list does.
+void pick_save_dialog_type_row(QFileDialog& dialog, qsizetype row) {
+  auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("fileTypeCombo"));
+  CHECK(combo != nullptr);
+  if (combo == nullptr || row < 0 || row >= combo->count()) {
+    CHECK(false);
+    return;
+  }
+  const auto index = static_cast<int>(row);
+  combo->setCurrentIndex(index);
+  emit combo->activated(index);
+  emit combo->textActivated(combo->itemText(index));
+  QApplication::processEvents();
+}
+
+QString save_dialog_name_text(QFileDialog& dialog) {
+  auto* edit = dialog.findChild<QLineEdit*>(QStringLiteral("fileNameEdit"));
+  CHECK(edit != nullptr);
+  return edit == nullptr ? QString() : edit->text();
+}
+
+void set_save_dialog_name_text(QFileDialog& dialog, const QString& text) {
+  auto* edit = dialog.findChild<QLineEdit*>(QStringLiteral("fileNameEdit"));
+  CHECK(edit != nullptr);
+  if (edit != nullptr) {
+    edit->setText(text);
+  }
+}
+
+QString save_name_test_folder(std::u8string_view leaf) {
+  const auto folder = patchy::test::unicode_artifact_dir(leaf);
+  std::error_code error;
+  std::filesystem::create_directories(folder, error);
+  CHECK(!error);
+  return patchy::ui::to_qstring(std::filesystem::absolute(folder));
+}
+
+void ui_save_dialog_name_follows_the_picked_type() {
+  const auto folder = save_name_test_folder(u8"save-name-follows-type");
+  const auto filters = save_name_test_filters();
+  QString png_filter = filters[1];
+  QStringList seen;
+  when_dialog_visible(QStringLiteral("saveNameFollowsTypeDialog"), [&](QDialog& shown) {
+    auto& dialog = static_cast<QFileDialog&>(shown);
+    set_save_dialog_name_text(dialog, QStringLiteral("Test.png"));
+    pick_save_dialog_type_row(dialog, 2);  // JPEG
+    seen << save_dialog_name_text(dialog);
+    pick_save_dialog_type_row(dialog, 1);  // PNG
+    seen << save_dialog_name_text(dialog);
+    pick_save_dialog_type_row(dialog, 3);  // TIFF
+    seen << save_dialog_name_text(dialog);
+    // Qt's dialog would make this photo.jpg by itself: an unlisted extension stays.
+    set_save_dialog_name_text(dialog, QStringLiteral("photo.final"));
+    pick_save_dialog_type_row(dialog, 2);
+    seen << save_dialog_name_text(dialog);
+    set_save_dialog_name_text(dialog, QStringLiteral("Test"));
+    pick_save_dialog_type_row(dialog, 0);
+    seen << save_dialog_name_text(dialog);
+    // A PNG name typed with JPEG picked saves as JPEG under a .jpg name.
+    pick_save_dialog_type_row(dialog, 2);
+    set_save_dialog_name_text(dialog, QStringLiteral("Typed.png"));
+    static_cast<QDialog&>(dialog).accept();  // QFileDialog::accept is protected
+  });
+  const auto path = patchy::ui::get_save_file_name(nullptr, QStringLiteral("Save As"),
+                                                   folder + QStringLiteral("/Start.psd"),
+                                                   filters.join(QStringLiteral(";;")), &png_filter,
+                                                   QStringLiteral("saveNameFollowsTypeDialog"));
+  CHECK(seen == (QStringList{QStringLiteral("Test.jpg"), QStringLiteral("Test.png"), QStringLiteral("Test.tif"),
+                             QStringLiteral("photo.final"), QStringLiteral("Test")}));
+  CHECK(QFileInfo(path).fileName() == QStringLiteral("Typed.jpg"));
+  CHECK(QFileInfo(path).absolutePath() == QFileInfo(folder).absoluteFilePath());
+  CHECK(png_filter == filters[2]);
+}
+
+void ui_save_dialog_asks_before_replacing_the_renamed_file() {
+  const auto folder = save_name_test_folder(u8"save-name-replace");
+  const auto taken = folder + QStringLiteral("/Taken.jpg");
+  {
+    QFile file(taken);
+    CHECK(file.open(QIODevice::WriteOnly));
+    CHECK(file.write("not a real jpeg") > 0);
+  }
+  const auto filters = save_name_test_filters();
+  const auto run = [&](QMessageBox::StandardButton answer, QString* reopened_name, bool* asked) {
+    int step = 0;
+    QTimer poll;
+    poll.setInterval(10);
+    QObject::connect(&poll, &QTimer::timeout, guarded([&] {
+      auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveNameReplaceDialog")));
+      if (step == 0 || step == 2) {
+        if (dialog == nullptr || !dialog->isVisible()) {
+          return;
+        }
+        if (step == 2) {
+          *reopened_name = save_dialog_name_text(*dialog);
+          step = 3;
+          dialog->reject();
+          return;
+        }
+        pick_save_dialog_type_row(*dialog, 2);  // JPEG
+        set_save_dialog_name_text(*dialog, QStringLiteral("Taken.png"));
+        step = 1;
+        static_cast<QDialog*>(dialog)->accept();  // QFileDialog::accept is protected
+        return;
+      }
+      if (step == 1) {
+        auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("saveReplaceRenamedFileMessageBox")));
+        if (box == nullptr || !box->isVisible()) {
+          return;
+        }
+        *asked = box->text().contains(QStringLiteral("Taken.jpg"));
+        step = 2;
+        box->button(answer)->click();
+      }
+    }));
+    poll.start();
+    auto path = patchy::ui::get_save_file_name(nullptr, QStringLiteral("Save As"), folder + QStringLiteral("/Start.psd"),
+                                               filters.join(QStringLiteral(";;")), nullptr,
+                                               QStringLiteral("saveNameReplaceDialog"));
+    poll.stop();
+    return path;
+  };
+
+  // No goes back to the dialog with the new name; cancelling there saves nothing.
+  QString reopened;
+  bool asked = false;
+  CHECK(run(QMessageBox::No, &reopened, &asked).isEmpty());
+  CHECK(asked);
+  CHECK(reopened == QStringLiteral("Taken.jpg"));
+
+  // Yes takes the renamed file.
+  asked = false;
+  const auto replaced = run(QMessageBox::Yes, &reopened, &asked);
+  CHECK(asked);
+  CHECK(QFileInfo(replaced).fileName() == QStringLiteral("Taken.jpg"));
+}
+
+// File > Save As on a real document: picking JPEG turns Test.png into Test.jpg.
+void ui_save_as_name_follows_the_picked_type() {
+  auto&& [window, canvas] = ShownWindowFixture{};
+  QStringList seen;
+  bool saw_dialog = false;
+  when_dialog_visible(QStringLiteral("saveAsFileDialog"), [&](QDialog& shown) {
+    auto& dialog = static_cast<QFileDialog&>(shown);
+    const auto filters = dialog.nameFilters();
+    qsizetype jpeg_row = -1;
+    qsizetype png_row = -1;
+    for (qsizetype i = 0; i < filters.size(); ++i) {
+      if (filters[i].startsWith(QStringLiteral("JPEG Image ("))) {
+        jpeg_row = i;
+      } else if (filters[i].startsWith(QStringLiteral("PNG Image ("))) {
+        png_row = i;
+      }
+    }
+    CHECK(jpeg_row >= 0);
+    CHECK(png_row >= 0);
+    set_save_dialog_name_text(dialog, QStringLiteral("Test.png"));
+    pick_save_dialog_type_row(dialog, jpeg_row);
+    seen << save_dialog_name_text(dialog);
+    pick_save_dialog_type_row(dialog, png_row);
+    seen << save_dialog_name_text(dialog);
+    saw_dialog = true;
+    dialog.reject();
+  });
+  require_action(window, "fileSaveAsAction")->trigger();
+  CHECK(saw_dialog);
+  CHECK(seen == (QStringList{QStringLiteral("Test.jpg"), QStringLiteral("Test.png")}));
 }
 
 void update_manifest_parser_handles_supported_cases() {
@@ -4686,6 +4932,10 @@ std::vector<patchy::test::TestCase> app_shell_tests_part2() {
       {"ui_open_dialog_lists_formats_alphabetically", ui_open_dialog_lists_formats_alphabetically},
       {"ui_open_dialog_opens_every_selected_file", ui_open_dialog_opens_every_selected_file},
       {"ui_open_dialog_cancel_remembers_the_folder", ui_open_dialog_cancel_remembers_the_folder},
+      {"save_name_for_picked_filter_follows_the_picked_type", save_name_for_picked_filter_follows_the_picked_type},
+      {"ui_save_dialog_name_follows_the_picked_type", ui_save_dialog_name_follows_the_picked_type},
+      {"ui_save_dialog_asks_before_replacing_the_renamed_file", ui_save_dialog_asks_before_replacing_the_renamed_file},
+      {"ui_save_as_name_follows_the_picked_type", ui_save_as_name_follows_the_picked_type},
       {"update_manifest_parser_handles_supported_cases", update_manifest_parser_handles_supported_cases},
       {"update_platform_prefers_windows_arm64_on_arm64_pcs", update_platform_prefers_windows_arm64_on_arm64_pcs},
       {"ui_background_worker_wait_is_bounded", ui_background_worker_wait_is_bounded},

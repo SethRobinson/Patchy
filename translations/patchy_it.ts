@@ -14983,6 +14983,13 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
         <translation>Ogni livello visibile di primo livello diventa un fotogramma, a partire dal livello superiore. Un livello chiamato &quot;all&quot; viene disegnato in ogni fotogramma invece di esserne uno, e ogni livello dentro un gruppo chiamato &quot;all&quot; è un fotogramma a sé.</translation>
     </message>
+    <message>
+        <source>%1 already exists.
+Do you want to replace it?</source>
+        <extracomment>Save dialog: the typed name got the picked file type&apos;s extension and that file exists</extracomment>
+        <translation>%1 esiste già.
+Sostituirlo?</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

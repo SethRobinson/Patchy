@@ -14983,6 +14983,13 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
         <translation>Cada capa visible de nivel superior se convierte en un fotograma, empezando por la capa superior. Una capa llamada &quot;all&quot; se dibuja en todos los fotogramas en lugar de ser uno, y cada capa dentro de un grupo llamado &quot;all&quot; es su propio fotograma.</translation>
     </message>
+    <message>
+        <source>%1 already exists.
+Do you want to replace it?</source>
+        <extracomment>Save dialog: the typed name got the picked file type&apos;s extension and that file exists</extracomment>
+        <translation>%1 ya existe.
+¿Desea reemplazarlo?</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -431,6 +431,18 @@ enum class FilterNameDetails { Shown, Hidden };
                                           const QString& filter, QString* selected_filter = nullptr,
                                           const QString& object_name = QString(),
                                           const QStringList& recent_files = QStringList());
+// Save dialogs: the file name follows the picked file type (GitHub issue 651). Returns
+// `name` (a file name or a whole path) with its extension replaced by the first extension
+// of `filter` when the name ends in an extension some row of `filters` lists and `filter`
+// is a single-type row that does not list it ("Test.png" under JPEG becomes "Test.jpg";
+// an all-capitals extension stays in capitals). Everything else comes back unchanged:
+// no extension, an extension no row lists ("photo.final", "notes.tar.gz"), one the
+// picked row already lists ("Test.jpeg" under JPEG), and any name under a catch-all row
+// ("*", "*.*", or a row that lists the extensions of two or more other rows).
+// get_save_file_name applies it while the dialog is open where the dialog allows it and
+// again to the accepted name, so the picked type wins over a typed extension.
+[[nodiscard]] QString save_name_for_picked_filter(const QString& name, const QString& filter,
+                                                  const QStringList& filters);
 // A folder picker with an object name (tests find it like the file dialogs). Empty when
 // cancelled. The browser build has no folders to pick: it returns a fresh MEMFS folder, and
 // each file written there goes out through offer_browser_download_for_saved_file.
