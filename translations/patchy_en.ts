@@ -14964,6 +14964,10 @@ Do you want to replace it?</source>
         <extracomment>Save dialog: the typed name got the picked file type&apos;s extension and that file exists</extracomment>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Transform controls under the Move tool</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

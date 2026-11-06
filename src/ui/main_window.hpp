@@ -2479,6 +2479,10 @@ private:
   // of that kind instead).
   // add_layer_export_actions adds both shared actions to a context menu.
   void add_layer_export_actions(QMenu* menu);
+  // Adds a separator and the row menus' Export submenu (layerContextExportMenu): the export
+  // actions, a separator, then Duplicate Layer (or Group) to Document..., which it returns
+  // (main_window_layer_ops.cpp; the row menu and the Background's menu, #657).
+  QAction* add_layer_context_export_menu(QMenu* menu, bool group_target);
   void export_selected_layers(bool choose_format, LayerExportSource source = LayerExportSource::Layer);
   bool handle_layer_action_button_drag_event(QObject* watched, QEvent* event);
   // The hint naming a Layers footer button's drop action while a layer drag is over it

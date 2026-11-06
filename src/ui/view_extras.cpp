@@ -25,13 +25,15 @@ struct ViewExtraEntry {
 };
 
 // In the dialog's order: selection and path marks first, then the layout aids.
-constexpr std::array<ViewExtraEntry, 8> kViewExtraEntries{{
+constexpr std::array<ViewExtraEntry, 9> kViewExtraEntries{{
     {ViewExtra::SelectionEdges, "selectionEdges", "viewExtrasSelectionEdgesCheck",
      QT_TRANSLATE_NOOP("QObject", "Selection edges")},
     {ViewExtra::TargetPath, "targetPath", "viewExtrasTargetPathCheck",
      QT_TRANSLATE_NOOP("QObject", "Target path (anchor points and outline)")},
     {ViewExtra::LayerOutlines, "layerOutlines", "viewExtrasLayerOutlinesCheck",
      QT_TRANSLATE_NOOP("QObject", "Layer outlines under the Move tool")},
+    {ViewExtra::TransformControls, "transformControls", "viewExtrasTransformControlsCheck",
+     QT_TRANSLATE_NOOP("QObject", "Transform controls under the Move tool")},
     {ViewExtra::Guides, "guides", "viewExtrasGuidesCheck", QT_TRANSLATE_NOOP("QObject", "Guides")},
     {ViewExtra::SmartGuides, "smartGuides", "viewExtrasSmartGuidesCheck",
      QT_TRANSLATE_NOOP("QObject", "Alignment lines while moving")},

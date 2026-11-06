@@ -14935,6 +14935,10 @@ Do you want to replace it?</source>
         <translation>%1이(가) 이미 있습니다.
 바꾸시겠습니까?</translation>
     </message>
+    <message>
+        <source>Transform controls under the Move tool</source>
+        <translation>이동 도구의 변환 컨트롤</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

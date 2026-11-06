@@ -2084,11 +2084,19 @@ std::optional<QRectF> CanvasWidget::move_transform_target_rect() const {
   return union_rect;
 }
 
-std::optional<QRectF> CanvasWidget::move_transform_controls_rect() const {
+std::optional<QRectF> CanvasWidget::move_transform_controls_target_rect() const {
   if (!show_transform_controls_) {
     return std::nullopt;
   }
   return move_transform_target_rect();
+}
+
+std::optional<QRectF> CanvasWidget::move_transform_controls_rect() const {
+  // View > Extras hides the box, and a hidden box takes no handle grabs or cursors.
+  if (!extra_shown(ViewExtra::TransformControls)) {
+    return std::nullopt;
+  }
+  return move_transform_controls_target_rect();
 }
 
 std::vector<LayerId> CanvasWidget::free_transform_snap_exclude_ids() const {
@@ -3239,7 +3247,8 @@ std::optional<CanvasWidget::TransformControlsState> CanvasWidget::transform_cont
     angle = transform_angle_;
     distortion = transform_distortion_scale_factors();
   } else {
-    rect = move_transform_controls_rect();
+    // The options bar fields keep the box's values while View > Extras hides it.
+    rect = move_transform_controls_target_rect();
     if (rect.has_value()) {
       original_rect = *rect;
     }

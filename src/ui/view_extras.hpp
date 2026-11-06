@@ -20,9 +20,10 @@ enum class ViewExtra : std::uint32_t {
   Grid = 1u << 5,
   PixelGrid = 1u << 6,
   ArtboardNames = 1u << 7,
+  TransformControls = 1u << 8,  // the Move tool's Show Transform Controls box
 };
 
-inline constexpr std::uint32_t kAllViewExtras = 0xffu;
+inline constexpr std::uint32_t kAllViewExtras = 0x1ffu;
 
 [[nodiscard]] constexpr std::uint32_t view_extra_bit(ViewExtra extra) noexcept {
   return static_cast<std::uint32_t>(extra);

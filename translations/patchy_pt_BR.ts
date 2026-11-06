@@ -14982,6 +14982,10 @@ Do you want to replace it?</source>
         <translation>%1 já existe.
 Deseja substituí-lo?</translation>
     </message>
+    <message>
+        <source>Transform controls under the Move tool</source>
+        <translation>Controles de transformação com a ferramenta Mover</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

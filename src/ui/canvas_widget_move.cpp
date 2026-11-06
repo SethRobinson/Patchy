@@ -1132,7 +1132,7 @@ std::optional<QRect> CanvasWidget::move_hover_outline_rect_at(QPoint widget_posi
     // Auto-Select Group outlines the group the click would pick.
     hit_layer = auto_select_target_layer(hit_layer);
   }
-  if (show_transform_controls_ && click_selects) {
+  if (show_transform_controls_ && extra_shown(ViewExtra::TransformControls) && click_selects) {
     if (!selected_layer_ids_.empty()) {
       if (selected_layer_ids_.size() == 1U && selected_layer_ids_.front() == hit_layer->id()) {
         return std::nullopt;

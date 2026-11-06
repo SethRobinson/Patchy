@@ -3979,17 +3979,22 @@ void ui_background_layer_marker_and_short_menu() {
   CHECK(badges.size() == 1 && badges.front()->property("layerBackgroundBadge").toBool() &&
         badges.front()->toolTip().startsWith(QStringLiteral("Background")));
 
-  // Right-clicks the bottom row and picks `pick`; returns the menu's entries, "-" for a
-  // separator and "!" before a disabled one.
+  // Right-clicks the bottom row and picks `pick` (in the menu or its Export submenu); returns
+  // the menu's entries, "-" for a separator and "!" before a disabled one. `export_seen` gets
+  // the Export submenu's entries the same way, by object name (#657).
+  QStringList export_seen;
   const auto right_click_background = [&](const char* pick) {
     QStringList seen;
-    QTimer::singleShot(0, [&seen, pick] {
+    export_seen.clear();
+    QTimer::singleShot(0, [&window, &seen, &export_seen, layers_dock, pick] {
       for (auto* widget : QApplication::topLevelWidgets()) {
         auto* menu = qobject_cast<QMenu*>(widget);
         if (menu == nullptr || !menu->isVisible() || menu->objectName() != QStringLiteral("layerContextMenu")) {
           continue;
         }
         QAction* chosen = nullptr;
+        QAction* export_entry = nullptr;
+        QAction* export_chosen = nullptr;
         for (auto* action : menu->actions()) {
           seen.push_back(action->isSeparator() ? QStringLiteral("-")
                                                : (action->isEnabled() ? QString() : QStringLiteral("!")) +
@@ -3997,9 +4002,46 @@ void ui_background_layer_marker_and_short_menu() {
           if (pick != nullptr && action->objectName() == QLatin1String(pick)) {
             chosen = action;
           }
+          if (auto* submenu = action->menu();
+              submenu != nullptr && submenu->objectName() == QStringLiteral("layerContextExportMenu")) {
+            export_entry = action;
+            for (auto* entry : submenu->actions()) {
+              export_seen.push_back(entry->isSeparator() ? QStringLiteral("-")
+                                                         : (entry->isEnabled() ? QString() : QStringLiteral("!")) +
+                                                               entry->objectName());
+              if (pick != nullptr && entry->objectName() == QLatin1String(pick)) {
+                export_chosen = entry;
+              }
+            }
+          }
         }
         save_widget_artifact(pick != nullptr ? "issue274_background_menu" : "issue274_lone_background_menu", *menu);
-        if (chosen != nullptr) {
+        if (export_chosen != nullptr) {
+          // Opens Export the way a user does and saves the menu with it open over the window.
+          menu->setActiveAction(export_entry);
+          QTest::keyClick(menu, Qt::Key_Right);
+          QApplication::processEvents();
+          auto* submenu = export_entry->menu();
+          CHECK(submenu->isVisible());
+          const auto origin = window.mapToGlobal(QPoint(0, 0));
+          QRect crop(layers_dock->mapTo(&window, QPoint(0, 0)), layers_dock->size());
+          for (QWidget* popup : {static_cast<QWidget*>(menu), static_cast<QWidget*>(submenu)}) {
+            crop = crop.united(QRect(popup->mapToGlobal(QPoint(0, 0)) - origin, popup->size()));
+          }
+          crop = crop.adjusted(-12, -12, 12, 12);  // popups may reach past the window; the fill shows there
+          QImage shot(crop.size(), QImage::Format_ARGB32_Premultiplied);
+          shot.fill(window.palette().color(QPalette::Window));
+          {
+            QPainter painter(&shot);
+            painter.drawPixmap(-crop.topLeft(), window.grab());
+            for (QWidget* popup : {static_cast<QWidget*>(menu), static_cast<QWidget*>(submenu)}) {
+              painter.drawPixmap(popup->mapToGlobal(QPoint(0, 0)) - origin - crop.topLeft(), popup->grab());
+            }
+          }
+          save_image_artifact("issue657_background_export_submenu", shot);
+          submenu->setActiveAction(export_chosen);
+          QTest::keyClick(submenu, Qt::Key_Return);
+        } else if (chosen != nullptr) {
           menu->setActiveAction(chosen);
           QTest::keyClick(menu, Qt::Key_Return);
         } else {
@@ -4018,12 +4060,15 @@ void ui_background_layer_marker_and_short_menu() {
   auto& doc = patchy::ui::MainWindowTestAccess::document(window);
   const auto undo_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
   const auto menu = right_click_background("layerFromBackgroundAction");
+  // Duplicate Layer to Document... moved into the Export submenu, as on every other row (#657).
   CHECK(menu == (QStringList{QStringLiteral("Layer from Background"), QStringLiteral("-"),
-                             QStringLiteral("Duplicate Layer"), QStringLiteral("Duplicate Layer to Document..."),
-                             QStringLiteral("Delete Layer"), QStringLiteral("-"),
+                             QStringLiteral("Duplicate Layer"), QStringLiteral("Delete Layer"), QStringLiteral("-"),
                              QStringLiteral("Convert to Smart Object"), QStringLiteral("-"),
                              QStringLiteral("Merge Visible"), QStringLiteral("Merge Visible to New Layer (Copy)"),
-                             QStringLiteral("Flatten Image")}));
+                             QStringLiteral("Flatten Image"), QStringLiteral("-"), QStringLiteral("Export")}));
+  const QStringList export_entries{QStringLiteral("layerQuickExportPngAction"), QStringLiteral("layerExportAsAction"),
+                                   QStringLiteral("-"), QStringLiteral("layerContextDuplicateToDocumentAction")};
+  CHECK(export_seen == export_entries);
   const auto& bottom = std::as_const(doc).layers().front();
   CHECK(bottom.name() == "Layer 0");
   CHECK(patchy::background_layer(std::as_const(doc).layers(), doc.width(), doc.height()) == nullptr);
@@ -4036,6 +4081,32 @@ void ui_background_layer_marker_and_short_menu() {
   CHECK(std::as_const(doc).layers().front().name() == "Background");
   CHECK(patchy::background_layer(std::as_const(doc).layers(), doc.width(), doc.height()) != nullptr);
   CHECK(background_badges().size() == 1);
+
+  // Export > Duplicate Layer to Document... copies the Background into a new document (#657).
+  const auto sessions_before = patchy::ui::MainWindowTestAccess::session_count(window);
+  bool saw_duplicate_dialog = false;
+  when_dialog_visible(QStringLiteral("duplicateLayerToDocumentDialog"), [&saw_duplicate_dialog](QDialog& dialog) {
+    auto* combo = dialog.findChild<QComboBox*>(QStringLiteral("duplicateLayerTargetCombo"));
+    CHECK(combo != nullptr);
+    if (combo != nullptr) {
+      CHECK(combo->itemText(combo->count() - 1) == QStringLiteral("New Document"));
+      combo->setCurrentIndex(combo->count() - 1);
+    }
+    saw_duplicate_dialog = true;
+    dialog.accept();
+  });
+  const auto export_menu = right_click_background("layerContextDuplicateToDocumentAction");
+  process_events_until([&] { return saw_duplicate_dialog; });
+  QApplication::processEvents();
+  CHECK(export_menu == menu);
+  CHECK(export_seen == export_entries);
+  CHECK(saw_duplicate_dialog);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == sessions_before + 1);
+  const auto& copied = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(&copied != &std::as_const(doc));
+  CHECK(copied.width() == doc.width() && copied.height() == doc.height());
+  CHECK(copied.layers().size() == 1U && copied.layers().front().name() == "Background");
+  CHECK(std::as_const(doc).layers().front().name() == "Background");
 
   // Alone in its document, Delete Layer and Merge Visible are off.
   patchy::Document lone(64, 48, patchy::PixelFormat::rgb8());

@@ -15029,6 +15029,10 @@ Do you want to replace it?</source>
         <translation>Plik %1 już istnieje.
 Czy chcesz go zastąpić?</translation>
     </message>
+    <message>
+        <source>Transform controls under the Move tool</source>
+        <translation>Elementy sterujące transformacją przy narzędziu Przesuwanie</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
