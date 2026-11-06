@@ -73,4 +73,8 @@ QIcon layer_lock_icon(const QString& kind, QColor ThemePalette::* ink_role);
 QIcon themed_glyph_icon(QString name, qreal authored_size, QColor ThemePalette::* ink_role,
                         std::function<void(QPainter&, const QColor&)> glyph);
 
+// A ringed "i" in the theme's icon ink: a clickable info mark beside a field or option
+// (Clone Source's offset, GitHub issue 574; the OpenAI Image Tools key storage note).
+QIcon info_mark_icon();
+
 }  // namespace patchy::ui

@@ -5431,8 +5431,15 @@ void MainWindow::toggle_animation_preview_window() {
             canvas_->document_changed();
           }
           if (final_refresh) {
+            // Keep the panel's selection: the Set Time and Reverse buttons stop playback first and
+            // then act on it, and the rebuilt rows would otherwise select the active layer alone.
+            const auto selected = selected_layer_ids();
+            const auto active = has_active_document() ? std::as_const(document()).active_layer_id() : std::nullopt;
             refresh_layer_list();
             refresh_layer_controls();
+            if (selected.size() > 1 && active.has_value()) {
+              select_layers_in_layer_list(selected, *active);
+            }
           } else {
             // Per-frame: a full row rebuild is too heavy at animation rates.
             sync_layer_row_visibility_indicators();
@@ -5441,7 +5448,7 @@ void MainWindow::toggle_animation_preview_window() {
         [this](std::optional<std::uint32_t> delay_ms, bool all_layers) {
           set_selected_layers_frame_time(delay_ms, all_layers);
         },
-        this);
+        [this] { reverse_selected_layers(); }, this);
     window->setAttribute(Qt::WA_DeleteOnClose);
     animation_preview_window_ = window;
   }

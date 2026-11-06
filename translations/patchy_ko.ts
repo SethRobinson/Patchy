@@ -14925,6 +14925,10 @@ Each item&apos;s own View setting still applies.</source>
         <translation>보이는 각 최상위 레이어가 한 프레임이 되며 맨 위 레이어가 처음입니다. 이름이 &quot;all&quot;인 레이어는 프레임이 되지 않고 모든 프레임에 그려지며, 이름이 &quot;all&quot;인 그룹 안의 각 레이어는 각각 하나의 프레임이 됩니다.</translation>
     </message>
     <message>
+        <source>This document has no palette yet. Set one in the Palette panel, or open an indexed image.</source>
+        <translation>이 문서에는 아직 팔레트가 없습니다. 팔레트 패널에서 설정하거나 인덱스 이미지를 여세요.</translation>
+    </message>
+    <message>
         <source>%1 already exists.
 Do you want to replace it?</source>
         <extracomment>Save dialog: the typed name got the picked file type&apos;s extension and that file exists</extracomment>
@@ -15598,6 +15602,14 @@ Do you want to replace it?</source>
     <message>
         <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
         <translation>애니메이션 GIF, WebP, PNG 내보내기와 같이 최상위 레이어가 위에서부터 프레임이 됩니다. 이름이 &quot;all&quot;인 레이어는 프레임이 되지 않고 모든 프레임에 그려지며, 이름이 &quot;all&quot;인 그룹 안의 각 레이어는 각각 하나의 프레임이 됩니다. 레이어 이름 끝에 &quot;blink 0.25s&quot;처럼 시간을 붙이면 해당 프레임의 표시 시간이 됩니다.</translation>
+    </message>
+    <message>
+        <source>Reverse Selected Layers</source>
+        <translation>선택한 레이어 역순</translation>
+    </message>
+    <message>
+        <source>Reverses the order of the selected layers (Layer &gt; Arrange &gt; Reverse). Duplicate a run of frames and reverse the copies to make a bounce.</source>
+        <translation>선택한 레이어의 순서를 반대로 합니다(레이어 &gt; 정돈 &gt; 역순). 프레임 묶음을 복제한 뒤 복사본을 역순으로 하면 왕복 애니메이션이 됩니다.</translation>
     </message>
 </context>
 <context>
@@ -19625,6 +19637,14 @@ Do you want to replace it?</source>
     <message>
         <source>Pick the last brush preset in the list</source>
         <translation>목록의 마지막 브러시 사전 설정 선택</translation>
+    </message>
+    <message>
+        <source>Generate pictures from a text prompt with your OpenAI key</source>
+        <translation>OpenAI 키로 텍스트에서 이미지 생성</translation>
+    </message>
+    <message>
+        <source>Flip the order of the selected layers, for backward or bounce animations</source>
+        <translation>선택한 레이어의 순서를 뒤집기. 거꾸로 재생하거나 왕복하는 애니메이션용</translation>
     </message>
     <message>
         <source>Make the selected layers move and transform together</source>
@@ -33167,6 +33187,68 @@ Locked: %1</source>
         <translation>마지막 사전 설정</translation>
     </message>
     <message>
+        <source>OpenAI %1: %2</source>
+        <translation>OpenAI %1: %2</translation>
+    </message>
+    <message>
+        <source>OpenAI: %1</source>
+        <translation>OpenAI: %1</translation>
+    </message>
+    <message>
+        <source>Open a document first.</source>
+        <translation>먼저 문서를 여세요.</translation>
+    </message>
+    <message>
+        <source>Select a layer first.</source>
+        <translation>먼저 레이어를 선택하세요.</translation>
+    </message>
+    <message>
+        <source>The active layer has no visible pixels.</source>
+        <translation>활성 레이어에 보이는 픽셀이 없습니다.</translation>
+    </message>
+    <message>
+        <source>Select an area first, with a marquee, lasso or Object Selection.</source>
+        <translation>먼저 선택 윤곽, 올가미 또는 개체 선택으로 영역을 선택하세요.</translation>
+    </message>
+    <message>
+        <source>The selection is outside the canvas.</source>
+        <translation>선택 영역이 캔버스 밖에 있습니다.</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <translation>%1 %2</translation>
+    </message>
+    <message>
+        <source>OpenAI Animation</source>
+        <translation>OpenAI 애니메이션</translation>
+    </message>
+    <message numerus="yes">
+        <source>Opened %n animation(s); export one with File &gt; Export &gt; Layers as Animated GIF.</source>
+        <translation>
+            <numerusform>애니메이션 %n개를 열었습니다. 파일 &gt; 내보내기 &gt; 레이어를 애니메이션 GIF로로 내보낼 수 있습니다.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Writing into the active layer works in 8-bit documents; choose New layer as the target.</source>
+        <translation>활성 레이어에 쓰기는 8비트 문서에서 작동합니다. 대상으로 &apos;새 레이어&apos;를 선택하세요.</translation>
+    </message>
+    <message>
+        <source>The active layer is not a pixel layer; choose New layer as the target.</source>
+        <translation>활성 레이어가 픽셀 레이어가 아닙니다. 대상으로 &apos;새 레이어&apos;를 선택하세요.</translation>
+    </message>
+    <message>
+        <source>The active layer&apos;s pixels are locked; choose New layer as the target.</source>
+        <translation>활성 레이어의 픽셀이 잠겨 있습니다. 대상으로 &apos;새 레이어&apos;를 선택하세요.</translation>
+    </message>
+    <message>
+        <source>OpenAI Image Tools via API Key (built-in)...</source>
+        <translation>API 키로 OpenAI 이미지 도구 (내장)...</translation>
+    </message>
+    <message>
+        <source>OpenAI Image Tools</source>
+        <translation>OpenAI 이미지 도구</translation>
+    </message>
+    <message>
         <source>File: %1</source>
         <translation>파일: %1</translation>
     </message>
@@ -33181,6 +33263,22 @@ Locked: %1</source>
     <message>
         <source>Not saved yet</source>
         <translation>아직 저장되지 않음</translation>
+    </message>
+    <message>
+        <source>&amp;Reverse</source>
+        <translation>역순(&amp;R)</translation>
+    </message>
+    <message>
+        <source>Reverse the order of the selected layers within their folder</source>
+        <translation>선택한 레이어의 순서를 폴더 안에서 반대로 합니다</translation>
+    </message>
+    <message>
+        <source>Select two or more layers in the same folder to reverse their order</source>
+        <translation>순서를 뒤집으려면 같은 폴더에 있는 레이어를 두 개 이상 선택하세요</translation>
+    </message>
+    <message>
+        <source>Reverse layers</source>
+        <translation>레이어 역순</translation>
     </message>
     <message>
         <source>&amp;Link Layers</source>
@@ -33377,6 +33475,719 @@ Locked: %1</source>
     <message>
         <source>Alt</source>
         <translation>Alt</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::OpenAiImagesDialog</name>
+    <message>
+        <source>API key:</source>
+        <translation>API 키:</translation>
+    </message>
+    <message>
+        <source>Check Key</source>
+        <translation>키 확인</translation>
+    </message>
+    <message>
+        <source>Remember the key on this computer</source>
+        <translation>이 컴퓨터에 키 기억</translation>
+    </message>
+    <message>
+        <source>The key is no longer remembered on this computer.</source>
+        <translation>이 컴퓨터에 더 이상 키를 기억하지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Add Layer</source>
+        <translation>레이어 추가</translation>
+    </message>
+    <message>
+        <source>Add the active layer as a reference image</source>
+        <translation>활성 레이어를 참조 이미지로 추가</translation>
+    </message>
+    <message>
+        <source>Add Visible</source>
+        <translation>보이는 이미지 추가</translation>
+    </message>
+    <message>
+        <source>Add the visible image, all layers merged, as a reference image</source>
+        <translation>모든 레이어를 병합한 보이는 이미지를 참조 이미지로 추가</translation>
+    </message>
+    <message>
+        <source>Add File...</source>
+        <translation>파일 추가...</translation>
+    </message>
+    <message>
+        <source>Remove</source>
+        <translation>제거</translation>
+    </message>
+    <message>
+        <source>Model:</source>
+        <translation>모델:</translation>
+    </message>
+    <message>
+        <source>Match the canvas</source>
+        <translation>캔버스에 맞춤</translation>
+    </message>
+    <message>
+        <source>Square (1024 x 1024)</source>
+        <translation>정사각형 (1024 x 1024)</translation>
+    </message>
+    <message>
+        <source>Landscape (1536 x 1024)</source>
+        <translation>가로 (1536 x 1024)</translation>
+    </message>
+    <message>
+        <source>Portrait (1024 x 1536)</source>
+        <translation>세로 (1024 x 1536)</translation>
+    </message>
+    <message>
+        <source>Chosen by the model</source>
+        <translation>모델이 선택</translation>
+    </message>
+    <message>
+        <source>Match the canvas requests the canvas&apos;s shape and scales the result to fit it</source>
+        <translation>캔버스에 맞춤은 캔버스 비율로 요청하고 결과를 캔버스에 맞게 크기 조정합니다</translation>
+    </message>
+    <message>
+        <source>Size:</source>
+        <translation>크기:</translation>
+    </message>
+    <message>
+        <source>Automatic</source>
+        <translation>자동</translation>
+    </message>
+    <message>
+        <source>Low</source>
+        <translation>낮음</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>보통</translation>
+    </message>
+    <message>
+        <source>High</source>
+        <translation>높음</translation>
+    </message>
+    <message>
+        <source>Quality:</source>
+        <translation>품질:</translation>
+    </message>
+    <message>
+        <source>Transparent</source>
+        <translation>투명</translation>
+    </message>
+    <message>
+        <source>Opaque</source>
+        <translation>불투명</translation>
+    </message>
+    <message>
+        <source>Background:</source>
+        <translation>배경:</translation>
+    </message>
+    <message>
+        <source>Each image becomes its own layer, and each one is billed</source>
+        <translation>각 이미지는 별도 레이어가 되며 이미지마다 비용이 청구됩니다</translation>
+    </message>
+    <message>
+        <source>Stop</source>
+        <translation>중지</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>닫기</translation>
+    </message>
+    <message>
+        <source>%1 (%2 s)</source>
+        <translation>%1 (%2초)</translation>
+    </message>
+    <message>
+        <source>Using the key from the OPENAI_API_KEY environment variable.</source>
+        <translation>OPENAI_API_KEY 환경 변수의 키를 사용합니다.</translation>
+    </message>
+    <message>
+        <source>Enter your OpenAI API key first.</source>
+        <translation>먼저 OpenAI API 키를 입력하세요.</translation>
+    </message>
+    <message>
+        <source>The key could not be saved on this computer; it is used for this session only.</source>
+        <translation>이 컴퓨터에 키를 저장하지 못했습니다. 이번 세션에서만 사용합니다.</translation>
+    </message>
+    <message>
+        <source>Checking the key...</source>
+        <translation>키 확인 중...</translation>
+    </message>
+    <message>
+        <source>Type a prompt first.</source>
+        <translation>먼저 프롬프트를 입력하세요.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Generating %n image(s)...</source>
+        <translation>
+            <numerusform>이미지 %n개 생성 중...</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The images arrived, but could not be added to a document.</source>
+        <translation>이미지를 받았지만 문서에 추가하지 못했습니다.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n layer(s).</source>
+        <translation>
+            <numerusform>레이어 %n개를 추가했습니다.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>%1 tokens used.</source>
+        <translation>토큰 %1개를 사용했습니다.</translation>
+    </message>
+    <message>
+        <source>Stopped. OpenAI may still bill a request it had already started.</source>
+        <translation>중지했습니다. 이미 시작된 요청은 OpenAI에서 비용이 청구될 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>OpenAI takes at most %1 reference images.</source>
+        <translation>OpenAI는 참조 이미지를 최대 %1개까지 받습니다.</translation>
+    </message>
+    <message>
+        <source>Visible</source>
+        <translation>보이는 이미지</translation>
+    </message>
+    <message>
+        <source>Add Reference Images</source>
+        <translation>참조 이미지 추가</translation>
+    </message>
+    <message>
+        <source>Images (*.png *.jpg *.jpeg *.webp *.bmp *.gif *.tif *.tiff)</source>
+        <translation>이미지 (*.png *.jpg *.jpeg *.webp *.bmp *.gif *.tif *.tiff)</translation>
+    </message>
+    <message>
+        <source>Create an API key</source>
+        <translation>API 키 만들기</translation>
+    </message>
+    <message>
+        <source>Where the key is saved</source>
+        <translation>키가 저장되는 위치</translation>
+    </message>
+    <message>
+        <source>Where the Key Is Saved</source>
+        <translation>키가 저장되는 위치</translation>
+    </message>
+    <message>
+        <source>Prompt</source>
+        <translation>프롬프트</translation>
+    </message>
+    <message>
+        <source>Paste</source>
+        <translation>붙여넣기</translation>
+    </message>
+    <message>
+        <source>Add the image on the clipboard as a reference image</source>
+        <translation>클립보드의 이미지를 참조 이미지로 추가</translation>
+    </message>
+    <message>
+        <source>The clipboard holds no image.</source>
+        <translation>클립보드에 이미지가 없습니다.</translation>
+    </message>
+    <message>
+        <source>Create</source>
+        <translation>만들기</translation>
+    </message>
+    <message>
+        <source>Expand</source>
+        <translation>확장</translation>
+    </message>
+    <message>
+        <source>Animate</source>
+        <translation>애니메이션</translation>
+    </message>
+    <message>
+        <source>%1 (higher quality)</source>
+        <translation>%1 (고품질)</translation>
+    </message>
+    <message>
+        <source>%1 (faster)</source>
+        <translation>%1 (빠름)</translation>
+    </message>
+    <message>
+        <source>Check Key greys out a model your key cannot use</source>
+        <translation>키 확인을 누르면 이 키로 사용할 수 없는 모델이 비활성화됩니다</translation>
+    </message>
+    <message>
+        <source>Variations:</source>
+        <translation>변형:</translation>
+    </message>
+    <message>
+        <source>The key works, but it cannot use the GPT Image 2.6 models.</source>
+        <translation>키는 작동하지만 GPT Image 2.6 모델을 사용할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>The key works.</source>
+        <translation>키가 작동합니다.</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>클립보드</translation>
+    </message>
+    <message>
+        <source>The key is never written to Patchy&apos;s settings file, and Patchy sends it only to OpenAI.</source>
+        <translation>키는 Patchy 설정 파일에 기록되지 않으며, Patchy는 OpenAI에만 키를 보냅니다.</translation>
+    </message>
+    <message>
+        <source>Patchy saves the key in Windows Credential Manager, under Windows Credentials, as the generic credential &quot;com.rtsoft.patchy.openai&quot;. Only your Windows account can read it. Untick &quot;Remember the key on this computer&quot; to delete it.</source>
+        <translation>Patchy는 키를 Windows 자격 증명 관리자의 Windows 자격 증명에 일반 자격 증명 &quot;com.rtsoft.patchy.openai&quot;로 저장합니다. 사용자의 Windows 계정만 읽을 수 있습니다. 삭제하려면 “이 컴퓨터에 키 기억” 확인란을 해제하세요.</translation>
+    </message>
+    <message>
+        <source>Patchy saves the key in your login keychain as the password item &quot;com.rtsoft.patchy.openai&quot; (account &quot;api-key&quot;), which the Keychain Access app shows. Only your macOS account can read it. Untick &quot;Remember the key on this computer&quot; to delete it.</source>
+        <translation>Patchy는 키를 로그인 키체인에 암호 항목 &quot;com.rtsoft.patchy.openai&quot;(계정 &quot;api-key&quot;)로 저장하며, 키체인 접근 앱에서 볼 수 있습니다. 사용자의 macOS 계정만 읽을 수 있습니다. 삭제하려면 “이 컴퓨터에 키 기억” 확인란을 해제하세요.</translation>
+    </message>
+    <message>
+        <source>The key will be saved unencrypted in %1. Only your user account can open the file, but any program running as you can read it.</source>
+        <translation>키는 암호화되지 않은 상태로 %1에 저장됩니다. 파일은 사용자 계정만 열 수 있지만, 사용자 권한으로 실행되는 모든 프로그램이 읽을 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Select what to remove, with a little room around it. The area is filled from its surroundings on a new layer, masked to the selection, so the original stays underneath.</source>
+        <translation>제거할 대상을 약간의 여유를 두고 선택하세요. 영역은 주변을 바탕으로 선택 영역으로 마스크된 새 레이어에 채워지며, 원본은 아래에 그대로 남습니다.</translation>
+    </message>
+    <message>
+        <source>Open a document first.</source>
+        <translation>먼저 문서를 여세요.</translation>
+    </message>
+    <message>
+        <source>OpenAI Remove</source>
+        <translation>OpenAI 제거</translation>
+    </message>
+    <message>
+        <source>Removing...</source>
+        <translation>제거 중...</translation>
+    </message>
+    <message>
+        <source>The images arrived, but the document they were made for is closed.</source>
+        <translation>이미지를 받았지만, 대상 문서가 닫혀 있습니다.</translation>
+    </message>
+    <message>
+        <source>Patchy saves the key in the file %1. The file is not encrypted: only your user account can open it, but any program running as you can read it. Untick &quot;Remember the key on this computer&quot; to delete the file. You can instead set the OPENAI_API_KEY environment variable, which the dialog reads when it opens.</source>
+        <translation>Patchy는 키를 파일 %1에 저장합니다. 이 파일은 암호화되지 않습니다. 사용자 계정만 열 수 있지만, 사용자 권한으로 실행되는 모든 프로그램이 읽을 수 있습니다. 파일을 삭제하려면 “이 컴퓨터에 키 기억” 확인란을 해제하세요. 대신 OPENAI_API_KEY 환경 변수를 설정할 수도 있으며, 대화 상자가 열릴 때 이 값을 읽습니다.</translation>
+    </message>
+    <message>
+        <source> px</source>
+        <translation> px</translation>
+    </message>
+    <message>
+        <source>Left:</source>
+        <translation>왼쪽:</translation>
+    </message>
+    <message>
+        <source>Right:</source>
+        <translation>오른쪽:</translation>
+    </message>
+    <message>
+        <source>Top:</source>
+        <translation>위쪽:</translation>
+    </message>
+    <message>
+        <source>Bottom:</source>
+        <translation>아래쪽:</translation>
+    </message>
+    <message>
+        <source>Optional: describe what the new area shows</source>
+        <translation>선택 사항: 새 영역에 보일 내용을 설명하세요</translation>
+    </message>
+    <message>
+        <source>New canvas: %1 x %2 px</source>
+        <translation>새 캔버스: %1 x %2 px</translation>
+    </message>
+    <message>
+        <source>Add pixels to at least one side.</source>
+        <translation>적어도 한 쪽에 픽셀을 추가하세요.</translation>
+    </message>
+    <message>
+        <source>The new canvas would be larger than %1 px on a side.</source>
+        <translation>새 캔버스의 한 변이 %1 px를 넘게 됩니다.</translation>
+    </message>
+    <message>
+        <source>OpenAI Expand</source>
+        <translation>OpenAI 확장</translation>
+    </message>
+    <message>
+        <source>Expanding...</source>
+        <translation>확장 중...</translation>
+    </message>
+    <message>
+        <source>The images arrived, but that document is closed or its canvas changed meanwhile.</source>
+        <translation>이미지를 받았지만, 문서가 닫혔거나 그 사이 캔버스가 바뀌었습니다.</translation>
+    </message>
+    <message>
+        <source>Drag an edge or a corner outward to add room on that side</source>
+        <translation>가장자리나 모서리를 바깥쪽으로 끌면 그쪽에 공간이 추가됩니다</translation>
+    </message>
+    <message>
+        <source>Make a short animation. It opens as a new document with one layer per frame, frame 1 on top, ready for File &gt; Export &gt; Layers as Animated GIF.</source>
+        <translation>짧은 애니메이션을 만듭니다. 프레임마다 레이어 하나(프레임 1이 맨 위)가 있는 새 문서로 열리며, 파일 &gt; 내보내기 &gt; 레이어를 애니메이션 GIF로로 바로 내보낼 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Describe the motion, for example: the flag waves in the wind</source>
+        <translation>움직임을 설명하세요. 예: 깃발이 바람에 펄럭인다</translation>
+    </message>
+    <message>
+        <source>The prompt only</source>
+        <translation>프롬프트만</translation>
+    </message>
+    <message>
+        <source>The active layer</source>
+        <translation>활성 레이어</translation>
+    </message>
+    <message>
+        <source>The visible image</source>
+        <translation>보이는 이미지</translation>
+    </message>
+    <message>
+        <source>Start from:</source>
+        <translation>시작:</translation>
+    </message>
+    <message>
+        <source>Frames:</source>
+        <translation>프레임:</translation>
+    </message>
+    <message>
+        <source> ms</source>
+        <translation> ms</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>프레임 지연:</translation>
+    </message>
+    <message>
+        <source>512 x 512</source>
+        <translation>512 x 512</translation>
+    </message>
+    <message>
+        <source>Frame size:</source>
+        <translation>프레임 크기:</translation>
+    </message>
+    <message>
+        <source>GIF transparency is on or off per pixel, so soft edges come out hard</source>
+        <translation>GIF 투명도는 픽셀마다 켜짐 또는 꺼짐이므로 부드러운 가장자리가 딱딱해집니다</translation>
+    </message>
+    <message>
+        <source>OpenAI&apos;s reply held no animation.</source>
+        <translation>OpenAI 응답에 애니메이션이 없습니다.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Opened %n animation(s).</source>
+        <translation>
+            <numerusform>애니메이션 %n개를 열었습니다.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>720 x 720</source>
+        <translation>720 x 720</translation>
+    </message>
+    <message>
+        <source>960 x 960</source>
+        <translation>960 x 960</translation>
+    </message>
+    <message>
+        <source>OpenAI draws every frame on one sheet, so more than 9 frames allow at most 720 x 720</source>
+        <translation>OpenAI는 모든 프레임을 한 장의 시트에 그리므로 9프레임을 넘으면 최대 720 x 720입니다</translation>
+    </message>
+    <message>
+        <source>Show variation %1</source>
+        <translation>변형 %1 보기</translation>
+    </message>
+    <message>
+        <source>Results:</source>
+        <translation>결과:</translation>
+    </message>
+    <message>
+        <source>New layer</source>
+        <translation>새 레이어</translation>
+    </message>
+    <message>
+        <source>Active layer</source>
+        <translation>활성 레이어</translation>
+    </message>
+    <message>
+        <source>Active layer writes the result into the active pixel layer, inside the selection</source>
+        <translation>활성 레이어는 결과를 활성 픽셀 레이어의 선택 영역 안에 씁니다</translation>
+    </message>
+    <message>
+        <source>Target:</source>
+        <translation>대상:</translation>
+    </message>
+    <message>
+        <source>The images arrived, but the active layer changed or closed meanwhile.</source>
+        <translation>이미지를 받았지만, 그 사이 활성 레이어가 바뀌었거나 닫혔습니다.</translation>
+    </message>
+    <message>
+        <source>Wrote the result into the active layer.</source>
+        <translation>결과를 활성 레이어에 썼습니다.</translation>
+    </message>
+    <message>
+        <source>Click a result to see another variation.</source>
+        <translation>결과를 클릭하면 다른 변형을 볼 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>The result layer changed since, so its other variations were cleared.</source>
+        <translation>그 후 결과 레이어가 바뀌어 다른 변형을 지웠습니다.</translation>
+    </message>
+    <message>
+        <source>Showing variation %1.</source>
+        <translation>변형 %1을(를) 표시합니다.</translation>
+    </message>
+    <message>
+        <source>Your prompt and any reference images are sent to OpenAI, and generations use your API key, so be careful as they cost real money.</source>
+        <translation>프롬프트와 참조 이미지는 OpenAI로 전송되며, 생성에는 사용자의 API 키가 쓰입니다. 실제 비용이 드니 주의하세요.</translation>
+    </message>
+    <message>
+        <source>Checking...</source>
+        <translation>확인 중...</translation>
+    </message>
+    <message>
+        <source>Building the animation...</source>
+        <translation>애니메이션을 만드는 중...</translation>
+    </message>
+    <message>
+        <source>Building animation...</source>
+        <translation>애니메이션 만드는 중...</translation>
+    </message>
+    <message>
+        <source>Creating...</source>
+        <translation>만드는 중...</translation>
+    </message>
+    <message>
+        <source>OpenAI sent a reply Patchy could not read.</source>
+        <translation>OpenAI가 Patchy가 읽을 수 없는 응답을 보냈습니다.</translation>
+    </message>
+    <message>
+        <source>OpenAI&apos;s reply held no image.</source>
+        <translation>OpenAI 응답에 이미지가 없습니다.</translation>
+    </message>
+    <message>
+        <source>OpenAI did not accept this API key. Check that it was copied whole, or create a new one.</source>
+        <translation>OpenAI가 이 API 키를 받아들이지 않았습니다. 전체가 복사되었는지 확인하거나 새 키를 만드세요.</translation>
+    </message>
+    <message>
+        <source>Your OpenAI account is out of credit, so nothing was generated. Add credit to keep going.</source>
+        <translation>OpenAI 계정의 크레딧이 소진되어 아무것도 생성되지 않았습니다. 계속하려면 크레딧을 추가하세요.</translation>
+    </message>
+    <message>
+        <source>Your OpenAI account has reached its spending limit, so nothing was generated. Raise the limit to keep going.</source>
+        <translation>OpenAI 계정이 지출 한도에 도달하여 아무것도 생성되지 않았습니다. 계속하려면 한도를 늘리세요.</translation>
+    </message>
+    <message>
+        <source>OpenAI is limiting requests from this key right now. Wait a moment and try again.</source>
+        <translation>OpenAI가 지금 이 키의 요청을 제한하고 있습니다. 잠시 후 다시 시도하세요.</translation>
+    </message>
+    <message>
+        <source>OpenAI&apos;s safety system declined this request. Try rewording the prompt or using other images.</source>
+        <translation>OpenAI 안전 시스템이 이 요청을 거부했습니다. 프롬프트를 바꾸거나 다른 이미지를 사용해 보세요.</translation>
+    </message>
+    <message>
+        <source>This model needs a verified OpenAI organization. Verify it, then try again.</source>
+        <translation>이 모델은 인증된 OpenAI 조직이 필요합니다. 인증한 후 다시 시도하세요.</translation>
+    </message>
+    <message>
+        <source>This API key cannot use the chosen model. Pick the other model, or check the key&apos;s project permissions.</source>
+        <translation>이 API 키로는 선택한 모델을 사용할 수 없습니다. 다른 모델을 고르거나 키의 프로젝트 권한을 확인하세요.</translation>
+    </message>
+    <message>
+        <source>OpenAI had a problem on its side (HTTP %1). Try again in a moment.</source>
+        <translation>OpenAI 쪽에 문제가 생겼습니다 (HTTP %1). 잠시 후 다시 시도하세요.</translation>
+    </message>
+    <message>
+        <source>OpenAI returned HTTP status %1.</source>
+        <translation>OpenAI가 HTTP 상태 %1을(를) 반환했습니다.</translation>
+    </message>
+    <message>
+        <source>Manage API keys</source>
+        <translation>API 키 관리</translation>
+    </message>
+    <message>
+        <source>Add credit</source>
+        <translation>크레딧 추가</translation>
+    </message>
+    <message>
+        <source>Open spending limits</source>
+        <translation>지출 한도 열기</translation>
+    </message>
+    <message>
+        <source>Verify organization</source>
+        <translation>조직 인증</translation>
+    </message>
+    <message>
+        <source>Could not read %1: %2</source>
+        <translation>%1을(를) 읽을 수 없습니다: %2</translation>
+    </message>
+    <message>
+        <source>OpenAI did not answer in time.</source>
+        <translation>OpenAI가 제때 응답하지 않았습니다.</translation>
+    </message>
+    <message>
+        <source>Could not reach OpenAI: %1</source>
+        <translation>OpenAI에 연결할 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>Describe what the selection should become, or leave it empty to continue the surroundings</source>
+        <translation>선택 영역이 무엇이 될지 설명하거나, 비워 두면 주변을 이어 갑니다</translation>
+    </message>
+    <message>
+        <source>Edit</source>
+        <translation>편집</translation>
+    </message>
+    <message>
+        <source>0% keeps the result inside the selection with a hard edge; 100% lets it reach past the selection with a soft edge</source>
+        <translation>0%는 결과를 선택 영역 안에 딱딱한 가장자리로 둡니다. 100%는 부드러운 가장자리로 선택 영역 밖까지 닿게 합니다</translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <translation>%1%</translation>
+    </message>
+    <message>
+        <source>Edge blend:</source>
+        <translation>가장자리 혼합:</translation>
+    </message>
+    <message>
+        <source>OpenAI Edit</source>
+        <translation>OpenAI 편집</translation>
+    </message>
+    <message>
+        <source>OpenAI Edit: %1</source>
+        <translation>OpenAI 편집: %1</translation>
+    </message>
+    <message>
+        <source>Editing...</source>
+        <translation>편집 중...</translation>
+    </message>
+    <message>
+        <source>OpenAI sent no description.</source>
+        <translation>OpenAI가 설명을 보내지 않았습니다.</translation>
+    </message>
+    <message>
+        <source>OpenAI declined to describe the image: %1</source>
+        <translation>OpenAI가 이미지 설명을 거절했습니다: %1</translation>
+    </message>
+    <message>
+        <source>The image below goes to OpenAI&apos;s %1 model, which writes a detailed description of it here. Nothing is added to the document.</source>
+        <translation>아래 이미지가 OpenAI의 %1 모델로 전송되며, 모델이 여기에 자세한 설명을 작성합니다. 문서에는 아무것도 추가되지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Image:</source>
+        <translation>이미지:</translation>
+    </message>
+    <message>
+        <source>The description appears here</source>
+        <translation>설명이 여기에 표시됩니다</translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <translation>설명</translation>
+    </message>
+    <message>
+        <source>Describe</source>
+        <translation>설명</translation>
+    </message>
+    <message>
+        <source>Describe Image</source>
+        <translation>이미지 설명</translation>
+    </message>
+    <message>
+        <source>Describing the image...</source>
+        <translation>이미지를 설명하는 중...</translation>
+    </message>
+    <message>
+        <source>Describing...</source>
+        <translation>설명 중...</translation>
+    </message>
+    <message>
+        <source>Described the image.</source>
+        <translation>이미지를 설명했습니다.</translation>
+    </message>
+    <message>
+        <source>Describe the image to create. With reference images, refer to them by their numbers, for example: the cat from image 1 wearing the hat from image 2</source>
+        <translation>만들 이미지를 설명하세요. 참조 이미지는 번호로 가리킵니다. 예: 이미지 2의 모자를 쓴 이미지 1의 고양이</translation>
+    </message>
+    <message>
+        <source>Patchy could not read an image from what was dropped.</source>
+        <translation>Patchy가 놓은 항목에서 이미지를 읽지 못했습니다.</translation>
+    </message>
+    <message>
+        <source>%1. %2</source>
+        <translation>%1. %2</translation>
+    </message>
+    <message>
+        <source>Image %1: %2 (%3 x %4 px)</source>
+        <translation>이미지 %1: %2 (%3 x %4 px)</translation>
+    </message>
+    <message>
+        <source>Remove this reference image</source>
+        <translation>이 참조 이미지 제거</translation>
+    </message>
+    <message>
+        <source>References (up to %1; the prompt names them by number):</source>
+        <translation>참조(최대 %1개, 프롬프트에서 번호로 지칭):</translation>
+    </message>
+    <message>
+        <source>Add</source>
+        <translation>추가</translation>
+    </message>
+    <message>
+        <source>The model and quality apply to every image tab. Describe always uses %1.</source>
+        <translation>모델과 품질은 모든 이미지 탭에 적용됩니다. 설명은 항상 %1을(를) 사용합니다.</translation>
+    </message>
+    <message>
+        <source>Config</source>
+        <translation>설정</translation>
+    </message>
+    <message>
+        <source>Drop image files here, or use Add or Paste</source>
+        <translation>여기에 이미지 파일을 놓거나 추가 또는 붙여넣기를 사용하세요</translation>
+    </message>
+    <message>
+        <source>OpenAI Image Tools via API Key</source>
+        <translation>API 키로 OpenAI 이미지 도구</translation>
+    </message>
+    <message>
+        <source>Select the area to change (Marquee, Lasso or Object Selection), or nothing to change the whole picture. The result goes on a new layer, masked to the selection; Edge blend sets how softly it meets the rest. The picture is sent as image 1, so reference images start at image 2.</source>
+        <translation>바꿀 영역을 선택하세요(선택 윤곽, 올가미 또는 개체 선택). 아무것도 선택하지 않으면 그림 전체를 바꿉니다. 결과는 선택 영역으로 마스크된 새 레이어에 놓입니다. 가장자리 혼합은 나머지와 얼마나 부드럽게 이어질지 정합니다. 편집할 그림이 이미지 1로 전송되므로 참조 이미지는 이미지 2부터 시작합니다.</translation>
+    </message>
+    <message>
+        <source>Describe the change first; with nothing selected, the whole picture is edited.</source>
+        <translation>먼저 변경 내용을 설명하세요. 아무것도 선택하지 않으면 그림 전체가 편집됩니다.</translation>
+    </message>
+    <message>
+        <source>Blend:</source>
+        <translation>혼합:</translation>
+    </message>
+    <message>
+        <source>How much of the original next to the new area takes OpenAI&apos;s version before fading into the original: 0% keeps the original up to its edge, 100% uses OpenAI&apos;s whole picture</source>
+        <translation>새 영역 옆의 원본 중 얼마만큼을 OpenAI 버전으로 바꾼 뒤 원본에 섞을지 정합니다. 0%는 원본을 가장자리까지 유지하고, 100%는 OpenAI의 그림 전체를 사용합니다</translation>
+    </message>
+    <message>
+        <source>Add room around the image: Patchy grows the canvas by the pixels below and fills the new area on a new layer above the original, which stays untouched underneath. Blend sets how far that layer reaches into the original.</source>
+        <translation>이미지 주위에 공간을 추가합니다. Patchy가 아래 픽셀만큼 캔버스를 넓히고 원본 위의 새 레이어에 새 영역을 채웁니다. 원본은 그 아래에 그대로 남습니다. 혼합은 그 레이어가 원본 위로 얼마나 덮을지 정합니다.</translation>
+    </message>
+    <message>
+        <source>Preparing the request...</source>
+        <translation>요청을 준비하는 중...</translation>
+    </message>
+    <message>
+        <source>GIF (256 colors)</source>
+        <translation>GIF (256색)</translation>
+    </message>
+    <message>
+        <source>GIF uses OpenAI&apos;s animation mode, with 256 colors shared by all frames. Full color asks for the frames as one full-color picture and cuts it into layers, with soft transparency; the frame count rounds up to fill its grid.</source>
+        <translation>GIF는 OpenAI의 애니메이션 모드를 사용하며 모든 프레임이 256색을 공유합니다. 풀 컬러는 프레임을 한 장의 풀 컬러 그림으로 받아 레이어로 자르며, 부드러운 투명도를 유지합니다. 프레임 수는 격자를 채우도록 올림됩니다.</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <translation>색상:</translation>
+    </message>
+    <message>
+        <source>Full color drew %1 frames, to fill a %2 x %3 sheet.</source>
+        <translation>풀 컬러는 %2 x %3 시트를 채우려고 %1프레임을 그렸습니다.</translation>
+    </message>
+    <message>
+        <source>Full color (experimental)</source>
+        <translation>풀 컬러 (실험적)</translation>
     </message>
 </context>
 <context>

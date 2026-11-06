@@ -15019,6 +15019,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Każda widoczna warstwa najwyższego poziomu staje się jedną klatką, zaczynając od górnej warstwy. Warstwa o nazwie &quot;all&quot; jest rysowana w każdej klatce, zamiast być osobną klatką, a każda warstwa w grupie o nazwie &quot;all&quot; jest osobną klatką.</translation>
     </message>
     <message>
+        <source>This document has no palette yet. Set one in the Palette panel, or open an indexed image.</source>
+        <translation>Ten dokument nie ma jeszcze palety. Ustaw ją w panelu Paleta lub otwórz obraz indeksowany.</translation>
+    </message>
+    <message>
         <source>%1 already exists.
 Do you want to replace it?</source>
         <extracomment>Save dialog: the typed name got the picked file type&apos;s extension and that file exists</extracomment>
@@ -15692,6 +15696,14 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
         <translation>Klatki to warstwy najwyższego poziomu, od góry, tak jak zapisuje je eksport animowanego GIF, WebP i PNG. Warstwa o nazwie &quot;all&quot; jest rysowana w każdej klatce, zamiast być osobną klatką, a każda warstwa w grupie o nazwie &quot;all&quot; jest osobną klatką. Czas na końcu nazwy warstwy, np. &quot;blink 0.25s&quot;, określa czas wyświetlania klatki.</translation>
+    </message>
+    <message>
+        <source>Reverse Selected Layers</source>
+        <translation>Odwróć zaznaczone warstwy</translation>
+    </message>
+    <message>
+        <source>Reverses the order of the selected layers (Layer &gt; Arrange &gt; Reverse). Duplicate a run of frames and reverse the copies to make a bounce.</source>
+        <translation>Odwraca kolejność zaznaczonych warstw (Warstwa &gt; Ułóż &gt; Odwróć). Zduplikuj serię klatek i odwróć kopie, aby uzyskać animację tam i z powrotem.</translation>
     </message>
 </context>
 <context>
@@ -19719,6 +19731,14 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>Pick the last brush preset in the list</source>
         <translation>Wybierz ostatnie ustawienie wstępne pędzla z listy</translation>
+    </message>
+    <message>
+        <source>Generate pictures from a text prompt with your OpenAI key</source>
+        <translation>Twórz obrazy z opisu tekstowego za pomocą klucza OpenAI</translation>
+    </message>
+    <message>
+        <source>Flip the order of the selected layers, for backward or bounce animations</source>
+        <translation>Odwróć kolejność zaznaczonych warstw, do animacji wstecz lub tam i z powrotem</translation>
     </message>
     <message>
         <source>Make the selected layers move and transform together</source>
@@ -33341,6 +33361,70 @@ Zablokowano: %1</translation>
         <translation>Ostatnie ustawienie wstępne</translation>
     </message>
     <message>
+        <source>OpenAI %1: %2</source>
+        <translation>OpenAI %1: %2</translation>
+    </message>
+    <message>
+        <source>OpenAI: %1</source>
+        <translation>OpenAI: %1</translation>
+    </message>
+    <message>
+        <source>Open a document first.</source>
+        <translation>Najpierw otwórz dokument.</translation>
+    </message>
+    <message>
+        <source>Select a layer first.</source>
+        <translation>Najpierw zaznacz warstwę.</translation>
+    </message>
+    <message>
+        <source>The active layer has no visible pixels.</source>
+        <translation>Aktywna warstwa nie ma widocznych pikseli.</translation>
+    </message>
+    <message>
+        <source>Select an area first, with a marquee, lasso or Object Selection.</source>
+        <translation>Najpierw zaznacz obszar zaznaczeniem, lassem lub zaznaczaniem obiektu.</translation>
+    </message>
+    <message>
+        <source>The selection is outside the canvas.</source>
+        <translation>Zaznaczenie jest poza obszarem roboczym.</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <translation>%1 %2</translation>
+    </message>
+    <message>
+        <source>OpenAI Animation</source>
+        <translation>Animacja OpenAI</translation>
+    </message>
+    <message numerus="yes">
+        <source>Opened %n animation(s); export one with File &gt; Export &gt; Layers as Animated GIF.</source>
+        <translation>
+            <numerusform>Otwarto %n animację; wyeksportuj ją przez Plik &gt; Eksport &gt; Warstwy jako animacje GIF.</numerusform>
+            <numerusform>Otwarto %n animacje; wyeksportuj przez Plik &gt; Eksport &gt; Warstwy jako animacje GIF.</numerusform>
+            <numerusform>Otwarto %n animacji; wyeksportuj przez Plik &gt; Eksport &gt; Warstwy jako animacje GIF.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Writing into the active layer works in 8-bit documents; choose New layer as the target.</source>
+        <translation>Zapis do aktywnej warstwy działa w dokumentach 8-bitowych; wybierz cel: Nowa warstwa.</translation>
+    </message>
+    <message>
+        <source>The active layer is not a pixel layer; choose New layer as the target.</source>
+        <translation>Aktywna warstwa nie jest warstwą pikseli; wybierz cel: Nowa warstwa.</translation>
+    </message>
+    <message>
+        <source>The active layer&apos;s pixels are locked; choose New layer as the target.</source>
+        <translation>Piksele aktywnej warstwy są zablokowane; wybierz cel: Nowa warstwa.</translation>
+    </message>
+    <message>
+        <source>OpenAI Image Tools via API Key (built-in)...</source>
+        <translation>Narzędzia obrazów OpenAI przez klucz API (wbudowane)...</translation>
+    </message>
+    <message>
+        <source>OpenAI Image Tools</source>
+        <translation>Narzędzia obrazów OpenAI</translation>
+    </message>
+    <message>
         <source>File: %1</source>
         <translation>Plik: %1</translation>
     </message>
@@ -33355,6 +33439,22 @@ Zablokowano: %1</translation>
     <message>
         <source>Not saved yet</source>
         <translation>Jeszcze nie zapisano</translation>
+    </message>
+    <message>
+        <source>&amp;Reverse</source>
+        <translation>&amp;Odwróć</translation>
+    </message>
+    <message>
+        <source>Reverse the order of the selected layers within their folder</source>
+        <translation>Odwróć kolejność zaznaczonych warstw w ich folderze</translation>
+    </message>
+    <message>
+        <source>Select two or more layers in the same folder to reverse their order</source>
+        <translation>Zaznacz co najmniej dwie warstwy w tym samym folderze, aby odwrócić ich kolejność</translation>
+    </message>
+    <message>
+        <source>Reverse layers</source>
+        <translation>Odwróć warstwy</translation>
     </message>
     <message>
         <source>&amp;Link Layers</source>
@@ -33551,6 +33651,725 @@ Zablokowano: %1</translation>
     <message>
         <source>Alt</source>
         <translation>Alt</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::OpenAiImagesDialog</name>
+    <message>
+        <source>API key:</source>
+        <translation>Klucz API:</translation>
+    </message>
+    <message>
+        <source>Check Key</source>
+        <translation>Sprawdź klucz</translation>
+    </message>
+    <message>
+        <source>Remember the key on this computer</source>
+        <translation>Zapamiętaj klucz na tym komputerze</translation>
+    </message>
+    <message>
+        <source>The key is no longer remembered on this computer.</source>
+        <translation>Klucz nie jest już zapamiętany na tym komputerze.</translation>
+    </message>
+    <message>
+        <source>Add Layer</source>
+        <translation>Dodaj warstwę</translation>
+    </message>
+    <message>
+        <source>Add the active layer as a reference image</source>
+        <translation>Dodaj aktywną warstwę jako obraz referencyjny</translation>
+    </message>
+    <message>
+        <source>Add Visible</source>
+        <translation>Dodaj widoczne</translation>
+    </message>
+    <message>
+        <source>Add the visible image, all layers merged, as a reference image</source>
+        <translation>Dodaj widoczny obraz ze scalonymi warstwami jako obraz referencyjny</translation>
+    </message>
+    <message>
+        <source>Add File...</source>
+        <translation>Dodaj plik...</translation>
+    </message>
+    <message>
+        <source>Remove</source>
+        <translation>Usuń</translation>
+    </message>
+    <message>
+        <source>Model:</source>
+        <translation>Model:</translation>
+    </message>
+    <message>
+        <source>Match the canvas</source>
+        <translation>Jak obszar roboczy</translation>
+    </message>
+    <message>
+        <source>Square (1024 x 1024)</source>
+        <translation>Kwadrat (1024 x 1024)</translation>
+    </message>
+    <message>
+        <source>Landscape (1536 x 1024)</source>
+        <translation>Poziomo (1536 x 1024)</translation>
+    </message>
+    <message>
+        <source>Portrait (1024 x 1536)</source>
+        <translation>Pionowo (1024 x 1536)</translation>
+    </message>
+    <message>
+        <source>Chosen by the model</source>
+        <translation>Wybór modelu</translation>
+    </message>
+    <message>
+        <source>Match the canvas requests the canvas&apos;s shape and scales the result to fit it</source>
+        <translation>Jak obszar roboczy zamawia jego proporcje i skaluje wynik, aby się zmieścił</translation>
+    </message>
+    <message>
+        <source>Size:</source>
+        <translation>Rozmiar:</translation>
+    </message>
+    <message>
+        <source>Automatic</source>
+        <translation>Automatycznie</translation>
+    </message>
+    <message>
+        <source>Low</source>
+        <translation>Niska</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>Średnia</translation>
+    </message>
+    <message>
+        <source>High</source>
+        <translation>Wysoka</translation>
+    </message>
+    <message>
+        <source>Quality:</source>
+        <translation>Jakość:</translation>
+    </message>
+    <message>
+        <source>Transparent</source>
+        <translation>Przezroczyste</translation>
+    </message>
+    <message>
+        <source>Opaque</source>
+        <translation>Nieprzezroczyste</translation>
+    </message>
+    <message>
+        <source>Background:</source>
+        <translation>Tło:</translation>
+    </message>
+    <message>
+        <source>Each image becomes its own layer, and each one is billed</source>
+        <translation>Każdy obraz staje się osobną warstwą i każdy jest rozliczany</translation>
+    </message>
+    <message>
+        <source>Stop</source>
+        <translation>Zatrzymaj</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Zamknij</translation>
+    </message>
+    <message>
+        <source>%1 (%2 s)</source>
+        <translation>%1 (%2 s)</translation>
+    </message>
+    <message>
+        <source>Using the key from the OPENAI_API_KEY environment variable.</source>
+        <translation>Używany jest klucz ze zmiennej środowiskowej OPENAI_API_KEY.</translation>
+    </message>
+    <message>
+        <source>Enter your OpenAI API key first.</source>
+        <translation>Najpierw wpisz klucz API OpenAI.</translation>
+    </message>
+    <message>
+        <source>The key could not be saved on this computer; it is used for this session only.</source>
+        <translation>Nie można zapisać klucza na tym komputerze; zostanie użyty tylko w tej sesji.</translation>
+    </message>
+    <message>
+        <source>Checking the key...</source>
+        <translation>Sprawdzanie klucza...</translation>
+    </message>
+    <message>
+        <source>Type a prompt first.</source>
+        <translation>Najpierw wpisz opis.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Generating %n image(s)...</source>
+        <translation>
+            <numerusform>Generowanie %n obrazu...</numerusform>
+            <numerusform>Generowanie %n obrazów...</numerusform>
+            <numerusform>Generowanie %n obrazów...</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The images arrived, but could not be added to a document.</source>
+        <translation>Obrazy dotarły, ale nie udało się dodać ich do dokumentu.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n layer(s).</source>
+        <translation>
+            <numerusform>Dodano %n warstwę.</numerusform>
+            <numerusform>Dodano %n warstwy.</numerusform>
+            <numerusform>Dodano %n warstw.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>%1 tokens used.</source>
+        <translation>Użyto tokenów: %1.</translation>
+    </message>
+    <message>
+        <source>Stopped. OpenAI may still bill a request it had already started.</source>
+        <translation>Zatrzymano. OpenAI może mimo to rozliczyć już rozpoczęte żądanie.</translation>
+    </message>
+    <message>
+        <source>OpenAI takes at most %1 reference images.</source>
+        <translation>OpenAI przyjmuje najwyżej %1 obrazów referencyjnych.</translation>
+    </message>
+    <message>
+        <source>Visible</source>
+        <translation>Widoczne</translation>
+    </message>
+    <message>
+        <source>Add Reference Images</source>
+        <translation>Dodaj obrazy referencyjne</translation>
+    </message>
+    <message>
+        <source>Images (*.png *.jpg *.jpeg *.webp *.bmp *.gif *.tif *.tiff)</source>
+        <translation>Obrazy (*.png *.jpg *.jpeg *.webp *.bmp *.gif *.tif *.tiff)</translation>
+    </message>
+    <message>
+        <source>Create an API key</source>
+        <translation>Utwórz klucz API</translation>
+    </message>
+    <message>
+        <source>Where the key is saved</source>
+        <translation>Gdzie zapisywany jest klucz</translation>
+    </message>
+    <message>
+        <source>Where the Key Is Saved</source>
+        <translation>Gdzie zapisywany jest klucz</translation>
+    </message>
+    <message>
+        <source>Prompt</source>
+        <translation>Opis</translation>
+    </message>
+    <message>
+        <source>Paste</source>
+        <translation>Wklej</translation>
+    </message>
+    <message>
+        <source>Add the image on the clipboard as a reference image</source>
+        <translation>Dodaj obraz ze schowka jako obraz referencyjny</translation>
+    </message>
+    <message>
+        <source>The clipboard holds no image.</source>
+        <translation>Schowek nie zawiera obrazu.</translation>
+    </message>
+    <message>
+        <source>Create</source>
+        <translation>Utwórz</translation>
+    </message>
+    <message>
+        <source>Expand</source>
+        <translation>Rozszerz</translation>
+    </message>
+    <message>
+        <source>Animate</source>
+        <translation>Animuj</translation>
+    </message>
+    <message>
+        <source>%1 (higher quality)</source>
+        <translation>%1 (wyższa jakość)</translation>
+    </message>
+    <message>
+        <source>%1 (faster)</source>
+        <translation>%1 (szybszy)</translation>
+    </message>
+    <message>
+        <source>Check Key greys out a model your key cannot use</source>
+        <translation>Sprawdź klucz wyszarza modele niedostępne dla Twojego klucza</translation>
+    </message>
+    <message>
+        <source>Variations:</source>
+        <translation>Warianty:</translation>
+    </message>
+    <message>
+        <source>The key works, but it cannot use the GPT Image 2.6 models.</source>
+        <translation>Klucz działa, ale nie może korzystać z modeli GPT Image 2.6.</translation>
+    </message>
+    <message>
+        <source>The key works.</source>
+        <translation>Klucz działa.</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>Schowek</translation>
+    </message>
+    <message>
+        <source>The key is never written to Patchy&apos;s settings file, and Patchy sends it only to OpenAI.</source>
+        <translation>Klucz nigdy nie jest zapisywany w pliku ustawień Patchy, a Patchy wysyła go tylko do OpenAI.</translation>
+    </message>
+    <message>
+        <source>Patchy saves the key in Windows Credential Manager, under Windows Credentials, as the generic credential &quot;com.rtsoft.patchy.openai&quot;. Only your Windows account can read it. Untick &quot;Remember the key on this computer&quot; to delete it.</source>
+        <translation>Patchy zapisuje klucz w Menedżerze poświadczeń systemu Windows, w sekcji Poświadczenia systemu Windows, jako poświadczenie ogólne „com.rtsoft.patchy.openai”. Odczytać go może tylko Twoje konto Windows. Odznacz „Zapamiętaj klucz na tym komputerze”, aby go usunąć.</translation>
+    </message>
+    <message>
+        <source>Patchy saves the key in your login keychain as the password item &quot;com.rtsoft.patchy.openai&quot; (account &quot;api-key&quot;), which the Keychain Access app shows. Only your macOS account can read it. Untick &quot;Remember the key on this computer&quot; to delete it.</source>
+        <translation>Patchy zapisuje klucz w pęku kluczy logowania jako hasło „com.rtsoft.patchy.openai” (konto „api-key”), widoczne w aplikacji Dostęp do pęku kluczy. Odczytać go może tylko Twoje konto macOS. Odznacz „Zapamiętaj klucz na tym komputerze”, aby go usunąć.</translation>
+    </message>
+    <message>
+        <source>The key will be saved unencrypted in %1. Only your user account can open the file, but any program running as you can read it.</source>
+        <translation>Klucz zostanie zapisany bez szyfrowania w %1. Tylko Twoje konto może otworzyć plik, ale każdy program działający na Twoim koncie może go odczytać.</translation>
+    </message>
+    <message>
+        <source>Select what to remove, with a little room around it. The area is filled from its surroundings on a new layer, masked to the selection, so the original stays underneath.</source>
+        <translation>Zaznacz to, co chcesz usunąć, z niewielkim marginesem. Obszar zostanie wypełniony z otoczenia na nowej warstwie z maską zaznaczenia, a oryginał zostanie pod spodem.</translation>
+    </message>
+    <message>
+        <source>Open a document first.</source>
+        <translation>Najpierw otwórz dokument.</translation>
+    </message>
+    <message>
+        <source>OpenAI Remove</source>
+        <translation>OpenAI Usuń</translation>
+    </message>
+    <message>
+        <source>Removing...</source>
+        <translation>Usuwanie...</translation>
+    </message>
+    <message>
+        <source>The images arrived, but the document they were made for is closed.</source>
+        <translation>Obrazy dotarły, ale dokument, dla którego powstały, jest zamknięty.</translation>
+    </message>
+    <message>
+        <source>Patchy saves the key in the file %1. The file is not encrypted: only your user account can open it, but any program running as you can read it. Untick &quot;Remember the key on this computer&quot; to delete the file. You can instead set the OPENAI_API_KEY environment variable, which the dialog reads when it opens.</source>
+        <translation>Patchy zapisuje klucz w pliku %1. Plik nie jest szyfrowany: otworzyć go może tylko Twoje konto, ale każdy program działający na Twoim koncie może go odczytać. Odznacz „Zapamiętaj klucz na tym komputerze”, aby usunąć plik. Zamiast tego możesz ustawić zmienną środowiskową OPENAI_API_KEY, którą okno odczytuje przy otwarciu.</translation>
+    </message>
+    <message>
+        <source> px</source>
+        <translation> px</translation>
+    </message>
+    <message>
+        <source>Left:</source>
+        <translation>Lewo:</translation>
+    </message>
+    <message>
+        <source>Right:</source>
+        <translation>Prawo:</translation>
+    </message>
+    <message>
+        <source>Top:</source>
+        <translation>Góra:</translation>
+    </message>
+    <message>
+        <source>Bottom:</source>
+        <translation>Dół:</translation>
+    </message>
+    <message>
+        <source>Optional: describe what the new area shows</source>
+        <translation>Opcjonalnie: opisz, co pokazuje nowy obszar</translation>
+    </message>
+    <message>
+        <source>New canvas: %1 x %2 px</source>
+        <translation>Nowy obszar roboczy: %1 x %2 px</translation>
+    </message>
+    <message>
+        <source>Add pixels to at least one side.</source>
+        <translation>Dodaj piksele przynajmniej z jednej strony.</translation>
+    </message>
+    <message>
+        <source>The new canvas would be larger than %1 px on a side.</source>
+        <translation>Nowy obszar roboczy miałby ponad %1 px w jednym wymiarze.</translation>
+    </message>
+    <message>
+        <source>OpenAI Expand</source>
+        <translation>OpenAI Rozszerz</translation>
+    </message>
+    <message>
+        <source>Expanding...</source>
+        <translation>Rozszerzanie...</translation>
+    </message>
+    <message>
+        <source>The images arrived, but that document is closed or its canvas changed meanwhile.</source>
+        <translation>Obrazy dotarły, ale dokument jest zamknięty lub jego obszar roboczy w międzyczasie się zmienił.</translation>
+    </message>
+    <message>
+        <source>Drag an edge or a corner outward to add room on that side</source>
+        <translation>Przeciągnij krawędź lub róg na zewnątrz, aby dodać miejsce z tej strony</translation>
+    </message>
+    <message>
+        <source>Make a short animation. It opens as a new document with one layer per frame, frame 1 on top, ready for File &gt; Export &gt; Layers as Animated GIF.</source>
+        <translation>Utwórz krótką animację. Otworzy się jako nowy dokument z jedną warstwą na klatkę, klatka 1 na górze, gotowy do Plik &gt; Eksport &gt; Warstwy jako animacje GIF.</translation>
+    </message>
+    <message>
+        <source>Describe the motion, for example: the flag waves in the wind</source>
+        <translation>Opisz ruch, na przykład: flaga powiewa na wietrze</translation>
+    </message>
+    <message>
+        <source>The prompt only</source>
+        <translation>Tylko opis</translation>
+    </message>
+    <message>
+        <source>The active layer</source>
+        <translation>Aktywna warstwa</translation>
+    </message>
+    <message>
+        <source>The visible image</source>
+        <translation>Widoczny obraz</translation>
+    </message>
+    <message>
+        <source>Start from:</source>
+        <translation>Zacznij od:</translation>
+    </message>
+    <message>
+        <source>Frames:</source>
+        <translation>Klatki:</translation>
+    </message>
+    <message>
+        <source> ms</source>
+        <translation> ms</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>Opóźnienie klatki:</translation>
+    </message>
+    <message>
+        <source>512 x 512</source>
+        <translation>512 x 512</translation>
+    </message>
+    <message>
+        <source>Frame size:</source>
+        <translation>Rozmiar klatki:</translation>
+    </message>
+    <message>
+        <source>GIF transparency is on or off per pixel, so soft edges come out hard</source>
+        <translation>Przezroczystość GIF jest włączona lub wyłączona dla każdego piksela, więc miękkie krawędzie stają się ostre</translation>
+    </message>
+    <message>
+        <source>OpenAI&apos;s reply held no animation.</source>
+        <translation>Odpowiedź OpenAI nie zawierała animacji.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Opened %n animation(s).</source>
+        <translation>
+            <numerusform>Otwarto %n animację.</numerusform>
+            <numerusform>Otwarto %n animacje.</numerusform>
+            <numerusform>Otwarto %n animacji.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>720 x 720</source>
+        <translation>720 x 720</translation>
+    </message>
+    <message>
+        <source>960 x 960</source>
+        <translation>960 x 960</translation>
+    </message>
+    <message>
+        <source>OpenAI draws every frame on one sheet, so more than 9 frames allow at most 720 x 720</source>
+        <translation>OpenAI rysuje wszystkie klatki na jednym arkuszu, więc powyżej 9 klatek maksimum to 720 x 720</translation>
+    </message>
+    <message>
+        <source>Show variation %1</source>
+        <translation>Pokaż wariant %1</translation>
+    </message>
+    <message>
+        <source>Results:</source>
+        <translation>Wyniki:</translation>
+    </message>
+    <message>
+        <source>New layer</source>
+        <translation>Nowa warstwa</translation>
+    </message>
+    <message>
+        <source>Active layer</source>
+        <translation>Aktywna warstwa</translation>
+    </message>
+    <message>
+        <source>Active layer writes the result into the active pixel layer, inside the selection</source>
+        <translation>Aktywna warstwa zapisuje wynik w aktywnej warstwie pikseli, wewnątrz zaznaczenia</translation>
+    </message>
+    <message>
+        <source>Target:</source>
+        <translation>Cel:</translation>
+    </message>
+    <message>
+        <source>The images arrived, but the active layer changed or closed meanwhile.</source>
+        <translation>Obrazy dotarły, ale aktywna warstwa w międzyczasie się zmieniła lub została zamknięta.</translation>
+    </message>
+    <message>
+        <source>Wrote the result into the active layer.</source>
+        <translation>Zapisano wynik w aktywnej warstwie.</translation>
+    </message>
+    <message>
+        <source>Click a result to see another variation.</source>
+        <translation>Kliknij wynik, aby zobaczyć inny wariant.</translation>
+    </message>
+    <message>
+        <source>The result layer changed since, so its other variations were cleared.</source>
+        <translation>Warstwa wyniku zmieniła się od tego czasu, więc jej pozostałe warianty zostały usunięte.</translation>
+    </message>
+    <message>
+        <source>Showing variation %1.</source>
+        <translation>Wyświetlany wariant %1.</translation>
+    </message>
+    <message>
+        <source>Your prompt and any reference images are sent to OpenAI, and generations use your API key, so be careful as they cost real money.</source>
+        <translation>Opis i obrazy referencyjne są wysyłane do OpenAI, a generowanie korzysta z Twojego klucza API, więc uważaj: kosztuje to prawdziwe pieniądze.</translation>
+    </message>
+    <message>
+        <source>Checking...</source>
+        <translation>Sprawdzanie...</translation>
+    </message>
+    <message>
+        <source>Building the animation...</source>
+        <translation>Tworzenie animacji...</translation>
+    </message>
+    <message>
+        <source>Building animation...</source>
+        <translation>Tworzenie animacji...</translation>
+    </message>
+    <message>
+        <source>Creating...</source>
+        <translation>Tworzenie...</translation>
+    </message>
+    <message>
+        <source>OpenAI sent a reply Patchy could not read.</source>
+        <translation>OpenAI wysłało odpowiedź, której Patchy nie może odczytać.</translation>
+    </message>
+    <message>
+        <source>OpenAI&apos;s reply held no image.</source>
+        <translation>Odpowiedź OpenAI nie zawierała obrazu.</translation>
+    </message>
+    <message>
+        <source>OpenAI did not accept this API key. Check that it was copied whole, or create a new one.</source>
+        <translation>OpenAI nie zaakceptowało tego klucza API. Sprawdź, czy został skopiowany w całości, lub utwórz nowy.</translation>
+    </message>
+    <message>
+        <source>Your OpenAI account is out of credit, so nothing was generated. Add credit to keep going.</source>
+        <translation>Na koncie OpenAI skończyły się środki, więc nic nie wygenerowano. Doładuj konto, aby kontynuować.</translation>
+    </message>
+    <message>
+        <source>Your OpenAI account has reached its spending limit, so nothing was generated. Raise the limit to keep going.</source>
+        <translation>Konto OpenAI osiągnęło limit wydatków, więc nic nie wygenerowano. Zwiększ limit, aby kontynuować.</translation>
+    </message>
+    <message>
+        <source>OpenAI is limiting requests from this key right now. Wait a moment and try again.</source>
+        <translation>OpenAI ogranicza teraz żądania z tego klucza. Poczekaj chwilę i spróbuj ponownie.</translation>
+    </message>
+    <message>
+        <source>OpenAI&apos;s safety system declined this request. Try rewording the prompt or using other images.</source>
+        <translation>System bezpieczeństwa OpenAI odrzucił to żądanie. Spróbuj przeformułować opis lub użyć innych obrazów.</translation>
+    </message>
+    <message>
+        <source>This model needs a verified OpenAI organization. Verify it, then try again.</source>
+        <translation>Ten model wymaga zweryfikowanej organizacji OpenAI. Zweryfikuj ją i spróbuj ponownie.</translation>
+    </message>
+    <message>
+        <source>This API key cannot use the chosen model. Pick the other model, or check the key&apos;s project permissions.</source>
+        <translation>Ten klucz API nie może używać wybranego modelu. Wybierz drugi model lub sprawdź uprawnienia projektu klucza.</translation>
+    </message>
+    <message>
+        <source>OpenAI had a problem on its side (HTTP %1). Try again in a moment.</source>
+        <translation>Po stronie OpenAI wystąpił problem (HTTP %1). Spróbuj ponownie za chwilę.</translation>
+    </message>
+    <message>
+        <source>OpenAI returned HTTP status %1.</source>
+        <translation>OpenAI zwróciło stan HTTP %1.</translation>
+    </message>
+    <message>
+        <source>Manage API keys</source>
+        <translation>Zarządzaj kluczami API</translation>
+    </message>
+    <message>
+        <source>Add credit</source>
+        <translation>Doładuj konto</translation>
+    </message>
+    <message>
+        <source>Open spending limits</source>
+        <translation>Otwórz limity wydatków</translation>
+    </message>
+    <message>
+        <source>Verify organization</source>
+        <translation>Zweryfikuj organizację</translation>
+    </message>
+    <message>
+        <source>Could not read %1: %2</source>
+        <translation>Nie można odczytać %1: %2</translation>
+    </message>
+    <message>
+        <source>OpenAI did not answer in time.</source>
+        <translation>OpenAI nie odpowiedziało na czas.</translation>
+    </message>
+    <message>
+        <source>Could not reach OpenAI: %1</source>
+        <translation>Nie można połączyć się z OpenAI: %1</translation>
+    </message>
+    <message>
+        <source>Describe what the selection should become, or leave it empty to continue the surroundings</source>
+        <translation>Opisz, czym ma stać się zaznaczenie, lub zostaw puste, aby kontynuować otoczenie</translation>
+    </message>
+    <message>
+        <source>Edit</source>
+        <translation>Edytuj</translation>
+    </message>
+    <message>
+        <source>0% keeps the result inside the selection with a hard edge; 100% lets it reach past the selection with a soft edge</source>
+        <translation>0% utrzymuje wynik wewnątrz zaznaczenia z ostrą krawędzią; 100% pozwala mu wyjść poza zaznaczenie z miękką krawędzią</translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <translation>%1%</translation>
+    </message>
+    <message>
+        <source>Edge blend:</source>
+        <translation>Przenikanie krawędzi:</translation>
+    </message>
+    <message>
+        <source>OpenAI Edit</source>
+        <translation>OpenAI Edycja</translation>
+    </message>
+    <message>
+        <source>OpenAI Edit: %1</source>
+        <translation>OpenAI Edycja: %1</translation>
+    </message>
+    <message>
+        <source>Editing...</source>
+        <translation>Edytowanie...</translation>
+    </message>
+    <message>
+        <source>OpenAI sent no description.</source>
+        <translation>OpenAI nie przesłało opisu.</translation>
+    </message>
+    <message>
+        <source>OpenAI declined to describe the image: %1</source>
+        <translation>OpenAI odmówiło opisania obrazu: %1</translation>
+    </message>
+    <message>
+        <source>The image below goes to OpenAI&apos;s %1 model, which writes a detailed description of it here. Nothing is added to the document.</source>
+        <translation>Poniższy obraz trafia do modelu %1 firmy OpenAI, który pisze tutaj jego szczegółowy opis. Do dokumentu nic nie jest dodawane.</translation>
+    </message>
+    <message>
+        <source>Image:</source>
+        <translation>Obraz:</translation>
+    </message>
+    <message>
+        <source>The description appears here</source>
+        <translation>Tutaj pojawi się opis</translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <translation>Opis</translation>
+    </message>
+    <message>
+        <source>Describe</source>
+        <translation>Opisz</translation>
+    </message>
+    <message>
+        <source>Describe Image</source>
+        <translation>Opisz obraz</translation>
+    </message>
+    <message>
+        <source>Describing the image...</source>
+        <translation>Opisywanie obrazu...</translation>
+    </message>
+    <message>
+        <source>Describing...</source>
+        <translation>Opisywanie...</translation>
+    </message>
+    <message>
+        <source>Described the image.</source>
+        <translation>Obraz opisany.</translation>
+    </message>
+    <message>
+        <source>Describe the image to create. With reference images, refer to them by their numbers, for example: the cat from image 1 wearing the hat from image 2</source>
+        <translation>Opisz obraz do utworzenia. Do obrazów referencyjnych odwołuj się przez ich numery, na przykład: kot z obrazu 1 w kapeluszu z obrazu 2</translation>
+    </message>
+    <message>
+        <source>Patchy could not read an image from what was dropped.</source>
+        <translation>Patchy nie mógł odczytać obrazu z upuszczonych danych.</translation>
+    </message>
+    <message>
+        <source>%1. %2</source>
+        <translation>%1. %2</translation>
+    </message>
+    <message>
+        <source>Image %1: %2 (%3 x %4 px)</source>
+        <translation>Obraz %1: %2 (%3 x %4 px)</translation>
+    </message>
+    <message>
+        <source>Remove this reference image</source>
+        <translation>Usuń ten obraz referencyjny</translation>
+    </message>
+    <message>
+        <source>References (up to %1; the prompt names them by number):</source>
+        <translation>Referencje (do %1; opis wskazuje je numerem):</translation>
+    </message>
+    <message>
+        <source>Add</source>
+        <translation>Dodaj</translation>
+    </message>
+    <message>
+        <source>The model and quality apply to every image tab. Describe always uses %1.</source>
+        <translation>Model i jakość dotyczą każdej karty obrazów. Opisz zawsze używa %1.</translation>
+    </message>
+    <message>
+        <source>Config</source>
+        <translation>Konfiguracja</translation>
+    </message>
+    <message>
+        <source>Drop image files here, or use Add or Paste</source>
+        <translation>Upuść tutaj pliki obrazów lub użyj Dodaj albo Wklej</translation>
+    </message>
+    <message>
+        <source>OpenAI Image Tools via API Key</source>
+        <translation>Narzędzia obrazów OpenAI przez klucz API</translation>
+    </message>
+    <message>
+        <source>Select the area to change (Marquee, Lasso or Object Selection), or nothing to change the whole picture. The result goes on a new layer, masked to the selection; Edge blend sets how softly it meets the rest. The picture is sent as image 1, so reference images start at image 2.</source>
+        <translation>Zaznacz obszar do zmiany (Zaznaczanie prostokątne, Lasso lub Zaznaczanie obiektu) albo nic, aby zmienić cały obraz. Wynik trafia na nową warstwę z maską zaznaczenia; Przenikanie krawędzi określa, jak miękko łączy się z resztą. Obraz jest wysyłany jako obraz 1, więc obrazy referencyjne zaczynają się od obrazu 2.</translation>
+    </message>
+    <message>
+        <source>Describe the change first; with nothing selected, the whole picture is edited.</source>
+        <translation>Najpierw opisz zmianę; bez zaznaczenia edytowany jest cały obraz.</translation>
+    </message>
+    <message>
+        <source>Blend:</source>
+        <translation>Przejście:</translation>
+    </message>
+    <message>
+        <source>How much of the original next to the new area takes OpenAI&apos;s version before fading into the original: 0% keeps the original up to its edge, 100% uses OpenAI&apos;s whole picture</source>
+        <translation>Jak dużą część oryginału obok nowego obszaru przejmuje wersja OpenAI, zanim przejdzie w oryginał: 0% zachowuje oryginał do krawędzi, 100% używa całego obrazu OpenAI</translation>
+    </message>
+    <message>
+        <source>Add room around the image: Patchy grows the canvas by the pixels below and fills the new area on a new layer above the original, which stays untouched underneath. Blend sets how far that layer reaches into the original.</source>
+        <translation>Dodaj miejsce wokół obrazu: Patchy powiększa obszar roboczy o piksele poniżej i wypełnia nowy obszar na nowej warstwie nad oryginałem, który pozostaje nietknięty pod spodem. Przejście określa, jak daleko ta warstwa sięga w oryginał.</translation>
+    </message>
+    <message>
+        <source>Preparing the request...</source>
+        <translation>Przygotowywanie żądania...</translation>
+    </message>
+    <message>
+        <source>GIF (256 colors)</source>
+        <translation>GIF (256 kolorów)</translation>
+    </message>
+    <message>
+        <source>GIF uses OpenAI&apos;s animation mode, with 256 colors shared by all frames. Full color asks for the frames as one full-color picture and cuts it into layers, with soft transparency; the frame count rounds up to fill its grid.</source>
+        <translation>GIF używa trybu animacji OpenAI z 256 kolorami wspólnymi dla wszystkich klatek. Pełny kolor prosi o klatki jako jeden pełnokolorowy obraz i tnie go na warstwy, z miękką przezroczystością; liczba klatek jest zaokrąglana w górę, aby wypełnić siatkę.</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <translation>Kolory:</translation>
+    </message>
+    <message>
+        <source>Full color drew %1 frames, to fill a %2 x %3 sheet.</source>
+        <translation>Pełny kolor narysował %1 klatek, aby wypełnić arkusz %2 x %3.</translation>
+    </message>
+    <message>
+        <source>Full color (experimental)</source>
+        <translation>Pełny kolor (eksperymentalny)</translation>
     </message>
 </context>
 <context>

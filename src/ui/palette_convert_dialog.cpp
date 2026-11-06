@@ -211,6 +211,8 @@ std::optional<PaletteConvertSettings> request_palette_convert_settings(
     // Keep row indices stable; just disable the row when nothing is attached.
     if (auto* model = qobject_cast<QStandardItemModel*>(source_combo->model()); model != nullptr) {
       model->item(kSourceCurrent)->setEnabled(false);
+      model->item(kSourceCurrent)->setToolTip(
+          QObject::tr("This document has no palette yet. Set one in the Palette panel, or open an indexed image."));
     }
   }
   form->addRow(QObject::tr("Palette:"), source_combo);

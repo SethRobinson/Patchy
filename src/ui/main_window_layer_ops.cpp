@@ -4136,6 +4136,33 @@ void MainWindow::arrange_selected_layers_to_end(bool front) {
   canvas_->document_changed();
 }
 
+void MainWindow::reverse_selected_layers() {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    refresh_layer_list();
+    return;
+  }
+  const auto ids = selected_or_active_layer_ids();
+  std::optional<LayerId> background_id;
+  if (const auto* background = document_background_layer(); background != nullptr) {
+    background_id = background->id();  // the Background stays at the bottom
+  }
+  auto& doc = document();
+  auto trial_layers = std::as_const(doc).layers();
+  if (!reverse_layers(trial_layers, std::set<LayerId>(ids.begin(), ids.end()), background_id)) {
+    show_status_error(tr("Select two or more layers in the same folder to reverse their order"));
+    return;
+  }
+  if (refuse_background_stack_change(trial_layers)) {
+    return;
+  }
+  push_undo_snapshot(tr("Reverse layers"));
+  doc.layers() = std::move(trial_layers);
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed();
+}
+
 void MainWindow::move_selected_layers_out_of_folder(bool above) {
   if (preview_dialog_edit_locked()) {
     show_preview_dialog_edit_lock_message();
@@ -4559,16 +4586,7 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     }
   }
   vector_mask_menu->setEnabled(active_layer != nullptr);
-  // Export (#462): the selected layers as files, plus Duplicate Layer to Document..., which
-  // also sends the layer somewhere else.
-  menu.addSeparator();
-  auto* export_menu = menu.addMenu(tr("Export"));
-  export_menu->setObjectName(QStringLiteral("layerContextExportMenu"));
-  add_layer_export_actions(export_menu);
-  export_menu->addSeparator();
-  auto* duplicate_to_document_action =
-      export_menu->addAction(simple_icon(QStringLiteral("dup")),
-                             group_target ? tr("Duplicate Group to Document...") : tr("Duplicate Layer to Document..."));
+  auto* duplicate_to_document_action = add_layer_context_export_menu(&menu, group_target);
 
   duplicate_action->setEnabled(has_layer);
   duplicate_to_document_action->setEnabled(has_layer);
@@ -4858,6 +4876,21 @@ void MainWindow::set_zoom_layer_thumbnails_to_content(bool zoom) {
   }
 }
 
+QAction* MainWindow::add_layer_context_export_menu(QMenu* menu, bool group_target) {
+  // Export (#462): the selected layers as files, plus Duplicate Layer to Document..., which
+  // also sends the layer somewhere else. The row menu and the Background's menu (#657) share it.
+  menu->addSeparator();
+  auto* export_menu = menu->addMenu(tr("Export"));
+  export_menu->setObjectName(QStringLiteral("layerContextExportMenu"));
+  add_layer_export_actions(export_menu);
+  export_menu->addSeparator();
+  auto* duplicate_to_document_action =
+      export_menu->addAction(simple_icon(QStringLiteral("dup")),
+                             group_target ? tr("Duplicate Group to Document...") : tr("Duplicate Layer to Document..."));
+  duplicate_to_document_action->setObjectName(QStringLiteral("layerContextDuplicateToDocumentAction"));
+  return duplicate_to_document_action;
+}
+
 void MainWindow::show_background_context_menu(QPoint global_position) {
   // Photoshop's shorter menu for its Background (GitHub issue 274): no layer styles, masks,
   // locks or stacking commands apply to it. Delete and the Merge Visible pair need another layer.
@@ -4869,7 +4902,6 @@ void MainWindow::show_background_context_menu(QPoint global_position) {
   menu.addSeparator();
   auto* duplicate_action = menu.addAction(tr("Duplicate Layer"));
   duplicate_action->setObjectName(QStringLiteral("layerContextDuplicateAction"));
-  auto* duplicate_to_document_action = menu.addAction(tr("Duplicate Layer to Document..."));
   auto* delete_action = menu.addAction(tr("Delete Layer"));
   delete_action->setObjectName(QStringLiteral("layerContextDeleteAction"));
   delete_action->setEnabled(other_layers);
@@ -4888,6 +4920,9 @@ void MainWindow::show_background_context_menu(QPoint global_position) {
   if (image_flatten_action_ != nullptr) {
     menu.addAction(image_flatten_action_);
   }
+  // The same Export submenu as every other row (#657); its two export entries are the shared
+  // Layer > Export actions and run from their own triggered signals.
+  auto* duplicate_to_document_action = add_layer_context_export_menu(&menu, false);
   // Thumbnail Size lives on the pixel thumbnail's own menu (#481); with no thumbnails there is
   // none to right-click, so the row menu keeps it until a size is picked again.
   if (layer_thumbnail_size_ == LayerThumbnailSize::None) {

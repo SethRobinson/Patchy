@@ -476,6 +476,20 @@ QIcon themed_glyph_icon(QString name, qreal authored_size, QColor ThemePalette::
       new ProceduralIconEngine(std::move(name), authored_size, ink_role, std::move(glyph)));
 }
 
+QIcon info_mark_icon() {
+  return themed_glyph_icon(QStringLiteral("clone-source-info"), 16.0, &ThemePalette::icon_ink,
+                           [](QPainter& painter, const QColor& ink) {
+                             painter.setRenderHint(QPainter::Antialiasing);
+                             painter.setPen(QPen(ink, 1.3));
+                             painter.setBrush(Qt::NoBrush);
+                             painter.drawEllipse(QRectF(1.15, 1.15, 13.7, 13.7));
+                             painter.setPen(Qt::NoPen);
+                             painter.setBrush(ink);
+                             painter.drawEllipse(QRectF(7.0, 3.6, 2.0, 2.0));
+                             painter.drawRect(QRectF(7.1, 6.6, 1.8, 6.0));
+                           });
+}
+
 QIcon layer_lock_icon(const QString& kind, QColor ThemePalette::* ink_role) {
   // Two designs on a 16 px grid, chosen by the logical size (GitHub issue 484). The 16 px lock
   // button icons span 1 to 15, a 14 px glyph with 5 px to the button's border; smaller renders

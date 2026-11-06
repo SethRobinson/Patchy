@@ -941,6 +941,50 @@ void arrange_layers_to_end_moves_within_each_folder() {
   CHECK(moved_folder != nullptr && sibling_ids(moved_folder->children()) == (Ids{e_id, d_id, c_id}));
 }
 
+// Layer > Arrange > Reverse: listed layers trade places within their own folder, unlisted
+// layers and the pinned Background stay, and a listed folder moves whole.
+void reverse_layers_swaps_within_each_folder() {
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+  const auto background_id = document.add_pixel_layer("Background", solid_rgb(2, 2, 10, 20, 30)).id();
+  const auto a_id = document.add_pixel_layer("A", solid_rgb(2, 2, 1, 2, 3)).id();
+  const auto b_id = document.add_pixel_layer("B", solid_rgb(2, 2, 1, 2, 3)).id();
+  const auto keep_id = document.add_pixel_layer("Keep", solid_rgb(2, 2, 1, 2, 3)).id();
+  const auto c_id = document.add_pixel_layer("C", solid_rgb(2, 2, 1, 2, 3)).id();
+  patchy::Layer folder(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  const auto folder_id = folder.id();
+  patchy::Layer d(document.allocate_layer_id(), "D", solid_rgb(2, 2, 1, 2, 3));
+  const auto d_id = d.id();
+  patchy::Layer e(document.allocate_layer_id(), "E", solid_rgb(2, 2, 1, 2, 3));
+  const auto e_id = e.id();
+  folder.add_child(std::move(d));
+  folder.add_child(std::move(e));
+  document.add_layer(std::move(folder));
+  auto& layers = document.layers();
+  using Ids = std::vector<patchy::LayerId>;
+
+  // A, B and C reverse around the unlisted Keep, which stays in its slot.
+  CHECK(patchy::reverse_layers(layers, {a_id, b_id, c_id}, background_id));
+  CHECK(sibling_ids(layers) == (Ids{background_id, c_id, b_id, keep_id, a_id, folder_id}));
+  // Twice is the original order.
+  CHECK(patchy::reverse_layers(layers, {a_id, b_id, c_id}, background_id));
+  CHECK(sibling_ids(layers) == (Ids{background_id, a_id, b_id, keep_id, c_id, folder_id}));
+  // The Background never moves, even when listed; one layer alone changes nothing.
+  CHECK(patchy::reverse_layers(layers, {background_id, a_id, b_id}, background_id));
+  CHECK(sibling_ids(layers) == (Ids{background_id, b_id, a_id, keep_id, c_id, folder_id}));
+  CHECK(!patchy::reverse_layers(layers, {keep_id}, background_id));
+  // Layers in different folders reverse only among their own siblings: here, none.
+  CHECK(!patchy::reverse_layers(layers, {keep_id, d_id}, background_id));
+  // Inside the folder.
+  CHECK(patchy::reverse_layers(layers, {d_id, e_id}, background_id));
+  const auto* reversed_folder = patchy::find_layer_in_tree(std::as_const(layers), folder_id);
+  CHECK(reversed_folder != nullptr && sibling_ids(reversed_folder->children()) == (Ids{e_id, d_id}));
+  // A listed folder moves whole; its listed children stay as they are inside it.
+  CHECK(patchy::reverse_layers(layers, {folder_id, keep_id, d_id, e_id}, background_id));
+  CHECK(sibling_ids(layers) == (Ids{background_id, b_id, a_id, folder_id, c_id, keep_id}));
+  reversed_folder = patchy::find_layer_in_tree(std::as_const(layers), folder_id);
+  CHECK(reversed_folder != nullptr && sibling_ids(reversed_folder->children()) == (Ids{e_id, d_id}));
+}
+
 // GitHub issue 470: the footer's Alt-click Move Up / Move Down takes layers out of their folder,
 // one level, just above or just below it.
 void move_layers_out_of_folder_lands_beside_the_folder() {
@@ -1445,6 +1489,7 @@ std::vector<patchy::test::TestCase> document_model_tests() {
       {"layer_drop_request_moves_multiple_layers_into_folder", layer_drop_request_moves_multiple_layers_into_folder},
       {"arrange_layers_to_end_moves_within_each_folder", arrange_layers_to_end_moves_within_each_folder},
       {"layer_links_link_unlink_expand_and_separate_copies", layer_links_link_unlink_expand_and_separate_copies},
+      {"reverse_layers_swaps_within_each_folder", reverse_layers_swaps_within_each_folder},
       {"move_layers_out_of_folder_lands_beside_the_folder", move_layers_out_of_folder_lands_beside_the_folder},
       {"collect_layer_descendant_ids_walks_nested_groups_in_order",
        collect_layer_descendant_ids_walks_nested_groups_in_order},

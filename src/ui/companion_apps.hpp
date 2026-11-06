@@ -5,6 +5,7 @@
 // the connector endpoint in its environment. The manifest keys are a file-format contract.
 #include <QDeadlineTimer>
 #include <QObject>
+#include <QPointer>
 #include <QProcessEnvironment>
 #include <QString>
 #include <QStringList>
@@ -13,6 +14,7 @@
 #include <map>
 #include <vector>
 
+class QAction;
 class QMenu;
 
 namespace patchy::ui {
@@ -67,6 +69,9 @@ class CompanionMenu final : public QObject {
   CompanionMenu(QMenu* plugins_menu, MainWindow& window);
   [[nodiscard]] QMenu* menu() const { return menu_; }
   void rebuild();
+  // A command built into Patchy that heads the submenu above the manifest entries (OpenAI
+  // Images via API Key, docs/openai-images.md). The window owns it, so a rebuild keeps it.
+  void set_builtin_action(QAction* action);
   // Show the running companion, or start it. Returns false when it could not be started.
   bool activate(const CompanionManifest& manifest);
   // Asks the attached companion to quit (companionCommand "quit"). False when none is attached.
@@ -84,6 +89,7 @@ class CompanionMenu final : public QObject {
  private:
   MainWindow& window_;
   QMenu* menu_;
+  QPointer<QAction> builtin_action_;
   Launcher launcher_;
   bool can_launch_;
   // Companions started but not attached yet, by id: a second pick inside the grace period does

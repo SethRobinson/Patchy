@@ -36,21 +36,6 @@ constexpr int kOffsetLimit = 1000000;
 constexpr int kFlipButtonSize = 24;
 constexpr int kInfoButtonSize = 18;
 
-// A ringed "i" in the theme's icon ink: the offset's info mark (GitHub issue 574).
-QIcon info_mark_icon() {
-  return themed_glyph_icon(QStringLiteral("clone-source-info"), 16.0, &ThemePalette::icon_ink,
-                           [](QPainter& painter, const QColor& ink) {
-                             painter.setRenderHint(QPainter::Antialiasing);
-                             painter.setPen(QPen(ink, 1.3));
-                             painter.setBrush(Qt::NoBrush);
-                             painter.drawEllipse(QRectF(1.15, 1.15, 13.7, 13.7));
-                             painter.setPen(Qt::NoPen);
-                             painter.setBrush(ink);
-                             painter.drawEllipse(QRectF(7.0, 3.6, 2.0, 2.0));
-                             painter.drawRect(QRectF(7.1, 6.6, 1.8, 6.0));
-                           });
-}
-
 }  // namespace
 
 CloneSourcePanel::CloneSourcePanel(QWidget* parent) : QWidget(parent) {

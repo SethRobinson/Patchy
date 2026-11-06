@@ -1441,6 +1441,33 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_up_action->setObjectName(QStringLiteral("layerMoveUpAction"));
   layer_down_action->setObjectName(QStringLiteral("layerMoveDownAction"));
   layer_send_to_back_action_ = layer_arrange_menu->addAction(tr("Send to &Back"));
+  layer_send_to_back_action_->setObjectName(QStringLiteral("layerSendToBackAction"));
+  layer_send_to_back_action_->setMenuRole(QAction::NoRole);
+  bind_action_text(layer_send_to_back_action_, QT_TR_NOOP("Send to &Back"));
+  bind_translated_status_tip(layer_send_to_back_action_,
+                             QT_TR_NOOP("Move the selected layers to the bottom of their folder, above a Background"));
+  apply_bound_translation(layer_send_to_back_action_);
+  register_hotkey(layer_bring_to_front_action_, "layer.bring_to_front",
+                  QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_BracketRight));
+  register_hotkey(layer_send_to_back_action_, "layer.send_to_back",
+                  QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_BracketLeft));
+  connect(layer_bring_to_front_action_, &QAction::triggered, this, [this] { arrange_selected_layers_to_end(true); });
+  connect(layer_send_to_back_action_, &QAction::triggered, this, [this] { arrange_selected_layers_to_end(false); });
+  register_document_action(layer_bring_to_front_action_);
+  register_document_action(layer_send_to_back_action_);
+  // Reverse: the selected layers trade places, e.g. a copied run of animation frames turned
+  // backward for a bounce. No default key (Photoshop has none either).
+  layer_arrange_menu->addSeparator();
+  auto* layer_reverse_action = layer_arrange_menu->addAction(tr("&Reverse"));
+  layer_reverse_action->setObjectName(QStringLiteral("layerReverseAction"));
+  layer_reverse_action->setMenuRole(QAction::NoRole);
+  bind_action_text(layer_reverse_action, QT_TR_NOOP("&Reverse"));
+  bind_translated_status_tip(layer_reverse_action,
+                             QT_TR_NOOP("Reverse the order of the selected layers within their folder"));
+  apply_bound_translation(layer_reverse_action);
+  register_hotkey(layer_reverse_action, "layer.reverse");
+  connect(layer_reverse_action, &QAction::triggered, this, [this] { reverse_selected_layers(); });
+  register_document_action(layer_reverse_action);
   // Layer linking (GitHub issue 656). Not document actions: refresh_layer_link_action_states
   // enables them from the selection, so their keys act only when they can.
   layer_arrange_menu->addSeparator();
@@ -1466,21 +1493,6 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(layer_unlink_action_, &QAction::triggered, this, [this] { unlink_selected_layers(); });
   connect(layer_select_linked_action_, &QAction::triggered, this, [this] { select_linked_layers(); });
   connect(layer_arrange_menu, &QMenu::aboutToShow, this, [this] { refresh_layer_link_action_states(); });
-  layer_arrange_menu->addSeparator();
-  layer_send_to_back_action_->setObjectName(QStringLiteral("layerSendToBackAction"));
-  layer_send_to_back_action_->setMenuRole(QAction::NoRole);
-  bind_action_text(layer_send_to_back_action_, QT_TR_NOOP("Send to &Back"));
-  bind_translated_status_tip(layer_send_to_back_action_,
-                             QT_TR_NOOP("Move the selected layers to the bottom of their folder, above a Background"));
-  apply_bound_translation(layer_send_to_back_action_);
-  register_hotkey(layer_bring_to_front_action_, "layer.bring_to_front",
-                  QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_BracketRight));
-  register_hotkey(layer_send_to_back_action_, "layer.send_to_back",
-                  QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_BracketLeft));
-  connect(layer_bring_to_front_action_, &QAction::triggered, this, [this] { arrange_selected_layers_to_end(true); });
-  connect(layer_send_to_back_action_, &QAction::triggered, this, [this] { arrange_selected_layers_to_end(false); });
-  register_document_action(layer_bring_to_front_action_);
-  register_document_action(layer_send_to_back_action_);
   // Quarter and half turns of the selected layers (GitHub issue 139) and the flips, in
   // their own submenu like Image > Rotate & Flip.
   auto* layer_rotate_flip_menu = new QMenu(tr("Ro&tate && Flip"), layer_menu);
@@ -2820,8 +2832,19 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   legacy_plugins_menu_ = plugins_menu->addMenu(tr("Legacy Photoshop Plug-ins"));
   legacy_plugins_menu_->setObjectName(QStringLiteral("legacyPluginsMenu"));
 #ifndef Q_OS_WASM
+  // Plugins > Companions > OpenAI Image Tools via API Key (docs/openai-images.md): built in, owned
+  // by the window and placed at the top of the Companions submenu by CompanionMenu.
+  auto* openai_images_action = new QAction(tr("OpenAI Image Tools via API Key (built-in)..."), this);
+  openai_images_action->setObjectName(QStringLiteral("pluginsOpenAiImagesAction"));
+  openai_images_action->setMenuRole(QAction::NoRole);
+  openai_images_action->setProperty(kWorksWithoutDocumentProperty, true);  // results open a new document
+  register_hotkey(openai_images_action, "plugins.openai_images");
+  connect(openai_images_action, &QAction::triggered, this, [this] { open_openai_images_dialog(); });
+  bind_action_text(openai_images_action,
+                   QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "OpenAI Image Tools via API Key (built-in)..."));
   // Plugins > Companions (docs/companions.md); the Plugins menu owns it.
-  new CompanionMenu(plugins_menu, *this);
+  auto* companion_menu = new CompanionMenu(plugins_menu, *this);
+  companion_menu->set_builtin_action(openai_images_action);
 #endif
 
   auto* zoom_in = view_menu->addAction(tr("Zoom &In"));

@@ -732,6 +732,32 @@ bool arrange_layers_to_end(std::vector<Layer>& layers, const std::set<LayerId>& 
   return changed;
 }
 
+bool reverse_layers(std::vector<Layer>& layers, const std::set<LayerId>& ids,
+                    std::optional<LayerId> pinned_bottom_id) {
+  bool changed = false;
+  const auto reverse = [&](const auto& self, std::vector<Layer>& siblings) -> void {
+    std::vector<std::size_t> slots;
+    for (std::size_t index = 0; index < siblings.size(); ++index) {
+      auto& layer = siblings[index];
+      const bool pinned = pinned_bottom_id.has_value() && layer.id() == *pinned_bottom_id;
+      if (ids.contains(layer.id()) && !pinned) {
+        slots.push_back(index);  // a listed folder moves whole: its children are not visited
+      } else if (!std::as_const(layer).children().empty()) {
+        self(self, layer.children());
+      }
+    }
+    if (slots.size() < 2) {
+      return;
+    }
+    for (std::size_t low = 0, high = slots.size() - 1; low < high; ++low, --high) {
+      std::swap(siblings[slots[low]], siblings[slots[high]]);
+    }
+    changed = true;
+  };
+  reverse(reverse, layers);
+  return changed;
+}
+
 bool move_layers_out_of_folder(std::vector<Layer>& layers, const std::set<LayerId>& ids, bool above) {
   bool changed = false;
   // Top-down: a folder's listed children leave it before its remaining children are visited,
