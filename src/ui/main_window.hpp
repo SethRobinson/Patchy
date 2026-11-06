@@ -2395,6 +2395,10 @@ private:
   void add_layer_export_actions(QMenu* menu);
   void export_selected_layers(bool choose_format, LayerExportSource source = LayerExportSource::Layer);
   bool handle_layer_action_button_drag_event(QObject* watched, QEvent* event);
+  // The hint naming a Layers footer button's drop action while a layer drag is over it
+  // (local-033): drawn inside the window, above the button, and transparent to input.
+  void show_layer_drop_hint(QWidget* button);
+  void hide_layer_drop_hint();
   // A Layers-panel drag over another document (a session canvas, tabbed or
   // floated, or a document tab): accepts it as a copy and defers the copy.
   bool handle_cross_document_layer_drag_event(QObject* watched, QEvent* event);
@@ -3228,6 +3232,7 @@ private:
   QPointer<QTextEdit> text_entry_selection_editor_;
   int text_entry_selection_anchor_{0};
   QListWidget* layer_list_{nullptr};
+  QPointer<QWidget> layer_drop_hint_;
   QLineEdit* layer_name_filter_edit_{nullptr};
   ChannelPanel* channel_panel_{nullptr};
   PathsPanel* paths_panel_{nullptr};

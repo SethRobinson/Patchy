@@ -21,6 +21,7 @@
 #include "core/vector_live_shapes.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
+#include "ui/layer_list_widget.hpp"
 #include "ui/main_window.hpp"
 #include "test_harness.hpp"
 #include "ui_test_access.hpp"
@@ -32,6 +33,11 @@
 #include <QFontMetrics>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QDir>
+#include <QMimeData>
+#include <QProxyStyle>
+#include <QPushButton>
+#include <QToolTip>
 #include <QTabWidget>
 #include <QTimer>
 #include <cstdint>
@@ -550,6 +556,112 @@ void ui_layer_alt_drag_duplicates_in_panel() {
   CHECK(patchy::ui::MainWindowTestAccess::undo_depth_for_canvas(window, canvas) == 2);
 }
 
+// Counts polish() calls, to show a drag over a footer button repolishes it once on entry
+// and once on leaving, never per move.
+class PolishCountingStyle : public QProxyStyle {
+public:
+  using QProxyStyle::polish;
+  void polish(QWidget* widget) override {
+    QProxyStyle::polish(widget);
+    ++polish_count;
+  }
+  int polish_count = 0;
+};
+
+// A layer dragged over a Layers footer button names the drop in a hint drawn inside the
+// window, above the button and clear of the pointer, placed once per entry. The old
+// QToolTip was a window of its own that a large pointer put over the next button, so a
+// drag crossing it left Patchy (no-drop cursor, highlight gone; local-033).
+void ui_layer_footer_drop_hint_stays_clear_of_pointer() {
+  auto&& [window, canvas] = ShownWindowFixture{};
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr && layer_list->count() > 0);
+  if (layer_list == nullptr || layer_list->count() == 0) {
+    return;
+  }
+  const auto id = static_cast<patchy::LayerId>(layer_list->item(0)->data(patchy::ui::kLayerIdRole).toULongLong());
+  QMimeData mime_data;
+  mime_data.setData(QString::fromLatin1(patchy::ui::kLayerDragMimeType), patchy::ui::layer_ids_to_mime_data({id}));
+
+  std::vector<QRect> footer_rects;
+  for (auto* footer_button : window.findChildren<QAbstractButton*>()) {
+    if (footer_button->property("layerActionButton").toBool() && footer_button->isVisible()) {
+      footer_rects.emplace_back(footer_button->mapToGlobal(QPoint(0, 0)), footer_button->size());
+    }
+  }
+  CHECK(footer_rects.size() >= 4);
+
+  const std::vector<std::pair<QString, QString>> drops{
+      {QStringLiteral("layerNewButton"), QStringLiteral("Duplicate Layer")},
+      {QStringLiteral("layerNewFolderButton"), QStringLiteral("New Folder")},
+      {QStringLiteral("layerDuplicateButton"), QStringLiteral("Duplicate Layer")},
+      {QStringLiteral("layerDeleteButton"), QStringLiteral("Delete Layer")}};
+  for (const auto& [name, text] : drops) {
+    auto* button = window.findChild<QPushButton*>(name);
+    CHECK(button != nullptr);
+    if (button == nullptr) {
+      continue;
+    }
+    PolishCountingStyle style;
+    button->setStyle(&style);
+    QApplication::processEvents();
+    style.polish_count = 0;
+
+    QDragEnterEvent enter(button->rect().center(), Qt::MoveAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(button, &enter);
+    CHECK(enter.isAccepted());
+    CHECK(button->property("layerDropActive").toBool());
+    auto* hint = window.findChild<QWidget*>(QStringLiteral("layerDropHint"));
+    CHECK(hint != nullptr);
+    if (hint == nullptr) {
+      button->setStyle(nullptr);
+      return;
+    }
+    CHECK(hint->isVisible());
+    CHECK(!hint->isWindow());
+    CHECK(hint->testAttribute(Qt::WA_TransparentForMouseEvents));
+    CHECK(hint->accessibleName() == text);
+    CHECK(!QToolTip::isVisible());
+    const QRect hint_rect(hint->mapToGlobal(QPoint(0, 0)), hint->size());
+    for (const auto& footer_rect : footer_rects) {
+      CHECK(!hint_rect.intersects(footer_rect));
+    }
+    const auto placed = hint->geometry();
+
+    for (int step = 0; step <= 12; ++step) {
+      const QPoint position(1 + step * (button->width() - 3) / 12, 1 + step * (button->height() - 3) / 12);
+      QDragMoveEvent move(position, Qt::MoveAction, &mime_data, Qt::LeftButton, Qt::NoModifier);
+      QApplication::sendEvent(button, &move);
+      CHECK(move.isAccepted());
+      CHECK(move.dropAction() == Qt::MoveAction);
+      CHECK(!hint_rect.contains(button->mapToGlobal(position)));
+    }
+    QApplication::processEvents();
+    CHECK(hint->isVisible());
+    CHECK(hint->geometry() == placed);
+    CHECK(window.findChildren<QWidget*>(QStringLiteral("layerDropHint")).size() == 1);
+    CHECK(style.polish_count == 1);
+    if (name == QStringLiteral("layerDeleteButton")) {
+      // For review: the Layers panel with the hint up (test-artifacts/layer-footer-drop-hint.png).
+      if (auto* dock = patchy::ui::MainWindowTestAccess::panel_section(window, QStringLiteral("layersDock"));
+          dock != nullptr && hint->parentWidget() != nullptr) {
+        auto* host = hint->parentWidget();
+        const QRect dock_rect(dock->mapTo(host, QPoint(0, 0)), dock->size());
+        QDir().mkpath(QStringLiteral("test-artifacts"));
+        (void)host->grab(dock_rect).save(QStringLiteral("test-artifacts/layer-footer-drop-hint.png"));
+      }
+    }
+
+    QDragLeaveEvent leave;
+    QApplication::sendEvent(button, &leave);
+    CHECK(!hint->isVisible());
+    CHECK(!button->property("layerDropActive").toBool());
+    QApplication::processEvents();
+    CHECK(style.polish_count == 2);
+    button->setStyle(nullptr);
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_panel_organization_tests_cross_document_part() {
@@ -565,5 +677,6 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests_cross_documen
        ui_duplicate_layer_to_document_dialog_fits_title_and_destinations},
       {"ui_layer_drag_smart_object_adopts_source", ui_layer_drag_smart_object_adopts_source},
       {"ui_layer_alt_drag_duplicates_in_panel", ui_layer_alt_drag_duplicates_in_panel},
+      {"ui_layer_footer_drop_hint_stays_clear_of_pointer", ui_layer_footer_drop_hint_stays_clear_of_pointer},
   };
 }
