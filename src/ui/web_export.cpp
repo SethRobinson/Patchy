@@ -1752,20 +1752,36 @@ private:
 // ---------------------------------------------------------------------------------------
 // The dialog
 
-std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::shared_ptr<const Document> document) {
+std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::shared_ptr<const Document> document,
+                                                        const std::optional<WebExportOpening>& opening) {
   if (document == nullptr || document->width() <= 0 || document->height() <= 0) {
     return std::nullopt;
   }
   const QSize document_size(document->width(), document->height());
   const auto& layers = document->layers();
+  // Two or more frames: two top-level layers with one visible, or an "all" group's children.
   const bool offer_animation =
-      layers.size() >= 2 && std::any_of(layers.begin(), layers.end(), [](const Layer& layer) { return layer.visible(); });
+      (layers.size() >= 2 &&
+       std::any_of(layers.begin(), layers.end(), [](const Layer& layer) { return layer.visible(); })) ||
+      animation_export_layers(*document).size() >= 2;
   const bool non_srgb = web_export_has_non_srgb_profile(*document);
 
   auto settings = load_web_export_settings();
   settings.width = document_size.width();
   settings.height = document_size.height();
   settings.pixel_scale = 1;
+  if (opening.has_value()) {
+    settings.format = opening->format;
+    switch (opening->format) {
+      case WebExportFormat::Gif: settings.gif_animate = opening->animate; break;
+      case WebExportFormat::Webp: settings.webp_animate = opening->animate; break;
+      case WebExportFormat::Png: settings.png_animate = opening->animate; break;
+      case WebExportFormat::Jxl: settings.jxl_animate = opening->animate; break;
+      case WebExportFormat::Jpeg:
+      case WebExportFormat::Avif: break;
+    }
+    settings.fill_transparent = !opening->keep_transparency;
+  }
   if (!offer_animation) {
     settings.webp_animate = false;
     settings.gif_animate = false;

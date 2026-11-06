@@ -12292,10 +12292,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Não foi possível gravar o arquivo PNG</translation>
     </message>
     <message>
-        <source>Animated PNG Options</source>
-        <translation>Opções de PNG animado</translation>
-    </message>
-    <message>
         <source>Saved</source>
         <comment>new document template group of the user&apos;s own presets</comment>
         <translation>Salvos</translation>

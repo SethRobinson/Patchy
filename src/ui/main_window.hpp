@@ -94,6 +94,7 @@ namespace patchy::ui {
 
 class SaveProgress;
 struct NewLayerSettings;
+struct WebExportOpening;
 class ColorWellSwatch;
 class PanelColumn;
 struct PanelSpec;
@@ -1254,7 +1255,9 @@ private:
                       const std::function<void(SaveProgress&)>& write);
   void export_flat_image();
   // File > Export for Web (docs/web-export.md): the live-preview dialog, then the file name.
+  // `opening` (Layers as Animated GIF, WebP, PNG) presets the format and its animation.
   void export_for_web();
+  void export_for_web(const WebExportOpening* opening);
   void export_multipage_pdf();
   // File > Export Documents to Folder: the checked open documents as numbered
   // flattened image files (the document-level sibling of export_image_sequence).

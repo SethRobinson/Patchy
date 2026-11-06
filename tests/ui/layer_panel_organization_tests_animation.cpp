@@ -363,7 +363,7 @@ void ui_animation_texts_explain_all_layers_in_every_language() {
                                                                                 document_size)
                                          .has_value();
                                    });
-    // Save As .webp / .jxl offering the animation, and Layers as Animated PNG.
+    // Save As .webp / .jxl offering the animation.
     auto offered = defaults;
     offered.offer_animation = true;
     offered.has_visible_frames = true;
@@ -379,15 +379,6 @@ void ui_animation_texts_explain_all_layers_in_every_language() {
                                    [&](QWidget* parent) {
                                      return patchy::ui::prompt_image_save_options(parent, QStringLiteral("jxl"),
                                                                                   offered, false, document_size)
-                                         .has_value();
-                                   });
-    auto apng = defaults;
-    apng.apng_animate = true;
-    check_animation_options_dialog(window, QStringLiteral("apngSaveOptionsDialog"),
-                                   QStringLiteral("apngAnimationExplanationLabel"), std::string(),
-                                   [&](QWidget* parent) {
-                                     return patchy::ui::prompt_image_save_options(parent, QStringLiteral("png"), apng,
-                                                                                  true, document_size)
                                          .has_value();
                                    });
   }

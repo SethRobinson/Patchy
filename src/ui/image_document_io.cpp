@@ -2942,6 +2942,25 @@ std::vector<const Layer*> animation_export_layers(const Document& document) {
   return frame_layers;
 }
 
+bool animation_export_frames_have_transparency(const Document& document) {
+  const auto& top_level = std::as_const(document).layers();
+  for (const auto& ref : animation::animation_frames(top_level, false)) {
+    auto image = render_layers_isolated(document, animation::animation_frame_stack(top_level, ref));
+    if (image.format() != QImage::Format_ARGB32 && image.format() != QImage::Format_ARGB32_Premultiplied) {
+      image = image.convertToFormat(QImage::Format_ARGB32);
+    }
+    for (int y = 0; y < image.height(); ++y) {
+      const auto* row = reinterpret_cast<const QRgb*>(image.constScanLine(y));
+      for (int x = 0; x < image.width(); ++x) {
+        if (qAlpha(row[x]) < 255) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 void for_each_animation_export_frame(const Document& document, const ImageSaveOptions& options,
                                      std::vector<std::string>* notices,
                                      const std::function<void(PixelBuffer rgba, const Layer& layer)>& frame) {

@@ -196,6 +196,9 @@ void write_encoded_image_file(const QString& path, std::span<const std::uint8_t>
 // plays the same frames beside the decoded file (docs/web-export.md).
 // animation_export_layers lists each frame's base layer, top first.
 [[nodiscard]] std::vector<const Layer*> animation_export_layers(const Document& document);
+// True when some animation frame (as for_each_animation_export_frame draws it, before any
+// export transform) has a pixel that is not fully opaque. Renders frames until it finds one.
+[[nodiscard]] bool animation_export_frames_have_transparency(const Document& document);
 void for_each_animation_export_frame(const Document& document, const ImageSaveOptions& options,
                                      std::vector<std::string>* notices,
                                      const std::function<void(PixelBuffer rgba, const Layer& layer)>& frame);

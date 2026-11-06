@@ -3973,57 +3973,6 @@ void ui_apng_export_round_trips_through_the_apng_reader() {
   CHECK(file.readAll() == data);
 }
 
-// The Animated PNG options dialog behind File > Export > Layers as Animated PNG: frame
-// delay and play count, plus the shared Export section. Save As .png shows no dialog.
-void ui_apng_export_dialog_options() {
-  auto settings = patchy::ui::app_settings();
-  settings.remove(QStringLiteral("saveOptions"));
-  patchy::ui::MainWindow window;
-  show_window(window);
-  CHECK(window.findChild<QAction*>(QStringLiteral("fileExportAnimatedPngAction")) != nullptr);
-  CHECK(window.findChild<QAction*>(QStringLiteral("fileExportAnimatedPngAction"))->menuRole() == QAction::NoRole);
-  patchy::ui::ImageSaveOptions seed;
-  seed.apng_animate = true;
-  seed.apng_loop_count = 4;
-  std::exception_ptr failure;
-  QTimer::singleShot(0, [&] {
-    auto* dialog = find_top_level_dialog(QStringLiteral("apngSaveOptionsDialog"));
-    try {
-      CHECK(dialog != nullptr);
-      auto* delay = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("apngFrameDelaySpin"));
-      auto* forever_check = dialog->findChild<QCheckBox*>(QStringLiteral("apngForeverCheck"));
-      auto* plays = dialog->findChild<QSpinBox*>(QStringLiteral("apngPlayCountSpin"));
-      CHECK(delay && forever_check && plays);
-      CHECK(dialog->findChild<QLabel*>(QStringLiteral("apngAnimationExplanationLabel")) != nullptr);
-      CHECK(dialog->findChild<QWidget*>(QStringLiteral("exportMetadataCombo")) != nullptr);
-      CHECK(!forever_check->isChecked());
-      CHECK(plays->value() == 4);
-      CHECK(no_clipped_labels(*dialog));
-      patchy::test::ui::save_widget_artifact("apng-export-options", *dialog);
-      delay->setValue(0.25);
-      plays->setValue(7);
-      forever_check->setChecked(true);
-      CHECK(!plays->isEnabled());
-      dialog->accept();
-    } catch (...) {
-      failure = std::current_exception();
-      if (dialog) dialog->reject();
-    }
-  });
-  const auto chosen = patchy::ui::prompt_image_save_options(&window, QStringLiteral("png"), seed, true, QSize(10, 6));
-  if (failure) std::rethrow_exception(failure);
-  CHECK(chosen.has_value());
-  CHECK(chosen->apng_animate);
-  CHECK(chosen->apng_loop_count == 0);
-  CHECK(chosen->animation_frame_delay_ms == 250);
-  // A plain PNG save has no options dialog and stays flat.
-  const auto plain = patchy::ui::prompt_image_save_options(&window, QStringLiteral("png"), {}, false);
-  CHECK(plain.has_value());
-  CHECK(!plain->apng_animate);
-  settings.remove(QStringLiteral("saveOptions"));
-  settings.sync();
-}
-
 void ui_jpeg_compressed_tiff_opens_through_the_jpeg_decoder() {
   ensure_artifact_dir();
   QImage source(24, 16, QImage::Format_RGB32);
@@ -4267,7 +4216,6 @@ std::vector<patchy::test::TestCase> flat_image_format_tests() {
       {"ui_animated_png_skips_separate_default_image_and_rejects_bad_sequences",
        ui_animated_png_skips_separate_default_image_and_rejects_bad_sequences},
       {"ui_apng_export_round_trips_through_the_apng_reader", ui_apng_export_round_trips_through_the_apng_reader},
-      {"ui_apng_export_dialog_options", ui_apng_export_dialog_options},
       {"ui_image_save_options_write_bmp_alpha_and_jpeg_quality",
        ui_image_save_options_write_bmp_alpha_and_jpeg_quality},
       {"ui_flat_alpha_round_trips_as_editable_mask", ui_flat_alpha_round_trips_as_editable_mask},

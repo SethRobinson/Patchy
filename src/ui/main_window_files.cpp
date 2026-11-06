@@ -5341,48 +5341,24 @@ void MainWindow::export_selected_layers(bool choose_format, LayerExportSource so
   }
 }
 
+// File > Export > Layers as Animated GIF, WebP and PNG open Export for Web with that format
+// selected and its "Animation from visible layers" on (local card local-031): the same frame
+// writer, with a live preview and every format's options. Keep transparent is chosen when a
+// frame has a pixel that is not fully opaque, Fill otherwise.
 void MainWindow::export_animated_gif() {
   if (!has_active_document()) {
     show_status_error(tr("No document"));
     return;
   }
   finish_active_text_editor();
-  if (animation_preview_window_ != nullptr) animation_preview_window_->stop_playback_for(&document());
-  // One frame per visible top-level layer, top to bottom; the options dialog restates
-  // the rules (hidden layers skipped, "0.25s" name tokens override the default delay).
   if (!has_visible_top_level_layer(std::as_const(document()))) {
     show_information_message(this, tr("Export Animated GIF"), tr("There are no visible layers to export."),
                              QStringLiteral("animatedGifNoLayersMessageBox"));
     return;
   }
-  QString selected_filter;
-  const auto base_name = QFileInfo(session().title.isEmpty() ? tr("Untitled") : session().title).completeBaseName();
-  const auto initial_path = file_dialog_initial_path(QString(), base_name + QStringLiteral(".gif"));
-  auto path = get_save_file_name(this, tr("Export Animated GIF"), initial_path,
-                                 save_file_filter_for_path(initial_path), &selected_filter,
-                                 QStringLiteral("animatedGifExportFileDialog"));
-  if (path.isEmpty()) {
-    return;
-  }
-  path = path_with_default_extension(path, selected_filter);
-  auto options = prompt_gif_save_options(this, image_save_defaults_for_document(),
-                                         /*offer_flatten_choice*/ false, /*for_export*/ true,
-                                         /*has_visible_frames*/ true,
-                                         QSize(std::as_const(document()).width(), std::as_const(document()).height()));
-  if (!options.has_value()) {
-    return;
-  }
-  try {
-    std::vector<std::string> writer_notices;
-    write_flat_image_file(document(), path, QStringLiteral("gif"), *options, &writer_notices);
-    offer_browser_download_for_saved_file(path);
-    remember_save_directory_for_path(path);
-    finish_file_export(tr("Exported %1").arg(path) + export_notes_suffix_for(writer_notices),
-                       options->export_reveal_in_file_explorer, path, /*reveal_is_file*/ true);
-  } catch (const std::exception& error) {
-    show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
-                          QStringLiteral("exportFailedMessageBox"));
-  }
+  WebExportOpening opening;
+  opening.format = WebExportFormat::Gif;
+  export_for_web(&opening);
 }
 
 void MainWindow::export_animated_webp() {
@@ -5391,43 +5367,14 @@ void MainWindow::export_animated_webp() {
     return;
   }
   finish_active_text_editor();
-  if (animation_preview_window_ != nullptr) animation_preview_window_->stop_playback_for(&document());
-  // One frame per visible top-level layer, top to bottom; the options dialog restates
-  // the rules (hidden layers skipped, "0.25s" name tokens override the default delay).
   if (!has_visible_top_level_layer(std::as_const(document()))) {
     show_information_message(this, tr("Export Animated WebP"), tr("There are no visible layers to export."),
                              QStringLiteral("animatedWebpNoLayersMessageBox"));
     return;
   }
-  QString selected_filter;
-  const auto base_name = QFileInfo(session().title.isEmpty() ? tr("Untitled") : session().title).completeBaseName();
-  const auto initial_path = file_dialog_initial_path(QString(), base_name + QStringLiteral(".webp"));
-  auto path = get_save_file_name(this, tr("Export Animated WebP"), initial_path,
-                                 save_file_filter_for_path(initial_path), &selected_filter,
-                                 QStringLiteral("animatedWebpExportFileDialog"));
-  if (path.isEmpty()) {
-    return;
-  }
-  path = path_with_default_extension(path, selected_filter);
-  auto defaults = image_save_defaults_for_document();
-  defaults.webp_animate = true;
-  auto options = prompt_image_save_options(this, QStringLiteral("webp"), defaults, true,
-      QSize(std::as_const(document()).width(), std::as_const(document()).height()));
-  if (!options.has_value()) {
-    return;
-  }
-  try {
-    std::vector<std::string> writer_notices;
-    write_flat_image_file(document(), path, QStringLiteral("webp"), *options, &writer_notices);
-    persist_image_save_defaults(*options);
-    offer_browser_download_for_saved_file(path);
-    remember_save_directory_for_path(path);
-    finish_file_export(tr("Exported %1").arg(path) + export_notes_suffix_for(writer_notices),
-                       options->export_reveal_in_file_explorer, path, /*reveal_is_file*/ true);
-  } catch (const std::exception& error) {
-    show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
-                          QStringLiteral("exportFailedMessageBox"));
-  }
+  WebExportOpening opening;
+  opening.format = WebExportFormat::Webp;
+  export_for_web(&opening);
 }
 
 void MainWindow::export_animated_png() {
@@ -5436,43 +5383,14 @@ void MainWindow::export_animated_png() {
     return;
   }
   finish_active_text_editor();
-  if (animation_preview_window_ != nullptr) animation_preview_window_->stop_playback_for(&document());
-  // One frame per visible top-level layer, top to bottom; the options dialog restates
-  // the rules (hidden layers skipped, "0.25s" name tokens override the default delay).
   if (!has_visible_top_level_layer(std::as_const(document()))) {
     show_information_message(this, tr("Export Animated PNG"), tr("There are no visible layers to export."),
                              QStringLiteral("animatedPngNoLayersMessageBox"));
     return;
   }
-  QString selected_filter;
-  const auto base_name = QFileInfo(session().title.isEmpty() ? tr("Untitled") : session().title).completeBaseName();
-  const auto initial_path = file_dialog_initial_path(QString(), base_name + QStringLiteral(".png"));
-  auto path = get_save_file_name(this, tr("Export Animated PNG"), initial_path,
-                                 save_file_filter_for_path(initial_path), &selected_filter,
-                                 QStringLiteral("animatedPngExportFileDialog"));
-  if (path.isEmpty()) {
-    return;
-  }
-  path = path_with_default_extension(path, selected_filter);
-  auto defaults = image_save_defaults_for_document();
-  defaults.apng_animate = true;
-  auto options = prompt_image_save_options(this, QStringLiteral("png"), defaults, true,
-      QSize(std::as_const(document()).width(), std::as_const(document()).height()));
-  if (!options.has_value()) {
-    return;
-  }
-  try {
-    std::vector<std::string> writer_notices;
-    write_flat_image_file(document(), path, QStringLiteral("png"), *options, &writer_notices);
-    persist_image_save_defaults(*options);
-    offer_browser_download_for_saved_file(path);
-    remember_save_directory_for_path(path);
-    finish_file_export(tr("Exported %1").arg(path) + export_notes_suffix_for(writer_notices),
-                       options->export_reveal_in_file_explorer, path, /*reveal_is_file*/ true);
-  } catch (const std::exception& error) {
-    show_critical_message(this, tr("Export failed"), translated_file_message(error.what()),
-                          QStringLiteral("exportFailedMessageBox"));
-  }
+  WebExportOpening opening;
+  opening.format = WebExportFormat::Png;
+  export_for_web(&opening);
 }
 
 void MainWindow::set_tile_preview_visible(bool visible, QAction* toggle_action) {
@@ -6372,6 +6290,10 @@ void MainWindow::export_flat_image() {
 // snapshot and hands back the bytes it encoded at the chosen settings; this asks for the
 // file name and writes them, encoding here only when the dialog had no current result.
 void MainWindow::export_for_web() {
+  export_for_web(nullptr);
+}
+
+void MainWindow::export_for_web(const WebExportOpening* opening) {
   if (!has_active_document()) {
     show_status_error(tr("No document"));
     return;
@@ -6379,7 +6301,14 @@ void MainWindow::export_for_web() {
   finish_active_text_editor();
   if (animation_preview_window_ != nullptr) animation_preview_window_->stop_playback_for(&document());
   auto snapshot = std::make_shared<const Document>(std::as_const(document()));
-  const auto choice = request_web_export(this, snapshot);
+  std::optional<WebExportOpening> preset;
+  if (opening != nullptr) {
+    preset = *opening;
+    if (preset->animate) {
+      preset->keep_transparency = animation_export_frames_have_transparency(*snapshot);
+    }
+  }
+  const auto choice = request_web_export(this, snapshot, preset);
   if (!choice.has_value() || !has_active_document()) {
     return;
   }

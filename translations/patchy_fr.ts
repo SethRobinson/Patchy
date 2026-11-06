@@ -12292,10 +12292,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Impossible d’écrire le fichier PNG</translation>
     </message>
     <message>
-        <source>Animated PNG Options</source>
-        <translation>Options de PNG animé</translation>
-    </message>
-    <message>
         <source>Saved</source>
         <comment>new document template group of the user&apos;s own presets</comment>
         <translation>Enregistrés</translation>

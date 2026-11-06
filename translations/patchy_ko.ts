@@ -12257,10 +12257,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>PNG 파일을 쓸 수 없습니다</translation>
     </message>
     <message>
-        <source>Animated PNG Options</source>
-        <translation>애니메이션 PNG 옵션</translation>
-    </message>
-    <message>
         <source>Saved</source>
         <comment>new document template group of the user&apos;s own presets</comment>
         <translation>저장됨</translation>

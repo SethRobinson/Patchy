@@ -53,6 +53,7 @@
 #include <QTreeWidget>
 
 #include <algorithm>
+#include <string_view>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -979,6 +980,104 @@ void ui_web_export_transparency_fill_in_the_dialog() {
   patchy::test::ui::require_action(window, "fileExportForWebAction")->trigger();
   QApplication::processEvents();
   CHECK(inspected);
+}
+
+// File > Export > Layers as Animated GIF, WebP and PNG open Export for Web with that format
+// selected and its Animation on (local card local-031): Fill for opaque frames, Keep
+// transparent when a frame has transparent pixels. The opening is not saved on cancel.
+void ui_web_export_layers_as_animated_open_export_for_web() {
+  WebExportSettingsGuard guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  (void)animation_fixture_document(window);
+  // The fixture's frames are opaque; a half-transparent two-frame document is not.
+  CHECK(!patchy::ui::animation_export_frames_have_transparency(MainWindowTestAccess::document(window)));
+  {
+    auto two_frames = half_transparent_document(64, 32);
+    const auto& first_layer = std::as_const(two_frames).layers().front();
+    patchy::Layer second(two_frames.allocate_layer_id(), "Frame 2", first_layer.pixels());
+    two_frames.add_layer(std::move(second));
+    CHECK(patchy::ui::animation_export_frames_have_transparency(two_frames));
+  }
+  struct Case {
+    const char* action;
+    const char* row;
+    const char* check;
+  };
+  const Case cases[] = {{"fileExportAnimatedGifAction", "GIF", "webExportGifAnimateCheck"},
+                        {"fileExportAnimatedWebpAction", "WebP", "webExportWebpAnimateCheck"},
+                        {"fileExportAnimatedPngAction", "PNG", "webExportPngAnimateCheck"}};
+  const auto open_and_check = [&](const Case& item, bool expect_keep, const char* capture) {
+    bool inspected = false;
+    QTimer::singleShot(0, guarded([&] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("webExportDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      auto* list = dialog->findChild<QTreeWidget*>(QStringLiteral("webExportFormatList"));
+      auto* animate = dialog->findChild<QCheckBox*>(QLatin1String(item.check));
+      auto* keep = dialog->findChild<QRadioButton*>(QStringLiteral("webExportKeepTransparencyRadio"));
+      auto* fill = dialog->findChild<QRadioButton*>(QStringLiteral("webExportFillTransparencyRadio"));
+      auto* animation_group = dialog->findChild<QWidget*>(QStringLiteral("webExportAnimationGroup"));
+      CHECK(list != nullptr && animate != nullptr && keep != nullptr && fill != nullptr && animation_group != nullptr);
+      if (list == nullptr || animate == nullptr || keep == nullptr || fill == nullptr || animation_group == nullptr) {
+        dialog->reject();
+        return;
+      }
+      CHECK(list->currentItem() != nullptr && list->currentItem()->text(0) == QLatin1String(item.row));
+      CHECK(animation_group->isVisible() && animate->isVisible() && animate->isChecked());
+      CHECK(keep->isChecked() == expect_keep);
+      CHECK(fill->isChecked() == !expect_keep);
+      if (capture != nullptr) {
+        auto* preview = dialog->findChild<QWidget*>(QStringLiteral("webExportPreview"));
+        dialog->resize(1280, 820);
+        CHECK(preview != nullptr &&
+              wait_until([&] { return preview->property("webExportShowsCurrent").toBool(); }));
+        QApplication::processEvents();
+        capture_widget_artifact(capture, *dialog);
+      }
+      inspected = true;
+      dialog->reject();
+    }));
+    patchy::test::ui::require_action(window, item.action)->trigger();
+    QApplication::processEvents();
+    CHECK(inspected);
+  };
+  for (const auto& item : cases) {
+    open_and_check(item, /*expect_keep*/ false, nullptr);
+  }
+  // Cancel saved nothing: the plain Export for Web still opens on its first-use format.
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("exportForWeb/format")));
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("exportForWeb/gifAnimate")));
+
+  // Three frames of a shape on a transparent canvas: Keep transparent.
+  {
+    patchy::Document sprite(160, 120, patchy::PixelFormat::rgba8());
+    const QColor colors[] = {QColor(230, 140, 20), QColor(40, 150, 90), QColor(40, 110, 210)};
+    for (int frame = 0; frame < 3; ++frame) {
+      QImage image(160, 120, QImage::Format_RGBA8888);
+      image.fill(Qt::transparent);
+      QPainter painter(&image);
+      painter.setRenderHint(QPainter::Antialiasing);
+      painter.setPen(Qt::NoPen);
+      painter.setBrush(colors[frame]);
+      painter.drawEllipse(QRectF(20 + frame * 30, 25, 70, 70));
+      painter.end();
+      // Bottom first: frame 1 is the top layer.
+      const auto name = "Frame " + std::to_string(3 - frame);
+      auto layer_document = patchy::ui::document_from_qimage(image, name);
+      patchy::Layer layer(sprite.allocate_layer_id(), name, std::as_const(layer_document).layers().front().pixels());
+      sprite.add_layer(std::move(layer));
+    }
+    CHECK(patchy::ui::animation_export_frames_have_transparency(sprite));
+    window.add_document_session(std::move(sprite), QStringLiteral("Sprite"));
+    QApplication::processEvents();
+  }
+  for (const auto& item : cases) {
+    open_and_check(item, /*expect_keep*/ true,
+                   std::string_view(item.row) == "GIF" ? "web_export_layers_as_animated_gif" : nullptr);
+  }
 }
 
 void send_wheel_notch_down(QWidget& target) {
@@ -2120,6 +2219,7 @@ std::vector<patchy::test::TestCase> web_export_tests() {
        ui_web_export_slow_encode_never_blocks_the_selected_format},
       {"ui_web_export_palette_png_and_gif_read_back", ui_web_export_palette_png_and_gif_read_back},
       {"ui_web_export_transparency_fill_in_the_dialog", ui_web_export_transparency_fill_in_the_dialog},
+      {"ui_web_export_layers_as_animated_open_export_for_web", ui_web_export_layers_as_animated_open_export_for_web},
       {"ui_web_export_wheel_over_unfocused_control_scrolls_the_settings",
        ui_web_export_wheel_over_unfocused_control_scrolls_the_settings},
       {"ui_web_export_metadata_choices_and_thumbnail_with_none", ui_web_export_metadata_choices_and_thumbnail_with_none},
