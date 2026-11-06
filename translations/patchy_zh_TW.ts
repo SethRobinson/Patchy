@@ -14940,6 +14940,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
         <translation>每個可見的頂層圖層成為一個影格，最上面的圖層在前。名為 &quot;all&quot; 的圖層不作為一個影格，而是繪製在每個影格中；名為 &quot;all&quot; 的群組中的每個圖層各成一個影格。</translation>
     </message>
+    <message>
+        <source>This document has no palette yet. Set one in the Palette panel, or open an indexed image.</source>
+        <translation>此文件還沒有調色盤。請在「調色盤」面板中設定，或開啟一張索引色彩影像。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

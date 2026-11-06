@@ -14970,6 +14970,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>This document has no palette yet. Set one in the Palette panel, or open an indexed image.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

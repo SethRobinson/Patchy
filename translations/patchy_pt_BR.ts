@@ -14987,6 +14987,10 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
         <translation>Cada camada visível de nível superior vira um quadro, começando pela camada do topo. Uma camada chamada &quot;all&quot; é desenhada em todos os quadros em vez de ser um, e cada camada dentro de um grupo chamado &quot;all&quot; é um quadro próprio.</translation>
     </message>
+    <message>
+        <source>This document has no palette yet. Set one in the Palette panel, or open an indexed image.</source>
+        <translation>Este documento ainda não tem paleta. Defina uma no painel Paleta ou abra uma imagem indexada.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

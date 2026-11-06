@@ -15034,6 +15034,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
         <translation>Каждый видимый слой верхнего уровня становится одним кадром, верхний слой первый. Слой с именем &quot;all&quot; не становится кадром, а рисуется в каждом кадре; каждый слой внутри группы с именем &quot;all&quot; становится отдельным кадром.</translation>
     </message>
+    <message>
+        <source>This document has no palette yet. Set one in the Palette panel, or open an indexed image.</source>
+        <translation>У этого документа ещё нет палитры. Задайте её на панели «Палитра» или откройте индексированное изображение.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -15034,6 +15034,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
         <translation>Każda widoczna warstwa najwyższego poziomu staje się jedną klatką, zaczynając od górnej warstwy. Warstwa o nazwie &quot;all&quot; jest rysowana w każdej klatce, zamiast być osobną klatką, a każda warstwa w grupie o nazwie &quot;all&quot; jest osobną klatką.</translation>
     </message>
+    <message>
+        <source>This document has no palette yet. Set one in the Palette panel, or open an indexed image.</source>
+        <translation>Ten dokument nie ma jeszcze palety. Ustaw ją w panelu Paleta lub otwórz obraz indeksowany.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -475,6 +475,44 @@ void ui_convert_to_indexed_dialog_converts_and_undoes() {
       }
       auto* source = dialog->findChild<QComboBox*>(QStringLiteral("paletteConvertSourceCombo"));
       CHECK(source != nullptr);
+      // The document has no palette yet, so "Current palette" is unavailable: it says why,
+      // and in the open list it reads as disabled (its text dimmer than an enabled row's),
+      // not as a row that looks pickable but ignores clicks. The offscreen platform paints the
+      // list through QComboMenuDelegate, which dims disabled rows by itself; the native styles
+      // use QComboBoxDelegate, which needs the theme's `QComboBox QAbstractItemView::item:disabled`
+      // rule, so PATCHY_UI_TEST_PLATFORM=windows is the run that catches a regression there.
+      const auto current_row = source->findText(QStringLiteral("Current palette"));
+      CHECK(current_row >= 0);
+      if (auto* model = qobject_cast<QStandardItemModel*>(source->model()); model != nullptr && current_row >= 0) {
+        CHECK(!model->item(current_row)->isEnabled());
+        CHECK(model->item(current_row)->toolTip().contains(QStringLiteral("Palette panel")));
+      }
+      source->showPopup();
+      QApplication::processEvents();
+      if (auto* view = source->view(); view != nullptr && current_row >= 1) {
+        const auto shot = view->viewport()->grab().toImage();
+        const qreal scale = shot.devicePixelRatio();
+        // The strongest text contrast in a row: how far its most distinct pixel lies from the
+        // row's background color (the pixel at the row's left edge).
+        const auto text_contrast = [&](int row) {
+          const auto rect = view->visualRect(source->model()->index(row, 0));
+          const QPoint origin(static_cast<int>(rect.left() * scale) + 1, static_cast<int>(rect.center().y() * scale));
+          const auto background = shot.pixelColor(origin);
+          int best = 0;
+          for (int y = static_cast<int>(rect.top() * scale); y < static_cast<int>(rect.bottom() * scale); ++y) {
+            for (int x = static_cast<int>(rect.left() * scale); x < static_cast<int>(rect.right() * scale); ++x) {
+              const auto c = shot.pixelColor(x, y);
+              best = std::max(best, std::abs(c.red() - background.red()) + std::abs(c.green() - background.green()) +
+                                        std::abs(c.blue() - background.blue()));
+            }
+          }
+          return best;
+        };
+        const int enabled_contrast = text_contrast(current_row - 1);   // "Exact image colors"
+        const int disabled_contrast = text_contrast(current_row);       // "Current palette"
+        CHECK(disabled_contrast < enabled_contrast * 3 / 4);
+      }
+      source->hidePopup();
       const auto pico8_row = source->findText(QStringLiteral("PICO-8"));
       CHECK(pico8_row >= 0);
       source->setCurrentIndex(pico8_row);

@@ -14987,6 +14987,10 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
         <translation>Ogni livello visibile di primo livello diventa un fotogramma, a partire dal livello superiore. Un livello chiamato &quot;all&quot; viene disegnato in ogni fotogramma invece di esserne uno, e ogni livello dentro un gruppo chiamato &quot;all&quot; è un fotogramma a sé.</translation>
     </message>
+    <message>
+        <source>This document has no palette yet. Set one in the Palette panel, or open an indexed image.</source>
+        <translation>Questo documento non ha ancora una tavolozza. Impostarne una nel pannello Tavolozza oppure aprire un&apos;immagine indicizzata.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

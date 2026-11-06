@@ -14987,6 +14987,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
         <translation>Chaque calque visible de premier niveau devient une image, le calque du haut en premier. Un calque nommé &quot;all&quot; est dessiné dans chaque image au lieu d&apos;en être une, et chaque calque d&apos;un groupe nommé &quot;all&quot; est une image à part entière.</translation>
     </message>
+    <message>
+        <source>This document has no palette yet. Set one in the Palette panel, or open an indexed image.</source>
+        <translation>Ce document n&apos;a pas encore de palette. Définissez-en une dans le panneau Palette ou ouvrez une image indexée.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

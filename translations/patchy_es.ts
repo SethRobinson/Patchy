@@ -14987,6 +14987,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
         <translation>Cada capa visible de nivel superior se convierte en un fotograma, empezando por la capa superior. Una capa llamada &quot;all&quot; se dibuja en todos los fotogramas en lugar de ser uno, y cada capa dentro de un grupo llamado &quot;all&quot; es su propio fotograma.</translation>
     </message>
+    <message>
+        <source>This document has no palette yet. Set one in the Palette panel, or open an indexed image.</source>
+        <translation>Este documento aún no tiene paleta. Defina una en el panel Paleta o abra una imagen indexada.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

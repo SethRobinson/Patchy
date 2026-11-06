@@ -590,6 +590,12 @@ QString photoshop_style_template() {
       color: @field_text_disabled;
       border: 1px solid @field_border_disabled;
     }
+    /* A disabled row in a drop-down list (a choice that does not apply now, such as Convert
+       to Indexed's "Current palette" without a palette) reads as unavailable; without this
+       it painted like every other row and only ignored the click. */
+    QComboBox QAbstractItemView::item:disabled {
+      color: @text_disabled;
+    }
     QListWidget::item {
       min-height: 48px;
       padding: 0;

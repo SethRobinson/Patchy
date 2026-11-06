@@ -14940,6 +14940,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
         <translation>表示中の最上位レイヤーがそれぞれ 1 フレームになり、一番上のレイヤーが最初です。「all」という名前のレイヤーはフレームにならず、すべてのフレームに描画されます。「all」という名前のグループ内の各レイヤーは、それぞれ 1 フレームになります。</translation>
     </message>
+    <message>
+        <source>This document has no palette yet. Set one in the Palette panel, or open an indexed image.</source>
+        <translation>このドキュメントにはまだパレットがありません。パレットパネルで設定するか、インデックスカラー画像を開いてください。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

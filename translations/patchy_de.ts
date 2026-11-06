@@ -14987,6 +14987,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
         <translation>Jede sichtbare oberste Ebene wird zu einem Frame, die oberste Ebene zuerst. Eine Ebene namens &quot;all&quot; wird in jeden Frame gezeichnet, statt selbst einer zu sein, und jede Ebene in einer Gruppe namens &quot;all&quot; ist ein eigener Frame.</translation>
     </message>
+    <message>
+        <source>This document has no palette yet. Set one in the Palette panel, or open an indexed image.</source>
+        <translation>Dieses Dokument hat noch keine Palette. Legen Sie eine im Bedienfeld „Palette“ fest oder öffnen Sie ein indiziertes Bild.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
