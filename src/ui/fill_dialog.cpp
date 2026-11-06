@@ -85,15 +85,17 @@ FillContents any_fill_contents_from_token(const QString& token, FillContents fal
 
 QString fill_contents_data(FillContents contents) { return QString::fromLatin1(fill_contents_token(contents)); }
 
-ThemedQss fill_swatch_style(QColor color) {
-  return ThemedQss(QStringLiteral("QPushButton#editFillColorSwatch { background: rgb(%1, %2, %3); "
+// Keyed by the swatch's own object name: Edit > Fill's and New Layer's differ.
+ThemedQss fill_swatch_style(const QString& object_name, QColor color) {
+  return ThemedQss(QStringLiteral("QPushButton#%4 { background: rgb(%1, %2, %3); "
                                   "border: 1px solid @dlg_neutral_border; border-radius: 3px; padding: 0; "
                                   "min-width: 49px; max-width: 49px; min-height: 24px; max-height: 24px; } "
-                                  "QPushButton#editFillColorSwatch:hover { "
+                                  "QPushButton#%4:hover { "
                                   "border-color: @dlg_neutral_border_bright; }")
                        .arg(color.red())
                        .arg(color.green())
-                       .arg(color.blue()));
+                       .arg(color.blue())
+                       .arg(object_name));
 }
 
 }  // namespace
@@ -277,7 +279,7 @@ void FillContentsField::refresh_swatch() {
   const auto color = fill_color();
   swatch_->setVisible(color.isValid());
   if (color.isValid()) {
-    set_themed_style(*swatch_, fill_swatch_style(color));
+    set_themed_style(*swatch_, fill_swatch_style(swatch_->objectName(), color));
   }
 }
 

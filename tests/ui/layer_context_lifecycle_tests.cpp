@@ -4523,6 +4523,9 @@ void ui_new_layer_dialog_places_options_and_neutral_fill_follows_mode() {
           // The swatch shows the neutral color (its style sheet's background).
           const int value = want == Expect::White ? 255 : want == Expect::Black ? 0 : 128;
           CHECK(swatch->styleSheet().contains(QStringLiteral("background: rgb(%1, %1, %1)").arg(value)));
+          const auto swatch_image = swatch->grab().toImage();
+          const auto center = swatch_image.pixelColor(swatch_image.width() / 2, swatch_image.height() / 2);
+          CHECK(center.red() == value && center.green() == value && center.blue() == value);
           fill->setCurrentIndex(0);
         }
         int offered = 0;
