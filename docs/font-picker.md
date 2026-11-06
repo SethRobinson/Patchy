@@ -18,6 +18,11 @@ control. Text-session rules for the popup (its objectName, picks that must apply
   follow-up).
 - A pick commits by family name (`findText`), not by row: the same family can be both a Recent row
   and a full-list row.
+- Family names are plain (#646 follow-up): the combo's model is a `QStringListModel` subclass that
+  Qt still fills from `QFontDatabase::families()`, but its display and edit text drop Qt's
+  " [Foundry]" suffix, so the closed control, `currentText()` and `currentFont()` name "Arial",
+  never "Arial [TMC ]". The model keeps one row per foundry copy (Qt selects rows by its own list);
+  the popup lists the family once. Recent and Favorites saved with a suffix read back plain, once.
 - Row buttons (`font_picker_row_button_rect`, `FontPickerRowButton`): every family row has the
   favorite star at its right; Recent rows have the remove x rightmost with the star just left of
   it. Their space is reserved on every row so names never re-elide on hover. A favorite's star is
@@ -124,5 +129,5 @@ signature changed is read again.
 bundled web fonts) and `tests/ui/font_picker_filter_tests.cpp` (`ui_font_picker_*`: Recent order,
 cap, missing families, header skipping, filters, persistence, the rule's color in both schemes,
 list height, Enter in an open list, Other, the favorite star, the Favorites view with filters and
-persistence, the Recent x, the hidden-matches hint); the popup's older cases are
+persistence, the Recent x, the hidden-matches hint, plain names for foundry duplicates); the popup's older cases are
 `ui_text_font_picker_*` in `tests/ui/text_editor_font_picker_tests.cpp`.

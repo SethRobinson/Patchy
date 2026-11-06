@@ -2353,7 +2353,7 @@ void ScriptEngineHost::report_text_fonts(const QString& api, std::int64_t sessio
   });
   if (substitute_present) {
     const auto text = text_layer_text(session_id, layer_id);
-    const auto installed = QFontDatabase::families();
+    const auto installed = font_families_without_foundries(QFontDatabase::families());
     for (const auto& raw_family : asked) {
       const auto family = raw_family.trimmed();
       if (family.isEmpty() || family_listed(problems.not_installed, family) ||

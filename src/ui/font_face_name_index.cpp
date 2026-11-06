@@ -32,6 +32,44 @@ QString compact_text_family_key(const QString& value) {
   return compact;
 }
 
+QString font_family_without_foundry(const QString& family) {
+  qsizetype end = family.size();
+  while (end > 0 && family.at(end - 1) == QLatin1Char(' ')) {
+    --end;
+  }
+  if (end == 0 || family.at(end - 1) != QLatin1Char(']')) {
+    return family;
+  }
+  qsizetype open = family.lastIndexOf(QStringLiteral(" ["), end - 1);
+  if (open <= 0) {
+    return family;
+  }
+  while (open > 0 && family.at(open - 1) == QLatin1Char(' ')) {
+    --open;
+  }
+  return open > 0 ? family.left(open) : family;
+}
+
+QStringList font_families_without_foundries(const QStringList& families) {
+  QStringList plain;
+  plain.reserve(families.size());
+  QSet<QString> seen;
+  seen.reserve(families.size());
+  for (const auto& family : families) {
+    auto name = font_family_without_foundry(family);
+    if (name.isEmpty()) {
+      continue;
+    }
+    const auto key = name.toCaseFolded();
+    if (seen.contains(key)) {
+      continue;
+    }
+    seen.insert(key);
+    plain.append(std::move(name));
+  }
+  return plain;
+}
+
 namespace {
 
 constexpr quint16 kPlatformUnicode = 0;
@@ -513,7 +551,7 @@ std::optional<FontFaceNameMatch> font_face_for_name_table_name(const QString& na
   if (const auto cached = index.results.constFind(key); cached != index.results.constEnd()) {
     return *cached;
   }
-  const auto families = QFontDatabase::families();
+  const auto families = font_families_without_foundries(QFontDatabase::families());
   // Families whose listed name and the request are prefixes of each other: CoreText's
   // "Futura" for a "Futura BdCn BT" request, or the reverse on a machine that lists the
   // Windows name. The reverse direction needs a few characters so a short request does not
