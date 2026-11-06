@@ -388,8 +388,11 @@ void ui_options_bar_names_a_missing_font_family() {
   }
   QTest::keyClicks(search, parked);
   QApplication::processEvents();
+  // The pick applies to the selected layer, whose missing font asks first: continue.
+  auto answered = std::make_shared<int>(0);
+  answer_missing_font_prompt(true, answered);
   QTest::keyClick(search, Qt::Key_Return);
-  process_events_for(100);
+  process_events_for(400);
   check_plain();
   CHECK(picker->currentFont().family() == parked);
   CHECK(edit->text() == parked);
