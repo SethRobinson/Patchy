@@ -157,6 +157,18 @@
         <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
         <translation>Modus und Deckkraft legen Füllmethode und Deckkraft der neuen Ebene fest</translation>
     </message>
+    <message>
+        <source>Transparent</source>
+        <translation>Transparent</translation>
+    </message>
+    <message>
+        <source>Neutral Color for This Mode</source>
+        <translation>Neutrale Farbe für diesen Modus</translation>
+    </message>
+    <message>
+        <source>Fill with the color that leaves the image unchanged in this blend mode</source>
+        <translation>Mit der Farbe füllen, die das Bild in dieser Füllmethode unverändert lässt</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -767,32 +779,8 @@
         <translation>Die neue Ebene an der Ebene darunter beschneiden</translation>
     </message>
     <message>
-        <source>White</source>
-        <translation>Weiß</translation>
-    </message>
-    <message>
-        <source>Black</source>
-        <translation>Schwarz</translation>
-    </message>
-    <message>
-        <source>50% gray</source>
-        <translation>50 % Grau</translation>
-    </message>
-    <message>
         <source>Clip to the layer below</source>
         <translation>An der Ebene darunter beschneiden</translation>
-    </message>
-    <message>
-        <source>Neutral color</source>
-        <translation>Neutrale Farbe</translation>
-    </message>
-    <message>
-        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
-        <translation>Die neue Ebene mit der Farbe füllen, die das Bild in diesem Modus unverändert lässt</translation>
-    </message>
-    <message>
-        <source>This mode has no neutral color</source>
-        <translation>Dieser Modus hat keine neutrale Farbe</translation>
     </message>
     <message>
         <source>Fill:</source>

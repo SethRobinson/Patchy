@@ -107,6 +107,7 @@ GmicFilterLibraryDialog::GmicFilterLibraryDialog(const gmic::Catalog& catalog, c
   input_->setToolTip(tr("The layers the filter works on. A filter made for one image is applied to each chosen "
                         "layer in turn; a filter made for several layers, such as the Blend filters, combines them. "
                         "Locked, text, shape and Smart Object layers are read but never changed."));
+  fit_combo_to_entries(*input_);  // every entry whole, closed and open (GitHub issue 655)
   input_label->setBuddy(input_);
   input_row->addWidget(input_label);
   input_row->addWidget(input_);

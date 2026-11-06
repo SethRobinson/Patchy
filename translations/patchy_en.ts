@@ -157,6 +157,18 @@
         <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Transparent</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Neutral Color for This Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill with the color that leaves the image unchanged in this blend mode</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -767,31 +779,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>White</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Black</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>50% gray</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Clip to the layer below</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Neutral color</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>This mode has no neutral color</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

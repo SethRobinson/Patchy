@@ -2,7 +2,7 @@
 
 #include "ui/blend_mode_ui.hpp"
 #include "ui/dialog_utils.hpp"
-#include "ui/theme_palette.hpp"
+#include "ui/fill_dialog.hpp"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -11,10 +11,7 @@
 #include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QHBoxLayout>
-#include <QLabel>
 #include <QLineEdit>
-#include <QPainter>
-#include <QPixmap>
 #include <QSpinBox>
 #include <QVBoxLayout>
 
@@ -28,31 +25,10 @@ class NewLayerDialogStrings {
   Q_DECLARE_TR_FUNCTIONS(NewLayerDialog)
 };
 
-QString neutral_fill_name(NeutralFillColor color) {
-  switch (color) {
-    case NeutralFillColor::White:
-      return NewLayerDialogStrings::tr("White");
-    case NeutralFillColor::Black:
-      return NewLayerDialogStrings::tr("Black");
-    case NeutralFillColor::Gray:
-      return NewLayerDialogStrings::tr("50% gray");
-  }
-  return {};
-}
-
-// The neutral color itself (document content, not chrome), framed so white and black both
-// read against either scheme. Wider than tall, so it reads as a color chip, not a checkbox.
-QPixmap neutral_fill_swatch(NeutralFillColor color, qreal device_pixel_ratio) {
-  constexpr int kWidth = 24;
-  constexpr int kHeight = 14;
+// The neutral color itself (document content): white, black or 50% gray.
+QColor neutral_fill_qcolor(NeutralFillColor color) {
   const int value = color == NeutralFillColor::White ? 255 : color == NeutralFillColor::Black ? 0 : 128;
-  QPixmap pixmap(QSize(kWidth, kHeight) * device_pixel_ratio);
-  pixmap.setDevicePixelRatio(device_pixel_ratio);
-  pixmap.fill(QColor(value, value, value));
-  QPainter painter(&pixmap);
-  painter.setPen(QPen(theme().text_secondary, 0));
-  painter.drawRect(QRectF(0.5, 0.5, kWidth - 1.0, kHeight - 1.0));
-  return pixmap;
+  return {value, value, value};
 }
 
 }  // namespace
@@ -89,7 +65,8 @@ std::optional<NeutralFillColor> neutral_fill_for_blend_mode(BlendMode mode) noex
 
 std::optional<NewLayerSettings> request_new_layer_settings(QWidget* parent, const QString& default_name,
                                                            bool clip_available, BitDepth depth,
-                                                           const std::vector<NewLayerColorChoice>& colors) {
+                                                           const std::vector<NewLayerColorChoice>& colors,
+                                                           QColor foreground, QColor background) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("newLayerDialog"));
   dialog.setWindowTitle(NewLayerDialogStrings::tr("New Layer"));
@@ -125,39 +102,26 @@ std::optional<NewLayerSettings> request_new_layer_settings(QWidget* parent, cons
   mode_combo->setCurrentIndex(std::max(0, mode_combo->findData(static_cast<int>(BlendMode::Normal))));
   form->addRow(NewLayerDialogStrings::tr("Mode:"), mode_combo);
 
-  // Fill: the mode's neutral color, shown as a swatch and its name (#410). A mode without one
-  // says so in plain text rather than a dimmed, easily missed control.
+  // Fill (#410, #654): Edit > Fill's Contents list and swatch, Transparent first, with the
+  // mode's neutral color listed last while the mode has one.
   auto* fill_row = new QWidget(&dialog);
-  fill_row->setObjectName(QStringLiteral("newLayerNeutralFillRow"));
+  fill_row->setObjectName(QStringLiteral("newLayerFillRow"));
   auto* fill_layout = new QHBoxLayout(fill_row);
   fill_layout->setContentsMargins(0, 0, 0, 0);
-  fill_layout->setSpacing(6);
-  auto* neutral_check = new QCheckBox(NewLayerDialogStrings::tr("Neutral color"), fill_row);
-  neutral_check->setObjectName(QStringLiteral("newLayerNeutralFillCheck"));
-  neutral_check->setToolTip(NewLayerDialogStrings::tr("Fill the new layer with the color that leaves the image unchanged in this mode"));
-  auto* neutral_swatch = new QLabel(fill_row);
-  neutral_swatch->setObjectName(QStringLiteral("newLayerNeutralFillSwatch"));
-  auto* neutral_name = new QLabel(fill_row);
-  neutral_name->setObjectName(QStringLiteral("newLayerNeutralFillName"));
-  auto* neutral_note = new QLabel(NewLayerDialogStrings::tr("This mode has no neutral color"), fill_row);
-  neutral_note->setObjectName(QStringLiteral("newLayerNeutralFillNote"));
-  fill_layout->addWidget(neutral_check);
-  fill_layout->addWidget(neutral_swatch);
-  fill_layout->addWidget(neutral_name);
-  fill_layout->addWidget(neutral_note);
-  fill_layout->addStretch(1);
-  fill_row->setMinimumHeight(neutral_check->sizeHint().height());
-  const auto refresh_neutral_fill = [mode_combo, neutral_check, neutral_swatch, neutral_name, neutral_note] {
+  FillContentsFieldOptions fill_options;
+  fill_options.choices = {FillContents::Transparent, FillContents::Foreground, FillContents::Background,
+                          FillContents::Color,       FillContents::Black,      FillContents::Gray50,
+                          FillContents::White,       FillContents::Neutral};
+  fill_options.initial = FillContents::Transparent;
+  fill_options.color = foreground;
+  fill_options.foreground = foreground;
+  fill_options.background = background;
+  fill_options.combo_object_name = QStringLiteral("newLayerFillCombo");
+  fill_options.swatch_object_name = QStringLiteral("newLayerFillColorSwatch");
+  auto* fill = new FillContentsField(fill_row, fill_layout, fill_options);
+  const auto refresh_neutral_fill = [mode_combo, fill] {
     const auto color = neutral_fill_for_blend_mode(static_cast<BlendMode>(mode_combo->currentData().toInt()));
-    neutral_check->setEnabled(color.has_value());
-    neutral_check->setVisible(color.has_value());
-    neutral_swatch->setVisible(color.has_value());
-    neutral_name->setVisible(color.has_value());
-    neutral_note->setVisible(!color.has_value());
-    if (color.has_value()) {
-      neutral_swatch->setPixmap(neutral_fill_swatch(*color, neutral_swatch->devicePixelRatioF()));
-      neutral_name->setText(neutral_fill_name(*color));
-    }
+    fill->set_neutral_color(color.has_value() ? std::optional<QColor>(neutral_fill_qcolor(*color)) : std::nullopt);
   };
   refresh_neutral_fill();
   QObject::connect(mode_combo, &QComboBox::currentIndexChanged, fill_row, refresh_neutral_fill);
@@ -189,8 +153,10 @@ std::optional<NewLayerSettings> request_new_layer_settings(QWidget* parent, cons
   settings.color_label = static_cast<LayerColorLabel>(std::max(0, color_combo->currentData().toInt()));
   settings.blend_mode = static_cast<BlendMode>(mode_combo->currentData().toInt());
   settings.opacity = static_cast<float>(opacity_spin->value()) / 100.0F;
-  if (neutral_check->isEnabled() && neutral_check->isChecked()) {
+  if (fill->contents() == FillContents::Neutral) {
     settings.neutral_fill = neutral_fill_for_blend_mode(settings.blend_mode);
+  } else if (const auto color = fill->fill_color(); color.isValid()) {
+    settings.fill_color = color;
   }
   return settings;
 }

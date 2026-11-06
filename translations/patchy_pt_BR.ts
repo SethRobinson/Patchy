@@ -157,6 +157,18 @@
         <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
         <translation>Modo e Opacidade definem o modo de mesclagem e a opacidade da nova camada</translation>
     </message>
+    <message>
+        <source>Transparent</source>
+        <translation>Transparente</translation>
+    </message>
+    <message>
+        <source>Neutral Color for This Mode</source>
+        <translation>Cor neutra para este modo</translation>
+    </message>
+    <message>
+        <source>Fill with the color that leaves the image unchanged in this blend mode</source>
+        <translation>Preencher com a cor que deixa a imagem inalterada neste modo de mesclagem</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -767,32 +779,8 @@
         <translation>Recortar a nova camada na camada abaixo</translation>
     </message>
     <message>
-        <source>White</source>
-        <translation>Branco</translation>
-    </message>
-    <message>
-        <source>Black</source>
-        <translation>Preto</translation>
-    </message>
-    <message>
-        <source>50% gray</source>
-        <translation>Cinza 50%</translation>
-    </message>
-    <message>
         <source>Clip to the layer below</source>
         <translation>Recortar na camada abaixo</translation>
-    </message>
-    <message>
-        <source>Neutral color</source>
-        <translation>Cor neutra</translation>
-    </message>
-    <message>
-        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
-        <translation>Preencher a nova camada com a cor que deixa a imagem inalterada neste modo</translation>
-    </message>
-    <message>
-        <source>This mode has no neutral color</source>
-        <translation>Este modo não tem cor neutra</translation>
     </message>
     <message>
         <source>Fill:</source>

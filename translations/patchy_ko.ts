@@ -157,6 +157,18 @@
         <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
         <translation>모드와 불투명도는 새 레이어의 혼합 모드와 불투명도로 설정됩니다</translation>
     </message>
+    <message>
+        <source>Transparent</source>
+        <translation>투명</translation>
+    </message>
+    <message>
+        <source>Neutral Color for This Mode</source>
+        <translation>이 모드의 중립 색상</translation>
+    </message>
+    <message>
+        <source>Fill with the color that leaves the image unchanged in this blend mode</source>
+        <translation>이 혼합 모드에서 이미지를 바꾸지 않는 색상으로 채웁니다</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -766,32 +778,8 @@
         <translation>새 레이어를 아래 레이어에 클리핑합니다</translation>
     </message>
     <message>
-        <source>White</source>
-        <translation>흰색</translation>
-    </message>
-    <message>
-        <source>Black</source>
-        <translation>검정</translation>
-    </message>
-    <message>
-        <source>50% gray</source>
-        <translation>50% 회색</translation>
-    </message>
-    <message>
         <source>Clip to the layer below</source>
         <translation>아래 레이어에 클리핑</translation>
-    </message>
-    <message>
-        <source>Neutral color</source>
-        <translation>중립 색상</translation>
-    </message>
-    <message>
-        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
-        <translation>이 모드에서 이미지를 바꾸지 않는 색상으로 새 레이어를 채웁니다</translation>
-    </message>
-    <message>
-        <source>This mode has no neutral color</source>
-        <translation>이 모드에는 중립 색상이 없습니다</translation>
     </message>
     <message>
         <source>Fill:</source>

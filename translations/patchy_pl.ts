@@ -157,6 +157,18 @@
         <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
         <translation>Tryb i Krycie ustawiają tryb mieszania i krycie nowej warstwy</translation>
     </message>
+    <message>
+        <source>Transparent</source>
+        <translation>Przezroczysty</translation>
+    </message>
+    <message>
+        <source>Neutral Color for This Mode</source>
+        <translation>Kolor neutralny dla tego trybu</translation>
+    </message>
+    <message>
+        <source>Fill with the color that leaves the image unchanged in this blend mode</source>
+        <translation>Wypełnij kolorem, który w tym trybie mieszania nie zmienia obrazu</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -768,32 +780,8 @@
         <translation>Przytnij nową warstwę do warstwy pod nią</translation>
     </message>
     <message>
-        <source>White</source>
-        <translation>Biały</translation>
-    </message>
-    <message>
-        <source>Black</source>
-        <translation>Czarny</translation>
-    </message>
-    <message>
-        <source>50% gray</source>
-        <translation>Szary 50%</translation>
-    </message>
-    <message>
         <source>Clip to the layer below</source>
         <translation>Przytnij do warstwy poniżej</translation>
-    </message>
-    <message>
-        <source>Neutral color</source>
-        <translation>Kolor neutralny</translation>
-    </message>
-    <message>
-        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
-        <translation>Wypełnij nową warstwę kolorem, który w tym trybie nie zmienia obrazu</translation>
-    </message>
-    <message>
-        <source>This mode has no neutral color</source>
-        <translation>Ten tryb nie ma koloru neutralnego</translation>
     </message>
     <message>
         <source>Fill:</source>

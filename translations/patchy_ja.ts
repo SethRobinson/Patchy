@@ -157,6 +157,18 @@
         <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
         <translation>モードと不透明度は新規レイヤーの描画モードと不透明度になります</translation>
     </message>
+    <message>
+        <source>Transparent</source>
+        <translation>透明</translation>
+    </message>
+    <message>
+        <source>Neutral Color for This Mode</source>
+        <translation>このモードのニュートラルカラー</translation>
+    </message>
+    <message>
+        <source>Fill with the color that leaves the image unchanged in this blend mode</source>
+        <translation>この描画モードで画像を変えない色で塗りつぶします</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -766,32 +778,8 @@
         <translation>新しいレイヤーを下のレイヤーでクリップします</translation>
     </message>
     <message>
-        <source>White</source>
-        <translation>白</translation>
-    </message>
-    <message>
-        <source>Black</source>
-        <translation>黒</translation>
-    </message>
-    <message>
-        <source>50% gray</source>
-        <translation>50% グレー</translation>
-    </message>
-    <message>
         <source>Clip to the layer below</source>
         <translation>下のレイヤーにクリップ</translation>
-    </message>
-    <message>
-        <source>Neutral color</source>
-        <translation>ニュートラルカラー</translation>
-    </message>
-    <message>
-        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
-        <translation>このモードで画像を変えない色で新規レイヤーを塗りつぶします</translation>
-    </message>
-    <message>
-        <source>This mode has no neutral color</source>
-        <translation>このモードにはニュートラルカラーがありません</translation>
     </message>
     <message>
         <source>Fill:</source>

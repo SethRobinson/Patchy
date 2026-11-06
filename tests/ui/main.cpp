@@ -480,6 +480,7 @@ int main(int argc, char* argv[]) {
            legacy_plugin_tests,
            gegl_filter_tests,
            gmic_ui_tests,
+           combo_fit_tests,
            history_panel_tests,
            color_dock_panel_tests,
            hdr_color_choice_tests,
