@@ -19794,6 +19794,10 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Set Style and Language to All</source>
         <translation>Definir Estilo e Idioma como Todos</translation>
     </message>
+    <message>
+        <source>Font is missing on this computer: %1</source>
+        <translation>A fonte está ausente neste computador: %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

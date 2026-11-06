@@ -19746,6 +19746,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Set Style and Language to All</source>
         <translation>スタイルと言語をすべてにする</translation>
     </message>
+    <message>
+        <source>Font is missing on this computer: %1</source>
+        <translation>このコンピューターにフォントがありません: %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

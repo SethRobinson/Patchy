@@ -19794,6 +19794,10 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Set Style and Language to All</source>
         <translation>Régler Style et Langue sur Tous</translation>
     </message>
+    <message>
+        <source>Font is missing on this computer: %1</source>
+        <translation>Police manquante sur cet ordinateur : %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

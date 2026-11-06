@@ -19777,6 +19777,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Set Style and Language to All</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Font is missing on this computer: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

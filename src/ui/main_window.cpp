@@ -6858,10 +6858,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
       } else {
         family = substituted_text_family(family, initial_text);
       }
-      if (text_font_combo_ != nullptr) {
-        QSignalBlocker blocker(text_font_combo_);
-        text_font_combo_->setCurrentFont(text_font_combo_font_for_family(family));
-      }
+      show_text_family_in_options_bar(family);
       if (text_size_spin_ != nullptr) {
         // Blocked like the family combo: an unblocked write fires the size slot, which with no
         // live editor yet would start a layer edit from inside this session's setup.
@@ -10863,9 +10860,8 @@ void MainWindow::sync_text_options_from_active_editor() {
   const auto format_font = format.font();
   const auto display_family = text_display_family_from_format(
       format, editor->property("patchy.documentTextFamily").toString());
-  if (!display_family.trimmed().isEmpty() && text_font_combo_ != nullptr) {
-    QSignalBlocker blocker(text_font_combo_);
-    text_font_combo_->setCurrentFont(text_font_combo_font_for_family(display_family));
+  if (!display_family.trimmed().isEmpty()) {
+    show_text_family_in_options_bar(display_family);
   }
   if (!display_family.trimmed().isEmpty()) {
     editor->setProperty("patchy.documentTextFamily", display_family);
@@ -10900,6 +10896,23 @@ void MainWindow::sync_text_options_from_active_editor() {
   sync_text_character_dialog_from_editor();
 }
 
+void MainWindow::show_text_family_in_options_bar(const QString& family) {
+  if (text_font_combo_ == nullptr) {
+    return;
+  }
+  {
+    QSignalBlocker blocker(text_font_combo_);
+    text_font_combo_->setCurrentFont(text_font_combo_font_for_family(family));
+  }
+  // A family this computer lacks has no row to show: the closed control names it instead, marked
+  // missing (GitHub issue 652), while it stays parked on the installed row new type starts from.
+  if (auto* picker = qobject_cast<FontPickerCombo*>(text_font_combo_); picker != nullptr) {
+    const bool installed = family.trimmed().isEmpty() || available_text_family_match(family).has_value() ||
+                           available_text_family_style_match(family).has_value();
+    picker->set_missing_family(installed ? QString() : family);
+  }
+}
+
 void MainWindow::sync_text_options_from_active_layer() {
   if (canvas_ == nullptr || text_font_combo_ == nullptr || text_size_spin_ == nullptr) {
     return;
@@ -10918,11 +10931,10 @@ void MainWindow::sync_text_options_from_active_layer() {
     text_options_layer_sync_key_.clear();
     if (const auto shown = text_options_bar_family();
         shown.compare(text_font_combo_->currentFont().family(), Qt::CaseInsensitive) != 0) {
-      {
-        QSignalBlocker blocker(text_font_combo_);
-        text_font_combo_->setCurrentFont(QFont(shown));
-      }
+      show_text_family_in_options_bar(shown);
       refresh_text_style_combo(shown, current_text_style_name());
+    } else if (auto* picker = qobject_cast<FontPickerCombo*>(text_font_combo_); picker != nullptr) {
+      picker->set_missing_family(QString());
     }
     return;
   }
@@ -10979,10 +10991,7 @@ void MainWindow::sync_text_options_from_active_layer() {
     return;
   }
   text_options_layer_sync_key_ = key;
-  {
-    QSignalBlocker blocker(text_font_combo_);
-    text_font_combo_->setCurrentFont(text_font_combo_font_for_family(family));
-  }
+  show_text_family_in_options_bar(family);
   {
     QSignalBlocker blocker(text_size_spin_);
     const auto display_size =

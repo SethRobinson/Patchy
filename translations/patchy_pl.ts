@@ -19842,6 +19842,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Set Style and Language to All</source>
         <translation>Ustaw styl i język na Wszystkie</translation>
     </message>
+    <message>
+        <source>Font is missing on this computer: %1</source>
+        <translation>Brak czcionki na tym komputerze: %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

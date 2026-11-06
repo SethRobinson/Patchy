@@ -19794,6 +19794,10 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Set Style and Language to All</source>
         <translation>Poner Estilo e Idioma en Todos</translation>
     </message>
+    <message>
+        <source>Font is missing on this computer: %1</source>
+        <translation>La fuente falta en este equipo: %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>

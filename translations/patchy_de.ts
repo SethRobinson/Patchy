@@ -19794,6 +19794,10 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Set Style and Language to All</source>
         <translation>Stil und Sprache auf Alle setzen</translation>
     </message>
+    <message>
+        <source>Font is missing on this computer: %1</source>
+        <translation>Schrift fehlt auf diesem Computer: %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>
