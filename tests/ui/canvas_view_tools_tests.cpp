@@ -5166,7 +5166,7 @@ void ui_view_extras_hides_move_transform_controls() {
   const auto bare = grab();
   canvas.set_show_transform_controls(true);
   const auto shown = grab();
-  CHECK(shown != bare);
+  CHECK(!images_equal_rgba(shown, bare));
   CHECK(canvas.extra_shown(ViewExtra::TransformControls));
   send_mouse(canvas, QEvent::MouseMove, corner, Qt::NoButton, Qt::NoButton);
   CHECK(canvas.cursor().shape() == Qt::SizeFDiagCursor);
@@ -5175,8 +5175,12 @@ void ui_view_extras_hides_move_transform_controls() {
   canvas.set_extras_visible(false);
   CHECK(!canvas.extra_shown(ViewExtra::TransformControls));
   CHECK(canvas.show_transform_controls());
-  CHECK(grab() == bare);
+  CHECK(images_equal_rgba(grab(), bare));
   save_widget_artifact("ui_view_extras_move_transform_controls_off", canvas);
+  canvas.set_extras_visible(true);
+  CHECK(images_equal_rgba(grab(), shown));
+
+  canvas.set_extras_visible(false);
   send_mouse(canvas, QEvent::MouseMove, corner, Qt::NoButton, Qt::NoButton);
   CHECK(canvas.cursor().shape() != Qt::SizeFDiagCursor);
   // The hidden corner starts no scale: the drag moves the layer, and moves it back.
@@ -5187,7 +5191,6 @@ void ui_view_extras_hides_move_transform_controls() {
   CHECK(canvas.active_layer_document_rect() == original);
 
   canvas.set_extras_visible(true);
-  CHECK(grab() == shown);
   send_mouse(canvas, QEvent::MouseMove, corner, Qt::NoButton, Qt::NoButton);
   CHECK(canvas.cursor().shape() == Qt::SizeFDiagCursor);
 
@@ -5198,18 +5201,22 @@ void ui_view_extras_hides_move_transform_controls() {
   const auto session_shown = grab();
   canvas.set_extras_visible(false);
   CHECK(canvas.free_transform_active());
-  CHECK(grab() == session_shown);
+  CHECK(images_equal_rgba(grab(), session_shown));
   send_mouse(canvas, QEvent::MouseMove, corner, Qt::NoButton, Qt::NoButton);
   CHECK(canvas.cursor().shape() == Qt::SizeFDiagCursor);
   send_key(canvas, Qt::Key_Escape);
   CHECK(!canvas.free_transform_active());
   CHECK(canvas.active_layer_document_rect() == original);
-  CHECK(grab() == bare);
+  CHECK(images_equal_rgba(grab(), bare));
 
   // Unticked in Show Extras Options, the box keeps drawing with Extras off.
+  canvas.set_extras_visible(true);
+  const auto shown_again = grab();
+  CHECK(!images_equal_rgba(shown_again, bare));
+  canvas.set_extras_visible(false);
   canvas.set_extras_covered(kAllViewExtras & ~view_extra_bit(ViewExtra::TransformControls));
   CHECK(canvas.extra_shown(ViewExtra::TransformControls));
-  CHECK(grab() == shown);
+  CHECK(images_equal_rgba(grab(), shown_again));
   canvas.set_extras_covered(kAllViewExtras);
   canvas.set_extras_visible(true);
 }
