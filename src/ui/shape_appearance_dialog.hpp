@@ -41,15 +41,15 @@ struct ShapePathBox {
 // and the caller regenerates the subpaths. Dialog-based geometry editing is the
 // reviewed patent route; on-canvas live-shape gizmos stay excluded (docs/vector-tools.md).
 struct ShapeAppearanceSettings {
-  VectorFill fill;
-  VectorStroke stroke;
+  VectorFill fill{};
+  VectorStroke stroke{};
   std::optional<LiveShapeParams> geometry;
   // A layer whose path has no live shape to regenerate (a custom shape, a Pen outline;
   // GitHub #642): its bounds. A changed box moves and scales the path.
-  std::optional<ShapePathBox> path_box;
+  std::optional<ShapePathBox> path_box{};
   // A custom shape picked in Geometry (GitHub #644): a unit-box library path that
   // replaces the layer's outline, fitted to `path_box`. Only set by that pick.
-  std::shared_ptr<const VectorPath> path_shape;
+  std::shared_ptr<const VectorPath> path_shape{};
   // Layer transparency (the Layers panel values) and the shape's vector-mask
   // Feather / Density (VectorShapeContent::feather/density), all PSD-native.
   float layer_opacity{1.0F};
