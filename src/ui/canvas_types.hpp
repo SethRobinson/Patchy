@@ -489,6 +489,25 @@ struct CanvasRenderCacheDiagnostics {
   // Retouch presses (Clone, Healing, Spot Healing, Patch) whose All Layers snapshot
   // shared the settled render cache instead of rendering the document again (GitHub #597).
   int retouch_snapshot_cache_reuses{0};
+  // Times a render-cache patch had to copy the whole cache first because another image
+  // shared it, and the time those copies took (GitHub #597 follow-up 3).
+  int render_cache_patch_detaches{0};
+  double render_cache_patch_detach_ms{0.0};
+  // Source tiles a Clone or Healing stroke copied from the shared render cache before
+  // it read them or a patch overwrote them (GitHub #597 follow-up 3).
+  int retouch_source_tiles_filled{0};
+};
+
+// Where the latest Clone or Healing press spent its time, through its first dab and the
+// first frame's refresh request (patchy_perf_tests clonepress, GitHub #597 follow-up 3).
+struct RetouchPressTimings {
+  double begin_edit_ms{0.0};       // begin_edit: the undo snapshot
+  double history_ms{0.0};          // arm_paint_stroke_history: growth reserve, stroke history
+  double source_ms{0.0};           // the source snapshot (8-bit and deep)
+  double setup_ms{0.0};            // stroke state: mapping, tracking reset, healing originals
+  double first_dab_ms{0.0};        // the first stamp, the layer detach included
+  double layer_detach_ms{0.0};     // the first mutable access to the layer's pixels
+  double preview_ms{0.0};          // active_edit_target_changed_impl for the first dab
 };
 
 // A resampled image in document space: the result of CanvasWidget's `resample_transformed_rgba8`

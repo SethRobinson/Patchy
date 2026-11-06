@@ -4873,6 +4873,141 @@ void ui_clone_stroke_coalesces_queued_moves_and_keeps_bytes() {
   }
 }
 
+// GitHub issue 597 follow-up 3: a Clone or Healing press no longer copies a whole image. The
+// source fills tile by tile from the render cache it shares (All Layers) or from the active
+// layer as it was (Current Layer), and a render-cache patch takes its tiles first instead of
+// copying the cache. A stroke whose source overlaps what it paints, with a frame after
+// every move, must leave the bytes the whole-image source left, and undo must restore the
+// photo exactly.
+void ui_clone_lazy_source_keeps_bytes_and_undo_restores() {
+  struct Case {
+    const char* name;
+    patchy::ui::CanvasTool tool;
+    patchy::SampleLayers sample;
+    bool transformed;
+  };
+  const Case cases[] = {
+      {"clone_all_layers", patchy::ui::CanvasTool::Clone, patchy::SampleLayers::AllLayers, false},
+      {"clone_current_layer", patchy::ui::CanvasTool::Clone, patchy::SampleLayers::CurrentLayer, false},
+      {"clone_all_layers_transformed", patchy::ui::CanvasTool::Clone, patchy::SampleLayers::AllLayers, true},
+      {"healing_all_layers", patchy::ui::CanvasTool::Healing, patchy::SampleLayers::AllLayers, false},
+      {"healing_current_layer", patchy::ui::CanvasTool::Healing, patchy::SampleLayers::CurrentLayer, false},
+  };
+  constexpr int kWidth = 1800;
+  constexpr int kHeight = 1300;
+  for (const auto& test_case : cases) {
+    struct Result {
+      std::vector<std::uint8_t> bytes;
+      bool undo_restored{false};
+      int tiles_filled{0};
+      int cache_detaches{0};
+    };
+    const auto paint = [&test_case](bool lazy) {
+      auto pixels = solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 255));
+      for (int y = 0; y < kHeight; ++y) {
+        for (int x = 0; x < kWidth; ++x) {
+          auto* px = pixels.pixel(x, y);
+          px[0] = static_cast<std::uint8_t>((x * 7 + y * 3) % 256);
+          px[1] = static_cast<std::uint8_t>((y * 5) % 256);
+          px[2] = static_cast<std::uint8_t>(((x ^ y) * 11) % 256);
+        }
+      }
+      patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+      const auto layer_id = document.add_pixel_layer("Photo", std::move(pixels)).id();
+      // A Multiply layer above, so All Layers samples a real composite.
+      auto& tint = document.add_pixel_layer(
+          "Tint", solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), QColor(250, 180, 120, 150)));
+      tint.set_blend_mode(patchy::BlendMode::Multiply);
+      document.set_active_layer(layer_id);
+      patchy::ui::MainWindow window;
+      window.add_document_session(std::move(document), QStringLiteral("Lazy source"));
+      show_window(window);
+      auto* canvas = require_canvas(window);
+      canvas->set_zoom(0.25);
+      canvas->set_lazy_clone_source_enabled_for_testing(lazy);
+      canvas->set_tool(test_case.tool);
+      canvas->set_retouch_sample_layers(test_case.sample);
+      canvas->set_brush_size(301);
+      canvas->set_brush_softness(50);
+      canvas->set_brush_opacity(100);
+      if (test_case.transformed) {
+        canvas->set_clone_source_transform(patchy::CloneSourceTransform{125.0, 15.0});
+      }
+      QApplication::processEvents();
+      const auto layer_bytes = [&window, layer_id] {
+        const auto* layer = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(layer_id);
+        const auto bytes = layer->pixels().data();
+        return std::vector<std::uint8_t>(bytes.begin(), bytes.end());
+      };
+      const auto settle = [canvas] {
+        for (int wait = 0; wait < 400 && !canvas->render_settled(); ++wait) {
+          canvas->repaint();
+          QApplication::processEvents();
+        }
+      };
+      const auto widget_point = [canvas](QPoint document_point) {
+        return canvas->widget_position_for_document_point(document_point);
+      };
+      send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(QPoint(700, 650)), Qt::LeftButton, Qt::LeftButton,
+                 Qt::AltModifier);
+      send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(QPoint(700, 650)), Qt::LeftButton, Qt::NoButton,
+                 Qt::AltModifier);
+      settle();
+      const auto before = layer_bytes();
+      const auto diagnostics_before = canvas->render_cache_diagnostics();
+      // From 120 px right of the source rightwards: the stroke soon samples what it painted
+      // (the source keeps the press's pixels there), with a frame after every move.
+      const QPoint from(820, 600);
+      const QPoint to(1400, 780);
+      send_mouse(*canvas, QEvent::MouseButtonPress, widget_point(from), Qt::LeftButton, Qt::LeftButton);
+      canvas->repaint();
+      QApplication::processEvents();
+      constexpr int kSteps = 30;
+      for (int step = 1; step <= kSteps; ++step) {
+        const QPoint point(from.x() + (to.x() - from.x()) * step / kSteps,
+                           from.y() + (to.y() - from.y()) * step / kSteps);
+        send_mouse(*canvas, QEvent::MouseMove, widget_point(point), Qt::NoButton, Qt::LeftButton);
+        canvas->repaint();
+        QApplication::processEvents();
+      }
+      send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point(to), Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+      settle();
+      Result result;
+      result.bytes = layer_bytes();
+      CHECK(result.bytes != before);
+      const auto diagnostics = canvas->render_cache_diagnostics();
+      result.tiles_filled = diagnostics.retouch_source_tiles_filled - diagnostics_before.retouch_source_tiles_filled;
+      result.cache_detaches =
+          diagnostics.render_cache_patch_detaches - diagnostics_before.render_cache_patch_detaches;
+      patchy::ui::MainWindowTestAccess::undo(window);
+      settle();
+      result.undo_restored = layer_bytes() == before;
+      return result;
+    };
+    const auto whole = paint(false);
+    const auto lazy = paint(true);
+    constexpr int kTiles = ((kWidth + 63) / 64) * ((kHeight + 63) / 64);
+    if (lazy.bytes != whole.bytes || !lazy.undo_restored || lazy.cache_detaches != 0) {
+      std::printf("[INFO] lazy clone source case %s: bytes %s, undo %s, tiles %d of %d, cache copies %d\n",
+                  test_case.name, lazy.bytes == whole.bytes ? "same" : "changed",
+                  lazy.undo_restored ? "restores" : "differs", lazy.tiles_filled, kTiles, lazy.cache_detaches);
+    }
+    CHECK(lazy.bytes == whole.bytes);
+    CHECK(whole.undo_restored);
+    CHECK(lazy.undo_restored);
+    CHECK(whole.tiles_filled == 0);
+    if (test_case.sample == patchy::SampleLayers::AllLayers) {
+      // The whole-image source shared the cache, so the frames did patch it mid-stroke.
+      CHECK(whole.cache_detaches > 0);
+    }
+    // Only the tiles around the stroke and its source, and the cache is patched in place.
+    CHECK(lazy.tiles_filled > 0);
+    CHECK(lazy.tiles_filled < kTiles / 2);
+    CHECK(lazy.cache_detaches == 0);
+  }
+}
+
 void ui_coalesced_pointer_history_keeps_points_after_previous_sample() {
   using patchy::ui::PointerHistoryPoint;
   const std::vector<PointerHistoryPoint> history{
@@ -5211,6 +5346,7 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
       {"ui_clone_stamp_large_brush_skip_keeps_bytes", ui_clone_stamp_large_brush_skip_keeps_bytes},
       {"ui_clone_stroke_coalesces_queued_moves_and_keeps_bytes",
        ui_clone_stroke_coalesces_queued_moves_and_keeps_bytes},
+      {"ui_clone_lazy_source_keeps_bytes_and_undo_restores", ui_clone_lazy_source_keeps_bytes_and_undo_restores},
       {"ui_coalesced_pointer_history_keeps_points_after_previous_sample",
        ui_coalesced_pointer_history_keeps_points_after_previous_sample},
       {"ui_zoomed_out_brush_stroke_patches_display_mips_in_place",

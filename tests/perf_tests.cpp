@@ -3780,6 +3780,125 @@ void clone_stamp_stroke_perf() {
   }
 }
 
+// Where a Clone Stamp or Healing Brush press spends its time on the 3580x5370 RGB JPEG
+// GitHub issue 597's third follow-up paused on at 529 px ("a lag at the beginning"): each
+// step of the press (CanvasWidget::last_retouch_press_timings), the event-loop pass after
+// it, the first frame, and the render-cache copy a shared source snapshot forces. All
+// Layers (the default, sharing the settled render cache) and Current Layer; median of 7.
+void clone_press_perf() {
+  isolate_perf_settings();
+  constexpr int kWidth = 3580;
+  constexpr int kHeight = 5370;
+  const auto image_path = std::filesystem::absolute("test-artifacts/perf_clone_press_3580x5370.jpg");
+  {
+    std::filesystem::create_directories(image_path.parent_path());
+    QImage image(kWidth, kHeight, QImage::Format_RGB32);
+    for (int y = 0; y < kHeight; ++y) {
+      auto* row = reinterpret_cast<QRgb*>(image.scanLine(y));
+      for (int x = 0; x < kWidth; ++x) {
+        row[x] = qRgb((x / 7) % 256, (y / 9) % 256, ((x + y) / 13) % 256);
+      }
+    }
+    CHECK(image.save(patchy::ui::to_qstring(image_path), "JPG", 92));
+  }
+  patchy::ui::MainWindow window;
+  window.resize(1600, 1000);
+  if (qEnvironmentVariableIsSet("PATCHY_PERF_ONSCREEN")) {
+    window.showMaximized();
+  } else {
+    window.show();
+  }
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(image_path));
+  QApplication::processEvents();
+  auto* canvas = active_canvas(window);
+  CHECK(canvas != nullptr);
+  if (canvas == nullptr) {
+    return;
+  }
+  const auto settle = [canvas] {
+    const auto started = Clock::now();
+    while (!canvas->render_settled() && std::chrono::duration<double>(Clock::now() - started).count() < 60.0) {
+      canvas->repaint();
+      QApplication::processEvents();
+    }
+  };
+  const auto send = [canvas](QEvent::Type type, QPointF position, Qt::MouseButton button, Qt::MouseButtons buttons,
+                             Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    QMouseEvent event(type, position, canvas->mapToGlobal(position), button, buttons, modifiers);
+    QApplication::sendEvent(canvas, &event);
+  };
+  const auto median = [](std::vector<double> values) {
+    std::sort(values.begin(), values.end());
+    return values[values.size() / 2];
+  };
+  struct Mode {
+    const char* label;
+    patchy::ui::CanvasTool tool;
+    patchy::SampleLayers sample;
+  };
+  for (const auto& mode : {Mode{"clone_all_layers", patchy::ui::CanvasTool::Clone, patchy::SampleLayers::AllLayers},
+                           Mode{"clone_current_layer", patchy::ui::CanvasTool::Clone,
+                                patchy::SampleLayers::CurrentLayer},
+                           Mode{"healing_all_layers", patchy::ui::CanvasTool::Healing,
+                                patchy::SampleLayers::AllLayers}}) {
+    canvas->set_tool(mode.tool);
+    canvas->set_retouch_sample_layers(mode.sample);
+    canvas->set_brush_opacity(100);
+    canvas->set_brush_size(529);
+    canvas->set_brush_softness(100);
+    canvas->set_zoom_centered(1.0);
+    settle();
+    std::vector<double> begin_edit, history, source, setup, first_dab, layer_detach, preview, press_event, events,
+        frame, cache_detach, total;
+    for (int round = 0; round < 7; ++round) {
+      const auto start = QPointF(canvas->widget_position_for_document_point(QPoint(2000, 2700 + round * 20)));
+      const auto source_point = QPointF(canvas->widget_position_for_document_point(QPoint(1700, 2600)));
+      send(QEvent::MouseButtonPress, source_point, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+      send(QEvent::MouseButtonRelease, source_point, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+      send(QEvent::MouseMove, start, Qt::NoButton, Qt::NoButton);
+      QApplication::processEvents();
+      canvas->repaint();
+      settle();
+      const auto before = canvas->render_cache_diagnostics();
+      double press_ms = 0.0;
+      double events_ms = 0.0;
+      double frame_ms = 0.0;
+      const auto total_ms = elapsed_ms([&] {
+        press_ms = elapsed_ms([&] { send(QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton); });
+        events_ms = elapsed_ms([] { QApplication::processEvents(); });
+        frame_ms = elapsed_ms([&] { canvas->repaint(); });
+      });
+      const auto after = canvas->render_cache_diagnostics();
+      const auto timings = canvas->last_retouch_press_timings();
+      begin_edit.push_back(timings.begin_edit_ms);
+      history.push_back(timings.history_ms);
+      source.push_back(timings.source_ms);
+      setup.push_back(timings.setup_ms);
+      first_dab.push_back(timings.first_dab_ms);
+      layer_detach.push_back(timings.layer_detach_ms);
+      preview.push_back(timings.preview_ms);
+      press_event.push_back(press_ms);
+      events.push_back(events_ms);
+      frame.push_back(frame_ms);
+      cache_detach.push_back(after.render_cache_patch_detach_ms - before.render_cache_patch_detach_ms);
+      total.push_back(total_ms);
+      send(QEvent::MouseButtonRelease, start, Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+      settle();
+      patchy::ui::MainWindowTestAccess::undo(window);
+      settle();
+    }
+    std::cout << std::fixed << std::setprecision(2) << "[PERF] clonepress " << kWidth << "x" << kHeight << " "
+              << mode.label << " size=529 press_to_frame_ms=" << median(total) << " press_event_ms="
+              << median(press_event) << " (begin_edit_ms=" << median(begin_edit) << " history_ms=" << median(history)
+              << " source_ms=" << median(source) << " setup_ms=" << median(setup) << " first_dab_ms="
+              << median(first_dab) << " layer_detach_ms=" << median(layer_detach) << " preview_ms="
+              << median(preview) << ") events_ms=" << median(events) << " frame_ms=" << median(frame)
+              << " render_cache_detach_ms=" << median(cache_detach) << '\n';
+  }
+}
+
 // A small 8-bit CMYK PSD painted with the Brush, in CMYK Proof and after leaving it,
 // against a plain RGB document of the same size (GitHub issue 220's second sample, ag-psd's
 // test/read/cmyk/src.psd). PATCHY_PERF_CMYK_PSD overrides the fixture path.
@@ -4255,6 +4374,10 @@ int main(int argc, char* argv[]) {
     }
     if (argc > 1 && std::string_view(argv[1]) == "clonestamp") {
       run_scenario("clonestamp", clone_stamp_stroke_perf);
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "clonepress") {
+      run_scenario("clonepress", clone_press_perf);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "cmykbrush") {
