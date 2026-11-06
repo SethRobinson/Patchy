@@ -17126,6 +17126,10 @@ Each item&apos;s own View setting still applies.</source>
         <translation>직접 선택으로 연결할 끝점 두 개 또는 닫을 열린 패스의 점을 선택하세요</translation>
     </message>
     <message>
+        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
+        <translation>브러시 흐름: %1%(에어브러시 켜짐, Shift+숫자로 불투명도 설정)</translation>
+    </message>
+    <message>
         <source>Merged the points</source>
         <translation>점을 병합했습니다</translation>
     </message>

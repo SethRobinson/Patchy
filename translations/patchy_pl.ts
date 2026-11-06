@@ -17220,6 +17220,10 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <translation>Zaznaczaniem bezpośrednim wybierz dwa punkty końcowe do połączenia albo punkt otwartej ścieżki, aby ją zamknąć</translation>
     </message>
     <message>
+        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
+        <translation>Przepływ pędzla: %1% (Aerograf włączony; Shift+cyfra ustawia krycie)</translation>
+    </message>
+    <message>
         <source>Merged the points</source>
         <translation>Scalono punkty</translation>
     </message>

@@ -17126,6 +17126,10 @@ Each item&apos;s own View setting still applies.</source>
         <translation>ダイレクト選択で、連結する 2 つの端点、または閉じる開いたパスのポイントを選択してください</translation>
     </message>
     <message>
+        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
+        <translation>ブラシのフロー: %1% (エアブラシがオン。Shift+数字で不透明度を設定)</translation>
+    </message>
+    <message>
         <source>Merged the points</source>
         <translation>ポイントを統合しました</translation>
     </message>

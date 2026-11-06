@@ -17220,6 +17220,10 @@ Each item&apos;s own View setting still applies.</source>
         <translation>Выберите инструментом «Выделение узла» две конечные точки, чтобы соединить их, или точку разомкнутого контура, чтобы замкнуть его</translation>
     </message>
     <message>
+        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
+        <translation>Нажим кисти: %1% (аэрограф включен; Shift+цифра задает непрозрачность)</translation>
+    </message>
+    <message>
         <source>Merged the points</source>
         <translation>Точки слиты</translation>
     </message>
