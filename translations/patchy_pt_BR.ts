@@ -19554,6 +19554,118 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Bake the layer effects into the pixels</source>
         <translation>Incorporar os efeitos da camada aos pixels</translation>
     </message>
+    <message>
+        <source>Leading, tracking, glyph scales and font features</source>
+        <translation>Entrelinha, espaçamento, escala dos glifos e recursos da fonte</translation>
+    </message>
+    <message>
+        <source>Paragraph alignment, indents and spacing</source>
+        <translation>Alinhamento, recuos e espaçamento de parágrafos</translation>
+    </message>
+    <message>
+        <source>Line the text up on its left edge</source>
+        <translation>Alinhar o texto pela borda esquerda</translation>
+    </message>
+    <message>
+        <source>Center each line of text</source>
+        <translation>Centralizar cada linha de texto</translation>
+    </message>
+    <message>
+        <source>Line the text up on its right edge</source>
+        <translation>Alinhar o texto pela borda direita</translation>
+    </message>
+    <message>
+        <source>Spread each line across the text box</source>
+        <translation>Espalhar cada linha pela largura da caixa de texto</translation>
+    </message>
+    <message>
+        <source>Let the first letter set the reading direction</source>
+        <translation>A primeira letra define a direção de leitura</translation>
+    </message>
+    <message>
+        <source>Paragraphs read from the left side</source>
+        <translation>Parágrafos lidos a partir da esquerda</translation>
+    </message>
+    <message>
+        <source>Paragraphs read from the right side, as in Arabic or Hebrew</source>
+        <translation>Parágrafos lidos a partir da direita, como em árabe ou hebraico</translation>
+    </message>
+    <message>
+        <source>Set the text in rows</source>
+        <translation>Compor o texto em linhas</translation>
+    </message>
+    <message>
+        <source>Set the text in columns, top to bottom</source>
+        <translation>Compor o texto em colunas, de cima para baixo</translation>
+    </message>
+    <message>
+        <source>Hard, jagged letter edges</source>
+        <translation>Bordas de letras duras e serrilhadas</translation>
+    </message>
+    <message>
+        <source>The sharpest smoothed letter edges</source>
+        <translation>As bordas suavizadas mais nítidas</translation>
+    </message>
+    <message>
+        <source>Slightly sharp smoothed letter edges</source>
+        <translation>Bordas suavizadas levemente nítidas</translation>
+    </message>
+    <message>
+        <source>Heavier smoothed letter edges</source>
+        <translation>Bordas suavizadas mais fortes</translation>
+    </message>
+    <message>
+        <source>The softest letter edges</source>
+        <translation>As bordas de letras mais suaves</translation>
+    </message>
+    <message>
+        <source>Letter edges drawn like Windows LCD text</source>
+        <translation>Bordas de letras como o texto LCD do Windows</translation>
+    </message>
+    <message>
+        <source>Letter edges drawn like Windows text</source>
+        <translation>Bordas de letras como o texto do Windows</translation>
+    </message>
+    <message>
+        <source>Join letter pairs such as fi and fl</source>
+        <translation>Unir pares de letras como fi e fl</translation>
+    </message>
+    <message>
+        <source>Letter shapes that change with their neighbors</source>
+        <translation>Formas de letras que mudam conforme as vizinhas</translation>
+    </message>
+    <message>
+        <source>Decorative letter joins such as ct and st</source>
+        <translation>Junções decorativas de letras como ct e st</translation>
+    </message>
+    <message>
+        <source>Flourished letter shapes</source>
+        <translation>Formas de letras com floreios</translation>
+    </message>
+    <message>
+        <source>The font&apos;s alternate letter designs</source>
+        <translation>Os desenhos alternativos de letras da fonte</translation>
+    </message>
+    <message>
+        <source>Capitals drawn for large headings</source>
+        <translation>Maiúsculas desenhadas para títulos grandes</translation>
+    </message>
+    <message>
+        <source>Raised letters after numbers, as in 1st and 2nd</source>
+        <translation>Letras elevadas após números, como em 1º e 2º</translation>
+    </message>
+    <message>
+        <source>Draw 1/2 as a stacked fraction</source>
+        <translation>Mostrar 1/2 como fração empilhada</translation>
+    </message>
+    <message>
+        <source>Turn the text layers into pixels</source>
+        <translation>Converter as camadas de texto em pixels</translation>
+    </message>
+    <message>
+        <source>Bend text into an arc, flag or wave</source>
+        <translation>Curvar o texto em arco, bandeira ou onda</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -33049,6 +33161,62 @@ Bloqueado: %1</translation>
     <message>
         <source>Some text does not fit. Drag to enlarge the box.</source>
         <translation>Parte do texto não cabe. Arraste para aumentar a caixa.</translation>
+    </message>
+    <message>
+        <source>Alignment</source>
+        <translation>Alinhamento</translation>
+    </message>
+    <message>
+        <source>Direction</source>
+        <translation>Direção</translation>
+    </message>
+    <message>
+        <source>Orientation</source>
+        <translation>Orientação</translation>
+    </message>
+    <message>
+        <source>Anti-Alias</source>
+        <translation>Suavização</translation>
+    </message>
+    <message>
+        <source>OpenType</source>
+        <translation>OpenType</translation>
+    </message>
+    <message>
+        <source>Standard Ligatures</source>
+        <translation>Ligaturas padrão</translation>
+    </message>
+    <message>
+        <source>Contextual Alternates</source>
+        <translation>Alternativas contextuais</translation>
+    </message>
+    <message>
+        <source>Discretionary Ligatures</source>
+        <translation>Ligaturas discricionárias</translation>
+    </message>
+    <message>
+        <source>Swash</source>
+        <translation>Floreios</translation>
+    </message>
+    <message>
+        <source>Stylistic Alternates</source>
+        <translation>Alternativas estilísticas</translation>
+    </message>
+    <message>
+        <source>Titling Alternates</source>
+        <translation>Alternativas de titulação</translation>
+    </message>
+    <message>
+        <source>Ordinals</source>
+        <translation>Ordinais</translation>
+    </message>
+    <message>
+        <source>Fractions</source>
+        <translation>Frações</translation>
+    </message>
+    <message>
+        <source>Rasterize Type Layer</source>
+        <translation>Rasterizar camada de texto</translation>
     </message>
 </context>
 <context>

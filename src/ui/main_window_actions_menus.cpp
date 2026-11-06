@@ -3451,6 +3451,7 @@ void MainWindow::show_command_search() {
   refresh_layer_visibility_action_text();
   refresh_layer_menu_lock_and_style_states();
   populate_layer_rasterize_menu(layer_menu_rasterize_menu_);
+  refresh_type_menu_states();
   refresh_appimage_menu_entry_action();
   rebuild_scripts_menu();
   refresh_recent_history();

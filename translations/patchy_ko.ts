@@ -19507,6 +19507,118 @@ Each item&apos;s own View setting still applies.</source>
         <source>Bake the layer effects into the pixels</source>
         <translation>레이어 효과를 픽셀에 적용하여 굽기</translation>
     </message>
+    <message>
+        <source>Leading, tracking, glyph scales and font features</source>
+        <translation>행간, 자간, 글리프 비율, 글꼴 기능</translation>
+    </message>
+    <message>
+        <source>Paragraph alignment, indents and spacing</source>
+        <translation>단락 정렬, 들여쓰기, 간격</translation>
+    </message>
+    <message>
+        <source>Line the text up on its left edge</source>
+        <translation>텍스트를 왼쪽 가장자리에 맞춤</translation>
+    </message>
+    <message>
+        <source>Center each line of text</source>
+        <translation>텍스트의 각 줄을 가운데에 맞춤</translation>
+    </message>
+    <message>
+        <source>Line the text up on its right edge</source>
+        <translation>텍스트를 오른쪽 가장자리에 맞춤</translation>
+    </message>
+    <message>
+        <source>Spread each line across the text box</source>
+        <translation>각 줄을 텍스트 상자 너비에 맞게 펼침</translation>
+    </message>
+    <message>
+        <source>Let the first letter set the reading direction</source>
+        <translation>첫 글자가 읽는 방향을 정함</translation>
+    </message>
+    <message>
+        <source>Paragraphs read from the left side</source>
+        <translation>단락을 왼쪽부터 읽음</translation>
+    </message>
+    <message>
+        <source>Paragraphs read from the right side, as in Arabic or Hebrew</source>
+        <translation>단락을 오른쪽부터 읽음 (아랍어, 히브리어 등)</translation>
+    </message>
+    <message>
+        <source>Set the text in rows</source>
+        <translation>텍스트를 가로 줄로 배치</translation>
+    </message>
+    <message>
+        <source>Set the text in columns, top to bottom</source>
+        <translation>텍스트를 위에서 아래로 세로 열로 배치</translation>
+    </message>
+    <message>
+        <source>Hard, jagged letter edges</source>
+        <translation>딱딱하고 들쭉날쭉한 글자 가장자리</translation>
+    </message>
+    <message>
+        <source>The sharpest smoothed letter edges</source>
+        <translation>가장 선명하게 다듬은 글자 가장자리</translation>
+    </message>
+    <message>
+        <source>Slightly sharp smoothed letter edges</source>
+        <translation>약간 선명하게 다듬은 글자 가장자리</translation>
+    </message>
+    <message>
+        <source>Heavier smoothed letter edges</source>
+        <translation>더 굵게 다듬은 글자 가장자리</translation>
+    </message>
+    <message>
+        <source>The softest letter edges</source>
+        <translation>가장 부드러운 글자 가장자리</translation>
+    </message>
+    <message>
+        <source>Letter edges drawn like Windows LCD text</source>
+        <translation>Windows LCD 텍스트처럼 그린 글자 가장자리</translation>
+    </message>
+    <message>
+        <source>Letter edges drawn like Windows text</source>
+        <translation>Windows 텍스트처럼 그린 글자 가장자리</translation>
+    </message>
+    <message>
+        <source>Join letter pairs such as fi and fl</source>
+        <translation>fi, fl 같은 글자 쌍을 연결</translation>
+    </message>
+    <message>
+        <source>Letter shapes that change with their neighbors</source>
+        <translation>이웃 글자에 따라 바뀌는 글자 모양</translation>
+    </message>
+    <message>
+        <source>Decorative letter joins such as ct and st</source>
+        <translation>ct, st 같은 장식 연결</translation>
+    </message>
+    <message>
+        <source>Flourished letter shapes</source>
+        <translation>장식 획이 있는 글자 모양</translation>
+    </message>
+    <message>
+        <source>The font&apos;s alternate letter designs</source>
+        <translation>글꼴의 대체 글자 디자인</translation>
+    </message>
+    <message>
+        <source>Capitals drawn for large headings</source>
+        <translation>큰 제목용으로 디자인된 대문자</translation>
+    </message>
+    <message>
+        <source>Raised letters after numbers, as in 1st and 2nd</source>
+        <translation>1st, 2nd처럼 숫자 뒤의 글자를 올림</translation>
+    </message>
+    <message>
+        <source>Draw 1/2 as a stacked fraction</source>
+        <translation>1/2을 쌓은 분수로 표시</translation>
+    </message>
+    <message>
+        <source>Turn the text layers into pixels</source>
+        <translation>문자 레이어를 픽셀로 변환</translation>
+    </message>
+    <message>
+        <source>Bend text into an arc, flag or wave</source>
+        <translation>텍스트를 호, 깃발, 물결 모양으로 구부림</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32962,6 +33074,62 @@ Locked: %1</source>
     <message>
         <source>Some text does not fit. Drag to enlarge the box.</source>
         <translation>일부 텍스트가 들어가지 않습니다. 드래그하여 상자를 넓히세요.</translation>
+    </message>
+    <message>
+        <source>Alignment</source>
+        <translation>정렬</translation>
+    </message>
+    <message>
+        <source>Direction</source>
+        <translation>단락 방향</translation>
+    </message>
+    <message>
+        <source>Orientation</source>
+        <translation>텍스트 방향</translation>
+    </message>
+    <message>
+        <source>Anti-Alias</source>
+        <translation>앤티앨리어싱</translation>
+    </message>
+    <message>
+        <source>OpenType</source>
+        <translation>OpenType</translation>
+    </message>
+    <message>
+        <source>Standard Ligatures</source>
+        <translation>표준 합자</translation>
+    </message>
+    <message>
+        <source>Contextual Alternates</source>
+        <translation>문맥상 대체</translation>
+    </message>
+    <message>
+        <source>Discretionary Ligatures</source>
+        <translation>임의 합자</translation>
+    </message>
+    <message>
+        <source>Swash</source>
+        <translation>스와시</translation>
+    </message>
+    <message>
+        <source>Stylistic Alternates</source>
+        <translation>스타일 대체</translation>
+    </message>
+    <message>
+        <source>Titling Alternates</source>
+        <translation>제목 대체</translation>
+    </message>
+    <message>
+        <source>Ordinals</source>
+        <translation>서수</translation>
+    </message>
+    <message>
+        <source>Fractions</source>
+        <translation>분수</translation>
+    </message>
+    <message>
+        <source>Rasterize Type Layer</source>
+        <translation>문자 레이어 래스터화</translation>
     </message>
 </context>
 <context>

@@ -1911,33 +1911,197 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
       });
     }
   });
-  ctx.type_menu->addAction(type_tool_action_);
-  ctx.type_menu->addSeparator();
-  // Photoshop's Type > Resolve Missing Fonts (GitHub issue 169).
-  auto* resolve_fonts_action = ctx.type_menu->addAction(QString());
-  bind_action_text(resolve_fonts_action, QT_TR_NOOP("Resolve Missing Fonts..."));
-  resolve_fonts_action->setObjectName(QStringLiteral("typeResolveMissingFontsAction"));
-  resolve_fonts_action->setMenuRole(QAction::NoRole);
-  register_hotkey(resolve_fonts_action, "type.resolve_missing_fonts");
-  connect(resolve_fonts_action, &QAction::triggered, this, [this] { show_resolve_missing_fonts_dialog(); });
-  register_document_action(resolve_fonts_action);
+  // The Type menu (GitHub issue 650; docs/text-tool-panels.md, "Type menu"). The Type tool
+  // itself lives in the palette (T). Each entry calls what its options-bar control or panel
+  // field calls, so a change is that control's single "Type" undo step; when the menu opens,
+  // refresh_type_menu_states sets the checks and turns off a submenu with nothing to act on.
+  // Only the submenus turn off, so a key bound to an entry keeps working.
+  ctx.type_menu->setObjectName(QStringLiteral("typeMenu"));
+  connect(ctx.type_menu, &QMenu::aboutToShow, this, [this] { refresh_type_menu_states(); });
+  const auto add_type_action = [this](QMenu* menu, const char* source, const char* object_name,
+                                      const char* hotkey_id) {
+    auto* action = menu->addAction(QString());
+    bind_action_text(action, source);
+    action->setObjectName(QString::fromLatin1(object_name));
+    action->setMenuRole(QAction::NoRole);
+    register_hotkey(action, QString::fromLatin1(hotkey_id));
+    register_document_action(action);
+    return action;
+  };
+  QMenu* type_menu = ctx.type_menu;
+  const auto add_type_submenu = [this, type_menu](const char* source, const char* object_name) {
+    auto* menu = type_menu->addMenu(QString());
+    bind_action_text(menu->menuAction(), source);
+    menu->setObjectName(QString::fromLatin1(object_name));
+    menu->menuAction()->setMenuRole(QAction::NoRole);
+    return menu;
+  };
+  // A checkable entry whose data is the value it applies; refresh_type_menu_states checks the
+  // one matching what the text uses.
+  const auto add_type_choice = [&add_type_action](QMenu* menu, QActionGroup* group, const char* source,
+                                                  const char* object_name, const char* hotkey_id, int value) {
+    auto* action = add_type_action(menu, source, object_name, hotkey_id);
+    action->setCheckable(true);
+    action->setData(value);
+    if (group != nullptr) {
+      group->addAction(action);
+    }
+    return action;
+  };
+
+  auto* character_action =
+      add_type_action(type_menu, QT_TR_NOOP("Character..."), "typeCharacterPanelAction", "type.character_panel");
+  connect(character_action, &QAction::triggered, this, [this] { open_text_character_dialog(); });
+  auto* paragraph_action =
+      add_type_action(type_menu, QT_TR_NOOP("Paragraph..."), "typeParagraphPanelAction", "type.paragraph_panel");
+  connect(paragraph_action, &QAction::triggered, this, [this] { open_text_paragraph_dialog(); });
+  type_menu->addSeparator();
+
+  // Paragraph alignment: the options-bar buttons and the Paragraph panel's combo (Justify is
+  // the panel's last-line-left justify, the only one modeled).
+  type_alignment_menu_ = add_type_submenu(QT_TR_NOOP("Alignment"), "typeAlignmentMenu");
+  auto* alignment_group = new QActionGroup(this);
+  alignment_group->setExclusive(true);
+  add_type_choice(type_alignment_menu_, alignment_group, QT_TR_NOOP("Left"), "typeAlignLeftAction",
+                  "type.align_left", static_cast<int>(Qt::AlignLeft));
+  add_type_choice(type_alignment_menu_, alignment_group, QT_TR_NOOP("Center"), "typeAlignCenterAction",
+                  "type.align_center", static_cast<int>(Qt::AlignHCenter));
+  add_type_choice(type_alignment_menu_, alignment_group, QT_TR_NOOP("Right"), "typeAlignRightAction",
+                  "type.align_right", static_cast<int>(Qt::AlignRight));
+  add_type_choice(type_alignment_menu_, alignment_group, QT_TR_NOOP("Justify (last line left)"),
+                  "typeAlignJustifyAction", "type.align_justify", static_cast<int>(Qt::AlignJustify));
+  connect(alignment_group, &QActionGroup::triggered, this, [this](QAction* action) {
+    apply_text_alignment_to_active_editor(Qt::Alignment::fromInt(action->data().toInt()));
+  });
+
+  // Paragraph direction: the Paragraph panel's Direction combo.
+  type_direction_menu_ = add_type_submenu(QT_TR_NOOP("Direction"), "typeDirectionMenu");
+  auto* direction_group = new QActionGroup(this);
+  direction_group->setExclusive(true);
+  add_type_choice(type_direction_menu_, direction_group, QT_TR_NOOP("Auto"), "typeDirectionAutoAction",
+                  "type.direction_auto", static_cast<int>(Qt::LayoutDirectionAuto));
+  add_type_choice(type_direction_menu_, direction_group, QT_TR_NOOP("Left to right"),
+                  "typeDirectionLeftToRightAction", "type.direction_left_to_right", static_cast<int>(Qt::LeftToRight));
+  add_type_choice(type_direction_menu_, direction_group, QT_TR_NOOP("Right to left"),
+                  "typeDirectionRightToLeftAction", "type.direction_right_to_left", static_cast<int>(Qt::RightToLeft));
+  connect(direction_group, &QActionGroup::triggered, this, [this](QAction* action) {
+    apply_text_direction_to_active_editor(static_cast<Qt::LayoutDirection>(action->data().toInt()));
+  });
+
+  // Orientation: the options bar's Vertical toggle (with nothing selected it arms the next
+  // new layer, as the toggle does).
+  type_orientation_menu_ = add_type_submenu(QT_TR_NOOP("Orientation"), "typeOrientationMenu");
+  auto* orientation_group = new QActionGroup(this);
+  orientation_group->setExclusive(true);
+  add_type_choice(type_orientation_menu_, orientation_group, QT_TR_NOOP("Horizontal"),
+                  "typeOrientationHorizontalAction", "type.orientation_horizontal", 0);
+  add_type_choice(type_orientation_menu_, orientation_group, QT_TR_NOOP("Vertical"),
+                  "typeOrientationVerticalAction", "type.orientation_vertical", 1);
+  connect(orientation_group, &QActionGroup::triggered, this,
+          [this](QAction* action) { apply_text_orientation(action->data().toInt() != 0); });
+  type_menu->addSeparator();
+
+  // Anti-aliasing: the options bar's Smoothing list, in its order.
+  type_anti_alias_menu_ = add_type_submenu(QT_TR_NOOP("Anti-Alias"), "typeAntiAliasMenu");
+  auto* anti_alias_group = new QActionGroup(this);
+  anti_alias_group->setExclusive(true);
+  add_type_choice(type_anti_alias_menu_, anti_alias_group, QT_TR_NOOP("None"), "typeAntiAliasNoneAction",
+                  "type.anti_alias_none", kTextAntiAliasNone);
+  add_type_choice(type_anti_alias_menu_, anti_alias_group, QT_TR_NOOP("Sharp"), "typeAntiAliasSharpAction",
+                  "type.anti_alias_sharp", kTextAntiAliasSharp);
+  add_type_choice(type_anti_alias_menu_, anti_alias_group, QT_TR_NOOP("Crisp"), "typeAntiAliasCrispAction",
+                  "type.anti_alias_crisp", kTextAntiAliasCrisp);
+  add_type_choice(type_anti_alias_menu_, anti_alias_group, QT_TR_NOOP("Strong"), "typeAntiAliasStrongAction",
+                  "type.anti_alias_strong", kTextAntiAliasStrong);
+  add_type_choice(type_anti_alias_menu_, anti_alias_group, QT_TR_NOOP("Smooth"), "typeAntiAliasSmoothAction",
+                  "type.anti_alias_smooth", kTextAntiAliasSmooth);
+  add_type_choice(type_anti_alias_menu_, anti_alias_group, QT_TR_NOOP("Windows LCD"),
+                  "typeAntiAliasWindowsLcdAction", "type.anti_alias_windows_lcd", kTextAntiAliasWindowsLcd);
+  add_type_choice(type_anti_alias_menu_, anti_alias_group, QT_TR_NOOP("Windows"), "typeAntiAliasWindowsAction",
+                  "type.anti_alias_windows", kTextAntiAliasWindows);
+  connect(anti_alias_group, &QActionGroup::triggered, this, [this](QAction* action) {
+    if (text_smoothing_combo_ == nullptr) {
+      return;
+    }
+    // Through the list itself, so its own slot applies, stores the tool setting and refreshes
+    // the info field. A value it already shows (mirrored from the layer) re-applies directly.
+    const int index = text_smoothing_combo_->findData(action->data().toInt());
+    if (index >= 0 && index != text_smoothing_combo_->currentIndex()) {
+      text_smoothing_combo_->setCurrentIndex(index);
+    } else {
+      apply_text_smoothing_to_active_editor();
+    }
+  });
+
+  // OpenType features: the Character panel's second row of toggles, in Photoshop's menu order.
+  // The data is the toggle's apply_text_character_style_to_active_editor index.
+  type_opentype_menu_ = add_type_submenu(QT_TR_NOOP("OpenType"), "typeOpenTypeMenu");
+  const struct {
+    const char* source;
+    const char* object_name;
+    const char* hotkey_id;
+    int style;
+  } opentype_features[] = {
+      {QT_TR_NOOP("Standard Ligatures"), "typeOpenTypeLigaturesAction", "type.opentype_ligatures", 8},
+      {QT_TR_NOOP("Contextual Alternates"), "typeOpenTypeContextualAlternatesAction",
+       "type.opentype_contextual_alternates", 9},
+      {QT_TR_NOOP("Discretionary Ligatures"), "typeOpenTypeDiscretionaryLigaturesAction",
+       "type.opentype_discretionary_ligatures", 10},
+      {QT_TR_NOOP("Swash"), "typeOpenTypeSwashAction", "type.opentype_swash", 11},
+      {QT_TR_NOOP("Stylistic Alternates"), "typeOpenTypeStylisticAlternatesAction",
+       "type.opentype_stylistic_alternates", 12},
+      {QT_TR_NOOP("Titling Alternates"), "typeOpenTypeTitlingAlternatesAction", "type.opentype_titling_alternates",
+       13},
+      {QT_TR_NOOP("Ordinals"), "typeOpenTypeOrdinalsAction", "type.opentype_ordinals", 6},
+      {QT_TR_NOOP("Fractions"), "typeOpenTypeFractionsAction", "type.opentype_fractions", 7},
+  };
+  for (const auto& feature : opentype_features) {
+    auto* action = add_type_choice(type_opentype_menu_, nullptr, feature.source, feature.object_name,
+                                   feature.hotkey_id, feature.style);
+    // The new state comes from the text, not from the check the trigger flipped: a key can
+    // fire after the selection changed without the menu opening in between.
+    connect(action, &QAction::triggered, this, [this, action] {
+      refresh_type_menu_states();
+      apply_text_character_style_to_active_editor(action->data().toInt(), !action->isChecked());
+    });
+  }
+  type_menu->addSeparator();
+
   // Text as vector outlines (GitHub issue 598; docs/text-outlines.md). The Layers panel's
   // text-layer menu and the Move tool's canvas menu share these actions.
-  ctx.type_menu->addSeparator();
-  type_convert_to_shape_action_ = ctx.type_menu->addAction(QString());
-  bind_action_text(type_convert_to_shape_action_, QT_TR_NOOP("Convert to Shape"));
-  type_convert_to_shape_action_->setObjectName(QStringLiteral("typeConvertToShapeAction"));
-  type_convert_to_shape_action_->setMenuRole(QAction::NoRole);
-  register_hotkey(type_convert_to_shape_action_, "type.convert_to_shape");
-  connect(type_convert_to_shape_action_, &QAction::triggered, this, [this] { convert_text_layers_to_shapes(); });
-  register_document_action(type_convert_to_shape_action_);
-  type_create_work_path_action_ = ctx.type_menu->addAction(QString());
+  type_create_work_path_action_ = type_menu->addAction(QString());
   bind_action_text(type_create_work_path_action_, QT_TR_NOOP("Create Work Path"));
   type_create_work_path_action_->setObjectName(QStringLiteral("typeCreateWorkPathAction"));
   type_create_work_path_action_->setMenuRole(QAction::NoRole);
   register_hotkey(type_create_work_path_action_, "type.create_work_path");
   connect(type_create_work_path_action_, &QAction::triggered, this, [this] { create_work_path_from_text(); });
   register_document_action(type_create_work_path_action_);
+  type_convert_to_shape_action_ = type_menu->addAction(QString());
+  bind_action_text(type_convert_to_shape_action_, QT_TR_NOOP("Convert to Shape"));
+  type_convert_to_shape_action_->setObjectName(QStringLiteral("typeConvertToShapeAction"));
+  type_convert_to_shape_action_->setMenuRole(QAction::NoRole);
+  register_hotkey(type_convert_to_shape_action_, "type.convert_to_shape");
+  connect(type_convert_to_shape_action_, &QAction::triggered, this, [this] { convert_text_layers_to_shapes(); });
+  register_document_action(type_convert_to_shape_action_);
+  type_menu->addSeparator();
+
+  // Layer > Rasterize for the selected text layers only, and the options bar's Warp... button.
+  auto* rasterize_type_action =
+      add_type_action(type_menu, QT_TR_NOOP("Rasterize Type Layer"), "typeRasterizeAction", "type.rasterize");
+  connect(rasterize_type_action, &QAction::triggered, this, [this] { rasterize_text_layers(); });
+  auto* warp_text_action =
+      add_type_action(type_menu, QT_TR_NOOP("Warp Text..."), "typeWarpTextAction", "type.warp_text");
+  connect(warp_text_action, &QAction::triggered, this, [this] { request_warp_text_dialog(); });
+  type_menu->addSeparator();
+
+  // Photoshop's Type > Resolve Missing Fonts (GitHub issue 169).
+  auto* resolve_fonts_action = type_menu->addAction(QString());
+  bind_action_text(resolve_fonts_action, QT_TR_NOOP("Resolve Missing Fonts..."));
+  resolve_fonts_action->setObjectName(QStringLiteral("typeResolveMissingFontsAction"));
+  resolve_fonts_action->setMenuRole(QAction::NoRole);
+  register_hotkey(resolve_fonts_action, "type.resolve_missing_fonts");
+  connect(resolve_fonts_action, &QAction::triggered, this, [this] { show_resolve_missing_fonts_dialog(); });
+  register_document_action(resolve_fonts_action);
 
   // The color well and Quick Mask live in a footer pinned to the bar's bottom,
   // outside the toolbar layout, so they never fold into the extension and stay

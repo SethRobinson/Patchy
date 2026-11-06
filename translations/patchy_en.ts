@@ -19537,6 +19537,118 @@ Each item&apos;s own View setting still applies.</source>
         <source>Bake the layer effects into the pixels</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Leading, tracking, glyph scales and font features</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paragraph alignment, indents and spacing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Line the text up on its left edge</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Center each line of text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Line the text up on its right edge</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Spread each line across the text box</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Let the first letter set the reading direction</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paragraphs read from the left side</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paragraphs read from the right side, as in Arabic or Hebrew</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Set the text in rows</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Set the text in columns, top to bottom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hard, jagged letter edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The sharpest smoothed letter edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Slightly sharp smoothed letter edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Heavier smoothed letter edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The softest letter edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Letter edges drawn like Windows LCD text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Letter edges drawn like Windows text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Join letter pairs such as fi and fl</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Letter shapes that change with their neighbors</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Decorative letter joins such as ct and st</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flourished letter shapes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The font&apos;s alternate letter designs</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Capitals drawn for large headings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Raised letters after numbers, as in 1st and 2nd</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Draw 1/2 as a stacked fraction</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Turn the text layers into pixels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bend text into an arc, flag or wave</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32967,6 +33079,62 @@ Locked: %1</source>
     </message>
     <message>
         <source>Some text does not fit. Drag to enlarge the box.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Alignment</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Direction</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Orientation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Anti-Alias</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>OpenType</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Standard Ligatures</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Contextual Alternates</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Discretionary Ligatures</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Swash</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stylistic Alternates</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Titling Alternates</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ordinals</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fractions</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rasterize Type Layer</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

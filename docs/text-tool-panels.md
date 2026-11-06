@@ -1,6 +1,6 @@
 # Character panel, Paragraph panel and multi-layer edits
 
-Split from [text-tool.md](text-tool.md): options-bar and Character panel edits that reach every selected text layer without a session, where color picks land while text is being edited, and the Character and Paragraph panels.
+Split from [text-tool.md](text-tool.md): options-bar and Character panel edits that reach every selected text layer without a session, where color picks land while text is being edited, the Character and Paragraph panels, and the Type menu.
 
 ## No session: every selected text layer (GitHub issue 31)
 
@@ -54,3 +54,12 @@ Split from [text-tool.md](text-tool.md): options-bar and Character panel edits t
 - The panel reads the caret's paragraph in a session, else the active layer's first paragraph (1:1 render document); `sync_text_character_dialog_from_editor` and the alignment sync refresh it.
 - Scripting: `layer.textParagraph` (read the first paragraph, set merges into every paragraph) and the `paragraph` option of `addTextLayer`, document pixels ([scripting.md](scripting.md)). Tests: `ui_text_paragraph_panel_sets_indents_and_spacing`, `ui_script_text_paragraph_reads_and_sets_metrics`.
 - Lists (bullets, numbering) are not modeled: Photoshop stores them only in its Txt2 block, and Patchy's Txt2 writer authors no list style ([txt2.md](txt2.md), "Lists"). Scripted posters type a bullet character into the line instead.
+
+## Type menu
+
+GitHub issue 650; built in `main_window_actions_tool_palette.cpp` (`typeMenu`). Rows: Character..., Paragraph...; Alignment, Direction, Orientation; Anti-Alias, OpenType; Create Work Path, Convert to Shape ([text-outlines.md](text-outlines.md)); Rasterize Type Layer, Warp Text...; Resolve Missing Fonts.... The Type tool is not a row (the palette and T pick it).
+
+- **Every entry calls its control's own path**, so it is the same single "Type" step: the dialogs' openers, `apply_text_alignment_to_active_editor` (Justify is the panel's last-line-left justify, the only one modeled), `apply_text_direction_to_active_editor`, `apply_text_orientation`, the Smoothing list (the entry sets `textSmoothingCombo`, whose slot applies and stores `tools/textSmoothing`; a value it already shows re-applies directly), `apply_text_character_style_to_active_editor` (the Character panel's second toggle row), `rasterize_layer_ids` on the selected text layers only (`rasterize_text_layers`), `request_warp_text_dialog`. Never add a second apply path here.
+- **Checks and enabled state come from `refresh_type_menu_states`** on the menu's `aboutToShow` (and `show_command_search`): the live session, else `text_character_target_layer()`, else the next new layer's seeds. Alignment, Direction and OpenType need text; Orientation and Anti-Alias are also on with the Type tool active (they seed the next layer, like their bar controls). Only the submenu entries turn off: the actions stay enabled so a key bound to one still fires, and an OpenType toggle re-reads the text before flipping, so a stale check never inverts it.
+- Hotkey ids `type.character_panel`, `type.paragraph_panel`, `type.align_*`, `type.direction_*`, `type.orientation_*`, `type.anti_alias_*`, `type.opentype_*`, `type.rasterize`, `type.warp_text`; no default keys. Oldstyle figures and Ornaments are not modeled (no `onum`/`ornm` feature in the text code), so the OpenType submenu leaves them out.
+- Tests: `ui_type_menu_rows_and_enabled_states`, `ui_type_menu_applies_to_selected_text_layer` (tests/ui/text_outline_tests.cpp).

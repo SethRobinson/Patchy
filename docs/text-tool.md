@@ -109,7 +109,7 @@ Photoshop calibration are in [text-render-calibration-vertical-rtl.md](text-rend
 the session contract.
 
 - **One Type tool, an orientation toggle.** `textOrientationButton` (and the layer context
-  menu entry) switches a live session in place, converts the selected layer through the
+  menu entry, and Type > Orientation) switches a live session in place, converts the selected layer through the
   Character-panel hidden session (one undo step), or arms the NEXT new layer once; never
   persisted, a fresh session starts horizontal. With no session it reads the first layer of
   `text_character_target_layer_ids()`, so a selected vertical row keeps it checked even with no
