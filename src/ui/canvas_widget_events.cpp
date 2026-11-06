@@ -4777,6 +4777,9 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
     }
   }
   notify_brush_settings_changed();
+  if (targets_flow && tool_ == CanvasTool::Brush && brush_build_up_ && !shift && airbrush_flow_digit_callback_) {
+    airbrush_flow_digit_callback_();
+  }
   return true;
 }
 

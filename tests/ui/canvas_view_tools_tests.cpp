@@ -10707,6 +10707,86 @@ void ui_brush_airbrush_box_follows_canvas_state() {
   QApplication::processEvents();
 }
 
+// local-035: a bare digit that sets the Brush's Flow because Airbrush is on flashes the
+// options bar's Flow field and Airbrush box (a fading outline that never takes focus); an
+// Opacity digit, Shift+digit Opacity under Airbrush, and digits with Airbrush off do not.
+void ui_brush_airbrush_flow_digit_flashes_flow_and_airbrush_box() {
+  patchy::ui::MainWindow window;
+  window.add_document_session(status_info_test_document(), QStringLiteral("Cue"));
+  show_window(window);
+  require_action(window, "toolBrushAction")->trigger();
+  QApplication::processEvents();
+  auto* airbrush = window.findChild<QCheckBox*>(QStringLiteral("brushAirbrushCheck"));
+  auto* flow = window.findChild<QSpinBox*>(QStringLiteral("brushFlowSpin"));
+  CHECK(airbrush != nullptr && flow != nullptr);
+  if (airbrush == nullptr || flow == nullptr) {
+    return;
+  }
+  const auto pulse_active = [&window](const char* target) {
+    const auto* pulse = window.findChild<QWidget*>(QLatin1String(target) + QStringLiteral("AttentionPulse"));
+    return pulse != nullptr && pulse->isVisible() && pulse->property("pulseActive").toBool();
+  };
+  auto* canvas = require_canvas(window);
+  airbrush->setChecked(false);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_flow(100);
+  QApplication::processEvents();
+
+  // Airbrush off: a digit sets Opacity, nothing flashes.
+  send_key(*canvas, Qt::Key_5);
+  CHECK(canvas->brush_opacity() == 50);
+  CHECK(!pulse_active("brushFlowSpin"));
+  CHECK(!pulse_active("brushAirbrushCheck"));
+  process_events_for(900);
+
+  // Airbrush on: a bare digit sets Flow and flashes both controls.
+  airbrush->setChecked(true);
+  QApplication::processEvents();
+  send_key(*canvas, Qt::Key_4);
+  CHECK(canvas->brush_flow() == 40);
+  CHECK(canvas->brush_opacity() == 50);
+  CHECK(flow->value() == 40);
+  CHECK(pulse_active("brushFlowSpin"));
+  CHECK(pulse_active("brushAirbrushCheck"));
+  CHECK(window.statusBar()->currentMessage() ==
+        QStringLiteral("Brush flow: 40% (Airbrush is on; Shift+number sets opacity)"));
+  // The cue sits over the controls without covering anything else, and never takes focus.
+  const auto* flow_pulse = window.findChild<QWidget*>(QStringLiteral("brushFlowSpinAttentionPulse"));
+  CHECK(flow_pulse != nullptr && flow_pulse->geometry().contains(flow->geometry()));
+  CHECK(flow_pulse != nullptr && flow_pulse->testAttribute(Qt::WA_TransparentForMouseEvents));
+  CHECK(QApplication::focusWidget() != flow_pulse);
+  save_widget_artifact("ui_brush_airbrush_flow_digit_cue", *flow->parentWidget());
+  // ...and fades out by itself.
+  process_events_for(1300);
+  CHECK(!pulse_active("brushFlowSpin"));
+  CHECK(!pulse_active("brushAirbrushCheck"));
+
+  // Shift+digit sets Opacity under Airbrush: no flash.
+  send_key(*canvas, Qt::Key_3, Qt::ShiftModifier);
+  CHECK(canvas->brush_opacity() == 30);
+  CHECK(canvas->brush_flow() == 40);
+  CHECK(!pulse_active("brushFlowSpin"));
+  CHECK(!pulse_active("brushAirbrushCheck"));
+  process_events_for(900);
+
+  // A repeat restarts the fade rather than stacking overlays.
+  send_key(*canvas, Qt::Key_6);
+  process_events_for(850);
+  send_key(*canvas, Qt::Key_7);  // a fresh entry: the 800 ms pair window has passed
+  CHECK(canvas->brush_flow() == 70);
+  CHECK(pulse_active("brushFlowSpin"));
+  CHECK(window.findChildren<QWidget*>(QStringLiteral("brushFlowSpinAttentionPulse")).size() == 1);
+  process_events_for(350);  // past the first press's second
+  CHECK(pulse_active("brushFlowSpin"));
+  process_events_for(900);
+  CHECK(!pulse_active("brushFlowSpin"));
+
+  airbrush->setChecked(false);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_flow(100);
+  QApplication::processEvents();
+}
+
 // GitHub issue 562: "00" sets a painting tool's Opacity and Flow to 0%, and a 0% value is kept
 // like any other: the options bar shows it, a tool switch keeps it, and the next session's
 // stored settings bring it back instead of clamping it to 1%.
@@ -12267,6 +12347,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_layer_opacity_digit_keys_with_move_tool", ui_layer_opacity_digit_keys_with_move_tool},
       {"ui_opacity_digit_keys_work_from_panels", ui_opacity_digit_keys_work_from_panels},
       {"ui_brush_airbrush_box_follows_canvas_state", ui_brush_airbrush_box_follows_canvas_state},
+      {"ui_brush_airbrush_flow_digit_flashes_flow_and_airbrush_box", ui_brush_airbrush_flow_digit_flashes_flow_and_airbrush_box},
       {"ui_brush_zero_opacity_survives_tool_switch_and_reload", ui_brush_zero_opacity_survives_tool_switch_and_reload},
       {"ui_layer_blend_mode_fast_steps_render_only_the_landing_mode",
        ui_layer_blend_mode_fast_steps_render_only_the_landing_mode},
