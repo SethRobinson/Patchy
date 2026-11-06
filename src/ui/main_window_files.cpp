@@ -1214,6 +1214,10 @@ struct OpenDocumentResult {
   // Network servers a Krita file layer names that are not allowed yet (lower case): the
   // interactive open offers to allow them and reload (docs/kra.md, "File layers").
   QStringList blocked_link_servers{};
+  // The notes in import_notices that only restate an answer the user gave in an open-time
+  // question (a multi-page TIFF's page choice): the status bar shows them, the Import Notes
+  // box leaves them out (#551, #625). Empty when nobody was asked (scripts, CLI, headless).
+  QStringList answered_notices{};
 };
 
 std::vector<std::uint8_t> read_all_file_bytes(const QString& path) {
@@ -1672,6 +1676,7 @@ std::optional<Document> decode_tiff_page(const QString& path, std::span<const st
 // page decodes: the caller then opens it the single-page way, whose error names the cause.
 bool open_tiff_pages(const QString& path, TiffPagesChoice choice, Document& opened, QString& document_title,
                      std::vector<PdfImportedDocument>& extra_documents, QStringList& import_notices,
+                     QStringList& page_choice_notices,
                      bool& cmyk_source) {
   const auto bytes = read_all_file_bytes(path);
   const auto pages = psd::tiff_pages(bytes);
@@ -1714,7 +1719,7 @@ bool open_tiff_pages(const QString& path, TiffPagesChoice choice, Document& open
     for (const auto& notice : merge_notices) {
       notices.push_back(translated_file_message(notice));
     }
-    import_notices.push_back(QObject::tr("Multi-page TIFF: opened %1 pages as layers").arg(decoded_count));
+    page_choice_notices.push_back(QObject::tr("Multi-page TIFF: opened %1 pages as layers").arg(decoded_count));
   } else {
     for (std::size_t index = 0; index < decoded.size(); ++index) {
       const auto title = QObject::tr("Page %1").arg(static_cast<qulonglong>(numbers[index]));
@@ -1725,9 +1730,10 @@ bool open_tiff_pages(const QString& path, TiffPagesChoice choice, Document& open
         extra_documents.push_back({std::move(decoded[index].document), title});
       }
     }
-    import_notices.push_back(
+    page_choice_notices.push_back(
         QObject::tr("Multi-page TIFF: opened %1 pages as separate documents").arg(decoded_count));
   }
+  import_notices.append(page_choice_notices);
   if (!skipped.isEmpty()) {
     //: %1 lists page numbers, such as "3, 5".
     import_notices.push_back(
@@ -1760,6 +1766,8 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
   };
   Document opened;
   QStringList import_notices;
+  // The multi-page TIFF notes, which restate the page choice when the user was asked.
+  QStringList page_choice_notices;
   QStringList blocked_link_servers;
   bool force_import_notices_popup = false;
   // True when the decoder handed over the file's pixel values untouched (Qt's
@@ -1851,8 +1859,9 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
     // (scans, faxes, GIMP's layers-as-pages export), not a layer stack (docs/tiff.md).
     const auto note_tiff_pages = [&] {
       if (const auto pages = psd::tiff_page_count(read_all_file_bytes(path)); pages > 1U) {
-        import_notices.push_back(
+        page_choice_notices.push_back(
             QObject::tr("This TIFF holds %1 pages; Patchy opened the first one.").arg(static_cast<qulonglong>(pages)));
+        import_notices.push_back(page_choice_notices.back());
       }
     };
     if (image.isNull() && is_tiff_extension(extension)) {
@@ -1962,7 +1971,8 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
   // Files as Layers), so it renders page 1 at the remembered resolution and says so; Open
   // and Reopen go through the page picker in load_document_interactive first.
   if (tiff_pages != TiffPagesChoice::FirstPage && is_tiff_extension(extension) &&
-      open_tiff_pages(path, tiff_pages, opened, document_title, extra_documents, import_notices, cmyk_source)) {
+      open_tiff_pages(path, tiff_pages, opened, document_title, extra_documents, import_notices,
+                      page_choice_notices, cmyk_source)) {
     pixels_in_source_space = !cmyk_source;
   } else if (is_pdf_extension(extension)) {
     PdfImportOptions pdf_options;
@@ -2173,6 +2183,7 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
                             force_import_notices_popup, std::move(document_title), std::move(extra_documents)};
   result.cmyk_source = cmyk_source;
   result.blocked_link_servers = std::move(blocked_link_servers);
+  result.answered_notices = std::move(page_choice_notices);
   return result;
 }
 
@@ -2431,6 +2442,7 @@ std::optional<OpenDocumentResult> load_document_interactive_once(QWidget* parent
   // A multi-page TIFF asks how to open its pages before the worker load (docs/tiff.md,
   // "Multi-page TIFF"); a running script never sees the question and gets page 1.
   auto tiff_pages = TiffPagesChoice::FirstPage;
+  bool tiff_pages_asked = false;
   if (interactive && allow_raw_dialog && is_tiff_extension(extension)) {
     if (const auto pages = probe_tiff_pages(path); pages.size() > 1U) {
       const auto choice = ask_tiff_pages_choice(parent, info.fileName(), pages.size());
@@ -2438,8 +2450,17 @@ std::optional<OpenDocumentResult> load_document_interactive_once(QWidget* parent
         return std::nullopt;
       }
       tiff_pages = *choice;
+      tiff_pages_asked = true;
     }
   }
+  // The page-count note only repeats an answer the user just gave (#625); unasked opens
+  // keep it as an ordinary note.
+  const auto keep_answered = [tiff_pages_asked](std::optional<OpenDocumentResult> loaded) {
+    if (loaded.has_value() && !tiff_pages_asked) {
+      loaded->answered_notices.clear();
+    }
+    return loaded;
+  };
 
   QProgressDialog progress(MainWindow::tr("Opening %1...").arg(info.fileName()), QString(), 0, 0, parent);
   progress.setObjectName(QStringLiteral("openProgressDialog"));
@@ -2488,14 +2509,14 @@ std::optional<OpenDocumentResult> load_document_interactive_once(QWidget* parent
   if (*error) {
     std::rethrow_exception(*error);
   }
-  return loaded;
+  return keep_answered(std::move(loaded));
 #else
   auto open_future = launch_async([path, tiff_pages] { return load_document_from_path(path, tiff_pages); });
   while (open_future.wait_for(std::chrono::milliseconds(15)) != std::future_status::ready) {
     QApplication::processEvents(QEventLoop::AllEvents, 15);
   }
 
-  return open_future.get();
+  return keep_answered(open_future.get());
 #endif
 }
 
@@ -3635,7 +3656,7 @@ void MainWindow::open_document_path(QString path, OpenExisting existing) {
     auto prompts = [this, session_id = opened_session_id, revision = opened != nullptr ? opened->revision : 0,
                     af_question, gimp_text_question, compatibility_report, notes = loaded->import_notices,
                     later_notes, file_name = loaded_file_name, force_popup = loaded->force_import_notices_popup,
-                    cmyk_proof_opened]() mutable {
+                    answered_on_open = loaded->answered_notices, cmyk_proof_opened]() mutable {
       // Skipped when the tab closed in between; the active-document dialogs only while it is active.
       const auto target = [this, session_id] { return session_with_id(session_id); };
       if (target() == nullptr) {
@@ -3658,9 +3679,9 @@ void MainWindow::open_document_path(QString path, OpenExisting existing) {
           }
         }
       }
-      QStringList answered_notes;
+      QStringList answered_notes = answered_on_open;
       if (auto* session = target(); gimp_text_question && session != nullptr) {
-        answered_notes = offer_painted_gimp_text_conversion(*session, session->import_notes);
+        answered_notes += offer_painted_gimp_text_conversion(*session, session->import_notes);
         notes = session->import_notes + later_notes;
         if (session == active_session()) {
           show_import_notes_status(notes);

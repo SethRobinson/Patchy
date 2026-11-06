@@ -106,7 +106,9 @@ with it. A layered (Photoshop) TIFF keeps its own path and is never asked about.
   UI thread. The last answer is the next default button (`imports/tiffPagesTarget`: `layers`,
   the first default, `documents`, `first`). A running script, the CLI, `--headless`, Files as
   Layers and scanner imports never ask: they open page 1 with a note naming the page count, as a PDF
-  opens page 1 there. `app.open` has no option for it (PDF has none either).
+  opens page 1 there. `app.open` has no option for it (PDF has none either). After a question
+  the page-count note (`OpenDocumentResult::answered_notices`) goes to the status bar only and
+  stays out of the Import Notes box, as #551's answered notes do; unread pages still show there.
 - **Decoding a page** (`decode_tiff_page`): Qt's reader at the page's chain index (its size
   must match the directory's), the JPEG-in-TIFF reader for page 1, then
   [`read_flat_tiff`](#flat-fallback-decoder) at the page's directory. CMYK pages convert to
