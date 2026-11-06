@@ -124,7 +124,8 @@ The committed manifest is never rewritten by packaging.
 - `--device=all` and the `sane-backends` and `libgphoto2` modules are for File > Import >
   From Scanner or Camera (docs/import-scanner.md). They are GPL-2+ and LGPL-2.1+, so every
   release publishes their source as `PatchyLinuxScannerSources.zip` (`release-linux.ps1`
-  runs `scripts/release/make-linux-scanner-sources.ps1`; docs/legal-licensing.md).
+  runs `scripts/release/make-linux-scanner-sources.ps1`; docs/legal-licensing.md), and
+  `upload-flatpak-repo-to-rtsoft.bat` puts it and `PatchyGeglSources.zip` beside the repository.
 - `--share=network` exists for the update check (and network scanners). A `-DPATCHY_STORE_BUILD=ON` build
   has no update check and no preference for it (`update_checks_available()` in
   `src/ui/update_checker.cpp`); `PATCHY_NO_UPDATE_CHECK=1` does the same at run time.

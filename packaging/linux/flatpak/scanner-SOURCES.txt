@@ -10,4 +10,5 @@ Source code: the corresponding source of both (the exact release tarballs, check
 the SHA-256 values in Patchy's Flatpak manifest, and the manifest that builds them) is
 PatchyLinuxScannerSources.zip, an asset of every Patchy release on GitHub, next to the
 downloads: https://github.com/SethRobinson/Patchy/releases (the release of this Patchy
-version, tag v<version>).
+version, tag v<version>). The Flatpak repository Patchy installs and updates from carries
+the current release's copy too: https://rtsoft.com/flatpak/sources/PatchyLinuxScannerSources.zip

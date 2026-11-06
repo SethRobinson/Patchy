@@ -21,6 +21,20 @@ rem a version behind.
 set "LINUX_REPO_TAR="
 for /f "delims=" %%F in ('dir /b /o:d build\package\Patchy-*-flatpak-repo.tar 2^>nul') do set "LINUX_REPO_TAR=build\package\%%F"
 if not defined LINUX_REPO_TAR goto repo_missing
+rem The source of the GPL and LGPL libraries the Flatpak carries goes up first, beside the
+rem repository, so the binaries are never served from here without it (GPL-2 section 3:
+rem source "from the same place"; docs/legal-licensing.md). The repository holds only the
+rem latest commit, so only this release's zips are kept: each upload replaces the last.
+if not exist build\package\PatchyGeglSources.zip goto sources_missing
+if not exist build\package\PatchyLinuxScannerSources.zip goto sources_missing
+ssh -n %UPLOAD_SSH% "mkdir -p www/flatpak/sources"
+if errorlevel 1 goto repo_fail
+call "%~dp0upload-one-file.bat" build\package\PatchyGeglSources.zip flatpak/sources
+if errorlevel 1 goto repo_fail
+call "%~dp0upload-one-file.bat" build\package\PatchyLinuxScannerSources.zip flatpak/sources
+if errorlevel 1 goto repo_fail
+curl -sfI https://rtsoft.com/flatpak/sources/PatchyGeglSources.zip >nul || goto repo_fail
+curl -sfI https://rtsoft.com/flatpak/sources/PatchyLinuxScannerSources.zip >nul || goto repo_fail
 echo Uploading %LINUX_REPO_TAR% as PatchyFlatpakRepo.tar
 copy /y "%LINUX_REPO_TAR%" build\package\PatchyFlatpakRepo.tar >nul
 if errorlevel 1 goto repo_fail
@@ -56,6 +70,15 @@ exit /b 0
 :repo_missing
 echo.
 echo No Patchy-*-flatpak-repo.tar found in build\package - run scripts\remote\release-linux.bat first.
+echo The Flatpak repository was NOT updated.
+if /i not "%~1"=="nopause" pause
+exit /b 1
+
+:sources_missing
+echo.
+echo build\package must hold PatchyGeglSources.zip ^(build-release.bat^) and
+echo PatchyLinuxScannerSources.zip ^(scripts\remote\release-linux.bat^): the Flatpak's GPL and
+echo LGPL libraries cannot be served without their source beside them.
 echo The Flatpak repository was NOT updated.
 if /i not "%~1"=="nopause" pause
 exit /b 1
