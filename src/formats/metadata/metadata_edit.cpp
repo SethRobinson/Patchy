@@ -238,6 +238,9 @@ const std::vector<XmpTextField>& xmp_text_fields() {
       {xmp_ns::kPhotoshop, "TransmissionReference", &FileInfoFields::transmission_reference, false},
       {xmp_ns::kXmpRights, "UsageTerms", &FileInfoFields::usage_terms, true},
       {xmp_ns::kIptcCore, "IntellectualGenre", &FileInfoFields::intellectual_genre, false},
+      // PLUS (IPTC Extension): a URI and a Lang Alt, as the PLUS LDF XMP specification defines them.
+      {xmp_ns::kPlus, "DataMining", &FileInfoFields::data_mining, false},
+      {xmp_ns::kPlus, "OtherConstraints", &FileInfoFields::other_constraints, true},
   };
   return fields;
 }
@@ -405,6 +408,24 @@ FileInfoFields read_xmp_fields(const XmpPacket& packet) {
 }
 
 }  // namespace
+
+std::optional<std::size_t> data_mining_value_index(std::string_view value) noexcept {
+  while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front())) != 0) {
+    value.remove_prefix(1);
+  }
+  while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back())) != 0) {
+    value.remove_suffix(1);
+  }
+  const auto lower = [](char c) { return c >= 'A' && c <= 'Z' ? static_cast<char>(c - 'A' + 'a') : c; };
+  for (std::size_t i = 0; i < kDataMiningValues.size(); ++i) {
+    const auto known = kDataMiningValues[i];
+    if (known.size() == value.size() &&
+        std::equal(known.begin(), known.end(), value.begin(), [&lower](char a, char b) { return lower(a) == lower(b); })) {
+      return i;
+    }
+  }
+  return std::nullopt;
+}
 
 FileInfoFields read_fields(const DocumentFileInfo& info) {
   auto fields = read_xmp_fields(packet_of(info));
@@ -743,6 +764,8 @@ SaveMetadata prepare_save_metadata(const Document& document, MetadataPolicy poli
         for (const auto& property : packet->properties) {
           const bool keep = (property.ns == xmp_ns::kDc && (property.name == "creator" || property.name == "rights")) ||
                             property.ns == xmp_ns::kXmpRights ||
+                            (property.ns == xmp_ns::kPlus &&
+                             (property.name == "DataMining" || property.name == "OtherConstraints")) ||
                             (property.ns == xmp_ns::kPhotoshop && property.name == "AuthorsPosition") ||
                             (property.ns == xmp_ns::kIptcCore && property.name == "CreatorContactInfo");
           if (keep) {

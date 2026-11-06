@@ -14964,6 +14964,66 @@ Do you want to replace it?</source>
         <source>Transform controls under the Move tool</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Other: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>IPTC Data Mining: whether the image may be used for data mining such as AI training. It is a declaration; nothing enforces it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Data Mining:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Other Constraints:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Further limits on use, in your own words</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unspecified</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Allowed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Prohibited for AI/ML training</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Prohibited for generative AI/ML training</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Prohibited except for search engine indexing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Prohibited</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Prohibited, see Other Constraints</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Prohibited, see the embedded rights expression</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Prohibited, see the linked rights expression</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not set</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -30564,10 +30624,6 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Your name, copyright and contact go into PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF files that do not name you yet, beside any author already there. Metadata a file already carries is kept; File &gt; File Info &gt; Strip All Metadata removes it. Exports follow the Metadata choice in the Export dialog.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Use “%1”</source>
         <translation type="unfinished"></translation>
     </message>
@@ -33171,6 +33227,22 @@ Locked: %1</source>
         <source>Not saved yet</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Data mining:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Your name, copyright and contact go into PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF files that do not name you yet, beside any author already there. The data mining choice (IPTC, for example prohibiting AI training) goes into files that have none; it is a declaration that nothing enforces. Metadata a file already carries is kept; File &gt; File Info &gt; Strip All Metadata removes it. Exports follow the Metadata choice in the Export dialog.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add your data mining choice to this file?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Data mining: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35437,6 +35509,14 @@ Locked: %1</source>
     </message>
     <message>
         <source>No document is open to rotate the view of.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences: dataMining must be &quot;&quot; or a PLUS Data Mining URI.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&quot;&quot; or a PLUS Data Mining URI such as &quot;http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-AIMLTRAINING&quot;</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

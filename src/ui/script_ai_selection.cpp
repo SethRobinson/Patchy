@@ -17,6 +17,7 @@
 #include "ui/vector_operations.hpp"
 #include "ui/watermark_settings.hpp"
 #include "ui/save_metadata_settings.hpp"
+#include "formats/metadata/metadata_edit.hpp"
 
 #if defined(Q_OS_WASM) && defined(__EMSCRIPTEN_PTHREADS__)
 #include "ui/background_workers.hpp"
@@ -382,6 +383,7 @@ QJSValue ScriptAppObject::save_metadata_preferences() const {
   result.setProperty(QStringLiteral("email"), personal.email);
   result.setProperty(QStringLiteral("website"), personal.website);
   result.setProperty(QStringLiteral("askBeforeAdding"), personal.ask);
+  result.setProperty(QStringLiteral("dataMining"), personal.data_mining);
   return result;
 }
 
@@ -415,6 +417,14 @@ void ScriptAppObject::setSaveMetadataPreferences(const QJSValue& preferences) {
       personal.website = value.toString();
     } else if (key == QStringLiteral("askBeforeAdding") && value.isBool()) {
       personal.ask = value.toBool();
+    } else if (key == QStringLiteral("dataMining") && value.isString()) {
+      const auto uri = value.toString().trimmed();
+      if (!uri.isEmpty() && !metadata::data_mining_value_index(uri.toStdString())) {
+        host_.throw_js_error(ScriptEngineHost::tr("setSaveMetadataPreferences: dataMining must be \"\" or a PLUS "
+                                                  "Data Mining URI."));
+        return;
+      }
+      personal.data_mining = uri;
     } else {
       host_.throw_js_error(ScriptEngineHost::tr("setSaveMetadataPreferences: unknown option %1.").arg(key));
       return;

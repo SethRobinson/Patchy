@@ -247,6 +247,8 @@ struct Editors {
   QComboBox* copyright_status{nullptr};
   QPlainTextEdit* copyright_notice{nullptr};
   QLineEdit* copyright_url{nullptr};
+  QComboBox* data_mining{nullptr};
+  QLineEdit* other_constraints{nullptr};
   QLabel* created{nullptr};
   QLabel* modified{nullptr};
   QLabel* creator_tool{nullptr};
@@ -286,6 +288,8 @@ struct Editors {
     copyright_status->setCurrentIndex(static_cast<int>(fields.copyright_status));
     copyright_notice->setPlainText(utf8(fields.copyright_notice));
     copyright_url->setText(utf8(fields.copyright_url));
+    load_data_mining(fields.data_mining);
+    other_constraints->setText(utf8(fields.other_constraints));
     created->setText(utf8(md::xmp_date_display(fields.created)));
     modified->setText(utf8(md::xmp_date_display(fields.modified)));
     creator_tool->setText(utf8(fields.creator_tool));
@@ -314,6 +318,30 @@ struct Editors {
     contact_url->setText(utf8(fields.contact_url));
   }
 
+  // The vocabulary items, then for a value outside it one more item holding it as stored.
+  // The item's data is the value exactly as the file has it, so an untouched combo never
+  // rewrites it (a different letter case, a newer vocabulary entry).
+  void load_data_mining(const std::string& value) const {
+    const auto choices = data_mining_choices();
+    while (data_mining->count() > choices.size()) {
+      data_mining->removeItem(data_mining->count() - 1);
+    }
+    for (int i = 0; i < choices.size(); ++i) {
+      data_mining->setItemData(i, choices.at(i).uri);
+    }
+    const auto stored = utf8(value);
+    if (stored.trimmed().isEmpty()) {
+      data_mining->setCurrentIndex(0);
+    } else if (const auto index = md::data_mining_value_index(value)) {
+      const int item = static_cast<int>(*index) + 1;
+      data_mining->setItemData(item, stored);
+      data_mining->setCurrentIndex(item);
+    } else {
+      data_mining->addItem(QObject::tr("Other: %1").arg(stored.trimmed()), stored);
+      data_mining->setCurrentIndex(data_mining->count() - 1);
+    }
+  }
+
   [[nodiscard]] md::FileInfoFields read(md::FileInfoFields fields) const {
     const auto text = [](const QLineEdit* edit) { return to_utf8(edit->text().trimmed()); };
     const auto plain = [](const QPlainTextEdit* edit) { return to_utf8(edit->toPlainText().trimmed()); };
@@ -327,6 +355,8 @@ struct Editors {
     fields.copyright_status = static_cast<md::CopyrightStatus>(copyright_status->currentIndex());
     fields.copyright_notice = plain(copyright_notice);
     fields.copyright_url = text(copyright_url);
+    fields.data_mining = to_utf8(data_mining->currentData().toString());
+    fields.other_constraints = text(other_constraints);
     fields.headline = text(headline);
     fields.date_created = text(date_created);
     fields.sublocation = text(sublocation);
@@ -679,6 +709,19 @@ std::optional<FileInfoEdit> request_file_info_edit(QWidget* parent, const Docume
     editors.copyright_notice =
         add_text(form, QObject::tr("Copyright Notice:"), "fileInfoCopyrightNoticeEdit", content, 56);
     editors.copyright_url = add_line(form, QObject::tr("Copyright Info URL:"), "fileInfoCopyrightUrlEdit", content);
+    // IPTC Data Mining (plus:DataMining) and Other Constraints (#658): a declaration for
+    // crawlers and AI training; nothing enforces it.
+    editors.data_mining = new QComboBox(content);
+    editors.data_mining->setObjectName(QStringLiteral("fileInfoDataMiningCombo"));
+    for (const auto& choice : data_mining_choices()) {
+      editors.data_mining->addItem(choice.label, choice.uri);
+    }
+    editors.data_mining->setToolTip(
+        QObject::tr("IPTC Data Mining: whether the image may be used for data mining such as AI training. It is "
+                    "a declaration; nothing enforces it."));
+    form->addRow(QObject::tr("Data Mining:"), editors.data_mining);
+    editors.other_constraints = add_line(form, QObject::tr("Other Constraints:"), "fileInfoOtherConstraintsEdit",
+                                         content, QObject::tr("Further limits on use, in your own words"));
     // Short read-only values stay on one line: a wrapped QLabel in the page's
     // scroll area could fold "Adobe Photoshop CC 2017 (Macintosh)" into a
     // second line that the one-line row then clipped, until the dialog was

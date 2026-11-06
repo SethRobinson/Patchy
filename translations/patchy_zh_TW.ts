@@ -14935,6 +14935,66 @@ Do you want to replace it?</source>
         <source>Transform controls under the Move tool</source>
         <translation>移動工具下的變形控制項</translation>
     </message>
+    <message>
+        <source>Other: %1</source>
+        <translation>其他: %1</translation>
+    </message>
+    <message>
+        <source>IPTC Data Mining: whether the image may be used for data mining such as AI training. It is a declaration; nothing enforces it.</source>
+        <translation>IPTC 資料探勘：影像是否可用於資料探勘，例如 AI 訓練。這只是聲明，不會強制執行。</translation>
+    </message>
+    <message>
+        <source>Data Mining:</source>
+        <translation>資料探勘:</translation>
+    </message>
+    <message>
+        <source>Other Constraints:</source>
+        <translation>其他限制:</translation>
+    </message>
+    <message>
+        <source>Further limits on use, in your own words</source>
+        <translation>其他使用限制（自行填寫）</translation>
+    </message>
+    <message>
+        <source>Unspecified</source>
+        <translation>未指定</translation>
+    </message>
+    <message>
+        <source>Allowed</source>
+        <translation>允許</translation>
+    </message>
+    <message>
+        <source>Prohibited for AI/ML training</source>
+        <translation>禁止用於 AI/ML 訓練</translation>
+    </message>
+    <message>
+        <source>Prohibited for generative AI/ML training</source>
+        <translation>禁止用於生成式 AI/ML 訓練</translation>
+    </message>
+    <message>
+        <source>Prohibited except for search engine indexing</source>
+        <translation>除搜尋引擎索引外禁止</translation>
+    </message>
+    <message>
+        <source>Prohibited</source>
+        <translation>禁止</translation>
+    </message>
+    <message>
+        <source>Prohibited, see Other Constraints</source>
+        <translation>禁止，請參閱「其他限制」</translation>
+    </message>
+    <message>
+        <source>Prohibited, see the embedded rights expression</source>
+        <translation>禁止，請參閱內嵌的權利表述</translation>
+    </message>
+    <message>
+        <source>Prohibited, see the linked rights expression</source>
+        <translation>禁止，請參閱連結的權利表述</translation>
+    </message>
+    <message>
+        <source>Not set</source>
+        <translation>未設定</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -30551,10 +30611,6 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>加入檔案前詢問</translation>
     </message>
     <message>
-        <source>Your name, copyright and contact go into PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF files that do not name you yet, beside any author already there. Metadata a file already carries is kept; File &gt; File Info &gt; Strip All Metadata removes it. Exports follow the Metadata choice in the Export dialog.</source>
-        <translation>你的名字、版權與聯絡方式會寫入尚未包含你名字的 PSD、JPEG、PNG、TIFF、WebP、GIF、JPEG XL 與 AVIF 檔案，與已有作者並列。檔案中已有的中繼資料會保留；「檔案 &gt; 檔案資訊 &gt; 移除所有中繼資料」可將其移除。轉存遵循轉存對話框中的中繼資料選項。</translation>
-    </message>
-    <message>
         <source>Use “%1”</source>
         <translation>使用「%1」</translation>
     </message>
@@ -33166,6 +33222,22 @@ Locked: %1</source>
         <source>Not saved yet</source>
         <translation>尚未儲存</translation>
     </message>
+    <message>
+        <source>Data mining:</source>
+        <translation>資料探勘:</translation>
+    </message>
+    <message>
+        <source>Your name, copyright and contact go into PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF files that do not name you yet, beside any author already there. The data mining choice (IPTC, for example prohibiting AI training) goes into files that have none; it is a declaration that nothing enforces. Metadata a file already carries is kept; File &gt; File Info &gt; Strip All Metadata removes it. Exports follow the Metadata choice in the Export dialog.</source>
+        <translation>您的姓名、版權和聯絡資訊會加入尚未註明您的 PSD、JPEG、PNG、TIFF、WebP、GIF、JPEG XL 和 AVIF 檔案中，與既有的作者並列。資料探勘選擇（IPTC，例如禁止 AI 訓練）會加入沒有此設定的檔案；這只是聲明，不會強制執行。檔案已有的中繼資料會保留；「檔案 &gt; 檔案資訊 &gt; 移除所有中繼資料」可將其移除。匯出遵循匯出對話方塊中的中繼資料選擇。</translation>
+    </message>
+    <message>
+        <source>Add your data mining choice to this file?</source>
+        <translation>將您的資料探勘選擇加入此檔案？</translation>
+    </message>
+    <message>
+        <source>Data mining: %1</source>
+        <translation>資料探勘: %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35432,6 +35504,14 @@ Locked: %1</source>
     <message>
         <source>No document is open to rotate the view of.</source>
         <translation>沒有可旋轉檢視的開啟文件。</translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences: dataMining must be &quot;&quot; or a PLUS Data Mining URI.</source>
+        <translation>setSaveMetadataPreferences：dataMining 必須是 &quot;&quot; 或 PLUS Data Mining URI。</translation>
+    </message>
+    <message>
+        <source>&quot;&quot; or a PLUS Data Mining URI such as &quot;http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-AIMLTRAINING&quot;</source>
+        <translation>&quot;&quot; 或 PLUS Data Mining URI，例如 &quot;http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-AIMLTRAINING&quot;</translation>
     </message>
 </context>
 <context>

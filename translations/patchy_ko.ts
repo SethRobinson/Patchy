@@ -14935,6 +14935,66 @@ Do you want to replace it?</source>
         <source>Transform controls under the Move tool</source>
         <translation>이동 도구의 변환 컨트롤</translation>
     </message>
+    <message>
+        <source>Other: %1</source>
+        <translation>기타: %1</translation>
+    </message>
+    <message>
+        <source>IPTC Data Mining: whether the image may be used for data mining such as AI training. It is a declaration; nothing enforces it.</source>
+        <translation>IPTC 데이터 마이닝: 이미지를 AI 학습 같은 데이터 마이닝에 사용해도 되는지 여부입니다. 선언일 뿐이며 강제되지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Data Mining:</source>
+        <translation>데이터 마이닝:</translation>
+    </message>
+    <message>
+        <source>Other Constraints:</source>
+        <translation>기타 제약:</translation>
+    </message>
+    <message>
+        <source>Further limits on use, in your own words</source>
+        <translation>추가 사용 제한 (직접 입력)</translation>
+    </message>
+    <message>
+        <source>Unspecified</source>
+        <translation>지정 안 함</translation>
+    </message>
+    <message>
+        <source>Allowed</source>
+        <translation>허용</translation>
+    </message>
+    <message>
+        <source>Prohibited for AI/ML training</source>
+        <translation>AI/ML 학습에 사용 금지</translation>
+    </message>
+    <message>
+        <source>Prohibited for generative AI/ML training</source>
+        <translation>생성형 AI/ML 학습에 사용 금지</translation>
+    </message>
+    <message>
+        <source>Prohibited except for search engine indexing</source>
+        <translation>검색 엔진 색인 생성 외에는 금지</translation>
+    </message>
+    <message>
+        <source>Prohibited</source>
+        <translation>금지</translation>
+    </message>
+    <message>
+        <source>Prohibited, see Other Constraints</source>
+        <translation>금지, 기타 제약 참조</translation>
+    </message>
+    <message>
+        <source>Prohibited, see the embedded rights expression</source>
+        <translation>금지, 포함된 권리 표현 참조</translation>
+    </message>
+    <message>
+        <source>Prohibited, see the linked rights expression</source>
+        <translation>금지, 연결된 권리 표현 참조</translation>
+    </message>
+    <message>
+        <source>Not set</source>
+        <translation>설정 안 함</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -30551,10 +30611,6 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>파일에 추가하기 전에 묻기</translation>
     </message>
     <message>
-        <source>Your name, copyright and contact go into PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF files that do not name you yet, beside any author already there. Metadata a file already carries is kept; File &gt; File Info &gt; Strip All Metadata removes it. Exports follow the Metadata choice in the Export dialog.</source>
-        <translation>아직 내 이름이 없는 PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL, AVIF 파일에 기존 작성자와 나란히 이름, 저작권, 연락처가 들어갑니다. 파일에 이미 있는 메타데이터는 유지되며, 파일 &gt; 파일 정보 &gt; 모든 메타데이터 제거로 지울 수 있습니다. 내보내기는 내보내기 대화 상자의 메타데이터 선택을 따릅니다.</translation>
-    </message>
-    <message>
         <source>Use “%1”</source>
         <translation>“%1” 사용</translation>
     </message>
@@ -33166,6 +33222,22 @@ Locked: %1</source>
         <source>Not saved yet</source>
         <translation>아직 저장되지 않음</translation>
     </message>
+    <message>
+        <source>Data mining:</source>
+        <translation>데이터 마이닝:</translation>
+    </message>
+    <message>
+        <source>Your name, copyright and contact go into PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL and AVIF files that do not name you yet, beside any author already there. The data mining choice (IPTC, for example prohibiting AI training) goes into files that have none; it is a declaration that nothing enforces. Metadata a file already carries is kept; File &gt; File Info &gt; Strip All Metadata removes it. Exports follow the Metadata choice in the Export dialog.</source>
+        <translation>이름, 저작권, 연락처는 아직 사용자 이름이 없는 PSD, JPEG, PNG, TIFF, WebP, GIF, JPEG XL, AVIF 파일에 기존 작성자 옆에 추가됩니다. 데이터 마이닝 설정(IPTC, 예: AI 학습 금지)은 설정이 없는 파일에 추가되며, 강제되지 않는 선언입니다. 파일에 이미 있는 메타데이터는 유지되며, 파일 &gt; 파일 정보 &gt; 모든 메타데이터 제거로 지울 수 있습니다. 내보내기는 내보내기 대화 상자의 메타데이터 선택을 따릅니다.</translation>
+    </message>
+    <message>
+        <source>Add your data mining choice to this file?</source>
+        <translation>이 파일에 데이터 마이닝 설정을 추가할까요?</translation>
+    </message>
+    <message>
+        <source>Data mining: %1</source>
+        <translation>데이터 마이닝: %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35432,6 +35504,14 @@ Locked: %1</source>
     <message>
         <source>No document is open to rotate the view of.</source>
         <translation>보기를 회전할 문서가 열려 있지 않습니다.</translation>
+    </message>
+    <message>
+        <source>setSaveMetadataPreferences: dataMining must be &quot;&quot; or a PLUS Data Mining URI.</source>
+        <translation>setSaveMetadataPreferences: dataMining은 &quot;&quot; 또는 PLUS Data Mining URI여야 합니다.</translation>
+    </message>
+    <message>
+        <source>&quot;&quot; or a PLUS Data Mining URI such as &quot;http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-AIMLTRAINING&quot;</source>
+        <translation>&quot;&quot; 또는 &quot;http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-AIMLTRAINING&quot; 같은 PLUS Data Mining URI</translation>
     </message>
 </context>
 <context>

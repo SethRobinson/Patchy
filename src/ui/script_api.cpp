@@ -2180,7 +2180,7 @@ struct ScriptListField {
   std::vector<std::string> metadata::FileInfoFields::*member;
 };
 
-const std::array<ScriptTextField, 18> kScriptTextFields{{
+const std::array<ScriptTextField, 19> kScriptTextFields{{
     {"title", &metadata::FileInfoFields::title},
     {"authorTitle", &metadata::FileInfoFields::author_title},
     {"description", &metadata::FileInfoFields::description},
@@ -2199,6 +2199,7 @@ const std::array<ScriptTextField, 18> kScriptTextFields{{
     {"instructions", &metadata::FileInfoFields::instructions},
     {"jobIdentifier", &metadata::FileInfoFields::transmission_reference},
     {"usageTerms", &metadata::FileInfoFields::usage_terms},
+    {"otherConstraints", &metadata::FileInfoFields::other_constraints},
 }};
 const std::array<ScriptTextField, 8> kScriptContactFields{{
     {"address", &metadata::FileInfoFields::contact_address},
@@ -2262,6 +2263,7 @@ QJSValue ScriptDocumentObject::file_info() const {
   result.setProperty(QStringLiteral("rating"), fields.rating);
   result.setProperty(QStringLiteral("copyrightStatus"), copyright_status_token(fields.copyright_status));
   result.setProperty(QStringLiteral("intellectualGenre"), QString::fromStdString(fields.intellectual_genre));
+  result.setProperty(QStringLiteral("dataMining"), QString::fromStdString(fields.data_mining));
   result.setProperty(QStringLiteral("created"), QString::fromStdString(fields.created));
   result.setProperty(QStringLiteral("modified"), QString::fromStdString(fields.modified));
   result.setProperty(QStringLiteral("creatorTool"), QString::fromStdString(fields.creator_tool));
@@ -2338,6 +2340,16 @@ void ScriptDocumentObject::setFileInfo(const QJSValue& values) {
     }
     if (key == QStringLiteral("intellectualGenre") && value.isString()) {
       after.intellectual_genre = value.toString().trimmed().toStdString();
+    } else if (key == QStringLiteral("dataMining")) {
+      // "" or a PLUS DMI URI (#658); the value the document already has is accepted as it is.
+      const auto uri = value.toString().trimmed().toStdString();
+      if (!value.isString() ||
+          (!uri.empty() && !metadata::data_mining_value_index(uri) && uri != before.data_mining)) {
+        fail(key, ScriptEngineHost::tr("\"\" or a PLUS Data Mining URI such as "
+                                       "\"http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-AIMLTRAINING\""));
+        return;
+      }
+      after.data_mining = uri;
     } else if (key == QStringLiteral("rating")) {
       if (!value.isNumber() || value.toNumber() != std::floor(value.toNumber()) || value.toNumber() < -1 ||
           value.toNumber() > 5) {

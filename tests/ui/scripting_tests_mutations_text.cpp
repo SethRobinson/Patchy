@@ -144,6 +144,35 @@ if (d.fileInfo.title !== "" || d.xmp !== "") throw new Error("strip");
   CHECK(!patchy::ui::MainWindowTestAccess::document(window).file_info().has_metadata());
 }
 
+// #658: doc.fileInfo.dataMining / otherConstraints: a vocabulary URI is set and saved, a bad
+// string throws, the value the document already has is accepted, "" clears it.
+void ui_script_file_info_data_mining() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  QDir().mkpath(QStringLiteral("test-artifacts/file-info"));
+  const auto path =
+      QDir(QStringLiteral("test-artifacts/file-info")).absoluteFilePath(QStringLiteral("script-data-mining.png"));
+  CHECK(run_script(window, QStringLiteral(R"JS(
+var d = app.newDocument(8, 8);
+if (d.fileInfo.dataMining !== "" || d.fileInfo.otherConstraints !== "") throw new Error("empty");
+var uri = "http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-SEECONSTRAINT";
+d.setFileInfo({dataMining: uri, otherConstraints: "Ask first."});
+if (d.fileInfo.dataMining !== uri || d.fileInfo.otherConstraints !== "Ask first.") throw new Error("set");
+if (d.xmp.indexOf("plus:DataMining") < 0) throw new Error("xmp");
+function throws(f) { try { f(); } catch (e) { return true; } return false; }
+if (!throws(function () { d.setFileInfo({dataMining: "prohibited"}); })) throw new Error("bad uri");
+if (!throws(function () { d.setFileInfo({dataMining: 3}); })) throw new Error("type");
+d.setFileInfo({dataMining: uri, title: "Same value again"});
+d.saveAs("%1");
+d.setFileInfo({dataMining: ""});
+if (d.fileInfo.dataMining !== "" || d.xmp.indexOf("plus:DataMining") >= 0) throw new Error("clear");
+)JS").arg(path)));
+  const auto saved = patchy::metadata::read_fields(
+      patchy::metadata::extract_file_info_from_path(patchy::ui::to_filesystem_path(path)));
+  CHECK(saved.data_mining == "http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-SEECONSTRAINT");
+  CHECK(saved.other_constraints == "Ask first.");
+}
+
 // doc.scanForWatermarks (docs/file-info-watermarks.md, "Watermarks"): an SD 1.x mark is found,
 // a clean image and a tiny one report none, and the scan leaves no undo step.
 void ui_script_scan_for_watermarks() {
@@ -2286,6 +2315,7 @@ void ui_text_face_name_table_parser_prefers_windows_records() {
 std::vector<patchy::test::TestCase> scripting_tests_part1() {
   return {
       {"ui_script_file_info_reads_edits_and_strips", ui_script_file_info_reads_edits_and_strips},
+      {"ui_script_file_info_data_mining", ui_script_file_info_data_mining},
       {"ui_script_scan_for_watermarks", ui_script_scan_for_watermarks},
       {"ui_script_import_files_as_layers", ui_script_import_files_as_layers},
       {"ui_script_export_pdf_writes_pages", ui_script_export_pdf_writes_pages},

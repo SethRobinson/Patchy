@@ -87,6 +87,21 @@ fields to XMP always and to EXIF (ImageDescription, Artist, Copyright) and IIM o
 those blocks exist; a rewritten IIM gets a fresh digest. Copyright status also sets the PSD
 copyright flag.
 
+## Data Mining
+
+IPTC Data Mining (#658; IPTC Photo Metadata 2023.1, PLUS LDF XMP specification "Data Mining" and
+"Other Constraints"): `FileInfoFields::data_mining` is `plus:DataMining`, a simple property holding one
+URI of the PLUS vocabulary (`kDataMiningValues`, nine `http://ns.useplus.org/ldf/vocab/DMI-*` values in
+the specification's order; empty = not set); `other_constraints` is `plus:OtherConstraints`, a Lang Alt,
+the human-readable constraint `DMI-PROHIBITED-SEECONSTRAINT` points to. Both go through the XMP field
+table, so `apply_fields` writes them and Strip All Metadata drops them with the packet.
+`data_mining_value_index` matches the vocabulary ignoring ASCII case (PLUS 2.0.1 changed the
+identifiers' case). A value outside the vocabulary, or a known one in another case, is never
+rewritten: the File Info combo (`fileInfoDataMiningCombo`, Description page under Copyright Info URL,
+with `fileInfoOtherConstraintsEdit`) keeps the stored text as the selected item's data and shows an
+unknown value as "Other: <value>". It is a declaration; nothing enforces it. The Preferences default
+(`saveMetadata/dataMining`) is in [file-info-save-stamp.md](file-info-save-stamp.md#saved-metadata-preference).
+
 ## Strip and removals
 
 - Strip All Metadata (`strip_file_info`/`strip_metadata`) clears XMP, EXIF, IPTC, digest,
@@ -122,8 +137,8 @@ copyright flag.
   existing X/YResolution from print settings, and drops the EXIF IFD1 thumbnail and
   `xmp:Thumbnails` (stale after edits; JPEG writes a fresh IFD1, "Thumbnails" in
   [file-info-save-stamp.md](file-info-save-stamp.md#thumbnails)). `CopyrightAndContact` keeps EXIF Artist/Copyright,
-  XMP `dc:creator`, `dc:rights`, `xmpRights:*`, `photoshop:AuthorsPosition` and
-  `CreatorContactInfo`, and IIM 2:80/2:85/2:116. `None` keeps only the profile.
+  XMP `dc:creator`, `dc:rights`, `xmpRights:*`, `photoshop:AuthorsPosition`,
+  `CreatorContactInfo`, `plus:DataMining` and `plus:OtherConstraints`, and IIM 2:80/2:85/2:116. `None` keeps only the profile.
 - `inject_metadata` replaces what the encoder wrote in the same containers. An empty
   `SaveMetadata` leaves the encoder's bytes untouched, so documents without metadata or a
   profile save exactly the bytes the encoder wrote.
@@ -213,4 +228,5 @@ save rules, injection round trips, the save stamp and `metadata_psd_save_writes_
 `tests/core/invisible_watermark_tests.cpp`. UI: `ui_file_info_*`, `ui_psd_save_*` and `ui_jpeg_save_writes_an_exif_thumbnail` in
 `tests/ui/file_info_tests.cpp`;
 scripting: `ui_script_file_info_*`, `ui_script_scan_for_watermarks`. Saved metadata preference:
-`ui_save_metadata_*` in `tests/ui/save_metadata_tests.cpp`.
+`ui_save_metadata_*` in `tests/ui/save_metadata_tests.cpp`. Data Mining: `metadata_data_mining_round_trips`,
+`ui_file_info_data_mining_field`, `ui_save_metadata_data_mining_default`, `ui_script_file_info_data_mining`.

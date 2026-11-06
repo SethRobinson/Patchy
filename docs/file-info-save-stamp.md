@@ -65,7 +65,8 @@ Preferences > Metadata and Watermarks, "Saved metadata" (`ui/save_metadata_setti
 `main_window_save_metadata.cpp`). Settings keys, permanent: `saveMetadata/autoAdd` (`none`,
 `basic` default, `personal`; also the scripting tokens), `saveMetadata/authorName`,
 `saveMetadata/copyrightNotice`, `saveMetadata/contactEmail`, `saveMetadata/contactWebsite`,
-`saveMetadata/askBeforeAdding` (true).
+`saveMetadata/askBeforeAdding` (true), `saveMetadata/dataMining` (a PLUS Data Mining URI, empty =
+Not set, the default; combo `preferencesSavedMetadataDataMiningCombo`, #658).
 
 - None: no save stamp (`write_prepared(..., stamp_save = false)`) and nothing personal. What the
   file already carries is kept; Strip All Metadata removes it.
@@ -77,12 +78,14 @@ Preferences > Metadata and Watermarks, "Saved metadata" (`ui/save_metadata_setti
   metadata (PSD, PSB, JPEG, PNG, TIFF, WebP, GIF, JPEG XL, AVIF, PDF author): the name goes into
   `dc:creator` beside any creator already there (never replacing one), the copyright notice into
   `dc:rights` with status Copyrighted, email and website into `Iptc4xmpCore:CreatorContactInfo`,
+  the data mining choice into `plus:DataMining` ([file-info.md](file-info.md#data-mining)),
   each only where empty, through `apply_fields` (so EXIF Artist/Copyright and IIM By-line/2:116
   follow only where those blocks exist). It is a save-time File Info change like the stamp, no
   undo step. With asking on, `savePersonalMetadataPrompt` (Add, Skip, "Always add without
-  asking", which turns asking off) shows the name, copyright and any creator already named. No
-  prompt and no change when the file already names the user (case-insensitive), the name is
-  empty, the format carries no metadata, or Skip was chosen for this document
+  asking", which turns asking off) shows the name, copyright and any creator already named (and the
+  data mining choice when the file has none). No prompt and no change when neither the name (empty,
+  or the file already names the user, case-insensitive) nor the data mining choice (none chosen, or
+  the file already has a value) is to be added, the format carries no metadata, or Skip was chosen for this document
   (`DocumentSession::personal_save_metadata_skipped`, until it closes). Scripted and unattended
   saves never ask: with asking on they add nothing, with it off they add. Exports never add
   personal info (they follow the Export dialog's Metadata combo, None included), and recovery

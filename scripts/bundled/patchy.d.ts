@@ -940,6 +940,15 @@ interface PatchyFileInfo {
   copyrightStatus: "unknown" | "copyrighted" | "publicDomain";
   copyrightNotice: string;
   copyrightUrl: string;
+  /** IPTC Data Mining (plus:DataMining): "" when not set, else a PLUS vocabulary URI such as
+   *  "http://ns.useplus.org/ldf/vocab/DMI-PROHIBITED-AIMLTRAINING" (also DMI-UNSPECIFIED,
+   *  DMI-ALLOWED, DMI-PROHIBITED-GENAIMLTRAINING, DMI-PROHIBITED-EXCEPTSEARCHENGINEINDEXING,
+   *  DMI-PROHIBITED, DMI-PROHIBITED-SEECONSTRAINT, DMI-PROHIBITED-SEEEMBEDDEDRIGHTSEXPR,
+   *  DMI-PROHIBITED-SEELINKEDRIGHTSEXPR). setFileInfo takes "", one of those URIs or the
+   *  value the document already has. A declaration only; nothing enforces it. */
+  dataMining: string;
+  /** plus:OtherConstraints: further limits on use, in words (what DMI-PROHIBITED-SEECONSTRAINT points to). */
+  otherConstraints: string;
   headline: string;
   dateCreated: string;
   sublocation: string;
@@ -1498,13 +1507,15 @@ interface PatchyApp {
    * Preferences > Metadata and Watermarks, "Saved metadata" (persisted): what saves add of
    * Patchy's own ("none"; "basic", the default: the PSD/PSB save stamp; "personal": basic plus
    * the name, copyright, email and website below, added to files that do not name the user
-   * yet). Scripted saves never ask: with askBeforeAdding true they add nothing personal.
+   * yet, and dataMining, a PLUS Data Mining URI as in PatchyFileInfo.dataMining or "" for none,
+   * added to files that have no data mining value). Scripted saves never ask: with
+   * askBeforeAdding true they add nothing personal.
    */
   readonly saveMetadataPreferences: {mode: "none" | "basic" | "personal"; name: string; copyright: string;
-    email: string; website: string; askBeforeAdding: boolean};
+    email: string; website: string; askBeforeAdding: boolean; dataMining: string};
   /** Sets any of saveMetadataPreferences' keys; an unknown key or a bad mode throws. */
   setSaveMetadataPreferences(preferences: {mode?: "none" | "basic" | "personal"; name?: string; copyright?: string;
-    email?: string; website?: string; askBeforeAdding?: boolean}): void;
+    email?: string; website?: string; askBeforeAdding?: boolean; dataMining?: string}): void;
   /** Sets any of watermarkPreferences' keys; an unknown key, a bad token or text TrustMark
    *  cannot hold throws. */
   setWatermarkPreferences(preferences: {text?: string; addOnSave?: "never" | "ask" | "always";
