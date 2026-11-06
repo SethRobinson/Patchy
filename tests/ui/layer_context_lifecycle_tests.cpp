@@ -4028,7 +4028,7 @@ void ui_background_layer_marker_and_short_menu() {
           for (QWidget* popup : {static_cast<QWidget*>(menu), static_cast<QWidget*>(submenu)}) {
             crop = crop.united(QRect(popup->mapToGlobal(QPoint(0, 0)) - origin, popup->size()));
           }
-          crop = crop.adjusted(-12, -12, 12, 12).intersected(QRect(QPoint(0, 0), window.size()));
+          crop = crop.adjusted(-12, -12, 12, 12);  // popups may reach past the window; the fill shows there
           QImage shot(crop.size(), QImage::Format_ARGB32_Premultiplied);
           shot.fill(window.palette().color(QPalette::Window));
           {
