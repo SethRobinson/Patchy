@@ -19394,6 +19394,18 @@ Le réglage propre de chaque élément dans le menu Affichage s&apos;applique to
         <source>Switch between the hand and rotate view tools</source>
         <translation>Basculer entre les outils Main et Rotation de l&apos;affichage</translation>
     </message>
+    <message>
+        <source>Open Preferences on the Hotkeys page</source>
+        <translation>Ouvrir les Préférences sur la page Raccourcis clavier</translation>
+    </message>
+    <message>
+        <source>Pick the first brush preset in the list</source>
+        <translation>Choisir le premier pinceau prédéfini de la liste</translation>
+    </message>
+    <message>
+        <source>Pick the last brush preset in the list</source>
+        <translation>Choisir le dernier pinceau prédéfini de la liste</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32881,6 +32893,18 @@ Verrouillé : %1</translation>
     <message>
         <source>Cycle Hand Tools</source>
         <translation>Alterner les outils Main</translation>
+    </message>
+    <message>
+        <source>Keyboard Shortcuts...</source>
+        <translation>Raccourcis clavier...</translation>
+    </message>
+    <message>
+        <source>First Preset</source>
+        <translation>Premier préréglage</translation>
+    </message>
+    <message>
+        <source>Last Preset</source>
+        <translation>Dernier préréglage</translation>
     </message>
 </context>
 <context>

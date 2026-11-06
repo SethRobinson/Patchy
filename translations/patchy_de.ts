@@ -19394,6 +19394,18 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Switch between the hand and rotate view tools</source>
         <translation>Zwischen Hand und Ansicht drehen wechseln</translation>
     </message>
+    <message>
+        <source>Open Preferences on the Hotkeys page</source>
+        <translation>Die Voreinstellungen auf der Seite Tastaturbefehle öffnen</translation>
+    </message>
+    <message>
+        <source>Pick the first brush preset in the list</source>
+        <translation>Die erste Pinselvorgabe der Liste wählen</translation>
+    </message>
+    <message>
+        <source>Pick the last brush preset in the list</source>
+        <translation>Die letzte Pinselvorgabe der Liste wählen</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32881,6 +32893,18 @@ Fixiert: %1</translation>
     <message>
         <source>Cycle Hand Tools</source>
         <translation>Hand-Werkzeuge durchschalten</translation>
+    </message>
+    <message>
+        <source>Keyboard Shortcuts...</source>
+        <translation>Tastaturbefehle...</translation>
+    </message>
+    <message>
+        <source>First Preset</source>
+        <translation>Erste Vorgabe</translation>
+    </message>
+    <message>
+        <source>Last Preset</source>
+        <translation>Letzte Vorgabe</translation>
     </message>
 </context>
 <context>

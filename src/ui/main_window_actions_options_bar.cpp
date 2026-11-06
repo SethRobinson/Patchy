@@ -4030,16 +4030,25 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // , and . step back and forward through the active tool's presets (GitHub issue 543): the
   // brush Preset list for the tools whose bar shows it, the gradient presets for the Gradient
   // tool. Other tools ignore them. A text field or the Text tool's editor takes the keys as text.
-  for (const auto& [object_name, text, hotkey_id, key, direction] :
-       {std::tuple{"previousPresetAction", QT_TR_NOOP("Previous Preset"), "brush.preset_previous", Qt::Key_Comma, -1},
-        std::tuple{"nextPresetAction", QT_TR_NOOP("Next Preset"), "brush.preset_next", Qt::Key_Period, 1}}) {
+  // < and > (Shift+, and Shift+.) pick the first and the last preset of the same list (issue 645).
+  for (const auto& [object_name, text, hotkey_id, key, direction, to_end] :
+       {std::tuple{"previousPresetAction", QT_TR_NOOP("Previous Preset"), "brush.preset_previous",
+                   QKeySequence(Qt::Key_Comma), -1, false},
+        std::tuple{"nextPresetAction", QT_TR_NOOP("Next Preset"), "brush.preset_next", QKeySequence(Qt::Key_Period), 1,
+                   false},
+        std::tuple{"firstPresetAction", QT_TR_NOOP("First Preset"), "brush.preset_first",
+                   QKeySequence(Qt::SHIFT | Qt::Key_Comma), -1, true},
+        std::tuple{"lastPresetAction", QT_TR_NOOP("Last Preset"), "brush.preset_last",
+                   QKeySequence(Qt::SHIFT | Qt::Key_Period), 1, true}}) {
     auto* action = new QAction(tr(text), this);
     action->setObjectName(QLatin1String(object_name));
     bind_action_text(action, text);
     action->setMenuRole(QAction::NoRole);
-    register_hotkey(action, QLatin1String(hotkey_id), QKeySequence(key), QStringLiteral("brush"));
+    register_hotkey(action, QLatin1String(hotkey_id), key, QStringLiteral("brush"));
     const int preset_direction = direction;
-    connect(action, &QAction::triggered, this, [this, preset_direction] { step_active_tool_preset(preset_direction); });
+    const bool preset_to_end = to_end;
+    connect(action, &QAction::triggered, this,
+            [this, preset_direction, preset_to_end] { step_active_tool_preset(preset_direction, preset_to_end); });
     addAction(action);
     register_document_action(action);
   }

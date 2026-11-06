@@ -649,6 +649,18 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(close_action, &QAction::triggered, this, [this] { close_active_document(); });
   connect(close_all_action, &QAction::triggered, this, [this] { close_all_document_tabs(); });
   connect(preferences_action, &QAction::triggered, this, [this] { show_preferences(); });
+  // Keyboard Shortcuts (GitHub issue 645): Preferences opened on its Hotkeys page, on
+  // Photoshop's Ctrl+Alt+Shift+K (Cmd+Option+Shift+K). A key and a Search Commands entry
+  // only, no menu row: File and Edit are long enough (issue 619).
+  auto* keyboard_shortcuts_action = new QAction(tr("Keyboard Shortcuts..."), this);
+  keyboard_shortcuts_action->setObjectName(QStringLiteral("keyboardShortcutsAction"));
+  bind_action_text(keyboard_shortcuts_action, QT_TR_NOOP("Keyboard Shortcuts..."));
+  keyboard_shortcuts_action->setMenuRole(QAction::NoRole);
+  keyboard_shortcuts_action->setProperty(kWorksWithoutDocumentProperty, true);
+  register_hotkey(keyboard_shortcuts_action, "edit.keyboard_shortcuts",
+                  QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_K));
+  connect(keyboard_shortcuts_action, &QAction::triggered, this, [this] { show_hotkey_preferences(); });
+  addAction(keyboard_shortcuts_action);
   connect(quit_action, &QAction::triggered, this, &QWidget::close);
   for (auto* action :
        {save_action, save_as_action, export_flat_action, page_setup_action, print_action, close_action, close_all_action}) {
@@ -992,7 +1004,9 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(select_all_action, "select.all", QKeySequence(Qt::CTRL | Qt::Key_A));
   register_hotkey(clear_selection_action, "select.deselect", QKeySequence(Qt::CTRL | Qt::Key_D));
   register_hotkey(reselect_action, "select.reselect", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_D));
-  register_hotkey(inverse_selection_action, "select.inverse", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I));
+  // Photoshop's Shift+F7 as a second key (GitHub issue 645).
+  register_hotkey(inverse_selection_action, "select.inverse",
+                  QList<QKeySequence>{QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I), QKeySequence(Qt::SHIFT | Qt::Key_F7)});
   register_hotkey(quick_mask_action_, "select.quick_mask",
                   QKeySequence(Qt::Key_Q));
   // Holding Q must not flicker the mode, and one press toggles it once (issue 437).
@@ -3019,7 +3033,9 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(zoom_out, "view.zoom_out", QKeySequence::keyBindings(QKeySequence::ZoomOut));
   register_hotkey(fit_on_screen, "view.fit_on_screen", QKeySequence(Qt::CTRL | Qt::Key_0));
   register_hotkey(fill_screen, "view.fill_screen");
-  register_hotkey(zoom_reset, "view.actual_pixels", QKeySequence(Qt::CTRL | Qt::Key_1));
+  // Photoshop's Ctrl+Alt+0 (Cmd+Option+0) as a second key (GitHub issue 645).
+  register_hotkey(zoom_reset, "view.actual_pixels",
+                  QList<QKeySequence>{QKeySequence(Qt::CTRL | Qt::Key_1), QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_0)});
   register_hotkey(zoom_200, "view.zoom_200");
   register_hotkey(view_extras_action_, "view.selection_edges", QKeySequence(Qt::CTRL | Qt::Key_H));
   register_hotkey(show_selection_edges_action, "view.show_selection_edges");

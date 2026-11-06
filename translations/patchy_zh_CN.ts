@@ -19347,6 +19347,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Switch between the hand and rotate view tools</source>
         <translation>在抓手和旋转视图工具之间切换</translation>
     </message>
+    <message>
+        <source>Open Preferences on the Hotkeys page</source>
+        <translation>在“快捷键”页面打开首选项</translation>
+    </message>
+    <message>
+        <source>Pick the first brush preset in the list</source>
+        <translation>选择列表中的第一个画笔预设</translation>
+    </message>
+    <message>
+        <source>Pick the last brush preset in the list</source>
+        <translation>选择列表中的最后一个画笔预设</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32794,6 +32806,18 @@ Locked: %1</source>
     <message>
         <source>Cycle Hand Tools</source>
         <translation>循环切换抓手工具</translation>
+    </message>
+    <message>
+        <source>Keyboard Shortcuts...</source>
+        <translation>键盘快捷键...</translation>
+    </message>
+    <message>
+        <source>First Preset</source>
+        <translation>第一个预设</translation>
+    </message>
+    <message>
+        <source>Last Preset</source>
+        <translation>最后一个预设</translation>
     </message>
 </context>
 <context>

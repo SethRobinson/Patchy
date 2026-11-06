@@ -1,6 +1,10 @@
 // Hotkey files (Export... / Import...) and the built-in shortcut sets on Preferences >
 // Hotkeys (GitHub issue 633; docs/hotkey-sets.md).
 #include "ui/app_settings.hpp"
+#include "ui/canvas_widget.hpp"
+#include "ui/command_search.hpp"
+#include "ui/gradient_library.hpp"
+#include "ui/gradient_preset_popup.hpp"
 #include "ui/hotkey_editor.hpp"
 #include "ui/hotkey_files.hpp"
 #include "ui/hotkey_registry.hpp"
@@ -19,12 +23,18 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
+#include <QListWidget>
+#include <QMenu>
+#include <QMenuBar>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QToolButton>
 #include <QStyle>
 #include <QStyleOptionComboBox>
 #include <QSet>
+#include <QStatusBar>
+#include <QTest>
+#include <QTimer>
 #include <QVariant>
 #include <algorithm>
 #include <cstdio>
@@ -589,6 +599,124 @@ void ui_hotkey_editor_built_in_sets_stay_unchanged() {
   CHECK(patchy::ui::load_user_hotkey_sets(commands).empty());
 }
 
+// First Preset / Last Preset (GitHub issue 645): < and > (Shift+, and Shift+.) pick the ends of
+// the list , and . step through: the brush Preset combo, the gradient presets for the Gradient
+// tool. Tools without a preset list ignore them.
+void ui_preset_first_last_shortcuts_pick_list_ends() {
+  HotkeyGroupRestorer restore;
+  SettingsValueRestorer saved_brush_preset(QStringLiteral("tools/brushPreset"));
+  SettingsValueRestorer saved_gradient_use_custom(QStringLiteral("tools/gradientUseCustomStops"));
+  SettingsValueRestorer saved_gradient_stops(QStringLiteral("tools/gradientStops"));
+  patchy::ui::MainWindow window;
+  window.add_document_session(patchy::Document(64, 48, patchy::PixelFormat::rgba8()), QStringLiteral("Presets"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* first = require_hotkey_action(window, QStringLiteral("brush.preset_first"));
+  auto* last = require_hotkey_action(window, QStringLiteral("brush.preset_last"));
+  CHECK(first->shortcut() == QKeySequence(Qt::SHIFT | Qt::Key_Comma));
+  CHECK(last->shortcut() == QKeySequence(Qt::SHIFT | Qt::Key_Period));
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto* combo = window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"));
+  CHECK(combo != nullptr);
+  QList<int> presets;
+  for (int index = 0; index < combo->count(); ++index) {
+    const auto id = combo->itemData(index).toString();
+    if (!id.isEmpty() && !id.startsWith(QStringLiteral("__"))) {
+      presets << index;
+    }
+  }
+  CHECK(presets.size() >= 3);
+  combo->setCurrentIndex(presets[1]);
+  QApplication::processEvents();
+  last->trigger();  // past the separator and the Save/Manage commands
+  CHECK(combo->currentIndex() == presets.back());
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Brush preset: ") + combo->itemText(presets.back()));
+  last->trigger();  // stays there, no wrap
+  CHECK(combo->currentIndex() == presets.back());
+  first->trigger();
+  CHECK(combo->currentIndex() == presets.front());
+  CHECK(combo->property("lastBrushPresetId") == combo->itemData(presets.front()));
+
+  // The keys on the canvas.
+  canvas->setFocus();
+  QApplication::processEvents();
+  QTest::keyClick(canvas, Qt::Key_Period, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(combo->currentIndex() == presets.back());
+  QTest::keyClick(canvas, Qt::Key_Comma, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(combo->currentIndex() == presets.front());
+
+  // The Move tool has no preset list.
+  require_action(window, "toolMoveAction")->trigger();
+  QApplication::processEvents();
+  last->trigger();
+  CHECK(combo->currentIndex() == presets.front());
+
+  // Gradient: the popup's order.
+  require_action_by_text(window, QStringLiteral("Gradient"))->trigger();
+  QApplication::processEvents();
+  auto& library = window.gradient_library();
+  library.restore_default_gradients();  // suite-order independence: repair any deleted builtins
+  const auto order = patchy::ui::gradient_preset_popup_order(library);
+  CHECK(order.size() >= 3);
+  const auto expect_entry = [&](const QString& storage_id) {
+    const auto* entry = library.find_entry(storage_id);
+    CHECK(entry != nullptr);
+    CHECK(canvas->gradient_stops().has_value());
+    CHECK(window.statusBar()->currentMessage() ==
+          QStringLiteral("Gradient preset: ") + patchy::ui::gradient_library_entry_display_name(*entry));
+  };
+  last->trigger();
+  expect_entry(order.back());
+  first->trigger();
+  expect_entry(order.front());
+}
+
+// Keyboard Shortcuts (GitHub issue 645): Ctrl+Alt+Shift+K opens Preferences on its Hotkeys
+// page. No menu row; Search Commands lists it.
+void ui_keyboard_shortcuts_command_opens_hotkeys_page() {
+  HotkeyGroupRestorer restore;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* action = require_hotkey_action(window, QStringLiteral("edit.keyboard_shortcuts"));
+  CHECK(action->shortcut() == QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_K));
+  CHECK(action->isEnabled());  // no document needed
+  for (auto* menu : window.menuBar()->findChildren<QMenu*>()) {
+    CHECK(!menu->actions().contains(action));
+  }
+  const auto entries = patchy::ui::collect_search_commands(window.menuBar(), window.hotkey_registry(), true);
+  CHECK(std::any_of(entries.begin(), entries.end(), [](const patchy::ui::MenuCommandEntry& entry) {
+    return entry.id == QStringLiteral("edit.keyboard_shortcuts") && entry.name == QStringLiteral("Keyboard Shortcuts") &&
+           !entry.description.isEmpty();
+  }));
+
+  bool saw_dialog = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    wait_for_preferences_start_page(*dialog);
+    auto* list = preferences_page_list(*dialog);
+    CHECK(list != nullptr && list->currentItem() != nullptr);
+    if (list != nullptr && list->currentItem() != nullptr) {
+      CHECK(list->currentItem()->text() == QStringLiteral("Hotkeys"));
+    }
+    auto* panel = dialog->findChild<patchy::ui::HotkeyEditorPanel*>(QStringLiteral("hotkeyEditorPanel"));
+    CHECK(panel != nullptr && panel->isVisible());
+    CHECK(dialog->findChild<QWidget*>(QStringLiteral("hotkeyRow.edit.keyboard_shortcuts")) != nullptr);
+    saw_dialog = true;
+    dialog->reject();
+  }));
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> hotkey_sets_tests() {
@@ -597,6 +725,8 @@ std::vector<patchy::test::TestCase> hotkey_sets_tests() {
       {"ui_hotkey_file_rejects_malformed_files", ui_hotkey_file_rejects_malformed_files},
       {"ui_hotkey_file_writes_and_reads_unicode_paths", ui_hotkey_file_writes_and_reads_unicode_paths},
       {"ui_hotkey_sets_have_no_conflicts", ui_hotkey_sets_have_no_conflicts},
+      {"ui_preset_first_last_shortcuts_pick_list_ends", ui_preset_first_last_shortcuts_pick_list_ends},
+      {"ui_keyboard_shortcuts_command_opens_hotkeys_page", ui_keyboard_shortcuts_command_opens_hotkeys_page},
       {"ui_hotkey_editor_shortcut_set_combo_applies_set", ui_hotkey_editor_shortcut_set_combo_applies_set},
       {"ui_hotkey_editor_exports_and_imports_files", ui_hotkey_editor_exports_and_imports_files},
       {"ui_hotkey_editor_built_in_sets_stay_unchanged", ui_hotkey_editor_built_in_sets_stay_unchanged},

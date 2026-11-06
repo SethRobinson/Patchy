@@ -19394,6 +19394,18 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
         <source>Switch between the hand and rotate view tools</source>
         <translation>Alterna tra gli strumenti mano e ruota vista</translation>
     </message>
+    <message>
+        <source>Open Preferences on the Hotkeys page</source>
+        <translation>Apri le Preferenze alla pagina Tasti di scelta rapida</translation>
+    </message>
+    <message>
+        <source>Pick the first brush preset in the list</source>
+        <translation>Scegli il primo pennello predefinito dell&apos;elenco</translation>
+    </message>
+    <message>
+        <source>Pick the last brush preset in the list</source>
+        <translation>Scegli l&apos;ultimo pennello predefinito dell&apos;elenco</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32881,6 +32893,18 @@ Bloccato: %1</translation>
     <message>
         <source>Cycle Hand Tools</source>
         <translation>Alterna strumenti mano</translation>
+    </message>
+    <message>
+        <source>Keyboard Shortcuts...</source>
+        <translation>Tasti di scelta rapida...</translation>
+    </message>
+    <message>
+        <source>First Preset</source>
+        <translation>Primo predefinito</translation>
+    </message>
+    <message>
+        <source>Last Preset</source>
+        <translation>Ultimo predefinito</translation>
     </message>
 </context>
 <context>

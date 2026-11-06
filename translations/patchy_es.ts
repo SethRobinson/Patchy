@@ -19394,6 +19394,18 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <source>Switch between the hand and rotate view tools</source>
         <translation>Alternar entre las herramientas de mano y rotar vista</translation>
     </message>
+    <message>
+        <source>Open Preferences on the Hotkeys page</source>
+        <translation>Abrir Preferencias en la página Atajos de teclado</translation>
+    </message>
+    <message>
+        <source>Pick the first brush preset in the list</source>
+        <translation>Elegir el primer ajuste preestablecido de pincel de la lista</translation>
+    </message>
+    <message>
+        <source>Pick the last brush preset in the list</source>
+        <translation>Elegir el último ajuste preestablecido de pincel de la lista</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32881,6 +32893,18 @@ Bloqueada: %1</translation>
     <message>
         <source>Cycle Hand Tools</source>
         <translation>Alternar herramientas de mano</translation>
+    </message>
+    <message>
+        <source>Keyboard Shortcuts...</source>
+        <translation>Atajos de teclado...</translation>
+    </message>
+    <message>
+        <source>First Preset</source>
+        <translation>Primer ajuste preestablecido</translation>
+    </message>
+    <message>
+        <source>Last Preset</source>
+        <translation>Último ajuste preestablecido</translation>
     </message>
 </context>
 <context>

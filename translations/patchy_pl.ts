@@ -19441,6 +19441,18 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Switch between the hand and rotate view tools</source>
         <translation>Przełączaj między rączką a obrotem widoku</translation>
     </message>
+    <message>
+        <source>Open Preferences on the Hotkeys page</source>
+        <translation>Otwórz Preferencje na stronie Skróty klawiszowe</translation>
+    </message>
+    <message>
+        <source>Pick the first brush preset in the list</source>
+        <translation>Wybierz pierwsze ustawienie wstępne pędzla z listy</translation>
+    </message>
+    <message>
+        <source>Pick the last brush preset in the list</source>
+        <translation>Wybierz ostatnie ustawienie wstępne pędzla z listy</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32968,6 +32980,18 @@ Zablokowano: %1</translation>
     <message>
         <source>Cycle Hand Tools</source>
         <translation>Przełącz narzędzia rączki</translation>
+    </message>
+    <message>
+        <source>Keyboard Shortcuts...</source>
+        <translation>Skróty klawiszowe...</translation>
+    </message>
+    <message>
+        <source>First Preset</source>
+        <translation>Pierwsze ustawienie wstępne</translation>
+    </message>
+    <message>
+        <source>Last Preset</source>
+        <translation>Ostatnie ustawienie wstępne</translation>
     </message>
 </context>
 <context>

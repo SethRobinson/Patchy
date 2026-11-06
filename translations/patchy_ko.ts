@@ -19347,6 +19347,18 @@ Each item&apos;s own View setting still applies.</source>
         <source>Switch between the hand and rotate view tools</source>
         <translation>손 도구와 보기 회전 도구 전환</translation>
     </message>
+    <message>
+        <source>Open Preferences on the Hotkeys page</source>
+        <translation>환경설정의 단축키 페이지 열기</translation>
+    </message>
+    <message>
+        <source>Pick the first brush preset in the list</source>
+        <translation>목록의 첫 번째 브러시 사전 설정 선택</translation>
+    </message>
+    <message>
+        <source>Pick the last brush preset in the list</source>
+        <translation>목록의 마지막 브러시 사전 설정 선택</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -32794,6 +32806,18 @@ Locked: %1</source>
     <message>
         <source>Cycle Hand Tools</source>
         <translation>손 도구 전환</translation>
+    </message>
+    <message>
+        <source>Keyboard Shortcuts...</source>
+        <translation>키보드 단축키...</translation>
+    </message>
+    <message>
+        <source>First Preset</source>
+        <translation>첫 번째 사전 설정</translation>
+    </message>
+    <message>
+        <source>Last Preset</source>
+        <translation>마지막 사전 설정</translation>
     </message>
 </context>
 <context>

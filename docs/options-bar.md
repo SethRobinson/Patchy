@@ -62,7 +62,7 @@ Coverage: `ui_options_bars_follow_the_separator_rules` walks every tool's bar (a
 
 ## Preset keys
 
-- Previous Preset / Next Preset (, and .; hotkey ids `brush.preset_previous`, `brush.preset_next`; GitHub issue 543) step the bar's preset list for the active tool and wrap: the brush Preset combo for the tools whose bar shows it (`option_widget_serves_tool`), skipping the separator and the `__` Save/Manage entries, and the Gradient tool's presets. A brush step sets the combo index, so it runs the same handler as a pick. Every other tool, Fill and Pattern Stamp included, has no preset list and ignores the keys. A text field or the Text tool editor keeps both keys as text (`ui_preset_step_shortcuts_cycle_brush_and_gradient_presets`).
+- Previous Preset / Next Preset (, and .; hotkey ids `brush.preset_previous`, `brush.preset_next`; GitHub issue 543) step the bar's preset list for the active tool and wrap: the brush Preset combo for the tools whose bar shows it (`option_widget_serves_tool`), skipping the separator and the `__` Save/Manage entries, and the Gradient tool's presets. A brush step sets the combo index, so it runs the same handler as a pick. Every other tool, Fill and Pattern Stamp included, has no preset list and ignores the keys. A text field or the Text tool editor keeps both keys as text (`ui_preset_step_shortcuts_cycle_brush_and_gradient_presets`). First Preset / Last Preset (< and >, that is Shift+, and Shift+.; `brush.preset_first`, `brush.preset_last`; GitHub issue 645) pick the ends of the same lists without wrapping (`ui_preset_first_last_shortcuts_pick_list_ends`).
 
 ## Keyboard focus
 
