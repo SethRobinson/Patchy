@@ -13,6 +13,7 @@
 #include "core/adjustment_layer.hpp"
 #include "core/smart_filter.hpp"
 #include "core/smart_filter_schema.hpp"
+#include "ui/document_path_label.hpp"
 #include "ui/canvas_types.hpp"
 #include "color/color_management.hpp"
 #include "core/palette.hpp"
@@ -5395,6 +5396,21 @@ void MainWindow::refresh_status_document_info() {
   status_document_info_label_->set_info(StatusDocumentInfoLabel::describe(std::as_const(document()), color));
 }
 
+void MainWindow::refresh_properties_document_path() {
+  if (document_path_label_ == nullptr) {
+    return;
+  }
+  if (!has_active_document()) {
+    document_path_label_->set_path(QString(), QString(), QString());
+    document_path_label_->hide();
+    return;
+  }
+  const auto& active_session = session();
+  document_path_label_->set_path(tr("File: %1"), session_file_path_text(active_session),
+                                 session_no_file_text(active_session));
+  document_path_label_->show();
+}
+
 void MainWindow::refresh_document_info() {
   const UiProfileScope profile_scope("refresh_document_info");
   refresh_ruler_unit_field_metrics();  // the PPI is per document
@@ -5416,6 +5432,7 @@ void MainWindow::refresh_document_info() {
     }
   }
   refresh_status_document_info();
+  refresh_properties_document_path();
   if (document_info_label_ == nullptr) {
     return;
   }

@@ -8,6 +8,7 @@
 #include "psd/psd_document_io.hpp"
 #include "support/path_utils.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/document_path_label.hpp"
 #include "ui/main_window.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/theme_manager.hpp"
@@ -24,14 +25,19 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QImage>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
+#include <QPainter>
 #include <QPushButton>
+#include <QResizeEvent>
 #include <QSettings>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTimer>
+#include <QToolTip>
+#include <algorithm>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -194,6 +200,34 @@ int open_and_find_tab(patchy::ui::MainWindow& window, const QString& path) {
 QString tab_text(patchy::ui::MainWindow& window, int index) {
   auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
   return tabs != nullptr ? tabs->tabText(index) : QString();
+}
+
+QString tab_tooltip(patchy::ui::MainWindow& window, int index) {
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  return tabs != nullptr ? tabs->tabToolTip(index) : QString();
+}
+
+void activate_tab(patchy::ui::MainWindow& window, int index) {
+  if (auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs")); tabs != nullptr) {
+    tabs->setCurrentIndex(index);
+  }
+  QApplication::processEvents();
+}
+
+// Resizes the label and delivers the resize now: the Properties panel may sit in a hidden
+// tab, where Qt holds a resize event back until the widget shows.
+void resize_label(QLabel& label, int width) {
+  const auto old_size = label.size();
+  label.resize(width, label.height());
+  QResizeEvent event(label.size(), old_size);
+  QApplication::sendEvent(&label, &event);
+}
+
+patchy::ui::DocumentPathLabel* path_label(patchy::ui::MainWindow& window) {
+  // findChild<QLabel*>, then a cast: DocumentPathLabel has no Q_OBJECT, which newer Qt's
+  // findChild requires of the class it is given.
+  return dynamic_cast<patchy::ui::DocumentPathLabel*>(
+      window.findChild<QLabel*>(QStringLiteral("documentPathLabel")));
 }
 
 QStringList stored_recent_files() {
@@ -444,6 +478,142 @@ void ui_document_tab_rename_file_handles_unicode_paths() {
   CHECK(stored_recent_files().value(0) == new_path);
 }
 
+// local-032: two open files with one name, from two folders (one with a non-ASCII name).
+// Each tab's tooltip holds its own full path (native separators) and the Properties
+// panel's File line shows the active one's; both follow Save As and Rename File; an
+// untitled document says it is not saved yet; a narrow panel elides the middle.
+void ui_document_tab_path_tooltip_tells_same_names_apart() {
+  const auto folder_a = fresh_folder(QStringLiteral("same-name-a"));
+  const auto unicode_dir = patchy::test::unicode_artifact_dir(u8"same-name-b") /
+                           patchy::test::unicode_path_piece(patchy::test::kUnicodePathStems[1]);
+  std::filesystem::create_directories(unicode_dir);
+  const auto folder_b = QFileInfo(patchy::ui::to_qstring(unicode_dir)).absoluteFilePath();
+  const auto path_a = QDir(folder_a).filePath(QStringLiteral("apple.psd"));
+  const auto path_b = QDir(folder_b).filePath(QStringLiteral("apple.psd"));
+  write_psd(path_a, QColor(200, 40, 40));
+  write_psd(path_b, QColor(40, 200, 40));
+
+  SettingsValueRestorer recent_files_restorer(QStringLiteral("recentFiles"));
+  patchy::ui::MainWindow window;
+  show_window(window);  // Tab 0: the untitled startup document.
+  CHECK(tab_tooltip(window, 0) == QStringLiteral("Not saved yet"));
+  auto* label = path_label(window);
+  CHECK(label != nullptr);
+  if (label == nullptr) {
+    return;
+  }
+  CHECK(label->path().isEmpty());
+  CHECK(label->text() == QStringLiteral("File: Not saved yet"));
+
+  const auto tab_a = open_and_find_tab(window, path_a);
+  const auto tab_b = open_and_find_tab(window, path_b);
+  CHECK(tab_a > 0 && tab_b > 0 && tab_a != tab_b);
+  CHECK(tab_text(window, tab_a) == tab_text(window, tab_b));
+  CHECK(tab_tooltip(window, tab_a) == QDir::toNativeSeparators(path_a));
+  CHECK(tab_tooltip(window, tab_b) == QDir::toNativeSeparators(path_b));
+  CHECK(!label->isHidden());
+  CHECK(label->path() == QDir::toNativeSeparators(path_b));
+  CHECK(label->toolTip() == QDir::toNativeSeparators(path_b));
+  activate_tab(window, tab_a);
+  CHECK(label->path() == QDir::toNativeSeparators(path_a));
+  // Wide enough: the whole path shows and can be selected.
+  resize_label(*label, 4000);
+  CHECK(!label->elided());
+  CHECK(label->text() == QStringLiteral("File: ") + QDir::toNativeSeparators(path_a));
+  CHECK(label->textInteractionFlags() == Qt::TextSelectableByMouse);
+  // Too narrow: the middle is elided, the tooltip keeps the whole path.
+  resize_label(*label, 120);
+  CHECK(label->elided());
+  CHECK(label->text().startsWith(QStringLiteral("File: ")));
+  CHECK(label->text().contains(QChar(0x2026)));
+  CHECK(label->textInteractionFlags() == Qt::NoTextInteraction);
+  CHECK(label->toolTip() == QDir::toNativeSeparators(path_a));
+
+  // Save As moves the tab and the File line to the new file.
+  const auto saved_as = QDir(folder_a).filePath(QStringLiteral("apple copy.psd"));
+  CHECK(MainWindowTestAccess::save_document_to_path(window, saved_as));
+  QApplication::processEvents();
+  CHECK(tab_tooltip(window, tab_a) == QDir::toNativeSeparators(saved_as));
+  CHECK(label->path() == QDir::toNativeSeparators(saved_as));
+
+  // Rename File on the other (background) tab updates its tooltip; the File line follows
+  // the active document only.
+  QString problem;
+  open_tab_menu(window, tab_b, true,
+                [&](QDialog& dialog) { problem = type_and_rename(dialog, QStringLiteral("apple renamed")); });
+  CHECK(problem.isEmpty());
+  const auto renamed = QDir(folder_b).filePath(QStringLiteral("apple renamed.psd"));
+  CHECK(tab_tooltip(window, tab_b) == QDir::toNativeSeparators(renamed));
+  CHECK(label->path() == QDir::toNativeSeparators(saved_as));
+  activate_tab(window, tab_b);
+  CHECK(label->path() == QDir::toNativeSeparators(renamed));
+  activate_tab(window, 0);
+  CHECK(label->path().isEmpty());
+  CHECK(label->text() == QStringLiteral("File: Not saved yet"));
+}
+
+// Review captures for the desk card (build\issue-shots\local-032): the Properties panel's
+// File line and a document tab's path tooltip, Dark and Light. The shown path is a sample,
+// set on the widgets right before each capture, so no build-machine path reaches an image.
+void ui_document_tab_path_tooltip_review_captures() {
+  const auto folder = fresh_folder(QStringLiteral("path-captures"));
+  const auto path = QDir(folder).filePath(QStringLiteral("apple-worm-layers.psd"));
+  write_psd(path, QColor(180, 40, 40));
+  const auto sample = QStringLiteral("D:\\Pictures\\Clients\\Orchard 2026\\apple-worm-layers.psd");
+  ColorSchemeRestorer restore_scheme;
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer::apply(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Dark ? "dark" : "light";
+    patchy::ui::MainWindow window;
+    show_window(window);
+    const auto tab = open_and_find_tab(window, path);
+    auto* label = path_label(window);
+    auto* panel = window.findChild<QWidget*>(QStringLiteral("propertiesPanel"));
+    auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+    CHECK(label != nullptr && panel != nullptr && tabs != nullptr && tab >= 0);
+    if (label == nullptr || panel == nullptr || tabs == nullptr || tab < 0) {
+      return;
+    }
+    label->set_path(QStringLiteral("File: %1"), sample, QString());
+    QApplication::processEvents();
+    save_widget_artifact("document_path_properties_" + suffix, *panel);
+
+    // The tab bar with the tab's tooltip under the hovered tab, as the user sees it.
+    tabs->setTabToolTip(tab, sample);
+    auto* bar = tabs->tabBar();
+    const auto bar_image = bar->grab().toImage();
+    const auto tab_rect = bar->tabRect(tab);
+    QToolTip::hideText();
+    QApplication::processEvents();
+    QToolTip::showText(bar->mapToGlobal(tab_rect.bottomLeft() + QPoint(12, 4)), sample, bar);
+    QApplication::processEvents();
+    QImage tip;
+    for (auto* top : QApplication::topLevelWidgets()) {
+      if (top->inherits("QTipLabel") && top->isVisible()) {
+        tip = top->grab().toImage();
+      }
+    }
+    QToolTip::hideText();
+    QApplication::processEvents();
+    CHECK(!tip.isNull());
+    if (tip.isNull()) {
+      return;
+    }
+    const auto tip_origin = QPoint(tab_rect.left() + 12, bar_image.height() + 4);
+    QImage composed(std::max(bar_image.width(), tip_origin.x() + tip.width() + 8), tip_origin.y() + tip.height() + 8,
+                    QImage::Format_ARGB32_Premultiplied);
+    composed.fill(window.palette().window().color());
+    {
+      QPainter painter(&composed);
+      painter.drawImage(QPoint(0, 0), bar_image);
+      painter.drawImage(tip_origin, tip);
+    }
+    std::filesystem::create_directories("test-artifacts");
+    CHECK(composed.save(
+        QStringLiteral("test-artifacts/document_path_tab_tooltip_%1.png").arg(QString::fromStdString(suffix))));
+  }
+}
+
 // Review captures for the issue desk: the tab menu with the item and the dialog, in
 // Dark and Light (build\issue-shots\rename-file).
 void ui_document_tab_rename_file_review_captures() {
@@ -488,5 +658,7 @@ std::vector<patchy::test::TestCase> document_rename_tests() {
       {"ui_document_tab_rename_file_disabled_without_a_file", ui_document_tab_rename_file_disabled_without_a_file},
       {"ui_document_tab_rename_file_handles_unicode_paths", ui_document_tab_rename_file_handles_unicode_paths},
       {"ui_document_tab_rename_file_review_captures", ui_document_tab_rename_file_review_captures},
+      {"ui_document_tab_path_tooltip_tells_same_names_apart", ui_document_tab_path_tooltip_tells_same_names_apart},
+      {"ui_document_tab_path_tooltip_review_captures", ui_document_tab_path_tooltip_review_captures},
   };
 }

@@ -1,7 +1,7 @@
 # Document tab context menu
 
 Read this before changing the menu a right-click on a document tab opens, Rename File, Revert,
-or what opening an already open file does.
+the full-path tab tooltips and Properties File line, or what opening an already open file does.
 Floating a document (also on this menu) is in [float-windows.md](float-windows.md).
 
 `MainWindow::show_document_tab_context_menu` (src/ui/main_window_sessions.cpp) builds the
@@ -71,6 +71,35 @@ and `MainWindow::rename_document_file` / `adopt_renamed_document_path`
   same as a rename in the file manager; they relink).
 
 No scripting function: the UI tests drive the real menu and dialog, so none was needed.
+
+## Full path
+
+Two open files with one name, from different folders, tell apart by their paths (local-032):
+
+- **Tab tooltip**: every document tab's tooltip is the document's full path with native
+  separators (`session_file_path_text`). `MainWindow::set_document_tab_label` sets the tab's
+  text and tooltip together; every place a tab is added, reinserted or retitled goes through
+  it (`add_document_session`, Dock to Tabs, `refresh_document_tab_titles`), so the tooltip
+  follows open, Save As, Rename File and Revert. A document without a path says why
+  (`session_no_file_text`): "Not saved yet", or "Smart Object in <parent>" for an embedded
+  Smart Object's contents tab. A linked Smart Object's tab shows its linked file, the file
+  its Save writes.
+- **Properties panel**: `documentPathLabel` (`DocumentPathLabel`,
+  src/ui/document_path_label.{hpp,cpp}), right under the document summary line, reads
+  "File: <path>" for the active document (`refresh_properties_document_path`, run from
+  `refresh_document_info` and `refresh_document_tab_titles`), or the same no-path text. A
+  path too long for the panel is elided in the middle; the full path stays in its tooltip and
+  in its right-click Copy File Path (the tab menu's own string). The line is selectable only
+  while it is shown whole, so a selection never copies an elided path. Hidden with no
+  document.
+- Float windows keep the title alone in their title bar; the Properties line covers them
+  while they are active.
+
+Test: `ui_document_tab_path_tooltip_tells_same_names_apart` (tests/ui/document_rename_tests.cpp;
+two `apple.psd` from two folders, one with a non-ASCII name; Save As, Rename File, elision, an
+untitled document). Captures: `ui_document_tab_path_tooltip_review_captures`
+(`document_path_properties_*`, `document_path_tab_tooltip_*`, a sample path set on the
+widgets so no machine path shows).
 
 ## Opening a file that is already open
 

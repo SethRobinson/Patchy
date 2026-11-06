@@ -1493,6 +1493,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/document_save_coordinator.hpp
       src/ui/document_file_rename.cpp
       src/ui/document_file_rename.hpp
+      src/ui/document_path_label.cpp
+      src/ui/document_path_label.hpp
       src/ui/save_progress.cpp
       src/ui/save_progress.hpp
       src/ui/session_history.hpp

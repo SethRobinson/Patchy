@@ -33238,6 +33238,22 @@ Verrouillé : %1</translation>
         <source>Last Preset</source>
         <translation>Dernier préréglage</translation>
     </message>
+    <message>
+        <source>File: %1</source>
+        <translation>Fichier : %1</translation>
+    </message>
+    <message>
+        <source>Smart Object in %1</source>
+        <translation>Objet dynamique dans %1</translation>
+    </message>
+    <message>
+        <source>Smart Object contents</source>
+        <translation>Contenu de l&apos;objet dynamique</translation>
+    </message>
+    <message>
+        <source>Not saved yet</source>
+        <translation>Pas encore enregistré</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

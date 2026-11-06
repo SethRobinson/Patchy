@@ -7,6 +7,7 @@
 
 #include "core/layer.hpp"
 #include "core/pixel_buffer.hpp"
+#include "ui/document_path_label.hpp"
 #include "ui/hdr_color_controls.hpp"
 #include "ui/channel_panel.hpp"
 #include "ui/click_modifier_recorder.hpp"
@@ -2379,6 +2380,10 @@ void MainWindow::create_docks() {
   document_info_label_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
   document_info_label_->setWordWrap(true);
   properties_layout->addWidget(document_info_label_);
+  // The active document's file, below its summary (local-032): two documents with one
+  // name are told apart by their folders.
+  document_path_label_ = new DocumentPathLabel(properties_panel);
+  properties_layout->addWidget(document_path_label_);
   active_layer_info_label_ = add_properties_label(QStringLiteral("activeLayerInfoLabel"));
   active_layer_geometry_label_ = add_properties_label(QStringLiteral("activeLayerGeometryLabel"));
   active_layer_mask_label_ = add_properties_label(QStringLiteral("activeLayerMaskLabel"));

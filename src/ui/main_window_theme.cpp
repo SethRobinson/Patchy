@@ -836,7 +836,7 @@ QString photoshop_style_template() {
       padding: 0 0 0 2px;
       font-size: 11px;
     }
-    QLabel#canvasInfoLabel, QLabel#documentInfoLabel {
+    QLabel#canvasInfoLabel, QLabel#documentInfoLabel, QLabel#documentPathLabel {
       color: @info_text;
       line-height: 130%;
     }
@@ -851,7 +851,7 @@ QString photoshop_style_template() {
     QWidget#propertiesPanel {
       background: @panel_bg;
     }
-    QLabel#documentInfoLabel, QLabel#activeLayerInfoLabel, QLabel#activeLayerGeometryLabel,
+    QLabel#documentInfoLabel, QLabel#documentPathLabel, QLabel#activeLayerInfoLabel, QLabel#activeLayerGeometryLabel,
     QLabel#activeLayerMaskLabel, QLabel#activeLayerAdjustmentLabel, QLabel#activeLayerTextLabel,
     QLabel#activeToolInfoLabel {
       background: @panel_inset_bg;
