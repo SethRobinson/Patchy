@@ -682,9 +682,13 @@ struct SliderDragTiming {
   int steps{0};
   qint64 total_ms{0};
   qint64 worst_pass_ms{0};
-  // Passes of kSlowSliderPassMs or more. The #601 stall made every frame one (a GUI mip rebuild
-  // per frame); a loaded host adds an occasional single one, which no user sees as a stuck handle.
+  // Passes of kSlowSliderPassMs or more of wall time, reported for diagnosis: a loaded host adds
+  // them without any work on the GUI thread (see worst_pass_cpu_ms).
   int slow_passes{0};
+  // The most GUI-thread CPU time one event pass used, or negative where the platform cannot
+  // tell. Work on the GUI thread (the #601 mip rebuild) shows here; a pass the host did not
+  // schedule shows only in worst_pass_ms.
+  double worst_pass_cpu_ms{-1.0};
   qint64 settle_ms{0};
   // The synchronous cost of one value change (the handler chain a motion event runs).
   double change_mean_ms{0.0};
@@ -692,6 +696,8 @@ struct SliderDragTiming {
 };
 
 constexpr qint64 kSlowSliderPassMs = 60;
+// The coarsest thread CPU accounting the suites run on: Windows counts in 15.625 ms clock ticks.
+constexpr double kThreadCpuTickMs = 15.625;
 
 QSize slider_drag_document_size() {
   QSize size(4000, 3000);
@@ -764,8 +770,13 @@ SliderDragTiming drive_slider_drag(patchy::ui::CanvasWidget& canvas, const std::
     while (frame.elapsed() < 16) {
       QElapsedTimer pass;
       pass.start();
+      const auto cpu_before = patchy::test::current_thread_cpu_ms();
       QApplication::processEvents(QEventLoop::AllEvents, 1);
       const auto pass_ms = pass.elapsed();
+      const auto cpu_after = patchy::test::current_thread_cpu_ms();
+      if (cpu_before >= 0.0 && cpu_after >= 0.0) {
+        timing.worst_pass_cpu_ms = std::max(timing.worst_pass_cpu_ms, cpu_after - cpu_before);
+      }
       timing.worst_pass_ms = std::max(timing.worst_pass_ms, pass_ms);
       if (pass_ms >= kSlowSliderPassMs) {
         ++timing.slow_passes;
@@ -978,22 +989,27 @@ void ui_layer_style_drag_on_zoomed_out_large_image_never_stalls() {
       const auto timing = drive_slider_drag(*canvas, slider_drag_values(drag.from, drag.to, drag.step),
                                             [spin](int value) { spin->setValue(value); });
       const auto after = canvas->render_cache_diagnostics();
-      std::printf("[601] zoomed out %s: %d steps in %lld ms, worst event pass %lld ms (%d slow), settle %lld ms, "
-                  "%d preview frames (%d region), %d with worker mips, %d GUI mip rebuilds\n",
+      std::printf("[601] zoomed out %s: %d steps in %lld ms, worst event pass %lld ms (%d slow, most GUI CPU in "
+                  "one pass %.1f ms), settle %lld ms, %d preview frames (%d region), %d with worker mips, %d GUI mip "
+                  "rebuilds\n",
                   drag.spin, timing.steps, static_cast<long long>(timing.total_ms),
-                  static_cast<long long>(timing.worst_pass_ms), timing.slow_passes,
+                  static_cast<long long>(timing.worst_pass_ms), timing.slow_passes, timing.worst_pass_cpu_ms,
                   static_cast<long long>(timing.settle_ms),
                   after.intermediate_refreshes - before.intermediate_refreshes,
                   after.region_preview_refreshes - before.region_preview_refreshes,
                   after.background_display_mips - before.background_display_mips,
                   after.display_mip_rebuilds - before.display_mip_rebuilds);
       std::fflush(stdout);
-      // Before: 98 to 146 ms on the i9-11900KF, one mip rebuild per frame, so nearly every one of the
-      // 46 to 82 steps had a slow pass. Now most passes take 4 to 12 ms, but the dev box shows up to
-      // three isolated 140 to 150 ms passes in some drags, so a quarter of the steps may have one.
-      // The mip checks below catch the stall's cause on any machine; the 2 s bound is a hang guard.
-      CHECK(timing.slow_passes * 4 <= timing.steps);
-      CHECK(timing.worst_pass_ms < 2000);
+      // Before: one GUI mip rebuild per frame, 98 to 146 ms of GUI work each on the i9-11900KF. Now
+      // no event pass does kSlowSliderPassMs of GUI work (plus one 15.625 ms tick of Windows CPU
+      // accounting). Bound CPU time, not wall time: a host that does not schedule the GUI thread
+      // adds wall time with no work in it (November 6, 2026: the 1.27 binary, clean the day
+      // before, showed isolated 90 to 210 ms passes on a busy dev box, all at one tick of CPU or
+      // less, and an injected 100 ms of GUI work failed this check every run). A GUI thread
+      // blocked on a worker uses no CPU either: awaited_renders below is that check.
+      if (timing.worst_pass_cpu_ms >= 0.0) {
+        CHECK(timing.worst_pass_cpu_ms < static_cast<double>(kSlowSliderPassMs) + kThreadCpuTickMs);
+      }
       CHECK(after.display_mip_rebuilds == before.display_mip_rebuilds);
       CHECK(after.background_display_mips > before.background_display_mips);
       CHECK(after.region_preview_refreshes > before.region_preview_refreshes);

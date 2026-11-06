@@ -98,7 +98,9 @@ On macOS a menu popped up with `QMenu::popup` leaves the window's shortcuts unma
   thread awaited (`render_cache_diagnostics().awaited_renders`, the reference is
   `ui_layer_style_opacity_slider_does_not_block_on_slow_preview_render` in
   `layer_style_gradient_tests_effects.cpp`), full refreshes, deferred commits, worker starts,
-  reallocations (`tool_small_layer_grows_cheaply_under_a_long_stroke`). To prove a step did
+  reallocations (`tool_small_layer_grows_cheaply_under_a_long_stroke`), or the GUI thread's CPU
+  time per event pass (`patchy::test::current_thread_cpu_ms`, which a busy host does not inflate;
+  `ui_layer_style_drag_on_zoomed_out_large_image_never_stalls`). To prove a step did
   not wait for a worker, make the worker slow on purpose (`PATCHY_PROCESSING_RENDER_TEST_DELAY_MS`,
   a parked filter) with a delay far above the step's cost, 4 s or more, and assert
   `elapsed < kDelayMs / 2` against that named delay constant. Throughput budgets belong in

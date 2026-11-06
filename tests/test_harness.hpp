@@ -176,6 +176,12 @@ inline void report_failure(std::string message) {
 // would otherwise ride into every test translation unit.
 void suppress_crash_dialogs() noexcept;
 
+// CPU time the calling thread has used, in milliseconds, or a negative value where the platform
+// cannot tell. Timing checks use it to tell work on a thread from time the thread spent waiting:
+// a host that does not schedule the GUI thread for 150 ms stalls wall time but adds no CPU time.
+// Windows counts it in 15.625 ms clock ticks, so a short span reads up to one tick high or low.
+double current_thread_cpu_ms() noexcept;
+
 // Exit code of a run a test timeout ended (the same value as coreutils `timeout`).
 inline constexpr int kTestTimeoutExitCode = 124;
 
