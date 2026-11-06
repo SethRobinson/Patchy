@@ -15025,6 +15025,10 @@ Do you want to replace it?</source>
         <translation>%1 уже существует.
 Заменить его?</translation>
     </message>
+    <message>
+        <source>Transform controls under the Move tool</source>
+        <translation>Элементы управления преобразованием при инструменте «Перемещение»</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

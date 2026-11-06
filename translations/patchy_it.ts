@@ -14978,6 +14978,10 @@ Do you want to replace it?</source>
         <translation>%1 esiste già.
 Sostituirlo?</translation>
     </message>
+    <message>
+        <source>Transform controls under the Move tool</source>
+        <translation>Controlli di trasformazione con lo strumento Sposta</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -5128,6 +5128,90 @@ void ui_view_extras_hides_covered_overlays_and_restores_them() {
   CHECK(!canvas.selection_edges_drawn());
 }
 
+// View > Extras hides the Move tool's Show Transform Controls box (local-036): with Extras
+// off the box draws nothing and its corner takes no grab or resize cursor (a drag there
+// moves the layer), Extras on brings the same box back, and a Free Transform session keeps
+// its handles with Extras off. Unticked in Show Extras Options, the box ignores Extras.
+void ui_view_extras_hides_move_transform_controls() {
+  using patchy::ui::ViewExtra;
+  using patchy::ui::kAllViewExtras;
+  using patchy::ui::view_extra_bit;
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(96, 72, patchy::PixelFormat::rgba8(), QColor(235, 235, 235)));
+  auto& paint = document.add_pixel_layer("Paint", solid_pixels(40, 30, patchy::PixelFormat::rgba8(), QColor(60, 130, 230)));
+  paint.set_bounds(patchy::Rect{28, 20, 40, 30});
+  const auto paint_id = paint.id();
+  document.set_active_layer(paint_id);
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(420, 320);
+  canvas.set_document(&document);
+  canvas.set_snap_enabled(false);
+  canvas.set_grid_visible(false);
+  canvas.set_guides_visible(false);
+  canvas.set_pixel_grid_visible(false);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_auto_select_layer(false);
+  canvas.show();
+  canvas.set_view_zoom_centered(3.0);
+  const auto grab = [&canvas] {
+    QApplication::processEvents();
+    return canvas.grab().toImage();
+  };
+  const QRect original(28, 20, 40, 30);
+  const auto corner = canvas.widget_position_for_document_point(QPoint(68, 50));
+  const auto inside = canvas.widget_position_for_document_point(QPoint(48, 35));
+  canvas.set_show_transform_controls(false);
+  const auto bare = grab();
+  canvas.set_show_transform_controls(true);
+  const auto shown = grab();
+  CHECK(shown != bare);
+  CHECK(canvas.extra_shown(ViewExtra::TransformControls));
+  send_mouse(canvas, QEvent::MouseMove, corner, Qt::NoButton, Qt::NoButton);
+  CHECK(canvas.cursor().shape() == Qt::SizeFDiagCursor);
+  save_widget_artifact("ui_view_extras_move_transform_controls_on", canvas);
+
+  canvas.set_extras_visible(false);
+  CHECK(!canvas.extra_shown(ViewExtra::TransformControls));
+  CHECK(canvas.show_transform_controls());
+  CHECK(grab() == bare);
+  save_widget_artifact("ui_view_extras_move_transform_controls_off", canvas);
+  send_mouse(canvas, QEvent::MouseMove, corner, Qt::NoButton, Qt::NoButton);
+  CHECK(canvas.cursor().shape() != Qt::SizeFDiagCursor);
+  // The hidden corner starts no scale: the drag moves the layer, and moves it back.
+  drag(canvas, corner, corner + QPoint(12, 9));
+  CHECK(!canvas.free_transform_active());
+  CHECK(canvas.active_layer_document_rect() == original.translated(4, 3));
+  drag(canvas, inside + QPoint(12, 9), inside);
+  CHECK(canvas.active_layer_document_rect() == original);
+
+  canvas.set_extras_visible(true);
+  CHECK(grab() == shown);
+  send_mouse(canvas, QEvent::MouseMove, corner, Qt::NoButton, Qt::NoButton);
+  CHECK(canvas.cursor().shape() == Qt::SizeFDiagCursor);
+
+  // A Free Transform session keeps its handles while Extras is off.
+  send_mouse(canvas, QEvent::MouseButtonPress, corner, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, corner, Qt::LeftButton, Qt::NoButton);
+  CHECK(canvas.free_transform_active());
+  const auto session_shown = grab();
+  canvas.set_extras_visible(false);
+  CHECK(canvas.free_transform_active());
+  CHECK(grab() == session_shown);
+  send_mouse(canvas, QEvent::MouseMove, corner, Qt::NoButton, Qt::NoButton);
+  CHECK(canvas.cursor().shape() == Qt::SizeFDiagCursor);
+  send_key(canvas, Qt::Key_Escape);
+  CHECK(!canvas.free_transform_active());
+  CHECK(canvas.active_layer_document_rect() == original);
+  CHECK(grab() == bare);
+
+  // Unticked in Show Extras Options, the box keeps drawing with Extras off.
+  canvas.set_extras_covered(kAllViewExtras & ~view_extra_bit(ViewExtra::TransformControls));
+  CHECK(canvas.extra_shown(ViewExtra::TransformControls));
+  CHECK(grab() == shown);
+  canvas.set_extras_covered(kAllViewExtras);
+  canvas.set_extras_visible(true);
+}
+
 // The View menu's Extras (Ctrl+H, the old view.selection_edges command), View > Show >
 // Selection Edges, and Show Extras Options with its view/extras/* settings.
 void ui_view_extras_menu_options_dialog_and_settings() {
@@ -5136,7 +5220,7 @@ void ui_view_extras_menu_options_dialog_and_settings() {
   using patchy::ui::view_extra_bit;
   std::vector<std::unique_ptr<SettingsValueRestorer>> saved;
   for (const char* key : {"selectionEdges", "targetPath", "layerOutlines", "guides", "smartGuides", "grid",
-                          "pixelGrid", "artboardNames"}) {
+                          "pixelGrid", "artboardNames", "transformControls"}) {
     const auto full_key = QStringLiteral("view/extras/") + QLatin1String(key);
     saved.push_back(std::make_unique<SettingsValueRestorer>(full_key));
     patchy::ui::app_settings().remove(full_key);
@@ -5208,7 +5292,7 @@ void ui_view_extras_menu_options_dialog_and_settings() {
       }
       dialog_seen = true;
       const auto boxes = dialog->findChildren<QCheckBox*>();
-      CHECK(boxes.size() == 8);
+      CHECK(boxes.size() == 9);
       for (const auto* box : boxes) {
         CHECK(box->isChecked());
       }
@@ -5229,6 +5313,7 @@ void ui_view_extras_menu_options_dialog_and_settings() {
     CHECK(!patchy::ui::app_settings().value(QStringLiteral("view/extras/grid"), true).toBool());
     CHECK(!patchy::ui::app_settings().value(QStringLiteral("view/extras/guides"), true).toBool());
     CHECK(patchy::ui::app_settings().value(QStringLiteral("view/extras/pixelGrid"), false).toBool());
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("view/extras/transformControls"), false).toBool());
     CHECK(canvas->extra_shown(ViewExtra::Grid));
     CHECK(canvas->extra_shown(ViewExtra::Guides));
     CHECK(!canvas->extra_shown(ViewExtra::PixelGrid));
@@ -12238,6 +12323,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_view_extras_hides_covered_overlays_and_restores_them",
        ui_view_extras_hides_covered_overlays_and_restores_them},
       {"ui_view_extras_menu_options_dialog_and_settings", ui_view_extras_menu_options_dialog_and_settings},
+      {"ui_view_extras_hides_move_transform_controls", ui_view_extras_hides_move_transform_controls},
       {"ui_zoomed_out_canvas_uses_downsampled_display_mip",
        ui_zoomed_out_canvas_uses_downsampled_display_mip},
       {"ui_shape_flyout_and_zoom_tool_work", ui_shape_flyout_and_zoom_tool_work},

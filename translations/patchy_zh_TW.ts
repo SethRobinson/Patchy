@@ -14931,6 +14931,10 @@ Do you want to replace it?</source>
         <translation>%1 已存在。
 要取代它嗎?</translation>
     </message>
+    <message>
+        <source>Transform controls under the Move tool</source>
+        <translation>移動工具下的變形控制項</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

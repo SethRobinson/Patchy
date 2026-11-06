@@ -3126,6 +3126,9 @@ private:
   void update_move_transform_controls_dirty(std::optional<QRectF> old_rect);
   [[nodiscard]] std::optional<QRectF> transform_controls_rect_for_layer(const Layer& layer) const;
   [[nodiscard]] std::optional<QRectF> move_transform_target_rect() const;
+  // The Move tool's Show Transform Controls box; move_transform_controls_rect() is the
+  // drawn, grabbable one (nothing while View > Extras hides it).
+  [[nodiscard]] std::optional<QRectF> move_transform_controls_target_rect() const;
   [[nodiscard]] std::optional<QRectF> move_transform_controls_rect() const;
   void set_move_transform_controls_layer(std::optional<LayerId> layer_id);
   void notify_transform_controls_changed();

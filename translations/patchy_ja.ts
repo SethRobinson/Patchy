@@ -14931,6 +14931,10 @@ Do you want to replace it?</source>
         <translation>%1 は既に存在します。
 置き換えますか?</translation>
     </message>
+    <message>
+        <source>Transform controls under the Move tool</source>
+        <translation>移動ツールの変形コントロール</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
