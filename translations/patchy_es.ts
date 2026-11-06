@@ -17185,10 +17185,6 @@ El ajuste propio de cada elemento en el menú Vista sigue aplicándose.</transla
         <translation>Seleccione con Selección directa dos puntos finales para unirlos, o un punto de un trazado abierto para cerrarlo</translation>
     </message>
     <message>
-        <source>Brush flow: %1% (Airbrush is on; Shift+number sets opacity)</source>
-        <translation>Flujo del pincel: %1% (Aerógrafo activado; Mayús+número define la opacidad)</translation>
-    </message>
-    <message>
         <source>Merged the points</source>
         <translation>Puntos fusionados</translation>
     </message>
