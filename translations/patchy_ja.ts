@@ -15595,6 +15595,14 @@ Do you want to replace it?</source>
         <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
         <translation>アニメーション GIF、WebP、PNG の書き出しと同じく、最上位レイヤーが上から順にフレームになります。「all」という名前のレイヤーはフレームにならず、すべてのフレームに描画されます。「all」という名前のグループ内の各レイヤーは、それぞれ 1 フレームになります。「blink 0.25s」のようにレイヤー名の末尾に時間を指定すると、そのフレームの表示時間になります。</translation>
     </message>
+    <message>
+        <source>Reverse Selected Layers</source>
+        <translation>選択レイヤーを逆順にする</translation>
+    </message>
+    <message>
+        <source>Reverses the order of the selected layers (Layer &gt; Arrange &gt; Reverse). Duplicate a run of frames and reverse the copies to make a bounce.</source>
+        <translation>選択したレイヤーの順序を逆にします (レイヤー &gt; 配置 &gt; 逆順)。一連のフレームを複製してコピーを逆順にすると、往復するアニメーションになります。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ArtboardPresetPicker</name>
@@ -19625,6 +19633,10 @@ Do you want to replace it?</source>
     <message>
         <source>Generate pictures from a text prompt with your OpenAI key</source>
         <translation>OpenAI キーを使ってテキストから画像を生成</translation>
+    </message>
+    <message>
+        <source>Flip the order of the selected layers, for backward or bounce animations</source>
+        <translation>選択したレイヤーの順序を逆にする。逆再生や往復するアニメーションに</translation>
     </message>
 </context>
 <context>
@@ -33231,6 +33243,22 @@ Locked: %1</source>
     <message>
         <source>Not saved yet</source>
         <translation>未保存</translation>
+    </message>
+    <message>
+        <source>&amp;Reverse</source>
+        <translation>逆順(&amp;R)</translation>
+    </message>
+    <message>
+        <source>Reverse the order of the selected layers within their folder</source>
+        <translation>選択したレイヤーの順序をフォルダー内で逆にします</translation>
+    </message>
+    <message>
+        <source>Select two or more layers in the same folder to reverse their order</source>
+        <translation>順序を逆にするには、同じフォルダー内のレイヤーを 2 つ以上選択してください</translation>
+    </message>
+    <message>
+        <source>Reverse layers</source>
+        <translation>レイヤーを逆順にする</translation>
     </message>
 </context>
 <context>

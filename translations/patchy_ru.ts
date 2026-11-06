@@ -15689,6 +15689,14 @@ Do you want to replace it?</source>
         <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
         <translation>Кадры это слои верхнего уровня, сверху вниз, как их записывает экспорт анимированных GIF, WebP и PNG. Слой с именем &quot;all&quot; не становится кадром, а рисуется в каждом кадре; каждый слой внутри группы с именем &quot;all&quot; становится отдельным кадром. Время в конце имени слоя, например &quot;blink 0.25s&quot;, задаёт длительность кадра.</translation>
     </message>
+    <message>
+        <source>Reverse Selected Layers</source>
+        <translation>Обратить порядок выбранных слоёв</translation>
+    </message>
+    <message>
+        <source>Reverses the order of the selected layers (Layer &gt; Arrange &gt; Reverse). Duplicate a run of frames and reverse the copies to make a bounce.</source>
+        <translation>Меняет порядок выбранных слоёв на обратный (Слой &gt; Упорядочить &gt; Обратить). Продублируйте серию кадров и обратите копии, чтобы анимация шла туда и обратно.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ArtboardPresetPicker</name>
@@ -19719,6 +19727,10 @@ Do you want to replace it?</source>
     <message>
         <source>Generate pictures from a text prompt with your OpenAI key</source>
         <translation>Создать изображения по текстовому описанию с вашим ключом OpenAI</translation>
+    </message>
+    <message>
+        <source>Flip the order of the selected layers, for backward or bounce animations</source>
+        <translation>Обратить порядок выбранных слоёв для анимации задом наперёд или туда и обратно</translation>
     </message>
 </context>
 <context>
@@ -33407,6 +33419,22 @@ Locked: %1</source>
     <message>
         <source>Not saved yet</source>
         <translation>Еще не сохранен</translation>
+    </message>
+    <message>
+        <source>&amp;Reverse</source>
+        <translation>&amp;Обратить</translation>
+    </message>
+    <message>
+        <source>Reverse the order of the selected layers within their folder</source>
+        <translation>Обратить порядок выбранных слоёв внутри их папки</translation>
+    </message>
+    <message>
+        <source>Select two or more layers in the same folder to reverse their order</source>
+        <translation>Выберите два или больше слоёв в одной папке, чтобы обратить их порядок</translation>
+    </message>
+    <message>
+        <source>Reverse layers</source>
+        <translation>Обратить порядок слоёв</translation>
     </message>
 </context>
 <context>

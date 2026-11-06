@@ -198,6 +198,8 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"layer.duplicate", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Copy the layer")},
     {"layer.delete", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Remove the layer")},
     {"layer.rename", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Change the layer name")},
+    {"layer.reverse",
+     QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Flip the order of the selected layers, for backward or bounce animations")},
     {"layer.new_folder", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Put the selected layers in a folder")},
     {"layer.via_copy", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Copy the selection to a new layer")},
     {"layer.via_cut", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Move the selection to a new layer")},

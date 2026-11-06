@@ -15595,6 +15595,14 @@ Do you want to replace it?</source>
         <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
         <translation>애니메이션 GIF, WebP, PNG 내보내기와 같이 최상위 레이어가 위에서부터 프레임이 됩니다. 이름이 &quot;all&quot;인 레이어는 프레임이 되지 않고 모든 프레임에 그려지며, 이름이 &quot;all&quot;인 그룹 안의 각 레이어는 각각 하나의 프레임이 됩니다. 레이어 이름 끝에 &quot;blink 0.25s&quot;처럼 시간을 붙이면 해당 프레임의 표시 시간이 됩니다.</translation>
     </message>
+    <message>
+        <source>Reverse Selected Layers</source>
+        <translation>선택한 레이어 역순</translation>
+    </message>
+    <message>
+        <source>Reverses the order of the selected layers (Layer &gt; Arrange &gt; Reverse). Duplicate a run of frames and reverse the copies to make a bounce.</source>
+        <translation>선택한 레이어의 순서를 반대로 합니다(레이어 &gt; 정돈 &gt; 역순). 프레임 묶음을 복제한 뒤 복사본을 역순으로 하면 왕복 애니메이션이 됩니다.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ArtboardPresetPicker</name>
@@ -19625,6 +19633,10 @@ Do you want to replace it?</source>
     <message>
         <source>Generate pictures from a text prompt with your OpenAI key</source>
         <translation>OpenAI 키로 텍스트에서 이미지 생성</translation>
+    </message>
+    <message>
+        <source>Flip the order of the selected layers, for backward or bounce animations</source>
+        <translation>선택한 레이어의 순서를 뒤집기. 거꾸로 재생하거나 왕복하는 애니메이션용</translation>
     </message>
 </context>
 <context>
@@ -33231,6 +33243,22 @@ Locked: %1</source>
     <message>
         <source>Not saved yet</source>
         <translation>아직 저장되지 않음</translation>
+    </message>
+    <message>
+        <source>&amp;Reverse</source>
+        <translation>역순(&amp;R)</translation>
+    </message>
+    <message>
+        <source>Reverse the order of the selected layers within their folder</source>
+        <translation>선택한 레이어의 순서를 폴더 안에서 반대로 합니다</translation>
+    </message>
+    <message>
+        <source>Select two or more layers in the same folder to reverse their order</source>
+        <translation>순서를 뒤집으려면 같은 폴더에 있는 레이어를 두 개 이상 선택하세요</translation>
+    </message>
+    <message>
+        <source>Reverse layers</source>
+        <translation>레이어 역순</translation>
     </message>
 </context>
 <context>

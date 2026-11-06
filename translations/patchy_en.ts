@@ -15624,6 +15624,14 @@ Do you want to replace it?</source>
         <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Reverse Selected Layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reverses the order of the selected layers (Layer &gt; Arrange &gt; Reverse). Duplicate a run of frames and reverse the copies to make a bounce.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ArtboardPresetPicker</name>
@@ -19653,6 +19661,10 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Generate pictures from a text prompt with your OpenAI key</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Flip the order of the selected layers, for backward or bounce animations</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -33236,6 +33248,22 @@ Locked: %1</source>
     </message>
     <message>
         <source>Not saved yet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Reverse</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reverse the order of the selected layers within their folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select two or more layers in the same folder to reverse their order</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reverse layers</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

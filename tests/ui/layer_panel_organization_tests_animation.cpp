@@ -489,6 +489,68 @@ std::vector<std::string> top_level_names(patchy::ui::MainWindow& window) {
   return names;
 }
 
+// Layer > Arrange > Reverse and the animation preview's Reverse Selected Layers: the selected
+// frames trade places as one undo step (a copied run reversed makes a bounce); one layer alone
+// changes nothing and says why; the button stops playback first.
+void ui_animation_preview_reverses_selected_layers() {
+  AnimationPreviewSettingsReset preview_settings;
+  patchy::ui::MainWindow window;
+  window.add_document_session(animation_test_document(), QStringLiteral("Animation"));
+  show_window(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  CHECK(top_level_names(window) == (std::vector<std::string>{"Base", "Hidden", "blink 0.25s", "Top"}));
+  // Rows are top-first: rows 0 to 2 are Top, blink, Hidden.
+  const auto select_rows = [layer_list](std::initializer_list<int> rows) {
+    layer_list->clearSelection();
+    for (const int row : rows) {
+      layer_list->item(row)->setSelected(true);
+    }
+  };
+
+  auto* reverse_action = window.findChild<QAction*>(QStringLiteral("layerReverseAction"));
+  CHECK(reverse_action != nullptr);
+  const auto depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  if (reverse_action != nullptr) {
+    select_rows({0, 1, 2});
+    reverse_action->trigger();
+    CHECK(top_level_names(window) == (std::vector<std::string>{"Base", "Top", "blink 0.25s", "Hidden"}));
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth_before + 1);
+    patchy::ui::MainWindowTestAccess::undo(window);
+    CHECK(top_level_names(window) == (std::vector<std::string>{"Base", "Hidden", "blink 0.25s", "Top"}));
+    // One layer: nothing to reverse, no undo step.
+    select_rows({0});
+    reverse_action->trigger();
+    CHECK(top_level_names(window) == (std::vector<std::string>{"Base", "Hidden", "blink 0.25s", "Top"}));
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth_before);
+  }
+
+  auto* animation_button = window.findChild<QPushButton*>(QStringLiteral("layerAnimationButton"));
+  CHECK(animation_button != nullptr);
+  animation_button->click();
+  QApplication::processEvents();
+  auto* panel = window.findChild<patchy::ui::AnimationPreviewWindow*>(QStringLiteral("animationPreviewWindow"));
+  CHECK(panel != nullptr);
+  if (panel == nullptr) {
+    return;
+  }
+  auto* reverse_button = panel->findChild<QPushButton*>(QStringLiteral("animationReverseLayersButton"));
+  auto* play_button = panel->findChild<QPushButton*>(QStringLiteral("animationPlayButton"));
+  CHECK(reverse_button != nullptr && play_button != nullptr);
+  if (reverse_button != nullptr && play_button != nullptr) {
+    // Mid-play: playback stops (visibility restored) before the reorder and its undo snapshot.
+    play_button->click();
+    CHECK(panel->playing());
+    select_rows({0, 1});
+    reverse_button->click();
+    CHECK(!panel->playing());
+    CHECK(top_level_names(window) == (std::vector<std::string>{"Base", "Hidden", "Top", "blink 0.25s"}));
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth_before + 1);
+    patchy::ui::MainWindowTestAccess::undo(window);
+    CHECK(top_level_names(window) == (std::vector<std::string>{"Base", "Hidden", "blink 0.25s", "Top"}));
+  }
+}
+
 void ui_animation_preview_sets_and_removes_frame_time_names() {
   AnimationPreviewSettingsReset preview_settings;
   patchy::ui::MainWindow window;
@@ -982,6 +1044,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests_animation_par
        ui_animation_preview_plays_visible_layers_and_restores},
       {"ui_animation_preview_sets_and_removes_frame_time_names",
        ui_animation_preview_sets_and_removes_frame_time_names},
+      {"ui_animation_preview_reverses_selected_layers", ui_animation_preview_reverses_selected_layers},
       {"ui_animation_preview_ignores_name_delays_and_plays_hidden_layers",
        ui_animation_preview_ignores_name_delays_and_plays_hidden_layers},
       {"ui_animation_preview_sets_and_removes_frame_time_on_all_layers",

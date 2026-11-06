@@ -15642,6 +15642,14 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
         <translation>Bilder sind die Ebenen auf oberster Ebene, die oberste zuerst, so wie der Export als animiertes GIF, WebP und PNG sie schreibt. Eine Ebene namens &quot;all&quot; wird in jedes Bild gezeichnet, statt selbst eines zu sein, und jede Ebene in einer Gruppe namens &quot;all&quot; ist ein eigenes Bild. Eine Zeitangabe am Namensende, etwa &quot;blink 0.25s&quot;, legt die Bilddauer fest.</translation>
     </message>
+    <message>
+        <source>Reverse Selected Layers</source>
+        <translation>Ausgewählte Ebenen umkehren</translation>
+    </message>
+    <message>
+        <source>Reverses the order of the selected layers (Layer &gt; Arrange &gt; Reverse). Duplicate a run of frames and reverse the copies to make a bounce.</source>
+        <translation>Kehrt die Reihenfolge der ausgewählten Ebenen um (Ebene &gt; Anordnen &gt; Umkehren). Duplizieren Sie eine Folge von Frames und kehren Sie die Kopien um, um ein Hin und Her zu erzeugen.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ArtboardPresetPicker</name>
@@ -19672,6 +19680,10 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>Generate pictures from a text prompt with your OpenAI key</source>
         <translation>Bilder aus einer Textbeschreibung mit Ihrem OpenAI-Schlüssel erzeugen</translation>
+    </message>
+    <message>
+        <source>Flip the order of the selected layers, for backward or bounce animations</source>
+        <translation>Reihenfolge der ausgewählten Ebenen umkehren, für rückwärts laufende oder hin und her pendelnde Animationen</translation>
     </message>
 </context>
 <context>
@@ -33319,6 +33331,22 @@ Fixiert: %1</translation>
     <message>
         <source>Not saved yet</source>
         <translation>Noch nicht gespeichert</translation>
+    </message>
+    <message>
+        <source>&amp;Reverse</source>
+        <translation>&amp;Umkehren</translation>
+    </message>
+    <message>
+        <source>Reverse the order of the selected layers within their folder</source>
+        <translation>Die Reihenfolge der ausgewählten Ebenen innerhalb ihres Ordners umkehren</translation>
+    </message>
+    <message>
+        <source>Select two or more layers in the same folder to reverse their order</source>
+        <translation>Wählen Sie zwei oder mehr Ebenen im selben Ordner aus, um ihre Reihenfolge umzukehren</translation>
+    </message>
+    <message>
+        <source>Reverse layers</source>
+        <translation>Ebenen umkehren</translation>
     </message>
 </context>
 <context>

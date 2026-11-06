@@ -15642,6 +15642,14 @@ Do you want to replace it?</source>
         <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
         <translation>Los fotogramas son las capas de nivel superior, primero la de arriba, tal como las escribe la exportación de GIF, WebP y PNG animados. Una capa llamada &quot;all&quot; se dibuja en todos los fotogramas en lugar de ser uno, y cada capa dentro de un grupo llamado &quot;all&quot; es su propio fotograma. Un tiempo al final del nombre de capa, como &quot;blink 0.25s&quot;, establece la duración del fotograma.</translation>
     </message>
+    <message>
+        <source>Reverse Selected Layers</source>
+        <translation>Invertir capas seleccionadas</translation>
+    </message>
+    <message>
+        <source>Reverses the order of the selected layers (Layer &gt; Arrange &gt; Reverse). Duplicate a run of frames and reverse the copies to make a bounce.</source>
+        <translation>Invierte el orden de las capas seleccionadas (Capa &gt; Organizar &gt; Invertir). Duplique una serie de fotogramas e invierta las copias para hacer un rebote.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ArtboardPresetPicker</name>
@@ -19672,6 +19680,10 @@ Do you want to replace it?</source>
     <message>
         <source>Generate pictures from a text prompt with your OpenAI key</source>
         <translation>Generar imágenes a partir de un texto con su clave de OpenAI</translation>
+    </message>
+    <message>
+        <source>Flip the order of the selected layers, for backward or bounce animations</source>
+        <translation>Invertir el orden de las capas seleccionadas, para animaciones hacia atrás o de rebote</translation>
     </message>
 </context>
 <context>
@@ -33319,6 +33331,22 @@ Bloqueada: %1</translation>
     <message>
         <source>Not saved yet</source>
         <translation>Aún no guardado</translation>
+    </message>
+    <message>
+        <source>&amp;Reverse</source>
+        <translation>&amp;Invertir</translation>
+    </message>
+    <message>
+        <source>Reverse the order of the selected layers within their folder</source>
+        <translation>Invertir el orden de las capas seleccionadas dentro de su carpeta</translation>
+    </message>
+    <message>
+        <source>Select two or more layers in the same folder to reverse their order</source>
+        <translation>Seleccione dos o más capas de la misma carpeta para invertir su orden</translation>
+    </message>
+    <message>
+        <source>Reverse layers</source>
+        <translation>Invertir capas</translation>
     </message>
 </context>
 <context>

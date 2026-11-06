@@ -3997,6 +3997,33 @@ void MainWindow::arrange_selected_layers_to_end(bool front) {
   canvas_->document_changed();
 }
 
+void MainWindow::reverse_selected_layers() {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    refresh_layer_list();
+    return;
+  }
+  const auto ids = selected_or_active_layer_ids();
+  std::optional<LayerId> background_id;
+  if (const auto* background = document_background_layer(); background != nullptr) {
+    background_id = background->id();  // the Background stays at the bottom
+  }
+  auto& doc = document();
+  auto trial_layers = std::as_const(doc).layers();
+  if (!reverse_layers(trial_layers, std::set<LayerId>(ids.begin(), ids.end()), background_id)) {
+    show_status_error(tr("Select two or more layers in the same folder to reverse their order"));
+    return;
+  }
+  if (refuse_background_stack_change(trial_layers)) {
+    return;
+  }
+  push_undo_snapshot(tr("Reverse layers"));
+  doc.layers() = std::move(trial_layers);
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed();
+}
+
 void MainWindow::move_selected_layers_out_of_folder(bool above) {
   if (preview_dialog_edit_locked()) {
     show_preview_dialog_edit_lock_message();

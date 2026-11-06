@@ -178,11 +178,13 @@ constexpr const char* kApplyToAllLayersKey = "animationPreview/applyToAllLayers"
 
 AnimationPreviewWindow::AnimationPreviewWindow(
     std::function<Document*()> document_provider, std::function<void(bool)> visuals_changed,
-    std::function<void(std::optional<std::uint32_t>, bool)> apply_frame_time, QWidget* parent)
+    std::function<void(std::optional<std::uint32_t>, bool)> apply_frame_time,
+    std::function<void()> reverse_selected_layers, QWidget* parent)
     : QDialog(parent),
       provider_(std::move(document_provider)),
       visuals_changed_(std::move(visuals_changed)),
-      apply_frame_time_(std::move(apply_frame_time)) {
+      apply_frame_time_(std::move(apply_frame_time)),
+      reverse_selected_layers_(std::move(reverse_selected_layers)) {
   setObjectName(QStringLiteral("animationPreviewWindow"));
   setWindowFlag(Qt::Tool, true);
   auto* root = new QVBoxLayout(this);
@@ -278,6 +280,14 @@ AnimationPreviewWindow::AnimationPreviewWindow(
   auto* play_row = new QHBoxLayout();
   play_row->setContentsMargins(0, kButtonRowExtraGap, 0, 0);
   play_row->setSpacing(8);
+  // Layer > Arrange > Reverse, at hand for frames: duplicate a run, reverse the copies, and the
+  // animation plays forward then back (a bounce).
+  auto* reverse_button = new QPushButton(tr("Reverse Selected Layers"), playback_group);
+  reverse_button->setObjectName(QStringLiteral("animationReverseLayersButton"));
+  reverse_button->setToolTip(
+      tr("Reverses the order of the selected layers (Layer > Arrange > Reverse). Duplicate a run of frames and "
+         "reverse the copies to make a bounce."));
+  play_row->addWidget(reverse_button);
   status_label_ = new QLabel(playback_group);
   status_label_->setObjectName(QStringLiteral("animationFrameStatusLabel"));
   status_label_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
@@ -365,6 +375,12 @@ AnimationPreviewWindow::AnimationPreviewWindow(
     stop_playback(true);
     if (apply_frame_time_ != nullptr) {
       apply_frame_time_(std::nullopt, all_layers_check_->isChecked());
+    }
+  });
+  connect(reverse_button, &QPushButton::clicked, this, [this] {
+    stop_playback(true);  // the caller's undo snapshot must not capture a preview frame
+    if (reverse_selected_layers_ != nullptr) {
+      reverse_selected_layers_();
     }
   });
   // The field edits the shared default delay (the animated GIF export dialog reads the

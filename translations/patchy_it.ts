@@ -15642,6 +15642,14 @@ Sostituirlo?</translation>
         <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
         <translation>I fotogrammi sono i livelli di primo livello, dall&apos;alto verso il basso, come li scrive l&apos;esportazione GIF, WebP e PNG animati. Un livello chiamato &quot;all&quot; viene disegnato in ogni fotogramma invece di esserne uno, e ogni livello dentro un gruppo chiamato &quot;all&quot; è un fotogramma a sé. Un tempo alla fine del nome, come &quot;blink 0.25s&quot;, imposta la durata del fotogramma.</translation>
     </message>
+    <message>
+        <source>Reverse Selected Layers</source>
+        <translation>Inverti livelli selezionati</translation>
+    </message>
+    <message>
+        <source>Reverses the order of the selected layers (Layer &gt; Arrange &gt; Reverse). Duplicate a run of frames and reverse the copies to make a bounce.</source>
+        <translation>Inverte l&apos;ordine dei livelli selezionati (Livello &gt; Ordina &gt; Inverti). Duplicare una serie di fotogrammi e invertire le copie per creare un rimbalzo.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ArtboardPresetPicker</name>
@@ -19672,6 +19680,10 @@ Sostituirlo?</translation>
     <message>
         <source>Generate pictures from a text prompt with your OpenAI key</source>
         <translation>Creare immagini da un testo con la propria chiave OpenAI</translation>
+    </message>
+    <message>
+        <source>Flip the order of the selected layers, for backward or bounce animations</source>
+        <translation>Invertire l&apos;ordine dei livelli selezionati, per animazioni all&apos;indietro o a rimbalzo</translation>
     </message>
 </context>
 <context>
@@ -33319,6 +33331,22 @@ Bloccato: %1</translation>
     <message>
         <source>Not saved yet</source>
         <translation>Non ancora salvato</translation>
+    </message>
+    <message>
+        <source>&amp;Reverse</source>
+        <translation>&amp;Inverti</translation>
+    </message>
+    <message>
+        <source>Reverse the order of the selected layers within their folder</source>
+        <translation>Invertire l&apos;ordine dei livelli selezionati all&apos;interno della loro cartella</translation>
+    </message>
+    <message>
+        <source>Select two or more layers in the same folder to reverse their order</source>
+        <translation>Selezionare due o più livelli nella stessa cartella per invertirne l&apos;ordine</translation>
+    </message>
+    <message>
+        <source>Reverse layers</source>
+        <translation>Inverti livelli</translation>
     </message>
 </context>
 <context>

@@ -2405,6 +2405,8 @@ private:
   // Layer > Arrange > Bring to Front / Send to Back (GitHub issue 468): the selected layers to
   // the top or bottom of their own folder, above a Background; one undo step.
   void arrange_selected_layers_to_end(bool front);
+  // Layer > Arrange > Reverse (core reverse_layers), also the animation preview's button.
+  void reverse_selected_layers();
   // The footer's Alt-click Move Up / Move Down (GitHub issue 470): the selected layers leave
   // their folder, just above or below it; one undo step.
   void move_selected_layers_out_of_folder(bool above);

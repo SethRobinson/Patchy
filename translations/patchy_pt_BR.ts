@@ -15642,6 +15642,14 @@ Deseja substituí-lo?</translation>
         <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
         <translation>Os quadros são as camadas de nível superior, a de cima primeiro, como a exportação de GIF, WebP e PNG animados as grava. Uma camada chamada &quot;all&quot; é desenhada em todos os quadros em vez de ser um, e cada camada dentro de um grupo chamado &quot;all&quot; é um quadro próprio. Um tempo no final do nome da camada, como &quot;blink 0.25s&quot;, define a duração do quadro.</translation>
     </message>
+    <message>
+        <source>Reverse Selected Layers</source>
+        <translation>Inverter camadas selecionadas</translation>
+    </message>
+    <message>
+        <source>Reverses the order of the selected layers (Layer &gt; Arrange &gt; Reverse). Duplicate a run of frames and reverse the copies to make a bounce.</source>
+        <translation>Inverte a ordem das camadas selecionadas (Camada &gt; Organizar &gt; Inverter). Duplique uma sequência de quadros e inverta as cópias para fazer um vaivém.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ArtboardPresetPicker</name>
@@ -19672,6 +19680,10 @@ Deseja substituí-lo?</translation>
     <message>
         <source>Generate pictures from a text prompt with your OpenAI key</source>
         <translation>Gerar imagens a partir de um texto com sua chave da OpenAI</translation>
+    </message>
+    <message>
+        <source>Flip the order of the selected layers, for backward or bounce animations</source>
+        <translation>Inverter a ordem das camadas selecionadas, para animações de trás para frente ou de vaivém</translation>
     </message>
 </context>
 <context>
@@ -33319,6 +33331,22 @@ Bloqueado: %1</translation>
     <message>
         <source>Not saved yet</source>
         <translation>Ainda não salvo</translation>
+    </message>
+    <message>
+        <source>&amp;Reverse</source>
+        <translation>&amp;Inverter</translation>
+    </message>
+    <message>
+        <source>Reverse the order of the selected layers within their folder</source>
+        <translation>Inverter a ordem das camadas selecionadas dentro da pasta</translation>
+    </message>
+    <message>
+        <source>Select two or more layers in the same folder to reverse their order</source>
+        <translation>Selecione duas ou mais camadas na mesma pasta para inverter a ordem</translation>
+    </message>
+    <message>
+        <source>Reverse layers</source>
+        <translation>Inverter camadas</translation>
     </message>
 </context>
 <context>

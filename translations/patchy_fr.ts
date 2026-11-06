@@ -15642,6 +15642,14 @@ Voulez-vous le remplacer ?</translation>
         <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
         <translation>Les images sont les calques de premier niveau, celui du haut en premier, comme les écrit l&apos;export GIF, WebP et PNG animés. Un calque nommé &quot;all&quot; est dessiné dans chaque image au lieu d&apos;en être une, et chaque calque d&apos;un groupe nommé &quot;all&quot; est une image à part entière. Une durée à la fin du nom du calque, comme « blink 0.25s », définit la durée de cette image.</translation>
     </message>
+    <message>
+        <source>Reverse Selected Layers</source>
+        <translation>Inverser les calques sélectionnés</translation>
+    </message>
+    <message>
+        <source>Reverses the order of the selected layers (Layer &gt; Arrange &gt; Reverse). Duplicate a run of frames and reverse the copies to make a bounce.</source>
+        <translation>Inverse l&apos;ordre des calques sélectionnés (Calque &gt; Disposition &gt; Inverser). Dupliquez une suite d&apos;images et inversez les copies pour faire un aller-retour.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ArtboardPresetPicker</name>
@@ -19672,6 +19680,10 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>Generate pictures from a text prompt with your OpenAI key</source>
         <translation>Créer des images à partir d&apos;un texte avec votre clé OpenAI</translation>
+    </message>
+    <message>
+        <source>Flip the order of the selected layers, for backward or bounce animations</source>
+        <translation>Inverser l&apos;ordre des calques sélectionnés, pour des animations à l&apos;envers ou en aller-retour</translation>
     </message>
 </context>
 <context>
@@ -33319,6 +33331,22 @@ Verrouillé : %1</translation>
     <message>
         <source>Not saved yet</source>
         <translation>Pas encore enregistré</translation>
+    </message>
+    <message>
+        <source>&amp;Reverse</source>
+        <translation>&amp;Inverser</translation>
+    </message>
+    <message>
+        <source>Reverse the order of the selected layers within their folder</source>
+        <translation>Inverser l&apos;ordre des calques sélectionnés dans leur dossier</translation>
+    </message>
+    <message>
+        <source>Select two or more layers in the same folder to reverse their order</source>
+        <translation>Sélectionnez au moins deux calques du même dossier pour inverser leur ordre</translation>
+    </message>
+    <message>
+        <source>Reverse layers</source>
+        <translation>Inverser les calques</translation>
     </message>
 </context>
 <context>

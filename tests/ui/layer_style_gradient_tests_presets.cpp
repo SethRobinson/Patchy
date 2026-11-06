@@ -1628,7 +1628,7 @@ void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
     hdr_controls.close();
     QApplication::processEvents();
     // The animation preview is a non-modal tool window; built here without a document.
-    patchy::ui::AnimationPreviewWindow animation_preview([]() -> patchy::Document* { return nullptr; }, {}, {},
+    patchy::ui::AnimationPreviewWindow animation_preview([]() -> patchy::Document* { return nullptr; }, {}, {}, {},
                                                          nullptr);
     animation_preview.show();
     QApplication::processEvents();

@@ -15689,6 +15689,14 @@ Czy chcesz go zastąpić?</translation>
         <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
         <translation>Klatki to warstwy najwyższego poziomu, od góry, tak jak zapisuje je eksport animowanego GIF, WebP i PNG. Warstwa o nazwie &quot;all&quot; jest rysowana w każdej klatce, zamiast być osobną klatką, a każda warstwa w grupie o nazwie &quot;all&quot; jest osobną klatką. Czas na końcu nazwy warstwy, np. &quot;blink 0.25s&quot;, określa czas wyświetlania klatki.</translation>
     </message>
+    <message>
+        <source>Reverse Selected Layers</source>
+        <translation>Odwróć zaznaczone warstwy</translation>
+    </message>
+    <message>
+        <source>Reverses the order of the selected layers (Layer &gt; Arrange &gt; Reverse). Duplicate a run of frames and reverse the copies to make a bounce.</source>
+        <translation>Odwraca kolejność zaznaczonych warstw (Warstwa &gt; Ułóż &gt; Odwróć). Zduplikuj serię klatek i odwróć kopie, aby uzyskać animację tam i z powrotem.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ArtboardPresetPicker</name>
@@ -19719,6 +19727,10 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>Generate pictures from a text prompt with your OpenAI key</source>
         <translation>Twórz obrazy z opisu tekstowego za pomocą klucza OpenAI</translation>
+    </message>
+    <message>
+        <source>Flip the order of the selected layers, for backward or bounce animations</source>
+        <translation>Odwróć kolejność zaznaczonych warstw, do animacji wstecz lub tam i z powrotem</translation>
     </message>
 </context>
 <context>
@@ -33407,6 +33419,22 @@ Zablokowano: %1</translation>
     <message>
         <source>Not saved yet</source>
         <translation>Jeszcze nie zapisano</translation>
+    </message>
+    <message>
+        <source>&amp;Reverse</source>
+        <translation>&amp;Odwróć</translation>
+    </message>
+    <message>
+        <source>Reverse the order of the selected layers within their folder</source>
+        <translation>Odwróć kolejność zaznaczonych warstw w ich folderze</translation>
+    </message>
+    <message>
+        <source>Select two or more layers in the same folder to reverse their order</source>
+        <translation>Zaznacz co najmniej dwie warstwy w tym samym folderze, aby odwrócić ich kolejność</translation>
+    </message>
+    <message>
+        <source>Reverse layers</source>
+        <translation>Odwróć warstwy</translation>
     </message>
 </context>
 <context>

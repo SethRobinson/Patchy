@@ -1455,6 +1455,19 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(layer_send_to_back_action_, &QAction::triggered, this, [this] { arrange_selected_layers_to_end(false); });
   register_document_action(layer_bring_to_front_action_);
   register_document_action(layer_send_to_back_action_);
+  // Reverse: the selected layers trade places, e.g. a copied run of animation frames turned
+  // backward for a bounce. No default key (Photoshop has none either).
+  layer_arrange_menu->addSeparator();
+  auto* layer_reverse_action = layer_arrange_menu->addAction(tr("&Reverse"));
+  layer_reverse_action->setObjectName(QStringLiteral("layerReverseAction"));
+  layer_reverse_action->setMenuRole(QAction::NoRole);
+  bind_action_text(layer_reverse_action, QT_TR_NOOP("&Reverse"));
+  bind_translated_status_tip(layer_reverse_action,
+                             QT_TR_NOOP("Reverse the order of the selected layers within their folder"));
+  apply_bound_translation(layer_reverse_action);
+  register_hotkey(layer_reverse_action, "layer.reverse");
+  connect(layer_reverse_action, &QAction::triggered, this, [this] { reverse_selected_layers(); });
+  register_document_action(layer_reverse_action);
   // Quarter and half turns of the selected layers (GitHub issue 139) and the flips, in
   // their own submenu like Image > Rotate & Flip.
   auto* layer_rotate_flip_menu = new QMenu(tr("Ro&tate && Flip"), layer_menu);

@@ -15595,6 +15595,14 @@ Do you want to replace it?</source>
         <source>Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export writes them. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
         <translation>帧就是顶层图层，从上到下，与动画 GIF、WebP 和 PNG 导出写入的顺序相同。名为 &quot;all&quot; 的图层不作为一帧，而是绘制在每一帧中；名为 &quot;all&quot; 的组中的每个图层各成一帧。图层名称末尾的时间（如 &quot;blink 0.25s&quot;）指定该帧的显示时长。</translation>
     </message>
+    <message>
+        <source>Reverse Selected Layers</source>
+        <translation>反转所选图层</translation>
+    </message>
+    <message>
+        <source>Reverses the order of the selected layers (Layer &gt; Arrange &gt; Reverse). Duplicate a run of frames and reverse the copies to make a bounce.</source>
+        <translation>反转所选图层的顺序（图层 &gt; 排列 &gt; 反转）。复制一段帧并反转副本，即可做出来回往复的动画。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ArtboardPresetPicker</name>
@@ -19625,6 +19633,10 @@ Do you want to replace it?</source>
     <message>
         <source>Generate pictures from a text prompt with your OpenAI key</source>
         <translation>使用您的 OpenAI 密钥根据文字生成图像</translation>
+    </message>
+    <message>
+        <source>Flip the order of the selected layers, for backward or bounce animations</source>
+        <translation>反转所选图层的顺序，用于倒放或来回往复的动画</translation>
     </message>
 </context>
 <context>
@@ -33231,6 +33243,22 @@ Locked: %1</source>
     <message>
         <source>Not saved yet</source>
         <translation>尚未保存</translation>
+    </message>
+    <message>
+        <source>&amp;Reverse</source>
+        <translation>反转(&amp;R)</translation>
+    </message>
+    <message>
+        <source>Reverse the order of the selected layers within their folder</source>
+        <translation>在所在文件夹内反转所选图层的顺序</translation>
+    </message>
+    <message>
+        <source>Select two or more layers in the same folder to reverse their order</source>
+        <translation>请选择同一文件夹中的两个或更多图层来反转顺序</translation>
+    </message>
+    <message>
+        <source>Reverse layers</source>
+        <translation>反转图层</translation>
     </message>
 </context>
 <context>

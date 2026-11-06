@@ -43,10 +43,12 @@ public:
   // or strips (nullopt) the trailing frame-time name token on the layers-panel selection;
   // the window stops playback first so the caller's undo snapshot never captures a preview
   // frame's visibility. all_layers widens it from the selection to every top-level layer.
+  // reverse_selected_layers is Layer > Arrange > Reverse (the window stops playback first, as
+  // for the name edits): reversing a copied run of frames makes a bounce.
   AnimationPreviewWindow(
       std::function<Document*()> document_provider, std::function<void(bool final_refresh)> visuals_changed,
       std::function<void(std::optional<std::uint32_t> delay_ms, bool all_layers)> apply_frame_time,
-      QWidget* parent);
+      std::function<void()> reverse_selected_layers, QWidget* parent);
 
   [[nodiscard]] bool playing() const noexcept { return playback_document_ != nullptr; }
   void toggle_playback();
@@ -86,6 +88,7 @@ private:
   std::function<Document*()> provider_;
   std::function<void(bool final_refresh)> visuals_changed_;
   std::function<void(std::optional<std::uint32_t> delay_ms, bool all_layers)> apply_frame_time_;
+  std::function<void()> reverse_selected_layers_;
   QTimer timer_;
   QPushButton* play_button_{nullptr};
   QDoubleSpinBox* delay_spin_{nullptr};

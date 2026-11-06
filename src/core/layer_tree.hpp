@@ -118,6 +118,14 @@ bool move_layers_for_drop(std::vector<Layer>& layers, const LayerDropRequest& re
 // root. Returns whether the tree changed.
 bool arrange_layers_to_end(std::vector<Layer>& layers, const std::set<LayerId>& ids, bool front,
                            std::optional<LayerId> pinned_bottom_id = std::nullopt);
+// Layer > Arrange > Reverse: in each sibling list the listed layers trade places so their
+// order reverses, each landing in a slot one of them held (unlisted layers stay put); layers
+// reverse only among their own siblings, never across folders (Photoshop's rule), and a
+// listed layer inside a listed folder moves with the folder. `pinned_bottom_id` (the
+// Background) never moves. Duplicating a run of frames and reversing the copies makes a
+// bounce animation. Returns whether the tree changed.
+bool reverse_layers(std::vector<Layer>& layers, const std::set<LayerId>& ids,
+                    std::optional<LayerId> pinned_bottom_id = std::nullopt);
 // The Layers footer's Alt-click Move Up / Move Down (GitHub issue 470): each listed layer that
 // sits in a folder leaves it for the folder's parent, just above (`above`) or just below the
 // folder. Layers at the root stay; listed siblings keep their order; a listed layer inside a
