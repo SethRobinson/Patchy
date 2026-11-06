@@ -102,7 +102,7 @@ if ($Target -eq 'windows-arm64') {
     $stale = @()
     foreach ($relative in $scripts) {
       $want = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $root $relative)).Hash
-      $have = (ssh -o ConnectTimeout=30 $remoteHost ("(Get-FileHash -Algorithm SHA256 -LiteralPath '" + $workTree + '/' + $relative + "').Hash") 2>$null | Select-Object -Last 1)
+      $have = (ssh -n -o ConnectTimeout=30 $remoteHost ("(Get-FileHash -Algorithm SHA256 -LiteralPath '" + $workTree + '/' + $relative + "').Hash") 2>$null | Select-Object -Last 1)
       if ("$have".Trim() -ne $want) { $stale += $relative }
     }
     if ($stale.Count -gt 0) {
@@ -110,7 +110,7 @@ if ($Target -eq 'windows-arm64') {
       exit 1
     }
     Write-Output "== windows-arm64 package checks (verify-windows-package.ps1 -Arch arm64 on $remoteHost) =="
-    $code = Invoke-CmdLine ('ssh -o ConnectTimeout=30 ' + $remoteHost + ' "New-Item -ItemType Directory -Force -Path ''' +
+    $code = Invoke-CmdLine ('ssh -n -o ConnectTimeout=30 ' + $remoteHost + ' "New-Item -ItemType Directory -Force -Path ''' +
                            $packageDir + ''' | Out-Null" > "' + $log + '" 2>&1')
     foreach ($package in $packages) {
       if ($code -eq 0) {
@@ -121,7 +121,7 @@ if ($Target -eq 'windows-arm64') {
       $command = 'powershell -NoProfile -ExecutionPolicy Bypass -File ''' + $workTree + '/scripts/release/verify-windows-package.ps1'' -Arch arm64' +
         ' -Installer ''' + $packageDir + '/PatchyWindowsArm64Installer.exe'' -Zip ''' + $packageDir + '/PatchyWindowsArm64NoInstaller.zip''' +
         ' -Version ' + $version + ' -NoDesktop -RequireRun; exit $LASTEXITCODE'
-      $code = Invoke-CmdLine ('ssh -o ConnectTimeout=30 ' + $remoteHost + ' "' + $command + '" >> "' + $log + '" 2>&1')
+      $code = Invoke-CmdLine ('ssh -n -o ConnectTimeout=30 ' + $remoteHost + ' "' + $command + '" >> "' + $log + '" 2>&1')
     }
   } finally {
     Exit-PatchyRemoteLock $remoteHost $true $lockPath $lockOwner

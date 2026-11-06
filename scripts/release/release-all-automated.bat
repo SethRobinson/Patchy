@@ -32,6 +32,11 @@ rem uploaded. 1.17 and 1.18 shipped with the screenshots still pinned to v1.16 b
 rem nothing checked (docs/release-process.md, "Release safety checks").
 python "%~dp0check-metainfo.py"
 if not "%ERRORLEVEL%"=="0" goto metainfo_failed
+rem Every Windows ssh call in scripts\ must pass -n (or feed stdin): an ssh that keeps the
+rem worker's stdin can stay alive after its remote command ends, and the release driver hung
+rem that way on five release days, each time on a call the earlier fixes had not touched.
+python "%~dp0check-ssh-stdin.py"
+if not "%ERRORLEVEL%"=="0" goto ssh_check_failed
 rem Workers start at Idle priority, and two local builds split the job budget: the Windows
 rem packager and a local wasm build at 20 jobs each, plus an LTCG link, froze the desktop
 rem for 20 seconds on release day (1.23). The workers inherit PATCHY_RELEASE_JOBS.
@@ -60,6 +65,12 @@ echo RELEASE PREFLIGHT FAILED: packaging\linux\com.rtsoft.patchy.metainfo.xml do
 echo the version in CMakeLists.txt ^(see the errors above^). Nothing was launched. Fix it with
 echo   python scripts\release\check-metainfo.py --fix
 echo and rerun. Python 3 must be on PATH.
+exit /b 1
+
+:ssh_check_failed
+echo.
+echo RELEASE PREFLIGHT FAILED: an ssh call in scripts\ keeps its stdin ^(see the errors above^).
+echo Add -n to it ^(or a ssh-stdin-ok comment with the reason^) and rerun. Nothing was launched.
 exit /b 1
 
 :launch

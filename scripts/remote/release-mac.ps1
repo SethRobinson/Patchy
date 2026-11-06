@@ -37,7 +37,7 @@ Remove-Item (Join-Path $repoRoot 'build\package\PatchyMacOS.dmg') -Force -ErrorA
 & "$PSScriptRoot\remote-build.ps1" -Target mac -SkipTests
 if ($LASTEXITCODE -ne 0) { throw 'remote mac build failed' }
 
-ssh $remoteHost 'source ~/.patchy-release-env 2>/dev/null || true; PATCHY_REQUIRE_SIGNING=1 bash ~/patchy/src/packaging/macos/make-dmg.sh'
+ssh -n $remoteHost 'source ~/.patchy-release-env 2>/dev/null || true; PATCHY_REQUIRE_SIGNING=1 bash ~/patchy/src/packaging/macos/make-dmg.sh'
 if ($LASTEXITCODE -ne 0) {
   throw 'make-dmg.sh failed on the mac build host (signing, notarization, and the Gatekeeper check are fatal here)'
 }

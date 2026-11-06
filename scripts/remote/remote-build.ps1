@@ -244,7 +244,7 @@ try {
       'bash ~/patchy/src/scripts/remote/build-and-test.sh ' + ($shArgs -join ' ')
     $artifactSrc = "${remoteHost}:patchy/src/build/$preset/test-artifacts"
   }
-  ssh $remoteHost $remoteCmd
+  ssh -n $remoteHost $remoteCmd
   $remoteExit = $LASTEXITCODE
 
   if ($artifactSrc -and ($FetchArtifacts -or ($remoteExit -ne 0 -and -not $SkipTests))) {

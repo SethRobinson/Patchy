@@ -54,7 +54,7 @@ $localResults = Join-Path $repoRoot "build\memtest-results\$runId"
 try {
   if (-not $SkipPush) {
     Write-Host "== pushing site + scripts to ${remoteHost}:~/$remoteBase =="
-    ssh $remoteHost "mkdir -p ~/$remoteBase/site ~/$remoteResults"
+    ssh -n $remoteHost "mkdir -p ~/$remoteBase/site ~/$remoteResults"
     if ($LASTEXITCODE -ne 0) { throw 'ssh mkdir failed (is the mac build host reachable?)' }
     # Identity files only: the .br/.gz variants halve the copy but serve.py
     # would then hand Safari brotli it may cache oddly; measurement runs favor
@@ -82,9 +82,9 @@ try {
     "nohup python3 ~/$remoteBase/serve.py ~/$remoteBase/site $port --results-dir ~/$remoteResults " +
     "> ~/$remoteBase/server.log 2>&1 & echo `$! > ~/$remoteBase/server.pid; sleep 1; " +
     "curl -s -o /dev/null -w '%{http_code}' http://localhost:$port/stress-harness.html"
-  $probe = ssh $remoteHost $startServer
+  $probe = ssh -n $remoteHost $startServer
   if ($probe -notmatch '200') {
-    ssh $remoteHost "cat ~/$remoteBase/server.log" | Write-Host
+    ssh -n $remoteHost "cat ~/$remoteBase/server.log" | Write-Host
     throw "serve.py did not come up on port $port (probe: $probe)"
   }
 
@@ -104,7 +104,7 @@ try {
   $runCmd = "python3 ~/$remoteBase/safari-memtest.py --url '$url' --driver $Driver " +
     "--duration-min $DurationMin --results-dir ~/$remoteResults " +
     "--telemetry-dir ~/$remoteResults$keepSafari"
-  ssh $remoteHost $runCmd
+  ssh -n $remoteHost $runCmd
   $runExit = $LASTEXITCODE
 
   Write-Host "== fetching results to $localResults =="
@@ -118,7 +118,7 @@ try {
 }
 finally {
   if (-not $KeepServer -and $Mode -ne 'interactive') {
-    ssh $remoteHost "kill `$(cat ~/$remoteBase/server.pid 2>/dev/null) 2>/dev/null; rm -f ~/$remoteBase/server.pid" | Out-Null
+    ssh -n $remoteHost "kill `$(cat ~/$remoteBase/server.pid 2>/dev/null) 2>/dev/null; rm -f ~/$remoteBase/server.pid" | Out-Null
     Write-Host "== server stopped =="
   } else {
     Write-Host "== server left running on ${remoteHost}:$port (stop: ssh $remoteHost 'kill `$(cat ~/$remoteBase/server.pid)') =="

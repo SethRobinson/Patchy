@@ -97,7 +97,7 @@ $armJob = Start-Job -ArgumentList $repoRoot, $PSScriptRoot, $armEntry.ssh, $armE
     return 1
   }
   $script = '~/.patchy-tools/linux-arm64-vm.sh'
-  ssh $armSsh "mkdir -p ~/.patchy-tools && git --git-dir=`$HOME/patchy.git show ${sha}:scripts/remote/linux-arm64-vm.sh > $script && bash $script build '$limactl' '$vm' $sha $version $outDir" 2>&1 |
+  ssh -n $armSsh "mkdir -p ~/.patchy-tools && git --git-dir=`$HOME/patchy.git show ${sha}:scripts/remote/linux-arm64-vm.sh > $script && bash $script build '$limactl' '$vm' $sha $version $outDir" 2>&1 |
     ForEach-Object { "$_" }
   if ($LASTEXITCODE -ne 0) { Write-Output 'ERROR: the aarch64 build failed in the VM'; return 1 }
   scp -q "${armSsh}:$($outDir.Replace('~/', ''))/$bundleName" $importDir 2>&1 | ForEach-Object { "$_" }
@@ -120,16 +120,16 @@ $armUnsigned = Join-Path $importDir $armBundleName
 if (-not (Test-Path -LiteralPath $armUnsigned)) { throw "the aarch64 bundle is missing: $armUnsigned" }
 
 # 3. Sign both arches into the repository on the linux build host.
-ssh $remoteHost 'mkdir -p ~/patchy/src/build/flatpak-import && rm -f ~/patchy/src/build/flatpak-import/Patchy-*-aarch64.flatpak'
+ssh -n $remoteHost 'mkdir -p ~/patchy/src/build/flatpak-import && rm -f ~/patchy/src/build/flatpak-import/Patchy-*-aarch64.flatpak'
 if ($LASTEXITCODE -ne 0) { throw 'could not prepare build/flatpak-import on the linux build host' }
 scp -q $armUnsigned "${remoteHost}:patchy/src/build/flatpak-import/"
 if ($LASTEXITCODE -ne 0) { throw 'could not copy the aarch64 bundle to the linux build host' }
-ssh $remoteHost "source ~/.patchy-release-env 2>/dev/null || true; PATCHY_REQUIRE_FLATPAK_REPO=1 PATCHY_FLATPAK_IMPORT_BUNDLES=aarch64=`$HOME/patchy/src/build/flatpak-import/$armBundleName bash ~/patchy/src/packaging/linux/make-flatpak.sh"
+ssh -n $remoteHost "source ~/.patchy-release-env 2>/dev/null || true; PATCHY_REQUIRE_FLATPAK_REPO=1 PATCHY_FLATPAK_IMPORT_BUNDLES=aarch64=`$HOME/patchy/src/build/flatpak-import/$armBundleName bash ~/patchy/src/packaging/linux/make-flatpak.sh"
 if ($LASTEXITCODE -ne 0) { throw 'make-flatpak.sh failed on the linux build host' }
 
 # 4. The AppImage (docs/appimage.md): built in an Ubuntu 22.04 podman container from the
 # same snapshot, smoke-checked inside it and again on the host through FUSE.
-ssh $remoteHost 'bash ~/patchy/src/packaging/linux/make-appimage.sh'
+ssh -n $remoteHost 'bash ~/patchy/src/packaging/linux/make-appimage.sh'
 if ($LASTEXITCODE -ne 0) { throw 'make-appimage.sh failed on the linux build host' }
 
 $dest = Join-Path $repoRoot 'build\package'
@@ -145,7 +145,7 @@ foreach ($required in @("Patchy-$version.flatpak", $armBundleName, "Patchy-$vers
 $armSsh = $armEntry.ssh
 scp -q (Join-Path $dest $armBundleName) "${armSsh}:.patchy-tools/linux-arm64-out/signed-$armBundleName"
 if ($LASTEXITCODE -ne 0) { throw 'could not copy the signed aarch64 bundle to the mac host' }
-ssh $armSsh "bash ~/.patchy-tools/linux-arm64-vm.sh verify '$($armEntry.limactl)' '$($armEntry.lima)' ~/.patchy-tools/linux-arm64-out/signed-$armBundleName"
+ssh -n $armSsh "bash ~/.patchy-tools/linux-arm64-vm.sh verify '$($armEntry.limactl)' '$($armEntry.lima)' ~/.patchy-tools/linux-arm64-out/signed-$armBundleName"
 if ($LASTEXITCODE -ne 0) { throw 'the signed aarch64 bundle failed its checks in the VM' }
 
 # 6. The source of the scanner and camera libraries the Flatpak carries, from the same manifest.
