@@ -67,7 +67,7 @@ struct FillDialogSettings {
 struct FillContentsFieldOptions {
   std::vector<FillContents> choices;
   FillContents initial{FillContents::Foreground};
-  QColor color{Qt::black};  // the Color... choice
+  QColor color;  // the Color... choice
   QColor foreground;
   QColor background;
   QString combo_object_name;

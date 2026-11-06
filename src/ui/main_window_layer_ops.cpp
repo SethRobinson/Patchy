@@ -1705,8 +1705,8 @@ void MainWindow::add_layer_with_dialog() {
   const auto settings = request_new_layer_settings(this, default_new_layer_name(doc),
                                                    new_layer_has_clip_base(doc, anchor_id),
                                                    doc.color_state().bit_depth, colors,
-                                                   canvas_ != nullptr ? canvas_->primary_color() : QColor(Qt::black),
-                                                   canvas_ != nullptr ? canvas_->secondary_color() : QColor(Qt::white));
+                                                   canvas_ != nullptr ? canvas_->primary_color() : QColor(),
+                                                   canvas_ != nullptr ? canvas_->secondary_color() : QColor());
   if (!settings.has_value() || active_session() == nullptr || active_session()->session_id != session_id) {
     return;
   }

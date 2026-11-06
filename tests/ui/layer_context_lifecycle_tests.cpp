@@ -4485,10 +4485,6 @@ void ui_new_layer_dialog_places_options_and_neutral_fill_follows_mode() {
         CHECK(fill->itemText(2) == QStringLiteral("Foreground Color"));
         CHECK(fill->currentData().toString() == QStringLiteral("transparent"));
         CHECK(!swatch->isVisibleTo(&dialog));
-        const auto swatch_center = [swatch] {
-          const auto image = swatch->grab().toImage();
-          return image.pixelColor(image.width() / 2, image.height() / 2);
-        };
         enum class Expect { White, Black, Gray, None };
         const std::array<std::pair<patchy::BlendMode, Expect>, 26> modes{{
             {patchy::BlendMode::Darken, Expect::White},       {patchy::BlendMode::Multiply, Expect::White},
@@ -4524,9 +4520,9 @@ void ui_new_layer_dialog_places_options_and_neutral_fill_follows_mode() {
           fill->setCurrentIndex(neutral_index);
           QApplication::processEvents();
           CHECK(swatch->isVisibleTo(&dialog));
+          // The swatch shows the neutral color (its style sheet's background).
           const int value = want == Expect::White ? 255 : want == Expect::Black ? 0 : 128;
-          const auto center = swatch_center();
-          CHECK(center.red() == value && center.green() == value && center.blue() == value);
+          CHECK(swatch->styleSheet().contains(QStringLiteral("background: rgb(%1, %1, %1)").arg(value)));
           fill->setCurrentIndex(0);
         }
         int offered = 0;
