@@ -2623,10 +2623,11 @@ void MainWindow::schedule_vector_appearance_apply() {
 }
 
 void MainWindow::apply_selected_shape_corner_radius(double radius) {
-  ShapeAppearanceSettings settings;
-  settings.geometry.emplace();
-  settings.geometry->kind = LiveShapeKind::RoundedRectangle;
-  settings.geometry->corner_radii.fill(radius);
+  LiveShapeParams shape;
+  shape.kind = LiveShapeKind::RoundedRectangle;
+  shape.corner_radii.fill(radius);
+  // Built engaged: assigning into an empty optional trips GCC 12's -Wmaybe-uninitialized.
+  ShapeAppearanceSettings settings{.geometry = std::move(shape)};
   auto edits = std::make_shared<AppearanceEdits<ShapeAppearanceSettings>>();
   for (const auto& property : shape_appearance_properties())
     if (property.key.starts_with("radius.")) edits->append(property.capture(settings));
@@ -2636,10 +2637,10 @@ void MainWindow::apply_selected_shape_corner_radius(double radius) {
 
 void MainWindow::apply_selected_line_weight(double weight) {
   // Queued like Radius: a spin drag or held arrow is one undo step.
-  ShapeAppearanceSettings settings;
-  settings.geometry.emplace();
-  settings.geometry->kind = LiveShapeKind::Line;
-  settings.geometry->line_weight = weight;
+  LiveShapeParams shape;
+  shape.kind = LiveShapeKind::Line;
+  shape.line_weight = weight;
+  ShapeAppearanceSettings settings{.geometry = std::move(shape)};
   auto edits = std::make_shared<AppearanceEdits<ShapeAppearanceSettings>>();
   for (const auto& property : shape_appearance_properties())
     if (property.key == "line.weight") edits->append(property.capture(settings));
@@ -2651,10 +2652,10 @@ void MainWindow::apply_selected_line_arrowhead(bool at_end, bool on) {
   // A click is one edit: it commits at once, after any pending Weight edit.
   finish_pending_shape_appearance_edit();
   if (!has_active_document() || !vector_appearance_controls_live()) return;
-  ShapeAppearanceSettings settings;
-  settings.geometry.emplace();
-  settings.geometry->kind = LiveShapeKind::Line;
-  (at_end ? settings.geometry->arrow_end : settings.geometry->arrow_start) = on;
+  LiveShapeParams shape;
+  shape.kind = LiveShapeKind::Line;
+  (at_end ? shape.arrow_end : shape.arrow_start) = on;
+  ShapeAppearanceSettings settings{.geometry = std::move(shape)};
   const std::string key = at_end ? "line.arrow_end" : "line.arrow_start";
   auto edits = std::make_shared<AppearanceEdits<ShapeAppearanceSettings>>();
   for (const auto& property : shape_appearance_properties())
