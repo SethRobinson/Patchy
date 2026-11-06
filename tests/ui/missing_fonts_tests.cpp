@@ -1,6 +1,7 @@
 // Missing fonts: the Resolve Missing Fonts dialog (GitHub issue 169), the substitution prompt on
 // hidden layers (177), the layer badge during a session (178) and the options-bar font new type
-// starts in (180). See docs/font-resolution-missing-fonts.md, "Missing fonts".
+// starts in (180), the bar naming a missing family (652). See docs/font-resolution-missing-fonts.md,
+// "Missing fonts".
 #include "core/layer_metadata.hpp"
 #include "psd/psd_document_io.hpp"
 #include "test_fonts.hpp"
@@ -29,12 +30,14 @@
 #include <QFontInfo>
 #include <QFrame>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QTest>
 #include <QTextEdit>
 #include <QTimer>
+#include <QToolBar>
 #include <QUrl>
 
 #include <QElapsedTimer>
@@ -252,9 +255,11 @@ void ui_new_text_uses_the_options_bar_font_after_a_missing_font_layer() {
   layer_list->setCurrentItem(require_layer_item(*layer_list, QStringLiteral("Missing")));
   QApplication::processEvents();
   CHECK(MainWindowTestAccess::document(window).active_layer_id() == missing_id);
-  // The bar mirrors the layer: the combo cannot show the missing family, so it parks elsewhere.
+  // The bar mirrors the layer: the combo cannot select the missing family, so it parks on another
+  // row and the closed control names the missing family (issue 652).
   CHECK(combo->currentFont().family() == kMissing);
-  CHECK(combo->currentText() != kMissing);
+  CHECK(combo->currentText() == kMissing);
+  CHECK(combo->itemText(combo->currentIndex()) != kMissing);
 
   window.add_document_session(white_document(), QStringLiteral("Fresh"));
   QApplication::processEvents();
@@ -279,6 +284,122 @@ void ui_new_text_uses_the_options_bar_font_after_a_missing_font_layer() {
   if (active.has_value()) {
     CHECK(layer_font(window, *active) == shown);
   }
+}
+
+// GitHub issue 652: the closed family control names a selected layer's missing family in italics
+// with the missing-font badge and a tooltip, instead of showing some installed family. Selecting a
+// layer in an installed font or no text layer clears it, and so does any pick from the popup; new
+// type still starts in the installed row the control is parked on.
+void ui_options_bar_names_a_missing_font_family() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  auto document = white_document();
+  const auto installed = patchy::ui::default_text_family();
+  // A plausible name for the screenshots; the test's own made-up name where a host has it.
+  const auto missing = patchy::ui::available_text_family_match(QStringLiteral("Brightwell Sans")).has_value()
+                           ? kMissing
+                           : QStringLiteral("Brightwell Sans");
+  const auto missing_id = document.add_layer(missing_font_text_layer(document, "Missing", missing, 40)).id();
+  const auto installed_id = document.add_layer(missing_font_text_layer(document, "Installed", installed, 120)).id();
+
+  MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Missing Font Bar"));
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* picker = window.findChild<patchy::ui::FontPickerCombo*>(QStringLiteral("textFontCombo"));
+  auto* edit = picker == nullptr ? nullptr : picker->lineEdit();
+  CHECK(layer_list != nullptr && picker != nullptr && edit != nullptr);
+  if (layer_list == nullptr || picker == nullptr || edit == nullptr) {
+    return;
+  }
+  const auto badge = [edit] { return edit->findChild<QAction*>(QStringLiteral("textFontMissingBadge")); };
+  const auto select = [&](const QString& name) {
+    layer_list->setCurrentItem(require_layer_item(*layer_list, name));
+    QApplication::processEvents();
+  };
+  const auto check_shows_missing = [&] {
+    CHECK(picker->missing_family() == missing);
+    CHECK(edit->text() == missing);
+    CHECK(edit->font().italic());
+    CHECK(edit->cursorPosition() == 0);  // the name reads from its start
+    CHECK(badge() != nullptr);
+    if (auto* action = badge(); action != nullptr) {
+      CHECK(!action->icon().isNull());
+      CHECK(action->toolTip() == edit->toolTip());
+    }
+    CHECK(edit->toolTip() == QStringLiteral("Font is missing on this computer: %1").arg(missing));
+    // The row stays an installed family: the popup and new type start from it.
+    const auto row = picker->row_family();
+    CHECK(!row.isEmpty() && row != missing);
+    CHECK(patchy::ui::available_text_family_match(row).has_value());
+  };
+  const auto check_plain = [&] {
+    CHECK(picker->missing_family().isEmpty());
+    CHECK(edit->text() != missing);
+    CHECK(edit->text() == picker->itemText(picker->currentIndex()));
+    CHECK(!edit->font().italic());
+    CHECK(badge() == nullptr);
+    CHECK(edit->toolTip().isEmpty());
+  };
+
+  check_plain();
+  select(QStringLiteral("Missing"));
+  CHECK(MainWindowTestAccess::document(window).active_layer_id() == missing_id);
+  check_shows_missing();
+
+  // The bar in both schemes, cropped to the Font field and its neighbors.
+  if (auto* bar = window.findChild<QToolBar*>(QStringLiteral("Options")); bar != nullptr) {
+    for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+      ColorSchemeRestorer restore(scheme);
+      process_events_for(60);
+      check_shows_missing();  // a theme switch keeps the styling
+      const auto origin = picker->mapTo(bar, QPoint(0, 0));
+      const QRect crop(std::max(0, origin.x() - 60), 0, picker->width() + 330,
+                       bar->height());
+      save_image_artifact(scheme == patchy::ui::ColorSchemePreference::Dark ? "ui_missing_font_bar_dark"
+                                                                            : "ui_missing_font_bar_light",
+                          bar->grab(crop.intersected(bar->rect())).toImage());
+    }
+  }
+
+  // No text layer, then a layer in an installed font: plain again.
+  select(QStringLiteral("Background"));
+  check_plain();
+  select(QStringLiteral("Missing"));
+  check_shows_missing();
+  select(QStringLiteral("Installed"));
+  CHECK(MainWindowTestAccess::document(window).active_layer_id() == installed_id);
+  check_plain();
+  CHECK(edit->text() == installed);
+
+  // A pick from the popup replaces the missing name, even the row the control was parked on.
+  select(QStringLiteral("Missing"));
+  check_shows_missing();
+  const auto parked = picker->row_family();
+  picker->showPopup();
+  QApplication::processEvents();
+  QWidget* popup = nullptr;
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    if (widget->objectName() == QLatin1String(patchy::ui::kFontPickerPopupObjectName) && widget->isVisible()) {
+      popup = widget;
+    }
+  }
+  CHECK(popup != nullptr);
+  auto* search = popup == nullptr ? nullptr : popup->findChild<QLineEdit*>(QStringLiteral("textFontPickerSearchEdit"));
+  CHECK(search != nullptr);
+  if (search == nullptr) {
+    return;
+  }
+  QTest::keyClicks(search, parked);
+  QApplication::processEvents();
+  // The pick applies to the selected layer, whose missing font asks first: continue.
+  auto answered = std::make_shared<int>(0);
+  answer_missing_font_prompt(true, answered);
+  QTest::keyClick(search, Qt::Key_Return);
+  process_events_for(400);
+  check_plain();
+  CHECK(picker->currentFont().family() == parked);
+  CHECK(edit->text() == parked);
 }
 
 // GitHub issue 442: on Linux under a plain Qt theme (the Flatpak) the application font is Qt's
@@ -1486,6 +1607,7 @@ std::vector<patchy::test::TestCase> missing_fonts_tests() {
       {"ui_missing_font_edit_session_uses_the_table_substitute", ui_missing_font_edit_session_uses_the_table_substitute},
       {"ui_new_text_uses_the_options_bar_font_after_a_missing_font_layer",
        ui_new_text_uses_the_options_bar_font_after_a_missing_font_layer},
+      {"ui_options_bar_names_a_missing_font_family", ui_options_bar_names_a_missing_font_family},
       {"ui_first_text_layer_in_a_generic_app_font_has_no_missing_font_badge",
        ui_first_text_layer_in_a_generic_app_font_has_no_missing_font_badge},
       {"ui_hidden_missing_font_text_layer_still_warns_before_substitution",

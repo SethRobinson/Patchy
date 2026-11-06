@@ -13,6 +13,7 @@
 
 #include <vector>
 
+class QAction;
 class QFrame;
 
 namespace patchy::ui {
@@ -100,13 +101,30 @@ public:
   // reference is only valid until the next call (QHash rehash); copy it to keep it.
   const FontFamilyRenderInfo& family_render_info(const QString& family);
 
+  // A text layer set in a font this computer lacks (GitHub issue 652). The family cannot be a
+  // row, so the combo stays parked on an installed row; set_missing_family shows the missing name
+  // in the closed control instead, in italics with the missing-font warning badge and a tooltip.
+  // An empty name, any pick (popup or a name typed into the control) and any edit clear it.
+  // docs/font-resolution-missing-fonts.md, "The bar names a missing font".
+  void set_missing_family(const QString& family);
+  [[nodiscard]] const QString& missing_family() const { return missing_family_; }
+  // The installed row the control is parked on: the family new type and the popup start from.
+  // Equals currentText() unless a missing family is shown.
+  [[nodiscard]] QString row_family() const;
+
 protected:
   void focusOutEvent(QFocusEvent* event) override;
+  void changeEvent(QEvent* event) override;
 
 private:
   // Scroll the closed control's text back to the start of the family name (GitHub issue 416):
   // QLineEdit::setText parks the cursor at the end, which hides the start of a long name.
   void show_name_from_start();
+  // Restyles the line edit for missing_family_ (italic, badge action, tooltip) or back to plain.
+  void refresh_missing_family_decoration();
+
+  QString missing_family_;
+  QPointer<QAction> missing_badge_;
 
   QPointer<QFrame> popup_;
   // Toggle guard: the click that dismisses the Qt::Popup is replayed onto the combo (or lands

@@ -28,10 +28,21 @@ Split from [font-resolution.md](font-resolution.md): what happens when a documen
   `--headless`, the connector, a running script outside an artist's manual-edit pause): those go
   ahead as if Continue were pressed. The settings key `text/warnMissingFontsOnTransform` (default true, no UI) turns the question off;
   the UI test main does, since fixtures name fonts a test host may lack.
-- **New type takes the family the bar shows** (`text_options_bar_family`, issue 180). Mirroring a
-  layer set in a missing family leaves the combo's `currentFont()` on that name while it shows
-  another row; with no text layer to mirror, `sync_text_options_from_active_layer` puts
-  `currentFont()` back on the shown row, and `add_text_at` seeds new sessions from that row.
+- **The bar names a missing font** (issue 652). A missing family cannot be a row of the
+  font combo, so mirroring a layer set in one (`show_text_family_in_options_bar`, the one place
+  MainWindow sets the combo's family) parks the combo on an installed row while `currentFont()`
+  keeps the missing name, and `FontPickerCombo::set_missing_family` makes the closed control
+  name it: italic text, the missing-font warning badge as a leading line-edit action
+  (`textFontMissingBadge`, `@icon_warning` color, rebuilt on theme and language changes), and the
+  tooltip "Font is missing on this computer: <name>". Any pick (popup, a name typed and
+  entered, any edit of the text), a layer in an installed font, no text layer and a session that
+  moved onto a substitute all clear it. Test: `ui_options_bar_names_a_missing_font_family`.
+- **New type takes the installed row, never the missing name** (`text_options_bar_family`, issue
+  180). It reads the row the combo is parked on (`FontPickerCombo::row_family`), not the line
+  edit, which shows the missing name; with no text layer to mirror,
+  `sync_text_options_from_active_layer` puts `currentFont()` back on that row, and `add_text_at`
+  seeds new sessions from it. So new type beside a selected missing-font layer starts in the
+  installed family the popup also opens on.
 - **Generic names resolve to the face they draw in** (`installed_text_family`,
   `default_text_family`, issue 442). Linux under a plain Qt theme (the Flatpak) reports the
   application font as "Sans Serif": Qt's fontconfig database lists that name as a family, yet it

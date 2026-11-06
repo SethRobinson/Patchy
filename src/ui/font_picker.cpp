@@ -7,6 +7,7 @@
 #include "ui/theme_palette.hpp"
 
 #include <QAbstractItemView>
+#include <QAction>
 #include <QAbstractListModel>
 #include <QApplication>
 #include <QCloseEvent>
@@ -14,8 +15,10 @@
 #include <QColor>
 #include <QComboBox>
 #include <QCursor>
+#include <QEvent>
 #include <QFontMetrics>
 #include <QFrame>
+#include <QIcon>
 #include <QHBoxLayout>
 #include <QHelpEvent>
 #include <QItemSelectionModel>
@@ -1097,6 +1100,42 @@ void FontPreviewPane::paintEvent(QPaintEvent* /*event*/) {
   }
 }
 
+namespace {
+
+// The missing-font warning badge the Layers panel draws on a type layer's thumbnail
+// (draw_missing_font_thumbnail_badge): a theme-colored triangle with the exclamation punched
+// through, so it reads on the field in Dark and Light alike.
+QIcon missing_font_badge_icon(const QWidget& widget) {
+  constexpr int kSize = 16;
+  const qreal ratio = std::max<qreal>(1.0, widget.devicePixelRatioF());
+  QPixmap pixmap(static_cast<int>(std::ceil(kSize * ratio)), static_cast<int>(std::ceil(kSize * ratio)));
+  pixmap.setDevicePixelRatio(ratio);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  const qreal left = 1.0;
+  const qreal top = 1.5;
+  const qreal badge = 14.0;
+  const qreal centre = left + badge / 2.0;
+  QPainterPath triangle;
+  triangle.moveTo(centre, top);
+  triangle.lineTo(left + badge, top + badge);
+  triangle.lineTo(left, top + badge);
+  triangle.closeSubpath();
+  painter.setPen(QPen(theme().icon_warning, 1.0, Qt::SolidLine, Qt::FlatCap, Qt::RoundJoin));
+  painter.setBrush(theme().icon_warning);
+  painter.drawPath(triangle);
+  painter.setCompositionMode(QPainter::CompositionMode_Clear);
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(Qt::black);
+  painter.drawRect(QRectF(centre - 1.0, top + 4.5, 2.0, 5.0));
+  painter.drawRect(QRectF(centre - 1.0, top + 10.5, 2.0, 2.0));
+  painter.end();
+  return QIcon(pixmap);
+}
+
+}  // namespace
+
 FontPickerCombo::FontPickerCombo(QWidget* parent) : QFontComboBox(parent) {
   popup_clock_.start();
   // Text set by code (a pick, a layer switch, setCurrentFont under a QSignalBlocker on the combo)
@@ -1107,8 +1146,19 @@ FontPickerCombo::FontPickerCombo(QWidget* parent) : QFontComboBox(parent) {
         show_name_from_start();
       }
     });
+    // Typing over a missing family's name starts a new choice: drop the missing styling.
+    connect(edit, &QLineEdit::textEdited, this, [this] {
+      if (!missing_family_.isEmpty()) {
+        missing_family_.clear();
+        refresh_missing_family_decoration();
+      }
+    });
   }
   show_name_from_start();
+  // Any pick replaces a missing family (GitHub issue 652). Connected before the Recent recorder
+  // so currentText() there is the picked row, not the missing name.
+  connect(this, &QFontComboBox::currentFontChanged, this, [this] { set_missing_family(QString()); });
+  connect(this, &QComboBox::activated, this, [this] { set_missing_family(QString()); });
   // Every user pick (the popup's and a name typed into the closed control) feeds the popup's
   // Recent section (GitHub issue 569).
   connect(this, &QComboBox::activated, this, [this] {
@@ -1116,6 +1166,70 @@ FontPickerCombo::FontPickerCombo(QWidget* parent) : QFontComboBox(parent) {
       record_recent_font_family(family);
     }
   });
+}
+
+QString FontPickerCombo::row_family() const {
+  return missing_family_.isEmpty() ? currentText() : itemText(currentIndex());
+}
+
+void FontPickerCombo::set_missing_family(const QString& family) {
+  const auto trimmed = family.trimmed();
+  if (trimmed == missing_family_) {
+    return;
+  }
+  missing_family_ = trimmed;
+  if (auto* edit = lineEdit(); edit != nullptr) {
+    // Unmodified, so the name scrolls to its start like any code-set text.
+    edit->setText(missing_family_.isEmpty() ? itemText(currentIndex()) : missing_family_);
+    edit->setModified(false);
+    show_name_from_start();
+  }
+  refresh_missing_family_decoration();
+}
+
+void FontPickerCombo::refresh_missing_family_decoration() {
+  auto* edit = lineEdit();
+  if (edit == nullptr) {
+    return;
+  }
+  if (missing_family_.isEmpty()) {
+    if (missing_badge_ != nullptr) {
+      edit->removeAction(missing_badge_);
+      delete missing_badge_;
+    }
+    edit->setFont(QFont());  // nothing set explicitly: inherit the combo's font again
+    edit->setToolTip(QString());
+    return;
+  }
+  QFont italic;
+  italic.setItalic(true);  // only the italic attribute is explicit; the rest still inherits
+  edit->setFont(italic);
+  const auto tip = tr("Font is missing on this computer: %1").arg(missing_family_);
+  if (missing_badge_ == nullptr) {
+    missing_badge_ = edit->addAction(missing_font_badge_icon(*this), QLineEdit::LeadingPosition);
+    missing_badge_->setObjectName(QStringLiteral("textFontMissingBadge"));
+  } else {
+    missing_badge_->setIcon(missing_font_badge_icon(*this));
+  }
+  missing_badge_->setToolTip(tip);
+  edit->setToolTip(tip);
+}
+
+void FontPickerCombo::changeEvent(QEvent* event) {
+  QFontComboBox::changeEvent(event);
+  if (missing_family_.isEmpty()) {
+    return;
+  }
+  // A theme switch restyles the badge color; a language switch retranslates the tooltip.
+  switch (event->type()) {
+    case QEvent::LanguageChange:
+    case QEvent::PaletteChange:
+    case QEvent::StyleChange:
+      refresh_missing_family_decoration();
+      break;
+    default:
+      break;
+  }
 }
 
 void FontPickerCombo::show_name_from_start() {
@@ -1419,7 +1533,8 @@ void FontPickerCombo::showPopup() {
   rows->rebuild();
   list->clearSelection();
   list->setCurrentIndex(QModelIndex());
-  if (rows->select_family(currentText(), true)) {
+  const auto start_family = row_family();
+  if (rows->select_family(start_family, true)) {
     if (list->currentIndex().data(kFontPickerRecentRowRole).toBool()) {
       list->scrollToTop();
     } else {
@@ -1428,7 +1543,7 @@ void FontPickerCombo::showPopup() {
   } else {
     step_to_family_row(*list, -1, 1);
   }
-  preview->set_family(currentText());
+  preview->set_family(start_family);
 
   {
     // Restore the user's popup size; first open defaults to a comfortable browse size.

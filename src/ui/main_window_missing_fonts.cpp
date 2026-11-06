@@ -110,8 +110,10 @@ QString MainWindow::text_options_bar_family() const {
     return family;
   }
   // Mirroring a layer set in a missing family parks the combo on another row while
-  // currentFont() keeps the missing name; new type takes the row the user is looking at.
-  const auto shown = text_font_combo_->currentText().trimmed();
+  // currentFont() keeps the missing name; new type takes that installed row. The closed control
+  // shows the missing name (issue 652), so read the row, never the line edit.
+  auto* picker = qobject_cast<const FontPickerCombo*>(text_font_combo_);
+  const auto shown = (picker != nullptr ? picker->row_family() : text_font_combo_->currentText()).trimmed();
   return shown.isEmpty() ? family : shown;
 }
 

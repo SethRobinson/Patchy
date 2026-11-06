@@ -2807,10 +2807,14 @@ private:
   // whose font is missing (text_transform_keeps_missing_font_pixels), asks whether to transform its
   // saved pixels (the layer keeps naming the font). False means Cancel. Unattended runs never ask.
   [[nodiscard]] bool confirm_missing_font_transform(const Document& document, const std::vector<LayerId>& ids);
-  // The family new type starts in: the one the options-bar combo shows. A missing family the
-  // combo was set to (mirroring a layer that uses it) has no row, so the combo displays
-  // another family while currentFont() still names the missing one (GitHub issue 180).
+  // The family new type starts in: an installed one, never a missing name. A missing family the
+  // combo was set to (mirroring a layer that uses it) has no row, so the combo stays parked on
+  // another row while currentFont() still names the missing one (GitHub issue 180); the closed
+  // control names the missing family (issue 652), and new type takes the parked row.
   [[nodiscard]] QString text_options_bar_family() const;
+  // Mirrors `family` into the options-bar combo (signals blocked) and marks it missing there when
+  // this computer lacks it (GitHub issue 652).
+  void show_text_family_in_options_bar(const QString& family);
   void apply_text_character_leading_to_active_editor();
   void apply_text_character_tracking_to_active_editor();
   void apply_text_character_glyph_scales_to_active_editor();
