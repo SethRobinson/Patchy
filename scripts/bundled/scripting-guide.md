@@ -378,7 +378,7 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | `doc.saveAs(path, options?)` | Saves to the path; the format follows the extension (`.psd`, `.png`, `.jpg`, ...). The document then points at that file; a layered document saved to a flat format keeps its own path (save-a-copy). `.ora` (OpenRaster) keeps the layer tree, baking what it cannot hold (text, effects, masks, adjustment layers) into layer pixels without asking. `options` sets the format's save options with no dialog (below); without it the save uses your Save Options defaults. WebP stays a single flattened image. |
 | `doc.exportAs(path, options?)` | Writes a copy with the same formats and options as `saveAs` and leaves the document alone: path, title and modified state never change. |
 | `doc.encodeForWeb(format, options?)` | Encodes the image as File > Export for Web would, without a file: `format` is `"jpeg"`, `"webp"`, `"png"`, `"gif"`, `"avif"` or `"jxl"`, `options` are that format's `exportAs` keys. Returns `{bytes, width, height}` with `bytes` an ArrayBuffer, for example to compare sizes. |
-| `doc.exportAnimatedWebp(path, options?)` | Exports visible top-level layers top first, with each group rendered as one frame. Leaves the document path and modified state unchanged. |
+| `doc.exportAnimatedWebp(path, options?)` | Exports visible top-level layers top first, with each group rendered as one frame. A layer named "all" is drawn in every frame instead of being one; a group named "all" makes each layer inside it a frame (see Animated WebP below). Leaves the document path and modified state unchanged. |
 | `doc.exportAnimatedPng(path, options?)` | The same frames as an animated PNG (APNG). Options `frameDelayMs` and `loopCount`, as for WebP. |
 | `doc.close()` | Closes without prompting. |
 | `doc.activate()` | Makes this the active tab. |
@@ -447,6 +447,14 @@ Delays are integer milliseconds (0 through 16777215), play counts are integers
 lossless. Invalid options, an output extension other than `.webp`, or an export failure
 throw an error. Hidden layers are skipped. Identical consecutive frames can be combined
 by the encoder. Loop counts are retained for the open document, not in PSD or recovery files.
+
+Layers named `all` (any case, a time token ignored) change the frame list for every animated
+export: a top-level layer named `all` is not a frame but is drawn in every frame at its place in
+the stack (a shared background or overlay), and a top-level group named `all` is not one frame:
+each layer or group directly inside it is a frame, drawn inside the group so the group's opacity,
+blend mode, effects, mask and clipped layers apply to each. Inside such a group a child named
+`all` is shared too, and a normal group stays one frame. A layer clipped to another is drawn with
+its base, never as its own frame.
 
 `doc.exportAnimatedPng(path, options?)` writes the same frames as an animated PNG
 (APNG: lossless 8-bit RGBA, frame 1 doubles as the still image for viewers without

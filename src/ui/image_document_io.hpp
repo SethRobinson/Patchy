@@ -76,6 +76,9 @@ private:
 // exactly as the compositor draws them against an empty backdrop (sprite-sheet and
 // image-sequence exports share this).
 [[nodiscard]] QImage render_layer_isolated(const Document& document, const Layer& layer);
+// Renders `stack` (top-level layers, bottom first, drawn as their own visibility says) alone on
+// a transparent canvas the document's size: the animation frames' renderer.
+[[nodiscard]] QImage render_layers_isolated(const Document& document, std::vector<Layer> stack);
 [[nodiscard]] QImage qimage_from_document_rect(const Document& document, QRect document_rect, bool preserve_alpha);
 // Native child coverage used to anchor paints in a clipped viewport render.
 // The caller budgets the native silhouette and compositor workspace first.
@@ -185,11 +188,13 @@ void write_encoded_image_file(const QString& path, std::span<const std::uint8_t>
 // of every frame's visible bounds so the frames keep one size. `notices` receives the
 // trim notice. Throws when no top-level layer is visible.
 // The frames every animated writer encodes (GIF, WebP, JPEG XL, APNG): the visible top-level
-// layers, top layer first, each rendered alone (render_layer_isolated) at 8 bits with the
-// export transforms applied per frame (trim to the union of every frame's visible bounds,
+// layers, top layer first, with the "all" rules of animation::animation_frames (shared layers
+// drawn in every frame, "all" groups expanded into one frame per child), each frame rendered
+// alone (render_layers_isolated) at 8 bits with the export transforms applied per frame (trim to the union of every frame's visible bounds,
 // resize, pixel-art scale, background fill). The writers take each frame's delay from its
 // layer name's time token (animation::parse_layer_name_delay_ms). Export for Web's preview
 // plays the same frames beside the decoded file (docs/web-export.md).
+// animation_export_layers lists each frame's base layer, top first.
 [[nodiscard]] std::vector<const Layer*> animation_export_layers(const Document& document);
 void for_each_animation_export_frame(const Document& document, const ImageSaveOptions& options,
                                      std::vector<std::string>* notices,

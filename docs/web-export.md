@@ -197,7 +197,7 @@ in the preview (Seth, October 27, 2026):
   from their names), so palette, dither, lossy artifacts and the written delays (layer-name times
   included) are what plays. The source frames come from `for_each_animation_export_frame`, the
   same frame list and per-frame transforms the animated writers encode (visible top-level layers,
-  top first; [animation.md](animation.md)). Both are cached as 8-bit display images in
+  top first, with the "all" layer rules; [animation.md](animation.md#frames-and-layers-named-all)). Both are cached as 8-bit display images in
   `WebExportResult::frames`/`original_frames` with `frame_delays_ms`; the source is already
   narrowed to 8 bits, so no deep image reaches the painter.
 - Memory: both sides together stay under `kWebExportAnimationCacheBytes` (384 MB); above it the

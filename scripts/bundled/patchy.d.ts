@@ -1375,6 +1375,8 @@ interface PatchyDocument {
   encodeForWeb(format: "jpeg" | "webp" | "png" | "gif" | "avif" | "jxl",
                options?: PatchySaveOptions): {bytes: ArrayBuffer; width: number; height: number};
   /** Exports visible top-level layers, top first, as animated WebP. Groups become one frame.
+   * A layer named "all" is drawn in every frame instead of being one; a group named "all"
+   * makes each layer inside it a frame (scripting guide, Animated WebP).
    * Trailing seconds tokens ("blink 0.033s") override frameDelayMs. Preserves the document path
    * and modified state. loopCount is total plays (0 = forever), defaults to the imported or
    * last exported count, otherwise 0. Other defaults: frameDelayMs 100, quality 75, lossless false.

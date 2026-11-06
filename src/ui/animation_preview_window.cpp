@@ -1,6 +1,7 @@
 #include "ui/animation_preview_window.hpp"
 
 #include "formats/gif_document_io.hpp"
+#include "formats/animation_frames.hpp"
 #include "formats/animation_timing.hpp"
 #include "ui/image_save_options_dialog.hpp"
 #include "ui/app_settings.hpp"
@@ -423,19 +424,28 @@ void AnimationPreviewWindow::start_playback() {
     return;
   }
   saved_visibility_.clear();
-  frame_ids_.clear();
+  frames_.clear();
   const auto& layers = std::as_const(*document).layers();
-  for (const auto& layer : layers) {
-    saved_visibility_.emplace_back(layer.id(), layer.visible());
-  }
-  // Top to bottom, the animated GIF export's frame order (index 0 is the bottom layer).
-  const bool include_hidden = play_hidden_check_->isChecked();
-  for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
-    if (include_hidden || it->visible()) {
-      frame_ids_.push_back(it->id());
+  // Every layer playback may show or hide: the top-level ones and those inside "all" groups.
+  const auto save_visibility = [this](const auto& self, const std::vector<Layer>& siblings) -> void {
+    for (const auto& layer : siblings) {
+      saved_visibility_.emplace_back(layer.id(), layer.visible());
+      if (layer.kind() == LayerKind::Group && animation::is_shared_layer_name(layer.name())) {
+        self(self, layer.children());
+      }
     }
+  };
+  save_visibility(save_visibility, layers);
+  // The animated exports' frames and order (top first), shared "all" layers left as they are.
+  const bool include_hidden = play_hidden_check_->isChecked();
+  for (const auto& frame : animation::animation_frames(layers, include_hidden)) {
+    PreviewFrame entry{frame.layer->id(), {}};
+    for (const auto* container : frame.containers) {
+      entry.containers.push_back(container->id());
+    }
+    frames_.push_back(std::move(entry));
   }
-  if (frame_ids_.empty()) {
+  if (frames_.empty()) {
     saved_visibility_.clear();
     status_label_->setText(include_hidden ? tr("No layers") : tr("No visible layers"));
     return;
@@ -467,7 +477,7 @@ void AnimationPreviewWindow::stop_playback(bool restore_visibility) {
     }
   }
   saved_visibility_.clear();
-  frame_ids_.clear();
+  frames_.clear();
   frame_index_ = 0;
   update_playback_controls();
 }
@@ -488,37 +498,46 @@ void AnimationPreviewWindow::advance_frame() {
     return;
   }
   // Layers deleted mid-play drop out of the cycle.
-  std::erase_if(frame_ids_,
-                [&](LayerId id) { return std::as_const(*document).find_layer(id) == nullptr; });
-  if (frame_ids_.empty()) {
+  std::erase_if(frames_, [&](const PreviewFrame& frame) {
+    return std::as_const(*document).find_layer(frame.id) == nullptr;
+  });
+  if (frames_.empty()) {
     stop_playback(true);
     return;
   }
-  frame_index_ = (frame_index_ + 1) % frame_ids_.size();
+  frame_index_ = (frame_index_ + 1) % frames_.size();
   show_current_frame();
 }
 
 void AnimationPreviewWindow::show_current_frame() {
   auto* document = playback_document_;
-  const auto current = frame_ids_[frame_index_];
+  // The current frame and the "all" groups holding it show, the other frames hide, and
+  // everything else (shared layers, clipped layers) keeps its own visibility.
+  const auto& current = frames_[frame_index_];
+  const auto is_frame = [this](LayerId id) {
+    return std::any_of(frames_.begin(), frames_.end(), [id](const PreviewFrame& frame) { return frame.id == id; });
+  };
   for (const auto& [id, visible] : saved_visibility_) {
     if (auto* layer = document->find_layer(id); layer != nullptr) {
-      layer->set_visible(id == current);
+      const bool shown = id == current.id ||
+                         std::find(current.containers.begin(), current.containers.end(), id) != current.containers.end() ||
+                         (!is_frame(id) && visible);
+      layer->set_visible(shown);
     }
   }
   if (visuals_changed_ != nullptr) {
     visuals_changed_(false);
   }
-  status_label_->setText(tr("Frame %1/%2").arg(frame_index_ + 1).arg(frame_ids_.size()));
+  status_label_->setText(tr("Frame %1/%2").arg(frame_index_ + 1).arg(frames_.size()));
   timer_.start(current_frame_delay_ms());
 }
 
 std::uint32_t AnimationPreviewWindow::frame_delay_ms(std::size_t index) const {
   const auto default_ms = static_cast<std::uint32_t>(default_delay_ms_);
-  if (playback_document_ == nullptr || index >= frame_ids_.size() || ignore_name_delays_check_->isChecked()) {
+  if (playback_document_ == nullptr || index >= frames_.size() || ignore_name_delays_check_->isChecked()) {
     return default_ms;
   }
-  const auto* layer = std::as_const(*playback_document_).find_layer(frame_ids_[index]);
+  const auto* layer = std::as_const(*playback_document_).find_layer(frames_[index].id);
   return layer == nullptr ? default_ms : animation::parse_layer_name_delay_ms(layer->name()).value_or(default_ms);
 }
 

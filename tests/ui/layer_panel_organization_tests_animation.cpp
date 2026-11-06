@@ -19,6 +19,8 @@
 // aggregator in layer_panel_organization_tests.cpp appends this part's vector).
 #include "ui/animation_preview_window.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/image_document_io.hpp"
+#include "ui/image_save_options.hpp"
 #include "ui/main_window.hpp"
 #include "test_harness.hpp"
 #include "ui_test_access.hpp"
@@ -30,6 +32,7 @@
 #include <QDoubleSpinBox>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QImageReader>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -38,6 +41,7 @@
 #include <QPushButton>
 #include <QTest>
 #include <QToolButton>
+#include <cstdlib>
 #include <cstdio>
 #include <string>
 #include <utility>
@@ -113,6 +117,166 @@ std::vector<bool> top_level_visibility(patchy::ui::MainWindow& window) {
     visibility.push_back(layer.visible());
   }
   return visibility;
+}
+
+// Frames and layers named "all" (docs/animation.md#frames-and-layers-named-all). Bottom to
+// top: a shared green background "all"; "white" (left half) with a black layer clipped to it;
+// an "all" group at 50% opacity holding red "c1 0.2s" and blue "c2". Frames, top first: c2,
+// c1 (each drawn inside the half-opaque group over the background), then white with its
+// clipped black layer. `ids` receives the layer ids in that bottom-to-top order, children after
+// their group.
+patchy::Document all_layers_test_document(std::vector<patchy::LayerId>* ids = nullptr) {
+  constexpr std::int32_t kWidth = 8;
+  constexpr std::int32_t kHeight = 4;
+  patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  const auto make = [&document](const char* name, QColor color, std::int32_t width) {
+    auto pixels = solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), color);
+    for (std::int32_t y = 0; y < kHeight; ++y) {
+      for (std::int32_t x = width; x < kWidth; ++x) {
+        pixels.pixel(x, y)[3] = 0;
+      }
+    }
+    return patchy::Layer(document.allocate_layer_id(), name, std::move(pixels));
+  };
+  document.add_layer(make("all", QColor(0, 200, 0), kWidth));
+  document.add_layer(make("white", QColor(255, 255, 255), kWidth / 2));
+  auto tint = make("tint", QColor(0, 0, 0), kWidth);
+  tint.set_clipped(true);
+  document.add_layer(std::move(tint));
+  patchy::Layer group(document.allocate_layer_id(), "All", patchy::LayerKind::Group);
+  group.children().push_back(make("c1 0.2s", QColor(255, 0, 0), kWidth));
+  group.children().push_back(make("c2", QColor(0, 0, 255), kWidth));
+  group.set_opacity(0.5F);
+  document.add_layer(std::move(group));
+  if (ids != nullptr) {
+    ids->clear();
+    for (const auto& layer : std::as_const(document).layers()) {
+      ids->push_back(layer.id());
+      for (const auto& child : layer.children()) {
+        ids->push_back(child.id());
+      }
+    }
+  }
+  return document;
+}
+
+bool rgba_near(const patchy::PixelBuffer& pixels, std::int32_t x, std::int32_t y, std::array<int, 4> expected) {
+  const auto* px = pixels.pixel(x, y);
+  for (std::size_t channel = 0; channel < 4; ++channel) {
+    if (std::abs(static_cast<int>(px[channel]) - expected[channel]) > 2) {
+      std::fprintf(stderr, "pixel (%d,%d) = %d,%d,%d,%d, expected %d,%d,%d,%d\n", x, y, px[0], px[1], px[2], px[3],
+                   expected[0], expected[1], expected[2], expected[3]);
+      return false;
+    }
+  }
+  return true;
+}
+
+void ui_animated_export_all_layers_render_shared_and_grouped_frames() {
+  const auto document = all_layers_test_document();
+  patchy::ui::ImageSaveOptions options;
+  std::vector<patchy::PixelBuffer> frames;
+  std::vector<std::string> names;
+  patchy::ui::for_each_animation_export_frame(document, options, nullptr,
+                                              [&](patchy::PixelBuffer rgba, const patchy::Layer& layer) {
+                                                frames.push_back(std::move(rgba));
+                                                names.push_back(layer.name());
+                                              });
+  CHECK(names == (std::vector<std::string>{"c2", "c1 0.2s", "white"}));
+  CHECK(frames.size() == 3U);
+  if (frames.size() != 3U) return;
+  // c2 and c1: the group's 50% opacity applies to each child over the shared background.
+  CHECK(rgba_near(frames[0], 1, 1, {0, 100, 128, 255}));
+  CHECK(rgba_near(frames[0], 6, 2, {0, 100, 128, 255}));
+  CHECK(rgba_near(frames[1], 1, 1, {128, 100, 0, 255}));
+  // white: its clipped black layer draws on its left half only; the background shows right.
+  CHECK(rgba_near(frames[2], 1, 1, {0, 0, 0, 255}));
+  CHECK(rgba_near(frames[2], 6, 2, {0, 200, 0, 255}));
+
+  // The GIF has the three frames, with the child's own name delay kept.
+  std::filesystem::create_directories("test-artifacts");
+  options.gif_animate = true;
+  options.gif_frame_delay_cs = 7;
+  const auto path = QStringLiteral("test-artifacts/ui_animated_export_all_layers.gif");
+  patchy::ui::write_flat_image_file(document, path, QStringLiteral("gif"), options);
+  QImageReader reader(path);
+  CHECK(reader.imageCount() == 3);
+  const std::array<int, 3> expected_delays_ms = {70, 200, 70};
+  for (std::size_t frame = 0; frame < 3; ++frame) {
+    CHECK(!reader.read().isNull());
+    CHECK(reader.nextImageDelay() == expected_delays_ms[frame]);
+  }
+}
+
+void ui_animated_export_all_layers_trim_includes_shared_layers() {
+  // A shared one-pixel mark in the corner keeps the trimmed frames large enough to hold it,
+  // though each frame layer covers one pixel in the middle.
+  patchy::Document document(8, 4, patchy::PixelFormat::rgba8());
+  const auto dot = [&document](const char* name, std::int32_t x, std::int32_t y) {
+    patchy::PixelBuffer pixels(8, 4, patchy::PixelFormat::rgba8());
+    pixels.clear(0);
+    auto* px = pixels.pixel(x, y);
+    px[0] = 255;
+    px[3] = 255;
+    document.add_pixel_layer(name, std::move(pixels));
+  };
+  dot("all", 0, 0);
+  dot("one", 4, 2);
+  dot("two", 5, 2);
+  patchy::ui::ImageSaveOptions options;
+  options.export_trim_transparent = true;
+  std::vector<std::pair<std::int32_t, std::int32_t>> sizes;
+  patchy::ui::for_each_animation_export_frame(document, options, nullptr,
+                                              [&](patchy::PixelBuffer rgba, const patchy::Layer&) {
+                                                CHECK(rgba.pixel(0, 0)[3] == 255);
+                                                sizes.emplace_back(rgba.width(), rgba.height());
+                                              });
+  CHECK(sizes == (std::vector<std::pair<std::int32_t, std::int32_t>>{{6, 3}, {6, 3}}));
+}
+
+void ui_animation_preview_plays_all_layers() {
+  AnimationPreviewSettingsReset preview_settings;
+  std::vector<patchy::LayerId> ids;  // all, white, tint, All, c1, c2
+  auto source = all_layers_test_document(&ids);
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(source), QStringLiteral("All layers"));
+  show_window(window);
+  auto* panel = open_animation_preview(window);
+  CHECK(panel != nullptr);
+  if (panel == nullptr) return;
+  auto* play_button = panel->findChild<QPushButton*>(QStringLiteral("animationPlayButton"));
+  auto* status_label = panel->findChild<QLabel*>(QStringLiteral("animationFrameStatusLabel"));
+  CHECK(play_button != nullptr);
+  CHECK(status_label != nullptr);
+  if (play_button == nullptr || status_label == nullptr) return;
+  const auto visibility = [&window, &ids] {
+    std::vector<bool> visible;
+    const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    for (const auto id : ids) {
+      const auto* layer = document.find_layer(id);
+      visible.push_back(layer != nullptr && layer->visible());
+    }
+    return visible;
+  };
+  const std::vector<bool> start{true, true, true, true, true, true};
+  CHECK(visibility() == start);
+
+  play_button->click();
+  CHECK(panel->playing());
+  CHECK(status_label->text().contains(QStringLiteral("3")));
+  // Frame 1 is c2 inside its group, over the shared background; white is off, and its
+  // clipped layer keeps its own visibility (it shows only with its base).
+  CHECK(visibility() == (std::vector<bool>{true, false, true, true, false, true}));
+  panel->advance_frame();
+  CHECK(visibility() == (std::vector<bool>{true, false, true, true, true, false}));
+  CHECK(panel->current_frame_delay_ms() == 200);
+  panel->advance_frame();
+  CHECK(visibility() == (std::vector<bool>{true, true, true, true, false, false}));
+
+  play_button->click();
+  CHECK(!panel->playing());
+  CHECK(visibility() == start);
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
 }
 
 void ui_animation_preview_plays_visible_layers_and_restores() {
@@ -720,5 +884,10 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests_animation_par
        ui_animation_preview_stops_on_tab_switch_and_close},
       {"ui_animation_preview_fits_its_text_at_larger_fonts",
        ui_animation_preview_fits_its_text_at_larger_fonts},
+      {"ui_animated_export_all_layers_render_shared_and_grouped_frames",
+       ui_animated_export_all_layers_render_shared_and_grouped_frames},
+      {"ui_animated_export_all_layers_trim_includes_shared_layers",
+       ui_animated_export_all_layers_trim_includes_shared_layers},
+      {"ui_animation_preview_plays_all_layers", ui_animation_preview_plays_all_layers},
   };
 }

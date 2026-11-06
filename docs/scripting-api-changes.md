@@ -21,6 +21,12 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-06 (behavioral): every animated export (`doc.exportAnimatedWebp`, `doc.exportAnimatedPng`,
+the `animate` key of `saveAs`/`exportAs`/`encodeForWeb`) reads layers named "all": a top-level layer
+named "all" is drawn in every frame and is not a frame; a top-level group named "all" turns each unit
+inside it into a frame drawn inside the group; clipped layers go with their base. Documents without
+such names keep their frames. Rules in [animation.md](animation.md#frames-and-layers-named-all).
+
 2026-11-05 (additive): `patchy.ui.rotation`, the active document's view rotation in degrees,
 clockwise, in (-180, 180] ([view-navigation-rotation.md](view-navigation-rotation.md)). Setting wraps
 any finite angle and turns the view about its center; NaN or no document throws; 0 with no document.
