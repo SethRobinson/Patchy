@@ -913,6 +913,122 @@ void ui_web_export_animation_plays_in_the_preview() {
   CHECK(inspected);
 }
 
+// 4-up with an animation: the two lower tiles (the format at 50% and 25%) play and step with
+// the main result, each showing its own cached frame at the same index (desk card local-034).
+// An animated PNG has nothing to reduce, so its tiles keep the note. Captures
+// web_export_quad_animation at frame 3 of 4.
+void ui_web_export_quad_tiles_follow_the_animation_frame() {
+  WebExportSettingsGuard guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  (void)animation_fixture_document(window);
+  bool inspected = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("webExportDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    dialog->resize(1280, 820);
+    auto* list = dialog->findChild<QTreeWidget*>(QStringLiteral("webExportFormatList"));
+    auto* preview = dialog->findChild<QWidget*>(QStringLiteral("webExportPreview"));
+    auto* half = dialog->findChild<QWidget*>(QStringLiteral("webExportHalfQualityPreview"));
+    auto* quarter = dialog->findChild<QWidget*>(QStringLiteral("webExportQuarterQualityPreview"));
+    auto* quad = dialog->findChild<QPushButton*>(QStringLiteral("webExportCompareQuad"));
+    auto* play = dialog->findChild<QPushButton*>(QStringLiteral("webExportPlayButton"));
+    auto* next = dialog->findChild<QAbstractButton*>(QStringLiteral("webExportNextFrameButton"));
+    auto* previous = dialog->findChild<QAbstractButton*>(QStringLiteral("webExportPreviousFrameButton"));
+    auto* timer = dialog->findChild<QTimer*>(QStringLiteral("webExportPlaybackTimer"));
+    CHECK(list != nullptr && preview != nullptr && half != nullptr && quarter != nullptr && quad != nullptr &&
+          play != nullptr && next != nullptr && previous != nullptr && timer != nullptr);
+    if (list == nullptr || preview == nullptr || half == nullptr || quarter == nullptr || quad == nullptr ||
+        play == nullptr || next == nullptr || previous == nullptr || timer == nullptr) {
+      dialog->reject();
+      return;
+    }
+    quad->click();
+    QApplication::processEvents();
+    CHECK(half->isVisible() && quarter->isVisible());
+    const auto frame = [preview] { return preview->property("webExportFrameIndex").toInt(); };
+    const auto frames = [preview] { return preview->property("webExportFrameCount").toInt(); };
+    const auto tile_frame = [](QWidget* tile) {
+      const auto value = tile->property("webExportFrameIndex");
+      return value.isValid() ? value.toInt() : -1;
+    };
+    const auto tile_key = [](QWidget* tile) { return tile->property("webExportResultKey").toLongLong(); };
+    const auto tiles_current = [&] {
+      return preview->property("webExportShowsCurrent").toBool() && frames() == 4 &&
+             half->property("webExportShowsCurrent").toBool() && quarter->property("webExportShowsCurrent").toBool();
+    };
+    struct Case {
+      const char* row;
+      const char* animate;
+    };
+    for (const auto& item : {Case{"GIF", "webExportGifAnimateCheck"}, Case{"WebP", "webExportWebpAnimateCheck"}}) {
+      auto* row = row_named(list, QString::fromLatin1(item.row));
+      auto* animate = dialog->findChild<QCheckBox*>(QLatin1String(item.animate));
+      CHECK(row != nullptr && animate != nullptr);
+      if (row == nullptr || animate == nullptr) {
+        continue;
+      }
+      list->setCurrentItem(row);
+      animate->setChecked(true);
+      CHECK(wait_until(tiles_current, 120000));
+      CHECK(wait_until([&] { return tile_frame(half) >= 0 && tile_frame(quarter) >= 0; }, 5000));
+      // Playing: the tiles keep the main result's frame as it moves on.
+      CHECK(timer->isActive());
+      const auto start = frame();
+      CHECK(wait_until([&] { return frame() != start; }, 5000));
+      CHECK(tile_frame(half) == frame() && tile_frame(quarter) == frame());
+      // Paused, then stepped: each step shows the tiles' own frame at that index.
+      play->click();
+      CHECK(!timer->isActive());
+      while (frame() != 0) {
+        next->click();
+      }
+      std::vector<qint64> half_keys;
+      std::vector<qint64> quarter_keys;
+      for (int index = 0; index < 4; ++index) {
+        CHECK(frame() == index);
+        CHECK(tile_frame(half) == index && tile_frame(quarter) == index);
+        half_keys.push_back(tile_key(half));
+        quarter_keys.push_back(tile_key(quarter));
+        next->click();
+      }
+      // Four different frames per tile, and wrapping round shows frame 1 again.
+      CHECK(std::set<qint64>(half_keys.begin(), half_keys.end()).size() == 4);
+      CHECK(std::set<qint64>(quarter_keys.begin(), quarter_keys.end()).size() == 4);
+      CHECK(frame() == 0 && tile_key(half) == half_keys[0] && tile_key(quarter) == quarter_keys[0]);
+      previous->click();
+      CHECK(frame() == 3 && tile_frame(half) == 3 && tile_key(half) == half_keys[3]);
+      CHECK(tile_key(quarter) == quarter_keys[3]);
+      if (QLatin1String(item.row) == QLatin1String("GIF")) {
+        previous->click();
+        CHECK(frame() == 2 && tile_frame(half) == 2 && tile_frame(quarter) == 2);
+        capture_widget_artifact("web_export_quad_animation", *dialog);
+      }
+      play->click();
+      CHECK(timer->isActive());
+    }
+    // An animated PNG has no quality to reduce: the tiles show the note, not a frame.
+    auto* png = row_named(list, QStringLiteral("PNG"));
+    auto* png_animate = dialog->findChild<QCheckBox*>(QStringLiteral("webExportPngAnimateCheck"));
+    CHECK(png != nullptr && png_animate != nullptr);
+    if (png != nullptr && png_animate != nullptr) {
+      list->setCurrentItem(png);
+      png_animate->setChecked(true);
+      CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool() && frames() == 4; }, 120000));
+      next->click();
+      CHECK(tile_frame(half) == -1 && tile_frame(quarter) == -1);
+    }
+    inspected = true;
+    dialog->reject();
+  }));
+  patchy::test::ui::require_action(window, "fileExportForWebAction")->trigger();
+  QApplication::processEvents();
+  CHECK(inspected);
+}
+
 // Transparency on a transparent one-layer image: no Animation group, Fill with enables the
 // color (the pixels are checked in ui_web_export_play_count_and_fill_read_back).
 void ui_web_export_transparency_fill_in_the_dialog() {
@@ -2214,6 +2330,7 @@ std::vector<patchy::test::TestCase> web_export_tests() {
       {"ui_web_export_animation_stale_frames_are_discarded", ui_web_export_animation_stale_frames_are_discarded},
       {"ui_web_export_still_png_is_unchanged_by_animation", ui_web_export_still_png_is_unchanged_by_animation},
       {"ui_web_export_animation_plays_in_the_preview", ui_web_export_animation_plays_in_the_preview},
+      {"ui_web_export_quad_tiles_follow_the_animation_frame", ui_web_export_quad_tiles_follow_the_animation_frame},
       {"ui_web_export_avif_and_jxl_read_back", ui_web_export_avif_and_jxl_read_back},
       {"ui_web_export_slow_encode_never_blocks_the_selected_format",
        ui_web_export_slow_encode_never_blocks_the_selected_format},

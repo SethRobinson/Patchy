@@ -187,8 +187,10 @@ its quality (`web_export_reduced_settings`: rounded, clamped to the format's min
 30 and 15; GIF and palette PNG halve and quarter Colors). Each tile's tag names its quality and
 size; a format with nothing to reduce (full-color PNG, lossless) shows a note in the lower tiles.
 The two extra jobs go to the second lane right after the selected format's job, only while 4-up
-is on, so AVIF and JPEG XL stay off the UI thread like every encode; a tile of an animated result
-shows frame 1. The panes share one minimum area (300 x 420) in every view, split between them,
+is on, so AVIF and JPEG XL stay off the UI thread like every encode. An animated tile keeps its
+own cached frames and shows the main result's frame index as it plays and steps (`show_frame`
+only picks cached images; a tile with fewer frames stays on its last; probe `webExportFrameIndex`
+on each tile). The panes share one minimum area (300 x 420) in every view, split between them,
 so switching views never resizes the dialog. One row under the preview (`webExportViewRow`,
 never wrapped; its width is the dialog's minimum): "View:" and the view buttons, then "Zoom:",
 the amount as a plain percent (`webExportZoomLabel`, sized for "1600%" plus room), - and + of
