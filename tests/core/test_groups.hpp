@@ -50,6 +50,7 @@ std::vector<patchy::test::TestCase> ora_tests();
 std::vector<patchy::test::TestCase> jxl_tests();
 std::vector<patchy::test::TestCase> hdr_import_tests();
 std::vector<patchy::test::TestCase> flat_formats_misc_tests();
+std::vector<patchy::test::TestCase> animation_frames_tests();
 std::vector<patchy::test::TestCase> decode_budget_tests();
 std::vector<patchy::test::TestCase> unicode_path_tests();
 std::vector<patchy::test::TestCase> font_zip_tests();

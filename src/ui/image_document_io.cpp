@@ -22,6 +22,7 @@
 #include "formats/bmp_document_io.hpp"
 #include "formats/document_flatten.hpp"
 #include "formats/gif_document_io.hpp"
+#include "formats/animation_frames.hpp"
 #include "formats/animation_timing.hpp"
 #include "formats/apng_writer.hpp"
 #include "formats/webp_animation_io.hpp"
@@ -1626,10 +1627,18 @@ Rect group_visible_alpha_bounds(const Layer& group, Rect bounds, const PatternSt
 }
 
 QImage render_layer_isolated(const Document& document, const Layer& layer) {
-  Document scratch(document.width(), document.height(), PixelFormat::rgba8());
   Layer copy = layer;
   copy.set_visible(true);
-  scratch.add_layer(std::move(copy));
+  std::vector<Layer> stack;
+  stack.push_back(std::move(copy));
+  return render_layers_isolated(document, std::move(stack));
+}
+
+QImage render_layers_isolated(const Document& document, std::vector<Layer> stack) {
+  Document scratch(document.width(), document.height(), PixelFormat::rgba8());
+  for (auto& layer : stack) {
+    scratch.add_layer(std::move(layer));
+  }
   return qimage_from_document(scratch, true);
 }
 
@@ -2926,20 +2935,22 @@ void write_encoded_image_file(const QString& path, std::span<const std::uint8_t>
 }
 
 std::vector<const Layer*> animation_export_layers(const Document& document) {
-  std::vector<const Layer*> visible_layers;
-  const auto& layers = std::as_const(document).layers();
-  for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
-    if (it->visible()) {
-      visible_layers.push_back(&*it);
-    }
+  std::vector<const Layer*> frame_layers;
+  for (const auto& frame : animation::animation_frames(std::as_const(document).layers(), false)) {
+    frame_layers.push_back(frame.layer);
   }
-  return visible_layers;
+  return frame_layers;
 }
 
 void for_each_animation_export_frame(const Document& document, const ImageSaveOptions& options,
                                      std::vector<std::string>* notices,
                                      const std::function<void(PixelBuffer rgba, const Layer& layer)>& frame) {
-  const auto visible_layers = animation_export_layers(document);
+  const auto& top_level = std::as_const(document).layers();
+  const auto frames = animation::animation_frames(top_level, false);
+  // Each frame draws its own layer plus the shared ("all") layers (docs/animation.md).
+  const auto render_frame = [&](const animation::AnimationFrameRef& ref) {
+    return pixels_from_image_rgba(render_layers_isolated(document, animation::animation_frame_stack(top_level, ref)));
+  };
   // One transform for every frame. Trim needs every frame up front: it crops to the UNION
   // of their visible-alpha bounds so the frames keep a single canvas size (the encoder
   // writes full-canvas frames, no offsets). Without trim the frames render one at a time.
@@ -2950,10 +2961,10 @@ void for_each_animation_export_frame(const Document& document, const ImageSaveOp
   auto height = canvas_height;
   std::vector<PixelBuffer> rendered;
   if (options.export_trim_transparent) {
-    rendered.reserve(visible_layers.size());
+    rendered.reserve(frames.size());
     std::optional<Rect> union_bounds;
-    for (const auto* layer : visible_layers) {
-      rendered.push_back(pixels_from_image_rgba(render_layer_isolated(document, *layer)));
+    for (const auto& ref : frames) {
+      rendered.push_back(render_frame(ref));
       if (const auto bounds = visible_alpha_local_bounds(rendered.back()); bounds.has_value()) {
         union_bounds = union_bounds.has_value() ? union_rects(*union_bounds, *bounds) : *bounds;
       }
@@ -2971,10 +2982,9 @@ void for_each_animation_export_frame(const Document& document, const ImageSaveOp
   transform.resize = export_resize_target(options, width, height, canvas_width, canvas_height);
   transform.scale = std::max(1, options.export_scale);
 
-  for (std::size_t index = 0; index < visible_layers.size(); ++index) {
-    const Layer& layer = *visible_layers[index];
-    auto rgba = index < rendered.size() ? std::move(rendered[index])
-                                        : pixels_from_image_rgba(render_layer_isolated(document, layer));
+  for (std::size_t index = 0; index < frames.size(); ++index) {
+    const Layer& layer = *frames[index].layer;
+    auto rgba = index < rendered.size() ? std::move(rendered[index]) : render_frame(frames[index]);
     rgba = transform_export_buffer(rgba, transform);
     if (options.export_fill_transparent) {
       composite_over_background(rgba, options.export_background_color);

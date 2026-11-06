@@ -649,6 +649,7 @@ if(NOT EMSCRIPTEN)
 endif()
 
 add_library(patchy_formats
+  src/formats/animation_frames.cpp
   src/formats/animation_timing.cpp
   src/formats/apng_writer.cpp
   src/formats/webp_animation_io.cpp
@@ -2445,6 +2446,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/builtin_filter_looks_tests.cpp
     tests/core/flat_formats_bmp_tests.cpp
     tests/core/flat_formats_misc_tests.cpp
+    tests/core/animation_frames_tests.cpp
     tests/core/decode_budget_tests.cpp
     tests/core/unicode_path_tests.cpp
     tests/core/atomic_write_recovery_tests.cpp

@@ -100,8 +100,13 @@ private:
 
   // Playback state; playback_document_ doubles as the playing flag.
   Document* playback_document_{nullptr};
-  std::vector<LayerId> frame_ids_;                          // top to bottom, the frames at start
-  std::vector<std::pair<LayerId, bool>> saved_visibility_;  // every top-level layer at start
+  struct PreviewFrame {
+    LayerId id{0};                     // the frame's layer
+    std::vector<LayerId> containers;   // the "all" groups holding it, outermost first
+  };
+  std::vector<PreviewFrame> frames_;                        // top to bottom, the frames at start
+  // At start: every top-level layer and every layer inside an "all" group (animation_frames.hpp).
+  std::vector<std::pair<LayerId, bool>> saved_visibility_;
   std::size_t frame_index_{0};
 };
 

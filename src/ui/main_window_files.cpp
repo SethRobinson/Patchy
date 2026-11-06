@@ -178,6 +178,7 @@
 #include "formats/gif_document_io.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
 #include "ui/animation_preview_window.hpp"
+#include "formats/animation_frames.hpp"
 #include "formats/animation_timing.hpp"
 #include "formats/apng_writer.hpp"
 #include "formats/webp_animation_io.hpp"
@@ -1342,10 +1343,16 @@ bool is_xcf_extension(const QString& extension) {
 }
 
 // Whether an animated GIF export would have at least one frame (visible top-level layers
-// become the frames).
+// become the frames, with the "all" rules of docs/animation.md).
 bool has_visible_top_level_layer(const Document& document) {
+  return !animation_export_layers(document).empty();
+}
+
+// Whether Save As / Export offers an animation: two or more top-level layers, or a single
+// "all" group holding two or more frames (hidden ones counted, as for top-level layers).
+bool offers_animation_frames(const Document& document) {
   const auto& layers = document.layers();
-  return std::any_of(layers.begin(), layers.end(), [](const Layer& layer) { return layer.visible(); });
+  return layers.size() >= 2 || animation::animation_frames(layers, true).size() >= 2;
 }
 
 // File Info (docs/file-info.md): the PSD reader lifted PSD/PSB metadata and the XCF reader
@@ -5754,7 +5761,7 @@ bool MainWindow::save_document_as() {
   } else if (discards_layers) {
     if ((extension == QStringLiteral("gif") || extension == QStringLiteral("webp") ||
                 extension == QStringLiteral("jxl")) &&
-               std::as_const(document()).layers().size() >= 2) {
+               offers_animation_frames(std::as_const(document()))) {
       // GIF asks animation-or-flatten instead of the plain flatten warning; an explicit
       // animation choice needs no warning (the frames round-trip through reopening).
       auto defaults = image_save_defaults_for_document();
@@ -6305,13 +6312,13 @@ void MainWindow::export_flat_image() {
       image_options = std::move(pdf_options);
     } else if (!is_photoshop_document_extension(extension) && !svg_export) {
       auto defaults = image_save_defaults_for_document();
-      defaults.offer_animation = std::as_const(document()).layers().size() >= 2;
+      defaults.offer_animation = offers_animation_frames(std::as_const(document()));
       defaults.has_visible_frames = has_visible_top_level_layer(std::as_const(document()));
       // for_export adds the shared Export section (resize, pixel-art scale, transparency,
       // trim, reveal) to every raster format's options (a section-only dialog for formats
       // with no other options). SVG has no raster options: vectors scale client-side.
       const QSize document_size(std::as_const(document()).width(), std::as_const(document()).height());
-      if (extension == QStringLiteral("gif") && std::as_const(document()).layers().size() >= 2) {
+      if (extension == QStringLiteral("gif") && offers_animation_frames(std::as_const(document()))) {
         // Animation-or-flatten plus the delay, replacing the section-only dialog.
         image_options = prompt_gif_save_options(this, defaults, /*offer_flatten_choice*/ true,
                                                 /*for_export*/ true,

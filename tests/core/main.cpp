@@ -177,6 +177,7 @@ int main(int argc, char** argv) {
            jxl_tests,
            hdr_import_tests,
            flat_formats_misc_tests,
+           animation_frames_tests,
            decode_budget_tests,
            unicode_path_tests,
            font_zip_tests,
