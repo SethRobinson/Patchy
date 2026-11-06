@@ -223,8 +223,18 @@ bool CompanionMenu::eventFilter(QObject* watched, QEvent* event) {
   return QObject::eventFilter(watched, event);
 }
 
+void CompanionMenu::set_builtin_action(QAction* action) {
+  builtin_action_ = action;
+  rebuild();
+}
+
 void CompanionMenu::rebuild() {
+  // clear() deletes only the actions the menu owns; the built-in one belongs to the window.
   menu_->clear();
+  if (builtin_action_ != nullptr) {
+    menu_->addAction(builtin_action_);
+    menu_->addSeparator();
+  }
   QStringList problems;
   const auto manifests = load_companion_manifests(&problems);
   for (const auto& manifest : manifests) {
@@ -261,7 +271,7 @@ void CompanionMenu::rebuild() {
     quit_action->setProperty(kWorksWithoutDocumentProperty, true);
     connect(quit_action, &QAction::triggered, this, [this, manifest] { (void)quit(manifest); });
   }
-  if (menu_->isEmpty() && problems.isEmpty()) {
+  if (manifests.empty() && problems.isEmpty()) {
     auto* none = menu_->addAction(tr("No companion apps installed"));
     none->setObjectName(QStringLiteral("companionsNoneAction"));
     none->setEnabled(false);

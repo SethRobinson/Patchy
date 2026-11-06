@@ -19627,6 +19627,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Pick the last brush preset in the list</source>
         <translation>选择列表中的最后一个画笔预设</translation>
     </message>
+    <message>
+        <source>Generate pictures from a text prompt with your OpenAI key</source>
+        <translation>使用您的 OpenAI 密钥根据文字生成图像</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -33155,6 +33159,68 @@ Locked: %1</source>
         <source>Last Preset</source>
         <translation>最后一个预设</translation>
     </message>
+    <message>
+        <source>OpenAI %1: %2</source>
+        <translation>OpenAI %1: %2</translation>
+    </message>
+    <message>
+        <source>OpenAI: %1</source>
+        <translation>OpenAI: %1</translation>
+    </message>
+    <message>
+        <source>Open a document first.</source>
+        <translation>请先打开文档。</translation>
+    </message>
+    <message>
+        <source>Select a layer first.</source>
+        <translation>请先选择图层。</translation>
+    </message>
+    <message>
+        <source>The active layer has no visible pixels.</source>
+        <translation>当前图层没有可见像素。</translation>
+    </message>
+    <message>
+        <source>Select an area first, with a marquee, lasso or Object Selection.</source>
+        <translation>请先用选框、套索或对象选择选取一个区域。</translation>
+    </message>
+    <message>
+        <source>The selection is outside the canvas.</source>
+        <translation>选区在画布之外。</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <translation>%1 %2</translation>
+    </message>
+    <message>
+        <source>OpenAI Animation</source>
+        <translation>OpenAI 动画</translation>
+    </message>
+    <message numerus="yes">
+        <source>Opened %n animation(s); export one with File &gt; Export &gt; Layers as Animated GIF.</source>
+        <translation>
+            <numerusform>已打开 %n 个动画；可用 文件 &gt; 导出 &gt; 图层到 GIF 动画 导出。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Writing into the active layer works in 8-bit documents; choose New layer as the target.</source>
+        <translation>写入当前图层仅适用于 8 位文档；请选择“新建图层”作为目标。</translation>
+    </message>
+    <message>
+        <source>The active layer is not a pixel layer; choose New layer as the target.</source>
+        <translation>当前图层不是像素图层；请选择“新建图层”作为目标。</translation>
+    </message>
+    <message>
+        <source>The active layer&apos;s pixels are locked; choose New layer as the target.</source>
+        <translation>当前图层的像素已锁定；请选择“新建图层”作为目标。</translation>
+    </message>
+    <message>
+        <source>OpenAI Image Tools via API Key (built-in)...</source>
+        <translation>通过 API 密钥使用 OpenAI 图像工具 (内置)...</translation>
+    </message>
+    <message>
+        <source>OpenAI Image Tools</source>
+        <translation>OpenAI 图像工具</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -33322,6 +33388,719 @@ Locked: %1</source>
     <message>
         <source>Alt</source>
         <translation>Alt</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::OpenAiImagesDialog</name>
+    <message>
+        <source>API key:</source>
+        <translation>API 密钥:</translation>
+    </message>
+    <message>
+        <source>Check Key</source>
+        <translation>检查密钥</translation>
+    </message>
+    <message>
+        <source>Remember the key on this computer</source>
+        <translation>在此电脑上记住密钥</translation>
+    </message>
+    <message>
+        <source>The key is no longer remembered on this computer.</source>
+        <translation>此电脑上不再记住该密钥。</translation>
+    </message>
+    <message>
+        <source>Add Layer</source>
+        <translation>添加图层</translation>
+    </message>
+    <message>
+        <source>Add the active layer as a reference image</source>
+        <translation>将当前图层添加为参考图像</translation>
+    </message>
+    <message>
+        <source>Add Visible</source>
+        <translation>添加可见图像</translation>
+    </message>
+    <message>
+        <source>Add the visible image, all layers merged, as a reference image</source>
+        <translation>将合并所有图层的可见图像添加为参考图像</translation>
+    </message>
+    <message>
+        <source>Add File...</source>
+        <translation>添加文件...</translation>
+    </message>
+    <message>
+        <source>Remove</source>
+        <translation>移除</translation>
+    </message>
+    <message>
+        <source>Model:</source>
+        <translation>模型:</translation>
+    </message>
+    <message>
+        <source>Match the canvas</source>
+        <translation>匹配画布</translation>
+    </message>
+    <message>
+        <source>Square (1024 x 1024)</source>
+        <translation>正方形 (1024 x 1024)</translation>
+    </message>
+    <message>
+        <source>Landscape (1536 x 1024)</source>
+        <translation>横向 (1536 x 1024)</translation>
+    </message>
+    <message>
+        <source>Portrait (1024 x 1536)</source>
+        <translation>纵向 (1024 x 1536)</translation>
+    </message>
+    <message>
+        <source>Chosen by the model</source>
+        <translation>由模型选择</translation>
+    </message>
+    <message>
+        <source>Match the canvas requests the canvas&apos;s shape and scales the result to fit it</source>
+        <translation>“匹配画布”按画布比例请求，并缩放结果以适合画布</translation>
+    </message>
+    <message>
+        <source>Size:</source>
+        <translation>大小:</translation>
+    </message>
+    <message>
+        <source>Automatic</source>
+        <translation>自动</translation>
+    </message>
+    <message>
+        <source>Low</source>
+        <translation>低</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>中</translation>
+    </message>
+    <message>
+        <source>High</source>
+        <translation>高</translation>
+    </message>
+    <message>
+        <source>Quality:</source>
+        <translation>质量:</translation>
+    </message>
+    <message>
+        <source>Transparent</source>
+        <translation>透明</translation>
+    </message>
+    <message>
+        <source>Opaque</source>
+        <translation>不透明</translation>
+    </message>
+    <message>
+        <source>Background:</source>
+        <translation>背景:</translation>
+    </message>
+    <message>
+        <source>Each image becomes its own layer, and each one is billed</source>
+        <translation>每张图像成为单独的图层，每张都会计费</translation>
+    </message>
+    <message>
+        <source>Stop</source>
+        <translation>停止</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>关闭</translation>
+    </message>
+    <message>
+        <source>%1 (%2 s)</source>
+        <translation>%1 (%2 秒)</translation>
+    </message>
+    <message>
+        <source>Using the key from the OPENAI_API_KEY environment variable.</source>
+        <translation>正在使用环境变量 OPENAI_API_KEY 中的密钥。</translation>
+    </message>
+    <message>
+        <source>Enter your OpenAI API key first.</source>
+        <translation>请先输入您的 OpenAI API 密钥。</translation>
+    </message>
+    <message>
+        <source>The key could not be saved on this computer; it is used for this session only.</source>
+        <translation>无法在此电脑上保存密钥，仅在本次会话中使用。</translation>
+    </message>
+    <message>
+        <source>Checking the key...</source>
+        <translation>正在检查密钥...</translation>
+    </message>
+    <message>
+        <source>Type a prompt first.</source>
+        <translation>请先输入提示词。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Generating %n image(s)...</source>
+        <translation>
+            <numerusform>正在生成 %n 张图像...</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The images arrived, but could not be added to a document.</source>
+        <translation>图像已收到，但无法添加到文档。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n layer(s).</source>
+        <translation>
+            <numerusform>已添加 %n 个图层。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>%1 tokens used.</source>
+        <translation>已使用 %1 个令牌。</translation>
+    </message>
+    <message>
+        <source>Stopped. OpenAI may still bill a request it had already started.</source>
+        <translation>已停止。OpenAI 仍可能对已开始的请求计费。</translation>
+    </message>
+    <message>
+        <source>OpenAI takes at most %1 reference images.</source>
+        <translation>OpenAI 最多接受 %1 张参考图像。</translation>
+    </message>
+    <message>
+        <source>Visible</source>
+        <translation>可见图像</translation>
+    </message>
+    <message>
+        <source>Add Reference Images</source>
+        <translation>添加参考图像</translation>
+    </message>
+    <message>
+        <source>Images (*.png *.jpg *.jpeg *.webp *.bmp *.gif *.tif *.tiff)</source>
+        <translation>图像 (*.png *.jpg *.jpeg *.webp *.bmp *.gif *.tif *.tiff)</translation>
+    </message>
+    <message>
+        <source>Create an API key</source>
+        <translation>创建 API 密钥</translation>
+    </message>
+    <message>
+        <source>Where the key is saved</source>
+        <translation>密钥的保存位置</translation>
+    </message>
+    <message>
+        <source>Where the Key Is Saved</source>
+        <translation>密钥的保存位置</translation>
+    </message>
+    <message>
+        <source>Prompt</source>
+        <translation>提示词</translation>
+    </message>
+    <message>
+        <source>Paste</source>
+        <translation>粘贴</translation>
+    </message>
+    <message>
+        <source>Add the image on the clipboard as a reference image</source>
+        <translation>将剪贴板中的图像添加为参考图像</translation>
+    </message>
+    <message>
+        <source>The clipboard holds no image.</source>
+        <translation>剪贴板中没有图像。</translation>
+    </message>
+    <message>
+        <source>Create</source>
+        <translation>创建</translation>
+    </message>
+    <message>
+        <source>Expand</source>
+        <translation>扩展</translation>
+    </message>
+    <message>
+        <source>Animate</source>
+        <translation>动画</translation>
+    </message>
+    <message>
+        <source>%1 (higher quality)</source>
+        <translation>%1 (质量更高)</translation>
+    </message>
+    <message>
+        <source>%1 (faster)</source>
+        <translation>%1 (更快)</translation>
+    </message>
+    <message>
+        <source>Check Key greys out a model your key cannot use</source>
+        <translation>“检查密钥”会将您的密钥无法使用的模型变灰</translation>
+    </message>
+    <message>
+        <source>Variations:</source>
+        <translation>变体:</translation>
+    </message>
+    <message>
+        <source>The key works, but it cannot use the GPT Image 2.6 models.</source>
+        <translation>密钥有效，但无法使用 GPT Image 2.6 模型。</translation>
+    </message>
+    <message>
+        <source>The key works.</source>
+        <translation>密钥有效。</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>剪贴板</translation>
+    </message>
+    <message>
+        <source>The key is never written to Patchy&apos;s settings file, and Patchy sends it only to OpenAI.</source>
+        <translation>密钥绝不会写入 Patchy 的设置文件，Patchy 只会把它发送给 OpenAI。</translation>
+    </message>
+    <message>
+        <source>Patchy saves the key in Windows Credential Manager, under Windows Credentials, as the generic credential &quot;com.rtsoft.patchy.openai&quot;. Only your Windows account can read it. Untick &quot;Remember the key on this computer&quot; to delete it.</source>
+        <translation>Patchy 将密钥保存在 Windows 凭据管理器的“Windows 凭据”中，作为普通凭据“com.rtsoft.patchy.openai”。只有您的 Windows 账户可以读取它。取消勾选“在此电脑上记住密钥”即可删除。</translation>
+    </message>
+    <message>
+        <source>Patchy saves the key in your login keychain as the password item &quot;com.rtsoft.patchy.openai&quot; (account &quot;api-key&quot;), which the Keychain Access app shows. Only your macOS account can read it. Untick &quot;Remember the key on this computer&quot; to delete it.</source>
+        <translation>Patchy 将密钥保存在您的登录钥匙串中，作为密码项“com.rtsoft.patchy.openai”(账户“api-key”)，可在“钥匙串访问”应用中查看。只有您的 macOS 账户可以读取它。取消勾选“在此电脑上记住密钥”即可删除。</translation>
+    </message>
+    <message>
+        <source>The key will be saved unencrypted in %1. Only your user account can open the file, but any program running as you can read it.</source>
+        <translation>密钥将以未加密形式保存在 %1。只有您的用户账户能打开该文件，但以您的身份运行的任何程序都能读取它。</translation>
+    </message>
+    <message>
+        <source>Select what to remove, with a little room around it. The area is filled from its surroundings on a new layer, masked to the selection, so the original stays underneath.</source>
+        <translation>选取要移除的内容，周围留一点余量。该区域会根据周围内容在一个以选区为蒙版的新图层上填充，原图保留在下面。</translation>
+    </message>
+    <message>
+        <source>Open a document first.</source>
+        <translation>请先打开文档。</translation>
+    </message>
+    <message>
+        <source>OpenAI Remove</source>
+        <translation>OpenAI 移除</translation>
+    </message>
+    <message>
+        <source>Removing...</source>
+        <translation>正在移除...</translation>
+    </message>
+    <message>
+        <source>The images arrived, but the document they were made for is closed.</source>
+        <translation>图像已收到，但对应的文档已关闭。</translation>
+    </message>
+    <message>
+        <source>Patchy saves the key in the file %1. The file is not encrypted: only your user account can open it, but any program running as you can read it. Untick &quot;Remember the key on this computer&quot; to delete the file. You can instead set the OPENAI_API_KEY environment variable, which the dialog reads when it opens.</source>
+        <translation>Patchy 将密钥保存在文件 %1 中。该文件未加密：只有您的用户账户能打开它，但以您的身份运行的任何程序都能读取它。取消勾选“在此电脑上记住密钥”即可删除该文件。您也可以改为设置环境变量 OPENAI_API_KEY，对话框打开时会读取它。</translation>
+    </message>
+    <message>
+        <source> px</source>
+        <translation> 像素</translation>
+    </message>
+    <message>
+        <source>Left:</source>
+        <translation>左:</translation>
+    </message>
+    <message>
+        <source>Right:</source>
+        <translation>右:</translation>
+    </message>
+    <message>
+        <source>Top:</source>
+        <translation>上:</translation>
+    </message>
+    <message>
+        <source>Bottom:</source>
+        <translation>下:</translation>
+    </message>
+    <message>
+        <source>Optional: describe what the new area shows</source>
+        <translation>可选：描述新区域的内容</translation>
+    </message>
+    <message>
+        <source>New canvas: %1 x %2 px</source>
+        <translation>新画布：%1 x %2 像素</translation>
+    </message>
+    <message>
+        <source>Add pixels to at least one side.</source>
+        <translation>请至少为一侧添加像素。</translation>
+    </message>
+    <message>
+        <source>The new canvas would be larger than %1 px on a side.</source>
+        <translation>新画布的边长将超过 %1 像素。</translation>
+    </message>
+    <message>
+        <source>OpenAI Expand</source>
+        <translation>OpenAI 扩展</translation>
+    </message>
+    <message>
+        <source>Expanding...</source>
+        <translation>正在扩展...</translation>
+    </message>
+    <message>
+        <source>The images arrived, but that document is closed or its canvas changed meanwhile.</source>
+        <translation>图像已收到，但该文档已关闭或其画布在此期间已更改。</translation>
+    </message>
+    <message>
+        <source>Drag an edge or a corner outward to add room on that side</source>
+        <translation>向外拖动边或角，可在那一侧添加空间</translation>
+    </message>
+    <message>
+        <source>Make a short animation. It opens as a new document with one layer per frame, frame 1 on top, ready for File &gt; Export &gt; Layers as Animated GIF.</source>
+        <translation>制作一段简短动画。它会作为新文档打开，每帧一个图层，第 1 帧在最上面，可直接用 文件 &gt; 导出 &gt; 图层到 GIF 动画 导出。</translation>
+    </message>
+    <message>
+        <source>Describe the motion, for example: the flag waves in the wind</source>
+        <translation>描述动作，例如：旗帜在风中飘扬</translation>
+    </message>
+    <message>
+        <source>The prompt only</source>
+        <translation>仅提示词</translation>
+    </message>
+    <message>
+        <source>The active layer</source>
+        <translation>当前图层</translation>
+    </message>
+    <message>
+        <source>The visible image</source>
+        <translation>可见图像</translation>
+    </message>
+    <message>
+        <source>Start from:</source>
+        <translation>起点:</translation>
+    </message>
+    <message>
+        <source>Frames:</source>
+        <translation>帧数:</translation>
+    </message>
+    <message>
+        <source> ms</source>
+        <translation> 毫秒</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>帧延迟:</translation>
+    </message>
+    <message>
+        <source>512 x 512</source>
+        <translation>512 x 512</translation>
+    </message>
+    <message>
+        <source>Frame size:</source>
+        <translation>帧大小:</translation>
+    </message>
+    <message>
+        <source>GIF transparency is on or off per pixel, so soft edges come out hard</source>
+        <translation>GIF 的透明度每个像素只有开或关，因此柔和的边缘会变得生硬</translation>
+    </message>
+    <message>
+        <source>OpenAI&apos;s reply held no animation.</source>
+        <translation>OpenAI 的回复中没有动画。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Opened %n animation(s).</source>
+        <translation>
+            <numerusform>已打开 %n 个动画。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>720 x 720</source>
+        <translation>720 x 720</translation>
+    </message>
+    <message>
+        <source>960 x 960</source>
+        <translation>960 x 960</translation>
+    </message>
+    <message>
+        <source>OpenAI draws every frame on one sheet, so more than 9 frames allow at most 720 x 720</source>
+        <translation>OpenAI 会把所有帧画在一张图上，因此超过 9 帧时最大为 720 x 720</translation>
+    </message>
+    <message>
+        <source>Show variation %1</source>
+        <translation>显示变体 %1</translation>
+    </message>
+    <message>
+        <source>Results:</source>
+        <translation>结果:</translation>
+    </message>
+    <message>
+        <source>New layer</source>
+        <translation>新建图层</translation>
+    </message>
+    <message>
+        <source>Active layer</source>
+        <translation>当前图层</translation>
+    </message>
+    <message>
+        <source>Active layer writes the result into the active pixel layer, inside the selection</source>
+        <translation>“当前图层”会把结果写入当前像素图层的选区内</translation>
+    </message>
+    <message>
+        <source>Target:</source>
+        <translation>目标:</translation>
+    </message>
+    <message>
+        <source>The images arrived, but the active layer changed or closed meanwhile.</source>
+        <translation>图像已收到，但当前图层在此期间已更改或关闭。</translation>
+    </message>
+    <message>
+        <source>Wrote the result into the active layer.</source>
+        <translation>已将结果写入当前图层。</translation>
+    </message>
+    <message>
+        <source>Click a result to see another variation.</source>
+        <translation>单击结果可查看其他变体。</translation>
+    </message>
+    <message>
+        <source>The result layer changed since, so its other variations were cleared.</source>
+        <translation>结果图层此后已更改，因此其他变体已清除。</translation>
+    </message>
+    <message>
+        <source>Showing variation %1.</source>
+        <translation>正在显示变体 %1。</translation>
+    </message>
+    <message>
+        <source>Your prompt and any reference images are sent to OpenAI, and generations use your API key, so be careful as they cost real money.</source>
+        <translation>您的提示词和参考图像会发送到 OpenAI，生成会使用您的 API 密钥，请注意：这会花费真实的钱。</translation>
+    </message>
+    <message>
+        <source>Checking...</source>
+        <translation>正在检查...</translation>
+    </message>
+    <message>
+        <source>Building the animation...</source>
+        <translation>正在制作动画...</translation>
+    </message>
+    <message>
+        <source>Building animation...</source>
+        <translation>正在制作动画...</translation>
+    </message>
+    <message>
+        <source>Creating...</source>
+        <translation>正在创建...</translation>
+    </message>
+    <message>
+        <source>OpenAI sent a reply Patchy could not read.</source>
+        <translation>OpenAI 返回了 Patchy 无法读取的回复。</translation>
+    </message>
+    <message>
+        <source>OpenAI&apos;s reply held no image.</source>
+        <translation>OpenAI 的回复中没有图像。</translation>
+    </message>
+    <message>
+        <source>OpenAI did not accept this API key. Check that it was copied whole, or create a new one.</source>
+        <translation>OpenAI 未接受此 API 密钥。请检查是否完整复制，或创建一个新密钥。</translation>
+    </message>
+    <message>
+        <source>Your OpenAI account is out of credit, so nothing was generated. Add credit to keep going.</source>
+        <translation>您的 OpenAI 账户余额不足，因此未生成任何内容。请充值后继续。</translation>
+    </message>
+    <message>
+        <source>Your OpenAI account has reached its spending limit, so nothing was generated. Raise the limit to keep going.</source>
+        <translation>您的 OpenAI 账户已达到支出上限，因此未生成任何内容。请提高上限后继续。</translation>
+    </message>
+    <message>
+        <source>OpenAI is limiting requests from this key right now. Wait a moment and try again.</source>
+        <translation>OpenAI 目前正在限制此密钥的请求。请稍候再试。</translation>
+    </message>
+    <message>
+        <source>OpenAI&apos;s safety system declined this request. Try rewording the prompt or using other images.</source>
+        <translation>OpenAI 的安全系统拒绝了此请求。请尝试改写提示词或使用其他图像。</translation>
+    </message>
+    <message>
+        <source>This model needs a verified OpenAI organization. Verify it, then try again.</source>
+        <translation>此模型需要经过验证的 OpenAI 组织。请完成验证后重试。</translation>
+    </message>
+    <message>
+        <source>This API key cannot use the chosen model. Pick the other model, or check the key&apos;s project permissions.</source>
+        <translation>此 API 密钥无法使用所选模型。请选择另一个模型，或检查该密钥的项目权限。</translation>
+    </message>
+    <message>
+        <source>OpenAI had a problem on its side (HTTP %1). Try again in a moment.</source>
+        <translation>OpenAI 方面出现问题 (HTTP %1)。请稍后重试。</translation>
+    </message>
+    <message>
+        <source>OpenAI returned HTTP status %1.</source>
+        <translation>OpenAI 返回了 HTTP 状态 %1。</translation>
+    </message>
+    <message>
+        <source>Manage API keys</source>
+        <translation>管理 API 密钥</translation>
+    </message>
+    <message>
+        <source>Add credit</source>
+        <translation>充值</translation>
+    </message>
+    <message>
+        <source>Open spending limits</source>
+        <translation>打开支出上限</translation>
+    </message>
+    <message>
+        <source>Verify organization</source>
+        <translation>验证组织</translation>
+    </message>
+    <message>
+        <source>Could not read %1: %2</source>
+        <translation>无法读取 %1: %2</translation>
+    </message>
+    <message>
+        <source>OpenAI did not answer in time.</source>
+        <translation>OpenAI 未及时响应。</translation>
+    </message>
+    <message>
+        <source>Could not reach OpenAI: %1</source>
+        <translation>无法连接到 OpenAI: %1</translation>
+    </message>
+    <message>
+        <source>Describe what the selection should become, or leave it empty to continue the surroundings</source>
+        <translation>描述选区应变成什么，或留空以延续周围内容</translation>
+    </message>
+    <message>
+        <source>Edit</source>
+        <translation>编辑</translation>
+    </message>
+    <message>
+        <source>0% keeps the result inside the selection with a hard edge; 100% lets it reach past the selection with a soft edge</source>
+        <translation>0% 让结果以硬边缘留在选区内；100% 让它以柔和边缘延伸到选区之外</translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <translation>%1%</translation>
+    </message>
+    <message>
+        <source>Edge blend:</source>
+        <translation>边缘融合：</translation>
+    </message>
+    <message>
+        <source>OpenAI Edit</source>
+        <translation>OpenAI 编辑</translation>
+    </message>
+    <message>
+        <source>OpenAI Edit: %1</source>
+        <translation>OpenAI 编辑：%1</translation>
+    </message>
+    <message>
+        <source>Editing...</source>
+        <translation>正在编辑...</translation>
+    </message>
+    <message>
+        <source>OpenAI sent no description.</source>
+        <translation>OpenAI 没有返回描述。</translation>
+    </message>
+    <message>
+        <source>OpenAI declined to describe the image: %1</source>
+        <translation>OpenAI 拒绝描述该图像：%1</translation>
+    </message>
+    <message>
+        <source>The image below goes to OpenAI&apos;s %1 model, which writes a detailed description of it here. Nothing is added to the document.</source>
+        <translation>下方图像会发送到 OpenAI 的 %1 模型，由它在此处写出详细描述。不会向文档添加任何内容。</translation>
+    </message>
+    <message>
+        <source>Image:</source>
+        <translation>图像：</translation>
+    </message>
+    <message>
+        <source>The description appears here</source>
+        <translation>描述将显示在这里</translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <translation>描述</translation>
+    </message>
+    <message>
+        <source>Describe</source>
+        <translation>描述</translation>
+    </message>
+    <message>
+        <source>Describe Image</source>
+        <translation>描述图像</translation>
+    </message>
+    <message>
+        <source>Describing the image...</source>
+        <translation>正在描述图像...</translation>
+    </message>
+    <message>
+        <source>Describing...</source>
+        <translation>正在描述...</translation>
+    </message>
+    <message>
+        <source>Described the image.</source>
+        <translation>已描述图像。</translation>
+    </message>
+    <message>
+        <source>Describe the image to create. With reference images, refer to them by their numbers, for example: the cat from image 1 wearing the hat from image 2</source>
+        <translation>描述要创建的图像。有参考图像时，按编号引用它们，例如：图像 1 中的猫戴着图像 2 中的帽子</translation>
+    </message>
+    <message>
+        <source>Patchy could not read an image from what was dropped.</source>
+        <translation>Patchy 无法从拖放的内容中读取图像。</translation>
+    </message>
+    <message>
+        <source>%1. %2</source>
+        <translation>%1. %2</translation>
+    </message>
+    <message>
+        <source>Image %1: %2 (%3 x %4 px)</source>
+        <translation>图像 %1：%2 (%3 x %4 px)</translation>
+    </message>
+    <message>
+        <source>Remove this reference image</source>
+        <translation>移除此参考图像</translation>
+    </message>
+    <message>
+        <source>References (up to %1; the prompt names them by number):</source>
+        <translation>参考（最多 %1 张；提示词按编号引用）：</translation>
+    </message>
+    <message>
+        <source>Add</source>
+        <translation>添加</translation>
+    </message>
+    <message>
+        <source>The model and quality apply to every image tab. Describe always uses %1.</source>
+        <translation>模型和质量适用于所有图像标签页。描述始终使用 %1。</translation>
+    </message>
+    <message>
+        <source>Config</source>
+        <translation>配置</translation>
+    </message>
+    <message>
+        <source>Drop image files here, or use Add or Paste</source>
+        <translation>将图像文件拖放到这里，或使用“添加”或“粘贴”</translation>
+    </message>
+    <message>
+        <source>OpenAI Image Tools via API Key</source>
+        <translation>通过 API 密钥使用 OpenAI 图像工具</translation>
+    </message>
+    <message>
+        <source>Select the area to change (Marquee, Lasso or Object Selection), or nothing to change the whole picture. The result goes on a new layer, masked to the selection; Edge blend sets how softly it meets the rest. The picture is sent as image 1, so reference images start at image 2.</source>
+        <translation>选择要更改的区域（选框、套索或对象选择），不选择则更改整张图片。结果会放到按选区蒙版的新图层上；“边缘融合”决定它与其余部分衔接的柔和程度。要编辑的图像作为图像 1 发送，因此参考图像从图像 2 开始。</translation>
+    </message>
+    <message>
+        <source>Describe the change first; with nothing selected, the whole picture is edited.</source>
+        <translation>请先描述要做的更改；未选择任何区域时将编辑整张图片。</translation>
+    </message>
+    <message>
+        <source>Blend:</source>
+        <translation>融合：</translation>
+    </message>
+    <message>
+        <source>How much of the original next to the new area takes OpenAI&apos;s version before fading into the original: 0% keeps the original up to its edge, 100% uses OpenAI&apos;s whole picture</source>
+        <translation>新区域旁边的原图有多少部分改用 OpenAI 的版本，再过渡到原图：0% 将原图保留到边缘，100% 使用 OpenAI 的整张图片</translation>
+    </message>
+    <message>
+        <source>Add room around the image: Patchy grows the canvas by the pixels below and fills the new area on a new layer above the original, which stays untouched underneath. Blend sets how far that layer reaches into the original.</source>
+        <translation>在图像周围添加空间：Patchy 按下方的像素扩大画布，并在原图上方的新图层中填充新区域，原图在下方保持不变。“融合”决定该图层覆盖到原图多远。</translation>
+    </message>
+    <message>
+        <source>Preparing the request...</source>
+        <translation>正在准备请求...</translation>
+    </message>
+    <message>
+        <source>GIF (256 colors)</source>
+        <translation>GIF（256 色）</translation>
+    </message>
+    <message>
+        <source>Full color (one sheet)</source>
+        <translation>全彩（单张拼图）</translation>
+    </message>
+    <message>
+        <source>GIF uses OpenAI&apos;s animation mode, with 256 colors shared by all frames. Full color asks for the frames as one full-color picture and cuts it into layers, with soft transparency; the frame count rounds up to fill its grid.</source>
+        <translation>GIF 使用 OpenAI 的动画模式，所有帧共用 256 种颜色。全彩会把各帧作为一张全彩图片请求，再切成图层，并保留柔和的透明度；帧数会向上取整以填满网格。</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <translation>颜色：</translation>
+    </message>
+    <message>
+        <source>Full color drew %1 frames, to fill a %2 x %3 sheet.</source>
+        <translation>全彩为填满 %2 x %3 的拼图绘制了 %1 帧。</translation>
     </message>
 </context>
 <context>

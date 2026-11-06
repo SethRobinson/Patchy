@@ -40,6 +40,9 @@
 #include <QColor>
 #include <QElapsedTimer>
 #include <QHash>
+#include <QImage>
+#include <QMargins>
+#include <QSize>
 #include <QKeySequence>
 #include <QMainWindow>
 #include <QPageLayout>
@@ -90,6 +93,10 @@ class QLineEdit;
 class QMenu;
 class QMimeData;
 class QPushButton;
+namespace patchy::ui::openai {
+struct GifFrame;  // openai_images.hpp: a decoded animation frame and its delay
+}  // namespace patchy::ui::openai
+
 namespace patchy::ui {
 
 class SaveProgress;
@@ -484,6 +491,67 @@ public:
   // Help > Set up AI Control: the paste-into-your-assistant dialog
   // (ai_setup_dialog.hpp), single non-modal instance like the guide.
   void open_ai_setup_dialog();
+  // Plugins > OpenAI Image Tools (docs/openai-images.md): single non-modal instance. Not on wasm.
+  void open_openai_images_dialog();
+  // The dialog's view of the window: the active document's canvas size (empty without one),
+  // its session id (-1 without one), and reference images from the active layer (rendered
+  // alone, cropped to its bounds) or from the visible composite. Null images set *error.
+  [[nodiscard]] QSize openai_canvas_size() const;
+  [[nodiscard]] std::int64_t openai_target_session_id() const;
+  [[nodiscard]] QImage openai_reference_from_active_layer(QString* label, QString* error) const;
+  [[nodiscard]] QImage openai_reference_from_visible_image(QString* error) const;
+  // Adds each image as a new pixel layer above the selection in the document with
+  // `session_id` (or, when that one has closed or there is none, a new document), named
+  // from the prompt, as one undo step. `fit_to_canvas` scales each image to fit the
+  // canvas; otherwise it keeps its pixel size. All are centered. Returns the layers added.
+  int add_openai_generated_layers(std::int64_t session_id, const std::vector<QImage>& images, const QString& prompt,
+                                  bool fit_to_canvas, LayerId* added_top = nullptr);
+  // Edit and Remove: the active document's selection as a request source. `region` is the
+  // context area (openai::context_region), `context` the visible image over it (RGBA8) and
+  // `coverage` the selection over it (Grayscale8). With no selection, `whole_when_none` takes
+  // the whole canvas (Edit), else it fails with *error (Remove); no document always fails.
+  bool openai_masked_source(std::int64_t* session_id, QRect* region, QImage* context, QImage* coverage,
+                            QString* error, bool whole_when_none = false) const;
+  // Adds each region-sized image as a new pixel layer at `region` in the document with
+  // `session_id`, masked by `coverage` when it is not null (otherwise the image's transparency
+  // is the shape), as one undo step. Returns the layers added; 0 when that document has closed.
+  int add_openai_masked_layers(std::int64_t session_id, const std::vector<QImage>& images, QRect region,
+                               const QImage& coverage, const QString& name, double feather = 0.0,
+                               LayerId* added_top = nullptr);
+  // Expand: the active document's visible image at full size, for the request frame. False
+  // with *error without a document or when a geometry change is not possible now.
+  bool openai_expand_source(std::int64_t* session_id, QSize* canvas, QImage* visible, QString* error) const;
+  // Grows the canvas of the document with `session_id` by `margins` (Canvas Size's work, the
+  // Background extended) and adds each image, scaled to the new canvas if needed, as a pixel
+  // layer over it (openai::expand_layer_image: clear over the original but a seam band), all as
+  // one undo step. Returns the layers added; -1 when
+  // that document has closed or its canvas is no longer `canvas_before`.
+  int add_openai_expanded_layers(std::int64_t session_id, const std::vector<QImage>& images, QSize canvas_before,
+                                 QMargins margins, const QString& name, LayerId* added_top = nullptr);
+  // Variations (docs/openai-images.md#variations): the content revision of a layer, or none when
+  // the document or layer is gone; a swap of a result layer's pixels for another variation
+  // (same size and place, no history step), refused when the layer changed since `expected`.
+  [[nodiscard]] std::optional<std::uint64_t> openai_layer_revision(std::int64_t session_id, LayerId layer_id) const;
+  bool openai_replace_layer_pixels(std::int64_t session_id, LayerId layer_id, std::uint64_t expected_revision,
+                                   const QImage& image, std::uint64_t* revision);
+  // Edge blend: a result layer's mask over `region` replaced by `coverage` with `feather`, no
+  // history step, refused when the layer changed since `expected_revision`.
+  bool openai_set_layer_mask(std::int64_t session_id, LayerId layer_id, std::uint64_t expected_revision, QRect region,
+                             const QImage& coverage, double feather, std::uint64_t* revision);
+  // Edit and Remove into the active layer: its pixels over `region` (RGBA8, transparent where it
+  // has none), refused with *error unless it is an unlocked pixel layer in an 8-bit document; and
+  // the write of a composed region back into it, growing a layer with transparency to cover the
+  // region (an opaque layer stays opaque), with an undo step when `push_undo`.
+  bool openai_active_layer_region(QRect region, std::int64_t* session_id, LayerId* layer_id, std::uint64_t* revision,
+                                  QImage* pixels, QString* error) const;
+  bool openai_write_into_layer(std::int64_t session_id, LayerId layer_id, std::uint64_t expected_revision, QRect region,
+                               const QImage& composed, bool push_undo, std::uint64_t* revision);
+  // Animate: each GIF the API returned opens as a new untitled document, one layer per frame,
+  // frame 1 on top and every delay in the layer name, as opening an animated GIF does
+  // (docs/animation.md). Returns the documents added.
+  int add_openai_animation_documents(const std::vector<QByteArray>& gifs);
+  // The same from frames already decoded (Animate's full-color sheets, sliced).
+  int add_openai_animation_frame_documents(std::vector<std::vector<openai::GifFrame>> animations);
   // Help > Search Commands (command_search.hpp, GitHub issue 554): a popup listing every
   // enabled menu command, filtered as you type; Enter runs the chosen one. A second
   // request while it is open closes it.
@@ -988,6 +1056,11 @@ private:
   // current document coordinates (core `resize_canvas_to_frame`).
   void apply_canvas_size(Rect frame, QColor extension_color, bool crop_layers, bool delete_off_canvas_layers,
                          const QString& history_label);
+  // apply_canvas_size's work without its history step or status line (the caller pushes the
+  // undo snapshot; OpenAI Expand folds it into one step with its layers). Returns the layers
+  // deleted.
+  std::size_t resize_canvas_without_history(Rect frame, QColor extension_color, bool crop_layers,
+                                            bool delete_off_canvas_layers);
   // Shared gate for the whole-document geometry operations (Image Size, Canvas Size,
   // Crop, Rotate). Smart-object placements ride a document-space remap, so those are
   // allowed; native Smart Filter caches and unparsed placements still cannot follow.
@@ -3918,6 +3991,7 @@ private:
   QPointer<QDialog> script_editor_dialog_;
   QPointer<QDialog> scripting_guide_dialog_;
   QPointer<QDialog> ai_setup_dialog_;
+  QPointer<QDialog> openai_images_dialog_;
   QMenu* scripts_menu_{nullptr};
   QHash<QString, QAction*> script_actions_;  // hotkey command id -> persistent script action
   FilterRegistry filters_;

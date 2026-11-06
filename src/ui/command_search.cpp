@@ -457,6 +457,8 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"plugins.open_folder", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show the plug-ins folder on disk")},
     {"companionsOpenFolderAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Show the folder of companion app manifests on disk")},
     {"plugins.rescan", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Look for new or removed plug-ins")},
+    {"plugins.openai_images",
+     QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Generate pictures from a text prompt with your OpenAI key")},
     {"pluginsLegacyWindowsOnlyNote", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "8BF plug-ins need Windows")},
     // View
     {"view.zoom_in", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Magnify the view")},

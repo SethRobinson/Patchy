@@ -19627,6 +19627,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Pick the last brush preset in the list</source>
         <translation>リストの最後のブラシプリセットを選択</translation>
     </message>
+    <message>
+        <source>Generate pictures from a text prompt with your OpenAI key</source>
+        <translation>OpenAI キーを使ってテキストから画像を生成</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -33155,6 +33159,68 @@ Locked: %1</source>
         <source>Last Preset</source>
         <translation>最後のプリセット</translation>
     </message>
+    <message>
+        <source>OpenAI %1: %2</source>
+        <translation>OpenAI %1: %2</translation>
+    </message>
+    <message>
+        <source>OpenAI: %1</source>
+        <translation>OpenAI: %1</translation>
+    </message>
+    <message>
+        <source>Open a document first.</source>
+        <translation>先にドキュメントを開いてください。</translation>
+    </message>
+    <message>
+        <source>Select a layer first.</source>
+        <translation>先にレイヤーを選択してください。</translation>
+    </message>
+    <message>
+        <source>The active layer has no visible pixels.</source>
+        <translation>アクティブなレイヤーに表示されるピクセルがありません。</translation>
+    </message>
+    <message>
+        <source>Select an area first, with a marquee, lasso or Object Selection.</source>
+        <translation>先に範囲を選択してください (選択範囲、なげなわ、オブジェクト選択)。</translation>
+    </message>
+    <message>
+        <source>The selection is outside the canvas.</source>
+        <translation>選択範囲がカンバスの外にあります。</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <translation>%1 %2</translation>
+    </message>
+    <message>
+        <source>OpenAI Animation</source>
+        <translation>OpenAI アニメーション</translation>
+    </message>
+    <message numerus="yes">
+        <source>Opened %n animation(s); export one with File &gt; Export &gt; Layers as Animated GIF.</source>
+        <translation>
+            <numerusform>%n 個のアニメーションを開きました。ファイル &gt; 書き出し &gt; レイヤーをアニメーション GIF へ で書き出せます。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Writing into the active layer works in 8-bit documents; choose New layer as the target.</source>
+        <translation>アクティブなレイヤーへの書き込みは 8 ビットのドキュメントで使えます。出力先に「新規レイヤー」を選んでください。</translation>
+    </message>
+    <message>
+        <source>The active layer is not a pixel layer; choose New layer as the target.</source>
+        <translation>アクティブなレイヤーはピクセルレイヤーではありません。出力先に「新規レイヤー」を選んでください。</translation>
+    </message>
+    <message>
+        <source>The active layer&apos;s pixels are locked; choose New layer as the target.</source>
+        <translation>アクティブなレイヤーのピクセルはロックされています。出力先に「新規レイヤー」を選んでください。</translation>
+    </message>
+    <message>
+        <source>OpenAI Image Tools via API Key (built-in)...</source>
+        <translation>API キーで OpenAI 画像ツール (内蔵)...</translation>
+    </message>
+    <message>
+        <source>OpenAI Image Tools</source>
+        <translation>OpenAI 画像ツール</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -33322,6 +33388,719 @@ Locked: %1</source>
     <message>
         <source>Option</source>
         <translation>Option</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::OpenAiImagesDialog</name>
+    <message>
+        <source>API key:</source>
+        <translation>API キー:</translation>
+    </message>
+    <message>
+        <source>Check Key</source>
+        <translation>キーを確認</translation>
+    </message>
+    <message>
+        <source>Remember the key on this computer</source>
+        <translation>このコンピューターにキーを保存する</translation>
+    </message>
+    <message>
+        <source>The key is no longer remembered on this computer.</source>
+        <translation>このコンピューターにはもうキーを保存していません。</translation>
+    </message>
+    <message>
+        <source>Add Layer</source>
+        <translation>レイヤーを追加</translation>
+    </message>
+    <message>
+        <source>Add the active layer as a reference image</source>
+        <translation>アクティブなレイヤーを参照画像として追加</translation>
+    </message>
+    <message>
+        <source>Add Visible</source>
+        <translation>表示画像を追加</translation>
+    </message>
+    <message>
+        <source>Add the visible image, all layers merged, as a reference image</source>
+        <translation>すべてのレイヤーを結合した表示画像を参照画像として追加</translation>
+    </message>
+    <message>
+        <source>Add File...</source>
+        <translation>ファイルを追加...</translation>
+    </message>
+    <message>
+        <source>Remove</source>
+        <translation>削除</translation>
+    </message>
+    <message>
+        <source>Model:</source>
+        <translation>モデル:</translation>
+    </message>
+    <message>
+        <source>Match the canvas</source>
+        <translation>カンバスに合わせる</translation>
+    </message>
+    <message>
+        <source>Square (1024 x 1024)</source>
+        <translation>正方形 (1024 x 1024)</translation>
+    </message>
+    <message>
+        <source>Landscape (1536 x 1024)</source>
+        <translation>横長 (1536 x 1024)</translation>
+    </message>
+    <message>
+        <source>Portrait (1024 x 1536)</source>
+        <translation>縦長 (1024 x 1536)</translation>
+    </message>
+    <message>
+        <source>Chosen by the model</source>
+        <translation>モデルに任せる</translation>
+    </message>
+    <message>
+        <source>Match the canvas requests the canvas&apos;s shape and scales the result to fit it</source>
+        <translation>「カンバスに合わせる」はカンバスの縦横比で生成し、結果をカンバスに収まるよう拡大縮小します</translation>
+    </message>
+    <message>
+        <source>Size:</source>
+        <translation>サイズ:</translation>
+    </message>
+    <message>
+        <source>Automatic</source>
+        <translation>自動</translation>
+    </message>
+    <message>
+        <source>Low</source>
+        <translation>低</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>中</translation>
+    </message>
+    <message>
+        <source>High</source>
+        <translation>高</translation>
+    </message>
+    <message>
+        <source>Quality:</source>
+        <translation>品質:</translation>
+    </message>
+    <message>
+        <source>Transparent</source>
+        <translation>透明</translation>
+    </message>
+    <message>
+        <source>Opaque</source>
+        <translation>不透明</translation>
+    </message>
+    <message>
+        <source>Background:</source>
+        <translation>背景:</translation>
+    </message>
+    <message>
+        <source>Each image becomes its own layer, and each one is billed</source>
+        <translation>画像はそれぞれ別のレイヤーになり、1 枚ごとに課金されます</translation>
+    </message>
+    <message>
+        <source>Stop</source>
+        <translation>停止</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>閉じる</translation>
+    </message>
+    <message>
+        <source>%1 (%2 s)</source>
+        <translation>%1 (%2 秒)</translation>
+    </message>
+    <message>
+        <source>Using the key from the OPENAI_API_KEY environment variable.</source>
+        <translation>環境変数 OPENAI_API_KEY のキーを使用しています。</translation>
+    </message>
+    <message>
+        <source>Enter your OpenAI API key first.</source>
+        <translation>先に OpenAI の API キーを入力してください。</translation>
+    </message>
+    <message>
+        <source>The key could not be saved on this computer; it is used for this session only.</source>
+        <translation>このコンピューターにキーを保存できませんでした。このセッションでのみ使用します。</translation>
+    </message>
+    <message>
+        <source>Checking the key...</source>
+        <translation>キーを確認しています...</translation>
+    </message>
+    <message>
+        <source>Type a prompt first.</source>
+        <translation>先にプロンプトを入力してください。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Generating %n image(s)...</source>
+        <translation>
+            <numerusform>%n 枚の画像を生成しています...</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The images arrived, but could not be added to a document.</source>
+        <translation>画像は届きましたが、ドキュメントに追加できませんでした。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n layer(s).</source>
+        <translation>
+            <numerusform>%n 個のレイヤーを追加しました。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>%1 tokens used.</source>
+        <translation>%1 トークンを使用しました。</translation>
+    </message>
+    <message>
+        <source>Stopped. OpenAI may still bill a request it had already started.</source>
+        <translation>停止しました。すでに開始されたリクエストは OpenAI から課金される場合があります。</translation>
+    </message>
+    <message>
+        <source>OpenAI takes at most %1 reference images.</source>
+        <translation>OpenAI が受け付ける参照画像は最大 %1 枚です。</translation>
+    </message>
+    <message>
+        <source>Visible</source>
+        <translation>表示画像</translation>
+    </message>
+    <message>
+        <source>Add Reference Images</source>
+        <translation>参照画像を追加</translation>
+    </message>
+    <message>
+        <source>Images (*.png *.jpg *.jpeg *.webp *.bmp *.gif *.tif *.tiff)</source>
+        <translation>画像 (*.png *.jpg *.jpeg *.webp *.bmp *.gif *.tif *.tiff)</translation>
+    </message>
+    <message>
+        <source>Create an API key</source>
+        <translation>API キーを作成</translation>
+    </message>
+    <message>
+        <source>Where the key is saved</source>
+        <translation>キーの保存場所</translation>
+    </message>
+    <message>
+        <source>Where the Key Is Saved</source>
+        <translation>キーの保存場所</translation>
+    </message>
+    <message>
+        <source>Prompt</source>
+        <translation>プロンプト</translation>
+    </message>
+    <message>
+        <source>Paste</source>
+        <translation>貼り付け</translation>
+    </message>
+    <message>
+        <source>Add the image on the clipboard as a reference image</source>
+        <translation>クリップボードの画像を参照画像として追加</translation>
+    </message>
+    <message>
+        <source>The clipboard holds no image.</source>
+        <translation>クリップボードに画像がありません。</translation>
+    </message>
+    <message>
+        <source>Create</source>
+        <translation>作成</translation>
+    </message>
+    <message>
+        <source>Expand</source>
+        <translation>拡張</translation>
+    </message>
+    <message>
+        <source>Animate</source>
+        <translation>アニメーション</translation>
+    </message>
+    <message>
+        <source>%1 (higher quality)</source>
+        <translation>%1 (高品質)</translation>
+    </message>
+    <message>
+        <source>%1 (faster)</source>
+        <translation>%1 (高速)</translation>
+    </message>
+    <message>
+        <source>Check Key greys out a model your key cannot use</source>
+        <translation>「キーを確認」で、このキーで使えないモデルは灰色表示になります</translation>
+    </message>
+    <message>
+        <source>Variations:</source>
+        <translation>バリエーション:</translation>
+    </message>
+    <message>
+        <source>The key works, but it cannot use the GPT Image 2.6 models.</source>
+        <translation>キーは有効ですが、GPT Image 2.6 モデルは使えません。</translation>
+    </message>
+    <message>
+        <source>The key works.</source>
+        <translation>キーは有効です。</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>クリップボード</translation>
+    </message>
+    <message>
+        <source>The key is never written to Patchy&apos;s settings file, and Patchy sends it only to OpenAI.</source>
+        <translation>キーが Patchy の設定ファイルに書き込まれることはなく、Patchy が送信する先は OpenAI だけです。</translation>
+    </message>
+    <message>
+        <source>Patchy saves the key in Windows Credential Manager, under Windows Credentials, as the generic credential &quot;com.rtsoft.patchy.openai&quot;. Only your Windows account can read it. Untick &quot;Remember the key on this computer&quot; to delete it.</source>
+        <translation>Patchy はキーを Windows の資格情報マネージャーの「Windows 資格情報」に、汎用資格情報「com.rtsoft.patchy.openai」として保存します。読み取れるのはあなたの Windows アカウントだけです。削除するには「このコンピューターにキーを保存する」のチェックを外してください。</translation>
+    </message>
+    <message>
+        <source>Patchy saves the key in your login keychain as the password item &quot;com.rtsoft.patchy.openai&quot; (account &quot;api-key&quot;), which the Keychain Access app shows. Only your macOS account can read it. Untick &quot;Remember the key on this computer&quot; to delete it.</source>
+        <translation>Patchy はキーをログインキーチェーンにパスワード項目「com.rtsoft.patchy.openai」(アカウント「api-key」)として保存します。キーチェーンアクセス App で確認できます。読み取れるのはあなたの macOS アカウントだけです。削除するには「このコンピューターにキーを保存する」のチェックを外してください。</translation>
+    </message>
+    <message>
+        <source>The key will be saved unencrypted in %1. Only your user account can open the file, but any program running as you can read it.</source>
+        <translation>キーは暗号化されずに %1 に保存されます。ファイルを開けるのはあなたのユーザーアカウントだけですが、あなたとして動作するプログラムはどれでも読み取れます。</translation>
+    </message>
+    <message>
+        <source>Select what to remove, with a little room around it. The area is filled from its surroundings on a new layer, masked to the selection, so the original stays underneath.</source>
+        <translation>削除するものを少し余白を付けて選択してください。範囲は周囲から塗りつぶされ、選択範囲でマスクされた新しいレイヤーに入るので、元の画像は下に残ります。</translation>
+    </message>
+    <message>
+        <source>Open a document first.</source>
+        <translation>先にドキュメントを開いてください。</translation>
+    </message>
+    <message>
+        <source>OpenAI Remove</source>
+        <translation>OpenAI 削除</translation>
+    </message>
+    <message>
+        <source>Removing...</source>
+        <translation>削除しています...</translation>
+    </message>
+    <message>
+        <source>The images arrived, but the document they were made for is closed.</source>
+        <translation>画像は届きましたが、作成対象のドキュメントは閉じられています。</translation>
+    </message>
+    <message>
+        <source>Patchy saves the key in the file %1. The file is not encrypted: only your user account can open it, but any program running as you can read it. Untick &quot;Remember the key on this computer&quot; to delete the file. You can instead set the OPENAI_API_KEY environment variable, which the dialog reads when it opens.</source>
+        <translation>Patchy はキーをファイル %1 に保存します。このファイルは暗号化されていません。開けるのはあなたのユーザーアカウントだけですが、あなたとして動作するプログラムはどれでも読み取れます。ファイルを削除するには「このコンピューターにキーを保存する」のチェックを外してください。代わりに環境変数 OPENAI_API_KEY を設定することもでき、ダイアログを開くときに読み込みます。</translation>
+    </message>
+    <message>
+        <source> px</source>
+        <translation> px</translation>
+    </message>
+    <message>
+        <source>Left:</source>
+        <translation>左:</translation>
+    </message>
+    <message>
+        <source>Right:</source>
+        <translation>右:</translation>
+    </message>
+    <message>
+        <source>Top:</source>
+        <translation>上:</translation>
+    </message>
+    <message>
+        <source>Bottom:</source>
+        <translation>下:</translation>
+    </message>
+    <message>
+        <source>Optional: describe what the new area shows</source>
+        <translation>任意: 新しい範囲に描くものを説明してください</translation>
+    </message>
+    <message>
+        <source>New canvas: %1 x %2 px</source>
+        <translation>新しいカンバス: %1 x %2 px</translation>
+    </message>
+    <message>
+        <source>Add pixels to at least one side.</source>
+        <translation>少なくとも 1 辺にピクセルを追加してください。</translation>
+    </message>
+    <message>
+        <source>The new canvas would be larger than %1 px on a side.</source>
+        <translation>新しいカンバスの辺が %1 px を超えてしまいます。</translation>
+    </message>
+    <message>
+        <source>OpenAI Expand</source>
+        <translation>OpenAI 拡張</translation>
+    </message>
+    <message>
+        <source>Expanding...</source>
+        <translation>拡張しています...</translation>
+    </message>
+    <message>
+        <source>The images arrived, but that document is closed or its canvas changed meanwhile.</source>
+        <translation>画像は届きましたが、ドキュメントが閉じられたか、その間にカンバスが変更されました。</translation>
+    </message>
+    <message>
+        <source>Drag an edge or a corner outward to add room on that side</source>
+        <translation>辺や角を外側にドラッグすると、その側に余白を追加します</translation>
+    </message>
+    <message>
+        <source>Make a short animation. It opens as a new document with one layer per frame, frame 1 on top, ready for File &gt; Export &gt; Layers as Animated GIF.</source>
+        <translation>短いアニメーションを作ります。フレームごとに 1 つのレイヤー (フレーム 1 が一番上) を持つ新しいドキュメントとして開き、ファイル &gt; 書き出し &gt; レイヤーをアニメーション GIF へ ですぐに書き出せます。</translation>
+    </message>
+    <message>
+        <source>Describe the motion, for example: the flag waves in the wind</source>
+        <translation>動きを説明してください。例: 旗が風になびく</translation>
+    </message>
+    <message>
+        <source>The prompt only</source>
+        <translation>プロンプトのみ</translation>
+    </message>
+    <message>
+        <source>The active layer</source>
+        <translation>アクティブなレイヤー</translation>
+    </message>
+    <message>
+        <source>The visible image</source>
+        <translation>表示画像</translation>
+    </message>
+    <message>
+        <source>Start from:</source>
+        <translation>開始点:</translation>
+    </message>
+    <message>
+        <source>Frames:</source>
+        <translation>フレーム数:</translation>
+    </message>
+    <message>
+        <source> ms</source>
+        <translation> ms</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>フレーム間隔:</translation>
+    </message>
+    <message>
+        <source>512 x 512</source>
+        <translation>512 x 512</translation>
+    </message>
+    <message>
+        <source>Frame size:</source>
+        <translation>フレームサイズ:</translation>
+    </message>
+    <message>
+        <source>GIF transparency is on or off per pixel, so soft edges come out hard</source>
+        <translation>GIF の透明はピクセルごとにオンかオフなので、柔らかい縁はくっきりになります</translation>
+    </message>
+    <message>
+        <source>OpenAI&apos;s reply held no animation.</source>
+        <translation>OpenAI の応答にアニメーションが含まれていませんでした。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Opened %n animation(s).</source>
+        <translation>
+            <numerusform>%n 個のアニメーションを開きました。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>720 x 720</source>
+        <translation>720 x 720</translation>
+    </message>
+    <message>
+        <source>960 x 960</source>
+        <translation>960 x 960</translation>
+    </message>
+    <message>
+        <source>OpenAI draws every frame on one sheet, so more than 9 frames allow at most 720 x 720</source>
+        <translation>OpenAI はすべてのフレームを 1 枚のシートに描くため、9 フレームを超えると最大 720 x 720 です</translation>
+    </message>
+    <message>
+        <source>Show variation %1</source>
+        <translation>バリエーション %1 を表示</translation>
+    </message>
+    <message>
+        <source>Results:</source>
+        <translation>結果:</translation>
+    </message>
+    <message>
+        <source>New layer</source>
+        <translation>新規レイヤー</translation>
+    </message>
+    <message>
+        <source>Active layer</source>
+        <translation>アクティブなレイヤー</translation>
+    </message>
+    <message>
+        <source>Active layer writes the result into the active pixel layer, inside the selection</source>
+        <translation>「アクティブなレイヤー」は結果をアクティブなピクセルレイヤーの選択範囲内に書き込みます</translation>
+    </message>
+    <message>
+        <source>Target:</source>
+        <translation>出力先:</translation>
+    </message>
+    <message>
+        <source>The images arrived, but the active layer changed or closed meanwhile.</source>
+        <translation>画像は届きましたが、その間にアクティブなレイヤーが変更されたか閉じられました。</translation>
+    </message>
+    <message>
+        <source>Wrote the result into the active layer.</source>
+        <translation>結果をアクティブなレイヤーに書き込みました。</translation>
+    </message>
+    <message>
+        <source>Click a result to see another variation.</source>
+        <translation>結果をクリックすると別のバリエーションを表示します。</translation>
+    </message>
+    <message>
+        <source>The result layer changed since, so its other variations were cleared.</source>
+        <translation>その後で結果レイヤーが変更されたため、ほかのバリエーションは破棄されました。</translation>
+    </message>
+    <message>
+        <source>Showing variation %1.</source>
+        <translation>バリエーション %1 を表示しています。</translation>
+    </message>
+    <message>
+        <source>Your prompt and any reference images are sent to OpenAI, and generations use your API key, so be careful as they cost real money.</source>
+        <translation>プロンプトと参照画像は OpenAI に送信され、生成にはあなたの API キーが使われます。実際に料金がかかるので注意してください。</translation>
+    </message>
+    <message>
+        <source>Checking...</source>
+        <translation>確認しています...</translation>
+    </message>
+    <message>
+        <source>Building the animation...</source>
+        <translation>アニメーションを作成しています...</translation>
+    </message>
+    <message>
+        <source>Building animation...</source>
+        <translation>アニメーション作成中...</translation>
+    </message>
+    <message>
+        <source>Creating...</source>
+        <translation>作成しています...</translation>
+    </message>
+    <message>
+        <source>OpenAI sent a reply Patchy could not read.</source>
+        <translation>OpenAI から Patchy が読み取れない応答が返されました。</translation>
+    </message>
+    <message>
+        <source>OpenAI&apos;s reply held no image.</source>
+        <translation>OpenAI の応答に画像が含まれていませんでした。</translation>
+    </message>
+    <message>
+        <source>OpenAI did not accept this API key. Check that it was copied whole, or create a new one.</source>
+        <translation>OpenAI はこの API キーを受け付けませんでした。全体がコピーされているか確認するか、新しいキーを作成してください。</translation>
+    </message>
+    <message>
+        <source>Your OpenAI account is out of credit, so nothing was generated. Add credit to keep going.</source>
+        <translation>OpenAI アカウントのクレジットが不足しているため、何も生成されませんでした。続けるにはクレジットを追加してください。</translation>
+    </message>
+    <message>
+        <source>Your OpenAI account has reached its spending limit, so nothing was generated. Raise the limit to keep going.</source>
+        <translation>OpenAI アカウントが利用上限に達したため、何も生成されませんでした。続けるには上限を引き上げてください。</translation>
+    </message>
+    <message>
+        <source>OpenAI is limiting requests from this key right now. Wait a moment and try again.</source>
+        <translation>OpenAI が現在このキーからのリクエストを制限しています。少し待ってから再試行してください。</translation>
+    </message>
+    <message>
+        <source>OpenAI&apos;s safety system declined this request. Try rewording the prompt or using other images.</source>
+        <translation>OpenAI の安全システムがこのリクエストを拒否しました。プロンプトを言い換えるか、別の画像を使ってください。</translation>
+    </message>
+    <message>
+        <source>This model needs a verified OpenAI organization. Verify it, then try again.</source>
+        <translation>このモデルには認証済みの OpenAI 組織が必要です。認証してから再試行してください。</translation>
+    </message>
+    <message>
+        <source>This API key cannot use the chosen model. Pick the other model, or check the key&apos;s project permissions.</source>
+        <translation>この API キーでは選択したモデルを使えません。もう一方のモデルを選ぶか、キーのプロジェクト権限を確認してください。</translation>
+    </message>
+    <message>
+        <source>OpenAI had a problem on its side (HTTP %1). Try again in a moment.</source>
+        <translation>OpenAI 側で問題が発生しました (HTTP %1)。少し待ってから再試行してください。</translation>
+    </message>
+    <message>
+        <source>OpenAI returned HTTP status %1.</source>
+        <translation>OpenAI が HTTP ステータス %1 を返しました。</translation>
+    </message>
+    <message>
+        <source>Manage API keys</source>
+        <translation>API キーを管理</translation>
+    </message>
+    <message>
+        <source>Add credit</source>
+        <translation>クレジットを追加</translation>
+    </message>
+    <message>
+        <source>Open spending limits</source>
+        <translation>利用上限を開く</translation>
+    </message>
+    <message>
+        <source>Verify organization</source>
+        <translation>組織を認証</translation>
+    </message>
+    <message>
+        <source>Could not read %1: %2</source>
+        <translation>%1 を読み込めませんでした: %2</translation>
+    </message>
+    <message>
+        <source>OpenAI did not answer in time.</source>
+        <translation>OpenAI から時間内に応答がありませんでした。</translation>
+    </message>
+    <message>
+        <source>Could not reach OpenAI: %1</source>
+        <translation>OpenAI に接続できませんでした: %1</translation>
+    </message>
+    <message>
+        <source>Describe what the selection should become, or leave it empty to continue the surroundings</source>
+        <translation>選択範囲をどう変えるかを入力するか、空のままにして周囲を延長します</translation>
+    </message>
+    <message>
+        <source>Edit</source>
+        <translation>編集</translation>
+    </message>
+    <message>
+        <source>0% keeps the result inside the selection with a hard edge; 100% lets it reach past the selection with a soft edge</source>
+        <translation>0% では結果を選択範囲の内側にくっきりした境界で収めます。100% では柔らかい境界で選択範囲の外まで広げます</translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <translation>%1%</translation>
+    </message>
+    <message>
+        <source>Edge blend:</source>
+        <translation>境界のなじみ:</translation>
+    </message>
+    <message>
+        <source>OpenAI Edit</source>
+        <translation>OpenAI 編集</translation>
+    </message>
+    <message>
+        <source>OpenAI Edit: %1</source>
+        <translation>OpenAI 編集: %1</translation>
+    </message>
+    <message>
+        <source>Editing...</source>
+        <translation>編集中...</translation>
+    </message>
+    <message>
+        <source>OpenAI sent no description.</source>
+        <translation>OpenAI から説明が返されませんでした。</translation>
+    </message>
+    <message>
+        <source>OpenAI declined to describe the image: %1</source>
+        <translation>OpenAI は画像の説明を断りました: %1</translation>
+    </message>
+    <message>
+        <source>The image below goes to OpenAI&apos;s %1 model, which writes a detailed description of it here. Nothing is added to the document.</source>
+        <translation>下の画像が OpenAI の %1 モデルに送られ、ここに詳しい説明が書き込まれます。ドキュメントには何も追加されません。</translation>
+    </message>
+    <message>
+        <source>Image:</source>
+        <translation>画像:</translation>
+    </message>
+    <message>
+        <source>The description appears here</source>
+        <translation>ここに説明が表示されます</translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <translation>説明</translation>
+    </message>
+    <message>
+        <source>Describe</source>
+        <translation>説明</translation>
+    </message>
+    <message>
+        <source>Describe Image</source>
+        <translation>画像を説明</translation>
+    </message>
+    <message>
+        <source>Describing the image...</source>
+        <translation>画像を説明しています...</translation>
+    </message>
+    <message>
+        <source>Describing...</source>
+        <translation>説明中...</translation>
+    </message>
+    <message>
+        <source>Described the image.</source>
+        <translation>画像を説明しました。</translation>
+    </message>
+    <message>
+        <source>Describe the image to create. With reference images, refer to them by their numbers, for example: the cat from image 1 wearing the hat from image 2</source>
+        <translation>作成する画像を説明してください。参照画像は番号で指定します。例: 画像 1 の猫が画像 2 の帽子をかぶっている</translation>
+    </message>
+    <message>
+        <source>Patchy could not read an image from what was dropped.</source>
+        <translation>ドロップされたものから画像を読み取れませんでした。</translation>
+    </message>
+    <message>
+        <source>%1. %2</source>
+        <translation>%1. %2</translation>
+    </message>
+    <message>
+        <source>Image %1: %2 (%3 x %4 px)</source>
+        <translation>画像 %1: %2 (%3 x %4 px)</translation>
+    </message>
+    <message>
+        <source>Remove this reference image</source>
+        <translation>この参照画像を削除</translation>
+    </message>
+    <message>
+        <source>References (up to %1; the prompt names them by number):</source>
+        <translation>参照（最大 %1 枚。プロンプトでは番号で指定）:</translation>
+    </message>
+    <message>
+        <source>Add</source>
+        <translation>追加</translation>
+    </message>
+    <message>
+        <source>The model and quality apply to every image tab. Describe always uses %1.</source>
+        <translation>モデルと品質はすべての画像タブに適用されます。説明は常に %1 を使います。</translation>
+    </message>
+    <message>
+        <source>Config</source>
+        <translation>設定</translation>
+    </message>
+    <message>
+        <source>Drop image files here, or use Add or Paste</source>
+        <translation>ここに画像ファイルをドロップするか、「追加」または「貼り付け」を使ってください</translation>
+    </message>
+    <message>
+        <source>OpenAI Image Tools via API Key</source>
+        <translation>API キーで OpenAI 画像ツール</translation>
+    </message>
+    <message>
+        <source>Select the area to change (Marquee, Lasso or Object Selection), or nothing to change the whole picture. The result goes on a new layer, masked to the selection; Edge blend sets how softly it meets the rest. The picture is sent as image 1, so reference images start at image 2.</source>
+        <translation>変更する範囲を選択してください（選択範囲、なげなわ、オブジェクト選択）。何も選択しなければ画像全体を変更します。結果は選択範囲でマスクされた新しいレイヤーに置かれます。境界のなじみで周囲との境目の柔らかさを決めます。編集する画像が画像 1 として送られるため、参照画像は画像 2 から始まります。</translation>
+    </message>
+    <message>
+        <source>Describe the change first; with nothing selected, the whole picture is edited.</source>
+        <translation>先に変更内容を入力してください。何も選択していないときは画像全体が編集されます。</translation>
+    </message>
+    <message>
+        <source>Blend:</source>
+        <translation>なじませ:</translation>
+    </message>
+    <message>
+        <source>How much of the original next to the new area takes OpenAI&apos;s version before fading into the original: 0% keeps the original up to its edge, 100% uses OpenAI&apos;s whole picture</source>
+        <translation>新しい領域の隣で、元画像のどこまでを OpenAI 版に置き換えてから元画像になじませるか。0% は元画像を端まで残し、100% は OpenAI の画像全体を使います</translation>
+    </message>
+    <message>
+        <source>Add room around the image: Patchy grows the canvas by the pixels below and fills the new area on a new layer above the original, which stays untouched underneath. Blend sets how far that layer reaches into the original.</source>
+        <translation>画像の周りに余白を追加します。Patchy は下の値だけカンバスを広げ、元画像の上の新しいレイヤーに新しい領域を描きます。元画像はその下でそのまま残ります。なじませで、そのレイヤーが元画像にどこまでかかるかを決めます。</translation>
+    </message>
+    <message>
+        <source>Preparing the request...</source>
+        <translation>リクエストを準備しています...</translation>
+    </message>
+    <message>
+        <source>GIF (256 colors)</source>
+        <translation>GIF (256 色)</translation>
+    </message>
+    <message>
+        <source>Full color (one sheet)</source>
+        <translation>フルカラー (1 枚のシート)</translation>
+    </message>
+    <message>
+        <source>GIF uses OpenAI&apos;s animation mode, with 256 colors shared by all frames. Full color asks for the frames as one full-color picture and cuts it into layers, with soft transparency; the frame count rounds up to fill its grid.</source>
+        <translation>GIF は OpenAI のアニメーションモードを使い、全フレームで 256 色を共有します。フルカラーはフレームを 1 枚のフルカラー画像として受け取り、レイヤーに切り分けます。透明部分も柔らかく残ります。フレーム数はグリッドを埋めるよう切り上げられます。</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <translation>色:</translation>
+    </message>
+    <message>
+        <source>Full color drew %1 frames, to fill a %2 x %3 sheet.</source>
+        <translation>フルカラーでは %2 x %3 のシートを埋めるため %1 フレームを描きました。</translation>
     </message>
 </context>
 <context>

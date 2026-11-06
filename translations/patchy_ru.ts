@@ -19721,6 +19721,10 @@ Each item&apos;s own View setting still applies.</source>
         <source>Pick the last brush preset in the list</source>
         <translation>Выбрать последнюю предустановку кисти в списке</translation>
     </message>
+    <message>
+        <source>Generate pictures from a text prompt with your OpenAI key</source>
+        <translation>Создать изображения по текстовому описанию с вашим ключом OpenAI</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -33329,6 +33333,70 @@ Locked: %1</source>
         <source>Last Preset</source>
         <translation>Последняя предустановка</translation>
     </message>
+    <message>
+        <source>OpenAI %1: %2</source>
+        <translation>OpenAI %1: %2</translation>
+    </message>
+    <message>
+        <source>OpenAI: %1</source>
+        <translation>OpenAI: %1</translation>
+    </message>
+    <message>
+        <source>Open a document first.</source>
+        <translation>Сначала откройте документ.</translation>
+    </message>
+    <message>
+        <source>Select a layer first.</source>
+        <translation>Сначала выберите слой.</translation>
+    </message>
+    <message>
+        <source>The active layer has no visible pixels.</source>
+        <translation>В активном слое нет видимых пикселей.</translation>
+    </message>
+    <message>
+        <source>Select an area first, with a marquee, lasso or Object Selection.</source>
+        <translation>Сначала выделите область: прямоугольным выделением, лассо или выделением объекта.</translation>
+    </message>
+    <message>
+        <source>The selection is outside the canvas.</source>
+        <translation>Выделение находится за пределами холста.</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <translation>%1 %2</translation>
+    </message>
+    <message>
+        <source>OpenAI Animation</source>
+        <translation>Анимация OpenAI</translation>
+    </message>
+    <message numerus="yes">
+        <source>Opened %n animation(s); export one with File &gt; Export &gt; Layers as Animated GIF.</source>
+        <translation>
+            <numerusform>Открыта %n анимация; экспорт: Файл &gt; Экспорт &gt; Слои в виде анимации GIF.</numerusform>
+            <numerusform>Открыто %n анимации; экспорт: Файл &gt; Экспорт &gt; Слои в виде анимации GIF.</numerusform>
+            <numerusform>Открыто %n анимаций; экспорт: Файл &gt; Экспорт &gt; Слои в виде анимации GIF.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Writing into the active layer works in 8-bit documents; choose New layer as the target.</source>
+        <translation>Запись в активный слой работает в 8-битных документах; выберите «Новый слой» как цель.</translation>
+    </message>
+    <message>
+        <source>The active layer is not a pixel layer; choose New layer as the target.</source>
+        <translation>Активный слой не пиксельный; выберите «Новый слой» как цель.</translation>
+    </message>
+    <message>
+        <source>The active layer&apos;s pixels are locked; choose New layer as the target.</source>
+        <translation>Пиксели активного слоя заблокированы; выберите «Новый слой» как цель.</translation>
+    </message>
+    <message>
+        <source>OpenAI Image Tools via API Key (built-in)...</source>
+        <translation>Инструменты изображений OpenAI по ключу API (встроено)...</translation>
+    </message>
+    <message>
+        <source>OpenAI Image Tools</source>
+        <translation>Инструменты изображений OpenAI</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -33496,6 +33564,725 @@ Locked: %1</source>
     <message>
         <source>Alt</source>
         <translation>Alt</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::OpenAiImagesDialog</name>
+    <message>
+        <source>API key:</source>
+        <translation>Ключ API:</translation>
+    </message>
+    <message>
+        <source>Check Key</source>
+        <translation>Проверить ключ</translation>
+    </message>
+    <message>
+        <source>Remember the key on this computer</source>
+        <translation>Запомнить ключ на этом компьютере</translation>
+    </message>
+    <message>
+        <source>The key is no longer remembered on this computer.</source>
+        <translation>Ключ больше не хранится на этом компьютере.</translation>
+    </message>
+    <message>
+        <source>Add Layer</source>
+        <translation>Добавить слой</translation>
+    </message>
+    <message>
+        <source>Add the active layer as a reference image</source>
+        <translation>Добавить активный слой как опорное изображение</translation>
+    </message>
+    <message>
+        <source>Add Visible</source>
+        <translation>Добавить видимое</translation>
+    </message>
+    <message>
+        <source>Add the visible image, all layers merged, as a reference image</source>
+        <translation>Добавить видимое изображение со всеми объединёнными слоями как опорное</translation>
+    </message>
+    <message>
+        <source>Add File...</source>
+        <translation>Добавить файл...</translation>
+    </message>
+    <message>
+        <source>Remove</source>
+        <translation>Удалить</translation>
+    </message>
+    <message>
+        <source>Model:</source>
+        <translation>Модель:</translation>
+    </message>
+    <message>
+        <source>Match the canvas</source>
+        <translation>Как холст</translation>
+    </message>
+    <message>
+        <source>Square (1024 x 1024)</source>
+        <translation>Квадрат (1024 x 1024)</translation>
+    </message>
+    <message>
+        <source>Landscape (1536 x 1024)</source>
+        <translation>Альбомная (1536 x 1024)</translation>
+    </message>
+    <message>
+        <source>Portrait (1024 x 1536)</source>
+        <translation>Книжная (1024 x 1536)</translation>
+    </message>
+    <message>
+        <source>Chosen by the model</source>
+        <translation>Выбирает модель</translation>
+    </message>
+    <message>
+        <source>Match the canvas requests the canvas&apos;s shape and scales the result to fit it</source>
+        <translation>«Как холст» запрашивает пропорции холста и масштабирует результат по нему</translation>
+    </message>
+    <message>
+        <source>Size:</source>
+        <translation>Размер:</translation>
+    </message>
+    <message>
+        <source>Automatic</source>
+        <translation>Автоматически</translation>
+    </message>
+    <message>
+        <source>Low</source>
+        <translation>Низкое</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>Среднее</translation>
+    </message>
+    <message>
+        <source>High</source>
+        <translation>Высокое</translation>
+    </message>
+    <message>
+        <source>Quality:</source>
+        <translation>Качество:</translation>
+    </message>
+    <message>
+        <source>Transparent</source>
+        <translation>Прозрачный</translation>
+    </message>
+    <message>
+        <source>Opaque</source>
+        <translation>Непрозрачный</translation>
+    </message>
+    <message>
+        <source>Background:</source>
+        <translation>Фон:</translation>
+    </message>
+    <message>
+        <source>Each image becomes its own layer, and each one is billed</source>
+        <translation>Каждое изображение становится отдельным слоем и оплачивается отдельно</translation>
+    </message>
+    <message>
+        <source>Stop</source>
+        <translation>Остановить</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Закрыть</translation>
+    </message>
+    <message>
+        <source>%1 (%2 s)</source>
+        <translation>%1 (%2 с)</translation>
+    </message>
+    <message>
+        <source>Using the key from the OPENAI_API_KEY environment variable.</source>
+        <translation>Используется ключ из переменной среды OPENAI_API_KEY.</translation>
+    </message>
+    <message>
+        <source>Enter your OpenAI API key first.</source>
+        <translation>Сначала введите ключ API OpenAI.</translation>
+    </message>
+    <message>
+        <source>The key could not be saved on this computer; it is used for this session only.</source>
+        <translation>Не удалось сохранить ключ на этом компьютере; он будет использоваться только в этом сеансе.</translation>
+    </message>
+    <message>
+        <source>Checking the key...</source>
+        <translation>Проверка ключа...</translation>
+    </message>
+    <message>
+        <source>Type a prompt first.</source>
+        <translation>Сначала введите описание.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Generating %n image(s)...</source>
+        <translation>
+            <numerusform>Создание %n изображения...</numerusform>
+            <numerusform>Создание %n изображений...</numerusform>
+            <numerusform>Создание %n изображений...</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The images arrived, but could not be added to a document.</source>
+        <translation>Изображения получены, но их не удалось добавить в документ.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Added %n layer(s).</source>
+        <translation>
+            <numerusform>Добавлен %n слой.</numerusform>
+            <numerusform>Добавлено %n слоя.</numerusform>
+            <numerusform>Добавлено %n слоёв.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>%1 tokens used.</source>
+        <translation>Использовано токенов: %1.</translation>
+    </message>
+    <message>
+        <source>Stopped. OpenAI may still bill a request it had already started.</source>
+        <translation>Остановлено. OpenAI может всё равно взять плату за уже начатый запрос.</translation>
+    </message>
+    <message>
+        <source>OpenAI takes at most %1 reference images.</source>
+        <translation>OpenAI принимает не более %1 опорных изображений.</translation>
+    </message>
+    <message>
+        <source>Visible</source>
+        <translation>Видимое</translation>
+    </message>
+    <message>
+        <source>Add Reference Images</source>
+        <translation>Добавить опорные изображения</translation>
+    </message>
+    <message>
+        <source>Images (*.png *.jpg *.jpeg *.webp *.bmp *.gif *.tif *.tiff)</source>
+        <translation>Изображения (*.png *.jpg *.jpeg *.webp *.bmp *.gif *.tif *.tiff)</translation>
+    </message>
+    <message>
+        <source>Create an API key</source>
+        <translation>Создать ключ API</translation>
+    </message>
+    <message>
+        <source>Where the key is saved</source>
+        <translation>Где хранится ключ</translation>
+    </message>
+    <message>
+        <source>Where the Key Is Saved</source>
+        <translation>Где хранится ключ</translation>
+    </message>
+    <message>
+        <source>Prompt</source>
+        <translation>Описание</translation>
+    </message>
+    <message>
+        <source>Paste</source>
+        <translation>Вставить</translation>
+    </message>
+    <message>
+        <source>Add the image on the clipboard as a reference image</source>
+        <translation>Добавить изображение из буфера обмена как опорное</translation>
+    </message>
+    <message>
+        <source>The clipboard holds no image.</source>
+        <translation>В буфере обмена нет изображения.</translation>
+    </message>
+    <message>
+        <source>Create</source>
+        <translation>Создать</translation>
+    </message>
+    <message>
+        <source>Expand</source>
+        <translation>Расширить</translation>
+    </message>
+    <message>
+        <source>Animate</source>
+        <translation>Анимировать</translation>
+    </message>
+    <message>
+        <source>%1 (higher quality)</source>
+        <translation>%1 (выше качество)</translation>
+    </message>
+    <message>
+        <source>%1 (faster)</source>
+        <translation>%1 (быстрее)</translation>
+    </message>
+    <message>
+        <source>Check Key greys out a model your key cannot use</source>
+        <translation>«Проверить ключ» делает недоступными модели, которые ваш ключ не может использовать</translation>
+    </message>
+    <message>
+        <source>Variations:</source>
+        <translation>Варианты:</translation>
+    </message>
+    <message>
+        <source>The key works, but it cannot use the GPT Image 2.6 models.</source>
+        <translation>Ключ работает, но не может использовать модели GPT Image 2.6.</translation>
+    </message>
+    <message>
+        <source>The key works.</source>
+        <translation>Ключ работает.</translation>
+    </message>
+    <message>
+        <source>Clipboard</source>
+        <translation>Буфер обмена</translation>
+    </message>
+    <message>
+        <source>The key is never written to Patchy&apos;s settings file, and Patchy sends it only to OpenAI.</source>
+        <translation>Ключ никогда не записывается в файл настроек Patchy, и Patchy отправляет его только в OpenAI.</translation>
+    </message>
+    <message>
+        <source>Patchy saves the key in Windows Credential Manager, under Windows Credentials, as the generic credential &quot;com.rtsoft.patchy.openai&quot;. Only your Windows account can read it. Untick &quot;Remember the key on this computer&quot; to delete it.</source>
+        <translation>Patchy сохраняет ключ в диспетчере учётных данных Windows, в разделе «Учётные данные Windows», как общие учётные данные «com.rtsoft.patchy.openai». Прочитать его может только ваша учётная запись Windows. Снимите флажок «Запомнить ключ на этом компьютере», чтобы удалить его.</translation>
+    </message>
+    <message>
+        <source>Patchy saves the key in your login keychain as the password item &quot;com.rtsoft.patchy.openai&quot; (account &quot;api-key&quot;), which the Keychain Access app shows. Only your macOS account can read it. Untick &quot;Remember the key on this computer&quot; to delete it.</source>
+        <translation>Patchy сохраняет ключ в связке ключей входа как объект пароля «com.rtsoft.patchy.openai» (учётная запись «api-key»), который показывает приложение «Связка ключей». Прочитать его может только ваша учётная запись macOS. Снимите флажок «Запомнить ключ на этом компьютере», чтобы удалить его.</translation>
+    </message>
+    <message>
+        <source>The key will be saved unencrypted in %1. Only your user account can open the file, but any program running as you can read it.</source>
+        <translation>Ключ будет сохранён без шифрования в %1. Открыть файл может только ваша учётная запись, но прочитать его может любая программа, запущенная от вашего имени.</translation>
+    </message>
+    <message>
+        <source>Select what to remove, with a little room around it. The area is filled from its surroundings on a new layer, masked to the selection, so the original stays underneath.</source>
+        <translation>Выделите то, что нужно удалить, с небольшим запасом вокруг. Область заполнится по окружению на новом слое с маской по выделению, а оригинал останется под ним.</translation>
+    </message>
+    <message>
+        <source>Open a document first.</source>
+        <translation>Сначала откройте документ.</translation>
+    </message>
+    <message>
+        <source>OpenAI Remove</source>
+        <translation>OpenAI Удаление</translation>
+    </message>
+    <message>
+        <source>Removing...</source>
+        <translation>Удаление...</translation>
+    </message>
+    <message>
+        <source>The images arrived, but the document they were made for is closed.</source>
+        <translation>Изображения получены, но документ, для которого они созданы, закрыт.</translation>
+    </message>
+    <message>
+        <source>Patchy saves the key in the file %1. The file is not encrypted: only your user account can open it, but any program running as you can read it. Untick &quot;Remember the key on this computer&quot; to delete the file. You can instead set the OPENAI_API_KEY environment variable, which the dialog reads when it opens.</source>
+        <translation>Patchy сохраняет ключ в файле %1. Файл не зашифрован: открыть его может только ваша учётная запись, но прочитать его может любая программа, запущенная от вашего имени. Снимите флажок «Запомнить ключ на этом компьютере», чтобы удалить файл. Вместо этого можно задать переменную среды OPENAI_API_KEY, которую окно читает при открытии.</translation>
+    </message>
+    <message>
+        <source> px</source>
+        <translation> пикс.</translation>
+    </message>
+    <message>
+        <source>Left:</source>
+        <translation>Слева:</translation>
+    </message>
+    <message>
+        <source>Right:</source>
+        <translation>Справа:</translation>
+    </message>
+    <message>
+        <source>Top:</source>
+        <translation>Сверху:</translation>
+    </message>
+    <message>
+        <source>Bottom:</source>
+        <translation>Снизу:</translation>
+    </message>
+    <message>
+        <source>Optional: describe what the new area shows</source>
+        <translation>Необязательно: опишите, что изображено в новой области</translation>
+    </message>
+    <message>
+        <source>New canvas: %1 x %2 px</source>
+        <translation>Новый холст: %1 x %2 пикс.</translation>
+    </message>
+    <message>
+        <source>Add pixels to at least one side.</source>
+        <translation>Добавьте пиксели хотя бы с одной стороны.</translation>
+    </message>
+    <message>
+        <source>The new canvas would be larger than %1 px on a side.</source>
+        <translation>Новый холст был бы больше %1 пикс. по одной из сторон.</translation>
+    </message>
+    <message>
+        <source>OpenAI Expand</source>
+        <translation>OpenAI Расширение</translation>
+    </message>
+    <message>
+        <source>Expanding...</source>
+        <translation>Расширение...</translation>
+    </message>
+    <message>
+        <source>The images arrived, but that document is closed or its canvas changed meanwhile.</source>
+        <translation>Изображения получены, но документ закрыт или его холст за это время изменился.</translation>
+    </message>
+    <message>
+        <source>Drag an edge or a corner outward to add room on that side</source>
+        <translation>Потяните край или угол наружу, чтобы добавить место с этой стороны</translation>
+    </message>
+    <message>
+        <source>Make a short animation. It opens as a new document with one layer per frame, frame 1 on top, ready for File &gt; Export &gt; Layers as Animated GIF.</source>
+        <translation>Создайте короткую анимацию. Она откроется новым документом, по слою на кадр, кадр 1 сверху, готовым для Файл &gt; Экспорт &gt; Слои в виде анимации GIF.</translation>
+    </message>
+    <message>
+        <source>Describe the motion, for example: the flag waves in the wind</source>
+        <translation>Опишите движение, например: флаг развевается на ветру</translation>
+    </message>
+    <message>
+        <source>The prompt only</source>
+        <translation>Только описание</translation>
+    </message>
+    <message>
+        <source>The active layer</source>
+        <translation>Активный слой</translation>
+    </message>
+    <message>
+        <source>The visible image</source>
+        <translation>Видимое изображение</translation>
+    </message>
+    <message>
+        <source>Start from:</source>
+        <translation>Начать с:</translation>
+    </message>
+    <message>
+        <source>Frames:</source>
+        <translation>Кадры:</translation>
+    </message>
+    <message>
+        <source> ms</source>
+        <translation> мс</translation>
+    </message>
+    <message>
+        <source>Frame delay:</source>
+        <translation>Задержка кадра:</translation>
+    </message>
+    <message>
+        <source>512 x 512</source>
+        <translation>512 x 512</translation>
+    </message>
+    <message>
+        <source>Frame size:</source>
+        <translation>Размер кадра:</translation>
+    </message>
+    <message>
+        <source>GIF transparency is on or off per pixel, so soft edges come out hard</source>
+        <translation>Прозрачность GIF для каждого пикселя либо есть, либо нет, поэтому мягкие края становятся резкими</translation>
+    </message>
+    <message>
+        <source>OpenAI&apos;s reply held no animation.</source>
+        <translation>Ответ OpenAI не содержал анимации.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Opened %n animation(s).</source>
+        <translation>
+            <numerusform>Открыта %n анимация.</numerusform>
+            <numerusform>Открыто %n анимации.</numerusform>
+            <numerusform>Открыто %n анимаций.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>720 x 720</source>
+        <translation>720 x 720</translation>
+    </message>
+    <message>
+        <source>960 x 960</source>
+        <translation>960 x 960</translation>
+    </message>
+    <message>
+        <source>OpenAI draws every frame on one sheet, so more than 9 frames allow at most 720 x 720</source>
+        <translation>OpenAI рисует все кадры на одном листе, поэтому при более чем 9 кадрах максимум 720 x 720</translation>
+    </message>
+    <message>
+        <source>Show variation %1</source>
+        <translation>Показать вариант %1</translation>
+    </message>
+    <message>
+        <source>Results:</source>
+        <translation>Результаты:</translation>
+    </message>
+    <message>
+        <source>New layer</source>
+        <translation>Новый слой</translation>
+    </message>
+    <message>
+        <source>Active layer</source>
+        <translation>Активный слой</translation>
+    </message>
+    <message>
+        <source>Active layer writes the result into the active pixel layer, inside the selection</source>
+        <translation>«Активный слой» записывает результат в активный пиксельный слой внутри выделения</translation>
+    </message>
+    <message>
+        <source>Target:</source>
+        <translation>Цель:</translation>
+    </message>
+    <message>
+        <source>The images arrived, but the active layer changed or closed meanwhile.</source>
+        <translation>Изображения получены, но активный слой за это время изменился или закрыт.</translation>
+    </message>
+    <message>
+        <source>Wrote the result into the active layer.</source>
+        <translation>Результат записан в активный слой.</translation>
+    </message>
+    <message>
+        <source>Click a result to see another variation.</source>
+        <translation>Щёлкните результат, чтобы увидеть другой вариант.</translation>
+    </message>
+    <message>
+        <source>The result layer changed since, so its other variations were cleared.</source>
+        <translation>Слой результата с тех пор изменился, поэтому его другие варианты сброшены.</translation>
+    </message>
+    <message>
+        <source>Showing variation %1.</source>
+        <translation>Показан вариант %1.</translation>
+    </message>
+    <message>
+        <source>Your prompt and any reference images are sent to OpenAI, and generations use your API key, so be careful as they cost real money.</source>
+        <translation>Описание и опорные изображения отправляются в OpenAI, а создание идёт через ваш ключ API, поэтому будьте осторожны: это стоит реальных денег.</translation>
+    </message>
+    <message>
+        <source>Checking...</source>
+        <translation>Проверка...</translation>
+    </message>
+    <message>
+        <source>Building the animation...</source>
+        <translation>Создание анимации...</translation>
+    </message>
+    <message>
+        <source>Building animation...</source>
+        <translation>Создание анимации...</translation>
+    </message>
+    <message>
+        <source>Creating...</source>
+        <translation>Создание...</translation>
+    </message>
+    <message>
+        <source>OpenAI sent a reply Patchy could not read.</source>
+        <translation>OpenAI прислал ответ, который Patchy не смог прочитать.</translation>
+    </message>
+    <message>
+        <source>OpenAI&apos;s reply held no image.</source>
+        <translation>Ответ OpenAI не содержал изображения.</translation>
+    </message>
+    <message>
+        <source>OpenAI did not accept this API key. Check that it was copied whole, or create a new one.</source>
+        <translation>OpenAI не принял этот ключ API. Проверьте, что он скопирован целиком, или создайте новый.</translation>
+    </message>
+    <message>
+        <source>Your OpenAI account is out of credit, so nothing was generated. Add credit to keep going.</source>
+        <translation>На счёте OpenAI закончились средства, поэтому ничего не создано. Пополните счёт, чтобы продолжить.</translation>
+    </message>
+    <message>
+        <source>Your OpenAI account has reached its spending limit, so nothing was generated. Raise the limit to keep going.</source>
+        <translation>Счёт OpenAI достиг лимита расходов, поэтому ничего не создано. Повысьте лимит, чтобы продолжить.</translation>
+    </message>
+    <message>
+        <source>OpenAI is limiting requests from this key right now. Wait a moment and try again.</source>
+        <translation>OpenAI сейчас ограничивает запросы с этого ключа. Подождите немного и повторите попытку.</translation>
+    </message>
+    <message>
+        <source>OpenAI&apos;s safety system declined this request. Try rewording the prompt or using other images.</source>
+        <translation>Система безопасности OpenAI отклонила этот запрос. Попробуйте переформулировать описание или использовать другие изображения.</translation>
+    </message>
+    <message>
+        <source>This model needs a verified OpenAI organization. Verify it, then try again.</source>
+        <translation>Для этой модели нужна подтверждённая организация OpenAI. Подтвердите её и повторите попытку.</translation>
+    </message>
+    <message>
+        <source>This API key cannot use the chosen model. Pick the other model, or check the key&apos;s project permissions.</source>
+        <translation>Этот ключ API не может использовать выбранную модель. Выберите другую модель или проверьте права проекта для ключа.</translation>
+    </message>
+    <message>
+        <source>OpenAI had a problem on its side (HTTP %1). Try again in a moment.</source>
+        <translation>На стороне OpenAI возникла проблема (HTTP %1). Повторите попытку чуть позже.</translation>
+    </message>
+    <message>
+        <source>OpenAI returned HTTP status %1.</source>
+        <translation>OpenAI вернул код HTTP %1.</translation>
+    </message>
+    <message>
+        <source>Manage API keys</source>
+        <translation>Управление ключами API</translation>
+    </message>
+    <message>
+        <source>Add credit</source>
+        <translation>Пополнить счёт</translation>
+    </message>
+    <message>
+        <source>Open spending limits</source>
+        <translation>Открыть лимиты расходов</translation>
+    </message>
+    <message>
+        <source>Verify organization</source>
+        <translation>Подтвердить организацию</translation>
+    </message>
+    <message>
+        <source>Could not read %1: %2</source>
+        <translation>Не удалось прочитать %1: %2</translation>
+    </message>
+    <message>
+        <source>OpenAI did not answer in time.</source>
+        <translation>OpenAI не ответил вовремя.</translation>
+    </message>
+    <message>
+        <source>Could not reach OpenAI: %1</source>
+        <translation>Не удалось связаться с OpenAI: %1</translation>
+    </message>
+    <message>
+        <source>Describe what the selection should become, or leave it empty to continue the surroundings</source>
+        <translation>Опишите, чем должно стать выделение, или оставьте пустым, чтобы продолжить окружение</translation>
+    </message>
+    <message>
+        <source>Edit</source>
+        <translation>Изменить</translation>
+    </message>
+    <message>
+        <source>0% keeps the result inside the selection with a hard edge; 100% lets it reach past the selection with a soft edge</source>
+        <translation>0% оставляет результат внутри выделения с жёстким краем; 100% позволяет ему выйти за выделение с мягким краем</translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <translation>%1%</translation>
+    </message>
+    <message>
+        <source>Edge blend:</source>
+        <translation>Смешивание краёв:</translation>
+    </message>
+    <message>
+        <source>OpenAI Edit</source>
+        <translation>OpenAI Изменение</translation>
+    </message>
+    <message>
+        <source>OpenAI Edit: %1</source>
+        <translation>OpenAI Изменение: %1</translation>
+    </message>
+    <message>
+        <source>Editing...</source>
+        <translation>Изменение...</translation>
+    </message>
+    <message>
+        <source>OpenAI sent no description.</source>
+        <translation>OpenAI не прислал описание.</translation>
+    </message>
+    <message>
+        <source>OpenAI declined to describe the image: %1</source>
+        <translation>OpenAI отказался описывать изображение: %1</translation>
+    </message>
+    <message>
+        <source>The image below goes to OpenAI&apos;s %1 model, which writes a detailed description of it here. Nothing is added to the document.</source>
+        <translation>Изображение ниже отправляется в модель OpenAI %1, которая пишет здесь его подробное описание. В документ ничего не добавляется.</translation>
+    </message>
+    <message>
+        <source>Image:</source>
+        <translation>Изображение:</translation>
+    </message>
+    <message>
+        <source>The description appears here</source>
+        <translation>Здесь появится описание</translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <translation>Описание</translation>
+    </message>
+    <message>
+        <source>Describe</source>
+        <translation>Описать</translation>
+    </message>
+    <message>
+        <source>Describe Image</source>
+        <translation>Описать изображение</translation>
+    </message>
+    <message>
+        <source>Describing the image...</source>
+        <translation>Описание изображения...</translation>
+    </message>
+    <message>
+        <source>Describing...</source>
+        <translation>Описание...</translation>
+    </message>
+    <message>
+        <source>Described the image.</source>
+        <translation>Изображение описано.</translation>
+    </message>
+    <message>
+        <source>Describe the image to create. With reference images, refer to them by their numbers, for example: the cat from image 1 wearing the hat from image 2</source>
+        <translation>Опишите изображение, которое нужно создать. На опорные изображения ссылайтесь по номерам, например: кот с изображения 1 в шляпе с изображения 2</translation>
+    </message>
+    <message>
+        <source>Patchy could not read an image from what was dropped.</source>
+        <translation>Patchy не удалось прочитать изображение из перетащенных данных.</translation>
+    </message>
+    <message>
+        <source>%1. %2</source>
+        <translation>%1. %2</translation>
+    </message>
+    <message>
+        <source>Image %1: %2 (%3 x %4 px)</source>
+        <translation>Изображение %1: %2 (%3 x %4 px)</translation>
+    </message>
+    <message>
+        <source>Remove this reference image</source>
+        <translation>Убрать это опорное изображение</translation>
+    </message>
+    <message>
+        <source>References (up to %1; the prompt names them by number):</source>
+        <translation>Опорные (до %1; в описании — по номеру):</translation>
+    </message>
+    <message>
+        <source>Add</source>
+        <translation>Добавить</translation>
+    </message>
+    <message>
+        <source>The model and quality apply to every image tab. Describe always uses %1.</source>
+        <translation>Модель и качество действуют на всех вкладках изображений. «Описать» всегда использует %1.</translation>
+    </message>
+    <message>
+        <source>Config</source>
+        <translation>Настройки</translation>
+    </message>
+    <message>
+        <source>Drop image files here, or use Add or Paste</source>
+        <translation>Перетащите сюда файлы изображений или используйте «Добавить» или «Вставить»</translation>
+    </message>
+    <message>
+        <source>OpenAI Image Tools via API Key</source>
+        <translation>Инструменты изображений OpenAI по ключу API</translation>
+    </message>
+    <message>
+        <source>Select the area to change (Marquee, Lasso or Object Selection), or nothing to change the whole picture. The result goes on a new layer, masked to the selection; Edge blend sets how softly it meets the rest. The picture is sent as image 1, so reference images start at image 2.</source>
+        <translation>Выделите область, которую нужно изменить (Прямоугольное выделение, Лассо или Выделение объекта), или ничего, чтобы изменить всё изображение. Результат помещается на новый слой с маской по выделению; Смешивание краёв задаёт, насколько мягко он переходит в остальное. Изображение отправляется как изображение 1, поэтому опорные изображения начинаются с изображения 2.</translation>
+    </message>
+    <message>
+        <source>Describe the change first; with nothing selected, the whole picture is edited.</source>
+        <translation>Сначала опишите изменение; без выделения редактируется всё изображение.</translation>
+    </message>
+    <message>
+        <source>Blend:</source>
+        <translation>Смешивание:</translation>
+    </message>
+    <message>
+        <source>How much of the original next to the new area takes OpenAI&apos;s version before fading into the original: 0% keeps the original up to its edge, 100% uses OpenAI&apos;s whole picture</source>
+        <translation>Какая часть оригинала рядом с новой областью заменяется версией OpenAI перед плавным переходом в оригинал: 0% сохраняет оригинал до края, 100% использует всё изображение OpenAI</translation>
+    </message>
+    <message>
+        <source>Add room around the image: Patchy grows the canvas by the pixels below and fills the new area on a new layer above the original, which stays untouched underneath. Blend sets how far that layer reaches into the original.</source>
+        <translation>Добавить место вокруг изображения: Patchy увеличивает холст на пиксели ниже и заполняет новую область на новом слое над оригиналом, который остаётся нетронутым под ним. «Смешивание» задаёт, насколько далеко этот слой заходит на оригинал.</translation>
+    </message>
+    <message>
+        <source>Preparing the request...</source>
+        <translation>Подготовка запроса...</translation>
+    </message>
+    <message>
+        <source>GIF (256 colors)</source>
+        <translation>GIF (256 цветов)</translation>
+    </message>
+    <message>
+        <source>Full color (one sheet)</source>
+        <translation>Полный цвет (один лист)</translation>
+    </message>
+    <message>
+        <source>GIF uses OpenAI&apos;s animation mode, with 256 colors shared by all frames. Full color asks for the frames as one full-color picture and cuts it into layers, with soft transparency; the frame count rounds up to fill its grid.</source>
+        <translation>GIF использует режим анимации OpenAI: 256 цветов на все кадры. «Полный цвет» запрашивает кадры одним полноцветным изображением и режет его на слои, с мягкой прозрачностью; число кадров округляется вверх, чтобы заполнить сетку.</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <translation>Цвета:</translation>
+    </message>
+    <message>
+        <source>Full color drew %1 frames, to fill a %2 x %3 sheet.</source>
+        <translation>«Полный цвет» нарисовал %1 кадров, чтобы заполнить лист %2 x %3.</translation>
     </message>
 </context>
 <context>

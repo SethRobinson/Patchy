@@ -2794,8 +2794,19 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   legacy_plugins_menu_ = plugins_menu->addMenu(tr("Legacy Photoshop Plug-ins"));
   legacy_plugins_menu_->setObjectName(QStringLiteral("legacyPluginsMenu"));
 #ifndef Q_OS_WASM
+  // Plugins > Companions > OpenAI Image Tools via API Key (docs/openai-images.md): built in, owned
+  // by the window and placed at the top of the Companions submenu by CompanionMenu.
+  auto* openai_images_action = new QAction(tr("OpenAI Image Tools via API Key (built-in)..."), this);
+  openai_images_action->setObjectName(QStringLiteral("pluginsOpenAiImagesAction"));
+  openai_images_action->setMenuRole(QAction::NoRole);
+  openai_images_action->setProperty(kWorksWithoutDocumentProperty, true);  // results open a new document
+  register_hotkey(openai_images_action, "plugins.openai_images");
+  connect(openai_images_action, &QAction::triggered, this, [this] { open_openai_images_dialog(); });
+  bind_action_text(openai_images_action,
+                   QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "OpenAI Image Tools via API Key (built-in)..."));
   // Plugins > Companions (docs/companions.md); the Plugins menu owns it.
-  new CompanionMenu(plugins_menu, *this);
+  auto* companion_menu = new CompanionMenu(plugins_menu, *this);
+  companion_menu->set_builtin_action(openai_images_action);
 #endif
 
   auto* zoom_in = view_menu->addAction(tr("Zoom &In"));

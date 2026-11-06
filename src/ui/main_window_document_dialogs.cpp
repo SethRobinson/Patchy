@@ -1785,6 +1785,20 @@ void MainWindow::apply_canvas_size(Rect frame, QColor extension_color, bool crop
   }
 
   push_undo_snapshot(history_label);
+  const auto deleted_layers = resize_canvas_without_history(frame, extension_color, crop_layers, delete_off_canvas_layers);
+  if (deleted_layers > 0) {
+    statusBar()->showMessage(tr("Canvas %1 x %2, off-canvas layers deleted: %3")
+                                 .arg(frame.width)
+                                 .arg(frame.height)
+                                 .arg(static_cast<int>(deleted_layers)));
+    return;
+  }
+  statusBar()->showMessage(tr("Canvas %1 x %2").arg(doc.width()).arg(doc.height()));
+}
+
+std::size_t MainWindow::resize_canvas_without_history(Rect frame, QColor extension_color, bool crop_layers,
+                                                      bool delete_off_canvas_layers) {
+  auto& doc = document();
   // Delete against the frame before resizing: the layer crop gives every pixel layer
   // canvas-sized bounds, so afterwards nothing would test as off the canvas.
   const auto deleted_layers =
@@ -1806,14 +1820,7 @@ void MainWindow::apply_canvas_size(Rect frame, QColor extension_color, bool crop
   refresh_layer_list();
   refresh_layer_controls();
   refresh_document_info();
-  if (deleted_layers > 0) {
-    statusBar()->showMessage(tr("Canvas %1 x %2, off-canvas layers deleted: %3")
-                                 .arg(frame.width)
-                                 .arg(frame.height)
-                                 .arg(static_cast<int>(deleted_layers)));
-    return;
-  }
-  statusBar()->showMessage(tr("Canvas %1 x %2").arg(doc.width()).arg(doc.height()));
+  return deleted_layers;
 }
 
 void MainWindow::trim_canvas_dialog() {

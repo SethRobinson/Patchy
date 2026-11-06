@@ -1861,7 +1861,18 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
         "-framework AVFoundation"
         "-framework Quartz"
         "-framework ImageCaptureCore"
+        # Security: the keychain item a remembered OpenAI API key lives in.
+        "-framework Security"
       )
+    endif()
+    if(NOT EMSCRIPTEN)
+      # OpenAI Image Tools (docs/openai-images.md): desktop only, since the wasm Qt has no TLS backend.
+      target_sources(patchy_ui PRIVATE
+        src/ui/openai_images.hpp
+        src/ui/openai_images.cpp
+        src/ui/openai_images_dialog.hpp
+        src/ui/openai_images_dialog.cpp
+        src/ui/main_window_openai_images.cpp)
     endif()
     if(NOT EMSCRIPTEN)
       # GEGL filters (docs/gegl-filters.md): the scan and runs through patchy-gegl-host.
@@ -2690,6 +2701,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/document_recovery_tests.cpp
       tests/ui/mcp_tests.cpp
       tests/ui/companion_tests.cpp
+      tests/ui/openai_images_tests.cpp
       tests/ui/unicode_path_tests.cpp
       tests/ui/legacy_plugin_tests.cpp
       tests/ui/gegl_filter_tests.cpp
