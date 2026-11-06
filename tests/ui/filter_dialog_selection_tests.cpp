@@ -123,8 +123,15 @@ patchy::PixelBuffer open_photo_document(patchy::ui::MainWindow& window) {
   return pixels;
 }
 
+// A tool's palette action (tool<Name>Action). The name matters: other checkable actions carry
+// small integer data too (the Type menu's alignment choices hold 0, 1, 2), which matched
+// CanvasTool::Marquee and triggered Center alignment instead of the tool.
 QAction* tool_action(patchy::ui::MainWindow& window, CanvasTool tool) {
   for (auto* action : window.findChildren<QAction*>()) {
+    const auto name = action->objectName();
+    if (!name.startsWith(QStringLiteral("tool")) || !name.endsWith(QStringLiteral("Action"))) {
+      continue;
+    }
     if (action->isCheckable() && action->data().isValid() && action->data().toInt() == static_cast<int>(tool)) {
       return action;
     }
