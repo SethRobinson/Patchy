@@ -14971,6 +14971,13 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
         <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
         <translation>Cada camada visível de nível superior vira um quadro, começando pela camada do topo. Uma camada chamada &quot;all&quot; é desenhada em todos os quadros em vez de ser um, e cada camada dentro de um grupo chamado &quot;all&quot; é um quadro próprio.</translation>
     </message>
+    <message>
+        <source>%1 already exists.
+Do you want to replace it?</source>
+        <extracomment>Save dialog: the typed name got the picked file type&apos;s extension and that file exists</extracomment>
+        <translation>%1 já existe.
+Deseja substituí-lo?</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

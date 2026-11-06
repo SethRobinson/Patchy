@@ -14924,6 +14924,13 @@ Each item&apos;s own View setting still applies.</source>
         <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
         <translation>보이는 각 최상위 레이어가 한 프레임이 되며 맨 위 레이어가 처음입니다. 이름이 &quot;all&quot;인 레이어는 프레임이 되지 않고 모든 프레임에 그려지며, 이름이 &quot;all&quot;인 그룹 안의 각 레이어는 각각 하나의 프레임이 됩니다.</translation>
     </message>
+    <message>
+        <source>%1 already exists.
+Do you want to replace it?</source>
+        <extracomment>Save dialog: the typed name got the picked file type&apos;s extension and that file exists</extracomment>
+        <translation>%1이(가) 이미 있습니다.
+바꾸시겠습니까?</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

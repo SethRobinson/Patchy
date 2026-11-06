@@ -14971,6 +14971,13 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
         <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
         <translation>Jede sichtbare oberste Ebene wird zu einem Frame, die oberste Ebene zuerst. Eine Ebene namens &quot;all&quot; wird in jeden Frame gezeichnet, statt selbst einer zu sein, und jede Ebene in einer Gruppe namens &quot;all&quot; ist ein eigener Frame.</translation>
     </message>
+    <message>
+        <source>%1 already exists.
+Do you want to replace it?</source>
+        <extracomment>Save dialog: the typed name got the picked file type&apos;s extension and that file exists</extracomment>
+        <translation>%1 ist bereits vorhanden.
+Möchten Sie die Datei ersetzen?</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

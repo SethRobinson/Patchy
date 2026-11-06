@@ -17,6 +17,7 @@
 
 #include <QApplication>
 #include <QDialog>
+#include <QFileDialog>
 #include <QListWidget>
 #include <QByteArray>
 #include <QColor>
@@ -732,6 +733,11 @@ std::unique_ptr<QWidget> make_themed_dialog_parent();
 // `next` for the dialog that follows (PDF Options after its file dialog). Call before
 // triggering the command.
 void accept_save_file_dialog_then(const QString& object_name, const QString& path, std::function<void()> next);
+// Picks the type row of save dialog `dialog` that keeps `path`'s extension, as a user typing
+// that name picks its type too: the picked type wins over a typed extension (GitHub issue
+// 651). Call before selectFile. Open dialogs, and names the picked row already keeps, are
+// left alone.
+void select_save_dialog_type_for(QFileDialog& dialog, const QString& path);
 
 void accept_missing_psd_text_font_warning_if_present();
 

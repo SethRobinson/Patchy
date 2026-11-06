@@ -3775,6 +3775,181 @@ QStringList get_open_file_names(QWidget* parent, const QString& caption, const Q
 #endif
 }
 
+namespace {
+
+// The extensions of one name-filter row, lowercased, from its last parenthesized
+// pattern list ("JPEG Image (*.jpg *.jpeg)" -> jpg, jpeg; a bare "*.txt" row works too).
+// `catch_all` is set for a "*" or "*.*" pattern.
+QStringList name_filter_extensions(const QString& filter, bool* catch_all = nullptr) {
+  QString spec = filter;
+  const auto open = filter.lastIndexOf(QLatin1Char('('));
+  const auto close = filter.lastIndexOf(QLatin1Char(')'));
+  if (open >= 0 && close > open) {
+    spec = filter.mid(open + 1, close - open - 1);
+  }
+  spec.replace(QLatin1Char(';'), QLatin1Char(' '));
+  QStringList extensions;
+  bool any = false;
+  for (const auto& token : spec.split(QLatin1Char(' '), Qt::SkipEmptyParts)) {
+    if (token == QStringLiteral("*") || token == QStringLiteral("*.*")) {
+      any = true;
+      continue;
+    }
+    if (!token.startsWith(QStringLiteral("*.")) || token.size() < 3) {
+      continue;
+    }
+    const auto extension = token.mid(2).toLower();
+    if (extension.contains(QLatin1Char('*')) || extension.contains(QLatin1Char('?'))) {
+      continue;
+    }
+    if (!extensions.contains(extension)) {
+      extensions.push_back(extension);
+    }
+  }
+  if (catch_all != nullptr) {
+    *catch_all = any;
+  }
+  return extensions;
+}
+
+bool is_catch_all_name_filter(const QString& filter, const QStringList& filters) {
+  bool any = false;
+  const auto extensions = name_filter_extensions(filter, &any);
+  if (any || extensions.isEmpty()) {
+    return true;
+  }
+  // An "All supported" row lists every other row's extensions.
+  int covered_rows = 0;
+  for (const auto& other : filters) {
+    if (other == filter) {
+      continue;
+    }
+    const auto other_extensions = name_filter_extensions(other);
+    if (other_extensions.isEmpty()) {
+      continue;
+    }
+    bool covered = true;
+    for (const auto& extension : other_extensions) {
+      if (!extensions.contains(extension)) {
+        covered = false;
+        break;
+      }
+    }
+    if (covered && ++covered_rows >= 2) {
+      return true;
+    }
+  }
+  return false;
+}
+
+}  // namespace
+
+QString save_name_for_picked_filter(const QString& name, const QString& filter, const QStringList& filters) {
+  if (name.isEmpty() || filter.isEmpty() || is_catch_all_name_filter(filter, filters)) {
+    return name;
+  }
+  const auto picked_extensions = name_filter_extensions(filter);
+  const auto separator = std::max(name.lastIndexOf(QLatin1Char('/')), name.lastIndexOf(QLatin1Char('\\')));
+  const auto file_name_size = name.size() - (separator + 1);
+  // The longest listed extension the name ends in, so "a.xcf.gz" reads as xcf.gz, not gz.
+  QString matched;
+  const auto consider = [&](const QStringList& extensions) {
+    for (const auto& extension : extensions) {
+      if (extension.size() > matched.size() && file_name_size > extension.size() + 1 &&
+          name.endsWith(QLatin1Char('.') + extension, Qt::CaseInsensitive)) {
+        matched = extension;
+      }
+    }
+  };
+  consider(picked_extensions);
+  for (const auto& row : filters) {
+    consider(name_filter_extensions(row));
+  }
+  if (matched.isEmpty() || picked_extensions.contains(matched)) {
+    return name;
+  }
+  const auto typed = name.right(matched.size());
+  auto replacement = picked_extensions.front();
+  if (typed == typed.toUpper() && typed != typed.toLower()) {
+    replacement = replacement.toUpper();
+  }
+  return name.left(name.size() - matched.size()) + replacement;
+}
+
+#ifndef Q_OS_WASM
+namespace {
+
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+// The GTK dialog reports a type change and takes a new name while open; the xdg portal
+// (Flatpak, Snap, or a portal platform theme) does neither, so the accepted-name rule
+// alone covers it.
+bool native_save_dialog_renames_while_open() {
+  if (qEnvironmentVariableIsSet("FLATPAK_ID") || qEnvironmentVariableIsSet("SNAP")) {
+    return false;
+  }
+  const auto theme = qEnvironmentVariable("QT_QPA_PLATFORMTHEME").toLower();
+  return !theme.contains(QStringLiteral("portal")) && !theme.contains(QStringLiteral("flatpak"));
+}
+#endif
+
+// Swaps the name's extension when the user picks another file type while the dialog is
+// open. Qt's own dialog swaps any extension by itself before reporting the change
+// ("photo.final" would become "photo.jpg"), so its name is tracked here and the rule
+// reapplied to the name as it was. The Windows shell dialog swaps it natively (Qt gives
+// it a default extension) and macOS's panel follows the type itself, so neither needs a
+// handler.
+void install_save_name_follows_filter(QFileDialog& dialog) {
+  if (dialog.nameFilters().size() < 2) {
+    return;
+  }
+  if (dialog.testOption(QFileDialog::DontUseNativeDialog)) {
+    auto* name_edit = dialog.findChild<QLineEdit*>(QStringLiteral("fileNameEdit"));
+    auto* type_combo = dialog.findChild<QComboBox*>(QStringLiteral("fileTypeCombo"));
+    if (name_edit == nullptr || type_combo == nullptr) {
+      return;
+    }
+    struct TrackedName {
+      QString name;
+      int filter_index = -1;
+    };
+    auto tracked = std::make_shared<TrackedName>(TrackedName{name_edit->text(), type_combo->currentIndex()});
+    QObject::connect(name_edit, &QLineEdit::textChanged, &dialog, [tracked, type_combo](const QString& text) {
+      // A change made while the combo shows another row than the tracked one is Qt's own
+      // swap for the new row: keep the name as it was before it.
+      if (type_combo->currentIndex() == tracked->filter_index) {
+        tracked->name = text;
+      }
+    });
+    QObject::connect(&dialog, &QFileDialog::filterSelected, name_edit,
+                     [tracked, type_combo, name_edit, &dialog](const QString& filter) {
+                       tracked->filter_index = type_combo->currentIndex();
+                       const auto renamed = save_name_for_picked_filter(tracked->name, filter, dialog.nameFilters());
+                       tracked->name = renamed;
+                       if (name_edit->text() != renamed) {
+                         name_edit->setText(renamed);
+                       }
+                     });
+    return;
+  }
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+  if (native_save_dialog_renames_while_open()) {
+    QObject::connect(&dialog, &QFileDialog::filterSelected, &dialog, [&dialog](const QString& filter) {
+      const auto files = dialog.selectedFiles();
+      if (files.size() != 1 || files.front().isEmpty()) {
+        return;
+      }
+      const auto renamed = save_name_for_picked_filter(files.front(), filter, dialog.nameFilters());
+      if (renamed != files.front()) {
+        dialog.selectFile(renamed);
+      }
+    });
+  }
+#endif
+}
+
+}  // namespace
+#endif  // !Q_OS_WASM
+
 QString get_save_file_name(QWidget* parent, const QString& caption, const QString& dir, const QString& filter,
                            QString* selected_filter, const QString& object_name, const QStringList& recent_files) {
 #ifdef Q_OS_WASM
@@ -3791,14 +3966,51 @@ QString get_save_file_name(QWidget* parent, const QString& caption, const QStrin
   if (dialog.testOption(QFileDialog::DontUseNativeDialog)) {
     install_save_file_recent_dropdown(dialog, recent_files);
   }
-  if (exec_dialog(dialog) != QDialog::Accepted) {
-    return {};
+  // The dialog opens on the type of the suggested name, so pressing Save at once keeps the
+  // format that name has always meant (Export Flat Image suggests a .png with no row picked).
+  if (const QFileInfo initial(dir); !dir.isEmpty() && !initial.isDir()) {
+    const auto filters = dialog.nameFilters();
+    const auto name = initial.fileName();
+    if (save_name_for_picked_filter(name, dialog.selectedNameFilter(), filters) != name) {
+      for (const auto& row : filters) {
+        if (!is_catch_all_name_filter(row, filters) && save_name_for_picked_filter(name, row, filters) == name) {
+          dialog.selectNameFilter(row);
+          break;
+        }
+      }
+    }
   }
-  if (selected_filter != nullptr) {
-    *selected_filter = dialog.selectedNameFilter();
+  install_save_name_follows_filter(dialog);
+  for (;;) {
+    if (exec_dialog(dialog) != QDialog::Accepted) {
+      return {};
+    }
+    const auto files = dialog.selectedFiles();
+    if (files.isEmpty()) {
+      return {};
+    }
+    // The picked type wins over a typed extension of another listed type (the portal
+    // dialog cannot be renamed while open). The dialog only asked about replacing the
+    // typed name, so a renamed one that exists is asked about here; No goes back to the
+    // dialog with the new name, as the dialog's own question does.
+    const auto picked_filter = dialog.selectedNameFilter();
+    const auto path = save_name_for_picked_filter(files.front(), picked_filter, dialog.nameFilters());
+    if (path != files.front() && QFileInfo::exists(path)) {
+      const auto answer = show_warning_message(
+          dialog.parentWidget() != nullptr ? dialog.parentWidget() : &dialog, caption,
+          //: Save dialog: the typed name got the picked file type's extension and that file exists
+          QObject::tr("%1 already exists.\nDo you want to replace it?").arg(QFileInfo(path).fileName()),
+          QMessageBox::Yes | QMessageBox::No, QMessageBox::No, QStringLiteral("saveReplaceRenamedFileMessageBox"));
+      if (answer != QMessageBox::Yes) {
+        dialog.selectFile(path);
+        continue;
+      }
+    }
+    if (selected_filter != nullptr) {
+      *selected_filter = picked_filter;
+    }
+    return path;
   }
-  const auto files = dialog.selectedFiles();
-  return files.isEmpty() ? QString() : files.front();
 #endif
 }
 

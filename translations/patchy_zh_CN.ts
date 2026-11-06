@@ -14924,6 +14924,13 @@ Each item&apos;s own View setting still applies.</source>
         <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
         <translation>每个可见的顶层图层成为一帧，最上面的图层在前。名为 &quot;all&quot; 的图层不作为一帧，而是绘制在每一帧中；名为 &quot;all&quot; 的组中的每个图层各成一帧。</translation>
     </message>
+    <message>
+        <source>%1 already exists.
+Do you want to replace it?</source>
+        <extracomment>Save dialog: the typed name got the picked file type&apos;s extension and that file exists</extracomment>
+        <translation>%1 已存在。
+是否要替换它?</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

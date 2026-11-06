@@ -15018,6 +15018,13 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
         <source>Each visible top-level layer becomes one frame, with the top layer first. A layer named &quot;all&quot; is drawn in every frame instead of being one, and each layer inside a group named &quot;all&quot; is its own frame.</source>
         <translation>Każda widoczna warstwa najwyższego poziomu staje się jedną klatką, zaczynając od górnej warstwy. Warstwa o nazwie &quot;all&quot; jest rysowana w każdej klatce, zamiast być osobną klatką, a każda warstwa w grupie o nazwie &quot;all&quot; jest osobną klatką.</translation>
     </message>
+    <message>
+        <source>%1 already exists.
+Do you want to replace it?</source>
+        <extracomment>Save dialog: the typed name got the picked file type&apos;s extension and that file exists</extracomment>
+        <translation>Plik %1 już istnieje.
+Czy chcesz go zastąpić?</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
