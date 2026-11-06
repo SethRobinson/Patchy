@@ -1742,9 +1742,37 @@ private:
   [[nodiscard]] QSize current_artboard_size() const;
   void layer_via_copy();
   void layer_via_cut();
-  // `hide` (the footer button's Alt-click, #400): hide all, or hide the selection.
+  // Who a Layer Mask or Vector Mask command acts on (local-029). The Layer menu, the Layers
+  // panel menus and the footer act on every selected layer the command applies to, as one undo
+  // step; a row's own link button, a thumbnail's toggle and the Properties panel act on that
+  // one layer.
+  enum class MaskCommandScope { SelectedLayers, ActiveLayer };
+  // The selection, or the active layer alone when the scope asks for it or the selection does
+  // not hold it (a thumbnail menu made another row active). Panel order.
+  [[nodiscard]] std::vector<LayerId> mask_command_layer_ids(MaskCommandScope scope) const;
+  // Of those, the ones `applies` accepts; the active layer first when it qualifies, so a toggle
+  // takes its new state from it.
+  [[nodiscard]] std::vector<LayerId> mask_command_targets(
+      MaskCommandScope scope, const std::function<bool(const Layer&)>& applies) const;
+  // The Layer Mask menus' state over the selection: whether any selected layer with unlocked
+  // pixels offers Add, a mask (Delete, Link, Disable, Invert) or Apply, and the layer whose
+  // mask the checkable entries show (the active one when it qualifies).
+  struct LayerMaskCommandState {
+    bool any_add{false};
+    bool any_mask{false};
+    bool any_apply{false};
+    const Layer* toggle_layer{nullptr};
+  };
+  [[nodiscard]] LayerMaskCommandState layer_mask_command_state() const;
+  // refresh_layer_list, which keeps only the active row selected, then the same selected rows
+  // again, so a mask command over several layers leaves the selection as it was.
+  void refresh_layer_list_keeping_selection();
+  // The status error of a raster mask command that found no layer to act on.
+  void report_no_layer_mask_targets(MaskCommandScope scope);
+  // `hide` (the footer button's Alt-click, #400): hide all, or hide the selection. Adds a mask
+  // to every selected pixel, adjustment or group layer that can take one.
   void add_layer_mask(bool hide = false);
-  // Whether Add Layer Mask would do something right now: one eligible
+  // Whether Add Layer Mask would do something right now: a selected eligible
   // (pixel/adjustment/group, pixels unlocked) layer, with no mask yet or a
   // selection to build one from. Drives the Layers panel footer button.
   [[nodiscard]] bool can_add_layer_mask() const;
@@ -1762,16 +1790,16 @@ private:
   // Photoshop's Layer from Background: clears the Background's position and transparency
   // locks and names it "Layer 0", one undo step; it is an ordinary layer afterwards.
   void layer_from_background();
-  void delete_active_layer_mask();
-  void set_active_layer_mask_linked(bool linked);
+  void delete_active_layer_mask(MaskCommandScope scope = MaskCommandScope::SelectedLayers);
+  void set_active_layer_mask_linked(bool linked, MaskCommandScope scope = MaskCommandScope::SelectedLayers);
   void set_layer_edit_target_ui(LayerEditTarget target, bool announce);
   [[nodiscard]] bool set_smart_filter_mask_edit_target_ui(
       LayerId layer_id, MaskDisplayMode mode, bool announce);
   void set_channel_edit_target(ChannelPanel::RowKind kind, ChannelId id, bool overlay, bool announce = true);
   void set_mask_overlay_shown(bool shown);
-  void set_active_layer_mask_disabled(bool disabled);
-  void invert_active_layer_mask();
-  void apply_active_layer_mask();
+  void set_active_layer_mask_disabled(bool disabled, MaskCommandScope scope = MaskCommandScope::SelectedLayers);
+  void invert_active_layer_mask(MaskCommandScope scope = MaskCommandScope::SelectedLayers);
+  void apply_active_layer_mask(MaskCommandScope scope = MaskCommandScope::SelectedLayers);
   void duplicate_active_layer();
   // Returns the copies' ids top to bottom (empty when nothing was duplicated);
   // the copies are selected with the topmost active.
@@ -2093,13 +2121,17 @@ private:
   void populate_new_fill_layer_menu(QMenu* menu, const QString& object_name_prefix = {});
   // Vector masks (main_window_vector.cpp).
   [[nodiscard]] patchy::Layer* vector_mask_command_layer(bool require_mask);
+  // Every layer in the scope a vector mask command applies to (local-029), the active one first
+  // when it qualifies; empty after the active layer's status error when none does.
+  [[nodiscard]] std::vector<LayerId> vector_mask_command_ids(bool require_mask, MaskCommandScope scope);
   void add_vector_mask(bool hide_all, bool from_work_path);
-  void delete_active_vector_mask();
-  void set_active_layer_vector_mask_disabled(bool disabled);
-  void set_active_layer_vector_mask_linked(bool linked);
+  void delete_active_vector_mask(MaskCommandScope scope = MaskCommandScope::SelectedLayers);
+  void set_active_layer_vector_mask_disabled(bool disabled,
+                                             MaskCommandScope scope = MaskCommandScope::SelectedLayers);
+  void set_active_layer_vector_mask_linked(bool linked, MaskCommandScope scope = MaskCommandScope::SelectedLayers);
   // Density and Feather of a layer's raster or vector mask (mask_properties_dialog.hpp).
   void edit_layer_mask_properties(patchy::LayerId id, bool vector_mask);
-  void rasterize_active_vector_mask();
+  void rasterize_active_vector_mask(MaskCommandScope scope = MaskCommandScope::SelectedLayers);
   void populate_vector_mask_menu(QMenu* menu, const QString& object_name_prefix = {});
   // Paths panel (main_window_paths.cpp).
   [[nodiscard]] const patchy::VectorPath* resolved_panel_path(QString* name = nullptr) const;

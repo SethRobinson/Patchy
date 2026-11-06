@@ -4555,7 +4555,7 @@ QWidget* MainWindow::make_layer_list_row_widget(const LayerListRowSpec& pending,
                                     [this](LayerId layer_id, bool linked) {
       if (auto* layer = document().find_layer(layer_id); layer != nullptr && layer->mask().has_value()) {
         document().set_active_layer(layer_id);
-        set_active_layer_mask_linked(linked);
+        set_active_layer_mask_linked(linked, MaskCommandScope::ActiveLayer);
       }
     },
                                     active.has_value() && *active == layer.id() &&
@@ -4660,7 +4660,7 @@ QWidget* MainWindow::make_layer_list_row_widget(const LayerListRowSpec& pending,
                                     [this](LayerId layer_id, bool linked) {
       if (auto* layer = document().find_layer(layer_id); layer != nullptr && layer->vector_mask() != nullptr) {
         document().set_active_layer(layer_id);
-        set_active_layer_vector_mask_linked(linked);
+        set_active_layer_vector_mask_linked(linked, MaskCommandScope::ActiveLayer);
       }
     },
                                     [this] {
@@ -5219,12 +5219,16 @@ void MainWindow::refresh_layer_controls() {
         edit_allowed &&
         can_rasterize_any([](const Layer& candidate) { return layer_can_rasterize_layer_style(candidate); }));
   }
+  // The mask commands act on every selected layer they apply to (local-029); the checkable
+  // entries show the active layer's mask, or the first selected one's when it has none.
+  const auto mask_state = layer_mask_command_state();
+  const auto* toggle_layer = mask_state.toggle_layer != nullptr ? mask_state.toggle_layer : layer;
   if (delete_layer_mask_action_ != nullptr) {
-    delete_layer_mask_action_->setEnabled(edit_allowed && !active_pixels_locked && layer->mask().has_value());
+    delete_layer_mask_action_->setEnabled(edit_allowed && mask_state.any_mask);
   }
   if (link_layer_mask_action_ != nullptr) {
-    link_layer_mask_action_->setEnabled(edit_allowed && !active_pixels_locked && layer->mask().has_value());
-    link_layer_mask_action_->setChecked(layer_mask_linked(*layer));
+    link_layer_mask_action_->setEnabled(edit_allowed && mask_state.any_mask);
+    link_layer_mask_action_->setChecked(layer_mask_linked(*toggle_layer));
   }
   if (disable_layer_mask_action_ != nullptr) {
     const auto* smart_filters = std::as_const(*layer).smart_filter_stack();
@@ -5238,12 +5242,11 @@ void MainWindow::refresh_layer_controls() {
         canvas_ != nullptr && canvas_->editing_smart_filter_mask() &&
         canvas_->smart_filter_mask_owner_id() == layer->id();
     disable_layer_mask_action_->setEnabled(
-        edit_allowed && !active_pixels_locked &&
-        (layer->mask().has_value() || has_editable_smart_mask));
+        edit_allowed && (mask_state.any_mask || (!active_pixels_locked && has_editable_smart_mask)));
     disable_layer_mask_action_->setChecked(
         editing_smart_mask ? !smart_filters->mask.enabled
-                           : layer->mask().has_value() &&
-                                 layer->mask()->disabled);
+                           : toggle_layer->mask().has_value() &&
+                                 toggle_layer->mask()->disabled);
   }
   if (invert_layer_mask_action_ != nullptr) {
     const auto* smart_filters = std::as_const(*layer).smart_filter_stack();
@@ -5254,11 +5257,10 @@ void MainWindow::refresh_layer_controls() {
         smart_filter_mask_document_editing_supported(
             document().width(), document().height());
     invert_layer_mask_action_->setEnabled(
-        edit_allowed && !active_pixels_locked &&
-        (layer->mask().has_value() || has_editable_smart_mask));
+        edit_allowed && (mask_state.any_mask || (!active_pixels_locked && has_editable_smart_mask)));
   }
   if (apply_layer_mask_action_ != nullptr) {
-    apply_layer_mask_action_->setEnabled(edit_allowed && !active_pixels_locked && layer->mask().has_value() && layer->kind() == LayerKind::Pixel);
+    apply_layer_mask_action_->setEnabled(edit_allowed && mask_state.any_apply);
   }
   refresh_layer_clipping_action_state();
   if (canvas_ != nullptr && canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::Mask &&

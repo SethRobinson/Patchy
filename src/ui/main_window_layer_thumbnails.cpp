@@ -214,11 +214,14 @@ bool MainWindow::show_layer_thumbnail_context_menu(QListWidgetItem* item, QPoint
     QAction* toggle = nullptr;
     if (raster_mask) {
       toggle = menu.addAction(disabled ? tr("Enable Layer Mask") : tr("Disable Layer Mask"));
-      connect(toggle, &QAction::triggered, this, [this, disabled] { set_active_layer_mask_disabled(!disabled); });
+      connect(toggle, &QAction::triggered, this,
+              [this, disabled] { set_active_layer_mask_disabled(!disabled, MaskCommandScope::ActiveLayer); });
     } else {
       toggle = menu.addAction(disabled ? tr("Enable Vector Mask") : tr("Disable Vector Mask"));
       connect(toggle, &QAction::triggered, this,
-              [this, disabled] { set_active_layer_vector_mask_disabled(!disabled); });
+              [this, disabled] {
+                set_active_layer_vector_mask_disabled(!disabled, MaskCommandScope::ActiveLayer);
+              });
     }
     toggle->setObjectName(QStringLiteral("layerMaskThumbnailToggleAction"));
     toggle->setEnabled(!pixels_locked);
@@ -227,7 +230,9 @@ bool MainWindow::show_layer_thumbnail_context_menu(QListWidgetItem* item, QPoint
       auto* link = menu.addAction(linked ? tr("Unlink Vector Mask") : tr("Link Vector Mask"));
       link->setObjectName(QStringLiteral("layerVectorMaskThumbnailLinkAction"));
       link->setEnabled(!pixels_locked);
-      connect(link, &QAction::triggered, this, [this, linked] { set_active_layer_vector_mask_linked(!linked); });
+      connect(link, &QAction::triggered, this, [this, linked] {
+        set_active_layer_vector_mask_linked(!linked, MaskCommandScope::ActiveLayer);
+      });
     }
     auto* properties = menu.addAction(tr("Mask Properties..."));
     properties->setObjectName(QStringLiteral("layerMaskThumbnailPropertiesAction"));

@@ -1339,9 +1339,29 @@ Layer* MainWindow::vector_mask_command_layer(bool require_mask) {
   return layer;
 }
 
+std::vector<LayerId> MainWindow::vector_mask_command_ids(bool require_mask, MaskCommandScope scope) {
+  if (!has_active_document()) {
+    return {};
+  }
+  select_only_layer_if_none_active();
+  auto ids = mask_command_targets(scope, [require_mask](const Layer& candidate) {
+    if (!require_mask && candidate.vector_shape() != nullptr) {
+      return false;
+    }
+    return vector_lock_reason(candidate).empty() && (candidate.vector_mask() != nullptr) == require_mask;
+  });
+  if (ids.empty()) {
+    // Nothing qualifies: the active layer's own check says why.
+    if (const auto* layer = vector_mask_command_layer(require_mask); layer != nullptr) {
+      ids.push_back(layer->id());
+    }
+  }
+  return ids;
+}
+
 void MainWindow::add_vector_mask(bool hide_all, bool from_work_path) {
-  auto* layer = vector_mask_command_layer(false);
-  if (layer == nullptr) {
+  const auto ids = vector_mask_command_ids(false, MaskCommandScope::SelectedLayers);
+  if (ids.empty()) {
     return;
   }
   auto& doc = document();
@@ -1356,13 +1376,19 @@ void MainWindow::add_vector_mask(bool hide_all, bool from_work_path) {
   }
   mask.inverted = hide_all;
   push_undo_snapshot(tr("Add vector mask"));
-  layer->set_vector_mask(std::move(mask));
-  mark_layer_vector_block_dirty(*layer);
-  update_vector_mask_raster(*layer, Rect::from_size(doc.width(), doc.height()));
-  if (canvas_ != nullptr) {
+  for (const auto id : ids) {
+    auto* layer = doc.find_layer(id);
+    if (layer == nullptr) {
+      continue;
+    }
+    layer->set_vector_mask(mask);
+    mark_layer_vector_block_dirty(*layer);
+    update_vector_mask_raster(*layer, Rect::from_size(doc.width(), doc.height()));
+  }
+  refresh_layer_list_keeping_selection();
+  if (canvas_ != nullptr && ids.front() == doc.active_layer_id()) {
     canvas_->set_layer_edit_target(CanvasWidget::LayerEditTarget::VectorMask);
   }
-  refresh_layer_list();
   refresh_layer_controls();
   canvas_->document_changed();
   // An empty Reveal All or Hide All mask has nothing to select yet: say how to fill it.
@@ -1371,81 +1397,117 @@ void MainWindow::add_vector_mask(bool hide_all, bool from_work_path) {
                                                "shape tool to mask the layer"));
 }
 
-void MainWindow::delete_active_vector_mask() {
-  auto* layer = vector_mask_command_layer(true);
-  if (layer == nullptr) {
+void MainWindow::delete_active_vector_mask(MaskCommandScope scope) {
+  const auto ids = vector_mask_command_ids(true, scope);
+  if (ids.empty()) {
     return;
   }
   push_undo_snapshot(tr("Delete vector mask"));
-  layer->clear_vector_mask();
-  auto& blocks = layer->unknown_psd_blocks();
-  std::erase_if(blocks, [](const UnknownPsdBlock& block) {
-    return block.key == "vmsk" || block.key == "vsms";
-  });
-  mark_layer_vector_block_dirty(*layer);
-  if (canvas_ != nullptr &&
+  for (const auto id : ids) {
+    auto* layer = document().find_layer(id);
+    if (layer == nullptr) {
+      continue;
+    }
+    layer->clear_vector_mask();
+    auto& blocks = layer->unknown_psd_blocks();
+    std::erase_if(blocks, [](const UnknownPsdBlock& block) {
+      return block.key == "vmsk" || block.key == "vsms";
+    });
+    mark_layer_vector_block_dirty(*layer);
+  }
+  if (canvas_ != nullptr && ids.front() == document().active_layer_id() &&
       canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::VectorMask) {
     canvas_->set_layer_edit_target(CanvasWidget::LayerEditTarget::Content);
   }
-  refresh_layer_list();
+  refresh_layer_list_keeping_selection();
   refresh_layer_controls();
   canvas_->document_changed();
   statusBar()->showMessage(tr("Deleted the vector mask"));
 }
 
-void MainWindow::set_active_layer_vector_mask_disabled(bool disabled) {
-  auto* layer = vector_mask_command_layer(true);
-  if (layer == nullptr) {
-    return;
+void MainWindow::set_active_layer_vector_mask_disabled(bool disabled, MaskCommandScope scope) {
+  const auto ids = vector_mask_command_ids(true, scope);
+  // Every layer takes the new state, not a flip each.
+  std::vector<LayerId> changed;
+  for (const auto id : ids) {
+    const auto* layer = std::as_const(document()).find_layer(id);
+    if (layer != nullptr && layer->vector_mask()->disabled != disabled) {
+      changed.push_back(id);
+    }
   }
-  if (layer->vector_mask()->disabled == disabled) {
+  if (changed.empty()) {
     return;
   }
   push_undo_snapshot(disabled ? tr("Disable vector mask") : tr("Enable vector mask"));
-  auto mask = *layer->vector_mask();
-  mask.disabled = disabled;
-  layer->set_vector_mask(std::move(mask));
-  mark_layer_vector_block_dirty(*layer);
-  refresh_layer_list();
+  for (const auto id : changed) {
+    auto* layer = document().find_layer(id);
+    if (layer == nullptr) {
+      continue;
+    }
+    auto mask = *layer->vector_mask();
+    mask.disabled = disabled;
+    layer->set_vector_mask(std::move(mask));
+    mark_layer_vector_block_dirty(*layer);
+  }
+  refresh_layer_list_keeping_selection();
   refresh_layer_controls();
   canvas_->document_changed();
   statusBar()->showMessage(disabled ? tr("Disabled the vector mask")
                                     : tr("Enabled the vector mask"));
 }
 
-void MainWindow::rasterize_active_vector_mask() {
-  auto* layer = vector_mask_command_layer(true);
-  if (layer == nullptr) {
+void MainWindow::rasterize_active_vector_mask(MaskCommandScope scope) {
+  const auto ids = vector_mask_command_ids(true, scope);
+  if (ids.empty()) {
     return;
   }
   auto& doc = document();
   push_undo_snapshot(tr("Rasterize vector mask"));
-  bake_vector_mask(*layer, doc.width(), doc.height());
-  if (canvas_ != nullptr &&
-      canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::VectorMask) {
+  for (const auto id : ids) {
+    if (auto* layer = doc.find_layer(id); layer != nullptr) {
+      bake_vector_mask(*layer, doc.width(), doc.height());
+    }
+  }
+  const bool was_vector_target = canvas_ != nullptr && ids.front() == doc.active_layer_id() &&
+                                 canvas_->layer_edit_target() == CanvasWidget::LayerEditTarget::VectorMask;
+  refresh_layer_list_keeping_selection();
+  if (was_vector_target) {
     canvas_->set_layer_edit_target(CanvasWidget::LayerEditTarget::Mask);
   }
-  refresh_layer_list();
   refresh_layer_controls();
   canvas_->document_changed();
   statusBar()->showMessage(tr("Rasterized the vector mask into the layer mask"));
 }
 
-void MainWindow::set_active_layer_vector_mask_linked(bool linked) {
-  auto* layer = vector_mask_command_layer(true);
-  if (layer == nullptr) {
-    refresh_layer_list();
+void MainWindow::set_active_layer_vector_mask_linked(bool linked, MaskCommandScope scope) {
+  const auto ids = vector_mask_command_ids(true, scope);
+  if (ids.empty()) {
+    refresh_layer_list_keeping_selection();
     return;
   }
-  if (layer->vector_mask()->unlinked == !linked) {
+  // Every layer takes the new state, not a flip each.
+  std::vector<LayerId> changed;
+  for (const auto id : ids) {
+    const auto* layer = std::as_const(document()).find_layer(id);
+    if (layer != nullptr && layer->vector_mask()->unlinked == linked) {
+      changed.push_back(id);
+    }
+  }
+  if (changed.empty()) {
     return;
   }
   push_undo_snapshot(linked ? tr("Link vector mask") : tr("Unlink vector mask"));
-  auto mask = *layer->vector_mask();
-  mask.unlinked = !linked;
-  layer->set_vector_mask(std::move(mask));
-  mark_layer_vector_block_dirty(*layer);
-  refresh_layer_list();
+  for (const auto id : changed) {
+    auto* layer = document().find_layer(id);
+    if (layer == nullptr) {
+      continue;
+    }
+    auto mask = *layer->vector_mask();
+    mask.unlinked = !linked;
+    layer->set_vector_mask(std::move(mask));
+    mark_layer_vector_block_dirty(*layer);
+  }
+  refresh_layer_list_keeping_selection();
   refresh_layer_controls();
   statusBar()->showMessage(linked ? tr("Layer and vector mask linked") : tr("Layer and vector mask unlinked"));
 }
@@ -1561,8 +1623,12 @@ void MainWindow::populate_vector_mask_menu(QMenu* menu, const QString& object_na
   menu->addSeparator();
   add_command(QT_TR_NOOP("&Delete Vector Mask"), QStringLiteral("VectorMaskDelete"),
               [this] { delete_active_vector_mask(); });
+  // Every selected vector mask takes the toggled state of the active layer's (the first one's
+  // when the active layer has none).
   add_command(QT_TR_NOOP("D&isable Vector Mask"), QStringLiteral("VectorMaskDisable"), [this] {
-    if (auto* layer = vector_mask_command_layer(true); layer != nullptr) {
+    const auto ids = vector_mask_command_ids(true, MaskCommandScope::SelectedLayers);
+    if (const auto* layer = ids.empty() ? nullptr : std::as_const(document()).find_layer(ids.front());
+        layer != nullptr) {
       set_active_layer_vector_mask_disabled(!layer->vector_mask()->disabled);
     }
   });
