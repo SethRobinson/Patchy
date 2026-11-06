@@ -428,6 +428,7 @@ void accept_file_dialog_later(const QString& object_name, const QString& path, b
     if (dialog->fileMode() == QFileDialog::Directory) {
       dialog->setDirectory(path);
     }
+    select_save_dialog_type_for(*dialog, path);
     dialog->selectFile(path);
     static_cast<QDialog*>(dialog)->accept();  // QFileDialog::accept is protected
   }));
@@ -663,6 +664,7 @@ struct FileDialogAcceptor {
       if (dialog->fileMode() == QFileDialog::Directory) {
         dialog->setDirectory(path);
       }
+      select_save_dialog_type_for(*dialog, path);
       dialog->selectFile(path);
       // selectFile leaves the name box alone while it has focus (it does on macOS), and accept
       // reads that box: put the path there directly.

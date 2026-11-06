@@ -12,6 +12,19 @@ Code: `src/ui/web_export.{hpp,cpp}` (settings, preview engine, panes, dialog),
 `MainWindow::export_for_web` in `src/ui/main_window_files.cpp` (file name and write), the writer
 hooks in `src/ui/image_document_io.cpp`.
 
+## Layers as Animated exports
+
+File > Export > Layers as Animated GIF, WebP and PNG (`file.export_animated_gif`, `_webp`, `_png`;
+the action names and ids are unchanged) open this dialog instead of a file dialog and an options
+dialog (local card local-031, November 6, 2026): `MainWindow::export_animated_*` keep the "no visible
+layers" message, then call `export_for_web` with a `WebExportOpening` that selects the format,
+ticks its "Animation from visible layers" and picks Keep transparent when a frame has a pixel
+that is not fully opaque (`animation_export_frames_have_transparency`, which renders the frames
+until it finds one), Fill otherwise. The opening only seeds this run: like any other choice it is
+saved when the user clicks Save, and Cancel saves nothing. A document with a single frame shows
+no Animation group, so it exports a still image. The old exports' frame rules, name times, delay
+key and play counts are the ones this dialog already uses, so the files are the same.
+
 ## Formats and options
 
 The list is JPEG, JPEG XL, WebP, AVIF, PNG and GIF (`web_export_formats()`; JPEG XL sits under
@@ -70,7 +83,8 @@ The dialog opens at its minimum size the first time, then at the size it last cl
   show the colors the file uses as swatches (`WebExportResult::palette`, the decoded result's
   distinct colors).
 - Animation (Seth, October 27, 2026: like the Layers as Animated dialogs): one group, shown for GIF,
-  WebP, JPEG XL and PNG when the document has two or more layers and a visible one. It holds the
+  WebP, JPEG XL and PNG when the document has two or more layers and a visible one, or two
+  or more frames (an "all" group's children). It holds the
   format's own "Animation from visible layers" check and those dialogs' timing rows from the
   shared helper `create_animation_timing_controls` (image_save_options_dialog): "Default frame
   delay:" (GIF in centiseconds, 2 decimals; the others 3 decimals up to `kMaxFrameDelayMs`; a layer
@@ -173,8 +187,10 @@ its quality (`web_export_reduced_settings`: rounded, clamped to the format's min
 30 and 15; GIF and palette PNG halve and quarter Colors). Each tile's tag names its quality and
 size; a format with nothing to reduce (full-color PNG, lossless) shows a note in the lower tiles.
 The two extra jobs go to the second lane right after the selected format's job, only while 4-up
-is on, so AVIF and JPEG XL stay off the UI thread like every encode; a tile of an animated result
-shows frame 1. The panes share one minimum area (300 x 420) in every view, split between them,
+is on, so AVIF and JPEG XL stay off the UI thread like every encode. An animated tile keeps its
+own cached frames and shows the main result's frame index as it plays and steps (`show_frame`
+only picks cached images; a tile with fewer frames stays on its last; probe `webExportFrameIndex`
+on each tile). The panes share one minimum area (300 x 420) in every view, split between them,
 so switching views never resizes the dialog. One row under the preview (`webExportViewRow`,
 never wrapped; its width is the dialog's minimum): "View:" and the view buttons, then "Zoom:",
 the amount as a plain percent (`webExportZoomLabel`, sized for "1600%" plus room), - and + of
@@ -257,6 +273,7 @@ bytes are what `exportAs` would write for an RGB document (a CMYK Proof document
 ## Tests
 
 Core: `gif_quantize_*`, `gif_encoder_bytes_are_stable`. UI: `ui_web_export_defaults_and_options`,
+`ui_web_export_layers_as_animated_open_export_for_web` (captures `web_export_layers_as_animated_gif`),
 `ui_web_export_palette_png_and_gif_read_back`, `ui_script_export_as_palette_keys`,
 `ui_web_export_avif_and_jxl_read_back`, `ui_web_export_slow_encode_never_blocks_the_selected_format`,
 `ui_script_encode_for_web`, `ui_script_export_as_png_animation`,

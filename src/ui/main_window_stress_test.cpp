@@ -19,6 +19,7 @@
 #include "core/pixel_buffer.hpp"
 #include "core/layer.hpp"
 #include "ui/canvas_types.hpp"
+#include "ui/font_face_name_index.hpp"
 #include "core/layer_tree.hpp"
 #include "filters/filter_registry.hpp"
 #include "ui/main_window.hpp"
@@ -1450,7 +1451,7 @@ private:
     if (w.text_font_combo_ == nullptr) {
       return;
     }
-    const auto families = QFontDatabase::families();
+    const auto families = font_families_without_foundries(QFontDatabase::families());
     for (const auto& candidate :
          {QStringLiteral("Consolas"), QStringLiteral("Courier New"), QStringLiteral("DejaVu Sans Mono"),
           QStringLiteral("Menlo"), QStringLiteral("Monaco"), QStringLiteral("Courier")}) {

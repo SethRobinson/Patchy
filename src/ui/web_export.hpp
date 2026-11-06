@@ -265,9 +265,19 @@ struct WebExportDialogResult {
   std::vector<std::string> notices;
 };
 
+// How File > Export > Layers as Animated GIF, WebP and PNG open the dialog: that format
+// selected with its "Animation from visible layers" on, and Keep transparent or Fill as the
+// frames need. It changes only this opening; what is saved is what the dialog saves on Save.
+struct WebExportOpening {
+  WebExportFormat format{WebExportFormat::Gif};
+  bool animate{true};
+  bool keep_transparency{true};
+};
+
 // The Export for Web dialog over a snapshot of the document. Nullopt on cancel; settings
 // are saved on Save, the window size (exportForWeb/dialogSize) and the compare mode on any close.
-[[nodiscard]] std::optional<WebExportDialogResult> request_web_export(QWidget* parent,
-                                                                      std::shared_ptr<const Document> document);
+[[nodiscard]] std::optional<WebExportDialogResult> request_web_export(
+    QWidget* parent, std::shared_ptr<const Document> document,
+    const std::optional<WebExportOpening>& opening = std::nullopt);
 
 }  // namespace patchy::ui

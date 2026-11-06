@@ -235,6 +235,9 @@ Cancel, OK carrying eyes, Ball's sphere on top, the notes, CRT Scanlines, About 
 `ui_gmic_size_changing_filter_stays_inside_the_selection`; the point-handle test pins the cursor.
 `ui_gmic_custom_formula_rejects_excluded_commands_without_editing_layers` pins refusal without
 changing layer pixels or count. Core: `gmic_output_layer_names_carry_layer_settings`.
+`ui_gmic_choice_lists_fit_their_entries` (tests/ui/combo_fit_tests.cpp) opens every choice list
+of every filter: `GmicParameterPanel` sizes them with `fit_combo_to_entries` (issue 655), so each
+choice shows whole, closed and open.
 
 ## Known gaps
 

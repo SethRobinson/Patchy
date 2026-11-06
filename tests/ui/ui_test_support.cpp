@@ -1317,6 +1317,23 @@ QString preferences_selected_theme(QWidget& dialog) {
                                                            : QString();
 }
 
+void select_save_dialog_type_for(QFileDialog& dialog, const QString& path) {
+  if (dialog.acceptMode() != QFileDialog::AcceptSave) {
+    return;
+  }
+  const auto filters = dialog.nameFilters();
+  const auto name = QFileInfo(path).fileName();
+  if (patchy::ui::save_name_for_picked_filter(name, dialog.selectedNameFilter(), filters) == name) {
+    return;
+  }
+  for (const auto& row : filters) {
+    if (patchy::ui::save_name_for_picked_filter(name, row, filters) == name) {
+      dialog.selectNameFilter(row);
+      return;
+    }
+  }
+}
+
 void accept_save_file_dialog_then(const QString& object_name, const QString& path, std::function<void()> next) {
   QTimer::singleShot(0, guarded([object_name, path, next = std::move(next)] {
     auto* save = qobject_cast<QFileDialog*>(find_top_level_dialog(object_name));
@@ -1325,6 +1342,7 @@ void accept_save_file_dialog_then(const QString& object_name, const QString& pat
       return;
     }
     QTimer::singleShot(0, guarded(next));  // runs inside the next dialog's event loop
+    select_save_dialog_type_for(*save, path);
     save->selectFile(path);
     static_cast<QDialog*>(save)->accept();  // QFileDialog::accept is protected
   }));

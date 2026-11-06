@@ -49,6 +49,11 @@ Application-wide tool state follows the `current_*` mirror pattern in MainWindow
 The Preferences dialog: [preferences-dialog.md](preferences-dialog.md).
 Settings pages keep fields compact (a combo as wide as its longest entry, capped; its open list
 fits every entry, `fit_combo_popup_to_entries`) and let option text wrap.
+A dialog's choice list that is not sized by hand calls `fit_combo_to_entries` (`dialog_utils.hpp`,
+issue 655): the box's minimum width fits its widest entry as its style and style sheet draw it,
+and the open list fits too, which matters under Fusion (Linux), whose open list is a menu with
+more padding than the box. Edit > Fill, New Layer's Fill and the generated GEGL and G'MIC
+choice lists use it; `tests/ui/combo_fit_checks.hpp` checks a combo closed and open.
 `install_wheel_scroll_guard` (`dialog_utils.hpp`) makes combo boxes, spin boxes and sliders
 in scrolling pages take the wheel only with keyboard focus (issue 92); use it for any dialog
 whose pages scroll. Angle fields get a round `AngleDial` (`angle_dial.hpp`, issue 618).

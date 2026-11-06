@@ -157,6 +157,18 @@
         <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
         <translation>Режим и Непрозрачность задают режим наложения и непрозрачность нового слоя</translation>
     </message>
+    <message>
+        <source>Transparent</source>
+        <translation>Прозрачный</translation>
+    </message>
+    <message>
+        <source>Neutral Color for This Mode</source>
+        <translation>Нейтральный цвет для этого режима</translation>
+    </message>
+    <message>
+        <source>Fill with the color that leaves the image unchanged in this blend mode</source>
+        <translation>Залить цветом, который не меняет изображение в этом режиме наложения</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -768,32 +780,8 @@
         <translation>Обтравить новый слой по слою под ним</translation>
     </message>
     <message>
-        <source>White</source>
-        <translation>Белый</translation>
-    </message>
-    <message>
-        <source>Black</source>
-        <translation>Черный</translation>
-    </message>
-    <message>
-        <source>50% gray</source>
-        <translation>50% серого</translation>
-    </message>
-    <message>
         <source>Clip to the layer below</source>
         <translation>Обтравка по слою ниже</translation>
-    </message>
-    <message>
-        <source>Neutral color</source>
-        <translation>Нейтральный цвет</translation>
-    </message>
-    <message>
-        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
-        <translation>Залить новый слой цветом, который не меняет изображение в этом режиме</translation>
-    </message>
-    <message>
-        <source>This mode has no neutral color</source>
-        <translation>У этого режима нет нейтрального цвета</translation>
     </message>
     <message>
         <source>Fill:</source>
@@ -12327,10 +12315,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Не удалось записать файл PNG</translation>
     </message>
     <message>
-        <source>Animated PNG Options</source>
-        <translation>Параметры анимированного PNG</translation>
-    </message>
-    <message>
         <source>Saved</source>
         <comment>new document template group of the user&apos;s own presets</comment>
         <translation>Сохранённые</translation>
@@ -15037,6 +15021,13 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>This document has no palette yet. Set one in the Palette panel, or open an indexed image.</source>
         <translation>У этого документа ещё нет палитры. Задайте её на панели «Палитра» или откройте индексированное изображение.</translation>
+    </message>
+    <message>
+        <source>%1 already exists.
+Do you want to replace it?</source>
+        <extracomment>Save dialog: the typed name got the picked file type&apos;s extension and that file exists</extracomment>
+        <translation>%1 уже существует.
+Заменить его?</translation>
     </message>
 </context>
 <context>
@@ -33400,6 +33391,22 @@ Locked: %1</source>
     <message>
         <source>OpenAI Image Tools</source>
         <translation>Инструменты изображений OpenAI</translation>
+    </message>
+    <message>
+        <source>File: %1</source>
+        <translation>Файл: %1</translation>
+    </message>
+    <message>
+        <source>Smart Object in %1</source>
+        <translation>Смарт-объект в %1</translation>
+    </message>
+    <message>
+        <source>Smart Object contents</source>
+        <translation>Содержимое смарт-объекта</translation>
+    </message>
+    <message>
+        <source>Not saved yet</source>
+        <translation>Еще не сохранен</translation>
     </message>
 </context>
 <context>

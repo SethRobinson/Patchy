@@ -157,6 +157,18 @@
         <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
         <translation>モードと不透明度は新規レイヤーの描画モードと不透明度になります</translation>
     </message>
+    <message>
+        <source>Transparent</source>
+        <translation>透明</translation>
+    </message>
+    <message>
+        <source>Neutral Color for This Mode</source>
+        <translation>このモードのニュートラルカラー</translation>
+    </message>
+    <message>
+        <source>Fill with the color that leaves the image unchanged in this blend mode</source>
+        <translation>この描画モードで画像を変えない色で塗りつぶします</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -766,32 +778,8 @@
         <translation>新しいレイヤーを下のレイヤーでクリップします</translation>
     </message>
     <message>
-        <source>White</source>
-        <translation>白</translation>
-    </message>
-    <message>
-        <source>Black</source>
-        <translation>黒</translation>
-    </message>
-    <message>
-        <source>50% gray</source>
-        <translation>50% グレー</translation>
-    </message>
-    <message>
         <source>Clip to the layer below</source>
         <translation>下のレイヤーにクリップ</translation>
-    </message>
-    <message>
-        <source>Neutral color</source>
-        <translation>ニュートラルカラー</translation>
-    </message>
-    <message>
-        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
-        <translation>このモードで画像を変えない色で新規レイヤーを塗りつぶします</translation>
-    </message>
-    <message>
-        <source>This mode has no neutral color</source>
-        <translation>このモードにはニュートラルカラーがありません</translation>
     </message>
     <message>
         <source>Fill:</source>
@@ -12257,10 +12245,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>PNGファイルに書き込めませんでした</translation>
     </message>
     <message>
-        <source>Animated PNG Options</source>
-        <translation>アニメーション PNG オプション</translation>
-    </message>
-    <message>
         <source>Saved</source>
         <comment>new document template group of the user&apos;s own presets</comment>
         <translation>保存済み</translation>
@@ -14943,6 +14927,13 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>This document has no palette yet. Set one in the Palette panel, or open an indexed image.</source>
         <translation>このドキュメントにはまだパレットがありません。パレットパネルで設定するか、インデックスカラー画像を開いてください。</translation>
+    </message>
+    <message>
+        <source>%1 already exists.
+Do you want to replace it?</source>
+        <extracomment>Save dialog: the typed name got the picked file type&apos;s extension and that file exists</extracomment>
+        <translation>%1 は既に存在します。
+置き換えますか?</translation>
     </message>
 </context>
 <context>
@@ -33224,6 +33215,22 @@ Locked: %1</source>
     <message>
         <source>OpenAI Image Tools</source>
         <translation>OpenAI 画像ツール</translation>
+    </message>
+    <message>
+        <source>File: %1</source>
+        <translation>ファイル: %1</translation>
+    </message>
+    <message>
+        <source>Smart Object in %1</source>
+        <translation>%1 内のスマートオブジェクト</translation>
+    </message>
+    <message>
+        <source>Smart Object contents</source>
+        <translation>スマートオブジェクトの内容</translation>
+    </message>
+    <message>
+        <source>Not saved yet</source>
+        <translation>未保存</translation>
     </message>
 </context>
 <context>

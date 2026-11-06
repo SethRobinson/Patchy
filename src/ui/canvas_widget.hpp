@@ -772,6 +772,9 @@ public:
   void set_retouch_snapshot_cache_reuse_enabled_for_testing(bool enabled) noexcept {
     retouch_snapshot_cache_reuse_enabled_ = enabled;
   }
+  // Turns off the lazily filled Clone/Healing source (GitHub #597 follow-up 3): a press
+  // then takes the whole source as before, for byte comparisons.
+  void set_lazy_clone_source_enabled_for_testing(bool enabled) noexcept { lazy_clone_source_enabled_ = enabled; }
   // Drag move coalescing for tests and timing runs: Default coalesces window-system
   // moves only, AllMoves also posted ones (a test can queue a burst), Off none (the
   // before-the-fix baseline of `patchy_perf_tests textdrag`).
@@ -1244,6 +1247,8 @@ public:
   bool straighten_layer(LayerId layer_id, double ccw_degrees);
   [[nodiscard]] std::optional<QRect> active_layer_document_rect() const noexcept;
   [[nodiscard]] RenderCacheDiagnostics render_cache_diagnostics() const noexcept;
+  // Where the latest Clone or Healing press spent its time (patchy_perf_tests clonepress).
+  [[nodiscard]] RetouchPressTimings last_retouch_press_timings() const noexcept { return last_retouch_press_timings_; }
   // True when the displayed frame reflects the current document: no recomposite
   // pending and no fire-and-forget async refresh in flight. Used by the
   // profiling stress test's settle loop.
@@ -1571,6 +1576,10 @@ public:
   // Digit keys with a tool that has no opacity of its own (Move, the selection and path
   // tools; GitHub issue 527) ask the host to set the selected layers' opacity to `percent`.
   void set_layer_opacity_digit_callback(std::function<void(int)> callback);
+  // A bare digit set the Brush's Flow because Airbrush is on (the Photoshop swap): the host
+  // flashes the options bar's Flow field and Airbrush box so the change does not look like
+  // a bug (local-035).
+  void set_airbrush_flow_digit_callback(std::function<void()> callback);
   // The 0-9 opacity keys (and Shift+digits for Flow). keyPressEvent calls it, and so does the
   // main window for a digit typed while a panel or the tool palette has focus (GitHub issue
   // 562). False when the key is not one the current tool takes.
@@ -2388,6 +2397,19 @@ private:
   [[nodiscard]] bool begin_pattern_stamp_stroke(QPoint point);
   [[nodiscard]] QRect clone_brush_segment(QPoint from, QPoint to);
   [[nodiscard]] QRect clone_brush_stamp_segment(QPoint from, QPoint to);
+  // The 8-bit Clone/Healing source filled on demand (GitHub #597 follow-up 3): a press
+  // keeps what the source was taken from (the render cache it shares, or the active
+  // layer as it was) and fills clone_source_cache_ tile by tile, so it copies no whole
+  // image. take_clone_source_snapshot sets clone_source_cache_ at a press, lazy when the
+  // source is the shared render cache (All Layers) or the active layer (Current Layer);
+  // fill_clone_source_rect makes the source's pixels in `source_rect` valid;
+  // fill_clone_source_for_destination does so for every source pixel the destination
+  // pixels in `destination_rect` sample (bilinear taps included); end_lazy_clone_source
+  // drops it with the source.
+  void take_clone_source_snapshot();
+  void fill_clone_source_rect(QRect source_rect);
+  void fill_clone_source_for_destination(QRect destination_rect);
+  void end_lazy_clone_source() noexcept;
   // Whether a stamp segment from `from` continues the stroke's previous one with the same
   // round brush (CloneSegmentRows, GitHub issue 597).
   [[nodiscard]] bool clone_stamp_continues_previous_segment(QPoint from, int radius,
@@ -4142,9 +4164,25 @@ private:
   std::optional<CloneSegmentEnd> clone_stroke_segment_end_;
   bool clone_stamp_skip_enabled_{true};
   bool retouch_snapshot_cache_reuse_enabled_{true};
+  RetouchPressTimings last_retouch_press_timings_{};
+  bool lazy_clone_source_enabled_{true};
+  // Set by a Clone press so its first stamp times the layer detach on its own.
+  bool retouch_press_times_layer_detach_{false};
   double brush_stroke_distance_since_last_stamp_{0.0};
   patchy::SmudgeState smudge_state_;
   QImage clone_source_cache_{};
+  // What a lazy clone_source_cache_ is filled from (take_clone_source_snapshot). `held`
+  // shares the render cache from the press; render-cache patches fill the tiles they
+  // overwrite first, so `held` keeps the press's composite everywhere outside the filled
+  // tiles. `held_layer` is the active layer at the press (Current Layer sampling).
+  struct LazyCloneSource {
+    QImage held;
+    std::optional<Layer> held_layer;
+    std::vector<std::uint8_t> filled;
+    int tiles_x{0};
+    int tiles_y{0};
+  };
+  std::optional<LazyCloneSource> lazy_clone_source_;
   // The Clone/Healing source of a 16/32-bit document at its depth (canvas-sized RGBA,
   // native domain), beside the 8-bit cache above (docs/high-bit-depth.md).
   PixelBuffer clone_source_deep_{};
@@ -4598,6 +4636,7 @@ private:
   std::function<bool(QPointF, bool)> text_entry_selection_drag_callback_;
   std::function<void(LayerId)> active_layer_changed_callback_;
   std::function<void(int)> layer_opacity_digit_callback_;
+  std::function<void()> airbrush_flow_digit_callback_;
   std::function<void(std::vector<LayerId>, LayerId)> layer_selection_requested_callback_;
   std::function<bool(std::vector<LayerId>)> move_duplicate_requested_callback_;
   std::function<void(QString)> status_callback_;

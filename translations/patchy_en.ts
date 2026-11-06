@@ -157,6 +157,18 @@
         <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Transparent</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Neutral Color for This Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill with the color that leaves the image unchanged in this blend mode</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -767,31 +779,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>White</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Black</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>50% gray</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Clip to the layer below</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Neutral color</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>This mode has no neutral color</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -12276,10 +12264,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Animated PNG Options</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Saved</source>
         <comment>new document template group of the user&apos;s own presets</comment>
         <translation type="unfinished"></translation>
@@ -14972,6 +14956,12 @@ Each item&apos;s own View setting still applies.</source>
     </message>
     <message>
         <source>This document has no palette yet. Set one in the Palette panel, or open an indexed image.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 already exists.
+Do you want to replace it?</source>
+        <extracomment>Save dialog: the typed name got the picked file type&apos;s extension and that file exists</extracomment>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -33230,6 +33220,22 @@ Locked: %1</source>
     </message>
     <message>
         <source>OpenAI Image Tools</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Smart Object in %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Smart Object contents</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not saved yet</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

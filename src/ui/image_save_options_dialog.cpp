@@ -2045,33 +2045,6 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     return options;
   }
 
-  // File > Export > Layers as Animated PNG; Save As .png never animates.
-  if (options.apng_animate && (normalized_save_extension(extension) == QStringLiteral("png") ||
-                               normalized_save_extension(extension) == QStringLiteral("apng"))) {
-    QDialog dialog(parent);
-    dialog.setObjectName(QStringLiteral("apngSaveOptionsDialog"));
-    auto* content = create_options_dialog_chrome(dialog, QObject::tr("Animated PNG Options"));
-    dialog.resize(380, 200);
-    const auto timing = create_animation_timing_controls(&dialog, AnimationTimingKind::Apng, QStringLiteral("apng"),
-                                                         options.animation_frame_delay_ms, options.apng_loop_count);
-    auto* frame_delay = timing.frame_delay;
-    content->addWidget(timing.controls);
-    content->addWidget(timing.explanation);
-    const auto section = finish_options_dialog(content, dialog, for_export, extension, document_size);
-    if (!for_export) finish_export_dialog_size(dialog);
-
-    if (exec_dialog(dialog) != QDialog::Accepted) {
-      return std::nullopt;
-    }
-    options.animation_frame_delay_ms = static_cast<int>(std::llround(frame_delay->value() * 1000));
-    options.gif_frame_delay_cs = std::min(65535, (options.animation_frame_delay_ms + 5) / 10);
-    options.apng_loop_count = animation_timing_loop_count(timing);
-    if (section.has_value()) {
-      apply_export_section(options, *section);
-    }
-    return options;
-  }
-
   // Formats with no format-specific options still get the shared Export section.
   if (for_export && !is_ico_extension(extension) && !is_cur_extension(extension)) {
     QDialog dialog(parent);

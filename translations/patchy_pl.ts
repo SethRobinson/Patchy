@@ -157,6 +157,18 @@
         <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
         <translation>Tryb i Krycie ustawiają tryb mieszania i krycie nowej warstwy</translation>
     </message>
+    <message>
+        <source>Transparent</source>
+        <translation>Przezroczysty</translation>
+    </message>
+    <message>
+        <source>Neutral Color for This Mode</source>
+        <translation>Kolor neutralny dla tego trybu</translation>
+    </message>
+    <message>
+        <source>Fill with the color that leaves the image unchanged in this blend mode</source>
+        <translation>Wypełnij kolorem, który w tym trybie mieszania nie zmienia obrazu</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -768,32 +780,8 @@
         <translation>Przytnij nową warstwę do warstwy pod nią</translation>
     </message>
     <message>
-        <source>White</source>
-        <translation>Biały</translation>
-    </message>
-    <message>
-        <source>Black</source>
-        <translation>Czarny</translation>
-    </message>
-    <message>
-        <source>50% gray</source>
-        <translation>Szary 50%</translation>
-    </message>
-    <message>
         <source>Clip to the layer below</source>
         <translation>Przytnij do warstwy poniżej</translation>
-    </message>
-    <message>
-        <source>Neutral color</source>
-        <translation>Kolor neutralny</translation>
-    </message>
-    <message>
-        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
-        <translation>Wypełnij nową warstwę kolorem, który w tym trybie nie zmienia obrazu</translation>
-    </message>
-    <message>
-        <source>This mode has no neutral color</source>
-        <translation>Ten tryb nie ma koloru neutralnego</translation>
     </message>
     <message>
         <source>Fill:</source>
@@ -12327,10 +12315,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Nie można zapisać pliku PNG</translation>
     </message>
     <message>
-        <source>Animated PNG Options</source>
-        <translation>Opcje animowanego PNG</translation>
-    </message>
-    <message>
         <source>Saved</source>
         <comment>new document template group of the user&apos;s own presets</comment>
         <translation>Zapisane</translation>
@@ -15037,6 +15021,13 @@ Własne ustawienie każdego elementu w menu Widok nadal obowiązuje.</translatio
     <message>
         <source>This document has no palette yet. Set one in the Palette panel, or open an indexed image.</source>
         <translation>Ten dokument nie ma jeszcze palety. Ustaw ją w panelu Paleta lub otwórz obraz indeksowany.</translation>
+    </message>
+    <message>
+        <source>%1 already exists.
+Do you want to replace it?</source>
+        <extracomment>Save dialog: the typed name got the picked file type&apos;s extension and that file exists</extracomment>
+        <translation>Plik %1 już istnieje.
+Czy chcesz go zastąpić?</translation>
     </message>
 </context>
 <context>
@@ -33400,6 +33391,22 @@ Zablokowano: %1</translation>
     <message>
         <source>OpenAI Image Tools</source>
         <translation>Narzędzia obrazów OpenAI</translation>
+    </message>
+    <message>
+        <source>File: %1</source>
+        <translation>Plik: %1</translation>
+    </message>
+    <message>
+        <source>Smart Object in %1</source>
+        <translation>Obiekt inteligentny w %1</translation>
+    </message>
+    <message>
+        <source>Smart Object contents</source>
+        <translation>Zawartość obiektu inteligentnego</translation>
+    </message>
+    <message>
+        <source>Not saved yet</source>
+        <translation>Jeszcze nie zapisano</translation>
     </message>
 </context>
 <context>

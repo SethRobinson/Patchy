@@ -1493,6 +1493,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/document_save_coordinator.hpp
       src/ui/document_file_rename.cpp
       src/ui/document_file_rename.hpp
+      src/ui/document_path_label.cpp
+      src/ui/document_path_label.hpp
       src/ui/save_progress.cpp
       src/ui/save_progress.hpp
       src/ui/session_history.hpp
@@ -2706,6 +2708,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/legacy_plugin_tests.cpp
       tests/ui/gegl_filter_tests.cpp
       tests/ui/gmic_tests.cpp
+      tests/ui/combo_fit_tests.cpp
       tests/ui/history_panel_tests.cpp
       tests/ui/color_dock_panel_tests.cpp
       tests/ui/hdr_color_choice_tests.cpp

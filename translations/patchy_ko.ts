@@ -157,6 +157,18 @@
         <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
         <translation>모드와 불투명도는 새 레이어의 혼합 모드와 불투명도로 설정됩니다</translation>
     </message>
+    <message>
+        <source>Transparent</source>
+        <translation>투명</translation>
+    </message>
+    <message>
+        <source>Neutral Color for This Mode</source>
+        <translation>이 모드의 중립 색상</translation>
+    </message>
+    <message>
+        <source>Fill with the color that leaves the image unchanged in this blend mode</source>
+        <translation>이 혼합 모드에서 이미지를 바꾸지 않는 색상으로 채웁니다</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -766,32 +778,8 @@
         <translation>새 레이어를 아래 레이어에 클리핑합니다</translation>
     </message>
     <message>
-        <source>White</source>
-        <translation>흰색</translation>
-    </message>
-    <message>
-        <source>Black</source>
-        <translation>검정</translation>
-    </message>
-    <message>
-        <source>50% gray</source>
-        <translation>50% 회색</translation>
-    </message>
-    <message>
         <source>Clip to the layer below</source>
         <translation>아래 레이어에 클리핑</translation>
-    </message>
-    <message>
-        <source>Neutral color</source>
-        <translation>중립 색상</translation>
-    </message>
-    <message>
-        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
-        <translation>이 모드에서 이미지를 바꾸지 않는 색상으로 새 레이어를 채웁니다</translation>
-    </message>
-    <message>
-        <source>This mode has no neutral color</source>
-        <translation>이 모드에는 중립 색상이 없습니다</translation>
     </message>
     <message>
         <source>Fill:</source>
@@ -12257,10 +12245,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>PNG 파일을 쓸 수 없습니다</translation>
     </message>
     <message>
-        <source>Animated PNG Options</source>
-        <translation>애니메이션 PNG 옵션</translation>
-    </message>
-    <message>
         <source>Saved</source>
         <comment>new document template group of the user&apos;s own presets</comment>
         <translation>저장됨</translation>
@@ -14943,6 +14927,13 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>This document has no palette yet. Set one in the Palette panel, or open an indexed image.</source>
         <translation>이 문서에는 아직 팔레트가 없습니다. 팔레트 패널에서 설정하거나 인덱스 이미지를 여세요.</translation>
+    </message>
+    <message>
+        <source>%1 already exists.
+Do you want to replace it?</source>
+        <extracomment>Save dialog: the typed name got the picked file type&apos;s extension and that file exists</extracomment>
+        <translation>%1이(가) 이미 있습니다.
+바꾸시겠습니까?</translation>
     </message>
 </context>
 <context>
@@ -33224,6 +33215,22 @@ Locked: %1</source>
     <message>
         <source>OpenAI Image Tools</source>
         <translation>OpenAI 이미지 도구</translation>
+    </message>
+    <message>
+        <source>File: %1</source>
+        <translation>파일: %1</translation>
+    </message>
+    <message>
+        <source>Smart Object in %1</source>
+        <translation>%1의 스마트 개체</translation>
+    </message>
+    <message>
+        <source>Smart Object contents</source>
+        <translation>스마트 개체 내용</translation>
+    </message>
+    <message>
+        <source>Not saved yet</source>
+        <translation>아직 저장되지 않음</translation>
     </message>
 </context>
 <context>

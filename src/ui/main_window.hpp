@@ -100,7 +100,9 @@ struct GifFrame;  // openai_images.hpp: a decoded animation frame and its delay
 namespace patchy::ui {
 
 class SaveProgress;
+class DocumentPathLabel;
 struct NewLayerSettings;
+struct WebExportOpening;
 class ColorWellSwatch;
 class PanelColumn;
 struct PanelSpec;
@@ -987,6 +989,16 @@ private:
   // Display title shared by tab text and float-window titles: "Untitled" fallback
   // plus the modified '*' suffix.
   [[nodiscard]] QString session_display_title(const DocumentSession& target_session) const;
+  // Where a document's file is, for the document tab tooltip and the Properties panel's
+  // File line (docs/document-tabs.md, "Full path"): the full path with native separators,
+  // or empty when it has none (never saved, an embedded Smart Object's contents).
+  [[nodiscard]] static QString session_file_path_text(const DocumentSession& target_session);
+  // What shows instead of a path when session_file_path_text is empty.
+  [[nodiscard]] QString session_no_file_text(const DocumentSession& target_session);
+  // Sets a document tab's title and its full-path tooltip together.
+  void set_document_tab_label(int tab_index, const DocumentSession& target_session);
+  // The Properties panel's File line for the active document.
+  void refresh_properties_document_path();
   [[nodiscard]] DocumentSession* session_for_canvas(CanvasWidget* canvas) noexcept;
   [[nodiscard]] const DocumentSession* session_for_canvas(CanvasWidget* canvas) const noexcept;
   [[nodiscard]] DocumentSession* session_with_id(std::int64_t session_id) noexcept;
@@ -1327,7 +1339,9 @@ private:
                       const std::function<void(SaveProgress&)>& write);
   void export_flat_image();
   // File > Export for Web (docs/web-export.md): the live-preview dialog, then the file name.
+  // `opening` (Layers as Animated GIF, WebP, PNG) presets the format and its animation.
   void export_for_web();
+  void export_for_web(const WebExportOpening* opening);
   void export_multipage_pdf();
   // File > Export Documents to Folder: the checked open documents as numbered
   // flattened image files (the document-level sibling of export_image_sequence).
@@ -2465,6 +2479,10 @@ private:
   void add_layer_export_actions(QMenu* menu);
   void export_selected_layers(bool choose_format, LayerExportSource source = LayerExportSource::Layer);
   bool handle_layer_action_button_drag_event(QObject* watched, QEvent* event);
+  // The hint naming a Layers footer button's drop action while a layer drag is over it
+  // (local-033): drawn inside the window, above the button, and transparent to input.
+  void show_layer_drop_hint(QWidget* button);
+  void hide_layer_drop_hint();
   // A Layers-panel drag over another document (a session canvas, tabbed or
   // floated, or a document tab): accepts it as a copy and defers the copy.
   bool handle_cross_document_layer_drag_event(QObject* watched, QEvent* event);
@@ -2609,6 +2627,9 @@ private:
   // layers' opacity through the Layers panel's field. A run of digits (a two-digit entry
   // included) is one undo entry; it ends a second after the last digit.
   void set_layer_opacity_from_digit_keys(int percent);
+  // A bare digit set the Brush's Flow because Airbrush is on: a short fading accent outline
+  // on the options bar's Flow field and Airbrush box (local-035). Never takes focus.
+  void show_airbrush_flow_digit_cue();
   void set_active_layer_fill_opacity(int value);
   void apply_pending_layer_fill_opacity();
   void finish_pending_layer_fill_opacity_edit();
@@ -3298,6 +3319,7 @@ private:
   QPointer<QTextEdit> text_entry_selection_editor_;
   int text_entry_selection_anchor_{0};
   QListWidget* layer_list_{nullptr};
+  QPointer<QWidget> layer_drop_hint_;
   QLineEdit* layer_name_filter_edit_{nullptr};
   ChannelPanel* channel_panel_{nullptr};
   PathsPanel* paths_panel_{nullptr};
@@ -3732,6 +3754,7 @@ private:
   QPushButton* text_cancel_button_{nullptr};
   QListWidget* history_list_{nullptr};
   QLabel* document_info_label_{nullptr};
+  DocumentPathLabel* document_path_label_{nullptr};
   QLabel* active_layer_info_label_{nullptr};
   QLabel* active_layer_geometry_label_{nullptr};
   QLabel* active_layer_mask_label_{nullptr};

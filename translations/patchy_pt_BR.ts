@@ -157,6 +157,18 @@
         <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
         <translation>Modo e Opacidade definem o modo de mesclagem e a opacidade da nova camada</translation>
     </message>
+    <message>
+        <source>Transparent</source>
+        <translation>Transparente</translation>
+    </message>
+    <message>
+        <source>Neutral Color for This Mode</source>
+        <translation>Cor neutra para este modo</translation>
+    </message>
+    <message>
+        <source>Fill with the color that leaves the image unchanged in this blend mode</source>
+        <translation>Preencher com a cor que deixa a imagem inalterada neste modo de mesclagem</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -767,32 +779,8 @@
         <translation>Recortar a nova camada na camada abaixo</translation>
     </message>
     <message>
-        <source>White</source>
-        <translation>Branco</translation>
-    </message>
-    <message>
-        <source>Black</source>
-        <translation>Preto</translation>
-    </message>
-    <message>
-        <source>50% gray</source>
-        <translation>Cinza 50%</translation>
-    </message>
-    <message>
         <source>Clip to the layer below</source>
         <translation>Recortar na camada abaixo</translation>
-    </message>
-    <message>
-        <source>Neutral color</source>
-        <translation>Cor neutra</translation>
-    </message>
-    <message>
-        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
-        <translation>Preencher a nova camada com a cor que deixa a imagem inalterada neste modo</translation>
-    </message>
-    <message>
-        <source>This mode has no neutral color</source>
-        <translation>Este modo não tem cor neutra</translation>
     </message>
     <message>
         <source>Fill:</source>
@@ -12292,10 +12280,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Não foi possível gravar o arquivo PNG</translation>
     </message>
     <message>
-        <source>Animated PNG Options</source>
-        <translation>Opções de PNG animado</translation>
-    </message>
-    <message>
         <source>Saved</source>
         <comment>new document template group of the user&apos;s own presets</comment>
         <translation>Salvos</translation>
@@ -14990,6 +14974,13 @@ A configuração própria de cada item no menu Visualizar continua valendo.</tra
     <message>
         <source>This document has no palette yet. Set one in the Palette panel, or open an indexed image.</source>
         <translation>Este documento ainda não tem paleta. Defina uma no painel Paleta ou abra uma imagem indexada.</translation>
+    </message>
+    <message>
+        <source>%1 already exists.
+Do you want to replace it?</source>
+        <extracomment>Save dialog: the typed name got the picked file type&apos;s extension and that file exists</extracomment>
+        <translation>%1 já existe.
+Deseja substituí-lo?</translation>
     </message>
 </context>
 <context>
@@ -33312,6 +33303,22 @@ Bloqueado: %1</translation>
     <message>
         <source>OpenAI Image Tools</source>
         <translation>Ferramentas de imagem da OpenAI</translation>
+    </message>
+    <message>
+        <source>File: %1</source>
+        <translation>Arquivo: %1</translation>
+    </message>
+    <message>
+        <source>Smart Object in %1</source>
+        <translation>Objeto inteligente em %1</translation>
+    </message>
+    <message>
+        <source>Smart Object contents</source>
+        <translation>Conteúdo do objeto inteligente</translation>
+    </message>
+    <message>
+        <source>Not saved yet</source>
+        <translation>Ainda não salvo</translation>
     </message>
 </context>
 <context>

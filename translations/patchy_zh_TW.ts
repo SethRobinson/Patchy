@@ -157,6 +157,18 @@
         <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
         <translation>模式和不透明度會設定新圖層的混合模式和不透明度</translation>
     </message>
+    <message>
+        <source>Transparent</source>
+        <translation>透明</translation>
+    </message>
+    <message>
+        <source>Neutral Color for This Mode</source>
+        <translation>此模式的中性色</translation>
+    </message>
+    <message>
+        <source>Fill with the color that leaves the image unchanged in this blend mode</source>
+        <translation>用在此混合模式下不改變影像的顏色填色</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -766,32 +778,8 @@
         <translation>將新圖層剪裁至下方圖層</translation>
     </message>
     <message>
-        <source>White</source>
-        <translation>白色</translation>
-    </message>
-    <message>
-        <source>Black</source>
-        <translation>黑色</translation>
-    </message>
-    <message>
-        <source>50% gray</source>
-        <translation>50% 灰色</translation>
-    </message>
-    <message>
         <source>Clip to the layer below</source>
         <translation>剪裁至下方圖層</translation>
-    </message>
-    <message>
-        <source>Neutral color</source>
-        <translation>中性色</translation>
-    </message>
-    <message>
-        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
-        <translation>以在此模式下不改變影像的顏色填滿新圖層</translation>
-    </message>
-    <message>
-        <source>This mode has no neutral color</source>
-        <translation>此模式沒有中性色</translation>
     </message>
     <message>
         <source>Fill:</source>
@@ -12257,10 +12245,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>無法寫入 PNG 檔案</translation>
     </message>
     <message>
-        <source>Animated PNG Options</source>
-        <translation>動畫 PNG 選項</translation>
-    </message>
-    <message>
         <source>Saved</source>
         <comment>new document template group of the user&apos;s own presets</comment>
         <translation>已儲存</translation>
@@ -14943,6 +14927,13 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>This document has no palette yet. Set one in the Palette panel, or open an indexed image.</source>
         <translation>此文件還沒有調色盤。請在「調色盤」面板中設定，或開啟一張索引色彩影像。</translation>
+    </message>
+    <message>
+        <source>%1 already exists.
+Do you want to replace it?</source>
+        <extracomment>Save dialog: the typed name got the picked file type&apos;s extension and that file exists</extracomment>
+        <translation>%1 已存在。
+要取代它嗎?</translation>
     </message>
 </context>
 <context>
@@ -33224,6 +33215,22 @@ Locked: %1</source>
     <message>
         <source>OpenAI Image Tools</source>
         <translation>OpenAI 影像工具</translation>
+    </message>
+    <message>
+        <source>File: %1</source>
+        <translation>檔案：%1</translation>
+    </message>
+    <message>
+        <source>Smart Object in %1</source>
+        <translation>%1 中的智慧型物件</translation>
+    </message>
+    <message>
+        <source>Smart Object contents</source>
+        <translation>智慧型物件內容</translation>
+    </message>
+    <message>
+        <source>Not saved yet</source>
+        <translation>尚未儲存</translation>
     </message>
 </context>
 <context>

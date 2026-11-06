@@ -2520,7 +2520,7 @@ void ui_tool_palette_dialog_layer_button_presets() {
 }
 
 // GitHub issue 470 follow-up: Move Layer Up and Down (a layer, a triangle above or below it) and
-// Merge Down (a three-layer stack, the bottom layer in the accent) draw in the icon ink and
+// Merge Down (a three-layer stack, the top layer and a down arrow in the accent) draw in the icon ink and
 // accent roles, so both show at every footer icon size in Dark and Light. Saves the sheet the
 // card shows.
 void ui_layer_footer_arrange_icons_draw_in_both_schemes() {

@@ -1752,20 +1752,36 @@ private:
 // ---------------------------------------------------------------------------------------
 // The dialog
 
-std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::shared_ptr<const Document> document) {
+std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::shared_ptr<const Document> document,
+                                                        const std::optional<WebExportOpening>& opening) {
   if (document == nullptr || document->width() <= 0 || document->height() <= 0) {
     return std::nullopt;
   }
   const QSize document_size(document->width(), document->height());
   const auto& layers = document->layers();
+  // Two or more frames: two top-level layers with one visible, or an "all" group's children.
   const bool offer_animation =
-      layers.size() >= 2 && std::any_of(layers.begin(), layers.end(), [](const Layer& layer) { return layer.visible(); });
+      (layers.size() >= 2 &&
+       std::any_of(layers.begin(), layers.end(), [](const Layer& layer) { return layer.visible(); })) ||
+      animation_export_layers(*document).size() >= 2;
   const bool non_srgb = web_export_has_non_srgb_profile(*document);
 
   auto settings = load_web_export_settings();
   settings.width = document_size.width();
   settings.height = document_size.height();
   settings.pixel_scale = 1;
+  if (opening.has_value()) {
+    settings.format = opening->format;
+    switch (opening->format) {
+      case WebExportFormat::Gif: settings.gif_animate = opening->animate; break;
+      case WebExportFormat::Webp: settings.webp_animate = opening->animate; break;
+      case WebExportFormat::Png: settings.png_animate = opening->animate; break;
+      case WebExportFormat::Jxl: settings.jxl_animate = opening->animate; break;
+      case WebExportFormat::Jpeg:
+      case WebExportFormat::Avif: break;
+    }
+    settings.fill_transparent = !opening->keep_transparency;
+  }
   if (!offer_animation) {
     settings.webp_animate = false;
     settings.gif_animate = false;
@@ -2644,6 +2660,25 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   QString animation_signature;
   int animation_frame = 0;
   bool animation_playing = true;
+  // 4-up: the lower tiles' own animated results (the engine's cached frames, shared images),
+  // stepped with the main result so all four tiles show the same frame.
+  std::array<std::optional<WebExportResult>, 2> variant_animations;
+  const auto variant_slot = [&](const WebExportPane* pane) -> std::optional<WebExportResult>& {
+    return variant_animations[pane == half_pane ? 0U : 1U];
+  };
+  const auto show_variant_frame = [&](WebExportPane* pane) {
+    const auto& variant = variant_slot(pane);
+    if (!variant.has_value() || variant->frames.empty()) {
+      pane->setProperty("webExportFrameIndex", QVariant());
+      return;
+    }
+    // A tile holding fewer frames (the memory cap) stays on its last one.
+    const auto at = std::min(static_cast<std::size_t>(std::max(0, animation_frame)), variant->frames.size() - 1);
+    const auto& original_frame =
+        at < variant->original_frames.size() ? variant->original_frames[at] : variant->original;
+    pane->set_images(original_frame, variant->frames[at]);
+    pane->setProperty("webExportFrameIndex", static_cast<int>(at));
+  };
   const auto frame_delay_ms = [&](int index) {
     const auto delay = animation.has_value() && index < static_cast<int>(animation->frame_delays_ms.size())
                            ? animation->frame_delays_ms[static_cast<std::size_t>(index)]
@@ -2664,6 +2699,10 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     original_pane->set_images(original_frame, {});
     main_pane->setProperty("webExportFrameIndex", animation_frame);
     main_pane->setProperty("webExportFrameCount", count);
+    if (!half_pane->isHidden()) {
+      show_variant_frame(half_pane);
+      show_variant_frame(quarter_pane);
+    }
     frame_label->setText(QObject::tr("Frame %1 of %2 (%3 s)")
                              .arg(animation_frame + 1)
                              .arg(count)
@@ -2683,6 +2722,9 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     playback_timer->stop();
     animation.reset();
     animation_signature.clear();
+    for (auto& variant : variant_animations) {
+      variant.reset();
+    }
     playback_row->hide();
     main_pane->setProperty("webExportFrameCount", 0);
     main_pane->setProperty("webExportPlaying", false);
@@ -2742,6 +2784,8 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     const auto format_label = web_export_format_name(current.format);
     for (const auto& [pane, job] : variant_jobs(current)) {
       if (!job.has_value()) {
+        variant_slot(pane).reset();
+        pane->setProperty("webExportFrameIndex", QVariant());
         pane->set_labels({}, {});
         pane->set_note(QObject::tr("%1 at these settings has no quality to reduce.").arg(format_label));
         pane->setProperty("webExportShowsCurrent", true);
@@ -2752,7 +2796,16 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
       const auto label = QObject::tr("%1, %2").arg(format_label, web_export_quality_label(*reduced, current.format));
       const auto cached = engine.cached(job->signature);
       if (cached.has_value() && cached->bytes != nullptr) {
-        pane->set_images(cached->original, cached->decoded);
+        // An animated tile follows the main result's frame; a still one shows its image.
+        auto& variant = variant_slot(pane);
+        if (job->animate && cached->frames.size() > 1) {
+          variant = cached;
+          show_variant_frame(pane);
+        } else {
+          variant.reset();
+          pane->setProperty("webExportFrameIndex", QVariant());
+          pane->set_images(cached->original, cached->decoded);
+        }
         pane->set_labels({}, QObject::tr("%1: %2").arg(label, data_size_text(cached->bytes->size())));
       } else {
         pane->set_labels({}, QObject::tr("%1: encoding...").arg(label));

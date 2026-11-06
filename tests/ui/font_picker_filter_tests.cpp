@@ -1,10 +1,13 @@
 // The text bar font picker's Recent section (GitHub issue 569), its Favorites (GitHub issue 630),
-// its Style and Language filters (GitHub issue 570) and the hidden-matches hint (GitHub issue 647). See docs/font-picker.md.
+// its Style and Language filters (GitHub issue 570), the hidden-matches hint (GitHub issue 647) and
+// plain family names without Qt's foundry suffix (GitHub issue 646 follow-up). See docs/font-picker.md.
 #include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/font_face_name_index.hpp"
 #include "ui/font_family_filters.hpp"
 #include "ui/font_picker.hpp"
 #include "ui/main_window.hpp"
+#include "ui/text_font_service.hpp"
 #include "ui/theme_palette.hpp"
 #include "test_fonts.hpp"
 #include "test_harness.hpp"
@@ -24,12 +27,15 @@
 #include <QListView>
 #include <QPainter>
 #include <QScrollBar>
+#include <QSet>
 #include <QStandardPaths>
+#include <QStringListModel>
 #include <QSignalBlocker>
 #include <QTest>
 #include <QToolButton>
 
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
 
 using namespace patchy::test::ui;
@@ -63,6 +69,16 @@ QWidget* open_picker_popup(patchy::ui::FontPickerCombo& picker) {
     }
   }
   return nullptr;
+}
+
+// The families the picker offers, each once: its combo keeps a row per foundry copy where Qt's
+// Linux database lists a family several foundries install (GitHub issue 646 follow-up).
+QStringList listed_families(const QComboBox& picker) {
+  QStringList rows;
+  for (int row = 0; row < picker.count(); ++row) {
+    rows.append(picker.itemText(row));
+  }
+  return patchy::ui::font_families_without_foundries(rows);
 }
 
 FontPickerRowKind row_kind(const QModelIndex& index) {
@@ -114,12 +130,13 @@ void ui_font_picker_recent_section_orders_skips_and_persists() {
   show_window(window);
   auto* picker = type_tool_picker(window);
   CHECK(picker != nullptr);
-  if (picker->count() < 2) {
+  const auto families = listed_families(*picker);
+  if (families.size() < 2) {
     patchy::test::skip("fewer than two font families on this machine");
   }
   // Any two installed families (the Linux runner has neither Verdana nor Arial).
-  const auto verdana = picker->itemText(1);
-  const auto arial = picker->itemText(0);
+  const auto verdana = families.at(1);
+  const auto arial = families.at(0);
 
   // No recent picks yet: no section, no headers.
   {
@@ -286,7 +303,8 @@ void ui_font_picker_style_and_language_filters_persist() {
   CHECK(latin > 0);
   language->setCurrentIndex(latin);
   QApplication::processEvents();
-  const auto latin_families = QFontDatabase::families(QFontDatabase::Latin);
+  const auto latin_families =
+      patchy::ui::font_families_without_foundries(QFontDatabase::families(QFontDatabase::Latin));
   const auto latin_rows = family_rows(*list, false);
   CHECK(!latin_rows.isEmpty());
   for (const auto& family : latin_rows) {
@@ -353,18 +371,19 @@ void ui_font_picker_recent_separator_reads_in_both_schemes() {
   show_window(window);
   auto* picker = type_tool_picker(window);
   CHECK(picker != nullptr);
-  if (picker->count() < 2) {
+  const auto families = listed_families(*picker);
+  if (families.size() < 2) {
     patchy::test::skip("fewer than two font families on this machine");
   }
   {
     auto settings = patchy::ui::app_settings();
     settings.setValue(QString::fromLatin1(patchy::ui::kFontPickerRecentFamiliesKey),
-                      QStringList{picker->itemText(1), picker->itemText(0)});
+                      QStringList{families.at(1), families.at(0)});
   }
   {
     // A current family in the Recent section opens the list at the top, rule in view.
     const QSignalBlocker blocker(picker);
-    picker->setCurrentFont(QFont(picker->itemText(1)));
+    picker->setCurrentFont(QFont(families.at(1)));
   }
   const auto capture = [picker](const char* name) {
     auto* popup = open_picker_popup(*picker);
@@ -474,8 +493,7 @@ void ui_font_picker_filter_lists_scroll_keep_enter_and_offer_other() {
     const auto traits = index.cached(family);
     CHECK(traits.has_value() && traits->category == patchy::FontStyleCategory::unknown);
   }
-  for (int row = 0; row < picker->count(); ++row) {
-    const auto family = picker->itemText(row);
+  for (const auto& family : listed_families(*picker)) {
     const auto traits = index.cached(family);
     if (traits.has_value() && traits->category == patchy::FontStyleCategory::unknown) {
       CHECK(other_rows.contains(family));
@@ -546,10 +564,11 @@ void ui_font_picker_favorite_star_toggles_without_picking() {
   show_window(window);
   auto* picker = type_tool_picker(window);
   CHECK(picker != nullptr);
-  if (picker->count() < 3) {
+  const auto families = listed_families(*picker);
+  if (families.size() < 3) {
     patchy::test::skip("fewer than three font families on this machine");
   }
-  const auto current = picker->itemText(0);
+  const auto current = families.at(0);
   {
     const QSignalBlocker blocker(picker);
     picker->setCurrentFont(QFont(current));
@@ -619,8 +638,10 @@ void ui_font_picker_favorites_view_filters_and_persists() {
   CHECK(picker != nullptr);
   QString mono;
   QString proportional;
-  for (int row = 0; row < picker->count() && (mono.isEmpty() || proportional.isEmpty()); ++row) {
-    const auto family = picker->itemText(row);
+  for (const auto& family : listed_families(*picker)) {
+    if (!mono.isEmpty() && !proportional.isEmpty()) {
+      break;
+    }
     auto& slot = QFontDatabase::isFixedPitch(family) ? mono : proportional;
     if (slot.isEmpty()) {
       slot = family;
@@ -717,7 +738,7 @@ void ui_font_picker_favorites_view_filters_and_persists() {
   reopened_favorites->click();
   QApplication::processEvents();
   CHECK(row_kind(reopened_list->model()->index(0, 0)) == FontPickerRowKind::recent_header);
-  CHECK(family_rows(*reopened_list, false).size() == picker->count());
+  CHECK(family_rows(*reopened_list, false).size() == listed_families(*picker).size());
   CHECK(!patchy::ui::app_settings().value(QString::fromLatin1(patchy::ui::kFontPickerFavoritesOnlyKey)).toBool());
   reopened->close();
   QApplication::processEvents();
@@ -733,12 +754,13 @@ void ui_font_picker_recent_remove_button_keeps_popup_open() {
   show_window(window);
   auto* picker = type_tool_picker(window);
   CHECK(picker != nullptr);
-  if (picker->count() < 3) {
+  const auto families = listed_families(*picker);
+  if (families.size() < 3) {
     patchy::test::skip("fewer than three font families on this machine");
   }
-  const auto first = picker->itemText(1);
-  const auto second = picker->itemText(2);
-  const auto current = picker->itemText(0);
+  const auto first = families.at(1);
+  const auto second = families.at(2);
+  const auto current = families.at(0);
   {
     auto settings = patchy::ui::app_settings();
     settings.setValue(QString::fromLatin1(patchy::ui::kFontPickerRecentFamiliesKey), QStringList{first, second});
@@ -814,10 +836,10 @@ void ui_font_picker_hidden_matches_hint_counts_and_resets() {
 
   // Monospace reads no font tables, so the expected count is known up front.
   auto& index = patchy::ui::FontStyleIndex::instance();
+  const auto families = listed_families(*picker);
   const auto hidden_by_monospace = [&](const QString& text) {
     int hidden = 0;
-    for (int row = 0; row < picker->count(); ++row) {
-      const auto family = picker->itemText(row);
+    for (const auto& family : families) {
       if (family.contains(text, Qt::CaseInsensitive) &&
           !index.matches(patchy::ui::FontStyleFilter::monospace, family, {})) {
         ++hidden;
@@ -827,9 +849,10 @@ void ui_font_picker_hidden_matches_hint_counts_and_resets() {
   };
   // A family that is not monospace: searching its whole name finds at least that one.
   QString proportional;
-  for (int row = 0; row < picker->count() && proportional.isEmpty(); ++row) {
-    if (!index.matches(patchy::ui::FontStyleFilter::monospace, picker->itemText(row), {})) {
-      proportional = picker->itemText(row);
+  for (const auto& family : families) {
+    if (!index.matches(patchy::ui::FontStyleFilter::monospace, family, {})) {
+      proportional = family;
+      break;
     }
   }
   if (proportional.isEmpty()) {
@@ -850,9 +873,9 @@ void ui_font_picker_hidden_matches_hint_counts_and_resets() {
   CHECK(expected >= 1);
   CHECK(!hint->isHidden());
   CHECK(hint->text().contains(QString::number(expected)));
-  for (int row = 0; row < picker->count(); ++row) {
-    std::cout << "  note: family \"" << picker->itemText(row).toStdString() << "\" monospace "
-              << index.matches(patchy::ui::FontStyleFilter::monospace, picker->itemText(row), {}) << "\n";
+  for (const auto& family : families) {
+    std::cout << "  note: family \"" << family.toStdString() << "\" monospace "
+              << index.matches(patchy::ui::FontStyleFilter::monospace, family, {}) << "\n";
   }
   std::cout << "  note: \"" << proportional.toStdString() << "\" hint: " << hint->text().toStdString() << "\n";
 
@@ -871,8 +894,7 @@ void ui_font_picker_hidden_matches_hint_counts_and_resets() {
   for (char c = 'a'; c <= 'z' && letter.isEmpty(); ++c) {
     const auto candidate = QString(QLatin1Char(c));
     int shown = 0;
-    for (int row = 0; row < picker->count(); ++row) {
-      const auto family = picker->itemText(row);
+    for (const auto& family : families) {
       shown += family.contains(candidate, Qt::CaseInsensitive) &&
                        index.matches(patchy::ui::FontStyleFilter::monospace, family, {})
                    ? 1
@@ -916,10 +938,165 @@ void ui_font_picker_hidden_matches_hint_counts_and_resets() {
   reset_picker_settings();
 }
 
+// Qt's Linux font database lists a family two foundries install as "Arial [TMC ]" and
+// "Arial [Mono]" (GitHub issue 646 follow-up); the helper the picker, the family lookup and the
+// stored Recent and Favorites lists share drops that suffix. Synthetic names: no Linux fonts needed.
+void ui_font_family_without_foundry_strips_qt_suffix() {
+  using patchy::ui::font_family_without_foundry;
+  CHECK(font_family_without_foundry(QStringLiteral("Arial [TMC ]")) == QStringLiteral("Arial"));
+  CHECK(font_family_without_foundry(QStringLiteral("Arial Black [MONO]")) == QStringLiteral("Arial Black"));
+  CHECK(font_family_without_foundry(QStringLiteral("C059 [UKWN]")) == QStringLiteral("C059"));
+  CHECK(font_family_without_foundry(QStringLiteral("Nimbus Mono PS [urw]")) == QStringLiteral("Nimbus Mono PS"));
+  CHECK(font_family_without_foundry(QStringLiteral("Roboto Mono [GOOG] ")) == QStringLiteral("Roboto Mono"));
+  // Only a trailing bracketed part after a space is a foundry.
+  CHECK(font_family_without_foundry(QStringLiteral("Foo [Bar] Baz")) == QStringLiteral("Foo [Bar] Baz"));
+  CHECK(font_family_without_foundry(QStringLiteral("[Foo]")) == QStringLiteral("[Foo]"));
+  CHECK(font_family_without_foundry(QStringLiteral("Foo[Bar]")) == QStringLiteral("Foo[Bar]"));
+  CHECK(font_family_without_foundry(QStringLiteral("Arial")) == QStringLiteral("Arial"));
+  CHECK(font_family_without_foundry(QString()).isEmpty());
+  // A family whose own name ends in brackets loses them, as in Qt's own matching.
+  CHECK(font_family_without_foundry(QStringLiteral("Foo [Bar]")) == QStringLiteral("Foo"));
+
+  const QStringList listed{QStringLiteral("Arial [TMC ]"), QStringLiteral("Arial [Mono]"),
+                           QStringLiteral("Arial Black [TMC ]"), QStringLiteral("Arial Black [MONO]"),
+                           QStringLiteral("C059 [UKWN]"), QStringLiteral("C059 [urw]"), QStringLiteral("Courier New"),
+                           QString(), QStringLiteral("courier new")};
+  CHECK(patchy::ui::font_families_without_foundries(listed) ==
+        (QStringList{QStringLiteral("Arial"), QStringLiteral("Arial Black"), QStringLiteral("C059"),
+                     QStringLiteral("Courier New")}));
+}
+
+// The picker lists a family several foundries install once, under its plain name; picking it
+// reports the plain family; Recent and Favorites saved with a suffix read back plain; and a
+// document's suffixed family resolves to the installed plain one.
+void ui_font_picker_lists_plain_family_names() {
+  register_test_fonts(TestFontRole::Verdana);
+  reset_picker_settings();
+  QWidget host;
+  auto* picker = new patchy::ui::FontPickerCombo(&host);
+  host.resize(300, 60);
+  host.show();
+  QApplication::processEvents();
+  const auto families = listed_families(*picker);
+  if (families.size() < 2) {
+    patchy::test::skip("fewer than two font families on this machine");
+  }
+  const auto first = families.at(0);
+  const auto second = families.at(1);
+  CHECK(!first.isEmpty() && !second.isEmpty() && first != second);
+
+  // The database as Qt's Linux FreeType database lists it when two foundries install `first`.
+  auto* model = qobject_cast<QStringListModel*>(picker->model());
+  CHECK(model != nullptr);
+  model->setStringList({first + QStringLiteral(" [TMC ]"), first + QStringLiteral(" [Mono]"), second});
+  CHECK(picker->itemText(0) == first);
+  CHECK(picker->itemText(1) == first);
+  CHECK(picker->findText(first, Qt::MatchExactly | Qt::MatchCaseSensitive) == 0);
+  // The second copy is disabled: the closed control's arrow keys and wheel step over it.
+  CHECK(model->flags(model->index(0, 0)).testFlag(Qt::ItemIsEnabled));
+  CHECK(!model->flags(model->index(1, 0)).testFlag(Qt::ItemIsEnabled));
+  CHECK(model->flags(model->index(2, 0)).testFlag(Qt::ItemIsEnabled));
+
+  {
+    auto* popup = open_picker_popup(*picker);
+    CHECK(popup != nullptr);
+    auto* list = popup->findChild<QListView*>(QStringLiteral("textFontPickerList"));
+    CHECK(list != nullptr);
+    CHECK(family_rows(*list, false) == (QStringList{first, second}));
+    // Picking the plain row reports the plain family.
+    for (int row = 0; row < list->model()->rowCount(); ++row) {
+      if (list->model()->index(row, 0).data(Qt::DisplayRole).toString() == first) {
+        list->setCurrentIndex(list->model()->index(row, 0));
+      }
+    }
+    auto* search = popup->findChild<QLineEdit*>(QStringLiteral("textFontPickerSearchEdit"));
+    CHECK(search != nullptr);
+    QTest::keyClick(search, Qt::Key_Return);
+    QApplication::processEvents();
+  }
+  CHECK(picker->currentText() == first);
+  CHECK(picker->currentFont().families().value(0) == first);
+  CHECK(patchy::ui::stored_recent_font_families() == QStringList{first});
+
+  // Lists saved with Qt's suffix (before the fix) map to the plain names, once each.
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QString::fromLatin1(patchy::ui::kFontPickerRecentFamiliesKey),
+                      QStringList{second + QStringLiteral(" [urw]"), first + QStringLiteral(" [TMC ]"), first});
+    settings.setValue(QString::fromLatin1(patchy::ui::kFontPickerFavoriteFamiliesKey),
+                      QStringList{first + QStringLiteral(" [Mono]"), first + QStringLiteral(" [TMC ]")});
+    settings.sync();
+  }
+  CHECK(patchy::ui::stored_recent_font_families() == (QStringList{second, first}));
+  CHECK(patchy::ui::stored_favorite_font_families() == QStringList{first});
+  patchy::ui::remove_recent_font_family(second + QStringLiteral(" [urw]"));
+  CHECK(patchy::ui::stored_recent_font_families() == QStringList{first});
+  CHECK(!patchy::ui::set_favorite_font_family(first + QStringLiteral(" [TMC ]"), false));
+  CHECK(patchy::ui::stored_favorite_font_families().isEmpty());
+
+  // A document or preset that stored the suffixed name resolves to the installed family.
+  CHECK(patchy::ui::available_text_family_match(first + QStringLiteral(" [TMC ]")) == std::optional<QString>(first));
+  CHECK(patchy::ui::canonical_text_display_family(first + QStringLiteral(" [TMC ]")) == first);
+  reset_picker_settings();
+}
+
+// The same on this machine's real font database, where it lists a family two foundries install
+// with Qt's suffix (Linux: "C059 [UKWN]", "C059 [urw]"). Saves the popup for review as
+// test-artifacts/font_picker_foundry_duplicates.png.
+void ui_font_picker_foundry_duplicates_review_capture() {
+  QStringList suffixed;
+  for (const auto& family : QFontDatabase::families()) {
+    if (patchy::ui::font_family_without_foundry(family) != family) {
+      suffixed.append(family);
+    }
+  }
+  if (suffixed.isEmpty()) {
+    patchy::test::skip("no font family on this machine is installed from two foundries");
+  }
+  reset_picker_settings();
+  QWidget host;
+  auto* picker = new patchy::ui::FontPickerCombo(&host);
+  host.resize(300, 60);
+  host.show();
+  QApplication::processEvents();
+  for (int row = 0; row < picker->count(); ++row) {
+    CHECK(patchy::ui::font_family_without_foundry(picker->itemText(row)) == picker->itemText(row));
+  }
+  QString search_text = patchy::ui::font_family_without_foundry(suffixed.front()).section(QLatin1Char(' '), 0, 0);
+  for (const auto& family : suffixed) {
+    if (family.startsWith(QStringLiteral("Nimbus"))) {
+      search_text = QStringLiteral("Nimbus");
+      break;
+    }
+  }
+  auto* popup = open_picker_popup(*picker);
+  CHECK(popup != nullptr);
+  auto* list = popup->findChild<QListView*>(QStringLiteral("textFontPickerList"));
+  auto* search = popup->findChild<QLineEdit*>(QStringLiteral("textFontPickerSearchEdit"));
+  CHECK(list != nullptr && search != nullptr);
+  QTest::keyClicks(search, search_text);
+  QApplication::processEvents();
+  const auto rows = family_rows(*list, false);
+  CHECK(!rows.isEmpty());
+  CHECK(rows.size() == QSet<QString>(rows.cbegin(), rows.cend()).size());
+  for (const auto& family : rows) {
+    CHECK(!family.contains(QLatin1Char('[')));
+  }
+  QTest::qWait(50);
+  std::filesystem::create_directories("test-artifacts");
+  CHECK(popup->grab().save(QStringLiteral("test-artifacts/font_picker_foundry_duplicates.png")));
+  popup->close();
+  QApplication::processEvents();
+  reset_picker_settings();
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> font_picker_filter_tests() {
   return {
+      {"ui_font_family_without_foundry_strips_qt_suffix", ui_font_family_without_foundry_strips_qt_suffix},
+      {"ui_font_picker_lists_plain_family_names", ui_font_picker_lists_plain_family_names},
+      {"ui_font_picker_foundry_duplicates_review_capture", ui_font_picker_foundry_duplicates_review_capture},
       {"ui_font_picker_recent_section_orders_skips_and_persists",
        ui_font_picker_recent_section_orders_skips_and_persists},
       {"ui_font_picker_style_and_language_filters_persist", ui_font_picker_style_and_language_filters_persist},

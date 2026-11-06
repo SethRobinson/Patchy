@@ -1725,6 +1725,10 @@ void CanvasWidget::set_layer_opacity_digit_callback(std::function<void(int)> cal
   layer_opacity_digit_callback_ = std::move(callback);
 }
 
+void CanvasWidget::set_airbrush_flow_digit_callback(std::function<void()> callback) {
+  airbrush_flow_digit_callback_ = std::move(callback);
+}
+
 void CanvasWidget::set_layer_selection_requested_callback(
     std::function<void(std::vector<LayerId>, LayerId)> callback) {
   layer_selection_requested_callback_ = std::move(callback);

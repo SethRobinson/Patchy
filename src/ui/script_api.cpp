@@ -6,6 +6,7 @@
 // mutations run prepare_mutation() first so the run's single undo entry exists.
 
 #include "ui/script_api.hpp"
+#include "ui/font_face_name_index.hpp"
 
 #include "filters/gmic/gmic_engine.hpp"
 #include "ui/gmic_library.hpp"
@@ -4096,7 +4097,9 @@ QJSValue ScriptAppObject::listFonts() {
   auto* engine = host_.engine();
   auto result = engine->newArray();
   quint32 index = 0;
-  for (const auto& family : QFontDatabase::families()) {
+  // Plain family names, each once (GitHub issue 646): Linux lists a family two foundries install
+  // as "Arial [TMC ]" and "Arial [Mono]".
+  for (const auto& family : font_families_without_foundries(QFontDatabase::families())) {
     if (QFontDatabase::isPrivateFamily(family)) {
       continue;
     }

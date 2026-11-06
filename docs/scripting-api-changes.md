@@ -21,6 +21,10 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-06 (behavioral): `app.listFonts()` names families without Qt's " [Foundry]" suffix and lists
+a family two foundries install once (Linux, #646 follow-up); a text family given with the suffix
+resolves to the plain one.
+
 2026-11-06 (behavioral): every animated export (`doc.exportAnimatedWebp`, `doc.exportAnimatedPng`,
 the `animate` key of `saveAs`/`exportAs`/`encodeForWeb`) reads layers named "all": a top-level layer
 named "all" is drawn in every frame and is not a frame; a top-level group named "all" turns each unit

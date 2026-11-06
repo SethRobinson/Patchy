@@ -157,6 +157,18 @@
         <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
         <translation>Modus und Deckkraft legen Füllmethode und Deckkraft der neuen Ebene fest</translation>
     </message>
+    <message>
+        <source>Transparent</source>
+        <translation>Transparent</translation>
+    </message>
+    <message>
+        <source>Neutral Color for This Mode</source>
+        <translation>Neutrale Farbe für diesen Modus</translation>
+    </message>
+    <message>
+        <source>Fill with the color that leaves the image unchanged in this blend mode</source>
+        <translation>Mit der Farbe füllen, die das Bild in dieser Füllmethode unverändert lässt</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -767,32 +779,8 @@
         <translation>Die neue Ebene an der Ebene darunter beschneiden</translation>
     </message>
     <message>
-        <source>White</source>
-        <translation>Weiß</translation>
-    </message>
-    <message>
-        <source>Black</source>
-        <translation>Schwarz</translation>
-    </message>
-    <message>
-        <source>50% gray</source>
-        <translation>50 % Grau</translation>
-    </message>
-    <message>
         <source>Clip to the layer below</source>
         <translation>An der Ebene darunter beschneiden</translation>
-    </message>
-    <message>
-        <source>Neutral color</source>
-        <translation>Neutrale Farbe</translation>
-    </message>
-    <message>
-        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
-        <translation>Die neue Ebene mit der Farbe füllen, die das Bild in diesem Modus unverändert lässt</translation>
-    </message>
-    <message>
-        <source>This mode has no neutral color</source>
-        <translation>Dieser Modus hat keine neutrale Farbe</translation>
     </message>
     <message>
         <source>Fill:</source>
@@ -12292,10 +12280,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>PNG-Datei konnte nicht geschrieben werden</translation>
     </message>
     <message>
-        <source>Animated PNG Options</source>
-        <translation>Optionen für animiertes PNG</translation>
-    </message>
-    <message>
         <source>Saved</source>
         <comment>new document template group of the user&apos;s own presets</comment>
         <translation>Gespeichert</translation>
@@ -14990,6 +14974,13 @@ Die eigene Ansicht-Einstellung jedes Elements gilt weiterhin.</translation>
     <message>
         <source>This document has no palette yet. Set one in the Palette panel, or open an indexed image.</source>
         <translation>Dieses Dokument hat noch keine Palette. Legen Sie eine im Bedienfeld „Palette“ fest oder öffnen Sie ein indiziertes Bild.</translation>
+    </message>
+    <message>
+        <source>%1 already exists.
+Do you want to replace it?</source>
+        <extracomment>Save dialog: the typed name got the picked file type&apos;s extension and that file exists</extracomment>
+        <translation>%1 ist bereits vorhanden.
+Möchten Sie die Datei ersetzen?</translation>
     </message>
 </context>
 <context>
@@ -33312,6 +33303,22 @@ Fixiert: %1</translation>
     <message>
         <source>OpenAI Image Tools</source>
         <translation>OpenAI-Bildwerkzeuge</translation>
+    </message>
+    <message>
+        <source>File: %1</source>
+        <translation>Datei: %1</translation>
+    </message>
+    <message>
+        <source>Smart Object in %1</source>
+        <translation>Smartobjekt in %1</translation>
+    </message>
+    <message>
+        <source>Smart Object contents</source>
+        <translation>Inhalt des Smartobjekts</translation>
+    </message>
+    <message>
+        <source>Not saved yet</source>
+        <translation>Noch nicht gespeichert</translation>
     </message>
 </context>
 <context>

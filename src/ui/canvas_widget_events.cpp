@@ -1074,12 +1074,25 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       return;
     }
     const auto paint_layer_artboard = retarget_paint_to_clicked_artboard(document_point);
-    if (begin_edit(healing ? tr("Healing brush") : tr("Clone stamp"))) {
+    // Each step of the press, for patchy_perf_tests clonepress (GitHub #597 follow-up 3).
+    RetouchPressTimings timings;
+    auto step_started = std::chrono::steady_clock::now();
+    const auto lap = [&step_started](double& into) {
+      const auto now = std::chrono::steady_clock::now();
+      into = std::chrono::duration<double, std::milli>(now - step_started).count();
+      step_started = now;
+    };
+    const bool edit_begun = begin_edit(healing ? tr("Healing brush") : tr("Clone stamp"));
+    lap(timings.begin_edit_ms);
+    if (edit_begun) {
       add_paint_layer_on_artboard(paint_layer_artboard);
       arm_paint_stroke_history();
-      clone_source_cache_ = retouch_source_snapshot();
+      lap(timings.history_ms);
+      // Filled tile by tile as the stroke reaches it (GitHub #597 follow-up 3).
+      take_clone_source_snapshot();
       clone_source_deep_ = document_->color_state().bit_depth != BitDepth::UInt8 ? retouch_source_deep()
                                                                                  : PixelBuffer{};
+      lap(timings.source_ms);
       const bool offset_changed = !clone_aligned_ || !clone_aligned_offset_set_;
       if (offset_changed) {
         clone_source_offset_ = clone_source_point_ - document_point;
@@ -1111,12 +1124,20 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       sync_stroke_input_compression();
       last_document_position_ = document_point;
       last_document_position_f_ = QPointF(document_point);
+      lap(timings.setup_ms);
+      retouch_press_times_layer_detach_ = true;
+      last_retouch_press_timings_.layer_detach_ms = 0.0;
       const auto dirty = connect_from.has_value() ? clone_brush_segment(connect_from->toPoint(), document_point)
                                                   : clone_brush_at(document_point);
+      retouch_press_times_layer_detach_ = false;
+      timings.layer_detach_ms = last_retouch_press_timings_.layer_detach_ms;
+      lap(timings.first_dab_ms);
       if (!dirty.isEmpty()) {
         active_edit_target_changed_impl(QRegion(dirty), DocumentChangeReason::BrushStrokePreview);
       }
+      lap(timings.preview_ms);
     }
+    last_retouch_press_timings_ = timings;
     return;
   }
 
@@ -3026,6 +3047,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     sync_stroke_input_compression();
     last_stroke_end_document_ = last_document_position_f_;
     clone_source_cache_ = QImage();
+    end_lazy_clone_source();
     clone_source_deep_ = PixelBuffer{};
     smudge_state_ = {};
     mixer_brush_state_ = {};
@@ -4777,6 +4799,9 @@ bool CanvasWidget::handle_opacity_digit_key(int key, Qt::KeyboardModifiers modif
     }
   }
   notify_brush_settings_changed();
+  if (targets_flow && tool_ == CanvasTool::Brush && brush_build_up_ && !shift && airbrush_flow_digit_callback_) {
+    airbrush_flow_digit_callback_();
+  }
   return true;
 }
 
@@ -4972,6 +4997,7 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
     clear_brush_stroke_tracking();
   }
   clone_source_cache_ = QImage();
+  end_lazy_clone_source();
   clone_source_deep_ = PixelBuffer{};
   smudge_state_ = {};
   mixer_brush_state_ = {};

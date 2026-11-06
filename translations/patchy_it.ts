@@ -157,6 +157,18 @@
         <source>Mode and Opacity set the new layer&apos;s blend mode and opacity</source>
         <translation>Modalità e Opacità impostano il metodo di fusione e l&apos;opacità del nuovo livello</translation>
     </message>
+    <message>
+        <source>Transparent</source>
+        <translation>Trasparente</translation>
+    </message>
+    <message>
+        <source>Neutral Color for This Mode</source>
+        <translation>Colore neutro per questo metodo</translation>
+    </message>
+    <message>
+        <source>Fill with the color that leaves the image unchanged in this blend mode</source>
+        <translation>Riempi con il colore che lascia l&apos;immagine invariata in questo metodo di fusione</translation>
+    </message>
 </context>
 <context>
     <name>FilterGalleryControls</name>
@@ -767,32 +779,8 @@
         <translation>Ritaglia il nuovo livello sul livello sottostante</translation>
     </message>
     <message>
-        <source>White</source>
-        <translation>Bianco</translation>
-    </message>
-    <message>
-        <source>Black</source>
-        <translation>Nero</translation>
-    </message>
-    <message>
-        <source>50% gray</source>
-        <translation>Grigio 50%</translation>
-    </message>
-    <message>
         <source>Clip to the layer below</source>
         <translation>Ritaglia sul livello sottostante</translation>
-    </message>
-    <message>
-        <source>Neutral color</source>
-        <translation>Colore neutro</translation>
-    </message>
-    <message>
-        <source>Fill the new layer with the color that leaves the image unchanged in this mode</source>
-        <translation>Riempi il nuovo livello con il colore che lascia l&apos;immagine invariata in questo metodo</translation>
-    </message>
-    <message>
-        <source>This mode has no neutral color</source>
-        <translation>Questo metodo non ha un colore neutro</translation>
     </message>
     <message>
         <source>Fill:</source>
@@ -12292,10 +12280,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Impossibile scrivere il file PNG</translation>
     </message>
     <message>
-        <source>Animated PNG Options</source>
-        <translation>Opzioni PNG animato</translation>
-    </message>
-    <message>
         <source>Saved</source>
         <comment>new document template group of the user&apos;s own presets</comment>
         <translation>Salvati</translation>
@@ -14990,6 +14974,13 @@ L&apos;impostazione propria di ogni elemento nel menu Visualizza resta valida.</
     <message>
         <source>This document has no palette yet. Set one in the Palette panel, or open an indexed image.</source>
         <translation>Questo documento non ha ancora una tavolozza. Impostarne una nel pannello Tavolozza oppure aprire un&apos;immagine indicizzata.</translation>
+    </message>
+    <message>
+        <source>%1 already exists.
+Do you want to replace it?</source>
+        <extracomment>Save dialog: the typed name got the picked file type&apos;s extension and that file exists</extracomment>
+        <translation>%1 esiste già.
+Sostituirlo?</translation>
     </message>
 </context>
 <context>
@@ -33312,6 +33303,22 @@ Bloccato: %1</translation>
     <message>
         <source>OpenAI Image Tools</source>
         <translation>Strumenti immagine OpenAI</translation>
+    </message>
+    <message>
+        <source>File: %1</source>
+        <translation>File: %1</translation>
+    </message>
+    <message>
+        <source>Smart Object in %1</source>
+        <translation>Oggetto avanzato in %1</translation>
+    </message>
+    <message>
+        <source>Smart Object contents</source>
+        <translation>Contenuto dell&apos;oggetto avanzato</translation>
+    </message>
+    <message>
+        <source>Not saved yet</source>
+        <translation>Non ancora salvato</translation>
     </message>
 </context>
 <context>

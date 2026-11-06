@@ -53,6 +53,7 @@
 #include <QTreeWidget>
 
 #include <algorithm>
+#include <string_view>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -912,6 +913,122 @@ void ui_web_export_animation_plays_in_the_preview() {
   CHECK(inspected);
 }
 
+// 4-up with an animation: the two lower tiles (the format at 50% and 25%) play and step with
+// the main result, each showing its own cached frame at the same index (desk card local-034).
+// An animated PNG has nothing to reduce, so its tiles keep the note. Captures
+// web_export_quad_animation at frame 3 of 4.
+void ui_web_export_quad_tiles_follow_the_animation_frame() {
+  WebExportSettingsGuard guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  (void)animation_fixture_document(window);
+  bool inspected = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("webExportDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    dialog->resize(1280, 820);
+    auto* list = dialog->findChild<QTreeWidget*>(QStringLiteral("webExportFormatList"));
+    auto* preview = dialog->findChild<QWidget*>(QStringLiteral("webExportPreview"));
+    auto* half = dialog->findChild<QWidget*>(QStringLiteral("webExportHalfQualityPreview"));
+    auto* quarter = dialog->findChild<QWidget*>(QStringLiteral("webExportQuarterQualityPreview"));
+    auto* quad = dialog->findChild<QPushButton*>(QStringLiteral("webExportCompareQuad"));
+    auto* play = dialog->findChild<QPushButton*>(QStringLiteral("webExportPlayButton"));
+    auto* next = dialog->findChild<QAbstractButton*>(QStringLiteral("webExportNextFrameButton"));
+    auto* previous = dialog->findChild<QAbstractButton*>(QStringLiteral("webExportPreviousFrameButton"));
+    auto* timer = dialog->findChild<QTimer*>(QStringLiteral("webExportPlaybackTimer"));
+    CHECK(list != nullptr && preview != nullptr && half != nullptr && quarter != nullptr && quad != nullptr &&
+          play != nullptr && next != nullptr && previous != nullptr && timer != nullptr);
+    if (list == nullptr || preview == nullptr || half == nullptr || quarter == nullptr || quad == nullptr ||
+        play == nullptr || next == nullptr || previous == nullptr || timer == nullptr) {
+      dialog->reject();
+      return;
+    }
+    quad->click();
+    QApplication::processEvents();
+    CHECK(half->isVisible() && quarter->isVisible());
+    const auto frame = [preview] { return preview->property("webExportFrameIndex").toInt(); };
+    const auto frames = [preview] { return preview->property("webExportFrameCount").toInt(); };
+    const auto tile_frame = [](QWidget* tile) {
+      const auto value = tile->property("webExportFrameIndex");
+      return value.isValid() ? value.toInt() : -1;
+    };
+    const auto tile_key = [](QWidget* tile) { return tile->property("webExportResultKey").toLongLong(); };
+    const auto tiles_current = [&] {
+      return preview->property("webExportShowsCurrent").toBool() && frames() == 4 &&
+             half->property("webExportShowsCurrent").toBool() && quarter->property("webExportShowsCurrent").toBool();
+    };
+    struct Case {
+      const char* row;
+      const char* animate;
+    };
+    for (const auto& item : {Case{"GIF", "webExportGifAnimateCheck"}, Case{"WebP", "webExportWebpAnimateCheck"}}) {
+      auto* row = row_named(list, QString::fromLatin1(item.row));
+      auto* animate = dialog->findChild<QCheckBox*>(QLatin1String(item.animate));
+      CHECK(row != nullptr && animate != nullptr);
+      if (row == nullptr || animate == nullptr) {
+        continue;
+      }
+      list->setCurrentItem(row);
+      animate->setChecked(true);
+      CHECK(wait_until(tiles_current, 120000));
+      CHECK(wait_until([&] { return tile_frame(half) >= 0 && tile_frame(quarter) >= 0; }, 5000));
+      // Playing: the tiles keep the main result's frame as it moves on.
+      CHECK(timer->isActive());
+      const auto start = frame();
+      CHECK(wait_until([&] { return frame() != start; }, 5000));
+      CHECK(tile_frame(half) == frame() && tile_frame(quarter) == frame());
+      // Paused, then stepped: each step shows the tiles' own frame at that index.
+      play->click();
+      CHECK(!timer->isActive());
+      while (frame() != 0) {
+        next->click();
+      }
+      std::vector<qint64> half_keys;
+      std::vector<qint64> quarter_keys;
+      for (int index = 0; index < 4; ++index) {
+        CHECK(frame() == index);
+        CHECK(tile_frame(half) == index && tile_frame(quarter) == index);
+        half_keys.push_back(tile_key(half));
+        quarter_keys.push_back(tile_key(quarter));
+        next->click();
+      }
+      // Four different frames per tile, and wrapping round shows frame 1 again.
+      CHECK(std::set<qint64>(half_keys.begin(), half_keys.end()).size() == 4);
+      CHECK(std::set<qint64>(quarter_keys.begin(), quarter_keys.end()).size() == 4);
+      CHECK(frame() == 0 && tile_key(half) == half_keys[0] && tile_key(quarter) == quarter_keys[0]);
+      previous->click();
+      CHECK(frame() == 3 && tile_frame(half) == 3 && tile_key(half) == half_keys[3]);
+      CHECK(tile_key(quarter) == quarter_keys[3]);
+      if (QLatin1String(item.row) == QLatin1String("GIF")) {
+        previous->click();
+        CHECK(frame() == 2 && tile_frame(half) == 2 && tile_frame(quarter) == 2);
+        capture_widget_artifact("web_export_quad_animation", *dialog);
+      }
+      play->click();
+      CHECK(timer->isActive());
+    }
+    // An animated PNG has no quality to reduce: the tiles show the note, not a frame.
+    auto* png = row_named(list, QStringLiteral("PNG"));
+    auto* png_animate = dialog->findChild<QCheckBox*>(QStringLiteral("webExportPngAnimateCheck"));
+    CHECK(png != nullptr && png_animate != nullptr);
+    if (png != nullptr && png_animate != nullptr) {
+      list->setCurrentItem(png);
+      png_animate->setChecked(true);
+      CHECK(wait_until([&] { return preview->property("webExportShowsCurrent").toBool() && frames() == 4; }, 120000));
+      next->click();
+      CHECK(tile_frame(half) == -1 && tile_frame(quarter) == -1);
+    }
+    inspected = true;
+    dialog->reject();
+  }));
+  patchy::test::ui::require_action(window, "fileExportForWebAction")->trigger();
+  QApplication::processEvents();
+  CHECK(inspected);
+}
+
 // Transparency on a transparent one-layer image: no Animation group, Fill with enables the
 // color (the pixels are checked in ui_web_export_play_count_and_fill_read_back).
 void ui_web_export_transparency_fill_in_the_dialog() {
@@ -979,6 +1096,104 @@ void ui_web_export_transparency_fill_in_the_dialog() {
   patchy::test::ui::require_action(window, "fileExportForWebAction")->trigger();
   QApplication::processEvents();
   CHECK(inspected);
+}
+
+// File > Export > Layers as Animated GIF, WebP and PNG open Export for Web with that format
+// selected and its Animation on (local card local-031): Fill for opaque frames, Keep
+// transparent when a frame has transparent pixels. The opening is not saved on cancel.
+void ui_web_export_layers_as_animated_open_export_for_web() {
+  WebExportSettingsGuard guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  (void)animation_fixture_document(window);
+  // The fixture's frames are opaque; a half-transparent two-frame document is not.
+  CHECK(!patchy::ui::animation_export_frames_have_transparency(MainWindowTestAccess::document(window)));
+  {
+    auto two_frames = half_transparent_document(64, 32);
+    const auto& first_layer = std::as_const(two_frames).layers().front();
+    patchy::Layer second(two_frames.allocate_layer_id(), "Frame 2", first_layer.pixels());
+    two_frames.add_layer(std::move(second));
+    CHECK(patchy::ui::animation_export_frames_have_transparency(two_frames));
+  }
+  struct Case {
+    const char* action;
+    const char* row;
+    const char* check;
+  };
+  const Case cases[] = {{"fileExportAnimatedGifAction", "GIF", "webExportGifAnimateCheck"},
+                        {"fileExportAnimatedWebpAction", "WebP", "webExportWebpAnimateCheck"},
+                        {"fileExportAnimatedPngAction", "PNG", "webExportPngAnimateCheck"}};
+  const auto open_and_check = [&](const Case& item, bool expect_keep, const char* capture) {
+    bool inspected = false;
+    QTimer::singleShot(0, guarded([&] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("webExportDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      auto* list = dialog->findChild<QTreeWidget*>(QStringLiteral("webExportFormatList"));
+      auto* animate = dialog->findChild<QCheckBox*>(QLatin1String(item.check));
+      auto* keep = dialog->findChild<QRadioButton*>(QStringLiteral("webExportKeepTransparencyRadio"));
+      auto* fill = dialog->findChild<QRadioButton*>(QStringLiteral("webExportFillTransparencyRadio"));
+      auto* animation_group = dialog->findChild<QWidget*>(QStringLiteral("webExportAnimationGroup"));
+      CHECK(list != nullptr && animate != nullptr && keep != nullptr && fill != nullptr && animation_group != nullptr);
+      if (list == nullptr || animate == nullptr || keep == nullptr || fill == nullptr || animation_group == nullptr) {
+        dialog->reject();
+        return;
+      }
+      CHECK(list->currentItem() != nullptr && list->currentItem()->text(0) == QLatin1String(item.row));
+      CHECK(animation_group->isVisible() && animate->isVisible() && animate->isChecked());
+      CHECK(keep->isChecked() == expect_keep);
+      CHECK(fill->isChecked() == !expect_keep);
+      if (capture != nullptr) {
+        auto* preview = dialog->findChild<QWidget*>(QStringLiteral("webExportPreview"));
+        dialog->resize(1280, 820);
+        CHECK(preview != nullptr &&
+              wait_until([&] { return preview->property("webExportShowsCurrent").toBool(); }));
+        QApplication::processEvents();
+        capture_widget_artifact(capture, *dialog);
+      }
+      inspected = true;
+      dialog->reject();
+    }));
+    patchy::test::ui::require_action(window, item.action)->trigger();
+    QApplication::processEvents();
+    CHECK(inspected);
+  };
+  for (const auto& item : cases) {
+    open_and_check(item, /*expect_keep*/ false, nullptr);
+  }
+  // Cancel saved nothing: the plain Export for Web still opens on its first-use format.
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("exportForWeb/format")));
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("exportForWeb/gifAnimate")));
+
+  // Three frames of a shape on a transparent canvas: Keep transparent.
+  {
+    patchy::Document sprite(160, 120, patchy::PixelFormat::rgba8());
+    const QColor colors[] = {QColor(230, 140, 20), QColor(40, 150, 90), QColor(40, 110, 210)};
+    for (int frame = 0; frame < 3; ++frame) {
+      QImage image(160, 120, QImage::Format_RGBA8888);
+      image.fill(Qt::transparent);
+      QPainter painter(&image);
+      painter.setRenderHint(QPainter::Antialiasing);
+      painter.setPen(Qt::NoPen);
+      painter.setBrush(colors[frame]);
+      painter.drawEllipse(QRectF(20 + frame * 30, 25, 70, 70));
+      painter.end();
+      // Bottom first: frame 1 is the top layer.
+      const auto name = "Frame " + std::to_string(3 - frame);
+      auto layer_document = patchy::ui::document_from_qimage(image, name);
+      patchy::Layer layer(sprite.allocate_layer_id(), name, std::as_const(layer_document).layers().front().pixels());
+      sprite.add_layer(std::move(layer));
+    }
+    CHECK(patchy::ui::animation_export_frames_have_transparency(sprite));
+    window.add_document_session(std::move(sprite), QStringLiteral("Sprite"));
+    QApplication::processEvents();
+  }
+  for (const auto& item : cases) {
+    open_and_check(item, /*expect_keep*/ true,
+                   std::string_view(item.row) == "GIF" ? "web_export_layers_as_animated_gif" : nullptr);
+  }
 }
 
 void send_wheel_notch_down(QWidget& target) {
@@ -2115,11 +2330,13 @@ std::vector<patchy::test::TestCase> web_export_tests() {
       {"ui_web_export_animation_stale_frames_are_discarded", ui_web_export_animation_stale_frames_are_discarded},
       {"ui_web_export_still_png_is_unchanged_by_animation", ui_web_export_still_png_is_unchanged_by_animation},
       {"ui_web_export_animation_plays_in_the_preview", ui_web_export_animation_plays_in_the_preview},
+      {"ui_web_export_quad_tiles_follow_the_animation_frame", ui_web_export_quad_tiles_follow_the_animation_frame},
       {"ui_web_export_avif_and_jxl_read_back", ui_web_export_avif_and_jxl_read_back},
       {"ui_web_export_slow_encode_never_blocks_the_selected_format",
        ui_web_export_slow_encode_never_blocks_the_selected_format},
       {"ui_web_export_palette_png_and_gif_read_back", ui_web_export_palette_png_and_gif_read_back},
       {"ui_web_export_transparency_fill_in_the_dialog", ui_web_export_transparency_fill_in_the_dialog},
+      {"ui_web_export_layers_as_animated_open_export_for_web", ui_web_export_layers_as_animated_open_export_for_web},
       {"ui_web_export_wheel_over_unfocused_control_scrolls_the_settings",
        ui_web_export_wheel_over_unfocused_control_scrolls_the_settings},
       {"ui_web_export_metadata_choices_and_thumbnail_with_none", ui_web_export_metadata_choices_and_thumbnail_with_none},
