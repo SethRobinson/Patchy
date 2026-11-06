@@ -2548,10 +2548,23 @@ void ui_layer_add_mask_button_tracks_selection_and_adds_mask() {
   QApplication::processEvents();
   CHECK(mask_button->isEnabled());
 
-  // Two selected layers: disabled.
+  // Two selected layers: enabled, and one click masks both in one undo step (local-029).
+  const auto layer3_id = static_cast<patchy::LayerId>(layer3->data(patchy::ui::kLayerIdRole).toULongLong());
   layer3->setSelected(true);
   QApplication::processEvents();
-  CHECK(!mask_button->isEnabled());
+  CHECK(mask_button->isEnabled());
+  mask_button->click();
+  QApplication::processEvents();
+  {
+    const auto& both = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    CHECK(both.find_layer(layer3_id) != nullptr && both.find_layer(layer3_id)->mask().has_value());
+    CHECK(both.find_layer(layer4_id) != nullptr && both.find_layer(layer4_id)->mask().has_value());
+    CHECK(!mask_button->isEnabled());
+    patchy::ui::MainWindowTestAccess::undo(window);
+    QApplication::processEvents();
+    CHECK(!both.find_layer(layer3_id)->mask().has_value());
+    CHECK(!both.find_layer(layer4_id)->mask().has_value());
+  }
 
   layer_list->clearSelection();
   layer4 = require_layer_item(*layer_list, QStringLiteral("Layer 4"));

@@ -1,4 +1,5 @@
 #include "ui/canvas_widget.hpp"
+#include "core/layer_metadata.hpp"
 #include "core/vector_shape.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
@@ -1157,6 +1158,345 @@ void ui_layer_row_menu_vector_mask_submenu_adds_vector_mask() {
 }
 
 
+// local-029: the Layer Mask and Vector Mask commands act on every selected layer they apply to.
+// A 40x20 document: "Background" (no mask), "A" and "B" opaque with a mask white on the top half,
+// "Plain" opaque without a mask, and "Locked", masked like A with its image pixels locked.
+patchy::Document multi_mask_document() {
+  patchy::Document document(40, 20, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(40, 20, patchy::PixelFormat::rgba8(), QColor(255, 255, 255)));
+  const auto top_half_mask = [] {
+    patchy::PixelBuffer mask(40, 20, patchy::PixelFormat::gray8());
+    for (int y = 0; y < mask.height(); ++y) {
+      auto row = mask.row(y);
+      std::fill(row.begin(), row.end(), y < 10 ? std::uint8_t{255} : std::uint8_t{0});
+    }
+    return patchy::LayerMask{patchy::Rect{0, 0, 40, 20}, std::move(mask), 0, false};
+  };
+  document.add_pixel_layer("A", solid_pixels(40, 20, patchy::PixelFormat::rgba8(), QColor(220, 60, 30)))
+      .set_mask(top_half_mask());
+  document.add_pixel_layer("B", solid_pixels(40, 20, patchy::PixelFormat::rgba8(), QColor(30, 160, 60)))
+      .set_mask(top_half_mask());
+  document.add_pixel_layer("Plain", solid_pixels(40, 20, patchy::PixelFormat::rgba8(), QColor(40, 40, 200)));
+  auto& locked =
+      document.add_pixel_layer("Locked", solid_pixels(40, 20, patchy::PixelFormat::rgba8(), QColor(200, 200, 40)));
+  locked.set_mask(top_half_mask());
+  patchy::set_layer_lock_flags(locked, patchy::kLayerLockImagePixels);
+  return document;
+}
+
+std::vector<patchy::LayerId> named_layer_ids(patchy::ui::MainWindow& window, std::initializer_list<const char*> names) {
+  std::vector<patchy::LayerId> ids;
+  for (const auto* name : names) {
+    const auto* layer = find_named_layer(window, name);
+    CHECK(layer != nullptr);
+    if (layer != nullptr) {
+      ids.push_back(layer->id());
+    }
+  }
+  return ids;
+}
+
+bool named_layer_masked(patchy::ui::MainWindow& window, const char* name) {
+  const auto* layer = find_named_layer(window, name);
+  return layer != nullptr && layer->mask().has_value();
+}
+
+std::uint8_t named_layer_mask_value(patchy::ui::MainWindow& window, const char* name, int x, int y) {
+  const auto* layer = find_named_layer(window, name);
+  CHECK(layer != nullptr && layer->mask().has_value());
+  return layer != nullptr && layer->mask().has_value() ? layer->mask()->pixels.pixel(x, y)[0] : std::uint8_t{0};
+}
+
+void ui_layer_mask_commands_act_on_every_selected_layer() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  patchy::ui::MainWindow window;
+  window.add_document_session(multi_mask_document(), QStringLiteral("Multi Mask"));
+  show_window(window);
+  QApplication::processEvents();
+  // "Plain" is active and has no mask: the commands still act on the masked layers.
+  const auto selection = named_layer_ids(window, {"A", "B", "Plain", "Locked"});
+  const auto plain_id = find_named_layer(window, "Plain")->id();
+  Access::select_layers(window, selection, plain_id);
+  QApplication::processEvents();
+  const auto selection_kept = [&] {
+    auto selected = Access::selected_layer_ids(window);
+    auto wanted = selection;
+    std::sort(selected.begin(), selected.end());
+    std::sort(wanted.begin(), wanted.end());
+    CHECK(selected == wanted);
+    CHECK(std::as_const(Access::document(window)).active_layer_id() == plain_id);
+  };
+  const auto locked_untouched = [&] {
+    const auto* locked = find_named_layer(window, "Locked");
+    CHECK(locked != nullptr && locked->mask().has_value() && !locked->mask()->disabled &&
+          patchy::layer_mask_linked(*locked) && locked->mask()->pixels.pixel(5, 5)[0] == 255U);
+  };
+  const auto run = [&](const char* action_name) {
+    auto* action = require_action(window, action_name);
+    CHECK(action->isEnabled());
+    const auto history = Access::active_session_undo_depth(window);
+    action->trigger();
+    QApplication::processEvents();
+    CHECK(Access::active_session_undo_depth(window) == history + 1);
+    selection_kept();
+    locked_untouched();
+  };
+  const auto undo = [&] {
+    Access::undo(window);
+    QApplication::processEvents();
+    Access::select_layers(window, selection, plain_id);
+    QApplication::processEvents();
+  };
+  const auto disabled = [&](const char* name) {
+    const auto* layer = find_named_layer(window, name);
+    return layer != nullptr && layer->mask().has_value() && layer->mask()->disabled;
+  };
+
+  // Disable: every mask takes the toggled state; then Enable turns them all back on.
+  CHECK(!require_action(window, "layerDisableMaskAction")->isChecked());
+  run("layerDisableMaskAction");
+  CHECK(disabled("A") && disabled("B"));
+  CHECK(require_action(window, "layerDisableMaskAction")->isChecked());
+  run("layerDisableMaskAction");
+  CHECK(!disabled("A") && !disabled("B"));
+  // Mixed states end equal (the new state of the first masked layer), not flipped each.
+  Access::select_layers(window, named_layer_ids(window, {"B"}), find_named_layer(window, "B")->id());
+  QApplication::processEvents();
+  require_action(window, "layerDisableMaskAction")->trigger();
+  QApplication::processEvents();
+  CHECK(disabled("B") && !disabled("A"));
+  Access::select_layers(window, selection, plain_id);
+  QApplication::processEvents();
+  const bool shown_checked = require_action(window, "layerDisableMaskAction")->isChecked();
+  run("layerDisableMaskAction");
+  CHECK(disabled("A") == !shown_checked && disabled("B") == !shown_checked);
+  undo();
+  undo();
+  CHECK(!disabled("A") && !disabled("B"));
+  Access::select_layers(window, selection, plain_id);
+  QApplication::processEvents();
+
+  // Link: both unlink, then link again.
+  CHECK(require_action(window, "layerLinkMaskAction")->isChecked());
+  run("layerLinkMaskAction");
+  CHECK(!patchy::layer_mask_linked(*find_named_layer(window, "A")));
+  CHECK(!patchy::layer_mask_linked(*find_named_layer(window, "B")));
+  run("layerLinkMaskAction");
+  CHECK(patchy::layer_mask_linked(*find_named_layer(window, "A")));
+  CHECK(patchy::layer_mask_linked(*find_named_layer(window, "B")));
+
+  // Invert both masks in one step; one undo restores both.
+  run("layerInvertMaskAction");
+  CHECK(named_layer_mask_value(window, "A", 5, 5) == 0U && named_layer_mask_value(window, "B", 5, 5) == 0U);
+  CHECK(named_layer_mask_value(window, "A", 5, 15) == 255U && named_layer_mask_value(window, "B", 5, 15) == 255U);
+  undo();
+  CHECK(named_layer_mask_value(window, "A", 5, 5) == 255U && named_layer_mask_value(window, "B", 5, 5) == 255U);
+
+  // Apply bakes both masks into their layers' alpha.
+  run("layerApplyMaskAction");
+  CHECK(!named_layer_masked(window, "A") && !named_layer_masked(window, "B"));
+  CHECK(find_named_layer(window, "A")->pixels().pixel(5, 15)[3] == 0U);
+  CHECK(find_named_layer(window, "B")->pixels().pixel(5, 5)[3] == 255U);
+  undo();
+  CHECK(named_layer_masked(window, "A") && named_layer_masked(window, "B"));
+  CHECK(find_named_layer(window, "A")->pixels().pixel(5, 15)[3] == 255U);
+
+  // Delete removes both masks (the locked layer keeps its own); one undo brings both back.
+  run("layerDeleteMaskAction");
+  CHECK(!named_layer_masked(window, "A") && !named_layer_masked(window, "B") && !named_layer_masked(window, "Plain"));
+  CHECK(!require_action(window, "layerDeleteMaskAction")->isEnabled());
+  undo();
+  CHECK(named_layer_masked(window, "A") && named_layer_masked(window, "B"));
+  Access::select_layers(window, selection, plain_id);
+  QApplication::processEvents();
+
+  // Add Layer Mask with nothing selected on the canvas: only the layers without a mask take one.
+  run("layerDeleteMaskAction");
+  run("layerAddMaskAction");
+  CHECK(named_layer_masked(window, "A") && named_layer_masked(window, "B") && named_layer_masked(window, "Plain"));
+  CHECK(named_layer_mask_value(window, "A", 5, 15) == 255U && named_layer_mask_value(window, "Plain", 5, 15) == 255U);
+  undo();
+  CHECK(!named_layer_masked(window, "A") && !named_layer_masked(window, "B") && !named_layer_masked(window, "Plain"));
+  save_widget_artifact("local029_multi_mask_after_delete", window);
+}
+
+// local-029: the Layers panel row menu's Layer Mask entries act on the selection too.
+void ui_layer_row_menu_delete_mask_acts_on_every_selected_layer() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  patchy::ui::MainWindow window;
+  window.add_document_session(multi_mask_document(), QStringLiteral("Row Menu Multi Mask"));
+  show_window(window);
+  QApplication::processEvents();
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+  if (layers == nullptr) {
+    return;
+  }
+  const auto selection = named_layer_ids(window, {"A", "B", "Plain", "Locked"});
+  Access::select_layers(window, selection, find_named_layer(window, "A")->id());
+  QApplication::processEvents();
+  const auto history = Access::active_session_undo_depth(window);
+
+  bool picked = false;
+  QTimer::singleShot(0, guarded([&] {
+    QMenu* row_menu = nullptr;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu != nullptr && menu->isVisible() && menu->objectName() == QStringLiteral("layerContextMenu")) {
+        row_menu = menu;
+      }
+    }
+    CHECK(row_menu != nullptr);
+    if (row_menu == nullptr) {
+      return;
+    }
+    QAction* mask_entry = nullptr;
+    for (auto* action : row_menu->actions()) {
+      if (action->menu() != nullptr && action->menu()->objectName() == QStringLiteral("layerContextMaskMenu")) {
+        mask_entry = action;
+      }
+    }
+    QAction* delete_entry = nullptr;
+    if (mask_entry != nullptr) {
+      for (auto* action : mask_entry->menu()->actions()) {
+        if (action->objectName() == QStringLiteral("layerContextDeleteMaskAction")) {
+          delete_entry = action;
+        }
+      }
+    }
+    CHECK(delete_entry != nullptr && delete_entry->isEnabled());
+    if (delete_entry == nullptr) {
+      row_menu->close();
+      return;
+    }
+    row_menu->setActiveAction(mask_entry);
+    QTest::keyClick(row_menu, Qt::Key_Right);
+    QApplication::processEvents();
+    auto* submenu = mask_entry->menu();
+    if (!submenu->isVisible()) {
+      row_menu->close();
+      return;
+    }
+    submenu->setActiveAction(delete_entry);
+    QTest::keyClick(submenu, Qt::Key_Return);
+    picked = true;
+  }));
+  auto* row = layers->itemWidget(require_layer_item(*layers, QStringLiteral("B")));
+  auto* name = row != nullptr ? row->findChild<QWidget*>(QStringLiteral("layerRowName")) : nullptr;
+  CHECK(name != nullptr);
+  if (name == nullptr) {
+    return;
+  }
+  const auto local = name->rect().center();
+  QContextMenuEvent event(QContextMenuEvent::Mouse, local, name->mapToGlobal(local));
+  QApplication::sendEvent(name, &event);
+  QApplication::processEvents();
+
+  CHECK(picked);
+  CHECK(!named_layer_masked(window, "A") && !named_layer_masked(window, "B"));
+  CHECK(named_layer_masked(window, "Locked"));
+  CHECK(Access::active_session_undo_depth(window) == history + 1);
+  Access::undo(window);
+  QApplication::processEvents();
+  CHECK(named_layer_masked(window, "A") && named_layer_masked(window, "B"));
+}
+
+// local-029: Layer > Vector Mask commands over a selection: Reveal All adds a vector mask to each
+// layer, Disable sets them all, Delete removes them all, each one undo step.
+void ui_vector_mask_commands_act_on_every_selected_layer() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  patchy::ui::MainWindow window;
+  window.add_document_session(multi_mask_document(), QStringLiteral("Multi Vector Mask"));
+  show_window(window);
+  QApplication::processEvents();
+  const auto selection = named_layer_ids(window, {"A", "B", "Plain"});
+  Access::select_layers(window, selection, find_named_layer(window, "Plain")->id());
+  QApplication::processEvents();
+  const auto vector_mask = [&](const char* name) {
+    const auto* layer = find_named_layer(window, name);
+    return layer != nullptr ? layer->vector_mask() : nullptr;
+  };
+  const auto run = [&](const char* action_name) {
+    const auto history = Access::active_session_undo_depth(window);
+    require_action(window, action_name)->trigger();
+    QApplication::processEvents();
+    CHECK(Access::active_session_undo_depth(window) == history + 1);
+  };
+
+  run("layerVectorMaskRevealAllAction");
+  for (const auto* name : {"A", "B", "Plain"}) {
+    CHECK(vector_mask(name) != nullptr && !vector_mask(name)->disabled);
+  }
+  CHECK(vector_mask("Locked") == nullptr);
+  run("layerVectorMaskDisableAction");
+  for (const auto* name : {"A", "B", "Plain"}) {
+    CHECK(vector_mask(name) != nullptr && vector_mask(name)->disabled);
+  }
+  run("layerVectorMaskDeleteAction");
+  for (const auto* name : {"A", "B", "Plain"}) {
+    CHECK(vector_mask(name) == nullptr);
+  }
+  Access::undo(window);
+  QApplication::processEvents();
+  for (const auto* name : {"A", "B", "Plain"}) {
+    CHECK(vector_mask(name) != nullptr && vector_mask(name)->disabled);
+  }
+  // Rasterize bakes each one; the layers that had a raster mask keep one, Plain gets one.
+  Access::select_layers(window, selection, find_named_layer(window, "Plain")->id());
+  QApplication::processEvents();
+  run("layerVectorMaskRasterizeAction");
+  for (const auto* name : {"A", "B", "Plain"}) {
+    CHECK(vector_mask(name) == nullptr);
+  }
+}
+
+// local-029, Seth's file: select every layer of apple-worm-layers.psd and Delete Layer Mask
+// removes every mask a layer with unlocked pixels has; one undo restores them all.
+void ui_layer_mask_delete_on_all_layers_of_apple_worm_if_available() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  const auto path = patchy::test::local_psd_fixture_path("apple-worm-layers.psd");
+  patchy::test::skip_unless_exists(path);
+  patchy::ui::MainWindow window;
+  window.add_document_session(patchy::psd::DocumentIo::read_file(path), QStringLiteral("Apple Worm"));
+  show_window(window);
+  QApplication::processEvents();
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+  if (layers == nullptr) {
+    return;
+  }
+  layers->selectAll();
+  QApplication::processEvents();
+  const auto selected = Access::selected_layer_ids(window);
+  const auto& doc = std::as_const(Access::document(window));
+  const auto masked_ids = [&] {
+    std::vector<patchy::LayerId> ids;
+    for (const auto id : selected) {
+      const auto* layer = doc.find_layer(id);
+      if (layer != nullptr && layer->mask().has_value()) {
+        ids.push_back(id);
+      }
+    }
+    return ids;
+  };
+  const auto before = masked_ids();
+  CHECK(before.size() >= 2U);
+  const auto history = Access::active_session_undo_depth(window);
+  require_action(window, "layerDeleteMaskAction")->trigger();
+  QApplication::processEvents();
+  for (const auto id : masked_ids()) {
+    // Only a layer whose pixels are locked keeps its mask.
+    CHECK((patchy::layer_effective_lock_flags(doc.layers(), id) & patchy::kLayerLockImagePixels) !=
+          patchy::kLayerLockNone);
+  }
+  CHECK(masked_ids().size() < before.size());
+  CHECK(Access::active_session_undo_depth(window) == history + 1);
+  Access::undo(window);
+  QApplication::processEvents();
+  CHECK(masked_ids() == before);
+}
+
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_mask_tests() {
@@ -1185,5 +1525,11 @@ std::vector<patchy::test::TestCase> layer_mask_tests() {
       {"ui_layer_footer_delete_removes_targeted_mask", ui_layer_footer_delete_removes_targeted_mask},
       {"ui_layer_row_menu_vector_mask_submenu_adds_vector_mask",
        ui_layer_row_menu_vector_mask_submenu_adds_vector_mask},
+      {"ui_layer_mask_commands_act_on_every_selected_layer", ui_layer_mask_commands_act_on_every_selected_layer},
+      {"ui_layer_row_menu_delete_mask_acts_on_every_selected_layer",
+       ui_layer_row_menu_delete_mask_acts_on_every_selected_layer},
+      {"ui_vector_mask_commands_act_on_every_selected_layer", ui_vector_mask_commands_act_on_every_selected_layer},
+      {"ui_layer_mask_delete_on_all_layers_of_apple_worm_if_available",
+       ui_layer_mask_delete_on_all_layers_of_apple_worm_if_available},
   };
 }

@@ -1852,38 +1852,181 @@ void MainWindow::layer_via_cut() {
   statusBar()->showMessage(tr("Cut selection to a new layer"));
 }
 
+namespace {
+
+// The layer kinds Add Layer Mask accepts.
+bool layer_kind_takes_layer_mask(const Layer& layer) {
+  return layer.kind() == LayerKind::Pixel || layer.kind() == LayerKind::Adjustment ||
+         layer.kind() == LayerKind::Group;
+}
+
+// Multiplies a pixel layer's alpha by its mask and drops the mask (Apply Layer Mask).
+void apply_layer_mask_to_pixels(Layer& target) {
+  auto* layer = &target;
+  auto& pixels = layer->pixels();
+  const auto bounds = layer->bounds();
+  const auto channels = pixels.format().channels;
+  if (pixels.format().bit_depth != BitDepth::UInt8) {
+    // 16/32-bit (docs/high-bit-depth.md): alpha times the mask's coverage on float rows.
+    const auto depth = pixels.format().bit_depth;
+    const auto domain = depth == BitDepth::Float32 ? DeepDomain::Linear : DeepDomain::Encoded;
+    PixelBuffer rgba(pixels.width(), pixels.height(), with_bit_depth(PixelFormat::rgba8(), depth));
+    std::vector<float> row(static_cast<std::size_t>(pixels.width()) * 4U);
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      load_rgba_row(pixels, y, 0, pixels.width(), domain, row);
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        row[static_cast<std::size_t>(x) * 4U + 3U] *= layer_mask_coverage_at(*layer, bounds.x + x, bounds.y + y);
+      }
+      store_rgba_row(rgba, y, 0, pixels.width(), domain, row);
+    }
+    pixels = std::move(rgba);
+  } else if (channels >= 4) {
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        auto* px = pixels.pixel(x, y);
+        const auto mask_alpha = layer_mask_value_at(*layer, bounds.x + x, bounds.y + y);
+        px[3] = static_cast<std::uint8_t>((static_cast<int>(px[3]) * static_cast<int>(mask_alpha)) / 255);
+      }
+    }
+  } else {
+    PixelBuffer rgba(pixels.width(), pixels.height(), PixelFormat::rgba8());
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        const auto* src = pixels.pixel(x, y);
+        auto* dst = rgba.pixel(x, y);
+        dst[0] = src[0];
+        dst[1] = src[1];
+        dst[2] = src[2];
+        dst[3] = layer_mask_value_at(*layer, bounds.x + x, bounds.y + y);
+      }
+    }
+    pixels = std::move(rgba);
+  }
+  layer->clear_mask();
+  layer->metadata().erase(kLayerMetadataMaskLinked);
+}
+
+}  // namespace
+
+std::vector<LayerId> MainWindow::mask_command_layer_ids(MaskCommandScope scope) const {
+  if (!has_active_document()) {
+    return {};
+  }
+  const auto active = std::as_const(document()).active_layer_id();
+  if (scope == MaskCommandScope::SelectedLayers) {
+    auto ids = selected_or_active_layer_ids();
+    if (!active.has_value() || std::find(ids.begin(), ids.end(), *active) != ids.end()) {
+      return ids;
+    }
+  }
+  return active.has_value() ? std::vector<LayerId>{*active} : std::vector<LayerId>{};
+}
+
+std::vector<LayerId> MainWindow::mask_command_targets(MaskCommandScope scope,
+                                                      const std::function<bool(const Layer&)>& applies) const {
+  std::vector<LayerId> targets;
+  if (!has_active_document()) {
+    return targets;
+  }
+  const auto& doc = std::as_const(document());
+  const auto active = doc.active_layer_id();
+  for (const auto id : mask_command_layer_ids(scope)) {
+    const auto* layer = doc.find_layer(id);
+    if (layer == nullptr || !applies(*layer)) {
+      continue;
+    }
+    if (active == id) {
+      targets.insert(targets.begin(), id);
+    } else {
+      targets.push_back(id);
+    }
+  }
+  return targets;
+}
+
+MainWindow::LayerMaskCommandState MainWindow::layer_mask_command_state() const {
+  LayerMaskCommandState state;
+  if (!has_active_document()) {
+    return state;
+  }
+  const auto& doc = std::as_const(document());
+  const bool has_selection = canvas_ != nullptr && canvas_->has_selection();
+  for (const auto id : mask_command_targets(MaskCommandScope::SelectedLayers, [](const Layer&) { return true; })) {
+    const auto* layer = doc.find_layer(id);
+    if (layer == nullptr || layer_id_locks_image_pixels(id)) {
+      continue;
+    }
+    const bool has_mask = layer->mask().has_value();
+    state.any_add = state.any_add || (layer_kind_takes_layer_mask(*layer) && (has_selection || !has_mask));
+    if (!has_mask) {
+      continue;
+    }
+    state.any_mask = true;
+    state.any_apply = state.any_apply || layer->kind() == LayerKind::Pixel;
+    if (state.toggle_layer == nullptr) {
+      state.toggle_layer = layer;
+    }
+  }
+  return state;
+}
+
+void MainWindow::refresh_layer_list_keeping_selection() {
+  const auto selected = selected_layer_ids();
+  const auto active = has_active_document() ? std::as_const(document()).active_layer_id() : std::nullopt;
+  refresh_layer_list();
+  if (selected.size() > 1U && active.has_value()) {
+    select_layers_in_layer_list(selected, *active);
+  }
+}
+
+void MainWindow::report_no_layer_mask_targets(MaskCommandScope scope) {
+  const auto& doc = std::as_const(document());
+  const auto ids = mask_command_layer_ids(scope);
+  const bool any_mask = std::any_of(ids.begin(), ids.end(), [&doc](LayerId id) {
+    const auto* layer = doc.find_layer(id);
+    return layer != nullptr && layer->mask().has_value();
+  });
+  show_status_error(any_mask ? tr("Layer pixels are locked.") : tr("Active layer has no mask"));
+}
+
 void MainWindow::add_layer_mask(bool hide) {
   if (canvas_ == nullptr) {
     return;
   }
   auto& doc = document();
   select_only_layer_if_none_active();
-  const auto active = doc.active_layer_id();
-  if (!active.has_value()) {
-    show_status_error(tr("Select a pixel, adjustment, or group layer before adding a mask"));
-    return;
-  }
-  auto* layer = doc.find_layer(*active);
-  if (layer == nullptr || (layer->kind() != LayerKind::Pixel && layer->kind() != LayerKind::Adjustment &&
-                           layer->kind() != LayerKind::Group)) {
-    show_status_error(tr("Select a pixel, adjustment, or group layer before adding a mask"));
-    return;
-  }
-  if (layer_id_locks_image_pixels(*active)) {
-    show_status_error(tr("Layer pixels are locked."));
-    return;
-  }
-
   const auto selection = canvas_->selected_document_region();
   const auto selection_rect = selection.boundingRect().intersected(QRect(0, 0, doc.width(), doc.height()));
   const auto from_selection = !selection.isEmpty() && !selection_rect.isEmpty();
-  if (!from_selection && layer->mask().has_value()) {
-    show_status_error(tr("Layer already has a mask"));
+  // Every selected layer that can take a mask (local-029); with a selection an existing mask
+  // is replaced, as on one layer.
+  const auto targets = mask_command_targets(MaskCommandScope::SelectedLayers, [&](const Layer& candidate) {
+    return layer_kind_takes_layer_mask(candidate) && !layer_id_locks_image_pixels(candidate.id()) &&
+           (from_selection || !candidate.mask().has_value());
+  });
+  if (targets.empty()) {
+    const auto ids = mask_command_layer_ids(MaskCommandScope::SelectedLayers);
+    bool any_kind = false;
+    bool any_unlocked = false;
+    for (const auto id : ids) {
+      const auto* candidate = std::as_const(doc).find_layer(id);
+      if (candidate != nullptr && layer_kind_takes_layer_mask(*candidate)) {
+        any_kind = true;
+        any_unlocked = any_unlocked || !layer_id_locks_image_pixels(id);
+      }
+    }
+    if (!any_kind) {
+      show_status_error(tr("Select a pixel, adjustment, or group layer before adding a mask"));
+    } else if (!any_unlocked) {
+      show_status_error(tr("Layer pixels are locked."));
+    } else {
+      show_status_error(tr("Layer already has a mask"));
+    }
     return;
   }
 
-  push_undo_snapshot(tr("Add layer mask"));
-  const auto before = layer_render_bounds(*layer);
+  // One mask, built once and copied to each layer.
+  LayerMask mask;
   if (from_selection) {
     auto coverage = selection_mask_pixels(*canvas_, selection_rect);
     if (hide) {
@@ -1893,19 +2036,30 @@ void MainWindow::add_layer_mask(bool hide) {
         }
       }
     }
-    layer->set_mask(LayerMask{to_core_rect(selection_rect), coverage_at_document_depth(doc, std::move(coverage)),
-                              static_cast<std::uint8_t>(hide ? 255 : 0), false});
+    mask = LayerMask{to_core_rect(selection_rect), coverage_at_document_depth(doc, std::move(coverage)),
+                     static_cast<std::uint8_t>(hide ? 255 : 0), false};
   } else {
     const auto fill = static_cast<std::uint8_t>(hide ? 0 : 255);
     PixelBuffer mask_pixels(doc.width(), doc.height(), PixelFormat::gray8());
     mask_pixels.clear(fill);
-    layer->set_mask(LayerMask{Rect{0, 0, doc.width(), doc.height()},
-                              coverage_at_document_depth(doc, std::move(mask_pixels)), fill, false});
+    mask = LayerMask{Rect{0, 0, doc.width(), doc.height()}, coverage_at_document_depth(doc, std::move(mask_pixels)),
+                     fill, false};
   }
-  const auto after = layer_render_bounds(*layer);
+
+  push_undo_snapshot(tr("Add layer mask"));
+  Rect dirty;
+  for (const auto id : targets) {
+    auto* layer = doc.find_layer(id);
+    if (layer == nullptr) {
+      continue;
+    }
+    dirty = unite_rect(dirty, layer_render_bounds(*layer));
+    layer->set_mask(mask);
+    dirty = unite_rect(dirty, layer_render_bounds(*layer));
+  }
   canvas_->invalidate_mask_display();
-  canvas_->document_changed(to_qrect(unite_rect(before, after)));
-  refresh_layer_list();
+  canvas_->document_changed(to_qrect(dirty));
+  refresh_layer_list_keeping_selection();
   set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Mask, false);
   statusBar()->showMessage(from_selection ? (hide ? tr("Added layer mask hiding the selection")
                                                   : tr("Added layer mask from selection"))
@@ -1917,17 +2071,10 @@ bool MainWindow::can_add_layer_mask() const {
   if (canvas_ == nullptr || !has_active_document() || preview_dialog_edit_locked()) {
     return false;
   }
-  const auto& doc = std::as_const(document());
-  const auto active = doc.active_layer_id();
-  const auto ids = selected_or_active_layer_ids();
-  if (!active.has_value() || ids.size() != 1U || ids.front() != *active) {
-    return false;
-  }
-  const auto* layer = doc.find_layer(*active);
-  return layer != nullptr &&
-         (layer->kind() == LayerKind::Pixel || layer->kind() == LayerKind::Adjustment ||
-          layer->kind() == LayerKind::Group) &&
-         !layer->mask().has_value() && !layer_id_locks_image_pixels(*active);
+  return !mask_command_targets(MaskCommandScope::SelectedLayers, [this](const Layer& candidate) {
+            return layer_kind_takes_layer_mask(candidate) && !candidate.mask().has_value() &&
+                   !layer_id_locks_image_pixels(candidate.id());
+          }).empty();
 }
 
 void MainWindow::refresh_add_layer_mask_button_state() {
@@ -1996,56 +2143,81 @@ void MainWindow::refresh_layer_styles_button_state() {
   }
 }
 
-void MainWindow::delete_active_layer_mask() {
+void MainWindow::delete_active_layer_mask(MaskCommandScope scope) {
   auto& doc = document();
   const auto active = doc.active_layer_id();
   if (!active.has_value()) {
     return;
   }
-  auto* layer = doc.find_layer(*active);
-  if (layer == nullptr || !layer->mask().has_value()) {
-    show_status_error(tr("Active layer has no mask"));
-    return;
-  }
-  if (layer_id_locks_image_pixels(*active)) {
-    show_status_error(tr("Layer pixels are locked."));
+  const auto targets = mask_command_targets(scope, [this](const Layer& candidate) {
+    return candidate.mask().has_value() && !layer_id_locks_image_pixels(candidate.id());
+  });
+  if (targets.empty()) {
+    report_no_layer_mask_targets(scope);
     return;
   }
 
   push_undo_snapshot(tr("Delete layer mask"));
-  const auto affected = layer_render_bounds(*layer);
-  layer->clear_mask();
-  layer->metadata().erase(kLayerMetadataMaskLinked);
+  Rect affected;
+  for (const auto id : targets) {
+    auto* layer = doc.find_layer(id);
+    if (layer == nullptr) {
+      continue;
+    }
+    affected = unite_rect(affected, layer_render_bounds(*layer));
+    layer->clear_mask();
+    layer->metadata().erase(kLayerMetadataMaskLinked);
+  }
   canvas_->invalidate_mask_display();
   canvas_->document_changed(to_qrect(affected));
-  refresh_layer_list();
-  set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Content, false);
+  refresh_layer_list_keeping_selection();
+  if (targets.front() == *active) {
+    set_layer_edit_target_ui(CanvasWidget::LayerEditTarget::Content, false);
+  } else {
+    refresh_layer_controls();
+  }
   statusBar()->showMessage(tr("Deleted layer mask"));
 }
 
-void MainWindow::set_active_layer_mask_linked(bool linked) {
+void MainWindow::set_active_layer_mask_linked(bool linked, MaskCommandScope scope) {
   auto& doc = document();
-  const auto active = doc.active_layer_id();
-  if (!active.has_value()) {
+  if (!doc.active_layer_id().has_value()) {
     return;
   }
-  auto* layer = doc.find_layer(*active);
-  if (layer == nullptr || !layer->mask().has_value()) {
+  const auto candidates = mask_command_targets(scope, [](const Layer& candidate) {
+    return candidate.mask().has_value();
+  });
+  if (candidates.empty()) {
     return;
   }
-  if (layer_id_locks_image_pixels(*active)) {
+  const auto targets = mask_command_targets(scope, [this](const Layer& candidate) {
+    return candidate.mask().has_value() && !layer_id_locks_image_pixels(candidate.id());
+  });
+  if (targets.empty()) {
     show_status_error(tr("Layer pixels are locked."));
     refresh_layer_controls();
     return;
   }
-  if (layer_mask_linked(*layer) == linked) {
+  // Every layer takes the new state (the toggled state of the active one), not a flip each.
+  std::vector<LayerId> changed;
+  for (const auto id : targets) {
+    const auto* layer = std::as_const(doc).find_layer(id);
+    if (layer != nullptr && layer_mask_linked(*layer) != linked) {
+      changed.push_back(id);
+    }
+  }
+  if (changed.empty()) {
     refresh_layer_controls();
     return;
   }
 
   push_undo_snapshot(linked ? tr("Link layer mask") : tr("Unlink layer mask"));
-  set_layer_mask_linked(*layer, linked);
-  refresh_layer_list();
+  for (const auto id : changed) {
+    if (auto* layer = doc.find_layer(id); layer != nullptr) {
+      set_layer_mask_linked(*layer, linked);
+    }
+  }
+  refresh_layer_list_keeping_selection();
   refresh_layer_controls();
   statusBar()->showMessage(linked ? tr("Layer and mask linked") : tr("Layer and mask unlinked"));
 }
@@ -2206,42 +2378,53 @@ void MainWindow::set_layer_mask_view_shown(bool shown) {
   refresh_layer_controls();
 }
 
-void MainWindow::set_active_layer_mask_disabled(bool disabled) {
+void MainWindow::set_active_layer_mask_disabled(bool disabled, MaskCommandScope scope) {
   auto& doc = document();
   const auto active = doc.active_layer_id();
-  auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
   if (canvas_ != nullptr && canvas_->editing_smart_filter_mask() &&
       active.has_value() && canvas_->smart_filter_mask_owner_id() == active) {
     set_smart_filter_mask_enabled(*active, !disabled);
     return;
   }
-  if (layer == nullptr || !layer->mask().has_value()) {
-    show_status_error(tr("Active layer has no mask"));
+  const auto targets = mask_command_targets(scope, [this](const Layer& candidate) {
+    return candidate.mask().has_value() && !layer_id_locks_image_pixels(candidate.id());
+  });
+  if (targets.empty()) {
+    report_no_layer_mask_targets(scope);
     refresh_layer_controls();
     return;
   }
-  if (active.has_value() && layer_id_locks_image_pixels(*active)) {
-    show_status_error(tr("Layer pixels are locked."));
-    refresh_layer_controls();
-    return;
+  // Every layer takes the new state, not a flip each.
+  std::vector<LayerId> changed;
+  for (const auto id : targets) {
+    const auto* layer = std::as_const(doc).find_layer(id);
+    if (layer != nullptr && layer->mask()->disabled != disabled) {
+      changed.push_back(id);
+    }
   }
-  if (layer->mask()->disabled == disabled) {
+  if (changed.empty()) {
     refresh_layer_controls();
     return;
   }
 
   push_undo_snapshot(disabled ? tr("Disable layer mask") : tr("Enable layer mask"));
-  layer->mask()->disabled = disabled;
-  canvas_->document_changed(to_qrect(layer->bounds()));
+  Rect affected;
+  for (const auto id : changed) {
+    if (auto* layer = doc.find_layer(id); layer != nullptr) {
+      layer->mask()->disabled = disabled;
+      affected = unite_rect(affected, layer->bounds());
+    }
+  }
+  canvas_->document_changed(to_qrect(affected));
   // The mask overlay spans the whole canvas, so a partial repaint of the layer
   // bounds is not enough when it appears or disappears.
   canvas_->update();
-  refresh_layer_list();
+  refresh_layer_list_keeping_selection();
   refresh_layer_controls();
   statusBar()->showMessage(disabled ? tr("Layer mask disabled") : tr("Layer mask enabled"));
 }
 
-void MainWindow::invert_active_layer_mask() {
+void MainWindow::invert_active_layer_mask(MaskCommandScope scope) {
   auto& doc = document();
   const auto active = doc.active_layer_id();
   if (canvas_ != nullptr && canvas_->editing_smart_filter_mask() &&
@@ -2250,114 +2433,98 @@ void MainWindow::invert_active_layer_mask() {
         tr("Invert Smart Filter mask")));
     return;
   }
-  auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
-  if (layer == nullptr || !layer->mask().has_value()) {
-    show_status_error(tr("Active layer has no mask"));
-    return;
-  }
-  if (active.has_value() && layer_id_locks_image_pixels(*active)) {
-    show_status_error(tr("Layer pixels are locked."));
+  const auto targets = mask_command_targets(scope, [this](const Layer& candidate) {
+    return candidate.mask().has_value() && !layer_id_locks_image_pixels(candidate.id());
+  });
+  if (targets.empty()) {
+    report_no_layer_mask_targets(scope);
     return;
   }
 
   push_undo_snapshot(tr("Invert layer mask"));
-  auto& mask = *layer->mask();
-  mask.default_color = static_cast<std::uint8_t>(255 - mask.default_color);
-  if (!mask.pixels.empty() && mask.pixels.format().bit_depth == BitDepth::Float32) {
-    // 32-bit masks hold floats: invert the values, not their bytes.
-    std::vector<float> row(static_cast<std::size_t>(mask.pixels.width()));
-    for (std::int32_t y = 0; y < mask.pixels.height(); ++y) {
-      load_coverage_row(mask.pixels, y, 0, mask.pixels.width(), row);
-      for (auto& value : row) {
-        value = 255.0F - value;
+  Rect dirty;
+  for (const auto id : targets) {
+    auto* layer = doc.find_layer(id);
+    if (layer == nullptr) {
+      continue;
+    }
+    auto& mask = *layer->mask();
+    mask.default_color = static_cast<std::uint8_t>(255 - mask.default_color);
+    if (!mask.pixels.empty() && mask.pixels.format().bit_depth == BitDepth::Float32) {
+      // 32-bit masks hold floats: invert the values, not their bytes.
+      std::vector<float> row(static_cast<std::size_t>(mask.pixels.width()));
+      for (std::int32_t y = 0; y < mask.pixels.height(); ++y) {
+        load_coverage_row(mask.pixels, y, 0, mask.pixels.width(), row);
+        for (auto& value : row) {
+          value = 255.0F - value;
+        }
+        store_coverage_row(mask.pixels, y, 0, mask.pixels.width(), row);
       }
-      store_coverage_row(mask.pixels, y, 0, mask.pixels.width(), row);
+    } else if (!mask.pixels.empty()) {
+      // 8 and 16 bits: complementing every byte complements the sample (65535 - v).
+      for (auto& value : mask.pixels.data()) {
+        value = static_cast<std::uint8_t>(255 - value);
+      }
     }
-  } else if (!mask.pixels.empty()) {
-    // 8 and 16 bits: complementing every byte complements the sample (65535 - v).
-    for (auto& value : mask.pixels.data()) {
-      value = static_cast<std::uint8_t>(255 - value);
-    }
+    dirty = unite_rect(dirty, unite_rect(layer_render_bounds(*layer), mask.bounds.empty() ? layer->bounds() : mask.bounds));
   }
-  const auto dirty = unite_rect(layer_render_bounds(*layer), mask.bounds.empty() ? layer->bounds() : mask.bounds);
   canvas_->invalidate_mask_display();
   canvas_->document_changed(to_qrect(dirty));
-  refresh_layer_list();
+  refresh_layer_list_keeping_selection();
   refresh_layer_controls();
   statusBar()->showMessage(tr("Inverted layer mask"));
 }
 
-void MainWindow::apply_active_layer_mask() {
+void MainWindow::apply_active_layer_mask(MaskCommandScope scope) {
   auto& doc = document();
   const auto active = doc.active_layer_id();
-  auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
-  if (layer == nullptr || !layer->mask().has_value()) {
-    show_status_error(tr("Active layer has no mask"));
-    return;
-  }
-  if (active.has_value() && layer_id_locks_image_pixels(*active)) {
-    show_status_error(tr("Layer pixels are locked."));
-    return;
-  }
-  if (layer_pixels_are_procedural(*layer)) {
-    show_status_error(
-        tr("Rasterize Text, Smart Object, and Shape layers before editing their pixels"));
-    return;
-  }
-  const auto& source_pixels = std::as_const(*layer).pixels();
-  if (layer->kind() != LayerKind::Pixel || source_pixels.format().channels < 3) {
-    show_status_error(tr("Apply mask supports editable 8-bit pixel layers"));
+  const auto can_apply = [this](const Layer& candidate) {
+    return candidate.mask().has_value() && !layer_id_locks_image_pixels(candidate.id()) &&
+           !layer_pixels_are_procedural(candidate) && candidate.kind() == LayerKind::Pixel &&
+           candidate.pixels().format().channels >= 3;
+  };
+  const auto targets = mask_command_targets(scope, can_apply);
+  if (targets.empty()) {
+    // Why not, in the order a single layer is checked.
+    const auto masked = mask_command_targets(scope, [](const Layer& candidate) { return candidate.mask().has_value(); });
+    const auto unlocked = mask_command_targets(scope, [this](const Layer& candidate) {
+      return candidate.mask().has_value() && !layer_id_locks_image_pixels(candidate.id());
+    });
+    const auto editable = mask_command_targets(scope, [this](const Layer& candidate) {
+      return candidate.mask().has_value() && !layer_id_locks_image_pixels(candidate.id()) &&
+             !layer_pixels_are_procedural(candidate);
+    });
+    if (masked.empty()) {
+      show_status_error(tr("Active layer has no mask"));
+    } else if (unlocked.empty()) {
+      show_status_error(tr("Layer pixels are locked."));
+    } else if (editable.empty()) {
+      show_status_error(
+          tr("Rasterize Text, Smart Object, and Shape layers before editing their pixels"));
+    } else {
+      show_status_error(tr("Apply mask supports editable 8-bit pixel layers"));
+    }
     return;
   }
 
   push_undo_snapshot(tr("Apply layer mask"));
-  auto& pixels = layer->pixels();
-  const auto bounds = layer->bounds();
-  const auto channels = pixels.format().channels;
-  if (pixels.format().bit_depth != BitDepth::UInt8) {
-    // 16/32-bit (docs/high-bit-depth.md): alpha times the mask's coverage on float rows.
-    const auto depth = pixels.format().bit_depth;
-    const auto domain = depth == BitDepth::Float32 ? DeepDomain::Linear : DeepDomain::Encoded;
-    PixelBuffer rgba(pixels.width(), pixels.height(), with_bit_depth(PixelFormat::rgba8(), depth));
-    std::vector<float> row(static_cast<std::size_t>(pixels.width()) * 4U);
-    for (std::int32_t y = 0; y < pixels.height(); ++y) {
-      load_rgba_row(pixels, y, 0, pixels.width(), domain, row);
-      for (std::int32_t x = 0; x < pixels.width(); ++x) {
-        row[static_cast<std::size_t>(x) * 4U + 3U] *= layer_mask_coverage_at(*layer, bounds.x + x, bounds.y + y);
-      }
-      store_rgba_row(rgba, y, 0, pixels.width(), domain, row);
+  Rect affected;
+  for (const auto id : targets) {
+    auto* layer = doc.find_layer(id);
+    if (layer == nullptr) {
+      continue;
     }
-    pixels = std::move(rgba);
-  } else if (channels >= 4) {
-    for (std::int32_t y = 0; y < pixels.height(); ++y) {
-      for (std::int32_t x = 0; x < pixels.width(); ++x) {
-        auto* px = pixels.pixel(x, y);
-        const auto mask_alpha = layer_mask_value_at(*layer, bounds.x + x, bounds.y + y);
-        px[3] = static_cast<std::uint8_t>((static_cast<int>(px[3]) * static_cast<int>(mask_alpha)) / 255);
-      }
-    }
-  } else {
-    PixelBuffer rgba(pixels.width(), pixels.height(), PixelFormat::rgba8());
-    for (std::int32_t y = 0; y < pixels.height(); ++y) {
-      for (std::int32_t x = 0; x < pixels.width(); ++x) {
-        const auto* src = pixels.pixel(x, y);
-        auto* dst = rgba.pixel(x, y);
-        dst[0] = src[0];
-        dst[1] = src[1];
-        dst[2] = src[2];
-        dst[3] = layer_mask_value_at(*layer, bounds.x + x, bounds.y + y);
-      }
-    }
-    pixels = std::move(rgba);
+    apply_layer_mask_to_pixels(*layer);
+    affected = unite_rect(affected, layer->bounds());
   }
-  layer->clear_mask();
-  layer->metadata().erase(kLayerMetadataMaskLinked);
   if (canvas_ != nullptr) {
-    canvas_->set_layer_edit_target(CanvasWidget::LayerEditTarget::Content);
+    if (active.has_value() && targets.front() == *active) {
+      canvas_->set_layer_edit_target(CanvasWidget::LayerEditTarget::Content);
+    }
     canvas_->invalidate_mask_display();
-    canvas_->document_changed(to_qrect(bounds));
+    canvas_->document_changed(to_qrect(affected));
   }
-  refresh_layer_list();
+  refresh_layer_list_keeping_selection();
   refresh_layer_controls();
   statusBar()->showMessage(tr("Applied layer mask"));
 }
@@ -4167,6 +4334,10 @@ void MainWindow::show_layer_context_menu(QPoint position) {
       editing_smart_mask ||
       (active_layer != nullptr && !active_layer->mask().has_value() &&
        has_editable_smart_mask);
+  // Add, Link, Disable, Invert, Apply and Delete act on every selected layer they apply to
+  // (local-029); the checkable entries show the active layer's mask, else the first selected one's.
+  const auto mask_state = layer_mask_command_state();
+  const auto* mask_toggle_layer = mask_state.toggle_layer != nullptr ? mask_state.toggle_layer : active_layer;
   auto* mask_menu = menu.addMenu(tr("Layer Mask"));
   mask_menu->setObjectName(QStringLiteral("layerContextMaskMenu"));
   auto* add_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("mask"), QColor(210, 220, 230)),
@@ -4199,15 +4370,15 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   auto* link_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("link"), QColor(210, 220, 230)),
                                                 tr("Link Layer Mask"));
   link_mask_action->setCheckable(true);
-  link_mask_action->setChecked(active_layer == nullptr || layer_mask_linked(*active_layer));
+  link_mask_action->setChecked(mask_toggle_layer == nullptr || layer_mask_linked(*mask_toggle_layer));
   auto* disable_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("off"), QColor(220, 185, 120)),
                                                    tr("Disable Layer Mask"));
   disable_mask_action->setCheckable(true);
   disable_mask_action->setChecked(
       smart_mask_context ? !active_smart_filters->mask.enabled
-                         : active_layer != nullptr &&
-                               active_layer->mask().has_value() &&
-                               active_layer->mask()->disabled);
+                         : mask_toggle_layer != nullptr &&
+                               mask_toggle_layer->mask().has_value() &&
+                               mask_toggle_layer->mask()->disabled);
   auto* invert_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("inv"), QColor(210, 220, 230)),
                                                   tr("Invert Layer Mask"));
   mask_menu->addSeparator();
@@ -4215,6 +4386,12 @@ void MainWindow::show_layer_context_menu(QPoint position) {
                                                  tr("Apply Layer Mask"));
   auto* delete_mask_action = mask_menu->addAction(simple_icon(QStringLiteral("mask"), QColor(255, 150, 150)),
                                                   tr("Delete Layer Mask"));
+  add_mask_action->setObjectName(QStringLiteral("layerContextAddMaskAction"));
+  link_mask_action->setObjectName(QStringLiteral("layerContextLinkMaskAction"));
+  disable_mask_action->setObjectName(QStringLiteral("layerContextDisableMaskAction"));
+  invert_mask_action->setObjectName(QStringLiteral("layerContextInvertMaskAction"));
+  apply_mask_action->setObjectName(QStringLiteral("layerContextApplyMaskAction"));
+  delete_mask_action->setObjectName(QStringLiteral("layerContextDeleteMaskAction"));
   // The Layer > Vector Mask commands themselves (#449), so their shortcuts and behavior are
   // the Layer menu's; they run from their own triggered signals, like the shared lock action.
   auto* vector_mask_menu = menu.addMenu(tr("Vector Mask"));
@@ -4248,12 +4425,7 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   lock_menu->setEnabled(has_layer);
   select_opaque_action->setEnabled(active_layer != nullptr && canvas_ != nullptr);
   const auto active_pixels_locked = active_layer != nullptr && layer_id_locks_image_pixels(active_layer->id());
-  add_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked &&
-                              (active_layer->kind() == LayerKind::Pixel ||
-                               active_layer->kind() == LayerKind::Adjustment ||
-                               active_layer->kind() == LayerKind::Group) &&
-                              canvas_ != nullptr &&
-                              (canvas_->has_selection() || !active_layer->mask().has_value()));
+  add_mask_action->setEnabled(canvas_ != nullptr && mask_state.any_add);
   edit_mask_action->setEnabled(
       active_layer != nullptr &&
       (active_layer->mask().has_value() || has_editable_smart_mask));
@@ -4263,16 +4435,13 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   view_mask_action->setEnabled(
       active_layer != nullptr &&
       (active_layer->mask().has_value() || has_editable_smart_mask));
-  delete_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->mask().has_value());
-  link_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->mask().has_value());
+  delete_mask_action->setEnabled(mask_state.any_mask);
+  link_mask_action->setEnabled(mask_state.any_mask);
   disable_mask_action->setEnabled(
-      active_layer != nullptr && !active_pixels_locked &&
-      (active_layer->mask().has_value() || has_editable_smart_mask));
+      mask_state.any_mask || (active_layer != nullptr && !active_pixels_locked && has_editable_smart_mask));
   invert_mask_action->setEnabled(
-      active_layer != nullptr && !active_pixels_locked &&
-      (active_layer->mask().has_value() || has_editable_smart_mask));
-  apply_mask_action->setEnabled(active_layer != nullptr && !active_pixels_locked && active_layer->mask().has_value() &&
-                                active_layer->kind() == LayerKind::Pixel);
+      mask_state.any_mask || (active_layer != nullptr && !active_pixels_locked && has_editable_smart_mask));
+  apply_mask_action->setEnabled(mask_state.any_apply);
 
   // Thumbnail Size lives on the pixel thumbnail's own menu (#481); with no thumbnails there is
   // none to right-click, so the row menu keeps it until a size is picked again.
