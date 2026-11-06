@@ -34107,10 +34107,6 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Full color (one sheet)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>GIF uses OpenAI&apos;s animation mode, with 256 colors shared by all frames. Full color asks for the frames as one full-color picture and cuts it into layers, with soft transparency; the frame count rounds up to fill its grid.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -34120,6 +34116,10 @@ Locked: %1</source>
     </message>
     <message>
         <source>Full color drew %1 frames, to fill a %2 x %3 sheet.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Full color (experimental)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

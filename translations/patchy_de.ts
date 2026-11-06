@@ -34189,10 +34189,6 @@ Fixiert: %1</translation>
         <translation>GIF (256 Farben)</translation>
     </message>
     <message>
-        <source>Full color (one sheet)</source>
-        <translation>Vollfarbe (ein Blatt)</translation>
-    </message>
-    <message>
         <source>GIF uses OpenAI&apos;s animation mode, with 256 colors shared by all frames. Full color asks for the frames as one full-color picture and cuts it into layers, with soft transparency; the frame count rounds up to fill its grid.</source>
         <translation>GIF nutzt den Animationsmodus von OpenAI mit 256 Farben für alle Frames gemeinsam. Vollfarbe fordert die Frames als ein vollfarbiges Bild an und schneidet es in Ebenen, mit weicher Transparenz; die Frame-Anzahl wird aufgerundet, um das Raster zu füllen.</translation>
     </message>
@@ -34203,6 +34199,10 @@ Fixiert: %1</translation>
     <message>
         <source>Full color drew %1 frames, to fill a %2 x %3 sheet.</source>
         <translation>Vollfarbe hat %1 Frames gezeichnet, um ein Blatt mit %2 x %3 zu füllen.</translation>
+    </message>
+    <message>
+        <source>Full color (experimental)</source>
+        <translation>Vollfarbe (experimentell)</translation>
     </message>
 </context>
 <context>

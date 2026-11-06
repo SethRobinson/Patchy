@@ -34098,10 +34098,6 @@ Locked: %1</source>
         <translation>GIF (256색)</translation>
     </message>
     <message>
-        <source>Full color (one sheet)</source>
-        <translation>풀 컬러 (한 장의 시트)</translation>
-    </message>
-    <message>
         <source>GIF uses OpenAI&apos;s animation mode, with 256 colors shared by all frames. Full color asks for the frames as one full-color picture and cuts it into layers, with soft transparency; the frame count rounds up to fill its grid.</source>
         <translation>GIF는 OpenAI의 애니메이션 모드를 사용하며 모든 프레임이 256색을 공유합니다. 풀 컬러는 프레임을 한 장의 풀 컬러 그림으로 받아 레이어로 자르며, 부드러운 투명도를 유지합니다. 프레임 수는 격자를 채우도록 올림됩니다.</translation>
     </message>
@@ -34112,6 +34108,10 @@ Locked: %1</source>
     <message>
         <source>Full color drew %1 frames, to fill a %2 x %3 sheet.</source>
         <translation>풀 컬러는 %2 x %3 시트를 채우려고 %1프레임을 그렸습니다.</translation>
+    </message>
+    <message>
+        <source>Full color (experimental)</source>
+        <translation>풀 컬러 (실험적)</translation>
     </message>
 </context>
 <context>

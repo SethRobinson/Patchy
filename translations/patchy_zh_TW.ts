@@ -34098,10 +34098,6 @@ Locked: %1</source>
         <translation>GIF（256 色）</translation>
     </message>
     <message>
-        <source>Full color (one sheet)</source>
-        <translation>全彩（單張拼圖）</translation>
-    </message>
-    <message>
         <source>GIF uses OpenAI&apos;s animation mode, with 256 colors shared by all frames. Full color asks for the frames as one full-color picture and cuts it into layers, with soft transparency; the frame count rounds up to fill its grid.</source>
         <translation>GIF 使用 OpenAI 的動畫模式，所有影格共用 256 種顏色。全彩會把各影格當成一張全彩圖片請求，再切成圖層，並保留柔和的透明度；影格數會無條件進位以填滿網格。</translation>
     </message>
@@ -34112,6 +34108,10 @@ Locked: %1</source>
     <message>
         <source>Full color drew %1 frames, to fill a %2 x %3 sheet.</source>
         <translation>全彩為填滿 %2 x %3 的拼圖繪製了 %1 個影格。</translation>
+    </message>
+    <message>
+        <source>Full color (experimental)</source>
+        <translation>全彩（實驗性）</translation>
     </message>
 </context>
 <context>

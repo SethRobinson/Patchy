@@ -879,7 +879,7 @@ void OpenAiImagesDialog::build_ui() {
   animate_colors_combo_ = new QComboBox(animate_page);
   animate_colors_combo_->setObjectName(QStringLiteral("openAiImagesAnimateColorsCombo"));
   animate_colors_combo_->addItem(tr("GIF (256 colors)"), QStringLiteral("gif"));
-  animate_colors_combo_->addItem(tr("Full color (one sheet)"), QStringLiteral("sheet"));
+  animate_colors_combo_->addItem(tr("Full color (experimental)"), QStringLiteral("sheet"));
   animate_colors_combo_->setToolTip(
       tr("GIF uses OpenAI's animation mode, with 256 colors shared by all frames. Full color asks for the frames "
          "as one full-color picture and cuts it into layers, with soft transparency; the frame count rounds up to "
