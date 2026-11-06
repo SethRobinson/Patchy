@@ -781,10 +781,16 @@ void ui_type_menu_applies_to_selected_text_layer() {
   trigger("typeDirectionRightToLeftAction");
   CHECK(first_paragraph_field(window, id, 9) == QStringLiteral("rtl"));
 
-  trigger("typeAntiAliasCrispAction");
-  CHECK(metadata_value(window, id, patchy::kLayerMetadataTextAntiAlias).toInt() == patchy::kTextAntiAliasCrisp);
+  // New text takes the persisted Smoothing choice, which an earlier test may have left at Crisp:
+  // pick a mode the layer does not have, so the choice is a real change (one undo step).
+  const bool starts_crisp =
+      metadata_value(window, id, patchy::kLayerMetadataTextAntiAlias).toInt() == patchy::kTextAntiAliasCrisp;
+  const char* anti_alias_action = starts_crisp ? "typeAntiAliasStrongAction" : "typeAntiAliasCrispAction";
+  const int anti_alias = starts_crisp ? patchy::kTextAntiAliasStrong : patchy::kTextAntiAliasCrisp;
+  trigger(anti_alias_action);
+  CHECK(metadata_value(window, id, patchy::kLayerMetadataTextAntiAlias).toInt() == anti_alias);
   open_type_menu(window);
-  CHECK(action_checked(window, "typeAntiAliasCrispAction"));
+  CHECK(action_checked(window, anti_alias_action));
 
   // A toggle flips what the text has, whatever check the action showed last.
   trigger("typeOpenTypeSwashAction");
@@ -803,7 +809,7 @@ void ui_type_menu_applies_to_selected_text_layer() {
   MainWindowTestAccess::undo(window);
   QApplication::processEvents();
   CHECK(metadata_value(window, id, patchy::kLayerMetadataTextOrientation) != QStringLiteral("vertical"));
-  CHECK(metadata_value(window, id, patchy::kLayerMetadataTextAntiAlias).toInt() == patchy::kTextAntiAliasCrisp);
+  CHECK(metadata_value(window, id, patchy::kLayerMetadataTextAntiAlias).toInt() == anti_alias);
 
   // Rasterize Type Layer: the text layer becomes pixels, one step.
   trigger("typeRasterizeAction");
