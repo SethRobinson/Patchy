@@ -16,7 +16,7 @@
 // Divide Scanned Photos: the scan-and-divide import, the Image-menu command on
 // the current document, the editable region preview, the Straighten / Fix
 // Perspective checkbox semantics, and the numbered folder save. All scanner
-// paths run offscreen through PATCHY_FAKE_SCANNER_FILE (docs/import.md).
+// paths run offscreen through PATCHY_FAKE_SCANNER_FILE (docs/import-scanner.md).
 #include "core/document.hpp"
 #include "core/pixel_buffer.hpp"
 #include "ui/app_settings.hpp"
@@ -167,7 +167,7 @@ void ui_divide_photos_menu_actions_registered() {
   show_window(window);
 
   auto* scan_action = window.findChild<QAction*>(QStringLiteral("fileImportDivideScannedAction"));
-#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS) || defined(Q_OS_LINUX)
   // Rides the same native scanner acquisition as import/photocopy.
   CHECK(scan_action != nullptr);
   auto* import_menu = window.findChild<QMenu*>(QStringLiteral("fileImportMenu"));

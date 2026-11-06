@@ -14928,6 +14928,22 @@ Each item&apos;s own View setting still applies.</source>
         <source>Concavity:</source>
         <translation>凹み:</translation>
     </message>
+    <message>
+        <source>Scanned image is too large</source>
+        <translation>スキャンした画像が大きすぎます</translation>
+    </message>
+    <message>
+        <source>Scan data arrived out of order</source>
+        <translation>スキャンデータの順序が正しくありません</translation>
+    </message>
+    <message>
+        <source>The scanner sent image data in an unsupported layout</source>
+        <translation>スキャナーが対応していない形式の画像データを送信しました</translation>
+    </message>
+    <message>
+        <source>The scanner sent an incomplete image</source>
+        <translation>スキャナーから送られた画像が不完全です</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -14966,6 +14982,142 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>The temporary scan folder could not be created.</source>
         <translation>スキャン用の一時フォルダーを作成できませんでした。</translation>
+    </message>
+    <message>
+        <source>Scanner: %1</source>
+        <translation>スキャナー: %1</translation>
+    </message>
+    <message>
+        <source>Camera: %1</source>
+        <translation>カメラ: %1</translation>
+    </message>
+    <message>
+        <source>The scanner could not be opened (%1)</source>
+        <translation>スキャナーを開けませんでした (%1)</translation>
+    </message>
+    <message>
+        <source>The camera could not be opened (%1)</source>
+        <translation>カメラを開けませんでした (%1)</translation>
+    </message>
+    <message>
+        <source>The camera image could not be downloaded (%1)</source>
+        <translation>カメラの画像をダウンロードできませんでした (%1)</translation>
+    </message>
+    <message>
+        <source>Device:</source>
+        <translation>デバイス:</translation>
+    </message>
+    <message>
+        <source>Resolution:</source>
+        <translation>解像度:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>モード:</translation>
+    </message>
+    <message>
+        <source>Source:</source>
+        <translation>ソース:</translation>
+    </message>
+    <message>
+        <source>Searching for scanners and cameras...</source>
+        <translation>スキャナーとカメラを検索しています...</translation>
+    </message>
+    <message>
+        <source>Reading the camera...</source>
+        <translation>カメラを読み取っています...</translation>
+    </message>
+    <message>
+        <source>Opening the scanner...</source>
+        <translation>スキャナーを開いています...</translation>
+    </message>
+    <message>
+        <source>No images were found on the camera.</source>
+        <translation>カメラに画像が見つかりませんでした。</translation>
+    </message>
+    <message>
+        <source>%1 dpi</source>
+        <translation>%1 dpi</translation>
+    </message>
+    <message>
+        <source>Import</source>
+        <translation>読み込み</translation>
+    </message>
+    <message>
+        <source>Scan</source>
+        <translation>スキャン</translation>
+    </message>
+    <message>
+        <source>Downloading from the camera...</source>
+        <translation>カメラからダウンロードしています...</translation>
+    </message>
+    <message>
+        <source>Scanning...</source>
+        <translation>スキャンしています...</translation>
+    </message>
+    <message>
+        <source>Scanning needs SANE (for scanners) or libgphoto2 (for cameras). Install them from your distribution and try again.</source>
+        <translation>スキャンには SANE (スキャナー用) または libgphoto2 (カメラ用) が必要です。ディストリビューションからインストールして、もう一度お試しください。</translation>
+    </message>
+    <message>
+        <source>The network scanner does not answer.</source>
+        <translation>ネットワークスキャナーが応答しません。</translation>
+    </message>
+    <message>
+        <source>The network scanner at %1 does not answer.</source>
+        <translation>%1 のネットワークスキャナーが応答しません。</translation>
+    </message>
+    <message>
+        <source>Check that it is switched on and connected to the same network as this computer. If its address changed, correct or remove the old address in the scanner configuration in /etc/sane.d (airscan.conf or escl.conf).</source>
+        <translation>電源が入っていて、このコンピューターと同じネットワークに接続されているか確認してください。アドレスが変わった場合は、/etc/sane.d のスキャナー設定 (airscan.conf または escl.conf) にある古いアドレスを修正または削除してください。</translation>
+    </message>
+    <message>
+        <source>The device stopped responding. Check that it is switched on, the cable is connected and it is not in sleep mode, then try again.</source>
+        <translation>デバイスが応答しなくなりました。電源が入っていること、ケーブルが接続されていること、スリープ状態でないことを確認して、もう一度お試しください。</translation>
+    </message>
+    <message>
+        <source>The scanner is in use by another program or still finishing a previous job. Close the other program or wait a moment, then try again.</source>
+        <translation>スキャナーは別のプログラムで使用中か、前のジョブを処理中です。別のプログラムを閉じるか、しばらく待ってから、もう一度お試しください。</translation>
+    </message>
+    <message>
+        <source>This user account is not allowed to use the device. Add your account to the scanner group (often &quot;scanner&quot; or &quot;lp&quot;), or install the device rules from your distribution&apos;s SANE or libgphoto2 package, then log in again.</source>
+        <translation>このユーザーアカウントにはデバイスを使用する権限がありません。アカウントをスキャナーのグループ (多くは &quot;scanner&quot; または &quot;lp&quot;) に追加するか、ディストリビューションの SANE または libgphoto2 パッケージのデバイスルールをインストールしてから、ログインし直してください。</translation>
+    </message>
+    <message>
+        <source>Paper is jammed in the scanner. Clear the jam and try again.</source>
+        <translation>スキャナーで紙詰まりが発生しました。詰まった紙を取り除いて、もう一度お試しください。</translation>
+    </message>
+    <message>
+        <source>The document feeder is empty. Load the pages, or choose the flatbed as the source.</source>
+        <translation>原稿フィーダーが空です。ページをセットするか、ソースとしてフラットベッドを選択してください。</translation>
+    </message>
+    <message>
+        <source>The scanner cover is open. Close it and try again.</source>
+        <translation>スキャナーのカバーが開いています。閉じてから、もう一度お試しください。</translation>
+    </message>
+    <message>
+        <source>The scanner does not accept these settings. Try another mode, resolution or source.</source>
+        <translation>スキャナーはこの設定を受け付けません。別のモード、解像度、またはソースをお試しください。</translation>
+    </message>
+    <message>
+        <source>There is not enough memory for this scan. Try a lower resolution.</source>
+        <translation>このスキャンに必要なメモリが足りません。より低い解像度をお試しください。</translation>
+    </message>
+    <message>
+        <source>Another program is using the camera, often the file manager, which opens cameras automatically. Eject or unmount the camera there, then try again.</source>
+        <translation>別のプログラムがカメラを使用しています。多くの場合、カメラを自動的に開くファイルマネージャーです。そこでカメラを取り出すかアンマウントしてから、もう一度お試しください。</translation>
+    </message>
+    <message>
+        <source>libgphoto2 does not support this camera model. Copy the images with a card reader or the file manager instead.</source>
+        <translation>libgphoto2 はこのカメラ機種に対応していません。代わりにカードリーダーかファイルマネージャーで画像をコピーしてください。</translation>
+    </message>
+    <message>
+        <source>The camera sent damaged data. Reconnect the camera and try again.</source>
+        <translation>カメラから破損したデータが送られました。カメラを接続し直して、もう一度お試しください。</translation>
+    </message>
+    <message>
+        <source>The image is no longer on the camera. Pick the device again to refresh the list.</source>
+        <translation>画像はもうカメラにありません。デバイスを選び直して一覧を更新してください。</translation>
     </message>
 </context>
 <context>
@@ -19346,6 +19498,14 @@ Each item&apos;s own View setting still applies.</source>
     <message>
         <source>Switch between the hand and rotate view tools</source>
         <translation>手のひらツールと回転ビューツールを切り替え</translation>
+    </message>
+    <message>
+        <source>Turn text, shapes or smart objects into plain pixels</source>
+        <translation>テキスト、シェイプ、スマートオブジェクトを通常のピクセルに変換</translation>
+    </message>
+    <message>
+        <source>Bake the layer effects into the pixels</source>
+        <translation>レイヤー効果をピクセルに焼き込む</translation>
     </message>
     <message>
         <source>Open Preferences on the Hotkeys page</source>
@@ -32806,6 +32966,14 @@ Locked: %1</source>
     <message>
         <source>Cycle Hand Tools</source>
         <translation>手のひらツールを切り替え</translation>
+    </message>
+    <message>
+        <source>No scanner or camera was found. Connect a scanner supported by SANE or a camera supported by gphoto2 and try again.</source>
+        <translation>スキャナーまたはカメラが見つかりませんでした。SANE 対応のスキャナーまたは gphoto2 対応のカメラを接続して、もう一度お試しください。</translation>
+    </message>
+    <message>
+        <source>Some text does not fit. Drag to enlarge the box.</source>
+        <translation>一部のテキストが収まりません。ドラッグしてボックスを広げてください。</translation>
     </message>
     <message>
         <source>Keyboard Shortcuts...</source>

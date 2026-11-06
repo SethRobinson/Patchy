@@ -1,0 +1,13 @@
+Scanner and camera libraries in Patchy's Flatpak
+
+sane-backends (SANE scanner drivers): GNU GPL version 2 or later, with SANE's linking
+exception on most backends; see sane-backends-COPYING.txt and sane-backends-LICENSE.txt.
+libgphoto2 (camera access): GNU LGPL version 2.1 or later; see libgphoto2-COPYING.txt.
+Both are built unmodified from their release tarballs; Patchy loads them at run time for
+File > Import > From Scanner or Camera.
+
+Source code: the corresponding source of both (the exact release tarballs, checked against
+the SHA-256 values in Patchy's Flatpak manifest, and the manifest that builds them) is
+PatchyLinuxScannerSources.zip, an asset of every Patchy release on GitHub, next to the
+downloads: https://github.com/SethRobinson/Patchy/releases (the release of this Patchy
+version, tag v<version>).

@@ -2,13 +2,13 @@
 
 The File > Import features, the folder open/export pair, plus the seamless-tiling tooling (preview window, in-canvas tiling mode, seam shifting). File-format readers live in [file-formats.md](file-formats.md); the platform-specific scanner backends are also inventoried in [platform-sites.md](platform-sites.md).
 
+Related documents:
+
+- [import-scanner.md](import-scanner.md): scanner and camera acquisition per platform (WIA, ImageKit, SANE and libgphoto2 on Linux), the Linux device dialog, SANE frame assembly, failure messages and the fake-scanner test hooks.
+
 ## Scanner import
 
-- Windows uses WIA (`scanner_import_win.cpp`); macOS uses ImageKit/ImageCaptureCore (`scanner_import_mac.mm`). macOS exposes scanners only (no cameras) and acquisition is single-image.
-- The Windows scan dialog is the system UI (`IWiaDevMgr2::GetImageDlg`), so its DPI and file-type defaults come from the selected Windows scan profile, not from Patchy; GetImageDlg offers no way to preseed them. Users who want 600 DPI as the default edit the profile in Windows Fax and Scan (Tools, then Scan Settings).
-- Qt's image allocation limit is disabled at startup (`main.cpp`): the 256 MB default rejected large-bed 600 DPI scans with a bare "Unable to read image data".
-- `PATCHY_FAKE_SCANNER_FILE=<path>` bypasses native scanner acquisition for offscreen scanner-import tests.
-- The macOS AppKit sheet MUST complete asynchronously after returning to the native run loop: a nested `QEventLoop` makes every sheet control ignore mouse input.
+Acquisition per platform, the Linux device dialog and its tests: [import-scanner.md](import-scanner.md). Photocopy and Divide Scanned Photos below call the same `acquire_image_from_scanner`.
 
 ## Photocopy (scanner to printer)
 

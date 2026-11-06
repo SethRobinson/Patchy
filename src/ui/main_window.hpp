@@ -1873,6 +1873,10 @@ private:
   void populate_layer_color_actions(QMenu* menu);
   // Checks the action matching the selection's common label (none when mixed).
   void refresh_layer_color_action_states();
+  // The Rasterize submenu's rows, shared by Layer > Rasterize and the Layers panel context menu
+  // (GitHub issue 627): the rasterize actions, Trace Image to Shapes, and on a text layer the
+  // Type menu's Convert to Shape and Create Work Path. Rebuilt when the menu opens.
+  void populate_layer_rasterize_menu(QMenu* menu);
   void rasterize_active_layers();
   void rasterize_layer_ids(const std::vector<LayerId>& ids);
   void rasterize_active_layer_styles();
@@ -3247,6 +3251,8 @@ private:
   QAction* layer_menu_lock_position_action_{nullptr};
   QAction* layer_menu_lock_all_action_{nullptr};
   QAction* layer_menu_show_layer_styles_action_{nullptr};
+  // Layer > Rasterize (GitHub issue 627 follow-up; populate_layer_rasterize_menu).
+  QMenu* layer_menu_rasterize_menu_{nullptr};
   std::vector<QAction*> layer_menu_style_page_actions_;
   QAction* layer_toggle_visibility_action_{nullptr};
   // Layer > Merge > Merge Visible (refresh_merge_visible_action_state).

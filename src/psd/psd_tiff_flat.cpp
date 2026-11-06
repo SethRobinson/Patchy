@@ -14,6 +14,7 @@
 #include "support/translate_noop.hpp"
 
 #include "formats/miniz/miniz.h"
+#include "formats/zstd/zstd.h"
 
 #include <algorithm>
 #include <array>
@@ -50,13 +51,14 @@ constexpr std::uint32_t kMaxTileSide = 65536;
   throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Patchy cannot read this TIFF's sample layout"));
 }
 
-// U12: 12-bit samples packed most significant bit first, widened to two bytes on decode.
-enum class SampleKind { U8, U12, U16, U32, F16, F32, F64 };
+// UPacked: 9 to 15-bit samples packed most significant bit first (Layout::bits), widened to
+// two bytes on decode.
+enum class SampleKind { U8, UPacked, U16, U32, F16, F32, F64 };
 
 std::size_t sample_bytes_of(SampleKind kind) noexcept {
   switch (kind) {
     case SampleKind::U8: return 1;
-    case SampleKind::U12:
+    case SampleKind::UPacked:
     case SampleKind::U16:
     case SampleKind::F16: return 2;
     case SampleKind::U32:
@@ -225,6 +227,33 @@ std::vector<std::uint8_t> inflate(std::span<const std::uint8_t> in, std::size_t 
   return out;
 }
 
+// Zstandard (50000; 34926 in older lists): frame after frame into at most `expected` bytes.
+// Each frame decodes straight into the output, so no window buffer is allocated whatever
+// window the frame header asks for; a frame that fails to decode ends the segment.
+std::vector<std::uint8_t> decode_zstd(std::span<const std::uint8_t> in, std::size_t expected) {
+  std::vector<std::uint8_t> out(expected);
+  std::size_t produced = 0;
+  auto* context = ZSTD_createDCtx();
+  if (context == nullptr) {
+    throw_damaged();
+  }
+  while (!in.empty() && produced < expected) {
+    const auto frame = ZSTD_findFrameCompressedSize(in.data(), in.size());
+    if (ZSTD_isError(frame) != 0U || frame == 0U || frame > in.size()) {
+      break;
+    }
+    const auto written = ZSTD_decompressDCtx(context, out.data() + produced, expected - produced, in.data(), frame);
+    if (ZSTD_isError(written) != 0U) {
+      break;
+    }
+    produced += written;
+    in = in.subspan(frame);
+  }
+  ZSTD_freeDCtx(context);
+  out.resize(produced);
+  return out;
+}
+
 // ---------------------------------------------------------------------------------------
 
 struct Layout {
@@ -235,6 +264,7 @@ struct Layout {
   std::uint32_t color_samples{1};  // 1 (gray, palette) or 3 (RGB)
   std::uint32_t photometric{1};
   SampleKind kind{SampleKind::U8};
+  std::uint32_t bits{8};  // BitsPerSample
   std::size_t sample_bytes{1};
   bool planar{false};
   std::uint32_t compression{1};
@@ -242,19 +272,25 @@ struct Layout {
   std::vector<std::uint32_t> extra_types;  // ExtraSamples, one per extra sample
 };
 
-// One row of 12-bit samples (packed most significant bit first, the row starting on a
-// byte) widened to two bytes each in the file's byte order, still on the 12-bit scale.
-void unpack_12_bit_row(std::span<const std::uint8_t> packed, std::span<std::uint8_t> out, bool little) {
+// One row of `bits`-wide samples (9 to 15; packed most significant bit first, the row
+// starting on a byte) widened to two bytes each in the file's byte order, still on the
+// file's scale.
+void unpack_packed_row(std::span<const std::uint8_t> packed, std::span<std::uint8_t> out, std::uint32_t bits,
+                       bool little) {
   const auto count = out.size() / 2U;
+  const auto mask = (1U << bits) - 1U;
   for (std::size_t index = 0; index < count; ++index) {
-    const auto bit = index * 12U;
+    const auto bit = index * bits;
     const auto byte = bit / 8U;
     if (byte >= packed.size()) {
       break;
     }
-    const auto pair = (static_cast<std::uint32_t>(packed[byte]) << 8U) |
-                      (byte + 1U < packed.size() ? static_cast<std::uint32_t>(packed[byte + 1U]) : 0U);
-    const auto value = (bit % 8U == 0U ? pair >> 4U : pair) & 0x0FFFU;
+    // A sample of at most 15 bits starting anywhere in a byte spans at most three bytes.
+    std::uint32_t window = 0;
+    for (std::size_t at = byte; at < byte + 3U; ++at) {
+      window = (window << 8U) | (at < packed.size() ? static_cast<std::uint32_t>(packed[at]) : 0U);
+    }
+    const auto value = (window >> (24U - bits - static_cast<std::uint32_t>(bit % 8U))) & mask;
     out[index * 2U + (little ? 0U : 1U)] = static_cast<std::uint8_t>(value & 0xFFU);
     out[index * 2U + (little ? 1U : 0U)] = static_cast<std::uint8_t>(value >> 8U);
   }
@@ -377,9 +413,9 @@ class Decoder {
   bool decode_segment(const Segment& segment, std::uint32_t offset, std::optional<std::uint32_t> count) {
     const auto segment_samples = layout_.planar ? 1U : layout_.samples;
     const auto row_samples = static_cast<std::uint64_t>(segment.width) * segment_samples;
-    const bool packed_12 = layout_.kind == SampleKind::U12;
-    auto row_bytes = checked_buffer_bytes(row_samples, packed_12 ? 12U : layout_.sample_bytes);
-    if (packed_12 && row_bytes.has_value()) {
+    const bool packed = layout_.kind == SampleKind::UPacked;
+    auto row_bytes = checked_buffer_bytes(row_samples, packed ? layout_.bits : layout_.sample_bytes);
+    if (packed && row_bytes.has_value()) {
       *row_bytes = (*row_bytes + 7U) / 8U;
     }
     const auto expected = row_bytes.has_value() ? checked_buffer_bytes(*row_bytes, segment.rows) : std::nullopt;
@@ -422,6 +458,10 @@ class Decoder {
       case 32773:
         data = unpack_bits(encoded, *expected);
         break;
+      case 34926:
+      case 50000:
+        data = decode_zstd(encoded, *expected);
+        break;
       default:
         throw_unsupported();
     }
@@ -430,7 +470,7 @@ class Decoder {
     }
     // Whole rows only: a partial last row stays zero.
     const auto rows = static_cast<std::uint32_t>(data.size() / *row_bytes);
-    std::vector<std::uint8_t> widened(packed_12 ? static_cast<std::size_t>(row_samples) * 2U : 0U);
+    std::vector<std::uint8_t> widened(packed ? static_cast<std::size_t>(row_samples) * 2U : 0U);
     for (std::uint32_t row = 0; row < rows; ++row) {
       auto bytes = std::span<std::uint8_t>(data).subspan(static_cast<std::size_t>(row) * *row_bytes, *row_bytes);
       if (layout_.predictor == 2U) {
@@ -442,8 +482,8 @@ class Decoder {
       if (y >= layout_.height) {
         break;
       }
-      if (packed_12) {
-        unpack_12_bit_row(bytes, widened, layout_.little);
+      if (packed) {
+        unpack_packed_row(bytes, widened, layout_.bits, layout_.little);
         place_row(widened, segment, static_cast<std::uint32_t>(y));
         continue;
       }
@@ -481,6 +521,7 @@ class Decoder {
 // 32-bit integers narrowed to 16 bits, floats as floats.
 struct SampleReader {
   SampleKind kind;
+  std::uint32_t bits;
   bool little;
 
   [[nodiscard]] std::uint64_t raw(const std::uint8_t* at, std::size_t width) const noexcept {
@@ -494,7 +535,11 @@ struct SampleReader {
   [[nodiscard]] std::uint32_t integer(const std::uint8_t* at) const noexcept {
     switch (kind) {
       case SampleKind::U8: return at[0];
-      case SampleKind::U12: return static_cast<std::uint32_t>((raw(at, 2) * 65535U + 2047U) / 4095U);
+      case SampleKind::UPacked: {
+        // Scaled to the full 16-bit range, rounding to nearest (12-bit: (v * 65535 + 2047) / 4095).
+        const auto max = (std::uint64_t{1} << bits) - 1U;
+        return static_cast<std::uint32_t>((raw(at, 2) * 65535U + max / 2U) / max);
+      }
       case SampleKind::U16: return static_cast<std::uint32_t>(raw(at, 2));
       case SampleKind::U32:
         return static_cast<std::uint32_t>((raw(at, 4) * 65535U + 2147483647U) / 4294967295U);
@@ -541,8 +586,8 @@ Layout read_layout(const TiffBytes& tiff, const Directory& directory) {
   }
   if (format == 1U && bits == 8U) {
     layout.kind = SampleKind::U8;
-  } else if (format == 1U && bits == 12U) {
-    layout.kind = SampleKind::U12;
+  } else if (format == 1U && bits >= 9U && bits <= 15U) {
+    layout.kind = SampleKind::UPacked;
   } else if (format == 1U && bits == 16U) {
     layout.kind = SampleKind::U16;
   } else if (format == 1U && bits == 32U) {
@@ -556,6 +601,7 @@ Layout read_layout(const TiffBytes& tiff, const Directory& directory) {
   } else {
     throw_unsupported();
   }
+  layout.bits = bits;
   layout.sample_bytes = sample_bytes_of(layout.kind);
   layout.photometric = unsigned_value(tiff, directory.find(kTagPhotometric)).value_or(layout.samples >= 3U ? 2U : 1U);
   switch (layout.photometric) {
@@ -576,14 +622,15 @@ Layout read_layout(const TiffBytes& tiff, const Directory& directory) {
   layout.planar = unsigned_value(tiff, directory.find(kTagPlanarConfiguration)).value_or(1U) == 2U;
   layout.compression = unsigned_value(tiff, directory.find(kTagCompression)).value_or(1U);
   if (layout.compression != 1U && layout.compression != 5U && layout.compression != 8U &&
-      layout.compression != 32946U && layout.compression != 32773U) {
+      layout.compression != 32946U && layout.compression != 32773U && layout.compression != 34926U &&
+      layout.compression != 50000U) {
     throw_unsupported();
   }
   layout.predictor = unsigned_value(tiff, directory.find(kTagPredictor)).value_or(1U);
   if (layout.compression == 1U || layout.compression == 32773U || layout.predictor > 3U) {
     layout.predictor = 1U;  // no predictor applies to uncompressed or PackBits data
   }
-  if (layout.kind == SampleKind::U12 && layout.predictor != 1U) {
+  if (layout.kind == SampleKind::UPacked && layout.predictor != 1U) {
     throw_unsupported();  // differencing is defined at 8, 16, 32 and 64 bits only (libtiff too)
   }
   if (unsigned_value(tiff, directory.find(kTagFillOrder)).value_or(1U) != 1U) {
@@ -601,7 +648,7 @@ Layout read_layout(const TiffBytes& tiff, const Directory& directory) {
 BitDepth document_depth_for(SampleKind kind) noexcept {
   switch (kind) {
     case SampleKind::U8: return BitDepth::UInt8;
-    case SampleKind::U12:
+    case SampleKind::UPacked:
     case SampleKind::U16:
     case SampleKind::U32: return BitDepth::UInt16;
     default: return BitDepth::Float32;
@@ -682,7 +729,7 @@ Document read_flat_tiff(std::span<const std::uint8_t> bytes, const FlatTiffReadO
     channels.emplace_back(width, height, with_bit_depth(PixelFormat::gray8(), depth));
   }
 
-  const SampleReader reader{layout.kind, layout.little};
+  const SampleReader reader{layout.kind, layout.bits, layout.little};
   const auto sample_bytes = layout.sample_bytes;
   const auto pixel_bytes = static_cast<std::size_t>(layout.samples) * sample_bytes;
   const auto out_channels = static_cast<std::size_t>(format.channels);

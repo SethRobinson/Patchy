@@ -654,6 +654,11 @@ constexpr auto kTextEditorHiddenLinesProperty = "patchy.textHiddenLines";
 constexpr auto kTextEditorHiddenLinesKeyProperty = "patchy.textHiddenLinesKey";
 constexpr auto kTextResizeHandleOverflowProperty = "patchy.textOverflowMarker";
 
+// The tooltip the marked handle shows on hover (flat handle widget and transformed overlay alike).
+QString text_overflow_marker_tooltip() {
+  return MainWindow::tr("Some text does not fit. Drag to enlarge the box.");
+}
+
 // The plus, in the handle border's theme role, its arms on the handle's centre lines and a
 // pixel clear of the border on each side.
 void draw_text_overflow_marker(QPainter& painter, QRectF handle_rect) {
@@ -1491,12 +1496,32 @@ protected:
     paint_text_box_controls(painter);
   }
 
+  // The overflow plus explains itself on hover (issue 631); only over the marked handle and
+  // never during a resize drag. The zone rect makes Qt hide it once the pointer leaves.
+  bool event(QEvent* event) override {
+    if (event->type() == QEvent::ToolTip) {
+      auto* help = static_cast<QHelpEvent*>(event);
+      if (editor_ != nullptr && !resize_drag_.has_value() &&
+          editor_->property(kTextEditorHiddenLinesProperty).toBool() &&
+          resize_handle_at(help->pos()) == ResizeHandle::BottomRight) {
+        const auto zone = resize_handle_rect(ResizeHandle::BottomRight).adjusted(-5.0, -5.0, 5.0, 5.0).toAlignedRect();
+        QToolTip::showText(help->globalPos(), text_overflow_marker_tooltip(), this, zone);
+      } else {
+        QToolTip::hideText();
+        event->ignore();
+      }
+      return true;
+    }
+    return QWidget::event(event);
+  }
+
   void mousePressEvent(QMouseEvent* event) override {
     if (event->button() != Qt::LeftButton || editor_ == nullptr) {
       event->ignore();
       return;
     }
     if (const auto handle = resize_handle_at(event->position()); handle != ResizeHandle::None) {
+      QToolTip::hideText();
       editor_->setFocus(Qt::MouseFocusReason);
       resize_drag_ = ResizeDragState{handle,
                                      text_transform_,
@@ -9134,13 +9159,29 @@ void MainWindow::refresh_text_style_combo(const QString& family, const QString& 
     return item_font;
   };
   // Regular is the face every family has and the one nothing needs to record, so it is the
-  // empty style everywhere below the UI; only the picker spells it out.
-  text_style_combo_->addItem(tr("Regular"), QString());
-  text_style_combo_->setItemData(0, style_item_font(QStringLiteral("Regular")), Qt::FontRole);
-  for (const auto& style : available_text_family_styles(family)) {
+  // empty style everywhere below the UI; only the picker spells it out. It sits at its weight in
+  // Photoshop's order (available_text_family_styles), not on top (issue 649); a family that
+  // lists no Regular or Normal face still gets the row, sorted in at weight 400.
+  const auto is_regular_key = [](const QString& style) {
     const auto key = style.trimmed().toCaseFolded();
-    if (key.isEmpty() || key == QStringLiteral("regular") || key == QStringLiteral("normal")) {
-      continue;  // already the first row
+    return key.isEmpty() || key == QStringLiteral("regular") || key == QStringLiteral("normal");
+  };
+  auto styles = available_text_family_styles(family);
+  if (std::none_of(styles.cbegin(), styles.cend(), is_regular_key)) {
+    styles.append(QStringLiteral("Regular"));
+    styles = order_text_family_styles(family, styles);
+  }
+  bool regular_added = false;
+  for (const auto& style : styles) {
+    if (is_regular_key(style)) {
+      if (regular_added) {
+        continue;  // Regular and Normal both name the one empty style
+      }
+      regular_added = true;
+      text_style_combo_->addItem(tr("Regular"), QString());
+      text_style_combo_->setItemData(text_style_combo_->count() - 1, style_item_font(QStringLiteral("Regular")),
+                                     Qt::FontRole);
+      continue;
     }
     text_style_combo_->addItem(style, style);
     text_style_combo_->setItemData(text_style_combo_->count() - 1, style_item_font(style), Qt::FontRole);
@@ -9161,6 +9202,12 @@ void MainWindow::refresh_text_style_combo(const QString& family, const QString& 
         text_style_combo_->setCurrentIndex(index);
         return;
       }
+    }
+  }
+  for (int index = 0; index < text_style_combo_->count(); ++index) {
+    if (text_style_combo_->itemData(index).toString().isEmpty()) {
+      text_style_combo_->setCurrentIndex(index);  // Regular, wherever its weight put it
+      return;
     }
   }
   text_style_combo_->setCurrentIndex(0);
@@ -11191,8 +11238,11 @@ void MainWindow::update_text_editor_handles(QTextEdit* editor) {
       handle->setFocusPolicy(Qt::NoFocus);
       handle->setAttribute(Qt::WA_StyledBackground, true);
       handle->setMouseTracking(true);
-      set_themed_style(*handle, QStringLiteral("background: @resize_handle_bg; "
-                                               "border: 1px solid @resize_handle_border; border-radius: 1px;"));
+      // An id selector, not a bare sheet: the overflow tooltip (issue 631) is a child of the
+      // handle, and a selector-less sheet would paint it as a white square with pale text.
+      set_themed_style(*handle, QStringLiteral("#%1 { background: @resize_handle_bg; "
+                                               "border: 1px solid @resize_handle_border; border-radius: 1px; }")
+                                    .arg(QString::fromLatin1(spec.name)));
       handle->installEventFilter(this);
     }
     QPoint position;
@@ -11213,6 +11263,7 @@ void MainWindow::update_text_editor_handles(QTextEdit* editor) {
       handle->setProperty(kTextResizeHandleOverflowProperty, overflow_marker);
       handle->update();
     }
+    handle->setToolTip(overflow_marker ? text_overflow_marker_tooltip() : QString());
     handle->show();
     handle->raise();
   }
@@ -11299,7 +11350,12 @@ void MainWindow::set_text_editor_hidden_lines(QTextEdit* editor, bool hidden) {
                                                   Qt::FindDirectChildrenOnly);
       handle != nullptr) {
     handle->setProperty(kTextResizeHandleOverflowProperty, hidden);
+    handle->setToolTip(hidden ? text_overflow_marker_tooltip() : QString());
     handle->update();
+  }
+  // Once everything fits, a tooltip still showing for the plus goes with it.
+  if (!hidden && QToolTip::isVisible() && QToolTip::text() == text_overflow_marker_tooltip()) {
+    QToolTip::hideText();
   }
   if (auto* overlay = transformed_text_edit_overlay_for_canvas(canvas_); overlay != nullptr) {
     overlay->update();
@@ -11358,6 +11414,7 @@ bool MainWindow::handle_text_editor_resize_event(QWidget* handle, QTextEdit* edi
       if (mouse_event->button() != Qt::LeftButton) {
         break;
       }
+      QToolTip::hideText();  // a drag on the overflow plus (issue 631) drops its tooltip
       handle->setProperty("patchy.dragStartGlobal", mouse_event->globalPosition().toPoint());
       handle->setProperty("patchy.dragStartX", editor->property("patchy.documentTextX").toInt());
       handle->setProperty("patchy.dragStartY", editor->property("patchy.documentTextY").toInt());

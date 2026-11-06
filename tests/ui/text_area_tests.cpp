@@ -16,6 +16,8 @@
 #include <QJsonDocument>
 #include <QDoubleSpinBox>
 #include <QTextEdit>
+#include <QPainter>
+#include <QToolTip>
 #include <QWidget>
 #include <algorithm>
 #include <atomic>
@@ -683,6 +685,133 @@ void ui_box_text_overflow_marker_on_bottom_right_handle() {
   send_key(*editor, Qt::Key_Escape);
   process_events_for(100);
 }
+// GitHub issue 631 follow-up: hovering the plus explains it. A tooltip event on the marked
+// bottom right handle shows the hint; a handle without the plus, or a box whose text fits, shows
+// none, and the hint goes when the plus clears. Covers the flat handle widget and the area
+// frame's painted handles (transformed overlay).
+void ui_box_text_overflow_marker_tooltip() {
+  MainWindow window; show_window_empty(window);
+  window.set_cli_automation_mode(true);
+  run(window, "app.newDocument(640,420);");
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+  auto* text_size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
+  CHECK(text_size != nullptr); if (!text_size) return;
+  const auto hint = QStringLiteral("Some text does not fit. Drag to enlarge the box.");
+  const auto shows_hint = [&] { return QToolTip::isVisible() && QToolTip::text() == hint; };
+  // QToolTip::hideText() lets the label linger for a short timer, so absence is waited for.
+  const auto hint_gone = [&] {
+    for (int i = 0; i < 20 && shows_hint(); ++i) {
+      process_events_for(50);
+    }
+    return !shows_hint();
+  };
+  const auto hover = [](QWidget& widget, QPoint local) {
+    QHelpEvent help(QEvent::ToolTip, local, widget.mapToGlobal(local));
+    QApplication::sendEvent(&widget, &help);
+    QApplication::processEvents();
+  };
+  const auto handle_named = [canvas](const char* name) {
+    return canvas->findChild<QWidget*>(QString::fromLatin1(name), Qt::FindDirectChildrenOnly);
+  };
+
+  // A flat box: no hint while the text fits, the hint once lines hide, none on another handle.
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  text_size->setValue(12.0);
+  QApplication::processEvents();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(20, 40)),
+       canvas->widget_position_for_document_point(QPoint(280, 90)));
+  process_events_for(150);
+  auto* editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr); if (!editor) return;
+  editor->setPlainText(QStringLiteral("One"));
+  process_events_for(150);
+  auto* handle = handle_named("textBoxResizeHandleBottomRight");
+  CHECK(handle != nullptr); if (!handle) return;
+  CHECK(handle->toolTip().isEmpty());
+  hover(*handle, handle->rect().center());
+  CHECK(hint_gone());
+  editor->moveCursor(QTextCursor::End);
+  editor->insertPlainText(QStringLiteral("\nTwo\nThree\nFour"));
+  process_events_for(150);
+  handle = handle_named("textBoxResizeHandleBottomRight");
+  CHECK(handle != nullptr && handle->property("patchy.textOverflowMarker").toBool()); if (!handle) return;
+  CHECK(handle->toolTip() == hint);
+  hover(*handle, handle->rect().center());
+  CHECK(shows_hint());
+  {
+    // The tip is a child of the handle: the handle's own sheet must not reach it, so it
+    // paints in the tooltip palette's base. The artifact paints the tip (its own window)
+    // over the canvas grab, cropped to the box.
+    auto shot = canvas->grab().toImage();
+    QRect area = editor->geometry();
+    for (auto* top : QApplication::topLevelWidgets()) {
+      if (top->inherits("QTipLabel") && top->isVisible()) {
+        const auto tip_image = top->grab().toImage();
+        const auto base = QToolTip::palette().color(QPalette::ToolTipBase);
+        const auto inside = tip_image.pixelColor(tip_image.width() / 2, 2);
+        CHECK(std::abs(inside.red() - base.red()) + std::abs(inside.green() - base.green()) +
+                  std::abs(inside.blue() - base.blue()) < 24);
+        const QRect tip(canvas->mapFromGlobal(top->pos()), top->size());
+        QPainter painter(&shot);
+        painter.drawImage(tip.topLeft(), tip_image);
+        area = area.united(tip);
+      }
+    }
+    save_image_artifact("ui_box_text_overflow_marker_tooltip",
+                        shot.copy(area.adjusted(-24, -24, 24, 24).intersected(shot.rect())));
+  }
+  auto* top_left = handle_named("textBoxResizeHandleTopLeft");
+  CHECK(top_left != nullptr && top_left->toolTip().isEmpty());
+  // Removing the hidden text clears the plus and the hint showing for it.
+  editor->setPlainText(QStringLiteral("Short"));
+  process_events_for(150);
+  CHECK(!editor->property("patchy.textHiddenLines").toBool());
+  CHECK(hint_gone());
+  handle = handle_named("textBoxResizeHandleBottomRight");
+  CHECK(handle != nullptr && handle->toolTip().isEmpty());
+  send_key(*editor, Qt::Key_Escape);
+  process_events_for(100);
+  QToolTip::hideText();
+
+  // An area frame (painted handles on the transformed overlay).
+  run(window, R"JS(
+    var d=app.activeDocument;
+    d.addShape('Source',{type:'polygon',cx:330,cy:260,radius:150,sides:3});
+  )JS");
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  const QPoint center(330, 270);
+  CHECK(canvas->text_area_at(center).has_value());
+  const auto click = canvas->widget_position_for_document_point(center);
+  send_mouse(*canvas, QEvent::MouseButtonPress, click, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, click, Qt::LeftButton, Qt::NoButton);
+  process_events_for(150);
+  editor = canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr); if (!editor) return;
+  editor->setPlainText(QStringLiteral("Fits"));
+  process_events_for(150);
+  auto* overlay = canvas->findChild<QWidget*>(QStringLiteral("transformedTextEditOverlay"));
+  CHECK(overlay != nullptr && overlay->isVisible()); if (!overlay) return;
+  auto handles = overlay->property("patchy.transformedTextResizeHandleCenters").toList();
+  CHECK(handles.size() == 4); if (handles.size() != 4) return;
+  CHECK(!editor->property("patchy.textHiddenLines").toBool());
+  hover(*overlay, handles.back().toPointF().toPoint() - overlay->pos());
+  CHECK(hint_gone());
+  editor->setPlainText(QStringLiteral("Area text with hidden overflow. ").repeated(30));
+  process_events_for(150);
+  CHECK(editor->property("patchy.textHiddenLines").toBool());
+  handles = overlay->property("patchy.transformedTextResizeHandleCenters").toList();
+  CHECK(handles.size() == 4); if (handles.size() != 4) return;
+  const auto corner = handles.back().toPointF().toPoint() - overlay->pos();
+  hover(*overlay, corner);
+  CHECK(shows_hint());
+  hover(*overlay, handles.front().toPointF().toPoint() - overlay->pos());
+  CHECK(hint_gone());
+  send_key(*editor, Qt::Key_Escape);
+  process_events_for(100);
+  QToolTip::hideText();
+}
 }  // namespace
 
 std::vector<patchy::test::TestCase> text_area_tests() {
@@ -697,5 +826,6 @@ std::vector<patchy::test::TestCase> text_area_tests() {
           {"ui_box_text_overflow_hides_lines_below_the_frame",ui_box_text_overflow_hides_lines_below_the_frame},
           {"ui_box_text_overflow_photoshop_story_survives_edit_and_round_trip",
            ui_box_text_overflow_photoshop_story_survives_edit_and_round_trip},
-          {"ui_box_text_overflow_marker_on_bottom_right_handle", ui_box_text_overflow_marker_on_bottom_right_handle}};
+          {"ui_box_text_overflow_marker_on_bottom_right_handle", ui_box_text_overflow_marker_on_bottom_right_handle},
+          {"ui_box_text_overflow_marker_tooltip", ui_box_text_overflow_marker_tooltip}};
 }

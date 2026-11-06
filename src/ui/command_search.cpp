@@ -202,6 +202,8 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"layer.via_copy", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Copy the selection to a new layer")},
     {"layer.via_cut", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Move the selection to a new layer")},
     {"layer.merge_down", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Combine with the layer below")},
+    {"layerRasterizeAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Turn text, shapes or smart objects into plain pixels")},
+    {"layerRasterizeLayerStyleAction", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Bake the layer effects into the pixels")},
     {"layer.merge_visible", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Combine all visible layers")},
     {"layer.add_mask", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add a layer mask")},
     {"layer.apply_mask", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Bake the mask into the pixels")},

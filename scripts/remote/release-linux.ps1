@@ -18,6 +18,9 @@ Flow (packaging/linux/README.md):
 4. The AppImage (x86_64 only), then scp of the bundles, the repository tar and the AppImage.
 5. The signed aarch64 bundle is installed in the VM and smoke-checked
    (scripts/remote/linux-arm64-vm.sh verify).
+6. PatchyLinuxScannerSources.zip: the source of the sane-backends and libgphoto2 the Flatpak
+   carries, which their licenses require beside the bundles
+   (scripts/release/make-linux-scanner-sources.ps1; docs/legal-licensing.md).
 
 One-time build-host setup: the make-flatpak.sh header (flatpak/flatpak-builder via apt),
 packaging/linux/README.md (the repository signing key, named in ~/.patchy-release-env, and
@@ -72,6 +75,7 @@ Remove-Item (Join-Path $repoRoot 'build\package\PatchyFlatpakRepo.tar') -Force -
 Remove-Item (Join-Path $repoRoot 'build\package\Patchy-*.AppImage') -Force -ErrorAction SilentlyContinue
 Remove-Item (Join-Path $repoRoot 'build\package\Patchy-*.AppImage.zsync') -Force -ErrorAction SilentlyContinue
 Remove-Item (Join-Path $repoRoot 'build\package\PatchyLinux.AppImage') -Force -ErrorAction SilentlyContinue
+Remove-Item (Join-Path $repoRoot 'build\package\PatchyLinuxScannerSources.zip') -Force -ErrorAction SilentlyContinue
 $importDir = Join-Path $repoRoot 'build\flatpak-import'
 New-Item -ItemType Directory -Force $importDir | Out-Null
 Remove-Item (Join-Path $importDir 'Patchy-*-aarch64.flatpak') -Force -ErrorAction SilentlyContinue
@@ -144,6 +148,10 @@ if ($LASTEXITCODE -ne 0) { throw 'could not copy the signed aarch64 bundle to th
 ssh $armSsh "bash ~/.patchy-tools/linux-arm64-vm.sh verify '$($armEntry.limactl)' '$($armEntry.lima)' ~/.patchy-tools/linux-arm64-out/signed-$armBundleName"
 if ($LASTEXITCODE -ne 0) { throw 'the signed aarch64 bundle failed its checks in the VM' }
 
-Write-Host "== flatpak bundles, repository and AppImage copied into $dest =="
-Get-ChildItem $dest | Where-Object { $_.Name -like 'Patchy-*.flatpak' -or $_.Name -like 'Patchy-*-flatpak-repo.tar' -or $_.Name -like 'Patchy-*.AppImage*' } |
+# 6. The source of the scanner and camera libraries the Flatpak carries, from the same manifest.
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repoRoot 'scripts\release\make-linux-scanner-sources.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'make-linux-scanner-sources.ps1 failed (output above)' }
+
+Write-Host "== flatpak bundles, repository, AppImage and scanner sources in $dest =="
+Get-ChildItem $dest | Where-Object { $_.Name -like 'Patchy-*.flatpak' -or $_.Name -like 'Patchy-*-flatpak-repo.tar' -or $_.Name -like 'Patchy-*.AppImage*' -or $_.Name -eq 'PatchyLinuxScannerSources.zip' } |
   ForEach-Object { Write-Host $_.FullName }
