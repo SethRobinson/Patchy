@@ -1666,6 +1666,7 @@ void MainWindow::new_smart_object_via_copy() {
     return;
   }
   copy->set_name(layer->name() + " copy");
+  copy->set_link_group(0U);  // a copy is not linked to its source (GitHub issue 656)
   auto copied_placement = *placement;
   copied_placement.uuid = fresh_uuid;
   store_smart_object_placement(*copy, copied_placement);

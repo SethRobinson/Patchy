@@ -677,6 +677,9 @@ public:
   [[nodiscard]] BlendMode blend_mode() const noexcept;
   [[nodiscard]] LayerLockFlags lock_flags() const noexcept;
   [[nodiscard]] LayerColorLabel color_label() const noexcept;
+  // Layer > Link Layers (GitHub issue 656): layers sharing a nonzero id move and transform
+  // together. 0 is unlinked. Ids are document-scoped; PSD stores them in image resource 1026.
+  [[nodiscard]] std::uint32_t link_group() const noexcept;
   [[nodiscard]] Rect bounds() const noexcept;
   [[nodiscard]] PixelBuffer& pixels() noexcept;
   [[nodiscard]] const PixelBuffer& pixels() const noexcept;
@@ -737,6 +740,8 @@ public:
   void set_lock_flags(LayerLockFlags flags) noexcept;
   // A panel label only: it never changes pixels, so no revision moves.
   void set_color_label(LayerColorLabel label) noexcept;
+  // A grouping only: it never changes pixels, so no revision moves.
+  void set_link_group(std::uint32_t group) noexcept;
   void set_bounds(Rect bounds) noexcept;
   void set_pixels(PixelBuffer pixels);
   void set_mask(LayerMask mask);
@@ -793,6 +798,7 @@ private:
   BlendMode blend_mode_{BlendMode::Normal};
   LayerLockFlags lock_flags_{kLayerLockNone};
   LayerColorLabel color_label_{kLayerColorNone};
+  std::uint32_t link_group_{0};
   Rect bounds_{};
   PixelBuffer pixels_{};
   std::vector<Layer> children_{};

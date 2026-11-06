@@ -15029,6 +15029,10 @@ Do you want to replace it?</source>
         <source>Transform controls under the Move tool</source>
         <translation>Элементы управления преобразованием при инструменте «Перемещение»</translation>
     </message>
+    <message>
+        <source>Linked layer. Click to select the layers linked to it.</source>
+        <translation>Связанный слой. Нажмите, чтобы выделить связанные с ним слои.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -19715,6 +19719,18 @@ Do you want to replace it?</source>
     <message>
         <source>Pick the last brush preset in the list</source>
         <translation>Выбрать последнюю предустановку кисти в списке</translation>
+    </message>
+    <message>
+        <source>Make the selected layers move and transform together</source>
+        <translation>Перемещать и трансформировать выделенные слои вместе</translation>
+    </message>
+    <message>
+        <source>Let the selected layers move on their own again</source>
+        <translation>Снова перемещать выделенные слои по отдельности</translation>
+    </message>
+    <message>
+        <source>Select every layer linked to the selected ones</source>
+        <translation>Выделить все слои, связанные с выделенными</translation>
     </message>
 </context>
 <context>
@@ -33340,6 +33356,34 @@ Locked: %1</source>
         <source>Not saved yet</source>
         <translation>Еще не сохранен</translation>
     </message>
+    <message>
+        <source>&amp;Link Layers</source>
+        <translation>&amp;Связать слои</translation>
+    </message>
+    <message>
+        <source>U&amp;nlink Layers</source>
+        <translation>&amp;Отменить связь слоёв</translation>
+    </message>
+    <message>
+        <source>Select Lin&amp;ked Layers</source>
+        <translation>&amp;Выделить связанные слои</translation>
+    </message>
+    <message>
+        <source>Link Layers</source>
+        <translation>Связать слои</translation>
+    </message>
+    <message>
+        <source>Unlink Layers</source>
+        <translation>Отменить связь слоёв</translation>
+    </message>
+    <message>
+        <source>Select two or more layers to link</source>
+        <translation>Выделите два слоя или больше, чтобы связать их</translation>
+    </message>
+    <message>
+        <source>The selected layers are not linked</source>
+        <translation>Выделенные слои не связаны</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35608,6 +35652,10 @@ Locked: %1</source>
     <message>
         <source>No document is open to rotate the view of.</source>
         <translation>Ни один документ не открыт для поворота вида.</translation>
+    </message>
+    <message>
+        <source>linkGroup must be 0 or a positive whole number</source>
+        <translation>linkGroup должен быть 0 или целым положительным числом</translation>
     </message>
 </context>
 <context>

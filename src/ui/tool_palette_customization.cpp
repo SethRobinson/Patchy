@@ -523,15 +523,16 @@ void apply_layer_footer_preset(ToolPaletteCustomization& value, LayerFooterPrese
     }
     return;
   }
-  // The other editors' Layers panel buttons, left to right, that Patchy also has (their link,
-  // live filter, anchor and properties buttons have no Patchy counterpart).
+  // The other editors' Layers panel buttons, left to right, that Patchy also has (their live
+  // filter, anchor and properties buttons have no Patchy counterpart).
   QStringList shown;
   switch (preset) {
     case LayerFooterPreset::Patchy:
       break;
     case LayerFooterPreset::Photoshop:
-      shown = {QStringLiteral("layer_styles"), QStringLiteral("add_mask"),   QStringLiteral("new_adjustment"),
-               QStringLiteral("new_folder"),   QStringLiteral("new_layer"), QStringLiteral("delete")};
+      shown = {QStringLiteral("link"),       QStringLiteral("layer_styles"), QStringLiteral("add_mask"),
+               QStringLiteral("new_adjustment"), QStringLiteral("new_folder"), QStringLiteral("new_layer"),
+               QStringLiteral("delete")};
       break;
     case LayerFooterPreset::AffinityPhoto:
       shown = {QStringLiteral("duplicate"),  QStringLiteral("add_mask"),  QStringLiteral("new_adjustment"),

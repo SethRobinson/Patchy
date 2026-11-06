@@ -381,6 +381,195 @@ std::vector<LayerId> root_drop_layer_ids(const std::vector<Layer>& layers,
   return roots;
 }
 
+namespace {
+
+template <typename Visit>
+void for_each_layer_in_tree(const std::vector<Layer>& layers, Visit& visit) {
+  for (const auto& layer : layers) {
+    visit(layer);
+    for_each_layer_in_tree(layer.children(), visit);
+  }
+}
+
+// Link groups never render, so the walk stays const (the mutable children() accessor bumps
+// revisions) and only the layers whose group changes are touched.
+template <typename Change>
+bool set_link_groups_where(std::vector<Layer>& layers, Change change) {
+  std::vector<std::pair<const Layer*, std::uint32_t>> updates;
+  auto collect = [&](const Layer& layer) {
+    if (const auto next = change(layer); next != layer.link_group()) {
+      updates.emplace_back(&layer, next);
+    }
+  };
+  for_each_layer_in_tree(std::as_const(layers), collect);
+  for (const auto& [layer, group] : updates) {
+    const_cast<Layer*>(layer)->set_link_group(group);
+  }
+  return !updates.empty();
+}
+
+}  // namespace
+
+std::map<std::uint32_t, std::size_t> link_group_member_counts(const std::vector<Layer>& layers) {
+  std::map<std::uint32_t, std::size_t> counts;
+  auto count = [&counts](const Layer& layer) {
+    if (layer.link_group() != 0U) {
+      ++counts[layer.link_group()];
+    }
+  };
+  for_each_layer_in_tree(layers, count);
+  return counts;
+}
+
+std::uint32_t effective_link_group(const std::vector<Layer>& layers, LayerId id) {
+  const auto* layer = find_layer_in_tree(layers, id);
+  if (layer == nullptr || layer->link_group() == 0U) {
+    return 0U;
+  }
+  const auto group = layer->link_group();
+  std::size_t members = 0;
+  auto count = [&](const Layer& other) {
+    if (other.link_group() == group) {
+      ++members;
+    }
+  };
+  for_each_layer_in_tree(layers, count);
+  return members > 1U ? group : 0U;
+}
+
+std::vector<LayerId> with_linked_layer_ids(const std::vector<Layer>& layers, const std::vector<LayerId>& ids) {
+  std::vector<LayerId> result = ids;
+  std::set<std::uint32_t> groups;
+  auto add_group = [&groups](const Layer& layer) {
+    if (layer.link_group() != 0U) {
+      groups.insert(layer.link_group());
+    }
+  };
+  for (const auto id : ids) {
+    if (const auto* layer = find_layer_in_tree(layers, id); layer != nullptr) {
+      add_group(*layer);
+      for_each_layer_in_tree(layer->children(), add_group);
+    }
+  }
+  if (groups.empty()) {
+    return result;
+  }
+  std::set<LayerId> listed(ids.begin(), ids.end());
+  auto add_partner = [&](const Layer& layer) {
+    if (layer.link_group() != 0U && groups.contains(layer.link_group()) && listed.insert(layer.id()).second) {
+      result.push_back(layer.id());
+    }
+  };
+  for_each_layer_in_tree(layers, add_partner);
+  return result;
+}
+
+std::vector<LayerId> linked_layer_ids(const std::vector<Layer>& layers, LayerId id) {
+  const auto* layer = find_layer_in_tree(layers, id);
+  if (layer == nullptr) {
+    return {};
+  }
+  const auto group = layer->link_group();
+  if (group == 0U) {
+    return {id};
+  }
+  std::vector<LayerId> members;
+  auto add_member = [&](const Layer& other) {
+    if (other.link_group() == group) {
+      members.push_back(other.id());
+    }
+  };
+  for_each_layer_in_tree(layers, add_member);
+  return members;
+}
+
+bool link_layers(std::vector<Layer>& layers, const std::vector<LayerId>& ids) {
+  std::set<LayerId> targets;
+  std::set<std::uint32_t> merged_groups;
+  for (const auto id : ids) {
+    if (const auto* layer = find_layer_in_tree(std::as_const(layers), id); layer != nullptr) {
+      targets.insert(id);
+      if (layer->link_group() != 0U) {
+        merged_groups.insert(layer->link_group());
+      }
+    }
+  }
+  if (targets.size() < 2U) {
+    return false;
+  }
+  // The lowest group already involved keeps its id; otherwise the lowest free one.
+  std::uint32_t group = 0U;
+  if (!merged_groups.empty()) {
+    group = *merged_groups.begin();
+  } else {
+    const auto used = link_group_member_counts(std::as_const(layers));
+    group = 1U;
+    while (used.contains(group)) {
+      ++group;
+    }
+  }
+  return set_link_groups_where(layers, [&](const Layer& layer) {
+    const bool member = targets.contains(layer.id()) ||
+                        (layer.link_group() != 0U && merged_groups.contains(layer.link_group()));
+    return member ? group : layer.link_group();
+  });
+}
+
+bool unlink_layers(std::vector<Layer>& layers, const std::vector<LayerId>& ids) {
+  const std::set<LayerId> targets(ids.begin(), ids.end());
+  const bool changed = set_link_groups_where(
+      layers, [&](const Layer& layer) { return targets.contains(layer.id()) ? 0U : layer.link_group(); });
+  return clear_single_member_link_groups(layers) || changed;
+}
+
+bool clear_single_member_link_groups(std::vector<Layer>& layers) {
+  const auto counts = link_group_member_counts(std::as_const(layers));
+  return set_link_groups_where(layers, [&](const Layer& layer) {
+    return layer.link_group() != 0U && counts.at(layer.link_group()) < 2U ? 0U : layer.link_group();
+  });
+}
+
+bool separate_copied_link_groups(std::vector<Layer>& layers, const std::vector<LayerId>& copy_root_ids) {
+  std::set<LayerId> copies;
+  for (const auto id : copy_root_ids) {
+    if (const auto* root = find_layer_in_tree(std::as_const(layers), id); root != nullptr) {
+      copies.insert(id);
+      std::vector<LayerId> descendants;
+      collect_layer_descendant_ids(*root, descendants);
+      copies.insert(descendants.begin(), descendants.end());
+    }
+  }
+  std::set<std::uint32_t> used_elsewhere;
+  std::map<std::uint32_t, std::size_t> copied_counts;
+  auto survey = [&](const Layer& layer) {
+    if (layer.link_group() == 0U) {
+      return;
+    }
+    if (copies.contains(layer.id())) {
+      ++copied_counts[layer.link_group()];
+    } else {
+      used_elsewhere.insert(layer.link_group());
+    }
+  };
+  for_each_layer_in_tree(std::as_const(layers), survey);
+  std::map<std::uint32_t, std::uint32_t> renumbered;
+  std::uint32_t next = 1U;
+  for (const auto& [group, count] : copied_counts) {
+    if (count < 2U) {
+      renumbered[group] = 0U;
+      continue;
+    }
+    while (used_elsewhere.contains(next)) {
+      ++next;
+    }
+    renumbered[group] = next++;
+  }
+  return set_link_groups_where(layers, [&](const Layer& layer) {
+    return copies.contains(layer.id()) && layer.link_group() != 0U ? renumbered.at(layer.link_group())
+                                                                    : layer.link_group();
+  });
+}
+
 std::optional<Layer> take_layer_from_tree(std::vector<Layer>& layers, LayerId id) {
   const auto found = std::find_if(layers.begin(), layers.end(), [id](const Layer& layer) {
     return layer.id() == id;

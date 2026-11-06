@@ -23,6 +23,7 @@
 #include "core/adjustment_layer.hpp"
 #include "core/layer.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/layer_tree.hpp"
 #include "core/pixel_buffer.hpp"
 #include "core/smart_object.hpp"
 #include "core/vector_shape.hpp"
@@ -789,6 +790,117 @@ void ui_move_nudge_refreshes_stationary_hover_outline() {
   }
 }
 
+// GitHub issue 656: with one layer of a link group selected, a Move nudge, a Move drag and Free
+// Transform take the whole group, as if it were selected; a position-locked partner stays put
+// for the Move tool (its lock rule), and an Auto-Select pick of a linked layer drags its group.
+void ui_linked_layers_move_nudge_drag_and_free_transform_together() {
+  patchy::Document document(200, 160, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(200, 160, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  const auto add_square = [&document](const char* name, patchy::Rect rect, QColor color) {
+    patchy::Layer layer(document.allocate_layer_id(), name,
+                        solid_pixels(rect.width, rect.height, patchy::PixelFormat::rgba8(), color));
+    layer.set_bounds(rect);
+    return document.add_layer(std::move(layer)).id();
+  };
+  const auto red_id = add_square("Red", patchy::Rect{30, 30, 20, 20}, QColor(230, 30, 30));
+  const auto blue_id = add_square("Blue", patchy::Rect{90, 80, 20, 20}, QColor(20, 90, 240));
+  const auto green_id = add_square("Green", patchy::Rect{150, 20, 20, 20}, QColor(30, 160, 60));
+  CHECK(patchy::link_layers(document.layers(), {red_id, blue_id}));
+  document.set_active_layer(red_id);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Linked Move"));
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  if (layer_list == nullptr) {
+    return;
+  }
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  const auto x_of = [&doc](patchy::LayerId id) { return std::as_const(doc).find_layer(id)->bounds().x; };
+  const auto y_of = [&doc](patchy::LayerId id) { return std::as_const(doc).find_layer(id)->bounds().y; };
+  select_layer_rows_by_id(*layer_list, {red_id});
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(false);
+  canvas->set_show_transform_controls(false);
+  canvas->set_snap_enabled(false);
+  QApplication::processEvents();
+  canvas->setFocus();
+
+  // Arrow-key nudge.
+  send_key(*canvas, Qt::Key_Right);
+  QApplication::processEvents();
+  CHECK(x_of(red_id) == 31 && x_of(blue_id) == 91 && x_of(green_id) == 150);
+
+  // A drag with Auto-Select off moves the selection and its link group.
+  const auto from = canvas->widget_position_for_document_point(QPoint(100, 120));
+  const auto to = canvas->widget_position_for_document_point(QPoint(110, 125));
+  send_mouse(*canvas, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, (from + to) / 2, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(x_of(red_id) == 41 && y_of(red_id) == 35);
+  CHECK(x_of(blue_id) == 101 && y_of(blue_id) == 85);
+  CHECK(x_of(green_id) == 150 && y_of(green_id) == 20);
+
+  // Auto-Select: picking the unselected linked layer drags both.
+  select_layer_rows_by_id(*layer_list, {green_id});
+  canvas->set_auto_select_layer(true);
+  QApplication::processEvents();
+  const auto blue_from = canvas->widget_position_for_document_point(QPoint(110, 95));
+  const auto blue_to = canvas->widget_position_for_document_point(QPoint(98, 95));
+  send_mouse(*canvas, QEvent::MouseButtonPress, blue_from, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, (blue_from + blue_to) / 2, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, blue_to, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, blue_to, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(x_of(blue_id) == 89);
+  CHECK(x_of(red_id) == 29);
+  CHECK(x_of(green_id) == 150);
+  canvas->set_auto_select_layer(false);
+
+  // Free Transform on one linked layer is a multi-target session over the group.
+  select_layer_rows_by_id(*layer_list, {red_id});
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(canvas->free_transform_is_multi_target());
+  const auto state = canvas->transform_controls_state();
+  CHECK(state.has_value());
+  if (state.has_value()) {
+    CHECK(canvas->set_transform_controls_state(state->reference_position + QPointF(4.0, 6.0), 100.0, 100.0, 0.0));
+  }
+  QApplication::processEvents();
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(x_of(red_id) == 33 && y_of(red_id) == 41);
+  CHECK(x_of(blue_id) == 93 && y_of(blue_id) == 91);
+  CHECK(x_of(green_id) == 150);
+
+  // A position-locked partner stays put while the rest of the group moves.
+  patchy::set_layer_locks_position(*doc.find_layer(blue_id), true);
+  select_layer_rows_by_id(*layer_list, {red_id});
+  canvas->setFocus();
+  send_key(*canvas, Qt::Key_Down);
+  QApplication::processEvents();
+  CHECK(y_of(red_id) == 42 && y_of(blue_id) == 91);
+
+  // With a pixel selection, Free Transform takes the selected pixels of the one layer.
+  patchy::set_layer_locks_position(*doc.find_layer(blue_id), false);
+  require_action(window, "editSelectAllAction")->trigger();
+  QApplication::processEvents();
+  select_layer_rows_by_id(*layer_list, {red_id});
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(!canvas->free_transform_is_multi_target());
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+}
+
 void ui_layer_and_free_transform_nudges_accept_keypad_modifier() {
   for (const bool transforming : {false, true}) {
     for (const auto keypad : {Qt::NoModifier, Qt::KeypadModifier}) {
@@ -1339,6 +1451,8 @@ std::vector<patchy::test::TestCase> group_transform_tests() {
       {"ui_move_double_click_commits_free_transform_inside_box",
        ui_move_double_click_commits_free_transform_inside_box},
       {"ui_move_nudge_refreshes_stationary_hover_outline", ui_move_nudge_refreshes_stationary_hover_outline},
+      {"ui_linked_layers_move_nudge_drag_and_free_transform_together",
+       ui_linked_layers_move_nudge_drag_and_free_transform_together},
       {"ui_layer_and_free_transform_nudges_accept_keypad_modifier",
        ui_layer_and_free_transform_nudges_accept_keypad_modifier},
       {"ui_pinball_folder_free_transform_end_to_end", ui_pinball_folder_free_transform_end_to_end},

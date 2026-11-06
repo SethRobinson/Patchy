@@ -620,6 +620,31 @@ void ScriptLayerObject::set_color_label(const QString& label) {
   }
 }
 
+int ScriptLayerObject::link_group() const {
+  const ScriptApiCall api_call(host_);
+  const auto* layer = read_layer();
+  if (layer == nullptr) {
+    return 0;
+  }
+  // A layer whose partners are gone is unlinked (layer_tree.hpp).
+  const auto* document = host_.session_document_const(session_id_);
+  const auto group =
+      document != nullptr ? effective_link_group(document->layers(), layer->id()) : layer->link_group();
+  return static_cast<int>(std::min<std::uint32_t>(group, static_cast<std::uint32_t>(std::numeric_limits<int>::max())));
+}
+
+void ScriptLayerObject::set_link_group(int group) {
+  const ScriptApiCall api_call(host_);
+  if (group < 0) {
+    host_.throw_js_error(ScriptEngineHost::tr("linkGroup must be 0 or a positive whole number"));
+    return;
+  }
+  if (auto* layer = write_layer()) {
+    layer->set_link_group(static_cast<std::uint32_t>(group));
+    host_.note_structure_changed(session_id_);
+  }
+}
+
 int ScriptLayerObject::x() const {
   const ScriptApiCall api_call(host_);
   const auto* layer = read_layer();
@@ -1167,6 +1192,8 @@ QJSValue ScriptLayerObject::duplicate(const QJSValue& target) {
   copy.set_name(copy.name() + " copy");
   const auto copy_id = copy.id();
   parent->insert(parent->begin() + static_cast<std::ptrdiff_t>(index) + 1, std::move(copy));
+  // The one copy leaves its source's link group (GitHub issue 656).
+  separate_copied_link_groups(document->layers(), {copy_id});
   host_.note_structure_changed(session_id_);
   return make_layer_value(host_, session_id_, copy_id);
 }

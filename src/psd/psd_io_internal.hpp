@@ -67,6 +67,10 @@ constexpr std::uint16_t kImageResourceUnicodeAlphaChannelNames = 1045;
 constexpr std::uint16_t kImageResourceGlobalLightAltitude = 1049;
 constexpr std::uint16_t kImageResourceAlphaIdentifiers = 1053;
 constexpr std::uint16_t kImageResourceVersionInfo = 1057;
+// Layer links (GitHub issue 656): 1026 holds one big-endian u16 link group per layer record
+// in record order (0 unlinked), 1072 one byte per record (1, the links are on).
+constexpr std::uint16_t kImageResourceLayerGroupInfo = 1026;
+constexpr std::uint16_t kImageResourceLayerGroupsEnabled = 1072;
 constexpr std::uint16_t kImageResourceDisplayInfoFloat = 1077;
 // Patchy-private resource (Photoshop plug-in id range 4000-4999): the document
 // palette for the palettized editing mode. Photoshop and pre-feature Patchy
@@ -896,11 +900,22 @@ void lift_file_info_resources(Document& document, std::uint16_t source_color_mod
 // `output_icc_profile`, when given, replaces resource 1039 (empty removes it): a CMYK Proof
 // save's CMYK profile. `thumbnail`, when given, replaces the document's thumbnails 1033 and
 // 1036 (empty writes none).
+// `layered` is a save that writes the document's layer records: resources 1026 and 1072 then
+// carry its layer links (written when a layer is linked or the file already had them); a flat
+// save drops them.
 std::vector<std::uint8_t> image_resources_for_document(const Document& document,
                                                        std::span<const CompositeChannelInfo> channels,
                                                        std::uint16_t output_mode = kColorModeRgb,
                                                        const std::vector<std::uint8_t>* output_icc_profile = nullptr,
-                                                       const std::vector<std::uint8_t>* thumbnail = nullptr);
+                                                       const std::vector<std::uint8_t>* thumbnail = nullptr,
+                                                       bool layered = false);
+// Layer links in PSD record order (bottom to top; a folder is its closing boundary record,
+// its children, then the folder record): one entry per record, 0 for a boundary and for a
+// layer without a partner. Ids are renumbered 1, 2, ... in record order to fit 1026's u16.
+std::vector<std::uint16_t> layer_link_groups_in_record_order(const std::vector<Layer>& layers);
+// Sets each layer's link group from resource 1026 read in the same record order. A payload
+// whose entry count is not the record count is ignored. Groups left with one member clear.
+void apply_layer_link_resource(std::vector<Layer>& layers, std::span<const std::uint8_t> payload);
 
 
 // Engine-data (TySh) text READ codec: engine-data parsing, run serialization

@@ -1213,6 +1213,7 @@ void MainWindow::paste_clipboard(bool in_place) {
       adopted.provenance = PatternProvenance::Authored;  // target file has no raw block for it
       doc.metadata().patterns.adopt(adopted);
     }
+    std::vector<LayerId> pasted_ids;
     for (auto it = clipboard_->layers_top_to_bottom.rbegin(); it != clipboard_->layers_top_to_bottom.rend(); ++it) {
       auto pasted = clone_layer_tree_with_document_ids(
           doc, *it, &clipboard_->smart_filter_effect_records);
@@ -1229,7 +1230,9 @@ void MainWindow::paste_clipboard(bool in_place) {
       insert_layer_after_anchor(doc, std::move(*pasted), anchor_id);
       anchor_id = pasted_id;
       doc.set_active_layer(pasted_id);
+      pasted_ids.push_back(pasted_id);
     }
+    separate_copied_link_groups(doc.layers(), pasted_ids);
     refresh_layer_list();
     refresh_layer_controls();
     canvas_->document_changed();
@@ -2545,7 +2548,10 @@ std::vector<LayerId> MainWindow::duplicate_layers(std::vector<LayerId> ids) {
   if (canvas_ != nullptr) {
     canvas_->finish_free_transform();
   }
-  ids = root_drop_layer_ids(document().layers(), ids);
+  // A linked layer's partners are duplicated with it, and the copies link to each other
+  // (Photoshop 2026; GitHub issue 656).
+  ids = root_drop_layer_ids(std::as_const(document()).layers(),
+                            with_linked_layer_ids(std::as_const(document()).layers(), ids));
   if (ids.empty()) {
     return {};
   }
@@ -2615,6 +2621,7 @@ std::vector<LayerId> MainWindow::duplicate_layers(std::vector<LayerId> ids) {
     anchor = id;
     copy_ids_top_to_bottom.insert(copy_ids_top_to_bottom.begin(), id);
   }
+  separate_copied_link_groups(doc.layers(), copy_ids_top_to_bottom);
   doc.set_active_layer(copy_ids_top_to_bottom.front());
   if (!insert_duplicated_layer_rows(copy_ids_top_to_bottom)) {
     refresh_layer_list();
@@ -2832,6 +2839,8 @@ std::vector<LayerId> MainWindow::copy_layers_between_documents(const Document& s
     anchor = id;
     root_ids_top_to_bottom.insert(root_ids_top_to_bottom.begin(), id);
   }
+  // Link groups belong to their document: copies linked together stay linked to each other.
+  separate_copied_link_groups(target_document.layers(), root_ids_top_to_bottom);
   target_document.set_active_layer(root_ids_top_to_bottom.front());
   return root_ids_top_to_bottom;
 }
@@ -3728,6 +3737,136 @@ void MainWindow::set_selected_layers_color(LayerColorLabel label) {
   refresh_layer_color_action_states();
 }
 
+bool MainWindow::can_link_selected_layers() const {
+  if (!has_active_document() || preview_dialog_edit_locked()) {
+    return false;
+  }
+  const auto& layers = std::as_const(document()).layers();
+  const auto ids = selected_or_active_layer_ids();
+  std::set<std::uint32_t> groups;
+  std::size_t found = 0;
+  for (const auto id : ids) {
+    if (find_layer_in_tree(layers, id) != nullptr) {
+      ++found;
+      groups.insert(effective_link_group(layers, id));
+    }
+  }
+  // Two layers or more, unless they already are one link group.
+  return found >= 2U && !(groups.size() == 1U && *groups.begin() != 0U);
+}
+
+bool MainWindow::selected_layers_have_links() const {
+  if (!has_active_document() || preview_dialog_edit_locked()) {
+    return false;
+  }
+  const auto& layers = std::as_const(document()).layers();
+  const auto ids = selected_or_active_layer_ids();
+  return std::any_of(ids.begin(), ids.end(), [&layers](LayerId id) { return effective_link_group(layers, id) != 0U; });
+}
+
+void MainWindow::refresh_layer_link_action_states() {
+  const bool can_link = can_link_selected_layers();
+  const bool linked = selected_layers_have_links();
+  if (layer_link_action_ != nullptr) {
+    layer_link_action_->setEnabled(can_link);
+  }
+  if (layer_unlink_action_ != nullptr) {
+    layer_unlink_action_->setEnabled(linked);
+  }
+  if (layer_select_linked_action_ != nullptr) {
+    layer_select_linked_action_->setEnabled(linked);
+  }
+  if (layer_link_button_ != nullptr) {
+    layer_link_button_->setEnabled(can_link || linked);
+    // The button links a selection that can be linked, else unlinks it (GitHub issue 656).
+    const auto tip = can_link || !linked ? tr("Link Layers") : tr("Unlink Layers");
+    if (layer_link_button_->toolTip() != tip) {
+      layer_link_button_->setToolTip(tip);
+    }
+  }
+}
+
+void MainWindow::link_selected_layers() {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  if (!has_active_document()) {
+    return;
+  }
+  if (!can_link_selected_layers()) {
+    show_status_error(tr("Select two or more layers to link"));
+    return;
+  }
+  const auto ids = selected_or_active_layer_ids();
+  auto& doc = document();
+  // A link is no pixel edit: locked layers take one too, as in Photoshop.
+  push_undo_snapshot(tr("Link Layers"));
+  link_layers(doc.layers(), ids);
+  const auto active = std::as_const(doc).active_layer_id();
+  refresh_layer_list();
+  select_layers_in_layer_list(ids, active.value_or(ids.front()));
+  refresh_layer_link_action_states();
+  if (canvas_ != nullptr) {
+    canvas_->update();
+  }
+  refresh_options_bar();
+}
+
+void MainWindow::unlink_selected_layers() {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  if (!has_active_document()) {
+    return;
+  }
+  if (!selected_layers_have_links()) {
+    show_status_error(tr("The selected layers are not linked"));
+    return;
+  }
+  const auto ids = selected_or_active_layer_ids();
+  auto& doc = document();
+  push_undo_snapshot(tr("Unlink Layers"));
+  unlink_layers(doc.layers(), ids);
+  const auto active = std::as_const(doc).active_layer_id();
+  refresh_layer_list();
+  select_layers_in_layer_list(ids, active.value_or(ids.front()));
+  refresh_layer_link_action_states();
+  if (canvas_ != nullptr) {
+    canvas_->update();
+  }
+  refresh_options_bar();
+}
+
+void MainWindow::toggle_selected_layers_link() {
+  if (can_link_selected_layers()) {
+    link_selected_layers();
+  } else {
+    unlink_selected_layers();
+  }
+}
+
+void MainWindow::select_linked_layers() {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  if (!has_active_document()) {
+    return;
+  }
+  if (!selected_layers_have_links()) {
+    show_status_error(tr("The selected layers are not linked"));
+    return;
+  }
+  finish_active_text_editor();
+  const auto& layers = std::as_const(document()).layers();
+  const auto ids = with_linked_layer_ids(layers, selected_or_active_layer_ids());
+  const auto active = std::as_const(document()).active_layer_id();
+  select_layers_in_layer_list(ids, active.value_or(ids.front()));
+  refresh_options_bar();
+}
+
 void MainWindow::refresh_layer_menu_lock_and_style_states() {
   const bool has_document = has_active_document() && !preview_dialog_edit_locked();
   const auto ids = has_document ? selected_or_active_layer_ids() : std::vector<LayerId>{};
@@ -4237,6 +4376,16 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   if (active_layer != nullptr && active_layer->kind() == LayerKind::Group) {
     ungroup_action = menu.addAction(simple_icon(QStringLiteral("dir"), QColor(245, 205, 105)),
                                     tr("Ungroup Layers"));
+  }
+  // Layer linking (GitHub issue 656): Link Layers with two or more layers selected, Unlink
+  // and Select Linked when a selected layer is linked. A single unlinked layer gets neither.
+  refresh_layer_link_action_states();
+  if (ids.size() >= 2U && layer_link_action_ != nullptr && layer_link_action_->isEnabled()) {
+    menu.addAction(layer_link_action_);
+  }
+  if (layer_unlink_action_ != nullptr && layer_unlink_action_->isEnabled()) {
+    menu.addAction(layer_unlink_action_);
+    menu.addAction(layer_select_linked_action_);
   }
   menu.addSeparator();
   auto* merge_down_action =

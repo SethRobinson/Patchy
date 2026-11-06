@@ -3,6 +3,8 @@
 #include "core/layer.hpp"
 
 #include <cstddef>
+#include <cstdint>
+#include <map>
 #include <optional>
 #include <set>
 #include <string_view>
@@ -75,6 +77,33 @@ void apply_layer_fx_disclosure(std::vector<Layer>& layers, const std::set<LayerI
 [[nodiscard]] bool layer_contains_descendant(const Layer& layer, LayerId id);
 [[nodiscard]] std::vector<LayerId> root_drop_layer_ids(const std::vector<Layer>& layers,
                                                        const std::vector<LayerId>& ids_top_to_bottom);
+// Layer linking (GitHub issue 656; docs/layer-panel.md, "Linked layers"). Layers sharing a
+// nonzero Layer::link_group() move and transform together. A group needs two members: one left
+// alone (its partners deleted) counts as unlinked everywhere.
+// How many layers carry each nonzero link group, at every depth.
+[[nodiscard]] std::map<std::uint32_t, std::size_t> link_group_member_counts(const std::vector<Layer>& layers);
+// The layer's link group when it has a partner, else 0.
+[[nodiscard]] std::uint32_t effective_link_group(const std::vector<Layer>& layers, LayerId id);
+// `ids` in their order, then every other layer that shares a link group with one of them or
+// with one of their descendants, in tree order (bottom to top, parents before children).
+[[nodiscard]] std::vector<LayerId> with_linked_layer_ids(const std::vector<Layer>& layers,
+                                                         const std::vector<LayerId>& ids);
+// Every layer in `id`'s link group (the layer itself included), in tree order; just `id`
+// when it has no partner, empty when it is missing.
+[[nodiscard]] std::vector<LayerId> linked_layer_ids(const std::vector<Layer>& layers, LayerId id);
+// Gives the listed layers one link group, merging the groups they already belong to (every
+// member of those joins). Needs two distinct existing layers; returns whether anything changed.
+bool link_layers(std::vector<Layer>& layers, const std::vector<LayerId>& ids);
+// Unlinks the listed layers; a group left with one member is cleared too. Returns whether
+// anything changed.
+bool unlink_layers(std::vector<Layer>& layers, const std::vector<LayerId>& ids);
+// Clears the link group of every layer without a partner. Returns whether anything changed.
+bool clear_single_member_link_groups(std::vector<Layer>& layers);
+// After a copy (Duplicate Layer, a paste, a drag into another document): the copied subtrees
+// under `copy_root_ids` leave their sources' link groups. Copies that came from one group form a
+// new group of their own (Photoshop 2026 links duplicated linked layers to each other, not to
+// the originals); a lone copy is unlinked. Returns whether anything changed.
+bool separate_copied_link_groups(std::vector<Layer>& layers, const std::vector<LayerId>& copy_root_ids);
 [[nodiscard]] std::optional<Layer> take_layer_from_tree(std::vector<Layer>& layers, LayerId id);
 [[nodiscard]] std::optional<LayerSiblingLocation> find_layer_location(std::vector<Layer>& layers, LayerId id);
 // Const walk (no revision bumps) for read-only callers.

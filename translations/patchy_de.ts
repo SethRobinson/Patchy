@@ -14982,6 +14982,10 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Transform controls under the Move tool</source>
         <translation>Transformationssteuerungen beim Verschieben-Werkzeug</translation>
     </message>
+    <message>
+        <source>Linked layer. Click to select the layers linked to it.</source>
+        <translation>Verknüpfte Ebene. Klicken, um die mit ihr verknüpften Ebenen auszuwählen.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -19668,6 +19672,18 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>Pick the last brush preset in the list</source>
         <translation>Die letzte Pinselvorgabe der Liste wählen</translation>
+    </message>
+    <message>
+        <source>Make the selected layers move and transform together</source>
+        <translation>Die ausgewählten Ebenen gemeinsam bewegen und transformieren</translation>
+    </message>
+    <message>
+        <source>Let the selected layers move on their own again</source>
+        <translation>Die ausgewählten Ebenen wieder einzeln bewegen</translation>
+    </message>
+    <message>
+        <source>Select every layer linked to the selected ones</source>
+        <translation>Alle mit der Auswahl verknüpften Ebenen auswählen</translation>
     </message>
 </context>
 <context>
@@ -33253,6 +33269,34 @@ Fixiert: %1</translation>
         <source>Not saved yet</source>
         <translation>Noch nicht gespeichert</translation>
     </message>
+    <message>
+        <source>&amp;Link Layers</source>
+        <translation>Ebenen ver&amp;knüpfen</translation>
+    </message>
+    <message>
+        <source>U&amp;nlink Layers</source>
+        <translation>Verknüpfung a&amp;ufheben</translation>
+    </message>
+    <message>
+        <source>Select Lin&amp;ked Layers</source>
+        <translation>Verknüpfte Ebenen aus&amp;wählen</translation>
+    </message>
+    <message>
+        <source>Link Layers</source>
+        <translation>Ebenen verknüpfen</translation>
+    </message>
+    <message>
+        <source>Unlink Layers</source>
+        <translation>Ebenenverknüpfung aufheben</translation>
+    </message>
+    <message>
+        <source>Select two or more layers to link</source>
+        <translation>Wählen Sie zwei oder mehr Ebenen zum Verknüpfen aus</translation>
+    </message>
+    <message>
+        <source>The selected layers are not linked</source>
+        <translation>Die ausgewählten Ebenen sind nicht verknüpft</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35520,6 +35564,10 @@ Fixiert: %1</translation>
     <message>
         <source>No document is open to rotate the view of.</source>
         <translation>Es ist kein Dokument geöffnet, dessen Ansicht gedreht werden kann.</translation>
+    </message>
+    <message>
+        <source>linkGroup must be 0 or a positive whole number</source>
+        <translation>linkGroup muss 0 oder eine positive ganze Zahl sein</translation>
     </message>
 </context>
 <context>

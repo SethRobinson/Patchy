@@ -14935,6 +14935,10 @@ Do you want to replace it?</source>
         <source>Transform controls under the Move tool</source>
         <translation>이동 도구의 변환 컨트롤</translation>
     </message>
+    <message>
+        <source>Linked layer. Click to select the layers linked to it.</source>
+        <translation>연결된 레이어입니다. 연결된 레이어를 선택하려면 클릭하세요.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -19621,6 +19625,18 @@ Do you want to replace it?</source>
     <message>
         <source>Pick the last brush preset in the list</source>
         <translation>목록의 마지막 브러시 사전 설정 선택</translation>
+    </message>
+    <message>
+        <source>Make the selected layers move and transform together</source>
+        <translation>선택한 레이어를 함께 이동하고 변형합니다</translation>
+    </message>
+    <message>
+        <source>Let the selected layers move on their own again</source>
+        <translation>선택한 레이어를 다시 따로 이동합니다</translation>
+    </message>
+    <message>
+        <source>Select every layer linked to the selected ones</source>
+        <translation>선택한 레이어와 연결된 모든 레이어를 선택합니다</translation>
     </message>
 </context>
 <context>
@@ -33166,6 +33182,34 @@ Locked: %1</source>
         <source>Not saved yet</source>
         <translation>아직 저장되지 않음</translation>
     </message>
+    <message>
+        <source>&amp;Link Layers</source>
+        <translation>레이어 연결(&amp;L)</translation>
+    </message>
+    <message>
+        <source>U&amp;nlink Layers</source>
+        <translation>레이어 연결 해제(&amp;N)</translation>
+    </message>
+    <message>
+        <source>Select Lin&amp;ked Layers</source>
+        <translation>연결된 레이어 선택(&amp;K)</translation>
+    </message>
+    <message>
+        <source>Link Layers</source>
+        <translation>레이어 연결</translation>
+    </message>
+    <message>
+        <source>Unlink Layers</source>
+        <translation>레이어 연결 해제</translation>
+    </message>
+    <message>
+        <source>Select two or more layers to link</source>
+        <translation>연결할 레이어를 두 개 이상 선택하세요</translation>
+    </message>
+    <message>
+        <source>The selected layers are not linked</source>
+        <translation>선택한 레이어가 연결되어 있지 않습니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35432,6 +35476,10 @@ Locked: %1</source>
     <message>
         <source>No document is open to rotate the view of.</source>
         <translation>보기를 회전할 문서가 열려 있지 않습니다.</translation>
+    </message>
+    <message>
+        <source>linkGroup must be 0 or a positive whole number</source>
+        <translation>linkGroup은 0 또는 양의 정수여야 합니다</translation>
     </message>
 </context>
 <context>

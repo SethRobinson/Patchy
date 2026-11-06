@@ -279,6 +279,10 @@ LayerColorLabel Layer::color_label() const noexcept {
   return color_label_;
 }
 
+std::uint32_t Layer::link_group() const noexcept {
+  return link_group_;
+}
+
 Rect Layer::bounds() const noexcept {
   return bounds_;
 }
@@ -572,6 +576,10 @@ void Layer::set_lock_flags(LayerLockFlags flags) noexcept {
 
 void Layer::set_color_label(LayerColorLabel label) noexcept {
   color_label_ = label;
+}
+
+void Layer::set_link_group(std::uint32_t group) noexcept {
+  link_group_ = group;
 }
 
 void Layer::set_bounds(Rect bounds) noexcept {

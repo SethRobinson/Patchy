@@ -532,6 +532,7 @@ void copy_layer_state(Layer& target, const Layer& source) {
   target.set_clipped(source.clipped());
   target.set_lock_flags(source.lock_flags());
   target.set_color_label(source.color_label());
+  target.set_link_group(source.link_group());
   target.layer_style() = source.layer_style();
   target.metadata() = source.metadata();
   target.mask() = source.mask();
@@ -2082,6 +2083,10 @@ Document read_document(std::span<const std::uint8_t> bytes, ReadOptions options)
   append_damaged_row_notice(damaged_rows, options.notices);
   finalize_smart_filter_layers(document.layers(), document.metadata().smart_filter_effects);
   SmartObjectImportCounts smart_object_counts;
+  // Layer links map onto the records as read, before compound vector folders collapse.
+  if (const auto links = find_image_resource_payload(image_resources, kImageResourceLayerGroupInfo)) {
+    apply_layer_link_resource(document.layers(), *links);
+  }
   finalize_smart_object_layers(document.layers(), document.metadata().smart_objects, smart_object_counts);
   append_smart_object_notices(smart_object_counts, options.notices);
   // Vector shape layers rasterize here (after the pattern blocks decoded so
@@ -3184,7 +3189,8 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   write_length_prefixed_block(writer, image_resources_for_document(document, channel_info, output_mode,
                                                                    color_plan.cmyk ? &color_plan.cmyk->embedded_profile
                                                                                    : nullptr,
-                                                                   thumbnail ? &*thumbnail : nullptr));
+                                                                   thumbnail ? &*thumbnail : nullptr,
+                                                                   /*layered*/ true));
   if (options.large_document) {
     writer.write_u64(layer_mask.bytes().size());
     writer.write_bytes(layer_mask.bytes());

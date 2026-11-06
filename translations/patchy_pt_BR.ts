@@ -14982,6 +14982,10 @@ Deseja substituí-lo?</translation>
         <source>Transform controls under the Move tool</source>
         <translation>Controles de transformação com a ferramenta Mover</translation>
     </message>
+    <message>
+        <source>Linked layer. Click to select the layers linked to it.</source>
+        <translation>Camada vinculada. Clique para selecionar as camadas vinculadas a ela.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -19668,6 +19672,18 @@ Deseja substituí-lo?</translation>
     <message>
         <source>Pick the last brush preset in the list</source>
         <translation>Escolher a última predefinição de pincel da lista</translation>
+    </message>
+    <message>
+        <source>Make the selected layers move and transform together</source>
+        <translation>Mover e transformar as camadas selecionadas juntas</translation>
+    </message>
+    <message>
+        <source>Let the selected layers move on their own again</source>
+        <translation>Voltar a mover as camadas selecionadas separadamente</translation>
+    </message>
+    <message>
+        <source>Select every layer linked to the selected ones</source>
+        <translation>Selecionar todas as camadas vinculadas às selecionadas</translation>
     </message>
 </context>
 <context>
@@ -33253,6 +33269,34 @@ Bloqueado: %1</translation>
         <source>Not saved yet</source>
         <translation>Ainda não salvo</translation>
     </message>
+    <message>
+        <source>&amp;Link Layers</source>
+        <translation>&amp;Vincular camadas</translation>
+    </message>
+    <message>
+        <source>U&amp;nlink Layers</source>
+        <translation>&amp;Desvincular camadas</translation>
+    </message>
+    <message>
+        <source>Select Lin&amp;ked Layers</source>
+        <translation>Selecionar ca&amp;madas vinculadas</translation>
+    </message>
+    <message>
+        <source>Link Layers</source>
+        <translation>Vincular camadas</translation>
+    </message>
+    <message>
+        <source>Unlink Layers</source>
+        <translation>Desvincular camadas</translation>
+    </message>
+    <message>
+        <source>Select two or more layers to link</source>
+        <translation>Selecione duas ou mais camadas para vincular</translation>
+    </message>
+    <message>
+        <source>The selected layers are not linked</source>
+        <translation>As camadas selecionadas não estão vinculadas</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35520,6 +35564,10 @@ Bloqueado: %1</translation>
     <message>
         <source>No document is open to rotate the view of.</source>
         <translation>Nenhum documento está aberto para girar a vista.</translation>
+    </message>
+    <message>
+        <source>linkGroup must be 0 or a positive whole number</source>
+        <translation>linkGroup deve ser 0 ou um número inteiro positivo</translation>
     </message>
 </context>
 <context>

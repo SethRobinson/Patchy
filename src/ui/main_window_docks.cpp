@@ -1824,6 +1824,9 @@ void MainWindow::create_docks() {
   add_layer_mask_button_ = new QPushButton(layers_panel);
   auto* add_mask_button = add_layer_mask_button_;
   auto* duplicate_button = new QPushButton(layers_panel);
+  // Link Layers / Unlink Layers (GitHub issue 656): optional, shown by the Adobe Photoshop preset.
+  layer_link_button_ = new QPushButton(layers_panel);
+  auto* link_button = layer_link_button_;
   // Hidden until the footer menu or Customize Tool Palette shows them (GitHub issue 470).
   auto* move_up_button = new QPushButton(layers_panel);
   auto* move_down_button = new QPushButton(layers_panel);
@@ -1840,6 +1843,7 @@ void MainWindow::create_docks() {
   add_folder_button->setObjectName(QStringLiteral("layerNewFolderButton"));
   add_mask_button->setObjectName(QStringLiteral("layerAddMaskButton"));
   duplicate_button->setObjectName(QStringLiteral("layerDuplicateButton"));
+  link_button->setObjectName(QStringLiteral("layerLinkButton"));
   move_up_button->setObjectName(QStringLiteral("layerMoveUpButton"));
   move_down_button->setObjectName(QStringLiteral("layerMoveDownButton"));
   merge_down_button->setObjectName(QStringLiteral("layerMergeDownButton"));
@@ -1854,6 +1858,7 @@ void MainWindow::create_docks() {
   styles_button->setIcon(simple_icon(QStringLiteral("badge-fx")));
   add_mask_button->setIcon(simple_icon(QStringLiteral("mask"), QColor(210, 220, 230)));
   duplicate_button->setIcon(simple_icon(QStringLiteral("dup")));
+  link_button->setIcon(simple_icon(QStringLiteral("link")));
   move_up_button->setIcon(simple_icon(QStringLiteral("layer-up")));
   move_down_button->setIcon(simple_icon(QStringLiteral("layer-down")));
   merge_down_button->setIcon(simple_icon(QStringLiteral("merge-down")));
@@ -1883,6 +1888,9 @@ void MainWindow::create_docks() {
   apply_add_mask_tooltip();
   register_retranslation(apply_add_mask_tooltip);
   bind_tooltip(duplicate_button, QT_TR_NOOP("Duplicate Layer"));
+  // refresh_layer_link_action_states names Unlink Layers when the button would unlink.
+  link_button->setToolTip(tr("Link Layers"));
+  register_retranslation([this] { refresh_layer_link_action_states(); });
   const auto apply_arrange_tooltips = [move_up_button, move_down_button, merge_down_button] {
     const auto lines = [](const QString& name, const QString& shift, const QString& alt) {
       return name + QLatin1Char('\n') + shift + QLatin1Char('\n') + resolve_modifier_names(alt);
@@ -1900,7 +1908,7 @@ void MainWindow::create_docks() {
   bind_tooltip(rasterize_button, QT_TR_NOOP("Rasterize Layer"));
   bind_tooltip(animation_button, QT_TR_NOOP("Animation Preview"));
   bind_tooltip(delete_button, QT_TR_NOOP("Delete Layer"));
-  for (auto* button : {add_button, add_folder_button, add_mask_button, duplicate_button, move_up_button,
+  for (auto* button : {add_button, add_folder_button, add_mask_button, duplicate_button, link_button, move_up_button,
                        move_down_button, merge_down_button, merge_visible_button, animation_button, delete_button}) {
     button->setProperty("layerActionButton", true);
     button->setIconSize(QSize(24, 24));
@@ -2006,6 +2014,7 @@ void MainWindow::create_docks() {
   layer_buttons->addWidget(styles_button);
   layer_buttons->addWidget(add_mask_button);
   layer_buttons->addWidget(duplicate_button);
+  layer_buttons->addWidget(link_button);
   layer_buttons->addWidget(move_up_button);
   layer_buttons->addWidget(move_down_button);
   layer_buttons->addWidget(merge_down_button);
@@ -2097,6 +2106,9 @@ void MainWindow::create_docks() {
     }
   });
   connect(duplicate_button, &QPushButton::clicked, this, [this] { duplicate_active_layer(); });
+  connect(link_button, &QPushButton::clicked, this, [this] { toggle_selected_layers_link(); });
+  // Not a document widget: refresh_layer_link_action_states owns its enabled state.
+  link_button->setEnabled(false);
   connect(animation_button, &QPushButton::clicked, this, [this] { toggle_animation_preview_window(); });
   connect(delete_button, &QPushButton::clicked, this, [this] { delete_from_layers_panel(); });
   for (auto* widget : {static_cast<QWidget*>(add_button), static_cast<QWidget*>(add_folder_button),
@@ -2119,6 +2131,7 @@ void MainWindow::create_docks() {
                            {"layer_styles", styles_button, QT_TR_NOOP("Layer Styles")},
                            {"add_mask", add_mask_button, QT_TR_NOOP("Add Layer Mask")},
                            {"duplicate", duplicate_button, QT_TR_NOOP("Duplicate Layer")},
+                           {"link", link_button, QT_TR_NOOP("Link Layers")},
                            {"move_up", move_up_button, QT_TR_NOOP("Move Layer Up")},
                            {"move_down", move_down_button, QT_TR_NOOP("Move Layer Down")},
                            {"merge_down", merge_down_button, QT_TR_NOOP("Merge Down")},

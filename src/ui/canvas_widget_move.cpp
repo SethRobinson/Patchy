@@ -924,14 +924,18 @@ std::vector<LayerId> CanvasWidget::movable_layer_ids() const {
       collect_movable_leaf_ids(*layer, kLayerLockNone, ids);
     }
   };
+  // Layers linked to a target move with it (GitHub issue 656), as if they were selected.
+  const auto& layers = std::as_const(*document_).layers();
   if (!selected_layer_ids_.empty()) {
-    for (const auto id : root_drop_layer_ids(document_->layers(), selected_layer_ids_)) {
+    for (const auto id : root_drop_layer_ids(layers, with_linked_layer_ids(layers, selected_layer_ids_))) {
       add_movable_by_id(id);
     }
   }
   if (ids.empty()) {
     if (const auto active = document_->active_layer_id(); active.has_value()) {
-      add_movable_by_id(*active);
+      for (const auto id : root_drop_layer_ids(layers, with_linked_layer_ids(layers, {*active}))) {
+        add_movable_by_id(id);
+      }
     }
   }
   return ids;

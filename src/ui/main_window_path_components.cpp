@@ -401,6 +401,7 @@ bool MainWindow::paste_path_components() {
     const auto& source = clipboard_->path_components_layer.front();
     created = clone_layer_tree_with_document_ids(doc, source);
     if (created.has_value()) {
+      created->set_link_group(0U);  // a new shape layer, not linked to its source (GitHub issue 656)
       created->set_name(unused_duplicate_layer_name(source.name()));
       auto content = *std::as_const(*created).vector_shape();
       make_first_component_paint(content.path);
@@ -508,6 +509,7 @@ void MainWindow::selected_path_components_to_new_layer(bool keep_originals) {
     const auto& source = *std::as_const(doc).find_layer(*anchor);
     created = clone_layer_tree_with_document_ids(doc, source);
     if (created.has_value()) {
+      created->set_link_group(0U);  // a new shape layer, not linked to its source (GitHub issue 656)
       created->set_name(unused_duplicate_layer_name(source.name()));
       auto content = vector_shape_content_for_groups(*source.vector_shape(), groups);
       make_first_component_paint(content.path);

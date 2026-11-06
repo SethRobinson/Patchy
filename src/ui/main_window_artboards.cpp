@@ -352,6 +352,8 @@ void MainWindow::move_artboard(LayerId id, QPoint delta, bool duplicate, bool nu
     moved_id = copy->id();
     const auto index = static_cast<std::ptrdiff_t>(artboard - doc.layers().data());
     doc.layers().insert(doc.layers().begin() + index + 1, std::move(*copy));
+    // Layers linked inside the artboard link to each other in the copy (GitHub issue 656).
+    separate_copied_link_groups(doc.layers(), {moved_id});
   } else {
     offset_copied_layer_tree(*artboard, delta.x(), delta.y(), doc.width(), doc.height());
     rebake(*artboard, canvas, &std::as_const(doc).metadata().patterns);

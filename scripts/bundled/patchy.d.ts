@@ -341,6 +341,10 @@ interface PatchyLayer {
   /** The Layers panel color label. Setting an unknown value throws; a label from a newer
    *  Photoshop that Patchy does not know reads as "none" and is kept on save. */
   colorLabel: PatchyLayerColorLabel;
+  /** Layer > Arrange > Link Layers: layers sharing a nonzero number are linked, so the Move tool
+   *  and Free Transform take them together. 0 is unlinked; a layer with no partner reads 0.
+   *  Set the same number on two or more layers to link them. PSD saves keep the links. */
+  linkGroup: number;
   /** Content offset in document pixels; setting either moves the layer like `moveTo`.
    *  For an artboard, the artboard's top-left corner. */
   x: number;
@@ -1759,8 +1763,8 @@ interface PatchyUi {
    * Window > Customize Tool Palette, applied live and saved. Read it for the current choice;
    * assign an object with any of its keys to change those. Tool ids are the tools' hotkey
    * ids ("tools.hand"); hidden tools keep their shortcuts. Layer button ids: "new_layer",
-   * "new_folder", "new_adjustment", "layer_styles", "add_mask", "duplicate", "move_up",
-   * "move_down", "merge_down", "merge_visible", "rasterize", "animation", "delete"; "move_up",
+   * "new_folder", "new_adjustment", "layer_styles", "add_mask", "duplicate", "link", "move_up",
+   * "move_down", "merge_down", "merge_visible", "rasterize", "animation", "delete"; "link", "move_up",
    * "move_down", "merge_down", "merge_visible" and "rasterize" are hidden by default. An unknown id or layout throws.
    */
   toolPalette: {

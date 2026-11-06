@@ -14935,6 +14935,10 @@ Do you want to replace it?</source>
         <source>Transform controls under the Move tool</source>
         <translation>移动工具下的变换控件</translation>
     </message>
+    <message>
+        <source>Linked layer. Click to select the layers linked to it.</source>
+        <translation>链接图层。单击可选择与其链接的图层。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -19621,6 +19625,18 @@ Do you want to replace it?</source>
     <message>
         <source>Pick the last brush preset in the list</source>
         <translation>选择列表中的最后一个画笔预设</translation>
+    </message>
+    <message>
+        <source>Make the selected layers move and transform together</source>
+        <translation>让所选图层一起移动和变换</translation>
+    </message>
+    <message>
+        <source>Let the selected layers move on their own again</source>
+        <translation>让所选图层重新单独移动</translation>
+    </message>
+    <message>
+        <source>Select every layer linked to the selected ones</source>
+        <translation>选择与所选图层链接的所有图层</translation>
     </message>
 </context>
 <context>
@@ -33166,6 +33182,34 @@ Locked: %1</source>
         <source>Not saved yet</source>
         <translation>尚未保存</translation>
     </message>
+    <message>
+        <source>&amp;Link Layers</source>
+        <translation>链接图层(&amp;L)</translation>
+    </message>
+    <message>
+        <source>U&amp;nlink Layers</source>
+        <translation>取消图层链接(&amp;N)</translation>
+    </message>
+    <message>
+        <source>Select Lin&amp;ked Layers</source>
+        <translation>选择链接图层(&amp;K)</translation>
+    </message>
+    <message>
+        <source>Link Layers</source>
+        <translation>链接图层</translation>
+    </message>
+    <message>
+        <source>Unlink Layers</source>
+        <translation>取消图层链接</translation>
+    </message>
+    <message>
+        <source>Select two or more layers to link</source>
+        <translation>请选择两个或更多要链接的图层</translation>
+    </message>
+    <message>
+        <source>The selected layers are not linked</source>
+        <translation>所选图层未链接</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35432,6 +35476,10 @@ Locked: %1</source>
     <message>
         <source>No document is open to rotate the view of.</source>
         <translation>没有打开的文档可供旋转视图。</translation>
+    </message>
+    <message>
+        <source>linkGroup must be 0 or a positive whole number</source>
+        <translation>linkGroup 必须为 0 或正整数</translation>
     </message>
 </context>
 <context>

@@ -373,6 +373,28 @@ void ui_script_layer_color_label() {
   CHECK(layer != nullptr && layer->color_label() == patchy::kLayerColorFuchsia);
 }
 
+// GitHub issue 656: layer.linkGroup links layers that share a number; a lone layer reads 0.
+void ui_script_layer_link_group() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var d = app.activeDocument;
+    var a = d.addLayer('Linked A');
+    var b = d.addLayer('Linked B');
+    if (a.linkGroup !== 0) throw Error('default ' + a.linkGroup);
+    a.linkGroup = 3;
+    if (a.linkGroup !== 0) throw Error('a lone layer is unlinked, read ' + a.linkGroup);
+    b.linkGroup = 3;
+    if (a.linkGroup !== 3 || b.linkGroup !== 3) throw Error('linked ' + a.linkGroup + ' ' + b.linkGroup);
+  )JS")));
+  const auto* a = layer_named(document, "Linked A");
+  const auto* b = layer_named(document, "Linked B");
+  CHECK(a != nullptr && b != nullptr && a->link_group() == 3U && b->link_group() == 3U);
+  CHECK(!run_script(window, QStringLiteral("app.activeDocument.activeLayer.linkGroup = -1;")));
+  CHECK(backlog_contains(window, QStringLiteral("linkGroup")));
+}
+
 void ui_script_palette_validation_and_history() {
   using patchy::ui::MainWindowTestAccess;
   patchy::ui::MainWindow window;
@@ -2291,6 +2313,7 @@ std::vector<patchy::test::TestCase> scripting_tests_part1() {
       {"ui_script_export_pdf_writes_pages", ui_script_export_pdf_writes_pages},
       {"ui_script_layer_move_to_rounds_like_photoshop", ui_script_layer_move_to_rounds_like_photoshop},
       {"ui_script_layer_color_label", ui_script_layer_color_label},
+      {"ui_script_layer_link_group", ui_script_layer_link_group},
       {"ui_script_palette_validation_and_history", ui_script_palette_validation_and_history},
       {"ui_script_palette_unicode_files_and_indexed_png", ui_script_palette_unicode_files_and_indexed_png},
       {"ui_script_palette_named_controls_and_rename", ui_script_palette_named_controls_and_rename},

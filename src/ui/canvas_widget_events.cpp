@@ -12,6 +12,7 @@
 #include "core/layer.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
+#include "core/layer_tree.hpp"
 #include "core/pixel_buffer.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/smart_object.hpp"
@@ -1387,6 +1388,14 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
           collect_movable_leaf_ids(*hit_layer, kLayerLockNone, layer_ids);
         } else {
           layer_ids.push_back(hit_layer->id());
+        }
+        // The picked layer's link group moves with it (GitHub issue 656).
+        const auto& layers = std::as_const(*document_).layers();
+        const auto with_links = with_linked_layer_ids(layers, {hit_layer->id()});
+        for (const auto id : root_drop_layer_ids(layers, with_links)) {
+          if (const auto* linked = std::as_const(*document_).find_layer(id); linked != nullptr && id != hit_layer->id()) {
+            collect_movable_leaf_ids(*linked, kLayerLockNone, layer_ids);
+          }
         }
         transform_controls_layer = hit_layer;
       }

@@ -51,6 +51,8 @@ class ScriptLayerObject : public QObject {
   Q_PROPERTY(bool locked READ locked WRITE set_locked)
   // The Layers panel color label (GitHub issue 244): "none", "red", ... "gray".
   Q_PROPERTY(QString colorLabel READ color_label WRITE set_color_label)
+  // Layer > Arrange > Link Layers (GitHub issue 656): layers sharing a nonzero number are linked.
+  Q_PROPERTY(int linkGroup READ link_group WRITE set_link_group)
   Q_PROPERTY(double x READ x WRITE set_x)
   Q_PROPERTY(double y READ y WRITE set_y)
   Q_PROPERTY(QJSValue bounds READ bounds)
@@ -94,6 +96,8 @@ public:
   void set_locked(bool locked);
   [[nodiscard]] QString color_label() const;
   void set_color_label(const QString& label);
+  [[nodiscard]] int link_group() const;
+  void set_link_group(int group);
   [[nodiscard]] int x() const;
   void set_x(double x);
   [[nodiscard]] int y() const;

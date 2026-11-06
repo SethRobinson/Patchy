@@ -14964,6 +14964,10 @@ Do you want to replace it?</source>
         <source>Transform controls under the Move tool</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Linked layer. Click to select the layers linked to it.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -19649,6 +19653,18 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Pick the last brush preset in the list</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Make the selected layers move and transform together</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Let the selected layers move on their own again</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select every layer linked to the selected ones</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -33171,6 +33187,34 @@ Locked: %1</source>
         <source>Not saved yet</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>&amp;Link Layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>U&amp;nlink Layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select Lin&amp;ked Layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Link Layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unlink Layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select two or more layers to link</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The selected layers are not linked</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35437,6 +35481,10 @@ Locked: %1</source>
     </message>
     <message>
         <source>No document is open to rotate the view of.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>linkGroup must be 0 or a positive whole number</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -9,6 +9,7 @@
 #include "color/color_management.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/layer_tree.hpp"
 #include "core/pixel_depth.hpp"
 #include "core/vector_compound.hpp"
 #include "core/pattern_resource.hpp"
@@ -1143,7 +1144,7 @@ std::vector<std::uint8_t> image_resources_for_document(const Document& document,
                                                        std::span<const CompositeChannelInfo> channels,
                                                        std::uint16_t output_mode,
                                                        const std::vector<std::uint8_t>* output_icc_profile,
-                                                       const std::vector<std::uint8_t>* thumbnail) {
+                                                       const std::vector<std::uint8_t>* thumbnail, bool layered) {
   auto resources = document.metadata().raw_psd_image_resources;
   auto parsed = read_image_resources(resources);
   if (!parsed.has_value()) {
@@ -1335,7 +1336,80 @@ std::vector<std::uint8_t> image_resources_for_document(const Document& document,
       return reader.read_u32() == kPatchyLongShadowsMagic && reader.read_u16() == 1;
     });
   }
+  const auto had_link_resource = std::any_of(parsed->begin(), parsed->end(), [](const ImageResource& resource) {
+    return resource.id == kImageResourceLayerGroupInfo;
+  });
+  const auto links = layered ? layer_link_groups_in_record_order(document.layers()) : std::vector<std::uint16_t>{};
+  const auto any_link = std::any_of(links.begin(), links.end(), [](std::uint16_t group) { return group != 0U; });
+  if (layered && !links.empty() && (any_link || had_link_resource)) {
+    BigEndianWriter groups;
+    for (const auto group : links) {
+      groups.write_u16(group);
+    }
+    upsert_image_resource(*parsed, kImageResourceLayerGroupInfo, groups.bytes());
+    upsert_image_resource(*parsed, kImageResourceLayerGroupsEnabled, std::vector<std::uint8_t>(links.size(), 1U));
+  } else {
+    // The records the resources described are gone (a flat save, no layers) or carry no link.
+    remove_image_resource(*parsed, kImageResourceLayerGroupInfo);
+    remove_image_resource(*parsed, kImageResourceLayerGroupsEnabled);
+  }
   return write_image_resources(*parsed);
+}
+
+namespace {
+
+void collect_record_link_groups(const std::vector<Layer>& layers, const std::map<std::uint32_t, std::size_t>& counts,
+                                std::map<std::uint32_t, std::uint16_t>& renumbered,
+                                std::vector<std::uint16_t>& groups) {
+  for (const auto& layer : layers) {
+    if (layer.kind() == LayerKind::Group) {
+      groups.push_back(0U);  // the folder's closing boundary record
+      collect_record_link_groups(layer.children(), counts, renumbered, groups);
+    }
+    std::uint16_t group = 0U;
+    if (const auto found = counts.find(layer.link_group()); layer.link_group() != 0U && found != counts.end() &&
+                                                           found->second > 1U) {
+      const auto next = static_cast<std::uint16_t>(std::min<std::size_t>(renumbered.size() + 1U, 0xFFFFU));
+      group = renumbered.try_emplace(layer.link_group(), next).first->second;
+    }
+    groups.push_back(group);
+  }
+}
+
+void apply_record_link_groups(const std::vector<Layer>& layers, std::span<const std::uint16_t> groups,
+                              std::size_t& index) {
+  for (const auto& layer : layers) {
+    if (layer.kind() == LayerKind::Group) {
+      ++index;
+      apply_record_link_groups(layer.children(), groups, index);
+    }
+    // Link groups never render: set through a const walk so no revision moves.
+    const_cast<Layer&>(layer).set_link_group(groups[index++]);
+  }
+}
+
+}  // namespace
+
+std::vector<std::uint16_t> layer_link_groups_in_record_order(const std::vector<Layer>& layers) {
+  std::vector<std::uint16_t> groups;
+  std::map<std::uint32_t, std::uint16_t> renumbered;
+  collect_record_link_groups(layers, link_group_member_counts(layers), renumbered, groups);
+  return groups;
+}
+
+void apply_layer_link_resource(std::vector<Layer>& layers, std::span<const std::uint8_t> payload) {
+  std::vector<std::uint16_t> groups;
+  groups.reserve(payload.size() / 2U);
+  BigEndianReader reader(payload);
+  while (reader.remaining() >= 2U) {
+    groups.push_back(reader.read_u16());
+  }
+  if (payload.size() % 2U != 0U || groups.size() != layer_link_groups_in_record_order(layers).size()) {
+    return;
+  }
+  std::size_t index = 0;
+  apply_record_link_groups(std::as_const(layers), groups, index);
+  clear_single_member_link_groups(layers);
 }
 
 PixelBuffer thumbnail_pixels(const PixelBuffer& composite, std::span<const std::uint8_t> transparency,

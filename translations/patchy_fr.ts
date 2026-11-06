@@ -14982,6 +14982,10 @@ Voulez-vous le remplacer ?</translation>
         <source>Transform controls under the Move tool</source>
         <translation>Options de transformation avec l&apos;outil Déplacement</translation>
     </message>
+    <message>
+        <source>Linked layer. Click to select the layers linked to it.</source>
+        <translation>Calque lié. Cliquez pour sélectionner les calques qui lui sont liés.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -19668,6 +19672,18 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>Pick the last brush preset in the list</source>
         <translation>Choisir le dernier pinceau prédéfini de la liste</translation>
+    </message>
+    <message>
+        <source>Make the selected layers move and transform together</source>
+        <translation>Déplacer et transformer ensemble les calques sélectionnés</translation>
+    </message>
+    <message>
+        <source>Let the selected layers move on their own again</source>
+        <translation>Déplacer de nouveau les calques sélectionnés séparément</translation>
+    </message>
+    <message>
+        <source>Select every layer linked to the selected ones</source>
+        <translation>Sélectionner tous les calques liés aux calques sélectionnés</translation>
     </message>
 </context>
 <context>
@@ -33253,6 +33269,34 @@ Verrouillé : %1</translation>
         <source>Not saved yet</source>
         <translation>Pas encore enregistré</translation>
     </message>
+    <message>
+        <source>&amp;Link Layers</source>
+        <translation>&amp;Lier les calques</translation>
+    </message>
+    <message>
+        <source>U&amp;nlink Layers</source>
+        <translation>Annuler le lie&amp;n des calques</translation>
+    </message>
+    <message>
+        <source>Select Lin&amp;ked Layers</source>
+        <translation>Sélectionner les &amp;calques liés</translation>
+    </message>
+    <message>
+        <source>Link Layers</source>
+        <translation>Lier les calques</translation>
+    </message>
+    <message>
+        <source>Unlink Layers</source>
+        <translation>Annuler le lien des calques</translation>
+    </message>
+    <message>
+        <source>Select two or more layers to link</source>
+        <translation>Sélectionnez au moins deux calques à lier</translation>
+    </message>
+    <message>
+        <source>The selected layers are not linked</source>
+        <translation>Les calques sélectionnés ne sont pas liés</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35520,6 +35564,10 @@ Verrouillé : %1</translation>
     <message>
         <source>No document is open to rotate the view of.</source>
         <translation>Aucun document n&apos;est ouvert dont faire pivoter l&apos;affichage.</translation>
+    </message>
+    <message>
+        <source>linkGroup must be 0 or a positive whole number</source>
+        <translation>linkGroup doit être 0 ou un nombre entier positif</translation>
     </message>
 </context>
 <context>

@@ -26,6 +26,7 @@ void copy_properties(const Layer& from, Layer& to) {
   to.set_blend_mode(from.blend_mode());
   to.set_lock_flags(from.lock_flags());
   to.set_color_label(from.color_label());
+  to.set_link_group(from.link_group());
   to.set_bounds(from.bounds());
   to.set_blend_if_payload(from.raw_psd_blending_ranges(), from.blend_if_rgb_compatible());
   if (from.channel_restriction_supported()) { to.set_restricted_channels(from.restricted_channels()); }

@@ -15029,6 +15029,10 @@ Czy chcesz go zastąpić?</translation>
         <source>Transform controls under the Move tool</source>
         <translation>Elementy sterujące transformacją przy narzędziu Przesuwanie</translation>
     </message>
+    <message>
+        <source>Linked layer. Click to select the layers linked to it.</source>
+        <translation>Połączona warstwa. Kliknij, aby zaznaczyć warstwy z nią połączone.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -19715,6 +19719,18 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>Pick the last brush preset in the list</source>
         <translation>Wybierz ostatnie ustawienie wstępne pędzla z listy</translation>
+    </message>
+    <message>
+        <source>Make the selected layers move and transform together</source>
+        <translation>Przesuwaj i przekształcaj zaznaczone warstwy razem</translation>
+    </message>
+    <message>
+        <source>Let the selected layers move on their own again</source>
+        <translation>Przesuwaj zaznaczone warstwy znowu osobno</translation>
+    </message>
+    <message>
+        <source>Select every layer linked to the selected ones</source>
+        <translation>Zaznacz wszystkie warstwy połączone z zaznaczonymi</translation>
     </message>
 </context>
 <context>
@@ -33340,6 +33356,34 @@ Zablokowano: %1</translation>
         <source>Not saved yet</source>
         <translation>Jeszcze nie zapisano</translation>
     </message>
+    <message>
+        <source>&amp;Link Layers</source>
+        <translation>&amp;Połącz warstwy</translation>
+    </message>
+    <message>
+        <source>U&amp;nlink Layers</source>
+        <translation>&amp;Rozłącz warstwy</translation>
+    </message>
+    <message>
+        <source>Select Lin&amp;ked Layers</source>
+        <translation>Zaznacz połą&amp;czone warstwy</translation>
+    </message>
+    <message>
+        <source>Link Layers</source>
+        <translation>Połącz warstwy</translation>
+    </message>
+    <message>
+        <source>Unlink Layers</source>
+        <translation>Rozłącz warstwy</translation>
+    </message>
+    <message>
+        <source>Select two or more layers to link</source>
+        <translation>Zaznacz co najmniej dwie warstwy do połączenia</translation>
+    </message>
+    <message>
+        <source>The selected layers are not linked</source>
+        <translation>Zaznaczone warstwy nie są połączone</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35608,6 +35652,10 @@ Zablokowano: %1</translation>
     <message>
         <source>No document is open to rotate the view of.</source>
         <translation>Żaden dokument nie jest otwarty do obrócenia widoku.</translation>
+    </message>
+    <message>
+        <source>linkGroup must be 0 or a positive whole number</source>
+        <translation>linkGroup musi wynosić 0 lub być dodatnią liczbą całkowitą</translation>
     </message>
 </context>
 <context>

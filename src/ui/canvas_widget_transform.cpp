@@ -1617,9 +1617,15 @@ CanvasWidget::TransformTargetCollection CanvasWidget::collect_free_transform_tar
   }
   std::vector<LayerId> roots;
   if (!selected_layer_ids_.empty()) {
-    roots = root_drop_layer_ids(std::as_const(*document_).layers(), selected_layer_ids_);
+    roots = selected_layer_ids_;
   } else if (const auto active = document_->active_layer_id(); active.has_value()) {
     roots.push_back(*active);
+  }
+  if (!roots.empty()) {
+    // Linked layers transform with their partners (GitHub issue 656), unless a pixel
+    // selection makes this a transform of the selected pixels (Photoshop's rule).
+    const auto& layers = std::as_const(*document_).layers();
+    roots = root_drop_layer_ids(layers, selection_.isEmpty() ? with_linked_layer_ids(layers, roots) : roots);
   }
   if (roots.empty()) {
     collection.refusal = tr("Select an editable pixel layer to transform");
@@ -2049,6 +2055,11 @@ std::optional<QRectF> CanvasWidget::move_transform_target_rect() const {
     }
   } else if (selected_layer_ids_.size() == 1U) {
     target_layer_id = selected_layer_ids_.front();
+  }
+  // A linked layer frames its whole link group, as its transform takes it (GitHub issue 656).
+  if (target_layer_id.has_value() && selection_.isEmpty() &&
+      effective_link_group(std::as_const(*document_).layers(), *target_layer_id) != 0U) {
+    target_layer_id.reset();
   }
   if (target_layer_id.has_value()) {
     const auto* layer = document_->find_layer(*target_layer_id);

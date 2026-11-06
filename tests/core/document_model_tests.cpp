@@ -813,6 +813,85 @@ std::vector<patchy::LayerId> sibling_ids(const std::vector<patchy::Layer>& layer
 
 // GitHub issue 468: Bring to Front and Send to Back move within the layer's own folder, keep
 // listed siblings in order, and never go under a pinned Background.
+// Layer > Arrange > Link Layers (GitHub issue 656): grouping, merging, unlinking, the link
+// expansion the Move tool and Free Transform use, and copies leaving their sources' groups.
+void layer_links_link_unlink_expand_and_separate_copies() {
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+  const auto a_id = document.add_pixel_layer("A", solid_rgb(2, 2, 1, 2, 3)).id();
+  const auto b_id = document.add_pixel_layer("B", solid_rgb(2, 2, 1, 2, 3)).id();
+  patchy::Layer folder(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  const auto folder_id = folder.id();
+  patchy::Layer c(document.allocate_layer_id(), "C", solid_rgb(2, 2, 1, 2, 3));
+  const auto c_id = c.id();
+  folder.add_child(std::move(c));
+  document.add_layer(std::move(folder));
+  const auto d_id = document.add_pixel_layer("D", solid_rgb(2, 2, 1, 2, 3)).id();
+  auto& layers = document.layers();
+  using Ids = std::vector<patchy::LayerId>;
+  const auto group_of = [&layers](patchy::LayerId id) { return patchy::effective_link_group(layers, id); };
+  const auto render_revision = std::as_const(document).find_layer(a_id)->render_revision();
+
+  CHECK(!patchy::link_layers(layers, Ids{a_id}));
+  CHECK(!patchy::link_layers(layers, Ids{a_id, a_id}));
+  CHECK(patchy::link_layers(layers, Ids{a_id, b_id}));
+  CHECK(group_of(a_id) != 0U && group_of(a_id) == group_of(b_id));
+  CHECK(group_of(c_id) == 0U);
+  // A link never renders, so no revision moves.
+  CHECK(std::as_const(document).find_layer(a_id)->render_revision() == render_revision);
+  CHECK(!patchy::link_layers(layers, Ids{a_id, b_id}));
+  CHECK((patchy::with_linked_layer_ids(layers, Ids{a_id}) == Ids{a_id, b_id}));
+  CHECK((patchy::with_linked_layer_ids(layers, Ids{d_id}) == Ids{d_id}));
+  CHECK((patchy::linked_layer_ids(layers, b_id) == Ids{a_id, b_id}));
+  CHECK((patchy::linked_layer_ids(layers, d_id) == Ids{d_id}));
+
+  // A second group, then linking across both merges them into the lower id.
+  CHECK(patchy::link_layers(layers, Ids{c_id, d_id}));
+  const auto first = group_of(a_id);
+  CHECK(group_of(c_id) != 0U && group_of(c_id) != first && group_of(c_id) == group_of(d_id));
+  // A selected folder brings the groups of the layers inside it.
+  CHECK((patchy::with_linked_layer_ids(layers, Ids{folder_id}) == Ids{folder_id, c_id, d_id}));
+  CHECK(patchy::link_layers(layers, Ids{b_id, d_id}));
+  for (const auto id : {a_id, b_id, c_id, d_id}) {
+    CHECK(group_of(id) == first);
+  }
+  CHECK(group_of(folder_id) == 0U);
+
+  // Unlinking one layer leaves the others linked; a group left with one member clears.
+  CHECK(patchy::unlink_layers(layers, Ids{a_id, b_id}));
+  CHECK(group_of(a_id) == 0U && group_of(b_id) == 0U);
+  CHECK(group_of(c_id) == first && group_of(d_id) == first);
+  CHECK(patchy::unlink_layers(layers, Ids{c_id}));
+  CHECK(std::as_const(document).find_layer(d_id)->link_group() == 0U);
+  CHECK(!patchy::unlink_layers(layers, Ids{c_id}));
+
+  // A lone layer with a stale id counts as unlinked and expands to nothing.
+  document.find_layer(a_id)->set_link_group(7U);
+  CHECK(group_of(a_id) == 0U);
+  CHECK((patchy::with_linked_layer_ids(layers, Ids{a_id}) == Ids{a_id}));
+  CHECK(patchy::clear_single_member_link_groups(layers));
+  CHECK(std::as_const(document).find_layer(a_id)->link_group() == 0U);
+
+  // Copies of a link group link to each other, not to their sources; a lone copy is unlinked.
+  CHECK(patchy::link_layers(layers, Ids{a_id, b_id, d_id}));
+  const auto sources = group_of(a_id);
+  auto a_copy = std::as_const(document).find_layer(a_id)->clone_with_id(document.allocate_layer_id());
+  auto b_copy = std::as_const(document).find_layer(b_id)->clone_with_id(document.allocate_layer_id());
+  auto d_copy = std::as_const(document).find_layer(d_id)->clone_with_id(document.allocate_layer_id());
+  const auto a_copy_id = a_copy.id();
+  const auto b_copy_id = b_copy.id();
+  const auto d_copy_id = d_copy.id();
+  document.add_layer(std::move(a_copy));
+  document.add_layer(std::move(b_copy));
+  document.add_layer(std::move(d_copy));
+  CHECK(patchy::separate_copied_link_groups(layers, Ids{a_copy_id, b_copy_id}));
+  CHECK(group_of(a_copy_id) != 0U && group_of(a_copy_id) == group_of(b_copy_id) && group_of(a_copy_id) != sources);
+  CHECK(group_of(a_id) == sources && group_of(b_id) == sources);
+  CHECK(group_of(d_copy_id) == sources);  // not separated yet: it still counts as a member
+  CHECK(patchy::separate_copied_link_groups(layers, Ids{d_copy_id}));
+  CHECK(std::as_const(document).find_layer(d_copy_id)->link_group() == 0U);
+  CHECK(group_of(d_id) == sources);
+}
+
 void arrange_layers_to_end_moves_within_each_folder() {
   patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
   const auto background_id = document.add_pixel_layer("Background", solid_rgb(2, 2, 10, 20, 30)).id();
@@ -1365,6 +1444,7 @@ std::vector<patchy::test::TestCase> document_model_tests() {
        default_non_group_layer_id_allows_position_locked_pixels},
       {"layer_drop_request_moves_multiple_layers_into_folder", layer_drop_request_moves_multiple_layers_into_folder},
       {"arrange_layers_to_end_moves_within_each_folder", arrange_layers_to_end_moves_within_each_folder},
+      {"layer_links_link_unlink_expand_and_separate_copies", layer_links_link_unlink_expand_and_separate_copies},
       {"move_layers_out_of_folder_lands_beside_the_folder", move_layers_out_of_folder_lands_beside_the_folder},
       {"collect_layer_descendant_ids_walks_nested_groups_in_order",
        collect_layer_descendant_ids_walks_nested_groups_in_order},

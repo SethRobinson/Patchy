@@ -658,7 +658,7 @@ void ui_layer_footer_buttons_hide_from_their_menu() {
   settle();
   CHECK(!animation->isVisible());
   // With the optional buttons (GitHub issue 470), still hidden by default.
-  const QStringList hidden_with_animation{QStringLiteral("animation"), QStringLiteral("merge_down"),
+  const QStringList hidden_with_animation{QStringLiteral("animation"), QStringLiteral("link"), QStringLiteral("merge_down"),
                                           QStringLiteral("merge_visible"), QStringLiteral("move_down"),
                                           QStringLiteral("move_up"), QStringLiteral("rasterize")};
   CHECK(window.tool_palette_customization().hidden_layer_buttons == hidden_with_animation);
@@ -1779,8 +1779,8 @@ void ui_layer_footer_optional_buttons_start_hidden() {
   CHECK(move_up->isVisible() && move_down->isVisible() && merge_down->isVisible() && animation->isVisible());
   CHECK(!patchy::ui::app_settings().contains(QStringLiteral("layersPanel/hiddenFooterButtons")));
   CHECK(patchy::ui::app_settings().value(QStringLiteral("layersPanel/shownFooterButtons")).toStringList() ==
-        (QStringList{QStringLiteral("merge_down"), QStringLiteral("merge_visible"), QStringLiteral("move_down"),
-                     QStringLiteral("move_up"), QStringLiteral("rasterize")}));
+        (QStringList{QStringLiteral("link"), QStringLiteral("merge_down"), QStringLiteral("merge_visible"),
+                     QStringLiteral("move_down"), QStringLiteral("move_up"), QStringLiteral("rasterize")}));
   if (auto* layers_panel = duplicate->parentWidget(); layers_panel != nullptr) {
     (void)capture_widget_artifact("ui_layer_footer_with_arrange_buttons", *layers_panel);
   }
@@ -2157,16 +2157,16 @@ void ui_layer_footer_order_resolves_unknown_and_missing_ids() {
   CustomizationSettingsGuard settings_guard;
   using patchy::ui::resolved_layer_footer_order;
   const auto moved_delete = footer_ids({"delete", "new_layer", "new_folder", "new_adjustment", "layer_styles",
-                                        "add_mask", "duplicate", "move_up", "move_down", "merge_down",
+                                        "add_mask", "duplicate", "link", "move_up", "move_down", "merge_down",
                                         "merge_visible", "rasterize", "animation"});
   CHECK(resolved_layer_footer_order({}) == default_footer_order());
   CHECK(resolved_layer_footer_order(footer_ids({"delete", "future_button", "new_layer", "delete"})) == moved_delete);
   CHECK(resolved_layer_footer_order(footer_ids({"delete", "new_folder"})) ==
         footer_ids({"new_layer", "delete", "new_folder", "new_adjustment", "layer_styles", "add_mask", "duplicate",
-                    "move_up", "move_down", "merge_down", "merge_visible", "rasterize", "animation"}));
+                    "link", "move_up", "move_down", "merge_down", "merge_visible", "rasterize", "animation"}));
   CHECK(resolved_layer_footer_order(footer_ids({"animation", "duplicate"})) ==
         footer_ids({"new_layer", "new_folder", "new_adjustment", "layer_styles", "add_mask", "animation", "delete",
-                    "duplicate", "move_up", "move_down", "merge_down", "merge_visible", "rasterize"}));
+                    "duplicate", "link", "move_up", "move_down", "merge_down", "merge_visible", "rasterize"}));
 
   ToolPaletteCustomization value;
   value.layer_button_order = default_footer_order();
@@ -2201,7 +2201,8 @@ void ui_layer_footer_follows_stored_order() {
     return;
   }
   CHECK(new_button->x() < duplicate->x() && duplicate->x() < delete_button->x());
-  const auto expected = footer_ids({"delete", "duplicate", "new_layer", "new_folder", "new_adjustment", "layer_styles",
+  const auto expected = footer_ids({"delete", "duplicate", "link", "new_layer", "new_folder", "new_adjustment",
+                                    "layer_styles",
                                     "add_mask", "move_up", "move_down", "merge_down",
                                     "merge_visible", "rasterize", "animation"});
   auto customization = window.tool_palette_customization();
@@ -2285,7 +2286,7 @@ void ui_tool_palette_dialog_reorders_layer_buttons() {
     list->item(row_ids(*list).indexOf(QStringLiteral("move_up")))->setCheckState(Qt::Checked);
     QApplication::processEvents();
     CHECK(row_ids(*list) == footer_ids({"delete", "new_layer", "new_folder", "new_adjustment", "layer_styles",
-                                        "duplicate", "add_mask", "move_up", "move_down", "merge_down",
+                                        "duplicate", "add_mask", "link", "move_up", "move_down", "merge_down",
                                         "merge_visible", "rasterize", "animation"}));
     (void)capture_widget_artifact("ui_tool_palette_customize_layer_button_order", dialog);
     press_dialog_button(dialog, QDialogButtonBox::Ok);
@@ -2294,7 +2295,7 @@ void ui_tool_palette_dialog_reorders_layer_buttons() {
   CHECK(ran);
   settle();
   const auto expected = footer_ids({"delete", "new_layer", "new_folder", "new_adjustment", "layer_styles", "duplicate",
-                                    "add_mask", "move_up", "move_down", "merge_down",
+                                    "add_mask", "link", "move_up", "move_down", "merge_down",
                                     "merge_visible", "rasterize", "animation"});
   CHECK(window.tool_palette_customization().layer_button_order == expected);
   CHECK(!window.tool_palette_customization().hidden_layer_buttons.contains(QStringLiteral("move_up")));
@@ -2350,7 +2351,8 @@ QStringList preset_shown_buttons(patchy::ui::LayerFooterPreset preset) {
     case LayerFooterPreset::Patchy:
       break;
     case LayerFooterPreset::Photoshop:
-      return footer_ids({"layer_styles", "add_mask", "new_adjustment", "new_folder", "new_layer", "delete"});
+      return footer_ids(
+          {"link", "layer_styles", "add_mask", "new_adjustment", "new_folder", "new_layer", "delete"});
     case LayerFooterPreset::AffinityPhoto:
       return footer_ids(
           {"duplicate", "add_mask", "new_adjustment", "layer_styles", "new_folder", "new_layer", "delete"});
@@ -2610,7 +2612,7 @@ std::vector<FooterButtonRect> visible_footer_buttons(QWidget& panel) {
 }
 
 // GitHub issue 213 follow-up (replacing #199's balanced rows): at every icon size and with the
-// default eight or all eleven buttons, the footer keeps every button on one row while it fits;
+// default eight or every footer button, the footer keeps every button on one row while it fits;
 // as the column narrows, buttons move to the next row one at a time, every row but the last
 // full, in the same columns; nothing overlaps or leaves the panel, down to the compact width.
 void ui_layer_footer_wraps_one_button_at_a_time() {
@@ -2631,7 +2633,7 @@ void ui_layer_footer_wraps_one_button_at_a_time() {
       if (panel == nullptr) {
         return;
       }
-      const auto expected_count = all_buttons ? 13 : 8;
+      const auto expected_count = all_buttons ? static_cast<int>(std::size(patchy::ui::kLayerFooterButtonIds)) : 8;
       const auto opening = patchy::ui::MainWindowTestAccess::right_dock_content_minimum_width(window);
       const auto compact = patchy::ui::MainWindowTestAccess::right_dock_compact_width(window);
       int previous_first_row = expected_count;

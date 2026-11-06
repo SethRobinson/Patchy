@@ -1875,7 +1875,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                LayerThumbnailSize thumbnail_size = kDefaultLayerThumbnailSize,
                                bool arrow_column = false,
                                std::function<void(LayerId, bool)> set_vector_mask_linked = {},
-                               std::function<void()> unlock_background = {}) {
+                               std::function<void()> unlock_background = {}, bool layer_linked = false,
+                               std::function<void(LayerId)> select_linked = {}) {
   // One crop per row for the content and Smart Filter mask previews; the layer
   // and vector mask previews frame the mask itself (raster_mask_thumbnail_crop).
   const auto thumbnail_crop = content_crop ? content_crop(layer) : std::optional<Rect>{};
@@ -2222,6 +2223,12 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     add_badge_button(QStringLiteral("layerVectorBadgeButton"), QStringLiteral("badge-vector"),
                      QObject::tr("Vector shape layer. Click to edit its appearance."),
                      std::move(open_shape_appearance));
+  }
+  if (layer_linked) {
+    // Layer linking (GitHub issue 656): the row's partners move and transform with it.
+    add_badge_button(QStringLiteral("layerLinkBadgeButton"), QStringLiteral("link"),
+                     QObject::tr("Linked layer. Click to select the layers linked to it."),
+                     std::move(select_linked));
   }
   text_column->addLayout(details_row);
   layout->addLayout(badge_row, 0);
@@ -3552,6 +3559,8 @@ void MainWindow::duplicate_layers_for_drop(const LayerDropRequest& request) {
     return;
   }
   doc.layers() = std::move(trial_layers);
+  // Alt-drop copies link to each other, not to their sources (GitHub issue 656).
+  separate_copied_link_groups(doc.layers(), clone_ids_top_to_bottom);
   if (request.position == LayerDropPosition::OnItem && request.target_layer_id.has_value()) {
     if (const auto* target = std::as_const(doc).find_layer(*request.target_layer_id);
         target != nullptr && target->kind() == LayerKind::Group) {
@@ -4748,6 +4757,22 @@ QWidget* MainWindow::make_layer_list_row_widget(const LayerListRowSpec& pending,
       if (has_active_document()) {
         layer_from_background();
       }
+    },
+                                    // Most layers have no link group: only linked ones walk the tree.
+                                    layer.link_group() != 0U &&
+                                        effective_link_group(std::as_const(document()).layers(), layer.id()) != 0U,
+                                    [this](LayerId layer_id) {
+      if (!has_active_document() || preview_dialog_edit_locked()) {
+        return;
+      }
+      const auto ids = linked_layer_ids(std::as_const(document()).layers(), layer_id);
+      if (ids.empty()) {
+        return;
+      }
+      finish_active_text_editor();
+      // A badge click: the row is under the pointer, so the list keeps its scroll (issue 266).
+      select_layers_in_layer_list(ids, layer_id, true);
+      refresh_options_bar();
     });
   if (session_layer == layer.id() && layer_is_text(layer)) {
     // The content tile above came without the badge; the tooltip has to agree.
@@ -5081,6 +5106,7 @@ void MainWindow::refresh_layer_controls() {
   refresh_smart_object_action_states();
   refresh_add_layer_mask_button_state();
   refresh_layer_styles_button_state();
+  refresh_layer_link_action_states();
   if (canvas_ != nullptr) {
     // The path overlay outlines every panel-selected shape layer.
     canvas_->set_panel_selected_layer_ids(has_active_document() ? selected_or_active_layer_ids()

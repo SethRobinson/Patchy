@@ -14982,6 +14982,10 @@ Sostituirlo?</translation>
         <source>Transform controls under the Move tool</source>
         <translation>Controlli di trasformazione con lo strumento Sposta</translation>
     </message>
+    <message>
+        <source>Linked layer. Click to select the layers linked to it.</source>
+        <translation>Livello collegato. Fai clic per selezionare i livelli collegati a esso.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -19668,6 +19672,18 @@ Sostituirlo?</translation>
     <message>
         <source>Pick the last brush preset in the list</source>
         <translation>Scegli l&apos;ultimo pennello predefinito dell&apos;elenco</translation>
+    </message>
+    <message>
+        <source>Make the selected layers move and transform together</source>
+        <translation>Sposta e trasforma insieme i livelli selezionati</translation>
+    </message>
+    <message>
+        <source>Let the selected layers move on their own again</source>
+        <translation>Torna a spostare separatamente i livelli selezionati</translation>
+    </message>
+    <message>
+        <source>Select every layer linked to the selected ones</source>
+        <translation>Seleziona tutti i livelli collegati a quelli selezionati</translation>
     </message>
 </context>
 <context>
@@ -33253,6 +33269,34 @@ Bloccato: %1</translation>
         <source>Not saved yet</source>
         <translation>Non ancora salvato</translation>
     </message>
+    <message>
+        <source>&amp;Link Layers</source>
+        <translation>&amp;Collega livelli</translation>
+    </message>
+    <message>
+        <source>U&amp;nlink Layers</source>
+        <translation>&amp;Scollega livelli</translation>
+    </message>
+    <message>
+        <source>Select Lin&amp;ked Layers</source>
+        <translation>Seleziona livelli colle&amp;gati</translation>
+    </message>
+    <message>
+        <source>Link Layers</source>
+        <translation>Collega livelli</translation>
+    </message>
+    <message>
+        <source>Unlink Layers</source>
+        <translation>Scollega livelli</translation>
+    </message>
+    <message>
+        <source>Select two or more layers to link</source>
+        <translation>Seleziona due o più livelli da collegare</translation>
+    </message>
+    <message>
+        <source>The selected layers are not linked</source>
+        <translation>I livelli selezionati non sono collegati</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35520,6 +35564,10 @@ Bloccato: %1</translation>
     <message>
         <source>No document is open to rotate the view of.</source>
         <translation>Nessun documento aperto di cui ruotare la vista.</translation>
+    </message>
+    <message>
+        <source>linkGroup must be 0 or a positive whole number</source>
+        <translation>linkGroup deve essere 0 o un numero intero positivo</translation>
     </message>
 </context>
 <context>

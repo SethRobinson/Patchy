@@ -13044,6 +13044,7 @@ void MainWindow::update_document_action_state() {
   }
   refresh_add_layer_mask_button_state();
   refresh_layer_styles_button_state();
+  refresh_layer_link_action_states();
   refresh_revert_action();
   update_legacy_plugin_repeat_actions();
   update_last_filter_action();

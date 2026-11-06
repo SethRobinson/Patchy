@@ -25,7 +25,7 @@ Tests: `ui_new_layer_button_alt_click_opens_new_layer_dialog`, `ui_new_layer_but
 
 ## Optional footer buttons
 
-Five footer buttons start hidden (#470, #539; `kLayerFooterButtonIdsHiddenByDefault`, stored when shown: [tool-palette.md](tool-palette.md#customizing-the-palette)), so the footer keeps its one row. Alt wins over Shift; they are document widgets, and each command reports its own refusals.
+Six footer buttons start hidden (#470, #539, #656's Link Layers; `kLayerFooterButtonIdsHiddenByDefault`, stored when shown: [tool-palette.md](tool-palette.md#customizing-the-palette)), so the footer keeps its one row. Alt wins over Shift; they are document widgets, and each command reports its own refusals.
 
 - `layerMoveUpButton` / `layerMoveDownButton`: Move Layer Up / Down (`move_active_layer`); Shift-click Bring to Front / Send to Back (`arrange_selected_layers_to_end`, core `arrange_layers_to_end`: the top or bottom of the layer's own folder, never under a Background, which is left out of the selection); Alt-click `move_selected_layers_out_of_folder` (core `move_layers_out_of_folder`: one level out, just above or below the folder; a layer at the root stays, with a status message).
 - `layerMergeDownButton`: Merge Down; Shift-click Merge Visible; Alt-click Merge Visible to New Layer (Photoshop's Ctrl+Alt+Shift+E).

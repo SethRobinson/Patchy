@@ -1441,6 +1441,32 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   layer_up_action->setObjectName(QStringLiteral("layerMoveUpAction"));
   layer_down_action->setObjectName(QStringLiteral("layerMoveDownAction"));
   layer_send_to_back_action_ = layer_arrange_menu->addAction(tr("Send to &Back"));
+  // Layer linking (GitHub issue 656). Not document actions: refresh_layer_link_action_states
+  // enables them from the selection, so their keys act only when they can.
+  layer_arrange_menu->addSeparator();
+  layer_link_action_ = layer_arrange_menu->addAction(tr("&Link Layers"));
+  layer_link_action_->setObjectName(QStringLiteral("layerLinkAction"));
+  bind_action_text(layer_link_action_, QT_TR_NOOP("&Link Layers"));
+  layer_unlink_action_ = layer_arrange_menu->addAction(tr("U&nlink Layers"));
+  layer_unlink_action_->setObjectName(QStringLiteral("layerUnlinkAction"));
+  bind_action_text(layer_unlink_action_, QT_TR_NOOP("U&nlink Layers"));
+  layer_select_linked_action_ = layer_arrange_menu->addAction(tr("Select Lin&ked Layers"));
+  layer_select_linked_action_->setObjectName(QStringLiteral("layerSelectLinkedAction"));
+  bind_action_text(layer_select_linked_action_, QT_TR_NOOP("Select Lin&ked Layers"));
+  for (auto* action : {layer_link_action_, layer_unlink_action_, layer_select_linked_action_}) {
+    action->setMenuRole(QAction::NoRole);
+    action->setIcon(simple_icon(QStringLiteral("link")));
+    action->setEnabled(false);
+    addAction(action);
+  }
+  register_hotkey(layer_link_action_, "layer.link");
+  register_hotkey(layer_unlink_action_, "layer.unlink");
+  register_hotkey(layer_select_linked_action_, "layer.select_linked");
+  connect(layer_link_action_, &QAction::triggered, this, [this] { link_selected_layers(); });
+  connect(layer_unlink_action_, &QAction::triggered, this, [this] { unlink_selected_layers(); });
+  connect(layer_select_linked_action_, &QAction::triggered, this, [this] { select_linked_layers(); });
+  connect(layer_arrange_menu, &QMenu::aboutToShow, this, [this] { refresh_layer_link_action_states(); });
+  layer_arrange_menu->addSeparator();
   layer_send_to_back_action_->setObjectName(QStringLiteral("layerSendToBackAction"));
   layer_send_to_back_action_->setMenuRole(QAction::NoRole);
   bind_action_text(layer_send_to_back_action_, QT_TR_NOOP("Send to &Back"));
@@ -3466,6 +3492,7 @@ void MainWindow::show_command_search() {
   refresh_layer_color_action_states();
   refresh_layer_visibility_action_text();
   refresh_layer_menu_lock_and_style_states();
+  refresh_layer_link_action_states();
   populate_layer_rasterize_menu(layer_menu_rasterize_menu_);
   refresh_type_menu_states();
   refresh_appimage_menu_entry_action();

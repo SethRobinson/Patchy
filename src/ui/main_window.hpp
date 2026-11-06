@@ -1915,6 +1915,18 @@ private:
   void populate_layer_color_actions(QMenu* menu);
   // Checks the action matching the selection's common label (none when mixed).
   void refresh_layer_color_action_states();
+  // Layer linking (GitHub issue 656; docs/layer-panel.md, "Linked layers"): Link Layers gives
+  // the selected layers one link group, Unlink Layers clears theirs, each one undo step; Select
+  // Linked Layers selects every layer linked to a selected one.
+  void link_selected_layers();
+  void unlink_selected_layers();
+  void select_linked_layers();
+  // The footer's link button: unlinks a selection that is already one link group, else links.
+  void toggle_selected_layers_link();
+  // Enabled states of the three actions and the footer button, from the selection.
+  void refresh_layer_link_action_states();
+  [[nodiscard]] bool can_link_selected_layers() const;
+  [[nodiscard]] bool selected_layers_have_links() const;
   // The Rasterize submenu's rows, shared by Layer > Rasterize and the Layers panel context menu
   // (GitHub issue 627): the rasterize actions, Trace Image to Shapes, and on a text layer the
   // Type menu's Convert to Shape and Create Work Path. Rebuilt when the menu opens.
@@ -3307,6 +3319,12 @@ private:
   // Prevent Auto-Nesting, checked when every selected layer has the lock
   // (refresh_layer_controls); shared with the layer context menu's Lock submenu.
   QAction* layer_prevent_auto_nesting_action_{nullptr};
+  // Layer > Arrange > Link Layers, Unlink Layers, Select Linked Layers (GitHub issue 656); also
+  // in the layer context menu. refresh_layer_link_action_states owns their enabled states.
+  QAction* layer_link_action_{nullptr};
+  QAction* layer_unlink_action_{nullptr};
+  QAction* layer_select_linked_action_{nullptr};
+  QPushButton* layer_link_button_{nullptr};
   // Lock Transparent Pixels (GitHub issue 529): "/" by default; on the window and in the layer
   // context menu's Lock submenu.
   QAction* layer_lock_transparent_pixels_action_{nullptr};

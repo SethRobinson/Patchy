@@ -3,6 +3,7 @@
 // commands and default keys philipzae asked for.
 #include "core/layer.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/layer_tree.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/layer_lock_dialog.hpp"
 #include "ui/main_window.hpp"
@@ -952,6 +953,154 @@ void ui_issue_627_layer_menu_rasterize_submenu() {
   CHECK(Access::active_session_undo_depth(window) == depth + 1);
 }
 
+// The rows that show the link badge, by layer id.
+std::vector<patchy::LayerId> linked_badge_rows(QListWidget& list) {
+  std::vector<patchy::LayerId> ids;
+  for (int row = 0; row < list.count(); ++row) {
+    auto* widget = list.itemWidget(list.item(row));
+    if (widget != nullptr && widget->findChild<QToolButton*>(QStringLiteral("layerLinkBadgeButton")) != nullptr) {
+      ids.push_back(static_cast<patchy::LayerId>(list.item(row)->data(Qt::UserRole).toULongLong()));
+    }
+  }
+  std::sort(ids.begin(), ids.end());
+  return ids;
+}
+
+// GitHub issue 656: Layer > Arrange > Link Layers, Unlink Layers and Select Linked Layers act on
+// the selection as one undo step each, follow it with their enabled states, badge the linked
+// rows, and the footer's optional link button links or unlinks.
+void ui_layer_link_commands_link_unlink_undo_and_badges() {
+  patchy::ui::MainWindow window;
+  const auto ids = add_stack(window, QStringLiteral("Link Layers"));
+  auto* list = layer_list(window);
+  auto* link = require_action(window, "layerLinkAction");
+  auto* unlink = require_action(window, "layerUnlinkAction");
+  auto* select_linked = require_action(window, "layerSelectLinkedAction");
+  auto* arrange = window.findChild<QMenu*>(QStringLiteral("layerArrangeMenu"));
+  CHECK(list != nullptr && arrange != nullptr);
+  if (list == nullptr || arrange == nullptr) {
+    return;
+  }
+  CHECK(arrange->actions().contains(link) && arrange->actions().contains(unlink) &&
+        arrange->actions().contains(select_linked));
+  for (auto* action : {link, unlink, select_linked}) {
+    CHECK(action->menuRole() == QAction::NoRole);
+  }
+  CHECK(require_hotkey_action(window, QStringLiteral("layer.link")) == link);
+  CHECK(require_hotkey_action(window, QStringLiteral("layer.unlink")) == unlink);
+  CHECK(require_hotkey_action(window, QStringLiteral("layer.select_linked")) == select_linked);
+  const auto& layers = [&window]() -> const std::vector<patchy::Layer>& {
+    return std::as_const(Access::document(window)).layers();
+  };
+  const auto group_of = [&](patchy::LayerId id) { return patchy::effective_link_group(layers(), id); };
+
+  // One layer: nothing to link.
+  Access::select_layers(window, {ids.top}, ids.top);
+  QApplication::processEvents();
+  CHECK(!link->isEnabled() && !unlink->isEnabled() && !select_linked->isEnabled());
+
+  Access::select_layers(window, {ids.top, ids.middle}, ids.top);
+  QApplication::processEvents();
+  CHECK(link->isEnabled() && !unlink->isEnabled());
+  const auto depth = Access::active_session_undo_depth(window);
+  link->trigger();
+  QApplication::processEvents();
+  CHECK(Access::active_session_undo_depth(window) == depth + 1);
+  CHECK(group_of(ids.top) != 0U && group_of(ids.top) == group_of(ids.middle));
+  CHECK(group_of(ids.inner) == 0U && group_of(ids.background) == 0U);
+  CHECK((linked_badge_rows(*list) == std::vector<patchy::LayerId>{std::min(ids.middle, ids.top),
+                                                                  std::max(ids.middle, ids.top)}));
+  CHECK(!link->isEnabled() && unlink->isEnabled() && select_linked->isEnabled());
+  CHECK((Access::selected_layer_ids(window).size() == 2U));
+
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore(scheme);
+    QApplication::processEvents();
+    save_widget_artifact(scheme == patchy::ui::ColorSchemePreference::Dark ? "issue656_linked_rows_dark"
+                                                                           : "issue656_linked_rows_light",
+                         *list);
+  }
+
+  // Layer > Arrange with the commands, for the review shots.
+  if (auto* layer_menu = window.findChild<QMenu*>(QStringLiteral("layerMenu")); layer_menu != nullptr) {
+    layer_menu->popup(window.mapToGlobal(QPoint(120, 40)));
+    QApplication::processEvents();
+    arrange->popup(window.mapToGlobal(QPoint(420, 300)));
+    QApplication::processEvents();
+    save_widget_artifact("issue656_arrange_menu", *arrange);
+    arrange->hide();
+    layer_menu->hide();
+    QApplication::processEvents();
+  }
+
+  // Select Linked Layers from one member selects the group.
+  Access::select_layers(window, {ids.middle}, ids.middle);
+  QApplication::processEvents();
+  CHECK(select_linked->isEnabled() && !link->isEnabled());
+  select_linked->trigger();
+  QApplication::processEvents();
+  auto selected = Access::selected_layer_ids(window);
+  std::sort(selected.begin(), selected.end());
+  CHECK((selected == std::vector<patchy::LayerId>{std::min(ids.middle, ids.top), std::max(ids.middle, ids.top)}));
+
+  // Undo and redo the link.
+  Access::undo(window);
+  QApplication::processEvents();
+  CHECK(group_of(ids.top) == 0U && group_of(ids.middle) == 0U);
+  CHECK(linked_badge_rows(*list).empty());
+  Access::redo(window);
+  QApplication::processEvents();
+  CHECK(group_of(ids.top) != 0U && group_of(ids.top) == group_of(ids.middle));
+
+  // Unlinking one of two leaves neither linked, one undo step.
+  Access::select_layers(window, {ids.middle}, ids.middle);
+  QApplication::processEvents();
+  const auto unlink_depth = Access::active_session_undo_depth(window);
+  unlink->trigger();
+  QApplication::processEvents();
+  CHECK(Access::active_session_undo_depth(window) == unlink_depth + 1);
+  CHECK(group_of(ids.top) == 0U && group_of(ids.middle) == 0U);
+  CHECK(linked_badge_rows(*list).empty());
+
+  // The footer's link button: hidden by default, links a selection, then unlinks it.
+  auto* button = window.findChild<QPushButton*>(QStringLiteral("layerLinkButton"));
+  CHECK(button != nullptr);
+  if (button == nullptr) {
+    return;
+  }
+  CHECK(!button->isVisible());
+  Access::select_layers(window, {ids.top, ids.inner}, ids.top);
+  QApplication::processEvents();
+  CHECK(button->isEnabled() && button->toolTip() == QStringLiteral("Link Layers"));
+  button->click();
+  QApplication::processEvents();
+  CHECK(group_of(ids.top) != 0U && group_of(ids.top) == group_of(ids.inner));
+  CHECK(button->toolTip() == QStringLiteral("Unlink Layers"));
+  button->click();
+  QApplication::processEvents();
+  CHECK(group_of(ids.top) == 0U && group_of(ids.inner) == 0U);
+
+  // Duplicate Layer on one linked layer copies the group; the copies link to each other only
+  // (Photoshop 2026).
+  Access::select_layers(window, {ids.top, ids.middle}, ids.top);
+  QApplication::processEvents();
+  link->trigger();
+  QApplication::processEvents();
+  const auto sources = group_of(ids.top);
+  Access::select_layers(window, {ids.top}, ids.top);
+  QApplication::processEvents();
+  const auto before_count = patchy::layer_tree_count(layers());
+  require_action(window, "layerDuplicateAction")->trigger();
+  QApplication::processEvents();
+  CHECK(patchy::layer_tree_count(layers()) == before_count + 2U);
+  const auto copies = Access::selected_layer_ids(window);
+  CHECK(copies.size() == 2U);
+  if (copies.size() == 2U) {
+    CHECK(group_of(copies[0]) != 0U && group_of(copies[0]) == group_of(copies[1]) && group_of(copies[0]) != sources);
+  }
+  CHECK(group_of(ids.top) == sources && group_of(ids.middle) == sources);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_menu_commands_tests() {
@@ -966,5 +1115,6 @@ std::vector<patchy::test::TestCase> layer_menu_commands_tests() {
       {"ui_layer_menu_groups_fill_and_merge_submenus", ui_layer_menu_groups_fill_and_merge_submenus},
       {"ui_issue_627_layer_menu_submenus", ui_issue_627_layer_menu_submenus},
       {"ui_issue_627_layer_menu_rasterize_submenu", ui_issue_627_layer_menu_rasterize_submenu},
+      {"ui_layer_link_commands_link_unlink_undo_and_badges", ui_layer_link_commands_link_unlink_undo_and_badges},
   };
 }

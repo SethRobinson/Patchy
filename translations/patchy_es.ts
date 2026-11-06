@@ -14982,6 +14982,10 @@ Do you want to replace it?</source>
         <source>Transform controls under the Move tool</source>
         <translation>Controles de transformación con la herramienta Mover</translation>
     </message>
+    <message>
+        <source>Linked layer. Click to select the layers linked to it.</source>
+        <translation>Capa enlazada. Haga clic para seleccionar las capas enlazadas con ella.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -19668,6 +19672,18 @@ Do you want to replace it?</source>
     <message>
         <source>Pick the last brush preset in the list</source>
         <translation>Elegir el último ajuste preestablecido de pincel de la lista</translation>
+    </message>
+    <message>
+        <source>Make the selected layers move and transform together</source>
+        <translation>Mover y transformar juntas las capas seleccionadas</translation>
+    </message>
+    <message>
+        <source>Let the selected layers move on their own again</source>
+        <translation>Volver a mover por separado las capas seleccionadas</translation>
+    </message>
+    <message>
+        <source>Select every layer linked to the selected ones</source>
+        <translation>Seleccionar todas las capas enlazadas con las seleccionadas</translation>
     </message>
 </context>
 <context>
@@ -33253,6 +33269,34 @@ Bloqueada: %1</translation>
         <source>Not saved yet</source>
         <translation>Aún no guardado</translation>
     </message>
+    <message>
+        <source>&amp;Link Layers</source>
+        <translation>&amp;Enlazar capas</translation>
+    </message>
+    <message>
+        <source>U&amp;nlink Layers</source>
+        <translation>Desen&amp;lazar capas</translation>
+    </message>
+    <message>
+        <source>Select Lin&amp;ked Layers</source>
+        <translation>Seleccionar capas enla&amp;zadas</translation>
+    </message>
+    <message>
+        <source>Link Layers</source>
+        <translation>Enlazar capas</translation>
+    </message>
+    <message>
+        <source>Unlink Layers</source>
+        <translation>Desenlazar capas</translation>
+    </message>
+    <message>
+        <source>Select two or more layers to link</source>
+        <translation>Seleccione dos o más capas para enlazarlas</translation>
+    </message>
+    <message>
+        <source>The selected layers are not linked</source>
+        <translation>Las capas seleccionadas no están enlazadas</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35520,6 +35564,10 @@ Bloqueada: %1</translation>
     <message>
         <source>No document is open to rotate the view of.</source>
         <translation>No hay ningún documento abierto cuya vista girar.</translation>
+    </message>
+    <message>
+        <source>linkGroup must be 0 or a positive whole number</source>
+        <translation>linkGroup debe ser 0 o un número entero positivo</translation>
     </message>
 </context>
 <context>

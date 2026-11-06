@@ -4,6 +4,7 @@
 #include "core/document.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/layer_tree.hpp"
 #include "core/vector_shape.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
@@ -1128,6 +1129,95 @@ void psd_layer_color_labels_round_trip_lclr() {
   for (std::size_t index = 2; index < saved.layers().size(); ++index) {
     CHECK(saved.layers()[index].color_label() == static_cast<patchy::LayerColorLabel>(index - 1U));
   }
+}
+
+// Layer links (GitHub issue 656) live in image resource 1026, one u16 per layer record in record
+// order (a folder is its closing boundary record, its children, then the folder record), with
+// 1072 holding a 1 per record. Files without links write neither, so default output is unchanged.
+void psd_layer_links_round_trip_resource_1026() {
+  patchy::Document document(4, 2, patchy::PixelFormat::rgb8());
+  const auto background_id = document.add_pixel_layer("Background", solid_rgb(4, 2, 255, 255, 255)).id();
+  patchy::Layer group(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  patchy::Layer first(document.allocate_layer_id(), "First", solid_rgba(4, 2, 220, 20, 20, 255));
+  const auto first_id = first.id();
+  patchy::Layer second(document.allocate_layer_id(), "Second", solid_rgba(4, 2, 20, 220, 20, 255));
+  group.add_child(std::move(first));
+  group.add_child(std::move(second));
+  document.add_layer(std::move(group));
+  const auto top_id = document.add_pixel_layer("Top", solid_rgba(4, 2, 20, 20, 220, 255)).id();
+
+  const auto unlinked = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  CHECK(!test_image_resource_payload(psd_raw_image_resources(unlinked), 1026).has_value());
+  CHECK(!test_image_resource_payload(psd_raw_image_resources(unlinked), 1072).has_value());
+
+  CHECK(patchy::link_layers(document.layers(), {first_id, top_id}));
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto resources = psd_raw_image_resources(bytes);
+  const auto groups = test_image_resource_payload(resources, 1026);
+  CHECK(groups.has_value());
+  if (groups.has_value()) {
+    // Background, folder boundary, First, Second, folder record, Top.
+    CHECK((*groups == std::vector<std::uint8_t>{0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1}));
+  }
+  const auto enabled = test_image_resource_payload(resources, 1072);
+  CHECK(enabled.has_value() && *enabled == std::vector<std::uint8_t>(6U, 1U));
+  // A flat save has no layer records for the resources to describe.
+  const auto flat = patchy::psd::DocumentIo::write_flat_rgb8(document);
+  CHECK(!test_image_resource_payload(psd_raw_image_resources(flat), 1026).has_value());
+
+  auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 3U);
+  if (read.layers().size() == 3U && read.layers()[1].children().size() == 2U) {
+    const auto& layers = read.layers();
+    CHECK(layers[0].link_group() == 0U);
+    CHECK(layers[1].link_group() == 0U);
+    CHECK(layers[1].children()[0].link_group() != 0U);
+    CHECK(layers[1].children()[0].link_group() == layers[2].link_group());
+    CHECK(layers[1].children()[1].link_group() == 0U);
+    // The read file's 1026 is rewritten from the model: unlinking writes zeros, and a resave
+    // after a layer was added still matches the records.
+    CHECK(patchy::unlink_layers(read.layers(), {layers[2].id()}));
+    read.add_pixel_layer("Added", solid_rgba(4, 2, 1, 2, 3, 255));
+    const auto resaved = test_image_resource_payload(
+        psd_raw_image_resources(patchy::psd::DocumentIo::write_layered_rgb8(read)), 1026);
+    CHECK(resaved.has_value() && *resaved == std::vector<std::uint8_t>(14U, 0U));
+  }
+  (void)background_id;
+
+  // A 1026 whose entry count does not match the records is ignored.
+  std::vector<patchy::Layer> mismatched = std::as_const(read).layers();
+  patchy::psd::apply_layer_link_resource(mismatched, std::vector<std::uint8_t>{0, 1, 0, 1});
+  CHECK(std::all_of(mismatched.begin(), mismatched.end(),
+                    [](const patchy::Layer& layer) { return layer.link_group() == 0U; }));
+}
+
+// GitHub issue 656's sample (philipzae): Background, then "Patchy" and "Image Editor", the two
+// linked in Photoshop (1026 = 0, 1, 1; 1072 = 1, 1, 1). Copied into local-test-fixtures (never
+// committed). The resave is kept for the Photoshop acceptance check.
+void psd_issue_656_sample_layer_links_if_available() {
+  const auto path = patchy::test::local_fixtures_root() / "psd" / "issue656-link-layer.psd";
+  patchy::test::skip_unless_exists(path);
+  const auto expect_links = [](const patchy::Document& document) {
+    CHECK(document.layers().size() == 3U);
+    if (document.layers().size() != 3U) {
+      return;
+    }
+    const auto& layers = document.layers();
+    CHECK(layers[0].name() == "Background");
+    CHECK(layers[0].link_group() == 0U);
+    CHECK(layers[1].link_group() != 0U);
+    CHECK(layers[1].link_group() == layers[2].link_group());
+  };
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  expect_links(document);
+  std::filesystem::create_directories("test-artifacts");
+  const auto resaved = std::filesystem::path("test-artifacts") / "issue-656-link-layer-resaved.psd";
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, resaved);
+  std::ifstream input(resaved, std::ios::binary);
+  const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+  const auto groups = test_image_resource_payload(psd_raw_image_resources(bytes), 1026);
+  CHECK(groups.has_value() && *groups == std::vector<std::uint8_t>({0, 0, 0, 1, 0, 1}));
+  expect_links(patchy::psd::DocumentIo::read_file(resaved));
 }
 
 // GitHub issue 244's sample (philipzae): five layers Photoshop labeled blue, red,
@@ -4061,6 +4151,8 @@ std::vector<patchy::test::TestCase> psd_core_io_tests() {
       {"psd_layer_color_labels_photoshop_2024_fixture_if_available",
        psd_layer_color_labels_photoshop_2024_fixture_if_available},
       {"psd_issue_244_sample_layer_colors_if_available", psd_issue_244_sample_layer_colors_if_available},
+      {"psd_layer_links_round_trip_resource_1026", psd_layer_links_round_trip_resource_1026},
+      {"psd_issue_656_sample_layer_links_if_available", psd_issue_656_sample_layer_links_if_available},
       {"psd_layer_lock_all_and_auto_nesting_bits_round_trip", psd_layer_lock_all_and_auto_nesting_bits_round_trip},
       {"psd_layer_masks_render_and_round_trip", psd_layer_masks_render_and_round_trip},
       {"psd_group_layer_mask_round_trips", psd_group_layer_mask_round_trips},
