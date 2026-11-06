@@ -33238,6 +33238,22 @@ Bloqueada: %1</translation>
         <source>Last Preset</source>
         <translation>Último ajuste preestablecido</translation>
     </message>
+    <message>
+        <source>File: %1</source>
+        <translation>Archivo: %1</translation>
+    </message>
+    <message>
+        <source>Smart Object in %1</source>
+        <translation>Objeto inteligente en %1</translation>
+    </message>
+    <message>
+        <source>Smart Object contents</source>
+        <translation>Contenido del objeto inteligente</translation>
+    </message>
+    <message>
+        <source>Not saved yet</source>
+        <translation>Aún no guardado</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

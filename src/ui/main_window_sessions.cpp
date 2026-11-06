@@ -289,6 +289,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   {
     const QSignalBlocker blocker(document_tabs_);
     const auto tab_index = document_tabs_->addTab(canvas, tab_title);
+    set_document_tab_label(tab_index, *session);
     for (const auto side : {QTabBar::LeftSide, QTabBar::RightSide}) {
       if (auto* button = document_tabs_->tabBar()->tabButton(tab_index, side)) {
         bind_tooltip(button, QT_TR_NOOP("Close Tab"));
@@ -898,7 +899,8 @@ void MainWindow::dock_document_session(DocumentSession& target_session) {
     // Blocked for the same reason as float_document_session: inserting must not
     // route activation through whichever tab happens to become current.
     const QSignalBlocker blocker(document_tabs_);
-    document_tabs_->insertTab(tab_index, canvas, session_display_title(target_session));
+    const auto inserted_index = document_tabs_->insertTab(tab_index, canvas, session_display_title(target_session));
+    set_document_tab_label(inserted_index, target_session);
     if (was_active) {
       document_tabs_->setCurrentIndex(tab_index);
     }
@@ -1423,6 +1425,40 @@ QString MainWindow::session_display_title(const DocumentSession& target_session)
   return title;
 }
 
+QString MainWindow::session_file_path_text(const DocumentSession& target_session) {
+  return target_session.path.isEmpty() ? QString() : QDir::toNativeSeparators(target_session.path);
+}
+
+QString MainWindow::session_no_file_text(const DocumentSession& target_session) {
+  if (target_session.smart_object_link.has_value() && !target_session.smart_object_link->external) {
+    // An embedded Smart Object's contents: Save commits them into the parent document.
+    if (const auto* parent = session_with_id(target_session.smart_object_link->parent_session_id);
+        parent != nullptr) {
+      return tr("Smart Object in %1").arg(parent->title.isEmpty() ? tr("Untitled") : parent->title);
+    }
+    return tr("Smart Object contents");
+  }
+  return tr("Not saved yet");
+}
+
+void MainWindow::set_document_tab_label(int tab_index, const DocumentSession& target_session) {
+  if (document_tabs_ == nullptr || tab_index < 0 || tab_index >= document_tabs_->count()) {
+    return;
+  }
+  const auto title = session_display_title(target_session);
+  if (document_tabs_->tabText(tab_index) != title) {
+    document_tabs_->setTabText(tab_index, title);
+  }
+  // Two open files with one name tell apart by their folders (local-032).
+  auto tooltip = session_file_path_text(target_session);
+  if (tooltip.isEmpty()) {
+    tooltip = session_no_file_text(target_session);
+  }
+  if (document_tabs_->tabToolTip(tab_index) != tooltip) {
+    document_tabs_->setTabToolTip(tab_index, tooltip);
+  }
+}
+
 void MainWindow::rebuild_window_document_entries(QMenu* window_menu) {
   if (window_menu == nullptr) {
     return;
@@ -1471,7 +1507,7 @@ void MainWindow::refresh_document_tab_titles() {
     if (target_session == nullptr) {
       continue;
     }
-    document_tabs_->setTabText(index, session_display_title(*target_session));
+    set_document_tab_label(index, *target_session);
   }
   for (const auto& target_session : sessions_) {
     if (target_session->float_window != nullptr) {
@@ -1479,6 +1515,7 @@ void MainWindow::refresh_document_tab_titles() {
     }
   }
   refresh_document_window_title();
+  refresh_properties_document_path();
 }
 
 void MainWindow::refresh_document_window_title() {

@@ -33325,6 +33325,22 @@ Zablokowano: %1</translation>
         <source>Last Preset</source>
         <translation>Ostatnie ustawienie wstępne</translation>
     </message>
+    <message>
+        <source>File: %1</source>
+        <translation>Plik: %1</translation>
+    </message>
+    <message>
+        <source>Smart Object in %1</source>
+        <translation>Obiekt inteligentny w %1</translation>
+    </message>
+    <message>
+        <source>Smart Object contents</source>
+        <translation>Zawartość obiektu inteligentnego</translation>
+    </message>
+    <message>
+        <source>Not saved yet</source>
+        <translation>Jeszcze nie zapisano</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

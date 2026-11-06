@@ -33325,6 +33325,22 @@ Locked: %1</source>
         <source>Last Preset</source>
         <translation>Последняя предустановка</translation>
     </message>
+    <message>
+        <source>File: %1</source>
+        <translation>Файл: %1</translation>
+    </message>
+    <message>
+        <source>Smart Object in %1</source>
+        <translation>Смарт-объект в %1</translation>
+    </message>
+    <message>
+        <source>Smart Object contents</source>
+        <translation>Содержимое смарт-объекта</translation>
+    </message>
+    <message>
+        <source>Not saved yet</source>
+        <translation>Еще не сохранен</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

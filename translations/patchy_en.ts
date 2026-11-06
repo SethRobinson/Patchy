@@ -33157,6 +33157,22 @@ Locked: %1</source>
         <source>Last Preset</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>File: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Smart Object in %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Smart Object contents</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not saved yet</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

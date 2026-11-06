@@ -93,6 +93,7 @@ class QPushButton;
 namespace patchy::ui {
 
 class SaveProgress;
+class DocumentPathLabel;
 struct NewLayerSettings;
 struct WebExportOpening;
 class ColorWellSwatch;
@@ -920,6 +921,16 @@ private:
   // Display title shared by tab text and float-window titles: "Untitled" fallback
   // plus the modified '*' suffix.
   [[nodiscard]] QString session_display_title(const DocumentSession& target_session) const;
+  // Where a document's file is, for the document tab tooltip and the Properties panel's
+  // File line (docs/document-tabs.md, "Full path"): the full path with native separators,
+  // or empty when it has none (never saved, an embedded Smart Object's contents).
+  [[nodiscard]] static QString session_file_path_text(const DocumentSession& target_session);
+  // What shows instead of a path when session_file_path_text is empty.
+  [[nodiscard]] QString session_no_file_text(const DocumentSession& target_session);
+  // Sets a document tab's title and its full-path tooltip together.
+  void set_document_tab_label(int tab_index, const DocumentSession& target_session);
+  // The Properties panel's File line for the active document.
+  void refresh_properties_document_path();
   [[nodiscard]] DocumentSession* session_for_canvas(CanvasWidget* canvas) noexcept;
   [[nodiscard]] const DocumentSession* session_for_canvas(CanvasWidget* canvas) const noexcept;
   [[nodiscard]] DocumentSession* session_with_id(std::int64_t session_id) noexcept;
@@ -3662,6 +3673,7 @@ private:
   QPushButton* text_cancel_button_{nullptr};
   QListWidget* history_list_{nullptr};
   QLabel* document_info_label_{nullptr};
+  DocumentPathLabel* document_path_label_{nullptr};
   QLabel* active_layer_info_label_{nullptr};
   QLabel* active_layer_geometry_label_{nullptr};
   QLabel* active_layer_mask_label_{nullptr};

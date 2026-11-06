@@ -33238,6 +33238,22 @@ Fixiert: %1</translation>
         <source>Last Preset</source>
         <translation>Letzte Vorgabe</translation>
     </message>
+    <message>
+        <source>File: %1</source>
+        <translation>Datei: %1</translation>
+    </message>
+    <message>
+        <source>Smart Object in %1</source>
+        <translation>Smartobjekt in %1</translation>
+    </message>
+    <message>
+        <source>Smart Object contents</source>
+        <translation>Inhalt des Smartobjekts</translation>
+    </message>
+    <message>
+        <source>Not saved yet</source>
+        <translation>Noch nicht gespeichert</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
