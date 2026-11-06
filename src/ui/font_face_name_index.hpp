@@ -23,6 +23,7 @@
 
 #include <QByteArray>
 #include <QList>
+#include <QStringList>
 #include <QString>
 
 #include <optional>
@@ -32,6 +33,17 @@ namespace patchy::ui {
 // Letters and digits only, case-folded: the key two spellings of one font name share
 // ("FuturaBT-BoldCondensed" and "Futura BT Bold Condensed" both fold to the same key).
 [[nodiscard]] QString compact_text_family_key(const QString& value);
+
+// `family` without the " [Foundry]" suffix QFontDatabase::families() appends when several
+// foundries install one family ("Arial [TMC ]", "C059 [urw]" -> "Arial", "C059"; Linux, GitHub
+// issue 646). Only a trailing bracketed part after a space goes; "Foo [Bar] Baz" and "[Foo]" are
+// returned as they are. A real family name ending in brackets loses them too, which costs
+// nothing: Qt's own font matching reads that part as a foundry as well.
+[[nodiscard]] QString font_family_without_foundry(const QString& family);
+// A family list as the UI shows it: every name without its foundry suffix, and a family several
+// foundries install listed once, where its first copy was. Qt resolves the plain name to one of
+// those copies.
+[[nodiscard]] QStringList font_families_without_foundries(const QStringList& families);
 
 struct OpenTypeNameRecord {
   quint16 platform{0};

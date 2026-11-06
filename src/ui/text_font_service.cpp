@@ -52,12 +52,14 @@ bool text_family_uses_photoshop_latin_fallback(const QString& family) {
 // compact_text_family_key lives in ui/font_face_name_index.hpp (shared with the name-table index).
 
 std::optional<QString> available_text_family_match(const QString& family) {
-  const auto requested = family.trimmed();
+  // Matched and answered without Qt's " [Foundry]" suffix (GitHub issue 646): the picker lists
+  // plain names, and a layer or preset saved with "Arial [TMC ]" resolves to "Arial".
+  const auto requested = font_family_without_foundry(family.trimmed()).trimmed();
   if (requested.isEmpty()) {
     return std::nullopt;
   }
 
-  const auto available = QFontDatabase::families();
+  const auto available = font_families_without_foundries(QFontDatabase::families());
   for (const auto& candidate : available) {
     if (candidate.compare(requested, Qt::CaseInsensitive) == 0) {
       return candidate;
@@ -135,7 +137,7 @@ QString default_text_family() {
 // of that family's styles.
 std::optional<AvailableTextFamilyStyle> font_database_family_style_split(const QString& requested) {
   std::optional<AvailableTextFamilyStyle> best;
-  for (const auto& candidate : QFontDatabase::families()) {
+  for (const auto& candidate : font_families_without_foundries(QFontDatabase::families())) {
     if (candidate.isEmpty() || requested.size() <= candidate.size() ||
         !requested.startsWith(candidate, Qt::CaseInsensitive)) {
       continue;

@@ -10,6 +10,17 @@ Related documents:
 
 Font lookup, style matching, fallback coverage and system-font registration live in `ui/text_font_service.{hpp,cpp}`. Its API has no MainWindow dependency; the PSD resolver, font picker and text document builder share it.
 
+- **Family names never carry Qt's foundry suffix.** When two foundries install one family,
+  Qt's Linux database lists it once per foundry as "Arial [TMC ]", "Arial [Mono]".
+  `font_family_without_foundry` and `font_families_without_foundries`
+  (`ui/font_face_name_index.hpp`) drop the suffix and list such a family once; Qt resolves the
+  plain name to one of the copies. `available_text_family_match` (and so
+  `canonical_text_display_family`), the family + style split, the name-table index, the picker,
+  its Recent and Favorites lists, `app.listFonts()` and the script font check all use plain
+  names, so a document, preset or setting that stored "Arial [TMC ]" resolves to "Arial" (#646
+  follow-up). Tests: `ui_font_family_without_foundry_strips_qt_suffix`,
+  `ui_font_picker_lists_plain_family_names`.
+
 - **Authored area frames use PostScript face names in both native font lists.** On
   platforms without DirectWrite, the area writer asks the installed Qt resolver for
   the rendered face's OpenType name id 6. `Arial` is a display family; Photoshop

@@ -1,6 +1,7 @@
 #include "ui/font_family_filters.hpp"
 
 #include "ui/app_settings.hpp"
+#include "ui/font_face_name_index.hpp"
 
 #include <QDir>
 #include <QFile>
@@ -132,13 +133,16 @@ std::optional<QFontDatabase::WritingSystem> writing_system_from_token(const QStr
   return static_cast<QFontDatabase::WritingSystem>(value);
 }
 
+// Recent and Favorites saved before GitHub issue 646 may hold Linux names with Qt's foundry
+// suffix ("Arial [TMC ]"); they read back as the plain family the picker lists, once.
 QStringList stored_recent_font_families() {
-  auto families = app_settings().value(QString::fromLatin1(kFontPickerRecentFamiliesKey)).toStringList();
-  families.removeAll(QString());
+  const auto families = font_families_without_foundries(
+      app_settings().value(QString::fromLatin1(kFontPickerRecentFamiliesKey)).toStringList());
   return families.mid(0, kMaxRecentFontFamilies);
 }
 
-void record_recent_font_family(const QString& family) {
+void record_recent_font_family(const QString& stored_family) {
+  const auto family = font_family_without_foundry(stored_family);
   if (family.trimmed().isEmpty()) {
     return;
   }
@@ -149,7 +153,8 @@ void record_recent_font_family(const QString& family) {
   settings.setValue(QString::fromLatin1(kFontPickerRecentFamiliesKey), families.mid(0, kMaxRecentFontFamilies));
 }
 
-void remove_recent_font_family(const QString& family) {
+void remove_recent_font_family(const QString& stored_family) {
+  const auto family = font_family_without_foundry(stored_family);
   auto families = stored_recent_font_families();
   if (families.removeAll(family) == 0) {
     return;
@@ -159,13 +164,12 @@ void remove_recent_font_family(const QString& family) {
 }
 
 QStringList stored_favorite_font_families() {
-  auto families = app_settings().value(QString::fromLatin1(kFontPickerFavoriteFamiliesKey)).toStringList();
-  families.removeAll(QString());
-  families.removeDuplicates();
-  return families;
+  return font_families_without_foundries(
+      app_settings().value(QString::fromLatin1(kFontPickerFavoriteFamiliesKey)).toStringList());
 }
 
-bool set_favorite_font_family(const QString& family, bool favorite) {
+bool set_favorite_font_family(const QString& stored_family, bool favorite) {
+  const auto family = font_family_without_foundry(stored_family);
   if (family.trimmed().isEmpty()) {
     return false;
   }

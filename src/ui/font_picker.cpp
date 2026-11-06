@@ -3,6 +3,7 @@
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/font_face_name_index.hpp"
 #include "ui/font_family_filters.hpp"
 #include "ui/theme_palette.hpp"
 
@@ -33,6 +34,7 @@
 #include <QScreen>
 #include <QScrollBar>
 #include <QSet>
+#include <QStringListModel>
 #include <QStyledItemDelegate>
 #include <QTimer>
 #include <QToolButton>
@@ -566,10 +568,13 @@ public:
         hidden_matches_(hidden_matches) {
     model_ = new FontListModel(this);
     auto* source = combo.model();
-    families_.reserve(source->rowCount());
+    // One row per family: the combo's model holds a row per foundry copy (GitHub issue 646).
+    QStringList listed;
+    listed.reserve(source->rowCount());
     for (int row = 0; row < source->rowCount(); ++row) {
-      families_.append(source->index(row, 0).data(Qt::DisplayRole).toString());
+      listed.append(source->index(row, 0).data(Qt::DisplayRole).toString());
     }
+    families_ = font_families_without_foundries(listed);
     const QSet<QString> installed(families_.cbegin(), families_.cend());
     for (const auto& family : stored_recent_font_families()) {
       if (installed.contains(family)) {
@@ -633,7 +638,7 @@ public:
     const auto system = writing_system_from_token(language_.currentData().toString());
     const auto text = search_.text().trimmed();
     if (system.has_value() && system != language_families_system_) {
-      const auto families = QFontDatabase::families(*system);
+      const auto families = font_families_without_foundries(QFontDatabase::families(*system));
       language_families_ = QSet<QString>(families.cbegin(), families.cend());
       language_families_system_ = system;
     }
@@ -1135,9 +1140,46 @@ QIcon missing_font_badge_icon(const QWidget& widget) {
   return QIcon(pixmap);
 }
 
+// The combo's family model: QFontComboBox fills it from QFontDatabase::families() and picks rows
+// by those names, but every name reads back without Qt's " [Foundry]" suffix (GitHub issue 646),
+// so the closed control, currentText(), findText() and the font the combo reports all name the
+// plain family ("Arial", never "Arial [TMC ]"). A family several foundries install still has one
+// row per copy here, because Qt selects rows by their place in its own list; every copy after the
+// first is disabled, so the closed control's arrow keys and wheel step over it and findText()
+// lands on the first. The popup lists the family once.
+class FoundryFreeFamilyModel final : public QStringListModel {
+public:
+  using QStringListModel::QStringListModel;
+
+  [[nodiscard]] QVariant data(const QModelIndex& index, int role) const override {
+    auto value = QStringListModel::data(index, role);
+    if (role == Qt::DisplayRole || role == Qt::EditRole) {
+      return font_family_without_foundry(value.toString());
+    }
+    return value;
+  }
+
+  [[nodiscard]] Qt::ItemFlags flags(const QModelIndex& index) const override {
+    auto flags = QStringListModel::flags(index);
+    if (index.isValid() && index.row() > 0 &&
+        data(index, Qt::DisplayRole)
+                .toString()
+                .compare(data(sibling(index.row() - 1, 0, index), Qt::DisplayRole).toString(), Qt::CaseInsensitive) ==
+            0) {
+      flags &= ~Qt::ItemFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+    }
+    return flags;
+  }
+};
+
 }  // namespace
 
 FontPickerCombo::FontPickerCombo(QWidget* parent) : QFontComboBox(parent) {
+  // Before any connection below: QFontComboBox repopulates a QStringListModel subclass as its own
+  // (on setCurrentFont, writing-system changes and fontDatabaseChanged). Refilling it lets the
+  // current font take the plain name of its row.
+  setModel(new FoundryFreeFamilyModel(this));
+  setWritingSystem(writingSystem());
   popup_clock_.start();
   // Text set by code (a pick, a layer switch, setCurrentFont under a QSignalBlocker on the combo)
   // leaves the line edit unmodified; text the user is typing stays where the cursor is.
