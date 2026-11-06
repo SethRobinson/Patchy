@@ -119,7 +119,7 @@ QString write_mixed_pages_tiff(const QString& name) {
   third.height = 10;
   third.value = [](std::uint32_t, std::uint32_t, std::uint32_t) { return 0.5; };
   flat::Spec unreadable = first;
-  unreadable.compression = 50000;
+  unreadable.compression = 60000;  // unregistered; 50000 is Zstandard, read since #653
   flat::Spec palette;
   palette.photometric = 3;
   palette.samples = 1;
