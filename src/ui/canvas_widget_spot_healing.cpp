@@ -804,6 +804,17 @@ QRect CanvasWidget::finish_healing_brush_stroke() {
   const int scale = deep ? 16 : 1;
   const auto canvas_width = canvas_rect.width();
   const auto canvas_height = canvas_rect.height();
+  if (!deep) {
+    // A lazy source fills what the reads below reach: the grid and the grid through the
+    // offset, both clamped to the canvas as `snapshot` clamps.
+    const auto clamped = [canvas_width, canvas_height](QRect rect) {
+      return QRect(QPoint(std::clamp(rect.left(), 0, canvas_width - 1), std::clamp(rect.top(), 0, canvas_height - 1)),
+                   QPoint(std::clamp(rect.right(), 0, canvas_width - 1),
+                          std::clamp(rect.bottom(), 0, canvas_height - 1)));
+    };
+    fill_clone_source_rect(clamped(grid));
+    fill_clone_source_rect(clamped(grid.translated(offset)));
+  }
   const auto& source_deep = clone_source_deep_;
   const auto& source_image = clone_source_cache_;
   const auto snapshot = [&](std::int32_t x, std::int32_t y) {

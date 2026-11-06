@@ -52,6 +52,7 @@
 #include <QtGlobal>
 
 #include <algorithm>
+#include <chrono>
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -3592,6 +3593,146 @@ QRect CanvasWidget::clone_brush_at(QPoint point) {
   return clone_brush_segment(point, point);
 }
 
+namespace {
+// The lazy Clone/Healing source's tile edge, in document pixels.
+constexpr int kLazyCloneSourceTile = 64;
+}  // namespace
+
+void CanvasWidget::take_clone_source_snapshot() {
+  lazy_clone_source_.reset();
+  clone_source_cache_ = QImage();
+  if (document_ == nullptr) {
+    return;
+  }
+  const QSize size(document_->width(), document_->height());
+  if (!lazy_clone_source_enabled_) {
+    clone_source_cache_ = retouch_source_snapshot();
+    return;
+  }
+  const Layer* current_layer = nullptr;
+  if (retouch_effective_sample_layers() == SampleLayers::CurrentLayer) {
+    current_layer = active_pixel_layer();
+    if (current_layer == nullptr) {
+      return;  // as retouch_source_snapshot: no source
+    }
+  } else {
+    clone_source_cache_ = retouch_source_snapshot();
+    if (render_cache_.isNull() || clone_source_cache_.isNull() ||
+        clone_source_cache_.cacheKey() != render_cache_.cacheKey() || clone_source_cache_.size() != size ||
+        clone_source_cache_.format() != QImage::Format_RGBA8888) {
+      // A rendered snapshot of its own (Current & Below, an unsettled cache): the stroke
+      // copies nothing when it writes, so there is nothing to defer.
+      return;
+    }
+  }
+  // Uninitialized: every tile is filled before anything reads it.
+  QImage lazy(size, QImage::Format_RGBA8888);
+  if (lazy.isNull()) {
+    if (current_layer != nullptr) {
+      clone_source_cache_ = retouch_source_snapshot();
+    }
+    return;
+  }
+  LazyCloneSource source;
+  if (current_layer != nullptr) {
+    source.held_layer.emplace(std::as_const(*current_layer));
+  } else {
+    source.held = std::move(clone_source_cache_);
+  }
+  clone_source_cache_ = std::move(lazy);
+  source.tiles_x = (size.width() + kLazyCloneSourceTile - 1) / kLazyCloneSourceTile;
+  source.tiles_y = (size.height() + kLazyCloneSourceTile - 1) / kLazyCloneSourceTile;
+  source.filled.assign(static_cast<std::size_t>(source.tiles_x) * static_cast<std::size_t>(source.tiles_y), 0U);
+  lazy_clone_source_ = std::move(source);
+}
+
+void CanvasWidget::end_lazy_clone_source() noexcept {
+  lazy_clone_source_.reset();
+}
+
+void CanvasWidget::fill_clone_source_rect(QRect source_rect) {
+  if (!lazy_clone_source_.has_value()) {
+    return;
+  }
+  auto& lazy = *lazy_clone_source_;
+  const auto rect = source_rect.intersected(clone_source_cache_.rect());
+  if (rect.isEmpty()) {
+    return;
+  }
+  const auto first_x = rect.left() / kLazyCloneSourceTile;
+  const auto last_x = rect.right() / kLazyCloneSourceTile;
+  const auto first_y = rect.top() / kLazyCloneSourceTile;
+  const auto last_y = rect.bottom() / kLazyCloneSourceTile;
+  const auto bytes_per_line = static_cast<std::size_t>(clone_source_cache_.bytesPerLine());
+  // Non-const bits() once: the lazy image is never shared, so this does not copy it.
+  auto* destination = clone_source_cache_.bits();
+  for (int tile_y = first_y; tile_y <= last_y; ++tile_y) {
+    for (int tile_x = first_x; tile_x <= last_x; ++tile_x) {
+      auto& filled = lazy.filled[static_cast<std::size_t>(tile_y) * static_cast<std::size_t>(lazy.tiles_x) +
+                                 static_cast<std::size_t>(tile_x)];
+      if (filled != 0U) {
+        continue;
+      }
+      filled = 1U;
+      ++render_cache_diagnostics_.retouch_source_tiles_filled;
+      const auto tile = QRect(tile_x * kLazyCloneSourceTile, tile_y * kLazyCloneSourceTile, kLazyCloneSourceTile,
+                              kLazyCloneSourceTile)
+                            .intersected(clone_source_cache_.rect());
+      const auto row_bytes = static_cast<std::size_t>(tile.width()) * 4U;
+      if (lazy.held_layer.has_value()) {
+        // The same per-pixel conversion active_layer_sample_image runs over the whole
+        // document, for this tile.
+        const auto sampled = active_layer_sample_region(*lazy.held_layer, tile);
+        for (int y = 0; y < tile.height(); ++y) {
+          std::memcpy(destination + static_cast<std::size_t>(tile.top() + y) * bytes_per_line +
+                          static_cast<std::size_t>(tile.left()) * 4U,
+                      sampled.constScanLine(y), row_bytes);
+        }
+      } else {
+        for (int y = tile.top(); y <= tile.bottom(); ++y) {
+          std::memcpy(destination + static_cast<std::size_t>(y) * bytes_per_line +
+                          static_cast<std::size_t>(tile.left()) * 4U,
+                      lazy.held.constScanLine(y) + static_cast<std::size_t>(tile.left()) * 4U, row_bytes);
+        }
+      }
+    }
+  }
+}
+
+void CanvasWidget::fill_clone_source_for_destination(QRect destination_rect) {
+  if (!lazy_clone_source_.has_value() || destination_rect.isEmpty()) {
+    return;
+  }
+  const auto& mapping = clone_stroke_mapping_;
+  if (mapping.identity()) {
+    fill_clone_source_rect(destination_rect.translated(clone_source_offset_));
+    return;
+  }
+  // The mapping is affine, so the corners bound every Q8 position inside; each sample
+  // reads its pixel and the next one (clone_source_taps), and two more pixels cover the
+  // Q24 rounding.
+  auto min_x = std::numeric_limits<std::int64_t>::max();
+  auto min_y = std::numeric_limits<std::int64_t>::max();
+  auto max_x = std::numeric_limits<std::int64_t>::min();
+  auto max_y = std::numeric_limits<std::int64_t>::min();
+  for (const auto& corner : {destination_rect.topLeft(), destination_rect.topRight(), destination_rect.bottomLeft(),
+                             destination_rect.bottomRight()}) {
+    const auto position = mapping.map_q8(corner.x(), corner.y());
+    min_x = std::min(min_x, position[0]);
+    min_y = std::min(min_y, position[1]);
+    max_x = std::max(max_x, position[0]);
+    max_y = std::max(max_y, position[1]);
+  }
+  const auto clamp_coordinate = [](std::int64_t value) {
+    return static_cast<int>(std::clamp<std::int64_t>(value, -(1LL << 30), 1LL << 30));
+  };
+  const auto left = clamp_coordinate((min_x >> 8) - 2);
+  const auto top = clamp_coordinate((min_y >> 8) - 2);
+  const auto right = clamp_coordinate((max_x >> 8) + 3);
+  const auto bottom = clamp_coordinate((max_y >> 8) + 3);
+  fill_clone_source_rect(QRect(QPoint(left, top), QPoint(right, bottom)));
+}
+
 bool CanvasWidget::retouch_source_tool_active() const noexcept {
   return tool_ == CanvasTool::Clone || tool_ == CanvasTool::Healing;
 }
@@ -3720,6 +3861,7 @@ QRect CanvasWidget::clone_brush_stamp_segment(QPoint from, QPoint to) {
     if (path_rect.isEmpty()) {
       return {};
     }
+    fill_clone_source_for_destination(path_rect);
 
     const auto lock_transparent_pixels = active_layer_locks_transparent_pixels();
     if (!lock_transparent_pixels) {
@@ -3800,12 +3942,22 @@ QRect CanvasWidget::clone_brush_stamp_segment(QPoint from, QPoint to) {
   }
 
   auto& pixels = layer->pixels();
+  if (std::exchange(retouch_press_times_layer_detach_, false)) {
+    // The press's first stamp: the copy-on-write detach on its own (it happens on the
+    // first write below anyway).
+    const auto started = std::chrono::steady_clock::now();
+    static_cast<void>(pixels.data());
+    last_retouch_press_timings_.layer_detach_ms =
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+  }
   const auto bounds = layer->bounds();
   const auto channels = pixels.format().channels;
   stroke_rect = stroke_rect.intersected(to_qrect(bounds));
   if (stroke_rect.isEmpty()) {
     return {};
   }
+  // Before the workers below read it.
+  fill_clone_source_for_destination(stroke_rect);
 
   const auto dx = to.x() - from.x();
   const auto dy = to.y() - from.y();

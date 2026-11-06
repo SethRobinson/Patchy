@@ -1779,6 +1779,27 @@ bool CanvasWidget::patch_render_cache_patches(const std::vector<RenderedDocument
   const bool patch_proofed_composite = proof_display_transform_ != nullptr &&
                                        proofed_composite != proofed_images_.end() &&
                                        proofed_composite->image.size() == render_cache_.size();
+  // A Clone or Healing stroke's lazy source shares the cache (GitHub #597 follow-up 3):
+  // it takes its copy of the tiles these patches overwrite and lets go of the cache while
+  // they paint, so the painter writes in place instead of copying the whole cache, then
+  // shares it again. Outside the filled tiles the cache still holds the press's composite.
+  const bool lazy_source_shares_cache = lazy_clone_source_.has_value() && !lazy_clone_source_->held.isNull() &&
+                                        lazy_clone_source_->held.cacheKey() == render_cache_.cacheKey();
+  if (lazy_source_shares_cache) {
+    for (const auto& patch : patches) {
+      fill_clone_source_rect(patch.document_rect);
+    }
+    lazy_clone_source_->held = QImage();
+  }
+  if (!render_cache_.isDetached()) {
+    // Another image shares the cache (a retouch source snapshot): the painter copies it
+    // whole first. Timed on its own for patchy_perf_tests clonepress.
+    const auto started = std::chrono::steady_clock::now();
+    static_cast<void>(render_cache_.bits());
+    ++render_cache_diagnostics_.render_cache_patch_detaches;
+    render_cache_diagnostics_.render_cache_patch_detach_ms +=
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+  }
   {
     QPainter painter(&render_cache_);
     painter.setCompositionMode(QPainter::CompositionMode_Source);
@@ -1801,6 +1822,9 @@ bool CanvasWidget::patch_render_cache_patches(const std::vector<RenderedDocument
         proofed_painter->drawImage(patch.document_rect.topLeft(), proofed);
       }
     }
+  }
+  if (lazy_source_shares_cache) {
+    lazy_clone_source_->held = render_cache_;
   }
   if (patch_proofed_composite) {
     proofed_composite->source_key = render_cache_.cacheKey();

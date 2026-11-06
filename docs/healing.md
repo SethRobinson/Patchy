@@ -20,7 +20,7 @@ Clone, Healing, Spot Healing, Patch and Remove Object share one Sample choice (i
 
 **Ignore Adjustment Layers** (issue 383; `retouchIgnoreAdjustmentsCheck`, key `tools/retouchIgnoreAdjustments`, default off, enabled only for the composite choices) renders the No Adjustments variant (`retouch_effective_sample_layers()`), so a Curves above is not sampled in and then applied again.
 
-The snapshot is taken once per gesture, never per move. Tests: `ui_retouch_sample_*`, `ui_retouch_ignore_adjustment_layers_leaves_adjustments_out_of_sample`.
+The snapshot is taken once per gesture, never per move; Clone and Healing fill theirs tile by tile as the stroke reaches it ([performance-strokes.md](performance-strokes.md), issue 597 follow-up 3). Tests: `ui_retouch_sample_*`, `ui_retouch_ignore_adjustment_layers_leaves_adjustments_out_of_sample`.
 
 ## Classic Healing Brush
 
