@@ -417,7 +417,9 @@ void ui_gradient_tool_fill_layer_mode_makes_and_edits_gradient_fills() {
   }
   canvas->set_gradient_method(patchy::GradientMethod::Radial);
   canvas->set_gradient_opacity(100);
-  drag(*canvas, to_widget(QPoint(100, 75)), to_widget(QPoint(140, 75)));
+  // Pressed away from the existing gradient's on-canvas handles (its line runs along y = 75), so
+  // the drag draws a new gradient instead of moving that one.
+  drag(*canvas, to_widget(QPoint(100, 115)), to_widget(QPoint(140, 115)));
   QApplication::processEvents();
   CHECK(std::as_const(document).layers().size() == 2);
   const auto* edited = std::as_const(document).find_layer(fill_id);
@@ -430,7 +432,7 @@ void ui_gradient_tool_fill_layer_mode_makes_and_edits_gradient_fills() {
   CHECK(edited->blend_mode() == patchy::BlendMode::Multiply);
   CHECK(edited->mask().has_value());
   CHECK(edited->vector_shape()->fill.gradient.type == patchy::LayerStyleGradientType::Radial);
-  CHECK(color_close(layer_color(100, 75), QColor(220, 20, 20), 20));
+  CHECK(color_close(layer_color(100, 115), QColor(220, 20, 20), 20));
   undo->trigger();
   QApplication::processEvents();
   edited = std::as_const(document).find_layer(fill_id);
