@@ -16,7 +16,7 @@
 #include <QRandomGenerator>
 #include <QSizePolicy>
 #include <QSpinBox>
-#include <QToolButton>
+#include <QPushButton>
 
 #include <algorithm>
 #include <cmath>
@@ -350,14 +350,15 @@ void FilterParameterPanel::rebuild(const FilterDialogSpec& spec,
         // A seed has no meaningful order to slide through: the spin box and
         // Randomize replace the slider (kept, hidden, for the bindings).
         slider->hide();
-        auto* randomize = new QToolButton(container);
+        // A framed push button, so it reads as a button (GitHub issue 667).
+        auto* randomize = new QPushButton(QObject::tr("Randomize"), container);
         randomize->setObjectName(control.object_name + QStringLiteral("Randomize"));
-        randomize->setText(QObject::tr("Randomize"));
         randomize->setToolTip(QObject::tr("Pick a new random seed"));
+        randomize->setAutoDefault(false);
         // Never squeezed to an elided label in a narrow column.
         randomize->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
         randomize->setMinimumWidth(randomize->sizeHint().width());
-        QObject::connect(randomize, &QToolButton::clicked, spin, [spin] {
+        QObject::connect(randomize, &QPushButton::clicked, spin, [spin] {
           // A different value from the current one, so a click always changes the result.
           const auto span = spin->maximum() - spin->minimum();
           if (span <= 0) {

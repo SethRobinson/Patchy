@@ -6,6 +6,10 @@
 
 #include <QCoreApplication>
 #include <QEvent>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QPushButton>
+#include <QSignalBlocker>
 #include <QPointer>
 #include <QCursor>
 #include <QKeyEvent>
@@ -1195,6 +1199,84 @@ void ZoomableImagePreview::publish_overlay_state() {
               tilt_visible
                   ? tilt_transition_handle_point(*tilt_shift_overlay_, 1.0)
                   : QPointF(-1.0, -1.0));
+}
+
+namespace {
+
+// A label whose size hints also fit `widest`, so a longer amount never moves the row or clips.
+class WideLabel final : public QLabel {
+public:
+  WideLabel(QString widest, QWidget* parent) : QLabel(parent), widest_(std::move(widest)) {}
+  [[nodiscard]] QSize sizeHint() const override { return widened(QLabel::sizeHint()); }
+  [[nodiscard]] QSize minimumSizeHint() const override { return widened(QLabel::minimumSizeHint()); }
+
+private:
+  [[nodiscard]] QSize widened(QSize hint) const {
+    const auto margins = contentsMargins();
+    hint.setWidth(
+        std::max(hint.width(), fontMetrics().horizontalAdvance(widest_) + margins.left() + margins.right() + 4));
+    return hint;
+  }
+  QString widest_;
+};
+
+}  // namespace
+
+PreviewZoomControls add_preview_zoom_controls(QHBoxLayout& row, QWidget* parent, const QString& object_prefix) {
+  PreviewZoomControls controls;
+  controls.caption = new QLabel(QObject::tr("Zoom:"), parent);
+  controls.caption->setObjectName(object_prefix + QStringLiteral("ZoomCaption"));
+  // The amount, as wide as its longest value (the zoom stops at 1600%) plus a little room.
+  controls.amount = new WideLabel(QStringLiteral("1600%  "), parent);
+  controls.amount->setObjectName(object_prefix + QStringLiteral("ZoomLabel"));
+  controls.amount->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+  // Framed push buttons, never narrower than their text; they never take focus or the
+  // dialog's Enter.
+  const auto make_button = [&](const QString& name, const QString& text, const QString& tooltip) {
+    auto* button = new QPushButton(text, parent);
+    button->setObjectName(object_prefix + name);
+    button->setToolTip(tooltip);
+    button->setAccessibleName(tooltip);
+    button->setAutoDefault(false);
+    button->setFocusPolicy(Qt::NoFocus);
+    return button;
+  };
+  controls.zoom_out = make_button(QStringLiteral("ZoomOut"), QStringLiteral("-"), QObject::tr("Zoom out"));
+  controls.zoom_in = make_button(QStringLiteral("ZoomIn"), QStringLiteral("+"), QObject::tr("Zoom in"));
+  controls.zoom_100 = make_button(QStringLiteral("Zoom100"), QStringLiteral("100%"),
+                                  QObject::tr("Zoom to 100% (1 image pixel = 1 screen pixel)"));
+  controls.fit = make_button(QStringLiteral("ZoomFit"), QObject::tr("Fit"), QObject::tr("Fit the image in the preview"));
+  controls.fit->setCheckable(true);
+  row.addWidget(controls.caption);
+  row.addWidget(controls.amount);
+  row.addWidget(controls.zoom_out);
+  row.addWidget(controls.zoom_in);
+  row.addWidget(controls.zoom_100);
+  row.addWidget(controls.fit);
+  return controls;
+}
+
+void connect_preview_zoom_controls(const PreviewZoomControls& controls, ZoomableImagePreview* preview) {
+  if (preview == nullptr) {
+    return;
+  }
+  const auto refresh = [controls, preview] {
+    controls.amount->setText(QStringLiteral("%1%").arg(preview->property("previewZoomPercent").toInt()));
+    const QSignalBlocker block(controls.fit);
+    controls.fit->setChecked(preview->fit_mode());
+  };
+  preview->set_zoom_changed_callback(refresh);
+  QObject::connect(controls.fit, &QPushButton::clicked, preview, [preview, refresh] {
+    preview->zoom_to_fit();
+    // A click on a checked Fit leaves it checked: the preview still fits.
+    refresh();
+  });
+  QObject::connect(controls.zoom_100, &QPushButton::clicked, preview, [preview] { preview->zoom_to(1.0); });
+  QObject::connect(controls.zoom_out, &QPushButton::clicked, preview, [preview] { preview->zoom_step(-1); });
+  QObject::connect(controls.zoom_in, &QPushButton::clicked, preview, [preview] { preview->zoom_step(1); });
+  if (preview->property("previewZoomPercent").isValid()) {
+    refresh();
+  }
 }
 
 }  // namespace patchy::ui

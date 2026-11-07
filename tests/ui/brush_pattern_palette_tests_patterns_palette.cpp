@@ -1122,10 +1122,10 @@ void ui_convert_to_indexed_preview_zoom_and_pan() {
     CHECK(zoom_label != nullptr);
     CHECK(zoom_label->text().contains(QStringLiteral("%")));
 
-    auto* zoom_fit = dialog->findChild<QToolButton*>(QStringLiteral("paletteConvertZoomFit"));
-    auto* zoom_100 = dialog->findChild<QToolButton*>(QStringLiteral("paletteConvertZoom100"));
-    auto* zoom_in = dialog->findChild<QToolButton*>(QStringLiteral("paletteConvertZoomIn"));
-    auto* zoom_out = dialog->findChild<QToolButton*>(QStringLiteral("paletteConvertZoomOut"));
+    auto* zoom_fit = dialog->findChild<QPushButton*>(QStringLiteral("paletteConvertZoomFit"));
+    auto* zoom_100 = dialog->findChild<QPushButton*>(QStringLiteral("paletteConvertZoom100"));
+    auto* zoom_in = dialog->findChild<QPushButton*>(QStringLiteral("paletteConvertZoomIn"));
+    auto* zoom_out = dialog->findChild<QPushButton*>(QStringLiteral("paletteConvertZoomOut"));
     CHECK(zoom_fit != nullptr);
     CHECK(zoom_100 != nullptr);
     CHECK(zoom_in != nullptr);

@@ -27,6 +27,7 @@
 #include <QElapsedTimer>
 #include <QImage>
 #include <QKeySequence>
+#include <QLabel>
 #include <QList>
 #include <QMenu>
 #include <QPainter>
@@ -1853,6 +1854,158 @@ void ui_filter_settings_dialog_reset_restores_named_defaults_and_colors() {
   CHECK(filter_rgb_equal(last_preview.invocation.background, settings->background));
 }
 
+// GitHub issue 667: with Preview off the dialog sends one request that puts the original
+// back, then nothing while values change (Reset included, which leaves Preview off); turning
+// Preview on sends the current values.
+void ui_filter_settings_dialog_preview_off_sends_no_canvas_requests() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  const auto* clouds = registry.find("patchy.filters.clouds");
+  CHECK(clouds != nullptr);
+  const auto spec = patchy::ui::filter_dialog_spec_for(*clouds);
+  const auto initial = registry.default_invocation(clouds->identifier, patchy::RgbColor{240, 30, 20},
+                                                   patchy::RgbColor{10, 40, 230});
+  std::vector<patchy::ui::FilterPreviewSettings> requests;
+  bool drove_dialog = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("filterPreviewCheck"));
+    auto* scale = dialog->findChild<QSpinBox*>(QStringLiteral("filterScaleSpin"));
+    auto* buttons = dialog->findChild<QDialogButtonBox*>();
+    CHECK(preview != nullptr && scale != nullptr && buttons != nullptr);
+    CHECK(process_events_until([&] { return !requests.empty(); }, 3000));
+    CHECK(requests.back().preview_enabled);
+
+    preview->setChecked(false);
+    QApplication::processEvents();
+    const auto after_off = requests.size();
+    CHECK(!requests.back().preview_enabled);
+    for (int value = 120; value <= 200; value += 20) {
+      scale->setValue(value);
+    }
+    buttons->button(QDialogButtonBox::Reset)->click();
+    scale->setValue(150);
+    process_events_for(250);
+    CHECK(!preview->isChecked());
+    CHECK(requests.size() == after_off);
+
+    preview->setChecked(true);
+    QApplication::processEvents();
+    CHECK(requests.size() == after_off + 1);
+    CHECK(requests.back().preview_enabled);
+    CHECK(filter_integer(requests.back().invocation, "scale") == 150);
+    drove_dialog = true;
+    dialog->reject();
+  }));
+  const auto settings = patchy::ui::request_filter_settings(
+      nullptr, spec, [&](patchy::ui::FilterPreviewSettings preview) { requests.push_back(std::move(preview)); },
+      initial);
+  CHECK(drove_dialog);
+  CHECK(!settings.has_value());
+}
+
+// GitHub issue 667: the zoom row under the preview is Export for Web's ("Zoom:", the amount,
+// then framed - + 100% Fit), centered under the preview; Randomize is a framed push button and
+// OK is as wide as Cancel.
+void ui_filter_settings_dialog_zoom_row_buttons_and_ok_width() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  const auto* clouds = registry.find("patchy.filters.clouds");
+  CHECK(clouds != nullptr);
+  const auto spec = patchy::ui::filter_dialog_spec_for(*clouds);
+  const auto pixels = solid_pixels(320, 200, patchy::PixelFormat::rgba8(), QColor(90, 140, 200));
+  const patchy::ui::FilterDialogPreviewSource source{&pixels, patchy::Rect{0, 0, 320, 200}, QRegion(), &registry};
+  bool drove_dialog = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* preview_widget = dialog->findChild<QWidget*>(QStringLiteral("filterDialogPreview"));
+    auto* preview = dynamic_cast<patchy::ui::ZoomableImagePreview*>(preview_widget);
+    CHECK(preview_widget != nullptr && process_events_until(
+                                           [&] {
+                                             return preview_widget->property("filterDialogRenderedFilterId").toString() ==
+                                                    QStringLiteral("patchy.filters.clouds");
+                                           },
+                                           5000));
+    save_widget_artifact("ui_filter_settings_dialog_zoom_row", *dialog);
+    auto* caption = dialog->findChild<QLabel*>(QStringLiteral("filterDialogZoomCaption"));
+    auto* amount = dialog->findChild<QLabel*>(QStringLiteral("filterDialogZoomLabel"));
+    QList<QPushButton*> zoom;
+    for (const auto* name : {"filterDialogZoomOut", "filterDialogZoomIn", "filterDialogZoom100", "filterDialogZoomFit"}) {
+      zoom << dialog->findChild<QPushButton*>(QLatin1String(name));
+    }
+    CHECK(preview != nullptr && caption != nullptr && amount != nullptr && !zoom.contains(nullptr));
+    if (preview == nullptr || caption == nullptr || amount == nullptr || zoom.contains(nullptr)) {
+      dialog->reject();
+      return;
+    }
+    CHECK(caption->text() == QStringLiteral("Zoom:"));
+    CHECK(zoom[0]->text() == QStringLiteral("-") && zoom[1]->text() == QStringLiteral("+") &&
+          zoom[2]->text() == QStringLiteral("100%") && zoom[3]->text() == QStringLiteral("Fit"));
+    // Left to right: Zoom:, the amount, -, +, 100%, Fit; framed and never the default button.
+    const auto left_of = [dialog](QWidget* a, QWidget* b) {
+      return a->mapTo(dialog, QPoint(a->width() - 1, 0)).x() < b->mapTo(dialog, QPoint(0, 0)).x();
+    };
+    CHECK(left_of(caption, amount) && left_of(amount, zoom[0]));
+    for (int index = 1; index < zoom.size(); ++index) {
+      CHECK(left_of(zoom[index - 1], zoom[index]));
+    }
+    for (auto* button : zoom) {
+      CHECK(!button->isFlat() && !button->autoDefault() && button->focusPolicy() == Qt::NoFocus);
+    }
+    // Centered under the preview.
+    const auto preview_left = preview->mapTo(dialog, QPoint(0, 0)).x();
+    const auto preview_right = preview_left + preview->width();
+    const auto row_left = caption->mapTo(dialog, QPoint(0, 0)).x();
+    const auto row_right = zoom[3]->mapTo(dialog, QPoint(zoom[3]->width(), 0)).x();
+    CHECK(std::abs((row_left - preview_left) - (preview_right - row_right)) <= 2);
+    // The amount is a plain percent; Fit is checked while the preview fits.
+    CHECK(process_events_until([&] { return amount->text().endsWith(QLatin1Char('%')); }, 3000));
+    CHECK(zoom[3]->isCheckable() && zoom[3]->isChecked());
+    zoom[2]->click();
+    QApplication::processEvents();
+    CHECK(amount->text() == QStringLiteral("100%") && !zoom[3]->isChecked());
+    zoom[1]->click();
+    QApplication::processEvents();
+    CHECK(preview->property("previewZoomPercent").toInt() > 100);
+    zoom[0]->click();
+    QApplication::processEvents();
+    CHECK(preview->property("previewZoomPercent").toInt() == 100);
+    zoom[3]->click();
+    QApplication::processEvents();
+    CHECK(zoom[3]->isChecked() && preview->fit_mode());
+
+    auto* randomize = dialog->findChild<QPushButton*>(QStringLiteral("filterSeedRandomize"));
+    auto* seed = dialog->findChild<QSpinBox*>(QStringLiteral("filterSeedSpin"));
+    CHECK(randomize != nullptr && seed != nullptr);
+    if (randomize != nullptr && seed != nullptr) {
+      CHECK(!randomize->isFlat() && !randomize->autoDefault());
+      const auto before = seed->value();
+      randomize->click();
+      CHECK(seed->value() != before);
+    }
+
+    auto* buttons = dialog->findChild<QDialogButtonBox*>();
+    CHECK(buttons != nullptr);
+    if (buttons != nullptr) {
+      auto* ok = buttons->button(QDialogButtonBox::Ok);
+      auto* cancel = buttons->button(QDialogButtonBox::Cancel);
+      CHECK(ok != nullptr && cancel != nullptr && ok->width() == cancel->width());
+    }
+    drove_dialog = true;
+    dialog->reject();
+  }));
+  // Under the app theme, as the main window gives it.
+  const auto parent = make_themed_dialog_parent();
+  (void)patchy::ui::request_filter_settings(parent.get(), spec, {}, registry.default_invocation(clouds->identifier),
+                                            &source);
+  CHECK(drove_dialog);
+}
+
 void ui_filter_parameter_panel_round_trips_catalog_and_legacy_specs() {
   patchy::FilterRegistry registry;
   patchy::register_builtin_filters(registry);
@@ -2202,6 +2355,9 @@ std::vector<patchy::test::TestCase> filter_catalog_dialog_tests() {
        ui_filter_settings_dialog_delivers_latest_after_slow_preview_callback},
       {"ui_filter_settings_dialog_reset_restores_named_defaults_and_colors",
        ui_filter_settings_dialog_reset_restores_named_defaults_and_colors},
+      {"ui_filter_settings_dialog_preview_off_sends_no_canvas_requests",
+       ui_filter_settings_dialog_preview_off_sends_no_canvas_requests},
+      {"ui_filter_settings_dialog_zoom_row_buttons_and_ok_width", ui_filter_settings_dialog_zoom_row_buttons_and_ok_width},
       {"ui_filter_parameter_panel_round_trips_catalog_and_legacy_specs",
        ui_filter_parameter_panel_round_trips_catalog_and_legacy_specs},
       {"ui_filter_settings_dialog_angle_dial_and_waveform_sync_numeric_controls",

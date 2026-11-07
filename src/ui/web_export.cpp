@@ -1670,24 +1670,6 @@ PaletteRows add_palette_rows(QFormLayout* form, QWidget* parent, const QString& 
   return rows;
 }
 
-// A label whose size hints also fit `widest` (measured with the polished font when asked), so
-// a longer text never moves the row or clips.
-class WideLabel final : public QLabel {
-public:
-  WideLabel(QString widest, QWidget* parent) : QLabel(parent), widest_(std::move(widest)) {}
-  [[nodiscard]] QSize sizeHint() const override { return widened(QLabel::sizeHint()); }
-  [[nodiscard]] QSize minimumSizeHint() const override { return widened(QLabel::minimumSizeHint()); }
-
-private:
-  [[nodiscard]] QSize widened(QSize hint) const {
-    const auto margins = contentsMargins();
-    hint.setWidth(
-        std::max(hint.width(), fontMetrics().horizontalAdvance(widest_) + margins.left() + margins.right() + 4));
-    return hint;
-  }
-  QString widest_;
-};
-
 // A push button sized for its text or `other` (Play and Pause), whichever is wider.
 class WidePushButton final : public QPushButton {
 public:
@@ -2343,9 +2325,17 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   (void)make_compare_button(QObject::tr("Result only"), "webExportCompareResult", WebExportCompare::ResultOnly);
   view_row->addStretch(1);
   view_row->addSpacing(8);
-  view_row->addWidget(new QLabel(QObject::tr("Zoom:"), view_controls));
-  // Framed push buttons like the view buttons, never narrower than their text.
-  const auto make_zoom_button = [&dialog](const char* object_name, const QString& text, const QString& tooltip) {
+  // "Zoom: <amount> - + 100% Fit", the row every preview dialog shares (GitHub issue 667).
+  const auto zoom_controls = add_preview_zoom_controls(*view_row, view_controls, QStringLiteral("webExport"));
+  auto* zoom_label = zoom_controls.amount;
+  auto* zoom_out = zoom_controls.zoom_out;
+  auto* zoom_in = zoom_controls.zoom_in;
+  auto* zoom_100 = zoom_controls.zoom_100;
+  auto* zoom_fit = zoom_controls.fit;
+  preview_column->addWidget(view_controls);
+
+  // Framed push buttons like the zoom buttons, never narrower than their text.
+  const auto make_frame_button = [&dialog](const char* object_name, const QString& text, const QString& tooltip) {
     auto* button = new QPushButton(text, &dialog);
     button->setObjectName(QLatin1String(object_name));
     button->setToolTip(tooltip);
@@ -2354,23 +2344,6 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     button->setFocusPolicy(Qt::NoFocus);
     return button;
   };
-  // The amount, as wide as its longest value (the zoom stops at 1600%) plus a little room.
-  auto* zoom_label = new WideLabel(QStringLiteral("1600%  "), view_controls);
-  zoom_label->setObjectName(QStringLiteral("webExportZoomLabel"));
-  zoom_label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-  auto* zoom_out = make_zoom_button("webExportZoomOut", QStringLiteral("-"), QObject::tr("Zoom out"));
-  auto* zoom_in = make_zoom_button("webExportZoomIn", QStringLiteral("+"), QObject::tr("Zoom in"));
-  auto* zoom_100 = make_zoom_button("webExportZoom100", QStringLiteral("100%"),
-                                    QObject::tr("Zoom to 100% (1 image pixel = 1 screen pixel)"));
-  auto* zoom_fit = make_zoom_button("webExportZoomFit", QObject::tr("Fit"), QObject::tr("Fit the image in the preview"));
-  // Checked while the preview fits the image.
-  zoom_fit->setCheckable(true);
-  view_row->addWidget(zoom_label);
-  for (auto* button : {zoom_out, zoom_in, zoom_100, zoom_fit}) {
-    button->setParent(view_controls);
-    view_row->addWidget(button);
-  }
-  preview_column->addWidget(view_controls);
 
   // Playback for an animated result (shown only then): Play/Pause, previous and next frame,
   // the frame counter with the frame's delay, and Loop.
@@ -2383,9 +2356,9 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
   auto* play_button = new WidePushButton(QObject::tr("Pause"), QObject::tr("Play"), playback_row);
   play_button->setObjectName(QStringLiteral("webExportPlayButton"));
   play_button->setFocusPolicy(Qt::NoFocus);
-  auto* previous_frame = make_zoom_button("webExportPreviousFrameButton", QStringLiteral("<"),
+  auto* previous_frame = make_frame_button("webExportPreviousFrameButton", QStringLiteral("<"),
                                           QObject::tr("Previous frame"));
-  auto* next_frame = make_zoom_button("webExportNextFrameButton", QStringLiteral(">"), QObject::tr("Next frame"));
+  auto* next_frame = make_frame_button("webExportNextFrameButton", QStringLiteral(">"), QObject::tr("Next frame"));
   auto* frame_label = new QLabel(playback_row);
   frame_label->setObjectName(QStringLiteral("webExportFrameLabel"));
   auto* loop_check = new QCheckBox(QObject::tr("Loop"), playback_row);

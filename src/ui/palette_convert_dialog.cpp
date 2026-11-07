@@ -22,7 +22,6 @@
 #include <QSpinBox>
 #include <QStandardItemModel>
 #include <QTimer>
-#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -247,30 +246,9 @@ std::optional<PaletteConvertSettings> request_palette_convert_settings(
   auto* preview_info = new QLabel(&dialog);
   preview_info->setObjectName(QStringLiteral("paletteConvertPreviewInfo"));
   info_row->addWidget(preview_info, 1);
-  const auto make_zoom_button = [&dialog](const char* object_name, const QString& text, const QString& tooltip) {
-    auto* button = new QToolButton(&dialog);
-    button->setObjectName(QLatin1String(object_name));
-    button->setText(text);
-    button->setToolTip(tooltip);
-    button->setAutoRaise(true);
-    button->setFocusPolicy(Qt::NoFocus);
-    return button;
-  };
-  auto* zoom_fit = make_zoom_button("paletteConvertZoomFit", QObject::tr("Fit"),
-                                    QObject::tr("Fit the image in the preview"));
-  auto* zoom_100 = make_zoom_button("paletteConvertZoom100", QStringLiteral("100%"),
-                                    QObject::tr("Zoom to 100% (1 image pixel = 1 screen pixel)"));
-  auto* zoom_out = make_zoom_button("paletteConvertZoomOut", QStringLiteral("-"), QObject::tr("Zoom out"));
-  auto* zoom_in = make_zoom_button("paletteConvertZoomIn", QStringLiteral("+"), QObject::tr("Zoom in"));
-  auto* zoom_label = new QLabel(&dialog);
-  zoom_label->setObjectName(QStringLiteral("paletteConvertZoomLabel"));
-  zoom_label->setMinimumWidth(72);
-  zoom_label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-  info_row->addWidget(zoom_fit);
-  info_row->addWidget(zoom_100);
-  info_row->addWidget(zoom_out);
-  info_row->addWidget(zoom_in);
-  info_row->addWidget(zoom_label);
+  // "Zoom: <amount> - + 100% Fit", the row every preview dialog shares (GitHub issue 667).
+  info_row->addSpacing(8);
+  const auto zoom_controls = add_preview_zoom_controls(*info_row, &dialog, QStringLiteral("paletteConvert"));
   layout->addLayout(info_row);
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
@@ -339,15 +317,7 @@ std::optional<PaletteConvertSettings> request_palette_convert_settings(
   };
   preview->set_window_converter(
       [&](const QImage& window) { return preview_lut_ready ? convert_source_image(window) : QImage(); });
-  preview->set_zoom_changed_callback([preview, zoom_label] {
-    const auto percent = preview->property("previewZoomPercent").toInt();
-    zoom_label->setText(preview->fit_mode() ? QObject::tr("Fit (%1%)").arg(percent)
-                                            : QStringLiteral("%1%").arg(percent));
-  });
-  QObject::connect(zoom_fit, &QToolButton::clicked, &dialog, [preview] { preview->zoom_to_fit(); });
-  QObject::connect(zoom_100, &QToolButton::clicked, &dialog, [preview] { preview->zoom_to(1.0); });
-  QObject::connect(zoom_out, &QToolButton::clicked, &dialog, [preview] { preview->zoom_step(-1); });
-  QObject::connect(zoom_in, &QToolButton::clicked, &dialog, [preview] { preview->zoom_step(1); });
+  connect_preview_zoom_controls(zoom_controls, preview);
 
   auto* preview_timer = new QTimer(&dialog);
   preview_timer->setSingleShot(true);

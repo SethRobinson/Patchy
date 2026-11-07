@@ -9,7 +9,10 @@
 #include <memory>
 #include <optional>
 
+class QHBoxLayout;
+class QLabel;
 class QMouseEvent;
+class QPushButton;
 class QPainter;
 class QKeyEvent;
 class QFocusEvent;
@@ -218,5 +221,24 @@ private:
   OverlayHandle active_overlay_handle_{OverlayHandle::None};
   bool overlay_drag_changed_{false};
 };
+
+// The zoom controls under a dialog preview, one look in every dialog (Export for Web's row,
+// GitHub issue 667): "Zoom:", the amount as a plain percent (sized for its longest value),
+// then framed push buttons - + 100% Fit. Fit is checkable and checked while the preview fits.
+// Object names: <prefix>ZoomCaption, <prefix>ZoomLabel (the amount), <prefix>ZoomOut,
+// <prefix>ZoomIn, <prefix>Zoom100, <prefix>ZoomFit.
+struct PreviewZoomControls {
+  QLabel* caption{nullptr};
+  QLabel* amount{nullptr};
+  QPushButton* zoom_out{nullptr};
+  QPushButton* zoom_in{nullptr};
+  QPushButton* zoom_100{nullptr};
+  QPushButton* fit{nullptr};
+};
+// Creates the controls as children of `parent` and appends them to `row` in order.
+PreviewZoomControls add_preview_zoom_controls(QHBoxLayout& row, QWidget* parent, const QString& object_prefix);
+// Shows `preview`'s zoom in the amount and on Fit, and makes the buttons drive it. Takes the
+// preview's zoom-changed callback.
+void connect_preview_zoom_controls(const PreviewZoomControls& controls, ZoomableImagePreview* preview);
 
 }  // namespace patchy::ui

@@ -52,7 +52,6 @@
 #include <QSizePolicy>
 #include <QSpinBox>
 #include <QTimer>
-#include <QToolButton>
 #include <QValidator>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -545,56 +544,15 @@ std::optional<FilterInvocation> request_filter_settings(
     rendered_input_bounds = current_proxy_bounds;
     preview_column->addWidget(proxy_preview, 1);
 
+    // "Zoom: <amount> - + 100% Fit", centered under the preview (GitHub issue 667).
     auto* zoom_row = new QHBoxLayout();
     zoom_row->setSpacing(4);
     zoom_row->addStretch(1);
-    const auto make_zoom_button = [&dialog](const char* object_name,
-                                            const QString& text,
-                                            const QString& tooltip) {
-      auto* button = new QToolButton(&dialog);
-      button->setObjectName(QLatin1String(object_name));
-      button->setText(text);
-      button->setToolTip(tooltip);
-      button->setAutoRaise(true);
-      button->setFocusPolicy(Qt::NoFocus);
-      return button;
-    };
-    auto* zoom_fit = make_zoom_button(
-        "filterDialogZoomFit", QObject::tr("Fit"),
-        QObject::tr("Fit the image in the preview"));
-    auto* zoom_100 = make_zoom_button(
-        "filterDialogZoom100", QStringLiteral("100%"),
-        QObject::tr("Zoom to 100% (1 image pixel = 1 screen pixel)"));
-    auto* zoom_out = make_zoom_button("filterDialogZoomOut",
-                                      QStringLiteral("-"),
-                                      QObject::tr("Zoom out"));
-    auto* zoom_in = make_zoom_button("filterDialogZoomIn", QStringLiteral("+"),
-                                     QObject::tr("Zoom in"));
-    auto* zoom_label = new QLabel(&dialog);
-    zoom_label->setObjectName(QStringLiteral("filterDialogZoomLabel"));
-    zoom_label->setMinimumWidth(ui_text_length(78));
-    zoom_label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    zoom_row->addWidget(zoom_fit);
-    zoom_row->addWidget(zoom_100);
-    zoom_row->addWidget(zoom_out);
-    zoom_row->addWidget(zoom_in);
-    zoom_row->addWidget(zoom_label);
+    const auto zoom_controls =
+        add_preview_zoom_controls(*zoom_row, &dialog, QStringLiteral("filterDialog"));
+    zoom_row->addStretch(1);
     preview_column->addLayout(zoom_row);
-    proxy_preview->set_zoom_changed_callback([proxy_preview, zoom_label] {
-      const auto percent =
-          proxy_preview->property("previewZoomPercent").toInt();
-      zoom_label->setText(proxy_preview->fit_mode()
-                              ? QObject::tr("Fit (%1%)").arg(percent)
-                              : QStringLiteral("%1%").arg(percent));
-    });
-    QObject::connect(zoom_fit, &QToolButton::clicked, &dialog,
-                     [proxy_preview] { proxy_preview->zoom_to_fit(); });
-    QObject::connect(zoom_100, &QToolButton::clicked, &dialog,
-                     [proxy_preview] { proxy_preview->zoom_to(1.0); });
-    QObject::connect(zoom_out, &QToolButton::clicked, &dialog,
-                     [proxy_preview] { proxy_preview->zoom_step(-1); });
-    QObject::connect(zoom_in, &QToolButton::clicked, &dialog,
-                     [proxy_preview] { proxy_preview->zoom_step(1); });
+    connect_preview_zoom_controls(zoom_controls, proxy_preview);
   }
 
   std::function<void()> schedule_preview_callback;
@@ -696,8 +654,16 @@ std::optional<FilterInvocation> request_filter_settings(
     return settings;
   };
 
+  // With Preview off the canvas shows the original layer: the first preview-off request puts
+  // it back and drops any render in flight, and later changes send nothing until Preview is
+  // on again, so editing values never touches the canvas (GitHub issue 667).
+  bool canvas_shows_original = false;
   CoalescedPreviewEmitter<FilterPreviewSettings> preview_emitter(
       dialog, [&](const FilterPreviewSettings& settings) {
+        if (!settings.preview_enabled && canvas_shows_original) {
+          return;
+        }
+        canvas_shows_original = !settings.preview_enabled;
         if (preview_changed) {
           preview_changed(settings);
         }
@@ -924,6 +890,8 @@ std::optional<FilterInvocation> request_filter_settings(
       show_about(&dialog);
     });
   }
+  // OK as wide as Cancel in every language (GitHub issue 667); Reset and About keep their own.
+  match_ok_cancel_widths(*buttons);
   layout->addWidget(buttons);
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
@@ -942,7 +910,7 @@ std::optional<FilterInvocation> request_filter_settings(
                 : blend_mode_combo->findData(static_cast<int>(BlendMode::Normal)));
         opacity_spin->setValue(std::clamp(initial_blending.opacity, 0.0, 1.0) * 100.0);
       }
-      preview->setChecked(true);
+      // Reset restores the values only: Preview stays as the user set it (GitHub issue 667).
       flush_preview();
     });
   }
@@ -950,7 +918,9 @@ std::optional<FilterInvocation> request_filter_settings(
   if (blending != nullptr) {
     append_themed_style(dialog, dialog_spinbox_button_style());
   }
-  QTimer::singleShot(0, &dialog, [&dialog, &flush_preview] {
+  QTimer::singleShot(0, &dialog, [&dialog, &flush_preview, buttons] {
+    // Again once the theme's button padding is applied.
+    match_ok_cancel_widths(*buttons);
     if (dialog.isVisible()) {
       flush_preview();
     }

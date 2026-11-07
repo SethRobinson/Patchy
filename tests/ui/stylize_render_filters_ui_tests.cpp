@@ -552,7 +552,10 @@ void ui_issue_496_long_filter_dialogs_use_two_columns() {
       checked = true;
       dialog->reject();
     }));
-    static_cast<void>(patchy::ui::request_filter_settings(nullptr, spec, {}, {}, &source));
+    // Sized under the app theme, as in the app, where the main window carries it: Qt's bare
+    // style gives every push button an 80 px minimum (GitHub issue 667's framed zoom buttons).
+    const auto parent = make_themed_dialog_parent();
+    static_cast<void>(patchy::ui::request_filter_settings(parent.get(), spec, {}, {}, &source));
     CHECK(checked);
   }
 }

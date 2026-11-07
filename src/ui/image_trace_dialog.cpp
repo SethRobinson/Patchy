@@ -566,30 +566,9 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
     preview_info->setWordWrap(true);
   }
   info_row->addWidget(preview_info, 1);
-  const auto make_zoom_button = [&dialog](const char* object_name, const QString& text, const QString& tooltip) {
-    auto* button = new QToolButton(&dialog);
-    button->setObjectName(QLatin1String(object_name));
-    button->setText(text);
-    button->setToolTip(tooltip);
-    button->setAutoRaise(true);
-    button->setFocusPolicy(Qt::NoFocus);
-    return button;
-  };
-  auto* zoom_fit =
-      make_zoom_button("imageTraceZoomFit", QObject::tr("Fit"), QObject::tr("Fit the image in the preview"));
-  auto* zoom_100 = make_zoom_button("imageTraceZoom100", QStringLiteral("100%"),
-                                    QObject::tr("Zoom to 100% (1 image pixel = 1 screen pixel)"));
-  auto* zoom_out = make_zoom_button("imageTraceZoomOut", QStringLiteral("-"), QObject::tr("Zoom out"));
-  auto* zoom_in = make_zoom_button("imageTraceZoomIn", QStringLiteral("+"), QObject::tr("Zoom in"));
-  auto* zoom_label = new QLabel(&dialog);
-  zoom_label->setObjectName(QStringLiteral("imageTraceZoomLabel"));
-  zoom_label->setMinimumWidth(ui_text_length(72));
-  zoom_label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-  info_row->addWidget(zoom_fit);
-  info_row->addWidget(zoom_100);
-  info_row->addWidget(zoom_out);
-  info_row->addWidget(zoom_in);
-  info_row->addWidget(zoom_label);
+  // "Zoom: <amount> - + 100% Fit", the row every preview dialog shares (GitHub issue 667).
+  info_row->addSpacing(8);
+  const auto zoom_controls = add_preview_zoom_controls(*info_row, &dialog, QStringLiteral("imageTrace"));
   // Frameless chrome has no native resize border; the corner grip is the resize handle.
   info_row->addWidget(new VisibleSizeGrip(&dialog), 0, Qt::AlignBottom);
   preview_column->addLayout(info_row);
@@ -603,15 +582,7 @@ std::optional<ImageTraceDialogResult> request_image_trace(QWidget* parent, std::
   preview_column->addWidget(size_warning);
   layout->addLayout(preview_column, 1);
 
-  preview->set_zoom_changed_callback([preview, zoom_label] {
-    const auto percent = preview->property("previewZoomPercent").toInt();
-    zoom_label->setText(preview->fit_mode() ? QObject::tr("Fit (%1%)").arg(percent)
-                                            : QStringLiteral("%1%").arg(percent));
-  });
-  QObject::connect(zoom_fit, &QToolButton::clicked, &dialog, [preview] { preview->zoom_to_fit(); });
-  QObject::connect(zoom_100, &QToolButton::clicked, &dialog, [preview] { preview->zoom_to(1.0); });
-  QObject::connect(zoom_out, &QToolButton::clicked, &dialog, [preview] { preview->zoom_step(-1); });
-  QObject::connect(zoom_in, &QToolButton::clicked, &dialog, [preview] { preview->zoom_step(1); });
+  connect_preview_zoom_controls(zoom_controls, preview);
 
   // --- control state <-> options ---
   bool syncing_widgets = false;
