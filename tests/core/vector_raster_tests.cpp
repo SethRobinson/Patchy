@@ -23,6 +23,7 @@
 #include <utility>
 #include "core/document.hpp"
 #include "core/gradient_fill_drag.hpp"
+#include "core/gradient_presets.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/layer.hpp"
 #include "core/layer_render_utils.hpp"
@@ -2128,8 +2129,100 @@ void gradient_fill_stop_edits_keep_stops_sorted() {
   CHECK(gradient.alpha_stops.size() == 2U);
 }
 
+// GitHub issue 663 follow-up: a gradient preset becomes the tool's own stops, not 33 samples.
+// Every built-in preset keeps its stop count and locations (Black to White is two stops), the
+// tool's straight ramp with midpoints matches the preset at smoothness 0, an opacity-only
+// location merges in, disagreeing midpoints write out only their segment, Noise is sampled.
+void gradient_tool_stops_keep_a_presets_own_stops() {
+  const auto as_layer_gradient = [](const patchy::GradientDefinition& definition) {
+    patchy::LayerStyleGradient gradient;
+    static_cast<patchy::GradientDefinition&>(gradient) = definition;
+    for (auto& stop : gradient.color_stops) {
+      stop.kind = patchy::GradientColorStop::Kind::User;
+    }
+    return gradient;
+  };
+  // The tool's color and alpha at `position` against the preset's straight (smoothness 0) ramp.
+  const auto worst_difference = [](const patchy::LayerStyleGradient& gradient,
+                                   const std::vector<patchy::GradientStop>& stops) {
+    auto straight = gradient;
+    straight.smoothness = 0;
+    int worst = 0;
+    const auto sorted = patchy::normalized_gradient_stops(stops);
+    for (int index = 0; index <= 400; ++index) {
+      const auto position = static_cast<float>(index) / 400.0F;
+      const auto tool = patchy::gradient_color_at(sorted, 1.0F, false, position);
+      const auto color = patchy::gradient_color(straight, position);
+      const auto alpha = static_cast<int>(std::lround(patchy::gradient_stop_opacity(straight, position) * 255.0F));
+      worst = std::max({worst, std::abs(tool.r - color.red), std::abs(tool.g - color.green),
+                        std::abs(tool.b - color.blue), std::abs(tool.a - alpha)});
+    }
+    return worst;
+  };
+  for (const auto& preset : patchy::builtin_gradient_presets()) {
+    const auto gradient = as_layer_gradient(preset.definition);
+    const auto stops = patchy::gradient_tool_stops_from_gradient(gradient);
+    CHECK(stops.size() == gradient.color_stops.size());
+    for (std::size_t index = 0; index < stops.size() && index < gradient.color_stops.size(); ++index) {
+      CHECK(std::abs(stops[index].location - gradient.color_stops[index].location) < 1e-6F);
+      CHECK(stops[index].color.r == gradient.color_stops[index].color.red);
+    }
+    const auto worst = worst_difference(gradient, stops);
+    if (worst > 1) {
+      std::cerr << preset.english_name << " differs by " << worst << '\n';
+    }
+    CHECK(worst <= 1);
+    if (std::string_view(preset.english_name) == "Black to White") {
+      CHECK(stops.size() == 2U);
+    }
+  }
+
+  // Midpoints stay on their stops; an opacity-only location merges in where the color ramp
+  // is straight; the tool reproduces both.
+  patchy::LayerStyleGradient custom;
+  custom.color_stops = {{0.0F, patchy::RgbColor{0, 0, 0}, 0.5F},
+                        {0.4F, patchy::RgbColor{255, 0, 0}, 0.25F},
+                        {1.0F, patchy::RgbColor{0, 0, 255}, 0.5F}};
+  custom.alpha_stops = {{0.0F, 1.0F, 0.5F}, {0.4F, 1.0F, 0.5F}, {0.7F, 0.2F, 0.5F}, {1.0F, 1.0F, 0.5F}};
+  const auto merged = patchy::gradient_tool_stops_from_gradient(custom);
+  CHECK(merged.size() == 4U);
+  if (merged.size() == 4U) {
+    CHECK(merged[1].midpoint == 0.25F);
+    CHECK(std::abs(merged[2].location - 0.7F) < 1e-6F);
+    CHECK(merged[2].color.a == 51);
+  }
+  CHECK(worst_difference(custom, merged) <= 1);
+
+  // A color midpoint over a segment whose opacity also ramps cannot share one midpoint:
+  // that segment alone is written out in straight pieces, close to the preset.
+  patchy::LayerStyleGradient clash;
+  clash.color_stops = {{0.0F, patchy::RgbColor{0, 0, 0}, 0.5F}, {1.0F, patchy::RgbColor{255, 255, 255}, 0.2F}};
+  clash.alpha_stops = {{0.0F, 1.0F, 0.5F}, {1.0F, 0.0F, 0.5F}};
+  const auto pieces = patchy::gradient_tool_stops_from_gradient(clash);
+  CHECK(pieces.size() == 9U);
+  CHECK(worst_difference(clash, pieces) <= 24);
+
+  // Noise has no stops to keep: it is sampled.
+  patchy::LayerStyleGradient noise;
+  noise.form = patchy::GradientDefinitionForm::Noise;
+  CHECK(patchy::gradient_tool_stops_from_gradient(noise).size() == 65U);
+
+  // The explicit-midpoint form (QGradient previews) is the same ramp written straight.
+  const auto explicit_stops = patchy::gradient_stops_with_explicit_midpoints(merged);
+  CHECK(explicit_stops.size() == merged.size() + 1U);
+  int preview_worst = 0;
+  for (int index = 0; index <= 200; ++index) {
+    const auto position = static_cast<double>(index) / 200.0;
+    const auto a = patchy::gradient_color_at(merged, 1.0F, false, position);
+    const auto b = patchy::gradient_color_at(explicit_stops, 1.0F, false, position);
+    preview_worst = std::max({preview_worst, std::abs(a.r - b.r), std::abs(a.g - b.g), std::abs(a.b - b.b)});
+  }
+  CHECK(preview_worst <= 1);
+}
+
 std::vector<patchy::test::TestCase> vector_raster_tests() {
   return {
+      {"gradient_tool_stops_keep_a_presets_own_stops", gradient_tool_stops_keep_a_presets_own_stops},
       {"gradient_fill_line_inverts_the_drag_placement", gradient_fill_line_inverts_the_drag_placement},
       {"gradient_fill_alignment_bounds_follow_the_bake", gradient_fill_alignment_bounds_follow_the_bake},
       {"gradient_fill_stop_edits_keep_stops_sorted", gradient_fill_stop_edits_keep_stops_sorted},

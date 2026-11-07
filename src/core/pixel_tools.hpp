@@ -164,7 +164,19 @@ struct GradientStop {
   // by 2^stops before interpolating, so a gradient can run above 1.0. 8 and 16-bit layers
   // ignore it (docs/high-bit-depth-color.md, "Color choice at 32 bits").
   float intensity_stops{0.0F};
+  // Where the blend from the previous stop reaches 50%, as a fraction of the way there
+  // (Photoshop's Mdpn convention: the destination stop owns it; 0.5 is a straight ramp and
+  // the first stop's value is unused). Gradient presets keep theirs (GitHub issue 663).
+  float midpoint{0.5F};
 };
+
+// The segment position `t` (0..1 between two stops) remapped through the destination
+// stop's midpoint: piecewise linear, 0.5 at the midpoint. Identity at 0.5.
+[[nodiscard]] double gradient_stop_midpoint_remap(double t, float midpoint) noexcept;
+// The same ramp with every non-default midpoint written out as a stop of its own (half
+// way between its neighbors, intensity included), for consumers that interpolate stops
+// straight (QGradient previews, CSS swatches). Exact: the remap is piecewise linear.
+[[nodiscard]] std::vector<GradientStop> gradient_stops_with_explicit_midpoints(const std::vector<GradientStop>& stops);
 
 struct GradientOptions {
   GradientMethod method{GradientMethod::Linear};

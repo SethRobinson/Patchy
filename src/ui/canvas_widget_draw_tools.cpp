@@ -396,7 +396,8 @@ void CanvasWidget::draw_shape_preview(QPainter& painter, QRect exposed_rect) {
           QRadialGradient radial_gradient(a, radius);
           auto* gradient = gradient_method_ == GradientMethod::Radial ? static_cast<QGradient*>(&radial_gradient)
                                                                       : static_cast<QGradient*>(&linear_gradient);
-          for (const auto& stop : effective_gradient_stops()) {
+          // QGradient interpolates straight: midpoints become stops of their own.
+          for (const auto& stop : gradient_stops_with_explicit_midpoints(effective_gradient_stops())) {
             const auto value = mask_value_from_color(QColor(stop.color.r, stop.color.g, stop.color.b));
             const auto alpha = static_cast<int>(std::clamp(
                 std::lround(static_cast<double>(stop.color.a) * static_cast<double>(gradient_opacity_) / 100.0),
@@ -544,7 +545,7 @@ void CanvasWidget::draw_shape_preview(QPainter& painter, QRect exposed_rect) {
     raw_gradient = gradient_method_ == GradientMethod::Radial ? static_cast<QGradient*>(&radial_gradient)
                                                               : static_cast<QGradient*>(&linear_gradient);
     const auto stops = effective_gradient_stops();
-    for (const auto& stop : stops) {
+    for (const auto& stop : gradient_stops_with_explicit_midpoints(stops)) {
       auto color = stop.color;
       color.a = static_cast<std::uint8_t>(
           std::clamp(std::lround(static_cast<float>(color.a) * static_cast<float>(gradient_opacity_) / 100.0F), 0L,

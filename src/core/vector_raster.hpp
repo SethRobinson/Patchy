@@ -115,6 +115,16 @@ void update_vector_shape_raster(Layer& layer, Rect canvas, const PatternStore* p
 // fill's coverage bounds. Rasterizes the path, so callers cache it (the Gradient tool's
 // on-canvas handles, GitHub issue 663).
 [[nodiscard]] Rect gradient_fill_alignment_bounds(const Layer& layer, Rect canvas);
+// A draft of update_vector_shape_raster for a pathless 8-bit Gradient Fill layer, for the
+// Gradient tool's handle drags (GitHub issue 663 follow-up): the ramp position is evaluated
+// exactly on a 4-pixel grid and interpolated between (exactly per pixel where a cell spans
+// an Angle seam or a sharp turn), colors come from a 4096-entry table and dither is off, so it
+// costs a small fraction of the exact bake and differs from it by about a level. The layer's
+// shape must already hold the new gradient; `gradient_bounds` is
+// gradient_fill_alignment_bounds for it. False, with nothing changed, when the layer is
+// not a full-canvas gradient fill (a path, feather, density, parts) or the canvas is small
+// enough to bake exactly; the drag's release always bakes exactly.
+bool update_gradient_fill_draft_raster(Layer& layer, Rect canvas, Rect gradient_bounds);
 // For a shape layer that keeps the pixels its file carried (a PSD import whose raster
 // has visible alpha is not re-baked): works out the effect silhouette from the shape
 // and stores it beside those pixels, or clears it when coverage and alpha agree.

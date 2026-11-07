@@ -2885,6 +2885,7 @@ private:
   void cancel_gradient_fill_handle_drag();
   void abandon_gradient_fill_handle_drag();
   void set_gradient_fill_handle_hover(GradientHandlePart part);
+  void send_gradient_fill_preview();
   void draw_gradient_fill_handles(QPainter& painter) const;
   [[nodiscard]] QString gradient_fill_handle_hint(GradientHandlePart part) const;
   [[nodiscard]] QString gradient_fill_handle_tooltip(GradientHandlePart part) const;
@@ -3954,10 +3955,15 @@ private:
     bool moved{false};
     bool removing{false};
     bool previewed{false};
+    // The gradient last handed to the preview callback, and whether a newer one waits for
+    // the throttle (at most one preview per kGradientPreviewIntervalMs; the first at once).
+    LayerStyleGradient previewed_gradient;
+    bool preview_scheduled{false};
     std::uint64_t serial{0};
   };
   std::optional<GradientFillHandleDrag> gradient_handle_drag_;
   std::uint64_t gradient_handle_drag_serial_{0};
+  QElapsedTimer gradient_handle_preview_clock_;
   GradientHandlePart gradient_handle_hover_;
   GradientFillEditCallback gradient_fill_edit_callback_;
   std::function<void(LayerId, int)> gradient_fill_stop_color_requested_callback_;

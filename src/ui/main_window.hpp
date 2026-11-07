@@ -2221,7 +2221,10 @@ private:
                                         GradientFillEditPhase phase, std::uint64_t serial, const QString& undo_label);
   // A double-click on a color stop handle: the color picker, previewing live.
   void handle_gradient_fill_stop_color_requested(LayerId layer_id, int stop_index);
-  void apply_gradient_fill_handle_gradient(LayerId layer_id, const LayerStyleGradient& gradient);
+  // Stores `gradient` on the layer and bakes it: exactly, or as the fast draft
+  // (update_gradient_fill_draft_raster) for a live preview over `draft_bounds`.
+  void apply_gradient_fill_handle_gradient(LayerId layer_id, const LayerStyleGradient& gradient,
+                                           std::optional<Rect> draft_bounds = std::nullopt);
   void new_solid_color_fill_layer();
   void new_gradient_fill_layer();
   void new_pattern_fill_layer();
@@ -4317,6 +4320,8 @@ private:
     LayerId layer_id{0};
     std::uint64_t serial{0};
     Layer original;
+    // The rectangle the placement is measured over (fixed while the gradient alone changes).
+    Rect gradient_bounds;
   };
   std::optional<GradientFillHandlePreview> gradient_fill_handle_preview_;
   std::uint64_t gradient_fill_stop_color_serial_{0};
