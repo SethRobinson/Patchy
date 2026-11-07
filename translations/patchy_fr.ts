@@ -7514,10 +7514,6 @@ RVB : %2, %3, %4</translation>
         <translation>Image</translation>
     </message>
     <message>
-        <source>Units:</source>
-        <translation>Unités :</translation>
-    </message>
-    <message>
         <source>Print Resolution</source>
         <translation>Résolution d&apos;impression</translation>
     </message>
@@ -15061,6 +15057,10 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>Open multi-page TIFFs this way from now on. Preferences can turn the question back on.</source>
         <translation>Ouvrir désormais les TIFF multipages de cette façon. Les Préférences permettent de réactiver la question.</translation>
+    </message>
+    <message>
+        <source>Units</source>
+        <translation>Unités</translation>
     </message>
 </context>
 <context>

@@ -37,6 +37,7 @@
 #include <QImage>
 #include <QImageWriter>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QMessageBox>
 #include <QIODevice>
@@ -47,6 +48,7 @@
 #include <QSpinBox>
 #include <QStringList>
 #include <QTabWidget>
+#include <QTest>
 #include <QTimer>
 #include <algorithm>
 #include <atomic>
@@ -2318,17 +2320,19 @@ void ui_print_dialog_exposes_printer_and_visible_checkboxes() {
         CHECK(page_size->currentData().toInt() == static_cast<int>(QPageSize::Letter));
         CHECK(orientation->currentData().toInt() == static_cast<int>(QPageLayout::Portrait));
         CHECK(!page_width->isEnabled());
-        CHECK(std::abs(page_width->value() - 8.5) < 0.01);
-        CHECK(std::abs(page_height->value() - 11.0) < 0.01);
+        // The length fields hold points and show the Units choice.
+        CHECK(std::abs(page_width->value() - 8.5 * 72.0) < 0.01);
+        CHECK(std::abs(page_height->value() - 11.0 * 72.0) < 0.01);
+        CHECK(page_width->text() == QStringLiteral("8.5 in"));
         page_size->setCurrentIndex(page_size->findData(static_cast<int>(QPageSize::Custom)));
         QApplication::processEvents();
         CHECK(page_width->isEnabled());
-        CHECK(std::abs(page_width->value() - 8.5) < 0.01);
-        page_width->setValue(4.0);
-        page_height->setValue(3.25);
+        CHECK(std::abs(page_width->value() - 8.5 * 72.0) < 0.01);
+        page_width->setValue(4.0 * 72.0);
+        page_height->setValue(3.25 * 72.0);
         QApplication::processEvents();
         CHECK(page_size->currentData().toInt() == static_cast<int>(QPageSize::Custom));
-        CHECK(std::abs(page_width->value() - 4.0) < 0.01);
+        CHECK(std::abs(page_width->value() - 4.0 * 72.0) < 0.01);
         // The 3.41 x 2.56 in document no longer fits a 4 x 3.25 in sheet inside its
         // margins at actual size; the placement math sees the new sheet at once.
         scale_to_fit->setChecked(true);
@@ -2338,7 +2342,8 @@ void ui_print_dialog_exposes_printer_and_visible_checkboxes() {
         // Units switch the custom spins' unit; the sheet itself is unchanged.
         units->setCurrentIndex(units->findData(QStringLiteral("mm")));
         QApplication::processEvents();
-        CHECK(std::abs(page_width->value() - 101.6) < 0.1);
+        CHECK(std::abs(page_width->value() - 4.0 * 72.0) < 0.01);
+        CHECK(page_width->text() == QStringLiteral("101.6 mm"));
         units->setCurrentIndex(units->findData(QStringLiteral("in")));
         orientation->setCurrentIndex(orientation->findData(static_cast<int>(QPageLayout::Landscape)));
         QApplication::processEvents();
@@ -2348,7 +2353,7 @@ void ui_print_dialog_exposes_printer_and_visible_checkboxes() {
         page_size->setCurrentIndex(page_size->findData(static_cast<int>(QPageSize::Letter)));
         QApplication::processEvents();
         CHECK(!page_width->isEnabled());
-        CHECK(std::abs(page_width->value() - 8.5) < 0.01);
+        CHECK(std::abs(page_width->value() - 8.5 * 72.0) < 0.01);
       }
       CHECK(window.styleSheet().contains(QStringLiteral("QCheckBox::indicator:checked")));
       CHECK(window.styleSheet().contains(QStringLiteral("checkmark.svg")));
@@ -2357,6 +2362,186 @@ void ui_print_dialog_exposes_printer_and_visible_checkboxes() {
       return;
     }
     CHECK(false);
+  }));
+
+  require_action(window, "filePrintAction")->trigger();
+  QApplication::processEvents();
+}
+
+
+// local-038: number fields in the Print dialog take typing character by character.
+// Every keystroke used to rerun the layout and write the value back into the field
+// being typed in ("2." became "2.00 in" with the caret moved), so 2.25 could not be
+// typed. Units sit in the Paper group and switch every length field.
+void ui_print_dialog_number_fields_take_typing() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  {
+    auto& document = patchy::ui::MainWindowTestAccess::document(window);
+    document.print_settings().horizontal_ppi = 300.0;
+    document.print_settings().vertical_ppi = 300.0;
+  }
+
+  QTimer::singleShot(0, guarded([] {
+    QDialog* dialog = nullptr;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() == QStringLiteral("patchyPrintDialog")) {
+        dialog = qobject_cast<QDialog*>(widget);
+      }
+    }
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* page_size = dialog->findChild<QComboBox*>(QStringLiteral("printPageSizeCombo"));
+    auto* units = dialog->findChild<QComboBox*>(QStringLiteral("printUnitsCombo"));
+    auto* page_width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("printPageWidthSpin"));
+    auto* page_height = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("printPageHeightSpin"));
+    auto* scale_to_fit = dialog->findChild<QCheckBox*>(QStringLiteral("printScaleToFitCheck"));
+    auto* scale = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("printScalePercentSpin"));
+    auto* center = dialog->findChild<QCheckBox*>(QStringLiteral("printCenterCheck"));
+    auto* offset_x = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("printOffsetXSpin"));
+    auto* paper_group = page_size != nullptr ? page_size->parentWidget() : nullptr;
+    CHECK(page_size != nullptr && units != nullptr && page_width != nullptr && page_height != nullptr &&
+          scale_to_fit != nullptr && scale != nullptr && center != nullptr && offset_x != nullptr);
+    if (page_size == nullptr || units == nullptr || page_width == nullptr || page_height == nullptr ||
+        scale_to_fit == nullptr || scale == nullptr || center == nullptr || offset_x == nullptr) {
+      dialog->reject();
+      return;
+    }
+    dialog->activateWindow();
+    (void)QTest::qWaitForWindowActive(dialog, 2000);
+    ensure_artifact_dir();
+
+    // Types `keys` one character at a time into `spin` after selecting all of it, and
+    // returns the field text after each character (without the suffix, which Qt keeps
+    // after the caret).
+    const auto type_into = [](QDoubleSpinBox* spin, const QString& keys) {
+      QStringList texts;
+      auto* edit = spin->findChild<QLineEdit*>();
+      CHECK(edit != nullptr);
+      if (edit == nullptr) {
+        return texts;
+      }
+      spin->setFocus(Qt::OtherFocusReason);
+      QApplication::processEvents();
+      CHECK(spin->hasFocus());
+      edit->selectAll();
+      for (const auto key : keys) {
+        if (key == QLatin1Char('\b')) {
+          QTest::keyClick(edit, Qt::Key_Backspace);
+        } else {
+          QTest::keyClicks(edit, QString(key));
+        }
+        QApplication::processEvents();
+        texts.push_back(spin->cleanText());
+      }
+      return texts;
+    };
+    // Leaving the field commits it, as Tab or a click elsewhere does.
+    const auto leave = [](QWidget* next) {
+      next->setFocus(Qt::TabFocusReason);
+      QApplication::processEvents();
+    };
+
+    page_size->setCurrentIndex(page_size->findData(static_cast<int>(QPageSize::Custom)));
+    QApplication::processEvents();
+    CHECK(page_width->isEnabled());
+
+    // 2.25: every character stays as typed; "2." is never rewritten to "2.00 in".
+    const auto width_texts = type_into(page_width, QStringLiteral("2.25"));
+    if (paper_group != nullptr) {
+      (void)paper_group->grab().toImage().save(QStringLiteral("test-artifacts/ui_print_dialog_typing_width.png"));
+    }
+    std::cout << "[INFO] Width text after each key: " << width_texts.join(QStringLiteral(" | ")).toStdString() << '\n';
+    CHECK(width_texts == QStringList({QStringLiteral("2"), QStringLiteral("2."), QStringLiteral("2.2"),
+                                      QStringLiteral("2.25")}));
+    CHECK(std::abs(page_width->value() - 2.25 * 72.0) < 0.01);
+    // The Units choice lives in the Paper group, beside the sizes it changes.
+    CHECK(units->parentWidget() == paper_group);
+    // Delete and retype: 2.25 -> 2.2 -> 2. -> 2.5.
+    auto* width_edit = page_width->findChild<QLineEdit*>();
+    if (width_edit != nullptr) {
+      // The caret sits before the suffix, as after typing.
+      width_edit->setCursorPosition(static_cast<int>(width_edit->text().size() - page_width->suffix().size()));
+      QTest::keyClick(width_edit, Qt::Key_Backspace);
+      QTest::keyClick(width_edit, Qt::Key_Backspace);
+      CHECK(page_width->cleanText() == QStringLiteral("2."));
+      QTest::keyClicks(width_edit, QStringLiteral("5"));
+      CHECK(page_width->cleanText() == QStringLiteral("2.5"));
+    }
+    leave(page_height);
+    CHECK(std::abs(page_width->value() - 2.5 * 72.0) < 0.01);
+    CHECK(page_width->text() == QStringLiteral("2.5 in"));
+
+    // Height: 0.75, through the "0" that is below the minimum on the way.
+    const auto height_texts = type_into(page_height, QStringLiteral("0.75"));
+    CHECK(height_texts.value(3) == QStringLiteral("0.75"));
+    leave(page_width);
+    CHECK(std::abs(page_height->value() - 0.75 * 72.0) < 0.01);
+    CHECK(page_height->text() == QStringLiteral("0.75 in"));
+
+    // A typed unit converts: 21.5 cm into the inch field.
+    const auto unit_texts = type_into(page_width, QStringLiteral("21.5 cm"));
+    CHECK(unit_texts.value(unit_texts.size() - 1) == QStringLiteral("21.5 cm"));
+    leave(page_height);
+    CHECK(std::abs(page_width->value() - 21.5 / 2.54 * 72.0) < 0.01);
+
+    // Switching Units keeps the sheet and re-shows every length field.
+    units->setCurrentIndex(units->findData(QStringLiteral("cm")));
+    QApplication::processEvents();
+    CHECK(std::abs(page_width->value() - 21.5 / 2.54 * 72.0) < 0.01);
+    CHECK(page_width->text() == QStringLiteral("21.5 cm"));
+    CHECK(page_height->text() == QStringLiteral("1.905 cm"));
+    CHECK(offset_x->text().endsWith(QStringLiteral(" cm")));
+    // Typed in cm now: 29.7.
+    const auto cm_texts = type_into(page_height, QStringLiteral("29.7"));
+    CHECK(cm_texts.value(2) == QStringLiteral("29."));
+    leave(page_width);
+    CHECK(page_height->text() == QStringLiteral("29.7 cm"));
+    CHECK(std::abs(page_height->value() - 29.7 / 2.54 * 72.0) < 0.01);
+
+    // Scale: 75.5 with fit-to-media off.
+    scale_to_fit->setChecked(false);
+    QApplication::processEvents();
+    CHECK(scale->isEnabled());
+    const auto scale_texts = type_into(scale, QStringLiteral("75.5"));
+    CHECK(scale_texts == QStringList({QStringLiteral("7"), QStringLiteral("75"), QStringLiteral("75."),
+                                      QStringLiteral("75.5")}));
+    leave(page_width);
+    CHECK(std::abs(scale->value() - 75.5) < 0.01);
+
+    // X offset: -1.5 (a bare "-" first) once Center Image is off.
+    center->setChecked(false);
+    QApplication::processEvents();
+    CHECK(offset_x->isEnabled());
+    const auto x_texts = type_into(offset_x, QStringLiteral("-1.5"));
+    CHECK(x_texts == QStringList({QStringLiteral("-"), QStringLiteral("-1"), QStringLiteral("-1."),
+                                  QStringLiteral("-1.5")}));
+    leave(page_width);
+    CHECK(std::abs(offset_x->value() - (-1.5 / 2.54 * 72.0)) < 0.01);
+    CHECK(offset_x->text() == QStringLiteral("-1.5 cm"));
+
+    // Arrow keys still step (one tenth of a centimeter here).
+    page_height->setFocus(Qt::OtherFocusReason);
+    QApplication::processEvents();
+    const auto before_step = page_height->value();
+    QTest::keyClick(page_height, Qt::Key_Up);
+    QApplication::processEvents();
+    CHECK(std::abs(page_height->value() - (before_step + 0.1 / 2.54 * 72.0)) < 0.01);
+    CHECK(page_height->text() == QStringLiteral("29.8 cm"));
+
+    leave(page_width);
+    if (paper_group != nullptr) {
+      CHECK(paper_group->grab().toImage().save(QStringLiteral("test-artifacts/ui_print_dialog_paper_units.png")));
+    }
+    CHECK(dialog->grab().toImage().save(QStringLiteral("test-artifacts/ui_print_dialog_number_fields.png")));
+    // Back to Letter and inches so nothing leaks into the next test.
+    units->setCurrentIndex(units->findData(QStringLiteral("in")));
+    page_size->setCurrentIndex(page_size->findData(static_cast<int>(QPageSize::Letter)));
+    center->setChecked(true);
+    QApplication::processEvents();
+    dialog->reject();
   }));
 
   require_action(window, "filePrintAction")->trigger();
@@ -2443,5 +2628,6 @@ std::vector<patchy::test::TestCase> import_print_resolution_tests_part2() {
       {"ui_pdf_local_brochure_editable_import_composites_if_available", ui_pdf_local_brochure_editable_import_composites_if_available},
 #endif
       {"ui_print_dialog_exposes_printer_and_visible_checkboxes", ui_print_dialog_exposes_printer_and_visible_checkboxes},
+      {"ui_print_dialog_number_fields_take_typing", ui_print_dialog_number_fields_take_typing},
   };
 }

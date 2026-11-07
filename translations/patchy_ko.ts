@@ -7852,10 +7852,6 @@ RGB: %2, %3, %4</translation>
         <translation>이미지</translation>
     </message>
     <message>
-        <source>Units:</source>
-        <translation>단위:</translation>
-    </message>
-    <message>
         <source>Print Resolution</source>
         <translation>인쇄 해상도</translation>
     </message>
@@ -15014,6 +15010,10 @@ Do you want to replace it?</source>
     <message>
         <source>Open multi-page TIFFs this way from now on. Preferences can turn the question back on.</source>
         <translation>이제부터 다중 페이지 TIFF를 이 방식으로 엽니다. 환경설정에서 질문을 다시 켤 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Units</source>
+        <translation>단위</translation>
     </message>
 </context>
 <context>

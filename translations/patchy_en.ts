@@ -7506,10 +7506,6 @@ RGB: %2, %3, %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Units:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Print Resolution</source>
         <translation type="unfinished"></translation>
     </message>
@@ -15042,6 +15038,10 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Open multi-page TIFFs this way from now on. Preferences can turn the question back on.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Units</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

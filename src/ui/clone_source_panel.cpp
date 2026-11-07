@@ -379,8 +379,9 @@ void CloneSourcePanel::refresh() {
   {
     const QSignalBlocker scale_blocker(scale_spin_);
     const QSignalBlocker rotation_blocker(rotation_spin_);
-    scale_spin_->setValue(state_.transform.scale_percent);
-    rotation_spin_->setValue(state_.transform.rotation_degrees);
+    // Typing 50.5 or 4.5 keeps its text (ui-conventions.md#number-fields).
+    set_spin_value_unless_typing(scale_spin_, state_.transform.scale_percent);
+    set_spin_value_unless_typing(rotation_spin_, state_.transform.rotation_degrees);
   }
   for (auto* button : {flip_horizontal_button_, flip_vertical_button_}) {
     const QSignalBlocker blocker(button);

@@ -2503,9 +2503,10 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
     const QSignalBlocker block_width(width_spin);
     const QSignalBlocker block_height(height_spin);
     const QSignalBlocker block_scale(scale_spin);
-    width_spin->setValue(std::clamp(width, 1, kMaxOutputPixels));
-    height_spin->setValue(std::clamp(height, 1, kMaxOutputPixels));
-    scale_spin->setValue(percent);
+    // The field being typed in keeps its text (ui-conventions.md#number-fields).
+    set_spin_value_unless_typing(width_spin, std::clamp(width, 1, kMaxOutputPixels));
+    set_spin_value_unless_typing(height_spin, std::clamp(height, 1, kMaxOutputPixels));
+    set_spin_value_unless_typing(scale_spin, percent);
   };
   const auto pixels_for = [](int source, double percent) { return output_pixels(source, percent); };
   const auto refresh_format_rows = [&] {

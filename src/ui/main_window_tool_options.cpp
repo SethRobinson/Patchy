@@ -4409,8 +4409,8 @@ void MainWindow::refresh_options_bar() {
   if (crop_ratio_w_spin_ != nullptr && crop_ratio_h_spin_ != nullptr && canvas_ != nullptr) {
     const QSignalBlocker w_blocker(crop_ratio_w_spin_);
     const QSignalBlocker h_blocker(crop_ratio_h_spin_);
-    crop_ratio_w_spin_->setValue(current_crop_ratio_w_);
-    crop_ratio_h_spin_->setValue(current_crop_ratio_h_);
+    set_spin_value_unless_typing(crop_ratio_w_spin_, current_crop_ratio_w_);
+    set_spin_value_unless_typing(crop_ratio_h_spin_, current_crop_ratio_h_);
   }
   sync_crop_ratio_preset_combo();
   if (crop_width_spin_ != nullptr && crop_height_spin_ != nullptr) {

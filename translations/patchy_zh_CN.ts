@@ -7496,10 +7496,6 @@ RGB：%2, %3, %4</translation>
         <translation>图像</translation>
     </message>
     <message>
-        <source>Units:</source>
-        <translation>单位:</translation>
-    </message>
-    <message>
         <source>Print Resolution</source>
         <translation>打印分辨率</translation>
     </message>
@@ -15014,6 +15010,10 @@ Do you want to replace it?</source>
     <message>
         <source>Open multi-page TIFFs this way from now on. Preferences can turn the question back on.</source>
         <translation>今后都以这种方式打开多页 TIFF。可在首选项中重新开启此询问。</translation>
+    </message>
+    <message>
+        <source>Units</source>
+        <translation>单位</translation>
     </message>
 </context>
 <context>

@@ -4209,10 +4209,6 @@ Flow: %6
         <translation>画像</translation>
     </message>
     <message>
-        <source>Units:</source>
-        <translation>単位:</translation>
-    </message>
-    <message>
         <source>in</source>
         <translation>in</translation>
     </message>
@@ -15014,6 +15010,10 @@ Do you want to replace it?</source>
     <message>
         <source>Open multi-page TIFFs this way from now on. Preferences can turn the question back on.</source>
         <translation>今後マルチページ TIFF をこの方法で開きます。環境設定で確認を再び有効にできます。</translation>
+    </message>
+    <message>
+        <source>Units</source>
+        <translation>単位</translation>
     </message>
 </context>
 <context>

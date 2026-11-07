@@ -7514,10 +7514,6 @@ RGB: %2, %3, %4</translation>
         <translation>Immagine</translation>
     </message>
     <message>
-        <source>Units:</source>
-        <translation>Unità:</translation>
-    </message>
-    <message>
         <source>Print Resolution</source>
         <translation>Risoluzione di stampa</translation>
     </message>
@@ -15061,6 +15057,10 @@ Sostituirlo?</translation>
     <message>
         <source>Open multi-page TIFFs this way from now on. Preferences can turn the question back on.</source>
         <translation>Apri d&apos;ora in poi i TIFF multipagina in questo modo. Dalle Preferenze puoi riattivare la domanda.</translation>
+    </message>
+    <message>
+        <source>Units</source>
+        <translation>Unità</translation>
     </message>
 </context>
 <context>

@@ -2071,7 +2071,7 @@ PerspectiveWorkspaceResult run_perspective_planes_workspace(QWidget* parent, Per
       angle->setEnabled(joined);
       angle_label->setEnabled(joined);
       if (plane != nullptr) {
-        grid->setValue(plane->grid_size > 0.0 ? static_cast<int>(std::lround(plane->grid_size)) : 0);
+        set_spin_value_unless_typing(grid, plane->grid_size > 0.0 ? static_cast<int>(std::lround(plane->grid_size)) : 0);
         if (joined) {
           angle->setValue(static_cast<int>(std::lround(plane->link->angle_degrees)));
         }

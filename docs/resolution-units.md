@@ -136,8 +136,13 @@ printer, paper, orientation, and copies chosen there; cancelling returns to Patc
 The OS dialog shows no preview for Win32 apps on Windows 11 (see [platform-sites.md](platform-sites.md));
 Patchy's own dialog keeps the preview pane. The Paper group (September 2026, issue 19) sets
 the sheet without a printer driver: a size combo (`print_page_size_choices`: Letter, Legal,
-Tabloid, Executive, A3 to A6, B4, B5, Custom), orientation, and custom width/height spins in
-the units combo's unit, enabled only for Custom and pre-filled with the sheet on screen.
+Tabloid, Executive, A3 to A6, B4, B5, Custom), orientation, custom width/height fields enabled
+only for Custom and pre-filled with the sheet on screen, and the Units combo (in, cm, mm; it
+also sets the X/Y offsets, the scaled print size and the image size). Width, Height, X and Y are
+point-native `UnitSpinBox`es at four decimals (exact for every in/cm/mm value shown, trailing
+zeros trimmed) displayed in the Units choice; a typed unit ("21 cm", "210mm") converts, and
+switching Units never changes the sheet. None of the dialog's number fields is rewritten while
+typed in ([ui-conventions.md](ui-conventions.md#number-fields)).
 Custom sheets are `QPageSize::ExactMatch` points (`custom_page_size_points`), never snapped
 to a named size; `page_layout_with_size` keeps the margins and drops them when the sheet
 cannot hold them. Page Setup and the system dialog still edit the same layout and the

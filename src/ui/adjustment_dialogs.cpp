@@ -71,6 +71,7 @@
 #include <QStyledItemDelegate>
 #include <QTabBar>
 #include <QTimer>
+#include <QRegularExpression>
 #include <QValidator>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -578,7 +579,9 @@ protected:
     bool ok = false;
     const auto value = input.trimmed().toDouble(&ok);
     if (!ok) {
-      return QValidator::Invalid;
+      // ".", "2." and ".5" are on their way to a number (ui-conventions.md#number-fields).
+      static const QRegularExpression partial(QStringLiteral("^\\d*\\.?\\d*$"));
+      return partial.match(input.trimmed()).hasMatch() ? QValidator::Intermediate : QValidator::Invalid;
     }
     return value >= 0.10 && value <= 9.99 ? QValidator::Acceptable : QValidator::Intermediate;
   }
@@ -1214,7 +1217,7 @@ std::optional<LevelsSettings> request_levels_settings(
     channel->setCurrentIndex(levels_channel_tab_index(visible_channel));
     black_input->setValue(record.black_input);
     white_input->setValue(record.white_input);
-    gamma->setValue(record.gamma_percent);
+    set_spin_value_unless_typing(gamma, record.gamma_percent);  // "2." stays while typing 2.5
     black_output->setValue(record.black_output);
     white_output->setValue(record.white_output);
     black_input->setMaximum(record.white_input - 1);
