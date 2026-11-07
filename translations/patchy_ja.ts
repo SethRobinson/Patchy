@@ -17393,16 +17393,8 @@ Do you want to replace it?</source>
         <translation>%ALT%を押している間は%1</translation>
     </message>
     <message>
-        <source>Click to add a color stop here, or drag to move the gradient.</source>
-        <translation>クリックするとここにカラー分岐点を追加します。ドラッグするとグラデーションを移動します。</translation>
-    </message>
-    <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
         <translation>ドラッグしてこのカラー分岐点を移動します。線から離すか、選択して Delete キーを押すと削除します。右クリックでその他の操作、ダブルクリックで色を変更します。</translation>
-    </message>
-    <message>
-        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click for the fill&apos;s settings.</source>
-        <translation>ドラッグしてこの不透明度の分岐点を移動します。線から離すか、選択して Delete キーを押すと削除します。右クリックでその他の操作、ダブルクリックで塗りつぶしの設定を開きます。</translation>
     </message>
     <message>
         <source>A gradient keeps at least two opacity stops.</source>
@@ -17443,6 +17435,54 @@ Do you want to replace it?</source>
     <message>
         <source>Opacity midpoint: %1%</source>
         <translation>不透明度中間点: %1%</translation>
+    </message>
+    <message>
+        <source>Click to add a color stop here (on the opacity stops&apos; side, an opacity stop), or drag to move the gradient.</source>
+        <translation>クリックするとここにカラー分岐点を追加します（不透明度の分岐点の側では不透明度の分岐点）。ドラッグするとグラデーションを移動します。</translation>
+    </message>
+    <message>
+        <source>Click to add an opacity stop here, or drag to move the gradient.</source>
+        <translation>クリックするとここに不透明度の分岐点を追加します。ドラッグするとグラデーションを移動します。</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to set its opacity.</source>
+        <translation>ドラッグしてこの不透明度の分岐点を移動します。線から離すか、選択して Delete キーを押すと削除します。右クリックでその他の操作、ダブルクリックで不透明度を設定します。</translation>
+    </message>
+    <message>
+        <source>Opacity side of the gradient line</source>
+        <translation>グラデーションの線の不透明度側</translation>
+    </message>
+    <message>
+        <source>Add Opacity Stop</source>
+        <translation>不透明度の分岐点を追加</translation>
+    </message>
+    <message>
+        <source>Opacity...</source>
+        <translation>不透明度...</translation>
+    </message>
+    <message>
+        <source>Opacity Here...</source>
+        <translation>ここの不透明度...</translation>
+    </message>
+    <message>
+        <source>Set the gradient&apos;s opacity at this color stop (adds an opacity stop here when there is none)</source>
+        <translation>このカラー分岐点でのグラデーションの不透明度を設定します（ここに不透明度の分岐点がない場合は追加します）</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>不透明度:</translation>
+    </message>
+    <message>
+        <source>Stop opacity</source>
+        <translation>分岐点の不透明度</translation>
+    </message>
+    <message>
+        <source>Set the opacity. Enter or a click outside keeps it, Esc puts it back.</source>
+        <translation>不透明度を設定します。Enter キーまたは外側をクリックすると確定し、Esc キーで元に戻します。</translation>
+    </message>
+    <message>
+        <source>Change Opacity Stop</source>
+        <translation>不透明度の分岐点を変更</translation>
     </message>
 </context>
 <context>

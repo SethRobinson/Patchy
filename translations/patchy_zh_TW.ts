@@ -17393,16 +17393,8 @@ Do you want to replace it?</source>
         <translation>按住 %ALT% 時為%1</translation>
     </message>
     <message>
-        <source>Click to add a color stop here, or drag to move the gradient.</source>
-        <translation>按一下可在此處增加色標，拖曳可移動漸層。</translation>
-    </message>
-    <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
         <translation>拖曳可移動此色標。將其拖離直線，或選取後按 Delete 鍵可將其刪除；按右鍵查看更多操作，按兩下可變更其顏色。</translation>
-    </message>
-    <message>
-        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click for the fill&apos;s settings.</source>
-        <translation>拖曳可移動此不透明度色標。將其拖離直線，或選取後按 Delete 鍵可將其刪除；按右鍵查看更多操作，按兩下可開啟填色設定。</translation>
     </message>
     <message>
         <source>A gradient keeps at least two opacity stops.</source>
@@ -17443,6 +17435,54 @@ Do you want to replace it?</source>
     <message>
         <source>Opacity midpoint: %1%</source>
         <translation>不透明度中點：%1%</translation>
+    </message>
+    <message>
+        <source>Click to add a color stop here (on the opacity stops&apos; side, an opacity stop), or drag to move the gradient.</source>
+        <translation>按一下可在此處增加色標（在不透明度色標一側則增加不透明度色標），拖曳可移動漸層。</translation>
+    </message>
+    <message>
+        <source>Click to add an opacity stop here, or drag to move the gradient.</source>
+        <translation>按一下可在此處增加不透明度色標，拖曳可移動漸層。</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to set its opacity.</source>
+        <translation>拖曳可移動此不透明度色標。將其拖離直線，或選取後按 Delete 鍵可將其刪除；按右鍵查看更多操作，按兩下可設定其不透明度。</translation>
+    </message>
+    <message>
+        <source>Opacity side of the gradient line</source>
+        <translation>漸層線的不透明度一側</translation>
+    </message>
+    <message>
+        <source>Add Opacity Stop</source>
+        <translation>增加不透明度色標</translation>
+    </message>
+    <message>
+        <source>Opacity...</source>
+        <translation>不透明度...</translation>
+    </message>
+    <message>
+        <source>Opacity Here...</source>
+        <translation>此處的不透明度...</translation>
+    </message>
+    <message>
+        <source>Set the gradient&apos;s opacity at this color stop (adds an opacity stop here when there is none)</source>
+        <translation>設定漸層在此色標處的不透明度（此處沒有不透明度色標時會增加一個）</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>不透明度:</translation>
+    </message>
+    <message>
+        <source>Stop opacity</source>
+        <translation>色標不透明度</translation>
+    </message>
+    <message>
+        <source>Set the opacity. Enter or a click outside keeps it, Esc puts it back.</source>
+        <translation>設定不透明度。按 Enter 或在外部按一下即保留，按 Esc 還原。</translation>
+    </message>
+    <message>
+        <source>Change Opacity Stop</source>
+        <translation>變更不透明度色標</translation>
     </message>
 </context>
 <context>

@@ -17440,16 +17440,8 @@ Voulez-vous le remplacer ?</translation>
         <translation>%1 tant que %ALT% est enfoncée</translation>
     </message>
     <message>
-        <source>Click to add a color stop here, or drag to move the gradient.</source>
-        <translation>Cliquez pour ajouter ici une étape de couleur, ou faites glisser pour déplacer le dégradé.</translation>
-    </message>
-    <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
         <translation>Faites glisser pour déplacer cette étape de couleur. Pour la supprimer, éloignez-la de la ligne ou sélectionnez-la et appuyez sur Suppr ; clic droit pour plus d&apos;options, double-clic pour changer sa couleur.</translation>
-    </message>
-    <message>
-        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click for the fill&apos;s settings.</source>
-        <translation>Faites glisser pour déplacer cette étape d&apos;opacité. Pour la supprimer, éloignez-la de la ligne ou sélectionnez-la et appuyez sur Suppr ; clic droit pour plus d&apos;options, double-clic pour les paramètres du fond.</translation>
     </message>
     <message>
         <source>A gradient keeps at least two opacity stops.</source>
@@ -17490,6 +17482,54 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>Opacity midpoint: %1%</source>
         <translation>Point médian d&apos;opacité : %1%</translation>
+    </message>
+    <message>
+        <source>Click to add a color stop here (on the opacity stops&apos; side, an opacity stop), or drag to move the gradient.</source>
+        <translation>Cliquez pour ajouter ici une étape de couleur (du côté des étapes d&apos;opacité, une étape d&apos;opacité), ou faites glisser pour déplacer le dégradé.</translation>
+    </message>
+    <message>
+        <source>Click to add an opacity stop here, or drag to move the gradient.</source>
+        <translation>Cliquez pour ajouter ici une étape d&apos;opacité, ou faites glisser pour déplacer le dégradé.</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to set its opacity.</source>
+        <translation>Faites glisser pour déplacer cette étape d&apos;opacité. Pour la supprimer, éloignez-la de la ligne ou sélectionnez-la et appuyez sur Suppr ; clic droit pour plus d&apos;options, double-clic pour régler son opacité.</translation>
+    </message>
+    <message>
+        <source>Opacity side of the gradient line</source>
+        <translation>Côté opacité de la ligne du dégradé</translation>
+    </message>
+    <message>
+        <source>Add Opacity Stop</source>
+        <translation>Ajouter une étape d&apos;opacité</translation>
+    </message>
+    <message>
+        <source>Opacity...</source>
+        <translation>Opacité...</translation>
+    </message>
+    <message>
+        <source>Opacity Here...</source>
+        <translation>Opacité ici...</translation>
+    </message>
+    <message>
+        <source>Set the gradient&apos;s opacity at this color stop (adds an opacity stop here when there is none)</source>
+        <translation>Règle l&apos;opacité du dégradé à cette étape de couleur (ajoute ici une étape d&apos;opacité s&apos;il n&apos;y en a pas)</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Opacité :</translation>
+    </message>
+    <message>
+        <source>Stop opacity</source>
+        <translation>Opacité de l&apos;étape</translation>
+    </message>
+    <message>
+        <source>Set the opacity. Enter or a click outside keeps it, Esc puts it back.</source>
+        <translation>Réglez l&apos;opacité. Entrée ou un clic à l&apos;extérieur la conserve, Échap la rétablit.</translation>
+    </message>
+    <message>
+        <source>Change Opacity Stop</source>
+        <translation>Modifier l&apos;étape d&apos;opacité</translation>
     </message>
 </context>
 <context>

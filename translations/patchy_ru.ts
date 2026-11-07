@@ -17487,16 +17487,8 @@ Do you want to replace it?</source>
         <translation>%1, пока удерживается %ALT%</translation>
     </message>
     <message>
-        <source>Click to add a color stop here, or drag to move the gradient.</source>
-        <translation>Щелкните, чтобы добавить здесь контрольную точку цвета, или перетащите, чтобы переместить градиент.</translation>
-    </message>
-    <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
         <translation>Перетащите, чтобы переместить эту контрольную точку цвета. Чтобы удалить ее, оттащите ее от линии или выделите и нажмите Delete; правый щелчок открывает другие действия, двойной щелчок меняет цвет.</translation>
-    </message>
-    <message>
-        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click for the fill&apos;s settings.</source>
-        <translation>Перетащите, чтобы переместить эту контрольную точку непрозрачности. Чтобы удалить ее, оттащите ее от линии или выделите и нажмите Delete; правый щелчок открывает другие действия, двойной щелчок открывает параметры заливки.</translation>
     </message>
     <message>
         <source>A gradient keeps at least two opacity stops.</source>
@@ -17537,6 +17529,54 @@ Do you want to replace it?</source>
     <message>
         <source>Opacity midpoint: %1%</source>
         <translation>Средняя точка непрозрачности: %1%</translation>
+    </message>
+    <message>
+        <source>Click to add a color stop here (on the opacity stops&apos; side, an opacity stop), or drag to move the gradient.</source>
+        <translation>Щелкните, чтобы добавить здесь контрольную точку цвета (со стороны точек непрозрачности — точку непрозрачности), или перетащите, чтобы переместить градиент.</translation>
+    </message>
+    <message>
+        <source>Click to add an opacity stop here, or drag to move the gradient.</source>
+        <translation>Щелкните, чтобы добавить здесь контрольную точку непрозрачности, или перетащите, чтобы переместить градиент.</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to set its opacity.</source>
+        <translation>Перетащите, чтобы переместить эту контрольную точку непрозрачности. Чтобы удалить ее, оттащите ее от линии или выделите и нажмите Delete; правый щелчок открывает другие действия, двойной щелчок задает непрозрачность.</translation>
+    </message>
+    <message>
+        <source>Opacity side of the gradient line</source>
+        <translation>Сторона непрозрачности линии градиента</translation>
+    </message>
+    <message>
+        <source>Add Opacity Stop</source>
+        <translation>Добавить контрольную точку непрозрачности</translation>
+    </message>
+    <message>
+        <source>Opacity...</source>
+        <translation>Непрозрачность...</translation>
+    </message>
+    <message>
+        <source>Opacity Here...</source>
+        <translation>Непрозрачность здесь...</translation>
+    </message>
+    <message>
+        <source>Set the gradient&apos;s opacity at this color stop (adds an opacity stop here when there is none)</source>
+        <translation>Задает непрозрачность градиента в этой контрольной точке цвета (добавляет здесь точку непрозрачности, если ее нет)</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Непрозрачность:</translation>
+    </message>
+    <message>
+        <source>Stop opacity</source>
+        <translation>Непрозрачность контрольной точки</translation>
+    </message>
+    <message>
+        <source>Set the opacity. Enter or a click outside keeps it, Esc puts it back.</source>
+        <translation>Задайте непрозрачность. Enter или щелчок снаружи сохраняет ее, Esc возвращает прежнюю.</translation>
+    </message>
+    <message>
+        <source>Change Opacity Stop</source>
+        <translation>Изменить контрольную точку непрозрачности</translation>
     </message>
 </context>
 <context>

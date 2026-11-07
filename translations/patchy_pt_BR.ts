@@ -17440,16 +17440,8 @@ Deseja substituí-lo?</translation>
         <translation>%1 enquanto %ALT% estiver pressionado</translation>
     </message>
     <message>
-        <source>Click to add a color stop here, or drag to move the gradient.</source>
-        <translation>Clique para adicionar uma parada de cor aqui, ou arraste para mover o degradê.</translation>
-    </message>
-    <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
         <translation>Arraste para mover esta parada de cor. Para removê-la, afaste-a da linha ou selecione-a e pressione Delete; clique com o botão direito para mais opções, clique duas vezes para alterar a cor.</translation>
-    </message>
-    <message>
-        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click for the fill&apos;s settings.</source>
-        <translation>Arraste para mover esta parada de opacidade. Para removê-la, afaste-a da linha ou selecione-a e pressione Delete; clique com o botão direito para mais opções, clique duas vezes para as configurações do preenchimento.</translation>
     </message>
     <message>
         <source>A gradient keeps at least two opacity stops.</source>
@@ -17490,6 +17482,54 @@ Deseja substituí-lo?</translation>
     <message>
         <source>Opacity midpoint: %1%</source>
         <translation>Ponto médio de opacidade: %1%</translation>
+    </message>
+    <message>
+        <source>Click to add a color stop here (on the opacity stops&apos; side, an opacity stop), or drag to move the gradient.</source>
+        <translation>Clique para adicionar uma parada de cor aqui (no lado das paradas de opacidade, uma parada de opacidade), ou arraste para mover o degradê.</translation>
+    </message>
+    <message>
+        <source>Click to add an opacity stop here, or drag to move the gradient.</source>
+        <translation>Clique para adicionar uma parada de opacidade aqui, ou arraste para mover o degradê.</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to set its opacity.</source>
+        <translation>Arraste para mover esta parada de opacidade. Para removê-la, afaste-a da linha ou selecione-a e pressione Delete; clique com o botão direito para mais opções, clique duas vezes para definir a opacidade.</translation>
+    </message>
+    <message>
+        <source>Opacity side of the gradient line</source>
+        <translation>Lado de opacidade da linha do degradê</translation>
+    </message>
+    <message>
+        <source>Add Opacity Stop</source>
+        <translation>Adicionar parada de opacidade</translation>
+    </message>
+    <message>
+        <source>Opacity...</source>
+        <translation>Opacidade...</translation>
+    </message>
+    <message>
+        <source>Opacity Here...</source>
+        <translation>Opacidade aqui...</translation>
+    </message>
+    <message>
+        <source>Set the gradient&apos;s opacity at this color stop (adds an opacity stop here when there is none)</source>
+        <translation>Define a opacidade do degradê nesta parada de cor (adiciona uma parada de opacidade aqui se não houver)</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Opacidade:</translation>
+    </message>
+    <message>
+        <source>Stop opacity</source>
+        <translation>Opacidade da parada</translation>
+    </message>
+    <message>
+        <source>Set the opacity. Enter or a click outside keeps it, Esc puts it back.</source>
+        <translation>Defina a opacidade. Enter ou um clique fora mantém o valor; Esc o restaura.</translation>
+    </message>
+    <message>
+        <source>Change Opacity Stop</source>
+        <translation>Alterar parada de opacidade</translation>
     </message>
 </context>
 <context>

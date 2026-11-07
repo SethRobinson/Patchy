@@ -17440,16 +17440,8 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>%1, solange %ALT% gedrückt ist</translation>
     </message>
     <message>
-        <source>Click to add a color stop here, or drag to move the gradient.</source>
-        <translation>Klicken, um hier eine Farbunterbrechung hinzuzufügen, oder ziehen, um den Verlauf zu verschieben.</translation>
-    </message>
-    <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
         <translation>Ziehen, um diese Farbunterbrechung zu verschieben. Zum Entfernen von der Linie wegziehen oder auswählen und Entf drücken; Rechtsklick für mehr, Doppelklick ändert die Farbe.</translation>
-    </message>
-    <message>
-        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click for the fill&apos;s settings.</source>
-        <translation>Ziehen, um diese Deckkraftunterbrechung zu verschieben. Zum Entfernen von der Linie wegziehen oder auswählen und Entf drücken; Rechtsklick für mehr, Doppelklick öffnet die Einstellungen der Füllung.</translation>
     </message>
     <message>
         <source>A gradient keeps at least two opacity stops.</source>
@@ -17490,6 +17482,54 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>Opacity midpoint: %1%</source>
         <translation>Deckkraftmittelpunkt: %1%</translation>
+    </message>
+    <message>
+        <source>Click to add a color stop here (on the opacity stops&apos; side, an opacity stop), or drag to move the gradient.</source>
+        <translation>Klicken, um hier eine Farbunterbrechung hinzuzufügen (auf der Seite der Deckkraftunterbrechungen eine Deckkraftunterbrechung), oder ziehen, um den Verlauf zu verschieben.</translation>
+    </message>
+    <message>
+        <source>Click to add an opacity stop here, or drag to move the gradient.</source>
+        <translation>Klicken, um hier eine Deckkraftunterbrechung hinzuzufügen, oder ziehen, um den Verlauf zu verschieben.</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to set its opacity.</source>
+        <translation>Ziehen, um diese Deckkraftunterbrechung zu verschieben. Zum Entfernen von der Linie wegziehen oder auswählen und Entf drücken; Rechtsklick für mehr, Doppelklick legt die Deckkraft fest.</translation>
+    </message>
+    <message>
+        <source>Opacity side of the gradient line</source>
+        <translation>Deckkraftseite der Verlaufslinie</translation>
+    </message>
+    <message>
+        <source>Add Opacity Stop</source>
+        <translation>Deckkraftunterbrechung hinzufügen</translation>
+    </message>
+    <message>
+        <source>Opacity...</source>
+        <translation>Deckkraft...</translation>
+    </message>
+    <message>
+        <source>Opacity Here...</source>
+        <translation>Deckkraft hier...</translation>
+    </message>
+    <message>
+        <source>Set the gradient&apos;s opacity at this color stop (adds an opacity stop here when there is none)</source>
+        <translation>Legt die Deckkraft des Verlaufs an dieser Farbunterbrechung fest (fügt hier eine Deckkraftunterbrechung hinzu, wenn keine vorhanden ist)</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Deckkraft:</translation>
+    </message>
+    <message>
+        <source>Stop opacity</source>
+        <translation>Deckkraft der Unterbrechung</translation>
+    </message>
+    <message>
+        <source>Set the opacity. Enter or a click outside keeps it, Esc puts it back.</source>
+        <translation>Deckkraft festlegen. Eingabe oder ein Klick außerhalb übernimmt sie, Esc stellt sie wieder her.</translation>
+    </message>
+    <message>
+        <source>Change Opacity Stop</source>
+        <translation>Deckkraftunterbrechung ändern</translation>
     </message>
 </context>
 <context>

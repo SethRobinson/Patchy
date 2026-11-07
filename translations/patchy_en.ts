@@ -17422,15 +17422,7 @@ Do you want to replace it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Click to add a color stop here, or drag to move the gradient.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click for the fill&apos;s settings.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -17471,6 +17463,54 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Opacity midpoint: %1%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click to add a color stop here (on the opacity stops&apos; side, an opacity stop), or drag to move the gradient.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click to add an opacity stop here, or drag to move the gradient.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to set its opacity.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opacity side of the gradient line</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Opacity Stop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opacity...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opacity Here...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Set the gradient&apos;s opacity at this color stop (adds an opacity stop here when there is none)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stop opacity</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Set the opacity. Enter or a click outside keeps it, Esc puts it back.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Change Opacity Stop</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

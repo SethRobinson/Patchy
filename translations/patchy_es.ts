@@ -17440,16 +17440,8 @@ Do you want to replace it?</source>
         <translation>%1 mientras se mantiene %ALT%</translation>
     </message>
     <message>
-        <source>Click to add a color stop here, or drag to move the gradient.</source>
-        <translation>Haga clic para añadir aquí una parada de color, o arrastre para mover el degradado.</translation>
-    </message>
-    <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
         <translation>Arrastre para mover esta parada de color. Para quitarla, aléjela de la línea o selecciónela y pulse Supr; clic derecho para más opciones, doble clic para cambiar su color.</translation>
-    </message>
-    <message>
-        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click for the fill&apos;s settings.</source>
-        <translation>Arrastre para mover esta parada de opacidad. Para quitarla, aléjela de la línea o selecciónela y pulse Supr; clic derecho para más opciones, doble clic para la configuración del relleno.</translation>
     </message>
     <message>
         <source>A gradient keeps at least two opacity stops.</source>
@@ -17490,6 +17482,54 @@ Do you want to replace it?</source>
     <message>
         <source>Opacity midpoint: %1%</source>
         <translation>Punto medio de opacidad: %1%</translation>
+    </message>
+    <message>
+        <source>Click to add a color stop here (on the opacity stops&apos; side, an opacity stop), or drag to move the gradient.</source>
+        <translation>Haga clic para añadir aquí una parada de color (en el lado de las paradas de opacidad, una parada de opacidad), o arrastre para mover el degradado.</translation>
+    </message>
+    <message>
+        <source>Click to add an opacity stop here, or drag to move the gradient.</source>
+        <translation>Haga clic para añadir aquí una parada de opacidad, o arrastre para mover el degradado.</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to set its opacity.</source>
+        <translation>Arrastre para mover esta parada de opacidad. Para quitarla, aléjela de la línea o selecciónela y pulse Supr; clic derecho para más opciones, doble clic para ajustar su opacidad.</translation>
+    </message>
+    <message>
+        <source>Opacity side of the gradient line</source>
+        <translation>Lado de opacidad de la línea del degradado</translation>
+    </message>
+    <message>
+        <source>Add Opacity Stop</source>
+        <translation>Añadir parada de opacidad</translation>
+    </message>
+    <message>
+        <source>Opacity...</source>
+        <translation>Opacidad...</translation>
+    </message>
+    <message>
+        <source>Opacity Here...</source>
+        <translation>Opacidad aquí...</translation>
+    </message>
+    <message>
+        <source>Set the gradient&apos;s opacity at this color stop (adds an opacity stop here when there is none)</source>
+        <translation>Ajusta la opacidad del degradado en esta parada de color (añade aquí una parada de opacidad si no hay ninguna)</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Opacidad:</translation>
+    </message>
+    <message>
+        <source>Stop opacity</source>
+        <translation>Opacidad de la parada</translation>
+    </message>
+    <message>
+        <source>Set the opacity. Enter or a click outside keeps it, Esc puts it back.</source>
+        <translation>Ajuste la opacidad. Intro o un clic fuera la conserva; Esc la restaura.</translation>
+    </message>
+    <message>
+        <source>Change Opacity Stop</source>
+        <translation>Cambiar parada de opacidad</translation>
     </message>
 </context>
 <context>

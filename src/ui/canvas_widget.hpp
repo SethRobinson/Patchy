@@ -452,7 +452,19 @@ public:
   // start and end, the color stops on one side, the opacity stops on the other, and the
   // midpoints between them. A drag previews through the edit callback (Preview, then Commit
   // with its undo name, or Cancel); `serial` names the drag so a stale call is ignored.
-  enum class GradientHandlePartKind { None, Start, End, Line, ColorStop, AlphaStop, ColorMidpoint, AlphaMidpoint };
+  // AlphaLine is the opacity side of the line (where the opacity stops sit): a click there adds
+  // an opacity stop, where the line and its color side add a color stop.
+  enum class GradientHandlePartKind {
+    None,
+    Start,
+    End,
+    Line,
+    ColorStop,
+    AlphaStop,
+    ColorMidpoint,
+    AlphaMidpoint,
+    AlphaLine
+  };
   struct GradientHandlePart {
     GradientHandlePartKind kind{GradientHandlePartKind::None};
     int index{-1};
@@ -491,6 +503,12 @@ public:
   // An opacity midpoint between two stops of the same opacity changes nothing yet, so it
   // is drawn dimmed (still draggable). Color midpoints never are.
   [[nodiscard]] bool gradient_fill_midpoint_dimmed(GradientHandlePart part) const;
+  // The opacity popup (GitHub issue 663, fourth follow-up): opened on an opacity stop it edits
+  // that stop; on a color stop ("Opacity Here...") it edits the opacity stop at that location,
+  // or inserts one there on commit. Live preview; Enter or a click away commits one undo
+  // step, Esc restores. False when the part cannot take it (nothing opened).
+  bool open_gradient_opacity_popup(GradientHandlePart part);
+  [[nodiscard]] QWidget* gradient_opacity_popup() const;
   void set_gradient_reverse(bool reverse) noexcept;
   [[nodiscard]] bool gradient_reverse() const noexcept;
   void set_gradient_opacity(int opacity) noexcept;
@@ -2917,6 +2935,8 @@ private:
   [[nodiscard]] QCursor gradient_handle_qcursor(GradientHandleCursor kind) const;
   [[nodiscard]] static GradientHandleCursor gradient_handle_cursor_for(GradientHandlePart part);
   bool delete_selected_gradient_stop();
+  void set_gradient_opacity_popup_value(int percent);
+  void finish_gradient_opacity_popup(bool commit);
   bool show_gradient_stop_context_menu(QPoint widget_point, QPoint global_position);
   void send_gradient_fill_preview();
   void draw_gradient_fill_handles(QPainter& painter) const;
@@ -4004,6 +4024,21 @@ private:
     int index{-1};
   };
   std::optional<GradientStopSelection> gradient_stop_selection_;
+  // The open opacity popup's edit: the layer and gradient it started from, the opacity stop it
+  // edits (-1: one is inserted at `location` on commit), the value shown, and the preview serial.
+  struct GradientOpacityEdit {
+    LayerId layer_id{0};
+    LayerStyleGradient original;
+    int alpha_index{-1};
+    float location{0.0F};
+    int initial_percent{100};
+    int percent{100};
+    bool previewed{false};
+    bool finished{false};
+    std::uint64_t serial{0};
+    QPointer<QWidget> popup;
+  };
+  std::optional<GradientOpacityEdit> gradient_opacity_edit_;
   GradientFillEditCallback gradient_fill_edit_callback_;
   std::function<void(LayerId, int)> gradient_fill_stop_color_requested_callback_;
   // gradient_fill_alignment_bounds rasterizes the path: kept per layer and revision.

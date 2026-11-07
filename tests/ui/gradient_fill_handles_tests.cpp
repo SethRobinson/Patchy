@@ -30,6 +30,7 @@
 #include <QMenu>
 #include <QPointer>
 #include <QPushButton>
+#include <QSpinBox>
 #include <QTableWidget>
 #include <QTest>
 #include <QTimer>
@@ -805,8 +806,197 @@ void ui_gradient_fill_handles_name_and_dim_the_opacity_midpoint() {
   CHECK(!canvas->gradient_fill_handle_tooltip(opacity_midpoint).contains(QStringLiteral("no effect yet")));
 }
 
+// GitHub issue 663, fourth follow-up: opacity on the canvas. The opacity popup from a
+// double-click and from the menu (live preview, Enter commits one step, Esc restores, closing
+// commits), a click on the opacity side adds an opacity stop under the plus cursor, and
+// Opacity Here... on a color stop edits or inserts the opacity stop at its location.
+void ui_gradient_fill_handles_set_opacity_on_the_canvas() {
+  const GradientSettingsGuard settings_guard;
+  auto&& [window, first_canvas] = ShownWindowFixture{};
+  (void)first_canvas;
+  auto* canvas = open_gradient_fill(window, patchy::GradientMethod::Linear, QPoint(100, 150), QPoint(300, 150));
+  const auto active = MainWindowTestAccess::document(window).active_layer_id();
+  CHECK(active.has_value());
+  if (!active.has_value()) {
+    return;
+  }
+  const FillProbe fill{window, *active};
+  auto* handle = window.windowHandle();
+  CHECK(handle != nullptr);
+  if (handle == nullptr) {
+    return;
+  }
+  const auto in_window = [&](QPointF widget_point) { return canvas->mapTo(&window, rounded(widget_point)); };
+  const auto popup_spin = [&]() -> QSpinBox* {
+    auto* popup = canvas->gradient_opacity_popup();
+    CHECK(popup != nullptr && popup->isVisible());
+    return popup != nullptr ? popup->findChild<QSpinBox*>(QStringLiteral("gradientOpacityStopSpin")) : nullptr;
+  };
+  const auto popup_key = [&](Qt::Key key) {
+    auto* popup = canvas->gradient_opacity_popup();
+    if (popup != nullptr && popup->windowHandle() != nullptr) {
+      QTest::keyClick(popup->windowHandle(), key);
+    }
+    QApplication::processEvents();
+  };
+
+  // Double-click an opacity circle: the popup, live preview, Enter keeps it as one step.
+  canvas->set_zoom_centered(1.5);
+  QApplication::processEvents();
+  auto depth = fill.depth();
+  QTest::mouseDClick(handle, Qt::LeftButton, Qt::NoModifier, in_window(part_position(*canvas, Kind::AlphaStop, 1)));
+  QApplication::processEvents();
+  auto* spin = popup_spin();
+  CHECK(spin != nullptr && spin->value() == 100);
+  if (spin != nullptr) {
+    spin->setValue(40);
+    QApplication::processEvents();
+  }
+  CHECK(std::abs(fill.gradient().alpha_stops[1].opacity - 0.4F) < 0.001F);  // previews live
+  CHECK(fill.depth() == depth);
+  // The preview recomposites in the background: let it land before the shot.
+  process_events_until([&] { return canvas->render_settled(); }, 3000);
+  if (auto* popup = canvas->gradient_opacity_popup(); popup != nullptr) {
+    save_window_popup_artifact("ui_gradient_fill_handles_opacity_popup", window, *canvas, *popup);
+  }
+  popup_key(Qt::Key_Return);
+  CHECK(canvas->gradient_opacity_popup() == nullptr);
+  CHECK(fill.depth() == depth + 1);
+  CHECK(fill.label() == QStringLiteral("Change Opacity Stop"));
+  CHECK(std::abs(fill.gradient().alpha_stops[1].opacity - 0.4F) < 0.001F);
+  canvas->set_zoom_centered(1.0);
+  QApplication::processEvents();
+
+  // Right-click > Opacity...: Esc puts it back with no step.
+  QTest::mouseClick(handle, Qt::RightButton, Qt::NoModifier, in_window(part_position(*canvas, Kind::AlphaStop, 1)));
+  QApplication::processEvents();
+  auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+  CHECK(menu != nullptr && menu->objectName() == QStringLiteral("gradientStopContextMenu"));
+  if (menu != nullptr) {
+    CHECK(!menu->actions().isEmpty() &&
+          menu->actions().front()->objectName() == QStringLiteral("gradientStopOpacityAction"));
+    CHECK(menu->findChild<QAction*>(QStringLiteral("gradientStopFillSettingsAction")) != nullptr);
+    auto* opacity = menu->findChild<QAction*>(QStringLiteral("gradientStopOpacityAction"));
+    menu->close();
+    QApplication::processEvents();
+    if (opacity != nullptr) {
+      opacity->trigger();
+    }
+    QApplication::processEvents();
+  }
+  depth = fill.depth();
+  spin = popup_spin();
+  CHECK(spin != nullptr && spin->value() == 40);
+  if (spin != nullptr) {
+    spin->setValue(75);
+    QApplication::processEvents();
+  }
+  CHECK(std::abs(fill.gradient().alpha_stops[1].opacity - 0.75F) < 0.001F);
+  popup_key(Qt::Key_Escape);
+  CHECK(canvas->gradient_opacity_popup() == nullptr);
+  CHECK(std::abs(fill.gradient().alpha_stops[1].opacity - 0.4F) < 0.001F);
+  CHECK(fill.depth() == depth);
+
+  // Closing it any other way (a click away) keeps the value as one step.
+  QTest::mouseDClick(handle, Qt::LeftButton, Qt::NoModifier, in_window(part_position(*canvas, Kind::AlphaStop, 0)));
+  QApplication::processEvents();
+  spin = popup_spin();
+  if (spin != nullptr) {
+    spin->setValue(60);
+    QApplication::processEvents();
+  }
+  if (auto* popup = canvas->gradient_opacity_popup(); popup != nullptr) {
+    popup->close();
+  }
+  QApplication::processEvents();
+  CHECK(fill.depth() == depth + 1);
+  CHECK(std::abs(fill.gradient().alpha_stops[0].opacity - 0.6F) < 0.001F);
+
+  // The opacity side of the line adds an opacity stop under the plus cursor; the line adds color.
+  // At 35%, clear of the opacity midpoint (50%) that sits in the same band.
+  const auto opacity_side = QPointF(widget_at(*canvas, QPointF(170, 150))) + QPointF(0.0, -12.0);
+  CHECK(canvas->gradient_fill_handle_part_at(opacity_side).kind == Kind::AlphaLine);
+  QTest::mouseMove(handle, in_window(opacity_side));
+  QApplication::processEvents();
+  CHECK(canvas->gradient_handle_cursor() == CanvasWidget::GradientHandleCursor::AddStop);
+  depth = fill.depth();
+  const auto color_count = fill.gradient().color_stops.size();
+  window_click(*canvas, rounded(opacity_side));
+  CHECK(fill.depth() == depth + 1);
+  CHECK(fill.label() == QStringLiteral("Add Opacity Stop"));
+  CHECK(fill.gradient().alpha_stops.size() == 3U);
+  CHECK(fill.gradient().color_stops.size() == color_count);
+  CHECK(std::abs(fill.gradient().alpha_stops[1].location - 0.35F) < 0.02F);
+  CHECK(canvas->gradient_fill_selected_stop() == (std::optional<Part>(Part{Kind::AlphaStop, 1})));
+  window_click(*canvas, widget_at(*canvas, QPointF(150, 150)));
+  CHECK(fill.label() == QStringLiteral("Add Color Stop"));
+  CHECK(fill.gradient().alpha_stops.size() == 3U);
+
+  // Opacity Here... on that new color stop (0.25, no opacity stop there) inserts one on commit.
+  const auto opacity_here = [&](int color_index) {
+    QTest::mouseClick(handle, Qt::RightButton, Qt::NoModifier,
+                      in_window(part_position(*canvas, Kind::ColorStop, color_index)));
+    QApplication::processEvents();
+    auto* stop_menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+    CHECK(stop_menu != nullptr);
+    auto* action = stop_menu != nullptr
+                       ? stop_menu->findChild<QAction*>(QStringLiteral("gradientStopOpacityHereAction"))
+                       : nullptr;
+    CHECK(action != nullptr);
+    if (stop_menu != nullptr) {
+      stop_menu->close();
+      QApplication::processEvents();
+    }
+    if (action != nullptr) {
+      action->trigger();
+    }
+    QApplication::processEvents();
+  };
+  depth = fill.depth();
+  opacity_here(1);
+  spin = popup_spin();
+  if (spin != nullptr) {
+    spin->setValue(30);
+    QApplication::processEvents();
+  }
+  popup_key(Qt::Key_Return);
+  CHECK(fill.depth() == depth + 1);
+  CHECK(fill.label() == QStringLiteral("Add Opacity Stop"));
+  CHECK(fill.gradient().alpha_stops.size() == 4U);
+  CHECK(std::abs(fill.gradient().alpha_stops[1].location - 0.25F) < 0.01F);
+  CHECK(std::abs(fill.gradient().alpha_stops[1].opacity - 0.3F) < 0.001F);
+  // On the first color stop an opacity stop already sits at 0: it is edited, nothing added.
+  depth = fill.depth();
+  opacity_here(0);
+  spin = popup_spin();
+  CHECK(spin != nullptr && spin->value() == 60);
+  if (spin != nullptr) {
+    spin->setValue(90);
+    QApplication::processEvents();
+  }
+  popup_key(Qt::Key_Return);
+  CHECK(fill.depth() == depth + 1);
+  CHECK(fill.label() == QStringLiteral("Change Opacity Stop"));
+  CHECK(fill.gradient().alpha_stops.size() == 4U);
+  CHECK(std::abs(fill.gradient().alpha_stops[0].opacity - 0.9F) < 0.001F);
+  // Cancelled, it adds nothing.
+  window_click(*canvas, widget_at(*canvas, QPointF(270, 150)));
+  const auto alpha_count = fill.gradient().alpha_stops.size();
+  depth = fill.depth();
+  opacity_here(2);
+  spin = popup_spin();
+  if (spin != nullptr) {
+    spin->setValue(10);
+    QApplication::processEvents();
+  }
+  popup_key(Qt::Key_Escape);
+  CHECK(fill.depth() == depth);
+  CHECK(fill.gradient().alpha_stops.size() == alpha_count);
+}
+
 std::vector<patchy::test::TestCase> gradient_fill_handles_tests() {
   return {
+      {"ui_gradient_fill_handles_set_opacity_on_the_canvas", ui_gradient_fill_handles_set_opacity_on_the_canvas},
       {"ui_gradient_fill_handles_name_and_dim_the_opacity_midpoint",
        ui_gradient_fill_handles_name_and_dim_the_opacity_midpoint},
       {"ui_gradient_fill_handles_delete_stops_and_show_cursors", ui_gradient_fill_handles_delete_stops_and_show_cursors},

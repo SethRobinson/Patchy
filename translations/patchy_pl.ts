@@ -17487,16 +17487,8 @@ Czy chcesz go zastąpić?</translation>
         <translation>%1, dopóki %ALT% jest wciśnięty</translation>
     </message>
     <message>
-        <source>Click to add a color stop here, or drag to move the gradient.</source>
-        <translation>Kliknij, aby dodać tutaj znacznik koloru, lub przeciągnij, aby przesunąć gradient.</translation>
-    </message>
-    <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
         <translation>Przeciągnij, aby przesunąć ten znacznik koloru. Aby go usunąć, odciągnij go od linii albo zaznacz i naciśnij Delete; prawy przycisk otwiera więcej opcji, dwuklik zmienia kolor.</translation>
-    </message>
-    <message>
-        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click for the fill&apos;s settings.</source>
-        <translation>Przeciągnij, aby przesunąć ten znacznik krycia. Aby go usunąć, odciągnij go od linii albo zaznacz i naciśnij Delete; prawy przycisk otwiera więcej opcji, dwuklik otwiera ustawienia wypełnienia.</translation>
     </message>
     <message>
         <source>A gradient keeps at least two opacity stops.</source>
@@ -17537,6 +17529,54 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>Opacity midpoint: %1%</source>
         <translation>Punkt środkowy krycia: %1%</translation>
+    </message>
+    <message>
+        <source>Click to add a color stop here (on the opacity stops&apos; side, an opacity stop), or drag to move the gradient.</source>
+        <translation>Kliknij, aby dodać tutaj znacznik koloru (po stronie znaczników krycia znacznik krycia), lub przeciągnij, aby przesunąć gradient.</translation>
+    </message>
+    <message>
+        <source>Click to add an opacity stop here, or drag to move the gradient.</source>
+        <translation>Kliknij, aby dodać tutaj znacznik krycia, lub przeciągnij, aby przesunąć gradient.</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to set its opacity.</source>
+        <translation>Przeciągnij, aby przesunąć ten znacznik krycia. Aby go usunąć, odciągnij go od linii albo zaznacz i naciśnij Delete; prawy przycisk otwiera więcej opcji, dwuklik ustawia krycie.</translation>
+    </message>
+    <message>
+        <source>Opacity side of the gradient line</source>
+        <translation>Strona krycia linii gradientu</translation>
+    </message>
+    <message>
+        <source>Add Opacity Stop</source>
+        <translation>Dodaj znacznik krycia</translation>
+    </message>
+    <message>
+        <source>Opacity...</source>
+        <translation>Krycie...</translation>
+    </message>
+    <message>
+        <source>Opacity Here...</source>
+        <translation>Krycie tutaj...</translation>
+    </message>
+    <message>
+        <source>Set the gradient&apos;s opacity at this color stop (adds an opacity stop here when there is none)</source>
+        <translation>Ustawia krycie gradientu w tym znaczniku koloru (dodaje tu znacznik krycia, jeśli go nie ma)</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Krycie:</translation>
+    </message>
+    <message>
+        <source>Stop opacity</source>
+        <translation>Krycie znacznika</translation>
+    </message>
+    <message>
+        <source>Set the opacity. Enter or a click outside keeps it, Esc puts it back.</source>
+        <translation>Ustaw krycie. Enter lub kliknięcie poza okienkiem zatwierdza, Esc przywraca.</translation>
+    </message>
+    <message>
+        <source>Change Opacity Stop</source>
+        <translation>Zmień znacznik krycia</translation>
     </message>
 </context>
 <context>

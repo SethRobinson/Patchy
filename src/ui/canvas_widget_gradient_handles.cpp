@@ -13,6 +13,7 @@
 
 #include "ui/canvas_widget.hpp"
 
+#include "core/blend_math.hpp"
 #include "core/gradient_fill_drag.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
@@ -25,6 +26,11 @@
 #include <QTimer>
 #include <QHelpEvent>
 #include <QAction>
+#include <QFrame>
+#include <QGuiApplication>
+#include <QHBoxLayout>
+#include <QKeyEvent>
+#include <QLabel>
 #include <QLineF>
 #include <QMenu>
 #include <QMouseEvent>
@@ -34,12 +40,17 @@
 #include <QPointF>
 #include <QPolygonF>
 #include <QRectF>
+#include <QScreen>
+#include <QSignalBlocker>
+#include <QSlider>
+#include <QSpinBox>
 #include <QToolTip>
 #include <Qt>
 
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <initializer_list>
 #include <numbers>
 #include <optional>
 #include <utility>
@@ -66,6 +77,9 @@ constexpr double kRemoveDistance = 24.0;
 // Midpoints hide when their stops are closer than this on screen.
 constexpr double kMinMidpointGap = 16.0;
 constexpr double kSnapDegrees = 15.0;
+// How far either side of the line a click still lands on it: the stop markers' band and a
+// little past it (the opacity side adds opacity stops, the color side color stops).
+constexpr double kSideReach = kStopOffset + kStopHalf + 3.0;
 // The live preview re-bakes the fill: at most one per this many milliseconds while the
 // pointer moves (the overlay itself follows every move).
 constexpr int kGradientPreviewIntervalMs = 33;
@@ -243,6 +257,8 @@ std::optional<QPointF> CanvasWidget::gradient_fill_handle_widget_position(Gradie
       return geometry.end;
     case PartKind::Line:
       return (geometry.start + geometry.end) / 2.0;
+    case PartKind::AlphaLine:
+      return (geometry.start + geometry.end) / 2.0 - geometry.normal * (kStopOffset * 0.75);
     case PartKind::ColorStop:
       return part.index >= 0 && index < geometry.color_stops.size() ? std::optional(geometry.color_stops[index])
                                                                      : std::nullopt;
@@ -314,6 +330,22 @@ CanvasWidget::GradientHandlePart CanvasWidget::gradient_fill_handle_part_at(QPoi
   if (const auto midpoint = nearest_midpoint(geometry.alpha_midpoints); midpoint >= 0) {
     return {PartKind::AlphaMidpoint, midpoint};
   }
+  // The line and the bands beside it, out to just past the stop markers: the line and the color
+  // side add color stops, the opacity side opacity stops (or drag the whole gradient).
+  const QPointF along = geometry.end - geometry.start;
+  const double length_squared = QPointF::dotProduct(along, along);
+  if (length_squared > 0.0) {
+    const double t = QPointF::dotProduct(widget_point - geometry.start, along) / length_squared;
+    const double side = QPointF::dotProduct(widget_point - geometry.start, geometry.normal);
+    if (t >= 0.0 && t <= 1.0 && side <= kSideReach && side >= -kSideReach) {
+      if (side < -kLineReach && solid_stops(handles->gradient)) {
+        return {PartKind::AlphaLine, -1};
+      }
+      if (side <= kLineReach || solid_stops(handles->gradient)) {
+        return {PartKind::Line, -1};
+      }
+    }
+  }
   if (distance_to_segment(widget_point, geometry.start, geometry.end) <= kLineReach) {
     return {PartKind::Line, -1};
   }
@@ -327,13 +359,16 @@ QString CanvasWidget::gradient_fill_handle_hint(GradientHandlePart part) const {
     case PartKind::End:
       return tr("Drag to move the gradient's end point. Shift keeps the angle in 15-degree steps.");
     case PartKind::Line:
-      return tr("Click to add a color stop here, or drag to move the gradient.");
+      return tr("Click to add a color stop here (on the opacity stops' side, an opacity stop), or drag to move "
+                "the gradient.");
+    case PartKind::AlphaLine:
+      return tr("Click to add an opacity stop here, or drag to move the gradient.");
     case PartKind::ColorStop:
       return tr("Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, "
                 "right-click for more, double-click to change its color.");
     case PartKind::AlphaStop:
       return tr("Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove "
-                "it, right-click for more, double-click for the fill's settings.");
+                "it, right-click for more, double-click to set its opacity.");
     case PartKind::ColorMidpoint:
       return tr("Drag to move the color midpoint between these color stops.");
     case PartKind::AlphaMidpoint:
@@ -363,6 +398,8 @@ QString CanvasWidget::gradient_fill_handle_tooltip(GradientHandlePart part) cons
       return tr("Gradient end point");
     case PartKind::Line:
       return tr("Gradient line");
+    case PartKind::AlphaLine:
+      return tr("Opacity side of the gradient line");
     case PartKind::ColorStop:
       if (index < gradient.color_stops.size()) {
         return tr("Color stop at %1%").arg(percent(gradient.color_stops[index].location)) + QLatin1Char('\n') +
@@ -498,7 +535,8 @@ void CanvasWidget::update_gradient_fill_handle_drag(QPointF widget_point, Qt::Ke
       place_gradient_fill_line(edited, drag.bounds, line);
       break;
     }
-    case PartKind::Line: {
+    case PartKind::Line:
+    case PartKind::AlphaLine: {
       const auto delta = point - drag.press_document;
       auto line = drag.press_line;
       line.start_x += delta.x();
@@ -554,7 +592,8 @@ void CanvasWidget::update_gradient_fill_handle_drag(QPointF widget_point, Qt::Ke
   // The line moves the gradient once the press has really moved; a stop past the delete
   // distance shows the delete cursor (and turns back when it returns).
   apply_gradient_handle_cursor(drag.removing                                     ? GradientHandleCursor::DeleteStop
-                               : grabs_end || drag.part.kind == PartKind::Line ? GradientHandleCursor::Move
+                               : grabs_end || drag.part.kind == PartKind::Line || drag.part.kind == PartKind::AlphaLine
+                                   ? GradientHandleCursor::Move
                                                                                : GradientHandleCursor::AlongLine);
   if (drag.removing && status_callback_) {
     status_callback_(tr("Release to delete this stop."));
@@ -654,6 +693,16 @@ bool CanvasWidget::release_gradient_fill_handle(QMouseEvent* event) {
       const auto added_index = add_gradient_color_stop(added, static_cast<float>(location));
       send(added, GradientFillEditPhase::Commit, tr("Add Color Stop"));
       gradient_stop_selection_ = GradientStopSelection{drag.layer_id, false, static_cast<int>(added_index)};
+    } else if (drag.part.kind == PartKind::AlphaLine && solid_stops(drag.original)) {
+      // On the opacity side it adds an opacity stop, with the opacity the gradient has there.
+      const auto location = std::clamp(
+          gradient_fill_line_location(drag.press_line, drag.original.reverse, drag.press_document.x(),
+                                      drag.press_document.y()),
+          0.0, 1.0);
+      auto added = drag.original;
+      const auto added_index = add_gradient_alpha_stop(added, static_cast<float>(location));
+      send(added, GradientFillEditPhase::Commit, tr("Add Opacity Stop"));
+      gradient_stop_selection_ = GradientStopSelection{drag.layer_id, true, static_cast<int>(added_index)};
     }
   } else if (drag.current == drag.original) {
     if (drag.previewed) {
@@ -669,6 +718,7 @@ bool CanvasWidget::release_gradient_fill_handle(QMouseEvent* event) {
         label = tr("Move Gradient End Point");
         break;
       case PartKind::Line:
+      case PartKind::AlphaLine:
         label = tr("Move Gradient");
         break;
       case PartKind::ColorStop:
@@ -731,6 +781,14 @@ void CanvasWidget::abandon_gradient_fill_handle_drag() {
   gradient_handle_cursor_ = GradientHandleCursor::None;
   gradient_handle_bounds_cache_.reset();
   gradient_stop_selection_.reset();
+  if (gradient_opacity_edit_.has_value()) {
+    const QPointer<QWidget> popup = gradient_opacity_edit_->popup;
+    gradient_opacity_edit_->finished = true;
+    gradient_opacity_edit_.reset();
+    if (popup != nullptr) {
+      popup->close();
+    }
+  }
 }
 
 bool CanvasWidget::gradient_fill_midpoint_dimmed(GradientHandlePart part) const {
@@ -756,6 +814,7 @@ CanvasWidget::GradientHandleCursor CanvasWidget::gradient_handle_cursor_for(Grad
     case PartKind::End:
       return GradientHandleCursor::Move;
     case PartKind::Line:
+    case PartKind::AlphaLine:
       // A click here adds a stop; a press that moves on drags the gradient (Move from then on).
       return GradientHandleCursor::AddStop;
     case PartKind::ColorStop:
@@ -858,6 +917,15 @@ bool CanvasWidget::show_gradient_stop_context_menu(QPoint widget_point, QPoint g
     return selected.has_value() && gradient_stop_selection_->layer_id == layer_id &&
            (selected->kind == PartKind::AlphaStop) == alpha && selected->index == index;
   };
+  if (alpha) {
+    auto* opacity = menu->addAction(tr("Opacity..."));
+    opacity->setObjectName(QStringLiteral("gradientStopOpacityAction"));
+    connect(opacity, &QAction::triggered, this, [this, still_selected, index = part.index] {
+      if (still_selected()) {
+        open_gradient_opacity_popup(GradientHandlePart{PartKind::AlphaStop, index});
+      }
+    });
+  }
   auto* remove = menu->addAction(tr("Delete Stop"));
   remove->setObjectName(QStringLiteral("gradientStopDeleteAction"));
   remove->setEnabled(deletable);
@@ -886,6 +954,15 @@ bool CanvasWidget::show_gradient_stop_context_menu(QPoint widget_point, QPoint g
         gradient_fill_stop_color_requested_callback_(layer_id, index);
       }
     });
+    auto* opacity_here = menu->addAction(tr("Opacity Here..."));
+    opacity_here->setObjectName(QStringLiteral("gradientStopOpacityHereAction"));
+    opacity_here->setToolTip(tr("Set the gradient's opacity at this color stop (adds an opacity stop here when "
+                                "there is none)"));
+    connect(opacity_here, &QAction::triggered, this, [this, still_selected, index = part.index] {
+      if (still_selected()) {
+        open_gradient_opacity_popup(GradientHandlePart{PartKind::ColorStop, index});
+      }
+    });
   }
   menu->popup(global_position);
   return true;
@@ -909,14 +986,13 @@ bool CanvasWidget::double_click_gradient_fill_handle(QMouseEvent* event) {
       }
       return true;
     case PartKind::AlphaStop:
-      // Opacity has no picker of its own: the fill's dialog edits it.
-      if (shape_appearance_requested_callback_) {
-        shape_appearance_requested_callback_();
-      }
+      // The opacity popup beside the stop.
+      open_gradient_opacity_popup(part);
       return true;
     case PartKind::Start:
     case PartKind::End:
     case PartKind::Line:
+    case PartKind::AlphaLine:
     case PartKind::ColorMidpoint:
     case PartKind::AlphaMidpoint:
       // The first click already did its work (a click on the line added a stop); the second
@@ -940,6 +1016,225 @@ bool CanvasWidget::show_gradient_fill_handle_tooltip(QEvent* event) {
   }
   QToolTip::showText(help->globalPos(), gradient_fill_handle_tooltip(part), this);
   return true;
+}
+
+namespace {
+
+// Enter commits, Esc cancels, and the popup closing any other way (a click away from it, a
+// tool switch) commits: the opacity popup's keys and close, watched on the popup and its
+// fields before they handle them.
+class GradientOpacityPopupKeys final : public QObject {
+public:
+  GradientOpacityPopupKeys(QObject* parent, std::function<void(bool)> finish)
+      : QObject(parent), finish_(std::move(finish)) {}
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::KeyPress) {
+      const auto* key = static_cast<QKeyEvent*>(event);
+      if (key->key() == Qt::Key_Escape) {
+        finish_(false);
+        return true;
+      }
+      if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) {
+        if (auto* spin = qobject_cast<QSpinBox*>(watched); spin != nullptr) {
+          spin->interpretText();
+        }
+        finish_(true);
+        return true;
+      }
+    } else if (event->type() == QEvent::Hide && watched == parent()) {
+      finish_(true);
+    }
+    return false;
+  }
+
+private:
+  std::function<void(bool)> finish_;
+};
+
+}  // namespace
+
+QWidget* CanvasWidget::gradient_opacity_popup() const {
+  return gradient_opacity_edit_.has_value() ? gradient_opacity_edit_->popup.data() : nullptr;
+}
+
+bool CanvasWidget::open_gradient_opacity_popup(GradientHandlePart part) {
+  if (gradient_handle_drag_.has_value() || gradient_opacity_edit_.has_value()) {
+    return false;
+  }
+  const auto* layer = gradient_fill_handle_layer();
+  if (layer == nullptr || (part.kind != PartKind::AlphaStop && part.kind != PartKind::ColorStop) || part.index < 0) {
+    return false;
+  }
+  if (!vector_lock_reason(*layer).empty() || layer_effectively_locks_image_pixels(*layer)) {
+    report_status_error(tr("Unlock the Gradient Fill layer to change its gradient"));
+    return true;
+  }
+  const auto& gradient = layer->vector_shape()->fill.gradient;
+  const auto index = static_cast<std::size_t>(part.index);
+  GradientOpacityEdit edit;
+  edit.layer_id = layer->id();
+  edit.original = gradient;
+  edit.serial = ++gradient_handle_drag_serial_;
+  if (part.kind == PartKind::AlphaStop) {
+    if (index >= gradient.alpha_stops.size()) {
+      return false;
+    }
+    edit.alpha_index = part.index;
+    edit.location = gradient.alpha_stops[index].location;
+  } else {
+    if (index >= gradient.color_stops.size()) {
+      return false;
+    }
+    // Opacity Here: the opacity stop already at this color stop, else a new one on commit.
+    edit.location = gradient.color_stops[index].location;
+    constexpr float kSameLocation = 0.001F;
+    for (std::size_t alpha = 0; alpha < gradient.alpha_stops.size(); ++alpha) {
+      if (std::abs(gradient.alpha_stops[alpha].location - edit.location) <= kSameLocation) {
+        edit.alpha_index = static_cast<int>(alpha);
+        break;
+      }
+    }
+  }
+  const auto opacity = edit.alpha_index >= 0
+                           ? gradient.alpha_stops[static_cast<std::size_t>(edit.alpha_index)].opacity
+                           : gradient_stop_opacity(gradient, edit.location, true);
+  edit.initial_percent = std::clamp(static_cast<int>(std::lround(opacity * 100.0F)), 0, 100);
+  edit.percent = edit.initial_percent;
+
+  auto* popup = new QFrame(this, Qt::Popup);
+  popup->setAttribute(Qt::WA_DeleteOnClose);
+  // A click away closes and commits; it must not also start a gradient drag on the canvas.
+  popup->setAttribute(Qt::WA_NoMouseReplay);
+  popup->setObjectName(QStringLiteral("gradientOpacityStopPopup"));
+  popup->setFrameShape(QFrame::StyledPanel);
+  auto* layout = new QHBoxLayout(popup);
+  layout->setContentsMargins(8, 6, 8, 6);
+  layout->setSpacing(6);
+  auto* label = new QLabel(tr("Opacity:"), popup);
+  auto* slider = new QSlider(Qt::Horizontal, popup);
+  slider->setObjectName(QStringLiteral("gradientOpacityStopSlider"));
+  slider->setRange(0, 100);
+  slider->setValue(edit.percent);
+  slider->setMinimumWidth(120);
+  auto* spin = new QSpinBox(popup);
+  spin->setObjectName(QStringLiteral("gradientOpacityStopSpin"));
+  spin->setRange(0, 100);
+  spin->setSuffix(QStringLiteral("%"));
+  spin->setValue(edit.percent);
+  spin->setAccessibleName(tr("Stop opacity"));
+  layout->addWidget(label);
+  layout->addWidget(slider, 1);
+  layout->addWidget(spin);
+  edit.popup = popup;
+  gradient_opacity_edit_ = std::move(edit);
+
+  connect(slider, &QSlider::valueChanged, popup, [this, spin](int value) {
+    const QSignalBlocker blocker(spin);
+    spin->setValue(value);
+    set_gradient_opacity_popup_value(value);
+  });
+  connect(spin, qOverload<int>(&QSpinBox::valueChanged), popup, [this, slider](int value) {
+    const QSignalBlocker blocker(slider);
+    slider->setValue(value);
+    set_gradient_opacity_popup_value(value);
+  });
+  auto* keys = new GradientOpacityPopupKeys(popup, [this](bool commit) { finish_gradient_opacity_popup(commit); });
+  for (QObject* watched : std::initializer_list<QObject*>{popup, slider, spin}) {
+    watched->installEventFilter(keys);
+  }
+
+  // Beside the stop, on the far side of the line from it, kept on the screen.
+  popup->adjustSize();
+  const auto anchor = gradient_fill_handle_widget_position(part).value_or(QPointF(rect().center()));
+  const auto handles = gradient_fill_handles();
+  QPointF away(0.0, -1.0);
+  if (handles.has_value()) {
+    const auto start = widget_position_f(QPointF(handles->line.start_x, handles->line.start_y));
+    const auto end = widget_position_f(QPointF(handles->line.end_x, handles->line.end_y));
+    away = stop_side_normal(start, end) * (part.kind == PartKind::AlphaStop ? -1.0 : 1.0);
+  }
+  const QSize size = popup->sizeHint();
+  QPointF corner = anchor + away * (kStopHalf + 10.0);
+  // Grow away from the line: the popup's near edge sits at `corner`.
+  corner.rx() -= size.width() / 2.0;
+  if (away.y() < 0.0) {
+    corner.ry() -= size.height();
+  }
+  QPoint global = mapToGlobal(corner.toPoint());
+  if (const auto* screen = this->screen(); screen != nullptr) {
+    const auto area = screen->availableGeometry();
+    global.setX(std::clamp(global.x(), area.left(), std::max(area.left(), area.right() - size.width())));
+    global.setY(std::clamp(global.y(), area.top(), std::max(area.top(), area.bottom() - size.height())));
+  }
+  popup->move(global);
+  popup->show();
+  spin->setFocus(Qt::PopupFocusReason);
+  spin->selectAll();
+  if (status_callback_) {
+    status_callback_(tr("Set the opacity. Enter or a click outside keeps it, Esc puts it back."));
+  }
+  return true;
+}
+
+void CanvasWidget::set_gradient_opacity_popup_value(int percent) {
+  if (!gradient_opacity_edit_.has_value() || gradient_opacity_edit_->finished) {
+    return;
+  }
+  auto& edit = *gradient_opacity_edit_;
+  edit.percent = std::clamp(percent, 0, 100);
+  auto edited = edit.original;
+  const auto opacity = static_cast<float>(edit.percent) / 100.0F;
+  if (edit.alpha_index >= 0) {
+    edited.alpha_stops[static_cast<std::size_t>(edit.alpha_index)].opacity = opacity;
+  } else {
+    const auto added = add_gradient_alpha_stop(edited, edit.location);
+    edited.alpha_stops[added].opacity = opacity;
+  }
+  if (gradient_fill_edit_callback_) {
+    edit.previewed = true;
+    const auto layer_id = edit.layer_id;
+    const auto serial = edit.serial;
+    gradient_fill_edit_callback_(layer_id, edited, GradientFillEditPhase::Preview, serial, QString());
+  }
+  update();
+}
+
+void CanvasWidget::finish_gradient_opacity_popup(bool commit) {
+  if (!gradient_opacity_edit_.has_value() || gradient_opacity_edit_->finished) {
+    return;
+  }
+  auto edit = *gradient_opacity_edit_;
+  gradient_opacity_edit_->finished = true;
+  const QPointer<QWidget> popup = edit.popup;
+  gradient_opacity_edit_.reset();
+  const bool inserting = edit.alpha_index < 0;
+  const bool changed = inserting || edit.percent != edit.initial_percent;
+  if (gradient_fill_edit_callback_) {
+    if (commit && changed) {
+      auto edited = edit.original;
+      const auto opacity = static_cast<float>(edit.percent) / 100.0F;
+      int selected = edit.alpha_index;
+      if (inserting) {
+        const auto added = add_gradient_alpha_stop(edited, edit.location);
+        edited.alpha_stops[added].opacity = opacity;
+        selected = static_cast<int>(added);
+      } else {
+        edited.alpha_stops[static_cast<std::size_t>(edit.alpha_index)].opacity = opacity;
+      }
+      gradient_fill_edit_callback_(edit.layer_id, edited, GradientFillEditPhase::Commit, edit.serial,
+                                   inserting ? tr("Add Opacity Stop") : tr("Change Opacity Stop"));
+      gradient_stop_selection_ = GradientStopSelection{edit.layer_id, true, selected};
+    } else if (edit.previewed) {
+      gradient_fill_edit_callback_(edit.layer_id, edit.original, GradientFillEditPhase::Cancel, edit.serial,
+                                   QString());
+    }
+  }
+  if (popup != nullptr && popup->isVisible()) {
+    popup->close();
+  }
+  update();
 }
 
 void CanvasWidget::draw_gradient_fill_handles(QPainter& painter) const {
@@ -973,7 +1268,7 @@ void CanvasWidget::draw_gradient_fill_handles(QPainter& painter) const {
   painter.setRenderHint(QPainter::Antialiasing, true);
   // The line: light over a wider dark band, readable on any artwork.
   painter.setBrush(Qt::NoBrush);
-  const bool line_active = highlighted(PartKind::Line, -1);
+  const bool line_active = highlighted(PartKind::Line, -1) || highlighted(PartKind::AlphaLine, -1);
   painter.setPen(QPen(ink, 3.0, Qt::SolidLine, Qt::RoundCap));
   painter.drawLine(QLineF(geometry.start, geometry.end));
   painter.setPen(QPen(line_active ? active : light, 1.0, Qt::SolidLine, Qt::FlatCap));

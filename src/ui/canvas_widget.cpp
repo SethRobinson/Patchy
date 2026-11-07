@@ -570,6 +570,7 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     cancel_perspective_crop_session();
     cancel_ruler_drag();
     cancel_gradient_fill_handle_drag();
+    finish_gradient_opacity_popup(true);
     gradient_stop_selection_.reset();
     cancel_artboard_drag();
     commit_path_transform();  // tool switches commit, like the pen session

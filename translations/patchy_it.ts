@@ -17440,16 +17440,8 @@ Sostituirlo?</translation>
         <translation>%1 finché %ALT% è premuto</translation>
     </message>
     <message>
-        <source>Click to add a color stop here, or drag to move the gradient.</source>
-        <translation>Fai clic per aggiungere qui un&apos;interruzione di colore, o trascina per spostare la sfumatura.</translation>
-    </message>
-    <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
         <translation>Trascina per spostare questa interruzione di colore. Per rimuoverla, allontanala dalla linea o selezionala e premi Canc; clic destro per altre opzioni, doppio clic per cambiarne il colore.</translation>
-    </message>
-    <message>
-        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click for the fill&apos;s settings.</source>
-        <translation>Trascina per spostare questa interruzione di opacità. Per rimuoverla, allontanala dalla linea o selezionala e premi Canc; clic destro per altre opzioni, doppio clic per le impostazioni del riempimento.</translation>
     </message>
     <message>
         <source>A gradient keeps at least two opacity stops.</source>
@@ -17490,6 +17482,54 @@ Sostituirlo?</translation>
     <message>
         <source>Opacity midpoint: %1%</source>
         <translation>Punto medio dell&apos;opacità: %1%</translation>
+    </message>
+    <message>
+        <source>Click to add a color stop here (on the opacity stops&apos; side, an opacity stop), or drag to move the gradient.</source>
+        <translation>Fai clic per aggiungere qui un&apos;interruzione di colore (sul lato delle interruzioni di opacità, un&apos;interruzione di opacità), o trascina per spostare la sfumatura.</translation>
+    </message>
+    <message>
+        <source>Click to add an opacity stop here, or drag to move the gradient.</source>
+        <translation>Fai clic per aggiungere qui un&apos;interruzione di opacità, o trascina per spostare la sfumatura.</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to set its opacity.</source>
+        <translation>Trascina per spostare questa interruzione di opacità. Per rimuoverla, allontanala dalla linea o selezionala e premi Canc; clic destro per altre opzioni, doppio clic per impostarne l&apos;opacità.</translation>
+    </message>
+    <message>
+        <source>Opacity side of the gradient line</source>
+        <translation>Lato opacità della linea della sfumatura</translation>
+    </message>
+    <message>
+        <source>Add Opacity Stop</source>
+        <translation>Aggiungi interruzione di opacità</translation>
+    </message>
+    <message>
+        <source>Opacity...</source>
+        <translation>Opacità...</translation>
+    </message>
+    <message>
+        <source>Opacity Here...</source>
+        <translation>Opacità qui...</translation>
+    </message>
+    <message>
+        <source>Set the gradient&apos;s opacity at this color stop (adds an opacity stop here when there is none)</source>
+        <translation>Imposta l&apos;opacità della sfumatura in questa interruzione di colore (aggiunge qui un&apos;interruzione di opacità se non ce n&apos;è una)</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Opacità:</translation>
+    </message>
+    <message>
+        <source>Stop opacity</source>
+        <translation>Opacità dell&apos;interruzione</translation>
+    </message>
+    <message>
+        <source>Set the opacity. Enter or a click outside keeps it, Esc puts it back.</source>
+        <translation>Imposta l&apos;opacità. Invio o un clic all&apos;esterno la conferma, Esc la ripristina.</translation>
+    </message>
+    <message>
+        <source>Change Opacity Stop</source>
+        <translation>Cambia interruzione di opacità</translation>
     </message>
 </context>
 <context>

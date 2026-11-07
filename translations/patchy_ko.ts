@@ -17393,16 +17393,8 @@ Do you want to replace it?</source>
         <translation>%ALT%를 누르는 동안 %1</translation>
     </message>
     <message>
-        <source>Click to add a color stop here, or drag to move the gradient.</source>
-        <translation>클릭하면 여기에 색상 정지점을 추가하고, 드래그하면 그레이디언트를 이동합니다.</translation>
-    </message>
-    <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
         <translation>드래그하여 이 색상 정지점을 이동합니다. 선에서 멀리 끌거나 선택하고 Delete 키를 누르면 삭제하고, 오른쪽 클릭으로 추가 메뉴, 두 번 클릭으로 색상을 변경합니다.</translation>
-    </message>
-    <message>
-        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click for the fill&apos;s settings.</source>
-        <translation>드래그하여 이 불투명도 정지점을 이동합니다. 선에서 멀리 끌거나 선택하고 Delete 키를 누르면 삭제하고, 오른쪽 클릭으로 추가 메뉴, 두 번 클릭으로 채우기 설정을 엽니다.</translation>
     </message>
     <message>
         <source>A gradient keeps at least two opacity stops.</source>
@@ -17443,6 +17435,54 @@ Do you want to replace it?</source>
     <message>
         <source>Opacity midpoint: %1%</source>
         <translation>불투명도 중간점: %1%</translation>
+    </message>
+    <message>
+        <source>Click to add a color stop here (on the opacity stops&apos; side, an opacity stop), or drag to move the gradient.</source>
+        <translation>클릭하면 여기에 색상 정지점을 추가하고(불투명도 정지점 쪽에서는 불투명도 정지점), 드래그하면 그레이디언트를 이동합니다.</translation>
+    </message>
+    <message>
+        <source>Click to add an opacity stop here, or drag to move the gradient.</source>
+        <translation>클릭하면 여기에 불투명도 정지점을 추가하고, 드래그하면 그레이디언트를 이동합니다.</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to set its opacity.</source>
+        <translation>드래그하여 이 불투명도 정지점을 이동합니다. 선에서 멀리 끌거나 선택하고 Delete 키를 누르면 삭제하고, 오른쪽 클릭으로 추가 메뉴, 두 번 클릭으로 불투명도를 설정합니다.</translation>
+    </message>
+    <message>
+        <source>Opacity side of the gradient line</source>
+        <translation>그레이디언트 선의 불투명도 쪽</translation>
+    </message>
+    <message>
+        <source>Add Opacity Stop</source>
+        <translation>불투명도 정지점 추가</translation>
+    </message>
+    <message>
+        <source>Opacity...</source>
+        <translation>불투명도...</translation>
+    </message>
+    <message>
+        <source>Opacity Here...</source>
+        <translation>여기의 불투명도...</translation>
+    </message>
+    <message>
+        <source>Set the gradient&apos;s opacity at this color stop (adds an opacity stop here when there is none)</source>
+        <translation>이 색상 정지점에서 그레이디언트의 불투명도를 설정합니다(여기에 불투명도 정지점이 없으면 추가합니다)</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>불투명도:</translation>
+    </message>
+    <message>
+        <source>Stop opacity</source>
+        <translation>정지점 불투명도</translation>
+    </message>
+    <message>
+        <source>Set the opacity. Enter or a click outside keeps it, Esc puts it back.</source>
+        <translation>불투명도를 설정합니다. Enter 키나 바깥 클릭으로 유지하고, Esc 키로 되돌립니다.</translation>
+    </message>
+    <message>
+        <source>Change Opacity Stop</source>
+        <translation>불투명도 정지점 변경</translation>
     </message>
 </context>
 <context>
