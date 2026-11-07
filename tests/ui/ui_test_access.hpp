@@ -337,6 +337,8 @@ public:
 
   static std::size_t active_session_undo_depth(MainWindow& window);
 
+  static void push_undo_snapshot(MainWindow& window, const QString& label);
+
   static void undo(MainWindow& window);
 
   // The Layers panel's Alt-drop duplicate: copies `ids` and drops the copies above `target`.

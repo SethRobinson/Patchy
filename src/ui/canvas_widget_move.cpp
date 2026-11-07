@@ -1790,7 +1790,7 @@ bool CanvasWidget::moving_layers_should_use_outline_preview(QPoint old_delta, QP
                      [](const MovingLayer& moving_layer) { return moving_layer.expensive_style; });
 }
 
-QRegion CanvasWidget::move_active_layer_by(QPoint delta) {
+QRegion CanvasWidget::move_active_layer_by(QPoint delta, std::uint64_t edit_run_token) {
   if (document_ == nullptr || delta.isNull()) {
     return {};
   }
@@ -1800,11 +1800,11 @@ QRegion CanvasWidget::move_active_layer_by(QPoint delta) {
   for (const auto id : layer_ids) {
     deltas.emplace_back(id, delta);
   }
-  return offset_layers(deltas, layer_ids.size() >= 2U ? tr("Nudge layers") : tr("Nudge layer"));
+  return offset_layers(deltas, layer_ids.size() >= 2U ? tr("Nudge layers") : tr("Nudge layer"), true, edit_run_token);
 }
 
 QRegion CanvasWidget::offset_layers(const std::vector<std::pair<LayerId, QPoint>>& deltas,
-                                    const QString& undo_label, bool record_history) {
+                                    const QString& undo_label, bool record_history, std::uint64_t edit_run_token) {
   if (document_ == nullptr) {
     return {};
   }
@@ -1827,8 +1827,8 @@ QRegion CanvasWidget::offset_layers(const std::vector<std::pair<LayerId, QPoint>
   std::optional<Document> rollback_document;
   if (rerender_smart_filters) {
     rollback_document.emplace(*document_);
-  } else if (record_history && before_edit_callback_) {
-    before_edit_callback_(undo_label);
+  } else if (record_history) {
+    notify_before_edit(undo_label, edit_run_token);
   }
   QRegion dirty;
   // Same styled-ancestor blind spot as the drag path: a nudged child of a
@@ -1869,8 +1869,8 @@ QRegion CanvasWidget::offset_layers(const std::vector<std::pair<LayerId, QPoint>
   if (rerender_smart_filters && rollback_document.has_value()) {
     auto committed_document = *document_;
     *document_ = std::move(*rollback_document);
-    if (record_history && before_edit_callback_) {
-      before_edit_callback_(undo_label);
+    if (record_history) {
+      notify_before_edit(undo_label, edit_run_token);
     }
     *document_ = std::move(committed_document);
   }

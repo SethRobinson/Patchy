@@ -1501,6 +1501,18 @@ void CanvasWidget::set_before_edit_callback(std::function<void(QString)> callbac
   before_edit_callback_ = std::move(callback);
 }
 
+void CanvasWidget::set_edit_run_before_edit_callback(std::function<void(QString, std::uint64_t)> callback) {
+  edit_run_before_edit_callback_ = std::move(callback);
+}
+
+void CanvasWidget::notify_before_edit(const QString& label, std::uint64_t edit_run_token) {
+  if (edit_run_token != 0 && edit_run_before_edit_callback_) {
+    edit_run_before_edit_callback_(label, edit_run_token);
+  } else if (before_edit_callback_) {
+    before_edit_callback_(label);
+  }
+}
+
 void CanvasWidget::set_paint_stroke_history_callback(std::function<void(const PaintStrokeHistoryEvent&)> callback) {
   paint_stroke_history_callback_ = std::move(callback);
 }

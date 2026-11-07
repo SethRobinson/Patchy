@@ -2691,8 +2691,10 @@ private:
   // Session-targeted overload: canvas edit callbacks resolve their OWNING session at
   // fire time, so an edit on a non-active canvas (or an async completion landing after
   // the active document changed) never snapshots the wrong document. The no-session
-  // signature above means "the active session".
-  void push_undo_snapshot(DocumentSession& target_session, QString label);
+  // signature above means "the active session". A nonzero `edit_run_token` folds the
+  // edit into the top entry when that entry was pushed with the same token and nothing
+  // has been recorded, undone or redone since (a held arrow-key nudge, GitHub #659).
+  void push_undo_snapshot(DocumentSession& target_session, QString label, std::uint64_t edit_run_token = 0);
   // Push an undo entry for a selection-only edit, holding the pre-edit selection
   // `before` against the current (unchanged) document. When `coalesce` is true
   // and the previous entry was also a coalescing move, the new state merges into

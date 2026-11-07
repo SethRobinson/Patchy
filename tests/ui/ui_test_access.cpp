@@ -538,6 +538,10 @@ std::size_t MainWindowTestAccess::active_session_undo_depth(MainWindow& window) 
   return window.session().history.undo_stack().size();
 }
 
+void MainWindowTestAccess::push_undo_snapshot(MainWindow& window, const QString& label) {
+  window.push_undo_snapshot(label);
+}
+
 bool MainWindowTestAccess::set_selected_path_components_color(MainWindow& window, QColor color) {
   return window.set_selected_path_components_color(color);
 }

@@ -6106,6 +6106,14 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
       push_undo_snapshot(*target_session, std::move(label));
     }
   });
+  canvas->set_edit_run_before_edit_callback([this, canvas](QString label, std::uint64_t run_token) {
+    if (scripted_stroke_undo_suppressed_) {
+      return;
+    }
+    if (auto* target_session = session_for_canvas(canvas); target_session != nullptr) {
+      push_undo_snapshot(*target_session, std::move(label), run_token);
+    }
+  });
   canvas->set_paint_stroke_history_callback([this, canvas](const CanvasWidget::PaintStrokeHistoryEvent& event) {
     handle_paint_stroke_history_event(canvas, event);
   });

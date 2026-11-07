@@ -1500,6 +1500,11 @@ public:
     return document_position_f(widget_position);
   }
   void set_before_edit_callback(std::function<void(QString)> callback);
+  // The before-edit hook for an edit that belongs to a run (a held arrow-key layer nudge,
+  // GitHub #659): the host pushes one entry for the first edit carrying `run_token` and
+  // folds later ones with the same token into it while nothing else was recorded. Without
+  // it, the plain before-edit callback fires for every edit of the run.
+  void set_edit_run_before_edit_callback(std::function<void(QString, std::uint64_t run_token)> callback);
   // Paint-tool stroke lifecycle for the host's per-stroke history (docs/performance-strokes.md,
   // "History"): Begin fires right after the stroke's before-edit callback pushed its
   // snapshot and names the buffer the stroke will write (layer content, layer mask or
@@ -3072,8 +3077,10 @@ private:
   // body of arrow-key nudges (move_active_layer_by) and Align/Distribute. Null
   // deltas are skipped; all-null pushes no history. Returns the dirty region
   // (partial when a Smart Filter re-render fails, mirroring the nudge path).
+  // A nonzero `edit_run_token` records history through the edit-run callback.
   [[nodiscard]] QRegion offset_layers(const std::vector<std::pair<LayerId, QPoint>>& deltas,
-                                      const QString& undo_label, bool record_history = true);
+                                      const QString& undo_label, bool record_history = true,
+                                      std::uint64_t edit_run_token = 0);
   [[nodiscard]] std::optional<QRect> move_hover_outline_rect_at(QPoint widget_position,
                                                                 Qt::KeyboardModifiers modifiers) const;
   void update_move_hover_outline(QPoint widget_position, Qt::KeyboardModifiers modifiers);
@@ -3105,7 +3112,9 @@ private:
                                                    QPoint old_delta, QPoint new_delta) const;
   [[nodiscard]] QRect moving_layers_outline_dirty_rect(QPoint old_delta, QPoint new_delta) const;
   [[nodiscard]] bool moving_layers_should_use_outline_preview(QPoint old_delta, QPoint new_delta) const;
-  [[nodiscard]] QRegion move_active_layer_by(QPoint delta);
+  [[nodiscard]] QRegion move_active_layer_by(QPoint delta, std::uint64_t edit_run_token = 0);
+  void notify_before_edit(const QString& label, std::uint64_t edit_run_token);
+  void end_layer_nudge_hold() noexcept;
   void document_changed_impl(QRegion document_region, bool includes_effect_bounds,
                              DocumentChangeReason reason = DocumentChangeReason::Immediate);
   [[nodiscard]] bool live_preview_change_should_refresh_async(const QRegion& document_region,
@@ -4594,6 +4603,11 @@ private:
   QImage pending_warp_source_image_{};
   std::optional<LayerId> move_transform_controls_layer_id_{};
   std::function<void(QString)> before_edit_callback_;
+  std::function<void(QString, std::uint64_t)> edit_run_before_edit_callback_;
+  // One held arrow key's layer nudges (first press plus its auto-repeats) share a run
+  // token, so they fold into one undo step (GitHub #659). 0 when no hold is running.
+  int layer_nudge_hold_key_{0};
+  std::uint64_t layer_nudge_hold_token_{0};
   std::function<void(const PaintStrokeHistoryEvent&)> paint_stroke_history_callback_;
   // Set between arm_paint_stroke_history and finish_paint_stroke_history;
   // active_edit_target_changed_impl unions every reported region into the rect.
