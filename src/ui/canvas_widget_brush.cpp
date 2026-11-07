@@ -390,9 +390,38 @@ const dodge_burn::Knots& dodge_burn_knots(bool dodge, LocalToneRange range, bool
                        : (dodge ? dodge_burn::kDodgeMidtones : dodge_burn::kBurnMidtones);
 }
 
-// Sharpen's per-dab step: the dab adds this much of the pixel's difference from the 3x3 blur
-// (Photoshop 2026's Sharpen with Protect Detail off: 64|192 goes to 40|216 in one full dab).
-constexpr double kSharpenPerDab = 0.75;
+// Sharpen's per-dab step (GitHub issue 660, second follow-up; docs/brushes-local-adjustments.md, "Blur and
+// Sharpen"): the dab moves every channel of a pixel by the same amount, kSharpenGain times the
+// pixel's lightness minus the lightness under a fixed 21-tap binomial blur (radius
+// kSharpenRadius), so colors keep their hue and JPEG chroma noise is not amplified. Fitted to
+// Photoshop 2026's default Sharpen (Protect Detail on) on photos over one to five passes; the
+// 3x3, 0.75-per-channel step that matched Protect Detail off turned JPEG noise into colored
+// speckle within two passes.
+constexpr int kSharpenRadius = 10;
+constexpr double kSharpenGain = 0.2;
+constexpr std::array<double, 2 * kSharpenRadius + 1> kSharpenKernel = [] {
+  std::array<double, 2 * kSharpenRadius + 1> weights{};
+  std::array<double, 2 * kSharpenRadius + 1> row{};
+  row[0] = 1.0;
+  for (int n = 1; n <= 2 * kSharpenRadius; ++n) {
+    for (int k = n; k > 0; --k) {
+      row[static_cast<std::size_t>(k)] += row[static_cast<std::size_t>(k - 1)];
+    }
+  }
+  double total = 0.0;
+  for (const auto value : row) {
+    total += value;
+  }
+  for (std::size_t index = 0; index < row.size(); ++index) {
+    weights[index] = row[index] / total;
+  }
+  return weights;
+}();
+
+// The lightness Sharpen works on, from display-encoded RGB (the same weights as the toning brushes).
+constexpr double sharpen_lightness(double red, double green, double blue) noexcept {
+  return (54.0 * red + 183.0 * green + 19.0 * blue) / 256.0;
+}
 
 // One row of a stroke segment and the runs of it a CloneSegmentRows walk visits.
 struct SegmentRowRuns {
@@ -2930,12 +2959,12 @@ float CanvasWidget::local_adjustment_stroke_amount(CanvasTool operation) const n
   return static_cast<float>(dodge_burn::stroke_amount(static_cast<double>(strength), local_protect_tones_));
 }
 
-// Blur and Sharpen paint per brush dab (GitHub issue 660 follow-up; docs/brushes.md, "Blur and
+// Blur and Sharpen paint per brush dab (GitHub issue 660 follow-ups; docs/brushes-local-adjustments.md, "Blur and
 // Sharpen"). Dabs sit every quarter of the brush diameter along the stroke, measured by distance
 // so mouse-event density does not matter; each dab reads the pixels as they are now (a copy of
-// its rectangle plus a pixel), applies the fixed alpha-aware 3x3 binomial blur once, or for
-// Sharpen adds 0.75 times the difference from that blur, and mixes the result in at Strength
-// times the footprint's coverage. Overlapping dabs and repeat passes build up, as Photoshop's
+// its rectangle plus the kernel's reach), applies the fixed alpha-aware 3x3 binomial blur once,
+// or for Sharpen moves every channel by kSharpenGain times the lightness minus its fixed 21-tap
+// blur, and mixes the result in at Strength times the footprint's coverage. Overlapping dabs and repeat passes build up, as Photoshop's
 // tools do. Same patent boundary as local_adjustment_brush_segment: one fixed kernel, the
 // footprint alone picks the pixels, nothing measures or ranks the image.
 QRect CanvasWidget::blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasTool operation) {
@@ -2981,6 +3010,8 @@ QRect CanvasWidget::blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasToo
 
   QRect dirty;
   std::vector<double> source;
+  std::vector<double> sharpen_plane;  // per copy pixel: lightness times alpha, alpha
+  std::vector<double> sharpen_rows;   // per copy row and dab column: weighted lightness, weight
   const auto dab = [&](double center_x, double center_y) {
     const auto left = static_cast<int>(std::floor(center_x)) - radius - 1;
     const auto top = static_cast<int>(std::floor(center_y)) - radius - 1;
@@ -2988,10 +3019,15 @@ QRect CanvasWidget::blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasToo
     if (dab_rect.isEmpty()) {
       return;
     }
-    // The dab reads the pixels as they were before it: its rectangle and a pixel around it.
-    const auto copy_rect = dab_rect.adjusted(-1, -1, 1, 1).intersected(layer_rect);
+    // The dab reads the pixels as they were before it: its rectangle and the kernel's reach.
+    const auto reach = sharpen ? kSharpenRadius : 1;
+    const auto copy_rect = dab_rect.adjusted(-reach, -reach, reach, reach).intersected(layer_rect);
     const auto copy_width = copy_rect.width();
     source.resize(static_cast<std::size_t>(copy_width) * static_cast<std::size_t>(copy_rect.height()) * 4U);
+    if (sharpen) {
+      // Per copy pixel: lightness times alpha, and alpha (0..1).
+      sharpen_plane.resize(source.size() / 2U);
+    }
     for (int y = copy_rect.top(); y <= copy_rect.bottom(); ++y) {
       const auto* row = layer_bytes + static_cast<std::size_t>(y - layer_bounds.y) * stride;
       for (int x = copy_rect.left(); x <= copy_rect.right(); ++x) {
@@ -3002,6 +3038,11 @@ QRect CanvasWidget::blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasToo
         out[1] = encode(values[1]);
         out[2] = encode(values[2]);
         out[3] = static_cast<double>(values[3]);
+        if (sharpen) {
+          auto* plane = sharpen_plane.data() + (out - source.data()) / 2;
+          plane[1] = out[3] / 255.0;
+          plane[0] = sharpen_lightness(out[0], out[1], out[2]) * plane[1];
+        }
       }
     }
     const auto sample = [&](int x, int y) {
@@ -3009,6 +3050,31 @@ QRect CanvasWidget::blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasToo
       y = std::clamp(y, copy_rect.top(), copy_rect.bottom());
       return source.data() + (static_cast<std::size_t>(y - copy_rect.top()) * static_cast<std::size_t>(copy_width) +
                               static_cast<std::size_t>(x - copy_rect.left())) * 4U;
+    };
+    // Sharpen: the alpha-weighted lightness of every copy row blurred across the dab's columns
+    // (the first half of the separable kernel); the bands below finish it down the columns.
+    const auto dab_width = dab_rect.width();
+    const auto copy_rows = copy_rect.height();
+    const auto blur_rows_across = [&](int row_begin, int row_end) {
+      for (int y = row_begin; y < row_end; ++y) {
+        auto* out = sharpen_rows.data() +
+                    static_cast<std::size_t>(y - copy_rect.top()) * static_cast<std::size_t>(dab_width) * 2U;
+        for (int x = dab_rect.left(); x <= dab_rect.right(); ++x) {
+          double weighted = 0.0;
+          double weights = 0.0;
+          const auto* plane_row = sharpen_plane.data() +
+                                  static_cast<std::size_t>(y - copy_rect.top()) * static_cast<std::size_t>(copy_width) * 2U;
+          for (int k = -kSharpenRadius; k <= kSharpenRadius; ++k) {
+            const auto column = std::clamp(x + k, copy_rect.left(), copy_rect.right()) - copy_rect.left();
+            const auto weight = kSharpenKernel[static_cast<std::size_t>(k + kSharpenRadius)];
+            weighted += weight * plane_row[static_cast<std::size_t>(column) * 2U];
+            weights += weight * plane_row[static_cast<std::size_t>(column) * 2U + 1U];
+          }
+          out[static_cast<std::size_t>(x - dab_rect.left()) * 2U] = weighted;
+          out[static_cast<std::size_t>(x - dab_rect.left()) * 2U + 1U] = weights;
+        }
+      }
+      return QRect();
     };
     // One band of the dab's rows; each pixel reads only the copy and writes only itself.
     const auto band = [&](int row_begin, int row_end) {
@@ -3041,6 +3107,40 @@ QRect CanvasWidget::blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasToo
           if (format.channels >= 4 && center[3] <= 0.0) {
             continue;
           }
+          if (sharpen) {
+            double weighted = 0.0;
+            double weights = 0.0;
+            for (int k = -kSharpenRadius; k <= kSharpenRadius; ++k) {
+              const auto source_row = std::clamp(y + k, copy_rect.top(), copy_rect.bottom()) - copy_rect.top();
+              const auto* blurred_row = sharpen_rows.data() +
+                                        (static_cast<std::size_t>(source_row) * static_cast<std::size_t>(dab_width) +
+                                         static_cast<std::size_t>(x - dab_rect.left())) * 2U;
+              const auto weight = kSharpenKernel[static_cast<std::size_t>(k + kSharpenRadius)];
+              weighted += weight * blurred_row[0];
+              weights += weight * blurred_row[1];
+            }
+            if (weights <= std::numeric_limits<double>::epsilon()) {
+              continue;
+            }
+            const auto change =
+                kSharpenGain * (sharpen_lightness(center[0], center[1], center[2]) - weighted / weights);
+            auto* destination = row + static_cast<std::size_t>(x - layer_bounds.x) * pixel_bytes;
+            const auto before = load_pixel(format, destination);
+            const auto amount = strength * static_cast<double>(coverage);
+            auto value = before;
+            for (std::size_t channel = 0; channel < 3U; ++channel) {
+              // The same change on every channel, so the pixel keeps its color unless it clips.
+              value[channel] = decode(std::clamp(center[channel] + change * amount, 0.0, 255.0));
+            }
+            store_pixel(format, destination, value);
+            if (palette_snap != nullptr) {
+              patchy::snap_pixel_to_palette(destination, format.channels, *palette_snap);
+            }
+            if (load_pixel(format, destination) != before) {
+              band_dirty = band_dirty.united(QRect(point, QSize(1, 1)));
+            }
+            continue;
+          }
           constexpr std::array<double, 3> kBinomial{1.0, 2.0, 1.0};
           std::array<double, 3> premultiplied{};
           double alpha_weight = 0.0;
@@ -3064,8 +3164,7 @@ QRect CanvasWidget::blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasToo
           auto value = before;
           for (std::size_t channel = 0; channel < premultiplied.size(); ++channel) {
             const auto blurred = premultiplied[channel] / alpha_weight;
-            const auto adjusted = sharpen ? center[channel] + kSharpenPerDab * (center[channel] - blurred) : blurred;
-            value[channel] = decode(std::clamp(adjusted, 0.0, 255.0) * amount + center[channel] * (1.0 - amount));
+            value[channel] = decode(std::clamp(blurred, 0.0, 255.0) * amount + center[channel] * (1.0 - amount));
           }
           store_pixel(format, destination, value);
           if (palette_snap != nullptr) {
@@ -3087,20 +3186,29 @@ QRect CanvasWidget::blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasToo
       workers = patchy::max_blocking_fanout_workers(
           std::clamp(std::min(dab_rect.height() / kMinRowsPerBand, patchy::hardware_worker_threads()), 1, 16));
     }
-    if (workers < 2) {
-      dirty = dirty.united(band(dab_rect.top(), dab_rect.bottom() + 1));
-      return;
+    // Rows [first, last] through `rows`, over `workers` bands when there is more than one.
+    const auto run_rows = [workers](int first, int last, const auto& rows) {
+      if (workers < 2) {
+        return rows(first, last + 1);
+      }
+      const auto rows_per_band = (last - first + 1 + workers - 1) / workers;
+      std::vector<std::future<QRect>> futures;
+      futures.reserve(static_cast<std::size_t>(workers));
+      for (auto row_begin = first; row_begin <= last; row_begin += rows_per_band) {
+        const auto row_end = std::min(row_begin + rows_per_band, last + 1);
+        futures.push_back(std::async(std::launch::async, [&rows, row_begin, row_end] { return rows(row_begin, row_end); }));
+      }
+      QRect united;
+      for (auto& future : futures) {
+        united = united.united(future.get());
+      }
+      return united;
+    };
+    if (sharpen) {
+      sharpen_rows.assign(static_cast<std::size_t>(copy_rows) * static_cast<std::size_t>(dab_width) * 2U, 0.0);
+      run_rows(copy_rect.top(), copy_rect.bottom(), blur_rows_across);
     }
-    const auto rows_per_band = (dab_rect.height() + workers - 1) / workers;
-    std::vector<std::future<QRect>> futures;
-    futures.reserve(static_cast<std::size_t>(workers));
-    for (auto row_begin = dab_rect.top(); row_begin <= dab_rect.bottom(); row_begin += rows_per_band) {
-      const auto row_end = std::min(row_begin + rows_per_band, dab_rect.bottom() + 1);
-      futures.push_back(std::async(std::launch::async, [&band, row_begin, row_end] { return band(row_begin, row_end); }));
-    }
-    for (auto& future : futures) {
-      dirty = dirty.united(future.get());
-    }
+    dirty = dirty.united(run_rows(dab_rect.top(), dab_rect.bottom(), band));
   };
 
   // Dabs by distance along the stroke: the first at the press, then every `spacing`.

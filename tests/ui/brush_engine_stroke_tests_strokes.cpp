@@ -2942,10 +2942,10 @@ void ui_local_adjustment_brushes_use_fixed_math_and_round_trip_psd() {
 
   const auto* blurred = layer.pixels().pixel(2, 2);
   CHECK(blurred[0] == 130 && blurred[1] == 130 && blurred[2] == 130 && blurred[3] == 255);
-  // Sharpen adds 0.75 of the difference from the 3x3 blur per dab, as Photoshop's tool does
-  // (GitHub issue 660 follow-up; it was the whole difference once per stroke).
+  // Sharpen moves the lightness by 0.2 of its difference from a 21-tap binomial blur per dab,
+  // the same on every channel (GitHub issue 660 second follow-up).
   const auto* sharpened = layer.pixels().pixel(7, 2);
-  CHECK(sharpened[0] == 163 && sharpened[1] == 163 && sharpened[2] == 163 && sharpened[3] == 255);
+  CHECK(sharpened[0] == 148 && sharpened[1] == 148 && sharpened[2] == 148 && sharpened[3] == 255);
   // Dodge and Burn follow the Range curves calibrated against Photoshop (GitHub issue 661;
   // Protect Tones off here, Strength 100%: Photoshop gives 147 and 109).
   const auto* dodged = layer.pixels().pixel(12, 2);

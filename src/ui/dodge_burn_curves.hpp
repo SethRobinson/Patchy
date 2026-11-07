@@ -1,6 +1,6 @@
 #pragma once
 
-// Dodge and Burn range curves (GitHub issue 661; docs/brushes.md, "Dodge and Burn
+// Dodge and Burn range curves (GitHub issue 661; docs/brushes-local-adjustments.md, "Dodge and Burn
 // ranges"). Each curve is the change in level (0..255 scale) a full-strength stroke gives
 // a tone, sampled at 17 evenly spaced tones (0, 1/16, ..., 1) and joined by a Catmull-Rom
 // spline. The values are a least-squares fit to Photoshop 2026's Dodge and Burn on a gray
