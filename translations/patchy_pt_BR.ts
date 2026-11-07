@@ -17372,18 +17372,6 @@ Deseja substituí-lo?</translation>
         <translation>Arraste para mover o ponto final do degradê. Shift mantém o ângulo em passos de 15 graus.</translation>
     </message>
     <message>
-        <source>Drag to move the gradient. Click to add a color stop here.</source>
-        <translation>Arraste para mover o degradê. Clique para adicionar uma parada de cor aqui.</translation>
-    </message>
-    <message>
-        <source>Drag to move this color stop, or away from the line to delete it. Double-click to change its color.</source>
-        <translation>Arraste para mover esta parada de cor, ou afaste-a da linha para excluí-la. Clique duas vezes para alterar a cor.</translation>
-    </message>
-    <message>
-        <source>Drag to move this opacity stop, or away from the line to delete it. Double-click to edit the fill.</source>
-        <translation>Arraste para mover esta parada de opacidade, ou afaste-a da linha para excluí-la. Clique duas vezes para editar o preenchimento.</translation>
-    </message>
-    <message>
         <source>Drag to move the midpoint between these stops.</source>
         <translation>Arraste para mover o ponto médio entre estas paradas.</translation>
     </message>
@@ -17458,6 +17446,38 @@ Deseja substituí-lo?</translation>
     <message>
         <source>%1 while %ALT% is held</source>
         <translation>%1 enquanto %ALT% estiver pressionado</translation>
+    </message>
+    <message>
+        <source>Click to add a color stop here, or drag to move the gradient.</source>
+        <translation>Clique para adicionar uma parada de cor aqui, ou arraste para mover o degradê.</translation>
+    </message>
+    <message>
+        <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
+        <translation>Arraste para mover esta parada de cor. Para removê-la, afaste-a da linha ou selecione-a e pressione Delete; clique com o botão direito para mais opções, clique duas vezes para alterar a cor.</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click for the fill&apos;s settings.</source>
+        <translation>Arraste para mover esta parada de opacidade. Para removê-la, afaste-a da linha ou selecione-a e pressione Delete; clique com o botão direito para mais opções, clique duas vezes para as configurações do preenchimento.</translation>
+    </message>
+    <message>
+        <source>A gradient keeps at least two opacity stops.</source>
+        <translation>Um degradê mantém pelo menos duas paradas de opacidade.</translation>
+    </message>
+    <message>
+        <source>A gradient keeps at least two color stops.</source>
+        <translation>Um degradê mantém pelo menos duas paradas de cor.</translation>
+    </message>
+    <message>
+        <source>Delete Stop</source>
+        <translation>Excluir parada</translation>
+    </message>
+    <message>
+        <source>Fill Layer Settings...</source>
+        <translation>Configurações da camada de preenchimento...</translation>
+    </message>
+    <message>
+        <source>Change Color...</source>
+        <translation>Alterar cor...</translation>
     </message>
 </context>
 <context>

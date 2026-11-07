@@ -17372,18 +17372,6 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Ziehen, um den Endpunkt des Verlaufs zu verschieben. Mit Umschalt bleibt der Winkel in 15-Grad-Schritten.</translation>
     </message>
     <message>
-        <source>Drag to move the gradient. Click to add a color stop here.</source>
-        <translation>Ziehen, um den Verlauf zu verschieben. Klicken, um hier eine Farbunterbrechung hinzuzufügen.</translation>
-    </message>
-    <message>
-        <source>Drag to move this color stop, or away from the line to delete it. Double-click to change its color.</source>
-        <translation>Ziehen, um diese Farbunterbrechung zu verschieben, oder von der Linie weg, um sie zu löschen. Doppelklicken, um ihre Farbe zu ändern.</translation>
-    </message>
-    <message>
-        <source>Drag to move this opacity stop, or away from the line to delete it. Double-click to edit the fill.</source>
-        <translation>Ziehen, um diese Deckkraftunterbrechung zu verschieben, oder von der Linie weg, um sie zu löschen. Doppelklicken, um die Füllung zu bearbeiten.</translation>
-    </message>
-    <message>
         <source>Drag to move the midpoint between these stops.</source>
         <translation>Ziehen, um den Mittelpunkt zwischen diesen Unterbrechungen zu verschieben.</translation>
     </message>
@@ -17458,6 +17446,38 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>%1 while %ALT% is held</source>
         <translation>%1, solange %ALT% gedrückt ist</translation>
+    </message>
+    <message>
+        <source>Click to add a color stop here, or drag to move the gradient.</source>
+        <translation>Klicken, um hier eine Farbunterbrechung hinzuzufügen, oder ziehen, um den Verlauf zu verschieben.</translation>
+    </message>
+    <message>
+        <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
+        <translation>Ziehen, um diese Farbunterbrechung zu verschieben. Zum Entfernen von der Linie wegziehen oder auswählen und Entf drücken; Rechtsklick für mehr, Doppelklick ändert die Farbe.</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click for the fill&apos;s settings.</source>
+        <translation>Ziehen, um diese Deckkraftunterbrechung zu verschieben. Zum Entfernen von der Linie wegziehen oder auswählen und Entf drücken; Rechtsklick für mehr, Doppelklick öffnet die Einstellungen der Füllung.</translation>
+    </message>
+    <message>
+        <source>A gradient keeps at least two opacity stops.</source>
+        <translation>Ein Verlauf behält mindestens zwei Deckkraftunterbrechungen.</translation>
+    </message>
+    <message>
+        <source>A gradient keeps at least two color stops.</source>
+        <translation>Ein Verlauf behält mindestens zwei Farbunterbrechungen.</translation>
+    </message>
+    <message>
+        <source>Delete Stop</source>
+        <translation>Unterbrechung löschen</translation>
+    </message>
+    <message>
+        <source>Fill Layer Settings...</source>
+        <translation>Füllebenen-Einstellungen...</translation>
+    </message>
+    <message>
+        <source>Change Color...</source>
+        <translation>Farbe ändern...</translation>
     </message>
 </context>
 <context>

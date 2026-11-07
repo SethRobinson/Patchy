@@ -17419,18 +17419,6 @@ Do you want to replace it?</source>
         <translation>Перетащите, чтобы переместить конечную точку градиента. Shift сохраняет угол с шагом 15 градусов.</translation>
     </message>
     <message>
-        <source>Drag to move the gradient. Click to add a color stop here.</source>
-        <translation>Перетащите, чтобы переместить градиент. Щелкните, чтобы добавить здесь контрольную точку цвета.</translation>
-    </message>
-    <message>
-        <source>Drag to move this color stop, or away from the line to delete it. Double-click to change its color.</source>
-        <translation>Перетащите, чтобы переместить эту контрольную точку цвета, или оттащите от линии, чтобы удалить. Дважды щелкните, чтобы изменить цвет.</translation>
-    </message>
-    <message>
-        <source>Drag to move this opacity stop, or away from the line to delete it. Double-click to edit the fill.</source>
-        <translation>Перетащите, чтобы переместить эту контрольную точку непрозрачности, или оттащите от линии, чтобы удалить. Дважды щелкните, чтобы изменить заливку.</translation>
-    </message>
-    <message>
         <source>Drag to move the midpoint between these stops.</source>
         <translation>Перетащите, чтобы переместить среднюю точку между этими контрольными точками.</translation>
     </message>
@@ -17505,6 +17493,38 @@ Do you want to replace it?</source>
     <message>
         <source>%1 while %ALT% is held</source>
         <translation>%1, пока удерживается %ALT%</translation>
+    </message>
+    <message>
+        <source>Click to add a color stop here, or drag to move the gradient.</source>
+        <translation>Щелкните, чтобы добавить здесь контрольную точку цвета, или перетащите, чтобы переместить градиент.</translation>
+    </message>
+    <message>
+        <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
+        <translation>Перетащите, чтобы переместить эту контрольную точку цвета. Чтобы удалить ее, оттащите ее от линии или выделите и нажмите Delete; правый щелчок открывает другие действия, двойной щелчок меняет цвет.</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click for the fill&apos;s settings.</source>
+        <translation>Перетащите, чтобы переместить эту контрольную точку непрозрачности. Чтобы удалить ее, оттащите ее от линии или выделите и нажмите Delete; правый щелчок открывает другие действия, двойной щелчок открывает параметры заливки.</translation>
+    </message>
+    <message>
+        <source>A gradient keeps at least two opacity stops.</source>
+        <translation>В градиенте остается не меньше двух контрольных точек непрозрачности.</translation>
+    </message>
+    <message>
+        <source>A gradient keeps at least two color stops.</source>
+        <translation>В градиенте остается не меньше двух контрольных точек цвета.</translation>
+    </message>
+    <message>
+        <source>Delete Stop</source>
+        <translation>Удалить контрольную точку</translation>
+    </message>
+    <message>
+        <source>Fill Layer Settings...</source>
+        <translation>Параметры слоя заливки...</translation>
+    </message>
+    <message>
+        <source>Change Color...</source>
+        <translation>Изменить цвет...</translation>
     </message>
 </context>
 <context>

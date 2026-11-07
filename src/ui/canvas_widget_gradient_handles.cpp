@@ -1,4 +1,4 @@
-// CanvasWidget's handles for an existing Gradient Fill (GitHub issue 663, docs/gradients.md,
+// CanvasWidget's handles for an existing Gradient Fill (GitHub issue 663, docs/gradients-fill-handles.md,
 // "Gradient Fill handles"). With the Gradient tool active on a Gradient Fill layer or a
 // single-fill gradient shape, the gradient's line is drawn from its start handle (location 0,
 // or 1 when reversed) to its end handle, with the color stops on one side of it, the opacity
@@ -24,7 +24,9 @@
 #include <QElapsedTimer>
 #include <QTimer>
 #include <QHelpEvent>
+#include <QAction>
 #include <QLineF>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -59,8 +61,8 @@ constexpr double kHandleRadius = 6.0;
 constexpr double kStopOffset = 16.0;
 constexpr double kStopHalf = 6.0;
 constexpr double kMidpointHalf = 4.0;
-// A stop dragged this far from the line is deleted on release.
-constexpr double kRemoveDistance = 32.0;
+// A stop dragged this far past its marker's place beside the line is deleted on release.
+constexpr double kRemoveDistance = 24.0;
 // Midpoints hide when their stops are closer than this on screen.
 constexpr double kMinMidpointGap = 16.0;
 constexpr double kSnapDegrees = 15.0;
@@ -325,13 +327,13 @@ QString CanvasWidget::gradient_fill_handle_hint(GradientHandlePart part) const {
     case PartKind::End:
       return tr("Drag to move the gradient's end point. Shift keeps the angle in 15-degree steps.");
     case PartKind::Line:
-      return tr("Drag to move the gradient. Click to add a color stop here.");
+      return tr("Click to add a color stop here, or drag to move the gradient.");
     case PartKind::ColorStop:
-      return tr("Drag to move this color stop, or away from the line to delete it. Double-click to change its "
-                "color.");
+      return tr("Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, "
+                "right-click for more, double-click to change its color.");
     case PartKind::AlphaStop:
-      return tr("Drag to move this opacity stop, or away from the line to delete it. Double-click to edit the "
-                "fill.");
+      return tr("Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove "
+                "it, right-click for more, double-click for the fill's settings.");
     case PartKind::ColorMidpoint:
     case PartKind::AlphaMidpoint:
       return tr("Drag to move the midpoint between these stops.");
@@ -358,13 +360,15 @@ QString CanvasWidget::gradient_fill_handle_tooltip(GradientHandlePart part) cons
       return tr("Gradient line");
     case PartKind::ColorStop:
       if (index < gradient.color_stops.size()) {
-        return tr("Color stop at %1%").arg(percent(gradient.color_stops[index].location));
+        return tr("Color stop at %1%").arg(percent(gradient.color_stops[index].location)) + QLatin1Char('\n') +
+               gradient_fill_handle_hint(part);
       }
       break;
     case PartKind::AlphaStop:
       if (index < gradient.alpha_stops.size()) {
         return tr("Opacity stop at %1%: %2% opacity")
-            .arg(percent(gradient.alpha_stops[index].location), percent(gradient.alpha_stops[index].opacity));
+                   .arg(percent(gradient.alpha_stops[index].location), percent(gradient.alpha_stops[index].opacity)) +
+               QLatin1Char('\n') + gradient_fill_handle_hint(part);
       }
       break;
     case PartKind::ColorMidpoint:
@@ -404,6 +408,11 @@ bool CanvasWidget::press_gradient_fill_handle(QMouseEvent* event) {
   }
   const auto part = gradient_fill_handle_part_at(event->position());
   if (part.kind == PartKind::None) {
+    // A press away from the handles (a new gradient) drops the stop selection.
+    if (gradient_stop_selection_.has_value()) {
+      gradient_stop_selection_.reset();
+      update();
+    }
     return false;
   }
   if (!vector_lock_reason(*layer).empty() || layer_effectively_locks_image_pixels(*layer)) {
@@ -423,11 +432,14 @@ bool CanvasWidget::press_gradient_fill_handle(QMouseEvent* event) {
   drag.press_line = gradient_fill_line(drag.original, drag.bounds);
   drag.serial = ++gradient_handle_drag_serial_;
   gradient_handle_drag_ = std::move(drag);
+  // A press on a stop selects it (Delete removes it); any other part drops the selection.
+  if (part.kind == PartKind::ColorStop || part.kind == PartKind::AlphaStop) {
+    gradient_stop_selection_ = GradientStopSelection{layer->id(), part.kind == PartKind::AlphaStop, part.index};
+  } else {
+    gradient_stop_selection_.reset();
+  }
   set_gradient_fill_handle_hover(part);
-  setCursor(part.kind == PartKind::ColorStop || part.kind == PartKind::AlphaStop ||
-                    part.kind == PartKind::ColorMidpoint || part.kind == PartKind::AlphaMidpoint
-                ? Qt::ClosedHandCursor
-                : Qt::SizeAllCursor);
+  apply_gradient_handle_cursor(gradient_handle_cursor_for(part));
   update();
   return true;
 }
@@ -531,9 +543,11 @@ void CanvasWidget::update_gradient_fill_handle_drag(QPointF widget_point, Qt::Ke
     case PartKind::None:
       break;
   }
-  setCursor(drag.removing ? Qt::ArrowCursor
-            : grabs_end || drag.part.kind == PartKind::Line ? Qt::SizeAllCursor
-                                                            : Qt::ClosedHandCursor);
+  // The line moves the gradient once the press has really moved; a stop past the delete
+  // distance shows the delete cursor (and turns back when it returns).
+  apply_gradient_handle_cursor(drag.removing                                     ? GradientHandleCursor::DeleteStop
+                               : grabs_end || drag.part.kind == PartKind::Line ? GradientHandleCursor::Move
+                                                                               : GradientHandleCursor::AlongLine);
   if (drag.removing && status_callback_) {
     status_callback_(tr("Release to delete this stop."));
   }
@@ -598,14 +612,13 @@ bool CanvasWidget::move_gradient_fill_handle(QMouseEvent* event) {
   const bool was_hovering = gradient_handle_hover_.kind != PartKind::None;
   set_gradient_fill_handle_hover(part);
   if (part.kind == PartKind::None) {
-    if (was_hovering) {
+    if (was_hovering || gradient_handle_cursor_ != GradientHandleCursor::None) {
+      gradient_handle_cursor_ = GradientHandleCursor::None;
       update_tool_cursor();
     }
     return false;
   }
-  setCursor(part.kind == PartKind::Start || part.kind == PartKind::End || part.kind == PartKind::Line
-                ? Qt::SizeAllCursor
-                : Qt::OpenHandCursor);
+  apply_gradient_handle_cursor(gradient_handle_cursor_for(part));
   return true;
 }
 
@@ -630,8 +643,9 @@ bool CanvasWidget::release_gradient_fill_handle(QMouseEvent* event) {
                                       drag.press_document.y()),
           0.0, 1.0);
       auto added = drag.original;
-      (void)add_gradient_color_stop(added, static_cast<float>(location));
+      const auto added_index = add_gradient_color_stop(added, static_cast<float>(location));
       send(added, GradientFillEditPhase::Commit, tr("Add Color Stop"));
+      gradient_stop_selection_ = GradientStopSelection{drag.layer_id, false, static_cast<int>(added_index)};
     }
   } else if (drag.current == drag.original) {
     if (drag.previewed) {
@@ -663,13 +677,24 @@ bool CanvasWidget::release_gradient_fill_handle(QMouseEvent* event) {
         break;
     }
     send(drag.current, GradientFillEditPhase::Commit, label);
+    if (drag.part.kind == PartKind::ColorStop || drag.part.kind == PartKind::AlphaStop) {
+      if (drag.removing || drag.current_index < 0) {
+        gradient_stop_selection_.reset();
+      } else {
+        gradient_stop_selection_ = GradientStopSelection{drag.layer_id, drag.part.kind == PartKind::AlphaStop,
+                                                         drag.current_index};
+      }
+    }
   }
   gradient_handle_hover_ = {};
   set_gradient_fill_handle_hover(gradient_fill_handle_layer() != nullptr
                                      ? gradient_fill_handle_part_at(event->position())
                                      : GradientHandlePart{});
   if (gradient_handle_hover_.kind == PartKind::None) {
+    gradient_handle_cursor_ = GradientHandleCursor::None;
     update_tool_cursor();
+  } else {
+    apply_gradient_handle_cursor(gradient_handle_cursor_for(gradient_handle_hover_));
   }
   update();
   return true;
@@ -685,6 +710,7 @@ void CanvasWidget::cancel_gradient_fill_handle_drag() {
     gradient_fill_edit_callback_(drag.layer_id, drag.original, GradientFillEditPhase::Cancel, drag.serial, QString());
   }
   gradient_handle_hover_ = {};
+  gradient_handle_cursor_ = GradientHandleCursor::None;
   update_tool_cursor();
   update();
 }
@@ -694,7 +720,154 @@ void CanvasWidget::abandon_gradient_fill_handle_drag() {
   // with it, so nothing is restored and a later call for this drag is stale.
   gradient_handle_drag_.reset();
   gradient_handle_hover_ = {};
+  gradient_handle_cursor_ = GradientHandleCursor::None;
   gradient_handle_bounds_cache_.reset();
+  gradient_stop_selection_.reset();
+}
+
+CanvasWidget::GradientHandleCursor CanvasWidget::gradient_handle_cursor() const noexcept {
+  return gradient_handle_cursor_;
+}
+
+CanvasWidget::GradientHandleCursor CanvasWidget::gradient_handle_cursor_for(GradientHandlePart part) {
+  switch (part.kind) {
+    case PartKind::Start:
+    case PartKind::End:
+      return GradientHandleCursor::Move;
+    case PartKind::Line:
+      // A click here adds a stop; a press that moves on drags the gradient (Move from then on).
+      return GradientHandleCursor::AddStop;
+    case PartKind::ColorStop:
+    case PartKind::AlphaStop:
+    case PartKind::ColorMidpoint:
+    case PartKind::AlphaMidpoint:
+      return GradientHandleCursor::AlongLine;
+    case PartKind::None:
+      break;
+  }
+  return GradientHandleCursor::None;
+}
+
+void CanvasWidget::apply_gradient_handle_cursor(GradientHandleCursor kind) {
+  if (kind == GradientHandleCursor::None) {
+    gradient_handle_cursor_ = kind;
+    update_tool_cursor();
+    return;
+  }
+  gradient_handle_cursor_ = kind;
+  setCursor(gradient_handle_qcursor(kind));
+}
+
+std::optional<CanvasWidget::GradientHandlePart> CanvasWidget::gradient_fill_selected_stop() const {
+  if (!gradient_stop_selection_.has_value()) {
+    return std::nullopt;
+  }
+  const auto* layer = gradient_fill_handle_layer();
+  if (layer == nullptr || layer->id() != gradient_stop_selection_->layer_id) {
+    return std::nullopt;
+  }
+  const auto& gradient = layer->vector_shape()->fill.gradient;
+  const auto count = gradient_stop_selection_->alpha ? gradient.alpha_stops.size() : gradient.color_stops.size();
+  if (gradient_stop_selection_->index < 0 || static_cast<std::size_t>(gradient_stop_selection_->index) >= count) {
+    return std::nullopt;
+  }
+  return GradientHandlePart{gradient_stop_selection_->alpha ? PartKind::AlphaStop : PartKind::ColorStop,
+                            gradient_stop_selection_->index};
+}
+
+bool CanvasWidget::delete_selected_gradient_stop() {
+  const auto selected = gradient_fill_selected_stop();
+  if (!selected.has_value() || gradient_handle_drag_.has_value()) {
+    gradient_stop_selection_.reset();
+    return false;
+  }
+  const auto* layer = gradient_fill_handle_layer();
+  if (!vector_lock_reason(*layer).empty() || layer_effectively_locks_image_pixels(*layer)) {
+    report_status_error(tr("Unlock the Gradient Fill layer to change its gradient"));
+    return true;
+  }
+  const bool alpha = selected->kind == PartKind::AlphaStop;
+  auto edited = layer->vector_shape()->fill.gradient;
+  const auto index = static_cast<std::size_t>(selected->index);
+  const bool removed = alpha ? remove_gradient_alpha_stop(edited, index) : remove_gradient_color_stop(edited, index);
+  if (!removed) {
+    // The stop stays selected; the key does nothing else (it never reaches Edit > Clear).
+    report_status_error(alpha ? tr("A gradient keeps at least two opacity stops.")
+                              : tr("A gradient keeps at least two color stops."));
+    return true;
+  }
+  gradient_stop_selection_.reset();
+  if (gradient_fill_edit_callback_) {
+    const auto layer_id = layer->id();
+    gradient_fill_edit_callback_(layer_id, edited, GradientFillEditPhase::Commit, ++gradient_handle_drag_serial_,
+                                 alpha ? tr("Delete Opacity Stop") : tr("Delete Color Stop"));
+  }
+  update();
+  return true;
+}
+
+bool CanvasWidget::show_gradient_stop_context_menu(QPoint widget_point, QPoint global_position) {
+  const auto* layer = gradient_fill_handle_layer();
+  if (layer == nullptr || gradient_handle_drag_.has_value()) {
+    return false;
+  }
+  const auto part = gradient_fill_handle_part_at(QPointF(widget_point));
+  if (part.kind != PartKind::ColorStop && part.kind != PartKind::AlphaStop) {
+    return false;
+  }
+  const bool alpha = part.kind == PartKind::AlphaStop;
+  const auto layer_id = layer->id();
+  gradient_stop_selection_ = GradientStopSelection{layer_id, alpha, part.index};
+  update();
+  const auto& gradient = layer->vector_shape()->fill.gradient;
+  const bool deletable = (alpha ? gradient.alpha_stops.size() : gradient.color_stops.size()) > 2U;
+  auto* menu = new QMenu(this);
+  menu->setObjectName(QStringLiteral("gradientStopContextMenu"));
+  menu->setToolTipsVisible(true);
+  canvas_context_menu_ = menu;
+  connect(menu, &QMenu::aboutToHide, this, [this, menu] { retire_canvas_context_menu(menu); });
+  connect(menu, &QMenu::triggered, this, [this, menu](QAction*) {
+    std::erase_if(retired_context_menus_,
+                  [menu](const RetiredContextMenu& retired) { return retired.menu == menu; });
+    menu->deleteLater();
+  });
+  // Each entry re-checks that its stop is still the selected one on the same layer.
+  const auto still_selected = [this, layer_id, alpha, index = part.index] {
+    const auto selected = gradient_fill_selected_stop();
+    return selected.has_value() && gradient_stop_selection_->layer_id == layer_id &&
+           (selected->kind == PartKind::AlphaStop) == alpha && selected->index == index;
+  };
+  auto* remove = menu->addAction(tr("Delete Stop"));
+  remove->setObjectName(QStringLiteral("gradientStopDeleteAction"));
+  remove->setEnabled(deletable);
+  if (!deletable) {
+    remove->setToolTip(alpha ? tr("A gradient keeps at least two opacity stops.")
+                             : tr("A gradient keeps at least two color stops."));
+  }
+  connect(remove, &QAction::triggered, this, [this, still_selected] {
+    if (still_selected()) {
+      delete_selected_gradient_stop();
+    }
+  });
+  if (alpha) {
+    auto* settings = menu->addAction(tr("Fill Layer Settings..."));
+    settings->setObjectName(QStringLiteral("gradientStopFillSettingsAction"));
+    connect(settings, &QAction::triggered, this, [this, still_selected] {
+      if (still_selected() && shape_appearance_requested_callback_) {
+        shape_appearance_requested_callback_();
+      }
+    });
+  } else {
+    auto* color = menu->addAction(tr("Change Color..."));
+    color->setObjectName(QStringLiteral("gradientStopColorAction"));
+    connect(color, &QAction::triggered, this, [this, still_selected, layer_id, index = part.index] {
+      if (still_selected() && gradient_fill_stop_color_requested_callback_) {
+        gradient_fill_stop_color_requested_callback_(layer_id, index);
+      }
+    });
+  }
+  menu->popup(global_position);
+  return true;
 }
 
 bool CanvasWidget::double_click_gradient_fill_handle(QMouseEvent* event) {
@@ -767,6 +940,10 @@ void CanvasWidget::draw_gradient_fill_handles(QPainter& painter) const {
       return index < 0 || (drag.part.kind == PartKind::ColorStop || drag.part.kind == PartKind::AlphaStop
                                ? index == drag.current_index
                                : index == drag.part.index);
+    }
+    if (const auto selected = gradient_fill_selected_stop(); selected.has_value() && selected->kind == kind &&
+                                                               selected->index == index) {
+      return true;
     }
     return gradient_handle_hover_.kind == kind && (index < 0 || gradient_handle_hover_.index == index);
   };

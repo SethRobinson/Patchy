@@ -17354,18 +17354,6 @@ Do you want to replace it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Drag to move the gradient. Click to add a color stop here.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Drag to move this color stop, or away from the line to delete it. Double-click to change its color.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Drag to move this opacity stop, or away from the line to delete it. Double-click to edit the fill.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Drag to move the midpoint between these stops.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -17439,6 +17427,38 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>%1 while %ALT% is held</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click to add a color stop here, or drag to move the gradient.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click for the fill&apos;s settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A gradient keeps at least two opacity stops.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A gradient keeps at least two color stops.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete Stop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fill Layer Settings...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Change Color...</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

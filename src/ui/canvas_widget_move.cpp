@@ -222,6 +222,11 @@ bool CanvasWidget::show_canvas_context_menu(QPoint widget_point, QPoint global_p
       show_path_context_menu(QPointF(widget_point), global_position)) {
     return true;
   }
+  // A right-click on a gradient stop handle (GitHub issue 663 follow-up): its own menu.
+  if (!transform_session && tool_ == CanvasTool::Gradient &&
+      show_gradient_stop_context_menu(widget_point, global_position)) {
+    return true;
+  }
   auto* menu = new QMenu(this);
   menu->setObjectName(QStringLiteral("canvasContextMenu"));
   canvas_context_menu_ = menu;

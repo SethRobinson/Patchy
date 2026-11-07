@@ -33,7 +33,7 @@ namespace patchy {
 // Foreground and Background kinds must already be resolved; intensity stays 0.
 [[nodiscard]] std::vector<GradientStop> gradient_tool_stops_from_gradient(const LayerStyleGradient& gradient);
 
-// On-canvas editing of a Gradient Fill (GitHub issue 663; docs/gradients.md, "Gradient Fill
+// On-canvas editing of a Gradient Fill (GitHub issue 663; docs/gradients-fill-handles.md, "Gradient Fill
 // handles"). The line runs from the start handle (the stops' location 0, or 1 when reversed)
 // to the end handle in document pixels, the drag that gradient_fill_from_drag would turn into
 // this placement over `bounds` (the canvas, or the aligned layer bounds with Align with Layer).

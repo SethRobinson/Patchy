@@ -17372,18 +17372,6 @@ Sostituirlo?</translation>
         <translation>Trascina per spostare il punto finale della sfumatura. Maiusc mantiene l&apos;angolo a passi di 15 gradi.</translation>
     </message>
     <message>
-        <source>Drag to move the gradient. Click to add a color stop here.</source>
-        <translation>Trascina per spostare la sfumatura. Fai clic per aggiungere qui un&apos;interruzione di colore.</translation>
-    </message>
-    <message>
-        <source>Drag to move this color stop, or away from the line to delete it. Double-click to change its color.</source>
-        <translation>Trascina per spostare questa interruzione di colore, o allontanala dalla linea per eliminarla. Fai doppio clic per cambiarne il colore.</translation>
-    </message>
-    <message>
-        <source>Drag to move this opacity stop, or away from the line to delete it. Double-click to edit the fill.</source>
-        <translation>Trascina per spostare questa interruzione di opacità, o allontanala dalla linea per eliminarla. Fai doppio clic per modificare il riempimento.</translation>
-    </message>
-    <message>
         <source>Drag to move the midpoint between these stops.</source>
         <translation>Trascina per spostare il punto medio tra queste interruzioni.</translation>
     </message>
@@ -17458,6 +17446,38 @@ Sostituirlo?</translation>
     <message>
         <source>%1 while %ALT% is held</source>
         <translation>%1 finché %ALT% è premuto</translation>
+    </message>
+    <message>
+        <source>Click to add a color stop here, or drag to move the gradient.</source>
+        <translation>Fai clic per aggiungere qui un&apos;interruzione di colore, o trascina per spostare la sfumatura.</translation>
+    </message>
+    <message>
+        <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
+        <translation>Trascina per spostare questa interruzione di colore. Per rimuoverla, allontanala dalla linea o selezionala e premi Canc; clic destro per altre opzioni, doppio clic per cambiarne il colore.</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click for the fill&apos;s settings.</source>
+        <translation>Trascina per spostare questa interruzione di opacità. Per rimuoverla, allontanala dalla linea o selezionala e premi Canc; clic destro per altre opzioni, doppio clic per le impostazioni del riempimento.</translation>
+    </message>
+    <message>
+        <source>A gradient keeps at least two opacity stops.</source>
+        <translation>Una sfumatura mantiene almeno due interruzioni di opacità.</translation>
+    </message>
+    <message>
+        <source>A gradient keeps at least two color stops.</source>
+        <translation>Una sfumatura mantiene almeno due interruzioni di colore.</translation>
+    </message>
+    <message>
+        <source>Delete Stop</source>
+        <translation>Elimina interruzione</translation>
+    </message>
+    <message>
+        <source>Fill Layer Settings...</source>
+        <translation>Impostazioni livello di riempimento...</translation>
+    </message>
+    <message>
+        <source>Change Color...</source>
+        <translation>Cambia colore...</translation>
     </message>
 </context>
 <context>

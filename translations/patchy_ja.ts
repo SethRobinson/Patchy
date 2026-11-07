@@ -17325,18 +17325,6 @@ Do you want to replace it?</source>
         <translation>ドラッグしてグラデーションの終点を移動します。Shift で角度を 15 度単位にします。</translation>
     </message>
     <message>
-        <source>Drag to move the gradient. Click to add a color stop here.</source>
-        <translation>ドラッグしてグラデーションを移動します。クリックするとここにカラー分岐点を追加します。</translation>
-    </message>
-    <message>
-        <source>Drag to move this color stop, or away from the line to delete it. Double-click to change its color.</source>
-        <translation>ドラッグしてこのカラー分岐点を移動します。線から離すと削除します。ダブルクリックで色を変更します。</translation>
-    </message>
-    <message>
-        <source>Drag to move this opacity stop, or away from the line to delete it. Double-click to edit the fill.</source>
-        <translation>ドラッグしてこの不透明度の分岐点を移動します。線から離すと削除します。ダブルクリックで塗りつぶしを編集します。</translation>
-    </message>
-    <message>
         <source>Drag to move the midpoint between these stops.</source>
         <translation>ドラッグしてこれらの分岐点の間の中間点を移動します。</translation>
     </message>
@@ -17411,6 +17399,38 @@ Do you want to replace it?</source>
     <message>
         <source>%1 while %ALT% is held</source>
         <translation>%ALT%を押している間は%1</translation>
+    </message>
+    <message>
+        <source>Click to add a color stop here, or drag to move the gradient.</source>
+        <translation>クリックするとここにカラー分岐点を追加します。ドラッグするとグラデーションを移動します。</translation>
+    </message>
+    <message>
+        <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
+        <translation>ドラッグしてこのカラー分岐点を移動します。線から離すか、選択して Delete キーを押すと削除します。右クリックでその他の操作、ダブルクリックで色を変更します。</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click for the fill&apos;s settings.</source>
+        <translation>ドラッグしてこの不透明度の分岐点を移動します。線から離すか、選択して Delete キーを押すと削除します。右クリックでその他の操作、ダブルクリックで塗りつぶしの設定を開きます。</translation>
+    </message>
+    <message>
+        <source>A gradient keeps at least two opacity stops.</source>
+        <translation>グラデーションには不透明度の分岐点が少なくとも 2 つ必要です。</translation>
+    </message>
+    <message>
+        <source>A gradient keeps at least two color stops.</source>
+        <translation>グラデーションにはカラー分岐点が少なくとも 2 つ必要です。</translation>
+    </message>
+    <message>
+        <source>Delete Stop</source>
+        <translation>分岐点を削除</translation>
+    </message>
+    <message>
+        <source>Fill Layer Settings...</source>
+        <translation>塗りつぶしレイヤーの設定...</translation>
+    </message>
+    <message>
+        <source>Change Color...</source>
+        <translation>色を変更...</translation>
     </message>
 </context>
 <context>

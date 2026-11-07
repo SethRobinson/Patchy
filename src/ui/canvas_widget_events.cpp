@@ -406,6 +406,14 @@ bool CanvasWidget::event(QEvent* event) {
       event->accept();
       return true;
     }
+    // A selected gradient stop (GitHub issue 663 follow-up) owns Delete and Backspace, so the
+    // key never reaches Edit > Clear or a layer delete while one is selected.
+    if (tool_ == CanvasTool::Gradient && key_event->modifiers() == Qt::NoModifier &&
+        (key_event->key() == Qt::Key_Delete || key_event->key() == Qt::Key_Backspace) &&
+        gradient_fill_selected_stop().has_value()) {
+      event->accept();
+      return true;
+    }
     if (key_event->modifiers() == Qt::NoModifier &&
         (key_event->key() == Qt::Key_Backspace || key_event->key() == Qt::Key_Delete)) {
       // While a magnetic or polygonal lasso is live (Backspace pops the last point) or
@@ -4414,6 +4422,13 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
         return;
       }
     }
+  }
+
+  if (tool_ == CanvasTool::Gradient && event->modifiers() == Qt::NoModifier &&
+      (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) && !event->isAutoRepeat() &&
+      delete_selected_gradient_stop()) {
+    event->accept();
+    return;
   }
 
   if (gradient_handle_drag_.has_value() && event->key() == Qt::Key_Escape) {

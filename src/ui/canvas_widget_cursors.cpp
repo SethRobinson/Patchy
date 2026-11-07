@@ -198,6 +198,31 @@ QCursor build_pen_tool_cursor(CanvasWidget::PenHoverAction action) {
   return QCursor(pixmap, static_cast<int>(hotspot.x()), static_cast<int>(hotspot.y()));
 }
 
+// The Gradient tool's handle cursors (GitHub issue 663 follow-up): the pen's crosshair with
+// its plus badge where a click on the line adds a stop and its minus badge while a dragged
+// stop would be deleted, so the two families read alike. Drawn at the screen's scale (1x or
+// 2x), so they stay crisp on high-DPI displays.
+QCursor build_gradient_stop_cursor(CanvasWidget::PenHoverAction action, int scale) {
+  constexpr int kSize = 32;
+  constexpr double kArm = 9.0;
+  QPixmap pixmap(kSize * scale, kSize * scale);
+  pixmap.setDevicePixelRatio(scale);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  const QPointF hotspot(10.0, 10.0);
+  const auto cross = [&](const QColor& color, double width) {
+    painter.setPen(QPen(color, width, Qt::SolidLine, Qt::RoundCap));
+    painter.drawLine(hotspot + QPointF(-kArm, 0.0), hotspot + QPointF(kArm, 0.0));
+    painter.drawLine(hotspot + QPointF(0.0, -kArm), hotspot + QPointF(0.0, kArm));
+  };
+  cross(kSelectionCursorHalo, kSelectionCursorHaloWidth);
+  cross(kSelectionCursorInk, kSelectionCursorWidth);
+  paint_pen_action_badge(painter, action, QPointF(23.0, 23.0));
+  painter.end();
+  return QCursor(pixmap, static_cast<int>(hotspot.x()), static_cast<int>(hotspot.y()));
+}
+
 QCursor pen_tool_cursor(CanvasWidget::PenHoverAction action) {
   static const std::array<QCursor, 6> cursors = [] {
     std::array<QCursor, 6> result;
@@ -648,6 +673,55 @@ void CanvasWidget::update_tool_cursor() {
     return;
   }
   setCursor(Qt::CrossCursor);
+}
+
+QCursor CanvasWidget::gradient_handle_qcursor(GradientHandleCursor kind) const {
+  const int scale = devicePixelRatioF() > 1.0 ? 2 : 1;
+  const auto cached = [scale](CanvasWidget::PenHoverAction action) {
+    static const std::array<std::array<QCursor, 2>, 2> cursors = [] {
+      std::array<std::array<QCursor, 2>, 2> result;
+      for (int s = 0; s < 2; ++s) {
+        result[0][static_cast<std::size_t>(s)] = build_gradient_stop_cursor(CanvasWidget::PenHoverAction::Add, s + 1);
+        result[1][static_cast<std::size_t>(s)] =
+            build_gradient_stop_cursor(CanvasWidget::PenHoverAction::Delete, s + 1);
+      }
+      return result;
+    }();
+    return cursors[action == CanvasWidget::PenHoverAction::Add ? 0U : 1U][static_cast<std::size_t>(scale - 1)];
+  };
+  switch (kind) {
+    case GradientHandleCursor::AddStop:
+      return cached(PenHoverAction::Add);
+    case GradientHandleCursor::DeleteStop:
+      return cached(PenHoverAction::Delete);
+    case GradientHandleCursor::Move:
+      return QCursor(Qt::SizeAllCursor);
+    case GradientHandleCursor::AlongLine: {
+      // The resize arrow nearest the line's direction on screen (stops and midpoints slide
+      // along it).
+      const auto handles = gradient_fill_handles();
+      if (!handles.has_value()) {
+        return QCursor(Qt::SizeHorCursor);
+      }
+      const auto start = widget_position_f(QPointF(handles->line.start_x, handles->line.start_y));
+      const auto end = widget_position_f(QPointF(handles->line.end_x, handles->line.end_y));
+      auto degrees = std::atan2(-(end.y() - start.y()), end.x() - start.x()) * 180.0 / 3.14159265358979323846;
+      degrees = std::fmod(degrees + 360.0, 180.0);
+      if (degrees < 22.5 || degrees >= 157.5) {
+        return QCursor(Qt::SizeHorCursor);
+      }
+      if (degrees < 67.5) {
+        return QCursor(Qt::SizeBDiagCursor);
+      }
+      if (degrees < 112.5) {
+        return QCursor(Qt::SizeVerCursor);
+      }
+      return QCursor(Qt::SizeFDiagCursor);
+    }
+    case GradientHandleCursor::None:
+      break;
+  }
+  return cursor();
 }
 
 }  // namespace patchy::ui

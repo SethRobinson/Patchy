@@ -17419,18 +17419,6 @@ Czy chcesz go zastąpić?</translation>
         <translation>Przeciągnij, aby przesunąć punkt końcowy gradientu. Shift utrzymuje kąt w krokach co 15 stopni.</translation>
     </message>
     <message>
-        <source>Drag to move the gradient. Click to add a color stop here.</source>
-        <translation>Przeciągnij, aby przesunąć gradient. Kliknij, aby dodać tutaj znacznik koloru.</translation>
-    </message>
-    <message>
-        <source>Drag to move this color stop, or away from the line to delete it. Double-click to change its color.</source>
-        <translation>Przeciągnij, aby przesunąć ten znacznik koloru, lub odciągnij go od linii, aby go usunąć. Kliknij dwukrotnie, aby zmienić jego kolor.</translation>
-    </message>
-    <message>
-        <source>Drag to move this opacity stop, or away from the line to delete it. Double-click to edit the fill.</source>
-        <translation>Przeciągnij, aby przesunąć ten znacznik krycia, lub odciągnij go od linii, aby go usunąć. Kliknij dwukrotnie, aby edytować wypełnienie.</translation>
-    </message>
-    <message>
         <source>Drag to move the midpoint between these stops.</source>
         <translation>Przeciągnij, aby przesunąć punkt środkowy między tymi znacznikami.</translation>
     </message>
@@ -17505,6 +17493,38 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>%1 while %ALT% is held</source>
         <translation>%1, dopóki %ALT% jest wciśnięty</translation>
+    </message>
+    <message>
+        <source>Click to add a color stop here, or drag to move the gradient.</source>
+        <translation>Kliknij, aby dodać tutaj znacznik koloru, lub przeciągnij, aby przesunąć gradient.</translation>
+    </message>
+    <message>
+        <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
+        <translation>Przeciągnij, aby przesunąć ten znacznik koloru. Aby go usunąć, odciągnij go od linii albo zaznacz i naciśnij Delete; prawy przycisk otwiera więcej opcji, dwuklik zmienia kolor.</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click for the fill&apos;s settings.</source>
+        <translation>Przeciągnij, aby przesunąć ten znacznik krycia. Aby go usunąć, odciągnij go od linii albo zaznacz i naciśnij Delete; prawy przycisk otwiera więcej opcji, dwuklik otwiera ustawienia wypełnienia.</translation>
+    </message>
+    <message>
+        <source>A gradient keeps at least two opacity stops.</source>
+        <translation>Gradient zachowuje co najmniej dwa znaczniki krycia.</translation>
+    </message>
+    <message>
+        <source>A gradient keeps at least two color stops.</source>
+        <translation>Gradient zachowuje co najmniej dwa znaczniki koloru.</translation>
+    </message>
+    <message>
+        <source>Delete Stop</source>
+        <translation>Usuń znacznik</translation>
+    </message>
+    <message>
+        <source>Fill Layer Settings...</source>
+        <translation>Ustawienia warstwy wypełnienia...</translation>
+    </message>
+    <message>
+        <source>Change Color...</source>
+        <translation>Zmień kolor...</translation>
     </message>
 </context>
 <context>

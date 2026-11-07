@@ -1,4 +1,4 @@
-// The Gradient tool's handles on an existing Gradient Fill (GitHub issue 663, docs/gradients.md,
+// The Gradient tool's handles on an existing Gradient Fill (GitHub issue 663, docs/gradients-fill-handles.md,
 // "Gradient Fill handles"): where the line, its ends, the stops and the midpoints are drawn,
 // and each gesture (end, line, stop, midpoint, add, delete, color, Esc) as one undo step,
 // while a drag away from them still draws a new gradient.
@@ -20,7 +20,11 @@
 #include <QImage>
 #include <QElapsedTimer>
 #include <QFrame>
+#include <QAction>
+#include <QKeyEvent>
+#include <QKeySequence>
 #include <QLineF>
+#include <QMenu>
 #include <QPointer>
 #include <QPushButton>
 #include <QTableWidget>
@@ -544,8 +548,169 @@ void ui_gradient_fill_handles_drag_timing() {
   }
 }
 
+// GitHub issue 663, second follow-up: ways to delete a stop that people find, and a cursor
+// for every handle part. All input goes through the window like a real mouse and keyboard.
+void ui_gradient_fill_handles_delete_stops_and_show_cursors() {
+  const GradientSettingsGuard settings_guard;
+  auto&& [window, first_canvas] = ShownWindowFixture{};
+  (void)first_canvas;
+  auto* canvas = open_gradient_fill(window, patchy::GradientMethod::Linear, QPoint(100, 150), QPoint(300, 150));
+  const auto active = MainWindowTestAccess::document(window).active_layer_id();
+  CHECK(active.has_value());
+  if (!active.has_value()) {
+    return;
+  }
+  const FillProbe fill{window, *active};
+  auto* handle = window.windowHandle();
+  CHECK(handle != nullptr);
+  if (handle == nullptr) {
+    return;
+  }
+  const auto in_window = [&](QPointF widget_point) { return canvas->mapTo(&window, rounded(widget_point)); };
+  const auto hover = [&](QPointF widget_point) {
+    QTest::mouseMove(handle, in_window(widget_point));
+    QApplication::processEvents();
+  };
+  const auto press_key = [&](Qt::Key key) {
+    QTest::keyClick(handle, key);
+    QApplication::processEvents();
+  };
+
+  // Cursors: the tool's own away from the handles, add-stop over a blank part of the line,
+  // move over an end, along-the-line over a stop.
+  hover(QPointF(widget_at(*canvas, QPointF(60, 40))));
+  CHECK(canvas->gradient_handle_cursor() == CanvasWidget::GradientHandleCursor::None);
+  const auto tool_cursor_shape = canvas->cursor().shape();
+  hover(QPointF(widget_at(*canvas, QPointF(200, 150)) + QPoint(0, 5)));
+  CHECK(canvas->gradient_handle_cursor() == CanvasWidget::GradientHandleCursor::AddStop);
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  hover(part_position(*canvas, Kind::End));
+  CHECK(canvas->gradient_handle_cursor() == CanvasWidget::GradientHandleCursor::Move);
+  CHECK(canvas->cursor().shape() == Qt::SizeAllCursor);
+  hover(part_position(*canvas, Kind::ColorStop, 0));
+  CHECK(canvas->gradient_handle_cursor() == CanvasWidget::GradientHandleCursor::AlongLine);
+  CHECK(canvas->cursor().shape() == Qt::SizeHorCursor);
+  hover(QPointF(widget_at(*canvas, QPointF(60, 40))));
+  CHECK(canvas->gradient_handle_cursor() == CanvasWidget::GradientHandleCursor::None);
+  CHECK(canvas->cursor().shape() == tool_cursor_shape);
+
+  // A click on the line adds a stop and selects it; Delete removes it as one undo step.
+  window_click(*canvas, widget_at(*canvas, QPointF(200, 150)));
+  CHECK(fill.gradient().color_stops.size() == 3U);
+  CHECK(canvas->gradient_fill_selected_stop() == (std::optional<Part>(Part{Kind::ColorStop, 1})));
+  auto depth = fill.depth();
+  press_key(Qt::Key_Delete);
+  CHECK(fill.gradient().color_stops.size() == 2U);
+  CHECK(fill.depth() == depth + 1);
+  CHECK(fill.label() == QStringLiteral("Delete Color Stop"));
+  CHECK(!canvas->gradient_fill_selected_stop().has_value());
+
+  // At two stops a selected stop stays: Delete is refused and goes nowhere else.
+  QAction* delete_action = nullptr;
+  for (auto* action : window.findChildren<QAction*>()) {
+    if (action->shortcuts().contains(QKeySequence(Qt::Key_Delete))) {
+      delete_action = action;
+      break;
+    }
+  }
+  CHECK(delete_action != nullptr);
+  int delete_triggers = 0;
+  if (delete_action != nullptr) {
+    QObject::connect(delete_action, &QAction::triggered, &window, [&delete_triggers] { ++delete_triggers; });
+  }
+  window_click(*canvas, rounded(part_position(*canvas, Kind::ColorStop, 0)));
+  CHECK(canvas->gradient_fill_selected_stop() == (std::optional<Part>(Part{Kind::ColorStop, 0})));
+  depth = fill.depth();
+  press_key(Qt::Key_Delete);
+  CHECK(fill.gradient().color_stops.size() == 2U);
+  CHECK(fill.depth() == depth);
+  CHECK(delete_triggers == 0);
+
+  // Right-click a stop: Delete Stop removes it; at two stops it is disabled.
+  window_click(*canvas, widget_at(*canvas, QPointF(250, 150)));
+  CHECK(fill.gradient().color_stops.size() == 3U);
+  const auto open_stop_menu = [&](int index) -> QMenu* {
+    QTest::mouseClick(handle, Qt::RightButton, Qt::NoModifier,
+                      in_window(part_position(*canvas, Kind::ColorStop, index)));
+    QApplication::processEvents();
+    auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+    CHECK(menu != nullptr && menu->objectName() == QStringLiteral("gradientStopContextMenu"));
+    return menu;
+  };
+  auto* menu = open_stop_menu(1);
+  if (menu != nullptr) {
+    auto* remove = menu->findChild<QAction*>(QStringLiteral("gradientStopDeleteAction"));
+    CHECK(remove != nullptr && remove->isEnabled());
+    CHECK(menu->findChild<QAction*>(QStringLiteral("gradientStopColorAction")) != nullptr);
+    CHECK(canvas->gradient_fill_selected_stop() == (std::optional<Part>(Part{Kind::ColorStop, 1})));
+    canvas->set_zoom_centered(1.5);
+    QApplication::processEvents();
+    menu->move(canvas->mapToGlobal(rounded(part_position(*canvas, Kind::ColorStop, 1)) + QPoint(4, 4)));
+    QApplication::processEvents();
+    save_window_popup_artifact("ui_gradient_fill_handles_stop_menu", window, *canvas, *menu);
+    depth = fill.depth();
+    if (remove != nullptr) {
+      remove->trigger();
+    }
+    menu->close();
+    QApplication::processEvents();
+    CHECK(fill.gradient().color_stops.size() == 2U);
+    CHECK(fill.depth() == depth + 1);
+    CHECK(fill.label() == QStringLiteral("Delete Color Stop"));
+    canvas->set_zoom_centered(1.0);
+    QApplication::processEvents();
+  }
+  menu = open_stop_menu(0);
+  if (menu != nullptr) {
+    auto* remove = menu->findChild<QAction*>(QStringLiteral("gradientStopDeleteAction"));
+    CHECK(remove != nullptr && !remove->isEnabled());
+    CHECK(remove != nullptr && !remove->toolTip().isEmpty());
+    menu->close();
+    QApplication::processEvents();
+  }
+
+  // Dragged off the line a stop shows it will go (delete cursor, gone from the preview);
+  // back on the line it stays; off again and released, it is deleted.
+  window_click(*canvas, widget_at(*canvas, QPointF(200, 150)));
+  CHECK(fill.gradient().color_stops.size() == 3U);
+  const auto stop = part_position(*canvas, Kind::ColorStop, 1);
+  depth = fill.depth();
+  QTest::mousePress(handle, Qt::LeftButton, Qt::NoModifier, in_window(stop));
+  QTest::mouseMove(handle, in_window(stop + QPointF(0.0, 70.0)));
+  QApplication::processEvents();
+  CHECK(canvas->gradient_handle_cursor() == CanvasWidget::GradientHandleCursor::DeleteStop);
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  CHECK(canvas->gradient_fill_handles()->gradient.color_stops.size() == 2U);
+  QTest::mouseMove(handle, in_window(stop + QPointF(0.0, 4.0)));
+  QApplication::processEvents();
+  CHECK(canvas->gradient_handle_cursor() == CanvasWidget::GradientHandleCursor::AlongLine);
+  CHECK(canvas->gradient_fill_handles()->gradient.color_stops.size() == 3U);
+  QTest::mouseMove(handle, in_window(stop + QPointF(0.0, 70.0)));
+  QTest::mouseRelease(handle, Qt::LeftButton, Qt::NoModifier, in_window(stop + QPointF(0.0, 70.0)));
+  QApplication::processEvents();
+  CHECK(fill.gradient().color_stops.size() == 2U);
+  CHECK(fill.depth() == depth + 1);
+  CHECK(fill.label() == QStringLiteral("Delete Color Stop"));
+
+  // With no stop selected the canvas leaves Delete to the shortcut (Edit > Clear does its
+  // usual job); with one selected it takes the key first.
+  const auto canvas_takes_delete = [&] {
+    QKeyEvent override_event(QEvent::ShortcutOverride, Qt::Key_Delete, Qt::NoModifier);
+    override_event.ignore();
+    QApplication::sendEvent(canvas, &override_event);
+    return override_event.isAccepted();
+  };
+  window_click(*canvas, widget_at(*canvas, QPointF(60, 40)));
+  CHECK(!canvas->gradient_fill_selected_stop().has_value());
+  CHECK(!canvas_takes_delete());
+  window_click(*canvas, rounded(part_position(*canvas, Kind::ColorStop, 0)));
+  CHECK(canvas_takes_delete());
+  CHECK(delete_triggers == 0);
+}
+
 std::vector<patchy::test::TestCase> gradient_fill_handles_tests() {
   return {
+      {"ui_gradient_fill_handles_delete_stops_and_show_cursors", ui_gradient_fill_handles_delete_stops_and_show_cursors},
       {"ui_gradient_fill_handles_edit_a_linear_fill", ui_gradient_fill_handles_edit_a_linear_fill},
       {"ui_gradient_fill_handles_follow_a_radial_fill_in_a_rotated_view",
        ui_gradient_fill_handles_follow_a_radial_fill_in_a_rotated_view},

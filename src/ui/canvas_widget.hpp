@@ -476,6 +476,15 @@ public:
   // Where a part is drawn in widget coordinates, and the part a widget point hits.
   [[nodiscard]] std::optional<QPointF> gradient_fill_handle_widget_position(GradientHandlePart part) const;
   [[nodiscard]] GradientHandlePart gradient_fill_handle_part_at(QPointF widget_point) const;
+  // The cursor the handles show (GitHub issue 663 follow-up): Move over an end (and while
+  // the line drags the gradient), AddStop over the line where a click adds a stop,
+  // AlongLine over a stop or midpoint, DeleteStop while a dragged stop would be deleted,
+  // None when the tool's own cursor shows.
+  enum class GradientHandleCursor { None, Move, AddStop, AlongLine, DeleteStop };
+  [[nodiscard]] GradientHandleCursor gradient_handle_cursor() const noexcept;
+  // The stop a click selected (ColorStop or AlphaStop with its index), while it is still on
+  // the active fill; Delete or Backspace removes it.
+  [[nodiscard]] std::optional<GradientHandlePart> gradient_fill_selected_stop() const;
   void set_gradient_reverse(bool reverse) noexcept;
   [[nodiscard]] bool gradient_reverse() const noexcept;
   void set_gradient_opacity(int opacity) noexcept;
@@ -2898,6 +2907,11 @@ private:
   void cancel_gradient_fill_handle_drag();
   void abandon_gradient_fill_handle_drag();
   void set_gradient_fill_handle_hover(GradientHandlePart part);
+  void apply_gradient_handle_cursor(GradientHandleCursor kind);
+  [[nodiscard]] QCursor gradient_handle_qcursor(GradientHandleCursor kind) const;
+  [[nodiscard]] static GradientHandleCursor gradient_handle_cursor_for(GradientHandlePart part);
+  bool delete_selected_gradient_stop();
+  bool show_gradient_stop_context_menu(QPoint widget_point, QPoint global_position);
   void send_gradient_fill_preview();
   void draw_gradient_fill_handles(QPainter& painter) const;
   [[nodiscard]] QString gradient_fill_handle_hint(GradientHandlePart part) const;
@@ -3978,6 +3992,14 @@ private:
   std::uint64_t gradient_handle_drag_serial_{0};
   QElapsedTimer gradient_handle_preview_clock_;
   GradientHandlePart gradient_handle_hover_;
+  GradientHandleCursor gradient_handle_cursor_{GradientHandleCursor::None};
+  // The selected stop (a click on it selects it): its layer, list and index.
+  struct GradientStopSelection {
+    LayerId layer_id{0};
+    bool alpha{false};
+    int index{-1};
+  };
+  std::optional<GradientStopSelection> gradient_stop_selection_;
   GradientFillEditCallback gradient_fill_edit_callback_;
   std::function<void(LayerId, int)> gradient_fill_stop_color_requested_callback_;
   // gradient_fill_alignment_bounds rasterizes the path: kept per layer and revision.

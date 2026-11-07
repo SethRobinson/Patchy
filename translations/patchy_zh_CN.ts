@@ -17325,18 +17325,6 @@ Do you want to replace it?</source>
         <translation>拖动可移动渐变的终点。按住 Shift 可使角度保持 15 度步进。</translation>
     </message>
     <message>
-        <source>Drag to move the gradient. Click to add a color stop here.</source>
-        <translation>拖动可移动渐变。单击可在此处添加色标。</translation>
-    </message>
-    <message>
-        <source>Drag to move this color stop, or away from the line to delete it. Double-click to change its color.</source>
-        <translation>拖动可移动此色标，拖离直线可删除它。双击可更改其颜色。</translation>
-    </message>
-    <message>
-        <source>Drag to move this opacity stop, or away from the line to delete it. Double-click to edit the fill.</source>
-        <translation>拖动可移动此不透明度色标，拖离直线可删除它。双击可编辑填充。</translation>
-    </message>
-    <message>
         <source>Drag to move the midpoint between these stops.</source>
         <translation>拖动可移动这些色标之间的中点。</translation>
     </message>
@@ -17411,6 +17399,38 @@ Do you want to replace it?</source>
     <message>
         <source>%1 while %ALT% is held</source>
         <translation>按住 %ALT% 时为%1</translation>
+    </message>
+    <message>
+        <source>Click to add a color stop here, or drag to move the gradient.</source>
+        <translation>单击可在此处添加色标，拖动可移动渐变。</translation>
+    </message>
+    <message>
+        <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
+        <translation>拖动可移动此色标。将其拖离直线，或选中后按 Delete 键可将其删除；右键单击查看更多操作，双击可更改其颜色。</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click for the fill&apos;s settings.</source>
+        <translation>拖动可移动此不透明度色标。将其拖离直线，或选中后按 Delete 键可将其删除；右键单击查看更多操作，双击可打开填充设置。</translation>
+    </message>
+    <message>
+        <source>A gradient keeps at least two opacity stops.</source>
+        <translation>渐变至少保留两个不透明度色标。</translation>
+    </message>
+    <message>
+        <source>A gradient keeps at least two color stops.</source>
+        <translation>渐变至少保留两个色标。</translation>
+    </message>
+    <message>
+        <source>Delete Stop</source>
+        <translation>删除色标</translation>
+    </message>
+    <message>
+        <source>Fill Layer Settings...</source>
+        <translation>填充图层设置...</translation>
+    </message>
+    <message>
+        <source>Change Color...</source>
+        <translation>更改颜色...</translation>
     </message>
 </context>
 <context>

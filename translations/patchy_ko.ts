@@ -17325,18 +17325,6 @@ Do you want to replace it?</source>
         <translation>드래그하여 그레이디언트의 끝점을 이동합니다. Shift를 누르면 각도가 15도 단위로 유지됩니다.</translation>
     </message>
     <message>
-        <source>Drag to move the gradient. Click to add a color stop here.</source>
-        <translation>드래그하여 그레이디언트를 이동합니다. 클릭하면 여기에 색상 정지점을 추가합니다.</translation>
-    </message>
-    <message>
-        <source>Drag to move this color stop, or away from the line to delete it. Double-click to change its color.</source>
-        <translation>드래그하여 이 색상 정지점을 이동하거나, 선에서 멀리 끌어 삭제합니다. 두 번 클릭하면 색상을 변경합니다.</translation>
-    </message>
-    <message>
-        <source>Drag to move this opacity stop, or away from the line to delete it. Double-click to edit the fill.</source>
-        <translation>드래그하여 이 불투명도 정지점을 이동하거나, 선에서 멀리 끌어 삭제합니다. 두 번 클릭하면 채우기를 편집합니다.</translation>
-    </message>
-    <message>
         <source>Drag to move the midpoint between these stops.</source>
         <translation>드래그하여 이 정지점들 사이의 중간점을 이동합니다.</translation>
     </message>
@@ -17411,6 +17399,38 @@ Do you want to replace it?</source>
     <message>
         <source>%1 while %ALT% is held</source>
         <translation>%ALT%를 누르는 동안 %1</translation>
+    </message>
+    <message>
+        <source>Click to add a color stop here, or drag to move the gradient.</source>
+        <translation>클릭하면 여기에 색상 정지점을 추가하고, 드래그하면 그레이디언트를 이동합니다.</translation>
+    </message>
+    <message>
+        <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
+        <translation>드래그하여 이 색상 정지점을 이동합니다. 선에서 멀리 끌거나 선택하고 Delete 키를 누르면 삭제하고, 오른쪽 클릭으로 추가 메뉴, 두 번 클릭으로 색상을 변경합니다.</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click for the fill&apos;s settings.</source>
+        <translation>드래그하여 이 불투명도 정지점을 이동합니다. 선에서 멀리 끌거나 선택하고 Delete 키를 누르면 삭제하고, 오른쪽 클릭으로 추가 메뉴, 두 번 클릭으로 채우기 설정을 엽니다.</translation>
+    </message>
+    <message>
+        <source>A gradient keeps at least two opacity stops.</source>
+        <translation>그레이디언트에는 불투명도 정지점이 최소 두 개 있어야 합니다.</translation>
+    </message>
+    <message>
+        <source>A gradient keeps at least two color stops.</source>
+        <translation>그레이디언트에는 색상 정지점이 최소 두 개 있어야 합니다.</translation>
+    </message>
+    <message>
+        <source>Delete Stop</source>
+        <translation>정지점 삭제</translation>
+    </message>
+    <message>
+        <source>Fill Layer Settings...</source>
+        <translation>채우기 레이어 설정...</translation>
+    </message>
+    <message>
+        <source>Change Color...</source>
+        <translation>색상 변경...</translation>
     </message>
 </context>
 <context>
