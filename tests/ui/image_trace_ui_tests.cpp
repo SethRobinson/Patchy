@@ -1068,6 +1068,9 @@ void ui_image_trace_show_anchors_overlays_without_retrace() {
       expect(!show_anchors->isChecked(), "Show anchors defaults off");
       expect(process_events_until([info] { return info->text().contains(QStringLiteral("shape layer")); }, 15000),
              "preview traced");
+      // Let the layout settle first: the summary text and the spinner hiding post a relayout that
+      // can resize (and refit) the preview after the result lands.
+      (void)process_events_until([] { return false; }, 400);
       const auto before = preview->grab().toImage();
       const auto text_before = info->text();
       show_anchors->setChecked(true);
@@ -1080,7 +1083,12 @@ void ui_image_trace_show_anchors_overlays_without_retrace() {
              "toggle persists the view preference");
       show_anchors->setChecked(false);
       QApplication::processEvents();
-      expect(preview->grab().toImage() == before, "unchecking removes the marks");
+      const auto after = preview->grab().toImage();
+      if (after != before) {
+        std::fprintf(stderr, "  show anchors: preview %dx%d before, %dx%d after unchecking\n", before.width(),
+                     before.height(), after.width(), after.height());
+      }
+      expect(after == before, "unchecking removes the marks");
       show_anchors->setChecked(true);
       save_widget_artifact("ui_image_trace_show_anchors", *dialog);
       buttons->button(QDialogButtonBox::Cancel)->click();
