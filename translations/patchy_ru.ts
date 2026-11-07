@@ -17410,6 +17410,10 @@ Do you want to replace it?</source>
         <source>Object Selection found no object in the outline; the outline is kept</source>
         <translation>Выделение объектов не нашло объект внутри контура; контур сохранён</translation>
     </message>
+    <message>
+        <source>%1 while %ALT% is held</source>
+        <translation>%1, пока удерживается %ALT%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -33555,6 +33559,10 @@ Locked: %1</source>
     <message>
         <source>The selected layers are not linked</source>
         <translation>Выделенные слои не связаны</translation>
+    </message>
+    <message>
+        <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %ALT%+перетаскивание рисует как %2, Shift+щелчок рисует линию, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
     </message>
 </context>
 <context>

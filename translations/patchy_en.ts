@@ -17345,6 +17345,10 @@ Do you want to replace it?</source>
         <source>Object Selection found no object in the outline; the outline is kept</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>%1 while %ALT% is held</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -33384,6 +33388,10 @@ Locked: %1</source>
     </message>
     <message>
         <source>The selected layers are not linked</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

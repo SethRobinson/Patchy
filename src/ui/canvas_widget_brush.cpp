@@ -23,6 +23,7 @@
 #include "core/worker_budget.hpp"
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget_shared.hpp"
+#include "ui/dodge_burn_curves.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/qt_geometry.hpp"
@@ -371,6 +372,22 @@ double full_coverage_radius(int radius, int softness) noexcept {
   }
   const auto edge_width = std::max(1.0, static_cast<double>(radius) * static_cast<double>(softness) / 100.0);
   return std::max(0.0, static_cast<double>(radius) - edge_width);
+}
+
+// The calibrated curve of a Dodge or Burn Range (ui/dodge_burn_curves.hpp, GitHub #661).
+const dodge_burn::Knots& dodge_burn_knots(bool dodge, LocalToneRange range, bool protect_tones) noexcept {
+  switch (range) {
+    case LocalToneRange::Shadows:
+      return protect_tones ? (dodge ? dodge_burn::kProtectDodgeShadows : dodge_burn::kProtectBurnShadows)
+                           : (dodge ? dodge_burn::kDodgeShadows : dodge_burn::kBurnShadows);
+    case LocalToneRange::Highlights:
+      return protect_tones ? (dodge ? dodge_burn::kProtectDodgeHighlights : dodge_burn::kProtectBurnHighlights)
+                           : (dodge ? dodge_burn::kDodgeHighlights : dodge_burn::kBurnHighlights);
+    case LocalToneRange::Midtones:
+      break;
+  }
+  return protect_tones ? (dodge ? dodge_burn::kProtectDodgeMidtones : dodge_burn::kProtectBurnMidtones)
+                       : (dodge ? dodge_burn::kDodgeMidtones : dodge_burn::kBurnMidtones);
 }
 
 // One row of a stroke segment and the runs of it a CloneSegmentRows walk visits.
@@ -1374,6 +1391,7 @@ void CanvasWidget::clear_brush_stroke_tracking() noexcept {
   brush_stroke_wet_edge_primary_.clear();
   brush_stroke_wet_edge_pending_rect_ = {};
   brush_stroke_layer_snapshot_.reset();
+  local_adjustment_alt_swap_ = false;
   brush_stroke_paint_mode_ = {};
   brush_stroke_last_stamp_position_.reset();
   brush_stroke_hard_round_end_.reset();
@@ -2893,7 +2911,17 @@ QRect CanvasWidget::smudge_brush_segment(QPoint from, QPoint to) {
 }
 
 CanvasTool CanvasWidget::local_adjustment_operation() const noexcept {
-  return tool_;
+  return local_adjustment_alt_swap_ ? alt_swapped_toning_tool(tool_) : tool_;
+}
+
+// The most a stroke of `operation` applies (the stroke's alpha cap): Strength, except that
+// Dodge and Burn map it the way Photoshop's Exposure builds up over a stroke (GitHub #661).
+float CanvasWidget::local_adjustment_stroke_amount(CanvasTool operation) const noexcept {
+  const auto strength = static_cast<float>(local_adjustment_strength_) / 100.0F;
+  if (operation != CanvasTool::Dodge && operation != CanvasTool::Burn) {
+    return strength;
+  }
+  return static_cast<float>(dodge_burn::stroke_amount(static_cast<double>(strength), local_protect_tones_));
 }
 
 QRect CanvasWidget::local_adjustment_brush_segment(QPoint from, QPoint to) {
@@ -2985,29 +3013,14 @@ QRect CanvasWidget::local_adjustment_brush_segment(QPoint from, QPoint to) {
     const auto blue = static_cast<double>(center[2]);
     const auto lightness = (54.0 * red + 183.0 * green + 19.0 * blue) / (256.0 * 255.0);
     if (operation == CanvasTool::Dodge || operation == CanvasTool::Burn) {
-      double range_weight = 1.0;
-      switch (local_tone_range_) {
-        case LocalToneRange::Shadows:
-          range_weight = 1.0 - lightness;
-          break;
-        case LocalToneRange::Midtones:
-          range_weight = 1.0 - std::abs(lightness * 2.0 - 1.0);
-          break;
-        case LocalToneRange::Highlights:
-          range_weight = lightness;
-          break;
-      }
-      const auto source_lightness = lightness * 255.0;
-      const auto target_lightness = operation == CanvasTool::Dodge
-                                        ? source_lightness + (255.0 - source_lightness) * range_weight
-                                        : source_lightness * (1.0 - range_weight);
+      // The Range's calibrated curve (GitHub #661): with Protect Tones the lightness
+      // change moves every channel alike; without it each channel follows the curve.
+      const auto& knots = dodge_burn_knots(operation == CanvasTool::Dodge, local_tone_range_, local_protect_tones_);
+      const auto lightness_change = local_protect_tones_ ? dodge_burn::curve_at(knots, lightness) : 0.0;
       for (std::size_t channel = 0; channel < result.size(); ++channel) {
         const auto value = static_cast<double>(center[channel]);
-        const auto adjusted = local_protect_tones_
-                                  ? value + (target_lightness - source_lightness)
-                                  : (operation == CanvasTool::Dodge
-                                         ? value + (255.0 - value) * range_weight
-                                         : value * (1.0 - range_weight));
+        const auto adjusted =
+            value + (local_protect_tones_ ? lightness_change : dodge_burn::curve_at(knots, value / 255.0));
         result[channel] = clamp_byte(static_cast<float>(adjusted));
       }
       return result;
@@ -3039,7 +3052,7 @@ QRect CanvasWidget::local_adjustment_brush_segment(QPoint from, QPoint to) {
         std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
   }
   const auto mutable_channels = pixels.format().channels;
-  const auto strength = static_cast<float>(local_adjustment_strength_) / 100.0F;
+  const auto strength = local_adjustment_stroke_amount(operation);
   const auto* palette_snap = palette_snap_for_edits();
   const auto selection_active = has_selection();
   // One pixel: `destination` is its layer bytes, `cap_at(x, y)` its stroke alpha cap (the
@@ -3219,27 +3232,11 @@ QRect CanvasWidget::local_adjustment_brush_segment_deep(QPoint from, QPoint to) 
     }
     const auto lightness = (54.0 * center[0] + 183.0 * center[1] + 19.0 * center[2]) / (256.0 * 255.0);
     if (operation == CanvasTool::Dodge || operation == CanvasTool::Burn) {
-      double range_weight = 1.0;
-      switch (local_tone_range_) {
-        case LocalToneRange::Shadows:
-          range_weight = 1.0 - lightness;
-          break;
-        case LocalToneRange::Midtones:
-          range_weight = 1.0 - std::abs(lightness * 2.0 - 1.0);
-          break;
-        case LocalToneRange::Highlights:
-          range_weight = lightness;
-          break;
-      }
-      const auto source_lightness = lightness * 255.0;
-      const auto target_lightness = operation == CanvasTool::Dodge
-                                        ? source_lightness + (255.0 - source_lightness) * range_weight
-                                        : source_lightness * (1.0 - range_weight);
+      const auto& knots = dodge_burn_knots(operation == CanvasTool::Dodge, local_tone_range_, local_protect_tones_);
+      const auto lightness_change = local_protect_tones_ ? dodge_burn::curve_at(knots, lightness) : 0.0;
       for (std::size_t channel = 0; channel < result.size(); ++channel) {
         const auto value = center[channel];
-        result[channel] = local_protect_tones_ ? value + (target_lightness - source_lightness)
-                                               : (operation == CanvasTool::Dodge ? value + (255.0 - value) * range_weight
-                                                                                 : value * (1.0 - range_weight));
+        result[channel] = value + (local_protect_tones_ ? lightness_change : dodge_burn::curve_at(knots, value / 255.0));
       }
       return result;
     }
@@ -3258,7 +3255,7 @@ QRect CanvasWidget::local_adjustment_brush_segment_deep(QPoint from, QPoint to) 
   };
 
   auto& pixels = layer->pixels();
-  const auto strength = static_cast<float>(local_adjustment_strength_) / 100.0F;
+  const auto strength = local_adjustment_stroke_amount(operation);
   const auto selection_active = has_selection();
   const auto adjust_pixel = [&](int x, int y, float coverage, std::uint8_t* destination, auto& cap_at) -> bool {
     const QPoint point(x, y);

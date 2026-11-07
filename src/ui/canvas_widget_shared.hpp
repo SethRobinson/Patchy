@@ -283,6 +283,9 @@ void paint_selection_mode_badge(QPainter& painter, CanvasWidget::SelectionMode m
 // Whether Alt+Left temporarily turns the tool into the color picker; shared by
 // the event code in canvas_widget.cpp and update_tool_cursor in the cursors TU.
 bool tool_uses_alt_left_for_color_pick(CanvasTool tool) noexcept;
+// The tool an Alt stroke of `tool` paints as (GitHub #662): Dodge and Burn, Blur and
+// Sharpen swap; every other tool is itself.
+[[nodiscard]] CanvasTool alt_swapped_toning_tool(CanvasTool tool) noexcept;
 
 // Clamps a document-space point onto the canvas; shared by the event/lasso/
 // zoom code in canvas_widget.cpp and pop_magnetic_anchor in the

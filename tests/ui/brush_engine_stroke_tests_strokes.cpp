@@ -2944,10 +2944,12 @@ void ui_local_adjustment_brushes_use_fixed_math_and_round_trip_psd() {
   CHECK(blurred[0] == 130 && blurred[1] == 130 && blurred[2] == 130 && blurred[3] == 255);
   const auto* sharpened = layer.pixels().pixel(7, 2);
   CHECK(sharpened[0] == 170 && sharpened[1] == 170 && sharpened[2] == 170 && sharpened[3] == 255);
+  // Dodge and Burn follow the Range curves calibrated against Photoshop (GitHub issue 661;
+  // Protect Tones off here, Strength 100%: Photoshop gives 147 and 109).
   const auto* dodged = layer.pixels().pixel(12, 2);
-  CHECK(dodged[0] == 207 && dodged[1] == 207 && dodged[2] == 207 && dodged[3] == 255);
+  CHECK(dodged[0] == 145 && dodged[1] == 145 && dodged[2] == 145 && dodged[3] == 255);
   const auto* burned = layer.pixels().pixel(17, 2);
-  CHECK(burned[0] == 47 && burned[1] == 47 && burned[2] == 47 && burned[3] == 255);
+  CHECK(burned[0] == 110 && burned[1] == 110 && burned[2] == 110 && burned[3] == 255);
   const auto* desaturated = layer.pixels().pixel(22, 2);
   CHECK(desaturated[0] == 117 && desaturated[1] == 117 && desaturated[2] == 117 && desaturated[3] == 128);
   const auto* untouched = layer.pixels().pixel(23, 2);

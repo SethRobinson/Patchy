@@ -347,6 +347,13 @@ const char* paint_tool_hint_source(CanvasTool tool) {
     case CanvasTool::Healing:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "%1: %ALT%+click sets the source, Shift+click draws a line, "
              "%ALT%+right-drag changes size and softness.");
+    case CanvasTool::Dodge:
+    case CanvasTool::Burn:
+    case CanvasTool::BlurBrush:
+    case CanvasTool::SharpenBrush:
+      // %2 is the opposite tool an Alt stroke paints with (GitHub issue 662).
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "%1: %ALT%+drag paints with %2, Shift+click draws a line, "
+             "%ALT%+right-drag changes size and softness.");
     default:
       return tool_has_ctrl_temporary_move(tool)
                  ? QT_TRANSLATE_NOOP("patchy::ui::MainWindow",
@@ -1898,7 +1905,10 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     if (const auto* hint = tool_activation_hint_source(selected); hint != nullptr) {
       statusBar()->showMessage(resolve_modifier_names(tr(hint)));
     } else if (const auto* paint_hint = paint_tool_hint_source(selected); paint_hint != nullptr) {
-      statusBar()->showMessage(resolve_modifier_names(tr(paint_hint).arg(tool_name(selected))));
+      const auto opposite = alt_swapped_toning_tool(selected);
+      statusBar()->showMessage(resolve_modifier_names(
+          opposite != selected ? tr(paint_hint).arg(tool_name(selected), tool_name(opposite))
+                               : tr(paint_hint).arg(tool_name(selected))));
     } else {
       statusBar()->showMessage(tool_name(selected));
     }

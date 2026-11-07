@@ -1075,6 +1075,21 @@ bool tool_uses_alt_left_for_color_pick(CanvasTool tool) noexcept {
   }
 }
 
+CanvasTool alt_swapped_toning_tool(CanvasTool tool) noexcept {
+  switch (tool) {
+    case CanvasTool::Dodge:
+      return CanvasTool::Burn;
+    case CanvasTool::Burn:
+      return CanvasTool::Dodge;
+    case CanvasTool::BlurBrush:
+      return CanvasTool::SharpenBrush;
+    case CanvasTool::SharpenBrush:
+      return CanvasTool::BlurBrush;
+    default:
+      return tool;
+  }
+}
+
 QPoint clamped_document_point(const Document& document, QPoint point) {
   return QPoint(std::clamp(point.x(), 0, std::max(0, document.width() - 1)),
                 std::clamp(point.y(), 0, std::max(0, document.height() - 1)));

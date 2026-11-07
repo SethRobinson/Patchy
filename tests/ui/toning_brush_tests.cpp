@@ -11,9 +11,12 @@
 
 #include <QApplication>
 #include <QMouseEvent>
+#include <QImage>
+#include <QKeyEvent>
 #include <QScopeGuard>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -262,6 +265,164 @@ void ui_toning_stroke_coalesces_queued_moves_and_keeps_bytes() {
   }
 }
 
+// GitHub issue 661: Dodge and Burn Ranges are narrow, smooth curves calibrated against
+// Photoshop (ui/dodge_burn_curves.hpp). A gray ramp (0..255, 4 px a level) gets one hard
+// stroke per band at the default Strength 50% with Protect Tones on: Burn on Shadows leaves
+// light tones alone, Burn on Highlights never turns white black, Dodge on Shadows leaves
+// highlights alone, and the Midtones bell peaks near middle gray. Writes the bands as
+// test-artifacts/ui_dodge_burn_ranges.png (rows: original, Burn Shadows/Midtones/Highlights,
+// Dodge Shadows/Midtones/Highlights).
+void ui_dodge_burn_ranges_follow_calibrated_curves() {
+  constexpr int kWidth = 1024;
+  constexpr int kBand = 40;
+  constexpr int kBands = 7;
+  auto pixels = solid_pixels(kWidth, kBand * kBands, patchy::PixelFormat::rgb8(), QColor(0, 0, 0));
+  for (int y = 0; y < kBand * kBands; ++y) {
+    for (int x = 0; x < kWidth; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = px[1] = px[2] = static_cast<std::uint8_t>(x / 4);
+    }
+  }
+  patchy::Document document(kWidth, kBand * kBands, patchy::PixelFormat::rgb8());
+  const auto layer_id = document.add_pixel_layer("Ramp", std::move(pixels)).id();
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(1100, 380);
+  canvas.set_document(&document);
+  canvas.set_zoom(1.0);
+  canvas.show();
+  QApplication::processEvents();
+  canvas.set_brush_size(30);
+  canvas.set_brush_softness(0);
+  canvas.set_local_adjustment_strength(50);
+  canvas.set_local_protect_tones(true);
+  using Range = patchy::ui::CanvasWidget::LocalToneRange;
+  struct Band {
+    patchy::ui::CanvasTool tool;
+    Range range;
+  };
+  const std::array<Band, 6> bands{Band{patchy::ui::CanvasTool::Burn, Range::Shadows},
+                                  Band{patchy::ui::CanvasTool::Burn, Range::Midtones},
+                                  Band{patchy::ui::CanvasTool::Burn, Range::Highlights},
+                                  Band{patchy::ui::CanvasTool::Dodge, Range::Shadows},
+                                  Band{patchy::ui::CanvasTool::Dodge, Range::Midtones},
+                                  Band{patchy::ui::CanvasTool::Dodge, Range::Highlights}};
+  for (std::size_t index = 0; index < bands.size(); ++index) {
+    canvas.set_tool(bands[index].tool);
+    canvas.set_local_tone_range(bands[index].range);
+    const auto y = static_cast<int>(index + 1) * kBand + kBand / 2;
+    std::vector<QPoint> path;
+    for (int x = -20; x <= kWidth + 20; x += 8) {
+      path.emplace_back(x, y);
+    }
+    drag_document_path(canvas, path, 1);
+    QApplication::processEvents();
+  }
+  const auto& result = std::as_const(*document.find_layer(layer_id)).pixels();
+  const auto level = [&result](int band, int value) {
+    return static_cast<int>(result.pixel(value * 4 + 1, band * kBand + kBand / 2)[0]);
+  };
+  // The bands first, so a failing check still leaves the picture.
+  ensure_artifact_dir();
+  QImage image(kWidth, kBand * kBands, QImage::Format_RGB32);
+  for (int y = 0; y < image.height(); ++y) {
+    for (int x = 0; x < kWidth; ++x) {
+      const auto* px = result.pixel(x, y);
+      image.setPixel(x, y, qRgb(px[0], px[1], px[2]));
+    }
+  }
+  const auto saved = image.save(QStringLiteral("test-artifacts/ui_dodge_burn_ranges.png"));
+  // Burn, Shadows: dark tones darken, light tones stay.
+  CHECK(level(1, 64) <= 64 - 25);
+  CHECK(level(1, 128) >= 128 - 25);
+  CHECK(level(1, 208) >= 207);
+  // Burn, Midtones: a bell around middle gray; black and white stay.
+  CHECK(level(2, 128) <= 128 - 25);
+  CHECK(level(2, 0) == 0);
+  CHECK(level(2, 255) == 255);
+  // Burn, Highlights: white darkens a little, never to black; shadows stay.
+  CHECK(level(3, 255) >= 195 && level(3, 255) <= 215);
+  CHECK(level(3, 48) == 48);
+  // Dodge, Shadows: shadows lift, highlights stay.
+  CHECK(level(4, 72) >= 72 + 12);
+  CHECK(level(4, 208) == 208);
+  CHECK(level(4, 0) == 0);
+  // Dodge, Midtones and Highlights.
+  CHECK(level(5, 136) >= 136 + 25);
+  CHECK(level(5, 16) <= 18);
+  CHECK(level(6, 160) >= 160 + 55);
+  CHECK(level(6, 48) <= 49);
+  // Untouched first band.
+  CHECK(level(0, 100) == 100);
+  CHECK(saved);
+}
+
+// GitHub issue 662: a stroke that starts with Alt held paints with the opposite tool (Dodge
+// and Burn, Blur and Sharpen swap; Sponge stays itself), byte for byte the stroke the other
+// tool paints, and the status bar names the operation while Alt is held.
+void ui_toning_alt_stroke_paints_opposite_operation() {
+  const auto paint = [](patchy::ui::CanvasTool tool, Qt::KeyboardModifiers modifiers) {
+    constexpr int kWidth = 160;
+    constexpr int kHeight = 100;
+    auto pixels = solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 255));
+    for (int y = 0; y < kHeight; ++y) {
+      for (int x = 0; x < kWidth; ++x) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = static_cast<std::uint8_t>((x * 7 + y * 3) % 256);
+        px[1] = static_cast<std::uint8_t>((y * 5 + 40) % 256);
+        px[2] = static_cast<std::uint8_t>(((x ^ y) * 11) % 256);
+      }
+    }
+    patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+    const auto layer_id = document.add_pixel_layer("Photo", std::move(pixels)).id();
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(300, 200);
+    canvas.set_document(&document);
+    canvas.set_zoom(1.0);
+    canvas.show();
+    QApplication::processEvents();
+    canvas.set_tool(tool);
+    canvas.set_brush_size(31);
+    canvas.set_brush_softness(40);
+    canvas.set_local_adjustment_strength(60);
+    canvas.set_local_tone_range(patchy::ui::CanvasWidget::LocalToneRange::Midtones);
+    drag_document_path(canvas, {QPoint(30, 50), QPoint(80, 40), QPoint(130, 60)}, 6, modifiers);
+    QApplication::processEvents();
+    const auto bytes = std::as_const(*document.find_layer(layer_id)).pixels().data();
+    return std::vector<std::uint8_t>(bytes.begin(), bytes.end());
+  };
+  using Tool = patchy::ui::CanvasTool;
+  CHECK(paint(Tool::Dodge, Qt::AltModifier) == paint(Tool::Burn, Qt::NoModifier));
+  CHECK(paint(Tool::Burn, Qt::AltModifier) == paint(Tool::Dodge, Qt::NoModifier));
+  CHECK(paint(Tool::BlurBrush, Qt::AltModifier) == paint(Tool::SharpenBrush, Qt::NoModifier));
+  CHECK(paint(Tool::SharpenBrush, Qt::AltModifier) == paint(Tool::BlurBrush, Qt::NoModifier));
+  CHECK(paint(Tool::Dodge, Qt::AltModifier) != paint(Tool::Dodge, Qt::NoModifier));
+  CHECK(paint(Tool::Sponge, Qt::AltModifier) == paint(Tool::Sponge, Qt::NoModifier));
+
+  // The status bar names what a press would paint while Alt is held.
+  patchy::Document document(80, 60, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Photo", solid_pixels(80, 60, patchy::PixelFormat::rgba8(), QColor(120, 120, 120, 255)));
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(200, 150);
+  canvas.set_document(&document);
+  canvas.show();
+  QApplication::processEvents();
+  QString status;
+  canvas.set_status_callback([&status](QString message) { status = std::move(message); });
+  canvas.set_tool(Tool::Dodge);
+  QKeyEvent alt_down(QEvent::KeyPress, Qt::Key_Alt, Qt::NoModifier);
+  QApplication::sendEvent(&canvas, &alt_down);
+  CHECK(status.contains(QStringLiteral("Burn")));
+  QKeyEvent alt_up(QEvent::KeyRelease, Qt::Key_Alt, Qt::AltModifier);
+  QApplication::sendEvent(&canvas, &alt_up);
+  CHECK(status == QStringLiteral("Dodge"));
+  canvas.set_tool(Tool::SharpenBrush);
+  QKeyEvent alt_down_again(QEvent::KeyPress, Qt::Key_Alt, Qt::NoModifier);
+  QApplication::sendEvent(&canvas, &alt_down_again);
+  CHECK(status.contains(QStringLiteral("Blur")));
+  QKeyEvent alt_up_again(QEvent::KeyRelease, Qt::Key_Alt, Qt::AltModifier);
+  QApplication::sendEvent(&canvas, &alt_up_again);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part3() {
@@ -269,5 +430,7 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part3() {
       {"ui_toning_brush_span_and_strips_keep_bytes", ui_toning_brush_span_and_strips_keep_bytes},
       {"ui_toning_stroke_coalesces_queued_moves_and_keeps_bytes",
        ui_toning_stroke_coalesces_queued_moves_and_keeps_bytes},
+      {"ui_dodge_burn_ranges_follow_calibrated_curves", ui_dodge_burn_ranges_follow_calibrated_curves},
+      {"ui_toning_alt_stroke_paints_opposite_operation", ui_toning_alt_stroke_paints_opposite_operation},
   };
 }

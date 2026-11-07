@@ -17316,6 +17316,10 @@ Do you want to replace it?</source>
         <source>Object Selection found no object in the outline; the outline is kept</source>
         <translation>对象选择未在轮廓内找到对象；保留轮廓</translation>
     </message>
+    <message>
+        <source>%1 while %ALT% is held</source>
+        <translation>按住 %ALT% 时为%1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -33379,6 +33383,10 @@ Locked: %1</source>
     <message>
         <source>The selected layers are not linked</source>
         <translation>所选图层未链接</translation>
+    </message>
+    <message>
+        <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1：%ALT%+拖动以%2绘制，Shift+单击画直线，%ALT%+右键拖动更改大小和柔和度。</translation>
     </message>
 </context>
 <context>

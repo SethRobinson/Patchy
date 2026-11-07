@@ -17316,6 +17316,10 @@ Do you want to replace it?</source>
         <source>Object Selection found no object in the outline; the outline is kept</source>
         <translation>개체 선택이 윤곽선 안에서 개체를 찾지 못했습니다. 윤곽선은 그대로 유지됩니다</translation>
     </message>
+    <message>
+        <source>%1 while %ALT% is held</source>
+        <translation>%ALT%를 누르는 동안 %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -33379,6 +33383,10 @@ Locked: %1</source>
     <message>
         <source>The selected layers are not linked</source>
         <translation>선택한 레이어가 연결되어 있지 않습니다</translation>
+    </message>
+    <message>
+        <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %ALT%+드래그로 %2 적용, Shift+클릭으로 직선, %ALT%+오른쪽 드래그로 크기와 부드러움을 바꿉니다.</translation>
     </message>
 </context>
 <context>

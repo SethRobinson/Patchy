@@ -19,6 +19,7 @@
 #include "core/vector_shape.hpp"
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget_shared.hpp"
+#include "ui/main_window_shared.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/modifier_names.hpp"
 #include "ui/qt_geometry.hpp"
@@ -328,6 +329,15 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
         // click would select (GitHub issue 73); refresh the outline from the
         // folded modifiers at the last pointer position, no motion needed.
         update_move_hover_outline(last_mouse_position_, modifiers);
+      } else if (key_event->key() == Qt::Key_Alt && alt_swapped_toning_tool(tool_) != tool_) {
+        // Alt swaps Dodge and Burn, Blur and Sharpen for a stroke that starts with it held
+        // (GitHub #662): the status bar names the operation a press would paint.
+        if (!painting_ && status_callback_) {
+          const auto alt_held = (modifiers & Qt::AltModifier) != 0;
+          const auto operation = alt_held ? alt_swapped_toning_tool(tool_) : tool_;
+          const auto name = tool_name(operation);
+          status_callback_(alt_held ? resolve_modifier_names(tr("%1 while %ALT% is held")).arg(name) : name);
+        }
       } else if ((key_event->key() == Qt::Key_Alt && retouch_source_tool_active()) ||
                  (key_event->key() == Qt::Key_Control && tool_has_ctrl_temporary_move(tool_))) {
         // Ctrl is every painting tool's temporary Move and Alt Clone's and Healing's source
@@ -1175,8 +1185,11 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       report_status_error(tr("Local adjustment brushes are unavailable while editing a grayscale channel"));
       return;
     }
+    // Alt at the press paints the stroke with the opposite tool (GitHub #662).
+    const bool alt_swap = event->modifiers().testFlag(Qt::AltModifier) &&
+                          alt_swapped_toning_tool(effective_tool) != effective_tool;
     QString label;
-    switch (effective_tool) {
+    switch (alt_swap ? alt_swapped_toning_tool(effective_tool) : effective_tool) {
       case CanvasTool::Dodge:
         label = tr("Dodge");
         break;
@@ -1211,6 +1224,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       arm_paint_stroke_history();
       lap(timings.history_ms);
       clear_brush_stroke_tracking();
+      local_adjustment_alt_swap_ = alt_swap;
       if (auto* layer = active_pixel_layer(); layer != nullptr && document_->active_layer_id().has_value()) {
         ensure_brush_stroke_layer_snapshot(*document_->active_layer_id(), std::as_const(*layer));
       }

@@ -17410,6 +17410,10 @@ Czy chcesz go zastąpić?</translation>
         <source>Object Selection found no object in the outline; the outline is kept</source>
         <translation>Zaznaczanie obiektu nie znalazło obiektu w obrysie; obrys pozostaje</translation>
     </message>
+    <message>
+        <source>%1 while %ALT% is held</source>
+        <translation>%1, dopóki %ALT% jest wciśnięty</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -33555,6 +33559,10 @@ Zablokowano: %1</translation>
     <message>
         <source>The selected layers are not linked</source>
         <translation>Zaznaczone warstwy nie są połączone</translation>
+    </message>
+    <message>
+        <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %ALT%+przeciągnięcie maluje jako %2, Shift+kliknięcie rysuje linię, %ALT%+przeciągnięcie prawym przyciskiem zmienia rozmiar i miękkość.</translation>
     </message>
 </context>
 <context>

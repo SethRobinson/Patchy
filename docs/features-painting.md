@@ -2,7 +2,7 @@
 
 Split from [features.md](features.md): painting and retouching tools, brushes, transforms, selections, filters, guides and measurement, and pen input.
 
-- Raster editing tools: Brush with Flow and timed Airbrush buildup (while Airbrush is on, number keys set Flow and the options bar briefly highlights Flow and Airbrush), Healing Brush, Spot Healing, Patch, Content-Aware Move (Object Selection, new layer), Red Eye, Clone Stamp, Remove Object, Dodge, Burn, Sponge, Blur, Sharpen, Smudge, Eraser, gradients (5 styles, pixel or fill), shapes, and Edit > Fill (color, mode, opacity, Content-Aware)
+- Raster editing tools: Brush with Flow and timed Airbrush buildup (while Airbrush is on, number keys set Flow and the options bar briefly highlights Flow and Airbrush), Healing Brush, Spot Healing, Patch, Content-Aware Move (Object Selection, new layer), Red Eye, Clone Stamp, Remove Object, Dodge, Burn, Sponge, Blur, Sharpen (Alt swaps Dodge and Burn, Blur and Sharpen for a stroke; Dodge and Burn Ranges calibrated against Photoshop), Smudge, Eraser, gradients (5 styles, pixel or fill), shapes, and Edit > Fill (color, mode, opacity, Content-Aware)
 - With a selection, Move drags, Free Transform, Skew, Distort and Perspective act on the selected pixels and the selection follows; Select > Transform Selection reshapes the outline
 - Ctrl-drag a transform box's corner or side to distort it (Ctrl mid-drag toggles); right-click a transform, crop or text edit for its menu
 - Retouch sampling from Current Layer, Current & Below, or All Layers, with Ignore Adjustment Layers. Healing Brush heals the stroke on release and offers Replace and blend modes; Red Eye takes a click or a box

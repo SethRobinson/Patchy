@@ -2365,8 +2365,10 @@ private:
   [[nodiscard]] QRect smudge_brush_segment(QPoint from, QPoint to);
   [[nodiscard]] QRect local_adjustment_brush_segment(QPoint from, QPoint to);
   [[nodiscard]] QRect local_adjustment_brush_segment_deep(QPoint from, QPoint to);
-  // The operation a Dodge, Burn, Sponge, Blur or Sharpen stroke paints with.
+  // The operation a Dodge, Burn, Sponge, Blur or Sharpen stroke paints with: the tool, or
+  // its opposite for a stroke that started with Alt held (GitHub #662).
   [[nodiscard]] CanvasTool local_adjustment_operation() const noexcept;
+  [[nodiscard]] float local_adjustment_stroke_amount(CanvasTool operation) const noexcept;
   [[nodiscard]] QRect clone_brush_segment_deep(QPoint from, QPoint to);
   [[nodiscard]] PixelBuffer retouch_source_deep();
   void notify_clone_source_changed();
@@ -4250,6 +4252,9 @@ private:
   int local_adjustment_strength_{50};
   LocalToneRange local_tone_range_{LocalToneRange::Midtones};
   bool local_protect_tones_{true};
+  // The current stroke started with Alt held: Dodge paints as Burn, Blur as Sharpen and
+  // back (GitHub #662; local_adjustment_operation).
+  bool local_adjustment_alt_swap_{false};
   SpongeMode sponge_mode_{SpongeMode::Desaturate};
   bool sponge_vibrance_{true};
   int eyedropper_sample_size_{1};

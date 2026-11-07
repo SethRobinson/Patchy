@@ -17363,6 +17363,10 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Object Selection found no object in the outline; the outline is kept</source>
         <translation>Die Objektauswahl hat in der Kontur kein Objekt gefunden; die Kontur bleibt erhalten</translation>
     </message>
+    <message>
+        <source>%1 while %ALT% is held</source>
+        <translation>%1, solange %ALT% gedrückt ist</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -33467,6 +33471,10 @@ Fixiert: %1</translation>
     <message>
         <source>The selected layers are not linked</source>
         <translation>Die ausgewählten Ebenen sind nicht verknüpft</translation>
+    </message>
+    <message>
+        <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %ALT%+Ziehen malt mit %2, Umschalt+Klick zeichnet eine Linie, %ALT%+Rechtsziehen ändert Größe und Weichheit.</translation>
     </message>
 </context>
 <context>

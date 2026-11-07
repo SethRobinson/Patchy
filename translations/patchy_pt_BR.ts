@@ -17363,6 +17363,10 @@ Deseja substituí-lo?</translation>
         <source>Object Selection found no object in the outline; the outline is kept</source>
         <translation>A seleção de objeto não encontrou nenhum objeto no contorno; o contorno é mantido</translation>
     </message>
+    <message>
+        <source>%1 while %ALT% is held</source>
+        <translation>%1 enquanto %ALT% estiver pressionado</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -33467,6 +33471,10 @@ Bloqueado: %1</translation>
     <message>
         <source>The selected layers are not linked</source>
         <translation>As camadas selecionadas não estão vinculadas</translation>
+    </message>
+    <message>
+        <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %ALT%+arrastar pinta com %2, Shift+clique traça uma linha, %ALT%+arrastar com o botão direito altera o tamanho e a suavidade.</translation>
     </message>
 </context>
 <context>
