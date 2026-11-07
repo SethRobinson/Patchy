@@ -434,6 +434,62 @@ void tool_smudge_drags_source_pixels_and_writes_artifact() {
   write_bmp_artifact("tool_smudge", document);
 }
 
+// GitHub issue 660: a big Smudge dab fans its rows out over bands. Every pixel's smear and
+// pickup touch only that pixel and its own carried-sample entry, so the bands leave the
+// bytes of the one-thread walk, at 8 and 16 bits, under a feathered selection, with a
+// carried sample that keeps picking up (opacity below 100%).
+void tool_smudge_banded_dabs_keep_bytes() {
+  for (const bool deep : {false, true}) {
+    const auto paint = [deep](bool single_threaded) {
+      constexpr std::int32_t kWidth = 420;
+      constexpr std::int32_t kHeight = 360;
+      patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+      auto pixels = solid_rgba(kWidth, kHeight, 0, 0, 0, 255);
+      for (std::int32_t y = 0; y < kHeight; ++y) {
+        for (std::int32_t x = 0; x < kWidth; ++x) {
+          auto* px = pixels.pixel(x, y);
+          px[0] = static_cast<std::uint8_t>((x * 7 + y * 3) % 256);
+          px[1] = static_cast<std::uint8_t>((y * 5) % 256);
+          px[2] = static_cast<std::uint8_t>(((x ^ y) * 11) % 256);
+          px[3] = static_cast<std::uint8_t>(x < 40 ? 128 : 255);
+        }
+      }
+      const auto layer_id = document.add_pixel_layer("Smudge", std::move(pixels)).id();
+      if (deep) {
+        patchy::convert_document_depth(document, patchy::BitDepth::UInt16);
+      }
+      auto options = tool_options();
+      options.brush_size = 241;
+      options.brush_softness = 60;
+      options.primary.a = 150;
+      options.selection_coverage = [](std::int32_t x, std::int32_t y) {
+        const auto dx = static_cast<float>(x - 210);
+        const auto dy = static_cast<float>(y - 180);
+        return std::clamp(1.2F - std::sqrt(dx * dx + dy * dy) / 180.0F, 0.0F, 1.0F);
+      };
+      patchy::SmudgeState state;
+      state.single_threaded = single_threaded;
+      std::array<std::int32_t, 2> previous{120, 150};
+      static_cast<void>(patchy::smudge_brush_segment(document, layer_id, previous[0], previous[1], previous[0],
+                                                     previous[1], options, state));
+      patchy::Rect dirty;
+      for (int index = 1; index <= 12; ++index) {
+        const std::array<std::int32_t, 2> next{120 + index * 17, 150 + static_cast<std::int32_t>(40.0 * std::sin(index * 0.5))};
+        dirty = patchy::unite_rect(dirty, patchy::smudge_brush_segment(document, layer_id, previous[0], previous[1],
+                                                                       next[0], next[1], options, state));
+        previous = next;
+      }
+      CHECK(!dirty.empty());
+      const auto bytes = std::as_const(*document.find_layer(layer_id)).pixels().data();
+      return std::pair{std::vector<std::uint8_t>(bytes.begin(), bytes.end()), dirty};
+    };
+    const auto single = paint(true);
+    const auto banded = paint(false);
+    CHECK(banded.first == single.first);
+    CHECK(banded.second == single.second);
+  }
+}
+
 void tool_line_draws_and_writes_artifact() {
   auto document = make_tool_document();
   const auto layer_id = active_tool_layer(document);
@@ -2160,6 +2216,7 @@ std::vector<patchy::test::TestCase> pixel_tools_tests() {
       {"tool_eraser_clears_alpha_and_writes_artifact", tool_eraser_clears_alpha_and_writes_artifact},
       {"tool_eraser_converts_rgb_layer_to_transparency", tool_eraser_converts_rgb_layer_to_transparency},
       {"tool_smudge_drags_source_pixels_and_writes_artifact", tool_smudge_drags_source_pixels_and_writes_artifact},
+      {"tool_smudge_banded_dabs_keep_bytes", tool_smudge_banded_dabs_keep_bytes},
       {"tool_line_draws_and_writes_artifact", tool_line_draws_and_writes_artifact},
       {"tool_rectangle_draws_outline_and_writes_artifact", tool_rectangle_draws_outline_and_writes_artifact},
       {"tool_ellipse_draws_and_writes_artifact", tool_ellipse_draws_and_writes_artifact},

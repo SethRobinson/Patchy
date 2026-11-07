@@ -3899,6 +3899,170 @@ void clone_press_perf() {
   }
 }
 
+// The toning and detail brushes (Dodge, Burn, Sponge, Blur, Sharpen, Smudge) on a
+// 3580x5370 RGB JPEG the size of GitHub issue 660's image (the #597 one): each step of a press
+// (CanvasWidget::last_retouch_press_timings), the first frame, a 60-move stroke at 100% with
+// its per-move cost, and a queue of 240 moves as Wayland delivers a fast mouse, handled one by
+// one ("off") and coalesced ("on"). Small and big brush; PATCHY_RENDER_THREADS=4 prices a
+// 4-core laptop.
+void toning_stroke_perf() {
+  isolate_perf_settings();
+  constexpr int kWidth = 3580;
+  constexpr int kHeight = 5370;
+  const auto image_path = std::filesystem::absolute("test-artifacts/perf_toning_3580x5370.jpg");
+  {
+    std::filesystem::create_directories(image_path.parent_path());
+    QImage image(kWidth, kHeight, QImage::Format_RGB32);
+    for (int y = 0; y < kHeight; ++y) {
+      auto* row = reinterpret_cast<QRgb*>(image.scanLine(y));
+      for (int x = 0; x < kWidth; ++x) {
+        row[x] = qRgb((x / 7) % 256, (y / 9) % 256, ((x + y) / 13) % 256);
+      }
+    }
+    CHECK(image.save(patchy::ui::to_qstring(image_path), "JPG", 92));
+  }
+  patchy::ui::MainWindow window;
+  window.resize(1600, 1000);
+  if (qEnvironmentVariableIsSet("PATCHY_PERF_ONSCREEN")) {
+    window.showMaximized();
+  } else {
+    window.show();
+  }
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(image_path));
+  QApplication::processEvents();
+  auto* canvas = active_canvas(window);
+  CHECK(canvas != nullptr);
+  if (canvas == nullptr) {
+    return;
+  }
+  const auto settle = [canvas] {
+    const auto started = Clock::now();
+    while (!canvas->render_settled() && std::chrono::duration<double>(Clock::now() - started).count() < 60.0) {
+      canvas->repaint();
+      QApplication::processEvents();
+    }
+  };
+  const auto send = [canvas](QEvent::Type type, QPointF position, Qt::MouseButton button, Qt::MouseButtons buttons,
+                             Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    QMouseEvent event(type, position, canvas->mapToGlobal(position), button, buttons, modifiers);
+    QApplication::sendEvent(canvas, &event);
+  };
+  const auto summary = [](std::vector<double> values) {
+    std::sort(values.begin(), values.end());
+    double total = 0.0;
+    for (const auto value : values) {
+      total += value;
+    }
+    std::ostringstream text;
+    text << std::fixed << std::setprecision(2) << "avg=" << total / static_cast<double>(values.size())
+         << " median=" << values[values.size() / 2] << " max=" << values.back();
+    return text.str();
+  };
+  struct ToolCase {
+    const char* label;
+    patchy::ui::CanvasTool tool;
+  };
+  canvas->set_local_adjustment_strength(50);
+  for (const auto& tool_case : {ToolCase{"dodge", patchy::ui::CanvasTool::Dodge},
+                                ToolCase{"burn", patchy::ui::CanvasTool::Burn},
+                                ToolCase{"sponge", patchy::ui::CanvasTool::Sponge},
+                                ToolCase{"blur", patchy::ui::CanvasTool::BlurBrush},
+                                ToolCase{"sharpen", patchy::ui::CanvasTool::SharpenBrush},
+                                ToolCase{"smudge", patchy::ui::CanvasTool::Smudge}}) {
+    canvas->set_tool(tool_case.tool);
+    canvas->set_brush_opacity(50);
+    for (const int brush_size : {60, 400}) {
+      canvas->set_zoom_centered(1.0);
+      canvas->set_brush_size(brush_size);
+      canvas->set_brush_softness(50);
+      settle();
+      const auto start = QPointF(canvas->widget_position_for_document_point(QPoint(1700, 2600)));
+      const auto at = [&](double index) { return start + QPointF(6.0 * index, 18.0 * std::sin(index * 0.15)); };
+      send(QEvent::MouseMove, at(0), Qt::NoButton, Qt::NoButton);
+      QApplication::processEvents();
+      canvas->repaint();
+      settle();
+      const auto press_ms = elapsed_ms([&] { send(QEvent::MouseButtonPress, at(0), Qt::LeftButton, Qt::LeftButton); });
+      const auto timings = canvas->last_retouch_press_timings();
+      const auto frame_ms = elapsed_ms([&] {
+        QApplication::processEvents();
+        canvas->repaint();
+      });
+      std::vector<double> move_ms;
+      std::vector<double> paint_ms;
+      double first_move_ms = 0.0;
+      const auto cpu_before = process_cpu_ms();
+      const auto stroke_ms = elapsed_ms([&] {
+        for (int index = 1; index <= 60; ++index) {
+          const auto one = elapsed_ms([&] {
+            send(QEvent::MouseMove, at(index), Qt::NoButton, Qt::LeftButton);
+            QApplication::processEvents();
+          });
+          if (index == 1) {
+            first_move_ms = one;
+          } else {
+            move_ms.push_back(one);
+          }
+          paint_ms.push_back(elapsed_ms([&] { canvas->repaint(); }));
+        }
+      });
+      const auto stroke_cpu = process_cpu_ms() - cpu_before;
+      const auto release_ms = elapsed_ms([&] {
+        send(QEvent::MouseButtonRelease, at(60), Qt::LeftButton, Qt::NoButton);
+        QApplication::processEvents();
+        settle();
+      });
+      std::cout << std::fixed << std::setprecision(2) << "[PERF] toningstroke " << kWidth << "x" << kHeight << " "
+                << tool_case.label << " size=" << brush_size << " press_event_ms=" << press_ms
+                << " (begin_edit_ms=" << timings.begin_edit_ms << " history_ms=" << timings.history_ms
+                << " source_ms=" << timings.source_ms << " setup_ms=" << timings.setup_ms
+                << " first_dab_ms=" << timings.first_dab_ms << " layer_detach_ms=" << timings.layer_detach_ms
+                << " preview_ms=" << timings.preview_ms << ") first_frame_ms=" << frame_ms
+                << " first_move_ms=" << first_move_ms << " stroke_ms=" << stroke_ms
+                << " stroke_cpu_ms=" << stroke_cpu << " release_ms=" << release_ms << " move_ms "
+                << summary(move_ms) << " paint_ms " << summary(paint_ms) << '\n';
+      patchy::ui::MainWindowTestAccess::undo(window);
+      settle();
+      for (const bool coalesce : {false, true}) {
+        canvas->set_drag_move_coalescing_for_testing(coalesce
+                                                         ? patchy::ui::CanvasWidget::DragMoveCoalescing::AllMoves
+                                                         : patchy::ui::CanvasWidget::DragMoveCoalescing::Off);
+        const auto queued_at = [&](double index) {
+          return start + QPointF(3.0 * index, 9.0 * std::sin(index * 0.15));
+        };
+        send(QEvent::MouseMove, queued_at(0), Qt::NoButton, Qt::NoButton);
+        QApplication::processEvents();
+        settle();
+        const auto queued_press_ms =
+            elapsed_ms([&] { send(QEvent::MouseButtonPress, queued_at(0), Qt::LeftButton, Qt::LeftButton); });
+        const auto coalesced_before = canvas->render_cache_diagnostics().drag_moves_coalesced;
+        for (int index = 1; index <= 240; ++index) {
+          QApplication::postEvent(canvas, new QMouseEvent(QEvent::MouseMove, queued_at(index),
+                                                          canvas->mapToGlobal(queued_at(index)), Qt::NoButton,
+                                                          Qt::LeftButton, Qt::NoModifier));
+        }
+        const auto drain_ms = elapsed_ms([] {
+          QApplication::processEvents();
+          QApplication::processEvents();
+        });
+        const auto queued_frame_ms = elapsed_ms([canvas] { canvas->repaint(); });
+        const auto coalesced = canvas->render_cache_diagnostics().drag_moves_coalesced - coalesced_before;
+        send(QEvent::MouseButtonRelease, queued_at(240), Qt::LeftButton, Qt::NoButton);
+        QApplication::processEvents();
+        settle();
+        std::cout << std::fixed << std::setprecision(2) << "[PERF] toningstroke " << kWidth << "x" << kHeight << " "
+                  << tool_case.label << " queued240 coalesce=" << (coalesce ? "on" : "off") << " size=" << brush_size
+                  << " press_ms=" << queued_press_ms << " drain_ms=" << drain_ms << " frame_ms=" << queued_frame_ms
+                  << " moves_coalesced=" << coalesced << '\n';
+        patchy::ui::MainWindowTestAccess::undo(window);
+        settle();
+      }
+      canvas->set_drag_move_coalescing_for_testing(patchy::ui::CanvasWidget::DragMoveCoalescing::Default);
+    }
+  }
+}
+
 // A small 8-bit CMYK PSD painted with the Brush, in CMYK Proof and after leaving it,
 // against a plain RGB document of the same size (GitHub issue 220's second sample, ag-psd's
 // test/read/cmyk/src.psd). PATCHY_PERF_CMYK_PSD overrides the fixture path.
@@ -4378,6 +4542,10 @@ int main(int argc, char* argv[]) {
     }
     if (argc > 1 && std::string_view(argv[1]) == "clonepress") {
       run_scenario("clonepress", clone_press_perf);
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "toningstroke") {
+      run_scenario("toningstroke", toning_stroke_perf);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "cmykbrush") {

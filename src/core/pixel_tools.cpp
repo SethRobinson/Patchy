@@ -4,12 +4,14 @@
 #include "core/hdr_color.hpp"
 #include "core/pixel_depth.hpp"
 #include "core/pixel_tools_internal.hpp"
+#include "core/worker_budget.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <future>
 #include <limits>
 #include <utility>
 #include <vector>
@@ -2240,6 +2242,59 @@ Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0,
 
 namespace {
 
+// The columns [first, second) of row y a Smudge dab can change: its disk of `radius` around
+// the center (brush_coverage is 0 outside it), clipped to the dab rect (GitHub issue 660).
+std::pair<std::int32_t, std::int32_t> smudge_dab_row_span(const Rect& dab_rect, std::int32_t center_x,
+                                                         std::int32_t center_y, int radius, std::int32_t y) {
+  const auto row_offset = static_cast<std::int64_t>(y) - center_y;
+  const auto remaining = static_cast<std::int64_t>(radius) * radius - row_offset * row_offset;
+  if (remaining < 0) {
+    return {0, 0};
+  }
+  auto half = static_cast<std::int64_t>(std::sqrt(static_cast<double>(remaining)));
+  while (half * half > remaining) {
+    --half;
+  }
+  while ((half + 1) * (half + 1) <= remaining) {
+    ++half;
+  }
+  const auto first = std::max<std::int64_t>(dab_rect.x, center_x - half);
+  const auto end = std::min<std::int64_t>(static_cast<std::int64_t>(dab_rect.x) + dab_rect.width, center_x + half + 1);
+  return first < end ? std::pair{static_cast<std::int32_t>(first), static_cast<std::int32_t>(end)}
+                     : std::pair{std::int32_t{0}, std::int32_t{0}};
+}
+
+// A big Smudge dab fans its rows out over bands (GitHub issue 660): each pixel's smear and
+// pickup read and write only that pixel and its own carried-sample entry, so the bands
+// give the sequential walk's bytes; `band(row_begin, row_end)` returns its dirty rect.
+// The caller detaches the layer bytes on this thread first.
+template <typename Band>
+Rect run_smudge_dab_bands(const Rect& dab_rect, bool allow_parallel, Band&& band) {
+  constexpr std::int64_t kSmudgeParallelPixels = 16384;
+  constexpr std::int32_t kMinRowsPerBand = 16;
+  const auto pixels = static_cast<std::int64_t>(dab_rect.width) * dab_rect.height;
+  auto workers = 1;
+  if (allow_parallel && pixels >= kSmudgeParallelPixels && dab_rect.height >= 2 * kMinRowsPerBand) {
+    workers = max_blocking_fanout_workers(
+        std::clamp(std::min(dab_rect.height / kMinRowsPerBand, hardware_worker_threads()), 1, 16));
+  }
+  if (workers < 2) {
+    return band(dab_rect.y, dab_rect.y + dab_rect.height);
+  }
+  const auto rows_per_band = (dab_rect.height + workers - 1) / workers;
+  std::vector<std::future<Rect>> futures;
+  futures.reserve(static_cast<std::size_t>(workers));
+  for (auto row_begin = dab_rect.y; row_begin < dab_rect.y + dab_rect.height; row_begin += rows_per_band) {
+    const auto row_end = std::min(row_begin + rows_per_band, dab_rect.y + dab_rect.height);
+    futures.push_back(std::async(std::launch::async, [&band, row_begin, row_end] { return band(row_begin, row_end); }));
+  }
+  Rect dirty;
+  for (auto& future : futures) {
+    dirty = unite_rect(dirty, future.get());
+  }
+  return dirty;
+}
+
 // smudge_brush_segment for 16/32-bit layers: the same carried-sample smear on float
 // samples, without byte rounding (docs/high-bit-depth.md).
 std::array<float, 4> sample_layer_deep(const Layer& layer, std::int32_t document_x, std::int32_t document_y) {
@@ -2299,6 +2354,11 @@ Rect smudge_brush_segment_deep(Document& document, Layer& layer, std::int32_t x0
     capture_smudge_sample_deep(state, layer, x0, y0, radius);
   }
   Rect dirty;
+  const auto pickup = std::clamp(1.0F - strength, 0.0F, 1.0F);
+  auto* layer_bytes = pixels.data().data();  // detaches shared storage on this thread
+  const auto stride = pixels.stride_bytes();
+  const auto pixel_bytes = bytes_per_pixel(format);
+  const auto allow_parallel = !options.stroke_pixel_gate && !state.single_threaded;
   const auto stamp_at = [&](std::int32_t center_x, std::int32_t center_y) {
     const auto dab_rect = intersect_rect(Rect{center_x - radius, center_y - radius, diameter, diameter}, stroke_rect);
     if (dab_rect.empty()) {
@@ -2310,54 +2370,62 @@ Rect smudge_brush_segment_deep(Document& document, Layer& layer, std::int32_t x0
       return brush_coverage(static_cast<double>(ox * ox + oy * oy), radius, options.brush_softness) *
              selection_coverage(options, x, y);
     };
-    for (std::int32_t py = dab_rect.y; py < dab_rect.y + dab_rect.height; ++py) {
-      for (std::int32_t px_doc = dab_rect.x; px_doc < dab_rect.x + dab_rect.width; ++px_doc) {
-        const auto coverage = coverage_at(px_doc, py);
-        if (coverage <= 0.0F || (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py))) {
-          continue;
-        }
-        auto* dst = pixels.pixel(px_doc - bounds.x, py - bounds.y);
-        const auto before = load_pixel(format, dst);
-        if (options.lock_transparent_pixels && format.channels >= 4 && before[3] <= 0.0F) {
-          continue;
-        }
-        const auto* src = state.sample_deep.data() +
-                          static_cast<std::size_t>(((py - (center_y - radius)) * state.diameter +
-                                                    (px_doc - (center_x - radius))) * 4);
-        const auto amount = std::clamp(strength * coverage, 0.0F, 1.0F);
-        auto value = before;
-        for (std::size_t c = 0; c < 3U; ++c) {
-          value[c] = src[c] * amount + before[c] * (1.0F - amount);
-        }
-        if (format.channels >= 4 && !options.lock_transparent_pixels) {
-          value[3] = src[3] * amount + before[3] * (1.0F - amount);
-        }
-        store_pixel(format, dst, value);
-        if (load_pixel(format, dst) != before) {
-          dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
-        }
-      }
-    }
-    const auto pickup = std::clamp(1.0F - strength, 0.0F, 1.0F);
-    if (pickup <= 0.0F) {
-      return;
-    }
-    for (std::int32_t py = dab_rect.y; py < dab_rect.y + dab_rect.height; ++py) {
-      for (std::int32_t px_doc = dab_rect.x; px_doc < dab_rect.x + dab_rect.width; ++px_doc) {
-        const auto coverage = coverage_at(px_doc, py);
-        if (coverage <= 0.0F) {
-          continue;
-        }
-        const auto current = sample_layer_deep(layer, px_doc, py);
-        auto* sample = state.sample_deep.data() +
-                       static_cast<std::size_t>(((py - (center_y - radius)) * state.diameter +
-                                                 (px_doc - (center_x - radius))) * 4);
-        const auto amount = std::clamp(pickup * coverage, 0.0F, 1.0F);
-        for (std::size_t c = 0; c < 4U; ++c) {
-          sample[c] = current[c] * amount + sample[c] * (1.0F - amount);
+    // One band of the dab's rows: the smear, then the pickup (GitHub issue 660).
+    const auto band = [&](std::int32_t row_begin, std::int32_t row_end) {
+      Rect band_dirty;
+      for (std::int32_t py = row_begin; py < row_end; ++py) {
+        const auto span = smudge_dab_row_span(dab_rect, center_x, center_y, radius, py);
+        auto* row = layer_bytes + static_cast<std::size_t>(py - bounds.y) * stride;
+        for (std::int32_t px_doc = span.first; px_doc < span.second; ++px_doc) {
+          const auto coverage = coverage_at(px_doc, py);
+          if (coverage <= 0.0F || (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py))) {
+            continue;
+          }
+          auto* dst = row + static_cast<std::size_t>(px_doc - bounds.x) * pixel_bytes;
+          const auto before = load_pixel(format, dst);
+          if (options.lock_transparent_pixels && format.channels >= 4 && before[3] <= 0.0F) {
+            continue;
+          }
+          const auto* src = state.sample_deep.data() +
+                            static_cast<std::size_t>(((py - (center_y - radius)) * state.diameter +
+                                                      (px_doc - (center_x - radius))) * 4);
+          const auto amount = std::clamp(strength * coverage, 0.0F, 1.0F);
+          auto value = before;
+          for (std::size_t c = 0; c < 3U; ++c) {
+            value[c] = src[c] * amount + before[c] * (1.0F - amount);
+          }
+          if (format.channels >= 4 && !options.lock_transparent_pixels) {
+            value[3] = src[3] * amount + before[3] * (1.0F - amount);
+          }
+          store_pixel(format, dst, value);
+          if (load_pixel(format, dst) != before) {
+            band_dirty = unite_rect(band_dirty, Rect{px_doc, py, 1, 1});
+          }
         }
       }
-    }
+      if (pickup <= 0.0F) {
+        return band_dirty;
+      }
+      for (std::int32_t py = row_begin; py < row_end; ++py) {
+        const auto span = smudge_dab_row_span(dab_rect, center_x, center_y, radius, py);
+        for (std::int32_t px_doc = span.first; px_doc < span.second; ++px_doc) {
+          const auto coverage = coverage_at(px_doc, py);
+          if (coverage <= 0.0F) {
+            continue;
+          }
+          const auto current = sample_layer_deep(layer, px_doc, py);
+          auto* sample = state.sample_deep.data() +
+                         static_cast<std::size_t>(((py - (center_y - radius)) * state.diameter +
+                                                   (px_doc - (center_x - radius))) * 4);
+          const auto amount = std::clamp(pickup * coverage, 0.0F, 1.0F);
+          for (std::size_t c = 0; c < 4U; ++c) {
+            sample[c] = current[c] * amount + sample[c] * (1.0F - amount);
+          }
+        }
+      }
+      return band_dirty;
+    };
+    dirty = unite_rect(dirty, run_smudge_dab_bands(dab_rect, allow_parallel, band));
   };
   const auto distance = std::sqrt(static_cast<double>(dx) * dx + static_cast<double>(dy) * dy);
   const auto spacing = std::max(1.0, static_cast<double>(radius) * 0.2);
@@ -2435,6 +2503,10 @@ Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0,
   }
 
   Rect dirty;
+  const auto pickup = std::clamp(1.0F - strength, 0.0F, 1.0F);
+  auto* layer_bytes = pixels.data().data();  // detaches shared storage on this thread
+  const auto stride = pixels.stride_bytes();
+  const auto allow_parallel = !options.stroke_pixel_gate && !state.single_threaded;
   const auto stamp_at = [&](std::int32_t center_x, std::int32_t center_y) {
     const auto dab_rect = intersect_rect(
         Rect{center_x - radius, center_y - radius, diameter, diameter}, stroke_rect);
@@ -2442,106 +2514,113 @@ Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0,
       return;
     }
 
-    for (std::int32_t py = dab_rect.y; py < dab_rect.y + dab_rect.height; ++py) {
-      auto row = pixels.row(py - bounds.y);
-      for (std::int32_t px_doc = dab_rect.x; px_doc < dab_rect.x + dab_rect.width; ++px_doc) {
-        const auto sample_x = px_doc - (center_x - radius);
-        const auto sample_y = py - (center_y - radius);
-        const auto distance_x = px_doc - center_x;
-        const auto distance_y = py - center_y;
-        auto coverage = brush_coverage(static_cast<double>(distance_x * distance_x + distance_y * distance_y),
-                                       radius, options.brush_softness);
-        coverage *= selection_coverage(options, px_doc, py);
-        if (coverage <= 0.0F) {
-          continue;
-        }
-        const auto* snap = options.palette_snap;
-        if (snap != nullptr) {
-          if (coverage < snap->coverage_threshold) {
+    // One band of the dab's rows: the smear, then the pickup (GitHub issue 660). Each
+    // pixel's write and pickup touch only its own bytes and its own carried-sample entry.
+    const auto band = [&](std::int32_t row_begin, std::int32_t row_end) {
+      Rect band_dirty;
+      for (std::int32_t py = row_begin; py < row_end; ++py) {
+        const auto span = smudge_dab_row_span(dab_rect, center_x, center_y, radius, py);
+        auto* row = layer_bytes + static_cast<std::size_t>(py - bounds.y) * stride;
+        for (std::int32_t px_doc = span.first; px_doc < span.second; ++px_doc) {
+          const auto sample_x = px_doc - (center_x - radius);
+          const auto sample_y = py - (center_y - radius);
+          const auto distance_x = px_doc - center_x;
+          const auto distance_y = py - center_y;
+          auto coverage = brush_coverage(static_cast<double>(distance_x * distance_x + distance_y * distance_y),
+                                         radius, options.brush_softness);
+          coverage *= selection_coverage(options, px_doc, py);
+          if (coverage <= 0.0F) {
             continue;
           }
-          coverage = 1.0F;
-        }
+          const auto* snap = options.palette_snap;
+          if (snap != nullptr) {
+            if (coverage < snap->coverage_threshold) {
+              continue;
+            }
+            coverage = 1.0F;
+          }
 
-        if (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py)) {
-          continue;
-        }
+          if (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py)) {
+            continue;
+          }
 
-        auto* dst = row.data() + static_cast<std::size_t>(px_doc - bounds.x) * channels;
-        if (options.lock_transparent_pixels && channels >= 4 && dst[3] == 0) {
-          continue;
-        }
+          auto* dst = row + static_cast<std::size_t>(px_doc - bounds.x) * channels;
+          if (options.lock_transparent_pixels && channels >= 4 && dst[3] == 0) {
+            continue;
+          }
 
-        std::array<std::uint8_t, 4> pre_snap{};
-        if (snap != nullptr) {
-          for (std::uint16_t channel = 0; channel < channels && channel < pre_snap.size(); ++channel) {
-            pre_snap[channel] = dst[channel];
+          std::array<std::uint8_t, 4> pre_snap{};
+          if (snap != nullptr) {
+            for (std::uint16_t channel = 0; channel < channels && channel < pre_snap.size(); ++channel) {
+              pre_snap[channel] = dst[channel];
+            }
+          }
+          const auto* src =
+              state.sample_rgba.data() +
+              (static_cast<std::size_t>(sample_y) * static_cast<std::size_t>(state.diameter) +
+               static_cast<std::size_t>(sample_x)) *
+                  4U;
+          const auto amount = std::clamp(strength * coverage, 0.0F, 1.0F);
+          bool changed = false;
+          for (std::uint16_t channel = 0; channel < color_channels; ++channel) {
+            const auto value = clamp_byte(static_cast<float>(src[channel]) * amount +
+                                          static_cast<float>(dst[channel]) * (1.0F - amount));
+            changed = changed || value != dst[channel];
+            dst[channel] = value;
+          }
+          if (channels >= 4 && !options.lock_transparent_pixels) {
+            const auto alpha = clamp_byte(static_cast<float>(src[3]) * amount +
+                                          static_cast<float>(dst[3]) * (1.0F - amount));
+            changed = changed || alpha != dst[3];
+            dst[3] = alpha;
+          }
+          if (snap != nullptr) {
+            snap_pixel_to_palette(dst, channels, *snap);
+            changed = false;
+            for (std::uint16_t channel = 0; channel < channels && channel < pre_snap.size(); ++channel) {
+              changed = changed || dst[channel] != pre_snap[channel];
+            }
+          }
+          if (changed) {
+            band_dirty = unite_rect(band_dirty, Rect{px_doc, py, 1, 1});
           }
         }
-        const auto* src =
-            state.sample_rgba.data() +
-            (static_cast<std::size_t>(sample_y) * static_cast<std::size_t>(state.diameter) +
-             static_cast<std::size_t>(sample_x)) *
-                4U;
-        const auto amount = std::clamp(strength * coverage, 0.0F, 1.0F);
-        bool changed = false;
-        for (std::uint16_t channel = 0; channel < color_channels; ++channel) {
-          const auto value = clamp_byte(static_cast<float>(src[channel]) * amount +
-                                        static_cast<float>(dst[channel]) * (1.0F - amount));
-          changed = changed || value != dst[channel];
-          dst[channel] = value;
-        }
-        if (channels >= 4 && !options.lock_transparent_pixels) {
-          const auto alpha = clamp_byte(static_cast<float>(src[3]) * amount +
-                                        static_cast<float>(dst[3]) * (1.0F - amount));
-          changed = changed || alpha != dst[3];
-          dst[3] = alpha;
-        }
-        if (snap != nullptr) {
-          snap_pixel_to_palette(dst, channels, *snap);
-          changed = false;
-          for (std::uint16_t channel = 0; channel < channels && channel < pre_snap.size(); ++channel) {
-            changed = changed || dst[channel] != pre_snap[channel];
+      }
+
+      if (pickup <= 0.0F) {
+        return band_dirty;
+      }
+      for (std::int32_t py = row_begin; py < row_end; ++py) {
+        const auto span = smudge_dab_row_span(dab_rect, center_x, center_y, radius, py);
+        for (std::int32_t px_doc = span.first; px_doc < span.second; ++px_doc) {
+          const auto sample_x = px_doc - (center_x - radius);
+          const auto sample_y = py - (center_y - radius);
+          const auto distance_x = px_doc - center_x;
+          const auto distance_y = py - center_y;
+          auto coverage = brush_coverage(static_cast<double>(distance_x * distance_x + distance_y * distance_y),
+                                         radius, options.brush_softness);
+          coverage *= selection_coverage(options, px_doc, py);
+          if (coverage <= 0.0F) {
+            continue;
+          }
+
+          const auto current = sample_layer_rgba(*layer, px_doc, py);
+          auto* sample =
+              state.sample_rgba.data() +
+              (static_cast<std::size_t>(sample_y) * static_cast<std::size_t>(state.diameter) +
+               static_cast<std::size_t>(sample_x)) *
+                  4U;
+          const auto amount = std::clamp(pickup * coverage, 0.0F, 1.0F);
+          for (std::size_t channel = 0; channel < 4U; ++channel) {
+            sample[channel] = clamp_byte(static_cast<float>(current[channel]) * amount +
+                                         static_cast<float>(sample[channel]) * (1.0F - amount));
           }
         }
-        if (changed) {
-          dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
-        }
       }
-    }
-
-    const auto pickup = std::clamp(1.0F - strength, 0.0F, 1.0F);
-    if (pickup <= 0.0F) {
-      return;
-    }
-    for (std::int32_t py = dab_rect.y; py < dab_rect.y + dab_rect.height; ++py) {
-      for (std::int32_t px_doc = dab_rect.x; px_doc < dab_rect.x + dab_rect.width; ++px_doc) {
-        const auto sample_x = px_doc - (center_x - radius);
-        const auto sample_y = py - (center_y - radius);
-        const auto distance_x = px_doc - center_x;
-        const auto distance_y = py - center_y;
-        auto coverage = brush_coverage(static_cast<double>(distance_x * distance_x + distance_y * distance_y),
-                                       radius, options.brush_softness);
-        coverage *= selection_coverage(options, px_doc, py);
-        if (coverage <= 0.0F) {
-          continue;
-        }
-
-        const auto current = sample_layer_rgba(*layer, px_doc, py);
-        auto* dst =
-            state.sample_rgba.data() +
-            (static_cast<std::size_t>(sample_y) * static_cast<std::size_t>(state.diameter) +
-             static_cast<std::size_t>(sample_x)) *
-                4U;
-        const auto amount = std::clamp(pickup * coverage, 0.0F, 1.0F);
-        for (std::size_t channel = 0; channel < 4U; ++channel) {
-          dst[channel] = clamp_byte(static_cast<float>(current[channel]) * amount +
-                                    static_cast<float>(dst[channel]) * (1.0F - amount));
-        }
-      }
-    }
+      return band_dirty;
+    };
+    dirty = unite_rect(dirty, run_smudge_dab_bands(dab_rect, allow_parallel, band));
   };
-
   const auto distance = std::sqrt(static_cast<double>(dx) * static_cast<double>(dx) +
                                   static_cast<double>(dy) * static_cast<double>(dy));
   const auto spacing = std::max(1.0, static_cast<double>(radius) * 0.2);

@@ -180,6 +180,9 @@ struct SmudgeState {
   // The same carried sample for a 16/32-bit layer: straight RGBA floats on the deep scale
   // in the layer's domain (docs/high-bit-depth.md).
   std::vector<float> sample_deep;
+  // Paint every dab on the calling thread (PATCHY_RENDER_SINGLE_THREADED); otherwise a big
+  // dab fans its rows out over bands with the same bytes (GitHub issue 660).
+  bool single_threaded{false};
 };
 
 // Mixer Brush design boundary (claim review 2026-08-14, docs/patent-research.md): the pickup

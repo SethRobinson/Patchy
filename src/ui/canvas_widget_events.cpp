@@ -1196,26 +1196,46 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
         break;
     }
     const auto paint_layer_artboard = retarget_paint_to_clicked_artboard(document_point);
-    if (begin_edit(label)) {
+    // Each step of the press, for patchy_perf_tests toningstroke (GitHub #660).
+    RetouchPressTimings timings;
+    auto step_started = std::chrono::steady_clock::now();
+    const auto lap = [&step_started](double& into) {
+      const auto now = std::chrono::steady_clock::now();
+      into = std::chrono::duration<double, std::milli>(now - step_started).count();
+      step_started = now;
+    };
+    const bool edit_begun = begin_edit(label);
+    lap(timings.begin_edit_ms);
+    if (edit_begun) {
       add_paint_layer_on_artboard(paint_layer_artboard);
       arm_paint_stroke_history();
+      lap(timings.history_ms);
       clear_brush_stroke_tracking();
       if (auto* layer = active_pixel_layer(); layer != nullptr && document_->active_layer_id().has_value()) {
         ensure_brush_stroke_layer_snapshot(*document_->active_layer_id(), std::as_const(*layer));
       }
+      lap(timings.source_ms);
       begin_axis_constrained_stroke(QPointF(document_point));
       painting_ = true;
       begin_coalesced_mouse_tracking(*this, *event, coalesced_mouse_state_);
       sync_stroke_input_compression();
       last_document_position_ = document_point;
       last_document_position_f_ = QPointF(document_point);
+      lap(timings.setup_ms);
+      retouch_press_times_layer_detach_ = true;
+      last_retouch_press_timings_.layer_detach_ms = 0.0;
       const auto dirty = connect_from.has_value()
                              ? local_adjustment_brush_segment(connect_from->toPoint(), document_point)
                              : local_adjustment_brush_segment(document_point, document_point);
+      retouch_press_times_layer_detach_ = false;
+      timings.layer_detach_ms = last_retouch_press_timings_.layer_detach_ms;
+      lap(timings.first_dab_ms);
       if (!dirty.isEmpty()) {
         active_edit_target_changed_impl(QRegion(dirty), DocumentChangeReason::BrushStrokePreview);
       }
+      lap(timings.preview_ms);
     }
+    last_retouch_press_timings_ = timings;
     return;
   }
 

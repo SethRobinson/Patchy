@@ -2639,6 +2639,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/brush_engine_stroke_tests.cpp
       tests/ui/brush_engine_stroke_tests_healing_patch.cpp
       tests/ui/brush_engine_stroke_tests_strokes.cpp
+      tests/ui/toning_brush_tests.cpp
       tests/ui/text_editor_font_picker_tests.cpp
       tests/ui/font_picker_filter_tests.cpp
       tests/ui/psd_text_import_tests.cpp

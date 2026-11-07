@@ -1723,12 +1723,19 @@ protected:
   void flush_pending_drag_move();
   // The drags whose moves coalesce: Move tool, Free Transform, a held pick (the Pick
   // tool or a paint tool's Alt eyedropper, GitHub #478), and a Clone or Healing stroke
-  // (GitHub #597), which keeps every recorded position (pending_stroke_positions_).
+  // (GitHub #597), Smudge and the toning brushes (GitHub #660), which keep every recorded
+  // position (pending_stroke_positions_).
   [[nodiscard]] bool coalescing_drag_active() const noexcept {
     return moving_layer_ || dragging_transform_ || color_picking_ || coalescing_retouch_stroke();
   }
+  // Smudge and the toning brushes (Dodge, Burn, Sponge, Blur, Sharpen) coalesce the same
+  // way (GitHub #660).
   [[nodiscard]] bool coalescing_retouch_stroke() const noexcept {
-    return painting_ && retouch_source_tool_active();
+    return painting_ && (retouch_source_tool_active() || toning_stroke_tool_active());
+  }
+  [[nodiscard]] bool toning_stroke_tool_active() const noexcept {
+    return tool_ == CanvasTool::Smudge || tool_ == CanvasTool::Dodge || tool_ == CanvasTool::Burn ||
+           tool_ == CanvasTool::Sponge || tool_ == CanvasTool::BlurBrush || tool_ == CanvasTool::SharpenBrush;
   }
   void cancel_pointer_gestures();
   void mouseDoubleClickEvent(QMouseEvent* event) override;
@@ -2358,6 +2365,8 @@ private:
   [[nodiscard]] QRect smudge_brush_segment(QPoint from, QPoint to);
   [[nodiscard]] QRect local_adjustment_brush_segment(QPoint from, QPoint to);
   [[nodiscard]] QRect local_adjustment_brush_segment_deep(QPoint from, QPoint to);
+  // The operation a Dodge, Burn, Sponge, Blur or Sharpen stroke paints with.
+  [[nodiscard]] CanvasTool local_adjustment_operation() const noexcept;
   [[nodiscard]] QRect clone_brush_segment_deep(QPoint from, QPoint to);
   [[nodiscard]] PixelBuffer retouch_source_deep();
   void notify_clone_source_changed();

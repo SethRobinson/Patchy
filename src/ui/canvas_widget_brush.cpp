@@ -373,6 +373,106 @@ double full_coverage_radius(int radius, int softness) noexcept {
   return std::max(0.0, static_cast<double>(radius) - edge_width);
 }
 
+// One row of a stroke segment and the runs of it a CloneSegmentRows walk visits.
+struct SegmentRowRuns {
+  int y{0};
+  std::size_t count{0};
+  std::array<CloneSegmentRows::Run, CloneSegmentRows::kMaxRuns> runs{};
+};
+
+// The rows of `stroke_rect` a segment reaches; `pixel_count` gets how many pixels they hold.
+std::vector<SegmentRowRuns> segment_row_runs(const CloneSegmentRows& rows, const QRect& stroke_rect,
+                                             std::int64_t& pixel_count) {
+  std::vector<SegmentRowRuns> result;
+  result.reserve(static_cast<std::size_t>(stroke_rect.height()));
+  pixel_count = 0;
+  for (int y = stroke_rect.top(); y <= stroke_rect.bottom(); ++y) {
+    SegmentRowRuns row;
+    row.y = y;
+    row.count = rows.runs(y, stroke_rect.left(), stroke_rect.right(), row.runs);
+    for (std::size_t run = 0; run < row.count; ++run) {
+      pixel_count += row.runs[run].end - row.runs[run].first;
+    }
+    if (row.count > 0) {
+      result.push_back(row);
+    }
+  }
+  return result;
+}
+
+// Paints a segment's rows, `paint_row(row, cap_at)` returning each row's dirty rect, with
+// the Clone stamp's fan-out (GitHub issues 597 and 660): a segment of 8,192+ pixels over two
+// or more 64-row bands runs as strips of whole bands of about equal pixel counts, so no two
+// workers share a tile of the stroke's alpha caps (each gets a StrokePixelMap::Cursor;
+// the tiles are reserved here first). Only for a paint_row whose pixels depend on nothing
+// but their own bytes, their own cap and frozen inputs, so the strips give the sequential
+// walk's bytes; the caller detaches the layer bytes on this thread first.
+// PATCHY_RENDER_SINGLE_THREADED keeps every row here. `tick` runs on this thread.
+template <typename PaintRow, typename Tick>
+QRect walk_segment_rows(const std::vector<SegmentRowRuns>& segment_rows, std::int64_t segment_pixels,
+                        StrokePixelMap<float>& caps, PaintRow&& paint_row, Tick&& tick) {
+  constexpr std::int64_t kParallelPixels = 8192;
+  const auto band_of = [](int y) { return y >> StrokePixelMap<float>::kTileRowsShift; };
+  const auto bands = segment_rows.empty() ? 0 : band_of(segment_rows.back().y) - band_of(segment_rows.front().y) + 1;
+  const auto workers = segment_pixels >= kParallelPixels && bands >= 2
+                           ? patchy::max_blocking_fanout_workers(
+                                 std::clamp(std::min(bands, patchy::hardware_worker_threads()), 1, 16))
+                           : 1;
+  QRect dirty;
+  if (workers < 2 || qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED")) {
+    for (const auto& row : segment_rows) {
+      dirty = dirty.united(paint_row(row, caps));
+      tick();
+    }
+    return dirty;
+  }
+  std::vector<std::pair<std::size_t, std::size_t>> strips;
+  const auto share = (segment_pixels + workers - 1) / workers;
+  std::size_t strip_start = 0;
+  std::int64_t strip_pixels = 0;
+  auto band_left = std::numeric_limits<int>::max();
+  auto band_right = std::numeric_limits<int>::min();
+  for (std::size_t index = 0; index < segment_rows.size(); ++index) {
+    const auto& row = segment_rows[index];
+    band_left = std::min(band_left, row.runs[0].first);
+    band_right = std::max(band_right, row.runs[row.count - 1].end);
+    for (std::size_t run = 0; run < row.count; ++run) {
+      strip_pixels += row.runs[run].end - row.runs[run].first;
+    }
+    const auto last = index + 1 == segment_rows.size();
+    if (last || band_of(segment_rows[index + 1].y) != band_of(row.y)) {
+      // The band ends here: its tiles exist before any worker runs.
+      const auto band_top = band_of(row.y) << StrokePixelMap<float>::kTileRowsShift;
+      caps.reserve_tiles(band_left, band_top, band_right, band_top + (1 << StrokePixelMap<float>::kTileRowsShift));
+      band_left = std::numeric_limits<int>::max();
+      band_right = std::numeric_limits<int>::min();
+      if (last || strip_pixels >= share) {
+        strips.emplace_back(strip_start, index + 1);
+        strip_start = index + 1;
+        strip_pixels = 0;
+      }
+    }
+  }
+  std::vector<std::future<QRect>> futures;
+  futures.reserve(strips.size());
+  for (const auto& [first_row, end_row] : strips) {
+    futures.push_back(std::async(std::launch::async, [&segment_rows, &caps, &paint_row, first = first_row,
+                                                      end = end_row] {
+      StrokePixelMap<float>::Cursor cursor(caps);
+      QRect strip_dirty;
+      for (auto index = first; index < end; ++index) {
+        strip_dirty = strip_dirty.united(paint_row(segment_rows[index], cursor));
+      }
+      return strip_dirty;
+    }));
+  }
+  for (auto& future : futures) {
+    dirty = dirty.united(future.get());
+  }
+  tick();
+  return dirty;
+}
+
 }  // namespace
 
 void CanvasWidget::set_brush_size(int size) {
@@ -2787,12 +2887,19 @@ QRect CanvasWidget::smudge_brush_segment(QPoint from, QPoint to) {
 
   const auto brush = effective_brush_input();
   auto options = current_brush_edit_options(brush);
+  smudge_state_.single_threaded = qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED");
   return to_qrect(patchy::smudge_brush_segment(*document_, *document_->active_layer_id(), from.x(), from.y(),
                                                   to.x(), to.y(), options, smudge_state_));
 }
 
+CanvasTool CanvasWidget::local_adjustment_operation() const noexcept {
+  return tool_;
+}
+
 QRect CanvasWidget::local_adjustment_brush_segment(QPoint from, QPoint to) {
   auto* layer = active_pixel_layer();
+  // Any return before the walk below ends the chain of continued segments.
+  auto continued_from_end = std::exchange(clone_stroke_segment_end_, std::nullopt);
   if (document_ == nullptr || layer == nullptr || !document_->active_layer_id().has_value()) {
     return {};
   }
@@ -2809,6 +2916,7 @@ QRect CanvasWidget::local_adjustment_brush_segment(QPoint from, QPoint to) {
     return {};
   }
   if (source_pixels.format().bit_depth != BitDepth::UInt8) {
+    clone_stroke_segment_end_ = std::move(continued_from_end);
     return local_adjustment_brush_segment_deep(from, to);
   }
 
@@ -2839,11 +2947,12 @@ QRect CanvasWidget::local_adjustment_brush_segment(QPoint from, QPoint to) {
   // isolation, or stroke-start color classification here. US 7724980, US 8687913,
   // US 9142009, and the abandoned US 2007/0188510 all cover variants of those
   // adaptive techniques. The brush footprint alone chooses which pixels change.
+  const auto operation = local_adjustment_operation();
   const auto adjusted_source_pixel = [&](QPoint point) {
     const auto center = source_pixel(point.x(), point.y());
     std::array<std::uint8_t, 3> result{center[0], center[1], center[2]};
 
-    if (tool_ == CanvasTool::BlurBrush || tool_ == CanvasTool::SharpenBrush) {
+    if (operation == CanvasTool::BlurBrush || operation == CanvasTool::SharpenBrush) {
       constexpr std::array<int, 3> kGaussian{1, 2, 1};
       std::array<double, 3> premultiplied{};
       double alpha_weight = 0.0;
@@ -2864,7 +2973,7 @@ QRect CanvasWidget::local_adjustment_brush_segment(QPoint from, QPoint to) {
       }
       for (std::size_t channel = 0; channel < result.size(); ++channel) {
         const auto blurred = premultiplied[channel] / alpha_weight;
-        result[channel] = tool_ == CanvasTool::BlurBrush
+        result[channel] = operation == CanvasTool::BlurBrush
                               ? clamp_byte(static_cast<float>(blurred))
                               : clamp_byte(static_cast<float>(static_cast<double>(center[channel]) * 2.0 - blurred));
       }
@@ -2875,7 +2984,7 @@ QRect CanvasWidget::local_adjustment_brush_segment(QPoint from, QPoint to) {
     const auto green = static_cast<double>(center[1]);
     const auto blue = static_cast<double>(center[2]);
     const auto lightness = (54.0 * red + 183.0 * green + 19.0 * blue) / (256.0 * 255.0);
-    if (tool_ == CanvasTool::Dodge || tool_ == CanvasTool::Burn) {
+    if (operation == CanvasTool::Dodge || operation == CanvasTool::Burn) {
       double range_weight = 1.0;
       switch (local_tone_range_) {
         case LocalToneRange::Shadows:
@@ -2889,14 +2998,14 @@ QRect CanvasWidget::local_adjustment_brush_segment(QPoint from, QPoint to) {
           break;
       }
       const auto source_lightness = lightness * 255.0;
-      const auto target_lightness = tool_ == CanvasTool::Dodge
+      const auto target_lightness = operation == CanvasTool::Dodge
                                         ? source_lightness + (255.0 - source_lightness) * range_weight
                                         : source_lightness * (1.0 - range_weight);
       for (std::size_t channel = 0; channel < result.size(); ++channel) {
         const auto value = static_cast<double>(center[channel]);
         const auto adjusted = local_protect_tones_
                                   ? value + (target_lightness - source_lightness)
-                                  : (tool_ == CanvasTool::Dodge
+                                  : (operation == CanvasTool::Dodge
                                          ? value + (255.0 - value) * range_weight
                                          : value * (1.0 - range_weight));
         result[channel] = clamp_byte(static_cast<float>(adjusted));
@@ -2904,7 +3013,7 @@ QRect CanvasWidget::local_adjustment_brush_segment(QPoint from, QPoint to) {
       return result;
     }
 
-    if (tool_ == CanvasTool::Sponge) {
+    if (operation == CanvasTool::Sponge) {
       const auto maximum = static_cast<double>(std::max({center[0], center[1], center[2]}));
       const auto minimum = static_cast<double>(std::min({center[0], center[1], center[2]}));
       const auto saturation = (maximum - minimum) / 255.0;
@@ -2921,39 +3030,49 @@ QRect CanvasWidget::local_adjustment_brush_segment(QPoint from, QPoint to) {
   };
 
   auto& pixels = layer->pixels();
+  if (std::exchange(retouch_press_times_layer_detach_, false)) {
+    // The press's first segment: the copy-on-write detach on its own (patchy_perf_tests
+    // toningstroke, GitHub #660; it happens on the first write below anyway).
+    const auto started = std::chrono::steady_clock::now();
+    static_cast<void>(pixels.data());
+    last_retouch_press_timings_.layer_detach_ms =
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+  }
   const auto mutable_channels = pixels.format().channels;
   const auto strength = static_cast<float>(local_adjustment_strength_) / 100.0F;
   const auto* palette_snap = palette_snap_for_edits();
-  QRect dirty;
-  const auto adjust_pixel = [&](QPoint point, float coverage) {
-    if (!stroke_rect.contains(point) || !selection_allows(point)) {
-      return;
-    }
-    if (has_selection()) {
+  const auto selection_active = has_selection();
+  // One pixel: `destination` is its layer bytes, `cap_at(x, y)` its stroke alpha cap (the
+  // map, or a band worker's Cursor). True when its color changed.
+  const auto adjust_pixel = [&](int x, int y, float coverage, std::uint8_t* destination, auto& cap_at) -> bool {
+    const QPoint point(x, y);
+    // Without a selection selection_allows() is always true.
+    if (selection_active) {
+      if (!selection_allows(point)) {
+        return false;
+      }
       coverage *= static_cast<float>(selection_alpha_at(point)) / 255.0F;
     }
     if (coverage <= 0.0F) {
-      return;
+      return false;
     }
     if (palette_snap != nullptr) {
       if (coverage < palette_snap->coverage_threshold) {
-        return;
+        return false;
       }
       coverage = 1.0F;
     }
-    coverage = capped_stroke_coverage(point.x(), point.y(), coverage, strength);
+    coverage = capped_alpha_coverage([&]() -> float& { return cap_at(x, y); }, coverage, strength);
     if (coverage <= 0.0F) {
-      return;
+      return false;
     }
 
-    auto* destination = pixels.pixel(point.x() - snapshot.bounds.x, point.y() - snapshot.bounds.y);
     if (mutable_channels >= 4 && destination[3] == 0) {
-      return;
+      return false;
     }
     const auto adjusted = adjusted_source_pixel(point);
     const auto amount = strength * coverage;
-    const auto before = std::array<std::uint8_t, 4>{destination[0], destination[1], destination[2],
-                                                    mutable_channels >= 4 ? destination[3] : std::uint8_t{255}};
+    const auto before = std::array<std::uint8_t, 3>{destination[0], destination[1], destination[2]};
     for (std::size_t channel = 0; channel < adjusted.size(); ++channel) {
       destination[channel] = clamp_byte(static_cast<float>(adjusted[channel]) * amount +
                                         static_cast<float>(destination[channel]) * (1.0F - amount));
@@ -2961,37 +3080,71 @@ QRect CanvasWidget::local_adjustment_brush_segment(QPoint from, QPoint to) {
     if (palette_snap != nullptr) {
       patchy::snap_pixel_to_palette(destination, mutable_channels, *palette_snap);
     }
-    if (destination[0] != before[0] || destination[1] != before[1] || destination[2] != before[2]) {
-      dirty = dirty.united(QRect(point, QSize(1, 1)));
-    }
+    return destination[0] != before[0] || destination[1] != before[1] || destination[2] != before[2];
   };
 
+  auto* layer_bytes = pixels.data().data();  // detaches shared storage on this thread
+  const auto stride = pixels.stride_bytes();
+  const auto destination_at = [&](int x, int y) {
+    return layer_bytes + static_cast<std::size_t>(y - snapshot.bounds.y) * stride +
+           static_cast<std::size_t>(x - snapshot.bounds.x) * mutable_channels;
+  };
   if (radius == 0) {
-    visit_pixel_line(from, to, [&](QPoint point) { adjust_pixel(point, 1.0F); });
+    QRect dirty;
+    visit_pixel_line(from, to, [&](QPoint point) {
+      if (stroke_rect.contains(point) &&
+          adjust_pixel(point.x(), point.y(), 1.0F, destination_at(point.x(), point.y()), brush_stroke_alpha_caps_)) {
+        dirty = dirty.united(QRect(point, QSize(1, 1)));
+      }
+    });
     return dirty;
   }
 
+  // Only the segment's capsule, and of a segment continuing the last one only what can
+  // change, fanned out over bands like the Clone stamp (GitHub issues 597 and 660). Each
+  // pixel reads only the stroke-start snapshot and writes only itself, so the bytes equal
+  // the whole-rectangle walk on one thread.
   const auto dx = static_cast<double>(to.x() - from.x());
   const auto dy = static_cast<double>(to.y() - from.y());
   const auto segment_length_squared = dx * dx + dy * dy;
-  for (int y = stroke_rect.top(); y <= stroke_rect.bottom(); ++y) {
-    for (int x = stroke_rect.left(); x <= stroke_rect.right(); ++x) {
-      const auto along = segment_length_squared <= std::numeric_limits<double>::epsilon()
-                             ? 0.0
-                             : std::clamp((static_cast<double>(x - from.x()) * dx +
-                                           static_cast<double>(y - from.y()) * dy) /
-                                              segment_length_squared,
-                                          0.0, 1.0);
-      const auto closest_x = static_cast<double>(from.x()) + dx * along;
-      const auto closest_y = static_cast<double>(from.y()) + dy * along;
-      const auto coverage = brush_shape_coverage(static_cast<double>(x) - closest_x,
-                                                 static_cast<double>(y) - closest_y,
-                                                 radius, brush.softness, brush.roundness,
-                                                 brush.angle_degrees);
-      adjust_pixel(QPoint(x, y), coverage);
+  auto chain_brush = brush;
+  chain_brush.opacity = local_adjustment_strength_;
+  clone_stroke_segment_end_ = std::move(continued_from_end);
+  const CloneSegmentRows rows(from, to, radius, clone_stamp_skip_enabled_,
+                              clone_stamp_continues_previous_segment(from, radius, chain_brush),
+                              full_coverage_radius(radius, brush.softness));
+  std::int64_t segment_pixels = 0;
+  const auto segment_rows = segment_row_runs(rows, stroke_rect, segment_pixels);
+  const auto paint_row = [&](const SegmentRowRuns& row, auto& cap_at) -> QRect {
+    auto row_dirty_left = std::numeric_limits<int>::max();
+    auto row_dirty_right = std::numeric_limits<int>::min();
+    const auto y = row.y;
+    for (std::size_t run = 0; run < row.count; ++run) {
+      for (int x = row.runs[run].first; x < row.runs[run].end; ++x) {
+        const auto along = segment_length_squared <= std::numeric_limits<double>::epsilon()
+                               ? 0.0
+                               : std::clamp((static_cast<double>(x - from.x()) * dx +
+                                             static_cast<double>(y - from.y()) * dy) /
+                                                segment_length_squared,
+                                            0.0, 1.0);
+        const auto closest_x = static_cast<double>(from.x()) + dx * along;
+        const auto closest_y = static_cast<double>(from.y()) + dy * along;
+        const auto coverage = brush_shape_coverage(static_cast<double>(x) - closest_x,
+                                                   static_cast<double>(y) - closest_y,
+                                                   radius, brush.softness, brush.roundness,
+                                                   brush.angle_degrees);
+        if (adjust_pixel(x, y, coverage, destination_at(x, y), cap_at)) {
+          row_dirty_left = std::min(row_dirty_left, x);
+          row_dirty_right = std::max(row_dirty_right, x);
+        }
+      }
     }
-    tick_processing_operation();
-  }
+    return row_dirty_left <= row_dirty_right ? QRect(row_dirty_left, y, row_dirty_right - row_dirty_left + 1, 1)
+                                             : QRect();
+  };
+  const auto dirty = walk_segment_rows(segment_rows, segment_pixels, brush_stroke_alpha_caps_, paint_row,
+                                       [this] { tick_processing_operation(); });
+  remember_clone_stroke_segment_end(to, radius, chain_brush);
   return dirty;
 }
 
@@ -3000,6 +3153,8 @@ QRect CanvasWidget::local_adjustment_brush_segment(QPoint from, QPoint to) {
 // values (and decode the result), so the tools behave as they do at 8 and 16 bits.
 QRect CanvasWidget::local_adjustment_brush_segment_deep(QPoint from, QPoint to) {
   auto* layer = active_pixel_layer();
+  // Any return before the walk below ends the chain of continued segments.
+  auto continued_from_end = std::exchange(clone_stroke_segment_end_, std::nullopt);
   if (document_ == nullptr || layer == nullptr || !brush_stroke_layer_snapshot_.has_value()) {
     return {};
   }
@@ -3033,10 +3188,11 @@ QRect CanvasWidget::local_adjustment_brush_segment_deep(QPoint from, QPoint to) 
                                  static_cast<double>(values[3])};
   };
   // Same patent boundary as the 8-bit path: fixed local operations only.
+  const auto operation = local_adjustment_operation();
   const auto adjusted_source_pixel = [&](QPoint point) {
     const auto center = source_pixel(point.x(), point.y());
     std::array<double, 3> result{center[0], center[1], center[2]};
-    if (tool_ == CanvasTool::BlurBrush || tool_ == CanvasTool::SharpenBrush) {
+    if (operation == CanvasTool::BlurBrush || operation == CanvasTool::SharpenBrush) {
       constexpr std::array<int, 3> kGaussian{1, 2, 1};
       std::array<double, 3> premultiplied{};
       double alpha_weight = 0.0;
@@ -3057,12 +3213,12 @@ QRect CanvasWidget::local_adjustment_brush_segment_deep(QPoint from, QPoint to) 
       }
       for (std::size_t channel = 0; channel < result.size(); ++channel) {
         const auto blurred = premultiplied[channel] / alpha_weight;
-        result[channel] = tool_ == CanvasTool::BlurBrush ? blurred : center[channel] * 2.0 - blurred;
+        result[channel] = operation == CanvasTool::BlurBrush ? blurred : center[channel] * 2.0 - blurred;
       }
       return result;
     }
     const auto lightness = (54.0 * center[0] + 183.0 * center[1] + 19.0 * center[2]) / (256.0 * 255.0);
-    if (tool_ == CanvasTool::Dodge || tool_ == CanvasTool::Burn) {
+    if (operation == CanvasTool::Dodge || operation == CanvasTool::Burn) {
       double range_weight = 1.0;
       switch (local_tone_range_) {
         case LocalToneRange::Shadows:
@@ -3076,18 +3232,18 @@ QRect CanvasWidget::local_adjustment_brush_segment_deep(QPoint from, QPoint to) 
           break;
       }
       const auto source_lightness = lightness * 255.0;
-      const auto target_lightness = tool_ == CanvasTool::Dodge
+      const auto target_lightness = operation == CanvasTool::Dodge
                                         ? source_lightness + (255.0 - source_lightness) * range_weight
                                         : source_lightness * (1.0 - range_weight);
       for (std::size_t channel = 0; channel < result.size(); ++channel) {
         const auto value = center[channel];
         result[channel] = local_protect_tones_ ? value + (target_lightness - source_lightness)
-                                               : (tool_ == CanvasTool::Dodge ? value + (255.0 - value) * range_weight
-                                                                             : value * (1.0 - range_weight));
+                                               : (operation == CanvasTool::Dodge ? value + (255.0 - value) * range_weight
+                                                                                 : value * (1.0 - range_weight));
       }
       return result;
     }
-    if (tool_ == CanvasTool::Sponge) {
+    if (operation == CanvasTool::Sponge) {
       const auto maximum = std::max({center[0], center[1], center[2]});
       const auto minimum = std::min({center[0], center[1], center[2]});
       const auto saturation = (maximum - minimum) / 255.0;
@@ -3103,22 +3259,24 @@ QRect CanvasWidget::local_adjustment_brush_segment_deep(QPoint from, QPoint to) 
 
   auto& pixels = layer->pixels();
   const auto strength = static_cast<float>(local_adjustment_strength_) / 100.0F;
-  QRect dirty;
-  const auto adjust_pixel = [&](QPoint point, float coverage) {
-    if (!stroke_rect.contains(point) || !selection_allows(point)) {
-      return;
-    }
-    if (has_selection()) {
+  const auto selection_active = has_selection();
+  const auto adjust_pixel = [&](int x, int y, float coverage, std::uint8_t* destination, auto& cap_at) -> bool {
+    const QPoint point(x, y);
+    if (selection_active) {
+      if (!selection_allows(point)) {
+        return false;
+      }
       coverage *= static_cast<float>(selection_alpha_at(point)) / 255.0F;
     }
-    coverage = coverage <= 0.0F ? 0.0F : capped_stroke_coverage(point.x(), point.y(), coverage, strength);
+    coverage = coverage <= 0.0F
+                   ? 0.0F
+                   : capped_alpha_coverage([&]() -> float& { return cap_at(x, y); }, coverage, strength);
     if (coverage <= 0.0F) {
-      return;
+      return false;
     }
-    auto* destination = pixels.pixel(point.x() - snapshot.bounds.x, point.y() - snapshot.bounds.y);
     const auto before = load_pixel(format, destination);
     if (format.channels >= 4 && before[3] <= 0.0F) {
-      return;
+      return false;
     }
     const auto adjusted = adjusted_source_pixel(point);
     const auto amount = static_cast<double>(strength * coverage);
@@ -3127,32 +3285,63 @@ QRect CanvasWidget::local_adjustment_brush_segment_deep(QPoint from, QPoint to) 
       value[channel] = decode(std::clamp(adjusted[channel], 0.0, 255.0) * amount + encode(before[channel]) * (1.0 - amount));
     }
     store_pixel(format, destination, value);
-    if (load_pixel(format, destination) != before) {
-      dirty = dirty.united(QRect(point, QSize(1, 1)));
-    }
+    return load_pixel(format, destination) != before;
+  };
+  auto* layer_bytes = pixels.data().data();  // detaches shared storage on this thread
+  const auto stride = pixels.stride_bytes();
+  const auto pixel_bytes = bytes_per_pixel(pixels.format());
+  const auto destination_at = [&](int x, int y) {
+    return layer_bytes + static_cast<std::size_t>(y - snapshot.bounds.y) * stride +
+           static_cast<std::size_t>(x - snapshot.bounds.x) * pixel_bytes;
   };
   if (radius == 0) {
-    visit_pixel_line(from, to, [&](QPoint point) { adjust_pixel(point, 1.0F); });
+    QRect dirty;
+    visit_pixel_line(from, to, [&](QPoint point) {
+      if (stroke_rect.contains(point) &&
+          adjust_pixel(point.x(), point.y(), 1.0F, destination_at(point.x(), point.y()), brush_stroke_alpha_caps_)) {
+        dirty = dirty.united(QRect(point, QSize(1, 1)));
+      }
+    });
     return dirty;
   }
   const auto dx = static_cast<double>(to.x() - from.x());
   const auto dy = static_cast<double>(to.y() - from.y());
   const auto segment_length_squared = dx * dx + dy * dy;
-  for (int y = stroke_rect.top(); y <= stroke_rect.bottom(); ++y) {
-    for (int x = stroke_rect.left(); x <= stroke_rect.right(); ++x) {
-      const auto along = segment_length_squared <= std::numeric_limits<double>::epsilon()
-                             ? 0.0
-                             : std::clamp((static_cast<double>(x - from.x()) * dx +
-                                           static_cast<double>(y - from.y()) * dy) /
-                                              segment_length_squared,
-                                          0.0, 1.0);
-      const auto coverage = brush_shape_coverage(static_cast<double>(x) - (static_cast<double>(from.x()) + dx * along),
-                                                 static_cast<double>(y) - (static_cast<double>(from.y()) + dy * along),
-                                                 radius, brush.softness, brush.roundness, brush.angle_degrees);
-      adjust_pixel(QPoint(x, y), coverage);
+  auto chain_brush = brush;
+  chain_brush.opacity = local_adjustment_strength_;
+  clone_stroke_segment_end_ = std::move(continued_from_end);
+  const CloneSegmentRows rows(from, to, radius, clone_stamp_skip_enabled_,
+                              clone_stamp_continues_previous_segment(from, radius, chain_brush),
+                              full_coverage_radius(radius, brush.softness));
+  std::int64_t segment_pixels = 0;
+  const auto segment_rows = segment_row_runs(rows, stroke_rect, segment_pixels);
+  const auto paint_row = [&](const SegmentRowRuns& row, auto& cap_at) -> QRect {
+    auto row_dirty_left = std::numeric_limits<int>::max();
+    auto row_dirty_right = std::numeric_limits<int>::min();
+    const auto y = row.y;
+    for (std::size_t run = 0; run < row.count; ++run) {
+      for (int x = row.runs[run].first; x < row.runs[run].end; ++x) {
+        const auto along = segment_length_squared <= std::numeric_limits<double>::epsilon()
+                               ? 0.0
+                               : std::clamp((static_cast<double>(x - from.x()) * dx +
+                                             static_cast<double>(y - from.y()) * dy) /
+                                                segment_length_squared,
+                                            0.0, 1.0);
+        const auto coverage = brush_shape_coverage(static_cast<double>(x) - (static_cast<double>(from.x()) + dx * along),
+                                                   static_cast<double>(y) - (static_cast<double>(from.y()) + dy * along),
+                                                   radius, brush.softness, brush.roundness, brush.angle_degrees);
+        if (adjust_pixel(x, y, coverage, destination_at(x, y), cap_at)) {
+          row_dirty_left = std::min(row_dirty_left, x);
+          row_dirty_right = std::max(row_dirty_right, x);
+        }
+      }
     }
-    tick_processing_operation();
-  }
+    return row_dirty_left <= row_dirty_right ? QRect(row_dirty_left, y, row_dirty_right - row_dirty_left + 1, 1)
+                                             : QRect();
+  };
+  const auto dirty = walk_segment_rows(segment_rows, segment_pixels, brush_stroke_alpha_caps_, paint_row,
+                                       [this] { tick_processing_operation(); });
+  remember_clone_stroke_segment_end(to, radius, chain_brush);
   return dirty;
 }
 
