@@ -15663,6 +15663,26 @@ Do you want to replace it?</source>
         <source>Reverses the order of the selected layers (Layer &gt; Arrange &gt; Reverse). Duplicate a run of frames and reverse the copies to make a bounce.</source>
         <translation>反转所选图层的顺序（图层 &gt; 排列 &gt; 反转）。复制一段帧并反转副本，即可做出来回往复的动画。</translation>
     </message>
+    <message>
+        <source>Play in reverse</source>
+        <translation>倒序播放</translation>
+    </message>
+    <message>
+        <source>Plays the frames from the bottom layer to the top. Preview only: export still writes the top layer first.</source>
+        <translation>从最底层图层到最顶层图层播放各帧。仅限预览：导出时仍先写入最顶层图层。</translation>
+    </message>
+    <message>
+        <source>Hide this note. The info mark beside Playback shows it again.</source>
+        <translation>隐藏此说明。点击“播放”旁的信息标记可再次显示。</translation>
+    </message>
+    <message>
+        <source>Hide note</source>
+        <translation>隐藏说明</translation>
+    </message>
+    <message>
+        <source>Show note</source>
+        <translation>显示说明</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ArtboardPresetPicker</name>

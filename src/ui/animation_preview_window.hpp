@@ -12,10 +12,12 @@
 #include <vector>
 
 class QCheckBox;
+class QFrame;
 class QDoubleSpinBox;
 class QLabel;
 class QPushButton;
 class QShowEvent;
+class QToolButton;
 
 namespace patchy::ui {
 
@@ -26,8 +28,10 @@ namespace patchy::ui {
 // A trailing "0.25s" layer-name token overrides the default frame delay, matching the
 // export, unless "Ignore delays in layer names" is on; the "Default frame delay" field (a
 // seconds spin box with 0.1 s steps and a presets drop-down) edits the shared
-// saveOptions/animationFrameDelayMs default. Both checkboxes affect the preview
-// only, never what export writes. Playback
+// saveOptions/animationFrameDelayMs default. "Play in reverse" plays the frames bottom to
+// top (GitHub issue 665). The checkboxes affect the preview only, never what export
+// writes. The note at the bottom closes with its x and comes back from the info mark beside
+// the Playback title (GitHub issue 666); both choices persist. Playback
 // mutates visibility directly (visibility is deliberately non-undoable and does not dirty
 // the session) and never outlives its document: MainWindow stops playback on tab switches
 // and before a session's document is destroyed, and stop re-checks the provider anyway.
@@ -81,6 +85,14 @@ private:
   void show_current_frame();
   [[nodiscard]] std::uint32_t frame_delay_ms(std::size_t index) const;
   void update_playback_controls();
+  // "Frame n/N" for the current frame, numbered in the export's top-first order, so a
+  // reversed play counts down.
+  void update_frame_status();
+  // Shows or hides the note (and the info mark that brings it back), saving the choice when
+  // persist is set, and refits the window's height.
+  void set_note_closed(bool closed, bool persist);
+  // The height the content needs at the current width, as the window's minimum and height.
+  void fit_height_to_content();
   // Commits a default delay (clamped): the field's value, and the shared settings keys
   // when persist is set.
   void set_default_delay_ms(int delay_ms, bool persist);
@@ -97,6 +109,9 @@ private:
   int default_delay_ms_{0};
   QCheckBox* ignore_name_delays_check_{nullptr};
   QCheckBox* play_hidden_check_{nullptr};
+  QCheckBox* play_reverse_check_{nullptr};
+  QFrame* note_{nullptr};
+  QToolButton* note_info_button_{nullptr};
   QCheckBox* all_layers_check_{nullptr};
   QDoubleSpinBox* selection_time_spin_{nullptr};
   QLabel* status_label_{nullptr};
@@ -107,7 +122,8 @@ private:
     LayerId id{0};                     // the frame's layer
     std::vector<LayerId> containers;   // the "all" groups holding it, outermost first
   };
-  std::vector<PreviewFrame> frames_;                        // top to bottom, the frames at start
+  std::vector<PreviewFrame> frames_;  // the frames at start in play order (bottom first when reversed)
+  bool frames_reversed_{false};       // frames_ runs bottom to top
   // At start: every top-level layer and every layer inside an "all" group (animation_frames.hpp).
   std::vector<std::pair<LayerId, bool>> saved_visibility_;
   std::size_t frame_index_{0};
