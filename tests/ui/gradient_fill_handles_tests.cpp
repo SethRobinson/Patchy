@@ -3,6 +3,7 @@
 // and each gesture (end, line, stop, midpoint, add, delete, color, Esc) as one undo step,
 // while a drag away from them still draws a new gradient.
 #include "core/blend_math.hpp"
+#include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/color_panel.hpp"
@@ -18,6 +19,8 @@
 #include <QColor>
 #include <QDialog>
 #include <QImage>
+#include <QToolTip>
+#include <QHelpEvent>
 #include <QElapsedTimer>
 #include <QFrame>
 #include <QAction>
@@ -708,8 +711,104 @@ void ui_gradient_fill_handles_delete_stops_and_show_cursors() {
   CHECK(delete_triggers == 0);
 }
 
+// GitHub issue 663, third follow-up: the two kinds of midpoint are named apart, and an opacity
+// midpoint between equal opacities (which changes nothing yet) is drawn dimmed but still drags.
+void ui_gradient_fill_handles_name_and_dim_the_opacity_midpoint() {
+  const GradientSettingsGuard settings_guard;
+  auto&& [window, first_canvas] = ShownWindowFixture{};
+  (void)first_canvas;
+  auto* canvas = open_gradient_fill(window, patchy::GradientMethod::Linear, QPoint(100, 150), QPoint(300, 150));
+  const auto active = MainWindowTestAccess::document(window).active_layer_id();
+  CHECK(active.has_value());
+  if (!active.has_value()) {
+    return;
+  }
+  const FillProbe fill{window, *active};
+  const Part color_midpoint{Kind::ColorMidpoint, 1};
+  const Part opacity_midpoint{Kind::AlphaMidpoint, 1};
+  CHECK(canvas->gradient_fill_handle_widget_position(color_midpoint).has_value());
+  CHECK(canvas->gradient_fill_handle_widget_position(opacity_midpoint).has_value());
+  // Both opacity stops are 100%: the opacity midpoint is dimmed, the color one never is.
+  CHECK(canvas->gradient_fill_midpoint_dimmed(opacity_midpoint));
+  CHECK(!canvas->gradient_fill_midpoint_dimmed(color_midpoint));
+  const auto color_tip = canvas->gradient_fill_handle_tooltip(color_midpoint);
+  const auto opacity_tip = canvas->gradient_fill_handle_tooltip(opacity_midpoint);
+  CHECK(color_tip.startsWith(QStringLiteral("Color midpoint: 50%")));
+  CHECK(opacity_tip.startsWith(QStringLiteral("Opacity midpoint: 50%")));
+  CHECK(opacity_tip.contains(QStringLiteral("no effect yet")));
+  CHECK(canvas->gradient_fill_handle_hint(color_midpoint) != canvas->gradient_fill_handle_hint(opacity_midpoint));
+  CHECK(canvas->gradient_fill_handle_hint(opacity_midpoint).contains(QStringLiteral("opacity midpoint")));
+  CHECK(canvas->gradient_fill_handle_tooltip(Part{Kind::ColorStop, 0}).startsWith(QStringLiteral("Color stop")));
+  CHECK(canvas->gradient_fill_handle_tooltip(Part{Kind::AlphaStop, 0}).startsWith(QStringLiteral("Opacity stop")));
+  // The pixels: the dimmed diamond's center is fainter than the color midpoint's.
+  {
+    const auto image = render_widget_image(*canvas);
+    const auto color_center = image.pixelColor(rounded(*canvas->gradient_fill_handle_widget_position(color_midpoint)));
+    const auto opacity_center =
+        image.pixelColor(rounded(*canvas->gradient_fill_handle_widget_position(opacity_midpoint)));
+    const auto& palette = patchy::ui::theme();
+    CHECK(color_near(color_center, palette.canvas_gradient_handle_fill, 24));
+    CHECK(!color_near(opacity_center, palette.canvas_gradient_handle_fill, 24));
+  }
+
+  // The card's shot: the tooltip over the dimmed opacity midpoint, the color midpoint beside it.
+  canvas->set_zoom_centered(1.5);
+  QApplication::processEvents();
+  {
+    const auto at = rounded(*canvas->gradient_fill_handle_widget_position(opacity_midpoint));
+    // The tip shows above the diamond, clear of the color midpoint below the line.
+    QHelpEvent help(QEvent::ToolTip, at, canvas->mapToGlobal(at + QPoint(12, -52)));
+    QApplication::sendEvent(canvas, &help);
+    QApplication::processEvents();
+    QWidget* tip = nullptr;
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() == QStringLiteral("qtooltip_label") && widget->isVisible()) {
+        tip = widget;
+      }
+    }
+    if (tip != nullptr) {
+      save_window_popup_artifact("ui_gradient_fill_handles_opacity_midpoint", window, *canvas, *tip);
+    } else {
+      save_widget_artifact("ui_gradient_fill_handles_opacity_midpoint", window);
+    }
+    QToolTip::hideText();
+  }
+  canvas->set_zoom_centered(1.0);
+  QApplication::processEvents();
+
+  // Still draggable, one undo step.
+  const auto depth = fill.depth();
+  const auto from = rounded(*canvas->gradient_fill_handle_widget_position(opacity_midpoint));
+  const auto shift = canvas->widget_position_f(QPointF(150, 150)) - canvas->widget_position_f(QPointF(200, 150));
+  drag(*canvas, from, rounded(QPointF(from) + shift));
+  CHECK(fill.depth() == depth + 1);
+  CHECK(fill.label() == QStringLiteral("Move Gradient Midpoint"));
+  CHECK(std::abs(fill.gradient().alpha_stops[1].midpoint - 0.25F) < 0.02F);
+  CHECK(canvas->gradient_fill_midpoint_dimmed(opacity_midpoint));
+
+  // Once one stop's opacity differs it is a normal midpoint again.
+  {
+    auto& document = MainWindowTestAccess::document(window);
+    auto* layer = document.find_layer(fill.id);
+    CHECK(layer != nullptr);
+    if (layer != nullptr) {
+      auto content = *std::as_const(*layer).vector_shape();
+      content.fill.gradient.alpha_stops[1].opacity = 0.3F;
+      layer->set_vector_shape(std::move(content));
+      patchy::update_vector_shape_raster(*layer, patchy::Rect::from_size(document.width(), document.height()),
+                                         &document.metadata().patterns);
+      canvas->document_changed();
+      QApplication::processEvents();
+    }
+  }
+  CHECK(!canvas->gradient_fill_midpoint_dimmed(opacity_midpoint));
+  CHECK(!canvas->gradient_fill_handle_tooltip(opacity_midpoint).contains(QStringLiteral("no effect yet")));
+}
+
 std::vector<patchy::test::TestCase> gradient_fill_handles_tests() {
   return {
+      {"ui_gradient_fill_handles_name_and_dim_the_opacity_midpoint",
+       ui_gradient_fill_handles_name_and_dim_the_opacity_midpoint},
       {"ui_gradient_fill_handles_delete_stops_and_show_cursors", ui_gradient_fill_handles_delete_stops_and_show_cursors},
       {"ui_gradient_fill_handles_edit_a_linear_fill", ui_gradient_fill_handles_edit_a_linear_fill},
       {"ui_gradient_fill_handles_follow_a_radial_fill_in_a_rotated_view",

@@ -17372,10 +17372,6 @@ Sostituirlo?</translation>
         <translation>Trascina per spostare il punto finale della sfumatura. Maiusc mantiene l&apos;angolo a passi di 15 gradi.</translation>
     </message>
     <message>
-        <source>Drag to move the midpoint between these stops.</source>
-        <translation>Trascina per spostare il punto medio tra queste interruzioni.</translation>
-    </message>
-    <message>
         <source>Gradient start point</source>
         <translation>Punto iniziale della sfumatura</translation>
     </message>
@@ -17394,10 +17390,6 @@ Sostituirlo?</translation>
     <message>
         <source>Opacity stop at %1%: %2% opacity</source>
         <translation>Interruzione di opacità al %1%: opacità %2%</translation>
-    </message>
-    <message>
-        <source>Midpoint: %1%</source>
-        <translation>Punto medio: %1%</translation>
     </message>
     <message>
         <source>Unlock the Gradient Fill layer to change its gradient</source>
@@ -17478,6 +17470,26 @@ Sostituirlo?</translation>
     <message>
         <source>Change Color...</source>
         <translation>Cambia colore...</translation>
+    </message>
+    <message>
+        <source>Drag to move the color midpoint between these color stops.</source>
+        <translation>Trascina per spostare il punto medio del colore tra queste interruzioni di colore.</translation>
+    </message>
+    <message>
+        <source>Drag to move the opacity midpoint between these opacity stops.</source>
+        <translation>Trascina per spostare il punto medio dell&apos;opacità tra queste interruzioni di opacità.</translation>
+    </message>
+    <message>
+        <source>Both stops have the same opacity, so it has no effect yet.</source>
+        <translation>Le due interruzioni hanno la stessa opacità, quindi per ora non ha effetto.</translation>
+    </message>
+    <message>
+        <source>Color midpoint: %1%</source>
+        <translation>Punto medio del colore: %1%</translation>
+    </message>
+    <message>
+        <source>Opacity midpoint: %1%</source>
+        <translation>Punto medio dell&apos;opacità: %1%</translation>
     </message>
 </context>
 <context>

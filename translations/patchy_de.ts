@@ -17372,10 +17372,6 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Ziehen, um den Endpunkt des Verlaufs zu verschieben. Mit Umschalt bleibt der Winkel in 15-Grad-Schritten.</translation>
     </message>
     <message>
-        <source>Drag to move the midpoint between these stops.</source>
-        <translation>Ziehen, um den Mittelpunkt zwischen diesen Unterbrechungen zu verschieben.</translation>
-    </message>
-    <message>
         <source>Gradient start point</source>
         <translation>Startpunkt des Verlaufs</translation>
     </message>
@@ -17394,10 +17390,6 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>Opacity stop at %1%: %2% opacity</source>
         <translation>Deckkraftunterbrechung bei %1%: %2% Deckkraft</translation>
-    </message>
-    <message>
-        <source>Midpoint: %1%</source>
-        <translation>Mittelpunkt: %1%</translation>
     </message>
     <message>
         <source>Unlock the Gradient Fill layer to change its gradient</source>
@@ -17478,6 +17470,26 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>Change Color...</source>
         <translation>Farbe ändern...</translation>
+    </message>
+    <message>
+        <source>Drag to move the color midpoint between these color stops.</source>
+        <translation>Ziehen, um den Farbmittelpunkt zwischen diesen Farbunterbrechungen zu verschieben.</translation>
+    </message>
+    <message>
+        <source>Drag to move the opacity midpoint between these opacity stops.</source>
+        <translation>Ziehen, um den Deckkraftmittelpunkt zwischen diesen Deckkraftunterbrechungen zu verschieben.</translation>
+    </message>
+    <message>
+        <source>Both stops have the same opacity, so it has no effect yet.</source>
+        <translation>Beide Unterbrechungen haben dieselbe Deckkraft, daher wirkt er sich noch nicht aus.</translation>
+    </message>
+    <message>
+        <source>Color midpoint: %1%</source>
+        <translation>Farbmittelpunkt: %1%</translation>
+    </message>
+    <message>
+        <source>Opacity midpoint: %1%</source>
+        <translation>Deckkraftmittelpunkt: %1%</translation>
     </message>
 </context>
 <context>

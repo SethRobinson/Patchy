@@ -335,8 +335,13 @@ QString CanvasWidget::gradient_fill_handle_hint(GradientHandlePart part) const {
       return tr("Drag to move this opacity stop. Drag it off the line or select it and press Delete to remove "
                 "it, right-click for more, double-click for the fill's settings.");
     case PartKind::ColorMidpoint:
+      return tr("Drag to move the color midpoint between these color stops.");
     case PartKind::AlphaMidpoint:
-      return tr("Drag to move the midpoint between these stops.");
+      if (gradient_fill_midpoint_dimmed(part)) {
+        return tr("Drag to move the opacity midpoint between these opacity stops.") + QLatin1Char(' ') +
+               tr("Both stops have the same opacity, so it has no effect yet.");
+      }
+      return tr("Drag to move the opacity midpoint between these opacity stops.");
     case PartKind::None:
       break;
   }
@@ -373,12 +378,15 @@ QString CanvasWidget::gradient_fill_handle_tooltip(GradientHandlePart part) cons
       break;
     case PartKind::ColorMidpoint:
       if (index < gradient.color_stops.size()) {
-        return tr("Midpoint: %1%").arg(percent(gradient.color_stops[index].midpoint));
+        return tr("Color midpoint: %1%").arg(percent(gradient.color_stops[index].midpoint));
       }
       break;
     case PartKind::AlphaMidpoint:
       if (index < gradient.alpha_stops.size()) {
-        return tr("Midpoint: %1%").arg(percent(gradient.alpha_stops[index].midpoint));
+        const auto text = tr("Opacity midpoint: %1%").arg(percent(gradient.alpha_stops[index].midpoint));
+        return gradient_fill_midpoint_dimmed(part)
+                   ? text + QLatin1Char('\n') + tr("Both stops have the same opacity, so it has no effect yet.")
+                   : text;
       }
       break;
     case PartKind::None:
@@ -725,6 +733,19 @@ void CanvasWidget::abandon_gradient_fill_handle_drag() {
   gradient_stop_selection_.reset();
 }
 
+bool CanvasWidget::gradient_fill_midpoint_dimmed(GradientHandlePart part) const {
+  if (part.kind != PartKind::AlphaMidpoint || part.index < 1) {
+    return false;
+  }
+  const auto handles = gradient_fill_handles();
+  if (!handles.has_value()) {
+    return false;
+  }
+  const auto& stops = handles->gradient.alpha_stops;
+  const auto index = static_cast<std::size_t>(part.index);
+  return index < stops.size() && stops[index - 1U].opacity == stops[index].opacity;
+}
+
 CanvasWidget::GradientHandleCursor CanvasWidget::gradient_handle_cursor() const noexcept {
   return gradient_handle_cursor_;
 }
@@ -970,9 +991,15 @@ void CanvasWidget::draw_gradient_fill_handles(QPainter& painter) const {
         continue;
       }
       const bool on = highlighted(kind, static_cast<int>(i));
+      // An opacity midpoint between equal opacities does nothing yet: drawn faded (the
+      // same roles at reduced opacity), back to normal once the opacities differ.
+      const bool dimmed = kind == PartKind::AlphaMidpoint && i < gradient.alpha_stops.size() && i > 0U &&
+                          gradient.alpha_stops[i - 1U].opacity == gradient.alpha_stops[i].opacity;
+      painter.setOpacity(dimmed && !on ? 0.4 : 1.0);
       painter.setPen(QPen(on ? active : ink, on ? 2.0 : 1.0));
       painter.setBrush(light);
       painter.drawPolygon(diamond_at(*midpoints[i], kMidpointHalf));
+      painter.setOpacity(1.0);
     }
   };
   draw_midpoints(geometry.color_midpoints, PartKind::ColorMidpoint);

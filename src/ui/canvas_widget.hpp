@@ -485,6 +485,12 @@ public:
   // The stop a click selected (ColorStop or AlphaStop with its index), while it is still on
   // the active fill; Delete or Backspace removes it.
   [[nodiscard]] std::optional<GradientHandlePart> gradient_fill_selected_stop() const;
+  // The status-bar hint and the tooltip a part shows on hover.
+  [[nodiscard]] QString gradient_fill_handle_hint(GradientHandlePart part) const;
+  [[nodiscard]] QString gradient_fill_handle_tooltip(GradientHandlePart part) const;
+  // An opacity midpoint between two stops of the same opacity changes nothing yet, so it
+  // is drawn dimmed (still draggable). Color midpoints never are.
+  [[nodiscard]] bool gradient_fill_midpoint_dimmed(GradientHandlePart part) const;
   void set_gradient_reverse(bool reverse) noexcept;
   [[nodiscard]] bool gradient_reverse() const noexcept;
   void set_gradient_opacity(int opacity) noexcept;
@@ -2914,8 +2920,6 @@ private:
   bool show_gradient_stop_context_menu(QPoint widget_point, QPoint global_position);
   void send_gradient_fill_preview();
   void draw_gradient_fill_handles(QPainter& painter) const;
-  [[nodiscard]] QString gradient_fill_handle_hint(GradientHandlePart part) const;
-  [[nodiscard]] QString gradient_fill_handle_tooltip(GradientHandlePart part) const;
   // Ruler gestures (canvas_widget_ruler.cpp).
   enum class RulerPart { None, Start, End, Second, Body };
   [[nodiscard]] RulerPart ruler_part_at(QPoint widget_point) const;

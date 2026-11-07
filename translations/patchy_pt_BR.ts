@@ -17372,10 +17372,6 @@ Deseja substituí-lo?</translation>
         <translation>Arraste para mover o ponto final do degradê. Shift mantém o ângulo em passos de 15 graus.</translation>
     </message>
     <message>
-        <source>Drag to move the midpoint between these stops.</source>
-        <translation>Arraste para mover o ponto médio entre estas paradas.</translation>
-    </message>
-    <message>
         <source>Gradient start point</source>
         <translation>Ponto inicial do degradê</translation>
     </message>
@@ -17394,10 +17390,6 @@ Deseja substituí-lo?</translation>
     <message>
         <source>Opacity stop at %1%: %2% opacity</source>
         <translation>Parada de opacidade em %1%: %2% de opacidade</translation>
-    </message>
-    <message>
-        <source>Midpoint: %1%</source>
-        <translation>Ponto médio: %1%</translation>
     </message>
     <message>
         <source>Unlock the Gradient Fill layer to change its gradient</source>
@@ -17478,6 +17470,26 @@ Deseja substituí-lo?</translation>
     <message>
         <source>Change Color...</source>
         <translation>Alterar cor...</translation>
+    </message>
+    <message>
+        <source>Drag to move the color midpoint between these color stops.</source>
+        <translation>Arraste para mover o ponto médio de cor entre estas paradas de cor.</translation>
+    </message>
+    <message>
+        <source>Drag to move the opacity midpoint between these opacity stops.</source>
+        <translation>Arraste para mover o ponto médio de opacidade entre estas paradas de opacidade.</translation>
+    </message>
+    <message>
+        <source>Both stops have the same opacity, so it has no effect yet.</source>
+        <translation>As duas paradas têm a mesma opacidade, então ainda não tem efeito.</translation>
+    </message>
+    <message>
+        <source>Color midpoint: %1%</source>
+        <translation>Ponto médio de cor: %1%</translation>
+    </message>
+    <message>
+        <source>Opacity midpoint: %1%</source>
+        <translation>Ponto médio de opacidade: %1%</translation>
     </message>
 </context>
 <context>

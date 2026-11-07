@@ -17325,10 +17325,6 @@ Do you want to replace it?</source>
         <translation>拖曳可移動漸層的終點。按住 Shift 可讓角度維持 15 度間隔。</translation>
     </message>
     <message>
-        <source>Drag to move the midpoint between these stops.</source>
-        <translation>拖曳可移動這些色標之間的中點。</translation>
-    </message>
-    <message>
         <source>Gradient start point</source>
         <translation>漸層起點</translation>
     </message>
@@ -17347,10 +17343,6 @@ Do you want to replace it?</source>
     <message>
         <source>Opacity stop at %1%: %2% opacity</source>
         <translation>不透明度色標位於 %1%：不透明度 %2%</translation>
-    </message>
-    <message>
-        <source>Midpoint: %1%</source>
-        <translation>中點：%1%</translation>
     </message>
     <message>
         <source>Unlock the Gradient Fill layer to change its gradient</source>
@@ -17431,6 +17423,26 @@ Do you want to replace it?</source>
     <message>
         <source>Change Color...</source>
         <translation>變更顏色...</translation>
+    </message>
+    <message>
+        <source>Drag to move the color midpoint between these color stops.</source>
+        <translation>拖曳可移動這些色標之間的顏色中點。</translation>
+    </message>
+    <message>
+        <source>Drag to move the opacity midpoint between these opacity stops.</source>
+        <translation>拖曳可移動這些不透明度色標之間的不透明度中點。</translation>
+    </message>
+    <message>
+        <source>Both stops have the same opacity, so it has no effect yet.</source>
+        <translation>兩個色標的不透明度相同，因此暫時沒有效果。</translation>
+    </message>
+    <message>
+        <source>Color midpoint: %1%</source>
+        <translation>顏色中點：%1%</translation>
+    </message>
+    <message>
+        <source>Opacity midpoint: %1%</source>
+        <translation>不透明度中點：%1%</translation>
     </message>
 </context>
 <context>

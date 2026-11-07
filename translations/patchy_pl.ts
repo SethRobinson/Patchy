@@ -17419,10 +17419,6 @@ Czy chcesz go zastąpić?</translation>
         <translation>Przeciągnij, aby przesunąć punkt końcowy gradientu. Shift utrzymuje kąt w krokach co 15 stopni.</translation>
     </message>
     <message>
-        <source>Drag to move the midpoint between these stops.</source>
-        <translation>Przeciągnij, aby przesunąć punkt środkowy między tymi znacznikami.</translation>
-    </message>
-    <message>
         <source>Gradient start point</source>
         <translation>Punkt początkowy gradientu</translation>
     </message>
@@ -17441,10 +17437,6 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>Opacity stop at %1%: %2% opacity</source>
         <translation>Znacznik krycia w %1%: krycie %2%</translation>
-    </message>
-    <message>
-        <source>Midpoint: %1%</source>
-        <translation>Punkt środkowy: %1%</translation>
     </message>
     <message>
         <source>Unlock the Gradient Fill layer to change its gradient</source>
@@ -17525,6 +17517,26 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>Change Color...</source>
         <translation>Zmień kolor...</translation>
+    </message>
+    <message>
+        <source>Drag to move the color midpoint between these color stops.</source>
+        <translation>Przeciągnij, aby przesunąć punkt środkowy koloru między tymi znacznikami koloru.</translation>
+    </message>
+    <message>
+        <source>Drag to move the opacity midpoint between these opacity stops.</source>
+        <translation>Przeciągnij, aby przesunąć punkt środkowy krycia między tymi znacznikami krycia.</translation>
+    </message>
+    <message>
+        <source>Both stops have the same opacity, so it has no effect yet.</source>
+        <translation>Oba znaczniki mają to samo krycie, więc na razie nic nie zmienia.</translation>
+    </message>
+    <message>
+        <source>Color midpoint: %1%</source>
+        <translation>Punkt środkowy koloru: %1%</translation>
+    </message>
+    <message>
+        <source>Opacity midpoint: %1%</source>
+        <translation>Punkt środkowy krycia: %1%</translation>
     </message>
 </context>
 <context>

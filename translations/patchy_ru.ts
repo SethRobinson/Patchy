@@ -17419,10 +17419,6 @@ Do you want to replace it?</source>
         <translation>Перетащите, чтобы переместить конечную точку градиента. Shift сохраняет угол с шагом 15 градусов.</translation>
     </message>
     <message>
-        <source>Drag to move the midpoint between these stops.</source>
-        <translation>Перетащите, чтобы переместить среднюю точку между этими контрольными точками.</translation>
-    </message>
-    <message>
         <source>Gradient start point</source>
         <translation>Начальная точка градиента</translation>
     </message>
@@ -17441,10 +17437,6 @@ Do you want to replace it?</source>
     <message>
         <source>Opacity stop at %1%: %2% opacity</source>
         <translation>Контрольная точка непрозрачности %1%: непрозрачность %2%</translation>
-    </message>
-    <message>
-        <source>Midpoint: %1%</source>
-        <translation>Средняя точка: %1%</translation>
     </message>
     <message>
         <source>Unlock the Gradient Fill layer to change its gradient</source>
@@ -17525,6 +17517,26 @@ Do you want to replace it?</source>
     <message>
         <source>Change Color...</source>
         <translation>Изменить цвет...</translation>
+    </message>
+    <message>
+        <source>Drag to move the color midpoint between these color stops.</source>
+        <translation>Перетащите, чтобы переместить среднюю точку цвета между этими контрольными точками цвета.</translation>
+    </message>
+    <message>
+        <source>Drag to move the opacity midpoint between these opacity stops.</source>
+        <translation>Перетащите, чтобы переместить среднюю точку непрозрачности между этими контрольными точками непрозрачности.</translation>
+    </message>
+    <message>
+        <source>Both stops have the same opacity, so it has no effect yet.</source>
+        <translation>У обеих контрольных точек одинаковая непрозрачность, поэтому пока она ни на что не влияет.</translation>
+    </message>
+    <message>
+        <source>Color midpoint: %1%</source>
+        <translation>Средняя точка цвета: %1%</translation>
+    </message>
+    <message>
+        <source>Opacity midpoint: %1%</source>
+        <translation>Средняя точка непрозрачности: %1%</translation>
     </message>
 </context>
 <context>
