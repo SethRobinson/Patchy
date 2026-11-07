@@ -183,6 +183,12 @@ struct GradientOptions {
   bool reverse{false};
   float opacity{1.0F};
   std::vector<GradientStop> stops;
+  // The Gradient tool's two-track gradient (GitHub issue 663, one gradient editor): when set,
+  // draw_gradient evaluates it like a Gradient Fill does (gradient_color and
+  // gradient_stop_opacity with endpoint smoothing; Noise included) and ignores `stops`.
+  // Foreground and Background stop kinds must already be resolved; a color stop's
+  // intensity_stops lifts 32-bit output.
+  std::optional<LayerStyleGradient> definition;
 };
 
 struct SmudgeState {

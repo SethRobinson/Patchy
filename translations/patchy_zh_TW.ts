@@ -6878,14 +6878,6 @@ Flow: %6
         <translation>編輯漸層色標</translation>
     </message>
     <message>
-        <source>Location %</source>
-        <translation>位置 %</translation>
-    </message>
-    <message>
-        <source>Alpha %</source>
-        <translation>Alpha %</translation>
-    </message>
-    <message>
         <source>Reset to FG/BG</source>
         <translation>重設為前景色/背景色</translation>
     </message>

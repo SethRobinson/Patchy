@@ -3183,10 +3183,6 @@ RGB: %2, %3, %4</translation>
         <translation>色を選択...</translation>
     </message>
     <message>
-        <source>Location %</source>
-        <translation>位置 %</translation>
-    </message>
-    <message>
         <source>Add Stop</source>
         <translation>ストップを追加</translation>
     </message>
@@ -3378,10 +3374,6 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Color</source>
         <translation>色</translation>
-    </message>
-    <message>
-        <source>Alpha %</source>
-        <translation>アルファ %</translation>
     </message>
     <message>
         <source>Reset to FG/BG</source>

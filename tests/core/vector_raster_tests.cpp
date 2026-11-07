@@ -22,6 +22,7 @@
 #include <unordered_set>
 #include <utility>
 #include "core/document.hpp"
+#include "core/document_depth.hpp"
 #include "core/gradient_fill_drag.hpp"
 #include "core/gradient_presets.hpp"
 #include "core/pixel_tools.hpp"
@@ -2220,8 +2221,175 @@ void gradient_tool_stops_keep_a_presets_own_stops() {
   CHECK(preview_worst <= 1);
 }
 
+namespace {
+
+// The Gradient tool's drag painted into a fresh layer of a `bits` document.
+patchy::Document paint_tool_gradient(int width, int height, patchy::BitDepth depth, const patchy::GradientOptions& options,
+                                     int x0, int y0, int x1, int y1) {
+  patchy::Document document(width, height, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(width, height, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  document.add_pixel_layer("Paint", std::move(pixels));
+  if (depth != patchy::BitDepth::UInt8) {
+    patchy::convert_document_depth(document, depth);
+  }
+  const auto id = document.layers().front().id();
+  CHECK(!patchy::draw_gradient(document, id, x0, y0, x1, y1, patchy::EditOptions{}, options).empty());
+  return document;
+}
+
+double worst_layer_difference(const patchy::Document& a, const patchy::Document& b) {
+  const auto& pa = std::as_const(a).layers().front().pixels();
+  const auto& pb = std::as_const(b).layers().front().pixels();
+  double worst = 0.0;
+  for (int y = 0; y < pa.height(); ++y) {
+    for (int x = 0; x < pa.width(); ++x) {
+      const auto va = patchy::load_pixel(pa.format(), pa.pixel(x, y));
+      const auto vb = patchy::load_pixel(pb.format(), pb.pixel(x, y));
+      for (std::size_t c = 0; c < 4U; ++c) {
+        worst = std::max(worst, static_cast<double>(std::abs(va[c] - vb[c])));
+      }
+    }
+  }
+  return worst;
+}
+
+}  // namespace
+
+// GitHub issue 663, one gradient editor: the Gradient tool's two-track gradient. Old flat stops
+// (tools/gradientStops, scripts) convert to color and opacity stops that paint what the flat
+// stops painted, at 8, 16 and 32 bits, every style, reversed, with a midpoint and an Intensity.
+void gradient_tool_two_track_paints_like_the_flat_stops() {
+  const std::vector<patchy::GradientStop> flat{
+      patchy::GradientStop{0.0F, patchy::EditColor{230, 20, 10, 255}},
+      patchy::GradientStop{0.4F, patchy::EditColor{255, 255, 0, 128}, 0.0F, 0.3F},
+      patchy::GradientStop{1.0F, patchy::EditColor{0, 128, 255, 40}}};
+  const auto two_track = patchy::gradient_from_tool_stops(flat);
+  CHECK(two_track.color_stops.size() == 3U && two_track.alpha_stops.size() == 3U);
+  CHECK(two_track.smoothness == 0);
+  CHECK(two_track.color_stops[1].midpoint == 0.3F && two_track.alpha_stops[1].midpoint == 0.3F);
+  CHECK(std::abs(two_track.alpha_stops[1].opacity - 128.0F / 255.0F) < 1e-6F);
+  // Back to flat stops: the same three.
+  const auto back = patchy::gradient_tool_stops_from_gradient(two_track);
+  CHECK(back.size() == 3U);
+  if (back.size() == 3U) {
+    CHECK(back[1].color.a == 128 && back[1].midpoint == 0.3F);
+  }
+  // A stop's 32-bit Intensity travels with it and lifts that end at 32 bits (between stops the
+  // two-track gradient interpolates Intensity in stops, the flat one mixed the lifted colors).
+  {
+    auto lifted = flat;
+    lifted[0].intensity_stops = 1.0F;
+    const auto lifted_two_track = patchy::gradient_from_tool_stops(lifted);
+    CHECK(lifted_two_track.color_stops[0].intensity_stops == 1.0F);
+    CHECK(patchy::gradient_tool_stops_from_gradient(lifted_two_track).front().intensity_stops == 1.0F);
+    patchy::GradientOptions options;
+    options.definition = lifted_two_track;
+    const auto plain = paint_tool_gradient(48, 32, patchy::BitDepth::Float32,
+                                           [&] {
+                                             auto unlifted = options;
+                                             unlifted.definition = two_track;
+                                             return unlifted;
+                                           }(),
+                                           6, 5, 40, 27);
+    const auto bright = paint_tool_gradient(48, 32, patchy::BitDepth::Float32, options, 6, 5, 40, 27);
+    const auto& a = std::as_const(plain).layers().front();
+    const auto& b = std::as_const(bright).layers().front();
+    const auto at_start = [](const patchy::Layer& layer) {
+      return patchy::load_pixel(layer.pixels().format(), layer.pixels().pixel(6 - layer.bounds().x, 5 - layer.bounds().y));
+    };
+    CHECK(std::abs(at_start(b)[0] - 2.0F * at_start(a)[0]) < 0.02F * std::max(1.0F, at_start(a)[0]));
+  }
+  for (const auto depth : {patchy::BitDepth::UInt8, patchy::BitDepth::UInt16, patchy::BitDepth::Float32}) {
+    for (const auto method : {patchy::GradientMethod::Linear, patchy::GradientMethod::Radial,
+                              patchy::GradientMethod::Reflected, patchy::GradientMethod::Diamond,
+                              patchy::GradientMethod::Angle}) {
+      for (const bool reverse : {false, true}) {
+        patchy::GradientOptions flat_options;
+        flat_options.method = method;
+        flat_options.reverse = reverse;
+        flat_options.opacity = 0.8F;
+        flat_options.stops = flat;
+        auto two_track_options = flat_options;
+        two_track_options.definition = two_track;
+        const auto a = paint_tool_gradient(48, 32, depth, flat_options, 6, 5, 40, 27);
+        const auto b = paint_tool_gradient(48, 32, depth, two_track_options, 6, 5, 40, 27);
+        // A level at 8 and 16 bits (one rounding), and on the 32-bit scale a level of 255 too.
+        const auto worst = worst_layer_difference(a, b);
+        const auto limit = depth == patchy::BitDepth::UInt8 ? 1.0 : 1.01;
+        if (worst > limit) {
+          std::cerr << "two-track tool gradient differs by " << worst << " (depth " << static_cast<int>(depth)
+                    << ", method " << static_cast<int>(method) << ")\n";
+        }
+        CHECK(worst <= limit);
+      }
+    }
+  }
+}
+
+// A tool gradient and a Gradient Fill made from the same preset (two tracks, smoothness, the
+// fill's own evaluation) paint the same; Foreground/Background stops take the current colors.
+void gradient_tool_matches_a_fill_from_the_same_preset() {
+  constexpr int kWidth = 64;
+  constexpr int kHeight = 48;
+  const auto canvas = patchy::Rect::from_size(kWidth, kHeight);
+  int checked = 0;
+  for (const auto& preset : patchy::builtin_gradient_presets()) {
+    const auto resolved = patchy::resolved_tool_gradient(preset.definition, patchy::EditColor{20, 90, 200, 255},
+                                                         patchy::EditColor{250, 240, 30, 255}, 0.0F, 0.0F);
+    for (const auto& stop : resolved.color_stops) {
+      CHECK(stop.kind == patchy::GradientColorStop::Kind::User);
+    }
+    for (const auto method : {patchy::GradientMethod::Linear, patchy::GradientMethod::Radial}) {
+      patchy::GradientOptions options;
+      options.method = method;
+      options.definition = resolved;
+      const auto painted = paint_tool_gradient(kWidth, kHeight, patchy::BitDepth::UInt8, options, 5, 10, 50, 30);
+      patchy::Layer fill(1, "Gradient Fill 1", patchy::PixelBuffer());
+      patchy::VectorShapeContent content;
+      content.fill.kind = patchy::VectorFillKind::Gradient;
+      content.fill.gradient = patchy::gradient_fill_from_drag(resolved, method, false, canvas, 5, 10, 50, 30);
+      CHECK(content.fill.gradient.smoothness == preset.definition.smoothness);
+      CHECK(content.fill.gradient.color_stops.size() == preset.definition.color_stops.size());
+      content.stroke.enabled = false;
+      fill.set_vector_shape(content);
+      fill.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+      patchy::update_vector_shape_raster(fill, canvas, nullptr);
+      const auto& paint = std::as_const(painted).layers().front();
+      int worst = 0;
+      for (int y = 0; y < kHeight; ++y) {
+        for (int x = 0; x < kWidth; ++x) {
+          const auto* expected = paint.pixels().pixel(x - paint.bounds().x, y - paint.bounds().y);
+          const auto* actual = std::as_const(fill).pixels().pixel(x - fill.bounds().x, y - fill.bounds().y);
+          const int first_channel = expected[3] >= 8 ? 0 : 3;  // color only where alpha carries it
+          for (int channel = first_channel; channel < 4; ++channel) {
+            worst = std::max(worst, std::abs(static_cast<int>(expected[channel]) - static_cast<int>(actual[channel])));
+          }
+        }
+      }
+      if (worst > 2) {
+        std::cerr << preset.english_name << " tool and fill differ by " << worst << '\n';
+      }
+      CHECK(worst <= 2);
+      ++checked;
+    }
+  }
+  CHECK(checked > 10);
+  // Foreground and Background stops resolve to the colors given, with their Intensity.
+  patchy::GradientDefinition dynamic;
+  dynamic.color_stops = {patchy::GradientColorStop{0.0F, {}, 0.5F, patchy::GradientColorStop::Kind::Foreground},
+                         patchy::GradientColorStop{1.0F, {}, 0.5F, patchy::GradientColorStop::Kind::Background}};
+  dynamic.alpha_stops = {{0.0F, 1.0F, 0.5F}, {1.0F, 1.0F, 0.5F}};
+  const auto resolved = patchy::resolved_tool_gradient(dynamic, patchy::EditColor{1, 2, 3, 255},
+                                                       patchy::EditColor{4, 5, 6, 255}, 2.0F, -1.0F);
+  CHECK(resolved.color_stops[0].color == (patchy::RgbColor{1, 2, 3}) && resolved.color_stops[0].intensity_stops == 2.0F);
+  CHECK(resolved.color_stops[1].color == (patchy::RgbColor{4, 5, 6}) && resolved.color_stops[1].intensity_stops == -1.0F);
+}
+
 std::vector<patchy::test::TestCase> vector_raster_tests() {
   return {
+      {"gradient_tool_two_track_paints_like_the_flat_stops", gradient_tool_two_track_paints_like_the_flat_stops},
+      {"gradient_tool_matches_a_fill_from_the_same_preset", gradient_tool_matches_a_fill_from_the_same_preset},
       {"gradient_tool_stops_keep_a_presets_own_stops", gradient_tool_stops_keep_a_presets_own_stops},
       {"gradient_fill_line_inverts_the_drag_placement", gradient_fill_line_inverts_the_drag_placement},
       {"gradient_fill_alignment_bounds_follow_the_bake", gradient_fill_alignment_bounds_follow_the_bake},

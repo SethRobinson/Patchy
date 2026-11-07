@@ -7,6 +7,7 @@
 #include "core/hdr_color.hpp"
 #include "core/layer_tree.hpp"
 #include "core/pixel_depth.hpp"
+#include "ui/gradient_stops_editor.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/color_dock_panel.hpp"
 #include "ui/color_panel.hpp"
@@ -316,15 +317,16 @@ void ui_hdr_gradient_stops_carry_intensity() {
         return;
       }
       auto* hdr = dialog->findChild<HdrColorControls*>(QStringLiteral("gradientStopHdrControls"));
-      auto* table = dialog->findChild<QTableWidget*>(QStringLiteral("gradientStopsTable"));
-      CHECK(hdr != nullptr && table != nullptr);
-      if (hdr != nullptr && table != nullptr) {
+      auto* editor =
+          dialog->findChild<patchy::ui::GradientStopsEditorWidget*>(QStringLiteral("gradientStopsEditor"));
+      CHECK(hdr != nullptr && editor != nullptr);
+      if (hdr != nullptr && editor != nullptr && editor->stop_selected) {
         CHECK(shown_in(hdr, dialog) == deep);
-        table->setCurrentCell(0, 0);
+        editor->stop_selected(0);
         QApplication::processEvents();
         CHECK(hdr->stops() == 2.0);
         if (deep) {
-          table->setCurrentCell(1, 0);
+          editor->stop_selected(1);
           QApplication::processEvents();
           CHECK(hdr->stops() == 0.0);
           hdr->intensity_spin()->setValue(1.0);

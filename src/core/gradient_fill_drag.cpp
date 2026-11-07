@@ -154,7 +154,27 @@ std::vector<GradientStop> gradient_tool_stops_from_gradient(const LayerStyleGrad
   // The tool interpolates straight between its stops.
   gradient.smoothness = 0;
   gradient.interpolation = GradientInterpolationMethod::Classic;
-  const auto stop_at = [&gradient](float location, float midpoint) {
+  // A color stop's 32-bit Intensity, interpolated by location (none on Noise).
+  std::vector<std::pair<float, float>> intensity;
+  for (const auto& stop : gradient.color_stops) {
+    intensity.emplace_back(stop.location, stop.intensity_stops);
+  }
+  std::stable_sort(intensity.begin(), intensity.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+  const auto intensity_at = [&intensity](float location) {
+    if (intensity.empty() || location <= intensity.front().first) {
+      return intensity.empty() ? 0.0F : intensity.front().second;
+    }
+    for (std::size_t index = 1; index < intensity.size(); ++index) {
+      if (location <= intensity[index].first) {
+        const auto& left = intensity[index - 1U];
+        const auto& right = intensity[index];
+        const auto span = std::max(0.0001F, right.first - left.first);
+        return left.second + (right.second - left.second) * std::clamp((location - left.first) / span, 0.0F, 1.0F);
+      }
+    }
+    return intensity.back().second;
+  };
+  const auto stop_at = [&gradient, &intensity_at](float location, float midpoint) {
     const auto color = gradient_color(gradient, location);
     const auto alpha = gradient_stop_opacity(gradient, location);
     GradientStop stop;
@@ -162,6 +182,7 @@ std::vector<GradientStop> gradient_tool_stops_from_gradient(const LayerStyleGrad
     stop.color = EditColor{color.red, color.green, color.blue,
                            static_cast<std::uint8_t>(std::clamp(std::lround(alpha * 255.0F), 0L, 255L))};
     stop.midpoint = midpoint;
+    stop.intensity_stops = gradient.form == GradientDefinitionForm::Noise ? 0.0F : intensity_at(location);
     return stop;
   };
   std::vector<GradientStop> result;
@@ -225,6 +246,64 @@ std::vector<GradientStop> gradient_tool_stops_from_gradient(const LayerStyleGrad
     result.front().location = 0.0F;
   }
   return result;
+}
+
+LayerStyleGradient gradient_from_tool_stops(const std::vector<GradientStop>& stops) {
+  LayerStyleGradient gradient;
+  gradient.name = "Custom";
+  gradient.form = GradientDefinitionForm::Solid;
+  gradient.smoothness = 0;
+  for (const auto& stop : normalized_gradient_stops(stops)) {
+    GradientColorStop color{stop.location, RgbColor{stop.color.r, stop.color.g, stop.color.b}, stop.midpoint};
+    color.intensity_stops = stop.intensity_stops;
+    gradient.color_stops.push_back(color);
+    gradient.alpha_stops.push_back(
+        GradientAlphaStop{stop.location, static_cast<float>(stop.color.a) / 255.0F, stop.midpoint});
+  }
+  return gradient;
+}
+
+LayerStyleGradient resolved_tool_gradient(const GradientDefinition& definition, EditColor foreground,
+                                          EditColor background, float foreground_intensity,
+                                          float background_intensity) {
+  LayerStyleGradient gradient;
+  static_cast<GradientDefinition&>(gradient) = definition;
+  for (auto& stop : gradient.color_stops) {
+    if (stop.kind == GradientColorStop::Kind::Foreground) {
+      stop.color = RgbColor{foreground.r, foreground.g, foreground.b};
+      stop.intensity_stops = foreground_intensity;
+    } else if (stop.kind == GradientColorStop::Kind::Background) {
+      stop.color = RgbColor{background.r, background.g, background.b};
+      stop.intensity_stops = background_intensity;
+    }
+    stop.kind = GradientColorStop::Kind::User;
+  }
+  std::stable_sort(gradient.color_stops.begin(), gradient.color_stops.end(),
+                   [](const auto& a, const auto& b) { return a.location < b.location; });
+  std::stable_sort(gradient.alpha_stops.begin(), gradient.alpha_stops.end(),
+                   [](const auto& a, const auto& b) { return a.location < b.location; });
+  return gradient;
+}
+
+LayerStyleGradient gradient_fill_from_drag(const LayerStyleGradient& resolved, GradientMethod method, bool reverse,
+                                           Rect canvas, std::int32_t x0, std::int32_t y0, std::int32_t x1,
+                                           std::int32_t y1) {
+  LayerStyleGradient gradient;
+  static_cast<GradientDefinition&>(gradient) = static_cast<const GradientDefinition&>(resolved);
+  // Fill layers have no Intensity (definitions, PSD and GRD carry none).
+  for (auto& stop : gradient.color_stops) {
+    stop.intensity_stops = 0.0F;
+    stop.kind = GradientColorStop::Kind::User;
+  }
+  gradient.type = fill_type_for(method);
+  gradient.reverse = reverse;
+  gradient.dither = false;
+  gradient.interpolation = GradientInterpolationMethod::Classic;
+  gradient.align_with_layer = false;
+  place_gradient_fill_line(gradient, canvas,
+                           GradientFillLine{static_cast<double>(x0), static_cast<double>(y0), static_cast<double>(x1),
+                                            static_cast<double>(y1)});
+  return gradient;
 }
 
 GradientFillLine gradient_fill_line(const LayerStyleGradient& gradient, Rect bounds) {

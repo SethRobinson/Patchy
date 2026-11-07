@@ -6889,14 +6889,6 @@ Flux : %6
         <translation>Modifier les étapes du dégradé</translation>
     </message>
     <message>
-        <source>Location %</source>
-        <translation>Position %</translation>
-    </message>
-    <message>
-        <source>Alpha %</source>
-        <translation>Alpha %</translation>
-    </message>
-    <message>
         <source>Reset to FG/BG</source>
         <translation>Rétablir premier/arrière-plan</translation>
     </message>

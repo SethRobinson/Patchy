@@ -1024,34 +1024,71 @@ int CanvasWidget::gradient_opacity() const noexcept {
   return gradient_opacity_;
 }
 
+void CanvasWidget::set_gradient_definition(std::optional<GradientDefinition> definition) {
+  if (definition.has_value() && definition->form == GradientDefinitionForm::Solid &&
+      (definition->color_stops.empty() || definition->alpha_stops.empty())) {
+    // A Solid gradient needs both tracks; one without either is no gradient at all.
+    definition.reset();
+  }
+  gradient_definition_ = std::move(definition);
+}
+
+const std::optional<GradientDefinition>& CanvasWidget::gradient_definition() const noexcept {
+  return gradient_definition_;
+}
+
+namespace {
+
+GradientDefinition default_tool_gradient_definition() {
+  // Foreground to Background, straight (smoothness 0) as the tool always drew it; the stops
+  // follow the current colors and their Intensity.
+  GradientDefinition definition;
+  definition.name = "Foreground to Background";
+  definition.smoothness = 0;
+  definition.color_stops = {GradientColorStop{0.0F, RgbColor{0, 0, 0}, 0.5F, GradientColorStop::Kind::Foreground},
+                            GradientColorStop{1.0F, RgbColor{255, 255, 255}, 0.5F,
+                                              GradientColorStop::Kind::Background}};
+  definition.alpha_stops = {GradientAlphaStop{0.0F, 1.0F, 0.5F}, GradientAlphaStop{1.0F, 1.0F, 0.5F}};
+  return definition;
+}
+
+}  // namespace
+
+GradientDefinition CanvasWidget::effective_gradient_definition() const {
+  return gradient_definition_.has_value() ? *gradient_definition_ : default_tool_gradient_definition();
+}
+
+LayerStyleGradient CanvasWidget::default_resolved_gradient() const {
+  return resolved_tool_gradient(default_tool_gradient_definition(), edit_color(primary_color_),
+                                edit_color(secondary_color_), static_cast<float>(paint_intensity_.foreground),
+                                static_cast<float>(paint_intensity_.background));
+}
+
+LayerStyleGradient CanvasWidget::resolved_gradient() const {
+  return resolved_tool_gradient(effective_gradient_definition(), edit_color(primary_color_),
+                                edit_color(secondary_color_), static_cast<float>(paint_intensity_.foreground),
+                                static_cast<float>(paint_intensity_.background));
+}
+
 void CanvasWidget::set_gradient_stops(std::optional<std::vector<GradientStop>> stops) {
-  if (stops.has_value()) {
-    auto normalized = normalized_gradient_stops(*stops);
-    if (normalized.size() < 2U) {
-      normalized = effective_gradient_stops();
-    }
-    gradient_stops_ = std::move(normalized);
+  if (stops.has_value() && normalized_gradient_stops(*stops).size() >= 2U) {
+    set_gradient_definition(GradientDefinition(gradient_from_tool_stops(*stops)));
+  } else if (stops.has_value()) {
+    set_gradient_definition(GradientDefinition(gradient_from_tool_stops(effective_gradient_stops())));
   } else {
-    gradient_stops_.reset();
+    set_gradient_definition(std::nullopt);
   }
 }
 
-const std::optional<std::vector<GradientStop>>& CanvasWidget::gradient_stops() const noexcept {
-  return gradient_stops_;
+std::optional<std::vector<GradientStop>> CanvasWidget::gradient_stops() const {
+  if (!gradient_definition_.has_value()) {
+    return std::nullopt;
+  }
+  return effective_gradient_stops();
 }
 
 std::vector<GradientStop> CanvasWidget::effective_gradient_stops() const {
-  if (gradient_stops_.has_value() && gradient_stops_->size() >= 2U) {
-    return normalized_gradient_stops(*gradient_stops_);
-  }
-  auto primary = edit_color(primary_color_);
-  primary.a = 255;
-  auto secondary = edit_color(secondary_color_);
-  secondary.a = 255;
-  // The colors' Intensity rides along; only 32-bit layers use it.
-  return normalized_gradient_stops(
-      {GradientStop{0.0F, primary, static_cast<float>(paint_intensity_.foreground)},
-       GradientStop{1.0F, secondary, static_cast<float>(paint_intensity_.background)}});
+  return normalized_gradient_stops(gradient_tool_stops_from_gradient(resolved_gradient()));
 }
 
 void CanvasWidget::set_clone_aligned(bool aligned) noexcept {

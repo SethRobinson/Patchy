@@ -513,8 +513,21 @@ public:
   [[nodiscard]] bool gradient_reverse() const noexcept;
   void set_gradient_opacity(int opacity) noexcept;
   [[nodiscard]] int gradient_opacity() const noexcept;
+  // The Gradient tool's gradient (GitHub issue 663, one gradient editor): a two-track
+  // definition (color stops with live Foreground/Background kinds and 32-bit Intensity,
+  // opacity stops, midpoints, smoothness, Solid or Noise), or nullopt for the default
+  // Foreground to Background. resolved_gradient() is what draws: the kinds take the current
+  // colors and Intensity.
+  void set_gradient_definition(std::optional<GradientDefinition> definition);
+  [[nodiscard]] const std::optional<GradientDefinition>& gradient_definition() const noexcept;
+  [[nodiscard]] GradientDefinition effective_gradient_definition() const;
+  [[nodiscard]] LayerStyleGradient resolved_gradient() const;
+  // The default Foreground to Background, resolved (Edit Gradient Stops' Reset to FG/BG).
+  [[nodiscard]] LayerStyleGradient default_resolved_gradient() const;
+  // The same gradient as flat stops (previews, swatches, scripts and tools/gradientStops for
+  // older builds); setting flat stops converts them (gradient_from_tool_stops).
   void set_gradient_stops(std::optional<std::vector<GradientStop>> stops);
-  [[nodiscard]] const std::optional<std::vector<GradientStop>>& gradient_stops() const noexcept;
+  [[nodiscard]] std::optional<std::vector<GradientStop>> gradient_stops() const;
   [[nodiscard]] std::vector<GradientStop> effective_gradient_stops() const;
   void set_clone_aligned(bool aligned) noexcept;
   [[nodiscard]] bool clone_aligned() const noexcept;
@@ -3747,7 +3760,7 @@ private:
   std::function<void(QPoint, QPoint)> gradient_fill_drawn_callback_;
   bool gradient_reverse_{false};
   int gradient_opacity_{100};
-  std::optional<std::vector<GradientStop>> gradient_stops_;
+  std::optional<GradientDefinition> gradient_definition_;
   int wand_tolerance_{24};
   bool wand_contiguous_{true};
   bool wand_sample_all_layers_{false};

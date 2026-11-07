@@ -1135,6 +1135,8 @@ GradientOptions CanvasWidget::current_gradient_options() const {
   gradient.reverse = gradient_reverse_;
   gradient.opacity = static_cast<float>(gradient_opacity_) / 100.0F;
   gradient.stops = effective_gradient_stops();
+  // The tool's own two-track gradient draws (the flat stops serve previews only).
+  gradient.definition = resolved_gradient();
   return gradient;
 }
 

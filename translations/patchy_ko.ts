@@ -7124,14 +7124,6 @@ Flow: %6
         <translation>그레이디언트 중지점 편집</translation>
     </message>
     <message>
-        <source>Location %</source>
-        <translation>위치 %</translation>
-    </message>
-    <message>
-        <source>Alpha %</source>
-        <translation>알파 %</translation>
-    </message>
-    <message>
         <source>Reset to FG/BG</source>
         <translation>FG/BG로 재설정</translation>
     </message>

@@ -7148,14 +7148,6 @@ Przepływ:%6
         <translation>Edytuj znaczniki gradientu</translation>
     </message>
     <message>
-        <source>Location %</source>
-        <translation>Położenie %</translation>
-    </message>
-    <message>
-        <source>Alpha %</source>
-        <translation>Alfa%</translation>
-    </message>
-    <message>
         <source>Reset to FG/BG</source>
         <translation>Zresetuj do FG/BG</translation>
     </message>

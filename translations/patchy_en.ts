@@ -6884,14 +6884,6 @@ Flow: %6
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Location %</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Alpha %</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Reset to FG/BG</source>
         <translation type="unfinished"></translation>
     </message>

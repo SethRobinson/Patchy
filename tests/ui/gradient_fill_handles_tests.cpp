@@ -3,8 +3,10 @@
 // and each gesture (end, line, stop, midpoint, add, delete, color, Esc) as one undo step,
 // while a drag away from them still draws a new gradient.
 #include "core/blend_math.hpp"
+#include "core/gradient_presets.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
+#include "ui/app_settings.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/main_window.hpp"
@@ -41,6 +43,7 @@
 #include <cmath>
 #include <cstdio>
 #include <optional>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -121,6 +124,7 @@ struct GradientSettingsGuard {
   SettingsValueRestorer reverse{QStringLiteral("tools/gradientReverse")};
   SettingsValueRestorer use_custom{QStringLiteral("tools/gradientUseCustomStops")};
   SettingsValueRestorer stops{QStringLiteral("tools/gradientStops")};
+  SettingsValueRestorer definition{QStringLiteral("tools/gradientDefinition")};
 };
 
 // A click the way the window system delivers one: a hover move, then a press and a release
@@ -463,8 +467,10 @@ void ui_gradient_fill_handles_show_a_presets_own_stops() {
   // Edit Gradient Stops lists the same two stops; the card's shot stacks it under the window.
   bool checked = false;
   when_dialog_visible(QStringLiteral("gradientStopsDialog"), [&](QDialog& dialog) {
-    auto* table = dialog.findChild<QTableWidget*>(QStringLiteral("gradientStopsTable"));
-    CHECK(table != nullptr && table->rowCount() == 2);
+    // The two-track editor shows the preset's own stops (two color, two opacity).
+    CHECK(dialog.findChild<QWidget*>(QStringLiteral("gradientStopsEditor")) != nullptr);
+    CHECK(canvas->gradient_definition().has_value() && canvas->gradient_definition()->color_stops.size() == 2U &&
+          canvas->gradient_definition()->alpha_stops.size() == 2U);
     canvas->set_zoom_centered(1.5);
     QApplication::processEvents();
     save_stacked_artifact("ui_gradient_fill_handles_black_to_white",
@@ -994,8 +1000,66 @@ void ui_gradient_fill_handles_set_opacity_on_the_canvas() {
   CHECK(fill.gradient().alpha_stops.size() == alpha_count);
 }
 
+// GitHub issue 663, one gradient editor: the tool's two-track gradient persists under
+// tools/gradientDefinition beside the flat tools/gradientStops (kept for older builds). Old
+// settings with only flat stops still load; flat stops changed by an older build win.
+void ui_gradient_tool_definition_settings_round_trip() {
+  const GradientSettingsGuard settings_guard;
+  patchy::GradientDefinition preset;
+  for (const auto& builtin : patchy::builtin_gradient_presets()) {
+    if (std::string_view(builtin.english_name) == "Sepia Wash") {
+      preset = builtin.definition;
+    }
+  }
+  CHECK(preset.color_stops.size() == 3U);
+  preset.smoothness = 3000;
+  preset.alpha_stops = {{0.0F, 1.0F, 0.5F}, {0.6F, 0.4F, 0.3F}, {1.0F, 1.0F, 0.5F}};
+  preset.color_stops[1].kind = patchy::GradientColorStop::Kind::Foreground;
+  {
+    auto&& [window, canvas] = ShownWindowFixture{};
+    canvas->set_gradient_definition(preset);
+    MainWindowTestAccess::save_tool_settings(window);
+  }
+  auto settings = patchy::ui::app_settings();
+  CHECK(settings.value(QStringLiteral("tools/gradientUseCustomStops")).toBool());
+  CHECK(!settings.value(QStringLiteral("tools/gradientDefinition")).toByteArray().isEmpty());
+  const auto flat = settings.value(QStringLiteral("tools/gradientStops")).toByteArray();
+  CHECK(!flat.isEmpty());
+  {
+    auto&& [window, canvas] = ShownWindowFixture{};
+    (void)window;
+    CHECK(canvas->gradient_definition().has_value() && *canvas->gradient_definition() == preset);
+  }
+  // An older build rewrote only the flat stops: they win.
+  settings.setValue(QStringLiteral("tools/gradientStops"),
+                    QByteArray("[{\"location\":0,\"r\":10,\"g\":20,\"b\":30,\"a\":255},"
+                               "{\"location\":1,\"r\":40,\"g\":50,\"b\":60,\"a\":128}]"));
+  settings.sync();
+  {
+    auto&& [window, canvas] = ShownWindowFixture{};
+    (void)window;
+    CHECK(canvas->gradient_definition().has_value());
+    if (canvas->gradient_definition().has_value()) {
+      const auto& loaded = *canvas->gradient_definition();
+      CHECK(loaded.smoothness == 0);
+      CHECK(loaded.color_stops.size() == 2U && loaded.alpha_stops.size() == 2U);
+      CHECK(loaded.color_stops[0].color == (patchy::RgbColor{10, 20, 30}));
+      CHECK(std::abs(loaded.alpha_stops[1].opacity - 128.0F / 255.0F) < 1e-4F);
+    }
+  }
+  // Settings from before the new key (flat stops only) load the same way.
+  settings.remove(QStringLiteral("tools/gradientDefinition"));
+  settings.sync();
+  {
+    auto&& [window, canvas] = ShownWindowFixture{};
+    (void)window;
+    CHECK(canvas->gradient_definition().has_value() && canvas->gradient_definition()->color_stops.size() == 2U);
+  }
+}
+
 std::vector<patchy::test::TestCase> gradient_fill_handles_tests() {
   return {
+      {"ui_gradient_tool_definition_settings_round_trip", ui_gradient_tool_definition_settings_round_trip},
       {"ui_gradient_fill_handles_set_opacity_on_the_canvas", ui_gradient_fill_handles_set_opacity_on_the_canvas},
       {"ui_gradient_fill_handles_name_and_dim_the_opacity_midpoint",
        ui_gradient_fill_handles_name_and_dim_the_opacity_midpoint},

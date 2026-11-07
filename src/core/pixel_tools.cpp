@@ -3337,6 +3337,71 @@ Rect draw_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::i
                                                                 gradient_intensity_from_gain(options.secondary_gain)}}
                                              : gradient.stops);
   auto gradient_options = options;
+  if (gradient.definition.has_value()) {
+    // The two-track gradient, evaluated the way a Gradient Fill layer evaluates it.
+    const auto& definition = *gradient.definition;
+    const auto opacity = std::clamp(gradient.opacity, 0.0F, 1.0F);
+    // 32-bit Intensity per color stop, interpolated by location between the stops.
+    std::vector<std::pair<float, float>> intensity;
+    if (linear) {
+      for (const auto& stop : definition.color_stops) {
+        intensity.emplace_back(stop.location, stop.intensity_stops);
+      }
+      std::stable_sort(intensity.begin(), intensity.end(),
+                       [](const auto& a, const auto& b) { return a.first < b.first; });
+      if (std::all_of(intensity.begin(), intensity.end(), [](const auto& entry) { return entry.second == 0.0F; })) {
+        intensity.clear();
+      }
+    }
+    const auto intensity_at = [&intensity](float position) {
+      if (position <= intensity.front().first) {
+        return intensity.front().second;
+      }
+      for (std::size_t index = 1; index < intensity.size(); ++index) {
+        if (position <= intensity[index].first) {
+          const auto& left = intensity[index - 1U];
+          const auto& right = intensity[index];
+          const auto span = std::max(0.0001F, right.first - left.first);
+          return left.second + (right.second - left.second) * std::clamp((position - left.first) / span, 0.0F, 1.0F);
+        }
+      }
+      return intensity.back().second;
+    };
+    for (std::int32_t y = affected.y; y < affected.y + affected.height; ++y) {
+      auto row = pixels.row(y - bounds.y);
+      for (std::int32_t x = affected.x; x < affected.x + affected.width; ++x) {
+        const auto selected_coverage = selection_coverage(options, x, y);
+        if (selected_coverage <= 0.0F) {
+          continue;
+        }
+        const double t = gradient_tool_position(gradient.method, static_cast<double>(x - x0),
+                                                static_cast<double>(y - y0), dx, dy);
+        const auto position = static_cast<float>(std::clamp(gradient.reverse ? 1.0 - t : t, 0.0, 1.0));
+        const auto alpha = gradient_stop_opacity(definition, position, true) * opacity;
+        if (deep) {
+          const auto alpha_deep = alpha * 255.0F;
+          if (alpha_deep <= 0.0F) {
+            continue;
+          }
+          const auto color = gradient_color_precise(definition, position, true, linear);
+          const auto gain = intensity.empty() ? 1.0F : color_intensity_gain(intensity_at(position));
+          gradient_options.deep_primary = {static_cast<float>(color[0]) * gain, static_cast<float>(color[1]) * gain,
+                                           static_cast<float>(color[2]) * gain, alpha_deep};
+        } else {
+          const auto alpha_byte = static_cast<std::uint8_t>(std::clamp(std::lround(alpha * 255.0F), 0L, 255L));
+          if (alpha_byte == 0) {
+            continue;
+          }
+          const auto color = gradient_color(definition, position, true);
+          gradient_options.primary = EditColor{color.red, color.green, color.blue, alpha_byte};
+        }
+        auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * pixel_bytes;
+        write_pixel(pixels, px, gradient_options, false, selected_coverage);
+      }
+      report_edit_progress(options);
+    }
+    return affected;
+  }
   for (std::int32_t y = affected.y; y < affected.y + affected.height; ++y) {
     auto row = pixels.row(y - bounds.y);
     for (std::int32_t x = affected.x; x < affected.x + affected.width; ++x) {

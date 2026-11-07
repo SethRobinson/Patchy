@@ -163,7 +163,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
     session->canvas->set_gradient_tool_mode(canvas_->gradient_tool_mode());
     session->canvas->set_gradient_reverse(canvas_->gradient_reverse());
     session->canvas->set_gradient_opacity(canvas_->gradient_opacity());
-    session->canvas->set_gradient_stops(canvas_->gradient_stops());
+    session->canvas->set_gradient_definition(canvas_->gradient_definition());
     session->canvas->set_show_transform_controls(canvas_->show_transform_controls());
   } else if (const auto* preset = find_brush_preset(default_startup_brush_preset_id()); preset != nullptr) {
     apply_brush_preset(*session->canvas, *preset);

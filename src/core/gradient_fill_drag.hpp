@@ -23,6 +23,22 @@ namespace patchy {
                                                          std::int32_t x0, std::int32_t y0, std::int32_t x1,
                                                          std::int32_t y1);
 
+// The Gradient tool's two-track gradient (GitHub issue 663, one gradient editor).
+// gradient_from_tool_stops reads the old flat stops (tools/gradientStops, scripts): each stop
+// becomes a color stop (its color, midpoint and Intensity) and an opacity stop (its alpha and
+// midpoint) at the same location, smoothness 0, so it renders what the flat stops did.
+[[nodiscard]] LayerStyleGradient gradient_from_tool_stops(const std::vector<GradientStop>& stops);
+// The tool's gradient with its Foreground and Background stops taking the current colors and
+// their 32-bit Intensity (the kinds stay live in the tool, so a color change follows).
+[[nodiscard]] LayerStyleGradient resolved_tool_gradient(const GradientDefinition& definition, EditColor foreground,
+                                                        EditColor background, float foreground_intensity,
+                                                        float background_intensity);
+// gradient_fill_from_drag for the tool's two-track gradient (resolved): the fill takes its
+// stops, midpoints, smoothness and form as they are (no conversion), Intensity dropped.
+[[nodiscard]] LayerStyleGradient gradient_fill_from_drag(const LayerStyleGradient& resolved, GradientMethod method,
+                                                         bool reverse, Rect canvas, std::int32_t x0, std::int32_t y0,
+                                                         std::int32_t x1, std::int32_t y1);
+
 // The Gradient tool's flat stops for a gradient (GitHub issue 663 follow-up): a Solid
 // gradient keeps its own stops, the color and opacity stop locations merged into one list
 // (each merged stop takes the color and opacity the gradient has there) and each midpoint

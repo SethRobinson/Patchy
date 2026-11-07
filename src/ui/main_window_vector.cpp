@@ -1200,7 +1200,7 @@ void MainWindow::handle_gradient_fill_drawn(QPoint from, QPoint to) {
   }
   auto& doc = document();
   const auto canvas_rect = Rect::from_size(doc.width(), doc.height());
-  auto gradient = gradient_fill_from_drag(canvas_->effective_gradient_stops(), canvas_->gradient_method(),
+  auto gradient = gradient_fill_from_drag(canvas_->resolved_gradient(), canvas_->gradient_method(),
                                           canvas_->gradient_reverse(), canvas_rect, from.x(), from.y(), to.x(),
                                           to.y());
   // An active Gradient Fill layer (or gradient-filled shape) takes the drag's gradient and

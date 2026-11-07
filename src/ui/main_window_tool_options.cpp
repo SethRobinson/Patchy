@@ -63,6 +63,7 @@
 #include "ui/color_panel.hpp"
 #include "ui/hdr_color_controls.hpp"
 #include "ui/layer_style_dialog.hpp"
+#include "ui/layer_style_gradient_controls.hpp"
 #include "ui/layer_list_widget.hpp"
 #include "ui/layer_lock_dialog.hpp"
 #include "ui/pattern_library.hpp"
@@ -90,6 +91,7 @@
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QHBoxLayout>
+#include <QFormLayout>
 #include <QHeaderView>
 #include <QIcon>
 #include <QImage>
@@ -171,10 +173,6 @@ namespace patchy::ui {
 
 namespace {
 
-QColor qcolor_from_edit_color(EditColor color) {
-  return QColor(color.r, color.g, color.b, color.a);
-}
-
 QString gradient_css_stops(const std::vector<GradientStop>& stops, int opacity, bool reverse) {
   QStringList css_stops;
   // CSS interpolates straight: midpoints become stops of their own.
@@ -203,406 +201,125 @@ QString gradient_preview_button_style(const std::vector<GradientStop>& stops, in
       .arg(gradient_css_stops(stops, opacity, reverse));
 }
 
-// The Gradient tool's stop model is a flat std::vector<GradientStop>: applying a library
-// preset resolves the dynamic Foreground/Background stop kinds from the current colors, then
-// keeps the preset's own stops (color and opacity locations merged, midpoints on their stops;
-// gradient_tool_stops_from_gradient), sampling only Noise (GitHub issue 663 follow-up: Black
-// to White used to arrive as 33 sampled stops). Shared by the Edit Gradient Stops dialog's
-// Preset... button, the options-bar Presets popup, the Gradient Manager and Previous/Next
-// Preset. The foreground and background stops carry the colors' Intensity
-// (docs/high-bit-depth-color.md, "Color choice at 32 bits"): each stop takes it interpolated
-// between the definition's color stops by location.
-[[nodiscard]] std::vector<GradientStop> gradient_tool_stops_from_preset(
-    const GradientDefinition& definition, const QColor& foreground, const QColor& background,
-    PaintIntensity intensity = {}) {
-  LayerStyleGradient gradient;
-  static_cast<GradientDefinition&>(gradient) = definition;
-  std::vector<std::pair<float, double>> stop_intensity;
-  if (gradient.form != GradientDefinitionForm::Noise) {
-    for (const auto& stop : gradient.color_stops) {
-      stop_intensity.emplace_back(stop.location, stop.kind == GradientColorStop::Kind::Foreground   ? intensity.foreground
-                                                 : stop.kind == GradientColorStop::Kind::Background ? intensity.background
-                                                                                                    : 0.0);
-    }
-    std::stable_sort(stop_intensity.begin(), stop_intensity.end(),
-                     [](const auto& a, const auto& b) { return a.first < b.first; });
-  }
-  const auto intensity_at = [&stop_intensity](float position) {
-    if (stop_intensity.empty()) {
-      return 0.0F;
-    }
-    if (position <= stop_intensity.front().first) {
-      return static_cast<float>(stop_intensity.front().second);
-    }
-    for (std::size_t index = 1; index < stop_intensity.size(); ++index) {
-      const auto& [right_location, right] = stop_intensity[index];
-      if (position <= right_location) {
-        const auto& [left_location, left] = stop_intensity[index - 1U];
-        const auto span = std::max(0.0001F, right_location - left_location);
-        const auto t = std::clamp(static_cast<double>((position - left_location) / span), 0.0, 1.0);
-        return static_cast<float>(left + (right - left) * t);
-      }
-    }
-    return static_cast<float>(stop_intensity.back().second);
-  };
-  for (auto& stop : gradient.color_stops) {
-    if (stop.kind == GradientColorStop::Kind::Foreground) {
-      stop.color = RgbColor{static_cast<std::uint8_t>(foreground.red()),
-                            static_cast<std::uint8_t>(foreground.green()),
-                            static_cast<std::uint8_t>(foreground.blue())};
-    } else if (stop.kind == GradientColorStop::Kind::Background) {
-      stop.color = RgbColor{static_cast<std::uint8_t>(background.red()),
-                            static_cast<std::uint8_t>(background.green()),
-                            static_cast<std::uint8_t>(background.blue())};
-    }
-    stop.kind = GradientColorStop::Kind::User;
-  }
-  auto stops = gradient_tool_stops_from_gradient(gradient);
-  for (auto& stop : stops) {
-    stop.intensity_stops = intensity_at(stop.location);
-  }
-  return stops;
-}
-
-class GradientStopTableDelegate final : public QStyledItemDelegate {
-public:
-  using QStyledItemDelegate::QStyledItemDelegate;
-
-  void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
-    auto item_option = option;
-    const auto selected = item_option.state.testFlag(QStyle::State_Selected);
-    item_option.state.setFlag(QStyle::State_Selected, false);
-    item_option.showDecorationSelected = false;
-    QStyledItemDelegate::paint(painter, item_option, index);
-    if (!selected) {
-      return;
-    }
-
-    painter->save();
-    QPen pen(theme().accent_ring, 2);
-    pen.setCosmetic(true);
-    painter->setPen(pen);
-    painter->setBrush(Qt::NoBrush);
-    painter->drawRect(option.rect.adjusted(1, 1, -2, -2));
-    painter->restore();
-  }
-};
-
-// A stop's Intensity (docs/high-bit-depth-color.md, "Color choice at 32 bits") rides on its Color
-// cell; a 32-bit document shows it under the table for the current stop.
-constexpr int kGradientStopIntensityRole = Qt::UserRole + 1;
-// A stop's midpoint (GradientStop::midpoint) rides on its location cell; the table shows no
-// column for it, so an edit in the dialog keeps the one the preset or canvas gave it.
-constexpr int kGradientStopMidpointRole = Qt::UserRole + 2;
-
-std::optional<std::optional<std::vector<GradientStop>>> request_gradient_stops_dialog(
-    QWidget* parent, const std::vector<GradientStop>& initial_stops, bool has_custom_stops, QColor foreground,
-    QColor background, GradientLibrary* gradient_library, PaintIntensity intensity, bool linear_document) {
+// The Gradient tool's Edit Gradient Stops (GitHub issue 663, one gradient editor): the same
+// two-track editor as Layer Style and Gradient Map (layer_style_gradient_controls: Preset,
+// Solid or Noise, the color and opacity tracks, the selected stop's Location, Color, Opacity
+// and midpoint, smoothness), with placement left to the options bar, Reset to FG/BG, and in
+// 32-bit documents the selected color stop's Intensity. Cancel returns nullopt; an inner
+// nullopt is the default Foreground to Background. Opened and accepted without an edit, the
+// tool keeps its gradient as it was (live Foreground/Background stops included).
+std::optional<std::optional<GradientDefinition>> request_gradient_stops_dialog(
+    QWidget* parent, const std::optional<GradientDefinition>& current, const LayerStyleGradient& resolved,
+    const LayerStyleGradient& default_resolved, QColor foreground, QColor background,
+    GradientLibrary* gradient_library, bool linear_document) {
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("gradientStopsDialog"));
   dialog.resize(560, 430);
 
   auto* layout = install_dark_dialog_chrome(dialog, new QVBoxLayout(&dialog), QObject::tr("Edit Gradient Stops"));
-  auto* preview = new GradientStopsEditorWidget(&dialog);
-  preview->setObjectName(QStringLiteral("gradientStopsPreview"));
-  layout->addWidget(preview);
-
-  auto* table = new QTableWidget(0, 3, &dialog);
-  table->setObjectName(QStringLiteral("gradientStopsTable"));
-  table->setHorizontalHeaderLabels({QObject::tr("Location %"), QObject::tr("Color"), QObject::tr("Alpha %")});
-  table->verticalHeader()->setVisible(false);
-  table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-  table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-  table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-  table->setSelectionBehavior(QAbstractItemView::SelectRows);
-  table->setSelectionMode(QAbstractItemView::SingleSelection);
-  table->setItemDelegate(new GradientStopTableDelegate(table));
-  table->setMinimumHeight(180);
-  layout->addWidget(table, 1);
+  auto* form = new QFormLayout();
+  layout->addLayout(form);
+  // The editor's callbacks hold references into its context, so everything it points at
+  // lives in this frame for the whole dialog. No batch edits here.
+  std::vector<std::string> explicit_fields;
+  std::function<void()> reset_batch_capture;
+  auto batch_edits = std::make_shared<AppearanceEdits<LayerStyleSettings>>();
+  const auto rgb = [](QColor color) {
+    return RgbColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+                    static_cast<std::uint8_t>(color.blue())};
+  };
+  layer_style_detail::LayerStyleGradientContext context{dialog,         gradient_library,     rgb(foreground),
+                                                        rgb(background), false,                batch_edits,
+                                                        explicit_fields, reset_batch_capture, [](bool) {
+                                                          return std::string();
+                                                        }};
+  auto initial = resolved;
+  initial.type = LayerStyleGradientType::Linear;
+  initial.reverse = false;
+  initial.dither = false;
+  initial.interpolation = GradientInterpolationMethod::Classic;
+  auto controls_owner = layer_style_detail::make_gradient_controls(context, form, &dialog, QStringLiteral("gradient"),
+                                                                   initial, QObject::tr("Gradient Stop Color"));
+  auto& controls = *controls_owner;
+  // Placement belongs to the drag and the options bar (Style, Reverse): its rows stay hidden.
+  const auto hide_row = [form](QWidget* widget) {
+    for (auto* candidate = widget; candidate != nullptr; candidate = candidate->parentWidget()) {
+      int row = -1;
+      QFormLayout::ItemRole role{};
+      form->getWidgetPosition(candidate, &row, &role);
+      if (row >= 0) {
+        form->setRowVisible(row, false);
+        return;
+      }
+    }
+  };
+  for (QWidget* widget : std::initializer_list<QWidget*>{controls.style_combo, controls.angle, controls.scale,
+                                                         controls.offset_x, controls.offset_y,
+                                                         controls.reset_alignment, controls.reverse,
+                                                         controls.interpolation}) {
+    if (widget != nullptr) {
+      hide_row(widget);
+    }
+  }
 
   auto* hdr = new HdrColorControls(HdrColorControls::Form::Compact, &dialog);
   hdr->setObjectName(QStringLiteral("gradientStopHdrControls"));
   hdr->setVisible(linear_document);
   layout->addWidget(hdr);
 
-  auto* selected_row = new QWidget(&dialog);
-  auto* selected_layout = new QHBoxLayout(selected_row);
-  selected_layout->setContentsMargins(0, 0, 0, 0);
-  selected_layout->setSpacing(6);
-  auto* choose_color = new QPushButton(QObject::tr("Choose Color..."), selected_row);
-  choose_color->setObjectName(QStringLiteral("gradientChooseStopColorButton"));
-  auto* add_stop = new QPushButton(QObject::tr("Add Stop"), selected_row);
-  add_stop->setObjectName(QStringLiteral("gradientAddStopButton"));
-  auto* remove_stop = new QPushButton(QObject::tr("Remove Stop"), selected_row);
-  remove_stop->setObjectName(QStringLiteral("gradientRemoveStopButton"));
-  auto* reset_stops = new QPushButton(QObject::tr("Reset to FG/BG"), selected_row);
+  auto* button_row = new QWidget(&dialog);
+  auto* button_layout = new QHBoxLayout(button_row);
+  button_layout->setContentsMargins(0, 0, 0, 0);
+  button_layout->addStretch(1);
+  auto* reset_stops = new QPushButton(QObject::tr("Reset to FG/BG"), button_row);
   reset_stops->setObjectName(QStringLiteral("gradientResetStopsButton"));
-  auto* presets = new QPushButton(QObject::tr("Preset..."), selected_row);
-  presets->setObjectName(QStringLiteral("gradientPresetButton"));
-  presets->setEnabled(gradient_library != nullptr);
-  selected_layout->addWidget(presets);
-  selected_layout->addWidget(choose_color);
-  selected_layout->addWidget(add_stop);
-  selected_layout->addWidget(remove_stop);
-  selected_layout->addStretch(1);
-  selected_layout->addWidget(reset_stops);
-  layout->addWidget(selected_row);
+  button_layout->addWidget(reset_stops);
+  layout->addWidget(button_row);
 
-  bool using_default_stops = !has_custom_stops;
-  bool loading = false;
-
-  const auto default_stops = [&foreground, &background, intensity] {
-    auto primary = edit_color(foreground);
-    primary.a = 255;
-    auto secondary = edit_color(background);
-    secondary.a = 255;
-    return normalized_gradient_stops({GradientStop{0.0F, primary, static_cast<float>(intensity.foreground)},
-                                      GradientStop{1.0F, secondary, static_cast<float>(intensity.background)}});
-  };
-  const auto row_intensity = [table](int row) {
-    const auto* item = table->item(row, 1);
-    return item == nullptr ? 0.0F : item->data(kGradientStopIntensityRole).toFloat();
-  };
-  const auto row_midpoint = [table](int row) {
-    const auto* item = table->item(row, 0);
-    const auto value = item == nullptr ? QVariant() : item->data(kGradientStopMidpointRole);
-    return value.isValid() ? value.toFloat() : 0.5F;
-  };
-  const auto cell_value = [table](int row, int column, int fallback) {
-    const auto* item = table->item(row, column);
-    bool ok = false;
-    const auto value = item == nullptr ? fallback : item->text().toInt(&ok);
-    return ok ? value : fallback;
-  };
-  const auto row_color = [table](int row) {
-    const auto* item = table->item(row, 1);
-    if (item == nullptr) {
-      return QColor(Qt::black);
+  bool use_default = !current.has_value();
+  bool edited = false;
+  // The selected color stop's Intensity (32-bit documents only).
+  const auto sync_hdr = [&] {
+    const auto row = controls.selected_color_stop;
+    const bool on_color = row >= 0 && row < static_cast<int>(controls.color_stops.size());
+    hdr->setEnabled(on_color);
+    if (on_color) {
+      const auto& stop = controls.color_stops[static_cast<std::size_t>(row)];
+      const QSignalBlocker blocker(hdr);
+      hdr->set_color(QColor(stop.color.red, stop.color.green, stop.color.blue), stop.intensity_stops);
     }
-    const auto stored = item->data(Qt::UserRole).value<QColor>();
-    const auto typed = QColor(item->text().trimmed());
-    return typed.isValid() ? typed : stored.isValid() ? stored : QColor(Qt::black);
   };
-  const auto set_item = [table](int row, int column, const QString& text) {
-    auto* item = new QTableWidgetItem(text);
-    item->setTextAlignment(column == 1 ? Qt::AlignLeft | Qt::AlignVCenter : Qt::AlignRight | Qt::AlignVCenter);
-    table->setItem(row, column, item);
-    return item;
+  const auto update_previews = controls.update_previews;
+  controls.update_previews = [update_previews, sync_hdr] {
+    if (update_previews) {
+      update_previews();
+    }
+    sync_hdr();
   };
-  const auto update_row_color = [table, &row_color](int row) {
-    if (row < 0 || row >= table->rowCount()) {
+  controls.changed = [&](bool) {
+    edited = true;
+    use_default = false;
+  };
+  QObject::connect(hdr, &HdrColorControls::intensity_changed, &dialog, [&](double stops) {
+    const auto row = controls.selected_color_stop;
+    if (row < 0 || row >= static_cast<int>(controls.color_stops.size())) {
       return;
     }
-    const auto color = row_color(row);
-    auto* item = table->item(row, 1);
-    if (item == nullptr) {
-      return;
-    }
-    item->setText(color.name(QColor::HexRgb).toUpper());
-    item->setData(Qt::UserRole, color);
-    item->setBackground(color);
-    const auto text = color.red() * 3 + color.green() * 6 + color.blue() > 1280 ? QColor(20, 24, 30)
-                                                                                : QColor(245, 248, 252);
-    item->setForeground(text);
-  };
-  const auto read_row_stops = [&] {
-    std::vector<GradientStop> stops;
-    stops.reserve(static_cast<std::size_t>(table->rowCount()));
-    for (int row = 0; row < table->rowCount(); ++row) {
-      const auto color = row_color(row);
-      stops.push_back(GradientStop{
-          std::clamp(static_cast<float>(cell_value(row, 0, row == 0 ? 0 : 100)) / 100.0F, 0.0F, 1.0F),
-          EditColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
-                    static_cast<std::uint8_t>(color.blue()),
-                    static_cast<std::uint8_t>(std::clamp(cell_value(row, 2, 100), 0, 100) * 255 / 100)},
-          row_intensity(row), row_midpoint(row)});
-    }
-    return stops;
-  };
-  const auto read_stops = [&] {
-    auto stops = read_row_stops();
-    auto normalized = normalized_gradient_stops(stops);
-    if (normalized.size() < 2U) {
-      normalized = default_stops();
-    }
-    return normalized;
-  };
-  const auto refresh_preview = [&] {
-    const QSignalBlocker blocker(table);
-    for (int row = 0; row < table->rowCount(); ++row) {
-      update_row_color(row);
-    }
-    preview->set_stops(read_row_stops());
-    preview->set_current_row(table->currentRow());
-    remove_stop->setEnabled(table->rowCount() > 2);
-    if (const auto row = table->currentRow(); row >= 0 && row < table->rowCount()) {
-      hdr->set_color(row_color(row), row_intensity(row));
-    }
-  };
-  const auto add_row = [&](const GradientStop& stop) {
-    const auto row = table->rowCount();
-    table->insertRow(row);
-    auto* location_item =
-        set_item(row, 0, QString::number(static_cast<int>(std::round(std::clamp(stop.location, 0.0F, 1.0F) * 100.0F))));
-    location_item->setData(kGradientStopMidpointRole, stop.midpoint);
-    auto* color_item = set_item(row, 1, qcolor_from_edit_color(stop.color).name(QColor::HexRgb).toUpper());
-    color_item->setData(Qt::UserRole, QColor(stop.color.r, stop.color.g, stop.color.b));
-    color_item->setData(kGradientStopIntensityRole, stop.intensity_stops);
-    set_item(row, 2, QString::number(static_cast<int>(std::round(static_cast<double>(stop.color.a) * 100.0 / 255.0))));
-    update_row_color(row);
-  };
-  const auto load_stops = [&](const std::vector<GradientStop>& stops) {
-    loading = true;
-    const QSignalBlocker blocker(table);
-    table->setRowCount(0);
-    for (const auto& stop : normalized_gradient_stops(stops)) {
-      add_row(stop);
-    }
-    if (table->rowCount() > 0) {
-      table->setCurrentCell(0, 0);
-    }
-    loading = false;
-    refresh_preview();
-  };
-  const auto set_row_color = [&](int row, QColor color) {
-    if (row < 0 || row >= table->rowCount() || !color.isValid()) {
-      return;
-    }
-    auto* item = table->item(row, 1);
-    if (item == nullptr) {
-      item = set_item(row, 1, QString());
-    }
-    item->setText(color.name(QColor::HexRgb).toUpper());
-    item->setData(Qt::UserRole, color);
-    using_default_stops = false;
-    refresh_preview();
-  };
-  const auto set_row_location = [&](int row, int location) {
-    if (row < 0 || row >= table->rowCount()) {
-      return;
-    }
-    auto* item = table->item(row, 0);
-    if (item == nullptr) {
-      item = set_item(row, 0, QString());
-    }
-    item->setText(QString::number(std::clamp(location, 0, 100)));
-    using_default_stops = false;
-    refresh_preview();
-  };
-  const auto remove_row = [&](int row) {
-    if (table->rowCount() <= 2 || row < 0 || row >= table->rowCount()) {
-      return;
-    }
-    table->removeRow(row);
-    table->setCurrentCell(std::min(row, table->rowCount() - 1), 0);
-    using_default_stops = false;
-    refresh_preview();
-  };
-  const auto choose_current_color = [&] {
-    if (table->rowCount() <= 0) {
-      return;
-    }
-    const auto row = std::clamp(table->currentRow(), 0, table->rowCount() - 1);
-    const auto original_color = row_color(row);
-    const bool was_using_default_stops = using_default_stops;
-    const auto chosen = request_patchy_color(&dialog, original_color, QObject::tr("Choose Gradient Stop Color"),
-                                             [&](QColor color) { set_row_color(row, color); });
-    if (!chosen.has_value()) {
-      set_row_color(row, original_color);
-      using_default_stops = was_using_default_stops;
-      refresh_preview();
-      return;
-    }
-    set_row_color(row, *chosen);
-  };
-
-  load_stops(has_custom_stops ? initial_stops : default_stops());
-  QObject::connect(table, &QTableWidget::itemChanged, &dialog, [&](QTableWidgetItem*) {
-    if (!loading) {
-      using_default_stops = false;
-    }
-    refresh_preview();
-  });
-  QObject::connect(table, &QTableWidget::currentCellChanged, &dialog, [&](int, int, int, int) { refresh_preview(); });
-  QObject::connect(add_stop, &QPushButton::clicked, &dialog, [&] {
-    const auto source_row = std::clamp(table->currentRow(), 0, std::max(0, table->rowCount() - 1));
-    const auto color = row_color(source_row);
-    const auto location = std::clamp(cell_value(source_row, 0, 50) + (table->rowCount() > 0 ? 10 : 0), 0, 100);
-    add_row(GradientStop{static_cast<float>(location) / 100.0F,
-                         EditColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
-                                   static_cast<std::uint8_t>(color.blue()),
-                                   static_cast<std::uint8_t>(std::clamp(cell_value(source_row, 2, 100), 0, 100) *
-                                                             255 / 100)},
-                         row_intensity(source_row)});
-    table->setCurrentCell(table->rowCount() - 1, 0);
-    using_default_stops = false;
-    refresh_preview();
-  });
-  QObject::connect(remove_stop, &QPushButton::clicked, &dialog, [&] {
-    remove_row(std::clamp(table->currentRow(), 0, table->rowCount() - 1));
-  });
-  QObject::connect(choose_color, &QPushButton::clicked, &dialog, choose_current_color);
-  QObject::connect(table, &QTableWidget::cellDoubleClicked, &dialog, [table, &choose_current_color](int row, int column) {
-    if (column != 1) {
-      return;
-    }
-    table->setCurrentCell(std::clamp(row, 0, table->rowCount() - 1), 1);
-    choose_current_color();
+    controls.color_stops[static_cast<std::size_t>(row)].intensity_stops = static_cast<float>(stops);
+    edited = true;
+    use_default = false;
+    controls.update_previews();
   });
   QObject::connect(reset_stops, &QPushButton::clicked, &dialog, [&] {
-    load_stops(default_stops());
-    using_default_stops = true;
+    auto value = default_resolved;
+    value.type = LayerStyleGradientType::Linear;
+    value.reverse = false;
+    controls.load(value);
+    edited = true;
+    use_default = true;
   });
-  QObject::connect(presets, &QPushButton::clicked, &dialog, [&, presets] {
-    if (gradient_library == nullptr) return;
-    // Frame-reference captures are safe here: the popup is a child of the
-    // dialog's button and cannot outlive the blocked dialog frame.
-    const auto use_entry = [&](const GradientLibraryEntry& entry) {
-      load_stops(gradient_tool_stops_from_preset(entry.definition, foreground, background, intensity));
-      using_default_stops = false;
-    };
-    show_gradient_preset_popup(presets, *gradient_library, use_entry, [&, use_entry] {
-      const auto selected = request_gradient_manager(&dialog, *gradient_library, {});
-      if (const auto* entry = gradient_library->find_entry(selected); entry != nullptr) {
-        use_entry(*entry);
-      }
-    });
-  });
-  preview->stop_selected = [&](int row) {
-    if (row >= 0 && row < table->rowCount()) {
-      table->setCurrentCell(row, 0);
-    }
-  };
-  preview->choose_stop_color_requested = [&](int row) {
-    if (row >= 0 && row < table->rowCount()) {
-      table->setCurrentCell(row, 1);
-      choose_current_color();
-    }
-  };
-  preview->stop_location_changed = [&](int row, int location) { set_row_location(row, location); };
-  preview->stop_color_picked = [&](int row, QColor color) { set_row_color(row, color); };
-  preview->stop_add_requested = [&](GradientStop stop) {
-    add_row(stop);
-    const int row = table->rowCount() - 1;
-    table->setCurrentCell(row, 0);
-    using_default_stops = false;
-    refresh_preview();
-    return row;
-  };
-  preview->stop_delete_requested = [&](int row) { remove_row(row); };
-  QObject::connect(hdr, &HdrColorControls::intensity_changed, &dialog, [&](double stops) {
-    const auto row = table->currentRow();
-    auto* item = row >= 0 ? table->item(row, 1) : nullptr;
-    if (item == nullptr) {
-      return;
-    }
-    {
-      const QSignalBlocker blocker(table);
-      item->setData(kGradientStopIntensityRole, static_cast<float>(stops));
-    }
-    using_default_stops = false;
-    refresh_preview();
-  });
+  controls.load(initial);
+  sync_hdr();
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
   layout->addWidget(buttons);
@@ -612,10 +329,149 @@ std::optional<std::optional<std::vector<GradientStop>>> request_gradient_stops_d
   if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;
   }
-  if (using_default_stops) {
-    return std::optional<std::vector<GradientStop>>{};
+  if (use_default) {
+    return std::optional<GradientDefinition>{};
   }
-  return read_stops();
+  if (!edited && current.has_value()) {
+    return current;
+  }
+  GradientDefinition result = controls.value();
+  result.name = "Custom";
+  return std::optional<GradientDefinition>(std::move(result));
+}
+
+// tools/gradientDefinition (GitHub issue 663, one gradient editor): the Gradient tool's
+// two-track gradient as a versioned JSON object. Version 1 keys: name, form ("solid",
+// "noise"), smoothness (0..4096), colorStops [{location, r, g, b, midpoint, kind ("user",
+// "foreground", "background"), intensity}], alphaStops [{location, opacity, midpoint}], noise
+// {seed, roughness, transparency, restrict, model ("rgb", "hsb", "lab"), minimum[4],
+// maximum[4]}, and flatStops: the tools/gradientStops text saved beside it. A build that
+// predates this key rewrites tools/gradientStops only, so a mismatch there means the flat
+// stops are newer and win (gradient_definition_from_settings).
+constexpr int kGradientDefinitionVersion = 1;
+
+QByteArray serialize_gradient_definition(const GradientDefinition& definition, const QByteArray& flat_stops) {
+  QJsonObject object;
+  object.insert(QStringLiteral("version"), kGradientDefinitionVersion);
+  object.insert(QStringLiteral("name"), QString::fromStdString(definition.name));
+  object.insert(QStringLiteral("form"), definition.form == GradientDefinitionForm::Noise ? QStringLiteral("noise")
+                                                                                        : QStringLiteral("solid"));
+  object.insert(QStringLiteral("smoothness"), static_cast<int>(definition.smoothness));
+  QJsonArray colors;
+  for (const auto& stop : definition.color_stops) {
+    QJsonObject entry;
+    entry.insert(QStringLiteral("location"), static_cast<double>(stop.location));
+    entry.insert(QStringLiteral("r"), static_cast<int>(stop.color.red));
+    entry.insert(QStringLiteral("g"), static_cast<int>(stop.color.green));
+    entry.insert(QStringLiteral("b"), static_cast<int>(stop.color.blue));
+    entry.insert(QStringLiteral("midpoint"), static_cast<double>(stop.midpoint));
+    entry.insert(QStringLiteral("kind"), stop.kind == GradientColorStop::Kind::Foreground   ? QStringLiteral("foreground")
+                                         : stop.kind == GradientColorStop::Kind::Background ? QStringLiteral("background")
+                                                                                            : QStringLiteral("user"));
+    entry.insert(QStringLiteral("intensity"), static_cast<double>(stop.intensity_stops));
+    colors.push_back(entry);
+  }
+  object.insert(QStringLiteral("colorStops"), colors);
+  QJsonArray alphas;
+  for (const auto& stop : definition.alpha_stops) {
+    QJsonObject entry;
+    entry.insert(QStringLiteral("location"), static_cast<double>(stop.location));
+    entry.insert(QStringLiteral("opacity"), static_cast<double>(stop.opacity));
+    entry.insert(QStringLiteral("midpoint"), static_cast<double>(stop.midpoint));
+    alphas.push_back(entry);
+  }
+  object.insert(QStringLiteral("alphaStops"), alphas);
+  QJsonObject noise;
+  noise.insert(QStringLiteral("seed"), static_cast<double>(definition.noise.seed));
+  noise.insert(QStringLiteral("roughness"), static_cast<int>(definition.noise.roughness));
+  noise.insert(QStringLiteral("transparency"), definition.noise.add_transparency);
+  noise.insert(QStringLiteral("restrict"), definition.noise.restrict_colors);
+  noise.insert(QStringLiteral("model"), definition.noise.color_model == GradientNoiseColorModel::HSB ? QStringLiteral("hsb")
+                                        : definition.noise.color_model == GradientNoiseColorModel::Lab ? QStringLiteral("lab")
+                                                                                                       : QStringLiteral("rgb"));
+  QJsonArray minimum;
+  QJsonArray maximum;
+  for (std::size_t channel = 0; channel < 4U; ++channel) {
+    minimum.push_back(static_cast<int>(definition.noise.minimum[channel]));
+    maximum.push_back(static_cast<int>(definition.noise.maximum[channel]));
+  }
+  noise.insert(QStringLiteral("minimum"), minimum);
+  noise.insert(QStringLiteral("maximum"), maximum);
+  object.insert(QStringLiteral("noise"), noise);
+  object.insert(QStringLiteral("flatStops"), QString::fromUtf8(flat_stops));
+  return QJsonDocument(object).toJson(QJsonDocument::Compact);
+}
+
+// The definition in `json` when it is version 1, well formed, and was saved beside exactly
+// `flat_stops` (see above); otherwise nullopt and the caller reads the flat stops.
+std::optional<GradientDefinition> deserialize_gradient_definition(const QByteArray& json, const QByteArray& flat_stops) {
+  QJsonParseError error;
+  const auto document = QJsonDocument::fromJson(json, &error);
+  if (error.error != QJsonParseError::NoError || !document.isObject()) {
+    return std::nullopt;
+  }
+  const auto object = document.object();
+  if (object.value(QStringLiteral("version")).toInt() != kGradientDefinitionVersion ||
+      object.value(QStringLiteral("flatStops")).toString().toUtf8() != flat_stops) {
+    return std::nullopt;
+  }
+  GradientDefinition definition;
+  definition.name = object.value(QStringLiteral("name")).toString(QStringLiteral("Custom")).toStdString();
+  definition.form = object.value(QStringLiteral("form")).toString() == QStringLiteral("noise")
+                        ? GradientDefinitionForm::Noise
+                        : GradientDefinitionForm::Solid;
+  definition.smoothness = static_cast<std::uint16_t>(std::clamp(object.value(QStringLiteral("smoothness")).toInt(), 0, 4096));
+  const auto unit = [](const QJsonValue& value, double fallback) {
+    return static_cast<float>(std::clamp(value.toDouble(fallback), 0.0, 1.0));
+  };
+  const auto byte = [](const QJsonValue& value) {
+    return static_cast<std::uint8_t>(std::clamp(value.toInt(), 0, 255));
+  };
+  for (const auto& value : object.value(QStringLiteral("colorStops")).toArray()) {
+    const auto entry = value.toObject();
+    GradientColorStop stop;
+    stop.location = unit(entry.value(QStringLiteral("location")), 0.0);
+    stop.color = RgbColor{byte(entry.value(QStringLiteral("r"))), byte(entry.value(QStringLiteral("g"))),
+                          byte(entry.value(QStringLiteral("b")))};
+    stop.midpoint = static_cast<float>(std::clamp(entry.value(QStringLiteral("midpoint")).toDouble(0.5), 0.01, 0.99));
+    const auto kind = entry.value(QStringLiteral("kind")).toString();
+    stop.kind = kind == QStringLiteral("foreground")   ? GradientColorStop::Kind::Foreground
+                : kind == QStringLiteral("background") ? GradientColorStop::Kind::Background
+                                                       : GradientColorStop::Kind::User;
+    stop.intensity_stops =
+        static_cast<float>(clamp_color_intensity_stops(entry.value(QStringLiteral("intensity")).toDouble(0.0)));
+    definition.color_stops.push_back(stop);
+  }
+  for (const auto& value : object.value(QStringLiteral("alphaStops")).toArray()) {
+    const auto entry = value.toObject();
+    definition.alpha_stops.push_back(GradientAlphaStop{
+        unit(entry.value(QStringLiteral("location")), 0.0), unit(entry.value(QStringLiteral("opacity")), 1.0),
+        static_cast<float>(std::clamp(entry.value(QStringLiteral("midpoint")).toDouble(0.5), 0.01, 0.99))});
+  }
+  const auto noise = object.value(QStringLiteral("noise")).toObject();
+  definition.noise.seed = static_cast<std::uint32_t>(std::clamp(noise.value(QStringLiteral("seed")).toDouble(0.0), 0.0, 4294967295.0));
+  definition.noise.roughness =
+      static_cast<std::uint16_t>(std::clamp(noise.value(QStringLiteral("roughness")).toInt(2048), 0, 4096));
+  definition.noise.add_transparency = noise.value(QStringLiteral("transparency")).toBool(false);
+  definition.noise.restrict_colors = noise.value(QStringLiteral("restrict")).toBool(true);
+  const auto model = noise.value(QStringLiteral("model")).toString();
+  definition.noise.color_model = model == QStringLiteral("hsb")   ? GradientNoiseColorModel::HSB
+                                 : model == QStringLiteral("lab") ? GradientNoiseColorModel::Lab
+                                                                  : GradientNoiseColorModel::RGB;
+  const auto minimum = noise.value(QStringLiteral("minimum")).toArray();
+  const auto maximum = noise.value(QStringLiteral("maximum")).toArray();
+  for (std::size_t channel = 0; channel < 4U; ++channel) {
+    const auto index = static_cast<qsizetype>(channel);
+    definition.noise.minimum[channel] =
+        static_cast<std::uint16_t>(std::clamp(index < minimum.size() ? minimum.at(index).toInt(0) : 0, 0, 100));
+    definition.noise.maximum[channel] =
+        static_cast<std::uint16_t>(std::clamp(index < maximum.size() ? maximum.at(index).toInt(100) : 100, 0, 100));
+  }
+  if (definition.form == GradientDefinitionForm::Solid &&
+      (definition.color_stops.empty() || definition.alpha_stops.empty())) {
+    return std::nullopt;
+  }
+  return definition;
 }
 
 QByteArray serialize_gradient_stops(const std::vector<GradientStop>& stops) {
@@ -1144,8 +1000,8 @@ void MainWindow::open_gradient_manager(QWidget* parent) {
   if (entry == nullptr || canvas_ == nullptr) {
     return;
   }
-  canvas_->set_gradient_stops(gradient_tool_stops_from_preset(
-      entry->definition, canvas_->primary_color(), canvas_->secondary_color(), canvas_->paint_intensity()));
+  // The preset as it is: two tracks, midpoints, smoothness, Noise, live Foreground/Background.
+  canvas_->set_gradient_definition(entry->definition);
   refresh_gradient_controls_from_canvas();
   save_tool_settings();
   refresh_document_info();
@@ -2456,14 +2312,13 @@ void MainWindow::edit_gradient_stops() {
   }
   const bool linear_document =
       has_active_document() && std::as_const(document()).color_state().bit_depth == BitDepth::Float32;
-  const auto result = request_gradient_stops_dialog(this, canvas_->effective_gradient_stops(),
-                                                    canvas_->gradient_stops().has_value(), canvas_->primary_color(),
-                                                    canvas_->secondary_color(), &gradient_library(),
-                                                    canvas_->paint_intensity(), linear_document);
+  const auto result = request_gradient_stops_dialog(
+      this, canvas_->gradient_definition(), canvas_->resolved_gradient(), canvas_->default_resolved_gradient(),
+      canvas_->primary_color(), canvas_->secondary_color(), &gradient_library(), linear_document);
   if (!result.has_value() || canvas_ == nullptr) {
     return;  // cancelled, or the document was closed while the dialog was open
   }
-  canvas_->set_gradient_stops(*result);
+  canvas_->set_gradient_definition(*result);
   refresh_gradient_controls_from_canvas();
   save_tool_settings();
   refresh_document_info();
@@ -2474,8 +2329,8 @@ void MainWindow::apply_gradient_preset_entry(const GradientLibraryEntry& entry) 
     return;
   }
   gradient_preset_id_ = entry.storage_id;
-  canvas_->set_gradient_stops(gradient_tool_stops_from_preset(
-      entry.definition, canvas_->primary_color(), canvas_->secondary_color(), canvas_->paint_intensity()));
+  // The preset as it is: two tracks, midpoints, smoothness, Noise, live Foreground/Background.
+  canvas_->set_gradient_definition(entry.definition);
   refresh_gradient_controls_from_canvas();
   save_tool_settings();
   refresh_document_info();
@@ -2536,19 +2391,15 @@ void MainWindow::step_active_tool_preset(int direction, bool to_end) {
       return;
     }
     auto current = order.indexOf(gradient_preset_id_);
-    if (current < 0 && canvas_->gradient_stops().has_value()) {
-      // After a restart only the stops are known: find the preset that produces them.
-      const auto& stops = *canvas_->gradient_stops();
-      const auto same_stop = [](const GradientStop& a, const GradientStop& b) {
-        return a.location == b.location && a.color.r == b.color.r && a.color.g == b.color.g &&
-               a.color.b == b.color.b && a.color.a == b.color.a && a.intensity_stops == b.intensity_stops &&
-               a.midpoint == b.midpoint;
-      };
+    if (current < 0 && canvas_->gradient_definition().has_value()) {
+      // After a restart only the gradient is known: find the preset it is (names aside).
+      auto stored = *canvas_->gradient_definition();
+      stored.name.clear();
       for (qsizetype index = 0; index < order.size() && current < 0; ++index) {
         if (const auto* entry = library.find_entry(order[index]); entry != nullptr) {
-          const auto sampled = gradient_tool_stops_from_preset(
-              entry->definition, canvas_->primary_color(), canvas_->secondary_color(), canvas_->paint_intensity());
-          if (std::equal(sampled.begin(), sampled.end(), stops.begin(), stops.end(), same_stop)) {
+          auto candidate = entry->definition;
+          candidate.name.clear();
+          if (candidate == stored) {
             current = index;
           }
         }
@@ -3243,10 +3094,18 @@ void MainWindow::load_tool_settings() {
           : GradientToolMode::Pixels);
   canvas_->set_gradient_opacity(settings.value(QStringLiteral("tools/gradientOpacity"), canvas_->gradient_opacity()).toInt());
   if (settings.value(QStringLiteral("tools/gradientUseCustomStops"), false).toBool()) {
-    const auto stops = deserialize_gradient_stops(settings.value(QStringLiteral("tools/gradientStops")).toByteArray());
-    canvas_->set_gradient_stops(stops);
+    // tools/gradientDefinition (two tracks) when it was saved beside these exact flat stops;
+    // otherwise the flat stops, converted (an older build wrote them, or nothing else exists).
+    const auto flat = settings.value(QStringLiteral("tools/gradientStops")).toByteArray();
+    if (const auto definition =
+            deserialize_gradient_definition(settings.value(QStringLiteral("tools/gradientDefinition")).toByteArray(), flat);
+        definition.has_value()) {
+      canvas_->set_gradient_definition(*definition);
+    } else {
+      canvas_->set_gradient_stops(deserialize_gradient_stops(flat));
+    }
   } else {
-    canvas_->set_gradient_stops(std::nullopt);
+    canvas_->set_gradient_definition(std::nullopt);
   }
   if (text_smoothing_combo_ != nullptr) {
     set_text_smoothing_combo_value(
@@ -3706,11 +3565,15 @@ void MainWindow::save_tool_settings() const {
                     canvas_->gradient_tool_mode() == GradientToolMode::FillLayer ? QStringLiteral("fillLayer")
                                                                                   : QStringLiteral("pixels"));
   settings.setValue(QStringLiteral("tools/gradientOpacity"), canvas_->gradient_opacity());
-  settings.setValue(QStringLiteral("tools/gradientUseCustomStops"), canvas_->gradient_stops().has_value());
-  if (canvas_->gradient_stops().has_value()) {
-    settings.setValue(QStringLiteral("tools/gradientStops"), serialize_gradient_stops(*canvas_->gradient_stops()));
+  settings.setValue(QStringLiteral("tools/gradientUseCustomStops"), canvas_->gradient_definition().has_value());
+  if (const auto& definition = canvas_->gradient_definition(); definition.has_value()) {
+    // The flat stops stay written (their meaning unchanged) for builds that read only them.
+    const auto flat = serialize_gradient_stops(canvas_->effective_gradient_stops());
+    settings.setValue(QStringLiteral("tools/gradientStops"), flat);
+    settings.setValue(QStringLiteral("tools/gradientDefinition"), serialize_gradient_definition(*definition, flat));
   } else {
     settings.remove(QStringLiteral("tools/gradientStops"));
+    settings.remove(QStringLiteral("tools/gradientDefinition"));
   }
   if (text_smoothing_combo_ != nullptr) {
     settings.setValue(QStringLiteral("tools/textSmoothing"), text_smoothing_combo_value(text_smoothing_combo_));

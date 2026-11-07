@@ -1,5 +1,6 @@
 #include <QActionGroup>
 
+#include "ui/gradient_stops_editor.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ai/segmentation_engine.hpp"
 #include "ui/main_window_shared.hpp"
@@ -8866,118 +8867,60 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(canvas->gradient_opacity() == 55);
   CHECK(canvas->gradient_reverse());
 
+  // Edit Gradient Stops is the shared two-track editor (GitHub issue 663, one gradient
+  // editor): a color stop's color and an opacity stop's opacity are set apart.
   QTimer::singleShot(0, guarded([] {
     auto* dialog = find_top_level_dialog(QStringLiteral("gradientStopsDialog"));
     CHECK(dialog != nullptr);
-    auto* preview = dialog->findChild<QWidget*>(QStringLiteral("gradientStopsPreview"));
-    auto* table = dialog->findChild<QTableWidget*>(QStringLiteral("gradientStopsTable"));
-    auto* add_stop = dialog->findChild<QPushButton*>(QStringLiteral("gradientAddStopButton"));
-    auto* choose_color = dialog->findChild<QPushButton*>(QStringLiteral("gradientChooseStopColorButton"));
-    CHECK(preview != nullptr);
-    CHECK(table != nullptr);
-    CHECK(add_stop != nullptr);
-    CHECK(choose_color != nullptr);
-    CHECK(table->rowCount() == 2);
-
-    constexpr int gradient_gutter = 10;
-    const auto handle_x = [preview](double location) {
-      constexpr int gutter = 10;
-      const int track_max = std::max(1, preview->width() - gutter * 2 - 2);
-      return gutter + static_cast<int>(std::lround(std::clamp(location, 0.0, 1.0) * track_max));
-    };
-    const int bar_right_x = handle_x(1.0);
-    const auto preview_image = preview->grab().toImage();
-    CHECK(preview_image.rect().contains(QPoint(bar_right_x, 16)));
-    CHECK(preview_image.pixelColor(bar_right_x, 16).value() > 180);
-    int visible_left_handle_pixels = 0;
-    int visible_right_handle_pixels = 0;
-    for (int y = 44; y < preview_image.height(); ++y) {
-      for (int x = 0; x <= gradient_gutter + 12 && x < preview_image.width(); ++x) {
-        const auto color = preview_image.pixelColor(x, y);
-        if (color.blue() > 120 || color.value() < 16) {
-          ++visible_left_handle_pixels;
-        }
-      }
-      for (int x = std::max(0, preview_image.width() - gradient_gutter - 13); x < preview_image.width(); ++x) {
-        if (preview_image.pixelColor(x, y).value() > 180) {
-          ++visible_right_handle_pixels;
-        }
-      }
+    if (dialog == nullptr) {
+      return;
     }
-    CHECK(visible_left_handle_pixels > 12);
-    CHECK(visible_right_handle_pixels > 12);
-
-    const int handle_y = 48;
-    const int x10 = handle_x(0.10);
-    const int x50 = handle_x(0.50);
-    send_mouse(*preview, QEvent::MouseMove, QPoint(x10, handle_y), Qt::NoButton, Qt::NoButton);
-    CHECK(preview->cursor().shape() == Qt::CrossCursor);
-    send_mouse(*preview, QEvent::MouseButtonPress, QPoint(x10, handle_y), Qt::LeftButton, Qt::LeftButton);
-    CHECK(table->rowCount() == 3);
-    CHECK(table->currentRow() == 2);
-    CHECK(table->item(2, 0)->text() == QStringLiteral("10"));
-    send_mouse(*preview, QEvent::MouseMove, QPoint(x50, handle_y), Qt::NoButton, Qt::LeftButton);
-    send_mouse(*preview, QEvent::MouseButtonRelease, QPoint(x50, handle_y), Qt::LeftButton, Qt::NoButton);
-    CHECK(table->item(2, 0)->text() == QStringLiteral("50"));
-
-    send_mouse(*preview, QEvent::MouseButtonPress, QPoint(bar_right_x, 16), Qt::LeftButton, Qt::LeftButton);
-    send_mouse(*preview, QEvent::MouseButtonRelease, QPoint(bar_right_x, 16), Qt::LeftButton, Qt::NoButton);
-    const QColor sampled_color(table->item(2, 1)->text());
-    CHECK(sampled_color.isValid());
-    CHECK(sampled_color.value() > 180);
-
+    auto* editor = dialog->findChild<patchy::ui::GradientStopsEditorWidget*>(QStringLiteral("gradientStopsEditor"));
+    auto* add_stop = dialog->findChild<QPushButton*>(QStringLiteral("gradientAddStopButton"));
+    auto* location = dialog->findChild<QSpinBox*>(QStringLiteral("gradientStopLocationSpin"));
+    auto* hex = dialog->findChild<QLineEdit*>(QStringLiteral("gradientStopHexEdit"));
+    auto* opacity = dialog->findChild<QSpinBox*>(QStringLiteral("gradientStopOpacitySpin"));
+    CHECK(editor != nullptr && add_stop != nullptr && location != nullptr && hex != nullptr && opacity != nullptr);
+    CHECK(dialog->findChild<QTableWidget*>() == nullptr);
+    CHECK(dialog->findChild<QPushButton*>(QStringLiteral("gradientResetStopsButton")) != nullptr);
+    if (editor == nullptr || add_stop == nullptr || location == nullptr || hex == nullptr || opacity == nullptr) {
+      dialog->reject();
+      return;
+    }
+    // A new color stop at 50%, green.
     add_stop->click();
-    CHECK(table->rowCount() == 4);
-    const int x60 = handle_x(0.60);
-    send_mouse(*preview, QEvent::MouseButtonPress, QPoint(x60, handle_y), Qt::LeftButton, Qt::LeftButton);
-    send_mouse(*preview, QEvent::MouseMove, QPoint(x60, preview->height() + 4), Qt::NoButton, Qt::LeftButton);
-    CHECK(table->rowCount() == 4);
-    send_mouse(*preview, QEvent::MouseMove, QPoint(x60, preview->height() + 16), Qt::NoButton, Qt::LeftButton);
-    CHECK(table->rowCount() == 4);
-    send_mouse(*preview, QEvent::MouseMove, QPoint(x50, handle_y), Qt::NoButton, Qt::LeftButton);
-    CHECK(table->rowCount() == 4);
-    CHECK(table->item(3, 0)->text() == QStringLiteral("50"));
-    send_mouse(*preview, QEvent::MouseButtonRelease, QPoint(x50, handle_y), Qt::LeftButton, Qt::NoButton);
-    CHECK(table->rowCount() == 4);
-
-    send_mouse(*preview, QEvent::MouseButtonPress, QPoint(x50, handle_y), Qt::LeftButton, Qt::LeftButton);
-    send_mouse(*preview, QEvent::MouseMove, QPoint(x50, 8), Qt::NoButton, Qt::LeftButton);
-    CHECK(table->rowCount() == 4);
-    send_mouse(*preview, QEvent::MouseButtonRelease, QPoint(x50, 8), Qt::LeftButton, Qt::NoButton);
-    CHECK(table->rowCount() == 3);
-
-    table->item(2, 0)->setText(QStringLiteral("50"));
-    table->item(2, 1)->setText(QStringLiteral("#00FF00"));
-    table->item(2, 2)->setText(QStringLiteral("25"));
-    table->setCurrentCell(2, 1);
-
-    const QColor original_stop_color(table->item(2, 1)->text());
-    bool saw_live_stop_picker = false;
-    QTimer::singleShot(0, guarded([&] {
-      auto* color_dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyColorDialog")));
-      CHECK(color_dialog != nullptr);
-      auto* picker = color_dialog->findChild<patchy::ui::PatchyColorPicker*>(
-          QStringLiteral("patchyAdvancedColorPicker"));
-      CHECK(picker != nullptr);
-      picker->setCurrentColor(QColor(12, 34, 56));
-      QApplication::processEvents();
-      CHECK(table->item(2, 1)->text() == QStringLiteral("#0C2238"));
-      saw_live_stop_picker = true;
-      color_dialog->reject();
-    }));
-    choose_color->click();
-    CHECK(saw_live_stop_picker);
-    CHECK(table->item(2, 1)->text() == original_stop_color.name(QColor::HexRgb).toUpper());
-
+    QApplication::processEvents();
+    location->setValue(50);
+    hex->setFocus();
+    hex->selectAll();
+    QTest::keyClicks(hex, QStringLiteral("#00FF00"));
+    QTest::keyClick(hex, Qt::Key_Return);
+    QApplication::processEvents();
+    // The right-hand opacity stop at 25%.
+    if (editor->opacity_stop_selected) {
+      editor->opacity_stop_selected(1);
+    }
+    QApplication::processEvents();
+    opacity->setValue(25);
+    QApplication::processEvents();
     dialog->accept();
   }));
   gradient_edit_stops->click();
   QApplication::processEvents();
-  CHECK(canvas->gradient_stops().has_value());
-  CHECK(canvas->gradient_stops()->size() == 3);
-  CHECK(canvas->gradient_stops()->at(1).color.g == 255);
-  CHECK(canvas->gradient_stops()->at(1).color.a >= 63);
-  CHECK(canvas->gradient_stops()->at(1).color.a <= 64);
+  CHECK(canvas->gradient_definition().has_value());
+  if (canvas->gradient_definition().has_value()) {
+    const auto& definition = *canvas->gradient_definition();
+    CHECK(definition.color_stops.size() == 3U);
+    CHECK(definition.alpha_stops.size() == 2U);
+    bool green_at_half = false;
+    for (const auto& stop : definition.color_stops) {
+      green_at_half = green_at_half || (std::abs(stop.location - 0.5F) < 0.01F && stop.color.green == 255 &&
+                                        stop.color.red == 0 && stop.color.blue == 0);
+    }
+    CHECK(green_at_half);
+    CHECK(std::abs(definition.alpha_stops.back().opacity - 0.25F) < 0.01F);
+    CHECK(definition.alpha_stops.front().opacity == 1.0F);
+  }
 }
 
 void ui_gradient_toolbar_preset_popup_applies_stops() {
@@ -9065,11 +9008,15 @@ void ui_gradient_toolbar_preset_popup_applies_stops() {
   QTimer::singleShot(0, guarded([&] {
     auto* dialog = find_top_level_dialog(QStringLiteral("gradientStopsDialog"));
     CHECK(dialog != nullptr);
-    auto* table = dialog->findChild<QTableWidget*>(QStringLiteral("gradientStopsTable"));
+    auto* hex = dialog->findChild<QLineEdit*>(QStringLiteral("gradientStopHexEdit"));
     auto* preset_button = dialog->findChild<QPushButton*>(QStringLiteral("gradientPresetButton"));
-    CHECK(table != nullptr);
+    CHECK(hex != nullptr);
     CHECK(preset_button != nullptr);
-    CHECK(table->rowCount() == 3);
+    if (hex == nullptr || preset_button == nullptr) {
+      dialog->reject();
+      return;
+    }
+    CHECK(hex->text() == QStringLiteral("#2B1B12"));  // Sepia Wash's first stop, selected
     preset_button->click();
     QApplication::processEvents();
     QPointer<QFrame> dialog_popup =
@@ -9086,8 +9033,7 @@ void ui_gradient_toolbar_preset_popup_applies_stops() {
     CHECK(cyanotype_rect.isValid());
     QTest::mouseClick(dialog_tree->viewport(), Qt::LeftButton, Qt::NoModifier, cyanotype_rect.center());
     QApplication::processEvents();
-    CHECK(table->rowCount() == 3);  // Cyanotype's own stops
-    CHECK(table->item(0, 1)->text() == QStringLiteral("#081C33"));
+    CHECK(hex->text() == QStringLiteral("#081C33"));  // Cyanotype's own first stop
     checked_dialog_popup = true;
     dialog->reject();
   }));

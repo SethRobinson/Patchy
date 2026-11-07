@@ -7148,14 +7148,6 @@ Flow: %6
         <translation>Изменить контрольные точки градиента</translation>
     </message>
     <message>
-        <source>Location %</source>
-        <translation>Расположение %</translation>
-    </message>
-    <message>
-        <source>Alpha %</source>
-        <translation>Альфа %</translation>
-    </message>
-    <message>
         <source>Reset to FG/BG</source>
         <translation>Основной/фоновый цвет</translation>
     </message>

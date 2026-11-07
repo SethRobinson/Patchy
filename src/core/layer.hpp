@@ -307,6 +307,10 @@ struct GradientColorStop {
   // background color. Layer effects normally contain resolved User colors,
   // while the application preset library preserves these roles.
   Kind kind{Kind::User};
+  // The Gradient tool's 32-bit Intensity for this stop, in stops (core/hdr_color.hpp;
+  // docs/high-bit-depth-color.md, "Color choice at 32 bits"). Only the tool's own gradient
+  // carries it; PSD, GRD and layer-style gradients have none and never write it.
+  float intensity_stops{0.0F};
 
   friend bool operator==(const GradientColorStop&, const GradientColorStop&) = default;
 };

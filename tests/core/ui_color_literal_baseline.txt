@@ -62,7 +62,7 @@ src/ui/main_window_perspective.cpp 1
 src/ui/main_window_plugins.cpp 1
 src/ui/main_window_preferences.cpp 9
 src/ui/main_window_stress_test.cpp 133
-src/ui/main_window_tool_options.cpp 11
+src/ui/main_window_tool_options.cpp 7
 src/ui/main_window_vector.cpp 5
 src/ui/new_document_dialog.cpp 9
 src/ui/new_document_dialog.hpp 1
