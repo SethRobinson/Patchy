@@ -2400,6 +2400,8 @@ private:
   [[nodiscard]] QRect smudge_brush_segment(QPoint from, QPoint to);
   [[nodiscard]] QRect local_adjustment_brush_segment(QPoint from, QPoint to);
   [[nodiscard]] QRect local_adjustment_brush_segment_deep(QPoint from, QPoint to);
+  // Blur and Sharpen: per-dab fixed 3x3 steps that build up (GitHub #660 follow-up).
+  [[nodiscard]] QRect blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasTool operation);
   // The operation a Dodge, Burn, Sponge, Blur or Sharpen stroke paints with: the tool, or
   // its opposite for a stroke that started with Alt held (GitHub #662).
   [[nodiscard]] CanvasTool local_adjustment_operation() const noexcept;
@@ -4344,6 +4346,10 @@ private:
   // The current stroke started with Alt held: Dodge paints as Burn, Blur as Sharpen and
   // back (GitHub #662; local_adjustment_operation).
   bool local_adjustment_alt_swap_{false};
+  // Blur and Sharpen dab spacing along the stroke: whether the first dab is down, and the
+  // distance travelled since the last one (blur_sharpen_brush_segment).
+  bool toning_dab_placed_{false};
+  double toning_dab_distance_{0.0};
   SpongeMode sponge_mode_{SpongeMode::Desaturate};
   bool sponge_vibrance_{true};
   int eyedropper_sample_size_{1};

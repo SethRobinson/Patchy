@@ -390,6 +390,10 @@ const dodge_burn::Knots& dodge_burn_knots(bool dodge, LocalToneRange range, bool
                        : (dodge ? dodge_burn::kDodgeMidtones : dodge_burn::kBurnMidtones);
 }
 
+// Sharpen's per-dab step: the dab adds this much of the pixel's difference from the 3x3 blur
+// (Photoshop 2026's Sharpen with Protect Detail off: 64|192 goes to 40|216 in one full dab).
+constexpr double kSharpenPerDab = 0.75;
+
 // One row of a stroke segment and the runs of it a CloneSegmentRows walk visits.
 struct SegmentRowRuns {
   int y{0};
@@ -1392,6 +1396,8 @@ void CanvasWidget::clear_brush_stroke_tracking() noexcept {
   brush_stroke_wet_edge_pending_rect_ = {};
   brush_stroke_layer_snapshot_.reset();
   local_adjustment_alt_swap_ = false;
+  toning_dab_placed_ = false;
+  toning_dab_distance_ = 0.0;
   brush_stroke_paint_mode_ = {};
   brush_stroke_last_stamp_position_.reset();
   brush_stroke_hard_round_end_.reset();
@@ -2924,12 +2930,210 @@ float CanvasWidget::local_adjustment_stroke_amount(CanvasTool operation) const n
   return static_cast<float>(dodge_burn::stroke_amount(static_cast<double>(strength), local_protect_tones_));
 }
 
+// Blur and Sharpen paint per brush dab (GitHub issue 660 follow-up; docs/brushes.md, "Blur and
+// Sharpen"). Dabs sit every quarter of the brush diameter along the stroke, measured by distance
+// so mouse-event density does not matter; each dab reads the pixels as they are now (a copy of
+// its rectangle plus a pixel), applies the fixed alpha-aware 3x3 binomial blur once, or for
+// Sharpen adds 0.75 times the difference from that blur, and mixes the result in at Strength
+// times the footprint's coverage. Overlapping dabs and repeat passes build up, as Photoshop's
+// tools do. Same patent boundary as local_adjustment_brush_segment: one fixed kernel, the
+// footprint alone picks the pixels, nothing measures or ranks the image.
+QRect CanvasWidget::blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasTool operation) {
+  auto* layer = active_pixel_layer();
+  if (document_ == nullptr || layer == nullptr) {
+    return {};
+  }
+  auto& pixels = layer->pixels();
+  if (std::exchange(retouch_press_times_layer_detach_, false)) {
+    const auto started = std::chrono::steady_clock::now();
+    static_cast<void>(pixels.data());
+    last_retouch_press_timings_.layer_detach_ms =
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+  }
+  const auto format = pixels.format();
+  if (pixels.empty() || format.channels < 3) {
+    return {};
+  }
+  const bool linear = format.bit_depth == BitDepth::Float32;
+  const auto brush = effective_brush_input();
+  const auto radius = std::max(1, brush.size) / 2;
+  const auto spacing = std::max(1.0, static_cast<double>(std::max(1, brush.size)) * 0.25);
+  const auto layer_bounds = layer->bounds();
+  const auto layer_rect = to_qrect(layer_bounds);
+  const auto paint_rect = QRect(0, 0, document_->width(), document_->height()).intersected(layer_rect);
+  if (paint_rect.isEmpty()) {
+    return {};
+  }
+  const auto strength = static_cast<double>(local_adjustment_strength_) / 100.0;
+  const bool sharpen = operation == CanvasTool::SharpenBrush;
+  const auto* palette_snap = palette_snap_for_edits();
+  const auto selection_active = has_selection();
+  auto* layer_bytes = pixels.data().data();  // detaches shared storage on this thread
+  const auto stride = pixels.stride_bytes();
+  const auto pixel_bytes = bytes_per_pixel(format);
+  const auto encode = [linear](float value) {
+    return linear ? srgb_encode(static_cast<double>(value) / 255.0) * 255.0 : static_cast<double>(value);
+  };
+  const auto decode = [linear](double value) {
+    return static_cast<float>(linear ? srgb_decode(std::clamp(value, 0.0, 255.0) / 255.0) * 255.0
+                                     : std::clamp(value, 0.0, 255.0));
+  };
+
+  QRect dirty;
+  std::vector<double> source;
+  const auto dab = [&](double center_x, double center_y) {
+    const auto left = static_cast<int>(std::floor(center_x)) - radius - 1;
+    const auto top = static_cast<int>(std::floor(center_y)) - radius - 1;
+    const auto dab_rect = QRect(left, top, radius * 2 + 3, radius * 2 + 3).intersected(paint_rect);
+    if (dab_rect.isEmpty()) {
+      return;
+    }
+    // The dab reads the pixels as they were before it: its rectangle and a pixel around it.
+    const auto copy_rect = dab_rect.adjusted(-1, -1, 1, 1).intersected(layer_rect);
+    const auto copy_width = copy_rect.width();
+    source.resize(static_cast<std::size_t>(copy_width) * static_cast<std::size_t>(copy_rect.height()) * 4U);
+    for (int y = copy_rect.top(); y <= copy_rect.bottom(); ++y) {
+      const auto* row = layer_bytes + static_cast<std::size_t>(y - layer_bounds.y) * stride;
+      for (int x = copy_rect.left(); x <= copy_rect.right(); ++x) {
+        const auto values = load_pixel(format, row + static_cast<std::size_t>(x - layer_bounds.x) * pixel_bytes);
+        auto* out = source.data() + (static_cast<std::size_t>(y - copy_rect.top()) * static_cast<std::size_t>(copy_width) +
+                                     static_cast<std::size_t>(x - copy_rect.left())) * 4U;
+        out[0] = encode(values[0]);
+        out[1] = encode(values[1]);
+        out[2] = encode(values[2]);
+        out[3] = static_cast<double>(values[3]);
+      }
+    }
+    const auto sample = [&](int x, int y) {
+      x = std::clamp(x, copy_rect.left(), copy_rect.right());
+      y = std::clamp(y, copy_rect.top(), copy_rect.bottom());
+      return source.data() + (static_cast<std::size_t>(y - copy_rect.top()) * static_cast<std::size_t>(copy_width) +
+                              static_cast<std::size_t>(x - copy_rect.left())) * 4U;
+    };
+    // One band of the dab's rows; each pixel reads only the copy and writes only itself.
+    const auto band = [&](int row_begin, int row_end) {
+      QRect band_dirty;
+      for (int y = row_begin; y < row_end; ++y) {
+        auto* row = layer_bytes + static_cast<std::size_t>(y - layer_bounds.y) * stride;
+        for (int x = dab_rect.left(); x <= dab_rect.right(); ++x) {
+          auto coverage = brush_shape_coverage(static_cast<double>(x) - center_x, static_cast<double>(y) - center_y,
+                                               radius, brush.softness, brush.roundness, brush.angle_degrees);
+          if (coverage <= 0.0F) {
+            continue;
+          }
+          const QPoint point(x, y);
+          if (selection_active) {
+            if (!selection_allows(point)) {
+              continue;
+            }
+            coverage *= static_cast<float>(selection_alpha_at(point)) / 255.0F;
+            if (coverage <= 0.0F) {
+              continue;
+            }
+          }
+          if (palette_snap != nullptr) {
+            if (coverage < palette_snap->coverage_threshold) {
+              continue;
+            }
+            coverage = 1.0F;
+          }
+          const auto* center = sample(x, y);
+          if (format.channels >= 4 && center[3] <= 0.0) {
+            continue;
+          }
+          constexpr std::array<double, 3> kBinomial{1.0, 2.0, 1.0};
+          std::array<double, 3> premultiplied{};
+          double alpha_weight = 0.0;
+          for (int offset_y = -1; offset_y <= 1; ++offset_y) {
+            for (int offset_x = -1; offset_x <= 1; ++offset_x) {
+              const auto* neighbor = sample(x + offset_x, y + offset_y);
+              const auto weight = kBinomial[static_cast<std::size_t>(offset_x + 1)] *
+                                  kBinomial[static_cast<std::size_t>(offset_y + 1)] * (neighbor[3] / 255.0);
+              alpha_weight += weight;
+              for (std::size_t channel = 0; channel < premultiplied.size(); ++channel) {
+                premultiplied[channel] += weight * neighbor[channel];
+              }
+            }
+          }
+          if (alpha_weight <= std::numeric_limits<double>::epsilon()) {
+            continue;
+          }
+          auto* destination = row + static_cast<std::size_t>(x - layer_bounds.x) * pixel_bytes;
+          const auto before = load_pixel(format, destination);
+          const auto amount = strength * static_cast<double>(coverage);
+          auto value = before;
+          for (std::size_t channel = 0; channel < premultiplied.size(); ++channel) {
+            const auto blurred = premultiplied[channel] / alpha_weight;
+            const auto adjusted = sharpen ? center[channel] + kSharpenPerDab * (center[channel] - blurred) : blurred;
+            value[channel] = decode(std::clamp(adjusted, 0.0, 255.0) * amount + center[channel] * (1.0 - amount));
+          }
+          store_pixel(format, destination, value);
+          if (palette_snap != nullptr) {
+            patchy::snap_pixel_to_palette(destination, format.channels, *palette_snap);
+          }
+          if (load_pixel(format, destination) != before) {
+            band_dirty = band_dirty.united(QRect(point, QSize(1, 1)));
+          }
+        }
+      }
+      return band_dirty;
+    };
+    constexpr std::int64_t kParallelPixels = 8192;
+    constexpr int kMinRowsPerBand = 16;
+    const auto dab_pixels = static_cast<std::int64_t>(dab_rect.width()) * dab_rect.height();
+    auto workers = 1;
+    if (dab_pixels >= kParallelPixels && dab_rect.height() >= 2 * kMinRowsPerBand &&
+        !qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED")) {
+      workers = patchy::max_blocking_fanout_workers(
+          std::clamp(std::min(dab_rect.height() / kMinRowsPerBand, patchy::hardware_worker_threads()), 1, 16));
+    }
+    if (workers < 2) {
+      dirty = dirty.united(band(dab_rect.top(), dab_rect.bottom() + 1));
+      return;
+    }
+    const auto rows_per_band = (dab_rect.height() + workers - 1) / workers;
+    std::vector<std::future<QRect>> futures;
+    futures.reserve(static_cast<std::size_t>(workers));
+    for (auto row_begin = dab_rect.top(); row_begin <= dab_rect.bottom(); row_begin += rows_per_band) {
+      const auto row_end = std::min(row_begin + rows_per_band, dab_rect.bottom() + 1);
+      futures.push_back(std::async(std::launch::async, [&band, row_begin, row_end] { return band(row_begin, row_end); }));
+    }
+    for (auto& future : futures) {
+      dirty = dirty.united(future.get());
+    }
+  };
+
+  // Dabs by distance along the stroke: the first at the press, then every `spacing`.
+  if (!toning_dab_placed_) {
+    dab(static_cast<double>(from.x()), static_cast<double>(from.y()));
+    toning_dab_placed_ = true;
+    toning_dab_distance_ = 0.0;
+  }
+  const auto dx = static_cast<double>(to.x() - from.x());
+  const auto dy = static_cast<double>(to.y() - from.y());
+  const auto length = std::sqrt(dx * dx + dy * dy);
+  if (length > 0.0) {
+    auto along = spacing - toning_dab_distance_;
+    while (along <= length) {
+      dab(static_cast<double>(from.x()) + dx * along / length, static_cast<double>(from.y()) + dy * along / length);
+      along += spacing;
+    }
+    toning_dab_distance_ = length - (along - spacing);
+  }
+  tick_processing_operation();
+  return dirty;
+}
+
 QRect CanvasWidget::local_adjustment_brush_segment(QPoint from, QPoint to) {
   auto* layer = active_pixel_layer();
   // Any return before the walk below ends the chain of continued segments.
   auto continued_from_end = std::exchange(clone_stroke_segment_end_, std::nullopt);
   if (document_ == nullptr || layer == nullptr || !document_->active_layer_id().has_value()) {
     return {};
+  }
+  if (const auto detail_operation = local_adjustment_operation();
+      detail_operation == CanvasTool::BlurBrush || detail_operation == CanvasTool::SharpenBrush) {
+    return blur_sharpen_brush_segment(from, to, detail_operation);  // per dab, builds up
   }
 
   const auto layer_id = *document_->active_layer_id();
@@ -2980,33 +3184,6 @@ QRect CanvasWidget::local_adjustment_brush_segment(QPoint from, QPoint to) {
     const auto center = source_pixel(point.x(), point.y());
     std::array<std::uint8_t, 3> result{center[0], center[1], center[2]};
 
-    if (operation == CanvasTool::BlurBrush || operation == CanvasTool::SharpenBrush) {
-      constexpr std::array<int, 3> kGaussian{1, 2, 1};
-      std::array<double, 3> premultiplied{};
-      double alpha_weight = 0.0;
-      for (int offset_y = -1; offset_y <= 1; ++offset_y) {
-        for (int offset_x = -1; offset_x <= 1; ++offset_x) {
-          const auto sample = source_pixel(point.x() + offset_x, point.y() + offset_y);
-          const auto weight = static_cast<double>(kGaussian[static_cast<std::size_t>(offset_x + 1)] *
-                                                  kGaussian[static_cast<std::size_t>(offset_y + 1)]);
-          const auto alpha = static_cast<double>(sample[3]) / 255.0;
-          alpha_weight += weight * alpha;
-          for (std::size_t channel = 0; channel < premultiplied.size(); ++channel) {
-            premultiplied[channel] += weight * alpha * static_cast<double>(sample[channel]);
-          }
-        }
-      }
-      if (alpha_weight <= std::numeric_limits<double>::epsilon()) {
-        return result;
-      }
-      for (std::size_t channel = 0; channel < result.size(); ++channel) {
-        const auto blurred = premultiplied[channel] / alpha_weight;
-        result[channel] = operation == CanvasTool::BlurBrush
-                              ? clamp_byte(static_cast<float>(blurred))
-                              : clamp_byte(static_cast<float>(static_cast<double>(center[channel]) * 2.0 - blurred));
-      }
-      return result;
-    }
 
     const auto red = static_cast<double>(center[0]);
     const auto green = static_cast<double>(center[1]);
@@ -3205,31 +3382,6 @@ QRect CanvasWidget::local_adjustment_brush_segment_deep(QPoint from, QPoint to) 
   const auto adjusted_source_pixel = [&](QPoint point) {
     const auto center = source_pixel(point.x(), point.y());
     std::array<double, 3> result{center[0], center[1], center[2]};
-    if (operation == CanvasTool::BlurBrush || operation == CanvasTool::SharpenBrush) {
-      constexpr std::array<int, 3> kGaussian{1, 2, 1};
-      std::array<double, 3> premultiplied{};
-      double alpha_weight = 0.0;
-      for (int offset_y = -1; offset_y <= 1; ++offset_y) {
-        for (int offset_x = -1; offset_x <= 1; ++offset_x) {
-          const auto sample = source_pixel(point.x() + offset_x, point.y() + offset_y);
-          const auto weight = static_cast<double>(kGaussian[static_cast<std::size_t>(offset_x + 1)] *
-                                                  kGaussian[static_cast<std::size_t>(offset_y + 1)]);
-          const auto alpha = sample[3] / 255.0;
-          alpha_weight += weight * alpha;
-          for (std::size_t channel = 0; channel < premultiplied.size(); ++channel) {
-            premultiplied[channel] += weight * alpha * sample[channel];
-          }
-        }
-      }
-      if (alpha_weight <= std::numeric_limits<double>::epsilon()) {
-        return result;
-      }
-      for (std::size_t channel = 0; channel < result.size(); ++channel) {
-        const auto blurred = premultiplied[channel] / alpha_weight;
-        result[channel] = operation == CanvasTool::BlurBrush ? blurred : center[channel] * 2.0 - blurred;
-      }
-      return result;
-    }
     const auto lightness = (54.0 * center[0] + 183.0 * center[1] + 19.0 * center[2]) / (256.0 * 255.0);
     if (operation == CanvasTool::Dodge || operation == CanvasTool::Burn) {
       const auto& knots = dodge_burn_knots(operation == CanvasTool::Dodge, local_tone_range_, local_protect_tones_);

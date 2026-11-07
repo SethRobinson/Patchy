@@ -423,6 +423,122 @@ void ui_toning_alt_stroke_paints_opposite_operation() {
   QApplication::sendEvent(&canvas, &alt_up_again);
 }
 
+// GitHub issue 660 follow-up: Blur and Sharpen work per brush dab, like Photoshop's tools, so a
+// stroke at the default Strength 50% visibly softens (or crisps) a hard edge and a noise patch,
+// and painting over the same place again keeps building. Photoshop 2026 (40 px hard brush, one
+// pass at Strength 50%) takes a 64|192 edge to 102|158 with Blur and 12|245 with Sharpen, and a
+// noise patch's spread from 37 to 12 with Blur. Writes the crops (original, Blur x1, Blur x3,
+// Sharpen x1, Sharpen x3; edge above, noise below) as test-artifacts/ui_blur_sharpen_build_up.png.
+void ui_blur_sharpen_brushes_build_up_per_dab() {
+  constexpr int kWidth = 400;
+  constexpr int kHeight = 240;
+  const auto noise_at = [](int x, int y) {
+    auto h = static_cast<std::uint32_t>(x) * 73856093U ^ static_cast<std::uint32_t>(y) * 19349663U;
+    h ^= h >> 13;
+    h *= 0x5bd1e995U;
+    h ^= h >> 15;
+    return static_cast<std::uint8_t>(64 + h % 129);
+  };
+  struct Result {
+    patchy::PixelBuffer pixels;
+    int edge_left{0};
+    int edge_right{0};
+    double noise_spread{0.0};
+  };
+  const auto spread = [](const patchy::PixelBuffer& pixels) {
+    double sum = 0.0;
+    double sum_squares = 0.0;
+    int count = 0;
+    for (int y = 172; y <= 188; ++y) {
+      for (int x = 150; x <= 250; ++x) {
+        const auto value = static_cast<double>(pixels.pixel(x, y)[0]);
+        sum += value;
+        sum_squares += value * value;
+        ++count;
+      }
+    }
+    const auto mean = sum / count;
+    return std::sqrt(std::max(0.0, sum_squares / count - mean * mean));
+  };
+  const auto paint = [&](patchy::ui::CanvasTool tool, int passes) {
+    auto pixels = solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgb8(), QColor(0, 0, 0));
+    for (int y = 0; y < kHeight; ++y) {
+      for (int x = 0; x < kWidth; ++x) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = px[1] = px[2] = y < 120 ? static_cast<std::uint8_t>(x < 200 ? 64 : 192) : noise_at(x, y);
+      }
+    }
+    patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgb8());
+    const auto layer_id = document.add_pixel_layer("Edge and noise", std::move(pixels)).id();
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(460, 300);
+    canvas.set_document(&document);
+    canvas.set_zoom(1.0);
+    canvas.show();
+    QApplication::processEvents();
+    canvas.set_tool(tool);
+    canvas.set_brush_size(40);
+    canvas.set_brush_softness(0);
+    canvas.set_local_adjustment_strength(50);
+    for (int pass = 0; pass < passes; ++pass) {
+      for (const int y : {60, 180}) {
+        std::vector<QPoint> path;
+        for (int x = 100; x <= 300; x += 4) {
+          path.emplace_back(x, y);
+        }
+        drag_document_path(canvas, path, 1);
+        QApplication::processEvents();
+      }
+    }
+    Result result;
+    result.pixels = std::as_const(*document.find_layer(layer_id)).pixels();
+    result.edge_left = result.pixels.pixel(199, 60)[0];
+    result.edge_right = result.pixels.pixel(200, 60)[0];
+    result.noise_spread = spread(result.pixels);
+    return result;
+  };
+  using Tool = patchy::ui::CanvasTool;
+  const auto original = paint(Tool::BlurBrush, 0);
+  const auto blur_once = paint(Tool::BlurBrush, 1);
+  const auto blur_thrice = paint(Tool::BlurBrush, 3);
+  const auto sharpen_once = paint(Tool::SharpenBrush, 1);
+  const auto sharpen_thrice = paint(Tool::SharpenBrush, 3);
+  // The crops first, so a failing check still leaves the picture.
+  ensure_artifact_dir();
+  QImage image(200, 5 * 84, QImage::Format_RGB32);
+  image.fill(qRgb(40, 40, 40));
+  int row = 0;
+  for (const auto* result : {&original, &blur_once, &blur_thrice, &sharpen_once, &sharpen_thrice}) {
+    for (int y = 0; y < 80; ++y) {
+      const auto source_y = y < 40 ? 40 + y : 160 + (y - 40);
+      for (int x = 0; x < 200; ++x) {
+        const auto* px = result->pixels.pixel(100 + x, source_y);
+        image.setPixel(x, row * 84 + y, qRgb(px[0], px[1], px[2]));
+      }
+    }
+    ++row;
+  }
+  const auto saved = image.save(QStringLiteral("test-artifacts/ui_blur_sharpen_build_up.png"));
+  std::printf("[INFO] blur/sharpen edge 64|192 -> blur x1 %d|%d, x3 %d|%d; sharpen x1 %d|%d, x3 %d|%d; noise spread "
+              "%.1f -> blur x1 %.1f, x3 %.1f; sharpen x1 %.1f, x3 %.1f\n",
+              blur_once.edge_left, blur_once.edge_right, blur_thrice.edge_left, blur_thrice.edge_right,
+              sharpen_once.edge_left, sharpen_once.edge_right, sharpen_thrice.edge_left, sharpen_thrice.edge_right,
+              original.noise_spread, blur_once.noise_spread, blur_thrice.noise_spread, sharpen_once.noise_spread,
+              sharpen_thrice.noise_spread);
+  CHECK(original.edge_left == 64 && original.edge_right == 192);
+  // One pass at the default Strength clearly softens the edge and the noise (Photoshop: 102|158, 37 to 12).
+  CHECK(blur_once.edge_left >= 64 + 28 && blur_once.edge_right <= 192 - 28);
+  CHECK(blur_once.noise_spread <= original.noise_spread * 0.5);
+  // Painting over it again keeps softening.
+  CHECK(blur_thrice.edge_left >= blur_once.edge_left + 6);
+  CHECK(blur_thrice.noise_spread <= blur_once.noise_spread * 0.75);
+  // Sharpen crisps the edge (Photoshop: 12|245) and builds up too.
+  CHECK(sharpen_once.edge_left <= 64 - 35 && sharpen_once.edge_right >= 192 + 35);
+  CHECK(sharpen_once.noise_spread >= original.noise_spread * 1.4);
+  CHECK(sharpen_thrice.noise_spread >= sharpen_once.noise_spread * 1.1);
+  CHECK(saved);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part3() {
@@ -432,5 +548,6 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part3() {
        ui_toning_stroke_coalesces_queued_moves_and_keeps_bytes},
       {"ui_dodge_burn_ranges_follow_calibrated_curves", ui_dodge_burn_ranges_follow_calibrated_curves},
       {"ui_toning_alt_stroke_paints_opposite_operation", ui_toning_alt_stroke_paints_opposite_operation},
+      {"ui_blur_sharpen_brushes_build_up_per_dab", ui_blur_sharpen_brushes_build_up_per_dab},
   };
 }
