@@ -252,10 +252,12 @@ void ui_gradient_fill_handles_edit_a_linear_fill() {
   CHECK(fill.label() == QStringLiteral("Delete Color Stop"));
   CHECK(fill.gradient().color_stops.size() == 2U);
   // Two stops are the least: the same drag on one of them only moves it.
+  depth = fill.depth();
   const auto last_stop = part_position(*canvas, Kind::ColorStop, 0);
   drag(*canvas, rounded(last_stop), rounded(last_stop + QPointF(0.0, 90.0)));
   CHECK(fill.gradient().color_stops.size() == 2U);
-  CHECK(fill.label() == QStringLiteral("Delete Color Stop"));
+  // Rounding the pointer to whole widget pixels can nudge its location: at most a move.
+  CHECK(fill.depth() == depth || fill.label() == QStringLiteral("Move Color Stop"));
 
   // Esc during a drag puts the gradient back, with no history.
   const auto before_escape = fill.gradient();
