@@ -3764,11 +3764,32 @@ bool MainWindow::selected_layers_have_links() const {
   return std::any_of(ids.begin(), ids.end(), [&layers](LayerId id) { return effective_link_group(layers, id) != 0U; });
 }
 
+bool MainWindow::selected_layers_are_one_link_group() const {
+  if (!has_active_document() || preview_dialog_edit_locked()) {
+    return false;
+  }
+  const auto& layers = std::as_const(document()).layers();
+  const auto ids = selected_or_active_layer_ids();
+  std::set<std::uint32_t> groups;
+  for (const auto id : ids) {
+    if (find_layer_in_tree(layers, id) != nullptr) {
+      groups.insert(effective_link_group(layers, id));
+    }
+  }
+  return groups.size() == 1U && *groups.begin() != 0U;
+}
+
 void MainWindow::refresh_layer_link_action_states() {
   const bool can_link = can_link_selected_layers();
   const bool linked = selected_layers_have_links();
+  // One rule for the Arrange entry, the row menu and the footer button (GitHub issue 656).
+  const bool unlinks = selected_layers_are_one_link_group();
   if (layer_link_action_ != nullptr) {
-    layer_link_action_->setEnabled(can_link);
+    layer_link_action_->setEnabled(can_link || unlinks);
+    const auto text = unlinks ? tr("U&nlink Layers") : tr("&Link Layers");
+    if (layer_link_action_->text() != text) {
+      layer_link_action_->setText(text);
+    }
   }
   if (layer_unlink_action_ != nullptr) {
     layer_unlink_action_->setEnabled(linked);
@@ -3777,9 +3798,8 @@ void MainWindow::refresh_layer_link_action_states() {
     layer_select_linked_action_->setEnabled(linked);
   }
   if (layer_link_button_ != nullptr) {
-    layer_link_button_->setEnabled(can_link || linked);
-    // The button links a selection that can be linked, else unlinks it (GitHub issue 656).
-    const auto tip = can_link || !linked ? tr("Link Layers") : tr("Unlink Layers");
+    layer_link_button_->setEnabled(can_link || unlinks);
+    const auto tip = unlinks ? tr("Unlink Layers") : tr("Link Layers");
     if (layer_link_button_->toolTip() != tip) {
       layer_link_button_->setToolTip(tip);
     }
@@ -3840,10 +3860,10 @@ void MainWindow::unlink_selected_layers() {
 }
 
 void MainWindow::toggle_selected_layers_link() {
-  if (can_link_selected_layers()) {
-    link_selected_layers();
-  } else {
+  if (selected_layers_are_one_link_group()) {
     unlink_selected_layers();
+  } else {
+    link_selected_layers();
   }
 }
 
@@ -4394,6 +4414,8 @@ void MainWindow::show_layer_context_menu(QPoint position) {
                                        group_target ? tr("Rename Group...") : tr("Rename Layer..."));
   auto* delete_action = menu.addAction(simple_icon(QStringLiteral("trash")),
                                        group_target ? tr("Delete Group") : tr("Delete Layer"));
+  // Color and Ungroup apart from Delete (GitHub issue 656).
+  menu.addSeparator();
   // The Layer menu's color labels (GitHub issue 244), on the same shared actions.
   auto* color_menu = menu.addMenu(tr("Color"));
   color_menu->setObjectName(QStringLiteral("layerContextColorMenu"));
@@ -4404,14 +4426,15 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     ungroup_action = menu.addAction(simple_icon(QStringLiteral("dir"), QColor(245, 205, 105)),
                                     tr("Ungroup Layers"));
   }
-  // Layer linking (GitHub issue 656): Link Layers with two or more layers selected, Unlink
-  // and Select Linked when a selected layer is linked. A single unlinked layer gets neither.
+  // Layer linking (GitHub issue 656): the Arrange menu's one Link Layers / Unlink Layers
+  // entry when it applies, Select Linked when a selected layer is linked. A single unlinked
+  // layer gets neither. A group of their own (QMenu collapses the separator when neither shows).
   refresh_layer_link_action_states();
-  if (ids.size() >= 2U && layer_link_action_ != nullptr && layer_link_action_->isEnabled()) {
+  menu.addSeparator();
+  if (layer_link_action_ != nullptr && layer_link_action_->isEnabled()) {
     menu.addAction(layer_link_action_);
   }
-  if (layer_unlink_action_ != nullptr && layer_unlink_action_->isEnabled()) {
-    menu.addAction(layer_unlink_action_);
+  if (layer_select_linked_action_ != nullptr && layer_select_linked_action_->isEnabled()) {
     menu.addAction(layer_select_linked_action_);
   }
   menu.addSeparator();

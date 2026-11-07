@@ -1994,12 +1994,15 @@ private:
   void link_selected_layers();
   void unlink_selected_layers();
   void select_linked_layers();
-  // The footer's link button: unlinks a selection that is already one link group, else links.
+  // Layer > Arrange's Link/Unlink entry and the footer's link button: unlinks a selection that
+  // is already one link group, else links.
   void toggle_selected_layers_link();
-  // Enabled states of the three actions and the footer button, from the selection.
+  // Enabled states of the actions and the footer button and the toggle's text, from the selection.
   void refresh_layer_link_action_states();
   [[nodiscard]] bool can_link_selected_layers() const;
   [[nodiscard]] bool selected_layers_have_links() const;
+  // Every selected layer shares one link group (a single linked layer counts).
+  [[nodiscard]] bool selected_layers_are_one_link_group() const;
   // The Rasterize submenu's rows, shared by Layer > Rasterize and the Layers panel context menu
   // (GitHub issue 627): the rasterize actions, Trace Image to Shapes, and on a text layer the
   // Type menu's Convert to Shape and Create Work Path. Rebuilt when the menu opens.
@@ -3411,8 +3414,9 @@ private:
   // Prevent Auto-Nesting, checked when every selected layer has the lock
   // (refresh_layer_controls); shared with the layer context menu's Lock submenu.
   QAction* layer_prevent_auto_nesting_action_{nullptr};
-  // Layer > Arrange > Link Layers, Unlink Layers, Select Linked Layers (GitHub issue 656); also
-  // in the layer context menu. refresh_layer_link_action_states owns their enabled states.
+  // Layer > Arrange > Link Layers (reads Unlink Layers for one link group) and Select Linked
+  // Layers (GitHub issue 656); also in the layer context menu. layer_unlink_action_ is the
+  // layer.unlink key, on the window only. refresh_layer_link_action_states owns their states.
   QAction* layer_link_action_{nullptr};
   QAction* layer_unlink_action_{nullptr};
   QAction* layer_select_linked_action_{nullptr};

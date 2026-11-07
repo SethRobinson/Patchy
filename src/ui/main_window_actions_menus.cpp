@@ -1469,12 +1469,14 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(layer_reverse_action, &QAction::triggered, this, [this] { reverse_selected_layers(); });
   register_document_action(layer_reverse_action);
   // Layer linking (GitHub issue 656). Not document actions: refresh_layer_link_action_states
-  // enables them from the selection, so their keys act only when they can.
+  // enables them from the selection, so their keys act only when they can. Link Layers is one
+  // entry that reads Unlink Layers when the selection is already one link group, like Hide
+  // Layers / Show Layers; layer.unlink stays a key outside the menus that always unlinks.
   layer_arrange_menu->addSeparator();
   layer_link_action_ = layer_arrange_menu->addAction(tr("&Link Layers"));
   layer_link_action_->setObjectName(QStringLiteral("layerLinkAction"));
   bind_action_text(layer_link_action_, QT_TR_NOOP("&Link Layers"));
-  layer_unlink_action_ = layer_arrange_menu->addAction(tr("U&nlink Layers"));
+  layer_unlink_action_ = new QAction(tr("U&nlink Layers"), this);
   layer_unlink_action_->setObjectName(QStringLiteral("layerUnlinkAction"));
   bind_action_text(layer_unlink_action_, QT_TR_NOOP("U&nlink Layers"));
   layer_select_linked_action_ = layer_arrange_menu->addAction(tr("Select Lin&ked Layers"));
@@ -1489,7 +1491,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(layer_link_action_, "layer.link");
   register_hotkey(layer_unlink_action_, "layer.unlink");
   register_hotkey(layer_select_linked_action_, "layer.select_linked");
-  connect(layer_link_action_, &QAction::triggered, this, [this] { link_selected_layers(); });
+  connect(layer_link_action_, &QAction::triggered, this, [this] { toggle_selected_layers_link(); });
   connect(layer_unlink_action_, &QAction::triggered, this, [this] { unlink_selected_layers(); });
   connect(layer_select_linked_action_, &QAction::triggered, this, [this] { select_linked_layers(); });
   connect(layer_arrange_menu, &QMenu::aboutToShow, this, [this] { refresh_layer_link_action_states(); });

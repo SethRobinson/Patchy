@@ -953,6 +953,64 @@ void ui_issue_627_layer_menu_rasterize_submenu() {
   CHECK(Access::active_session_undo_depth(window) == depth + 1);
 }
 
+// The Layers panel context menu's top-level rows for `id` (already selected), by object name,
+// a submenu by its menu's object name, an unnamed row by its text, "-" for a separator. Saves a
+// review shot named `artifact` when it is not empty.
+QStringList context_menu_rows(patchy::ui::MainWindow& window, patchy::LayerId id, const std::string& artifact) {
+  auto* list = layer_list(window);
+  if (list == nullptr) {
+    return {};
+  }
+  const auto ids = row_ids(*list);
+  const auto row = static_cast<int>(std::find(ids.begin(), ids.end(), id) - ids.begin());
+  CHECK(row < list->count());
+  if (row >= list->count()) {
+    return {};
+  }
+  QStringList rows;
+  bool saw_menu = false;
+  int poll_attempts = 0;
+  QTimer poller;
+  QObject::connect(&poller, &QTimer::timeout, [&] {
+    if (++poll_attempts > 500) {
+      poller.stop();
+      return;
+    }
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu != nullptr && menu->objectName() == QStringLiteral("layerContextMenu") && menu->isVisible()) {
+        saw_menu = true;
+        for (auto* action : menu->actions()) {
+          if (action->isSeparator()) {
+            rows << QStringLiteral("-");
+          } else if (action->menu() != nullptr) {
+            rows << action->menu()->objectName();
+          } else {
+            rows << (action->objectName().isEmpty() ? action->text() : action->objectName());
+          }
+        }
+        if (!artifact.empty()) {
+          save_widget_artifact(artifact, *menu);
+        }
+        menu->close();
+        poller.stop();
+        return;
+      }
+    }
+  });
+  poller.start(10);
+  const auto position = list->visualItemRect(list->item(row)).center();
+  QMetaObject::invokeMethod(
+      &window, [&window, position] { Access::show_layer_context_menu(window, position); }, Qt::QueuedConnection);
+  QApplication::processEvents();
+  for (int i = 0; i < 200 && !saw_menu && poll_attempts <= 500; ++i) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
+  poller.stop();
+  CHECK(saw_menu);
+  return rows;
+}
+
 // The rows that show the link badge, by layer id.
 std::vector<patchy::LayerId> linked_badge_rows(QListWidget& list) {
   std::vector<patchy::LayerId> ids;
@@ -966,9 +1024,11 @@ std::vector<patchy::LayerId> linked_badge_rows(QListWidget& list) {
   return ids;
 }
 
-// GitHub issue 656: Layer > Arrange > Link Layers, Unlink Layers and Select Linked Layers act on
-// the selection as one undo step each, follow it with their enabled states, badge the linked
-// rows, and the footer's optional link button links or unlinks.
+// GitHub issue 656: Layer > Arrange > Link Layers (one entry that reads Unlink Layers when the
+// selection is one link group, like Hide/Show Layers) and Select Linked Layers act on the
+// selection as one undo step each, follow it with their enabled states, badge the linked rows;
+// the layer.unlink key stays outside the menus and always unlinks, and the footer's optional
+// link button follows the same rule. The row menu sets Color and the link commands apart.
 void ui_layer_link_commands_link_unlink_undo_and_badges() {
   patchy::ui::MainWindow window;
   const auto ids = add_stack(window, QStringLiteral("Link Layers"));
@@ -981,8 +1041,13 @@ void ui_layer_link_commands_link_unlink_undo_and_badges() {
   if (list == nullptr || arrange == nullptr) {
     return;
   }
-  CHECK(arrange->actions().contains(link) && arrange->actions().contains(unlink) &&
+  CHECK(arrange->actions().contains(link) && !arrange->actions().contains(unlink) &&
         arrange->actions().contains(select_linked));
+  // The key-only Unlink Layers sits on the window and in no menu.
+  CHECK(window.actions().contains(unlink));
+  const auto unlink_hosts = unlink->associatedObjects();
+  CHECK(std::none_of(unlink_hosts.begin(), unlink_hosts.end(),
+                     [](QObject* host) { return qobject_cast<QMenu*>(host) != nullptr; }));
   for (auto* action : {link, unlink, select_linked}) {
     CHECK(action->menuRole() == QAction::NoRole);
   }
@@ -999,9 +1064,21 @@ void ui_layer_link_commands_link_unlink_undo_and_badges() {
   QApplication::processEvents();
   CHECK(!link->isEnabled() && !unlink->isEnabled() && !select_linked->isEnabled());
 
+  CHECK(link->text() == QStringLiteral("&Link Layers"));
+
   Access::select_layers(window, {ids.top, ids.middle}, ids.top);
   QApplication::processEvents();
   CHECK(link->isEnabled() && !unlink->isEnabled());
+  CHECK(link->text() == QStringLiteral("&Link Layers"));
+  // The row menu for two unlinked layers: Delete, then Color apart, then the one link entry.
+  const auto unlinked_rows = context_menu_rows(window, ids.top, "");
+  const auto color_row = unlinked_rows.indexOf(QStringLiteral("layerContextColorMenu"));
+  CHECK(color_row > 0 && unlinked_rows.value(color_row - 1) == QStringLiteral("-"));
+  CHECK(unlinked_rows.count(QStringLiteral("layerLinkAction")) == 1);
+  CHECK(!unlinked_rows.contains(QStringLiteral("layerUnlinkAction")) &&
+        !unlinked_rows.contains(QStringLiteral("layerSelectLinkedAction")));
+  const auto link_row = unlinked_rows.indexOf(QStringLiteral("layerLinkAction"));
+  CHECK(link_row > color_row && unlinked_rows.value(link_row - 1) == QStringLiteral("-"));
   const auto depth = Access::active_session_undo_depth(window);
   link->trigger();
   QApplication::processEvents();
@@ -1010,8 +1087,34 @@ void ui_layer_link_commands_link_unlink_undo_and_badges() {
   CHECK(group_of(ids.inner) == 0U && group_of(ids.background) == 0U);
   CHECK((linked_badge_rows(*list) == std::vector<patchy::LayerId>{std::min(ids.middle, ids.top),
                                                                   std::max(ids.middle, ids.top)}));
-  CHECK(!link->isEnabled() && unlink->isEnabled() && select_linked->isEnabled());
+  // Now one link group: the same entry reads Unlink Layers.
+  CHECK(link->isEnabled() && unlink->isEnabled() && select_linked->isEnabled());
+  CHECK(link->text() == QStringLiteral("U&nlink Layers"));
   CHECK((Access::selected_layer_ids(window).size() == 2U));
+  const auto linked_rows = context_menu_rows(window, ids.top, "issue656_fu_layer_context_menu");
+  CHECK(linked_rows.count(QStringLiteral("layerLinkAction")) == 1);
+  CHECK(!linked_rows.contains(QStringLiteral("layerUnlinkAction")));
+  CHECK(linked_rows.indexOf(QStringLiteral("layerSelectLinkedAction")) ==
+        linked_rows.indexOf(QStringLiteral("layerLinkAction")) + 1);
+  // Triggered again, the toggle unlinks; undo brings the link back.
+  const auto toggle_depth = Access::active_session_undo_depth(window);
+  link->trigger();
+  QApplication::processEvents();
+  CHECK(Access::active_session_undo_depth(window) == toggle_depth + 1);
+  CHECK(group_of(ids.top) == 0U && group_of(ids.middle) == 0U);
+  CHECK(link->text() == QStringLiteral("&Link Layers"));
+  Access::undo(window);
+  QApplication::processEvents();
+  Access::select_layers(window, {ids.top, ids.middle}, ids.top);
+  QApplication::processEvents();
+  CHECK(group_of(ids.top) != 0U && group_of(ids.top) == group_of(ids.middle));
+  CHECK(link->text() == QStringLiteral("U&nlink Layers"));
+  // A mixed selection (one linked, one not) links: the entry reads Link Layers.
+  Access::select_layers(window, {ids.top, ids.inner}, ids.top);
+  QApplication::processEvents();
+  CHECK(link->isEnabled() && link->text() == QStringLiteral("&Link Layers"));
+  Access::select_layers(window, {ids.top, ids.middle}, ids.top);
+  QApplication::processEvents();
 
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore(scheme);
@@ -1033,10 +1136,10 @@ void ui_layer_link_commands_link_unlink_undo_and_badges() {
     QApplication::processEvents();
   }
 
-  // Select Linked Layers from one member selects the group.
+  // Select Linked Layers from one member selects the group; one linked layer alone reads Unlink.
   Access::select_layers(window, {ids.middle}, ids.middle);
   QApplication::processEvents();
-  CHECK(select_linked->isEnabled() && !link->isEnabled());
+  CHECK(select_linked->isEnabled() && link->isEnabled() && link->text() == QStringLiteral("U&nlink Layers"));
   select_linked->trigger();
   QApplication::processEvents();
   auto selected = Access::selected_layer_ids(window);
@@ -1052,7 +1155,7 @@ void ui_layer_link_commands_link_unlink_undo_and_badges() {
   QApplication::processEvents();
   CHECK(group_of(ids.top) != 0U && group_of(ids.top) == group_of(ids.middle));
 
-  // Unlinking one of two leaves neither linked, one undo step.
+  // The layer.unlink key: unlinking one of two leaves neither linked, one undo step.
   Access::select_layers(window, {ids.middle}, ids.middle);
   QApplication::processEvents();
   const auto unlink_depth = Access::active_session_undo_depth(window);
