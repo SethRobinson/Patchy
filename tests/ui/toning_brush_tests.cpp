@@ -5,8 +5,10 @@
 #include "core/document.hpp"
 #include "core/document_depth.hpp"
 #include "core/pixel_depth.hpp"
+#include "local_psd_fixtures.hpp"
 #include "test_harness.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/qt_paths.hpp"
 #include "ui_test_support.hpp"
 
 #include <QApplication>
@@ -426,7 +428,8 @@ void ui_toning_alt_stroke_paints_opposite_operation() {
 // GitHub issue 660 follow-up: Blur and Sharpen work per brush dab, like Photoshop's tools, so a
 // stroke at the default Strength 50% visibly softens (or crisps) a hard edge and a noise patch,
 // and painting over the same place again keeps building. Photoshop 2026 (40 px hard brush, one
-// pass at Strength 50%) takes a 64|192 edge to 102|158 with Blur and 12|245 with Sharpen, and a
+// pass at Strength 50%) takes a 64|192 edge to 102|158 with Blur and 44|209 with its default
+// Sharpen (Protect Detail on), and a
 // noise patch's spread from 37 to 12 with Blur. Writes the crops (original, Blur x1, Blur x3,
 // Sharpen x1, Sharpen x3; edge above, noise below) as test-artifacts/ui_blur_sharpen_build_up.png.
 void ui_blur_sharpen_brushes_build_up_per_dab() {
@@ -532,11 +535,197 @@ void ui_blur_sharpen_brushes_build_up_per_dab() {
   // Painting over it again keeps softening.
   CHECK(blur_thrice.edge_left >= blur_once.edge_left + 6);
   CHECK(blur_thrice.noise_spread <= blur_once.noise_spread * 0.75);
-  // Sharpen crisps the edge (Photoshop: 12|245) and builds up too.
-  CHECK(sharpen_once.edge_left <= 64 - 35 && sharpen_once.edge_right >= 192 + 35);
-  CHECK(sharpen_once.noise_spread >= original.noise_spread * 1.4);
+  // Sharpen crisps the edge (Photoshop's default: 44|209) and builds up too.
+  CHECK(sharpen_once.edge_left <= 64 - 15 && sharpen_once.edge_right >= 192 + 15);
+  CHECK(sharpen_once.noise_spread >= original.noise_spread * 1.25);
   CHECK(sharpen_thrice.noise_spread >= sharpen_once.noise_spread * 1.1);
   CHECK(saved);
+}
+
+// GitHub issue 660, second follow-up: Sharpen scrubbed over a JPEG face turned its chroma noise
+// into magenta and green speckle and clipped it to full range within two passes (a 3x3 step at
+// 0.75 per channel per dab). Sharpen now moves every channel of a pixel by the same lightness
+// change, so on a noisy color patch the color differences stay as they were, nothing clips, and
+// five passes at the default Strength sharpen the noise but stay bounded.
+void ui_sharpen_keeps_color_and_stays_bounded() {
+  constexpr int kWidth = 200;
+  constexpr int kHeight = 120;
+  const auto noise_at = [](int x, int y, int channel) {
+    auto h = static_cast<std::uint32_t>(x) * 73856093U ^ static_cast<std::uint32_t>(y) * 19349663U ^
+             static_cast<std::uint32_t>(channel) * 83492791U;
+    h ^= h >> 13;
+    h *= 0x5bd1e995U;
+    h ^= h >> 15;
+    return static_cast<int>(h % 17) - 8;
+  };
+  auto pixels = solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgb8(), QColor(0, 0, 0));
+  constexpr std::array<int, 3> kBase{180, 120, 90};
+  for (int y = 0; y < kHeight; ++y) {
+    for (int x = 0; x < kWidth; ++x) {
+      auto* px = pixels.pixel(x, y);
+      for (int channel = 0; channel < 3; ++channel) {
+        px[channel] = static_cast<std::uint8_t>(kBase[static_cast<std::size_t>(channel)] + noise_at(x, y, channel));
+      }
+    }
+  }
+  const auto original = pixels;
+  patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgb8());
+  const auto layer_id = document.add_pixel_layer("Skin", std::move(pixels)).id();
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(260, 180);
+  canvas.set_document(&document);
+  canvas.set_zoom(1.0);
+  canvas.show();
+  QApplication::processEvents();
+  canvas.set_tool(patchy::ui::CanvasTool::SharpenBrush);
+  canvas.set_brush_size(40);
+  canvas.set_brush_softness(0);
+  canvas.set_local_adjustment_strength(50);
+  for (int pass = 0; pass < 5; ++pass) {
+    std::vector<QPoint> path;
+    for (int x = 30; x <= 170; x += 4) {
+      path.emplace_back(x, 60);
+    }
+    drag_document_path(canvas, path, 1);
+    QApplication::processEvents();
+  }
+  const auto& result = std::as_const(*document.find_layer(layer_id)).pixels();
+  const auto luma = [](const std::uint8_t* px) { return (54.0 * px[0] + 183.0 * px[1] + 19.0 * px[2]) / 256.0; };
+  const auto spread = [&luma](const patchy::PixelBuffer& buffer) {
+    double sum = 0.0;
+    double sum_squares = 0.0;
+    int count = 0;
+    for (int y = 50; y <= 70; ++y) {
+      for (int x = 50; x <= 150; ++x) {
+        const auto value = luma(buffer.pixel(x, y));
+        sum += value;
+        sum_squares += value * value;
+        ++count;
+      }
+    }
+    const auto mean = sum / count;
+    return std::sqrt(std::max(0.0, sum_squares / count - mean * mean));
+  };
+  int clipped = 0;
+  int color_shifts = 0;
+  for (int y = 50; y <= 70; ++y) {
+    for (int x = 50; x <= 150; ++x) {
+      const auto* after = result.pixel(x, y);
+      const auto* before = original.pixel(x, y);
+      if (after[0] == 0 || after[0] == 255 || after[1] == 0 || after[1] == 255 || after[2] == 0 || after[2] == 255) {
+        ++clipped;
+        continue;
+      }
+      const auto red_green = (after[0] - after[1]) - (before[0] - before[1]);
+      const auto blue_green = (after[2] - after[1]) - (before[2] - before[1]);
+      if (std::abs(red_green) > 1 || std::abs(blue_green) > 1) {
+        ++color_shifts;
+      }
+    }
+  }
+  const auto before_spread = spread(original);
+  const auto after_spread = spread(result);
+  std::printf("[INFO] sharpen x5 on color noise: luma spread %.2f -> %.2f, clipped %d, color shifts %d\n",
+              before_spread, after_spread, clipped, color_shifts);
+  CHECK(clipped == 0);
+  CHECK(color_shifts == 0);
+  CHECK(after_spread >= before_spread * 1.3);
+  CHECK(after_spread <= before_spread * 8.0);
+}
+
+// GitHub issue 660, second follow-up, on real photos: 512 px crops of a portrait (full size, and
+// a quarter-size JPEG at quality 80; local-test-fixtures/sharpen-photo) sharpened at the default
+// Strength with a hard 60 px brush in lines 60 px apart, one, two and five passes, the rig
+// Photoshop 2026 was measured with. Writes test-artifacts/ui_sharpen_photo_<crop>_x<passes>.png.
+// Pixels keep their color differences (within rounding) unless a channel clipped, at most 0.2%
+// of them may shift, and no more pixels may clip than Photoshop's default Sharpen clips (the old
+// per-channel rule clipped 20% after five passes and shifted the color of 27 to 79%).
+void ui_sharpen_photo_keeps_color_over_passes_if_available() {
+  for (const char* crop : {"face", "small"}) {
+    const auto path = patchy::test::local_format_fixture_path("sharpen-photo", std::string(crop) + ".png");
+    patchy::test::skip_unless_exists(path);
+    QImage source(patchy::ui::to_qstring(path));
+    CHECK(!source.isNull());
+    source = source.convertToFormat(QImage::Format_RGB888);
+    const auto width = source.width();
+    const auto height = source.height();
+    auto pixels = solid_pixels(width, height, patchy::PixelFormat::rgb8(), QColor(0, 0, 0));
+    for (int y = 0; y < height; ++y) {
+      const auto* line = source.constScanLine(y);
+      for (int x = 0; x < width; ++x) {
+        auto* px = pixels.pixel(x, y);
+        px[0] = line[x * 3];
+        px[1] = line[x * 3 + 1];
+        px[2] = line[x * 3 + 2];
+      }
+    }
+    const auto original = pixels;
+    patchy::Document document(width, height, patchy::PixelFormat::rgb8());
+    const auto layer_id = document.add_pixel_layer("Photo", std::move(pixels)).id();
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(width + 140, height + 140);
+    canvas.set_document(&document);
+    canvas.set_zoom(1.0);
+    canvas.show();
+    QApplication::processEvents();
+    canvas.set_tool(patchy::ui::CanvasTool::SharpenBrush);
+    canvas.set_brush_size(60);
+    canvas.set_brush_softness(0);
+    canvas.set_local_adjustment_strength(50);
+    int done = 0;
+    for (const int passes : {1, 2, 5}) {
+      for (; done < passes; ++done) {
+        for (int y = 30; y < height; y += 60) {
+          std::vector<QPoint> path_points;
+          for (int x = -30; x <= width + 30; x += 6) {
+            path_points.emplace_back(x, y);
+          }
+          drag_document_path(canvas, path_points, 1);
+          QApplication::processEvents();
+        }
+      }
+      const auto& result = std::as_const(*document.find_layer(layer_id)).pixels();
+      QImage image(width, height, QImage::Format_RGB32);
+      int stroked = 0;
+      int clipped = 0;
+      int color_shifts = 0;
+      for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+          const auto* after = result.pixel(x, y);
+          image.setPixel(x, y, qRgb(after[0], after[1], after[2]));
+          // Only the rows within 20 px of a line, which every pass covers fully.
+          if (const auto offset = (y + 30) % 60; offset > 20 && offset < 40) {
+            continue;
+          }
+          const auto* before = original.pixel(x, y);
+          ++stroked;
+          const auto clips = [](const std::uint8_t* px) {
+            return px[0] == 0 || px[0] == 255 || px[1] == 0 || px[1] == 255 || px[2] == 0 || px[2] == 255;
+          };
+          if (clips(after)) {
+            clipped += clips(before) ? 0 : 1;
+            continue;
+          }
+          const auto red_green = (after[0] - after[1]) - (before[0] - before[1]);
+          const auto blue_green = (after[2] - after[1]) - (before[2] - before[1]);
+          if (std::abs(red_green) > 1 || std::abs(blue_green) > 1) {
+            ++color_shifts;
+          }
+        }
+      }
+      ensure_artifact_dir();
+      const auto saved = image.save(QStringLiteral("test-artifacts/ui_sharpen_photo_%1_x%2.png")
+                                        .arg(QString::fromLatin1(crop))
+                                        .arg(passes));
+      std::printf("[INFO] sharpen photo %s x%d: clipped %.3f, color shifts %.3f\n", crop, passes,
+                  static_cast<double>(clipped) / stroked, static_cast<double>(color_shifts) / stroked);
+      CHECK(saved);
+      // A pixel one channel of which clipped in an earlier pass may shift; nothing else does.
+      CHECK(color_shifts * 500 <= stroked);
+      // At most what Photoshop's default Sharpen clips on the quarter-size crop (3%, 7.7%, 22%).
+      CHECK(clipped * 100 <= stroked * (passes == 1 ? 3 : passes == 2 ? 7 : 20));
+    }
+  }
 }
 
 }  // namespace
@@ -549,5 +738,7 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part3() {
       {"ui_dodge_burn_ranges_follow_calibrated_curves", ui_dodge_burn_ranges_follow_calibrated_curves},
       {"ui_toning_alt_stroke_paints_opposite_operation", ui_toning_alt_stroke_paints_opposite_operation},
       {"ui_blur_sharpen_brushes_build_up_per_dab", ui_blur_sharpen_brushes_build_up_per_dab},
+      {"ui_sharpen_keeps_color_and_stays_bounded", ui_sharpen_keeps_color_and_stays_bounded},
+      {"ui_sharpen_photo_keeps_color_over_passes_if_available", ui_sharpen_photo_keeps_color_over_passes_if_available},
   };
 }
