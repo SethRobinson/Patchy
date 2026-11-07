@@ -11,13 +11,13 @@
 #include <utility>
 #include <vector>
 
+class QAbstractButton;
 class QCheckBox;
 class QFrame;
 class QDoubleSpinBox;
 class QLabel;
 class QPushButton;
 class QShowEvent;
-class QToolButton;
 
 namespace patchy::ui {
 
@@ -111,7 +111,7 @@ private:
   QCheckBox* play_hidden_check_{nullptr};
   QCheckBox* play_reverse_check_{nullptr};
   QFrame* note_{nullptr};
-  QToolButton* note_info_button_{nullptr};
+  QAbstractButton* note_info_button_{nullptr};
   QCheckBox* all_layers_check_{nullptr};
   QDoubleSpinBox* selection_time_spin_{nullptr};
   QLabel* status_label_{nullptr};

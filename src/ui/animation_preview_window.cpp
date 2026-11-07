@@ -8,8 +8,10 @@
 #include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/icon_theme.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QCheckBox>
 #include <QDoubleSpinBox>
@@ -23,6 +25,7 @@
 #include <QLineEdit>
 #include <QLocale>
 #include <QMenu>
+#include <QPainter>
 #include <QPointer>
 #include <QResizeEvent>
 #include <QShowEvent>
@@ -190,15 +193,44 @@ int layout_height_for_width(QLayout& root, int width) {
   return height >= 0 ? height : root.totalSizeHint().height();
 }
 
+// The info mark beside the Playback title: a plain button that paints its icon centered in
+// its own rectangle and the theme's hover fill, so it keeps the size and place
+// TitleButtonGroupBox gives it. A QToolButton picks up the app sheet's tool button rules
+// (a 26 px minimum height, padding), which made it taller than the title and pushed its
+// ring onto the frame line.
+class InfoMarkButton final : public QAbstractButton {
+public:
+  explicit InfoMarkButton(QWidget* parent) : QAbstractButton(parent) {
+    setAttribute(Qt::WA_Hover);  // repaint on enter and leave for the hover fill
+    setCursor(Qt::PointingHandCursor);
+  }
+
+  QSize sizeHint() const override { return size(); }
+
+protected:
+  void paintEvent(QPaintEvent*) override {
+    QPainter painter(this);
+    if (isEnabled() && underMouse()) {
+      painter.fillRect(rect(), theme().button_hover_bg);
+    }
+    // Fetched per paint, so a scheme change repaints it in the new ink.
+    const auto pixmap = icon().pixmap(iconSize(), devicePixelRatioF(), isEnabled() ? QIcon::Normal : QIcon::Disabled);
+    const QSize size = iconSize();
+    painter.drawPixmap(QRect(QPoint((width() - size.width()) / 2, (height() - size.height()) / 2), size), pixmap);
+  }
+};
+
 // A group box with a small button just right of its title (the Playback group's info mark,
 // GitHub issue 666). The style draws the title, so the button is placed against the title's
-// rectangle after every geometry, style or text change; its own background covers the frame
-// line there, as the title's does.
+// rectangle after every geometry, style or text change. The title sits above the frame's top
+// line, which runs on under it, so the button sits there too: centered on the title, and
+// moved up when needed so its bottom clears the line by a pixel (a mark reaching the line
+// covered part of it on Windows).
 class TitleButtonGroupBox final : public QGroupBox {
 public:
   TitleButtonGroupBox(const QString& title, QWidget* parent) : QGroupBox(title, parent) {}
 
-  void set_title_button(QToolButton* button) {
+  void set_title_button(QAbstractButton* button) {
     button_ = button;
     place_button();
   }
@@ -226,12 +258,16 @@ private:
     QStyleOptionGroupBox option;
     initStyleOption(&option);
     const auto label = style()->subControlRect(QStyle::CC_GroupBox, &option, QStyle::SC_GroupBoxLabel, this);
+    const auto frame = style()->subControlRect(QStyle::CC_GroupBox, &option, QStyle::SC_GroupBoxFrame, this);
     const auto size = button_->size();
-    button_->move(label.right() + 1, label.top() + (label.height() - size.height()) / 2);
+    int top = label.top() + (label.height() - size.height()) / 2;
+    // QRect::bottom() is the last row inside: keep one clear row between the mark and the line.
+    top = std::max(0, std::min(top, frame.top() - 1 - size.height()));
+    button_->move(label.right() + 1, top);
     button_->raise();
   }
 
-  QPointer<QToolButton> button_;
+  QPointer<QAbstractButton> button_;
 };
 
 }  // namespace
@@ -279,8 +315,7 @@ AnimationPreviewWindow::AnimationPreviewWindow(
       padding-right: 30px;
     }
     /* The note (GitHub issue 666): a calm info banner with its mark at the left and a close
-       button at the right. The info mark that brings it back sits on the Playback title, so
-       it masks the group's frame line as the title does. */
+       button at the right. The info mark that brings it back (InfoMarkButton) paints itself. */
     QDialog#animationPreviewWindow QFrame#animationPreviewNote {
       background: @info_banner_bg;
       border: 1px solid @info_banner_border;
@@ -298,15 +333,6 @@ AnimationPreviewWindow::AnimationPreviewWindow(
       padding: 0;
     }
     QDialog#animationPreviewWindow QToolButton#animationPreviewNoteCloseButton:hover {
-      background: @button_hover_bg;
-    }
-    QDialog#animationPreviewWindow QToolButton#animationPreviewNoteInfoButton {
-      background: @window_bg;
-      border: 0;
-      border-radius: 2px;
-      padding: 0;
-    }
-    QDialog#animationPreviewWindow QToolButton#animationPreviewNoteInfoButton:hover {
       background: @button_hover_bg;
     }
     QDialog#animationPreviewWindow QToolButton#animationFrameDelayPresetsButton::menu-indicator,
@@ -483,12 +509,12 @@ AnimationPreviewWindow::AnimationPreviewWindow(
   note_layout->addWidget(note_close, 0, Qt::AlignTop);
   content->addWidget(note_);
 
-  note_info_button_ = new QToolButton(playback_group);
+  note_info_button_ = new InfoMarkButton(playback_group);
   note_info_button_->setObjectName(QStringLiteral("animationPreviewNoteInfoButton"));
   note_info_button_->setIcon(info_mark_icon());
-  note_info_button_->setIconSize(QSize(14, 14));
-  note_info_button_->setFixedSize(18, 16);
-  note_info_button_->setAutoRaise(true);
+  // About the title text's height, so it fits above the frame line beside it.
+  note_info_button_->setIconSize(QSize(12, 12));
+  note_info_button_->setFixedSize(16, 12);
   note_info_button_->setFocusPolicy(Qt::NoFocus);
   note_info_button_->setToolTip(note_text);
   note_info_button_->setAccessibleName(tr("Show note"));

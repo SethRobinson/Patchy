@@ -28,6 +28,7 @@
 #include "test_harness.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_support.hpp"
+#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
@@ -648,7 +649,7 @@ void ui_animation_preview_note_closes_and_comes_back() {
   const auto find_parts = [&panel] {
     return std::tuple{panel->findChild<QWidget*>(QStringLiteral("animationPreviewNote")),
                       panel->findChild<QToolButton*>(QStringLiteral("animationPreviewNoteCloseButton")),
-                      panel->findChild<QToolButton*>(QStringLiteral("animationPreviewNoteInfoButton")),
+                      panel->findChild<QAbstractButton*>(QStringLiteral("animationPreviewNoteInfoButton")),
                       panel->findChild<QWidget*>(QStringLiteral("animationPlaybackGroup"))};
   };
   auto [note, close_button, info_button, playback_group] = find_parts();
@@ -710,6 +711,81 @@ void ui_animation_preview_note_closes_and_comes_back() {
   CHECK(patchy::test::ui::clipped_labels(*panel).isEmpty());
   panel->close();
   QApplication::processEvents();
+}
+
+// The info mark beside the Playback title (GitHub issue 666 follow-up). The title sits above
+// the group's top frame line, which runs on under it; the mark sits there too, lined up with
+// the title text, with a clear row above the line and the line unbroken beneath it, in Dark
+// and Light. On Windows the mark reached down onto the line and its background hid part of it.
+void ui_animation_preview_info_mark_clears_the_frame_line() {
+  AnimationPreviewSettingsReset preview_settings;
+  patchy::ui::app_settings().setValue(QStringLiteral("animationPreview/noteClosed"), true);
+  ColorSchemeRestorer restore_scheme;
+  const auto differs = [](QRgb a, QRgb b) {
+    return std::abs(qRed(a) - qRed(b)) + std::abs(qGreen(a) - qGreen(b)) + std::abs(qBlue(a) - qBlue(b)) >= 12;
+  };
+  // Opened from a main window, as in the app: it carries the app's sheet, so the capture does
+  // not restyle (and relayout) the panel between the pixels and the geometry read here.
+  patchy::ui::MainWindow window;
+  window.add_document_session(animation_test_document(), QStringLiteral("Animation"));
+  show_window(window);
+  for (const auto preference : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer::apply(preference);
+    const std::string scheme = preference == patchy::ui::ColorSchemePreference::Light ? "light" : "dark";
+    auto* opened = open_animation_preview(window);
+    CHECK(opened != nullptr);
+    if (opened == nullptr) return;
+    auto& panel = *opened;
+    auto* group = panel.findChild<QWidget*>(QStringLiteral("animationPlaybackGroup"));
+    auto* info_button = panel.findChild<QAbstractButton*>(QStringLiteral("animationPreviewNoteInfoButton"));
+    CHECK(group != nullptr && info_button != nullptr);
+    if (group == nullptr || info_button == nullptr) return;
+    CHECK(info_button->isVisible());
+    const auto image = capture_widget_artifact("ui_animation_preview_info_mark_" + scheme, panel);
+    const qreal ratio = image.devicePixelRatio() > 0 ? image.devicePixelRatio() : 1.0;
+    const auto pixel = [&](int x, int y) { return image.pixel(qRound(x * ratio), qRound(y * ratio)); };
+    const QRect mark(info_button->mapTo(&panel, QPoint(0, 0)), info_button->size());
+    const QPoint group_origin = group->mapTo(&panel, QPoint(0, 0));
+    CHECK(mark.top() >= group_origin.y());
+    CHECK(mark.left() > group_origin.x() + 20);
+    // The frame's top row, found right of the mark.
+    const int line_x = mark.right() + 30;
+    CHECK(line_x < group_origin.x() + group->width() - 10);
+    const auto background = pixel(line_x, group_origin.y());
+    int line_y = -1;
+    for (int y = group_origin.y(); y < group_origin.y() + 32 && line_y < 0; ++y) {
+      if (differs(pixel(line_x, y), background)) line_y = y;
+    }
+    // The title text's rows, between the frame's left edge and the mark.
+    int text_top = -1;
+    int text_bottom = -1;
+    for (int y = group_origin.y(); y < line_y; ++y) {
+      for (int x = group_origin.x() + 6; x < mark.left() - 1; ++x) {
+        if (differs(pixel(x, y), background)) {
+          if (text_top < 0) text_top = y;
+          text_bottom = y;
+          break;
+        }
+      }
+    }
+    std::printf("  [%s] mark rows %d-%d, title text rows %d-%d, frame line row %d\n", scheme.c_str(), mark.top(),
+                mark.bottom(), text_top, text_bottom, line_y);
+    CHECK(line_y >= 0 && text_top >= 0);
+    if (line_y < 0 || text_top < 0) continue;
+    // Above the line with a clear row between them, ink and all.
+    CHECK(mark.bottom() < line_y - 1);
+    for (int x = mark.left(); x <= mark.right(); ++x) {
+      CHECK(!differs(pixel(x, line_y - 1), background));
+      // The line runs on unbroken under the mark.
+      CHECK(differs(pixel(x, line_y), background));
+    }
+    // Lined up with the title text.
+    const int mark_middle = mark.top() + mark.bottom();
+    const int text_middle = text_top + text_bottom;
+    CHECK(std::abs(mark_middle - text_middle) <= 6);  // within 3 px, in half pixels
+    panel.close();
+    QApplication::processEvents();
+  }
 }
 
 void ui_animation_preview_sets_and_removes_frame_time_names() {
@@ -1209,6 +1285,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests_animation_par
       {"ui_animation_preview_reverses_selected_layers", ui_animation_preview_reverses_selected_layers},
       {"ui_animation_preview_plays_in_reverse", ui_animation_preview_plays_in_reverse},
       {"ui_animation_preview_note_closes_and_comes_back", ui_animation_preview_note_closes_and_comes_back},
+      {"ui_animation_preview_info_mark_clears_the_frame_line", ui_animation_preview_info_mark_clears_the_frame_line},
       {"ui_animation_preview_ignores_name_delays_and_plays_hidden_layers",
        ui_animation_preview_ignores_name_delays_and_plays_hidden_layers},
       {"ui_animation_preview_sets_and_removes_frame_time_on_all_layers",
