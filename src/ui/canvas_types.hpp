@@ -154,6 +154,14 @@ enum class GradientToolMode {
   FillLayer
 };
 
+// A Gradient tool handle gesture on an existing Gradient Fill (GitHub issue 663): live
+// previews while it drags, then one Commit (one undo step) or a Cancel that restores it.
+enum class GradientFillEditPhase {
+  Preview,
+  Commit,
+  Cancel
+};
+
 // Action that can be bound to a pen barrel/side button. These are the actions
 // that are useful to trigger directly from the pen while painting. Tablet pad
 // "express keys" are intentionally not represented here: no desktop tablet

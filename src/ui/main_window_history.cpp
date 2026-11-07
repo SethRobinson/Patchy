@@ -270,7 +270,7 @@ void MainWindow::push_undo_snapshot(QString label) {
   push_undo_snapshot(session(), std::move(label));
 }
 
-void MainWindow::push_undo_snapshot(DocumentSession& target_session, QString label) {
+void MainWindow::push_undo_snapshot(DocumentSession& target_session, QString label, std::uint64_t edit_run_token) {
   const bool target_is_active = &target_session == active_session();
   if (layer_blend_preview_.has_value() && layer_blend_preview_->session_id == target_session.session_id) {
     // An edit while the blend list is open (a script): never record a previewed mode.
@@ -283,6 +283,14 @@ void MainWindow::push_undo_snapshot(DocumentSession& target_session, QString lab
     finish_pending_layer_opacity_edit();
     finish_pending_layer_fill_opacity_edit();
     finish_pending_layer_blend_edit();
+  }
+  if (edit_run_token != 0 && target_session.history.edit_run_token() == edit_run_token &&
+      !target_session.history.undo_stack().empty()) {
+    // The rest of a held run: the top entry already holds the pre-run document, so
+    // skip the snapshot copy and only mark the document modified (a save mid-run
+    // must not leave the later moves looking saved).
+    mark_session_modified(target_session);
+    return;
   }
   const auto started = std::chrono::steady_clock::now();
   auto& active_session = target_session;
@@ -324,6 +332,7 @@ void MainWindow::push_undo_snapshot(DocumentSession& target_session, QString lab
       DocumentSession::HistoryState{snapshot_future.get(), std::nullopt, snapshot_revision,
                                     std::move(snapshot_selection), {}, 0},
       label);
+  active_session.history.set_edit_run_token(edit_run_token);
   mark_session_modified(active_session);
   // The History panel and status bar mirror the ACTIVE session; an edit landing
   // in a background session keeps its undo stack but must not inject its label

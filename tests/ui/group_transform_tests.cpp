@@ -901,6 +901,130 @@ void ui_linked_layers_move_nudge_drag_and_free_transform_together() {
   QApplication::processEvents();
 }
 
+namespace {
+
+void send_held_arrow(QWidget& widget, int key, int repeats, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+  send_key_press(widget, key, modifiers);
+  for (int i = 0; i < repeats; ++i) {
+    QKeyEvent repeat(QEvent::KeyPress, key, modifiers, QString(), true);
+    QApplication::sendEvent(&widget, &repeat);
+    QApplication::processEvents();
+  }
+  send_key_release(widget, key, modifiers);
+}
+
+}  // namespace
+
+// GitHub issue 659: holding an arrow keeps nudging the layer (key auto-repeat), and the
+// whole hold is one undo step; a new press after the release is a new step.
+void ui_move_held_arrow_nudges_layer_as_one_undo_step() {
+  patchy::Document document(200, 160, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(200, 160, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer square(document.allocate_layer_id(), "Square",
+                       solid_pixels(20, 20, patchy::PixelFormat::rgba8(), QColor(230, 30, 30)));
+  square.set_bounds(patchy::Rect{40, 50, 20, 20});
+  const auto square_id = document.add_layer(std::move(square)).id();
+  document.set_active_layer(square_id);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Held Nudge"));
+  auto* canvas = require_canvas(window);
+  auto* undo_action = require_action_by_text(window, QStringLiteral("Undo"));
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(false);
+  canvas->set_snap_enabled(false);
+  QApplication::processEvents();
+  canvas->setFocus();
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  const auto origin = [&doc, square_id] {
+    const auto bounds = std::as_const(doc).find_layer(square_id)->bounds();
+    return QPoint(bounds.x, bounds.y);
+  };
+  const auto depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  send_held_arrow(*canvas, Qt::Key_Right, 4);
+  CHECK(origin() == QPoint(45, 50));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth_before + 1);
+
+  // Shift+held arrow repeats 10 px steps; a new press is a new step.
+  send_held_arrow(*canvas, Qt::Key_Down, 2, Qt::ShiftModifier);
+  CHECK(origin() == QPoint(45, 80));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth_before + 2);
+
+  undo_action->trigger();
+  QApplication::processEvents();
+  CHECK(origin() == QPoint(45, 50));
+  undo_action->trigger();
+  QApplication::processEvents();
+  CHECK(origin() == QPoint(40, 50));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth_before);
+
+  // An edit recorded mid-hold ends the fold: the repeats after it push their own step,
+  // so undoing never takes the other edit back with the nudges.
+  send_key_press(*canvas, Qt::Key_Left);
+  CHECK(origin() == QPoint(39, 50));
+  patchy::ui::MainWindowTestAccess::push_undo_snapshot(window, QStringLiteral("Other edit"));
+  for (int i = 0; i < 2; ++i) {
+    QKeyEvent repeat(QEvent::KeyPress, Qt::Key_Left, Qt::NoModifier, QString(), true);
+    QApplication::sendEvent(canvas, &repeat);
+    QApplication::processEvents();
+  }
+  send_key_release(*canvas, Qt::Key_Left);
+  CHECK(origin() == QPoint(37, 50));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth_before + 3);
+  undo_action->trigger();
+  QApplication::processEvents();
+  CHECK(origin() == QPoint(39, 50));
+}
+
+// The same hold with a link group (GitHub issues 656, 659): every linked layer follows each
+// repeat and one undo puts them all back.
+void ui_move_held_arrow_nudges_linked_layers_as_one_undo_step() {
+  patchy::Document document(200, 160, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(200, 160, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  const auto add_square = [&document](const char* name, patchy::Rect rect, QColor color) {
+    patchy::Layer layer(document.allocate_layer_id(), name,
+                        solid_pixels(rect.width, rect.height, patchy::PixelFormat::rgba8(), color));
+    layer.set_bounds(rect);
+    return document.add_layer(std::move(layer)).id();
+  };
+  const auto red_id = add_square("Red", patchy::Rect{30, 30, 20, 20}, QColor(230, 30, 30));
+  const auto blue_id = add_square("Blue", patchy::Rect{90, 80, 20, 20}, QColor(20, 90, 240));
+  const auto green_id = add_square("Green", patchy::Rect{150, 20, 20, 20}, QColor(30, 160, 60));
+  CHECK(patchy::link_layers(document.layers(), {red_id, blue_id}));
+  document.set_active_layer(red_id);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Held Linked Nudge"));
+  auto* canvas = require_canvas(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  if (layer_list == nullptr) {
+    return;
+  }
+  auto* undo_action = require_action_by_text(window, QStringLiteral("Undo"));
+  select_layer_rows_by_id(*layer_list, {red_id});
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_auto_select_layer(false);
+  canvas->set_snap_enabled(false);
+  QApplication::processEvents();
+  canvas->setFocus();
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  const auto y_of = [&doc](patchy::LayerId id) { return std::as_const(doc).find_layer(id)->bounds().y; };
+  const auto depth_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  send_held_arrow(*canvas, Qt::Key_Up, 5);
+  CHECK(y_of(red_id) == 24 && y_of(blue_id) == 74 && y_of(green_id) == 20);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth_before + 1);
+
+  undo_action->trigger();
+  QApplication::processEvents();
+  CHECK(y_of(red_id) == 30 && y_of(blue_id) == 80 && y_of(green_id) == 20);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == depth_before);
+}
+
 void ui_layer_and_free_transform_nudges_accept_keypad_modifier() {
   for (const bool transforming : {false, true}) {
     for (const auto keypad : {Qt::NoModifier, Qt::KeypadModifier}) {
@@ -1455,6 +1579,9 @@ std::vector<patchy::test::TestCase> group_transform_tests() {
        ui_linked_layers_move_nudge_drag_and_free_transform_together},
       {"ui_layer_and_free_transform_nudges_accept_keypad_modifier",
        ui_layer_and_free_transform_nudges_accept_keypad_modifier},
+      {"ui_move_held_arrow_nudges_layer_as_one_undo_step", ui_move_held_arrow_nudges_layer_as_one_undo_step},
+      {"ui_move_held_arrow_nudges_linked_layers_as_one_undo_step",
+       ui_move_held_arrow_nudges_linked_layers_as_one_undo_step},
       {"ui_pinball_folder_free_transform_end_to_end", ui_pinball_folder_free_transform_end_to_end},
       {"ui_select_all_free_transform_transforms_retronight_poster",
        ui_select_all_free_transform_transforms_retronight_poster},

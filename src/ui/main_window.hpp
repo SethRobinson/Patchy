@@ -2214,6 +2214,14 @@ private:
   // The Gradient tool's Fill Layer mode (GitHub issue 580): a released drag rewrites the
   // active Gradient Fill layer's gradient, or adds a new Gradient Fill layer above.
   void handle_gradient_fill_drawn(QPoint from, QPoint to);
+  // The Gradient tool's handles on the active Gradient Fill (GitHub issue 663): Preview
+  // renders the edited gradient without history, Commit lands it as one undo step named
+  // `undo_label`, Cancel restores the layer as it was before the drag.
+  void handle_gradient_fill_handle_edit(LayerId layer_id, const LayerStyleGradient& gradient,
+                                        GradientFillEditPhase phase, std::uint64_t serial, const QString& undo_label);
+  // A double-click on a color stop handle: the color picker, previewing live.
+  void handle_gradient_fill_stop_color_requested(LayerId layer_id, int stop_index);
+  void apply_gradient_fill_handle_gradient(LayerId layer_id, const LayerStyleGradient& gradient);
   void new_solid_color_fill_layer();
   void new_gradient_fill_layer();
   void new_pattern_fill_layer();
@@ -2691,8 +2699,10 @@ private:
   // Session-targeted overload: canvas edit callbacks resolve their OWNING session at
   // fire time, so an edit on a non-active canvas (or an async completion landing after
   // the active document changed) never snapshots the wrong document. The no-session
-  // signature above means "the active session".
-  void push_undo_snapshot(DocumentSession& target_session, QString label);
+  // signature above means "the active session". A nonzero `edit_run_token` folds the
+  // edit into the top entry when that entry was pushed with the same token and nothing
+  // has been recorded, undone or redone since (a held arrow-key nudge, GitHub #659).
+  void push_undo_snapshot(DocumentSession& target_session, QString label, std::uint64_t edit_run_token = 0);
   // Push an undo entry for a selection-only edit, holding the pre-edit selection
   // `before` against the current (unchanged) document. When `coalesce` is true
   // and the previous entry was also a coalescing move, the new state merges into
@@ -4300,6 +4310,16 @@ private:
   // one undo entry + one rasterize.
   QTimer* vector_appearance_apply_timer_{nullptr};
   std::function<void()> pending_shape_appearance_edit_;
+  // The layer as it was before a live Gradient Fill handle drag (GitHub issue 663), for
+  // the drag's serial in its session; Commit and Cancel put it back first.
+  struct GradientFillHandlePreview {
+    std::int64_t session_id{0};
+    LayerId layer_id{0};
+    std::uint64_t serial{0};
+    Layer original;
+  };
+  std::optional<GradientFillHandlePreview> gradient_fill_handle_preview_;
+  std::uint64_t gradient_fill_stop_color_serial_{0};
   std::string pending_shape_appearance_property_;
   UnitSpinBox* vector_shape_width_spin_{nullptr};
   UnitSpinBox* vector_shape_height_spin_{nullptr};

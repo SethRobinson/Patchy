@@ -1957,6 +1957,86 @@ void psd_vector_gradient_fill_without_alpha_stops_writes_opaque_stops() {
   CHECK(roundtrip->fill.gradient.color_stops.size() == 2);
 }
 
+// The Gradient tool's handles (GitHub issue 663) edit the same GdFl descriptor: a moved end, an
+// added color and opacity stop, a moved midpoint and a deleted stop all survive a PSD round
+// trip. The written file is left in test-artifacts for a Photoshop open check.
+void gradient_fill_handle_edits_round_trip_through_psd() {
+  constexpr int kWidth = 96;
+  constexpr int kHeight = 64;
+  const auto canvas = patchy::Rect::from_size(kWidth, kHeight);
+  patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("bg", patchy::test::solid_rgba(kWidth, kHeight, 255, 255, 255, 255));
+  const std::vector<patchy::GradientStop> stops{patchy::GradientStop{0.0F, patchy::EditColor{20, 30, 200, 255}},
+                                                patchy::GradientStop{1.0F, patchy::EditColor{250, 200, 0, 255}}};
+  patchy::Layer layer(document.allocate_layer_id(), "Edited fill", patchy::PixelBuffer());
+  patchy::VectorShapeContent content;
+  content.fill.kind = patchy::VectorFillKind::Gradient;
+  auto& gradient = content.fill.gradient;
+  gradient = patchy::gradient_fill_from_drag(stops, patchy::GradientMethod::Linear, false, canvas, 10, 30, 80, 30);
+  auto line = patchy::gradient_fill_line(gradient, canvas);
+  line.end_x = 70.0;
+  line.end_y = 55.0;
+  patchy::place_gradient_fill_line(gradient, canvas, line);
+  const auto added = patchy::add_gradient_color_stop(gradient, 0.4F);
+  gradient.color_stops[added].color = patchy::RgbColor{230, 20, 90};
+  patchy::set_gradient_color_midpoint(gradient, added, 0.3F);
+  const auto faded = patchy::add_gradient_alpha_stop(gradient, 0.7F);
+  gradient.alpha_stops[faded].opacity = 0.25F;
+  patchy::set_gradient_alpha_midpoint(gradient, faded, 0.8F);
+  (void)patchy::add_gradient_color_stop(gradient, 0.9F);
+  CHECK(patchy::remove_gradient_color_stop(gradient, gradient.color_stops.size() - 2U));
+  content.stroke.enabled = false;
+  layer.set_vector_shape(content);
+  layer.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+  patchy::update_vector_shape_raster(layer, canvas, &document.metadata().patterns);
+  document.add_layer(std::move(layer));
+
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  std::filesystem::create_directories("test-artifacts");
+  {
+    std::ofstream file(std::filesystem::path("test-artifacts") / "gradient_fill_handle_edits.psd", std::ios::binary);
+    file.write(reinterpret_cast<const char*>(written.data()), static_cast<std::streamsize>(written.size()));
+  }
+  const auto reread = patchy::psd::DocumentIo::read(written, {});
+  CHECK(reread.layers().size() == 2);
+  if (reread.layers().size() != 2) {
+    return;
+  }
+  const auto& expected = std::as_const(document).layers()[1].vector_shape()->fill.gradient;
+  const auto* shape = reread.layers()[1].vector_shape();
+  CHECK(shape != nullptr && shape->fill.kind == patchy::VectorFillKind::Gradient);
+  if (shape == nullptr) {
+    return;
+  }
+  const auto& actual = shape->fill.gradient;
+  CHECK(std::abs(actual.angle_degrees - expected.angle_degrees) < 1e-3F);
+  CHECK(std::abs(actual.scale - expected.scale) < 1e-4F);
+  CHECK(std::abs(actual.offset_x_percent - expected.offset_x_percent) < 1e-3F);
+  CHECK(std::abs(actual.offset_y_percent - expected.offset_y_percent) < 1e-3F);
+  CHECK(actual.color_stops.size() == 3U && expected.color_stops.size() == 3U);
+  CHECK(actual.alpha_stops.size() == 3U && expected.alpha_stops.size() == 3U);
+  if (actual.color_stops.size() != expected.color_stops.size() ||
+      actual.alpha_stops.size() != expected.alpha_stops.size()) {
+    return;
+  }
+  for (std::size_t i = 0; i < expected.color_stops.size(); ++i) {
+    CHECK(std::abs(actual.color_stops[i].location - expected.color_stops[i].location) < 0.001F);
+    CHECK(actual.color_stops[i].color == expected.color_stops[i].color);
+    if (i > 0) {
+      CHECK(std::abs(actual.color_stops[i].midpoint - expected.color_stops[i].midpoint) < 0.01F);
+    }
+  }
+  for (std::size_t i = 0; i < expected.alpha_stops.size(); ++i) {
+    CHECK(std::abs(actual.alpha_stops[i].location - expected.alpha_stops[i].location) < 0.001F);
+    CHECK(std::abs(actual.alpha_stops[i].opacity - expected.alpha_stops[i].opacity) < 0.01F);
+    if (i > 0) {
+      CHECK(std::abs(actual.alpha_stops[i].midpoint - expected.alpha_stops[i].midpoint) < 0.01F);
+    }
+  }
+  const auto reread_line = patchy::gradient_fill_line(actual, canvas);
+  CHECK(std::abs(reread_line.end_x - 70.0) < 0.05 && std::abs(reread_line.end_y - 55.0) < 0.05);
+}
+
 // The Gradient tool's Fill Layer mode (GitHub issue 580) writes ordinary GdFl fill layers: the
 // drag's angle, scale, offsets, Reverse, Align with Layer off and the stops survive a PSD round
 // trip, and the reread layers render the same pixels. The written file is left in
@@ -3143,6 +3223,7 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
       {"psd_vector_move_translates_model_and_round_trips", psd_vector_move_translates_model_and_round_trips},
       {"psd_vector_mask_and_params_write_round_trip", psd_vector_mask_and_params_write_round_trip},
       {"gradient_fill_from_drag_layers_round_trip_through_psd", gradient_fill_from_drag_layers_round_trip_through_psd},
+      {"gradient_fill_handle_edits_round_trip_through_psd", gradient_fill_handle_edits_round_trip_through_psd},
       {"psd_vector_gradient_fill_without_alpha_stops_writes_opaque_stops",
        psd_vector_gradient_fill_without_alpha_stops_writes_opaque_stops},
       {"psd_vector_gradient_without_transparency_stops_heals_on_save",

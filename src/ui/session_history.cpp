@@ -92,6 +92,7 @@ void SessionHistory::record_push(State state, QString action_label) {
   }
   redo_stack_.clear();
   selection_move_coalescing_ = false;
+  edit_run_token_ = 0;
   current_state_label_ = std::move(action_label);
   current_state_id_ = next_history_state_id_++;
 }
@@ -100,6 +101,7 @@ void SessionHistory::initialize(QString initial_label) {
   undo_stack_.clear();
   redo_stack_.clear();
   selection_move_coalescing_ = false;
+  edit_run_token_ = 0;
   current_state_label_ = std::move(initial_label);
   current_state_id_ = next_history_state_id_++;
 }
@@ -152,6 +154,7 @@ void SessionHistory::rotate(Document& document, std::int64_t& revision, bool bac
     from.pop_back();
     to.push_back(std::move(moved));
     selection_move_coalescing_ = false;
+    edit_run_token_ = 0;
     return;
   }
   // The 32-bit preview exposure is a view setting: history keeps the current one.
@@ -170,6 +173,7 @@ void SessionHistory::rotate(Document& document, std::int64_t& revision, bool bac
   current_state_id_ = restored.state_id;
   from.pop_back();
   selection_move_coalescing_ = false;
+  edit_run_token_ = 0;
   // The parked pre-rotation document sits intact at to.back(); diff it against
   // the restored one for the partial repaint.
   if (!changed.full) {

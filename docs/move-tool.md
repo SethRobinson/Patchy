@@ -16,6 +16,10 @@ GitHub issue 168, Photoshop's Auto-Select dropdown. `MoveAutoSelectTarget` on th
 - Linked layers (GitHub issue 656): `movable_layer_ids` adds every layer linked to a target, so drags, nudges and the transform box take the link group; an Auto-Select pick of a linked layer drags its group ([layer-panel.md](layer-panel.md#linked-layers)).
 - An artboard's label, or with Auto-Select (or Ctrl) its empty area, is the target there (GitHub issue 259): the outline frames the artboard rect, and the press selects and drags the artboard. Details in [artboards.md](artboards.md).
 
+## Arrow-key nudges
+
+Arrows move the movable layers (`movable_layer_ids`, link groups included) 1 px, Shift+arrow 10 px, through `move_active_layer_by` and `offset_layers` (canvas_widget_move.cpp); a live gesture swallows them. Holding an arrow keeps nudging (GitHub issue 659): `keyPressEvent` accepts auto-repeat presses, and the press and its repeats share a run token (`layer_nudge_hold_token_`) that ends on the key's real release, any other key press or focus loss. The first nudge of a run pushes a "Nudge layer" snapshot through the edit-run before-edit callback; `push_undo_snapshot(session, label, token)` folds later nudges carrying the same token into it, skipping the document copy and only bumping the revision, while `SessionHistory::edit_run_token` still names it (any push, undo, redo or reset clears it, so an edit recorded mid-hold starts a new step). A repeat costs what one nudge costs minus the snapshot. The selection tools' arrow nudges fold through `selection_move_coalescing` instead, and artboard nudges through MainWindow's `artboard_nudge_run_`. Coverage: `ui_move_held_arrow_nudges_layer_as_one_undo_step`, `ui_move_held_arrow_nudges_linked_layers_as_one_undo_step`.
+
 ## Transform box hit zones
 
 GitHub issue 176. `CanvasWidget::transform_handle_at(..., TransformHitZones)` (canvas_widget_transform.cpp) reports the handle a press grabs. `HandlesOnly` is the original test: 14 px squares at the eight handles, the Rotate stem handle, inside = Move. `EdgesAndCorners` adds, in widget pixels of the box's own (rotated) frame:

@@ -15030,8 +15030,8 @@ Do you want to replace it?</source>
 Czy chcesz go zastąpić?</translation>
     </message>
     <message>
-        <source>Transform controls under the Move tool</source>
-        <translation>Elementy sterujące transformacją przy narzędziu Przesuwanie</translation>
+        <source>Transform controls (Move tool and Free Transform)</source>
+        <translation>Elementy sterujące transformacją (narzędzie Przesuwanie i Przekształcanie swobodne)</translation>
     </message>
     <message>
         <source>Other: %1</source>
@@ -17409,6 +17409,98 @@ Czy chcesz go zastąpić?</translation>
     <message>
         <source>Object Selection found no object in the outline; the outline is kept</source>
         <translation>Zaznaczanie obiektu nie znalazło obiektu w obrysie; obrys pozostaje</translation>
+    </message>
+    <message>
+        <source>Drag to move the gradient&apos;s start point. Shift keeps the angle in 15-degree steps.</source>
+        <translation>Przeciągnij, aby przesunąć punkt początkowy gradientu. Shift utrzymuje kąt w krokach co 15 stopni.</translation>
+    </message>
+    <message>
+        <source>Drag to move the gradient&apos;s end point. Shift keeps the angle in 15-degree steps.</source>
+        <translation>Przeciągnij, aby przesunąć punkt końcowy gradientu. Shift utrzymuje kąt w krokach co 15 stopni.</translation>
+    </message>
+    <message>
+        <source>Drag to move the gradient. Click to add a color stop here.</source>
+        <translation>Przeciągnij, aby przesunąć gradient. Kliknij, aby dodać tutaj znacznik koloru.</translation>
+    </message>
+    <message>
+        <source>Drag to move this color stop, or away from the line to delete it. Double-click to change its color.</source>
+        <translation>Przeciągnij, aby przesunąć ten znacznik koloru, lub odciągnij go od linii, aby go usunąć. Kliknij dwukrotnie, aby zmienić jego kolor.</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop, or away from the line to delete it. Double-click to edit the fill.</source>
+        <translation>Przeciągnij, aby przesunąć ten znacznik krycia, lub odciągnij go od linii, aby go usunąć. Kliknij dwukrotnie, aby edytować wypełnienie.</translation>
+    </message>
+    <message>
+        <source>Drag to move the midpoint between these stops.</source>
+        <translation>Przeciągnij, aby przesunąć punkt środkowy między tymi znacznikami.</translation>
+    </message>
+    <message>
+        <source>Gradient start point</source>
+        <translation>Punkt początkowy gradientu</translation>
+    </message>
+    <message>
+        <source>Gradient end point</source>
+        <translation>Punkt końcowy gradientu</translation>
+    </message>
+    <message>
+        <source>Gradient line</source>
+        <translation>Linia gradientu</translation>
+    </message>
+    <message>
+        <source>Color stop at %1%</source>
+        <translation>Znacznik koloru w %1%</translation>
+    </message>
+    <message>
+        <source>Opacity stop at %1%: %2% opacity</source>
+        <translation>Znacznik krycia w %1%: krycie %2%</translation>
+    </message>
+    <message>
+        <source>Midpoint: %1%</source>
+        <translation>Punkt środkowy: %1%</translation>
+    </message>
+    <message>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>Odblokuj warstwę wypełnienia gradientowego, aby zmienić jej gradient</translation>
+    </message>
+    <message>
+        <source>Release to delete this stop.</source>
+        <translation>Puść, aby usunąć ten znacznik.</translation>
+    </message>
+    <message>
+        <source>Add Color Stop</source>
+        <translation>Dodaj znacznik koloru</translation>
+    </message>
+    <message>
+        <source>Move Gradient Start Point</source>
+        <translation>Przesuń punkt początkowy gradientu</translation>
+    </message>
+    <message>
+        <source>Move Gradient End Point</source>
+        <translation>Przesuń punkt końcowy gradientu</translation>
+    </message>
+    <message>
+        <source>Move Gradient</source>
+        <translation>Przesuń gradient</translation>
+    </message>
+    <message>
+        <source>Delete Color Stop</source>
+        <translation>Usuń znacznik koloru</translation>
+    </message>
+    <message>
+        <source>Move Color Stop</source>
+        <translation>Przesuń znacznik koloru</translation>
+    </message>
+    <message>
+        <source>Delete Opacity Stop</source>
+        <translation>Usuń znacznik krycia</translation>
+    </message>
+    <message>
+        <source>Move Opacity Stop</source>
+        <translation>Przesuń znacznik krycia</translation>
+    </message>
+    <message>
+        <source>Move Gradient Midpoint</source>
+        <translation>Przesuń punkt środkowy gradientu</translation>
     </message>
     <message>
         <source>%1 while %ALT% is held</source>
@@ -33559,6 +33651,14 @@ Zablokowano: %1</translation>
     <message>
         <source>The selected layers are not linked</source>
         <translation>Zaznaczone warstwy nie są połączone</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>Kolor punktu gradientu</translation>
+    </message>
+    <message>
+        <source>Change Color Stop</source>
+        <translation>Zmień znacznik koloru</translation>
     </message>
     <message>
         <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>

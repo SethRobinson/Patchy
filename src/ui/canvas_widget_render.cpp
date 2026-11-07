@@ -1164,6 +1164,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   upright_overlays.reset();
   draw_perspective_crop_overlay(painter);
   draw_ruler_overlay(painter);
+  draw_gradient_fill_handles(painter);
   upright_overlays.emplace(*this, &painter);
   draw_move_layer_selection(painter);
   upright_overlays.reset();

@@ -1446,6 +1446,24 @@ void update_vector_shape_raster(Layer& layer, Rect canvas, const PatternStore* p
   layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
 }
 
+Rect gradient_fill_alignment_bounds(const Layer& layer, Rect canvas) {
+  const auto* shape = layer.vector_shape();
+  if (shape == nullptr || shape->fill.kind != VectorFillKind::Gradient || !shape->fill.gradient.align_with_layer) {
+    return canvas;
+  }
+  if (const auto mask_bounds = fill_layer_mask_bounds(layer, *shape, canvas); mask_bounds.has_value()) {
+    return *mask_bounds;
+  }
+  // A pathless, disabled or inverted path covers the whole bake domain, which is the canvas.
+  if (shape->path_disabled || shape->path_inverted || shape->path.empty()) {
+    return canvas;
+  }
+  VectorRasterOptions options;
+  options.clip = shape_bake_domain(*shape, canvas);
+  const auto coverage = rasterize_vector_path(shape->path, options);
+  return coverage.bounds.empty() ? canvas : coverage.bounds;
+}
+
 std::shared_ptr<const PixelBuffer> deep_gradient_fill_raster(const Layer& layer, BitDepth depth) {
   const auto* shape = layer.vector_shape();
   const auto bounds = layer.bounds();

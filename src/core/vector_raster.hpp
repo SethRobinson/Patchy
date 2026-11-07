@@ -109,6 +109,12 @@ struct VectorPaintBounds {
 // compositor never rasterizes - these run at edit/import time only. No-ops
 // when the layer carries no vector shape / vector mask.
 void update_vector_shape_raster(Layer& layer, Rect canvas, const PatternStore* patterns);
+// The rectangle a gradient fill's placement is measured over (gradient_position's bounds), as
+// update_vector_shape_raster bakes it: the canvas without Align with Layer; with it, the
+// visible user-mask bounds of a pathless fill layer (fill_layer_mask_bounds), else the
+// fill's coverage bounds. Rasterizes the path, so callers cache it (the Gradient tool's
+// on-canvas handles, GitHub issue 663).
+[[nodiscard]] Rect gradient_fill_alignment_bounds(const Layer& layer, Rect canvas);
 // For a shape layer that keeps the pixels its file carried (a PSD import whose raster
 // has visible alpha is not re-baked): works out the effect silhouette from the shape
 // and stores it beside those pixels, or clears it when coverage and alpha agree.

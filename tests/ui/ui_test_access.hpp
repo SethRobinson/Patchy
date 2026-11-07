@@ -337,6 +337,8 @@ public:
 
   static std::size_t active_session_undo_depth(MainWindow& window);
 
+  static void push_undo_snapshot(MainWindow& window, const QString& label);
+
   static void undo(MainWindow& window);
 
   // The Layers panel's Alt-drop duplicate: copies `ids` and drops the copies above `target`.
@@ -370,6 +372,8 @@ public:
   // stroke patch rather than a whole-document snapshot, its bytes, and the switch that
   // keeps strokes on the snapshot path so the two can be compared.
   static bool top_undo_entry_is_stroke_patch(MainWindow& window);
+  // The name of the newest edit (the current history state's label).
+  static QString current_history_label(MainWindow& window);
   static std::size_t top_undo_entry_patch_bytes(MainWindow& window);
   static void set_stroke_patch_history_enabled(MainWindow& window, bool enabled);
   // The retained-bytes cache is refreshed at push time (before a stroke detaches

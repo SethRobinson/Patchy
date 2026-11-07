@@ -374,6 +374,12 @@ struct ThemePalette {
   QColor canvas_artboard_label_on_light;
   QColor canvas_artboard_selected;
   QColor canvas_artboard_handle;
+  // The Gradient tool's handles on a Gradient Fill (GitHub issue 663): the line and the
+  // outlines of its ends, stops and midpoints in `ink` under a `fill` rim, and the part under
+  // the pointer or being dragged in `active`. Drawn over artwork in both schemes.
+  QColor canvas_gradient_handle_ink;
+  QColor canvas_gradient_handle_fill;
+  QColor canvas_gradient_handle_active;
 
   // Scroll bars. The canvas track slaves to the canvas backdrop rather than the
   // window surface: it is document-window chrome sitting against the pasteboard,

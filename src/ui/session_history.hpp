@@ -67,6 +67,11 @@ public:
   [[nodiscard]] std::int64_t current_state_id() const noexcept { return current_state_id_; }
   [[nodiscard]] bool selection_move_coalescing() const noexcept { return selection_move_coalescing_; }
   void set_selection_move_coalescing(bool value) noexcept { selection_move_coalescing_ = value; }
+  // The token of the edit run whose snapshot sits on top of the undo stack (a held
+  // arrow-key layer nudge, GitHub #659), or 0. Any push, undo, redo or reset clears it,
+  // so a later edit in the same run pushes again instead of folding into someone else's.
+  [[nodiscard]] std::uint64_t edit_run_token() const noexcept { return edit_run_token_; }
+  void set_edit_run_token(std::uint64_t token) noexcept { edit_run_token_ = token; }
 
   void record_push(State state, QString action_label);
   void initialize(QString initial_label);
@@ -84,6 +89,7 @@ private:
   std::vector<State> undo_stack_;
   std::vector<State> redo_stack_;
   bool selection_move_coalescing_{false};
+  std::uint64_t edit_run_token_{0};
   QString current_state_label_;
   std::int64_t current_state_id_{0};
   std::int64_t next_history_state_id_{1};

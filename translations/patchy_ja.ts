@@ -14936,8 +14936,8 @@ Do you want to replace it?</source>
 置き換えますか?</translation>
     </message>
     <message>
-        <source>Transform controls under the Move tool</source>
-        <translation>移動ツールの変形コントロール</translation>
+        <source>Transform controls (Move tool and Free Transform)</source>
+        <translation>変形コントロール（移動ツールと自由変形）</translation>
     </message>
     <message>
         <source>Other: %1</source>
@@ -17315,6 +17315,98 @@ Do you want to replace it?</source>
     <message>
         <source>Object Selection found no object in the outline; the outline is kept</source>
         <translation>オブジェクト選択で輪郭内にオブジェクトが見つかりませんでした。輪郭はそのまま残ります</translation>
+    </message>
+    <message>
+        <source>Drag to move the gradient&apos;s start point. Shift keeps the angle in 15-degree steps.</source>
+        <translation>ドラッグしてグラデーションの始点を移動します。Shift で角度を 15 度単位にします。</translation>
+    </message>
+    <message>
+        <source>Drag to move the gradient&apos;s end point. Shift keeps the angle in 15-degree steps.</source>
+        <translation>ドラッグしてグラデーションの終点を移動します。Shift で角度を 15 度単位にします。</translation>
+    </message>
+    <message>
+        <source>Drag to move the gradient. Click to add a color stop here.</source>
+        <translation>ドラッグしてグラデーションを移動します。クリックするとここにカラー分岐点を追加します。</translation>
+    </message>
+    <message>
+        <source>Drag to move this color stop, or away from the line to delete it. Double-click to change its color.</source>
+        <translation>ドラッグしてこのカラー分岐点を移動します。線から離すと削除します。ダブルクリックで色を変更します。</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop, or away from the line to delete it. Double-click to edit the fill.</source>
+        <translation>ドラッグしてこの不透明度の分岐点を移動します。線から離すと削除します。ダブルクリックで塗りつぶしを編集します。</translation>
+    </message>
+    <message>
+        <source>Drag to move the midpoint between these stops.</source>
+        <translation>ドラッグしてこれらの分岐点の間の中間点を移動します。</translation>
+    </message>
+    <message>
+        <source>Gradient start point</source>
+        <translation>グラデーションの始点</translation>
+    </message>
+    <message>
+        <source>Gradient end point</source>
+        <translation>グラデーションの終点</translation>
+    </message>
+    <message>
+        <source>Gradient line</source>
+        <translation>グラデーションの線</translation>
+    </message>
+    <message>
+        <source>Color stop at %1%</source>
+        <translation>カラー分岐点 (%1%)</translation>
+    </message>
+    <message>
+        <source>Opacity stop at %1%: %2% opacity</source>
+        <translation>不透明度の分岐点 (%1%): 不透明度 %2%</translation>
+    </message>
+    <message>
+        <source>Midpoint: %1%</source>
+        <translation>中間点: %1%</translation>
+    </message>
+    <message>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>グラデーションを変更するには、グラデーション塗りつぶしレイヤーのロックを解除してください</translation>
+    </message>
+    <message>
+        <source>Release to delete this stop.</source>
+        <translation>離すとこの分岐点を削除します。</translation>
+    </message>
+    <message>
+        <source>Add Color Stop</source>
+        <translation>カラー分岐点を追加</translation>
+    </message>
+    <message>
+        <source>Move Gradient Start Point</source>
+        <translation>グラデーションの始点を移動</translation>
+    </message>
+    <message>
+        <source>Move Gradient End Point</source>
+        <translation>グラデーションの終点を移動</translation>
+    </message>
+    <message>
+        <source>Move Gradient</source>
+        <translation>グラデーションを移動</translation>
+    </message>
+    <message>
+        <source>Delete Color Stop</source>
+        <translation>カラー分岐点を削除</translation>
+    </message>
+    <message>
+        <source>Move Color Stop</source>
+        <translation>カラー分岐点を移動</translation>
+    </message>
+    <message>
+        <source>Delete Opacity Stop</source>
+        <translation>不透明度の分岐点を削除</translation>
+    </message>
+    <message>
+        <source>Move Opacity Stop</source>
+        <translation>不透明度の分岐点を移動</translation>
+    </message>
+    <message>
+        <source>Move Gradient Midpoint</source>
+        <translation>グラデーションの中間点を移動</translation>
     </message>
     <message>
         <source>%1 while %ALT% is held</source>
@@ -33383,6 +33475,14 @@ Locked: %1</source>
     <message>
         <source>The selected layers are not linked</source>
         <translation>選択したレイヤーはリンクされていません</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>グラデーションの分岐点の色</translation>
+    </message>
+    <message>
+        <source>Change Color Stop</source>
+        <translation>カラー分岐点を変更</translation>
     </message>
     <message>
         <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>

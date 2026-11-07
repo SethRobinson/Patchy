@@ -402,7 +402,7 @@ bool CanvasWidget::event(QEvent* event) {
       return true;
     }
     const auto* key_event = static_cast<QKeyEvent*>(event);
-    if (move_layer_selection_gesture_ && key_event->key() == Qt::Key_Escape) {
+    if ((move_layer_selection_gesture_ || gradient_handle_drag_.has_value()) && key_event->key() == Qt::Key_Escape) {
       event->accept();
       return true;
     }
@@ -420,6 +420,9 @@ bool CanvasWidget::event(QEvent* event) {
         return true;
       }
     }
+  }
+  if (event->type() == QEvent::ToolTip && show_gradient_fill_handle_tooltip(event)) {
+    return true;
   }
   if (event->type() == QEvent::NativeGesture) {
     const auto* gesture = static_cast<QNativeGestureEvent*>(event);
@@ -871,6 +874,14 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     // The Ruler owns every left press (Ctrl on a guide still drags the guide): an end,
     // the line, or a new line, on the canvas or the pasteboard.
     handle_ruler_press(event);
+    event->accept();
+    return;
+  }
+
+  // The Gradient tool's handles on the active Gradient Fill (GitHub issue 663): a press on an
+  // end, the line, a stop or a midpoint edits that gradient; anywhere else draws a new one.
+  if (tool_ == CanvasTool::Gradient && document_ != nullptr && event->button() == Qt::LeftButton &&
+      press_gradient_fill_handle(event)) {
     event->accept();
     return;
   }
@@ -2199,6 +2210,12 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     return;
   }
 
+  if (tool_ == CanvasTool::Gradient && !dragging_guide_ && move_gradient_fill_handle(event)) {
+    last_mouse_position_ = event->pos();
+    event->accept();
+    return;
+  }
+
   if (tool_ == CanvasTool::Ruler && !dragging_guide_) {
     clear_move_hover_outline();
     if (ruler_drag_part_ != RulerPart::None) {
@@ -3003,6 +3020,11 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     update_tool_cursor();
     update();
     notify_transform_controls_changed();
+    return;
+  }
+
+  if (gradient_handle_drag_.has_value() && release_gradient_fill_handle(event)) {
+    event->accept();
     return;
   }
 
@@ -3868,6 +3890,10 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
       return;
     }
   }
+  if (tool_ == CanvasTool::Gradient && double_click_gradient_fill_handle(event)) {
+    event->accept();
+    return;
+  }
   // Double-clicking an artboard's name label renames it, whatever the tool.
   if (handle_artboard_label_double_click(event)) {
     event->accept();
@@ -3994,6 +4020,10 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
   }
   // A modifier or Escape acts on the drag where the pointer really is.
   flush_pending_drag_move();
+  if (event->key() != layer_nudge_hold_key_) {
+    // Another key ends a held arrow's nudge run: the next nudge is a new undo step.
+    end_layer_nudge_hold();
+  }
   if (rotating_view_ && event->key() == Qt::Key_Escape && event->modifiers() == Qt::NoModifier) {
     // Escape during a Rotate View drag puts the drag's angle back.
     end_rotate_view_drag(true);
@@ -4386,6 +4416,13 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     }
   }
 
+  if (gradient_handle_drag_.has_value() && event->key() == Qt::Key_Escape) {
+    // Esc mid-drag puts the gradient back as it was before the press.
+    cancel_gradient_fill_handle_drag();
+    event->accept();
+    return;
+  }
+
   if (tool_ == CanvasTool::Ruler && ruler_drag_part_ != RulerPart::None && event->key() == Qt::Key_Escape) {
     // Esc mid-drag puts the line back as it was before the press.
     cancel_ruler_drag();
@@ -4581,7 +4618,9 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     }
   }
 
-  if (!event->isAutoRepeat() && (arrow_modifiers == Qt::NoModifier || arrow_modifiers == Qt::ShiftModifier)) {
+  // Holding an arrow keeps nudging (key auto-repeat, GitHub #659); the press and its
+  // repeats share one run token, so the whole hold is one undo step.
+  if (arrow_modifiers == Qt::NoModifier || arrow_modifiers == Qt::ShiftModifier) {
     const auto step = arrow_modifiers == Qt::ShiftModifier ? 10 : 1;
     QPoint delta;
     switch (event->key()) {
@@ -4610,9 +4649,14 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
                                 spot_healing_stroke_active_ || patch_tool_dragging_;
     const auto movable_ids = gesture_active ? std::vector<LayerId>{} : movable_layer_ids();
     if (!delta.isNull() && !movable_ids.empty()) {
+      if (!event->isAutoRepeat() || layer_nudge_hold_key_ != event->key() || layer_nudge_hold_token_ == 0) {
+        static std::uint64_t next_layer_nudge_hold_token = 0;
+        layer_nudge_hold_key_ = event->key();
+        layer_nudge_hold_token_ = ++next_layer_nudge_hold_token;
+      }
       begin_processing_operation();
       tick_processing_operation();
-      const auto dirty = move_active_layer_by(delta);
+      const auto dirty = move_active_layer_by(delta, layer_nudge_hold_token_);
       if (!dirty.isEmpty()) {
         document_changed_effect_bounds(dirty);
       }
@@ -4667,6 +4711,9 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
 void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
   if (!processing_render_wait_active_) {
     flush_pending_drag_move();
+  }
+  if (!event->isAutoRepeat() && event->key() == layer_nudge_hold_key_) {
+    end_layer_nudge_hold();
   }
   // Space released mid-path-marquee goes back to resizing WITHOUT set_tool:
   // that would drop the Pen's Ctrl latch and strand the drag.
@@ -4972,7 +5019,13 @@ void CanvasWidget::cancel_pointer_gestures() {
   update();
 }
 
+void CanvasWidget::end_layer_nudge_hold() noexcept {
+  layer_nudge_hold_key_ = 0;
+  layer_nudge_hold_token_ = 0;
+}
+
 void CanvasWidget::focusOutEvent(QFocusEvent* event) {
+  end_layer_nudge_hold();
   // View navigation and window movement can transfer focus during an automated
   // stroke. Its caller owns the stroke lifetime and restores its tool state;
   // the manual focus-loss cleanup would discard its spacing/pickup/coverage.
