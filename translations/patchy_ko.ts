@@ -14995,6 +14995,26 @@ Do you want to replace it?</source>
         <source>Linked layer. Click to select the layers linked to it.</source>
         <translation>연결된 레이어입니다. 연결된 레이어를 선택하려면 클릭하세요.</translation>
     </message>
+    <message>
+        <source>Multi-page TIFF opened as layers (change this in Preferences)</source>
+        <translation>다중 페이지 TIFF를 레이어로 열었습니다(환경설정에서 변경)</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF opened as separate documents (change this in Preferences)</source>
+        <translation>다중 페이지 TIFF를 별도 문서로 열었습니다(환경설정에서 변경)</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF opened at its first page only (change this in Preferences)</source>
+        <translation>다중 페이지 TIFF의 첫 페이지만 열었습니다(환경설정에서 변경)</translation>
+    </message>
+    <message>
+        <source>Don&apos;t ask again</source>
+        <translation>다시 묻지 않음</translation>
+    </message>
+    <message>
+        <source>Open multi-page TIFFs this way from now on. Preferences can turn the question back on.</source>
+        <translation>이제부터 다중 페이지 TIFF를 이 방식으로 엽니다. 환경설정에서 질문을 다시 켤 수 있습니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -33571,6 +33591,26 @@ Locked: %1</source>
     <message>
         <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
         <translation>%1: %ALT%+드래그로 %2 적용, Shift+클릭으로 직선, %ALT%+오른쪽 드래그로 크기와 부드러움을 바꿉니다.</translation>
+    </message>
+    <message>
+        <source>Pages as layers</source>
+        <translation>페이지를 레이어로</translation>
+    </message>
+    <message>
+        <source>Separate documents</source>
+        <translation>별도 문서</translation>
+    </message>
+    <message>
+        <source>First page only</source>
+        <translation>첫 페이지만</translation>
+    </message>
+    <message>
+        <source>Pages as layers puts every page on its own layer in one document, page 1 on top. Separate documents opens every page in its own tab.</source>
+        <translation>&apos;페이지를 레이어로&apos;는 모든 페이지를 한 문서의 각 레이어에 넣고 1페이지를 맨 위에 둡니다. &apos;별도 문서&apos;는 모든 페이지를 각각의 탭에서 엽니다.</translation>
+    </message>
+    <message>
+        <source>Opening multi-page TIFFs:</source>
+        <translation>다중 페이지 TIFF를 열 때:</translation>
     </message>
 </context>
 <context>

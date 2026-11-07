@@ -15042,6 +15042,26 @@ Deseja substituí-lo?</translation>
         <source>Linked layer. Click to select the layers linked to it.</source>
         <translation>Camada vinculada. Clique para selecionar as camadas vinculadas a ela.</translation>
     </message>
+    <message>
+        <source>Multi-page TIFF opened as layers (change this in Preferences)</source>
+        <translation>TIFF de várias páginas aberto como camadas (altere em Preferências)</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF opened as separate documents (change this in Preferences)</source>
+        <translation>TIFF de várias páginas aberto como documentos separados (altere em Preferências)</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF opened at its first page only (change this in Preferences)</source>
+        <translation>TIFF de várias páginas aberto somente na primeira página (altere em Preferências)</translation>
+    </message>
+    <message>
+        <source>Don&apos;t ask again</source>
+        <translation>Não perguntar novamente</translation>
+    </message>
+    <message>
+        <source>Open multi-page TIFFs this way from now on. Preferences can turn the question back on.</source>
+        <translation>Abrir TIFFs de várias páginas desta forma daqui em diante. Preferências pode ativar a pergunta novamente.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -33659,6 +33679,26 @@ Bloqueado: %1</translation>
     <message>
         <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
         <translation>%1: %ALT%+arrastar pinta com %2, Shift+clique traça uma linha, %ALT%+arrastar com o botão direito altera o tamanho e a suavidade.</translation>
+    </message>
+    <message>
+        <source>Pages as layers</source>
+        <translation>Páginas como camadas</translation>
+    </message>
+    <message>
+        <source>Separate documents</source>
+        <translation>Documentos separados</translation>
+    </message>
+    <message>
+        <source>First page only</source>
+        <translation>Somente a primeira página</translation>
+    </message>
+    <message>
+        <source>Pages as layers puts every page on its own layer in one document, page 1 on top. Separate documents opens every page in its own tab.</source>
+        <translation>Páginas como camadas coloca cada página em sua própria camada em um documento, com a página 1 no topo. Documentos separados abre cada página em sua própria aba.</translation>
+    </message>
+    <message>
+        <source>Opening multi-page TIFFs:</source>
+        <translation>Ao abrir TIFFs de várias páginas:</translation>
     </message>
 </context>
 <context>

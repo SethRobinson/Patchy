@@ -14995,6 +14995,26 @@ Do you want to replace it?</source>
         <source>Linked layer. Click to select the layers linked to it.</source>
         <translation>連結圖層。按一下可選取與其連結的圖層。</translation>
     </message>
+    <message>
+        <source>Multi-page TIFF opened as layers (change this in Preferences)</source>
+        <translation>多頁 TIFF 已開啟為圖層(可在偏好設定中變更)</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF opened as separate documents (change this in Preferences)</source>
+        <translation>多頁 TIFF 已開啟為個別文件(可在偏好設定中變更)</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF opened at its first page only (change this in Preferences)</source>
+        <translation>多頁 TIFF 僅開啟了第一頁(可在偏好設定中變更)</translation>
+    </message>
+    <message>
+        <source>Don&apos;t ask again</source>
+        <translation>不再詢問</translation>
+    </message>
+    <message>
+        <source>Open multi-page TIFFs this way from now on. Preferences can turn the question back on.</source>
+        <translation>今後都以這種方式開啟多頁 TIFF。可在偏好設定中重新開啟此詢問。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -33571,6 +33591,26 @@ Locked: %1</source>
     <message>
         <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
         <translation>%1：%ALT%+拖曳以%2繪製，Shift+點按畫直線，%ALT%+右鍵拖曳變更大小與柔和度。</translation>
+    </message>
+    <message>
+        <source>Pages as layers</source>
+        <translation>頁面作為圖層</translation>
+    </message>
+    <message>
+        <source>Separate documents</source>
+        <translation>個別文件</translation>
+    </message>
+    <message>
+        <source>First page only</source>
+        <translation>僅第一頁</translation>
+    </message>
+    <message>
+        <source>Pages as layers puts every page on its own layer in one document, page 1 on top. Separate documents opens every page in its own tab.</source>
+        <translation>「頁面作為圖層」會將每一頁放在一份文件中各自的圖層上，第 1 頁在最上層。「個別文件」會在各自的分頁中開啟每一頁。</translation>
+    </message>
+    <message>
+        <source>Opening multi-page TIFFs:</source>
+        <translation>開啟多頁 TIFF：</translation>
     </message>
 </context>
 <context>

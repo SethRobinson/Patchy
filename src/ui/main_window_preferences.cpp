@@ -952,6 +952,22 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
   const auto xcf_painted_text_index = xcf_painted_text_combo->findData(xcf_painted_text_policy);
   xcf_painted_text_combo->setCurrentIndex(xcf_painted_text_index >= 0 ? xcf_painted_text_index : 0);
   application_form->addRow(tr("Opening painted-on GIMP text:"), xcf_painted_text_combo);
+  // How an interactive open of a multi-page TIFF opens its pages (#664; also settable from the
+  // question's "Don't ask again" box while this is "Ask every time"). Scripts always get page 1.
+  auto* tiff_pages_combo = new QComboBox(application_group);
+  tiff_pages_combo->setObjectName(QStringLiteral("preferencesTiffPagesCombo"));
+  tiff_pages_combo->addItem(tr("Ask every time"), QStringLiteral("ask"));
+  tiff_pages_combo->addItem(tr("Pages as layers"), QStringLiteral("layers"));
+  tiff_pages_combo->addItem(tr("Separate documents"), QStringLiteral("documents"));
+  tiff_pages_combo->addItem(tr("First page only"), QStringLiteral("first"));
+  tiff_pages_combo->setToolTip(
+      tr("Pages as layers puts every page on its own layer in one document, page 1 on top. Separate documents "
+         "opens every page in its own tab."));
+  const auto tiff_pages_policy =
+      settings.value(QStringLiteral("imports/tiffPagesOpen"), QStringLiteral("ask")).toString();
+  const auto tiff_pages_index = tiff_pages_combo->findData(tiff_pages_policy);
+  tiff_pages_combo->setCurrentIndex(tiff_pages_index >= 0 ? tiff_pages_index : 0);
+  application_form->addRow(tr("Opening multi-page TIFFs:"), tiff_pages_combo);
   // How a layered document is written to PDF (also settable from the question that
   // appears while this is "Ask every time").
   auto* pdf_layers_combo = new QComboBox(application_group);
@@ -2411,6 +2427,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     settings.setValue(QStringLiteral("imports/adoptIndexedPalette"), indexed_open_combo->currentData().toString());
     settings.setValue(QStringLiteral("imports/afImageLayers"), af_image_layers_combo->currentData().toString());
     settings.setValue(QStringLiteral("imports/xcfPaintedTextLayers"), xcf_painted_text_combo->currentData().toString());
+    settings.setValue(QStringLiteral("imports/tiffPagesOpen"), tiff_pages_combo->currentData().toString());
     settings.setValue(QStringLiteral("saveOptions/pdfLayerPolicy"), pdf_layers_combo->currentData().toString());
 #if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
     if (system_title_bar_check->isChecked() != entry_system_title_bar) {
