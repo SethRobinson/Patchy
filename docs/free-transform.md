@@ -7,6 +7,10 @@ Related documents:
 - [free-transform-targets.md](free-transform-targets.md): sessions that take only the selected pixels of a pixel layer (GitHub issue 399), and multi-target sessions on folders and multi-layer selections.
 - [free-transform-preview.md](free-transform-preview.md): the drag preview (base cache, region patches, clip-group blits, banding, the proxy latch, masked layers) and the commit hold.
 
+## Hidden by View > Extras (local-037)
+
+View > Extras (Ctrl+H) covers the session's box, handles, rotate stem and reference point through the `transformControls` item ([view-navigation.md](view-navigation.md#extras-view--extras-ctrlh)); the preview still draws. While hidden, `transform_handle_at` reports Move inside the box and nothing elsewhere, so a drag inside moves the box, handles, the rotate reach and gesture cursors take nothing, and a press outside keeps the session as usual. Enter, Esc, double-click inside, undo steps and the options bar fields work unchanged; Ctrl+H again brings the handles back. Coverage: `ui_view_extras_hides_free_transform_controls`.
+
 ## Steps inside a pending session (GitHub issue 225)
 
 Undo and Redo step through a pending Free Transform or Warp session before it is committed, without touching the document history behind it.

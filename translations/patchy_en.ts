@@ -14965,7 +14965,7 @@ Do you want to replace it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Transform controls under the Move tool</source>
+        <source>Transform controls (Move tool and Free Transform)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

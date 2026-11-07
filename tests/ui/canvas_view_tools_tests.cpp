@@ -5130,8 +5130,9 @@ void ui_view_extras_hides_covered_overlays_and_restores_them() {
 
 // View > Extras hides the Move tool's Show Transform Controls box (local-036): with Extras
 // off the box draws nothing and its corner takes no grab or resize cursor (a drag there
-// moves the layer), Extras on brings the same box back, and a Free Transform session keeps
-// its handles with Extras off. Unticked in Show Extras Options, the box ignores Extras.
+// moves the layer), Extras on brings the same box back, and a Free Transform session hides
+// its handles with Extras off too (local-037). Unticked in Show Extras Options, the box
+// ignores Extras.
 void ui_view_extras_hides_move_transform_controls() {
   using patchy::ui::ViewExtra;
   using patchy::ui::kAllViewExtras;
@@ -5194,16 +5195,20 @@ void ui_view_extras_hides_move_transform_controls() {
   send_mouse(canvas, QEvent::MouseMove, corner, Qt::NoButton, Qt::NoButton);
   CHECK(canvas.cursor().shape() == Qt::SizeFDiagCursor);
 
-  // A Free Transform session keeps its handles while Extras is off.
+  // A Free Transform session hides its handles while Extras is off too (local-037), and its
+  // hidden corner shows no resize cursor.
   send_mouse(canvas, QEvent::MouseButtonPress, corner, Qt::LeftButton, Qt::LeftButton);
   send_mouse(canvas, QEvent::MouseButtonRelease, corner, Qt::LeftButton, Qt::NoButton);
   CHECK(canvas.free_transform_active());
   const auto session_shown = grab();
   canvas.set_extras_visible(false);
   CHECK(canvas.free_transform_active());
-  CHECK(images_equal_rgba(grab(), session_shown));
+  CHECK(!images_equal_rgba(grab(), session_shown));
   send_mouse(canvas, QEvent::MouseMove, corner, Qt::NoButton, Qt::NoButton);
-  CHECK(canvas.cursor().shape() == Qt::SizeFDiagCursor);
+  CHECK(canvas.cursor().shape() != Qt::SizeFDiagCursor);
+  canvas.set_extras_visible(true);
+  CHECK(images_equal_rgba(grab(), session_shown));
+  canvas.set_extras_visible(false);
   send_key(canvas, Qt::Key_Escape);
   CHECK(!canvas.free_transform_active());
   CHECK(canvas.active_layer_document_rect() == original);
@@ -5219,6 +5224,118 @@ void ui_view_extras_hides_move_transform_controls() {
   CHECK(images_equal_rgba(grab(), shown_again));
   canvas.set_extras_covered(kAllViewExtras);
   canvas.set_extras_visible(true);
+}
+
+// View > Extras (Ctrl+H) hides a Free Transform session's box, handles, rotate stem and
+// reference point (local-037): Ctrl+H reaches the action mid-session, the session stays open,
+// a grab just off a hidden corner does nothing, a drag inside still moves the box, Ctrl+H
+// brings the handles back (their grab scales again) and Enter commits.
+void ui_view_extras_hides_free_transform_controls() {
+  using patchy::ui::ViewExtra;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* extras = require_action(window, "viewExtrasAction");
+  canvas->set_snap_enabled(false);
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(90, 80)),
+       canvas->widget_position_for_document_point(QPoint(150, 125)));
+  canvas->set_primary_color(QColor(40, 130, 230));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  require_action(window, "editDeselectAction")->trigger();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_show_transform_controls(false);
+  const auto grab = [canvas] {
+    QApplication::processEvents();
+    return canvas->grab().toImage();
+  };
+  canvas->set_extras_visible(false);
+  const auto idle_hidden = grab();
+  canvas->set_extras_visible(true);
+
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  const auto before = canvas->transform_controls_state();
+  CHECK(before.has_value() && before->active);
+  if (!before.has_value()) {
+    return;
+  }
+  // The session box, from its reference point (the center) and size, in widget pixels.
+  const QRectF box(before->reference_position - QPointF(before->original_size.width(), before->original_size.height()) / 2.0,
+                   before->original_size);
+  CHECK(box.width() > 20.0 && box.height() > 20.0);
+  const auto top_left = canvas->widget_position_for_document_point(box.topLeft().toPoint());
+  const auto top_right = canvas->widget_position_for_document_point(box.topRight().toPoint());
+  // Off the box at its top-left corner (inside the handle square) and at the rotate stem's
+  // tip; a hidden box draws nothing at either.
+  const auto off_corner = top_left - QPoint(3, 3);
+  const QPoint stem_tip((top_left.x() + top_right.x()) / 2, top_left.y() - 32);
+  CHECK(stem_tip.y() > 8 && off_corner.x() > 8);
+  const auto patch = [](const QImage& image, QPoint center) {
+    return image.copy(QRect(center - QPoint(6, 6), QSize(13, 13)));
+  };
+  const auto session_shown = grab();
+  save_widget_artifact("ui_view_extras_free_transform_shown", *canvas);
+  CHECK(!images_equal_rgba(patch(session_shown, stem_tip), patch(idle_hidden, stem_tip)));
+  CHECK(!images_equal_rgba(patch(session_shown, off_corner), patch(idle_hidden, off_corner)));
+
+  canvas->setFocus();
+  send_key(*canvas, Qt::Key_H, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(!canvas->extras_visible());
+  CHECK(!extras->isChecked());
+  CHECK(canvas->free_transform_active());
+  const auto session_hidden = grab();
+  save_widget_artifact("ui_view_extras_free_transform_hidden", *canvas);
+  CHECK(images_equal_rgba(patch(session_hidden, stem_tip), patch(idle_hidden, stem_tip)));
+  CHECK(images_equal_rgba(patch(session_hidden, off_corner), patch(idle_hidden, off_corner)));
+
+  // The hidden corner takes no grab or resize cursor, and the stem no rotation.
+  send_mouse(*canvas, QEvent::MouseMove, off_corner, Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().shape() != Qt::SizeFDiagCursor);
+  drag(*canvas, off_corner, off_corner - QPoint(24, 18));
+  drag(*canvas, stem_tip, stem_tip + QPoint(40, 0));
+  auto after = canvas->transform_controls_state();
+  CHECK(canvas->free_transform_active());
+  CHECK(after.has_value() && after->scale_x_percent == before->scale_x_percent &&
+        after->scale_y_percent == before->scale_y_percent && after->rotation_degrees == before->rotation_degrees &&
+        after->reference_position == before->reference_position);
+  // A drag inside still moves the box.
+  const auto inside = canvas->widget_position_for_document_point(box.center().toPoint());
+  drag(*canvas, inside, inside + QPoint(30, 0));
+  after = canvas->transform_controls_state();
+  CHECK(after.has_value() && after->reference_position.x() > before->reference_position.x() + 1.0 &&
+        after->scale_x_percent == before->scale_x_percent);
+
+  // Ctrl+H again brings the handles back, and the corner scales again.
+  send_key(*canvas, Qt::Key_H, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(canvas->extras_visible());
+  CHECK(extras->isChecked());
+  CHECK(canvas->free_transform_active());
+  const auto moved_stem = stem_tip + QPoint(30, 0);
+  CHECK(!images_equal_rgba(patch(grab(), moved_stem), patch(session_hidden, moved_stem)));
+  const auto moved_corner = off_corner + QPoint(30, 0);
+  send_mouse(*canvas, QEvent::MouseMove, moved_corner, Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().shape() == Qt::SizeFDiagCursor);
+  drag(*canvas, moved_corner, moved_corner - QPoint(24, 18));
+  after = canvas->transform_controls_state();
+  CHECK(after.has_value() && after->scale_x_percent > before->scale_x_percent + 1.0);
+
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  // The commit took the scale: a new session starts from the larger box.
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  const auto committed = canvas->transform_controls_state();
+  CHECK(committed.has_value() && committed->original_size.width() > before->original_size.width() + 1.0);
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
 }
 
 // The View menu's Extras (Ctrl+H, the old view.selection_edges command), View > Show >
@@ -12333,6 +12450,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
        ui_view_extras_hides_covered_overlays_and_restores_them},
       {"ui_view_extras_menu_options_dialog_and_settings", ui_view_extras_menu_options_dialog_and_settings},
       {"ui_view_extras_hides_move_transform_controls", ui_view_extras_hides_move_transform_controls},
+      {"ui_view_extras_hides_free_transform_controls", ui_view_extras_hides_free_transform_controls},
       {"ui_zoomed_out_canvas_uses_downsampled_display_mip",
        ui_zoomed_out_canvas_uses_downsampled_display_mip},
       {"ui_shape_flyout_and_zoom_tool_work", ui_shape_flyout_and_zoom_tool_work},

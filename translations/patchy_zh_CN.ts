@@ -14936,8 +14936,8 @@ Do you want to replace it?</source>
 是否要替换它?</translation>
     </message>
     <message>
-        <source>Transform controls under the Move tool</source>
-        <translation>移动工具下的变换控件</translation>
+        <source>Transform controls (Move tool and Free Transform)</source>
+        <translation>变换控件（移动工具和自由变换）</translation>
     </message>
     <message>
         <source>Other: %1</source>

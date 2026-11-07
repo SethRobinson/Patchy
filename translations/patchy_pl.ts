@@ -15030,8 +15030,8 @@ Do you want to replace it?</source>
 Czy chcesz go zastąpić?</translation>
     </message>
     <message>
-        <source>Transform controls under the Move tool</source>
-        <translation>Elementy sterujące transformacją przy narzędziu Przesuwanie</translation>
+        <source>Transform controls (Move tool and Free Transform)</source>
+        <translation>Elementy sterujące transformacją (narzędzie Przesuwanie i Przekształcanie swobodne)</translation>
     </message>
     <message>
         <source>Other: %1</source>

@@ -15030,8 +15030,8 @@ Do you want to replace it?</source>
 Заменить его?</translation>
     </message>
     <message>
-        <source>Transform controls under the Move tool</source>
-        <translation>Элементы управления преобразованием при инструменте «Перемещение»</translation>
+        <source>Transform controls (Move tool and Free Transform)</source>
+        <translation>Элементы управления преобразованием (инструмент «Перемещение» и «Свободное трансформирование»)</translation>
     </message>
     <message>
         <source>Other: %1</source>
