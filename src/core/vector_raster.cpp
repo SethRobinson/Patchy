@@ -10,6 +10,8 @@
 #include "core/worker_budget.hpp"
 
 #include <algorithm>
+#include <array>
+#include <functional>
 #include <cmath>
 #include <cstring>
 #include <future>
@@ -1444,6 +1446,97 @@ void update_vector_shape_raster(Layer& layer, Rect canvas, const PatternStore* p
   updated.effect_matte_cache = std::move(raster.matte_pixels);
   layer.set_vector_shape(std::move(updated));
   layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
+}
+
+bool update_gradient_fill_draft_raster(Layer& layer, Rect canvas, Rect gradient_bounds) {
+  const auto* shape = std::as_const(layer).vector_shape();
+  constexpr std::int64_t kExactBelowPixels = 1024 * 1024;
+  if (shape == nullptr || !shape->parts.empty() || shape->fill.kind != VectorFillKind::Gradient ||
+      !(shape->path.empty() || shape->path_disabled) || shape->path_inverted || shape->feather > 0.05 ||
+      shape->density != 255 || !shape->stroke.fill_enabled || canvas.width <= 0 || canvas.height <= 0 ||
+      static_cast<std::int64_t>(canvas.width) * canvas.height < kExactBelowPixels) {
+    return false;
+  }
+  const auto& gradient = shape->fill.gradient;
+  constexpr int kTable = 4096;
+  std::vector<std::array<std::uint8_t, 4>> table(kTable);
+  for (int index = 0; index < kTable; ++index) {
+    const auto position = static_cast<float>(index) / static_cast<float>(kTable - 1);
+    const auto color = gradient_color(gradient, position, true);
+    const auto opacity = gradient_stop_opacity(gradient, position, true);
+    table[static_cast<std::size_t>(index)] = {
+        color.red, color.green, color.blue,
+        static_cast<std::uint8_t>(std::clamp<long>(std::lround(255.0 * static_cast<double>(opacity)), 0L, 255L))};
+  }
+  constexpr std::int32_t kStep = 4;
+  const auto width = canvas.width;
+  const auto height = canvas.height;
+  const auto grid_width = width / kStep + 2;
+  const auto grid_height = height / kStep + 2;
+  std::vector<float> grid(static_cast<std::size_t>(grid_width) * static_cast<std::size_t>(grid_height));
+  const auto exact = [&](std::int32_t x, std::int32_t y) {
+    return gradient_position(gradient, gradient_bounds, canvas.x + x, canvas.y + y, GradientSpanBasis::CenterChord);
+  };
+  const auto run_rows = [](std::int32_t rows, const std::function<void(std::int32_t, std::int32_t)>& work) {
+    const int workers = std::min(max_blocking_fanout_workers(std::clamp(hardware_worker_threads(), 1, 16)),
+                                 std::max(1, rows / 16));
+    if (workers < 2) {
+      work(0, rows);
+      return;
+    }
+    const auto strip = (rows + workers - 1) / workers;
+    std::vector<std::future<void>> strips;
+    for (std::int32_t start = strip; start < rows; start += strip) {
+      strips.push_back(std::async(std::launch::async, work, start, std::min(rows, start + strip)));
+    }
+    work(0, std::min(rows, strip));
+    for (auto& future : strips) {
+      future.get();
+    }
+  };
+  run_rows(grid_height, [&](std::int32_t begin, std::int32_t end) {
+    for (std::int32_t gy = begin; gy < end; ++gy) {
+      for (std::int32_t gx = 0; gx < grid_width; ++gx) {
+        grid[static_cast<std::size_t>(gy) * static_cast<std::size_t>(grid_width) + static_cast<std::size_t>(gx)] =
+            exact(gx * kStep, gy * kStep);
+      }
+    }
+  });
+  PixelBuffer pixels(width, height, PixelFormat::rgba8());
+  auto* out = pixels.data().data();
+  const auto stride = pixels.stride_bytes();
+  constexpr float kScale = static_cast<float>(kTable - 1);
+  run_rows(height, [&](std::int32_t begin, std::int32_t end) {
+    for (std::int32_t y = begin; y < end; ++y) {
+      auto* row = out + static_cast<std::size_t>(y) * stride;
+      const auto gy = y / kStep;
+      const auto fy = static_cast<float>(y - gy * kStep) / static_cast<float>(kStep);
+      const auto* top = grid.data() + static_cast<std::size_t>(gy) * static_cast<std::size_t>(grid_width);
+      const auto* bottom = top + grid_width;
+      for (std::int32_t cell_x = 0; cell_x < width; cell_x += kStep) {
+        const auto gx = cell_x / kStep;
+        const auto a = top[gx];
+        const auto b = top[gx + 1];
+        const auto c = bottom[gx];
+        const auto d = bottom[gx + 1];
+        const auto cell_end = std::min(width, cell_x + kStep);
+        // A cell across an Angle seam (0 next to 1) or a sharp turn would interpolate
+        // through the middle of the ramp: evaluate those pixels exactly.
+        const bool exact_cell = std::max(std::max(a, b), std::max(c, d)) - std::min(std::min(a, b), std::min(c, d)) > 0.25F;
+        const auto left = a + (c - a) * fy;
+        const auto step = ((b + (d - b) * fy) - left) / static_cast<float>(kStep);
+        for (std::int32_t x = cell_x; x < cell_end; ++x) {
+          const auto position =
+              exact_cell ? exact(x, y) : left + step * static_cast<float>(x - cell_x);
+          const auto index = std::clamp(static_cast<int>(position * kScale + 0.5F), 0, kTable - 1);
+          std::memcpy(row + static_cast<std::size_t>(x) * 4U, table[static_cast<std::size_t>(index)].data(), 4U);
+        }
+      }
+    }
+  });
+  layer.set_pixels(std::move(pixels));
+  layer.set_bounds(canvas);
+  return true;
 }
 
 Rect gradient_fill_alignment_bounds(const Layer& layer, Rect canvas) {

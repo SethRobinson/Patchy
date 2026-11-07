@@ -18,7 +18,17 @@
 #include <QColor>
 #include <QDialog>
 #include <QImage>
+#include <QElapsedTimer>
+#include <QFrame>
 #include <QLineF>
+#include <QPointer>
+#include <QPushButton>
+#include <QTableWidget>
+#include <QTest>
+#include <QTimer>
+#include <QTreeWidget>
+#include <QTreeWidgetItemIterator>
+#include <QWindow>
 
 #include <cmath>
 #include <cstdio>
@@ -104,6 +114,22 @@ struct GradientSettingsGuard {
   SettingsValueRestorer use_custom{QStringLiteral("tools/gradientUseCustomStops")};
   SettingsValueRestorer stops{QStringLiteral("tools/gradientStops")};
 };
+
+// A click the way the window system delivers one: a hover move, then a press and a release
+// through the top-level QWindow, so Qt routes them to whatever widget is under the point.
+void window_click(QWidget& widget, QPoint position) {
+  auto* top = widget.window();
+  auto* handle = top != nullptr ? top->windowHandle() : nullptr;
+  CHECK(handle != nullptr);
+  if (handle == nullptr) {
+    return;
+  }
+  const auto in_window = widget.mapTo(top, position);
+  QTest::mouseMove(handle, in_window);
+  QTest::mousePress(handle, Qt::LeftButton, Qt::NoModifier, in_window);
+  QTest::mouseRelease(handle, Qt::LeftButton, Qt::NoModifier, in_window);
+  QApplication::processEvents();
+}
 
 struct FillProbe {
   patchy::ui::MainWindow& window;
@@ -232,13 +258,12 @@ void ui_gradient_fill_handles_edit_a_linear_fill() {
   CHECK(fill.label() == QStringLiteral("Move Gradient Midpoint"));
   CHECK(std::abs(fill.gradient().color_stops[1].midpoint - 1.0F / 3.0F) < 0.02F);
 
-  // A click on the line adds a color stop there.
+  // A click on the line adds a color stop there, delivered like a real mouse click; a click
+  // a few pixels beside the drawn line still counts as on it.
   depth = fill.depth();
-  const auto on_line = widget_at(*canvas, QPointF(200, 150));
+  const auto on_line = widget_at(*canvas, QPointF(200, 150)) + QPoint(0, 5);
   CHECK(canvas->gradient_fill_handle_part_at(QPointF(on_line)).kind == Kind::Line);
-  send_mouse(*canvas, QEvent::MouseButtonPress, on_line, Qt::LeftButton, Qt::LeftButton);
-  send_mouse(*canvas, QEvent::MouseButtonRelease, on_line, Qt::LeftButton, Qt::NoButton);
-  QApplication::processEvents();
+  window_click(*canvas, on_line);
   CHECK(fill.depth() == depth + 1);
   CHECK(fill.label() == QStringLiteral("Add Color Stop"));
   CHECK(fill.gradient().color_stops.size() == 3U);
@@ -354,10 +379,177 @@ void ui_gradient_fill_handles_follow_a_radial_fill_in_a_rotated_view() {
 
 }  // namespace
 
+// Seth's case (GitHub issue 663 follow-up): a many-stop preset, then Black to White from the
+// options bar's Presets popup. The tool keeps the preset's own two stops (they were 33
+// samples), so a Fill Layer drag shows two color stops on the line and Edit Gradient Stops
+// lists two rows.
+void ui_gradient_fill_handles_show_a_presets_own_stops() {
+  const GradientSettingsGuard settings_guard;
+  auto&& [window, first_canvas] = ShownWindowFixture{};
+  (void)first_canvas;
+  MainWindowTestAccess::create_document(window, 400, 300);
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  require_action(window, "toolGradientAction")->trigger();
+  QApplication::processEvents();
+  auto* mode = window.findChild<QComboBox*>(QStringLiteral("gradientModeCombo"));
+  CHECK(mode != nullptr);
+  if (mode != nullptr) {
+    mode->setCurrentIndex(1);
+  }
+  const auto pick_preset = [&](const QString& name) {
+    auto* presets_button = window.findChild<QPushButton*>(QStringLiteral("gradientPresetsButton"));
+    CHECK(presets_button != nullptr);
+    if (presets_button == nullptr) {
+      return;
+    }
+    presets_button->click();
+    QApplication::processEvents();
+    QPointer<QFrame> popup = presets_button->findChild<QFrame*>(QStringLiteral("gradientPresetsButtonPopup"));
+    CHECK(popup != nullptr);
+    auto* tree = popup != nullptr ? popup->findChild<QTreeWidget*>(QStringLiteral("gradientPresetsButtonTree"))
+                                  : nullptr;
+    CHECK(tree != nullptr);
+    if (tree == nullptr) {
+      return;
+    }
+    QTreeWidgetItem* found = nullptr;
+    for (QTreeWidgetItemIterator it(tree); *it != nullptr && found == nullptr; ++it) {
+      if ((*it)->text(0) == name && !(*it)->data(0, Qt::UserRole).toString().isEmpty()) {
+        found = *it;
+      }
+    }
+    CHECK(found != nullptr);
+    if (found == nullptr) {
+      popup->close();
+      return;
+    }
+    tree->scrollToItem(found);
+    QApplication::processEvents();
+    QTest::mouseClick(tree->viewport(), Qt::LeftButton, Qt::NoModifier, tree->visualItemRect(found).center());
+    QApplication::processEvents();
+  };
+  pick_preset(QStringLiteral("Neon Spectrum"));
+  CHECK(canvas->gradient_stops().has_value() && canvas->gradient_stops()->size() == 5U);
+  pick_preset(QStringLiteral("Black to White"));
+  CHECK(canvas->gradient_stops().has_value());
+  if (!canvas->gradient_stops().has_value()) {
+    return;
+  }
+  const auto stops = *canvas->gradient_stops();
+  CHECK(stops.size() == 2U);
+  CHECK(stops.front().location == 0.0F && stops.back().location == 1.0F);
+  CHECK(stops.front().color.r == 0 && stops.back().color.r == 255);
+
+  drag(*canvas, widget_at(*canvas, QPointF(60, 240)), widget_at(*canvas, QPointF(340, 60)));
+  QApplication::processEvents();
+  const auto handles = canvas->gradient_fill_handles();
+  CHECK(handles.has_value());
+  if (!handles.has_value()) {
+    return;
+  }
+  CHECK(handles->gradient.color_stops.size() == 2U);
+  CHECK(handles->gradient.alpha_stops.size() == 2U);
+  CHECK(!canvas->gradient_fill_handle_widget_position(Part{Kind::ColorStop, 2}).has_value());
+
+  // Edit Gradient Stops lists the same two stops; the card's shot stacks it under the window.
+  bool checked = false;
+  when_dialog_visible(QStringLiteral("gradientStopsDialog"), [&](QDialog& dialog) {
+    auto* table = dialog.findChild<QTableWidget*>(QStringLiteral("gradientStopsTable"));
+    CHECK(table != nullptr && table->rowCount() == 2);
+    canvas->set_zoom_centered(1.5);
+    QApplication::processEvents();
+    save_stacked_artifact("ui_gradient_fill_handles_black_to_white",
+                          {capture_widget_artifact("ui_gradient_fill_handles_black_to_white_window", window),
+                           capture_widget_artifact("ui_gradient_fill_handles_black_to_white_dialog", dialog)});
+    checked = true;
+    dialog.reject();
+  });
+  auto* edit_stops = window.findChild<QPushButton*>(QStringLiteral("gradientEditStopsButton"));
+  CHECK(edit_stops != nullptr);
+  if (edit_stops != nullptr) {
+    edit_stops->click();
+  }
+  QApplication::processEvents();
+  CHECK(checked);
+}
+
+// Per-move cost of the handle drags on large documents (GitHub issue 663 follow-up: the
+// handles felt sluggish). Prints each gesture's mean milliseconds per pointer move,
+// including the repaint, and checks the drag still lands as one undo step. The large sizes
+// run only with PATCHY_GRADIENT_HANDLE_TIMING=1 (8000 x 8000 needs about 1 GB).
+void ui_gradient_fill_handles_drag_timing() {
+  const GradientSettingsGuard settings_guard;
+  std::vector<QSize> sizes{QSize(1600, 1200)};
+  if (qEnvironmentVariableIntValue("PATCHY_GRADIENT_HANDLE_TIMING") != 0) {
+    sizes = {QSize(4000, 3000), QSize(8000, 8000)};
+  }
+  for (const auto size : sizes) {
+    auto&& [window, first_canvas] = ShownWindowFixture{};
+    (void)first_canvas;
+    MainWindowTestAccess::create_document(window, size.width(), size.height());
+    QApplication::processEvents();
+    auto* canvas = require_canvas(window);
+    canvas->fit_to_view();
+    require_action(window, "toolGradientAction")->trigger();
+    auto* mode = window.findChild<QComboBox*>(QStringLiteral("gradientModeCombo"));
+    if (mode != nullptr) {
+      mode->setCurrentIndex(1);
+    }
+    QApplication::processEvents();
+    const QPointF from(size.width() * 0.2, size.height() * 0.5);
+    const QPointF to(size.width() * 0.8, size.height() * 0.5);
+    drag(*canvas, widget_at(*canvas, from), widget_at(*canvas, to));
+    QApplication::processEvents();
+    CHECK(canvas->gradient_fill_handles().has_value());
+    // A third stop so there is a midpoint to drag.
+    window_click(*canvas, widget_at(*canvas, (from + to) / 2.0));
+    CHECK(canvas->gradient_fill_handles().has_value() &&
+          canvas->gradient_fill_handles()->gradient.color_stops.size() == 3U);
+    const auto time_drag = [&](const char* name, Part part, QPointF step) {
+      const auto start = canvas->gradient_fill_handle_widget_position(part);
+      CHECK(start.has_value());
+      if (!start.has_value()) {
+        return;
+      }
+      const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+      constexpr int kMoves = 12;
+      send_mouse(*canvas, QEvent::MouseButtonPress, rounded(*start), Qt::LeftButton, Qt::LeftButton);
+      // Moves arrive every 20 ms like a pointer; the cost is the wall time the event loop
+      // was busy (handler, throttled previews, repaints), the waits subtracted.
+      constexpr int kGapMs = 20;
+      QElapsedTimer timer;
+      timer.start();
+      for (int move = 1; move <= kMoves; ++move) {
+        send_mouse(*canvas, QEvent::MouseMove, rounded(*start + step * move), Qt::NoButton, Qt::LeftButton);
+        canvas->repaint();
+        QTest::qWait(kGapMs);
+      }
+      const auto per_move =
+          std::max(0.0, static_cast<double>(timer.nsecsElapsed()) / 1e6 - kMoves * kGapMs) / kMoves;
+      QElapsedTimer release_timer;
+      release_timer.start();
+      send_mouse(*canvas, QEvent::MouseButtonRelease, rounded(*start + step * kMoves), Qt::LeftButton,
+                 Qt::NoButton);
+      canvas->repaint();
+      const auto release = static_cast<double>(release_timer.nsecsElapsed()) / 1e6;
+      std::fprintf(stderr, "  %dx%d %s: %.1f ms per move, %.1f ms release\n", size.width(), size.height(), name,
+                   per_move, release);
+      CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+    };
+    time_drag("end handle", Part{Kind::End, -1}, QPointF(0.0, -3.0));
+    time_drag("line", Part{Kind::Line, -1}, QPointF(2.0, 2.0));
+    time_drag("color stop", Part{Kind::ColorStop, 1}, QPointF(3.0, 0.0));
+    time_drag("midpoint", Part{Kind::ColorMidpoint, 1}, QPointF(2.0, 0.0));
+  }
+}
+
 std::vector<patchy::test::TestCase> gradient_fill_handles_tests() {
   return {
       {"ui_gradient_fill_handles_edit_a_linear_fill", ui_gradient_fill_handles_edit_a_linear_fill},
       {"ui_gradient_fill_handles_follow_a_radial_fill_in_a_rotated_view",
        ui_gradient_fill_handles_follow_a_radial_fill_in_a_rotated_view},
+      {"ui_gradient_fill_handles_show_a_presets_own_stops", ui_gradient_fill_handles_show_a_presets_own_stops},
+      {"ui_gradient_fill_handles_drag_timing", ui_gradient_fill_handles_drag_timing},
   };
 }

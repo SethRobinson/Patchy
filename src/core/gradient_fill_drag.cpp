@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -97,10 +98,12 @@ LayerStyleGradient gradient_fill_from_drag(const std::vector<GradientStop>& stop
   // with identity midpoints is that same ramp.
   gradient.smoothness = 0;
   for (const auto& stop : normalized_gradient_stops(stops)) {
+    // The tool's midpoint remaps color and alpha alike; Classic at smoothness 0 remaps the
+    // same way per list.
     gradient.color_stops.push_back(
-        GradientColorStop{stop.location, RgbColor{stop.color.r, stop.color.g, stop.color.b}, 0.5F});
+        GradientColorStop{stop.location, RgbColor{stop.color.r, stop.color.g, stop.color.b}, stop.midpoint});
     gradient.alpha_stops.push_back(
-        GradientAlphaStop{stop.location, static_cast<float>(stop.color.a) / 255.0F, 0.5F});
+        GradientAlphaStop{stop.location, static_cast<float>(stop.color.a) / 255.0F, stop.midpoint});
   }
   gradient.type = fill_type_for(method);
   gradient.reverse = reverse;
@@ -111,6 +114,117 @@ LayerStyleGradient gradient_fill_from_drag(const std::vector<GradientStop>& stop
                            GradientFillLine{static_cast<double>(x0), static_cast<double>(y0), static_cast<double>(x1),
                                             static_cast<double>(y1)});
   return gradient;
+}
+
+namespace {
+
+// How one stop list behaves over the merged segment (a, b).
+struct SegmentRamp {
+  enum class Kind { Constant, Straight, Midpoint, Split } kind{Kind::Constant};
+  float midpoint{0.5F};
+};
+
+template <typename Stop, typename Same>
+SegmentRamp segment_ramp(const std::vector<Stop>& stops, float a, float b, Same same) {
+  constexpr float kEpsilon = 1e-5F;
+  if (stops.size() < 2U || b <= stops.front().location + kEpsilon || a >= stops.back().location - kEpsilon) {
+    return {};
+  }
+  for (std::size_t index = 1; index < stops.size(); ++index) {
+    const auto& left = stops[index - 1U];
+    const auto& right = stops[index];
+    if (a >= left.location - kEpsilon && b <= right.location + kEpsilon) {
+      if (same(left, right)) {
+        return {};
+      }
+      if (right.midpoint == 0.5F) {
+        return {SegmentRamp::Kind::Straight, 0.5F};
+      }
+      const bool whole = std::abs(a - left.location) <= kEpsilon && std::abs(b - right.location) <= kEpsilon;
+      return whole ? SegmentRamp{SegmentRamp::Kind::Midpoint, right.midpoint} : SegmentRamp{SegmentRamp::Kind::Split};
+    }
+  }
+  return {SegmentRamp::Kind::Split};
+}
+
+}  // namespace
+
+std::vector<GradientStop> gradient_tool_stops_from_gradient(const LayerStyleGradient& source) {
+  auto gradient = source;
+  // The tool interpolates straight between its stops.
+  gradient.smoothness = 0;
+  gradient.interpolation = GradientInterpolationMethod::Classic;
+  const auto stop_at = [&gradient](float location, float midpoint) {
+    const auto color = gradient_color(gradient, location);
+    const auto alpha = gradient_stop_opacity(gradient, location);
+    GradientStop stop;
+    stop.location = location;
+    stop.color = EditColor{color.red, color.green, color.blue,
+                           static_cast<std::uint8_t>(std::clamp(std::lround(alpha * 255.0F), 0L, 255L))};
+    stop.midpoint = midpoint;
+    return stop;
+  };
+  std::vector<GradientStop> result;
+  if (gradient.form == GradientDefinitionForm::Noise || gradient.color_stops.empty()) {
+    constexpr int kSamples = 65;
+    for (int index = 0; index < kSamples; ++index) {
+      result.push_back(stop_at(static_cast<float>(index) / static_cast<float>(kSamples - 1), 0.5F));
+    }
+    return result;
+  }
+  const auto by_location = [](const auto& a, const auto& b) { return a.location < b.location; };
+  std::stable_sort(gradient.color_stops.begin(), gradient.color_stops.end(), by_location);
+  std::stable_sort(gradient.alpha_stops.begin(), gradient.alpha_stops.end(), by_location);
+  std::vector<float> locations;
+  for (const auto& stop : gradient.color_stops) {
+    locations.push_back(std::clamp(stop.location, 0.0F, 1.0F));
+  }
+  for (const auto& stop : gradient.alpha_stops) {
+    locations.push_back(std::clamp(stop.location, 0.0F, 1.0F));
+  }
+  std::sort(locations.begin(), locations.end());
+  std::vector<float> unique;
+  for (const auto location : locations) {
+    if (unique.empty() || location - unique.back() > 1e-5F) {
+      unique.push_back(location);
+    }
+  }
+  const auto same_color = [](const GradientColorStop& a, const GradientColorStop& b) { return a.color == b.color; };
+  const auto same_alpha = [](const GradientAlphaStop& a, const GradientAlphaStop& b) { return a.opacity == b.opacity; };
+  for (std::size_t index = 0; index < unique.size(); ++index) {
+    if (index == 0U) {
+      result.push_back(stop_at(unique[0], 0.5F));
+      continue;
+    }
+    const auto a = unique[index - 1U];
+    const auto b = unique[index];
+    const auto color = segment_ramp(gradient.color_stops, a, b, same_color);
+    const auto alpha = segment_ramp(gradient.alpha_stops, a, b, same_alpha);
+    using Kind = SegmentRamp::Kind;
+    std::optional<float> midpoint;
+    if (color.kind == Kind::Split || alpha.kind == Kind::Split) {
+      midpoint.reset();
+    } else if (color.kind == Kind::Constant) {
+      midpoint = alpha.midpoint;
+    } else if (alpha.kind == Kind::Constant) {
+      midpoint = color.midpoint;
+    } else if (color.midpoint == alpha.midpoint) {
+      midpoint = color.midpoint;
+    }
+    if (midpoint.has_value()) {
+      result.push_back(stop_at(b, *midpoint));
+      continue;
+    }
+    constexpr int kPieces = 8;
+    for (int piece = 1; piece <= kPieces; ++piece) {
+      result.push_back(stop_at(a + (b - a) * static_cast<float>(piece) / static_cast<float>(kPieces), 0.5F));
+    }
+  }
+  if (result.size() == 1U) {
+    result.push_back(stop_at(1.0F, 0.5F));
+    result.front().location = 0.0F;
+  }
+  return result;
 }
 
 GradientFillLine gradient_fill_line(const LayerStyleGradient& gradient, Rect bounds) {

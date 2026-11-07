@@ -21,6 +21,8 @@
 
 #include <QApplication>
 #include <QColor>
+#include <QElapsedTimer>
+#include <QTimer>
 #include <QHelpEvent>
 #include <QLineF>
 #include <QMouseEvent>
@@ -49,7 +51,9 @@ namespace {
 constexpr double kEndReach = 8.0;
 constexpr double kStopReach = 8.0;
 constexpr double kMidpointReach = 5.0;
-constexpr double kLineReach = 4.0;
+// The drawn line is a 3 px band: a click a few pixels beside it still means the line
+// (GitHub issue 663 follow-up: at 4 px a slightly low click started a new gradient instead).
+constexpr double kLineReach = 7.0;
 constexpr double kHandleRadius = 6.0;
 // A stop marker sits this far off the line: color stops on one side, opacity stops on the other.
 constexpr double kStopOffset = 16.0;
@@ -60,6 +64,9 @@ constexpr double kRemoveDistance = 32.0;
 // Midpoints hide when their stops are closer than this on screen.
 constexpr double kMinMidpointGap = 16.0;
 constexpr double kSnapDegrees = 15.0;
+// The live preview re-bakes the fill: at most one per this many milliseconds while the
+// pointer moves (the overlay itself follows every move).
+constexpr int kGradientPreviewIntervalMs = 33;
 
 using PartKind = CanvasWidget::GradientHandlePartKind;
 using Part = CanvasWidget::GradientHandlePart;
@@ -535,15 +542,42 @@ void CanvasWidget::update_gradient_fill_handle_drag(QPointF widget_point, Qt::Ke
     return;
   }
   drag.current = std::move(edited);
-  if (gradient_fill_edit_callback_) {
-    drag.previewed = true;
-    // The callback renders the layer and may repaint; copy what it needs first.
-    const auto layer_id = drag.layer_id;
-    const auto gradient = drag.current;
+  // The first change previews at once; later ones at most every kGradientPreviewIntervalMs,
+  // the newest one when the interval ends.
+  if (!drag.previewed || !gradient_handle_preview_clock_.isValid() ||
+      gradient_handle_preview_clock_.elapsed() >= kGradientPreviewIntervalMs) {
+    send_gradient_fill_preview();
+  } else if (!drag.preview_scheduled) {
+    drag.preview_scheduled = true;
     const auto serial = drag.serial;
-    gradient_fill_edit_callback_(layer_id, gradient, GradientFillEditPhase::Preview, serial, QString());
+    const auto wait = std::max<qint64>(1, kGradientPreviewIntervalMs - gradient_handle_preview_clock_.elapsed());
+    QTimer::singleShot(static_cast<int>(wait), this, [this, serial] {
+      if (gradient_handle_drag_.has_value() && gradient_handle_drag_->serial == serial &&
+          gradient_handle_drag_->preview_scheduled) {
+        send_gradient_fill_preview();
+      }
+    });
   }
   update();
+}
+
+void CanvasWidget::send_gradient_fill_preview() {
+  if (!gradient_handle_drag_.has_value()) {
+    return;
+  }
+  auto& drag = *gradient_handle_drag_;
+  drag.preview_scheduled = false;
+  if (!gradient_fill_edit_callback_ || (drag.previewed && drag.current == drag.previewed_gradient)) {
+    return;
+  }
+  drag.previewed = true;
+  drag.previewed_gradient = drag.current;
+  gradient_handle_preview_clock_.start();
+  // The callback renders the layer and may repaint; copy what it needs first.
+  const auto layer_id = drag.layer_id;
+  const auto gradient = drag.current;
+  const auto serial = drag.serial;
+  gradient_fill_edit_callback_(layer_id, gradient, GradientFillEditPhase::Preview, serial, QString());
 }
 
 bool CanvasWidget::move_gradient_fill_handle(QMouseEvent* event) {

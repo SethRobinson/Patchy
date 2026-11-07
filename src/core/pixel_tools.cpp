@@ -1381,6 +1381,39 @@ Rect render_shape(Document& document, LayerId layer_id, Rect rect, const EditOpt
 
 }  // namespace
 
+double gradient_stop_midpoint_remap(double t, float midpoint) noexcept {
+  t = std::clamp(t, 0.0, 1.0);
+  if (midpoint == 0.5F || !std::isfinite(midpoint)) {
+    return t;
+  }
+  const auto m = std::clamp(static_cast<double>(midpoint), 0.0001, 0.9999);
+  return t <= m ? 0.5 * t / m : 0.5 + 0.5 * (t - m) / (1.0 - m);
+}
+
+std::vector<GradientStop> gradient_stops_with_explicit_midpoints(const std::vector<GradientStop>& stops) {
+  std::vector<GradientStop> expanded;
+  expanded.reserve(stops.size() * 2U);
+  for (std::size_t index = 0; index < stops.size(); ++index) {
+    auto stop = stops[index];
+    if (index > 0U && stop.midpoint != 0.5F && std::isfinite(stop.midpoint)) {
+      const auto& left = stops[index - 1U];
+      const auto m = std::clamp(stop.midpoint, 0.0001F, 0.9999F);
+      GradientStop middle;
+      middle.location = left.location + (stop.location - left.location) * m;
+      const auto half = [](std::uint8_t a, std::uint8_t b) {
+        return static_cast<std::uint8_t>((static_cast<int>(a) + static_cast<int>(b) + 1) / 2);
+      };
+      middle.color = EditColor{half(left.color.r, stop.color.r), half(left.color.g, stop.color.g),
+                               half(left.color.b, stop.color.b), half(left.color.a, stop.color.a)};
+      middle.intensity_stops = (left.intensity_stops + stop.intensity_stops) * 0.5F;
+      expanded.push_back(middle);
+    }
+    stop.midpoint = 0.5F;
+    expanded.push_back(stop);
+  }
+  return expanded;
+}
+
 std::vector<GradientStop> normalized_gradient_stops(const std::vector<GradientStop>& stops) {
   std::vector<GradientStop> normalized;
   normalized.reserve(stops.size());
@@ -1395,7 +1428,8 @@ std::vector<GradientStop> normalized_gradient_stops(const std::vector<GradientSt
   } else if (normalized.size() == 1U) {
     normalized.push_back(GradientStop{1.0F, normalized.front().color});
   }
-  std::sort(normalized.begin(), normalized.end(), [](const GradientStop& lhs, const GradientStop& rhs) {
+  // Stable, so stops at one location keep their order on every toolchain.
+  std::stable_sort(normalized.begin(), normalized.end(), [](const GradientStop& lhs, const GradientStop& rhs) {
     return lhs.location < rhs.location;
   });
   return normalized;
@@ -1424,7 +1458,8 @@ EditColor gradient_color_at(const std::vector<GradientStop>& sorted_stops, float
     const auto& left = sorted_stops[index - 1U];
     if (position <= right.location) {
       const auto span = std::max(0.0001F, right.location - left.location);
-      const auto t = (position - left.location) / static_cast<double>(span);
+      const auto t = gradient_stop_midpoint_remap((position - left.location) / static_cast<double>(span),
+                                                  right.midpoint);
       return apply_opacity(lerp_color(left.color, right.color, t));
     }
   }
@@ -1466,7 +1501,8 @@ std::array<float, 4> gradient_color_at_deep(const std::vector<GradientStop>& sor
       const auto& left = sorted_stops[index - 1U];
       if (position <= right.location) {
         const auto span = std::max(0.0001F, right.location - left.location);
-        const auto t = std::clamp((position - left.location) / static_cast<double>(span), 0.0, 1.0);
+        const auto t =
+            gradient_stop_midpoint_remap((position - left.location) / static_cast<double>(span), right.midpoint);
         const auto a = as_deep(left);
         const auto b = as_deep(right);
         for (std::size_t c = 0; c < 4U; ++c) {

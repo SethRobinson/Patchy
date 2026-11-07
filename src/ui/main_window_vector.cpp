@@ -66,6 +66,7 @@
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QElapsedTimer>
+#include <cstdio>
 #include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
@@ -1234,7 +1235,8 @@ void MainWindow::handle_gradient_fill_drawn(QPoint from, QPoint to) {
                     static_cast<float>(canvas_->gradient_opacity()) / 100.0F);
 }
 
-void MainWindow::apply_gradient_fill_handle_gradient(LayerId layer_id, const LayerStyleGradient& gradient) {
+void MainWindow::apply_gradient_fill_handle_gradient(LayerId layer_id, const LayerStyleGradient& gradient,
+                                                     std::optional<Rect> draft_bounds) {
   auto& doc = document();
   auto* layer = doc.find_layer(layer_id);
   const auto* shape = layer != nullptr ? std::as_const(*layer).vector_shape() : nullptr;
@@ -1244,7 +1246,14 @@ void MainWindow::apply_gradient_fill_handle_gradient(LayerId layer_id, const Lay
   auto content = *shape;
   content.fill.gradient = gradient;
   layer->set_vector_shape(std::move(content));
-  update_vector_shape_raster(*layer, Rect::from_size(doc.width(), doc.height()), &doc.metadata().patterns);
+  const auto canvas_rect = Rect::from_size(doc.width(), doc.height());
+  // 16 and 32-bit documents render fills from the shape itself (deep_gradient_fill_raster),
+  // so only 8-bit ones take the draft.
+  const bool drafted = draft_bounds.has_value() && doc.color_state().bit_depth == BitDepth::UInt8 &&
+                       update_gradient_fill_draft_raster(*layer, canvas_rect, *draft_bounds);
+  if (!drafted) {
+    update_vector_shape_raster(*layer, canvas_rect, &doc.metadata().patterns);
+  }
   mark_layer_vector_block_dirty(*layer);
 }
 
@@ -1303,10 +1312,22 @@ void MainWindow::handle_gradient_fill_handle_edit(LayerId layer_id, const LayerS
   }
   if (phase == GradientFillEditPhase::Preview) {
     if (!previewing) {
-      gradient_fill_handle_preview_ = GradientFillHandlePreview{session_id, layer_id, serial, *layer};
+      gradient_fill_handle_preview_ = GradientFillHandlePreview{
+          session_id, layer_id, serial, *layer,
+          gradient_fill_alignment_bounds(*layer, Rect::from_size(doc.width(), doc.height()))};
     }
-    apply_gradient_fill_handle_gradient(layer_id, gradient);
-    canvas_->document_changed();
+    // A live preview takes the draft bake and an asynchronous recomposite that never
+    // cancels the one in flight (GitHub issue 663 follow-up: an exact bake and a cancelled
+    // composite per move made the handles lag on large documents); the release bakes exactly.
+    QElapsedTimer trace_timer;
+    trace_timer.start();
+    apply_gradient_fill_handle_gradient(layer_id, gradient, gradient_fill_handle_preview_->gradient_bounds);
+    const auto bake_ms = static_cast<double>(trace_timer.nsecsElapsed()) / 1e6;
+    canvas_->document_changed_async_preview();
+    if (qEnvironmentVariableIntValue("PATCHY_GRADIENT_HANDLE_TRACE") != 0) {
+      std::fprintf(stderr, "[gradient handles] bake %.1f ms, invalidate %.1f ms\n", bake_ms,
+                   static_cast<double>(trace_timer.nsecsElapsed()) / 1e6 - bake_ms);
+    }
     return;
   }
   // Commit: the history snapshot must hold the layer as it was before the drag.

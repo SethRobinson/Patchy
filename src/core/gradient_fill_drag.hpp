@@ -23,6 +23,16 @@ namespace patchy {
                                                          std::int32_t x0, std::int32_t y0, std::int32_t x1,
                                                          std::int32_t y1);
 
+// The Gradient tool's flat stops for a gradient (GitHub issue 663 follow-up): a Solid
+// gradient keeps its own stops, the color and opacity stop locations merged into one list
+// (each merged stop takes the color and opacity the gradient has there) and each midpoint
+// kept on its stop. Where one merged segment would need two different midpoints (a color
+// and an opacity midpoint that disagree, or a midpoint whose segment another list splits),
+// that segment alone is written out in eight straight pieces. The tool interpolates
+// straight, so smoothness is not carried. Noise gradients are sampled at 65 points. The
+// Foreground and Background kinds must already be resolved; intensity stays 0.
+[[nodiscard]] std::vector<GradientStop> gradient_tool_stops_from_gradient(const LayerStyleGradient& gradient);
+
 // On-canvas editing of a Gradient Fill (GitHub issue 663; docs/gradients.md, "Gradient Fill
 // handles"). The line runs from the start handle (the stops' location 0, or 1 when reversed)
 // to the end handle in document pixels, the drag that gradient_fill_from_drag would turn into

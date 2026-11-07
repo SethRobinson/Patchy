@@ -9043,9 +9043,9 @@ void ui_gradient_toolbar_preset_popup_applies_stops() {
   QApplication::processEvents();
   CHECK(popup == nullptr);  // selecting a leaf closes the WA_DeleteOnClose popup
 
-  // Sepia Wash flattens to 33 sampled stops with exact endpoint colors.
+  // Sepia Wash keeps its own three stops (GitHub issue 663 follow-up; they were 33 samples).
   CHECK(canvas->gradient_stops().has_value());
-  CHECK(canvas->gradient_stops()->size() == 33);
+  CHECK(canvas->gradient_stops()->size() == 3);
   const auto applied = *canvas->gradient_stops();
   CHECK(applied.front().color.r == 0x2b);
   CHECK(applied.front().color.g == 0x1b);
@@ -9069,7 +9069,7 @@ void ui_gradient_toolbar_preset_popup_applies_stops() {
     auto* preset_button = dialog->findChild<QPushButton*>(QStringLiteral("gradientPresetButton"));
     CHECK(table != nullptr);
     CHECK(preset_button != nullptr);
-    CHECK(table->rowCount() == 33);
+    CHECK(table->rowCount() == 3);
     preset_button->click();
     QApplication::processEvents();
     QPointer<QFrame> dialog_popup =
@@ -9086,7 +9086,7 @@ void ui_gradient_toolbar_preset_popup_applies_stops() {
     CHECK(cyanotype_rect.isValid());
     QTest::mouseClick(dialog_tree->viewport(), Qt::LeftButton, Qt::NoModifier, cyanotype_rect.center());
     QApplication::processEvents();
-    CHECK(table->rowCount() == 33);
+    CHECK(table->rowCount() == 3);  // Cyanotype's own stops
     CHECK(table->item(0, 1)->text() == QStringLiteral("#081C33"));
     checked_dialog_popup = true;
     dialog->reject();
@@ -9097,7 +9097,7 @@ void ui_gradient_toolbar_preset_popup_applies_stops() {
   QApplication::processEvents();
   CHECK(checked_dialog_popup);
   CHECK(canvas->gradient_stops().has_value());
-  CHECK(canvas->gradient_stops()->size() == 33);
+  CHECK(canvas->gradient_stops()->size() == 3);
   CHECK(canvas->gradient_stops()->front().color.r == 0x2b);
 }
 
