@@ -147,6 +147,16 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.29" date="2026-11-08">
+      <description>
+        <ul>
+          <li>Gradient tool handles edit Gradient Fill layers on the canvas</li>
+          <li>Faster Smudge and toning brushes; Blur and Sharpen build up per dab</li>
+          <li>Dodge and Burn ranges refitted, and Alt swaps paired tools</li>
+          <li>Animation Preview plays in reverse; multi-page TIFF answer can be remembered</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.28" date="2026-11-07">
       <description>
         <ul>
