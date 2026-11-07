@@ -33,7 +33,7 @@ constexpr std::array<ViewExtraEntry, 9> kViewExtraEntries{{
     {ViewExtra::LayerOutlines, "layerOutlines", "viewExtrasLayerOutlinesCheck",
      QT_TRANSLATE_NOOP("QObject", "Layer outlines under the Move tool")},
     {ViewExtra::TransformControls, "transformControls", "viewExtrasTransformControlsCheck",
-     QT_TRANSLATE_NOOP("QObject", "Transform controls under the Move tool")},
+     QT_TRANSLATE_NOOP("QObject", "Transform controls (Move tool and Free Transform)")},
     {ViewExtra::Guides, "guides", "viewExtrasGuidesCheck", QT_TRANSLATE_NOOP("QObject", "Guides")},
     {ViewExtra::SmartGuides, "smartGuides", "viewExtrasSmartGuidesCheck",
      QT_TRANSLATE_NOOP("QObject", "Alignment lines while moving")},

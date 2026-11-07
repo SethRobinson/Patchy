@@ -3824,7 +3824,7 @@ void CanvasWidget::apply_session_transform_cursor(QPoint widget_point, Qt::Keybo
       return;
     }
   }
-  if (!transform_is_distorted()) {
+  if (!transform_is_distorted() || !extra_shown(ViewExtra::TransformControls)) {
     set_transform_cursor_at(widget_point, transform_handle_at(widget_point), transform_current_rect_,
                             transform_angle_);
     return;
@@ -4501,6 +4501,11 @@ void CanvasWidget::draw_free_transform(QPainter& painter) const {
     painter.restore();
   }
 
+  if (!extra_shown(ViewExtra::TransformControls)) {
+    // View > Extras (Ctrl+H) hides the box, handles and reference point; the session
+    // stays open (local-037).
+    return;
+  }
   if (transform_is_distorted()) {
     draw_distorted_transform_controls(painter);
   } else {
@@ -4580,6 +4585,11 @@ void CanvasWidget::draw_move_transform_controls(QPainter& painter) const {
 CanvasWidget::TransformHandle CanvasWidget::transform_handle_at(QPoint widget_point, TransformHitZones zones) const {
   if (!transforming_layer_) {
     return TransformHandle::None;
+  }
+  if (!extra_shown(ViewExtra::TransformControls)) {
+    // Hidden by View > Extras: no handle or rotate reach, only a drag inside the box
+    // moves it (local-037).
+    return transform_session_box_contains(widget_point) ? TransformHandle::Move : TransformHandle::None;
   }
   if (transform_is_distorted()) {
     return transform_handle_for_session_mode(distorted_transform_handle_at(widget_point));

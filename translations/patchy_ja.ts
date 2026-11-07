@@ -14936,8 +14936,8 @@ Do you want to replace it?</source>
 置き換えますか?</translation>
     </message>
     <message>
-        <source>Transform controls under the Move tool</source>
-        <translation>移動ツールの変形コントロール</translation>
+        <source>Transform controls (Move tool and Free Transform)</source>
+        <translation>変形コントロール（移動ツールと自由変形）</translation>
     </message>
     <message>
         <source>Other: %1</source>

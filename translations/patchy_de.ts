@@ -14983,8 +14983,8 @@ Do you want to replace it?</source>
 Möchten Sie die Datei ersetzen?</translation>
     </message>
     <message>
-        <source>Transform controls under the Move tool</source>
-        <translation>Transformationssteuerungen beim Verschieben-Werkzeug</translation>
+        <source>Transform controls (Move tool and Free Transform)</source>
+        <translation>Transformationssteuerungen (Verschieben-Werkzeug und Frei transformieren)</translation>
     </message>
     <message>
         <source>Other: %1</source>
