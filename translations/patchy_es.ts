@@ -17363,6 +17363,98 @@ Do you want to replace it?</source>
         <source>Object Selection found no object in the outline; the outline is kept</source>
         <translation>La selección de objetos no encontró ningún objeto en el contorno; se conserva el contorno</translation>
     </message>
+    <message>
+        <source>Drag to move the gradient&apos;s start point. Shift keeps the angle in 15-degree steps.</source>
+        <translation>Arrastre para mover el punto inicial del degradado. Mayús mantiene el ángulo en pasos de 15 grados.</translation>
+    </message>
+    <message>
+        <source>Drag to move the gradient&apos;s end point. Shift keeps the angle in 15-degree steps.</source>
+        <translation>Arrastre para mover el punto final del degradado. Mayús mantiene el ángulo en pasos de 15 grados.</translation>
+    </message>
+    <message>
+        <source>Drag to move the gradient. Click to add a color stop here.</source>
+        <translation>Arrastre para mover el degradado. Haga clic para añadir aquí una parada de color.</translation>
+    </message>
+    <message>
+        <source>Drag to move this color stop, or away from the line to delete it. Double-click to change its color.</source>
+        <translation>Arrastre para mover esta parada de color, o aléjela de la línea para eliminarla. Haga doble clic para cambiar su color.</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop, or away from the line to delete it. Double-click to edit the fill.</source>
+        <translation>Arrastre para mover esta parada de opacidad, o aléjela de la línea para eliminarla. Haga doble clic para editar el relleno.</translation>
+    </message>
+    <message>
+        <source>Drag to move the midpoint between these stops.</source>
+        <translation>Arrastre para mover el punto medio entre estas paradas.</translation>
+    </message>
+    <message>
+        <source>Gradient start point</source>
+        <translation>Punto inicial del degradado</translation>
+    </message>
+    <message>
+        <source>Gradient end point</source>
+        <translation>Punto final del degradado</translation>
+    </message>
+    <message>
+        <source>Gradient line</source>
+        <translation>Línea del degradado</translation>
+    </message>
+    <message>
+        <source>Color stop at %1%</source>
+        <translation>Parada de color en %1%</translation>
+    </message>
+    <message>
+        <source>Opacity stop at %1%: %2% opacity</source>
+        <translation>Parada de opacidad en %1%: %2% de opacidad</translation>
+    </message>
+    <message>
+        <source>Midpoint: %1%</source>
+        <translation>Punto medio: %1%</translation>
+    </message>
+    <message>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>Desbloquee la capa de relleno de degradado para cambiar su degradado</translation>
+    </message>
+    <message>
+        <source>Release to delete this stop.</source>
+        <translation>Suelte para eliminar esta parada.</translation>
+    </message>
+    <message>
+        <source>Add Color Stop</source>
+        <translation>Añadir parada de color</translation>
+    </message>
+    <message>
+        <source>Move Gradient Start Point</source>
+        <translation>Mover punto inicial del degradado</translation>
+    </message>
+    <message>
+        <source>Move Gradient End Point</source>
+        <translation>Mover punto final del degradado</translation>
+    </message>
+    <message>
+        <source>Move Gradient</source>
+        <translation>Mover degradado</translation>
+    </message>
+    <message>
+        <source>Delete Color Stop</source>
+        <translation>Eliminar parada de color</translation>
+    </message>
+    <message>
+        <source>Move Color Stop</source>
+        <translation>Mover parada de color</translation>
+    </message>
+    <message>
+        <source>Delete Opacity Stop</source>
+        <translation>Eliminar parada de opacidad</translation>
+    </message>
+    <message>
+        <source>Move Opacity Stop</source>
+        <translation>Mover parada de opacidad</translation>
+    </message>
+    <message>
+        <source>Move Gradient Midpoint</source>
+        <translation>Mover punto medio del degradado</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -33467,6 +33559,14 @@ Bloqueada: %1</translation>
     <message>
         <source>The selected layers are not linked</source>
         <translation>Las capas seleccionadas no están enlazadas</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>Color de la parada de degradado</translation>
+    </message>
+    <message>
+        <source>Change Color Stop</source>
+        <translation>Cambiar parada de color</translation>
     </message>
 </context>
 <context>

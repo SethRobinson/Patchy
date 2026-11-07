@@ -311,6 +311,9 @@ const ThemePalette& dark_palette() {
       .canvas_artboard_label_on_light = rgb(0x2b2f35),
       .canvas_artboard_selected = rgb(0x5faaff),
       .canvas_artboard_handle = rgb(0xf5f8fc),
+      .canvas_gradient_handle_ink = rgb(0x0a0e14),
+      .canvas_gradient_handle_fill = rgb(0xf5f8fc),
+      .canvas_gradient_handle_active = rgb(0x5faaff),
 
       // Scroll bars.
       .canvas_scrollbar_track = rgb(0x262626),
@@ -595,6 +598,11 @@ const ThemePalette& light_palette() {
     light.canvas_artboard_label_on_light = rgb(0x2b2f35);
     light.canvas_artboard_selected = rgb(0x246cb0);
     light.canvas_artboard_handle = rgb(0xffffff);
+    // The gradient handles sit on artwork, not chrome: the same dark ink and light rim in
+    // both schemes, the highlight deepened like the selected artboard's.
+    light.canvas_gradient_handle_ink = rgb(0x0a0e14);
+    light.canvas_gradient_handle_fill = rgb(0xffffff);
+    light.canvas_gradient_handle_active = rgb(0x246cb0);
 
     // The chrome bar sits between the pasteboard and the window surface, and has
     // to read as distinct from both: darker than the dialog body it heads, and
@@ -1087,6 +1095,9 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
       PATCHY_THEME_ROLE(canvas_artboard_label_on_light),
       PATCHY_THEME_ROLE(canvas_artboard_selected),
       PATCHY_THEME_ROLE(canvas_artboard_handle),
+      PATCHY_THEME_ROLE(canvas_gradient_handle_ink),
+      PATCHY_THEME_ROLE(canvas_gradient_handle_fill),
+      PATCHY_THEME_ROLE(canvas_gradient_handle_active),
 
       PATCHY_THEME_ROLE(canvas_scrollbar_track),
       PATCHY_THEME_ROLE(panel_scrollbar_track),

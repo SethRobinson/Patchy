@@ -1234,6 +1234,131 @@ void MainWindow::handle_gradient_fill_drawn(QPoint from, QPoint to) {
                     static_cast<float>(canvas_->gradient_opacity()) / 100.0F);
 }
 
+void MainWindow::apply_gradient_fill_handle_gradient(LayerId layer_id, const LayerStyleGradient& gradient) {
+  auto& doc = document();
+  auto* layer = doc.find_layer(layer_id);
+  const auto* shape = layer != nullptr ? std::as_const(*layer).vector_shape() : nullptr;
+  if (shape == nullptr) {
+    return;
+  }
+  auto content = *shape;
+  content.fill.gradient = gradient;
+  layer->set_vector_shape(std::move(content));
+  update_vector_shape_raster(*layer, Rect::from_size(doc.width(), doc.height()), &doc.metadata().patterns);
+  mark_layer_vector_block_dirty(*layer);
+}
+
+void MainWindow::handle_gradient_fill_handle_edit(LayerId layer_id, const LayerStyleGradient& gradient,
+                                                  GradientFillEditPhase phase, std::uint64_t serial,
+                                                  const QString& undo_label) {
+  if (canvas_ == nullptr || !has_active_document()) {
+    gradient_fill_handle_preview_.reset();
+    return;
+  }
+  auto& doc = document();
+  const auto session_id = session().session_id;
+  const bool previewing = gradient_fill_handle_preview_.has_value() &&
+                          gradient_fill_handle_preview_->session_id == session_id &&
+                          gradient_fill_handle_preview_->layer_id == layer_id &&
+                          gradient_fill_handle_preview_->serial == serial;
+  // Puts the layer back as it was before this drag's first preview.
+  const auto restore = [&] {
+    if (!previewing) {
+      return false;
+    }
+    auto* layer = doc.find_layer(layer_id);
+    if (layer != nullptr) {
+      *layer = gradient_fill_handle_preview_->original;
+    }
+    gradient_fill_handle_preview_.reset();
+    return layer != nullptr;
+  };
+  if (phase == GradientFillEditPhase::Cancel) {
+    if (restore()) {
+      canvas_->document_changed();
+      refresh_layer_controls();
+    }
+    return;
+  }
+  const auto* layer = std::as_const(doc).find_layer(layer_id);
+  const auto* shape = layer != nullptr && layer_is_vector_shape(*layer) ? layer->vector_shape() : nullptr;
+  if (shape == nullptr || !shape->parts.empty() || shape->fill.kind != VectorFillKind::Gradient) {
+    if (!previewing) {
+      gradient_fill_handle_preview_.reset();
+    }
+    return;
+  }
+  if (preview_dialog_edit_locked() || !vector_lock_reason(*layer).empty() || layer_id_locks_image_pixels(layer_id)) {
+    if (restore()) {
+      canvas_->document_changed();
+    }
+    if (phase == GradientFillEditPhase::Commit) {
+      if (preview_dialog_edit_locked()) {
+        show_preview_dialog_edit_lock_message();
+      } else {
+        show_status_error(tr("Unlock the Gradient Fill layer to change its gradient"));
+      }
+    }
+    return;
+  }
+  if (phase == GradientFillEditPhase::Preview) {
+    if (!previewing) {
+      gradient_fill_handle_preview_ = GradientFillHandlePreview{session_id, layer_id, serial, *layer};
+    }
+    apply_gradient_fill_handle_gradient(layer_id, gradient);
+    canvas_->document_changed();
+    return;
+  }
+  // Commit: the history snapshot must hold the layer as it was before the drag.
+  restore();
+  push_undo_snapshot(undo_label.isEmpty() ? tr("Edit Gradient Fill") : undo_label);
+  apply_gradient_fill_handle_gradient(layer_id, gradient);
+  canvas_->document_changed();
+  refresh_layer_list();
+  refresh_layer_controls();
+}
+
+void MainWindow::handle_gradient_fill_stop_color_requested(LayerId layer_id, int stop_index) {
+  if (canvas_ == nullptr || !has_active_document() || stop_index < 0) {
+    return;
+  }
+  const auto* layer = std::as_const(document()).find_layer(layer_id);
+  const auto* shape = layer != nullptr ? layer->vector_shape() : nullptr;
+  if (shape == nullptr || shape->fill.kind != VectorFillKind::Gradient ||
+      static_cast<std::size_t>(stop_index) >= shape->fill.gradient.color_stops.size()) {
+    return;
+  }
+  const auto original = shape->fill.gradient;
+  const auto initial = original.color_stops[static_cast<std::size_t>(stop_index)].color;
+  const auto serial = ++gradient_fill_stop_color_serial_ | (std::uint64_t{1} << 63U);
+  const auto session_id = session().session_id;
+  const auto with_color = [original, stop_index](QColor color) {
+    auto edited = original;
+    edited.color_stops[static_cast<std::size_t>(stop_index)].color =
+        RgbColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+                 static_cast<std::uint8_t>(color.blue())};
+    return edited;
+  };
+  const auto still_here = [this, session_id] { return has_active_document() && session().session_id == session_id; };
+  const auto chosen = request_patchy_color(
+      this, QColor(initial.red, initial.green, initial.blue), tr("Gradient Stop Color"),
+      [&](QColor color) {
+        if (color.isValid() && still_here()) {
+          handle_gradient_fill_handle_edit(layer_id, with_color(color), GradientFillEditPhase::Preview, serial,
+                                           QString());
+        }
+      });
+  if (!still_here()) {
+    return;
+  }
+  if (!chosen.has_value() || !chosen->isValid() || with_color(*chosen) == original) {
+    handle_gradient_fill_handle_edit(layer_id, original, GradientFillEditPhase::Cancel, serial, QString());
+    return;
+  }
+  handle_gradient_fill_handle_edit(layer_id, with_color(*chosen), GradientFillEditPhase::Commit, serial,
+                                   tr("Change Color Stop"));
+}
+
 void MainWindow::new_pattern_fill_layer() {
   if (canvas_ == nullptr || !has_active_document()) {
     return;

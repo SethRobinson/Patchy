@@ -297,7 +297,7 @@ bool CanvasWidget::pointer_gesture_active() const noexcept {
          crop_drag_handle_ != TransformHandle::None || pen_handle_dragging_ ||
          pen_session_drag_anchor_ >= 0 || path_drag_mode_ != PathEditDrag::None ||
          path_transform_drag_handle_ != TransformHandle::None || artboard_drag_active() ||
-         ruler_drag_part_ != RulerPart::None;
+         ruler_drag_part_ != RulerPart::None || gradient_handle_drag_.has_value();
 }
 
 void CanvasWidget::set_tiling_preview_enabled(bool enabled) {
@@ -504,6 +504,7 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   cancel_patch_tool_drag();
   cancel_crop_session();
   cancel_perspective_crop_session();
+  abandon_gradient_fill_handle_drag();
   if (keep_ruler_line) {
     cancel_ruler_drag();
   } else {
@@ -568,6 +569,7 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     cancel_crop_session();
     cancel_perspective_crop_session();
     cancel_ruler_drag();
+    cancel_gradient_fill_handle_drag();
     cancel_artboard_drag();
     commit_path_transform();  // tool switches commit, like the pen session
     finish_free_transform();
@@ -662,6 +664,7 @@ void CanvasWidget::set_edit_locked(bool locked) noexcept {
     cancel_crop_session();
     cancel_perspective_crop_session();
     cancel_ruler_drag();
+    cancel_gradient_fill_handle_drag();
     moving_selection_ = false;
     drawing_shape_ = false;
     dragging_guide_ = false;

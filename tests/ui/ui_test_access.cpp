@@ -595,6 +595,10 @@ std::size_t MainWindowTestAccess::active_session_redo_depth(MainWindow& window) 
   return window.session().history.redo_stack().size();
 }
 
+QString MainWindowTestAccess::current_history_label(MainWindow& window) {
+  return window.session().history.current_state_label();
+}
+
 bool MainWindowTestAccess::top_undo_entry_is_stroke_patch(MainWindow& window) {
   const auto& stack = window.session().history.undo_stack();
   return !stack.empty() && stack.back().is_stroke_patch();

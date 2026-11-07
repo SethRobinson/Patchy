@@ -17363,6 +17363,98 @@ Sostituirlo?</translation>
         <source>Object Selection found no object in the outline; the outline is kept</source>
         <translation>La selezione oggetto non ha trovato alcun oggetto nel contorno; il contorno resta</translation>
     </message>
+    <message>
+        <source>Drag to move the gradient&apos;s start point. Shift keeps the angle in 15-degree steps.</source>
+        <translation>Trascina per spostare il punto iniziale della sfumatura. Maiusc mantiene l&apos;angolo a passi di 15 gradi.</translation>
+    </message>
+    <message>
+        <source>Drag to move the gradient&apos;s end point. Shift keeps the angle in 15-degree steps.</source>
+        <translation>Trascina per spostare il punto finale della sfumatura. Maiusc mantiene l&apos;angolo a passi di 15 gradi.</translation>
+    </message>
+    <message>
+        <source>Drag to move the gradient. Click to add a color stop here.</source>
+        <translation>Trascina per spostare la sfumatura. Fai clic per aggiungere qui un&apos;interruzione di colore.</translation>
+    </message>
+    <message>
+        <source>Drag to move this color stop, or away from the line to delete it. Double-click to change its color.</source>
+        <translation>Trascina per spostare questa interruzione di colore, o allontanala dalla linea per eliminarla. Fai doppio clic per cambiarne il colore.</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop, or away from the line to delete it. Double-click to edit the fill.</source>
+        <translation>Trascina per spostare questa interruzione di opacità, o allontanala dalla linea per eliminarla. Fai doppio clic per modificare il riempimento.</translation>
+    </message>
+    <message>
+        <source>Drag to move the midpoint between these stops.</source>
+        <translation>Trascina per spostare il punto medio tra queste interruzioni.</translation>
+    </message>
+    <message>
+        <source>Gradient start point</source>
+        <translation>Punto iniziale della sfumatura</translation>
+    </message>
+    <message>
+        <source>Gradient end point</source>
+        <translation>Punto finale della sfumatura</translation>
+    </message>
+    <message>
+        <source>Gradient line</source>
+        <translation>Linea della sfumatura</translation>
+    </message>
+    <message>
+        <source>Color stop at %1%</source>
+        <translation>Interruzione di colore al %1%</translation>
+    </message>
+    <message>
+        <source>Opacity stop at %1%: %2% opacity</source>
+        <translation>Interruzione di opacità al %1%: opacità %2%</translation>
+    </message>
+    <message>
+        <source>Midpoint: %1%</source>
+        <translation>Punto medio: %1%</translation>
+    </message>
+    <message>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>Sblocca il livello di riempimento sfumatura per cambiarne la sfumatura</translation>
+    </message>
+    <message>
+        <source>Release to delete this stop.</source>
+        <translation>Rilascia per eliminare questa interruzione.</translation>
+    </message>
+    <message>
+        <source>Add Color Stop</source>
+        <translation>Aggiungi interruzione di colore</translation>
+    </message>
+    <message>
+        <source>Move Gradient Start Point</source>
+        <translation>Sposta punto iniziale della sfumatura</translation>
+    </message>
+    <message>
+        <source>Move Gradient End Point</source>
+        <translation>Sposta punto finale della sfumatura</translation>
+    </message>
+    <message>
+        <source>Move Gradient</source>
+        <translation>Sposta sfumatura</translation>
+    </message>
+    <message>
+        <source>Delete Color Stop</source>
+        <translation>Elimina interruzione di colore</translation>
+    </message>
+    <message>
+        <source>Move Color Stop</source>
+        <translation>Sposta interruzione di colore</translation>
+    </message>
+    <message>
+        <source>Delete Opacity Stop</source>
+        <translation>Elimina interruzione di opacità</translation>
+    </message>
+    <message>
+        <source>Move Opacity Stop</source>
+        <translation>Sposta interruzione di opacità</translation>
+    </message>
+    <message>
+        <source>Move Gradient Midpoint</source>
+        <translation>Sposta punto medio della sfumatura</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -33467,6 +33559,14 @@ Bloccato: %1</translation>
     <message>
         <source>The selected layers are not linked</source>
         <translation>I livelli selezionati non sono collegati</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>Colore del punto della sfumatura</translation>
+    </message>
+    <message>
+        <source>Change Color Stop</source>
+        <translation>Cambia interruzione di colore</translation>
     </message>
 </context>
 <context>

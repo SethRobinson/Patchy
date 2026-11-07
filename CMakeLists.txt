@@ -1283,6 +1283,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
   src/ui/canvas_widget_crop.cpp
   src/ui/canvas_widget_perspective_crop.cpp
   src/ui/canvas_widget_ruler.cpp
+  src/ui/canvas_widget_gradient_handles.cpp
       src/ui/ruler_tool.hpp
       src/ui/ruler_tool.cpp
       src/ui/canvas_widget_cursors.cpp
@@ -2625,6 +2626,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/selection_marquee_lasso_tests_regions_lasso.cpp
       tests/ui/crop_tool_tests.cpp
       tests/ui/ruler_tool_tests.cpp
+      tests/ui/gradient_fill_handles_tests.cpp
       tests/ui/view_shortcut_keys_tests.cpp
       tests/ui/tool_palette_customize_tests.cpp
       tests/ui/unit_spin_box_tests.cpp

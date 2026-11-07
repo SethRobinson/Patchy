@@ -17363,6 +17363,98 @@ Voulez-vous le remplacer ?</translation>
         <source>Object Selection found no object in the outline; the outline is kept</source>
         <translation>La sélection d&apos;objet n&apos;a trouvé aucun objet dans le contour ; le contour est conservé</translation>
     </message>
+    <message>
+        <source>Drag to move the gradient&apos;s start point. Shift keeps the angle in 15-degree steps.</source>
+        <translation>Faites glisser pour déplacer le point de départ du dégradé. Maj garde l&apos;angle par pas de 15 degrés.</translation>
+    </message>
+    <message>
+        <source>Drag to move the gradient&apos;s end point. Shift keeps the angle in 15-degree steps.</source>
+        <translation>Faites glisser pour déplacer le point d&apos;arrivée du dégradé. Maj garde l&apos;angle par pas de 15 degrés.</translation>
+    </message>
+    <message>
+        <source>Drag to move the gradient. Click to add a color stop here.</source>
+        <translation>Faites glisser pour déplacer le dégradé. Cliquez pour ajouter ici une étape de couleur.</translation>
+    </message>
+    <message>
+        <source>Drag to move this color stop, or away from the line to delete it. Double-click to change its color.</source>
+        <translation>Faites glisser pour déplacer cette étape de couleur, ou éloignez-la de la ligne pour la supprimer. Double-cliquez pour changer sa couleur.</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop, or away from the line to delete it. Double-click to edit the fill.</source>
+        <translation>Faites glisser pour déplacer cette étape d&apos;opacité, ou éloignez-la de la ligne pour la supprimer. Double-cliquez pour modifier le fond.</translation>
+    </message>
+    <message>
+        <source>Drag to move the midpoint between these stops.</source>
+        <translation>Faites glisser pour déplacer le point médian entre ces étapes.</translation>
+    </message>
+    <message>
+        <source>Gradient start point</source>
+        <translation>Point de départ du dégradé</translation>
+    </message>
+    <message>
+        <source>Gradient end point</source>
+        <translation>Point d&apos;arrivée du dégradé</translation>
+    </message>
+    <message>
+        <source>Gradient line</source>
+        <translation>Ligne du dégradé</translation>
+    </message>
+    <message>
+        <source>Color stop at %1%</source>
+        <translation>Étape de couleur à %1%</translation>
+    </message>
+    <message>
+        <source>Opacity stop at %1%: %2% opacity</source>
+        <translation>Étape d&apos;opacité à %1% : opacité %2%</translation>
+    </message>
+    <message>
+        <source>Midpoint: %1%</source>
+        <translation>Point médian : %1%</translation>
+    </message>
+    <message>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>Déverrouillez le calque de fond dégradé pour modifier son dégradé</translation>
+    </message>
+    <message>
+        <source>Release to delete this stop.</source>
+        <translation>Relâchez pour supprimer cette étape.</translation>
+    </message>
+    <message>
+        <source>Add Color Stop</source>
+        <translation>Ajouter une étape de couleur</translation>
+    </message>
+    <message>
+        <source>Move Gradient Start Point</source>
+        <translation>Déplacer le point de départ du dégradé</translation>
+    </message>
+    <message>
+        <source>Move Gradient End Point</source>
+        <translation>Déplacer le point d&apos;arrivée du dégradé</translation>
+    </message>
+    <message>
+        <source>Move Gradient</source>
+        <translation>Déplacer le dégradé</translation>
+    </message>
+    <message>
+        <source>Delete Color Stop</source>
+        <translation>Supprimer l&apos;étape de couleur</translation>
+    </message>
+    <message>
+        <source>Move Color Stop</source>
+        <translation>Déplacer l&apos;étape de couleur</translation>
+    </message>
+    <message>
+        <source>Delete Opacity Stop</source>
+        <translation>Supprimer l&apos;étape d&apos;opacité</translation>
+    </message>
+    <message>
+        <source>Move Opacity Stop</source>
+        <translation>Déplacer l&apos;étape d&apos;opacité</translation>
+    </message>
+    <message>
+        <source>Move Gradient Midpoint</source>
+        <translation>Déplacer le point médian du dégradé</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -33467,6 +33559,14 @@ Verrouillé : %1</translation>
     <message>
         <source>The selected layers are not linked</source>
         <translation>Les calques sélectionnés ne sont pas liés</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>Couleur du point de dégradé</translation>
+    </message>
+    <message>
+        <source>Change Color Stop</source>
+        <translation>Modifier l&apos;étape de couleur</translation>
     </message>
 </context>
 <context>

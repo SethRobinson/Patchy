@@ -392,7 +392,7 @@ bool CanvasWidget::event(QEvent* event) {
       return true;
     }
     const auto* key_event = static_cast<QKeyEvent*>(event);
-    if (move_layer_selection_gesture_ && key_event->key() == Qt::Key_Escape) {
+    if ((move_layer_selection_gesture_ || gradient_handle_drag_.has_value()) && key_event->key() == Qt::Key_Escape) {
       event->accept();
       return true;
     }
@@ -410,6 +410,9 @@ bool CanvasWidget::event(QEvent* event) {
         return true;
       }
     }
+  }
+  if (event->type() == QEvent::ToolTip && show_gradient_fill_handle_tooltip(event)) {
+    return true;
   }
   if (event->type() == QEvent::NativeGesture) {
     const auto* gesture = static_cast<QNativeGestureEvent*>(event);
@@ -861,6 +864,14 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     // The Ruler owns every left press (Ctrl on a guide still drags the guide): an end,
     // the line, or a new line, on the canvas or the pasteboard.
     handle_ruler_press(event);
+    event->accept();
+    return;
+  }
+
+  // The Gradient tool's handles on the active Gradient Fill (GitHub issue 663): a press on an
+  // end, the line, a stop or a midpoint edits that gradient; anywhere else draws a new one.
+  if (tool_ == CanvasTool::Gradient && document_ != nullptr && event->button() == Qt::LeftButton &&
+      press_gradient_fill_handle(event)) {
     event->accept();
     return;
   }
@@ -2165,6 +2176,12 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     return;
   }
 
+  if (tool_ == CanvasTool::Gradient && !dragging_guide_ && move_gradient_fill_handle(event)) {
+    last_mouse_position_ = event->pos();
+    event->accept();
+    return;
+  }
+
   if (tool_ == CanvasTool::Ruler && !dragging_guide_) {
     clear_move_hover_outline();
     if (ruler_drag_part_ != RulerPart::None) {
@@ -2969,6 +2986,11 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     update_tool_cursor();
     update();
     notify_transform_controls_changed();
+    return;
+  }
+
+  if (gradient_handle_drag_.has_value() && release_gradient_fill_handle(event)) {
+    event->accept();
     return;
   }
 
@@ -3834,6 +3856,10 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
       return;
     }
   }
+  if (tool_ == CanvasTool::Gradient && double_click_gradient_fill_handle(event)) {
+    event->accept();
+    return;
+  }
   // Double-clicking an artboard's name label renames it, whatever the tool.
   if (handle_artboard_label_double_click(event)) {
     event->accept();
@@ -4354,6 +4380,13 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
         return;
       }
     }
+  }
+
+  if (gradient_handle_drag_.has_value() && event->key() == Qt::Key_Escape) {
+    // Esc mid-drag puts the gradient back as it was before the press.
+    cancel_gradient_fill_handle_drag();
+    event->accept();
+    return;
   }
 
   if (tool_ == CanvasTool::Ruler && ruler_drag_part_ != RulerPart::None && event->key() == Qt::Key_Escape) {

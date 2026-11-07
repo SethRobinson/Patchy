@@ -2214,6 +2214,14 @@ private:
   // The Gradient tool's Fill Layer mode (GitHub issue 580): a released drag rewrites the
   // active Gradient Fill layer's gradient, or adds a new Gradient Fill layer above.
   void handle_gradient_fill_drawn(QPoint from, QPoint to);
+  // The Gradient tool's handles on the active Gradient Fill (GitHub issue 663): Preview
+  // renders the edited gradient without history, Commit lands it as one undo step named
+  // `undo_label`, Cancel restores the layer as it was before the drag.
+  void handle_gradient_fill_handle_edit(LayerId layer_id, const LayerStyleGradient& gradient,
+                                        GradientFillEditPhase phase, std::uint64_t serial, const QString& undo_label);
+  // A double-click on a color stop handle: the color picker, previewing live.
+  void handle_gradient_fill_stop_color_requested(LayerId layer_id, int stop_index);
+  void apply_gradient_fill_handle_gradient(LayerId layer_id, const LayerStyleGradient& gradient);
   void new_solid_color_fill_layer();
   void new_gradient_fill_layer();
   void new_pattern_fill_layer();
@@ -4302,6 +4310,16 @@ private:
   // one undo entry + one rasterize.
   QTimer* vector_appearance_apply_timer_{nullptr};
   std::function<void()> pending_shape_appearance_edit_;
+  // The layer as it was before a live Gradient Fill handle drag (GitHub issue 663), for
+  // the drag's serial in its session; Commit and Cancel put it back first.
+  struct GradientFillHandlePreview {
+    std::int64_t session_id{0};
+    LayerId layer_id{0};
+    std::uint64_t serial{0};
+    Layer original;
+  };
+  std::optional<GradientFillHandlePreview> gradient_fill_handle_preview_;
+  std::uint64_t gradient_fill_stop_color_serial_{0};
   std::string pending_shape_appearance_property_;
   UnitSpinBox* vector_shape_width_spin_{nullptr};
   UnitSpinBox* vector_shape_height_spin_{nullptr};
