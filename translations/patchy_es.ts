@@ -17372,10 +17372,6 @@ Do you want to replace it?</source>
         <translation>Arrastre para mover el punto final del degradado. Mayús mantiene el ángulo en pasos de 15 grados.</translation>
     </message>
     <message>
-        <source>Drag to move the midpoint between these stops.</source>
-        <translation>Arrastre para mover el punto medio entre estas paradas.</translation>
-    </message>
-    <message>
         <source>Gradient start point</source>
         <translation>Punto inicial del degradado</translation>
     </message>
@@ -17394,10 +17390,6 @@ Do you want to replace it?</source>
     <message>
         <source>Opacity stop at %1%: %2% opacity</source>
         <translation>Parada de opacidad en %1%: %2% de opacidad</translation>
-    </message>
-    <message>
-        <source>Midpoint: %1%</source>
-        <translation>Punto medio: %1%</translation>
     </message>
     <message>
         <source>Unlock the Gradient Fill layer to change its gradient</source>
@@ -17478,6 +17470,26 @@ Do you want to replace it?</source>
     <message>
         <source>Change Color...</source>
         <translation>Cambiar color...</translation>
+    </message>
+    <message>
+        <source>Drag to move the color midpoint between these color stops.</source>
+        <translation>Arrastre para mover el punto medio de color entre estas paradas de color.</translation>
+    </message>
+    <message>
+        <source>Drag to move the opacity midpoint between these opacity stops.</source>
+        <translation>Arrastre para mover el punto medio de opacidad entre estas paradas de opacidad.</translation>
+    </message>
+    <message>
+        <source>Both stops have the same opacity, so it has no effect yet.</source>
+        <translation>Ambas paradas tienen la misma opacidad, así que todavía no tiene efecto.</translation>
+    </message>
+    <message>
+        <source>Color midpoint: %1%</source>
+        <translation>Punto medio de color: %1%</translation>
+    </message>
+    <message>
+        <source>Opacity midpoint: %1%</source>
+        <translation>Punto medio de opacidad: %1%</translation>
     </message>
 </context>
 <context>

@@ -17354,10 +17354,6 @@ Do you want to replace it?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Drag to move the midpoint between these stops.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Gradient start point</source>
         <translation type="unfinished"></translation>
     </message>
@@ -17375,10 +17371,6 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Opacity stop at %1%: %2% opacity</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Midpoint: %1%</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -17459,6 +17451,26 @@ Do you want to replace it?</source>
     </message>
     <message>
         <source>Change Color...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag to move the color midpoint between these color stops.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag to move the opacity midpoint between these opacity stops.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Both stops have the same opacity, so it has no effect yet.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color midpoint: %1%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opacity midpoint: %1%</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

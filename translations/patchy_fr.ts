@@ -17372,10 +17372,6 @@ Voulez-vous le remplacer ?</translation>
         <translation>Faites glisser pour déplacer le point d&apos;arrivée du dégradé. Maj garde l&apos;angle par pas de 15 degrés.</translation>
     </message>
     <message>
-        <source>Drag to move the midpoint between these stops.</source>
-        <translation>Faites glisser pour déplacer le point médian entre ces étapes.</translation>
-    </message>
-    <message>
         <source>Gradient start point</source>
         <translation>Point de départ du dégradé</translation>
     </message>
@@ -17394,10 +17390,6 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>Opacity stop at %1%: %2% opacity</source>
         <translation>Étape d&apos;opacité à %1% : opacité %2%</translation>
-    </message>
-    <message>
-        <source>Midpoint: %1%</source>
-        <translation>Point médian : %1%</translation>
     </message>
     <message>
         <source>Unlock the Gradient Fill layer to change its gradient</source>
@@ -17478,6 +17470,26 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>Change Color...</source>
         <translation>Changer la couleur...</translation>
+    </message>
+    <message>
+        <source>Drag to move the color midpoint between these color stops.</source>
+        <translation>Faites glisser pour déplacer le point médian de couleur entre ces étapes de couleur.</translation>
+    </message>
+    <message>
+        <source>Drag to move the opacity midpoint between these opacity stops.</source>
+        <translation>Faites glisser pour déplacer le point médian d&apos;opacité entre ces étapes d&apos;opacité.</translation>
+    </message>
+    <message>
+        <source>Both stops have the same opacity, so it has no effect yet.</source>
+        <translation>Les deux étapes ont la même opacité, il n&apos;a donc encore aucun effet.</translation>
+    </message>
+    <message>
+        <source>Color midpoint: %1%</source>
+        <translation>Point médian de couleur : %1%</translation>
+    </message>
+    <message>
+        <source>Opacity midpoint: %1%</source>
+        <translation>Point médian d&apos;opacité : %1%</translation>
     </message>
 </context>
 <context>

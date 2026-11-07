@@ -17325,10 +17325,6 @@ Do you want to replace it?</source>
         <translation>ドラッグしてグラデーションの終点を移動します。Shift で角度を 15 度単位にします。</translation>
     </message>
     <message>
-        <source>Drag to move the midpoint between these stops.</source>
-        <translation>ドラッグしてこれらの分岐点の間の中間点を移動します。</translation>
-    </message>
-    <message>
         <source>Gradient start point</source>
         <translation>グラデーションの始点</translation>
     </message>
@@ -17347,10 +17343,6 @@ Do you want to replace it?</source>
     <message>
         <source>Opacity stop at %1%: %2% opacity</source>
         <translation>不透明度の分岐点 (%1%): 不透明度 %2%</translation>
-    </message>
-    <message>
-        <source>Midpoint: %1%</source>
-        <translation>中間点: %1%</translation>
     </message>
     <message>
         <source>Unlock the Gradient Fill layer to change its gradient</source>
@@ -17431,6 +17423,26 @@ Do you want to replace it?</source>
     <message>
         <source>Change Color...</source>
         <translation>色を変更...</translation>
+    </message>
+    <message>
+        <source>Drag to move the color midpoint between these color stops.</source>
+        <translation>ドラッグしてこれらのカラー分岐点の間のカラー中間点を移動します。</translation>
+    </message>
+    <message>
+        <source>Drag to move the opacity midpoint between these opacity stops.</source>
+        <translation>ドラッグしてこれらの不透明度の分岐点の間の不透明度中間点を移動します。</translation>
+    </message>
+    <message>
+        <source>Both stops have the same opacity, so it has no effect yet.</source>
+        <translation>両方の分岐点の不透明度が同じため、まだ効果はありません。</translation>
+    </message>
+    <message>
+        <source>Color midpoint: %1%</source>
+        <translation>カラー中間点: %1%</translation>
+    </message>
+    <message>
+        <source>Opacity midpoint: %1%</source>
+        <translation>不透明度中間点: %1%</translation>
     </message>
 </context>
 <context>

@@ -17325,10 +17325,6 @@ Do you want to replace it?</source>
         <translation>드래그하여 그레이디언트의 끝점을 이동합니다. Shift를 누르면 각도가 15도 단위로 유지됩니다.</translation>
     </message>
     <message>
-        <source>Drag to move the midpoint between these stops.</source>
-        <translation>드래그하여 이 정지점들 사이의 중간점을 이동합니다.</translation>
-    </message>
-    <message>
         <source>Gradient start point</source>
         <translation>그레이디언트 시작점</translation>
     </message>
@@ -17347,10 +17343,6 @@ Do you want to replace it?</source>
     <message>
         <source>Opacity stop at %1%: %2% opacity</source>
         <translation>불투명도 정지점 %1%: 불투명도 %2%</translation>
-    </message>
-    <message>
-        <source>Midpoint: %1%</source>
-        <translation>중간점: %1%</translation>
     </message>
     <message>
         <source>Unlock the Gradient Fill layer to change its gradient</source>
@@ -17431,6 +17423,26 @@ Do you want to replace it?</source>
     <message>
         <source>Change Color...</source>
         <translation>색상 변경...</translation>
+    </message>
+    <message>
+        <source>Drag to move the color midpoint between these color stops.</source>
+        <translation>드래그하여 이 색상 정지점들 사이의 색상 중간점을 이동합니다.</translation>
+    </message>
+    <message>
+        <source>Drag to move the opacity midpoint between these opacity stops.</source>
+        <translation>드래그하여 이 불투명도 정지점들 사이의 불투명도 중간점을 이동합니다.</translation>
+    </message>
+    <message>
+        <source>Both stops have the same opacity, so it has no effect yet.</source>
+        <translation>두 정지점의 불투명도가 같으므로 아직 효과가 없습니다.</translation>
+    </message>
+    <message>
+        <source>Color midpoint: %1%</source>
+        <translation>색상 중간점: %1%</translation>
+    </message>
+    <message>
+        <source>Opacity midpoint: %1%</source>
+        <translation>불투명도 중간점: %1%</translation>
     </message>
 </context>
 <context>
