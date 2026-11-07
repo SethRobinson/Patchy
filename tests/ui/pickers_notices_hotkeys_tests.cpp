@@ -4372,7 +4372,9 @@ void ui_preset_step_shortcuts_cycle_brush_and_gradient_presets() {
   };
   const auto stop_colors = [&] {
     QList<quint32> colors;
-    for (const auto& stop : *canvas->gradient_stops()) {
+    const auto stops = canvas->gradient_stops();
+    CHECK(stops.has_value());
+    for (const auto& stop : *stops) {
       colors << (quint32(stop.color.r) << 24 | quint32(stop.color.g) << 16 | quint32(stop.color.b) << 8 | stop.color.a);
     }
     return colors;
