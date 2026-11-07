@@ -225,7 +225,10 @@ protected:
 // rectangle after every geometry, style or text change. The title sits above the frame's top
 // line, which runs on under it, so the button sits there too: centered on the title, and
 // moved up when needed so its bottom clears the line by a pixel (a mark reaching the line
-// covered part of it on Windows).
+// covered part of it on Windows). Where the title's rectangle reaches the line (the app sheet's
+// top margin is 8 px; on macOS the style runs the line through the title, so a 12 px mark could
+// not clear it), the box takes a top margin that puts the line one clear row under the title.
+// Both of the window's groups use this class so their titles match.
 class TitleButtonGroupBox final : public QGroupBox {
 public:
   TitleButtonGroupBox(const QString& title, QWidget* parent) : QGroupBox(title, parent) {}
@@ -254,11 +257,18 @@ protected:
 
 private:
   void place_button() {
-    if (button_ == nullptr) return;
     QStyleOptionGroupBox option;
     initStyleOption(&option);
     const auto label = style()->subControlRect(QStyle::CC_GroupBox, &option, QStyle::SC_GroupBoxLabel, this);
     const auto frame = style()->subControlRect(QStyle::CC_GroupBox, &option, QStyle::SC_GroupBoxFrame, this);
+    // The title's rectangle sits at the top of the margin whatever its height, so this margin is
+    // stable; the guard keeps a style that ignores it from asking again.
+    if (!title().isEmpty() && label.bottom() >= frame.top() && applied_top_margin_ != label.bottom() + 2) {
+      applied_top_margin_ = label.bottom() + 2;
+      setStyleSheet(QStringLiteral("QGroupBox { margin-top: %1px; }").arg(applied_top_margin_));
+      return;  // the restyle places the button again
+    }
+    if (button_ == nullptr) return;
     const auto size = button_->size();
     int top = label.top() + (label.height() - size.height()) / 2;
     // QRect::bottom() is the last row inside: keep one clear row between the mark and the line.
@@ -268,6 +278,7 @@ private:
   }
 
   QPointer<QAbstractButton> button_;
+  int applied_top_margin_ = -1;
 };
 
 }  // namespace
@@ -425,7 +436,7 @@ AnimationPreviewWindow::AnimationPreviewWindow(
   playback_layout->addLayout(play_row, 4, 0, 1, 2);
   content->addWidget(playback_group);
 
-  auto* names_group = new QGroupBox(tr("Layer names"), this);
+  auto* names_group = new TitleButtonGroupBox(tr("Layer names"), this);
   names_group->setObjectName(QStringLiteral("animationFrameTimeGroup"));
   auto* names_layout = new QGridLayout(names_group);
   names_layout->setHorizontalSpacing(8);
