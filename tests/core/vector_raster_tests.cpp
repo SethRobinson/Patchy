@@ -1983,8 +1983,156 @@ void gradient_fill_from_drag_renders_the_gradient_tool_drag() {
   CHECK(long_drag.scale <= 10.0F);
 }
 
+// The Gradient tool's on-canvas handles (GitHub issue 663): gradient_fill_line inverts the
+// placement gradient_fill_from_drag stores, for every style, reversed or not, with drags that
+// start or end off a non-square canvas, and over aligned layer bounds placed by
+// place_gradient_fill_line.
+void gradient_fill_line_inverts_the_drag_placement() {
+  const std::vector<patchy::GradientStop> stops{patchy::GradientStop{0.0F, patchy::EditColor{230, 20, 10, 255}},
+                                                patchy::GradientStop{1.0F, patchy::EditColor{10, 40, 240, 255}}};
+  const std::array<patchy::GradientMethod, 5> methods{patchy::GradientMethod::Linear, patchy::GradientMethod::Radial,
+                                                      patchy::GradientMethod::Angle, patchy::GradientMethod::Reflected,
+                                                      patchy::GradientMethod::Diamond};
+  const std::array<patchy::Rect, 3> canvases{patchy::Rect::from_size(64, 48), patchy::Rect::from_size(30, 90),
+                                             patchy::Rect::from_size(500, 120)};
+  struct Drag {
+    int x0, y0, x1, y1;
+  };
+  const std::array<Drag, 6> drags{Drag{5, 10, 50, 30}, Drag{60, 40, 10, 5}, Drag{20, 2, 20, 45},
+                                  Drag{-20, 5, 90, 9}, Drag{3, 70, 28, 71}, Drag{40, 40, 41, 12}};
+  double worst = 0.0;
+  for (const auto canvas : canvases) {
+    for (const auto method : methods) {
+      for (const bool reverse : {false, true}) {
+        for (const auto& drag : drags) {
+          const auto gradient =
+              patchy::gradient_fill_from_drag(stops, method, reverse, canvas, drag.x0, drag.y0, drag.x1, drag.y1);
+          const auto line = patchy::gradient_fill_line(gradient, canvas);
+          worst = std::max({worst, std::abs(line.start_x - drag.x0), std::abs(line.start_y - drag.y0),
+                            std::abs(line.end_x - drag.x1), std::abs(line.end_y - drag.y1)});
+          // With Align with Layer the same line placed over a layer rectangle comes back too,
+          // and moving it keeps the angle and scale while the offsets change.
+          auto aligned = gradient;
+          aligned.align_with_layer = true;
+          const patchy::Rect layer_bounds{canvas.x + 7, canvas.y + 3, canvas.width / 2 + 1, canvas.height / 3 + 2};
+          patchy::place_gradient_fill_line(aligned, layer_bounds, line);
+          const auto aligned_line = patchy::gradient_fill_line(aligned, layer_bounds);
+          // A drag over ten times the layer's chord clamps to the 1000% Scale limit.
+          const bool clamped = aligned.scale >= 10.0F || aligned.scale <= 0.01F;
+          worst = clamped ? worst : std::max({worst, std::abs(aligned_line.start_x - drag.x0), std::abs(aligned_line.start_y - drag.y0),
+                            std::abs(aligned_line.end_x - drag.x1), std::abs(aligned_line.end_y - drag.y1)});
+          auto moved = aligned;
+          patchy::place_gradient_fill_line(moved, layer_bounds,
+                                           patchy::GradientFillLine{line.start_x + 9.0, line.start_y - 4.0,
+                                                                    line.end_x + 9.0, line.end_y - 4.0});
+          CHECK(std::abs(moved.angle_degrees - aligned.angle_degrees) < 1e-3F);
+          CHECK(std::abs(moved.scale - aligned.scale) < 1e-5F);
+          CHECK(moved.reverse == reverse);
+          CHECK(moved.type == gradient.type);
+        }
+      }
+    }
+  }
+  if (worst >= 0.01) {
+    std::cerr << "gradient_fill_line is off by " << worst << " px\n";
+  }
+  CHECK(worst < 0.01);
+
+  // Stop locations map onto the line from the start handle, mirrored when reversed.
+  const patchy::GradientFillLine line{10.0, 20.0, 110.0, 20.0};
+  CHECK(std::abs(patchy::gradient_fill_line_location(line, false, 35.0, 27.0) - 0.25) < 1e-9);
+  CHECK(std::abs(patchy::gradient_fill_line_location(line, true, 35.0, 27.0) - 0.75) < 1e-9);
+  const auto [px, py] = patchy::gradient_fill_line_point(line, true, 0.75);
+  CHECK(std::abs(px - 35.0) < 1e-9 && std::abs(py - 20.0) < 1e-9);
+  // A line of no length leaves the placement alone.
+  auto untouched = patchy::gradient_fill_from_drag(stops, patchy::GradientMethod::Linear, false, canvases[0], 1, 2, 30,
+                                                   20);
+  const auto before = untouched;
+  patchy::place_gradient_fill_line(untouched, canvases[0], patchy::GradientFillLine{5.0, 5.0, 5.0, 5.0});
+  CHECK(untouched == before);
+}
+
+// The handles measure Align with Layer placements over the bounds the bake uses: the canvas
+// without alignment, a shape's coverage bounds with it.
+void gradient_fill_alignment_bounds_follow_the_bake() {
+  const auto canvas = patchy::Rect::from_size(80, 60);
+  patchy::Layer layer(1, "Gradient Fill 1", patchy::PixelBuffer());
+  patchy::VectorShapeContent content;
+  content.fill.kind = patchy::VectorFillKind::Gradient;
+  content.fill.gradient.align_with_layer = false;
+  content.fill.gradient.color_stops = {{0.0F, patchy::RgbColor{0, 0, 0}, 0.5F},
+                                       {1.0F, patchy::RgbColor{255, 255, 255}, 0.5F}};
+  content.fill.gradient.alpha_stops = {{0.0F, 1.0F, 0.5F}, {1.0F, 1.0F, 0.5F}};
+  content.stroke.enabled = false;
+  content.path.subpaths = {rect_subpath(10.0, 12.0, 50.0, 40.0, PathCombineOp::Add, 0)};
+  layer.set_vector_shape(content);
+  layer.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+  CHECK(patchy::gradient_fill_alignment_bounds(std::as_const(layer), canvas) == canvas);
+  content.fill.gradient.align_with_layer = true;
+  content.fill.gradient.angle_degrees = 0.0F;
+  layer.set_vector_shape(content);
+  const auto shape_bounds = patchy::gradient_fill_alignment_bounds(std::as_const(layer), canvas);
+  CHECK(shape_bounds == (patchy::Rect{10, 12, 40, 28}));
+  // The bake measures the same rectangle: a 0-degree ramp runs from its left edge to its right.
+  patchy::update_vector_shape_raster(layer, canvas, nullptr);
+  const auto line = patchy::gradient_fill_line(content.fill.gradient, shape_bounds);
+  CHECK(std::abs(line.start_x - 10.0) < 1e-6 && std::abs(line.end_x - 50.0) < 1e-6);
+  const auto& pixels = std::as_const(layer).pixels();
+  const auto bounds = std::as_const(layer).bounds();
+  CHECK(pixels.pixel(10 - bounds.x, 20 - bounds.y)[0] < 12);
+  CHECK(pixels.pixel(49 - bounds.x, 20 - bounds.y)[0] > 240);
+}
+
+// Stop edits from the canvas handles keep both lists sorted, track the edited stop, keep at
+// least two stops and clamp locations and midpoints like the Edit Gradient Stops dialog.
+void gradient_fill_stop_edits_keep_stops_sorted() {
+  patchy::LayerStyleGradient gradient;
+  gradient.smoothness = 0;
+  gradient.color_stops = {{0.0F, patchy::RgbColor{0, 0, 0}, 0.5F}, {1.0F, patchy::RgbColor{200, 100, 50}, 0.5F}};
+  gradient.alpha_stops = {{0.0F, 1.0F, 0.5F}, {1.0F, 0.0F, 0.5F}};
+  const auto added = patchy::add_gradient_color_stop(gradient, 0.5F);
+  CHECK(added == 1U);
+  CHECK(gradient.color_stops.size() == 3U);
+  const auto mid = gradient.color_stops[1].color;
+  CHECK(std::abs(static_cast<int>(mid.red) - 100) <= 2 && std::abs(static_cast<int>(mid.green) - 50) <= 2 &&
+        std::abs(static_cast<int>(mid.blue) - 25) <= 2);
+  const auto alpha_added = patchy::add_gradient_alpha_stop(gradient, 0.25F);
+  CHECK(alpha_added == 1U);
+  CHECK(std::abs(gradient.alpha_stops[1].opacity - 0.75F) < 0.02F);
+  // Moving the first stop past the middle one re-sorts it; a midpoint travels with its stop.
+  patchy::set_gradient_color_midpoint(gradient, 1U, 0.3F);
+  const auto moved = patchy::move_gradient_color_stop(gradient, 0U, 0.8F);
+  CHECK(moved == 1U);
+  CHECK(gradient.color_stops[1].color.red == 0 && gradient.color_stops[1].location == 0.8F);
+  CHECK(gradient.color_stops[0].midpoint == 0.3F);
+  // Locations clamp; an equal location keeps the order.
+  CHECK(patchy::move_gradient_color_stop(gradient, 2U, 1.5F) == 2U);
+  CHECK(gradient.color_stops[2].location == 1.0F);
+  CHECK(gradient.color_stops[2].color.red == 200);
+  CHECK(patchy::move_gradient_alpha_stop(gradient, 0U, 0.5F) == 1U);
+  CHECK(gradient.alpha_stops[0].location == 0.25F && gradient.alpha_stops[1].location == 0.5F);
+  // Midpoints clamp to 5%..95%; the first stop has none.
+  patchy::set_gradient_color_midpoint(gradient, 2U, 0.99F);
+  CHECK(gradient.color_stops[2].midpoint == 0.95F);
+  patchy::set_gradient_alpha_midpoint(gradient, 1U, 0.0F);
+  CHECK(gradient.alpha_stops[1].midpoint == 0.05F);
+  const auto first_midpoint = gradient.color_stops[0].midpoint;
+  patchy::set_gradient_color_midpoint(gradient, 0U, 0.2F);
+  CHECK(gradient.color_stops[0].midpoint == first_midpoint);
+  // Removal keeps at least two stops.
+  CHECK(patchy::remove_gradient_color_stop(gradient, 1U));
+  CHECK(!patchy::remove_gradient_color_stop(gradient, 0U));
+  CHECK(gradient.color_stops.size() == 2U);
+  CHECK(patchy::remove_gradient_alpha_stop(gradient, 2U));
+  CHECK(!patchy::remove_gradient_alpha_stop(gradient, 1U));
+  CHECK(gradient.alpha_stops.size() == 2U);
+}
+
 std::vector<patchy::test::TestCase> vector_raster_tests() {
   return {
+      {"gradient_fill_line_inverts_the_drag_placement", gradient_fill_line_inverts_the_drag_placement},
+      {"gradient_fill_alignment_bounds_follow_the_bake", gradient_fill_alignment_bounds_follow_the_bake},
+      {"gradient_fill_stop_edits_keep_stops_sorted", gradient_fill_stop_edits_keep_stops_sorted},
       {"gradient_fill_from_drag_renders_the_gradient_tool_drag", gradient_fill_from_drag_renders_the_gradient_tool_drag},
       {"gradient_fill_layer_geometry_matches_photoshop_probes", gradient_fill_layer_geometry_matches_photoshop_probes},
       {"gradient_fill_layer_aligns_to_its_mask_bounds", gradient_fill_layer_aligns_to_its_mask_bounds},

@@ -38,6 +38,7 @@ std::vector<patchy::test::TestCase> alignment_tests();
 std::vector<patchy::test::TestCase> selection_marquee_lasso_tests();
 std::vector<patchy::test::TestCase> crop_tool_tests();
 std::vector<patchy::test::TestCase> ruler_tool_tests();
+std::vector<patchy::test::TestCase> gradient_fill_handles_tests();
 std::vector<patchy::test::TestCase> view_shortcut_keys_tests();
 std::vector<patchy::test::TestCase> tool_palette_customize_tests();
 std::vector<patchy::test::TestCase> unit_spin_box_tests();

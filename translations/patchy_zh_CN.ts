@@ -17316,6 +17316,98 @@ Do you want to replace it?</source>
         <source>Object Selection found no object in the outline; the outline is kept</source>
         <translation>对象选择未在轮廓内找到对象；保留轮廓</translation>
     </message>
+    <message>
+        <source>Drag to move the gradient&apos;s start point. Shift keeps the angle in 15-degree steps.</source>
+        <translation>拖动可移动渐变的起点。按住 Shift 可使角度保持 15 度步进。</translation>
+    </message>
+    <message>
+        <source>Drag to move the gradient&apos;s end point. Shift keeps the angle in 15-degree steps.</source>
+        <translation>拖动可移动渐变的终点。按住 Shift 可使角度保持 15 度步进。</translation>
+    </message>
+    <message>
+        <source>Drag to move the gradient. Click to add a color stop here.</source>
+        <translation>拖动可移动渐变。单击可在此处添加色标。</translation>
+    </message>
+    <message>
+        <source>Drag to move this color stop, or away from the line to delete it. Double-click to change its color.</source>
+        <translation>拖动可移动此色标，拖离直线可删除它。双击可更改其颜色。</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop, or away from the line to delete it. Double-click to edit the fill.</source>
+        <translation>拖动可移动此不透明度色标，拖离直线可删除它。双击可编辑填充。</translation>
+    </message>
+    <message>
+        <source>Drag to move the midpoint between these stops.</source>
+        <translation>拖动可移动这些色标之间的中点。</translation>
+    </message>
+    <message>
+        <source>Gradient start point</source>
+        <translation>渐变起点</translation>
+    </message>
+    <message>
+        <source>Gradient end point</source>
+        <translation>渐变终点</translation>
+    </message>
+    <message>
+        <source>Gradient line</source>
+        <translation>渐变线</translation>
+    </message>
+    <message>
+        <source>Color stop at %1%</source>
+        <translation>色标位于 %1%</translation>
+    </message>
+    <message>
+        <source>Opacity stop at %1%: %2% opacity</source>
+        <translation>不透明度色标位于 %1%：不透明度 %2%</translation>
+    </message>
+    <message>
+        <source>Midpoint: %1%</source>
+        <translation>中点：%1%</translation>
+    </message>
+    <message>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>请解锁渐变填充图层以更改其渐变</translation>
+    </message>
+    <message>
+        <source>Release to delete this stop.</source>
+        <translation>松开可删除此色标。</translation>
+    </message>
+    <message>
+        <source>Add Color Stop</source>
+        <translation>添加色标</translation>
+    </message>
+    <message>
+        <source>Move Gradient Start Point</source>
+        <translation>移动渐变起点</translation>
+    </message>
+    <message>
+        <source>Move Gradient End Point</source>
+        <translation>移动渐变终点</translation>
+    </message>
+    <message>
+        <source>Move Gradient</source>
+        <translation>移动渐变</translation>
+    </message>
+    <message>
+        <source>Delete Color Stop</source>
+        <translation>删除色标</translation>
+    </message>
+    <message>
+        <source>Move Color Stop</source>
+        <translation>移动色标</translation>
+    </message>
+    <message>
+        <source>Delete Opacity Stop</source>
+        <translation>删除不透明度色标</translation>
+    </message>
+    <message>
+        <source>Move Opacity Stop</source>
+        <translation>移动不透明度色标</translation>
+    </message>
+    <message>
+        <source>Move Gradient Midpoint</source>
+        <translation>移动渐变中点</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -33379,6 +33471,14 @@ Locked: %1</source>
     <message>
         <source>The selected layers are not linked</source>
         <translation>所选图层未链接</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>渐变色标颜色</translation>
+    </message>
+    <message>
+        <source>Change Color Stop</source>
+        <translation>更改色标</translation>
     </message>
 </context>
 <context>

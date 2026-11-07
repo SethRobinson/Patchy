@@ -12,6 +12,7 @@
 #include "core/clone_source_transform.hpp"
 #include "core/document.hpp"
 #include "core/exemplar_inpaint.hpp"
+#include "core/gradient_fill_drag.hpp"
 #include "core/hdr_color.hpp"
 #include "core/layer_alignment.hpp"
 #include "core/layer_tree.hpp"
@@ -446,6 +447,35 @@ public:
   void set_gradient_tool_mode(GradientToolMode mode) noexcept;
   [[nodiscard]] GradientToolMode gradient_tool_mode() const noexcept;
   void set_gradient_fill_drawn_callback(std::function<void(QPoint, QPoint)> callback);
+  // On-canvas handles of the active Gradient Fill layer or single-fill gradient shape while the
+  // Gradient tool is active (GitHub issue 663; canvas_widget_gradient_handles.cpp): the line's
+  // start and end, the color stops on one side, the opacity stops on the other, and the
+  // midpoints between them. A drag previews through the edit callback (Preview, then Commit
+  // with its undo name, or Cancel); `serial` names the drag so a stale call is ignored.
+  enum class GradientHandlePartKind { None, Start, End, Line, ColorStop, AlphaStop, ColorMidpoint, AlphaMidpoint };
+  struct GradientHandlePart {
+    GradientHandlePartKind kind{GradientHandlePartKind::None};
+    int index{-1};
+
+    friend bool operator==(const GradientHandlePart&, const GradientHandlePart&) = default;
+  };
+  using GradientFillEditCallback = std::function<void(LayerId, const LayerStyleGradient&, GradientFillEditPhase,
+                                                      std::uint64_t serial, const QString& undo_label)>;
+  void set_gradient_fill_edit_callback(GradientFillEditCallback callback);
+  // A double-click on a color stop: MainWindow opens the color picker for that stop.
+  void set_gradient_fill_stop_color_requested_callback(std::function<void(LayerId, int)> callback);
+  // The gradient the handles show (document space), when they are shown: the layer's own, or
+  // the drag's while one is live.
+  struct GradientFillHandles {
+    LayerId layer_id{0};
+    LayerStyleGradient gradient;
+    Rect bounds;
+    GradientFillLine line;
+  };
+  [[nodiscard]] std::optional<GradientFillHandles> gradient_fill_handles() const;
+  // Where a part is drawn in widget coordinates, and the part a widget point hits.
+  [[nodiscard]] std::optional<QPointF> gradient_fill_handle_widget_position(GradientHandlePart part) const;
+  [[nodiscard]] GradientHandlePart gradient_fill_handle_part_at(QPointF widget_point) const;
   void set_gradient_reverse(bool reverse) noexcept;
   [[nodiscard]] bool gradient_reverse() const noexcept;
   void set_gradient_opacity(int opacity) noexcept;
@@ -2838,6 +2868,21 @@ private:
   void update_perspective_crop_cursor(QPoint widget_point);
   void draw_perspective_crop_overlay(QPainter& painter) const;
   void draw_perspective_crop_up_marker(QPainter& painter, const QPolygonF& quad) const;
+  // Gradient Fill handles (canvas_widget_gradient_handles.cpp, GitHub issue 663).
+  [[nodiscard]] const Layer* gradient_fill_handle_layer() const;
+  [[nodiscard]] Rect gradient_fill_handle_bounds(const Layer& layer) const;
+  bool press_gradient_fill_handle(QMouseEvent* event);
+  bool move_gradient_fill_handle(QMouseEvent* event);
+  bool release_gradient_fill_handle(QMouseEvent* event);
+  bool double_click_gradient_fill_handle(QMouseEvent* event);
+  bool show_gradient_fill_handle_tooltip(QEvent* event);
+  void update_gradient_fill_handle_drag(QPointF widget_point, Qt::KeyboardModifiers modifiers);
+  void cancel_gradient_fill_handle_drag();
+  void abandon_gradient_fill_handle_drag();
+  void set_gradient_fill_handle_hover(GradientHandlePart part);
+  void draw_gradient_fill_handles(QPainter& painter) const;
+  [[nodiscard]] QString gradient_fill_handle_hint(GradientHandlePart part) const;
+  [[nodiscard]] QString gradient_fill_handle_tooltip(GradientHandlePart part) const;
   // Ruler gestures (canvas_widget_ruler.cpp).
   enum class RulerPart { None, Start, End, Second, Body };
   [[nodiscard]] RulerPart ruler_part_at(QPoint widget_point) const;
@@ -3882,6 +3927,41 @@ private:
   double perspective_crop_rotate_start_degrees_{0.0};
   bool perspective_crop_show_grid_{true};
   std::function<void(std::array<QPointF, 4>)> perspective_crop_commit_requested_callback_;
+  // Gradient Fill handle drag (GitHub issue 663): the layer, the bounds the placement is
+  // measured over, the gradient at the press and as edited, the part grabbed (its stop index
+  // follows the stop through re-sorting), and whether the pointer has left the press point
+  // or pulled the stop off the line to delete it.
+  struct GradientFillHandleDrag {
+    LayerId layer_id{0};
+    Rect bounds;
+    LayerStyleGradient original;
+    LayerStyleGradient current;
+    GradientHandlePart part;
+    int current_index{-1};
+    QPointF press_widget;
+    QPointF press_document;
+    QPointF pointer_widget;
+    GradientFillLine press_line;
+    bool moved{false};
+    bool removing{false};
+    bool previewed{false};
+    std::uint64_t serial{0};
+  };
+  std::optional<GradientFillHandleDrag> gradient_handle_drag_;
+  std::uint64_t gradient_handle_drag_serial_{0};
+  GradientHandlePart gradient_handle_hover_;
+  GradientFillEditCallback gradient_fill_edit_callback_;
+  std::function<void(LayerId, int)> gradient_fill_stop_color_requested_callback_;
+  // gradient_fill_alignment_bounds rasterizes the path: kept per layer and revision.
+  struct GradientHandleBoundsCache {
+    LayerId layer_id{0};
+    std::uint64_t render_revision{0};
+    std::uint64_t content_revision{0};
+    std::int32_t canvas_width{0};
+    std::int32_t canvas_height{0};
+    Rect bounds;
+  };
+  mutable std::optional<GradientHandleBoundsCache> gradient_handle_bounds_cache_;
   // Ruler state, document space. The drag part is what the press grabbed (None: no
   // drag); a new line drags its End, a new protractor leg its Second.
   std::optional<RulerLine> ruler_line_;

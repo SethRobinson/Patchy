@@ -17363,6 +17363,98 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Object Selection found no object in the outline; the outline is kept</source>
         <translation>Die Objektauswahl hat in der Kontur kein Objekt gefunden; die Kontur bleibt erhalten</translation>
     </message>
+    <message>
+        <source>Drag to move the gradient&apos;s start point. Shift keeps the angle in 15-degree steps.</source>
+        <translation>Ziehen, um den Startpunkt des Verlaufs zu verschieben. Mit Umschalt bleibt der Winkel in 15-Grad-Schritten.</translation>
+    </message>
+    <message>
+        <source>Drag to move the gradient&apos;s end point. Shift keeps the angle in 15-degree steps.</source>
+        <translation>Ziehen, um den Endpunkt des Verlaufs zu verschieben. Mit Umschalt bleibt der Winkel in 15-Grad-Schritten.</translation>
+    </message>
+    <message>
+        <source>Drag to move the gradient. Click to add a color stop here.</source>
+        <translation>Ziehen, um den Verlauf zu verschieben. Klicken, um hier eine Farbunterbrechung hinzuzufügen.</translation>
+    </message>
+    <message>
+        <source>Drag to move this color stop, or away from the line to delete it. Double-click to change its color.</source>
+        <translation>Ziehen, um diese Farbunterbrechung zu verschieben, oder von der Linie weg, um sie zu löschen. Doppelklicken, um ihre Farbe zu ändern.</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop, or away from the line to delete it. Double-click to edit the fill.</source>
+        <translation>Ziehen, um diese Deckkraftunterbrechung zu verschieben, oder von der Linie weg, um sie zu löschen. Doppelklicken, um die Füllung zu bearbeiten.</translation>
+    </message>
+    <message>
+        <source>Drag to move the midpoint between these stops.</source>
+        <translation>Ziehen, um den Mittelpunkt zwischen diesen Unterbrechungen zu verschieben.</translation>
+    </message>
+    <message>
+        <source>Gradient start point</source>
+        <translation>Startpunkt des Verlaufs</translation>
+    </message>
+    <message>
+        <source>Gradient end point</source>
+        <translation>Endpunkt des Verlaufs</translation>
+    </message>
+    <message>
+        <source>Gradient line</source>
+        <translation>Verlaufslinie</translation>
+    </message>
+    <message>
+        <source>Color stop at %1%</source>
+        <translation>Farbunterbrechung bei %1%</translation>
+    </message>
+    <message>
+        <source>Opacity stop at %1%: %2% opacity</source>
+        <translation>Deckkraftunterbrechung bei %1%: %2% Deckkraft</translation>
+    </message>
+    <message>
+        <source>Midpoint: %1%</source>
+        <translation>Mittelpunkt: %1%</translation>
+    </message>
+    <message>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>Entsperren Sie die Verlaufsfüllungsebene, um ihren Verlauf zu ändern</translation>
+    </message>
+    <message>
+        <source>Release to delete this stop.</source>
+        <translation>Loslassen, um diese Unterbrechung zu löschen.</translation>
+    </message>
+    <message>
+        <source>Add Color Stop</source>
+        <translation>Farbunterbrechung hinzufügen</translation>
+    </message>
+    <message>
+        <source>Move Gradient Start Point</source>
+        <translation>Startpunkt des Verlaufs verschieben</translation>
+    </message>
+    <message>
+        <source>Move Gradient End Point</source>
+        <translation>Endpunkt des Verlaufs verschieben</translation>
+    </message>
+    <message>
+        <source>Move Gradient</source>
+        <translation>Verlauf verschieben</translation>
+    </message>
+    <message>
+        <source>Delete Color Stop</source>
+        <translation>Farbunterbrechung löschen</translation>
+    </message>
+    <message>
+        <source>Move Color Stop</source>
+        <translation>Farbunterbrechung verschieben</translation>
+    </message>
+    <message>
+        <source>Delete Opacity Stop</source>
+        <translation>Deckkraftunterbrechung löschen</translation>
+    </message>
+    <message>
+        <source>Move Opacity Stop</source>
+        <translation>Deckkraftunterbrechung verschieben</translation>
+    </message>
+    <message>
+        <source>Move Gradient Midpoint</source>
+        <translation>Verlaufsmittelpunkt verschieben</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -33467,6 +33559,14 @@ Fixiert: %1</translation>
     <message>
         <source>The selected layers are not linked</source>
         <translation>Die ausgewählten Ebenen sind nicht verknüpft</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>Farbe des Verlaufspunkts</translation>
+    </message>
+    <message>
+        <source>Change Color Stop</source>
+        <translation>Farbunterbrechung ändern</translation>
     </message>
 </context>
 <context>

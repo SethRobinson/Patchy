@@ -17363,6 +17363,98 @@ Deseja substituí-lo?</translation>
         <source>Object Selection found no object in the outline; the outline is kept</source>
         <translation>A seleção de objeto não encontrou nenhum objeto no contorno; o contorno é mantido</translation>
     </message>
+    <message>
+        <source>Drag to move the gradient&apos;s start point. Shift keeps the angle in 15-degree steps.</source>
+        <translation>Arraste para mover o ponto inicial do degradê. Shift mantém o ângulo em passos de 15 graus.</translation>
+    </message>
+    <message>
+        <source>Drag to move the gradient&apos;s end point. Shift keeps the angle in 15-degree steps.</source>
+        <translation>Arraste para mover o ponto final do degradê. Shift mantém o ângulo em passos de 15 graus.</translation>
+    </message>
+    <message>
+        <source>Drag to move the gradient. Click to add a color stop here.</source>
+        <translation>Arraste para mover o degradê. Clique para adicionar uma parada de cor aqui.</translation>
+    </message>
+    <message>
+        <source>Drag to move this color stop, or away from the line to delete it. Double-click to change its color.</source>
+        <translation>Arraste para mover esta parada de cor, ou afaste-a da linha para excluí-la. Clique duas vezes para alterar a cor.</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop, or away from the line to delete it. Double-click to edit the fill.</source>
+        <translation>Arraste para mover esta parada de opacidade, ou afaste-a da linha para excluí-la. Clique duas vezes para editar o preenchimento.</translation>
+    </message>
+    <message>
+        <source>Drag to move the midpoint between these stops.</source>
+        <translation>Arraste para mover o ponto médio entre estas paradas.</translation>
+    </message>
+    <message>
+        <source>Gradient start point</source>
+        <translation>Ponto inicial do degradê</translation>
+    </message>
+    <message>
+        <source>Gradient end point</source>
+        <translation>Ponto final do degradê</translation>
+    </message>
+    <message>
+        <source>Gradient line</source>
+        <translation>Linha do degradê</translation>
+    </message>
+    <message>
+        <source>Color stop at %1%</source>
+        <translation>Parada de cor em %1%</translation>
+    </message>
+    <message>
+        <source>Opacity stop at %1%: %2% opacity</source>
+        <translation>Parada de opacidade em %1%: %2% de opacidade</translation>
+    </message>
+    <message>
+        <source>Midpoint: %1%</source>
+        <translation>Ponto médio: %1%</translation>
+    </message>
+    <message>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>Desbloqueie a camada de preenchimento degradê para alterar o degradê</translation>
+    </message>
+    <message>
+        <source>Release to delete this stop.</source>
+        <translation>Solte para excluir esta parada.</translation>
+    </message>
+    <message>
+        <source>Add Color Stop</source>
+        <translation>Adicionar parada de cor</translation>
+    </message>
+    <message>
+        <source>Move Gradient Start Point</source>
+        <translation>Mover ponto inicial do degradê</translation>
+    </message>
+    <message>
+        <source>Move Gradient End Point</source>
+        <translation>Mover ponto final do degradê</translation>
+    </message>
+    <message>
+        <source>Move Gradient</source>
+        <translation>Mover degradê</translation>
+    </message>
+    <message>
+        <source>Delete Color Stop</source>
+        <translation>Excluir parada de cor</translation>
+    </message>
+    <message>
+        <source>Move Color Stop</source>
+        <translation>Mover parada de cor</translation>
+    </message>
+    <message>
+        <source>Delete Opacity Stop</source>
+        <translation>Excluir parada de opacidade</translation>
+    </message>
+    <message>
+        <source>Move Opacity Stop</source>
+        <translation>Mover parada de opacidade</translation>
+    </message>
+    <message>
+        <source>Move Gradient Midpoint</source>
+        <translation>Mover ponto médio do degradê</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -33467,6 +33559,14 @@ Bloqueado: %1</translation>
     <message>
         <source>The selected layers are not linked</source>
         <translation>As camadas selecionadas não estão vinculadas</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>Cor da parada do gradiente</translation>
+    </message>
+    <message>
+        <source>Change Color Stop</source>
+        <translation>Alterar parada de cor</translation>
     </message>
 </context>
 <context>

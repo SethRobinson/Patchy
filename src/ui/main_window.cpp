@@ -6266,6 +6266,20 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
     }
     handle_gradient_fill_drawn(from, to);
   });
+  canvas->set_gradient_fill_edit_callback([this, canvas](LayerId layer_id, const LayerStyleGradient& gradient,
+                                                         GradientFillEditPhase phase, std::uint64_t serial,
+                                                         const QString& undo_label) {
+    if (canvas != canvas_) {
+      return;
+    }
+    handle_gradient_fill_handle_edit(layer_id, gradient, phase, serial, undo_label);
+  });
+  canvas->set_gradient_fill_stop_color_requested_callback([this, canvas](LayerId layer_id, int stop_index) {
+    if (canvas != canvas_) {
+      return;
+    }
+    handle_gradient_fill_stop_color_requested(layer_id, stop_index);
+  });
   canvas->set_shape_create_requested_callback([this, canvas](CanvasTool tool, QPointF document_point) {
     if (canvas != canvas_) {
       return;

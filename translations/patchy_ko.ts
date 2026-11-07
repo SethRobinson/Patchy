@@ -17316,6 +17316,98 @@ Do you want to replace it?</source>
         <source>Object Selection found no object in the outline; the outline is kept</source>
         <translation>개체 선택이 윤곽선 안에서 개체를 찾지 못했습니다. 윤곽선은 그대로 유지됩니다</translation>
     </message>
+    <message>
+        <source>Drag to move the gradient&apos;s start point. Shift keeps the angle in 15-degree steps.</source>
+        <translation>드래그하여 그레이디언트의 시작점을 이동합니다. Shift를 누르면 각도가 15도 단위로 유지됩니다.</translation>
+    </message>
+    <message>
+        <source>Drag to move the gradient&apos;s end point. Shift keeps the angle in 15-degree steps.</source>
+        <translation>드래그하여 그레이디언트의 끝점을 이동합니다. Shift를 누르면 각도가 15도 단위로 유지됩니다.</translation>
+    </message>
+    <message>
+        <source>Drag to move the gradient. Click to add a color stop here.</source>
+        <translation>드래그하여 그레이디언트를 이동합니다. 클릭하면 여기에 색상 정지점을 추가합니다.</translation>
+    </message>
+    <message>
+        <source>Drag to move this color stop, or away from the line to delete it. Double-click to change its color.</source>
+        <translation>드래그하여 이 색상 정지점을 이동하거나, 선에서 멀리 끌어 삭제합니다. 두 번 클릭하면 색상을 변경합니다.</translation>
+    </message>
+    <message>
+        <source>Drag to move this opacity stop, or away from the line to delete it. Double-click to edit the fill.</source>
+        <translation>드래그하여 이 불투명도 정지점을 이동하거나, 선에서 멀리 끌어 삭제합니다. 두 번 클릭하면 채우기를 편집합니다.</translation>
+    </message>
+    <message>
+        <source>Drag to move the midpoint between these stops.</source>
+        <translation>드래그하여 이 정지점들 사이의 중간점을 이동합니다.</translation>
+    </message>
+    <message>
+        <source>Gradient start point</source>
+        <translation>그레이디언트 시작점</translation>
+    </message>
+    <message>
+        <source>Gradient end point</source>
+        <translation>그레이디언트 끝점</translation>
+    </message>
+    <message>
+        <source>Gradient line</source>
+        <translation>그레이디언트 선</translation>
+    </message>
+    <message>
+        <source>Color stop at %1%</source>
+        <translation>색상 정지점 %1%</translation>
+    </message>
+    <message>
+        <source>Opacity stop at %1%: %2% opacity</source>
+        <translation>불투명도 정지점 %1%: 불투명도 %2%</translation>
+    </message>
+    <message>
+        <source>Midpoint: %1%</source>
+        <translation>중간점: %1%</translation>
+    </message>
+    <message>
+        <source>Unlock the Gradient Fill layer to change its gradient</source>
+        <translation>그레이디언트를 변경하려면 그레이디언트 채우기 레이어의 잠금을 해제하세요</translation>
+    </message>
+    <message>
+        <source>Release to delete this stop.</source>
+        <translation>놓으면 이 정지점을 삭제합니다.</translation>
+    </message>
+    <message>
+        <source>Add Color Stop</source>
+        <translation>색상 정지점 추가</translation>
+    </message>
+    <message>
+        <source>Move Gradient Start Point</source>
+        <translation>그레이디언트 시작점 이동</translation>
+    </message>
+    <message>
+        <source>Move Gradient End Point</source>
+        <translation>그레이디언트 끝점 이동</translation>
+    </message>
+    <message>
+        <source>Move Gradient</source>
+        <translation>그레이디언트 이동</translation>
+    </message>
+    <message>
+        <source>Delete Color Stop</source>
+        <translation>색상 정지점 삭제</translation>
+    </message>
+    <message>
+        <source>Move Color Stop</source>
+        <translation>색상 정지점 이동</translation>
+    </message>
+    <message>
+        <source>Delete Opacity Stop</source>
+        <translation>불투명도 정지점 삭제</translation>
+    </message>
+    <message>
+        <source>Move Opacity Stop</source>
+        <translation>불투명도 정지점 이동</translation>
+    </message>
+    <message>
+        <source>Move Gradient Midpoint</source>
+        <translation>그레이디언트 중간점 이동</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -33379,6 +33471,14 @@ Locked: %1</source>
     <message>
         <source>The selected layers are not linked</source>
         <translation>선택한 레이어가 연결되어 있지 않습니다</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>그레이디언트 정지점 색상</translation>
+    </message>
+    <message>
+        <source>Change Color Stop</source>
+        <translation>색상 정지점 변경</translation>
     </message>
 </context>
 <context>
