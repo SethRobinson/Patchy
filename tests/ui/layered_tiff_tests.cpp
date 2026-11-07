@@ -68,12 +68,21 @@ int layer_count(const std::vector<patchy::Layer>& layers) {
   return count;
 }
 
+// The multi-page TIFF open mode (imports/tiffPagesOpen, #664) at "Ask every time" for the
+// test's scope, restored afterwards.
+struct TiffPagesAskEveryTime {
+  SettingsValueRestorer restore{QStringLiteral("imports/tiffPagesOpen")};
+  TiffPagesAskEveryTime() { patchy::ui::app_settings().remove(QStringLiteral("imports/tiffPagesOpen")); }
+};
+
 // Answers the multi-page TIFF question (tiffPagesMessageBox) with the named button once it
-// shows; `asked` counts the questions seen. Polls, because the open runs other event loops
-// before it asks.
+// shows, first ticking "Don't ask again" when `dont_ask` is set (and saving the box to
+// `capture` when given); `asked` counts the questions seen. Polls, because the open runs
+// other event loops before it asks.
 class TiffPagesAnswer {
  public:
-  TiffPagesAnswer(QString button, int* asked) : button_(std::move(button)), asked_(asked) {
+  TiffPagesAnswer(QString button, int* asked, bool dont_ask = false, QString capture = {})
+      : button_(std::move(button)), asked_(asked), dont_ask_(dont_ask), capture_(std::move(capture)) {
     timer_.setInterval(5);
     QObject::connect(&timer_, &QTimer::timeout, [this] {
       auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("tiffPagesMessageBox")));
@@ -81,6 +90,17 @@ class TiffPagesAnswer {
         return;
       }
       ++*asked_;
+      auto* check = box->findChild<QCheckBox*>(QStringLiteral("tiffPagesDontAskCheck"));
+      if (check == nullptr) {
+        patchy::test::report_failure("tiffPagesMessageBox has no Don't ask again box");
+      } else {
+        CHECK(!check->isChecked());
+        check->setChecked(dont_ask_);
+      }
+      if (!capture_.isEmpty()) {
+        QApplication::processEvents();
+        box->grab().save(capture_);
+      }
       if (auto* button = box->findChild<QAbstractButton*>(button_); button != nullptr) {
         button->click();
       } else {
@@ -94,6 +114,8 @@ class TiffPagesAnswer {
  private:
   QString button_;
   int* asked_;
+  bool dont_ask_;
+  QString capture_;
   QTimer timer_;
 };
 
@@ -142,6 +164,7 @@ struct DeepEditingOn {
 void ui_multi_page_tiff_opens_pages_as_layers() {
   SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
   SettingsValueRestorer target_setting(QStringLiteral("imports/tiffPagesTarget"));
+  TiffPagesAskEveryTime ask_mode;
   patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
   DeepEditingOn deep;
   const auto path = write_mixed_pages_tiff(QStringLiteral("mixed-pages.tif"));
@@ -180,9 +203,11 @@ void ui_multi_page_tiff_opens_pages_as_layers() {
     patchy::load_rgba_row(layers[0].pixels(), 0, 0, 1, patchy::DeepDomain::Linear, row);
     CHECK(std::fabs(row[0] - 255.0F) < 0.5F && std::fabs(row[1]) < 0.5F && std::fabs(row[3] - 255.0F) < 0.5F);
   }
+  // The note that would only repeat the answer just given is left out (#664).
   const auto& notes = MainWindowTestAccess::active_session_import_notes(window);
-  CHECK(notes.join(QLatin1Char('\n')).contains(QStringLiteral("opened 4 pages as layers")));
+  CHECK(!notes.join(QLatin1Char('\n')).contains(QStringLiteral("pages as layers")));
   CHECK(notes.join(QLatin1Char('\n')).contains(QStringLiteral("left out: 4")));
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("imports/tiffPagesOpen")));
   CHECK(patchy::ui::app_settings().value(QStringLiteral("imports/tiffPagesTarget")).toString() ==
         QStringLiteral("layers"));
   window.grab().save(QDir(artifact_dir()).absoluteFilePath(QStringLiteral("pages-as-layers.png")));
@@ -219,11 +244,12 @@ std::optional<QString> open_capturing_import_notes(patchy::ui::MainWindow& windo
 }
 
 // #625 follow-up (philipzae): with the Import Notes box turned on (imports/showPsdWarningsAndInfo),
-// the note that only repeats the page choice just made goes to the status bar alone; pages
-// that could not be read still bring up the box, without the page-choice note in it.
+// the note that only repeats the page choice just made shows nowhere, status bar included
+// (#664); pages that could not be read still bring up the box, without the page-choice note.
 void ui_multi_page_tiff_page_choice_stays_out_of_import_notes() {
   SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
   SettingsValueRestorer target_setting(QStringLiteral("imports/tiffPagesTarget"));
+  TiffPagesAskEveryTime ask_mode;
   patchy::ui::app_settings().setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), true);
   DeepEditingOn deep;
   namespace flat = patchy::test::flat_tiff;
@@ -246,9 +272,9 @@ void ui_multi_page_tiff_page_choice_stays_out_of_import_notes() {
     if (shown.has_value()) {
       patchy::test::report_failure(std::string(entry.button) + ": Import Notes box showed: " + shown->toStdString());
     }
-    CHECK(MainWindowTestAccess::active_session_import_notes(window).join(QLatin1Char('\n')).contains(
+    CHECK(!MainWindowTestAccess::active_session_import_notes(window).join(QLatin1Char('\n')).contains(
         QString::fromLatin1(entry.note)));
-    CHECK(window.statusBar()->currentMessage().contains(QString::fromLatin1(entry.note)));
+    CHECK(!window.statusBar()->currentMessage().contains(QString::fromLatin1(entry.note)));
   }
   const auto mixed = write_mixed_pages_tiff(QStringLiteral("mixed-pages-notes.tif"));
   patchy::ui::MainWindow window;
@@ -259,7 +285,8 @@ void ui_multi_page_tiff_page_choice_stays_out_of_import_notes() {
     CHECK(shown->contains(QStringLiteral("left out: 4")));
     CHECK(!shown->contains(QStringLiteral("pages as layers")));
   }
-  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("opened 4 pages as layers")));
+  CHECK(!window.statusBar()->currentMessage().contains(QStringLiteral("pages as layers")));
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("left out: 4")));
 }
 
 // Separate Documents opens one tab per readable page ("file - Page N"), page 1 active;
@@ -267,6 +294,7 @@ void ui_multi_page_tiff_page_choice_stays_out_of_import_notes() {
 void ui_multi_page_tiff_separate_documents_cancel_and_scripts() {
   SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
   SettingsValueRestorer target_setting(QStringLiteral("imports/tiffPagesTarget"));
+  TiffPagesAskEveryTime ask_mode;
   patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
   DeepEditingOn deep;
   const auto path = write_mixed_pages_tiff(QStringLiteral("mixed-pages-documents.tif"));
@@ -298,8 +326,8 @@ void ui_multi_page_tiff_separate_documents_cancel_and_scripts() {
     }
     const auto& first = std::as_const(MainWindowTestAccess::document(window));
     CHECK(first.width() == 8 && first.height() == 6);
-    CHECK(MainWindowTestAccess::active_session_import_notes(window).join(QLatin1Char('\n')).contains(
-        QStringLiteral("opened 4 pages as separate documents")));
+    CHECK(!MainWindowTestAccess::active_session_import_notes(window).join(QLatin1Char('\n')).contains(
+        QStringLiteral("separate documents")));
   }
   {
     patchy::ui::MainWindow window;
@@ -332,6 +360,139 @@ void ui_multi_page_tiff_separate_documents_cancel_and_scripts() {
   }
 }
 
+// GitHub issue 664 (philipzae): "Don't ask again" saves the answer (imports/tiffPagesOpen), and
+// a saved answer opens without asking, with one status line naming Preferences that stays out
+// of the Import Notes box; "ask" asks again, and a script's app.open still gets page 1.
+void ui_multi_page_tiff_saved_choice_opens_without_asking() {
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  SettingsValueRestorer target_setting(QStringLiteral("imports/tiffPagesTarget"));
+  TiffPagesAskEveryTime ask_mode;
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), true);
+  DeepEditingOn deep;
+  namespace flat = patchy::test::flat_tiff;
+  flat::Spec page;
+  page.width = 8;
+  page.height = 6;
+  page.value = [](std::uint32_t, std::uint32_t, std::uint32_t sample) { return sample == 0U ? 200.0 : 10.0; };
+  const auto path =
+      write_file(QStringLiteral("saved-choice-pages.tif"), flat::write_tiff(std::vector<flat::Spec>{page, page, page}));
+  const auto settings_value = [] {
+    return patchy::ui::app_settings().value(QStringLiteral("imports/tiffPagesOpen")).toString();
+  };
+  // Opens `path` once; true when the Import Notes box showed.
+  const auto open_once = [&path](patchy::ui::MainWindow& window, const QString& button, int& asked,
+                                 bool dont_ask, const QString& capture = {}) {
+    bool notes_box = false;
+    QTimer poller;
+    QObject::connect(&poller, &QTimer::timeout, [&notes_box] {
+      if (auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("importNoticesMessageBox")));
+          box != nullptr && box->isVisible()) {
+        notes_box = true;
+        box->accept();
+      }
+    });
+    poller.start(5);
+    {
+      TiffPagesAnswer answer(button, &asked, dont_ask, capture);
+      MainWindowTestAccess::open_document_path(window, path);
+      for (int turn = 0; turn < 20; ++turn) {
+        QApplication::processEvents();
+      }
+    }
+    poller.stop();
+    return notes_box;
+  };
+
+  // Answering without the box ticked leaves the mode at "Ask every time".
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    int asked = 0;
+    CHECK(!open_once(window, QStringLiteral("tiffPagesLayersButton"), asked, false));
+    CHECK(asked == 1);
+    CHECK(!patchy::ui::app_settings().contains(QStringLiteral("imports/tiffPagesOpen")));
+  }
+  // Ticked: the answer is saved, and the next open uses it without asking.
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    const auto before = MainWindowTestAccess::session_count(window);
+    int asked = 0;
+    CHECK(!open_once(window, QStringLiteral("tiffPagesDocumentsButton"), asked, true,
+                     QDir(artifact_dir()).absoluteFilePath(QStringLiteral("tiff-pages-dont-ask.png"))));
+    CHECK(asked == 1);
+    CHECK(settings_value() == QStringLiteral("documents"));
+    CHECK(MainWindowTestAccess::session_count(window) == before + 3U);
+    CHECK(!window.statusBar()->currentMessage().contains(QStringLiteral("Preferences")));
+    asked = 0;
+    CHECK(!open_once(window, QStringLiteral("tiffPagesCancelButton"), asked, false));
+    CHECK(asked == 0);
+    CHECK(MainWindowTestAccess::session_count(window) == before + 6U);
+    CHECK(window.statusBar()->currentMessage() ==
+          QStringLiteral("Multi-page TIFF opened as separate documents (change this in Preferences)"));
+    window.grab().save(QDir(artifact_dir()).absoluteFilePath(QStringLiteral("tiff-pages-saved-status.png")));
+  }
+  // Each saved answer opens the right way without asking.
+  struct Case {
+    const char* mode;
+    std::size_t sessions;
+    std::size_t layers;
+    const char* note;
+  };
+  for (const auto& entry :
+       {Case{"layers", 1U, 3U, "Multi-page TIFF opened as layers (change this in Preferences)"},
+        Case{"documents", 3U, 1U, "Multi-page TIFF opened as separate documents (change this in Preferences)"},
+        Case{"first", 1U, 1U, "Multi-page TIFF opened at its first page only (change this in Preferences)"}}) {
+    patchy::ui::app_settings().setValue(QStringLiteral("imports/tiffPagesOpen"), QString::fromLatin1(entry.mode));
+    patchy::ui::MainWindow window;
+    show_window(window);
+    const auto before = MainWindowTestAccess::session_count(window);
+    int asked = 0;
+    const bool notes_box = open_once(window, QStringLiteral("tiffPagesCancelButton"), asked, false);
+    CHECK(asked == 0);
+    CHECK(!notes_box);
+    CHECK(MainWindowTestAccess::session_count(window) == before + entry.sessions);
+    CHECK(std::as_const(MainWindowTestAccess::document(window)).layers().size() == entry.layers);
+    CHECK(window.statusBar()->currentMessage() == QString::fromLatin1(entry.note));
+    const auto notes = MainWindowTestAccess::active_session_import_notes(window).join(QLatin1Char('\n'));
+    CHECK(!notes.contains(QStringLiteral("3 pages")));
+    if (window.statusBar()->currentMessage() != QString::fromLatin1(entry.note)) {
+      std::cout << "[INFO] " << entry.mode << ": status " << window.statusBar()->currentMessage().toStdString()
+                << "\n";
+    }
+  }
+  // "ask" asks again.
+  {
+    patchy::ui::app_settings().setValue(QStringLiteral("imports/tiffPagesOpen"), QStringLiteral("ask"));
+    patchy::ui::MainWindow window;
+    show_window(window);
+    int asked = 0;
+    CHECK(!open_once(window, QStringLiteral("tiffPagesFirstButton"), asked, false));
+    CHECK(asked == 1);
+    CHECK(settings_value() == QStringLiteral("ask"));
+  }
+  // A script never uses the saved answer: app.open gets page 1, as before (its page note would
+  // bring up the Import Notes box, so that is off here).
+  {
+    patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+    patchy::ui::app_settings().setValue(QStringLiteral("imports/tiffPagesOpen"), QStringLiteral("layers"));
+    patchy::ui::MainWindow window;
+    show_window(window);
+    int asked = 0;
+    {
+      TiffPagesAnswer answer(QStringLiteral("tiffPagesCancelButton"), &asked);
+      const auto source = QStringLiteral(R"JS(
+        const d = app.open('%1');
+        console.log('saved-mode layers=' + d.layers.length);
+      )JS")
+                              .arg(path);
+      CHECK(patchy::test::ui::scripting_support::run_script(window, source));
+    }
+    CHECK(asked == 0);
+    CHECK(patchy::test::ui::scripting_support::backlog_contains(window, QStringLiteral("saved-mode layers=1")));
+  }
+}
+
 // GitHub issue 625's own samples (tlnagy/exampletiffs, copied into
 // local-test-fixtures/tiff-pages, not committed): mri.tif's 27 palette PackBits pages and
 // shapes_multi_color.tif's five pages of mixed types all open as layers.
@@ -340,6 +501,7 @@ void ui_multi_page_tiff_samples_open_as_layers_if_available() {
   patchy::test::skip_unless_exists(dir / "mri.tif");
   SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
   SettingsValueRestorer target_setting(QStringLiteral("imports/tiffPagesTarget"));
+  TiffPagesAskEveryTime ask_mode;
   patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
   DeepEditingOn deep;
   struct Sample {
@@ -460,6 +622,7 @@ void ui_multi_page_tiff_opens_its_first_page_with_a_note() {
   SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
   patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
   SettingsValueRestorer target_setting(QStringLiteral("imports/tiffPagesTarget"));
+  TiffPagesAskEveryTime ask_mode;
   const auto path = write_file(QStringLiteral("pages.tif"), fixture::tiff_file(true, 8, 6, 8, false, {}, 2, 3));
   patchy::ui::MainWindow window;
   show_window(window);
@@ -475,7 +638,10 @@ void ui_multi_page_tiff_opens_its_first_page_with_a_note() {
   const auto& document = std::as_const(MainWindowTestAccess::document(window));
   CHECK(document.width() == 8 && document.height() == 6);
   CHECK(document.layers().size() == 1U);
-  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("3 pages")));
+  // The answer was just given, so no note repeats it (#664).
+  CHECK(!window.statusBar()->currentMessage().contains(QStringLiteral("3 pages")));
+  CHECK(!MainWindowTestAccess::active_session_import_notes(window).join(QLatin1Char('\n')).contains(
+      QStringLiteral("3 pages")));
 }
 
 // GitHub issue 623: 32-bit float RGB with four unspecified extra samples, which Qt's TIFF
@@ -485,6 +651,7 @@ void ui_flat_tiff_qt_refuses_opens_through_the_fallback_decoder() {
   SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
   patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
   SettingsValueRestorer target_setting(QStringLiteral("imports/tiffPagesTarget"));
+  TiffPagesAskEveryTime ask_mode;
   namespace flat = patchy::test::flat_tiff;
   flat::Spec page;
   page.kind = flat::Kind::F32;
@@ -525,7 +692,7 @@ void ui_flat_tiff_qt_refuses_opens_through_the_fallback_decoder() {
     CHECK(!document.layers().empty() && document.layers().front().name() == "float-extras");
     CHECK(document.channels().size() == 4U);
     CHECK(document.file_info().source_format == "TIFF");
-    CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("2 pages")));
+    CHECK(!window.statusBar()->currentMessage().contains(QStringLiteral("2 pages")));
   }
 }
 
@@ -676,6 +843,7 @@ std::vector<patchy::test::TestCase> layered_tiff_ui_tests() {
        ui_multi_page_tiff_page_choice_stays_out_of_import_notes},
       {"ui_multi_page_tiff_separate_documents_cancel_and_scripts",
        ui_multi_page_tiff_separate_documents_cancel_and_scripts},
+      {"ui_multi_page_tiff_saved_choice_opens_without_asking", ui_multi_page_tiff_saved_choice_opens_without_asking},
       {"ui_multi_page_tiff_samples_open_as_layers_if_available",
        ui_multi_page_tiff_samples_open_as_layers_if_available},
       {"ui_flat_tiff_qt_refuses_opens_through_the_fallback_decoder",

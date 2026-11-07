@@ -15089,6 +15089,26 @@ Do you want to replace it?</source>
         <source>Linked layer. Click to select the layers linked to it.</source>
         <translation>Связанный слой. Нажмите, чтобы выделить связанные с ним слои.</translation>
     </message>
+    <message>
+        <source>Multi-page TIFF opened as layers (change this in Preferences)</source>
+        <translation>Многостраничный TIFF открыт как слои (изменить можно в настройках)</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF opened as separate documents (change this in Preferences)</source>
+        <translation>Многостраничный TIFF открыт как отдельные документы (изменить можно в настройках)</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF opened at its first page only (change this in Preferences)</source>
+        <translation>Из многостраничного TIFF открыта только первая страница (изменить можно в настройках)</translation>
+    </message>
+    <message>
+        <source>Don&apos;t ask again</source>
+        <translation>Больше не спрашивать</translation>
+    </message>
+    <message>
+        <source>Open multi-page TIFFs this way from now on. Preferences can turn the question back on.</source>
+        <translation>Отныне открывать многостраничные TIFF так. В настройках вопрос можно снова включить.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -33727,6 +33747,26 @@ Locked: %1</source>
     <message>
         <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
         <translation>%1: %ALT%+перетаскивание рисует как %2, Shift+щелчок рисует линию, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
+    </message>
+    <message>
+        <source>Pages as layers</source>
+        <translation>Страницы как слои</translation>
+    </message>
+    <message>
+        <source>Separate documents</source>
+        <translation>Отдельные документы</translation>
+    </message>
+    <message>
+        <source>First page only</source>
+        <translation>Только первая страница</translation>
+    </message>
+    <message>
+        <source>Pages as layers puts every page on its own layer in one document, page 1 on top. Separate documents opens every page in its own tab.</source>
+        <translation>«Страницы как слои» помещает каждую страницу на отдельный слой одного документа, страница 1 сверху. «Отдельные документы» открывает каждую страницу в своей вкладке.</translation>
+    </message>
+    <message>
+        <source>Opening multi-page TIFFs:</source>
+        <translation>Открытие многостраничных TIFF:</translation>
     </message>
 </context>
 <context>

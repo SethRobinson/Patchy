@@ -14995,6 +14995,26 @@ Do you want to replace it?</source>
         <source>Linked layer. Click to select the layers linked to it.</source>
         <translation>リンクされたレイヤー。クリックで、リンクしているレイヤーを選択します。</translation>
     </message>
+    <message>
+        <source>Multi-page TIFF opened as layers (change this in Preferences)</source>
+        <translation>マルチページ TIFF をレイヤーとして開きました (環境設定で変更できます)</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF opened as separate documents (change this in Preferences)</source>
+        <translation>マルチページ TIFF を個別のドキュメントとして開きました (環境設定で変更できます)</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF opened at its first page only (change this in Preferences)</source>
+        <translation>マルチページ TIFF の最初のページのみを開きました (環境設定で変更できます)</translation>
+    </message>
+    <message>
+        <source>Don&apos;t ask again</source>
+        <translation>今後は確認しない</translation>
+    </message>
+    <message>
+        <source>Open multi-page TIFFs this way from now on. Preferences can turn the question back on.</source>
+        <translation>今後マルチページ TIFF をこの方法で開きます。環境設定で確認を再び有効にできます。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -33551,6 +33571,26 @@ Locked: %1</source>
     <message>
         <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
         <translation>%1: %ALT%+ドラッグで%2として描画、Shift+クリックで直線、%ALT%+右ドラッグでサイズとぼかしを変更します。</translation>
+    </message>
+    <message>
+        <source>Pages as layers</source>
+        <translation>ページをレイヤーに</translation>
+    </message>
+    <message>
+        <source>Separate documents</source>
+        <translation>個別のドキュメント</translation>
+    </message>
+    <message>
+        <source>First page only</source>
+        <translation>最初のページのみ</translation>
+    </message>
+    <message>
+        <source>Pages as layers puts every page on its own layer in one document, page 1 on top. Separate documents opens every page in its own tab.</source>
+        <translation>「ページをレイヤーに」は各ページを 1 つのドキュメントの個別のレイヤーにし、ページ 1 を最上部に置きます。「個別のドキュメント」は各ページを個別のタブで開きます。</translation>
+    </message>
+    <message>
+        <source>Opening multi-page TIFFs:</source>
+        <translation>マルチページ TIFF を開くとき:</translation>
     </message>
 </context>
 <context>

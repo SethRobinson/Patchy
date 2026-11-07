@@ -15042,6 +15042,26 @@ Sostituirlo?</translation>
         <source>Linked layer. Click to select the layers linked to it.</source>
         <translation>Livello collegato. Fai clic per selezionare i livelli collegati a esso.</translation>
     </message>
+    <message>
+        <source>Multi-page TIFF opened as layers (change this in Preferences)</source>
+        <translation>TIFF multipagina aperto come livelli (modificabile nelle Preferenze)</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF opened as separate documents (change this in Preferences)</source>
+        <translation>TIFF multipagina aperto come documenti separati (modificabile nelle Preferenze)</translation>
+    </message>
+    <message>
+        <source>Multi-page TIFF opened at its first page only (change this in Preferences)</source>
+        <translation>TIFF multipagina aperto solo alla prima pagina (modificabile nelle Preferenze)</translation>
+    </message>
+    <message>
+        <source>Don&apos;t ask again</source>
+        <translation>Non chiedere più</translation>
+    </message>
+    <message>
+        <source>Open multi-page TIFFs this way from now on. Preferences can turn the question back on.</source>
+        <translation>Apri d&apos;ora in poi i TIFF multipagina in questo modo. Dalle Preferenze puoi riattivare la domanda.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -33639,6 +33659,26 @@ Bloccato: %1</translation>
     <message>
         <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
         <translation>%1: %ALT%+trascina dipinge con %2, Maiusc+clic traccia una linea, %ALT%+trascina con il tasto destro cambia dimensione e morbidezza.</translation>
+    </message>
+    <message>
+        <source>Pages as layers</source>
+        <translation>Pagine come livelli</translation>
+    </message>
+    <message>
+        <source>Separate documents</source>
+        <translation>Documenti separati</translation>
+    </message>
+    <message>
+        <source>First page only</source>
+        <translation>Solo la prima pagina</translation>
+    </message>
+    <message>
+        <source>Pages as layers puts every page on its own layer in one document, page 1 on top. Separate documents opens every page in its own tab.</source>
+        <translation>Pagine come livelli mette ogni pagina su un proprio livello in un unico documento, con la pagina 1 in cima. Documenti separati apre ogni pagina in una propria scheda.</translation>
+    </message>
+    <message>
+        <source>Opening multi-page TIFFs:</source>
+        <translation>Apertura di TIFF multipagina:</translation>
     </message>
 </context>
 <context>

@@ -1184,6 +1184,10 @@ QImage srgb_image_from_cmyk(const QImage& cmyk, QString& profile_name) {
   return rgb;
 }
 
+// How a multi-page TIFF opens (docs/tiff.md, "Multi-page TIFF"). FirstPage is the
+// non-interactive default (CLI, scripts, Files as Layers), as page 1 is for a PDF there.
+enum class TiffPagesChoice { FirstPage, Layers, Documents };
+
 struct OpenDocumentResult {
   Document document;
   QString file_name;
@@ -1219,6 +1223,9 @@ struct OpenDocumentResult {
   // question (a multi-page TIFF's page choice): the status bar shows them, the Import Notes
   // box leaves them out (#551, #625). Empty when nobody was asked (scripts, CLI, headless).
   QStringList answered_notices{};
+  // How a multi-page TIFF actually opened (Layers or Documents when its pages opened, FirstPage
+  // when only page 1 did); nullopt for every other file.
+  std::optional<TiffPagesChoice> tiff_pages_opened{};
 };
 
 std::vector<std::uint8_t> read_all_file_bytes(const QString& path) {
@@ -1550,10 +1557,6 @@ bool open_layered_tiff(const QString& path, const QFileInfo& info, Document& ope
   return true;
 }
 
-// How a multi-page TIFF opens (docs/tiff.md, "Multi-page TIFF"). FirstPage is the
-// non-interactive default (CLI, scripts, Files as Layers), as page 1 is for a PDF there.
-enum class TiffPagesChoice { FirstPage, Layers, Documents };
-
 // The file's pages, read from a memory map so the interactive open can ask before the
 // worker load reads the whole file; empty for a layered (Photoshop) TIFF, which opens
 // with its layers, and for anything that is not a TIFF.
@@ -1579,8 +1582,43 @@ std::vector<psd::TiffPage> probe_tiff_pages(const QString& path) {
   }
 }
 
+// What an interactive open of a multi-page TIFF does (#664): `ask`, or a saved answer
+// (`layers`, `documents`, `first`) from the question's "Don't ask again" box or Preferences.
+// Tokens are permanent.
+constexpr auto kTiffPagesOpenKey = "imports/tiffPagesOpen";
+
+// The saved answer an interactive open uses without asking; nullopt while it is "Ask every time".
+std::optional<TiffPagesChoice> saved_tiff_pages_choice() {
+  const auto mode = app_settings().value(QString::fromLatin1(kTiffPagesOpenKey), QStringLiteral("ask")).toString();
+  if (mode == QStringLiteral("layers")) {
+    return TiffPagesChoice::Layers;
+  }
+  if (mode == QStringLiteral("documents")) {
+    return TiffPagesChoice::Documents;
+  }
+  if (mode == QStringLiteral("first")) {
+    return TiffPagesChoice::FirstPage;
+  }
+  return std::nullopt;
+}
+
+// The status line for a multi-page TIFF opened by the saved answer: it names Preferences so
+// whoever ticked "Don't ask again" can find where to change it (#664).
+QString saved_tiff_pages_note(TiffPagesChoice opened) {
+  switch (opened) {
+    case TiffPagesChoice::Layers:
+      return QObject::tr("Multi-page TIFF opened as layers (change this in Preferences)");
+    case TiffPagesChoice::Documents:
+      return QObject::tr("Multi-page TIFF opened as separate documents (change this in Preferences)");
+    case TiffPagesChoice::FirstPage:
+      break;
+  }
+  return QObject::tr("Multi-page TIFF opened at its first page only (change this in Preferences)");
+}
+
 // The question a multi-page TIFF asks on an interactive open; nullopt when cancelled. The
-// last answer is the default button next time (imports/tiffPagesTarget).
+// last answer is the default button next time (imports/tiffPagesTarget); with "Don't ask
+// again" ticked it is also saved as the answer to use from then on (kTiffPagesOpenKey).
 std::optional<TiffPagesChoice> ask_tiff_pages_choice(QWidget* parent, const QString& file_name, std::size_t pages) {
   const auto key = QStringLiteral("imports/tiffPagesTarget");
   const auto remembered = app_settings().value(key, QStringLiteral("layers")).toString();
@@ -1605,19 +1643,28 @@ std::optional<TiffPagesChoice> ask_tiff_pages_choice(QWidget* parent, const QStr
   box.setDefaultButton(remembered == QStringLiteral("documents") ? documents
                        : remembered == QStringLiteral("first")   ? first
                                                                  : layers);
+  auto* dont_ask = new QCheckBox(QObject::tr("Don't ask again"), &box);
+  dont_ask->setObjectName(QStringLiteral("tiffPagesDontAskCheck"));
+  dont_ask->setToolTip(QObject::tr("Open multi-page TIFFs this way from now on. Preferences can turn the "
+                                   "question back on."));
+  box.setCheckBox(dont_ask);
   exec_dialog(box);
   const auto* clicked = box.clickedButton();
+  const auto answered = [&](TiffPagesChoice choice, const QString& token) {
+    app_settings().setValue(key, token);
+    if (dont_ask->isChecked()) {
+      app_settings().setValue(QString::fromLatin1(kTiffPagesOpenKey), token);
+    }
+    return choice;
+  };
   if (clicked == layers) {
-    app_settings().setValue(key, QStringLiteral("layers"));
-    return TiffPagesChoice::Layers;
+    return answered(TiffPagesChoice::Layers, QStringLiteral("layers"));
   }
   if (clicked == documents) {
-    app_settings().setValue(key, QStringLiteral("documents"));
-    return TiffPagesChoice::Documents;
+    return answered(TiffPagesChoice::Documents, QStringLiteral("documents"));
   }
   if (clicked == first) {
-    app_settings().setValue(key, QStringLiteral("first"));
-    return TiffPagesChoice::FirstPage;
+    return answered(TiffPagesChoice::FirstPage, QStringLiteral("first"));
   }
   return std::nullopt;
 }
@@ -1775,6 +1822,7 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
   QStringList import_notices;
   // The multi-page TIFF notes, which restate the page choice when the user was asked.
   QStringList page_choice_notices;
+  std::optional<TiffPagesChoice> tiff_pages_opened;
   QStringList blocked_link_servers;
   bool force_import_notices_popup = false;
   // True when the decoder handed over the file's pixel values untouched (Qt's
@@ -1869,6 +1917,7 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
         page_choice_notices.push_back(
             QObject::tr("This TIFF holds %1 pages; Patchy opened the first one.").arg(static_cast<qulonglong>(pages)));
         import_notices.push_back(page_choice_notices.back());
+        tiff_pages_opened = TiffPagesChoice::FirstPage;
       }
     };
     if (image.isNull() && is_tiff_extension(extension)) {
@@ -1981,6 +2030,7 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
       open_tiff_pages(path, tiff_pages, opened, document_title, extra_documents, import_notices,
                       page_choice_notices, cmyk_source)) {
     pixels_in_source_space = !cmyk_source;
+    tiff_pages_opened = tiff_pages;
   } else if (is_pdf_extension(extension)) {
     PdfImportOptions pdf_options;
     pdf_options.resolution_ppi =
@@ -2191,6 +2241,7 @@ OpenDocumentResult load_document_from_path_as(const QString& path, const QString
   result.cmyk_source = cmyk_source;
   result.blocked_link_servers = std::move(blocked_link_servers);
   result.answered_notices = std::move(page_choice_notices);
+  result.tiff_pages_opened = tiff_pages_opened;
   return result;
 }
 
@@ -2447,24 +2498,45 @@ std::optional<OpenDocumentResult> load_document_interactive_once(QWidget* parent
   }
 
   // A multi-page TIFF asks how to open its pages before the worker load (docs/tiff.md,
-  // "Multi-page TIFF"); a running script never sees the question and gets page 1.
+  // "Multi-page TIFF"), unless an answer was saved (#664); a running script never sees the
+  // question or the saved answer and gets page 1.
   auto tiff_pages = TiffPagesChoice::FirstPage;
-  bool tiff_pages_asked = false;
+  enum class TiffPagesSource { None, Asked, Saved };
+  auto tiff_pages_source = TiffPagesSource::None;
   if (interactive && allow_raw_dialog && is_tiff_extension(extension)) {
     if (const auto pages = probe_tiff_pages(path); pages.size() > 1U) {
-      const auto choice = ask_tiff_pages_choice(parent, info.fileName(), pages.size());
-      if (!choice.has_value()) {
-        return std::nullopt;
+      if (const auto saved = saved_tiff_pages_choice(); saved.has_value()) {
+        tiff_pages = *saved;
+        tiff_pages_source = TiffPagesSource::Saved;
+      } else {
+        const auto choice = ask_tiff_pages_choice(parent, info.fileName(), pages.size());
+        if (!choice.has_value()) {
+          return std::nullopt;
+        }
+        tiff_pages = *choice;
+        tiff_pages_source = TiffPagesSource::Asked;
       }
-      tiff_pages = *choice;
-      tiff_pages_asked = true;
     }
   }
-  // The page-count note only repeats an answer the user just gave (#625); unasked opens
-  // keep it as an ordinary note.
-  const auto keep_answered = [tiff_pages_asked](std::optional<OpenDocumentResult> loaded) {
-    if (loaded.has_value() && !tiff_pages_asked) {
+  // The page-count note only repeats an answer the user just gave, so it is dropped (#625,
+  // #664); a saved answer gets one status line naming Preferences instead, kept out of the
+  // Import Notes box. Unasked opens keep the note as an ordinary one.
+  const auto keep_answered = [tiff_pages_source](std::optional<OpenDocumentResult> loaded) {
+    if (!loaded.has_value()) {
+      return loaded;
+    }
+    if (tiff_pages_source == TiffPagesSource::None) {
       loaded->answered_notices.clear();
+      return loaded;
+    }
+    for (const auto& answered : std::as_const(loaded->answered_notices)) {
+      loaded->import_notices.removeAll(answered);
+    }
+    loaded->answered_notices.clear();
+    if (tiff_pages_source == TiffPagesSource::Saved && loaded->tiff_pages_opened.has_value()) {
+      const auto note = saved_tiff_pages_note(*loaded->tiff_pages_opened);
+      loaded->import_notices.prepend(note);
+      loaded->answered_notices.push_back(note);
     }
     return loaded;
   };
