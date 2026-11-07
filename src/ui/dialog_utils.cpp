@@ -2069,6 +2069,29 @@ void configure_toolbar_spinbox(QDoubleSpinBox* spin, int width) {
   configure_toolbar_spinbox_impl(spin, width);
 }
 
+bool spin_box_is_being_typed_in(const QAbstractSpinBox* spin) {
+  return spin != nullptr && spin->hasFocus();
+}
+
+void set_spin_value_unless_typing(QDoubleSpinBox* spin, double value) {
+  if (spin == nullptr) {
+    return;
+  }
+  // setValue rounds to decimals(): within half a last digit the field already shows it.
+  const double half_digit = 0.5 * std::pow(10.0, -spin->decimals());
+  if (spin_box_is_being_typed_in(spin) && std::abs(spin->value() - value) < half_digit) {
+    return;
+  }
+  spin->setValue(value);
+}
+
+void set_spin_value_unless_typing(QSpinBox* spin, int value) {
+  if (spin == nullptr || (spin_box_is_being_typed_in(spin) && spin->value() == value)) {
+    return;
+  }
+  spin->setValue(value);
+}
+
 void configure_dialog_spinbox(QSpinBox* spin, int width) {
   spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
   spin->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
@@ -2143,7 +2166,12 @@ QSpinBox* add_dialog_slider_spin_row_with(QFormLayout* form, QWidget* parent, co
   }
   slider->setRange(minimum, slider_top);
   slider->setValue(std::min(value, slider_top));
-  QObject::connect(slider, &QSlider::valueChanged, spin, &QSpinBox::setValue);
+  // The slider's echo of a typed value never rewrites the field (ui-conventions.md#number-fields).
+  QObject::connect(slider, &QSlider::valueChanged, spin, [spin](int position) {
+    if (spin->value() != position) {
+      spin->setValue(position);
+    }
+  });
   if (slider_top == maximum) {
     QObject::connect(spin, qOverload<int>(&QSpinBox::valueChanged), slider, &QSlider::setValue);
   } else {

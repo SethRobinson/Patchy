@@ -27,11 +27,15 @@
 #include "ui/measurement_units.hpp"
 #include "ui/localization.hpp"
 #include "ui/unit_spin_box.hpp"
+#include "ui/dialog_utils.hpp"
 #include "test_harness.hpp"
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
 #include <QApplication>
 #include <QContextMenuEvent>
+#include <QFormLayout>
+#include <QSlider>
+#include <QTest>
 #include <QLineEdit>
 #include <QLocale>
 #include <QMenu>
@@ -578,6 +582,132 @@ void unit_spin_box_context_menu_pick_emits_picked() {
   CHECK(picked.size() == 2);
 }
 
+namespace {
+
+// Types `keys` one character at a time into `spin` (all of it selected first) and
+// returns the field's text after each character, without the suffix Qt keeps after
+// the caret.
+QStringList type_keys(QAbstractSpinBox& spin, const QString& keys) {
+  QStringList texts;
+  auto* editor = spin.findChild<QLineEdit*>();
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return texts;
+  }
+  spin.activateWindow();
+  spin.setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  editor->selectAll();
+  for (const auto key : keys) {
+    QTest::keyClicks(editor, QString(key));
+    QApplication::processEvents();
+    auto text = editor->text();
+    QString suffix;
+    if (const auto* whole = qobject_cast<const QSpinBox*>(&spin)) {
+      suffix = whole->suffix();
+    } else if (const auto* real = qobject_cast<const QDoubleSpinBox*>(&spin)) {
+      suffix = real->suffix();
+    }
+    if (!suffix.isEmpty() && text.endsWith(suffix)) {
+      text.chop(suffix.size());
+    }
+    texts.push_back(text.trimmed());
+  }
+  std::cerr << "typed " << keys.toStdString() << ": " << texts.join(QStringLiteral(" | ")).toStdString() << '\n';
+  return texts;
+}
+
+// local-038: "2." on the way to "2.5 mm" stays editable in a whole-pixel field; the
+// integer validator used to refuse the point.
+void unit_spin_box_int_accepts_decimal_before_unit() {
+  QWidget window;
+  auto* spin = new UnitIntSpinBox(SpinUnit::Pixels, &window);
+  spin->setRange(0, 5000);
+  spin->set_context_provider([] { return UnitConversionContext{72.0, 400.0}; });
+  spin->setValue(7);
+  window.show();
+  (void)QTest::qWaitForWindowActive(&window, 2000);
+  const auto texts = type_keys(*spin, QStringLiteral("2.5 in"));
+  CHECK(texts.value(1) == QStringLiteral("2."));
+  // (A whole-number field drops the space; "2.5in" reads the same.)
+  CHECK(QString(texts.value(texts.size() - 1)).remove(QLatin1Char(' ')) == QStringLiteral("2.5in"));
+  spin->interpretText();
+  CHECK(spin->value() == 180);
+  // A decimal with no unit is not a whole pixel count: the field keeps the last whole
+  // value it read while typing ("3") and shows it on commit.
+  (void)type_keys(*spin, QStringLiteral("3.5"));
+  QTest::keyClick(spin, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(spin->value() == 3);
+  CHECK(spin->text() == QStringLiteral("3 px"));
+}
+
+// A handler that writes the value back through set_spin_value_unless_typing leaves the
+// field's text alone while it is typed in, and still shows a value the handler changed
+// (a clamp or fold) and any value set while the field is not focused.
+void unit_spin_box_set_value_unless_typing_keeps_typed_text() {
+  QWidget window;
+  auto* spin = new QDoubleSpinBox(&window);
+  spin->setDecimals(2);
+  spin->setRange(0.0, 100.0);
+  spin->setSuffix(QStringLiteral(" in"));
+  auto* other = new QDoubleSpinBox(&window);
+  other->move(0, 40);
+  double fold_above = 1000.0;
+  QObject::connect(spin, &QDoubleSpinBox::valueChanged, spin, [spin, &fold_above](double value) {
+    const QSignalBlocker blocker(spin);
+    patchy::ui::set_spin_value_unless_typing(spin, value > fold_above ? fold_above : value);
+  });
+  window.show();
+  (void)QTest::qWaitForWindowActive(&window, 2000);
+  const auto texts = type_keys(*spin, QStringLiteral("2.25"));
+  CHECK(spin->hasFocus());
+  CHECK(texts == QStringList({QStringLiteral("2"), QStringLiteral("2."), QStringLiteral("2.2"), QStringLiteral("2.25")}));
+  CHECK(close_to(spin->value(), 2.25));
+  // A handler-changed value still shows.
+  fold_above = 50.0;
+  (void)type_keys(*spin, QStringLiteral("75"));
+  CHECK(close_to(spin->value(), 50.0));
+  CHECK(spin->text() == QStringLiteral("50.00 in"));
+  // Not focused: always set.
+  other->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  patchy::ui::set_spin_value_unless_typing(spin, 12.0);
+  CHECK(spin->text() == QStringLiteral("12.00 in"));
+}
+
+// Slider rows: the slider's echo of a typed value never rewrites the field, so a unit
+// token can be finished ("1 inches" used to become "72 px" at "1 in") and a typed "0"
+// in a field whose minimum shows "Off" is not replaced under the caret.
+void unit_spin_box_slider_row_echo_keeps_typed_text() {
+  QWidget window;
+  auto* form = new QFormLayout(&window);
+  auto* spin = patchy::ui::add_dialog_slider_spin_row(form, &window, QStringLiteral("Noise"),
+                                                      QStringLiteral("testSlider"), QStringLiteral("testSpin"), 0,
+                                                      500, 5, SpinUnit::Pixels,
+                                                      [] { return UnitConversionContext{72.0, 0.0}; });
+  auto* slider = window.findChild<QSlider*>(QStringLiteral("testSlider"));
+  CHECK(spin != nullptr && slider != nullptr);
+  if (spin == nullptr || slider == nullptr) {
+    return;
+  }
+  spin->setSpecialValueText(QStringLiteral("Off"));
+  window.show();
+  (void)QTest::qWaitForWindowActive(&window, 2000);
+  const auto texts = type_keys(*spin, QStringLiteral("1 inches"));
+  CHECK(QString(texts.value(texts.size() - 1)).remove(QLatin1Char(' ')) == QStringLiteral("1inches"));
+  CHECK(spin->value() == 72);
+  CHECK(slider->value() == 72);
+  const auto zero = type_keys(*spin, QStringLiteral("0"));
+  CHECK(zero.value(0) == QStringLiteral("0"));
+  CHECK(spin->value() == 0);
+  // The slider still drives the field.
+  slider->setValue(40);
+  CHECK(spin->value() == 40);
+}
+
+}  // namespace
+
 std::vector<patchy::test::TestCase> unit_spin_box_tests() {
   return {
       {"unit_spin_box_parses_unit_tokens", unit_spin_box_parses_unit_tokens},
@@ -594,5 +724,8 @@ std::vector<patchy::test::TestCase> unit_spin_box_tests() {
       {"unit_spin_box_display_unit_adjusts_decimals_and_step", unit_spin_box_display_unit_adjusts_decimals_and_step},
       {"unit_spin_box_document_field_units_helpers", unit_spin_box_document_field_units_helpers},
       {"unit_spin_box_context_menu_pick_emits_picked", unit_spin_box_context_menu_pick_emits_picked},
+      {"unit_spin_box_int_accepts_decimal_before_unit", unit_spin_box_int_accepts_decimal_before_unit},
+      {"unit_spin_box_set_value_unless_typing_keeps_typed_text", unit_spin_box_set_value_unless_typing_keeps_typed_text},
+      {"unit_spin_box_slider_row_echo_keeps_typed_text", unit_spin_box_slider_row_echo_keeps_typed_text},
   };
 }

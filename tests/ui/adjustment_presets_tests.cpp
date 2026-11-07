@@ -30,6 +30,7 @@
 #include <QImage>
 #include <QInputDialog>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPainter>
@@ -38,6 +39,7 @@
 #include <QSlider>
 #include <QSpinBox>
 #include <QTabBar>
+#include <QTest>
 #include <QTimer>
 #include <QToolButton>
 #include <QWidget>
@@ -1144,6 +1146,56 @@ void ui_adjustment_presets_color_balance_tabs_tracks_reset_and_order() {
         !result->tone(patchy::ColorBalanceToneRange::Midtones).has_effect() && result->preserve_luminosity);
 }
 
+
+// local-038: the Levels gamma field takes "2.5" key by key. Every keystroke used to
+// write the value back ("2" became "2.00" with the caret after the 2), so the point
+// was refused and no decimal gamma could be typed.
+void ui_adjustment_presets_levels_gamma_field_takes_typing() {
+  const auto themed_parent = make_themed_dialog_parent();
+  auto& parent = *themed_parent;
+  parent.show();
+  QApplication::processEvents();
+  bool checked = false;
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyLevelsDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* gamma = child<QSpinBox>(*dialog, "levelsGammaSpin");
+    auto* white = child<QSpinBox>(*dialog, "levelsWhiteInputSpin");
+    auto* editor = gamma != nullptr ? gamma->findChild<QLineEdit*>() : nullptr;
+    CHECK(gamma != nullptr && white != nullptr && editor != nullptr);
+    if (gamma == nullptr || white == nullptr || editor == nullptr) {
+      dialog->reject();
+      return;
+    }
+    dialog->activateWindow();
+    (void)QTest::qWaitForWindowActive(dialog, 2000);
+    gamma->setFocus(Qt::OtherFocusReason);
+    QApplication::processEvents();
+    CHECK(gamma->hasFocus());
+    editor->selectAll();
+    QStringList texts;
+    for (const auto key : QStringLiteral("2.5")) {
+      QTest::keyClicks(editor, QString(key));
+      QApplication::processEvents();
+      texts.push_back(editor->text());
+    }
+    std::cerr << "gamma text after each key: " << texts.join(QStringLiteral(" | ")).toStdString() << '\n';
+    CHECK(texts == QStringList({QStringLiteral("2"), QStringLiteral("2."), QStringLiteral("2.5")}));
+    CHECK(gamma->value() == 250);
+    white->setFocus(Qt::TabFocusReason);
+    QApplication::processEvents();
+    CHECK(gamma->text() == QStringLiteral("2.50"));
+    checked = true;
+    dialog->accept();
+  }));
+  const auto result = patchy::ui::request_levels_settings(&parent, {}, {}, nullptr, {});
+  CHECK(checked);
+  CHECK(result.has_value() && result->gamma_percent == 250);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> adjustment_presets_tests() {
@@ -1153,6 +1205,7 @@ std::vector<patchy::test::TestCase> adjustment_presets_tests() {
        ui_adjustment_presets_hue_saturation_presets_tracks_and_buttons},
       {"ui_adjustment_presets_levels_presets_fields_and_eyedroppers",
        ui_adjustment_presets_levels_presets_fields_and_eyedroppers},
+      {"ui_adjustment_presets_levels_gamma_field_takes_typing", ui_adjustment_presets_levels_gamma_field_takes_typing},
       {"ui_adjustment_presets_curves_layout_and_user_presets", ui_adjustment_presets_curves_layout_and_user_presets},
       {"ui_adjustment_presets_black_white_user_presets", ui_adjustment_presets_black_white_user_presets},
       {"ui_adjustment_presets_color_balance_tabs_tracks_reset_and_order",

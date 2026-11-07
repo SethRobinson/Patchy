@@ -7496,10 +7496,6 @@ RGB：%2, %3, %4</translation>
         <translation>影像</translation>
     </message>
     <message>
-        <source>Units:</source>
-        <translation>單位:</translation>
-    </message>
-    <message>
         <source>Print Resolution</source>
         <translation>列印解析度</translation>
     </message>
@@ -15014,6 +15010,10 @@ Do you want to replace it?</source>
     <message>
         <source>Open multi-page TIFFs this way from now on. Preferences can turn the question back on.</source>
         <translation>今後都以這種方式開啟多頁 TIFF。可在偏好設定中重新開啟此詢問。</translation>
+    </message>
+    <message>
+        <source>Units</source>
+        <translation>單位</translation>
     </message>
 </context>
 <context>

@@ -532,7 +532,15 @@ void UnitIntSpinBox::changeEvent(QEvent* event) {
 QValidator::State UnitIntSpinBox::validate(QString& input, int& pos) const {
   const auto parsed = parse_unit_entry(input, locale(), prefix(), suffix());
   if (!parsed.has_unit_token) {
-    return QSpinBox::validate(input, pos);
+    const auto state = QSpinBox::validate(input, pos);
+    // A decimal number is on its way to a unit token ("2." then "2.5 mm"): keep it
+    // editable. Without a unit it is not a whole number and reverts on commit.
+    const bool has_point = input.contains(QLatin1Char('.')) || (!locale().decimalPoint().isEmpty() &&
+                                                                input.contains(locale().decimalPoint()));
+    if (state == QValidator::Invalid && has_point && parsed.state != QValidator::Invalid) {
+      return QValidator::Intermediate;
+    }
+    return state;
   }
   if (parsed.state != QValidator::Acceptable) {
     return parsed.state;

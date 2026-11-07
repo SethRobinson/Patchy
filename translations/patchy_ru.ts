@@ -7896,10 +7896,6 @@ RGB: %2, %3, %4</translation>
         <translation>Изображение</translation>
     </message>
     <message>
-        <source>Units:</source>
-        <translation>Единицы:</translation>
-    </message>
-    <message>
         <source>Print Resolution</source>
         <translation>Разрешение печати</translation>
     </message>
@@ -15108,6 +15104,10 @@ Do you want to replace it?</source>
     <message>
         <source>Open multi-page TIFFs this way from now on. Preferences can turn the question back on.</source>
         <translation>Отныне открывать многостраничные TIFF так. В настройках вопрос можно снова включить.</translation>
+    </message>
+    <message>
+        <source>Units</source>
+        <translation>Единицы</translation>
     </message>
 </context>
 <context>

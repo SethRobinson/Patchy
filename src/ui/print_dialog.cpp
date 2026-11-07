@@ -917,16 +917,31 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
   orientation_combo->addItem(QObject::tr("Portrait"), static_cast<int>(QPageLayout::Portrait));
   orientation_combo->addItem(QObject::tr("Landscape"), static_cast<int>(QPageLayout::Landscape));
   paper_form->addRow(QObject::tr("Orientation"), orientation_combo);
-  auto* page_width = new QDoubleSpinBox(paper_group);
-  page_width->setObjectName(QStringLiteral("printPageWidthSpin"));
-  page_width->setDecimals(2);
-  configure_dialog_spinbox(page_width);
-  auto* page_height = new QDoubleSpinBox(paper_group);
-  page_height->setObjectName(QStringLiteral("printPageHeightSpin"));
-  page_height->setDecimals(2);
-  configure_dialog_spinbox(page_height);
+  // The length fields hold points and show the Units choice below; a typed unit
+  // ("21 cm", "210mm") converts. Four decimals of a point round-trip every in/cm/mm
+  // value the field shows (1 mm is 2.8346 pt), and trailing zeros are hidden.
+  const auto make_length_spin = [](QWidget* parent, const char* object_name, double minimum_points,
+                                   double maximum_points) {
+    auto* spin = new UnitSpinBox(SpinUnit::Points, parent);
+    spin->setObjectName(QString::fromLatin1(object_name));
+    spin->setDecimals(4);
+    spin->setRange(minimum_points, maximum_points);
+    spin->set_trim_trailing_zeros(true);
+    configure_dialog_spinbox(spin);
+    return spin;
+  };
+  auto* page_width = make_length_spin(paper_group, "printPageWidthSpin", 0.1 * kPointsPerInch, 200.0 * kPointsPerInch);
+  auto* page_height = make_length_spin(paper_group, "printPageHeightSpin", 0.1 * kPointsPerInch, 200.0 * kPointsPerInch);
   paper_form->addRow(QObject::tr("Width"), page_width);
   paper_form->addRow(QObject::tr("Height"), page_height);
+  // Units sit with the sizes they change; they also apply to the offsets, the scaled
+  // print size and the image size below.
+  auto* units = new QComboBox(paper_group);
+  units->setObjectName(QStringLiteral("printUnitsCombo"));
+  units->addItem(QObject::tr("in"), QStringLiteral("in"));
+  units->addItem(QObject::tr("cm"), QStringLiteral("cm"));
+  units->addItem(QObject::tr("mm"), QStringLiteral("mm"));
+  paper_form->addRow(QObject::tr("Units"), units);
   // Artboard pages only: a sheet the size of each artboard (custom sizes without a
   // printer driver, issue 19).
   auto* match_artboard = new QCheckBox(QObject::tr("Match each artboard"), paper_group);
@@ -955,16 +970,8 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
   center->setChecked(true);
   form->addRow(QString(), center);
 
-  auto* x = new UnitSpinBox(SpinUnit::Inches, settings_group);
-  x->setObjectName(QStringLiteral("printOffsetXSpin"));
-  x->setRange(-100.0, 100.0);
-  x->setDecimals(2);
-  configure_dialog_spinbox(x);
-  auto* y = new UnitSpinBox(SpinUnit::Inches, settings_group);
-  y->setObjectName(QStringLiteral("printOffsetYSpin"));
-  y->setRange(-100.0, 100.0);
-  y->setDecimals(2);
-  configure_dialog_spinbox(y);
+  auto* x = make_length_spin(settings_group, "printOffsetXSpin", -100.0 * kPointsPerInch, 100.0 * kPointsPerInch);
+  auto* y = make_length_spin(settings_group, "printOffsetYSpin", -100.0 * kPointsPerInch, 100.0 * kPointsPerInch);
   form->addRow(QObject::tr("X"), x);
   form->addRow(QObject::tr("Y"), y);
 
@@ -1014,16 +1021,8 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
   // Size's job.
   auto* resolution_value = new QLabel(resolution_row);
   resolution_value->setObjectName(QStringLiteral("printResolutionValueLabel"));
-  auto* units_label = new QLabel(QObject::tr("Units:"), resolution_row);
-  auto* units = new QComboBox(resolution_row);
-  units->setObjectName(QStringLiteral("printUnitsCombo"));
-  units->addItem(QObject::tr("in"), QStringLiteral("in"));
-  units->addItem(QObject::tr("cm"), QStringLiteral("cm"));
-  units->addItem(QObject::tr("mm"), QStringLiteral("mm"));
   resolution_layout->addWidget(resolution_value);
   resolution_layout->addStretch(1);
-  resolution_layout->addWidget(units_label);
-  resolution_layout->addWidget(units);
   form->addRow(QObject::tr("Print Resolution"), resolution_row);
 
   auto* crop_marks = new QCheckBox(QObject::tr("Print crop marks"), settings_group);
@@ -1040,6 +1039,19 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
   pdf_button->setObjectName(QStringLiteral("printDialogPdfButton"));
   buttons->addButton(QDialogButtonBox::Cancel);
   side_layout->addWidget(buttons);
+
+  // The length fields show the Units choice; their values stay in points.
+  const auto apply_units = [&] {
+    const auto unit = units->currentData().toString();
+    const auto shown = unit == QStringLiteral("cm")   ? SpinUnit::Centimeters
+                       : unit == QStringLiteral("mm") ? SpinUnit::Millimeters
+                                                      : SpinUnit::Inches;
+    for (auto* spin : {page_width, page_height, x, y}) {
+      const QSignalBlocker block(spin);
+      spin->set_display_unit(shown);
+    }
+  };
+  apply_units();
 
   // Layout -> paper controls. The custom spins always show the current sheet (in the
   // units combo's unit) so switching to Custom starts from the sheet on screen. An
@@ -1061,19 +1073,17 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
     orientation_combo->setCurrentIndex(
         std::max(0, orientation_combo->findData(static_cast<int>(current_layout.orientation()))));
     const bool custom = page_size_combo->currentData().toInt() == static_cast<int>(QPageSize::Custom);
-    const auto factor = unit_factor_from_inches(units);
     const auto sheet_points = size.size(QPageSize::Point);
     // A matched artboard sheet replaces the paper choice.
     const bool matched = settings.area_mode == PrintAreaMode::Artboards && settings.match_artboard_paper;
     page_size_combo->setEnabled(!matched);
     orientation_combo->setEnabled(!matched);
     for (auto* spin : {page_width, page_height}) {
-      spin->setSuffix(unit_suffix(units));
-      spin->setRange(0.1 * factor, 200.0 * factor);
       spin->setEnabled(custom && !matched);
     }
-    page_width->setValue(sheet_points.width() / kPointsPerInch * factor);
-    page_height->setValue(sheet_points.height() / kPointsPerInch * factor);
+    // Never under the caret: the field being typed in keeps its text (ui-conventions.md).
+    set_spin_value_unless_typing(page_width, sheet_points.width());
+    set_spin_value_unless_typing(page_height, sheet_points.height());
   };
 
   const auto sync_settings = [&] {
@@ -1081,8 +1091,8 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
     settings.scale_mode = scale_to_fit->isChecked() ? PrintScaleMode::FitToPage : PrintScaleMode::CustomScale;
     settings.scale_percent = scale->value();
     settings.center = center->isChecked();
-    settings.offset_x_inches = x->value();
-    settings.offset_y_inches = y->value();
+    settings.offset_x_inches = x->value() / kPointsPerInch;
+    settings.offset_y_inches = y->value() / kPointsPerInch;
     settings.crop_marks = crop_marks->isChecked();
     settings.match_artboard_paper = match_artboard->isChecked();
     const bool by_artboards = settings.area_mode == PrintAreaMode::Artboards && !artboard_pages.empty();
@@ -1100,7 +1110,7 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
     preview_layout = matched ? artboard_page_layout(shown) : current_layout;
     preview->set_state(&shown, &preview_settings, &preview_layout);
     const auto placement = calculate_print_placement(shown, preview_settings, preview_layout);
-    scale->setValue(placement.scale_percent);
+    set_spin_value_unless_typing(scale, placement.scale_percent);
     scale_size->setText(formatted_size(placement.print_size_inches, units));
     const auto scale_factor = std::max(0.01, placement.scale_percent / 100.0);
     const auto derived_horizontal =
@@ -1127,9 +1137,7 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
     custom_sheet_chosen = id == QPageSize::Custom;
     QPageSize size;
     if (id == QPageSize::Custom) {
-      const auto factor = unit_factor_from_inches(units);
-      size = custom_page_size_points(QSizeF(page_width->value() / factor * kPointsPerInch,
-                                            page_height->value() / factor * kPointsPerInch));
+      size = custom_page_size_points(QSizeF(page_width->value(), page_height->value()));
     } else {
       size = QPageSize(id);
     }
@@ -1141,7 +1149,15 @@ bool run_print_dialog(QWidget* parent, const Document& document, const QString& 
   QObject::connect(orientation_combo, &QComboBox::currentIndexChanged, &dialog, apply_paper_controls);
   QObject::connect(page_width, &QDoubleSpinBox::valueChanged, &dialog, apply_paper_controls);
   QObject::connect(page_height, &QDoubleSpinBox::valueChanged, &dialog, apply_paper_controls);
-  QObject::connect(units, &QComboBox::currentIndexChanged, &dialog, sync_paper_controls);
+  QObject::connect(units, &QComboBox::currentIndexChanged, &dialog, [&] {
+    apply_units();
+    sync_paper_controls();
+  });
+  // A typed value settles once editing ends (Enter or leaving the field): the field
+  // then shows the sheet or scale that was actually applied.
+  QObject::connect(page_width, &QAbstractSpinBox::editingFinished, &dialog, [&] { sync_paper_controls(); });
+  QObject::connect(page_height, &QAbstractSpinBox::editingFinished, &dialog, [&] { sync_paper_controls(); });
+  QObject::connect(scale, &QAbstractSpinBox::editingFinished, &dialog, [&] { sync_settings(); });
 
   QObject::connect(area, &QComboBox::currentIndexChanged, &dialog, sync_settings);
   QObject::connect(scale_to_fit, &QCheckBox::toggled, &dialog, [scale, sync_settings](bool checked) {

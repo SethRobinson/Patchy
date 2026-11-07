@@ -136,6 +136,18 @@ void install_scrub_labels_in(QWidget* container);
 // glyph's left bearing; 0 when nothing could be measured.
 [[nodiscard]] int menu_item_text_indent(QMenu& menu, QAction& reference);
 void configure_dialog_spinbox(QSpinBox* spin, int width = 92);
+// Number fields never rewrite their own text while the user types in them
+// (docs/ui-conventions.md#number-fields): with keyboard tracking on, valueChanged fires
+// per keystroke, and a handler that writes a value back (setValue, even an equal one,
+// or setSuffix/setDecimals) reformats the text and moves the caret, so "2." turns into
+// "2.00 in" and the next digit is refused. A handler that may be running for the field
+// it updates sets the value through these: they leave a field that has keyboard focus
+// alone when it already holds the value (to its decimals), so the typed text stays; a
+// different value (a clamp or fold the handler applied) is still shown. Qt reformats the
+// field itself on Enter and focus out.
+[[nodiscard]] bool spin_box_is_being_typed_in(const QAbstractSpinBox* spin);
+void set_spin_value_unless_typing(QDoubleSpinBox* spin, double value);
+void set_spin_value_unless_typing(QSpinBox* spin, int value);
 void configure_dialog_spinbox(QDoubleSpinBox* spin, int width = 92);
 // Gives a dialog's OK and Cancel one width, the wider of the two (#591, #614).
 void match_ok_cancel_widths(QDialogButtonBox& buttons);

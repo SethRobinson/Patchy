@@ -7514,10 +7514,6 @@ RGB: %2, %3, %4</translation>
         <translation>Bild</translation>
     </message>
     <message>
-        <source>Units:</source>
-        <translation>Einheiten:</translation>
-    </message>
-    <message>
         <source>Print Resolution</source>
         <translation>Druckauflösung</translation>
     </message>
@@ -15061,6 +15057,10 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>Open multi-page TIFFs this way from now on. Preferences can turn the question back on.</source>
         <translation>Mehrseitige TIFF-Dateien ab jetzt immer so öffnen. In den Voreinstellungen lässt sich die Frage wieder einschalten.</translation>
+    </message>
+    <message>
+        <source>Units</source>
+        <translation>Einheiten</translation>
     </message>
 </context>
 <context>

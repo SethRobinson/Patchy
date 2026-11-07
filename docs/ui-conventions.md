@@ -72,6 +72,11 @@ QStatusBar hides non-permanent widgets while a message shows, so Patchy's left-s
 
 Blocking refusals and failed operations use `MainWindow::show_status_error` or `CanvasWidget::report_status_error`, which add the red flash and warning icon. Import notes on open use `show_import_notes_status`: the same in the yellow `status_notice_*` roles. Informational confirmations, cancellations, no-op results, and readouts use `showMessage`. Status text reaches `currentMessage()` unchanged; tests may assert it.
 
+## Number fields
+
+- A number field never rewrites its own text while the user types in it. With keyboard tracking on (Qt's default) `valueChanged` fires on every keystroke, and any write-back into the same field (`setValue`, even with an equal value, `setSuffix`, `setDecimals`, a clamping `setRange`) reformats the text and moves the caret: "2." becomes "2.00 in" and the next digit is refused (local-038, the Print dialog's paper size). `QSignalBlocker` does not stop that rewrite. A handler that can run for the field it updates sets the value through `set_spin_value_unless_typing` (`dialog_utils.hpp`): a focused field that already holds the value keeps its text, a different value (a clamp or fold) still shows, and Qt reformats the field on Enter and focus out. Slider rows never echo the slider's copy of a typed value back into the field. Expensive per-value work (a filter preview, a resample) may use `setKeyboardTracking(false)` instead. Ranges, decimals and suffixes are set once, or only when they really change.
+- Typing must reach every value through intermediate text: a lone "-", "2.", ".5", an empty field, a leading digit below the minimum, or "2.5 mm" in a whole-pixel `UnitIntSpinBox` stays editable (Qt clamps or reverts on commit). A custom `validate()` returns Intermediate, not Invalid, for such partial text. Tests type character by character with `QTest::keyClicks` and check the text after each key (`ui_print_dialog_number_fields_take_typing`).
+
 ## Standing UI rules
 
 - The right panel column (widths, sideways scrolling, collapse, header menu, saved layout): [right-docks.md](right-docks.md).
