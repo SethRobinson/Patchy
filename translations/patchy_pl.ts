@@ -15757,6 +15757,26 @@ Czy chcesz go zastąpić?</translation>
         <source>Reverses the order of the selected layers (Layer &gt; Arrange &gt; Reverse). Duplicate a run of frames and reverse the copies to make a bounce.</source>
         <translation>Odwraca kolejność zaznaczonych warstw (Warstwa &gt; Ułóż &gt; Odwróć). Zduplikuj serię klatek i odwróć kopie, aby uzyskać animację tam i z powrotem.</translation>
     </message>
+    <message>
+        <source>Play in reverse</source>
+        <translation>Odtwarzaj wstecz</translation>
+    </message>
+    <message>
+        <source>Plays the frames from the bottom layer to the top. Preview only: export still writes the top layer first.</source>
+        <translation>Odtwarza klatki od dolnej warstwy do górnej. Tylko podgląd: eksport nadal zapisuje najpierw górną warstwę.</translation>
+    </message>
+    <message>
+        <source>Hide this note. The info mark beside Playback shows it again.</source>
+        <translation>Ukrywa tę uwagę. Znak informacji obok „Odtwarzanie” pokazuje ją ponownie.</translation>
+    </message>
+    <message>
+        <source>Hide note</source>
+        <translation>Ukryj uwagę</translation>
+    </message>
+    <message>
+        <source>Show note</source>
+        <translation>Pokaż uwagę</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ArtboardPresetPicker</name>

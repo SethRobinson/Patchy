@@ -15710,6 +15710,26 @@ Sostituirlo?</translation>
         <source>Reverses the order of the selected layers (Layer &gt; Arrange &gt; Reverse). Duplicate a run of frames and reverse the copies to make a bounce.</source>
         <translation>Inverte l&apos;ordine dei livelli selezionati (Livello &gt; Ordina &gt; Inverti). Duplicare una serie di fotogrammi e invertire le copie per creare un rimbalzo.</translation>
     </message>
+    <message>
+        <source>Play in reverse</source>
+        <translation>Riproduci al contrario</translation>
+    </message>
+    <message>
+        <source>Plays the frames from the bottom layer to the top. Preview only: export still writes the top layer first.</source>
+        <translation>Riproduce i fotogrammi dal livello in basso a quello in alto. Solo anteprima: l&apos;esportazione scrive comunque prima il livello in alto.</translation>
+    </message>
+    <message>
+        <source>Hide this note. The info mark beside Playback shows it again.</source>
+        <translation>Nasconde questa nota. Il simbolo informazioni accanto a Riproduzione la mostra di nuovo.</translation>
+    </message>
+    <message>
+        <source>Hide note</source>
+        <translation>Nascondi nota</translation>
+    </message>
+    <message>
+        <source>Show note</source>
+        <translation>Mostra nota</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ArtboardPresetPicker</name>

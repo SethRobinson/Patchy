@@ -15757,6 +15757,26 @@ Do you want to replace it?</source>
         <source>Reverses the order of the selected layers (Layer &gt; Arrange &gt; Reverse). Duplicate a run of frames and reverse the copies to make a bounce.</source>
         <translation>Меняет порядок выбранных слоёв на обратный (Слой &gt; Упорядочить &gt; Обратить). Продублируйте серию кадров и обратите копии, чтобы анимация шла туда и обратно.</translation>
     </message>
+    <message>
+        <source>Play in reverse</source>
+        <translation>Воспроизводить в обратном порядке</translation>
+    </message>
+    <message>
+        <source>Plays the frames from the bottom layer to the top. Preview only: export still writes the top layer first.</source>
+        <translation>Воспроизводит кадры от нижнего слоя к верхнему. Только для предпросмотра: экспорт по-прежнему записывает верхний слой первым.</translation>
+    </message>
+    <message>
+        <source>Hide this note. The info mark beside Playback shows it again.</source>
+        <translation>Скрывает эту заметку. Знак информации рядом с «Воспроизведение» снова показывает её.</translation>
+    </message>
+    <message>
+        <source>Hide note</source>
+        <translation>Скрыть заметку</translation>
+    </message>
+    <message>
+        <source>Show note</source>
+        <translation>Показать заметку</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ArtboardPresetPicker</name>

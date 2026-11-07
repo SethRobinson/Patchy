@@ -15,6 +15,7 @@
 #include <span>
 #include <stdexcept>
 #include <string_view>
+#include <tuple>
 // Animation-preview tests, a part file of the layer_panel_organization group (the
 // aggregator in layer_panel_organization_tests.cpp appends this part's vector).
 #include "ui/animation_preview_window.hpp"
@@ -79,10 +80,13 @@ public:
 
 private:
   static constexpr const char* kKeys[] = {"animationPreview/ignoreNameDelays", "animationPreview/playHiddenLayers",
-                                          "animationPreview/applyToAllLayers"};
+                                          "animationPreview/applyToAllLayers", "animationPreview/playReverse",
+                                          "animationPreview/noteClosed"};
   SettingsValueRestorer ignore_{QString::fromLatin1(kKeys[0])};
   SettingsValueRestorer hidden_{QString::fromLatin1(kKeys[1])};
   SettingsValueRestorer all_{QString::fromLatin1(kKeys[2])};
+  SettingsValueRestorer reverse_{QString::fromLatin1(kKeys[3])};
+  SettingsValueRestorer note_{QString::fromLatin1(kKeys[4])};
 };
 
 patchy::ui::AnimationPreviewWindow* open_animation_preview(patchy::ui::MainWindow& window) {
@@ -551,6 +555,163 @@ void ui_animation_preview_reverses_selected_layers() {
   }
 }
 
+// "Play in reverse" (GitHub issue 665) plays the frames bottom to top, the counter numbering
+// them in the export's order; toggling it mid-play carries on from the frame on screen, and
+// the choice persists. The layers and their order never change.
+void ui_animation_preview_plays_in_reverse() {
+  AnimationPreviewSettingsReset preview_settings;
+  patchy::ui::MainWindow window;
+  window.add_document_session(animation_test_document(), QStringLiteral("Animation"));
+  show_window(window);
+  auto* panel = open_animation_preview(window);
+  CHECK(panel != nullptr);
+  if (panel == nullptr) return;
+  auto* reverse_check = panel->findChild<QCheckBox*>(QStringLiteral("animationPlayReverseCheck"));
+  auto* hidden_check = panel->findChild<QCheckBox*>(QStringLiteral("animationPlayHiddenLayersCheck"));
+  auto* play_button = panel->findChild<QPushButton*>(QStringLiteral("animationPlayButton"));
+  auto* status_label = panel->findChild<QLabel*>(QStringLiteral("animationFrameStatusLabel"));
+  CHECK(reverse_check != nullptr && hidden_check != nullptr && play_button != nullptr && status_label != nullptr);
+  if (reverse_check == nullptr || hidden_check == nullptr || play_button == nullptr || status_label == nullptr) return;
+  CHECK(!reverse_check->isChecked());
+  CHECK(!reverse_check->toolTip().isEmpty());
+  // It sits right under "Play hidden layers", in the same column.
+  CHECK(reverse_check->geometry().top() > hidden_check->geometry().bottom());
+  CHECK(reverse_check->geometry().left() == hidden_check->geometry().left());
+
+  // Visible frames top first: Top, blink, Base. Reversed: Base, blink, Top.
+  reverse_check->setChecked(true);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("animationPreview/playReverse")).toBool());
+  play_button->click();
+  CHECK(panel->playing());
+  CHECK(top_level_visibility(window) == (std::vector<bool>{true, false, false, false}));
+  CHECK(status_label->text().contains(QStringLiteral("3/3")));
+  panel->advance_frame();
+  CHECK(top_level_visibility(window) == (std::vector<bool>{false, false, true, false}));
+  CHECK(status_label->text().contains(QStringLiteral("2/3")));
+  CHECK(panel->current_frame_delay_ms() == 250);  // blink's own time follows it
+  panel->advance_frame();
+  CHECK(top_level_visibility(window) == (std::vector<bool>{false, false, false, true}));
+  CHECK(status_label->text().contains(QStringLiteral("1/3")));
+  panel->advance_frame();  // wraps back to the bottom layer
+  CHECK(top_level_visibility(window) == (std::vector<bool>{true, false, false, false}));
+  panel->advance_frame();  // blink again
+
+  // Off mid-play: blink stays on screen, then the frames run top to bottom again (Base next).
+  reverse_check->setChecked(false);
+  CHECK(panel->playing());
+  CHECK(top_level_visibility(window) == (std::vector<bool>{false, false, true, false}));
+  CHECK(status_label->text().contains(QStringLiteral("2/3")));
+  CHECK(panel->current_frame_delay_ms() == 250);
+  panel->advance_frame();
+  CHECK(top_level_visibility(window) == (std::vector<bool>{true, false, false, false}));
+  CHECK(status_label->text().contains(QStringLiteral("3/3")));
+  // On again at the last frame: the next one is blink, the frame above it.
+  reverse_check->setChecked(true);
+  CHECK(status_label->text().contains(QStringLiteral("3/3")));
+  panel->advance_frame();
+  CHECK(top_level_visibility(window) == (std::vector<bool>{false, false, true, false}));
+  CHECK(status_label->text().contains(QStringLiteral("2/3")));
+
+  // Stop restores the layers; nothing was reordered and the document is not modified.
+  play_button->click();
+  CHECK(!panel->playing());
+  CHECK(top_level_visibility(window) == (std::vector<bool>{true, false, true, true}));
+  CHECK(top_level_names(window) == (std::vector<std::string>{"Base", "Hidden", "blink 0.25s", "Top"}));
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+
+  // A reopened panel reads the choice back and starts from the bottom layer.
+  panel->close();
+  QApplication::processEvents();
+  panel = open_animation_preview(window);
+  CHECK(panel != nullptr);
+  if (panel == nullptr) return;
+  reverse_check = panel->findChild<QCheckBox*>(QStringLiteral("animationPlayReverseCheck"));
+  CHECK(reverse_check != nullptr && reverse_check->isChecked());
+  save_widget_artifact("ui_animation_preview_play_in_reverse", *panel);
+  panel->start_playback();
+  CHECK(top_level_visibility(window) == (std::vector<bool>{true, false, false, false}));
+  panel->stop_playback(true);
+  panel->close();
+  QApplication::processEvents();
+}
+
+// The note at the bottom (GitHub issue 666): its x hides it and the window gets shorter; the
+// choice persists; the info mark beside the Playback title brings it back.
+void ui_animation_preview_note_closes_and_comes_back() {
+  AnimationPreviewSettingsReset preview_settings;
+  patchy::ui::MainWindow window;
+  window.add_document_session(animation_test_document(), QStringLiteral("Animation"));
+  show_window(window);
+  auto* panel = open_animation_preview(window);
+  CHECK(panel != nullptr);
+  if (panel == nullptr) return;
+  const auto find_parts = [&panel] {
+    return std::tuple{panel->findChild<QWidget*>(QStringLiteral("animationPreviewNote")),
+                      panel->findChild<QToolButton*>(QStringLiteral("animationPreviewNoteCloseButton")),
+                      panel->findChild<QToolButton*>(QStringLiteral("animationPreviewNoteInfoButton")),
+                      panel->findChild<QWidget*>(QStringLiteral("animationPlaybackGroup"))};
+  };
+  auto [note, close_button, info_button, playback_group] = find_parts();
+  CHECK(note != nullptr && close_button != nullptr && info_button != nullptr && playback_group != nullptr);
+  if (note == nullptr || close_button == nullptr || info_button == nullptr || playback_group == nullptr) return;
+  CHECK(note->isVisible());
+  CHECK(!info_button->isVisible());
+  CHECK(note->findChild<QLabel*>(QStringLiteral("animationPreviewHintLabel")) != nullptr);
+  CHECK(note->findChild<QToolButton*>(QStringLiteral("animationPreviewNoteIcon")) != nullptr);
+  CHECK(!close_button->toolTip().isEmpty());
+  // The x is at the far right of the note.
+  CHECK(close_button->geometry().right() > note->width() - 12);
+  CHECK(patchy::test::ui::clipped_labels(*panel).isEmpty());
+  save_widget_artifact("ui_animation_preview_note_shown", *panel);
+  const int open_height = panel->height();
+
+  close_button->click();
+  QApplication::processEvents();
+  CHECK(!note->isVisible());
+  CHECK(info_button->isVisible());
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("animationPreview/noteClosed")).toBool());
+  std::printf("  window height %d with the note, %d without\n", open_height, panel->height());
+  CHECK(panel->height() < open_height - 30);
+  CHECK(panel->height() > open_height / 2);  // shorter, never collapsed
+  CHECK(panel->minimumHeight() <= panel->height());
+  // The mark sits on the Playback title row, above the group's first field, and says what
+  // the note says.
+  const auto info_top = info_button->mapTo(panel, QPoint(0, 0)).y();
+  auto* delay_label = panel->findChild<QLabel*>(QStringLiteral("animationFrameDelayLabel"));
+  CHECK(delay_label != nullptr && info_top < delay_label->mapTo(panel, QPoint(0, 0)).y());
+  CHECK(info_top < playback_group->mapTo(panel, QPoint(0, 12)).y());
+  CHECK(info_button->mapTo(playback_group, QPoint(0, 0)).x() > 20);
+  CHECK(mentions_all_layers(info_button->toolTip()));
+  CHECK(patchy::test::ui::clipped_labels(*panel).isEmpty());
+  save_widget_artifact("ui_animation_preview_note_closed", *panel);
+
+  // Reopened: still closed, at the short height.
+  panel->close();
+  QApplication::processEvents();
+  panel = open_animation_preview(window);
+  CHECK(panel != nullptr);
+  if (panel == nullptr) return;
+  std::tie(note, close_button, info_button, playback_group) = find_parts();
+  CHECK(note != nullptr && info_button != nullptr);
+  if (note == nullptr || info_button == nullptr) return;
+  CHECK(!note->isVisible());
+  CHECK(info_button->isVisible());
+  CHECK(panel->height() < open_height - 30);
+  CHECK(panel->height() > open_height / 2);
+  CHECK(patchy::test::ui::clipped_labels(*panel).isEmpty());
+
+  // The info mark brings it back, and the window grows to fit it again.
+  info_button->click();
+  QApplication::processEvents();
+  CHECK(note->isVisible());
+  CHECK(!info_button->isVisible());
+  CHECK(!patchy::ui::app_settings().value(QStringLiteral("animationPreview/noteClosed")).toBool());
+  CHECK(panel->height() >= open_height - 2);
+  CHECK(patchy::test::ui::clipped_labels(*panel).isEmpty());
+  panel->close();
+  QApplication::processEvents();
+}
+
 void ui_animation_preview_sets_and_removes_frame_time_names() {
   AnimationPreviewSettingsReset preview_settings;
   patchy::ui::MainWindow window;
@@ -970,6 +1131,7 @@ void ui_animation_preview_stops_on_tab_switch_and_close() {
 // opening height cut it off. This opens the panel under the browser build's own font,
 // and again at a deliberately larger size, and checks the text fits both times.
 void ui_animation_preview_fits_its_text_at_larger_fonts() {
+  AnimationPreviewSettingsReset preview_settings;  // the note shown
   patchy::ui::MainWindow window;
   window.add_document_session(animation_test_document(), QStringLiteral("Animation"));
   show_window(window);
@@ -1045,6 +1207,8 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests_animation_par
       {"ui_animation_preview_sets_and_removes_frame_time_names",
        ui_animation_preview_sets_and_removes_frame_time_names},
       {"ui_animation_preview_reverses_selected_layers", ui_animation_preview_reverses_selected_layers},
+      {"ui_animation_preview_plays_in_reverse", ui_animation_preview_plays_in_reverse},
+      {"ui_animation_preview_note_closes_and_comes_back", ui_animation_preview_note_closes_and_comes_back},
       {"ui_animation_preview_ignores_name_delays_and_plays_hidden_layers",
        ui_animation_preview_ignores_name_delays_and_plays_hidden_layers},
       {"ui_animation_preview_sets_and_removes_frame_time_on_all_layers",

@@ -15663,6 +15663,26 @@ Do you want to replace it?</source>
         <source>Reverses the order of the selected layers (Layer &gt; Arrange &gt; Reverse). Duplicate a run of frames and reverse the copies to make a bounce.</source>
         <translation>선택한 레이어의 순서를 반대로 합니다(레이어 &gt; 정돈 &gt; 역순). 프레임 묶음을 복제한 뒤 복사본을 역순으로 하면 왕복 애니메이션이 됩니다.</translation>
     </message>
+    <message>
+        <source>Play in reverse</source>
+        <translation>역방향 재생</translation>
+    </message>
+    <message>
+        <source>Plays the frames from the bottom layer to the top. Preview only: export still writes the top layer first.</source>
+        <translation>맨 아래 레이어부터 맨 위 레이어까지 프레임을 재생합니다. 미리 보기 전용: 내보내기는 여전히 맨 위 레이어를 먼저 씁니다.</translation>
+    </message>
+    <message>
+        <source>Hide this note. The info mark beside Playback shows it again.</source>
+        <translation>이 안내를 숨깁니다. &apos;재생&apos; 옆의 정보 표시를 누르면 다시 표시됩니다.</translation>
+    </message>
+    <message>
+        <source>Hide note</source>
+        <translation>안내 숨기기</translation>
+    </message>
+    <message>
+        <source>Show note</source>
+        <translation>안내 표시</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ArtboardPresetPicker</name>

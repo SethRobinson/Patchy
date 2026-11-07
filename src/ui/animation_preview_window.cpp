@@ -3,6 +3,7 @@
 #include "formats/gif_document_io.hpp"
 #include "formats/animation_frames.hpp"
 #include "formats/animation_timing.hpp"
+#include "ui/action_icons.hpp"
 #include "ui/image_save_options_dialog.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/dialog_utils.hpp"
@@ -13,6 +14,8 @@
 #include <QCheckBox>
 #include <QDoubleSpinBox>
 #include <QDialog>
+#include <QEvent>
+#include <QFrame>
 #include <QFontMetrics>
 #include <QGridLayout>
 #include <QGroupBox>
@@ -20,8 +23,12 @@
 #include <QLineEdit>
 #include <QLocale>
 #include <QMenu>
+#include <QPointer>
+#include <QResizeEvent>
 #include <QShowEvent>
 #include <QSignalBlocker>
+#include <QStyle>
+#include <QStyleOptionGroupBox>
 #include <QToolButton>
 #include <QValidator>
 #include <QLabel>
@@ -172,7 +179,60 @@ QToolButton* add_delay_presets_button(QDoubleSpinBox* field, const QString& obje
 // Persisted settings keys (never rename one).
 constexpr const char* kIgnoreNameDelaysKey = "animationPreview/ignoreNameDelays";
 constexpr const char* kPlayHiddenLayersKey = "animationPreview/playHiddenLayers";
+constexpr const char* kPlayReverseKey = "animationPreview/playReverse";
 constexpr const char* kApplyToAllLayersKey = "animationPreview/applyToAllLayers";
+constexpr const char* kNoteClosedKey = "animationPreview/noteClosed";
+
+// The height a window's layout needs at `width`. With the note closed nothing in it wraps,
+// and a layout without height-for-width answers -1, so its size hint stands in.
+int layout_height_for_width(QLayout& root, int width) {
+  const int height = root.totalHeightForWidth(width);
+  return height >= 0 ? height : root.totalSizeHint().height();
+}
+
+// A group box with a small button just right of its title (the Playback group's info mark,
+// GitHub issue 666). The style draws the title, so the button is placed against the title's
+// rectangle after every geometry, style or text change; its own background covers the frame
+// line there, as the title's does.
+class TitleButtonGroupBox final : public QGroupBox {
+public:
+  TitleButtonGroupBox(const QString& title, QWidget* parent) : QGroupBox(title, parent) {}
+
+  void set_title_button(QToolButton* button) {
+    button_ = button;
+    place_button();
+  }
+
+protected:
+  void resizeEvent(QResizeEvent* event) override {
+    QGroupBox::resizeEvent(event);
+    place_button();
+  }
+  void changeEvent(QEvent* event) override {
+    QGroupBox::changeEvent(event);
+    place_button();
+  }
+  bool event(QEvent* event) override {
+    const bool handled = QGroupBox::event(event);
+    if (event->type() == QEvent::Polish || event->type() == QEvent::Show || event->type() == QEvent::LayoutRequest) {
+      place_button();
+    }
+    return handled;
+  }
+
+private:
+  void place_button() {
+    if (button_ == nullptr) return;
+    QStyleOptionGroupBox option;
+    initStyleOption(&option);
+    const auto label = style()->subControlRect(QStyle::CC_GroupBox, &option, QStyle::SC_GroupBoxLabel, this);
+    const auto size = button_->size();
+    button_->move(label.right() + 1, label.top() + (label.height() - size.height()) / 2);
+    button_->raise();
+  }
+
+  QPointer<QToolButton> button_;
+};
 
 }  // namespace
 
@@ -218,6 +278,37 @@ AnimationPreviewWindow::AnimationPreviewWindow(
     QDialog#animationPreviewWindow QDoubleSpinBox#animationSelectionTimeSpin {
       padding-right: 30px;
     }
+    /* The note (GitHub issue 666): a calm info banner with its mark at the left and a close
+       button at the right. The info mark that brings it back sits on the Playback title, so
+       it masks the group's frame line as the title does. */
+    QDialog#animationPreviewWindow QFrame#animationPreviewNote {
+      background: @info_banner_bg;
+      border: 1px solid @info_banner_border;
+      border-radius: 3px;
+    }
+    QDialog#animationPreviewWindow QFrame#animationPreviewNote QLabel {
+      background: transparent;
+      color: @info_banner_text;
+    }
+    QDialog#animationPreviewWindow QToolButton#animationPreviewNoteIcon,
+    QDialog#animationPreviewWindow QToolButton#animationPreviewNoteCloseButton {
+      background: transparent;
+      border: 0;
+      border-radius: 2px;
+      padding: 0;
+    }
+    QDialog#animationPreviewWindow QToolButton#animationPreviewNoteCloseButton:hover {
+      background: @button_hover_bg;
+    }
+    QDialog#animationPreviewWindow QToolButton#animationPreviewNoteInfoButton {
+      background: @window_bg;
+      border: 0;
+      border-radius: 2px;
+      padding: 0;
+    }
+    QDialog#animationPreviewWindow QToolButton#animationPreviewNoteInfoButton:hover {
+      background: @button_hover_bg;
+    }
     QDialog#animationPreviewWindow QToolButton#animationFrameDelayPresetsButton::menu-indicator,
     QDialog#animationPreviewWindow QToolButton#animationSelectionTimePresetsButton::menu-indicator {
       image: none;
@@ -229,7 +320,7 @@ AnimationPreviewWindow::AnimationPreviewWindow(
   // names. Each group is a grid: the delay label and field on the first row, the options
   // under the field, and the group's buttons at the right of its last row (GitHub issue 198
   // follow-up, after a contributor's mockup).
-  auto* playback_group = new QGroupBox(tr("Playback"), this);
+  auto* playback_group = new TitleButtonGroupBox(tr("Playback"), this);
   playback_group->setObjectName(QStringLiteral("animationPlaybackGroup"));
   auto* playback_layout = new QGridLayout(playback_group);
   playback_layout->setHorizontalSpacing(8);
@@ -273,6 +364,16 @@ AnimationPreviewWindow::AnimationPreviewWindow(
   play_hidden_check_->setChecked(app_settings().value(QString::fromLatin1(kPlayHiddenLayersKey), false).toBool());
   playback_layout->addWidget(play_hidden_check_, 2, 1);
 
+  // GitHub issue 665: the preview's own order, unlike Reverse Selected Layers below, which
+  // reorders the layers (and so the export).
+  play_reverse_check_ = new QCheckBox(tr("Play in reverse"), playback_group);
+  play_reverse_check_->setObjectName(QStringLiteral("animationPlayReverseCheck"));
+  play_reverse_check_->setToolTip(
+      tr("Plays the frames from the bottom layer to the top. Preview only: export still writes the top "
+         "layer first."));
+  play_reverse_check_->setChecked(app_settings().value(QString::fromLatin1(kPlayReverseKey), false).toBool());
+  playback_layout->addWidget(play_reverse_check_, 3, 1);
+
   // The frame counter reads beside Play while it runs. Each group's button row sits a little
   // further from the checkbox above it than the option rows sit from each other (GitHub issue
   // 198 follow-up: Set Time read as part of Apply to all layers).
@@ -295,7 +396,7 @@ AnimationPreviewWindow::AnimationPreviewWindow(
   play_button_ = new QPushButton(tr("Play"), playback_group);
   play_button_->setObjectName(QStringLiteral("animationPlayButton"));
   play_row->addWidget(play_button_);
-  playback_layout->addLayout(play_row, 3, 0, 1, 2);
+  playback_layout->addLayout(play_row, 4, 0, 1, 2);
   content->addWidget(playback_group);
 
   auto* names_group = new QGroupBox(tr("Layer names"), this);
@@ -346,20 +447,59 @@ AnimationPreviewWindow::AnimationPreviewWindow(
   names_layout->addLayout(names_buttons, 2, 0, 1, 2);
   content->addWidget(names_group);
 
-  auto* hint = new QLabel(
+  // The note (GitHub issue 666): an info banner the user can close; the info mark beside the
+  // Playback title shows it again and carries the same text as its tooltip.
+  const auto note_text =
       tr("Frames are the top-level layers, top layer first, as animated GIF, WebP and PNG export "
          "writes them. A layer named \"all\" is drawn in every frame instead of being one, and each "
          "layer inside a group named \"all\" is its own frame. A layer name ending in a time, like "
-         "\"blink 0.25s\", sets that frame's delay."),
-      this);
+         "\"blink 0.25s\", sets that frame's delay.");
+  note_ = new QFrame(this);
+  note_->setObjectName(QStringLiteral("animationPreviewNote"));
+  auto* note_layout = new QHBoxLayout(note_);
+  note_layout->setContentsMargins(8, 6, 4, 6);
+  note_layout->setSpacing(8);
+  auto* note_icon = new QToolButton(note_);
+  note_icon->setObjectName(QStringLiteral("animationPreviewNoteIcon"));
+  note_icon->setIcon(info_mark_icon());
+  note_icon->setIconSize(QSize(16, 16));
+  note_icon->setFixedSize(16, 16);
+  note_icon->setFocusPolicy(Qt::NoFocus);
+  note_icon->setAttribute(Qt::WA_TransparentForMouseEvents);
+  note_layout->addWidget(note_icon, 0, Qt::AlignTop);
+  auto* hint = new QLabel(note_text, note_);
   hint->setObjectName(QStringLiteral("animationPreviewHintLabel"));
   hint->setWordWrap(true);
-  content->addWidget(hint);
+  note_layout->addWidget(hint, 1);
+  auto* note_close = new QToolButton(note_);
+  note_close->setObjectName(QStringLiteral("animationPreviewNoteCloseButton"));
+  note_close->setIcon(dialog_chrome_close_icon());
+  note_close->setIconSize(QSize(16, 16));
+  note_close->setFixedSize(18, 18);
+  note_close->setAutoRaise(true);
+  note_close->setFocusPolicy(Qt::NoFocus);
+  note_close->setToolTip(tr("Hide this note. The info mark beside Playback shows it again."));
+  note_close->setAccessibleName(tr("Hide note"));
+  note_layout->addWidget(note_close, 0, Qt::AlignTop);
+  content->addWidget(note_);
+
+  note_info_button_ = new QToolButton(playback_group);
+  note_info_button_->setObjectName(QStringLiteral("animationPreviewNoteInfoButton"));
+  note_info_button_->setIcon(info_mark_icon());
+  note_info_button_->setIconSize(QSize(14, 14));
+  note_info_button_->setFixedSize(18, 16);
+  note_info_button_->setAutoRaise(true);
+  note_info_button_->setFocusPolicy(Qt::NoFocus);
+  note_info_button_->setToolTip(note_text);
+  note_info_button_->setAccessibleName(tr("Show note"));
+  playback_group->set_title_button(note_info_button_);
 
   delay_label_ = delay_label;
   time_label_ = time_label;
 
   connect(play_button_, &QPushButton::clicked, this, [this] { toggle_playback(); });
+  connect(note_close, &QToolButton::clicked, this, [this] { set_note_closed(true, true); });
+  connect(note_info_button_, &QToolButton::clicked, this, [this] { set_note_closed(false, true); });
   // Both name edits stop playback first: the caller pushes an undo snapshot, and one taken
   // mid-play would capture a preview frame's visibility.
   connect(set_time_button, &QPushButton::clicked, this, [this] {
@@ -401,6 +541,16 @@ AnimationPreviewWindow::AnimationPreviewWindow(
       start_playback();
     }
   });
+  // Reversing mid-play keeps the frame on screen and carries on from it the other way.
+  connect(play_reverse_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    app_settings().setValue(QString::fromLatin1(kPlayReverseKey), checked);
+    if (playing() && checked != frames_reversed_) {
+      std::reverse(frames_.begin(), frames_.end());
+      frame_index_ = frames_.size() - 1 - frame_index_;
+      frames_reversed_ = checked;
+      update_frame_status();
+    }
+  });
   connect(all_layers_check_, &QCheckBox::toggled, this, [](bool checked) {
     app_settings().setValue(QString::fromLatin1(kApplyToAllLayersKey), checked);
   });
@@ -419,10 +569,35 @@ AnimationPreviewWindow::AnimationPreviewWindow(
   // actually needs at the design width, the same question QWidget::adjustSize asks, and
   // pinning that width as the minimum means the text can never rewrap taller than the
   // height computed here. The rows' own minimum widens it when a font or language needs.
+  // A closed note takes no room (GitHub issue 666).
+  const bool note_closed = app_settings().value(QString::fromLatin1(kNoteClosedKey), false).toBool();
+  note_->setVisible(!note_closed);
+  note_info_button_->setVisible(note_closed);
   const int preferred_width = std::max(360, root->minimumSize().width());
-  const int needed_height = root->totalHeightForWidth(preferred_width);
+  const int needed_height = layout_height_for_width(*root, preferred_width);
   setMinimumSize(preferred_width, needed_height);
   resize(preferred_width, needed_height);
+}
+
+void AnimationPreviewWindow::set_note_closed(bool closed, bool persist) {
+  if (persist) {
+    app_settings().setValue(QString::fromLatin1(kNoteClosedKey), closed);
+  }
+  note_->setVisible(!closed);
+  note_info_button_->setVisible(closed);
+  fit_height_to_content();
+}
+
+void AnimationPreviewWindow::fit_height_to_content() {
+  // The constructor's measure at the current width: the minimum drops first so the window
+  // can shrink when the note closes, and rises with it when the note comes back.
+  auto* root = layout();
+  if (root == nullptr) return;
+  root->activate();
+  const int width = std::max(this->width(), root->minimumSize().width());
+  const int needed_height = layout_height_for_width(*root, width);
+  setMinimumHeight(needed_height);
+  resize(width, needed_height);
 }
 
 void AnimationPreviewWindow::toggle_playback() {
@@ -468,6 +643,10 @@ void AnimationPreviewWindow::start_playback() {
     status_label_->setText(include_hidden ? tr("No layers") : tr("No visible layers"));
     return;
   }
+  frames_reversed_ = play_reverse_check_->isChecked();
+  if (frames_reversed_) {
+    std::reverse(frames_.begin(), frames_.end());
+  }
   playback_document_ = document;
   frame_index_ = 0;
   update_playback_controls();
@@ -496,6 +675,7 @@ void AnimationPreviewWindow::stop_playback(bool restore_visibility) {
   }
   saved_visibility_.clear();
   frames_.clear();
+  frames_reversed_ = false;
   frame_index_ = 0;
   update_playback_controls();
 }
@@ -546,8 +726,14 @@ void AnimationPreviewWindow::show_current_frame() {
   if (visuals_changed_ != nullptr) {
     visuals_changed_(false);
   }
-  status_label_->setText(tr("Frame %1/%2").arg(frame_index_ + 1).arg(frames_.size()));
+  update_frame_status();
   timer_.start(current_frame_delay_ms());
+}
+
+void AnimationPreviewWindow::update_frame_status() {
+  if (frames_.empty()) return;
+  const auto number = frames_reversed_ ? frames_.size() - frame_index_ : frame_index_ + 1;
+  status_label_->setText(tr("Frame %1/%2").arg(number).arg(frames_.size()));
 }
 
 std::uint32_t AnimationPreviewWindow::frame_delay_ms(std::size_t index) const {
