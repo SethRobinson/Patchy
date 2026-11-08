@@ -15144,6 +15144,10 @@ Do you want to replace it?</source>
         <translation>Показывать стрелку &gt;, открывающую дополнительные столбцы</translation>
     </message>
     <message>
+        <source>No to &amp;All</source>
+        <translation>Нет для &amp;всех</translation>
+    </message>
+    <message>
         <source>%1 x %2 mm</source>
         <translation>%1 x %2 мм</translation>
     </message>

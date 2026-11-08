@@ -15097,6 +15097,10 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Pfeil &gt; anzeigen, der weitere Spalten öffnet</translation>
     </message>
     <message>
+        <source>No to &amp;All</source>
+        <translation>Nein für a&amp;lle</translation>
+    </message>
+    <message>
         <source>%1 x %2 mm</source>
         <translation>%1 x %2 mm</translation>
     </message>

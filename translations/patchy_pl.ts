@@ -15144,6 +15144,10 @@ Czy chcesz go zastąpić?</translation>
         <translation>Pokaż strzałkę &gt;, która otwiera kolejne kolumny</translation>
     </message>
     <message>
+        <source>No to &amp;All</source>
+        <translation>Nie dla &amp;wszystkich</translation>
+    </message>
+    <message>
         <source>%1 x %2 mm</source>
         <translation>%1 x %2 mm</translation>
     </message>

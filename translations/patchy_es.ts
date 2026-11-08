@@ -15097,6 +15097,10 @@ Do you want to replace it?</source>
         <translation>Mostrar la flecha &gt; que abre más columnas</translation>
     </message>
     <message>
+        <source>No to &amp;All</source>
+        <translation>No a &amp;todos</translation>
+    </message>
+    <message>
         <source>%1 x %2 mm</source>
         <translation>%1 x %2 mm</translation>
     </message>

@@ -948,6 +948,26 @@ private:
   [[nodiscard]] bool any_document_floated() const noexcept;
   void show_document_tab_context_menu(const QPoint& position);
   [[nodiscard]] bool confirm_close_session(DocumentSession& target_session);
+  // A close that walks several documents (quit, Close All, Close Others) runs inside a
+  // batch: while two or more of its documents still have unsaved changes, the Save
+  // changes prompt adds No to All, which discards every document still waiting in the
+  // batch without asking again (local-041). Nested scopes join the outer batch.
+  struct CloseBatch {
+    std::vector<std::int64_t> pending_ids;
+    bool discard_all = false;
+  };
+  class CloseBatchScope {
+   public:
+    CloseBatchScope(MainWindow& window, std::vector<std::int64_t> session_ids);
+    ~CloseBatchScope();
+    CloseBatchScope(const CloseBatchScope&) = delete;
+    CloseBatchScope& operator=(const CloseBatchScope&) = delete;
+
+   private:
+    MainWindow& window_;
+    bool owns_ = false;
+  };
+  std::optional<CloseBatch> close_batch_;
   [[nodiscard]] bool maybe_save_session(DocumentSession& target_session);
   void refresh_document_tab_titles();
   void refresh_document_window_title();

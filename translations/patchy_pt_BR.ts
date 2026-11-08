@@ -15097,6 +15097,10 @@ Deseja substituí-lo?</translation>
         <translation>Mostrar a seta &gt; que abre mais colunas</translation>
     </message>
     <message>
+        <source>No to &amp;All</source>
+        <translation>Não para &amp;todos</translation>
+    </message>
+    <message>
         <source>%1 x %2 mm</source>
         <translation>%1 x %2 mm</translation>
     </message>

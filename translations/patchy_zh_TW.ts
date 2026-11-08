@@ -15050,6 +15050,10 @@ Do you want to replace it?</source>
         <translation>顯示用來展開更多欄的 &gt; 箭頭</translation>
     </message>
     <message>
+        <source>No to &amp;All</source>
+        <translation>全部否(&amp;A)</translation>
+    </message>
+    <message>
         <source>%1 x %2 mm</source>
         <translation>%1 x %2 mm</translation>
     </message>

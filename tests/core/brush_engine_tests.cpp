@@ -124,6 +124,46 @@ void tool_brush_opacity_and_bounded_layer_expansion_work() {
   write_bmp_artifact("tool_brush_expand_layer", document);
 }
 
+// local-040: a 1 px Round dab paints the pixel nearest it in full wherever it lands. The
+// dab-spaced stroke (Flow under 100, Airbrush, Mixer) puts slanted dabs between pixel indices;
+// a distance test painted only dabs exactly on one, so a 1 px stroke stopped after a few pixels.
+void tool_one_pixel_round_dab_paints_nearest_pixel() {
+  const auto count_alpha = [](const patchy::PixelBuffer& pixels) {
+    int count = 0;
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        count += pixels.pixel(x, y)[3] > 0 ? 1 : 0;
+      }
+    }
+    return count;
+  };
+  struct Dab {
+    double x;
+    double y;
+    std::int32_t pixel_x;
+    std::int32_t pixel_y;
+  };
+  for (const auto& dab : {Dab{12.0, 9.0, 12, 9}, Dab{12.3, 9.7, 12, 10}, Dab{30.71, 20.29, 31, 20},
+                          Dab{40.5, 20.49, 41, 20}}) {
+    for (const int softness : {0, 100}) {
+      auto document = make_tool_document();
+      const auto layer_id = active_tool_layer(document);
+      auto options = tool_options(0, 0, 0);
+      options.brush_size = 1;
+      options.brush_softness = softness;
+      CHECK(!patchy::paint_brush_dab(document, layer_id, dab.x, dab.y, options, false).empty());
+      const auto& layer = std::as_const(*document.find_layer(layer_id));
+      const auto& pixels = layer.pixels();
+      CHECK(count_alpha(pixels) == 1);
+      CHECK(pixels.pixel(dab.pixel_x - layer.bounds().x, dab.pixel_y - layer.bounds().y)[3] == 255);
+      // The overlay's coverage agrees: full on that pixel, none on its neighbours.
+      CHECK(patchy::brush_dab_coverage(dab.pixel_x - dab.x, dab.pixel_y - dab.y, options) == 1.0F);
+      CHECK(patchy::brush_dab_coverage(dab.pixel_x + 1 - dab.x, dab.pixel_y - dab.y, options) == 0.0F);
+      CHECK(patchy::brush_dab_coverage(dab.pixel_x - dab.x, dab.pixel_y - 1 - dab.y, options) == 0.0F);
+    }
+  }
+}
+
 // brush_dab_coverage is what paint_brush_dab stamps (the Brush overlay previews it, GitHub
 // issue 517): a dab at an integer position writes each pixel's alpha from the coverage at its
 // offset, for the soft Round, a rotated flat ellipse, a rotated Square and a sampled tip.
@@ -245,7 +285,7 @@ void tool_square_brush_dabs_are_pixel_snapped_and_solid() {
     CHECK(pixels.pixel(28, 30)[3] == 0);
     CHECK(pixels.pixel(34, 30)[3] == 0);
   }
-  // Size 1 is the single pixel under the dab.
+  // Size 1 is the single pixel nearest the dab, like the larger footprints.
   {
     auto document = make_tool_document();
     const auto layer_id = active_tool_layer(document);
@@ -255,7 +295,7 @@ void tool_square_brush_dabs_are_pixel_snapped_and_solid() {
     CHECK(!patchy::paint_brush_dab(document, layer_id, 40.6, 20.2, options, false).empty());
     const auto& pixels = document.find_layer(layer_id)->pixels();
     CHECK(count_alpha(pixels, 1) == 1);
-    CHECK(pixels.pixel(40, 20)[3] == 255);
+    CHECK(pixels.pixel(41, 20)[3] == 255);
   }
   // A hard stroke is one continuous, fully opaque band with square ends.
   {
@@ -2292,6 +2332,7 @@ std::vector<patchy::test::TestCase> brush_engine_tests() {
       {"tool_brush_softness_feathers_edge_alpha", tool_brush_softness_feathers_edge_alpha},
       {"tool_brush_dab_coverage_matches_painted_dab", tool_brush_dab_coverage_matches_painted_dab},
       {"tool_square_brush_dabs_are_pixel_snapped_and_solid", tool_square_brush_dabs_are_pixel_snapped_and_solid},
+      {"tool_one_pixel_round_dab_paints_nearest_pixel", tool_one_pixel_round_dab_paints_nearest_pixel},
       {"tool_brush_repaints_translucent_pixels_without_color_halo",
        tool_brush_repaints_translucent_pixels_without_color_halo},
       {"brush_tip_mips_and_scaling_preserve_shape", brush_tip_mips_and_scaling_preserve_shape},

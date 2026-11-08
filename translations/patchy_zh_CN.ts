@@ -15050,6 +15050,10 @@ Do you want to replace it?</source>
         <translation>显示用于展开更多列的 &gt; 箭头</translation>
     </message>
     <message>
+        <source>No to &amp;All</source>
+        <translation>全部否(&amp;A)</translation>
+    </message>
+    <message>
         <source>%1 x %2 mm</source>
         <translation>%1 x %2 mm</translation>
     </message>

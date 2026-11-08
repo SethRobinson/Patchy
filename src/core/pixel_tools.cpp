@@ -143,8 +143,14 @@ float brush_shape_coverage(double distance_x, double distance_y, int radius, con
   if (options.brush_shape == BrushShape::Square) {
     return square_brush_coverage(distance_x, distance_y, radius, options);
   }
+  if (radius <= 0) {
+    // brush_dab_rect already reduced the dab to the pixel nearest it. A distance test here
+    // would paint only dabs landing exactly on a pixel index, so the dab-spaced path (Flow,
+    // Airbrush, Mixer) lost every slanted 1 px dab and the stroke stopped (local-040).
+    return 1.0F;
+  }
   const auto roundness = brush_roundness_percent(options);
-  if (radius <= 0 || roundness >= 99) {
+  if (roundness >= 99) {
     return brush_coverage(distance_x * distance_x + distance_y * distance_y, radius, options.brush_softness);
   }
 
@@ -333,8 +339,10 @@ template <typename Coverage>
 
 Rect brush_dab_rect(double x, double y, int radius, const EditOptions& options, Rect bounds) {
   if (radius <= 0) {
-    const auto px = static_cast<std::int32_t>(std::floor(x));
-    const auto py = static_cast<std::int32_t>(std::floor(y));
+    // A 1 px dab is the one pixel nearest its position (positions are pixel indices), the
+    // same rule the larger Round and Square footprints center on.
+    const auto px = static_cast<std::int32_t>(std::floor(x + 0.5));
+    const auto py = static_cast<std::int32_t>(std::floor(y + 0.5));
     return intersect_rect(Rect{px, py, 1, 1}, bounds);
   }
 
@@ -601,8 +609,8 @@ float brush_dab_coverage(double offset_x, double offset_y, const EditOptions& op
                                                          offset_y);
   }
   const auto radius = std::max(1, options.brush_size) / 2;
-  if (radius == 0 && (std::fabs(offset_x) >= 0.5 || std::fabs(offset_y) >= 0.5)) {
-    return 0.0F;  // brush_dab_rect reduces a 1 px dab to the one pixel under it
+  if (radius == 0 && (offset_x <= -0.5 || offset_x > 0.5 || offset_y <= -0.5 || offset_y > 0.5)) {
+    return 0.0F;  // brush_dab_rect reduces a 1 px dab to the one pixel nearest it
   }
   return brush_shape_coverage(offset_x, offset_y, radius, options);
 }

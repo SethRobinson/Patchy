@@ -15050,6 +15050,10 @@ Do you want to replace it?</source>
         <translation>列を追加表示する &gt; 矢印を表示</translation>
     </message>
     <message>
+        <source>No to &amp;All</source>
+        <translation>すべていいえ(&amp;A)</translation>
+    </message>
+    <message>
         <source>%1 x %2 mm</source>
         <translation>%1 x %2 mm</translation>
     </message>

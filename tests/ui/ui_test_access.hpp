@@ -279,6 +279,7 @@ public:
   static bool register_legacy_plugin_path(MainWindow& window, const QString& path, QStringList* report);
 
   static bool close_document_tab(MainWindow& window, int index);
+  static void close_other_document_tabs(MainWindow& window, int index);
 
   static void float_active_document(MainWindow& window);
 

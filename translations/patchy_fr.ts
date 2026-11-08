@@ -15097,6 +15097,10 @@ Voulez-vous le remplacer ?</translation>
         <translation>Afficher la flèche &gt; qui ouvre d&apos;autres colonnes</translation>
     </message>
     <message>
+        <source>No to &amp;All</source>
+        <translation>Non à &amp;tout</translation>
+    </message>
+    <message>
         <source>%1 x %2 mm</source>
         <translation>%1 x %2 mm</translation>
     </message>

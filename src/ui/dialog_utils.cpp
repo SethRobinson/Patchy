@@ -3651,6 +3651,9 @@ class MessageBoxLetterKeyFilter : public QObject {
           case Qt::Key_C:
             button = dialog_.button(QMessageBox::Cancel);
             break;
+          case Qt::Key_A:
+            button = dialog_.button(QMessageBox::NoToAll);
+            break;
           default:
             break;
         }
@@ -3700,6 +3703,10 @@ QMessageBox::StandardButton show_warning_message(QWidget* parent, const QString&
     discard->setText(QObject::tr("&No"));
     if (auto* cancel = dialog.button(QMessageBox::Cancel); cancel != nullptr) {
       cancel->setText(QObject::tr("&Cancel"));
+    }
+    // Closing several documents adds No to All (A), which discards the rest unasked.
+    if (auto* no_to_all = dialog.button(QMessageBox::NoToAll); no_to_all != nullptr) {
+      no_to_all->setText(QObject::tr("No to &All"));
     }
     // Yes, No and Cancel share the widest button's width, so the short answers do not
     // shrink next to Cancel in any language (GitHub issue 605).

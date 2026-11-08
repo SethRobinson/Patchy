@@ -15050,6 +15050,10 @@ Do you want to replace it?</source>
         <translation>열을 더 여는 &gt; 화살표 표시</translation>
     </message>
     <message>
+        <source>No to &amp;All</source>
+        <translation>모두 아니요(&amp;A)</translation>
+    </message>
+    <message>
         <source>%1 x %2 mm</source>
         <translation>%1 x %2 mm</translation>
     </message>
