@@ -1983,21 +1983,23 @@ void ui_filter_settings_dialog_preview_beside_reset_and_remembered() {
     }
   };
 
-  // First dialog: on by default, beside Reset; turned off, and Reset leaves it off.
+  // First dialog: on by default, just before (left of) Reset, outside the button box so no
+  // platform's button order moves it; turned off, and Reset leaves it off.
   std::vector<patchy::ui::FilterPreviewSettings> first_requests;
   run_dialog(*clouds, patchy::ui::filter_dialog_spec_for(*clouds), &source, first_requests, [&](const Opened& opened) {
     auto* reset = opened.buttons->button(QDialogButtonBox::Reset);
     auto* ok = opened.buttons->button(QDialogButtonBox::Ok);
     CHECK(reset != nullptr && ok != nullptr);
     CHECK(opened.preview->isChecked());
-    CHECK(opened.preview->parentWidget() == opened.buttons);
-    CHECK(opened.buttons->buttonRole(opened.preview) == QDialogButtonBox::ResetRole);
+    CHECK(opened.preview->parentWidget() != opened.buttons);
     if (reset != nullptr && ok != nullptr) {
-      CHECK(left_of(*opened.dialog, *reset, *opened.preview));
-      CHECK(left_of(*opened.dialog, *opened.preview, *ok));
-      const auto gap = opened.preview->mapTo(opened.dialog, QPoint(0, 0)).x() -
-                       reset->mapTo(opened.dialog, QPoint(reset->width(), 0)).x();
+      CHECK(left_of(*opened.dialog, *opened.preview, *reset));
+      CHECK(left_of(*opened.dialog, *reset, *ok));
+      const auto gap = reset->mapTo(opened.dialog, QPoint(0, 0)).x() -
+                       opened.preview->mapTo(opened.dialog, QPoint(opened.preview->width(), 0)).x();
       CHECK(gap >= 0 && gap <= 24);
+      CHECK(std::abs(opened.preview->mapTo(opened.dialog, opened.preview->rect().center()).y() -
+                     reset->mapTo(opened.dialog, reset->rect().center()).y()) <= 2);
     }
     check_button_row(*opened.buttons);
     auto* preview_widget = opened.dialog->findChild<QWidget*>(QStringLiteral("filterDialogPreview"));
@@ -2049,7 +2051,7 @@ void ui_filter_settings_dialog_preview_beside_reset_and_remembered() {
   CHECK(patchy::ui::app_settings().value(key, false).toBool());
 
   // Third: a filter with an About button and no preview source (the narrow Smart Filter
-  // form): Reset, Preview, About in that order, on one row that fits.
+  // form): Preview, Reset, About in that order, on one row that fits.
   auto about_spec = patchy::ui::filter_dialog_spec_for(*clouds);
   about_spec.about_text = QStringLiteral("About GEGL");
   about_spec.show_about = [](QWidget*) {};
@@ -2060,8 +2062,8 @@ void ui_filter_settings_dialog_preview_beside_reset_and_remembered() {
     auto* about = opened.dialog->findChild<QPushButton*>(QStringLiteral("filterDialogAboutButton"));
     CHECK(reset != nullptr && about != nullptr);
     if (reset != nullptr && about != nullptr) {
-      CHECK(left_of(*opened.dialog, *reset, *opened.preview));
-      CHECK(left_of(*opened.dialog, *opened.preview, *about));
+      CHECK(left_of(*opened.dialog, *opened.preview, *reset));
+      CHECK(left_of(*opened.dialog, *reset, *about));
     }
     check_button_row(*opened.buttons);
     save_widget_artifact("ui_filter_settings_dialog_preview_beside_reset_about", *opened.dialog);
@@ -2207,6 +2209,9 @@ void ui_filter_settings_dialog_zoom_row_buttons_and_ok_width() {
     for (auto* button : zoom) {
       CHECK(!button->isFlat() && !button->autoDefault() && button->focusPolicy() == Qt::NoFocus);
     }
+    // - and + share one width (GitHub issue 667 follow-up: "-" was narrower).
+    CHECK(zoom[0]->width() == zoom[1]->width());
+    CHECK(zoom[0]->sizeHint().width() == zoom[1]->sizeHint().width());
     // Centered under the preview.
     const auto preview_left = preview->mapTo(dialog, QPoint(0, 0)).x();
     const auto preview_right = preview_left + preview->width();

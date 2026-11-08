@@ -1220,6 +1220,33 @@ private:
   QString widest_;
 };
 
+// A push button at least as wide as its partner's own size hint, so - and + share one width
+// in every font, theme and language (GitHub issue 667: "-" is narrower than "+").
+class PairedWidthButton final : public QPushButton {
+public:
+  using QPushButton::QPushButton;
+  void set_partner(PairedWidthButton* partner) { partner_ = partner; }
+  [[nodiscard]] QSize sizeHint() const override {
+    auto hint = QPushButton::sizeHint();
+    if (partner_ != nullptr) {
+      hint.setWidth(std::max(hint.width(), partner_->own_size_hint().width()));
+    }
+    return hint;
+  }
+  [[nodiscard]] QSize minimumSizeHint() const override {
+    auto hint = QPushButton::minimumSizeHint();
+    if (partner_ != nullptr) {
+      hint.setWidth(std::max(hint.width(), partner_->own_minimum_size_hint().width()));
+    }
+    return hint;
+  }
+
+private:
+  [[nodiscard]] QSize own_size_hint() const { return QPushButton::sizeHint(); }
+  [[nodiscard]] QSize own_minimum_size_hint() const { return QPushButton::minimumSizeHint(); }
+  QPointer<PairedWidthButton> partner_;
+};
+
 }  // namespace
 
 PreviewZoomControls add_preview_zoom_controls(QHBoxLayout& row, QWidget* parent, const QString& object_prefix) {
@@ -1231,9 +1258,8 @@ PreviewZoomControls add_preview_zoom_controls(QHBoxLayout& row, QWidget* parent,
   controls.amount->setObjectName(object_prefix + QStringLiteral("ZoomLabel"));
   controls.amount->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
   // Framed push buttons, never narrower than their text; they never take focus or the
-  // dialog's Enter.
-  const auto make_button = [&](const QString& name, const QString& text, const QString& tooltip) {
-    auto* button = new QPushButton(text, parent);
+  // dialog's Enter. - and + share one width.
+  const auto setup = [&](QPushButton* button, const QString& name, const QString& tooltip) {
     button->setObjectName(object_prefix + name);
     button->setToolTip(tooltip);
     button->setAccessibleName(tooltip);
@@ -1241,8 +1267,15 @@ PreviewZoomControls add_preview_zoom_controls(QHBoxLayout& row, QWidget* parent,
     button->setFocusPolicy(Qt::NoFocus);
     return button;
   };
-  controls.zoom_out = make_button(QStringLiteral("ZoomOut"), QStringLiteral("-"), QObject::tr("Zoom out"));
-  controls.zoom_in = make_button(QStringLiteral("ZoomIn"), QStringLiteral("+"), QObject::tr("Zoom in"));
+  const auto make_button = [&](const QString& name, const QString& text, const QString& tooltip) {
+    return setup(new QPushButton(text, parent), name, tooltip);
+  };
+  auto* zoom_out = new PairedWidthButton(QStringLiteral("-"), parent);
+  auto* zoom_in = new PairedWidthButton(QStringLiteral("+"), parent);
+  zoom_out->set_partner(zoom_in);
+  zoom_in->set_partner(zoom_out);
+  controls.zoom_out = setup(zoom_out, QStringLiteral("ZoomOut"), QObject::tr("Zoom out"));
+  controls.zoom_in = setup(zoom_in, QStringLiteral("ZoomIn"), QObject::tr("Zoom in"));
   controls.zoom_100 = make_button(QStringLiteral("Zoom100"), QStringLiteral("100%"),
                                   QObject::tr("Zoom to 100% (1 image pixel = 1 screen pixel)"));
   controls.fit = make_button(QStringLiteral("ZoomFit"), QObject::tr("Fit"), QObject::tr("Fit the image in the preview"));

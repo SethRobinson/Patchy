@@ -207,7 +207,7 @@ on each tile). The panes share one minimum area (300 x 420) in every view, split
 so switching views never resizes the dialog. One row under the preview (`webExportViewRow`,
 never wrapped; its width is the dialog's minimum): "View:" and the view buttons, then "Zoom:",
 the amount as a plain percent (`webExportZoomLabel`, sized for "1600%" plus room), - and + of
-one width, 100% and Fit at the right edge; Fit is checkable and checked while the preview fits. The zoom controls come from `add_preview_zoom_controls` (`zoomable_image_preview.hpp`), which the filter settings dialog, Image Trace and Convert to Indexed Color share (GitHub issue 667).
+one width, 100% and Fit at the right edge; Fit is checkable and checked while the preview fits. The zoom controls come from `add_preview_zoom_controls` (`zoomable_image_preview.hpp`), which the filter settings dialog, Image Trace and Convert to Indexed Color share (GitHub issue 667); - and + are a `PairedWidthButton` pair, each at least as wide as the other's own size hint.
 The view, zoom and frame-stepper buttons are framed push buttons with no explicit minimum width,
 so none is ever narrower than its text; Play/Pause is as wide as the wider of its two texts.
 `ui_web_export_preview_buttons_fit_at_minimum_size` checks every button and label under the
