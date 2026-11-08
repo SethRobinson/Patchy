@@ -51,13 +51,18 @@ public:
   [[nodiscard]] bool empty() const noexcept { return colors_.empty(); }
   [[nodiscard]] const std::vector<RgbColor>& colors() const noexcept { return colors_; }
   [[nodiscard]] bool contains(RgbColor color) const noexcept;
+  // The lowest index whose color is exactly (r, g, b), or -1.
+  [[nodiscard]] int exact_index(std::uint8_t r, std::uint8_t g, std::uint8_t b) const noexcept;
   [[nodiscard]] std::uint16_t index_for(std::uint8_t r, std::uint8_t g, std::uint8_t b) const noexcept;
   [[nodiscard]] RgbColor snap(std::uint8_t r, std::uint8_t g, std::uint8_t b) const noexcept;
 
 private:
   std::vector<RgbColor> colors_;
   std::vector<std::uint8_t> table_;
-  std::unordered_set<std::uint32_t> exact_;
+  // Exact membership: per 5-5-5 bucket, the first entry in it, then each entry's next one in
+  // index order (-1 ends a chain). A hash set cost seconds per photo-sized GIF (GitHub issue 571).
+  std::vector<std::int16_t> exact_head_;
+  std::vector<std::int16_t> exact_next_;
 };
 
 // Non-owning write constraint carried by EditOptions; null lut = unconstrained.

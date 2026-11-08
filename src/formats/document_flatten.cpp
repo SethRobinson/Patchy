@@ -187,11 +187,6 @@ IndexedFlattenResult indexed_rgba8_quantized(const PixelBuffer& source, std::uin
                                   options.diffusion_amount);
   }
   const auto& mapped = diffused.has_value() ? *diffused : rgba;
-  std::unordered_map<std::uint32_t, int> exact_index;
-  exact_index.reserve(palette.colors.size());
-  for (int index = 0; index < static_cast<int>(palette.colors.size()); ++index) {
-    exact_index.emplace(palette_color_key(palette.colors[static_cast<std::size_t>(index)]), index);
-  }
 
   IndexedFlattenResult result;
   result.width = rgba.width();
@@ -212,9 +207,9 @@ IndexedFlattenResult indexed_rgba8_quantized(const PixelBuffer& source, std::uin
         out = static_cast<std::uint8_t>(result.transparent_index);
         continue;
       }
-      const auto found = exact_index.find(palette_color_key(RgbColor{px[0], px[1], px[2]}));
-      out = found != exact_index.end() ? static_cast<std::uint8_t>(found->second)
-                                       : static_cast<std::uint8_t>(lut.index_for(px[0], px[1], px[2]));
+      // The exact color's lowest index (lut holds the same colors, at most 256), else the nearest.
+      const auto exact = lut.exact_index(px[0], px[1], px[2]);
+      out = exact >= 0 ? static_cast<std::uint8_t>(exact) : static_cast<std::uint8_t>(lut.index_for(px[0], px[1], px[2]));
     }
   }
   return result;

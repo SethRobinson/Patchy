@@ -23,6 +23,7 @@
 #include "formats/tga_document_io.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_document_io.hpp"
+#include "core/palette.hpp"
 #include "core/palette_presets.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
@@ -801,6 +802,64 @@ void gif_quantize_diffusion_is_deterministic() {
   CHECK(full.palette == none.palette);
   CHECK(full.indexes != none.indexes);
   CHECK(half.indexes != full.indexes);
+}
+
+// A photo-sized buffer (over a million pixels, so the dense color count and the bucketed
+// exact lookup run) quantizes to the same palette and indexes as before those speedups
+// (GitHub issue 571). Re-pin only for a deliberate quantizer change.
+patchy::PixelBuffer large_quantize_fixture(bool with_transparency) {
+  constexpr std::int32_t kWidth = 1200;
+  constexpr std::int32_t kHeight = 1000;
+  patchy::PixelBuffer pixels(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  std::uint64_t state = 0x9e3779b97f4a7c15ULL;
+  for (std::int32_t y = 0; y < kHeight; ++y) {
+    for (std::int32_t x = 0; x < kWidth; ++x) {
+      state += 0x9e3779b97f4a7c15ULL;
+      std::uint64_t z = state;
+      z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9ULL;
+      z = (z ^ (z >> 27U)) * 0x94d049bb133111ebULL;
+      z ^= z >> 31U;
+      const int noise = static_cast<int>(z % 24U) - 12;
+      auto* px = pixels.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(std::clamp(x * 255 / (kWidth - 1) + noise, 0, 255));
+      px[1] = static_cast<std::uint8_t>(std::clamp(y * 255 / (kHeight - 1) - noise, 0, 255));
+      px[2] = static_cast<std::uint8_t>(std::clamp(((x + y) * 255 / (kWidth + kHeight - 2)) + noise / 2, 0, 255));
+      px[3] = with_transparency && x < 40 && y < 30 ? 0 : 255;
+    }
+  }
+  return pixels;
+}
+
+void gif_quantize_large_image_is_pinned() {
+  const auto opaque = large_quantize_fixture(false);
+  const auto counts = patchy::collect_color_counts(opaque, patchy::gif::kQuantizeAlphaThreshold);
+  std::uint64_t total = 0;
+  bool sorted = true;
+  for (std::size_t index = 0; index < counts.size(); ++index) {
+    total += counts[index].count;
+    sorted = sorted && (index == 0 || patchy::palette_color_key(counts[index - 1].color) <
+                                          patchy::palette_color_key(counts[index].color));
+  }
+  CHECK(total == 1200U * 1000U);
+  CHECK(sorted);
+  const auto transparent = large_quantize_fixture(true);
+  const auto plain = patchy::indexed_rgba8_quantized(opaque, patchy::gif::kQuantizeAlphaThreshold,
+                                                     patchy::QuantizeOptions{256, false, 100});
+  const auto diffused = patchy::indexed_rgba8_quantized(opaque, patchy::gif::kQuantizeAlphaThreshold,
+                                                        patchy::QuantizeOptions{256, true, 100});
+  const auto cut = patchy::indexed_rgba8_quantized(transparent, patchy::gif::kQuantizeAlphaThreshold,
+                                                   patchy::QuantizeOptions{64, false, 100});
+  constexpr std::uint64_t kPlain = 0x6033bf7cde8fbafcULL;
+  constexpr std::uint64_t kDiffused = 0xf2188d6a6c5f58abULL;
+  constexpr std::uint64_t kCut = 0xc0ddc88861669fc2ULL;
+  if (indexed_digest(plain) != kPlain || indexed_digest(diffused) != kDiffused || indexed_digest(cut) != kCut) {
+    std::cout << "large quantize digests: colors " << counts.size() << " plain 0x" << std::hex << indexed_digest(plain)
+              << " diffused 0x" << indexed_digest(diffused) << " cut 0x" << indexed_digest(cut) << std::dec << "\n";
+  }
+  CHECK(indexed_digest(plain) == kPlain);
+  CHECK(indexed_digest(diffused) == kDiffused);
+  CHECK(indexed_digest(cut) == kCut);
+  CHECK(cut.transparent_index >= 0 && cut.indexes[0] == static_cast<std::uint8_t>(cut.transparent_index));
 }
 
 void gif_document_write_quantizes_and_round_trips() {
@@ -2428,6 +2487,7 @@ std::vector<patchy::test::TestCase> flat_formats_misc_tests() {
       {"gif_quantize_default_options_keep_the_plain_writer_bytes", gif_quantize_default_options_keep_the_plain_writer_bytes},
       {"gif_quantize_respects_the_color_count", gif_quantize_respects_the_color_count},
       {"gif_quantize_diffusion_is_deterministic", gif_quantize_diffusion_is_deterministic},
+      {"gif_quantize_large_image_is_pinned", gif_quantize_large_image_is_pinned},
       {"gif_animation_encodes_frames_delays_and_loop", gif_animation_encodes_frames_delays_and_loop},
       {"gif_layer_name_delay_token_round_trips", gif_layer_name_delay_token_round_trips},
       {"sniff_openable_image_format_names_what_patchy_opens", sniff_openable_image_format_names_what_patchy_opens},
