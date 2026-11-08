@@ -8,6 +8,7 @@
 #include "core/worker_budget.hpp"
 #include "filters/smart_filter_recipe_mapping.hpp"
 #include "formats/acv_curves_io.hpp"
+#include "ui/app_settings.hpp"
 #include "ui/blend_mode_ui.hpp"
 #include "ui/coalesced_preview_emitter.hpp"
 #include "ui/curves_editor.hpp"
@@ -487,10 +488,11 @@ std::optional<FilterInvocation> request_filter_settings(
   dialog.setWindowTitle(spec.display_name);
   auto* layout = new QVBoxLayout(&dialog);
 
+  // Preview sits in the button row beside Reset (added there below) and starts as the user
+  // last left it in any filter dialog; on until first turned off (GitHub issue 667).
   auto* preview = new QCheckBox(QObject::tr("Preview"), &dialog);
   preview->setObjectName(QStringLiteral("filterPreviewCheck"));
-  preview->setChecked(true);
-  layout->addWidget(preview);
+  preview->setChecked(app_settings().value(kFilterDialogPreviewSettingsKey, true).toBool());
 
   if (initial.filter_id.empty()) {
     initial.filter_id = spec.identifier.toStdString();
@@ -537,7 +539,7 @@ std::optional<FilterInvocation> request_filter_settings(
     proxy_preview->setProperty("filterDialogRenderedFilterId", QString());
     // Beside two columns of controls the preview may narrow, so the dialog
     // still fits a 1024 px wide screen.
-    proxy_preview->setMinimumSize(wide_layout ? 300 : 380, 260);
+    proxy_preview->setMinimumSize(wide_layout ? 300 : 380, kFilterDialogPreviewMinimumHeight);
     proxy_preview->set_image(image_from_pixels(dialog_proxy.original));
     current_proxy_bounds = Rect::from_size(dialog_proxy.original.width(),
                                            dialog_proxy.original.height());
@@ -654,10 +656,12 @@ std::optional<FilterInvocation> request_filter_settings(
     return settings;
   };
 
-  // With Preview off the canvas shows the original layer: the first preview-off request puts
-  // it back and drops any render in flight, and later changes send nothing until Preview is
-  // on again, so editing values never touches the canvas (GitHub issue 667).
-  bool canvas_shows_original = false;
+  // With Preview off the canvas shows the original layer: the first preview-off request after
+  // a canvas preview puts it back and drops any render in flight, and later changes send
+  // nothing until Preview is on again, so editing values never touches the canvas (GitHub
+  // issue 667). The canvas shows the original when the dialog opens, so a dialog opened with
+  // Preview off sends nothing at all.
+  bool canvas_shows_original = true;
   CoalescedPreviewEmitter<FilterPreviewSettings> preview_emitter(
       dialog, [&](const FilterPreviewSettings& settings) {
         if (!settings.preview_enabled && canvas_shows_original) {
@@ -680,7 +684,10 @@ std::optional<FilterInvocation> request_filter_settings(
   auto flush_preview = [&] { preview_emitter.flush(build_settings()); };
   schedule_preview_callback = schedule_preview;
 
-  QObject::connect(preview, &QCheckBox::toggled, &dialog, [&flush_preview](bool) { flush_preview(); });
+  QObject::connect(preview, &QCheckBox::toggled, &dialog, [&flush_preview](bool checked) {
+    app_settings().setValue(kFilterDialogPreviewSettingsKey, checked);
+    flush_preview();
+  });
   if (blend_mode_combo != nullptr && opacity_slider != nullptr && opacity_spin != nullptr) {
     QObject::connect(opacity_slider, &QSlider::valueChanged, opacity_spin,
                      [opacity_spin](int value) {
@@ -880,9 +887,12 @@ std::optional<FilterInvocation> request_filter_settings(
   }
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Reset,
                                        &dialog);
+  // Reset role so Preview sits just right of Reset on every platform: Qt lays out a role's
+  // buttons in insertion order, the standard Reset was added first, and the Reset role is
+  // never the accept or reject role, so toggling Preview never closes the dialog.
+  buttons->addButton(preview, QDialogButtonBox::ResetRole);
   if (spec.show_about) {
-    // Reset role so it sits just right of Reset on every platform: Qt lays out a
-    // role's buttons in insertion order, and the standard Reset was added first.
+    // Reset role too, so it follows Reset and Preview.
     auto* about = buttons->addButton(spec.about_text, QDialogButtonBox::ResetRole);
     about->setObjectName(QStringLiteral("filterDialogAboutButton"));
     about->setAutoDefault(false);

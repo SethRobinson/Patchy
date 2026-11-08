@@ -124,6 +124,13 @@ struct FilterControlSpec {
 // columns (FilterParameterPanelOptions::two_columns_from); shorter ones keep one.
 inline constexpr std::size_t kFilterDialogTwoColumnControls = 12;
 
+// The in-dialog preview's minimum height (GitHub issue 667: 220 px, was 260).
+inline constexpr int kFilterDialogPreviewMinimumHeight = 220;
+
+// Persisted settings key (never rename): the filter dialogs' Preview checkbox as the user
+// last left it, shared by every dialog request_filter_settings shows; absent means on.
+inline constexpr auto kFilterDialogPreviewSettingsKey = "filters/dialogPreview";
+
 struct FilterDialogSpec {
   QString identifier;
   QString display_name;

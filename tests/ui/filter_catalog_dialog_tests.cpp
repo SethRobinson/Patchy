@@ -1,4 +1,5 @@
 #include "ui/curved_slider.hpp"
+#include "ui/app_settings.hpp"
 #include <QStatusBar>
 
 #include "ui/canvas_widget.hpp"
@@ -32,6 +33,7 @@
 #include <QMenu>
 #include <QPainter>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QSpinBox>
 #include <QStringList>
 #include <QSlider>
@@ -1905,6 +1907,254 @@ void ui_filter_settings_dialog_preview_off_sends_no_canvas_requests() {
   CHECK(!settings.has_value());
 }
 
+// GitHub issue 667 follow-up: Preview sits in the button row just right of Reset (About,
+// when a filter has one, follows it), starts as the user last left it in any filter dialog
+// (on when never set; key filters/dialogPreview), Reset leaves it, and the in-dialog preview
+// is at least 220 px tall. A dialog that opens with Preview off sends no canvas request at
+// all while values change.
+void ui_filter_settings_dialog_preview_beside_reset_and_remembered() {
+  const auto key = QLatin1String(patchy::ui::kFilterDialogPreviewSettingsKey);
+  CHECK(key == QLatin1String("filters/dialogPreview"));
+  patchy::ui::app_settings().remove(key);
+  const auto clear_setting = qScopeGuard([key] { patchy::ui::app_settings().remove(key); });
+
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  const auto* clouds = registry.find("patchy.filters.clouds");
+  const auto* blur = registry.find("patchy.filters.gaussian_blur");
+  CHECK(clouds != nullptr && blur != nullptr);
+  if (clouds == nullptr || blur == nullptr) {
+    return;
+  }
+  const auto pixels = solid_pixels(320, 200, patchy::PixelFormat::rgba8(), QColor(90, 140, 200));
+  const patchy::ui::FilterDialogPreviewSource source{&pixels, patchy::Rect{0, 0, 320, 200}, QRegion(), &registry};
+
+  struct Opened {
+    QDialog* dialog{nullptr};
+    QCheckBox* preview{nullptr};
+    QDialogButtonBox* buttons{nullptr};
+  };
+  const auto run_dialog = [&](const patchy::FilterDefinition& filter, const patchy::ui::FilterDialogSpec& spec,
+                              const patchy::ui::FilterDialogPreviewSource* preview_source,
+                              std::vector<patchy::ui::FilterPreviewSettings>& requests,
+                              const std::function<void(const Opened&)>& drive) {
+    bool drove = false;
+    QTimer::singleShot(0, guarded([&] {
+      Opened opened;
+      opened.dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+      CHECK(opened.dialog != nullptr);
+      if (opened.dialog == nullptr) {
+        return;
+      }
+      opened.preview = opened.dialog->findChild<QCheckBox*>(QStringLiteral("filterPreviewCheck"));
+      opened.buttons = opened.dialog->findChild<QDialogButtonBox*>();
+      CHECK(opened.preview != nullptr && opened.buttons != nullptr);
+      if (opened.preview != nullptr && opened.buttons != nullptr) {
+        drive(opened);
+        drove = true;
+      }
+      opened.dialog->reject();
+    }));
+    const auto initial = registry.default_invocation(filter.identifier, patchy::RgbColor{240, 30, 20},
+                                                     patchy::RgbColor{10, 40, 230});
+    (void)patchy::ui::request_filter_settings(
+        nullptr, spec, [&](patchy::ui::FilterPreviewSettings preview) { requests.push_back(std::move(preview)); },
+        initial, preview_source);
+    CHECK(drove);
+  };
+  const auto left_of = [](const QDialog& dialog, const QWidget& a, const QWidget& b) {
+    return a.mapTo(&dialog, QPoint(a.width(), 0)).x() <= b.mapTo(&dialog, QPoint(0, 0)).x();
+  };
+  // Every visible button-row item fits the row, on one line, and none overlaps another.
+  const auto check_button_row = [](const QDialogButtonBox& buttons) {
+    CHECK(buttons.minimumSizeHint().width() <= buttons.width());
+    QList<QWidget*> items;
+    for (auto* child : buttons.findChildren<QAbstractButton*>(Qt::FindDirectChildrenOnly)) {
+      if (child->isVisible()) {
+        items << child;
+      }
+    }
+    for (int a = 0; a < items.size(); ++a) {
+      CHECK(buttons.rect().contains(items[a]->geometry()));
+      for (int b = a + 1; b < items.size(); ++b) {
+        CHECK(!items[a]->geometry().intersects(items[b]->geometry()));
+        CHECK(std::abs(items[a]->geometry().center().y() - items[b]->geometry().center().y()) <= 2);
+      }
+    }
+  };
+
+  // First dialog: on by default, beside Reset; turned off, and Reset leaves it off.
+  std::vector<patchy::ui::FilterPreviewSettings> first_requests;
+  run_dialog(*clouds, patchy::ui::filter_dialog_spec_for(*clouds), &source, first_requests, [&](const Opened& opened) {
+    auto* reset = opened.buttons->button(QDialogButtonBox::Reset);
+    auto* ok = opened.buttons->button(QDialogButtonBox::Ok);
+    CHECK(reset != nullptr && ok != nullptr);
+    CHECK(opened.preview->isChecked());
+    CHECK(opened.preview->parentWidget() == opened.buttons);
+    CHECK(opened.buttons->buttonRole(opened.preview) == QDialogButtonBox::ResetRole);
+    if (reset != nullptr && ok != nullptr) {
+      CHECK(left_of(*opened.dialog, *reset, *opened.preview));
+      CHECK(left_of(*opened.dialog, *opened.preview, *ok));
+      const auto gap = opened.preview->mapTo(opened.dialog, QPoint(0, 0)).x() -
+                       reset->mapTo(opened.dialog, QPoint(reset->width(), 0)).x();
+      CHECK(gap >= 0 && gap <= 24);
+    }
+    check_button_row(*opened.buttons);
+    auto* preview_widget = opened.dialog->findChild<QWidget*>(QStringLiteral("filterDialogPreview"));
+    CHECK(preview_widget != nullptr && preview_widget->minimumHeight() == 220);
+    // Nothing above the preview any more: it is the dialog's first row.
+    if (preview_widget != nullptr) {
+      CHECK(preview_widget->mapTo(opened.dialog, QPoint(0, 0)).y() < 30);
+    }
+    CHECK(process_events_until([&] { return !first_requests.empty(); }, 3000));
+    CHECK(preview_widget != nullptr && process_events_until(
+                                           [&] {
+                                             return preview_widget->property("filterDialogRenderedFilterId").toString() ==
+                                                    QStringLiteral("patchy.filters.clouds");
+                                           },
+                                           5000));
+    save_widget_artifact("ui_filter_settings_dialog_preview_beside_reset", *opened.dialog);
+    opened.preview->setChecked(false);
+    QApplication::processEvents();
+    CHECK(!patchy::ui::app_settings().value(key, true).toBool());
+    if (reset != nullptr) {
+      reset->click();
+    }
+    QApplication::processEvents();
+    CHECK(!opened.preview->isChecked());
+  });
+  CHECK(!patchy::ui::app_settings().value(key, true).toBool());
+
+  // Second dialog, another filter: opens with Preview off and sends nothing while values
+  // change (the canvas keeps the original: no render, no progress notice); turning Preview
+  // on sends the current values and is remembered.
+  std::vector<patchy::ui::FilterPreviewSettings> second_requests;
+  run_dialog(*blur, patchy::ui::filter_dialog_spec_for(*blur), &source, second_requests, [&](const Opened& opened) {
+    CHECK(!opened.preview->isChecked());
+    const auto spins = opened.dialog->findChildren<QDoubleSpinBox*>();
+    CHECK(!spins.isEmpty());
+    if (!spins.isEmpty()) {
+      for (int value = 4; value <= 20; value += 4) {
+        spins.front()->setValue(value);
+        process_events_for(20);
+      }
+    }
+    process_events_for(250);
+    CHECK(second_requests.empty());
+    opened.preview->setChecked(true);
+    QApplication::processEvents();
+    CHECK(second_requests.size() == 1U);
+    CHECK(!second_requests.empty() && second_requests.back().preview_enabled);
+  });
+  CHECK(patchy::ui::app_settings().value(key, false).toBool());
+
+  // Third: a filter with an About button and no preview source (the narrow Smart Filter
+  // form): Reset, Preview, About in that order, on one row that fits.
+  auto about_spec = patchy::ui::filter_dialog_spec_for(*clouds);
+  about_spec.about_text = QStringLiteral("About GEGL");
+  about_spec.show_about = [](QWidget*) {};
+  std::vector<patchy::ui::FilterPreviewSettings> third_requests;
+  run_dialog(*clouds, about_spec, nullptr, third_requests, [&](const Opened& opened) {
+    CHECK(opened.preview->isChecked());
+    auto* reset = opened.buttons->button(QDialogButtonBox::Reset);
+    auto* about = opened.dialog->findChild<QPushButton*>(QStringLiteral("filterDialogAboutButton"));
+    CHECK(reset != nullptr && about != nullptr);
+    if (reset != nullptr && about != nullptr) {
+      CHECK(left_of(*opened.dialog, *reset, *opened.preview));
+      CHECK(left_of(*opened.dialog, *opened.preview, *about));
+    }
+    check_button_row(*opened.buttons);
+    save_widget_artifact("ui_filter_settings_dialog_preview_beside_reset_about", *opened.dialog);
+  });
+}
+
+// GitHub issue 667 follow-up: a built-in filter opened from the menu with Preview left off
+// never touches the canvas while its values change: no preview render (so no "Rendering
+// preview..." notice), no canvas refresh (so no "Processing..." notice), and the layer keeps
+// its pixels. Before, the dialog always opened with Preview on, and a preview-off dialog
+// still put the original pixels back once.
+void ui_filter_dialog_opened_with_preview_off_never_touches_canvas() {
+  const auto key = QLatin1String(patchy::ui::kFilterDialogPreviewSettingsKey);
+  patchy::ui::app_settings().setValue(key, false);
+  const auto clear_setting = qScopeGuard([key] { patchy::ui::app_settings().remove(key); });
+
+  constexpr int kWidth = 900;
+  constexpr int kHeight = 600;
+  const auto format = patchy::PixelFormat::rgba8();
+  patchy::Document built(kWidth, kHeight, format);
+  built.add_pixel_layer("Background", solid_pixels(kWidth, kHeight, format, QColor(Qt::white)));
+  patchy::Layer layer(built.allocate_layer_id(), "Shape",
+                      solid_pixels(kWidth / 2, kHeight / 2, format, QColor(60, 120, 220)));
+  layer.set_bounds(patchy::Rect{kWidth / 4, kHeight / 4, kWidth / 2, kHeight / 2});
+  const auto layer_id = layer.id();
+  built.add_layer(std::move(layer));
+  built.set_active_layer(layer_id);
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(built), QStringLiteral("Preview Off"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->force_refresh();
+  process_events_for(100);
+  const auto* original_layer = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(layer_id);
+  CHECK(original_layer != nullptr);
+  if (original_layer == nullptr) {
+    return;
+  }
+  const auto original_pixels = original_layer->pixels();
+  const auto original_bounds = original_layer->bounds();
+  const auto before = canvas->render_cache_diagnostics();
+
+  bool exercised = false;
+  int most_renders_in_flight = 0;
+  bool layer_kept_pixels = false;
+  patchy::ui::CanvasRenderCacheDiagnostics at_reject{};
+  QTimer::singleShot(0, guarded([&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* preview = dialog->findChild<QCheckBox*>(QStringLiteral("filterPreviewCheck"));
+    const auto spins = dialog->findChildren<QDoubleSpinBox*>();
+    CHECK(preview != nullptr && !preview->isChecked() && !spins.isEmpty());
+    const auto settle = [&](int milliseconds) {
+      QElapsedTimer timer;
+      timer.start();
+      while (timer.elapsed() < milliseconds) {
+        QApplication::processEvents(QEventLoop::AllEvents, 5);
+        most_renders_in_flight = std::max(most_renders_in_flight, canvas->preview_renders_in_flight());
+      }
+    };
+    settle(150);
+    if (!spins.isEmpty()) {
+      for (int value = 3; value <= 30; value += 3) {
+        spins.front()->setValue(value);
+        settle(30);
+      }
+    }
+    settle(300);
+    const auto* shown = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(layer_id);
+    layer_kept_pixels = shown != nullptr && shown->bounds().x == original_bounds.x &&
+                        shown->bounds().y == original_bounds.y &&
+                        shown->bounds().width == original_bounds.width &&
+                        shown->bounds().height == original_bounds.height &&
+                        patchy::ui::pixel_buffers_equal(shown->pixels(), original_pixels);
+    // Measured before the reject: Cancel itself puts the layer back.
+    at_reject = canvas->render_cache_diagnostics();
+    exercised = true;
+    QTimer::singleShot(0, dialog, [dialog] { dialog->reject(); });
+  }));
+  require_action(window, "filterAction_patchy_filters_gaussian_blur")->trigger();
+  QApplication::processEvents();
+  CHECK(exercised);
+  CHECK(most_renders_in_flight == 0);
+  CHECK(layer_kept_pixels);
+  CHECK(at_reject.dirty_region_batches == before.dirty_region_batches);
+  CHECK(at_reject.live_preview_async_refreshes == before.live_preview_async_refreshes);
+  CHECK(at_reject.full_refreshes == before.full_refreshes);
+  CHECK(at_reject.awaited_renders == before.awaited_renders);
+}
+
 // GitHub issue 667: the zoom row under the preview is Export for Web's ("Zoom:", the amount,
 // then framed - + 100% Fit), centered under the preview; Randomize is a framed push button and
 // OK is as wide as Cancel.
@@ -2251,10 +2501,15 @@ void ui_filter_settings_dialog_proxy_preview_renders_and_center_overlay_drag_syn
     QApplication::processEvents();
     CHECK(center_x->value() > 50.0 && center_x->value() <= 100.0);
     CHECK(center_y->value() < 50.0 && center_y->value() >= 0.0);
+    // Against the whole pixel the press landed on, not the 70/30 target it was
+    // rounded from: at the preview's 220 px minimum height one pixel is over 0.002.
+    const auto sent_x = (moved_center.x() - displayed.left()) / displayed.width();
+    const auto sent_y = (moved_center.y() - displayed.top()) / displayed.height();
     CHECK(std::abs(preview->property("filterCenterXNormalized").toDouble() -
-                   0.70) <= 0.002);
+                   sent_x) <= 0.002);
     CHECK(std::abs(preview->property("filterCenterYNormalized").toDouble() -
-                   0.30) <= 0.002);
+                   sent_y) <= 0.002);
+    CHECK(std::abs(sent_x - 0.70) <= 0.01 && std::abs(sent_y - 0.30) <= 0.01);
     dragged_center_x = center_x->value();
     dragged_center_y = center_y->value();
     save_widget_artifact("ui_filter_settings_dialog_proxy_preview", *dialog);
@@ -2358,6 +2613,10 @@ std::vector<patchy::test::TestCase> filter_catalog_dialog_tests() {
       {"ui_filter_settings_dialog_preview_off_sends_no_canvas_requests",
        ui_filter_settings_dialog_preview_off_sends_no_canvas_requests},
       {"ui_filter_settings_dialog_zoom_row_buttons_and_ok_width", ui_filter_settings_dialog_zoom_row_buttons_and_ok_width},
+      {"ui_filter_settings_dialog_preview_beside_reset_and_remembered",
+       ui_filter_settings_dialog_preview_beside_reset_and_remembered},
+      {"ui_filter_dialog_opened_with_preview_off_never_touches_canvas",
+       ui_filter_dialog_opened_with_preview_off_never_touches_canvas},
       {"ui_filter_parameter_panel_round_trips_catalog_and_legacy_specs",
        ui_filter_parameter_panel_round_trips_catalog_and_legacy_specs},
       {"ui_filter_settings_dialog_angle_dial_and_waveform_sync_numeric_controls",

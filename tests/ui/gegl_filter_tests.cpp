@@ -355,7 +355,7 @@ void ui_gegl_filters_list_and_apply_if_available() {
       }
       poll.stop();
       const auto* credit = dialog->findChild<QLabel*>(QStringLiteral("filterDialogCreditLabel"));
-      // About GEGL sits just right of Reset, with no other button between them.
+      // About GEGL sits right of Reset, with only the Preview checkbox between them (GitHub issue 667).
       bool about_beside_reset = false;
       if (const auto* box = about_button != nullptr ? qobject_cast<QDialogButtonBox*>(about_button->parentWidget())
                                                     : nullptr;
@@ -363,7 +363,8 @@ void ui_gegl_filters_list_and_apply_if_available() {
         const auto* reset = box->button(QDialogButtonBox::Reset);
         about_beside_reset = reset != nullptr && reset->x() < about_button->x() &&
                              std::ranges::none_of(box->buttons(), [&](const QAbstractButton* other) {
-                               return other->isVisible() && other->x() > reset->x() && other->x() < about_button->x();
+                               return other->isVisible() && other->x() > reset->x() && other->x() < about_button->x() &&
+                                      other->objectName() != QStringLiteral("filterPreviewCheck");
                              });
       }
       saw_dialog = dialog->property("patchy.filterIdentifier").toString() == identifier &&
