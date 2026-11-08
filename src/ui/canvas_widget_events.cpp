@@ -19,6 +19,7 @@
 #include "core/vector_shape.hpp"
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget_shared.hpp"
+#include "ui/tool_modifier_style.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/modifier_names.hpp"
@@ -229,11 +230,13 @@ QRegion stroke_samples_dirty_region(const std::vector<QRect>& rects) {
 }  // namespace
 
 bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
-  // Alt held aims a new Clone or Healing source: the old source's overlay hides until it
-  // is released (GitHub issue 573). The key event itself says which way Alt went.
+  // The source key held (Alt, or Ctrl in the GIMP-style and Krita-style tool modifiers, GitHub
+  // issue 302) aims a new Clone or Healing source: the old source's overlay hides until it is
+  // released (GitHub issue 573). The key event itself says which way the key went.
   if ((event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) && isVisible()) {
     const auto* key_event = static_cast<QKeyEvent*>(event);
-    if (key_event->key() == Qt::Key_Alt && !key_event->isAutoRepeat()) {
+    if (key_event->key() == tool_modifier_key(ToolModifierRole::RetouchSource, CanvasTool::Clone) &&
+        !key_event->isAutoRepeat()) {
       set_clone_overlay_alt_held(event->type() == QEvent::KeyPress);
     }
   }
@@ -263,6 +266,7 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
         (key_event->key() == Qt::Key_Shift || key_event->key() == Qt::Key_Alt ||
          (key_event->key() == Qt::Key_Control && (pen_family_tool_active() || tool_ == CanvasTool::Move ||
                                                   tool_ == CanvasTool::Text || tool_has_ctrl_temporary_move(tool_) ||
+                                                  tool_has_ctrl_tool_modifier(tool_) ||
                                                   transforming_layer_ ||
                                                   path_transform_active_ || tool_ == CanvasTool::PathSelect ||
                                                   tool_ == CanvasTool::DirectSelect || shape_tool_active())))) {
@@ -290,9 +294,9 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
           set_arrow_swap((modifiers & Qt::ControlModifier) != 0);
         }
       } else if (tool_ == CanvasTool::Zoom) {
-        if (key_event->key() == Qt::Key_Alt) {
-          // Idle: Alt flips the magnifier badge between + and -. Mid-drag: Alt
-          // suppresses the marquee, so repaint to show/hide the preview.
+        if (key_event->key() == tool_modifier_key(ToolModifierRole::ZoomOut, CanvasTool::Zoom)) {
+          // Idle: the zoom-out key (Alt, or Ctrl: GitHub issue 302) flips the magnifier badge
+          // between + and -. Mid-drag it suppresses the marquee, so repaint to show/hide the preview.
           if (zooming_) {
             update();
           } else {
@@ -330,26 +334,32 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
         // click would select (GitHub issue 73); refresh the outline from the
         // folded modifiers at the last pointer position, no motion needed.
         update_move_hover_outline(last_mouse_position_, modifiers);
-      } else if (key_event->key() == Qt::Key_Alt && alt_swapped_toning_tool(tool_) != tool_) {
-        // Alt swaps Dodge and Burn, Blur and Sharpen for a stroke that starts with it held
-        // (GitHub #662): the status bar names the operation a press would paint.
+      } else if (key_event->key() == tool_modifier_key(ToolModifierRole::ToningSwap, tool_) &&
+                 alt_swapped_toning_tool(tool_) != tool_) {
+        // Alt (Ctrl in the GIMP-style tool modifiers) swaps Dodge and Burn, Blur and Sharpen for
+        // a stroke that starts with it held (GitHub #662): the status bar names the operation a
+        // press would paint.
         if (!painting_ && status_callback_) {
-          const auto alt_held = (modifiers & Qt::AltModifier) != 0;
-          const auto operation = alt_held ? alt_swapped_toning_tool(tool_) : tool_;
+          const auto swap_held = tool_modifier_held(ToolModifierRole::ToningSwap, tool_, modifiers);
+          const auto operation = swap_held ? alt_swapped_toning_tool(tool_) : tool_;
           const auto name = tool_name(operation);
-          status_callback_(alt_held ? resolve_modifier_names(tr("%1 while %ALT% is held")).arg(name) : name);
+          status_callback_(swap_held ? resolve_tool_modifier_names(tr("%1 while %SWAP_KEY% is held"), tool_).arg(name)
+                                     : name);
         }
-      } else if ((key_event->key() == Qt::Key_Alt && retouch_source_tool_active()) ||
-                 (key_event->key() == Qt::Key_Control && tool_has_ctrl_temporary_move(tool_))) {
+      } else if ((key_event->key() == tool_modifier_key(ToolModifierRole::RetouchSource, tool_) &&
+                  retouch_source_tool_active()) ||
+                 (key_event->key() == tool_modifier_key(ToolModifierRole::TemporaryMove, tool_) &&
+                  tool_has_ctrl_temporary_move(tool_))) {
         // Ctrl is every painting tool's temporary Move and Alt Clone's and Healing's source
-        // cursor (GitHub issues 380, 421), from the folded modifiers with a stationary
-        // pointer; a stroke or a Ctrl drag in progress keeps its cursor.
+        // cursor (GitHub issues 380, 421; the GIMP-style and Krita-style tool modifiers swap the
+        // two where the source or pick is Ctrl, issue 302), from the folded modifiers with a
+        // stationary pointer; a stroke or a Move drag in progress keeps its cursor.
         if (!painting_ && !move_drag_pending_ && !moving_layer_ && !paint_ctrl_click_.has_value()) {
           retouch_cursor_modifier_override_ = modifiers;
           update_tool_cursor();
           retouch_cursor_modifier_override_.reset();
         }
-      } else if (key_event->key() == Qt::Key_Alt &&
+      } else if (key_event->key() == tool_modifier_key(ToolModifierRole::ColorPick, tool_) &&
                  (tool_uses_alt_left_for_color_pick(tool_) || tool_ == CanvasTool::Eyedropper) && !painting_ &&
                  !drawing_shape_) {
         // Alt is the temporary-eyedropper modifier for paint/shape/fill tools;
@@ -357,7 +367,7 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
         // Drive it from the folded modifier state (authoritative here, unlike the
         // global keyboard state, which can lag this filter and leave the cursor
         // stuck on release). Skipped mid-stroke, where Alt has no picking effect.
-        alt_color_pick_cursor_override_ = (modifiers & Qt::AltModifier) != 0;
+        alt_color_pick_cursor_override_ = tool_modifier_held(ToolModifierRole::ColorPick, tool_, modifiers);
         update_tool_cursor();
         alt_color_pick_cursor_override_.reset();
       } else {
@@ -507,6 +517,15 @@ void CanvasWidget::wheelEvent(QWheelEvent* event) {
     return;
   }
 
+  // In the GIMP-style tool modifiers Ctrl+wheel zooms and Alt+wheel pans as Ctrl does here
+  // (GitHub issue 302): the two keys trade places for every test below.
+  auto wheel_modifiers = event->modifiers();
+  if (tool_modifier(ToolModifierRole::WheelZoom, CanvasTool::Zoom) == Qt::ControlModifier) {
+    const auto ctrl = wheel_modifiers.testFlag(Qt::ControlModifier);
+    wheel_modifiers.setFlag(Qt::ControlModifier, wheel_modifiers.testFlag(Qt::AltModifier));
+    wheel_modifiers.setFlag(Qt::AltModifier, ctrl);
+  }
+
   if (wheel_event_is_continuous_scroll(*event)) {
     // Two-finger scrolling pans freely on both axes at finger speed, whatever the
     // wheel-zoom preference says (pinch is the trackpad's zoom); Alt zooms.
@@ -526,7 +545,7 @@ void CanvasWidget::wheelEvent(QWheelEvent* event) {
     if (delta.isNull()) {
       return;
     }
-    if ((event->modifiers() & Qt::AltModifier) != 0) {
+    if ((wheel_modifiers & Qt::AltModifier) != 0) {
       zoom_at_widget_point(event->position(), wheel_zoom_factor(*event));
       return;
     }
@@ -552,7 +571,7 @@ void CanvasWidget::wheelEvent(QWheelEvent* event) {
   }
 
   // Alt+wheel always zooms, in either mode.
-  if ((event->modifiers() & Qt::AltModifier) != 0) {
+  if ((wheel_modifiers & Qt::AltModifier) != 0) {
     zoom_at_widget_point(event->position(), wheel_zoom_factor(*event));
     event->accept();
     return;
@@ -579,7 +598,7 @@ void CanvasWidget::wheelEvent(QWheelEvent* event) {
   // A pen button configured as "scroll" arrives here as a wheel event, so this
   // mode also lets that button zoom.
   if (wheel_zooms_) {
-    const auto modifiers = event->modifiers();
+    const auto modifiers = wheel_modifiers;
     if ((modifiers & Qt::ControlModifier) == 0 && (modifiers & Qt::ShiftModifier) == 0) {
       zoom_at_widget_point(event->position(), primary_delta > 0 ? 1.1 : 0.9);
       event->accept();
@@ -592,8 +611,8 @@ void CanvasWidget::wheelEvent(QWheelEvent* event) {
   // Photoshop's axes: with wheel zoom off a plain wheel scrolls vertically and Ctrl
   // (or Shift) horizontally. In wheel-zoom mode Ctrl pans vertically, Shift horizontally.
   const bool pan_vertically =
-      wheel_zooms_ ? (event->modifiers() & Qt::ShiftModifier) == 0
-                   : (event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier)) == 0;
+      wheel_zooms_ ? (wheel_modifiers & Qt::ShiftModifier) == 0
+                   : (wheel_modifiers & (Qt::ControlModifier | Qt::ShiftModifier)) == 0;
   if (pan_vertically) {
     pan_.ry() += static_cast<double>(primary_delta) * kWheelPanScale;
   } else {
@@ -1012,7 +1031,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   const bool color_pick_press =
       event->button() == Qt::LeftButton &&
       (tool_ == CanvasTool::Eyedropper ||
-       ((event->modifiers() & Qt::AltModifier) != 0 && tool_uses_alt_left_for_color_pick(tool_)));
+       (tool_modifier_held(ToolModifierRole::ColorPick, tool_, event->modifiers()) &&
+        tool_uses_alt_left_for_color_pick(tool_)));
   if (color_pick_press) {
     // With the Eyedropper tool itself a click sets the color its Sets option
     // names, and Alt inverts that for the click: with Foreground (the default)
@@ -1039,12 +1059,15 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     event->accept();
     return;
   }
-  // Ctrl is the painting tools' temporary Move (GitHub issues 380, 421, 423), read from
-  // this press's own modifiers: a drag moves the selected layers like the Move tool with
-  // Auto-Select off, a click that never drags selects the layer under the pointer. Ctrl
-  // on a ruler guide already went to the guide drag above.
+  // Ctrl is the painting tools' temporary Move (GitHub issues 380, 421, 423; Alt on a tool
+  // whose pick, source or swap the GIMP-style or Krita-style tool modifiers put on Ctrl,
+  // issue 302), read from this press's own modifiers: a drag moves the selected layers like
+  // the Move tool with Auto-Select off, a click that never drags selects the layer under the
+  // pointer. Ctrl on a ruler guide already went to the guide drag above.
+  const auto temporary_move_modifier = tool_modifier(ToolModifierRole::TemporaryMove, tool_);
   if (event->button() == Qt::LeftButton && tool_has_ctrl_temporary_move(tool_) && !painting_ &&
-      event->modifiers().testFlag(Qt::ControlModifier) && !event->modifiers().testFlag(Qt::AltModifier)) {
+      event->modifiers().testFlag(temporary_move_modifier) &&
+      !event->modifiers().testFlag(other_tool_modifier(temporary_move_modifier))) {
     begin_paint_temporary_move(event, document_point);
     event->accept();
     return;
@@ -1096,13 +1119,14 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
                                   : tr("Clone is unavailable while editing a grayscale channel"));
       return;
     }
-    if ((event->modifiers() & Qt::AltModifier) != 0) {
+    if (tool_modifier_held(ToolModifierRole::RetouchSource, effective_tool, event->modifiers())) {
       set_clone_source(document_point);
       return;
     }
     if (!clone_source_set_) {
-      report_status_error(resolve_modifier_names(healing ? tr("%ALT%-click to set a healing source")
-                                                         : tr("%ALT%-click to set a clone source")));
+      report_status_error(resolve_tool_modifier_names(healing ? tr("%SOURCE_KEY%-click to set a healing source")
+                                                              : tr("%SOURCE_KEY%-click to set a clone source"),
+                                                      effective_tool));
       return;
     }
     const auto paint_layer_artboard = retarget_paint_to_clicked_artboard(document_point);
@@ -1206,8 +1230,9 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       report_status_error(tr("Local adjustment brushes are unavailable while editing a grayscale channel"));
       return;
     }
-    // Alt at the press paints the stroke with the opposite tool (GitHub #662).
-    const bool alt_swap = event->modifiers().testFlag(Qt::AltModifier) &&
+    // Alt (Ctrl in the GIMP-style tool modifiers) at the press paints the stroke with the
+    // opposite tool (GitHub #662, #302).
+    const bool alt_swap = tool_modifier_held(ToolModifierRole::ToningSwap, effective_tool, event->modifiers()) &&
                           alt_swapped_toning_tool(effective_tool) != effective_tool;
     QString label;
     switch (alt_swap ? alt_swapped_toning_tool(effective_tool) : effective_tool) {
@@ -1578,7 +1603,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     // marquee about the press point (Photoshop's draw-from-center). Alt held
     // from the press over a selection is Subtract, so it only mirrors once
     // released and pressed again mid-drag (GitHub issue 78; the Shift rule).
-    selection_alt_at_press_ = (event->modifiers() & Qt::AltModifier) != 0 && !selection_.isEmpty();
+    selection_alt_at_press_ =
+        tool_modifier_held(ToolModifierRole::SelectionSubtract, tool_, event->modifiers()) && !selection_.isEmpty();
     selection_alt_released_since_press_ = false;
     update_marquee_from_center(event->modifiers());
     selection_start_ = snapped_point;
@@ -1983,8 +2009,9 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   });
   emit_info_for_widget_position(event->pos());
   if (!brush_adjust_dragging_) {
-    // Alt pressed or released while another window had the keys (GitHub issue 573).
-    set_clone_overlay_alt_held(event->modifiers().testFlag(Qt::AltModifier));
+    // The source key pressed or released while another window had the keys (GitHub issue 573).
+    set_clone_overlay_alt_held(
+        tool_modifier_held(ToolModifierRole::RetouchSource, CanvasTool::Clone, event->modifiers()));
   }
   track_brush_hover_position(event->pos());
   track_eyedropper_sample_outline(event->pos());
@@ -4258,9 +4285,13 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
   // the square and from-center constraints here so a stationary cursor still
   // responds (GitHub issue 78). The event reports the modifier state before
   // this key, so fold the pressed key in.
+  // The from-center key is the subtract key: Alt, or Ctrl in the GIMP-style tool modifiers.
   if (selecting_ && !spacebar_repositioning_drag_rect_ &&
-      (event->key() == Qt::Key_Shift || event->key() == Qt::Key_Alt) && !event->isAutoRepeat()) {
-    const auto bit = event->key() == Qt::Key_Shift ? Qt::ShiftModifier : Qt::AltModifier;
+      (event->key() == Qt::Key_Shift ||
+       event->key() == tool_modifier_key(ToolModifierRole::SelectionSubtract, tool_)) &&
+      !event->isAutoRepeat()) {
+    const auto bit = event->key() == Qt::Key_Shift ? Qt::ShiftModifier
+                                                   : tool_modifier(ToolModifierRole::SelectionSubtract, tool_);
     update_selection_square_constraint(event->modifiers() | bit);
     update_marquee_from_center(event->modifiers() | bit);
     refresh_active_marquee_selection();
@@ -4781,8 +4812,11 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
     }
   }
   if (selecting_ && !spacebar_repositioning_drag_rect_ &&
-      (event->key() == Qt::Key_Shift || event->key() == Qt::Key_Alt) && !event->isAutoRepeat()) {
-    const auto bit = event->key() == Qt::Key_Shift ? Qt::ShiftModifier : Qt::AltModifier;
+      (event->key() == Qt::Key_Shift ||
+       event->key() == tool_modifier_key(ToolModifierRole::SelectionSubtract, tool_)) &&
+      !event->isAutoRepeat()) {
+    const auto bit = event->key() == Qt::Key_Shift ? Qt::ShiftModifier
+                                                   : tool_modifier(ToolModifierRole::SelectionSubtract, tool_);
     update_selection_square_constraint(event->modifiers() & ~bit);
     update_marquee_from_center(event->modifiers() & ~bit);
     refresh_active_marquee_selection();

@@ -16281,12 +16281,12 @@ Do you want to replace it?</source>
         <translation>编辑灰度通道时无法使用仿制功能</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a healing source</source>
-        <translation>按住 %ALT% 并单击以设置修复源</translation>
+        <source>%SOURCE_KEY%-click to set a healing source</source>
+        <translation>按住 %SOURCE_KEY% 并单击以设置修复源</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a clone source</source>
-        <translation>按住 %ALT% 并单击以设置仿制源</translation>
+        <source>%SOURCE_KEY%-click to set a clone source</source>
+        <translation>按住 %SOURCE_KEY% 并单击以设置仿制源</translation>
     </message>
     <message>
         <source>Healing brush</source>
@@ -17413,8 +17413,8 @@ Do you want to replace it?</source>
         <translation>移动渐变中点</translation>
     </message>
     <message>
-        <source>%1 while %ALT% is held</source>
-        <translation>按住 %ALT% 时为%1</translation>
+        <source>%1 while %SWAP_KEY% is held</source>
+        <translation>按住 %SWAP_KEY% 时为%1</translation>
     </message>
     <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
@@ -17655,8 +17655,8 @@ Do you want to replace it?</source>
         <translation>源 %1: 未设置</translation>
     </message>
     <message>
-        <source>Not set: %ALT%-click the canvas</source>
-        <translation>未设置: 按住 %ALT% 并单击画布</translation>
+        <source>Not set: %SOURCE_KEY%-click the canvas</source>
+        <translation>未设置: 按住 %SOURCE_KEY% 并单击画布</translation>
     </message>
     <message>
         <source>Aligned is off: every stroke starts at the source point.</source>
@@ -17695,8 +17695,8 @@ Do you want to replace it?</source>
         <translation>清除源</translation>
     </message>
     <message>
-        <source>Clear this source point; %ALT%-click the canvas to set a new one</source>
-        <translation>清除此源点；按住 %ALT% 并单击画布可设置新的源点</translation>
+        <source>Clear this source point; %SOURCE_KEY%-click the canvas to set a new one</source>
+        <translation>清除此源点；按住 %SOURCE_KEY% 并单击画布可设置新的源点</translation>
     </message>
     <message>
         <source>Back to 100%, 0 degrees and no flip; the source point stays</source>
@@ -20606,6 +20606,18 @@ Do you want to replace it?</source>
     <message>
         <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
         <translation>%1 是内置方案，所以你的更改已放入“自定义”方案。重命名它即可作为你自己的方案保留。</translation>
+    </message>
+    <message>
+        <source>Tool modifiers as in GIMP: %CTRL% zooms out, zooms with the wheel, picks colors with the Brush, Eraser and Fill tools, sets the clone source, swaps Dodge and Burn or Blur and Sharpen, and subtracts from a selection. Where %CTRL% picks, sets the source or swaps, %ALT% is the temporary Move.</source>
+        <translation>与 GIMP 相同的工具修饰键：%CTRL% 缩小，用滚轮缩放，用画笔、橡皮擦和填充拾取颜色，设置仿制源，互换减淡与加深或模糊与锐化，并从选区中减去。在 %CTRL% 用于拾取、设置源或互换的工具上，%ALT% 是临时移动。</translation>
+    </message>
+    <message>
+        <source>Tool modifiers as in Krita: %CTRL% zooms out, picks colors with the Brush, Mixer Brush, Smudge and Eraser tools, and sets the clone source; %ALT% subtracts from a selection. Where %CTRL% picks or sets the source, %ALT% is the temporary Move.</source>
+        <translation>与 Krita 相同的工具修饰键：%CTRL% 缩小，用画笔、混合器画笔、涂抹和橡皮擦拾取颜色，并设置仿制源；%ALT% 从选区中减去。在 %CTRL% 用于拾取或设置源的工具上，%ALT% 是临时移动。</translation>
+    </message>
+    <message>
+        <source>Tool modifiers: %ALT% zooms out, picks colors, sets the clone source and subtracts from a selection; %CTRL% is the painting tools&apos; temporary Move. The GIMP-style and Krita-style sets use %CTRL% instead.</source>
+        <translation>工具修饰键：%ALT% 缩小、拾取颜色、设置仿制源并从选区中减去；%CTRL% 是绘画工具的临时移动。GIMP 风格和 Krita 风格的快捷键集改用 %CTRL%。</translation>
     </message>
 </context>
 <context>
@@ -29812,28 +29824,28 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         </translation>
     </message>
     <message>
-        <source>Rectangular Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a square and %ALT% draws from the center.</source>
-        <translation>矩形选框：拖动以选择。Shift+拖动添加，%ALT%+拖动减去，Shift+%ALT%+拖动取交集。没有选区时，Shift 绘制正方形，%ALT% 从中心绘制。</translation>
+        <source>Rectangular Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a square and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>矩形选框：拖动以选择。Shift+拖动添加，%SUBTRACT_KEY%+拖动减去，Shift+%SUBTRACT_KEY%+拖动取交集。没有选区时，Shift 绘制正方形，%SUBTRACT_KEY% 从中心绘制。</translation>
     </message>
     <message>
-        <source>Elliptical Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a circle and %ALT% draws from the center.</source>
-        <translation>椭圆选框：拖动以选择。Shift+拖动添加，%ALT%+拖动减去，Shift+%ALT%+拖动取交集。没有选区时，Shift 绘制正圆，%ALT% 从中心绘制。</translation>
+        <source>Elliptical Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a circle and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>椭圆选框：拖动以选择。Shift+拖动添加，%SUBTRACT_KEY%+拖动减去，Shift+%SUBTRACT_KEY%+拖动取交集。没有选区时，Shift 绘制正圆，%SUBTRACT_KEY% 从中心绘制。</translation>
     </message>
     <message>
-        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
-        <translation>磁性套索：单击边缘并沿其移动，单击可固定一个点。以 Shift+单击开始为添加，以 %ALT%+单击开始为减去，以 Shift+%ALT%+单击开始为取交集。Backspace 删除最后一个点，Enter 闭合，Esc 取消。</translation>
+        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
+        <translation>磁性套索：单击边缘并沿其移动，单击可固定一个点。以 Shift+单击开始为添加，以 %SUBTRACT_KEY%+单击开始为减去，以 Shift+%SUBTRACT_KEY%+单击开始为取交集。Backspace 删除最后一个点，Enter 闭合，Esc 取消。</translation>
     </message>
     <message>
-        <source>Magic Wand: click a color to select it. Shift+click adds, %ALT%+click subtracts, Shift+%ALT%+click intersects.</source>
-        <translation>魔棒：单击一种颜色以选择它。Shift+单击添加，%ALT%+单击减去，Shift+%ALT%+单击取交集。</translation>
+        <source>Magic Wand: click a color to select it. Shift+click adds, %SUBTRACT_KEY%+click subtracts, Shift+%SUBTRACT_KEY%+click intersects.</source>
+        <translation>魔棒：单击一种颜色以选择它。Shift+单击添加，%SUBTRACT_KEY%+单击减去，Shift+%SUBTRACT_KEY%+单击取交集。</translation>
     </message>
     <message>
-        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>快速选择：在要选择的区域上涂抹，之后的笔画会添加到选区。Shift+拖动添加，%ALT%+拖动减去。</translation>
+        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>快速选择：在要选择的区域上涂抹，之后的笔画会添加到选区。Shift+拖动添加，%SUBTRACT_KEY%+拖动减去。</translation>
     </message>
     <message>
-        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>对象选择：围绕对象拖出一个框，或单击对象。Shift+拖动添加，%ALT%+拖动减去。</translation>
+        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>对象选择：围绕对象拖出一个框，或单击对象。Shift+拖动添加，%SUBTRACT_KEY%+拖动减去。</translation>
     </message>
     <message>
         <source>Daily</source>
@@ -30270,12 +30282,12 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <translation>单击放置点，按住 Shift 保持 45 度，%ALT%+拖动可徒手绘制。单击起点、双击或按 Enter 闭合。</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
-        <translation>套索：围绕区域拖动以选择。Shift+拖动添加，%ALT%+拖动减去，Shift+%ALT%+拖动取交集。拖动时按下 %ALT% 并松开鼠标键，即可单击绘制直线段，直到松开 %ALT%。</translation>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>套索：围绕区域拖动以选择。Shift+拖动添加，%SUBTRACT_KEY%+拖动减去，Shift+%SUBTRACT_KEY%+拖动取交集。拖动时按下 %ALT% 并松开鼠标键，即可单击绘制直线段，直到松开 %ALT%。</translation>
     </message>
     <message>
-        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
-        <translation>多边形套索：单击放置点。以 Shift+单击开始为添加，以 %ALT%+单击开始为减去，以 Shift+%ALT%+单击开始为取交集。按住 Shift 保持 45 度，%ALT%+拖动可徒手绘制。单击起点、双击或按 Enter 闭合；Backspace 删除最后一个点，Esc 取消。</translation>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>多边形套索：单击放置点。以 Shift+单击开始为添加，以 %SUBTRACT_KEY%+单击开始为减去，以 Shift+%SUBTRACT_KEY%+单击开始为取交集。按住 Shift 保持 45 度，%ALT%+拖动可徒手绘制。单击起点、双击或按 Enter 闭合；Backspace 删除最后一个点，Esc 取消。</translation>
     </message>
     <message>
         <source>New &amp;Layer...</source>
@@ -31381,12 +31393,12 @@ The open document keeps its blend modes either way.</source>
         <translation>目标路径(&amp;T)</translation>
     </message>
     <message>
-        <source>%1: Shift+click draws a line, %ALT%+click picks a color, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1：Shift+单击画直线，%ALT%+单击拾取颜色，%ALT%+右键拖动更改大小和柔和度。</translation>
+        <source>%1: Shift+click draws a line, %PICK_KEY%+click picks a color, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1：Shift+单击画直线，%PICK_KEY%+单击拾取颜色，%ALT%+右键拖动更改大小和柔和度。</translation>
     </message>
     <message>
-        <source>%1: %ALT%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1：%ALT%+单击设置源，Shift+单击画直线，%ALT%+右键拖动更改大小和柔和度。</translation>
+        <source>%1: %SOURCE_KEY%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1：%SOURCE_KEY%+单击设置源，Shift+单击画直线，%ALT%+右键拖动更改大小和柔和度。</translation>
     </message>
     <message>
         <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
@@ -33589,8 +33601,8 @@ Locked: %1</source>
         <translation>更改色标</translation>
     </message>
     <message>
-        <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1：%ALT%+拖动以%2绘制，Shift+单击画直线，%ALT%+右键拖动更改大小和柔和度。</translation>
+        <source>%1: %SWAP_KEY%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1：%SWAP_KEY%+拖动以%2绘制，Shift+单击画直线，%ALT%+右键拖动更改大小和柔和度。</translation>
     </message>
     <message>
         <source>Pages as layers</source>

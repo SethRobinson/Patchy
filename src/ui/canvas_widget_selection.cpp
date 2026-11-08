@@ -18,6 +18,7 @@
 #include "core/smart_object.hpp"
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget_shared.hpp"
+#include "ui/tool_modifier_style.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/selection_outline.hpp"
 
@@ -1806,7 +1807,8 @@ CanvasWidget::SelectionMode CanvasWidget::selection_operation(Qt::KeyboardModifi
     return selection_mode_;
   }
   const auto add = modifiers.testFlag(Qt::ShiftModifier);
-  const auto subtract = modifiers.testFlag(Qt::AltModifier);
+  // Alt subtracts, or Ctrl in the GIMP-style tool modifiers (GitHub issue 302).
+  const auto subtract = tool_modifier_held(ToolModifierRole::SelectionSubtract, tool_, modifiers);
   if (add && subtract) {
     return SelectionMode::Intersect;
   }
@@ -1904,7 +1906,8 @@ void CanvasWidget::update_selection_square_constraint(Qt::KeyboardModifiers modi
 }
 
 void CanvasWidget::update_marquee_from_center(Qt::KeyboardModifiers modifiers) {
-  const bool alt_now = (modifiers & Qt::AltModifier) != 0;
+  // The subtract key: Alt, or Ctrl in the GIMP-style tool modifiers (GitHub issue 302).
+  const bool alt_now = tool_modifier_held(ToolModifierRole::SelectionSubtract, tool_, modifiers);
   if (!alt_now) {
     selection_alt_released_since_press_ = true;
   }

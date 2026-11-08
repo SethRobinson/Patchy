@@ -1416,6 +1416,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/click_modifier_recorder.hpp
       src/ui/modifier_names.hpp
       src/ui/modifier_names.cpp
+      src/ui/tool_modifier_style.hpp
+      src/ui/tool_modifier_style.cpp
       src/ui/markdown_viewer_dialog.hpp
       src/ui/markdown_viewer_dialog.cpp
       src/ui/ai_control_paths.hpp
@@ -2602,6 +2604,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/destructive_filters_gallery_tests_browse_controls.cpp
       tests/ui/pickers_notices_hotkeys_tests.cpp
       tests/ui/hotkey_sets_tests.cpp
+      tests/ui/tool_modifier_style_tests.cpp
       tests/ui/canvas_view_tools_tests.cpp
       tests/ui/view_rotation_tests.cpp
       tests/ui/layer_context_lifecycle_tests.cpp

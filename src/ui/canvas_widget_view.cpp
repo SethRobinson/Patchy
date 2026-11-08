@@ -10,6 +10,7 @@
 #include "core/smart_object.hpp"
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget_shared.hpp"
+#include "ui/tool_modifier_style.hpp"
 
 #include <QApplication>
 #include <QColor>
@@ -678,7 +679,8 @@ bool CanvasWidget::zoom_tool_zooms_out() const noexcept {
 }
 
 bool CanvasWidget::zoom_tool_zoom_out_active(Qt::KeyboardModifiers modifiers) const noexcept {
-  return zoom_tool_zooms_out_ != ((modifiers & Qt::AltModifier) != 0);
+  // Alt, or Ctrl in the GIMP-style and Krita-style tool modifiers (GitHub issue 302).
+  return zoom_tool_zooms_out_ != tool_modifier_held(ToolModifierRole::ZoomOut, CanvasTool::Zoom, modifiers);
 }
 
 QPointF CanvasWidget::zoom_click_anchor(QPointF widget_pos) const {

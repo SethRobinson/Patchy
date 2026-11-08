@@ -2,6 +2,8 @@
 #include "ui/command_search.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/hotkey_sets.hpp"
+#include "ui/modifier_names.hpp"
+#include "ui/tool_modifier_style.hpp"
 #include "ui/theme_qss.hpp"
 
 #include <QAction>
@@ -202,6 +204,13 @@ HotkeyEditorPanel::HotkeyEditorPanel(HotkeyRegistry& registry, QMenuBar* menu_ba
   top_layout->addWidget(reset_all_button);
   header_layout->addWidget(top_row);
   header_layout->addWidget(build_set_row(header_));
+  // Which key the set's tools use on the canvas (GitHub issue 302): read-only, it follows the set.
+  tool_modifiers_label_ = new QLabel(header_);
+  tool_modifiers_label_->setObjectName(QStringLiteral("hotkeyToolModifiersLabel"));
+  tool_modifiers_label_->setProperty("hotkeyDim", true);
+  tool_modifiers_label_->setWordWrap(true);
+  header_layout->addWidget(tool_modifiers_label_);
+  refresh_tool_modifiers_label();
   transfer_status_ = new QLabel(header_);
   transfer_status_->setObjectName(QStringLiteral("hotkeyTransferStatus"));
   transfer_status_->setProperty("hotkeyDim", true);
@@ -363,7 +372,46 @@ bool HotkeyEditorPanel::eventFilter(QObject* watched, QEvent* event) {
 
 void HotkeyEditorPanel::commit() {
   store_user_hotkey_sets(user_sets_, active_set_id_);
+  set_active_tool_modifier_style(staged_tool_modifier_style());
   registry_.apply_overrides(staged_);
+}
+
+ToolModifierStyle HotkeyEditorPanel::set_tool_modifier_style(const QString& set_id) const {
+  const auto it = std::find_if(user_sets_.begin(), user_sets_.end(),
+                               [&set_id](const UserHotkeySet& set) { return set.id == set_id; });
+  return it != user_sets_.end() ? it->tool_modifiers : builtin_set_tool_modifier_style(set_id);
+}
+
+ToolModifierStyle HotkeyEditorPanel::staged_tool_modifier_style() const {
+  return set_tool_modifier_style(active_set_id_);
+}
+
+// One sentence per style naming the gestures it moves (docs/hotkey-sets.md "Tool modifiers").
+QString HotkeyEditorPanel::tool_modifiers_text(ToolModifierStyle style) const {
+  switch (style) {
+    case ToolModifierStyle::Gimp:
+      return resolve_modifier_names(
+          tr("Tool modifiers as in GIMP: %CTRL% zooms out, zooms with the wheel, picks colors with the Brush, "
+             "Eraser and Fill tools, sets the clone source, swaps Dodge and Burn or Blur and Sharpen, and "
+             "subtracts from a selection. Where %CTRL% picks, sets the source or swaps, %ALT% is the temporary "
+             "Move."));
+    case ToolModifierStyle::Krita:
+      return resolve_modifier_names(
+          tr("Tool modifiers as in Krita: %CTRL% zooms out, picks colors with the Brush, Mixer Brush, Smudge "
+             "and Eraser tools, and sets the clone source; %ALT% subtracts from a selection. Where %CTRL% picks "
+             "or sets the source, %ALT% is the temporary Move."));
+    case ToolModifierStyle::Patchy:
+      break;
+  }
+  return resolve_modifier_names(
+      tr("Tool modifiers: %ALT% zooms out, picks colors, sets the clone source and subtracts from a selection; "
+         "%CTRL% is the painting tools' temporary Move. The GIMP-style and Krita-style sets use %CTRL% instead."));
+}
+
+void HotkeyEditorPanel::refresh_tool_modifiers_label() {
+  if (tool_modifiers_label_ != nullptr) {
+    tool_modifiers_label_->setText(tool_modifiers_text(staged_tool_modifier_style()));
+  }
 }
 
 // Which set the page opens on: the one last applied when the registry still holds its keys.
@@ -441,7 +489,7 @@ QWidget* HotkeyEditorPanel::build_set_row(QWidget* parent) {
 }
 
 bool HotkeyEditorPanel::export_to_file(const QString& path, QString* error) {
-  if (!write_hotkey_file(path, staged_, error)) {
+  if (!write_hotkey_file(path, staged_, error, staged_tool_modifier_style())) {
     return false;
   }
   remember_hotkey_file_folder(path);
@@ -464,7 +512,7 @@ HotkeyFileReadResult HotkeyEditorPanel::import_from_file(const QString& path, co
     stage_override(it.key(), it.value());
   }
   const auto id = next_user_set_id();
-  user_sets_.push_back({id, name, staged_});
+  user_sets_.push_back({id, name, staged_, result.tool_modifiers});
   active_set_id_ = id;
   refresh_rows();
   show_transfer_status(tr("Imported \"%1\" as the set \"%2\". Commands: %3. Skipped commands this Patchy does not "
@@ -714,10 +762,13 @@ QString HotkeyEditorPanel::unique_set_name(const QString& base) const {
 }
 
 void HotkeyEditorPanel::put_staged_in_custom_set() {
+  // Custom keeps the tool modifiers of the set its keys came from (GitHub issue 302).
+  const auto style = set_tool_modifier_style(active_set_id_);
   if (auto* custom = find_user_set(QString::fromLatin1(kCustomHotkeySetId)); custom != nullptr) {
     custom->overrides = staged_;
+    custom->tool_modifiers = style;
   } else {
-    user_sets_.push_back({QString::fromLatin1(kCustomHotkeySetId), QString(), staged_});
+    user_sets_.push_back({QString::fromLatin1(kCustomHotkeySetId), QString(), staged_, style});
   }
   active_set_id_ = QString::fromLatin1(kCustomHotkeySetId);
 }
@@ -781,6 +832,7 @@ void HotkeyEditorPanel::rebuild_set_combo() {
   if (delete_set_button_ != nullptr) {
     delete_set_button_->setEnabled(own_set);
   }
+  refresh_tool_modifiers_label();
   fit_set_combo_width();
 }
 

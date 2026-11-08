@@ -11,7 +11,9 @@
 #include "ui/hotkey_sets.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
+#include "ui/modifier_names.hpp"
 #include "ui/qt_paths.hpp"
+#include "ui/tool_modifier_style.hpp"
 #include "test_harness.hpp"
 #include "unicode_path_names.hpp"
 #include <QAction>
@@ -64,6 +66,8 @@ public:
     settings.sync();
   }
   ~HotkeyGroupRestorer() {
+    // OK on a GIMP-style or Krita-style set changes the canvas's tool modifiers too.
+    patchy::ui::set_active_tool_modifier_style(tool_modifiers_);
     auto settings = patchy::ui::app_settings();
     settings.remove(QStringLiteral("hotkeys"));
     settings.beginGroup(QStringLiteral("hotkeys"));
@@ -79,6 +83,7 @@ public:
 private:
   QHash<QString, QVariant> saved_;
   SettingsGroupRestorer sets_{QStringLiteral("hotkeySets")};
+  patchy::ui::ToolModifierStyle tool_modifiers_{patchy::ui::active_tool_modifier_style()};
 };
 
 std::vector<HotkeyCommand> sample_commands() {
@@ -717,6 +722,103 @@ void ui_keyboard_shortcuts_command_opens_hotkeys_page() {
   CHECK(saw_dialog);
 }
 
+// A set carries its tool modifiers (GitHub issue 302): the line under the set row says which
+// key the tools use, OK makes the canvas use it and stores it, Custom made from GIMP-style
+// keeps GIMP's, and a hotkey file carries it to the set an import makes.
+void ui_hotkey_editor_set_shows_and_applies_tool_modifiers() {
+  HotkeyGroupRestorer restore;
+  auto&& [window, canvas] = ShownWindowFixture{};
+  using patchy::ui::ToolModifierStyle;
+  CHECK(patchy::ui::active_tool_modifier_style() == ToolModifierStyle::Patchy);
+  const auto dir = std::filesystem::absolute(patchy::test::unicode_artifact_dir(u8"hotkey-tool-modifiers"));
+  const auto export_path = patchy::ui::to_qstring(dir / "gimp-keys.patchykeys");
+  const auto gimp = patchy::ui::hotkey_set_overrides(*patchy::ui::find_builtin_hotkey_set(u"gimp"),
+                                                     window.hotkey_registry().commands());
+  bool drove = false;
+  when_dialog_visible(QStringLiteral("patchyPreferencesDialog"), [&](QDialog& dialog) {
+    auto* panel = hotkey_panel(dialog);
+    auto* line = dialog.findChild<QLabel*>(QStringLiteral("hotkeyToolModifiersLabel"));
+    CHECK(line != nullptr);
+    if (line == nullptr) {
+      dialog.reject();
+      return;
+    }
+    CHECK(line->isVisible());
+    const auto patchy_text = line->text();
+    CHECK(patchy_text.contains(patchy::ui::alt_key_name() + QStringLiteral(" zooms out")));
+    panel->apply_shortcut_set(QStringLiteral("krita"));
+    CHECK(panel->staged_tool_modifier_style() == ToolModifierStyle::Krita);
+    CHECK(line->text().contains(QStringLiteral("Krita")));
+    panel->apply_shortcut_set(QStringLiteral("photoshop"));
+    CHECK(panel->staged_tool_modifier_style() == ToolModifierStyle::Patchy);
+    CHECK(line->text() == patchy_text);
+    panel->apply_shortcut_set(QStringLiteral("gimp"));
+    CHECK(panel->staged_tool_modifier_style() == ToolModifierStyle::Gimp);
+    CHECK(line->text().contains(patchy::ui::ctrl_key_name() + QStringLiteral(" zooms out")));
+    CHECK(line->text().contains(QStringLiteral("GIMP")));
+    QApplication::processEvents();
+    QApplication::processEvents();
+    save_widget_artifact("hotkey_editor_tool_modifiers", dialog);
+    // Nothing reaches the canvas before OK.
+    CHECK(patchy::ui::active_tool_modifier_style() == ToolModifierStyle::Patchy);
+    QString error;
+    CHECK(panel->export_to_file(export_path, &error));
+    // A hand edit of GIMP-style lands in Custom, which keeps GIMP's tool modifiers.
+    auto* reset = dialog.findChild<QToolButton*>(QStringLiteral("hotkeyRowReset.") + gimp.constBegin().key());
+    CHECK(reset != nullptr);
+    if (reset != nullptr) {
+      reset->click();
+    }
+    process_events_for(30);
+    CHECK(panel->active_shortcut_set_id() == QStringLiteral("custom"));
+    CHECK(panel->staged_tool_modifier_style() == ToolModifierStyle::Gimp);
+    drove = true;
+    dialog.accept();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(drove);
+  CHECK(patchy::ui::active_tool_modifier_style() == ToolModifierStyle::Gimp);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("hotkeySets/toolModifiers")).toString() ==
+        QStringLiteral("gimp"));
+  CHECK(patchy::ui::load_active_tool_modifier_style() == ToolModifierStyle::Gimp);
+  const auto stored = patchy::ui::load_user_hotkey_sets(window.hotkey_registry().commands());
+  CHECK(stored.size() == 1 && stored.front().tool_modifiers == ToolModifierStyle::Gimp);
+
+  // The exported file names the style; a file without the key reads as Patchy's.
+  {
+    QFile file(export_path);
+    CHECK(file.open(QIODevice::ReadOnly));
+    const auto root = QJsonDocument::fromJson(file.readAll()).object();
+    CHECK(root.value(QStringLiteral("toolModifiers")).toString() == QStringLiteral("gimp"));
+  }
+  CHECK(patchy::ui::hotkey_overrides_from_json(patchy::ui::hotkey_overrides_to_json({}),
+                                               window.hotkey_registry().commands())
+            .tool_modifiers == ToolModifierStyle::Patchy);
+  CHECK(!patchy::ui::hotkey_overrides_to_json({}).contains("toolModifiers"));
+
+  // Importing it makes a set with GIMP's tool modifiers; Patchy default puts Alt back on OK.
+  drove = false;
+  when_dialog_visible(QStringLiteral("patchyPreferencesDialog"), [&](QDialog& dialog) {
+    auto* panel = hotkey_panel(dialog);
+    panel->apply_shortcut_set(QStringLiteral("patchy"));
+    CHECK(panel->staged_tool_modifier_style() == ToolModifierStyle::Patchy);
+    const auto result = panel->import_from_file(export_path, QStringLiteral("From GIMP file"));
+    CHECK(result.ok);
+    CHECK(result.tool_modifiers == ToolModifierStyle::Gimp);
+    CHECK(panel->staged_tool_modifier_style() == ToolModifierStyle::Gimp);
+    panel->apply_shortcut_set(QStringLiteral("patchy"));
+    drove = true;
+    dialog.accept();
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(drove);
+  CHECK(patchy::ui::active_tool_modifier_style() == ToolModifierStyle::Patchy);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("hotkeySets/toolModifiers")).toString() ==
+        QStringLiteral("patchy"));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> hotkey_sets_tests() {
@@ -732,5 +834,6 @@ std::vector<patchy::test::TestCase> hotkey_sets_tests() {
       {"ui_hotkey_editor_built_in_sets_stay_unchanged", ui_hotkey_editor_built_in_sets_stay_unchanged},
       {"ui_hotkey_editor_shortcut_set_combo_has_room_for_its_entries",
        ui_hotkey_editor_shortcut_set_combo_has_room_for_its_entries},
+      {"ui_hotkey_editor_set_shows_and_applies_tool_modifiers", ui_hotkey_editor_set_shows_and_applies_tool_modifiers},
   };
 }

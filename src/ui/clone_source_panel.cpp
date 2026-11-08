@@ -1,9 +1,11 @@
 #include "ui/clone_source_panel.hpp"
 
 #include "ui/action_icons.hpp"
+#include "ui/canvas_types.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/modifier_names.hpp"
+#include "ui/tool_modifier_style.hpp"
 
 #include <QActionEvent>
 #include <QButtonGroup>
@@ -316,8 +318,6 @@ void CloneSourcePanel::retranslate() {
   flip_vertical_button_->setAccessibleName(tr("Flip Vertical"));
   clear_source_button_->setText(tr("Clear"));
   clear_source_button_->setAccessibleName(tr("Clear Source"));
-  clear_source_button_->setToolTip(
-      resolve_modifier_names(tr("Clear this source point; %ALT%-click the canvas to set a new one")));
   reset_button_->setText(tr("Reset"));
   reset_button_->setToolTip(tr("Back to 100%, 0 degrees and no flip; the source point stays"));
   overlay_check_->setText(tr("Show overlay"));
@@ -350,7 +350,12 @@ void CloneSourcePanel::refresh() {
   const auto active = static_cast<std::size_t>(std::clamp(state_.slot, 0, kSlotCount - 1));
   const bool source_set = state_.has_document && state_.slot_set[active];
   source_label_->setText(source_set ? QStringLiteral("%1, %2").arg(state_.slot_point[active].x()).arg(state_.slot_point[active].y())
-                                    : resolve_modifier_names(tr("Not set: %ALT%-click the canvas")));
+                                    : resolve_tool_modifier_names(tr("Not set: %SOURCE_KEY%-click the canvas"),
+                                                                  CanvasTool::Clone));
+  // Here rather than in retranslate(): the source key follows the shortcut set's tool
+  // modifiers (GitHub issue 302), which can change without a language change.
+  clear_source_button_->setToolTip(resolve_tool_modifier_names(
+      tr("Clear this source point; %SOURCE_KEY%-click the canvas to set a new one"), CanvasTool::Clone));
   clear_source_button_->setEnabled(source_set);
 
   const bool offset_editable = source_set && state_.aligned;

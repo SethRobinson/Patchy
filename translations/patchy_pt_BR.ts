@@ -16328,12 +16328,12 @@ Deseja substituí-lo?</translation>
         <translation>A clonagem não está disponível durante a edição de um canal em tons de cinza</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a healing source</source>
-        <translation>%ALT%-clique para definir uma origem de recuperação</translation>
+        <source>%SOURCE_KEY%-click to set a healing source</source>
+        <translation>%SOURCE_KEY%-clique para definir uma origem de recuperação</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a clone source</source>
-        <translation>%ALT%-clique para definir uma origem de clone</translation>
+        <source>%SOURCE_KEY%-click to set a clone source</source>
+        <translation>%SOURCE_KEY%-clique para definir uma origem de clone</translation>
     </message>
     <message>
         <source>Healing brush</source>
@@ -17460,8 +17460,8 @@ Deseja substituí-lo?</translation>
         <translation>Mover ponto médio do degradê</translation>
     </message>
     <message>
-        <source>%1 while %ALT% is held</source>
-        <translation>%1 enquanto %ALT% estiver pressionado</translation>
+        <source>%1 while %SWAP_KEY% is held</source>
+        <translation>%1 enquanto %SWAP_KEY% estiver pressionado</translation>
     </message>
     <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
@@ -17702,8 +17702,8 @@ Deseja substituí-lo?</translation>
         <translation>Origem %1: não definida</translation>
     </message>
     <message>
-        <source>Not set: %ALT%-click the canvas</source>
-        <translation>Não definida: %ALT%-clique na tela</translation>
+        <source>Not set: %SOURCE_KEY%-click the canvas</source>
+        <translation>Não definida: %SOURCE_KEY%-clique na tela</translation>
     </message>
     <message>
         <source>Aligned is off: every stroke starts at the source point.</source>
@@ -17742,8 +17742,8 @@ Deseja substituí-lo?</translation>
         <translation>Limpar origem</translation>
     </message>
     <message>
-        <source>Clear this source point; %ALT%-click the canvas to set a new one</source>
-        <translation>Limpa este ponto de origem; %ALT%-clique na tela para definir outro</translation>
+        <source>Clear this source point; %SOURCE_KEY%-click the canvas to set a new one</source>
+        <translation>Limpa este ponto de origem; %SOURCE_KEY%-clique na tela para definir outro</translation>
     </message>
     <message>
         <source>Back to 100%, 0 degrees and no flip; the source point stays</source>
@@ -20655,6 +20655,18 @@ Deseja substituí-lo?</translation>
     <message>
         <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
         <translation>%1 é integrado, então suas alterações estão no conjunto Personalizado. Renomeie-o para mantê-lo como um conjunto seu.</translation>
+    </message>
+    <message>
+        <source>Tool modifiers as in GIMP: %CTRL% zooms out, zooms with the wheel, picks colors with the Brush, Eraser and Fill tools, sets the clone source, swaps Dodge and Burn or Blur and Sharpen, and subtracts from a selection. Where %CTRL% picks, sets the source or swaps, %ALT% is the temporary Move.</source>
+        <translation>Modificadores de ferramenta como no GIMP: %CTRL% diminui o zoom, aplica zoom com a roda, coleta cores com Pincel, Borracha e Preencher, define a origem da clonagem, troca Subexposição e Superexposição ou Desfoque e Nitidez e subtrai de uma seleção. Onde %CTRL% coleta cores, define a origem ou troca, %ALT% é o Mover temporário.</translation>
+    </message>
+    <message>
+        <source>Tool modifiers as in Krita: %CTRL% zooms out, picks colors with the Brush, Mixer Brush, Smudge and Eraser tools, and sets the clone source; %ALT% subtracts from a selection. Where %CTRL% picks or sets the source, %ALT% is the temporary Move.</source>
+        <translation>Modificadores de ferramenta como no Krita: %CTRL% diminui o zoom, coleta cores com Pincel, Pincel misturador, Borrar e Borracha e define a origem da clonagem; %ALT% subtrai de uma seleção. Onde %CTRL% coleta cores ou define a origem, %ALT% é o Mover temporário.</translation>
+    </message>
+    <message>
+        <source>Tool modifiers: %ALT% zooms out, picks colors, sets the clone source and subtracts from a selection; %CTRL% is the painting tools&apos; temporary Move. The GIMP-style and Krita-style sets use %CTRL% instead.</source>
+        <translation>Modificadores de ferramenta: %ALT% diminui o zoom, coleta cores, define a origem da clonagem e subtrai de uma seleção; %CTRL% é o Mover temporário das ferramentas de pintura. Os conjuntos Estilo GIMP e Estilo Krita usam %CTRL% no lugar.</translation>
     </message>
 </context>
 <context>
@@ -29896,28 +29908,28 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         </translation>
     </message>
     <message>
-        <source>Rectangular Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a square and %ALT% draws from the center.</source>
-        <translation>Seleção retangular: arraste para selecionar. Shift+arrastar adiciona, %ALT%+arrastar subtrai, Shift+%ALT%+arrastar faz a interseção. Sem seleção, Shift desenha um quadrado e %ALT% desenha a partir do centro.</translation>
+        <source>Rectangular Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a square and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>Seleção retangular: arraste para selecionar. Shift+arrastar adiciona, %SUBTRACT_KEY%+arrastar subtrai, Shift+%SUBTRACT_KEY%+arrastar faz a interseção. Sem seleção, Shift desenha um quadrado e %SUBTRACT_KEY% desenha a partir do centro.</translation>
     </message>
     <message>
-        <source>Elliptical Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a circle and %ALT% draws from the center.</source>
-        <translation>Seleção elíptica: arraste para selecionar. Shift+arrastar adiciona, %ALT%+arrastar subtrai, Shift+%ALT%+arrastar faz a interseção. Sem seleção, Shift desenha um círculo e %ALT% desenha a partir do centro.</translation>
+        <source>Elliptical Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a circle and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>Seleção elíptica: arraste para selecionar. Shift+arrastar adiciona, %SUBTRACT_KEY%+arrastar subtrai, Shift+%SUBTRACT_KEY%+arrastar faz a interseção. Sem seleção, Shift desenha um círculo e %SUBTRACT_KEY% desenha a partir do centro.</translation>
     </message>
     <message>
-        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
-        <translation>Laço Magnético: clique em uma borda e siga-a; clique para fixar um ponto. Comece com Shift+clique para adicionar, %ALT%+clique para subtrair, Shift+%ALT%+clique para a interseção. Backspace remove o último ponto, Enter fecha, Esc cancela.</translation>
+        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
+        <translation>Laço Magnético: clique em uma borda e siga-a; clique para fixar um ponto. Comece com Shift+clique para adicionar, %SUBTRACT_KEY%+clique para subtrair, Shift+%SUBTRACT_KEY%+clique para a interseção. Backspace remove o último ponto, Enter fecha, Esc cancela.</translation>
     </message>
     <message>
-        <source>Magic Wand: click a color to select it. Shift+click adds, %ALT%+click subtracts, Shift+%ALT%+click intersects.</source>
-        <translation>Varinha mágica: clique em uma cor para selecioná-la. Shift+clique adiciona, %ALT%+clique subtrai, Shift+%ALT%+clique faz a interseção.</translation>
+        <source>Magic Wand: click a color to select it. Shift+click adds, %SUBTRACT_KEY%+click subtracts, Shift+%SUBTRACT_KEY%+click intersects.</source>
+        <translation>Varinha mágica: clique em uma cor para selecioná-la. Shift+clique adiciona, %SUBTRACT_KEY%+clique subtrai, Shift+%SUBTRACT_KEY%+clique faz a interseção.</translation>
     </message>
     <message>
-        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>Seleção rápida: pinte sobre a área a selecionar; os traços seguintes a ampliam. Shift+arrastar adiciona, %ALT%+arrastar subtrai.</translation>
+        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>Seleção rápida: pinte sobre a área a selecionar; os traços seguintes a ampliam. Shift+arrastar adiciona, %SUBTRACT_KEY%+arrastar subtrai.</translation>
     </message>
     <message>
-        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>Seleção de objeto: arraste uma caixa em volta de um objeto ou clique nele. Shift+arrastar adiciona, %ALT%+arrastar subtrai.</translation>
+        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>Seleção de objeto: arraste uma caixa em volta de um objeto ou clique nele. Shift+arrastar adiciona, %SUBTRACT_KEY%+arrastar subtrai.</translation>
     </message>
     <message>
         <source>Daily</source>
@@ -30355,12 +30367,12 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <translation>Clique para posicionar pontos, Shift mantém 45 graus, %ALT%+arrastar desenha à mão livre. Para fechar, clique no ponto inicial, clique duas vezes ou pressione Enter.</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
-        <translation>Laço: arraste em volta da área para selecioná-la. Shift+arrastar adiciona, %ALT%+arrastar subtrai, Shift+%ALT%+arrastar faz a interseção. Pressione %ALT% durante o arraste e solte o botão para clicar segmentos retos até soltar %ALT%.</translation>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>Laço: arraste em volta da área para selecioná-la. Shift+arrastar adiciona, %SUBTRACT_KEY%+arrastar subtrai, Shift+%SUBTRACT_KEY%+arrastar faz a interseção. Pressione %ALT% durante o arraste e solte o botão para clicar segmentos retos até soltar %ALT%.</translation>
     </message>
     <message>
-        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
-        <translation>Laço Poligonal: clique para posicionar pontos. Comece com Shift+clique para adicionar, %ALT%+clique para subtrair, Shift+%ALT%+clique para a interseção. Shift mantém 45 graus, %ALT%+arrastar desenha à mão livre. Para fechar, clique no ponto inicial, clique duas vezes ou pressione Enter; Backspace remove o último ponto, Esc cancela.</translation>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>Laço Poligonal: clique para posicionar pontos. Comece com Shift+clique para adicionar, %SUBTRACT_KEY%+clique para subtrair, Shift+%SUBTRACT_KEY%+clique para a interseção. Shift mantém 45 graus, %ALT%+arrastar desenha à mão livre. Para fechar, clique no ponto inicial, clique duas vezes ou pressione Enter; Backspace remove o último ponto, Esc cancela.</translation>
     </message>
     <message>
         <source>New &amp;Layer...</source>
@@ -31467,12 +31479,12 @@ O documento aberto mantém os modos de mesclagem nos dois casos.</translation>
         <translation>&amp;Demarcador de destino</translation>
     </message>
     <message>
-        <source>%1: Shift+click draws a line, %ALT%+click picks a color, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: Shift+clique traça uma linha, %ALT%+clique coleta uma cor, %ALT%+arrastar com o botão direito altera o tamanho e a suavidade.</translation>
+        <source>%1: Shift+click draws a line, %PICK_KEY%+click picks a color, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: Shift+clique traça uma linha, %PICK_KEY%+clique coleta uma cor, %ALT%+arrastar com o botão direito altera o tamanho e a suavidade.</translation>
     </message>
     <message>
-        <source>%1: %ALT%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: %ALT%+clique define a origem, Shift+clique traça uma linha, %ALT%+arrastar com o botão direito altera o tamanho e a suavidade.</translation>
+        <source>%1: %SOURCE_KEY%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %SOURCE_KEY%+clique define a origem, Shift+clique traça uma linha, %ALT%+arrastar com o botão direito altera o tamanho e a suavidade.</translation>
     </message>
     <message>
         <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
@@ -33677,8 +33689,8 @@ Bloqueado: %1</translation>
         <translation>Alterar parada de cor</translation>
     </message>
     <message>
-        <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: %ALT%+arrastar pinta com %2, Shift+clique traça uma linha, %ALT%+arrastar com o botão direito altera o tamanho e a suavidade.</translation>
+        <source>%1: %SWAP_KEY%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %SWAP_KEY%+arrastar pinta com %2, Shift+clique traça uma linha, %ALT%+arrastar com o botão direito altera o tamanho e a suavidade.</translation>
     </message>
     <message>
         <source>Pages as layers</source>
