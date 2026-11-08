@@ -2636,6 +2636,9 @@ private:
   // Shows the effects a vector mask drag hid again and repaints them (release, tool
   // switch, document reset). No-op when none are hidden.
   void restore_path_drag_effects();
+  // Re-rasterizes, once and from its final path, every shape layer a Path Select drag
+  // moved by shifting its old raster (GitHub #678); see path_drag_raster_lag_.
+  void finish_path_drag_rasters();
   void set_shape_ctrl_path_select(bool active);
   [[nodiscard]] int pen_session_anchor_at(QPointF widget_point) const;
   // Path editing (canvas_widget_vector_tools.cpp).
@@ -2713,7 +2716,8 @@ private:
   [[nodiscard]] const patchy::Layer* extra_edit_shape_layer(LayerId id) const;
   void write_shape_layer_path(patchy::Layer& layer, patchy::VectorPath path,
                               const std::vector<int>& touched_groups,
-                              const std::map<int, int>& group_copies = {});
+                              const std::map<int, int>& group_copies = {},
+                              std::optional<QPointF> whole_path_translation = std::nullopt);
   void arm_path_edit_undo(const QString& label);
   void prune_extra_path_selection();
   bool handle_path_edit_press(QMouseEvent* event, QPointF document_point);
@@ -3599,6 +3603,20 @@ private:
   // (their style masks would rebuild over the whole layer per move); see
   // restore_path_drag_effects.
   std::optional<LayerId> path_drag_effects_hidden_layer_;
+  // A drag step that translates a shape layer's WHOLE path (Path Select dragging every
+  // shape on it) moves the layer's existing raster by the rounded total instead of
+  // re-rasterizing per mouse move (GitHub #678): `translation` is the path's total
+  // offset since the raster was made, `applied` the whole pixels the raster has moved.
+  // finish_path_drag_rasters re-rasterizes from the final path at release, so the
+  // committed pixels are exactly a fresh bake.
+  struct PathDragRasterLag {
+    QPointF translation;
+    QPoint applied;
+  };
+  std::map<LayerId, PathDragRasterLag> path_drag_raster_lag_;
+  // Set by update_path_edit_drag around the primary target's write when the step
+  // translates every anchor of the path by this amount.
+  std::optional<QPointF> path_drag_whole_translation_;
   bool pen_auto_add_delete_{true};
   PenHoverAction path_hover_hint_action_{PenHoverAction::Draw};
   PathHoverTarget path_hover_hint_target_{PathHoverTarget::None};

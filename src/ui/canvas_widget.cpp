@@ -323,9 +323,11 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   // Only the document the drag hid effects in may be touched: a different one can
   // mean the old document is already gone.
   if (document == document_) {
+    finish_path_drag_rasters();
     restore_path_drag_effects();
   } else {
     path_drag_effects_hidden_layer_.reset();
+    path_drag_raster_lag_.clear();  // the shifted rasters belong to the outgoing document
     move_float_memory_.reset();  // the remembered floating pixels belong to the outgoing document
   }
   close_canvas_context_menu();
@@ -552,6 +554,7 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     pen_temp_direct_select_ = false;
     shape_temp_path_select_ = false;
     move_vector_mask_drag_ = false;
+    finish_path_drag_rasters();
     restore_path_drag_effects();
     shape_ctrl_path_select_ = false;
     arrow_swap_active_ = false;

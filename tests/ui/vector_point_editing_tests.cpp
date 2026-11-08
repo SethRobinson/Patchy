@@ -1331,6 +1331,72 @@ void ui_path_select_drag_coalesces_queued_moves() {
   CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_y - 100.0) < 0.5);
 }
 
+// GitHub #678: a Path Select drag of a whole shape moves the shape's existing raster by
+// whole pixels per mouse move (the shape trailed the pointer on a 3500 px photo while
+// every move re-rasterized it) and re-rasterizes once, at release, from the final path,
+// so the committed pixels are a fresh bake. At 75% zoom the path moves by fractions of
+// a pixel; the whole drag is one undo step.
+void ui_path_select_shape_drag_shifts_raster_and_rebakes_once() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+  canvas->set_view_zoom_centered(0.75);
+  canvas->set_tool(patchy::ui::CanvasTool::PathSelect);
+  const auto bounds_before = std::as_const(document).find_layer(layer_id)->bounds();
+  const auto rerasters = [canvas] { return canvas->render_cache_diagnostics().path_drag_rerasters; };
+  const auto applies = [canvas] { return canvas->render_cache_diagnostics().path_drag_applies; };
+  const auto start = canvas->widget_position_for_document_point(QPoint(200, 160));
+  const auto start_document = canvas->document_point_for_widget_position(QPointF(start));
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  const auto rerasters_before = rerasters();
+  const auto applies_before = applies();
+  QPoint position = start;
+  for (int move = 1; move <= 12; ++move) {
+    position = start + QPoint(move * 3, move);
+    send_mouse(*canvas, QEvent::MouseMove, position, Qt::NoButton, Qt::LeftButton);
+    QApplication::processEvents();
+  }
+  CHECK(applies() - applies_before == 12);
+  CHECK(rerasters() == rerasters_before);  // no bake while the pointer moves
+  // Mid-drag the raster sits where the path is, to the nearest pixel.
+  const auto total = canvas->document_point_for_widget_position(QPointF(position)) - start_document;
+  const auto* layer = std::as_const(document).find_layer(layer_id);
+  CHECK(layer != nullptr);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_x - (100.0 + total.x())) < 1e-6);
+  CHECK(std::abs(layer->bounds().x - bounds_before.x - total.x()) <= 0.5 + 1e-6);
+  CHECK(std::abs(layer->bounds().y - bounds_before.y - total.y()) <= 0.5 + 1e-6);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, position, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(rerasters() - rerasters_before == 1);
+  // The committed raster is exactly what a fresh bake of the final path gives.
+  layer = std::as_const(document).find_layer(layer_id);
+  CHECK(layer != nullptr);
+  if (layer != nullptr) {
+    auto fresh = *layer;
+    patchy::update_vector_shape_raster(fresh, patchy::Rect::from_size(document.width(), document.height()),
+                                       &std::as_const(document).metadata().patterns);
+    CHECK(fresh.bounds() == layer->bounds());
+    const auto committed = std::as_const(*layer).pixels().data();
+    const auto baked = std::as_const(fresh).pixels().data();
+    CHECK(committed.size() == baked.size() &&
+          std::equal(committed.begin(), committed.end(), baked.begin(), baked.end()));
+  }
+  patchy::ui::MainWindowTestAccess::undo(window);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_x - 100.0) < 0.5);
+  CHECK(std::as_const(document).find_layer(layer_id)->bounds() == bounds_before);
+  // A drag that is cancelled (here by switching tools mid-drag) still ends on a fresh bake.
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, start + QPoint(7, 5), Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+  const auto rerasters_mid = rerasters();
+  canvas->set_tool(patchy::ui::CanvasTool::Move);
+  CHECK(rerasters() - rerasters_mid == 1);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, start + QPoint(7, 5), Qt::LeftButton, Qt::NoButton);
+}
+
 // GitHub issue 248, point 4: a Direct Select press on a point of a shape that
 // is not selected yet drags that point at once, on the active shape and on
 // another shape layer.
@@ -2972,6 +3038,8 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
       {"ui_path_select_marquee_touching_shape_selects_it", ui_path_select_marquee_touching_shape_selects_it},
       {"ui_path_select_drag_inside_fill_moves_shape", ui_path_select_drag_inside_fill_moves_shape},
       {"ui_path_select_drag_coalesces_queued_moves", ui_path_select_drag_coalesces_queued_moves},
+      {"ui_path_select_shape_drag_shifts_raster_and_rebakes_once",
+       ui_path_select_shape_drag_shifts_raster_and_rebakes_once},
       {"ui_direct_select_drags_points_of_unselected_shapes",
        ui_direct_select_drags_points_of_unselected_shapes},
       {"ui_path_select_anchor_drag_moves_the_whole_shape", ui_path_select_anchor_drag_moves_the_whole_shape},

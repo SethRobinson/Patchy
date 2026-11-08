@@ -5192,6 +5192,7 @@ void CanvasWidget::cancel_pointer_gestures() {
   transform_drag_uses_clip_group_preview_ = false;
   path_transform_drag_handle_ = TransformHandle::None;
   path_drag_mode_ = PathEditDrag::None;
+  finish_path_drag_rasters();  // a cancelled Path Select drag still ends on a fresh bake
   pen_handle_dragging_ = false;
   pen_session_drag_anchor_ = -1;
   crop_dragging_out_ = crop_rotating_ = false;
