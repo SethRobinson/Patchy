@@ -2239,7 +2239,7 @@ void ui_web_export_view_modes_keep_the_dialog_size() {
 
 // On a large image GIF and PNG wait until their row has been selected once, as AVIF and
 // JPEG XL do (GitHub issue 571: seconds each on a photo); the selected one encodes at once and
-// keeps encoding in the background after that.
+// keeps encoding in the background after that. Captures web_export_large_image_deferred.
 void ui_web_export_large_image_defers_gif_and_png() {
   WebExportSettingsGuard guard;
   // Just over kWebExportDeferredPixels.
@@ -2274,6 +2274,7 @@ void ui_web_export_large_image_defers_gif_and_png() {
     }
     CHECK(png_row->text(2) == deferred);
     CHECK(gif_row->text(2) == deferred);
+    (void)capture_widget_artifact("web_export_large_image_deferred", dialog);
     // Selecting GIF encodes it at once; PNG still waits.
     list->setCurrentItem(gif_row);
     CHECK(wait_until([&] { return sized(gif_row); }));

@@ -289,7 +289,7 @@ Core: `gif_quantize_*` (`gif_quantize_large_image_is_pinned` included), `gif_enc
 `ui_web_export_layers_as_animated_open_export_for_web` (captures `web_export_layers_as_animated_gif`),
 `ui_web_export_palette_png_and_gif_read_back`, `ui_script_export_as_palette_keys`,
 `ui_web_export_avif_and_jxl_read_back`, `ui_web_export_slow_encode_never_blocks_the_selected_format`,
-`ui_web_export_large_image_defers_gif_and_png`,
+`ui_web_export_large_image_defers_gif_and_png` (captures `web_export_large_image_deferred`),
 `ui_script_encode_for_web`, `ui_script_export_as_png_animation`,
 `ui_web_export_still_png_is_unchanged_by_animation`,
 `ui_web_export_jpeg_progressive_and_optimize_read_back`,
