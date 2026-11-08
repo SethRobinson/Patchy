@@ -17,6 +17,9 @@ namespace {
 
 inline constexpr std::size_t kMaxPaletteColors = 256;
 
+// collect_color_counts switches to a dense table at this many pixels.
+constexpr std::uint64_t kDenseColorCountPixels = std::uint64_t{1} << 20U;
+
 [[nodiscard]] std::size_t lut_bucket(std::uint8_t r, std::uint8_t g, std::uint8_t b) noexcept {
   return (static_cast<std::size_t>(r >> 3U) << 10U) | (static_cast<std::size_t>(g >> 3U) << 5U) |
          static_cast<std::size_t>(b >> 3U);
@@ -169,15 +172,22 @@ std::uint16_t nearest_palette_index(RgbColor color, std::span<const RgbColor> pa
 
 void PaletteLut::build(std::span<const RgbColor> colors) {
   colors_.assign(colors.begin(), colors.begin() + std::min<std::size_t>(colors.size(), kMaxPaletteColors));
-  exact_.clear();
+  exact_head_.clear();
+  exact_next_.clear();
   table_.clear();
   if (colors_.empty()) {
     return;
   }
 
-  exact_.reserve(colors_.size());
-  for (const auto& color : colors_) {
-    exact_.insert(palette_color_key(color));
+  exact_head_.assign(32768, -1);
+  exact_next_.assign(colors_.size(), -1);
+  for (std::size_t index = 0; index < colors_.size(); ++index) {
+    const auto& color = colors_[index];
+    auto* link = &exact_head_[lut_bucket(color.red, color.green, color.blue)];
+    while (*link >= 0) {
+      link = &exact_next_[static_cast<std::size_t>(*link)];
+    }
+    *link = static_cast<std::int16_t>(index);
   }
 
   table_.resize(32768);
@@ -190,7 +200,20 @@ void PaletteLut::build(std::span<const RgbColor> colors) {
 }
 
 bool PaletteLut::contains(RgbColor color) const noexcept {
-  return exact_.find(palette_color_key(color)) != exact_.end();
+  return exact_index(color.red, color.green, color.blue) >= 0;
+}
+
+int PaletteLut::exact_index(std::uint8_t r, std::uint8_t g, std::uint8_t b) const noexcept {
+  if (exact_head_.empty()) {
+    return -1;
+  }
+  for (auto index = exact_head_[lut_bucket(r, g, b)]; index >= 0; index = exact_next_[static_cast<std::size_t>(index)]) {
+    const auto& color = colors_[static_cast<std::size_t>(index)];
+    if (color.red == r && color.green == g && color.blue == b) {
+      return index;
+    }
+  }
+  return -1;
 }
 
 std::uint16_t PaletteLut::index_for(std::uint8_t r, std::uint8_t g, std::uint8_t b) const noexcept {
@@ -278,6 +301,31 @@ void remap_document_exact_color(Document& document, RgbColor from, RgbColor to) 
 
 std::vector<PaletteColorCount> collect_color_counts(const PixelBuffer& pixels, std::uint8_t alpha_threshold) {
   const auto channels = pixels.format().channels;
+  const auto pixel_count = static_cast<std::uint64_t>(std::max(0, pixels.width())) *
+                           static_cast<std::uint64_t>(std::max(0, pixels.height()));
+  if (channels >= 3 && pixel_count >= kDenseColorCountPixels &&
+      pixel_count <= std::numeric_limits<std::uint32_t>::max()) {
+    // One counter per 24-bit color (64 MB): a photo has hundreds of thousands of colors, and
+    // the hash map below took seconds per GIF or palette PNG of one (GitHub issue 571). Same
+    // result: the counts in color key order.
+    std::vector<std::uint32_t> dense(std::size_t{1} << 24U, 0U);
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        const auto* pixel = pixels.pixel(x, y);
+        if (channels >= 4 && alpha_threshold > 0 && pixel[3] < alpha_threshold) {
+          continue;
+        }
+        ++dense[palette_color_key(RgbColor{pixel[0], pixel[1], pixel[2]})];
+      }
+    }
+    std::vector<PaletteColorCount> colors;
+    for (std::uint32_t key = 0; key < dense.size(); ++key) {
+      if (dense[key] != 0U) {
+        colors.push_back(PaletteColorCount{palette_color_from_key(key), dense[key]});
+      }
+    }
+    return colors;
+  }
   std::unordered_map<std::uint32_t, std::uint64_t> counts;
   counts.reserve(static_cast<std::size_t>(pixels.width()) * static_cast<std::size_t>(pixels.height()));
   if (channels >= 3) {
@@ -507,11 +555,17 @@ std::optional<Palette> exact_palette_from_pixels(const PixelBuffer& pixels, std:
 
 Palette quantize_to_palette(const PixelBuffer& pixels, std::size_t max_colors, std::uint8_t alpha_threshold) {
   max_colors = std::clamp<std::size_t>(max_colors, 1, kMaxPaletteColors);
-  if (auto exact = exact_palette_from_pixels(pixels, max_colors, alpha_threshold)) {
-    return std::move(*exact);
-  }
+  // One count serves both: the exact colors when they fit, else median cut of them.
+  const auto counts = collect_color_counts(pixels, alpha_threshold);
   Palette palette;
-  palette.colors = median_cut_palette(collect_color_counts(pixels, alpha_threshold), max_colors);
+  if (!counts.empty() && counts.size() <= max_colors) {
+    palette.colors.reserve(counts.size());
+    for (const auto& entry : counts) {
+      palette.colors.push_back(entry.color);
+    }
+    return palette;
+  }
+  palette.colors = median_cut_palette(counts, max_colors);
   return palette;
 }
 

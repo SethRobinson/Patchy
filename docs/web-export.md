@@ -143,7 +143,14 @@ total) and, with diffusion, first runs the palette mode's integer Floyd-Steinber
 `indexed_rgba8_quantized(rgba, 256, threshold)`, so
 `gif_encoder_bytes_are_stable` and the GIF writer's bytes do not change; `gif::write(document,
 options)` and the animated GIF frames take the same options. Palette-mode documents keep their own
-palette and ignore them. Pinned by `gif_quantize_*` (core).
+palette and ignore them. Pinned by `gif_quantize_*` (core); `gif_quantize_large_image_is_pinned`
+pins a 1.2 megapixel buffer through the fast paths below.
+
+Speed (GitHub issue 571): `quantize_to_palette` counts the colors once for both the exact and
+the median cut path; `collect_color_counts` uses a dense 2^24 counter table (64 MB, temporary)
+from 2^20 pixels instead of a hash map; the per-pixel exact lookup is `PaletteLut::exact_index`
+(a chain per 5-5-5 bucket, lowest index first, as the hash map it replaced). Results are
+unchanged: the counts come out in color key order either way.
 
 ## Preview engine
 
@@ -156,7 +163,13 @@ by signature. The narrowed source and the prepared document are made under a mut
 shared read-only by both lanes. AVIF and JPEG XL sizes are only computed in the background after
 their row has been selected once in that dialog (until then the row says "select to encode"): on
 a large photo libaom and libjxl take seconds, and encoding them for every quality change of
-another format would keep a core busy for nothing. Each job:
+another format would keep a core busy for nothing. GIF and PNG (full color and palette) do the
+same from `kWebExportDeferredPixels` (3 megapixels) of output, the size fields or the Pixel art
+factor (`web_export_output_pixels`, `web_export_format_is_slow`; GitHub issue 571). Measured on
+a 6192 x 4128 photo (encode plus read-back, after the shared prepare): full PNG about 8 s (Linux)
+to 15 s (Windows), nearly all of it zlib in Qt's PNG writer, which the preview cannot change
+because Save writes the previewed bytes; GIF and palette PNG 3.6 to 11 s before the quantizer
+speedups below. Below the threshold they encode in the background as before. Each job:
 
 1. Narrows the source to 8 bits once per dialog.
 2. Prepares the resized, trimmed, sRGB-converted stand-in (`export_transformed_document`), cached
@@ -272,10 +285,11 @@ bytes are what `exportAs` would write for an RGB document (a CMYK Proof document
 
 ## Tests
 
-Core: `gif_quantize_*`, `gif_encoder_bytes_are_stable`. UI: `ui_web_export_defaults_and_options`,
+Core: `gif_quantize_*` (`gif_quantize_large_image_is_pinned` included), `gif_encoder_bytes_are_stable`. UI: `ui_web_export_defaults_and_options`,
 `ui_web_export_layers_as_animated_open_export_for_web` (captures `web_export_layers_as_animated_gif`),
 `ui_web_export_palette_png_and_gif_read_back`, `ui_script_export_as_palette_keys`,
 `ui_web_export_avif_and_jxl_read_back`, `ui_web_export_slow_encode_never_blocks_the_selected_format`,
+`ui_web_export_large_image_defers_gif_and_png` (captures `web_export_large_image_deferred`),
 `ui_script_encode_for_web`, `ui_script_export_as_png_animation`,
 `ui_web_export_still_png_is_unchanged_by_animation`,
 `ui_web_export_jpeg_progressive_and_optimize_read_back`,

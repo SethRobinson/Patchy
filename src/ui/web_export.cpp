@@ -306,9 +306,6 @@ const std::vector<WebExportFormat>& web_export_formats() {
   return formats;
 }
 
-bool web_export_format_is_slow(WebExportFormat format) {
-  return format == WebExportFormat::Avif || format == WebExportFormat::Jxl;
-}
 
 QString web_export_format_key(WebExportFormat format) {
   switch (format) {
@@ -469,6 +466,36 @@ void save_web_export_settings(const WebExportSettings& settings) {
   stored.setValue(QLatin1String(kConvertToSrgbKey), settings.convert_to_srgb);
   stored.setValue(QLatin1String(kCompareKey), compare_key(settings.compare));
   stored.setValue(QLatin1String(kRevealKey), settings.reveal_when_done);
+}
+
+std::int64_t web_export_output_pixels(const WebExportSettings& settings, QSize document_size) {
+  std::int64_t width = std::max(0, document_size.width());
+  std::int64_t height = std::max(0, document_size.height());
+  if (settings.resample == WebExportResample::PixelArt) {
+    const auto scale = std::clamp(settings.pixel_scale, 1, kMaxPixelScale);
+    width *= scale;
+    height *= scale;
+  } else if (settings.width > 0 && settings.height > 0) {
+    width = settings.width;
+    height = settings.height;
+  }
+  return width * height;
+}
+
+bool web_export_format_is_slow(WebExportFormat format, const WebExportSettings& settings, QSize document_size) {
+  switch (format) {
+    case WebExportFormat::Avif:
+    case WebExportFormat::Jxl:
+      return true;
+    case WebExportFormat::Png:
+    case WebExportFormat::Gif:
+      // Measured on a 6192 x 4128 photo: about 3 to 15 s each (docs/web-export.md).
+      return web_export_output_pixels(settings, document_size) >= kWebExportDeferredPixels;
+    case WebExportFormat::Jpeg:
+    case WebExportFormat::Webp:
+      break;
+  }
+  return false;
 }
 
 ImageSaveOptions web_export_geometry_options(const WebExportSettings& settings, QSize document_size) {
@@ -2518,7 +2545,8 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
       item->setText(1, web_export_format_summary(current, format));
       const auto job = web_export_job(current, format, document_size);
       const auto cached = engine.cached(job.signature);
-      const bool unvisited_slow = web_export_format_is_slow(format) && !visited.contains(format);
+      const bool unvisited_slow =
+          web_export_format_is_slow(format, current, document_size) && !visited.contains(format);
       const bool waiting = !cached.has_value() && !errors.contains(job.signature) && !unvisited_slow;
       QString text;
       if (cached.has_value() && cached->bytes != nullptr) {
@@ -2527,7 +2555,8 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
       } else if (errors.contains(job.signature)) {
         text = QObject::tr("failed");
       } else if (unvisited_slow) {
-        // AVIF and JPEG XL sizes start once their row has been selected (docs/web-export.md).
+        // AVIF and JPEG XL sizes, and GIF and PNG ones of a large image, start once their row
+        // has been selected (docs/web-export.md).
         text = QObject::tr("select to encode");
       } else if (const auto last = last_sizes.find(format); last != last_sizes.end()) {
         // The last size stays, marked, until the new encode lands.
@@ -2914,10 +2943,11 @@ std::optional<WebExportDialogResult> request_web_export(QWidget* parent, std::sh
         }
       }
     }
-    // Then the fast formats, then AVIF and JPEG XL rows that have been selected once.
+    // Then the fast formats, then the slow rows (AVIF, JPEG XL, and GIF and PNG of a large
+    // image) that have been selected once.
     for (const bool slow : {false, true}) {
       for (const auto format : web_export_formats()) {
-        if (format != current.format && web_export_format_is_slow(format) == slow &&
+        if (format != current.format && web_export_format_is_slow(format, current, document_size) == slow &&
             (!slow || visited.contains(format))) {
           jobs.push_back(web_export_job(current, format, document_size));
         }
