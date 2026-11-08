@@ -15019,6 +15019,10 @@ Do you want to replace it?</source>
         <source>Show the &gt; arrow that opens more columns</source>
         <translation>列を追加表示する &gt; 矢印を表示</translation>
     </message>
+    <message>
+        <source>No to &amp;All</source>
+        <translation>すべていいえ(&amp;A)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

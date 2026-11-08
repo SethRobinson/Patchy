@@ -15019,6 +15019,10 @@ Do you want to replace it?</source>
         <source>Show the &gt; arrow that opens more columns</source>
         <translation>열을 더 여는 &gt; 화살표 표시</translation>
     </message>
+    <message>
+        <source>No to &amp;All</source>
+        <translation>모두 아니요(&amp;A)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

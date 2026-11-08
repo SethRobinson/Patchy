@@ -1110,6 +1110,8 @@ public:
   CloseAnswerDriver& operator=(const CloseAnswerDriver&) = delete;
 
   [[nodiscard]] const QStringList& log() const noexcept { return log_; }
+  // Per answered prompt: whether it offered No to All (local-041).
+  [[nodiscard]] const QList<bool>& no_to_all_offered() const noexcept { return no_to_all_offered_; }
   [[nodiscard]] bool finished() const noexcept { return steps_.empty(); }
 
 private:
@@ -1122,6 +1124,7 @@ private:
         return;
       }
       log_.append(prompt->text());
+      no_to_all_offered_.append(prompt->button(QMessageBox::NoToAll) != nullptr);
       const auto button = steps_.front().button;
       steps_.pop_front();
       prompt->button(button)->click();
@@ -1148,6 +1151,7 @@ private:
 
   std::deque<CloseAnswerStep> steps_;
   QStringList log_;
+  QList<bool> no_to_all_offered_;
   QTimer timer_;
 };
 
@@ -1185,6 +1189,8 @@ void ui_quit_closes_each_answered_document_and_cancel_keeps_the_rest() {
     CHECK(driver.log() == QStringList({save_prompt_text(QStringLiteral("Untitled-3")),
                                        save_prompt_text(QStringLiteral("Untitled-2")),
                                        save_prompt_text(QStringLiteral("Untitled-1"))}));
+    // No to All while another modified document still waits; not on the last one.
+    CHECK(driver.no_to_all_offered() == QList<bool>({true, true, false}));
   }
   CHECK(window.isVisible());
   CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 1);
@@ -1198,8 +1204,164 @@ void ui_quit_closes_each_answered_document_and_cancel_keeps_the_rest() {
     flush_deferred_deletes();
     CHECK(driver.finished());
     CHECK(driver.log() == QStringList({save_prompt_text(QStringLiteral("Untitled-1"))}));
+    // A single modified document keeps the three answers.
+    CHECK(driver.no_to_all_offered() == QList<bool>({false}));
   }
   CHECK(!window.isVisible());
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 0);
+}
+
+// No to All on the first quit prompt discards every modified document without another
+// question and the quit finishes (local-041). Its A key answers it too.
+void ui_quit_no_to_all_discards_every_modified_document() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  add_modified_untitled_document(window, QStringLiteral("Untitled-1"), QColor(200, 40, 40));
+  add_modified_untitled_document(window, QStringLiteral("Untitled-2"), QColor(40, 200, 40));
+  add_modified_untitled_document(window, QStringLiteral("Untitled-3"), QColor(40, 40, 200));
+  window.add_document_session(make_float_test_document(QColor(90, 90, 90)), QStringLiteral("Clean"));
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 4);
+
+  {
+    CloseAnswerDriver driver(window, {prompt_answer(QMessageBox::NoToAll)});
+    CHECK(window.close());
+    QApplication::processEvents();
+    flush_deferred_deletes();
+    CHECK(driver.finished());
+    CHECK(driver.log() == QStringList({save_prompt_text(QStringLiteral("Untitled-3"))}));
+    CHECK(driver.no_to_all_offered() == QList<bool>({true}));
+  }
+  // Only the unsaved documents close inside the quit; the clean one goes with the window.
+  CHECK(!window.isVisible());
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 1);
+  CHECK(patchy::ui::MainWindowTestAccess::session_title(window, 0) == QStringLiteral("Clean"));
+
+  // The button reads No to All with A underlined, and a plain A answers it.
+  patchy::ui::MainWindow keyed;
+  show_window_empty(keyed);
+  add_modified_untitled_document(keyed, QStringLiteral("Untitled-1"), QColor(200, 40, 40));
+  add_modified_untitled_document(keyed, QStringLiteral("Untitled-2"), QColor(40, 200, 40));
+  int prompts = 0;
+  QString button_text;
+  QTimer key_driver;
+  QObject::connect(&key_driver, &QTimer::timeout, &keyed, [&] {
+    auto* prompt = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("saveChangesMessageBox")));
+    if (prompt == nullptr || !prompt->isVisible()) {
+      return;
+    }
+    ++prompts;
+    if (auto* no_to_all = prompt->button(QMessageBox::NoToAll); no_to_all != nullptr) {
+      button_text = no_to_all->text();
+      (void)capture_widget_artifact("ui_quit_no_to_all_prompt", *prompt);
+      QTest::keyClick(prompt, Qt::Key_A);
+    } else {
+      prompt->button(QMessageBox::Cancel)->click();
+    }
+  });
+  key_driver.start(10);
+  CHECK(keyed.close());
+  key_driver.stop();
+  QApplication::processEvents();
+  flush_deferred_deletes();
+  CHECK(prompts == 1);
+  CHECK(button_text == QStringLiteral("No to &All"));
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(keyed) == 0);
+}
+
+// Close All and Close Others offer No to All too; it covers only the documents that
+// close, so the kept document stays open with its changes (local-041).
+void ui_close_all_and_close_others_offer_no_to_all() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr);
+  add_modified_untitled_document(window, QStringLiteral("Untitled-1"), QColor(200, 40, 40));
+  add_modified_untitled_document(window, QStringLiteral("Untitled-2"), QColor(40, 200, 40));
+  add_modified_untitled_document(window, QStringLiteral("Untitled-3"), QColor(40, 40, 200));
+
+  {
+    CloseAnswerDriver driver(window, {prompt_answer(QMessageBox::NoToAll)});
+    patchy::ui::MainWindowTestAccess::close_other_document_tabs(window, 0);
+    QApplication::processEvents();
+    flush_deferred_deletes();
+    CHECK(driver.finished());
+    CHECK(driver.log() == QStringList({save_prompt_text(QStringLiteral("Untitled-3"))}));
+    CHECK(driver.no_to_all_offered() == QList<bool>({true}));
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 1);
+  CHECK(patchy::ui::MainWindowTestAccess::session_title(window, 0) == QStringLiteral("Untitled-1"));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+
+  // Close All with two modified documents: the first prompt offers No to All.
+  add_modified_untitled_document(window, QStringLiteral("Untitled-4"), QColor(120, 120, 20));
+  {
+    CloseAnswerDriver driver(window, {prompt_answer(QMessageBox::NoToAll)});
+    require_action(window, "fileCloseAllAction")->trigger();
+    QApplication::processEvents();
+    flush_deferred_deletes();
+    CHECK(driver.finished());
+    CHECK(driver.log() == QStringList({save_prompt_text(QStringLiteral("Untitled-4"))}));
+    CHECK(driver.no_to_all_offered() == QList<bool>({true}));
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 0);
+  CHECK(tabs->count() == 0);
+
+  // A later Close All starts a fresh batch: one modified document, three answers.
+  add_modified_untitled_document(window, QStringLiteral("Untitled-5"), QColor(20, 120, 120));
+  {
+    CloseAnswerDriver driver(window, {prompt_answer(QMessageBox::Cancel)});
+    require_action(window, "fileCloseAllAction")->trigger();
+    QApplication::processEvents();
+    CHECK(driver.finished());
+    CHECK(driver.no_to_all_offered() == QList<bool>({false}));
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 1);
+}
+
+// Quit with a modified Edit Contents child and its modified parent: the child is asked
+// first, and No to All there closes both without asking about the parent (local-041).
+void ui_quit_no_to_all_covers_smart_object_parent() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  require_action(window, "layerConvertSmartObjectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  patchy::ui::MainWindowTestAccess::open_smart_object_contents(window);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_smart_object_child(window));
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 2);
+
+  int save_prompts = 0;
+  int other_prompts = 0;
+  QTimer poller;
+  QObject::connect(&poller, &QTimer::timeout, &window, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* box = qobject_cast<QMessageBox*>(widget);
+      if (box == nullptr || !box->isVisible()) {
+        continue;
+      }
+      if (box->objectName() == QStringLiteral("saveChangesMessageBox") &&
+          box->button(QMessageBox::NoToAll) != nullptr) {
+        ++save_prompts;
+        box->button(QMessageBox::NoToAll)->click();
+      } else {
+        ++other_prompts;
+        box->button(QMessageBox::Cancel)->click();
+      }
+      return;
+    }
+  });
+  poller.start(10);
+  CHECK(window.close());
+  poller.stop();
+  QApplication::processEvents();
+  flush_deferred_deletes();
+  CHECK(save_prompts == 1);
+  CHECK(other_prompts == 0);
   CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 0);
 }
 
@@ -1303,6 +1465,7 @@ void ui_close_all_save_as_cancel_returns_to_prompt_for_floats() {
     CHECK(driver.finished());
     CHECK(driver.log() == QStringList({untitled_2, QStringLiteral("Save As"), untitled_2,
                                        save_prompt_text(QStringLiteral("Untitled-1"))}));
+    CHECK(driver.no_to_all_offered() == QList<bool>({true, true, false}));
   }
   CHECK(find_document_float_window(window) == nullptr);
   CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == 1);
@@ -1326,6 +1489,9 @@ std::vector<patchy::test::TestCase> float_window_tests() {
       {"ui_quit_closes_each_answered_document_and_cancel_keeps_the_rest",
        ui_quit_closes_each_answered_document_and_cancel_keeps_the_rest},
       {"ui_quit_save_as_cancel_returns_to_save_prompt", ui_quit_save_as_cancel_returns_to_save_prompt},
+      {"ui_quit_no_to_all_discards_every_modified_document", ui_quit_no_to_all_discards_every_modified_document},
+      {"ui_close_all_and_close_others_offer_no_to_all", ui_close_all_and_close_others_offer_no_to_all},
+      {"ui_quit_no_to_all_covers_smart_object_parent", ui_quit_no_to_all_covers_smart_object_parent},
       {"ui_close_tab_save_as_cancel_returns_to_save_prompt", ui_close_tab_save_as_cancel_returns_to_save_prompt},
       {"ui_close_all_save_as_cancel_returns_to_prompt_for_floats",
        ui_close_all_save_as_cancel_returns_to_prompt_for_floats},

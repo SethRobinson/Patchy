@@ -5933,7 +5933,9 @@ void MainWindow::closeEvent(QCloseEvent* event) {
   // Each answered document closes at once, Yes and No alike, so Cancel on a later
   // prompt keeps only the documents not yet answered (GitHub issue 359). Unmodified
   // documents stay open until the quit is settled.
+  // One batch: the prompt offers No to All while two or more documents wait (local-041).
   const auto session_ids = sessions_.ids();
+  const CloseBatchScope close_batch(*this, session_ids);
   for (auto id_it = session_ids.rbegin(); id_it != session_ids.rend(); ++id_it) {
     auto* target_session = session_with_id(*id_it);
     if (target_session == nullptr || !session_is_modified(*target_session)) {

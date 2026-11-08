@@ -119,6 +119,14 @@ activates the session by id). `ui_window_menu_lists_open_documents` pins it.
   only Cancel ends the close (GitHub issue 359). Quit closes each modified document as soon as
   it is answered (`CloseConfirmation::AlreadyConfirmed`), so Cancel keeps only the documents
   not yet answered; unmodified ones stay open until the quit is settled.
+- No to All (local-041): quit, Close All and Close Others run inside a `CloseBatchScope`
+  (`MainWindow::close_batch_`, the ids the close walks). While another batch document still
+  has unsaved changes, the prompt adds `QMessageBox::NoToAll` ("No to &All", plain A answers
+  it); the last one asked and every single close keep Yes, No and Cancel. No to All discards
+  that document and sets `discard_all`, so the batch's remaining documents close unasked (an
+  Edit Contents parent included). A document outside the batch, such as the kept tab of
+  Close Others closed with its smart object parent, is still asked. Nested scopes join the
+  outer batch.
 - `--screenshot` captures the main window only; floated documents are not in the grab.
 
 ## Deliberately out of scope

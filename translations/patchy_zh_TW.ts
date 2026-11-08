@@ -15019,6 +15019,10 @@ Do you want to replace it?</source>
         <source>Show the &gt; arrow that opens more columns</source>
         <translation>顯示用來展開更多欄的 &gt; 箭頭</translation>
     </message>
+    <message>
+        <source>No to &amp;All</source>
+        <translation>全部否(&amp;A)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

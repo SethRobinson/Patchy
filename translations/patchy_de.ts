@@ -15066,6 +15066,10 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Show the &gt; arrow that opens more columns</source>
         <translation>Pfeil &gt; anzeigen, der weitere Spalten öffnet</translation>
     </message>
+    <message>
+        <source>No to &amp;All</source>
+        <translation>Nein für a&amp;lle</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
