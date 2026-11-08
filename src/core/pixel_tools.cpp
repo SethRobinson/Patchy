@@ -2574,8 +2574,9 @@ Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0,
       return;
     }
 
-    // One band of the dab's rows: the smear, then the pickup (GitHub issue 660). Each
-    // pixel's write and pickup touch only its own bytes and its own carried-sample entry.
+    // One band of the dab's rows: each pixel's smear, then its pickup, in one pass (GitHub issue
+    // 660). Both touch only that pixel's bytes and its own carried-sample entry, so the order
+    // across pixels does not matter and the bytes equal a smear pass followed by a pickup pass.
     const auto band = [&](std::int32_t row_begin, std::int32_t row_end) {
       Rect band_dirty;
       for (std::int32_t py = row_begin; py < row_end; ++py) {
@@ -2586,95 +2587,76 @@ Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0,
           const auto sample_y = py - (center_y - radius);
           const auto distance_x = px_doc - center_x;
           const auto distance_y = py - center_y;
-          auto coverage = brush_coverage(static_cast<double>(distance_x * distance_x + distance_y * distance_y),
-                                         radius, options.brush_softness);
-          coverage *= selection_coverage(options, px_doc, py);
-          if (coverage <= 0.0F) {
+          const auto pickup_coverage =
+              brush_coverage(static_cast<double>(distance_x * distance_x + distance_y * distance_y), radius,
+                             options.brush_softness) *
+              selection_coverage(options, px_doc, py);
+          if (pickup_coverage <= 0.0F) {
             continue;
           }
-          const auto* snap = options.palette_snap;
-          if (snap != nullptr) {
-            if (coverage < snap->coverage_threshold) {
-              continue;
-            }
-            coverage = 1.0F;
-          }
-
-          if (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py)) {
-            continue;
-          }
-
-          auto* dst = row + static_cast<std::size_t>(px_doc - bounds.x) * channels;
-          if (options.lock_transparent_pixels && channels >= 4 && dst[3] == 0) {
-            continue;
-          }
-
-          std::array<std::uint8_t, 4> pre_snap{};
-          if (snap != nullptr) {
-            for (std::uint16_t channel = 0; channel < channels && channel < pre_snap.size(); ++channel) {
-              pre_snap[channel] = dst[channel];
-            }
-          }
-          const auto* src =
-              state.sample_rgba.data() +
-              (static_cast<std::size_t>(sample_y) * static_cast<std::size_t>(state.diameter) +
-               static_cast<std::size_t>(sample_x)) *
-                  4U;
-          const auto amount = std::clamp(strength * coverage, 0.0F, 1.0F);
-          const auto mixed = smudge_mix(
-              {static_cast<float>(src[0]), static_cast<float>(src[1]), static_cast<float>(src[2]),
-               static_cast<float>(src[3])},
-              {static_cast<float>(dst[0]), static_cast<float>(dst[1]), static_cast<float>(dst[2]),
-               channels >= 4 ? static_cast<float>(dst[3]) : 255.0F},
-              amount);
-          bool changed = false;
-          for (std::uint16_t channel = 0; channel < color_channels; ++channel) {
-            const auto value = clamp_byte(mixed[channel]);
-            changed = changed || value != dst[channel];
-            dst[channel] = value;
-          }
-          if (channels >= 4 && !options.lock_transparent_pixels) {
-            const auto alpha = clamp_byte(mixed[3]);
-            changed = changed || alpha != dst[3];
-            dst[3] = alpha;
-          }
-          if (snap != nullptr) {
-            snap_pixel_to_palette(dst, channels, *snap);
-            changed = false;
-            for (std::uint16_t channel = 0; channel < channels && channel < pre_snap.size(); ++channel) {
-              changed = changed || dst[channel] != pre_snap[channel];
-            }
-          }
-          if (changed) {
-            band_dirty = unite_rect(band_dirty, Rect{px_doc, py, 1, 1});
-          }
-        }
-      }
-
-      if (pickup <= 0.0F) {
-        return band_dirty;
-      }
-      for (std::int32_t py = row_begin; py < row_end; ++py) {
-        const auto span = smudge_dab_row_span(dab_rect, center_x, center_y, radius, py);
-        for (std::int32_t px_doc = span.first; px_doc < span.second; ++px_doc) {
-          const auto sample_x = px_doc - (center_x - radius);
-          const auto sample_y = py - (center_y - radius);
-          const auto distance_x = px_doc - center_x;
-          const auto distance_y = py - center_y;
-          auto coverage = brush_coverage(static_cast<double>(distance_x * distance_x + distance_y * distance_y),
-                                         radius, options.brush_softness);
-          coverage *= selection_coverage(options, px_doc, py);
-          if (coverage <= 0.0F) {
-            continue;
-          }
-
-          const auto current = sample_layer_rgba(*layer, px_doc, py);
           auto* sample =
               state.sample_rgba.data() +
               (static_cast<std::size_t>(sample_y) * static_cast<std::size_t>(state.diameter) +
                static_cast<std::size_t>(sample_x)) *
                   4U;
-          const auto amount = std::clamp(pickup * coverage, 0.0F, 1.0F);
+          auto* dst = row + static_cast<std::size_t>(px_doc - bounds.x) * channels;
+          // The smear.
+          [&] {
+            auto coverage = pickup_coverage;
+            const auto* snap = options.palette_snap;
+            if (snap != nullptr) {
+              if (coverage < snap->coverage_threshold) {
+                return;
+              }
+              coverage = 1.0F;
+            }
+            if (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py)) {
+              return;
+            }
+            if (options.lock_transparent_pixels && channels >= 4 && dst[3] == 0) {
+              return;
+            }
+            std::array<std::uint8_t, 4> pre_snap{};
+            if (snap != nullptr) {
+              for (std::uint16_t channel = 0; channel < channels && channel < pre_snap.size(); ++channel) {
+                pre_snap[channel] = dst[channel];
+              }
+            }
+            const auto amount = std::clamp(strength * coverage, 0.0F, 1.0F);
+            const auto mixed = smudge_mix(
+                {static_cast<float>(sample[0]), static_cast<float>(sample[1]), static_cast<float>(sample[2]),
+                 static_cast<float>(sample[3])},
+                {static_cast<float>(dst[0]), static_cast<float>(dst[1]), static_cast<float>(dst[2]),
+                 channels >= 4 ? static_cast<float>(dst[3]) : 255.0F},
+                amount);
+            bool changed = false;
+            for (std::uint16_t channel = 0; channel < color_channels; ++channel) {
+              const auto value = clamp_byte(mixed[channel]);
+              changed = changed || value != dst[channel];
+              dst[channel] = value;
+            }
+            if (channels >= 4 && !options.lock_transparent_pixels) {
+              const auto alpha = clamp_byte(mixed[3]);
+              changed = changed || alpha != dst[3];
+              dst[3] = alpha;
+            }
+            if (snap != nullptr) {
+              snap_pixel_to_palette(dst, channels, *snap);
+              changed = false;
+              for (std::uint16_t channel = 0; channel < channels && channel < pre_snap.size(); ++channel) {
+                changed = changed || dst[channel] != pre_snap[channel];
+              }
+            }
+            if (changed) {
+              band_dirty = unite_rect(band_dirty, Rect{px_doc, py, 1, 1});
+            }
+          }();
+          // The pickup, from the pixel as the smear left it.
+          if (pickup <= 0.0F) {
+            continue;
+          }
+          const auto current = sample_layer_rgba(*layer, px_doc, py);
+          const auto amount = std::clamp(pickup * pickup_coverage, 0.0F, 1.0F);
           const auto mixed = smudge_mix(
               {static_cast<float>(current[0]), static_cast<float>(current[1]), static_cast<float>(current[2]),
                static_cast<float>(current[3])},

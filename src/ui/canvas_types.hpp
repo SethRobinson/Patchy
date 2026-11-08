@@ -512,6 +512,11 @@ struct CanvasRenderCacheDiagnostics {
   // Source tiles a Clone or Healing stroke copied from the shared render cache before
   // it read them or a patch overwrote them (GitHub #597 follow-up 3).
   int retouch_source_tiles_filled{0};
+  // Toning and detail brush segments (Dodge, Burn, Sponge, Blur, Sharpen, Smudge) painted, the
+  // pixels they visited and the time they took (patchy_perf_tests toningbig, GitHub #660).
+  int toning_segments{0};
+  std::int64_t toning_segment_pixels{0};
+  double toning_segment_ms{0.0};
 };
 
 // Where the latest Clone or Healing press spent its time, through its first dab and the

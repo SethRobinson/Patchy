@@ -1913,6 +1913,63 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   }
 }
 
+// Dodge, Burn and Sponge paint a segment only once the stroke has moved a tenth of the brush
+// diameter from the last painted point, the spacing Smudge places its dabs at (GitHub issue
+// 660, second report). Every segment re-evaluates the soft front edge of the brush, about
+// 60,000 pixels at 775 px however short the step, so a pointer that reports every motion
+// (Wayland, a zoomed-out view) made the cost follow the event rate rather than the distance
+// painted. The capsules still join without gaps (Photoshop spaces its dabs a quarter of the
+// brush apart); the release, or a pause of the pointer (toning_tail_timer_), paints the rest.
+// Blur and Sharpen place their own dabs by distance; brushes under 20 px are unaffected.
+bool CanvasWidget::toning_segment_waits_for_spacing(QPoint from, QPoint to) const {
+  const auto operation = local_adjustment_operation();
+  if (operation == CanvasTool::BlurBrush || operation == CanvasTool::SharpenBrush) {
+    return false;
+  }
+  const auto spacing = std::max(1.0, static_cast<double>(effective_brush_input().size) / 10.0);
+  const auto dx = static_cast<double>(to.x() - from.x());
+  const auto dy = static_cast<double>(to.y() - from.y());
+  return dx * dx + dy * dy < spacing * spacing;
+}
+
+// Smudge stamps a dab at the end of every segment, a whole 775 px disk per pointer sample, so
+// it likewise paints only once the stroke has moved its dab spacing (a fifth of the radius,
+// smudge_brush_segment) from the last painted point; the release paints the rest.
+bool CanvasWidget::smudge_segment_waits_for_spacing(QPoint from, QPoint to) const {
+  const auto spacing = std::max(1.0, static_cast<double>(std::max(1, effective_brush_input().size) / 2) * 0.2);
+  const auto dx = static_cast<double>(to.x() - from.x());
+  const auto dy = static_cast<double>(to.y() - from.y());
+  return dx * dx + dy * dy < spacing * spacing;
+}
+
+// The pointer paused on a point the segment spacing held back: paint up to it.
+void CanvasWidget::paint_toning_tail() {
+  const auto pending = std::exchange(toning_pending_point_, std::nullopt);
+  if (!pending.has_value() || !painting_ || *pending == last_document_position_) {
+    return;
+  }
+  const auto tool = effective_tool_for_input();
+  QRect dirty;
+  if (tool == CanvasTool::Smudge) {
+    dirty = smudge_brush_segment(last_document_position_, *pending);
+  } else if (is_local_adjustment_tool(tool)) {
+    dirty = local_adjustment_brush_segment(last_document_position_, *pending);
+  } else {
+    return;
+  }
+  last_document_position_ = *pending;
+  last_document_position_f_ = QPointF(*pending);
+  if (!dirty.isEmpty()) {
+    active_edit_target_changed_impl(QRegion(dirty), DocumentChangeReason::BrushStrokePreview);
+  }
+}
+
+void CanvasWidget::count_toning_segment(std::chrono::steady_clock::time_point started) noexcept {
+  ++render_cache_diagnostics_.toning_segments;
+  render_cache_diagnostics_.toning_segment_ms +=
+      std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+}
+
 QRect CanvasWidget::advance_paint_stroke(QPoint document_point, QPointF document_point_f,
                                          Qt::KeyboardModifiers modifiers, CanvasTool effective_tool) {
   QRect dirty;
@@ -1922,12 +1979,26 @@ QRect CanvasWidget::advance_paint_stroke(QPoint document_point, QPointF document
     last_document_position_ = constrained_point;
     last_document_position_f_ = QPointF(constrained_point);
   } else if (effective_tool == CanvasTool::Smudge) {
+    if (smudge_segment_waits_for_spacing(last_document_position_, document_point)) {
+      toning_pending_point_ = document_point;
+      return dirty;  // a later sample, a pause or the release paints through this point
+    }
+    toning_pending_point_.reset();
+    const auto started = std::chrono::steady_clock::now();
     dirty = smudge_brush_segment(last_document_position_, document_point);
+    count_toning_segment(started);
     last_document_position_ = document_point;
     last_document_position_f_ = document_point_f;
   } else if (is_local_adjustment_tool(effective_tool)) {
     const auto constrained_point = axis_constrained_stroke_point(document_point, modifiers);
+    if (toning_segment_waits_for_spacing(last_document_position_, constrained_point)) {
+      toning_pending_point_ = constrained_point;
+      return dirty;  // a later sample, a pause or the release paints through this point
+    }
+    toning_pending_point_.reset();
+    const auto started = std::chrono::steady_clock::now();
     dirty = local_adjustment_brush_segment(last_document_position_, constrained_point);
+    count_toning_segment(started);
     last_document_position_ = constrained_point;
     last_document_position_f_ = QPointF(constrained_point);
   } else if (effective_brush_input().size == 1) {
@@ -2361,6 +2432,15 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     dirty.push_back(advance_paint_stroke(document_point, document_point_f, event->modifiers(), effective_tool));
     if (const auto region = stroke_samples_dirty_region(dirty); !region.isEmpty()) {
       active_edit_target_changed_impl(region, DocumentChangeReason::BrushStrokePreview);
+    }
+    // A point the segment spacing held back is painted if the pointer pauses (GitHub #660).
+    // Only for the window system's own input: a test's events are applied as sent.
+    const auto real_input = event->spontaneous() || handling_tablet_event_ ||
+                            (replaying_drag_move_ && drag_move_coalescing_mode_ == DragMoveCoalescing::Default);
+    if (toning_pending_point_.has_value() && real_input) {
+      toning_tail_timer_.start(kToningTailPauseMs, this);
+    } else {
+      toning_tail_timer_.stop();
     }
   } else if (drawing_shape_) {
     clear_move_hover_outline();
@@ -3121,6 +3201,11 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       dirty = local_adjustment_brush_segment(last_document_position_, constrained_point);
       last_document_position_ = constrained_point;
       last_document_position_f_ = QPointF(constrained_point);
+    } else if (effective_tool == CanvasTool::Smudge && document_point != last_document_position_) {
+      // The rest of a Smudge stroke its segment spacing held back (GitHub #660).
+      dirty = smudge_brush_segment(last_document_position_, document_point);
+      last_document_position_ = document_point;
+      last_document_position_f_ = document_point_f;
     } else if (effective_tool == CanvasTool::Brush || effective_tool == CanvasTool::MixerBrush ||
                effective_tool == CanvasTool::PatternStamp ||
                effective_tool == CanvasTool::Eraser) {
@@ -5190,6 +5275,12 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
 }
 
 void CanvasWidget::timerEvent(QTimerEvent* event) {
+  if (event->timerId() == toning_tail_timer_.timerId()) {
+    toning_tail_timer_.stop();
+    paint_toning_tail();
+    event->accept();
+    return;
+  }
   if (event->timerId() == airbrush_timer_.timerId()) {
     if (!painting_ || !brush_build_up_ || effective_tool_for_input() != CanvasTool::Brush) {
       airbrush_timer_.stop();
