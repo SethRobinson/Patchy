@@ -934,6 +934,11 @@ QString tool_name(CanvasTool tool) {
   return QCoreApplication::translate("patchy::ui::MainWindow", tool_action_source(tool));
 }
 
+QString select_layer_first_message(const QString& command) {
+  //: %1 is the command or tool that needs a target layer, for example "Stroke Selection".
+  return QCoreApplication::translate("patchy::ui::MainWindow", "%1: select a layer first").arg(command);
+}
+
 int text_smoothing_combo_value(const QComboBox* combo) {
   if (combo == nullptr) {
     return kDefaultTextAntiAlias;

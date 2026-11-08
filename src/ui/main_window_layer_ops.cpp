@@ -1782,6 +1782,10 @@ void MainWindow::layer_via_copy() {
   }
   select_only_layer_if_none_active();
   const auto ids = selected_or_active_layer_ids();
+  if (ids.empty()) {
+    show_select_layer_first(tr("Layer via Copy"));
+    return;
+  }
   // With no selection Photoshop's Layer Via Copy is Duplicate Layer: text, shape, Smart
   // Object, adjustment and group layers keep their kind, masks and effects (#401).
   if (!canvas_->selected_document_rect().has_value()) {
@@ -1814,6 +1818,10 @@ void MainWindow::layer_via_cut() {
   }
   select_only_layer_if_none_active();
   const auto ids = selected_or_active_layer_ids();
+  if (ids.empty()) {
+    show_select_layer_first(tr("Layer via Cut"));
+    return;
+  }
   auto payload = collect_layer_copy_pixels(document(), ids, *canvas_);
   if (!payload.has_value()) {
     statusBar()->showMessage(tr("Nothing visible to cut to a new layer"));
@@ -2154,6 +2162,7 @@ void MainWindow::delete_active_layer_mask(MaskCommandScope scope) {
   auto& doc = document();
   const auto active = doc.active_layer_id();
   if (!active.has_value()) {
+    show_select_layer_first(tr("Delete Layer Mask"));
     return;
   }
   const auto targets = mask_command_targets(scope, [this](const Layer& candidate) {
@@ -2189,6 +2198,7 @@ void MainWindow::delete_active_layer_mask(MaskCommandScope scope) {
 void MainWindow::set_active_layer_mask_linked(bool linked, MaskCommandScope scope) {
   auto& doc = document();
   if (!doc.active_layer_id().has_value()) {
+    show_select_layer_first(linked ? tr("Link Layer Mask") : tr("Unlink Layer Mask"));
     return;
   }
   const auto candidates = mask_command_targets(scope, [](const Layer& candidate) {
@@ -2540,7 +2550,9 @@ void MainWindow::duplicate_active_layer() {
   if (canvas_ != nullptr) {
     canvas_->finish_free_transform();
   }
-  select_only_layer_if_none_active();
+  if (!require_target_layer(tr("Duplicate Layer"))) {
+    return;
+  }
   duplicate_layers(selected_or_active_layer_ids());
 }
 
@@ -2992,6 +3004,7 @@ void MainWindow::rename_active_layer() {
   auto& doc = document();
   select_only_layer_if_none_active();
   if (!doc.active_layer_id().has_value()) {
+    show_select_layer_first(tr("Rename Layer"));
     return;
   }
   auto* layer = doc.find_layer(*doc.active_layer_id());
@@ -4039,7 +4052,15 @@ void cancel_transform_session_for_layer_command(CanvasWidget* canvas) {
 }  // namespace
 
 void MainWindow::delete_active_layer() {
-  delete_layers(selected_or_active_layer_ids());
+  // No select_only_layer_if_none_active here (docs/layer-panel-selection.md, "Deselected state").
+  auto ids = selected_or_active_layer_ids();
+  if (ids.empty()) {
+    if (has_active_document()) {
+      show_select_layer_first(tr("Delete Layer"));
+    }
+    return;
+  }
+  delete_layers(std::move(ids));
 }
 
 void MainWindow::delete_layers(std::vector<LayerId> ids) {
@@ -4084,7 +4105,11 @@ void MainWindow::move_active_layer(int direction) {
     return;
   }
   const auto ids = selected_or_active_layer_ids();
-  if (ids.empty() || direction == 0) {
+  if (ids.empty()) {
+    show_select_layer_first(tr("Arrange"));
+    return;
+  }
+  if (direction == 0) {
     return;
   }
 
@@ -4133,6 +4158,10 @@ void MainWindow::arrange_selected_layers_to_end(bool front) {
     return;
   }
   const auto ids = selected_or_active_layer_ids();
+  if (ids.empty()) {
+    show_select_layer_first(tr("Arrange"));
+    return;
+  }
   std::set<LayerId> listed(ids.begin(), ids.end());
   std::optional<LayerId> background_id;
   if (const auto* background = document_background_layer(); background != nullptr) {
@@ -5378,6 +5407,7 @@ void MainWindow::edit_fill_dialog() {
     select_only_layer_if_none_active();
     const auto ids = selected_or_active_layer_ids();
     if (ids.empty()) {
+      show_select_layer_first(tr("Fill"));
       return;
     }
     const auto editable_ids = layer_ids_without_image_pixel_lock(ids);
@@ -5483,6 +5513,7 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label, std::
   select_only_layer_if_none_active();
   const auto ids = selected_or_active_layer_ids();
   if (ids.empty()) {
+    show_select_layer_first(tr("Fill"));
     return;
   }
   const auto editable_ids = layer_ids_without_image_pixel_lock(ids);
@@ -5607,6 +5638,7 @@ void MainWindow::clear_active_layer() {
   select_only_layer_if_none_active();
   const auto ids = selected_or_active_layer_ids();
   if (ids.empty()) {
+    show_select_layer_first(tr("Clear"));
     return;
   }
   const auto editable_ids = layer_ids_without_image_pixel_lock(ids);
@@ -5976,7 +6008,7 @@ void MainWindow::remove_object_dialog() {
   }
   // The canvas precheck reports its own refusal (lock, layer kind, rasterize
   // prompt) and may rasterize the layer, so the layer is looked up after it.
-  if (!canvas_->can_begin_pixel_edit(true)) {
+  if (!require_target_layer(tr("Remove Object")) || !canvas_->can_begin_pixel_edit(true)) {
     return;
   }
   auto& doc = document();
@@ -6358,7 +6390,7 @@ void MainWindow::content_aware_fill_selection(bool to_new_layer, BlendMode blend
     return;
   }
   // The canvas precheck reports its own refusal (lock, layer kind, rasterize prompt).
-  if (!canvas_->can_begin_pixel_edit(true)) {
+  if (!require_target_layer(tr("Content-Aware Fill")) || !canvas_->can_begin_pixel_edit(true)) {
     return;
   }
   auto* const doc_before = &document();
@@ -6431,6 +6463,7 @@ void MainWindow::stroke_selection() {
   select_only_layer_if_none_active();
   const auto active = doc.active_layer_id();
   if (!active.has_value()) {
+    show_select_layer_first(tr("Stroke Selection"));
     return;
   }
   const auto selection = canvas_->selected_document_region();
@@ -6687,6 +6720,7 @@ void MainWindow::flip_active_layer_horizontal() {
   select_only_layer_if_none_active();
   const auto ids = selected_or_active_layer_ids();
   if (ids.empty()) {
+    show_select_layer_first(tr("Flip Horizontal"));
     return;
   }
   if (std::any_of(ids.begin(), ids.end(), [this](LayerId id) {
@@ -6727,6 +6761,7 @@ void MainWindow::rotate_active_layers(const char* undo_name, const QString& stat
   select_only_layer_if_none_active();
   const auto ids = selected_or_active_layer_ids();
   if (ids.empty()) {
+    show_select_layer_first(tr("Rotate"));
     return;
   }
   if (std::any_of(ids.begin(), ids.end(), [this](LayerId id) {
@@ -6777,6 +6812,7 @@ void MainWindow::flip_active_layer_vertical() {
   select_only_layer_if_none_active();
   const auto ids = selected_or_active_layer_ids();
   if (ids.empty()) {
+    show_select_layer_first(tr("Flip Vertical"));
     return;
   }
   if (std::any_of(ids.begin(), ids.end(), [this](LayerId id) {

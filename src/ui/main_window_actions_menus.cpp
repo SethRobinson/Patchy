@@ -1882,8 +1882,12 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
       return;
     }
     const auto ids = selected_or_active_layer_ids();
+    if (ids.empty()) {
+      show_select_layer_first(tr("Lock Transparent Pixels"));
+      return;
+    }
     const auto& doc = std::as_const(document());
-    const bool all_locked = !ids.empty() && std::all_of(ids.begin(), ids.end(), [&doc](LayerId id) {
+    const bool all_locked = std::all_of(ids.begin(), ids.end(), [&doc](LayerId id) {
       const auto* layer = doc.find_layer(id);
       return layer != nullptr && (layer_lock_flags(*layer) & kLayerLockTransparentPixels) != kLayerLockNone;
     });

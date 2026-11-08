@@ -33740,6 +33740,51 @@ Locked: %1</source>
         <source>Right to left paragraph direction (press again for left to right)</source>
         <translation>段落の方向を右から左に（もう一度押すと左から右）</translation>
     </message>
+    <message>
+        <source>Filter</source>
+        <translation>フィルター</translation>
+    </message>
+    <message>
+        <source>Layer via Copy</source>
+        <translation>コピーしたレイヤー</translation>
+    </message>
+    <message>
+        <source>Layer via Cut</source>
+        <translation>カットしたレイヤー</translation>
+    </message>
+    <message>
+        <source>Unlink Layer Mask</source>
+        <translation>レイヤーマスクのリンクを解除</translation>
+    </message>
+    <message>
+        <source>Arrange</source>
+        <translation>配置</translation>
+    </message>
+    <message>
+        <source>Stroke Selection</source>
+        <translation>選択範囲の境界線を描く</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal</source>
+        <translation>水平方向に反転</translation>
+    </message>
+    <message>
+        <source>Flip Vertical</source>
+        <translation>垂直方向に反転</translation>
+    </message>
+    <message>
+        <source>Snap Layer to Palette</source>
+        <translation>レイヤーをパレットにスナップ</translation>
+    </message>
+    <message>
+        <source>%1: select a layer first</source>
+        <extracomment>%1 is the command or tool that needs a target layer, for example &quot;Stroke Selection&quot;.</extracomment>
+        <translation>%1: 先にレイヤーを選択してください</translation>
+    </message>
+    <message>
+        <source>Blend Mode</source>
+        <translation>描画モード</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

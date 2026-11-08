@@ -33740,6 +33740,51 @@ Locked: %1</source>
         <source>Right to left paragraph direction (press again for left to right)</source>
         <translation>段落方向由右至左（再按一次為由左至右）</translation>
     </message>
+    <message>
+        <source>Filter</source>
+        <translation>濾鏡</translation>
+    </message>
+    <message>
+        <source>Layer via Copy</source>
+        <translation>透過拷貝的圖層</translation>
+    </message>
+    <message>
+        <source>Layer via Cut</source>
+        <translation>透過剪下的圖層</translation>
+    </message>
+    <message>
+        <source>Unlink Layer Mask</source>
+        <translation>取消連結圖層遮色片</translation>
+    </message>
+    <message>
+        <source>Arrange</source>
+        <translation>排列順序</translation>
+    </message>
+    <message>
+        <source>Stroke Selection</source>
+        <translation>為選取範圍加上筆畫</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal</source>
+        <translation>水平翻轉</translation>
+    </message>
+    <message>
+        <source>Flip Vertical</source>
+        <translation>垂直翻轉</translation>
+    </message>
+    <message>
+        <source>Snap Layer to Palette</source>
+        <translation>將圖層對應至色盤</translation>
+    </message>
+    <message>
+        <source>%1: select a layer first</source>
+        <extracomment>%1 is the command or tool that needs a target layer, for example &quot;Stroke Selection&quot;.</extracomment>
+        <translation>%1：請先選取一個圖層</translation>
+    </message>
+    <message>
+        <source>Blend Mode</source>
+        <translation>混合模式</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

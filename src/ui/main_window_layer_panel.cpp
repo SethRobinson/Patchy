@@ -4272,6 +4272,19 @@ void MainWindow::select_only_layer_if_none_active() {
   }
 }
 
+bool MainWindow::require_target_layer(const QString& command) {
+  select_only_layer_if_none_active();
+  if (!has_active_document() || !selected_or_active_layer_ids().empty()) {
+    return true;  // no document: the caller's own guard decides
+  }
+  show_select_layer_first(command);
+  return false;
+}
+
+void MainWindow::show_select_layer_first(const QString& command) {
+  show_status_error(select_layer_first_message(command));
+}
+
 void MainWindow::select_layers_in_layer_list(const std::vector<LayerId>& ids, LayerId active_id,
                                              bool clicked_in_panel) {
   if (layer_list_ == nullptr) {

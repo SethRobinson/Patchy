@@ -262,6 +262,9 @@ void apply_brush_preset(CanvasWidget& canvas, const BrushPreset& preset);
 [[nodiscard]] const char* tool_action_source(CanvasTool tool);
 // Localized display name of a tool for the status bar / info panel: the palette label, translated.
 [[nodiscard]] QString tool_name(CanvasTool tool);
+// The refusal every command or tool that needs a target layer shows when none is selected:
+// "<command>: select a layer first" (docs/layer-panel-selection.md, "Deselected state").
+[[nodiscard]] QString select_layer_first_message(const QString& command);
 
 // Default anti-alias strength for the Type tool's Smoothing combo.
 constexpr int kDefaultTextAntiAlias = kTextAntiAliasSmooth;

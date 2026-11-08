@@ -474,6 +474,7 @@ int main(int argc, char* argv[]) {
            image_trace_ui_tests,
            text_outline_tests,
            type_mask_tests,
+           no_layer_warning_tests,
            scripting_tests,
            script_move_tests,
            document_recovery_tests,

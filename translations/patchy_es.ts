@@ -33828,6 +33828,51 @@ Bloqueada: %1</translation>
         <source>Right to left paragraph direction (press again for left to right)</source>
         <translation>Dirección de párrafo de derecha a izquierda (pulsa otra vez para izquierda a derecha)</translation>
     </message>
+    <message>
+        <source>Filter</source>
+        <translation>Filtro</translation>
+    </message>
+    <message>
+        <source>Layer via Copy</source>
+        <translation>Capa vía copiar</translation>
+    </message>
+    <message>
+        <source>Layer via Cut</source>
+        <translation>Capa vía cortar</translation>
+    </message>
+    <message>
+        <source>Unlink Layer Mask</source>
+        <translation>Desvincular máscara de capa</translation>
+    </message>
+    <message>
+        <source>Arrange</source>
+        <translation>Organizar</translation>
+    </message>
+    <message>
+        <source>Stroke Selection</source>
+        <translation>Contornear selección</translation>
+    </message>
+    <message>
+        <source>Flip Horizontal</source>
+        <translation>Voltear horizontal</translation>
+    </message>
+    <message>
+        <source>Flip Vertical</source>
+        <translation>Voltear vertical</translation>
+    </message>
+    <message>
+        <source>Snap Layer to Palette</source>
+        <translation>Ajustar capa a la paleta</translation>
+    </message>
+    <message>
+        <source>%1: select a layer first</source>
+        <extracomment>%1 is the command or tool that needs a target layer, for example &quot;Stroke Selection&quot;.</extracomment>
+        <translation>%1: selecciona primero una capa</translation>
+    </message>
+    <message>
+        <source>Blend Mode</source>
+        <translation>Modo de fusión</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
