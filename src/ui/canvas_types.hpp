@@ -498,6 +498,10 @@ struct CanvasRenderCacheDiagnostics {
   // shape or vector mask). A drag applies once per batch of queued mouse moves at
   // the latest pointer position (GitHub #314).
   int path_drag_applies{0};
+  // Shape-layer re-rasterizations made by write_shape_layer_path (a Path Select or
+  // Direct Select drag step, or any other path edit of a shape layer). A Path Select
+  // drag that only translates whole shapes re-rasterizes once, at release (GitHub #678).
+  int path_drag_rerasters{0};
   // Move-tool and Free Transform drag moves that arrived while the drag had already
   // been applied in the current event-loop pass, so only their latest position is
   // applied when the pass ends (GitHub #207, #443, #444).

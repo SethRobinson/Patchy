@@ -1590,6 +1590,31 @@ std::vector<QRect> changed_path_boxes(const VectorPath* old_path, const VectorPa
 
 }  // namespace
 
+void CanvasWidget::finish_path_drag_rasters() {
+  if (path_drag_raster_lag_.empty()) {
+    return;
+  }
+  const auto pending = std::exchange(path_drag_raster_lag_, {});
+  if (document_ == nullptr) {
+    return;
+  }
+  const auto canvas = Rect::from_size(document_->width(), document_->height());
+  QRegion dirty;
+  for (const auto& entry : pending) {
+    auto* layer = document_->find_layer(entry.first);
+    if (layer == nullptr || std::as_const(*layer).vector_shape() == nullptr) {
+      continue;
+    }
+    dirty += to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()));
+    ++render_cache_diagnostics_.path_drag_rerasters;
+    update_vector_shape_raster(*layer, canvas, &document_->metadata().patterns);
+    dirty += to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()));
+  }
+  if (!dirty.isEmpty()) {
+    document_changed_effect_bounds(dirty);
+  }
+}
+
 void CanvasWidget::restore_path_drag_effects() {
   if (!path_drag_effects_hidden_layer_.has_value()) {
     return;
@@ -1730,7 +1755,7 @@ void CanvasWidget::replace_path_edit_target(VectorPath path, const std::vector<i
     return;
   }
   if (auto* layer = path_edit_target_layer(); layer != nullptr) {
-    write_shape_layer_path(*layer, std::move(path), touched_groups, group_copies);
+    write_shape_layer_path(*layer, std::move(path), touched_groups, group_copies, path_drag_whole_translation_);
   } else if (auto* work = document_->work_path(); work != nullptr) {
     work->set_path(std::move(path));
     update();
@@ -1742,19 +1767,51 @@ void CanvasWidget::replace_path_edit_target(VectorPath path, const std::vector<i
 
 void CanvasWidget::write_shape_layer_path(Layer& layer, VectorPath path,
                                           const std::vector<int>& touched_groups,
-                                          const std::map<int, int>& group_copies) {
+                                          const std::map<int, int>& group_copies,
+                                          std::optional<QPointF> whole_path_translation) {
   const auto old_effect_rect =
       to_qrect(layer_bounds_with_effects(std::as_const(layer), std::as_const(layer).bounds()));
-  auto content = *layer.vector_shape();
+  auto content = *std::as_const(layer).vector_shape();
   content.path = std::move(path);
   drop_live_shape_origination(content, touched_groups);
   // A merged shape paints only the groups its parts list (GitHub issue 312).
   copy_vector_part_groups(content, group_copies);
-  layer.set_vector_shape(std::move(content));
-  layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
-  mark_layer_vector_block_dirty(layer);
-  update_vector_shape_raster(layer, Rect::from_size(document_->width(), document_->height()),
-                             &document_->metadata().patterns);
+  // Paint anchored to the canvas (a pattern's phase, a gradient not aligned with the
+  // layer) does not travel with the shape, so a shifted raster would preview it wrong.
+  const auto paint_travels = [](const VectorFill& fill) {
+    return fill.kind != VectorFillKind::Pattern &&
+           (fill.kind != VectorFillKind::Gradient || fill.gradient.align_with_layer);
+  };
+  if (whole_path_translation.has_value() && group_copies.empty() && !std::as_const(layer).pixels().empty() &&
+      paint_travels(content.fill) && (!content.stroke.enabled || paint_travels(content.stroke.content))) {
+    // A Path Select drag of every shape on the layer (GitHub #678): the raster moves by
+    // whole pixels like a Move-tool drag and keeps its content-keyed caches (style masks,
+    // alpha bounds), so a move costs a recomposite of the old and new rects only. The
+    // fractional remainder, and anything the canvas clipped off the raster, catch up in
+    // finish_path_drag_rasters' single re-bake at release.
+    auto& lag = path_drag_raster_lag_[layer.id()];
+    lag.translation += *whole_path_translation;
+    const QPoint target(static_cast<int>(std::lround(lag.translation.x())),
+                        static_cast<int>(std::lround(lag.translation.y())));
+    const auto shift = target - lag.applied;
+    lag.applied = target;
+    layer.set_vector_shape_translated(std::move(content));
+    mark_layer_vector_block_dirty(layer);
+    if (!shift.isNull()) {
+      auto bounds = std::as_const(layer).bounds();
+      bounds.x += shift.x();
+      bounds.y += shift.y();
+      layer.set_bounds(bounds);
+    }
+  } else {
+    path_drag_raster_lag_.erase(layer.id());
+    layer.set_vector_shape(std::move(content));
+    layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
+    mark_layer_vector_block_dirty(layer);
+    ++render_cache_diagnostics_.path_drag_rerasters;
+    update_vector_shape_raster(layer, Rect::from_size(document_->width(), document_->height()),
+                               &document_->metadata().patterns);
+  }
   // Bounded: this runs on EVERY anchor-drag mouse move; the full-canvas
   // recomposite it replaced was the drag's dominant cost (the re-bake can
   // move the layer's bounds, hence the old/new union).
@@ -2544,9 +2601,15 @@ bool CanvasWidget::update_path_edit_drag(QPointF document_point, Qt::KeyboardMod
           extra_touched.push_back(group);
         }
       }
+      std::size_t extra_anchor_count = 0;
+      for (const auto& subpath : extra_working.subpaths) {
+        extra_anchor_count += subpath.anchors.size();
+      }
       arm_path_edit_undo(label);
       path_edit_changed_ = true;
-      write_shape_layer_path(*document_->find_layer(id), std::move(extra_working), extra_touched);
+      write_shape_layer_path(*document_->find_layer(id), std::move(extra_working), extra_touched, {},
+                             keys.size() == extra_anchor_count ? std::optional<QPointF>(QPointF(dx, dy))
+                                                               : std::nullopt);
     }
     if (path_selected_anchors_.empty()) {
       update();
@@ -2618,7 +2681,20 @@ bool CanvasWidget::update_path_edit_drag(QPointF document_point, Qt::KeyboardMod
     touch_group(path_drag_anchor_.first);
   }
   path_edit_changed_ = true;
-  apply_path_edit(std::move(working), label, touched_groups);
+  if (path_drag_mode_ == PathEditDrag::Anchors) {
+    // Every anchor moved by (dx, dy): a whole-path translation (GitHub #678).
+    std::size_t anchor_count = 0;
+    for (const auto& subpath : working.subpaths) {
+      anchor_count += subpath.anchors.size();
+    }
+    if (path_selected_anchors_.size() == anchor_count) {
+      path_drag_whole_translation_ = QPointF(dx, dy);
+    }
+  }
+  {
+    const auto clear_translation = qScopeGuard([this] { path_drag_whole_translation_.reset(); });
+    apply_path_edit(std::move(working), label, touched_groups);
+  }
   if (weld_hint_due && status_callback_) {
     const auto* edited = path_edit_target_path();
     if (edited != nullptr) {
@@ -2645,6 +2721,7 @@ bool CanvasWidget::handle_path_edit_release(QMouseEvent* event) {
   if (path_drag_mode_ == PathEditDrag::Anchors && path_weld_target_.has_value()) {
     weld_dragged_path_point();
   }
+  finish_path_drag_rasters();
   path_weld_target_.reset();
   if (path_segment_click_.has_value()) {
     // A click on a segment adds a point there (the Pen's Add anchor edit) and selects it.

@@ -45,6 +45,10 @@ re-render a shape layer's fill live (`apply_path_edit`; `ui_direct_select_drags_
 batch of queued mouse moves at the latest pointer position, and the release applies a move still queued
 (`flush_pending_path_edit_drag`, `ui_path_select_drag_coalesces_queued_moves`, GitHub #314; the 8-bit gradient paint in `paint_coverage` runs in row
 strips across workers on large fills, same bytes; `patchy_perf_tests gradientdrag` times both);
+a step that moves every anchor of a shape layer (Path Select dragging all its shapes) shifts the
+existing raster by whole pixels instead of re-baking, and `finish_path_drag_rasters` re-bakes once at
+release, cancel or tool switch (GitHub #678, `ui_path_select_shape_drag_shifts_raster_and_rebakes_once`,
+`patchy_perf_tests shapedrag`);
 tests that set up handles go through `replace_path_edit_target` (`set_target_path_through_edits`),
 never `set_vector_shape`, or captures show the old fill under the new outline. `kGlyphReach` (8 px) is how far a glyph reaches
 past its point; every repaint region around path points pads by it. The tests'

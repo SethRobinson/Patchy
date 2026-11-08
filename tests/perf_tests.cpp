@@ -2842,6 +2842,211 @@ void gradient_shape_drag_perf() {
   }
 }
 
+// GitHub #678: dragging a pentagon shape over a 3500 px photo with a layer of thick
+// brush strokes under it lagged; the shape trailed the pointer and jumped to catch up.
+// The recording drags with Path Select (its anchors show). Synthetic, so it runs
+// anywhere: a 3500x2300 noisy gradient "photo", a canvas-sized layer of thick black
+// strokes, and a 1300 px pentagon shape on top, viewed fit to the window. Cases: the
+// shape dragged with Path Select and with the Move tool, and a pixel layer holding the
+// same raster dragged with the Move tool (the reference). Each drag times 20 moves with
+// a repaint after each, a burst of 30 queued moves, the release and the settle after it.
+// PATCHY_PERF_SHAPEDRAG_CASE runs one case.
+void shape_over_photo_drag_perf() {
+  ensure_artifact_dir();
+  constexpr int kWidth = 3500;
+  constexpr int kHeight = 2300;
+  const auto pentagon = [](patchy::Document& document) {
+    patchy::LiveShapeParams params;
+    params.kind = patchy::LiveShapeKind::Polygon;
+    params.left = 1700.0;
+    params.top = 500.0;
+    params.right = 3000.0;
+    params.bottom = 1800.0;
+    params.polygon_sides = 5;
+    patchy::populate_live_shape_box_corners(params);
+    patchy::VectorShapeContent shape;
+    shape.path.subpaths = patchy::generate_live_shape_subpaths(params);
+    shape.origination.push_back(params);
+    shape.fill.kind = patchy::VectorFillKind::Solid;
+    shape.fill.color = {140, 128, 128};
+    patchy::Layer layer(document.allocate_layer_id(), "Polygon 1", patchy::LayerKind::Pixel);
+    layer.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+    layer.set_vector_shape(std::move(shape));
+    patchy::update_vector_shape_raster(layer, patchy::Rect::from_size(document.width(), document.height()),
+                                       &std::as_const(document).metadata().patterns);
+    return layer;
+  };
+  const auto build_document = [&](bool pixel_twin) {
+    patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+    patchy::PixelBuffer photo(kWidth, kHeight, patchy::PixelFormat::rgba8());
+    std::uint64_t state = 0x678;
+    const auto next = [&state] {
+      state += 0x9E3779B97F4A7C15ULL;
+      auto z = state;
+      z = (z ^ (z >> 30U)) * 0xBF58476D1CE4E5B9ULL;
+      z = (z ^ (z >> 27U)) * 0x94D049BB133111EBULL;
+      return z ^ (z >> 31U);
+    };
+    for (int y = 0; y < kHeight; ++y) {
+      auto* row = photo.pixel(0, y);
+      for (int x = 0; x < kWidth; ++x) {
+        const auto noise = static_cast<int>(next() & 31U);
+        const auto grid = ((x / 40) % 6 == 0 || (y / 40) % 6 == 0) ? 90 : 0;
+        row[x * 4 + 0] = static_cast<std::uint8_t>(std::min(255, 60 + x * 120 / kWidth + noise + grid));
+        row[x * 4 + 1] = static_cast<std::uint8_t>(std::min(255, 50 + y * 100 / kHeight + noise + grid));
+        row[x * 4 + 2] = static_cast<std::uint8_t>(std::min(255, 40 + noise + grid));
+        row[x * 4 + 3] = 255;
+      }
+    }
+    document.add_layer(patchy::Layer(document.allocate_layer_id(), "Background", std::move(photo)));
+    // Thick scribbles: round stamps 90 px across along a few looping curves.
+    patchy::PixelBuffer strokes(kWidth, kHeight, patchy::PixelFormat::rgba8());
+    strokes.clear(0);
+    constexpr int kRadius = 45;
+    for (int curve = 0; curve < 6; ++curve) {
+      for (int step = 0; step < 2400; ++step) {
+        const double t = step * 0.0026;
+        const int cx = static_cast<int>(1750.0 + 1400.0 * std::sin(t * (1.3 + curve * 0.21) + curve));
+        const int cy = static_cast<int>(1150.0 + 900.0 * std::sin(t * (2.1 + curve * 0.17) + curve * 0.5));
+        for (int y = std::max(0, cy - kRadius); y < std::min(kHeight, cy + kRadius); ++y) {
+          for (int x = std::max(0, cx - kRadius); x < std::min(kWidth, cx + kRadius); ++x) {
+            if ((x - cx) * (x - cx) + (y - cy) * (y - cy) <= kRadius * kRadius) {
+              auto* px = strokes.pixel(x, y);
+              px[0] = px[1] = px[2] = 8;
+              px[3] = 255;
+            }
+          }
+        }
+      }
+    }
+    document.add_layer(patchy::Layer(document.allocate_layer_id(), "Layer 1", std::move(strokes)));
+    auto shape = pentagon(document);
+    if (pixel_twin) {
+      auto pixels = shape.pixels();
+      patchy::Layer copy(document.allocate_layer_id(), "Pixels", std::move(pixels));
+      copy.set_bounds(shape.bounds());
+      document.add_layer(std::move(copy));
+    } else {
+      document.add_layer(std::move(shape));
+    }
+    return document;
+  };
+  struct Case {
+    std::string name;
+    patchy::ui::CanvasTool tool;
+    bool pixel_twin;
+  };
+  const std::vector<Case> cases{{"path_select", patchy::ui::CanvasTool::PathSelect, false},
+                                {"move_shape", patchy::ui::CanvasTool::Move, false},
+                                {"move_pixel", patchy::ui::CanvasTool::Move, true}};
+  for (const auto& test_case : cases) {
+    if (const auto only = qEnvironmentVariable("PATCHY_PERF_SHAPEDRAG_CASE");
+        !only.isEmpty() && only != QString::fromStdString(test_case.name)) {
+      continue;
+    }
+    auto document = build_document(test_case.pixel_twin);
+    const auto dragged_id = std::as_const(document).layers().back().id();
+    const auto bounds_before = std::as_const(document).layers().back().bounds();
+
+    patchy::ui::MainWindow window;
+    window.resize(1600, 1000);
+    window.show();
+    QApplication::processEvents();
+    window.add_document_session(std::move(document), QStringLiteral("Shape Drag Perf"));
+    QApplication::processEvents();
+    auto* canvas = active_canvas(window);
+    CHECK(canvas != nullptr);
+    if (canvas == nullptr) {
+      return;
+    }
+    const auto settle = [canvas] {
+      const auto started = Clock::now();
+      while (!canvas->render_settled() && std::chrono::duration<double>(Clock::now() - started).count() < 60.0) {
+        canvas->repaint();
+        QApplication::processEvents();
+      }
+    };
+    canvas->fit_to_view();
+    settle();
+    auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+    CHECK(layer_list != nullptr);
+    for (int row = 0; layer_list != nullptr && row < layer_list->count(); ++row) {
+      auto* item = layer_list->item(row);
+      if (static_cast<patchy::LayerId>(item->data(patchy::ui::kLayerIdRole).toULongLong()) == dragged_id) {
+        layer_list->clearSelection();
+        layer_list->setCurrentItem(item);
+        item->setSelected(true);
+      }
+    }
+    QApplication::processEvents();
+    canvas->set_tool(test_case.tool);
+    QApplication::processEvents();
+    settle();
+
+    const auto before = canvas->render_cache_diagnostics();
+    std::vector<double> frames;
+    double burst_ms = 0.0;
+    double release_ms = 0.0;
+    double settle_ms = 0.0;
+    QPoint position = canvas->widget_position_for_document_point(QPoint(2350, 1200));
+    for (int drag = 0; drag < 2; ++drag) {
+      const QPoint step = drag == 0 ? QPoint(-6, -3) : QPoint(6, 3);
+      send_mouse(*canvas, QEvent::MouseButtonPress, position, Qt::LeftButton, Qt::LeftButton);
+      canvas->repaint();
+      for (int frame = 1; frame <= 20; ++frame) {
+        position += step;
+        frames.push_back(elapsed_ms([&] {
+          send_mouse(*canvas, QEvent::MouseMove, position, Qt::NoButton, Qt::LeftButton);
+          QApplication::processEvents();
+          canvas->repaint();
+        }));
+      }
+      burst_ms = std::max(burst_ms, elapsed_ms([&] {
+        for (int move = 1; move <= 30; ++move) {
+          position += step;
+          QApplication::postEvent(canvas, new QMouseEvent(QEvent::MouseMove, QPointF(position),
+                                                          QPointF(canvas->mapToGlobal(position)), Qt::NoButton,
+                                                          Qt::LeftButton, Qt::NoModifier));
+        }
+        QApplication::processEvents();
+        QApplication::processEvents();  // the queued drag apply runs on the next pass
+        canvas->repaint();
+      }));
+      release_ms = std::max(release_ms, elapsed_ms([&] {
+        send_mouse(*canvas, QEvent::MouseButtonRelease, position, Qt::LeftButton, Qt::NoButton);
+        QApplication::processEvents();
+        canvas->repaint();
+      }));
+      settle_ms = std::max(settle_ms, elapsed_ms([&] { settle(); }));
+      CHECK(canvas->grab().save(QString::fromStdString("test-artifacts/shape_drag_" + test_case.name + "_" +
+                                                       std::to_string(drag + 1) + ".png")));
+    }
+    const auto after = canvas->render_cache_diagnostics();
+    const auto& final_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto* moved = final_document.find_layer(dragged_id);
+    CHECK(moved != nullptr);
+    // Both drags travel the same distance, so the layer ends where it started.
+    if (moved != nullptr) {
+      CHECK(std::abs(moved->bounds().x - bounds_before.x) <= 3);
+      CHECK(std::abs(moved->bounds().y - bounds_before.y) <= 3);
+    }
+    auto sorted = frames;
+    std::sort(sorted.begin(), sorted.end());
+    double total = 0.0;
+    for (const auto value : frames) {
+      total += value;
+    }
+    std::cout << std::fixed << std::setprecision(1) << "[PERF] shapedrag 3500x2300 case=" << test_case.name
+              << " view_zoom=" << canvas->view_zoom() << " frame_avg_ms=" << total / static_cast<double>(frames.size())
+              << " frame_median_ms=" << sorted[sorted.size() / 2] << " frame_max_ms=" << sorted.back()
+              << " burst30_ms=" << burst_ms << " release_ms=" << release_ms << " settle_ms=" << settle_ms
+              << " path_drag_applies=" << (after.path_drag_applies - before.path_drag_applies)
+              << " path_drag_rerasters=" << (after.path_drag_rerasters - before.path_drag_rerasters)
+              << " proxy_previews=" << (after.move_proxy_previews - before.move_proxy_previews)
+              << " threads=" << patchy::hardware_worker_threads() << '\n';
+  }
+}
+
 // GitHub issue 296: Liquify drag latency on large layers. The workspace edits a proxy
 // whose longest edge is 720 px, so a drag frame should not grow with the layer; Apply
 // renders the full layer once. Drives the real dialog: the open time, each Warp brush
@@ -4746,6 +4951,10 @@ int main(int argc, char* argv[]) {
     }
     if (argc > 1 && std::string_view(argv[1]) == "vectormaskdrag") {
       run_scenario("vectormaskdrag", vector_mask_anchor_drag_perf);
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "shapedrag") {
+      run_scenario("shapedrag", shape_over_photo_drag_perf);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "warpdrag") {
