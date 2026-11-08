@@ -19918,6 +19918,18 @@ Do you want to replace it?</source>
         <source>Switch between the Type and Type Mask tools</source>
         <translation>在文字工具和文字蒙版工具之间切换</translation>
     </message>
+    <message>
+        <source>Spread each line across the text box and center the last one</source>
+        <translation>将每行文字铺满文本框宽度，末行居中</translation>
+    </message>
+    <message>
+        <source>Spread each line across the text box and set the last one right</source>
+        <translation>将每行文字铺满文本框宽度，末行右对齐</translation>
+    </message>
+    <message>
+        <source>Spread every line across the text box, the last one too</source>
+        <translation>将每行文字铺满文本框宽度，末行也一样</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -27777,10 +27789,6 @@ Y: %2
         <translation>两端对齐 (末行左对齐)</translation>
     </message>
     <message>
-        <source>Paragraph alignment; Justify spreads every line but the last across the box</source>
-        <translation>段落对齐方式；两端对齐会将除末行外的每一行铺满文本框</translation>
-    </message>
-    <message>
         <source>Alignment:</source>
         <translation>对齐:</translation>
     </message>
@@ -33636,6 +33644,22 @@ Locked: %1</source>
         <source>Made a selection from the text.</source>
         <translation>已从文字创建选区。</translation>
     </message>
+    <message>
+        <source>Justify (last line centered)</source>
+        <translation>两端对齐 (末行居中)</translation>
+    </message>
+    <message>
+        <source>Justify (last line right)</source>
+        <translation>两端对齐 (末行右对齐)</translation>
+    </message>
+    <message>
+        <source>Justify all</source>
+        <translation>全部两端对齐</translation>
+    </message>
+    <message>
+        <source>Paragraph alignment. The Justify choices spread each line of a text box across it and differ in where the last line goes; point text stays flush left</source>
+        <translation>段落对齐方式。各种两端对齐都会将文本框中的每一行铺满宽度，区别只在于末行的位置；点文字保持左对齐</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35761,10 +35785,6 @@ Locked: %1</source>
         <translation>intervalMinutes 必须为 5、10、15、30 或 60</translation>
     </message>
     <message>
-        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
-        <translation>textAlign 必须是 &apos;left&apos;、&apos;center&apos;、&apos;right&apos; 或 &apos;justify&apos;。</translation>
-    </message>
-    <message>
         <source>%1: runs must be an array of {text, font, size, bold, italic, color} objects.</source>
         <translation>%1：runs 必须是 {text, font, size, bold, italic, color} 对象组成的数组。</translation>
     </message>
@@ -35791,10 +35811,6 @@ Locked: %1</source>
     <message>
         <source>box must be {width, height} of at least 16 document pixels each.</source>
         <translation>box 必须是 {width, height}，且各不少于 16 个文档像素。</translation>
-    </message>
-    <message>
-        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
-        <translation>align 必须是 &apos;left&apos;、&apos;center&apos;、&apos;right&apos; 或 &apos;justify&apos;。</translation>
     </message>
     <message>
         <source>%1: paragraph must be an object with firstLineIndent, startIndent, endIndent, spaceBefore and spaceAfter numbers (document pixels).</source>
@@ -36627,6 +36643,14 @@ Locked: %1</source>
     <message>
         <source>linkGroup must be 0 or a positive whole number</source>
         <translation>linkGroup 必须为 0 或正整数</translation>
+    </message>
+    <message>
+        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
+        <translation>textAlign 必须是 &apos;left&apos;、&apos;center&apos;、&apos;right&apos;、&apos;justify&apos;、&apos;justifyCenter&apos;、&apos;justifyRight&apos; 或 &apos;justifyAll&apos;。</translation>
+    </message>
+    <message>
+        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
+        <translation>align 必须是 &apos;left&apos;、&apos;center&apos;、&apos;right&apos;、&apos;justify&apos;、&apos;justifyCenter&apos;、&apos;justifyRight&apos; 或 &apos;justifyAll&apos;。</translation>
     </message>
 </context>
 <context>

@@ -26,6 +26,12 @@ Every entry below is API 1.
 2026-11-08 (additive): the Type Mask tool (#670, [type-mask.md](type-mask.md)). Its tool id
 `tools.type_mask` (theme tool id `type_mask`) and the Type group's cycle command `tools.cycle.type`
 are permanent identifiers; `patchy.ui.toolPalette`'s `hiddenTools` accepts `tools.type_mask`.
+2026-11-08 (additive): text alignment takes Photoshop's other justify modes (GitHub issue 672):
+`layer.textAlign` and `doc.addTextLayer`'s `align` accept and read `"justifyCenter"`,
+`"justifyRight"` and `"justifyAll"` beside `"left"`, `"center"`, `"right"` and `"justify"` (last
+line left). They differ in where a box's last line goes; point text sets them flush left
+([text-tool.md](text-tool.md#justify-modes)). Permanent identifiers: the three values. Pinned by
+`ui_text_paragraph_alignment_names_round_trip` and `ui_script_text_align_justify_modes`.
 
 2026-11-06 (additive): `layer.linkGroup` reads and sets a layer's link group (Layer > Arrange >
 Link Layers, #656): layers sharing a nonzero number are linked; 0 is unlinked, and a layer whose

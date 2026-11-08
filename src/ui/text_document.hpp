@@ -60,8 +60,18 @@ struct TextRenderDocument {
 };
 
 
-QString paragraph_alignment_name(Qt::Alignment alignment);
+// Paragraph alignment names: patchy.text.paragraph_runs column 2 and the script API's align
+// values, persisted, so never rename one. left, center, right, then Photoshop's justify modes,
+// which differ only in the last line: justify (last line left), justifyCenter, justifyRight and
+// justifyAll (the last line spread too). A justified block is Qt::AlignJustify plus its
+// kTextBlockJustifyLastLineProperty.
+QString paragraph_alignment_name(const QTextBlockFormat& format);
+// The canonical spelling of an alignment name (any letter case), empty when it is none.
+QString canonical_paragraph_alignment_name(const QString& name);
+// Qt's horizontal alignment for a name: every justify mode is Qt::AlignJustify.
 Qt::Alignment paragraph_alignment_from_name(const QString& name);
+// Sets the alignment and the justified last line of `format` (an unknown name is left).
+void set_paragraph_alignment(QTextBlockFormat& format, const QString& name);
 void set_text_display_family(QTextCharFormat& format, const QString& family);
 QString text_display_family_from_format(const QTextCharFormat& format, const QString& fallback);
 QTextCharFormat text_format_with_smoothing(QTextCharFormat format, int anti_alias);

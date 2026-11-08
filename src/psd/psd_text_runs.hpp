@@ -106,6 +106,9 @@ void parse_text_run_character_styles(std::string_view field, PsdTextStyleRun& ru
 struct PsdTextParagraphRun {
   int start{0};
   int length{0};
+  // EngineData /Justification: 0 left, 1 right, 2 center, then justified with the last line
+  // 3 left, 4 right, 5 centered, 6 justified too (justify all). Paragraph-runs names: left,
+  // right, center, justify, justifyRight, justifyCenter, justifyAll (persisted; never rename).
   int justification{0};
   double first_line_indent{0.0};
   double start_indent{0.0};

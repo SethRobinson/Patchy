@@ -19918,6 +19918,18 @@ Do you want to replace it?</source>
         <source>Switch between the Type and Type Mask tools</source>
         <translation>문자 도구와 문자 마스크 도구 간 전환</translation>
     </message>
+    <message>
+        <source>Spread each line across the text box and center the last one</source>
+        <translation>각 줄을 텍스트 상자 너비에 맞게 펼치고 마지막 줄을 가운데에 맞춤</translation>
+    </message>
+    <message>
+        <source>Spread each line across the text box and set the last one right</source>
+        <translation>각 줄을 텍스트 상자 너비에 맞게 펼치고 마지막 줄을 오른쪽에 맞춤</translation>
+    </message>
+    <message>
+        <source>Spread every line across the text box, the last one too</source>
+        <translation>마지막 줄까지 모든 줄을 텍스트 상자 너비에 맞게 펼침</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -20766,10 +20778,6 @@ Do you want to replace it?</source>
     <message>
         <source>Justify (last line left)</source>
         <translation>양쪽 맞춤(마지막 줄 왼쪽)</translation>
-    </message>
-    <message>
-        <source>Paragraph alignment; Justify spreads every line but the last across the box</source>
-        <translation>단락 정렬입니다. 양쪽 맞춤은 마지막 줄을 제외한 각 줄을 상자 너비에 맞춰 배치합니다</translation>
     </message>
     <message>
         <source>Alignment:</source>
@@ -33636,6 +33644,22 @@ Locked: %1</source>
         <source>Made a selection from the text.</source>
         <translation>텍스트에서 선택 영역을 만들었습니다.</translation>
     </message>
+    <message>
+        <source>Justify (last line centered)</source>
+        <translation>양쪽 맞춤(마지막 줄 가운데)</translation>
+    </message>
+    <message>
+        <source>Justify (last line right)</source>
+        <translation>양쪽 맞춤(마지막 줄 오른쪽)</translation>
+    </message>
+    <message>
+        <source>Justify all</source>
+        <translation>모두 양쪽 맞춤</translation>
+    </message>
+    <message>
+        <source>Paragraph alignment. The Justify choices spread each line of a text box across it and differ in where the last line goes; point text stays flush left</source>
+        <translation>단락 정렬입니다. 양쪽 맞춤 항목은 텍스트 상자의 각 줄을 상자 너비에 맞춰 펼치며 마지막 줄의 위치만 다릅니다. 포인트 텍스트는 왼쪽 정렬로 유지됩니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35173,10 +35197,6 @@ Locked: %1</source>
         <translation>textOrientation은 &apos;horizontal&apos; 또는 &apos;vertical&apos;이어야 합니다.</translation>
     </message>
     <message>
-        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
-        <translation>textAlign은 &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos; 중 하나여야 합니다.</translation>
-    </message>
-    <message>
         <source>textDirection must be &apos;auto&apos;, &apos;ltr&apos; or &apos;rtl&apos;.</source>
         <translation>textDirection은 &apos;auto&apos;, &apos;ltr&apos; 또는 &apos;rtl&apos;이어야 합니다.</translation>
     </message>
@@ -35403,10 +35423,6 @@ Locked: %1</source>
     <message>
         <source>box must be {width, height} of at least 16 document pixels each.</source>
         <translation>box는 {width, height} 객체이며, 각 값은 문서 픽셀 단위로 16 이상이어야 합니다.</translation>
-    </message>
-    <message>
-        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
-        <translation>align은 &apos;left&apos;, &apos;center&apos;, &apos;right&apos; 또는 &apos;justify&apos;여야 합니다.</translation>
     </message>
     <message>
         <source>Could not create the text layer.</source>
@@ -36627,6 +36643,14 @@ Locked: %1</source>
     <message>
         <source>linkGroup must be 0 or a positive whole number</source>
         <translation>linkGroup은 0 또는 양의 정수여야 합니다</translation>
+    </message>
+    <message>
+        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
+        <translation>textAlign은 &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; 또는 &apos;justifyAll&apos;여야 합니다.</translation>
+    </message>
+    <message>
+        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
+        <translation>align은 &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; 또는 &apos;justifyAll&apos;여야 합니다.</translation>
     </message>
 </context>
 <context>

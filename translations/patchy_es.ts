@@ -19965,6 +19965,18 @@ Do you want to replace it?</source>
         <source>Switch between the Type and Type Mask tools</source>
         <translation>Alternar entre las herramientas Texto y Máscara de texto</translation>
     </message>
+    <message>
+        <source>Spread each line across the text box and center the last one</source>
+        <translation>Repartir cada línea a lo ancho del cuadro de texto y centrar la última</translation>
+    </message>
+    <message>
+        <source>Spread each line across the text box and set the last one right</source>
+        <translation>Repartir cada línea a lo ancho del cuadro de texto y alinear la última a la derecha</translation>
+    </message>
+    <message>
+        <source>Spread every line across the text box, the last one too</source>
+        <translation>Repartir todas las líneas a lo ancho del cuadro de texto, también la última</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -27850,10 +27862,6 @@ Y: %2
         <translation>Justificar (última línea a la izquierda)</translation>
     </message>
     <message>
-        <source>Paragraph alignment; Justify spreads every line but the last across the box</source>
-        <translation>Alineación del párrafo; Justificar reparte todas las líneas menos la última a lo ancho del cuadro</translation>
-    </message>
-    <message>
         <source>Alignment:</source>
         <translation>Alineación:</translation>
     </message>
@@ -33724,6 +33732,22 @@ Bloqueada: %1</translation>
         <source>Made a selection from the text.</source>
         <translation>Se ha creado una selección a partir del texto.</translation>
     </message>
+    <message>
+        <source>Justify (last line centered)</source>
+        <translation>Justificar (última línea centrada)</translation>
+    </message>
+    <message>
+        <source>Justify (last line right)</source>
+        <translation>Justificar (última línea a la derecha)</translation>
+    </message>
+    <message>
+        <source>Justify all</source>
+        <translation>Justificar todo</translation>
+    </message>
+    <message>
+        <source>Paragraph alignment. The Justify choices spread each line of a text box across it and differ in where the last line goes; point text stays flush left</source>
+        <translation>Alineación del párrafo. Las opciones de Justificar reparten cada línea de un cuadro de texto a lo ancho y difieren en dónde queda la última línea; el texto de punto queda alineado a la izquierda</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35853,10 +35877,6 @@ Bloqueada: %1</translation>
         <translation>intervalMinutes debe ser 5, 10, 15, 30 o 60</translation>
     </message>
     <message>
-        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
-        <translation>textAlign debe ser &apos;left&apos;, &apos;center&apos;, &apos;right&apos; o &apos;justify&apos;.</translation>
-    </message>
-    <message>
         <source>%1: runs must be an array of {text, font, size, bold, italic, color} objects.</source>
         <translation>%1: runs debe ser una matriz de objetos {text, font, size, bold, italic, color}.</translation>
     </message>
@@ -35883,10 +35903,6 @@ Bloqueada: %1</translation>
     <message>
         <source>box must be {width, height} of at least 16 document pixels each.</source>
         <translation>box debe ser {width, height} con al menos 16 píxeles de documento cada uno.</translation>
-    </message>
-    <message>
-        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
-        <translation>align debe ser &apos;left&apos;, &apos;center&apos;, &apos;right&apos; o &apos;justify&apos;.</translation>
     </message>
     <message>
         <source>%1: paragraph must be an object with firstLineIndent, startIndent, endIndent, spaceBefore and spaceAfter numbers (document pixels).</source>
@@ -36719,6 +36735,14 @@ Bloqueada: %1</translation>
     <message>
         <source>linkGroup must be 0 or a positive whole number</source>
         <translation>linkGroup debe ser 0 o un número entero positivo</translation>
+    </message>
+    <message>
+        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
+        <translation>textAlign debe ser &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; o &apos;justifyAll&apos;.</translation>
+    </message>
+    <message>
+        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
+        <translation>align debe ser &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; o &apos;justifyAll&apos;.</translation>
     </message>
 </context>
 <context>

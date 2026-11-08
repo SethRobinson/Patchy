@@ -114,7 +114,7 @@ Paragraph sheet (`/1/1[i]/0/5/0[j]/0/0/5`, and `/0/6`, `/1/3`):
 
 | Key | TySh name | Values seen |
 |---|---|---|
-| `/0` | Justification | 0 left, 1 right, 2 center, 3 left-justified, 6 fully justified (4, 5 presumably right/center-justified, unprobed) |
+| `/0` | Justification | 0 left, 1 right, 2 center, then justified with the last line 3 left, 4 right, 5 centered, 6 justified too (Justify All); 4 and 5 pinned by a DOM readback of GitHub issue 672's file. Same values as the TySh |
 | `/1` | FirstLineIndent | px, negative for hanging |
 | `/2` | StartIndent | px |
 | `/3` | EndIndent | px |

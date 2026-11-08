@@ -8962,7 +8962,12 @@ void MainWindow::open_text_paragraph_dialog() {
   text_paragraph_align_combo_->addItem(tr("Center"), QStringLiteral("center"));
   text_paragraph_align_combo_->addItem(tr("Right"), QStringLiteral("right"));
   text_paragraph_align_combo_->addItem(tr("Justify (last line left)"), QStringLiteral("justify"));
-  text_paragraph_align_combo_->setToolTip(tr("Paragraph alignment; Justify spreads every line but the last across the box"));
+  text_paragraph_align_combo_->addItem(tr("Justify (last line centered)"), QStringLiteral("justifyCenter"));
+  text_paragraph_align_combo_->addItem(tr("Justify (last line right)"), QStringLiteral("justifyRight"));
+  text_paragraph_align_combo_->addItem(tr("Justify all"), QStringLiteral("justifyAll"));
+  text_paragraph_align_combo_->setToolTip(
+      tr("Paragraph alignment. The Justify choices spread each line of a text box across it and differ in where "
+         "the last line goes; point text stays flush left"));
   layout->addRow(tr("Alignment:"), text_paragraph_align_combo_);
 
   // Paragraph direction lives here, as in Photoshop's Paragraph panel, next to a mirror of the
@@ -9079,14 +9084,14 @@ void MainWindow::sync_text_paragraph_dialog_from_editor() {
   if (session_open) {
     // The caret's paragraph, the one a bare-caret edit changes.
     format = editor->textCursor().blockFormat();
-    alignment_name = paragraph_alignment_name(editor->alignment());
+    alignment_name = paragraph_alignment_name(format);
     zoom = std::max(0.0001, canvas_->zoom());
     display_scale = text_editor_size_display_scale(*editor);
   } else {
     const auto built = build_text_render_document(inputs->settings, inputs->color, inputs->max_width,
                                                   inputs->paragraph_runs, inputs->rich_text_runs, 1.0);
     format = built.document->begin().blockFormat();
-    alignment_name = paragraph_alignment_name(format.alignment());
+    alignment_name = paragraph_alignment_name(format);
     if (const auto affine = canonical_text_affine_transform_for_layer(*layer); affine.has_value()) {
       const auto scale = std::hypot((*affine)[2], (*affine)[3]);
       if (std::isfinite(scale) && scale > 0.01) {
@@ -9116,7 +9121,7 @@ void MainWindow::apply_text_paragraph_alignment_from_dialog() {
   if (text_paragraph_align_combo_ == nullptr) {
     return;
   }
-  apply_text_alignment_to_active_editor(paragraph_alignment_from_name(text_paragraph_align_combo_->currentData().toString()));
+  apply_text_alignment_to_active_editor(text_paragraph_align_combo_->currentData().toString());
 }
 
 void MainWindow::apply_text_paragraph_metrics_to_active_editor() {
@@ -12273,7 +12278,7 @@ void MainWindow::handle_canvas_view_changed(CanvasWidget* canvas) {
   }
 }
 
-void MainWindow::apply_text_alignment_to_active_editor(Qt::Alignment alignment) {
+void MainWindow::apply_text_alignment_to_active_editor(const QString& alignment) {
   if (canvas_ == nullptr || applying_text_options_to_layers_) {
     return;
   }
@@ -12296,8 +12301,13 @@ void MainWindow::apply_text_alignment_to_active_editor(Qt::Alignment alignment) 
   sync_text_alignment_buttons_from_editor();
 }
 
-void MainWindow::apply_text_alignment_to_editor(QTextEdit& editor, Qt::Alignment alignment) {
-  editor.setAlignment(alignment);
+void MainWindow::apply_text_alignment_to_editor(QTextEdit& editor, const QString& alignment) {
+  // QTextEdit::setAlignment, plus the justified last line Qt has no alignment flag for.
+  QTextBlockFormat format;
+  set_paragraph_alignment(format, alignment);
+  auto cursor = editor.textCursor();
+  cursor.mergeBlockFormat(format);
+  editor.setTextCursor(cursor);
   mark_text_editor_changed(&editor);
 }
 
@@ -12487,13 +12497,13 @@ void MainWindow::refresh_type_menu_states() {
   const auto* layer = editable && !session_open ? text_character_target_layer() : nullptr;
   const auto inputs = layer != nullptr ? text_render_inputs_from_layer(*layer) : std::nullopt;
   const bool has_target = session_open || inputs.has_value();
-  Qt::Alignment alignment = Qt::AlignLeft;
+  QString alignment_name = QStringLiteral("left");
   auto direction = Qt::LayoutDirectionAuto;
   bool vertical = text_vertical_next_;
   int anti_alias = text_smoothing_combo_value(text_smoothing_combo_);
   QTextCharFormat format;
   if (session_open) {
-    alignment = editor->alignment();
+    alignment_name = paragraph_alignment_name(editor->textCursor().blockFormat());
     direction = editor->textCursor().blockFormat().layoutDirection();
     vertical = text_editor_is_vertical(*editor);
     anti_alias = std::clamp(editor->property("patchy.documentTextAntiAlias").toInt(), 0, 16);
@@ -12502,7 +12512,7 @@ void MainWindow::refresh_type_menu_states() {
     const auto built = build_text_render_document(inputs->settings, inputs->color, inputs->max_width,
                                                   inputs->paragraph_runs, inputs->rich_text_runs, 1.0);
     const auto block = built.document->begin().blockFormat();
-    alignment = block.alignment();
+    alignment_name = paragraph_alignment_name(block);
     direction = block.layoutDirection();
     vertical = layer_text_is_vertical(*layer);
     if (const auto found = layer->metadata().find(kLayerMetadataTextAntiAlias);
@@ -12511,7 +12521,6 @@ void MainWindow::refresh_type_menu_states() {
     }
     format = QTextCursor(built.document.get()).charFormat();
   }
-  const auto alignment_name = paragraph_alignment_name(alignment);
   const auto styles = text_character_styles_from_format(format);
   // In apply_text_character_style_to_active_editor order, as the Character panel checks them.
   const std::array<bool, 14> style_checked{styles.caps == 2,
@@ -12529,8 +12538,7 @@ void MainWindow::refresh_type_menu_states() {
                                            styles.stylistic_alternates,
                                            styles.titling_alternates};
   for (auto* action : type_alignment_menu_->actions()) {
-    action->setChecked(
-        paragraph_alignment_name(Qt::Alignment::fromInt(action->data().toInt())) == alignment_name);
+    action->setChecked(action->data().toString() == alignment_name);
   }
   for (auto* action : type_direction_menu_->actions()) {
     action->setChecked(action->data().toInt() == static_cast<int>(direction));

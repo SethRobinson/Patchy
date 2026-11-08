@@ -676,7 +676,7 @@ void ui_type_menu_rows_and_enabled_states() {
   auto* type_tool = patchy::test::ui::require_hotkey_action(window, QStringLiteral("tools.type"));
   CHECK(type_tool != nullptr && !menu->actions().contains(type_tool));
   CHECK(type_tool != nullptr && type_tool->shortcut() == QKeySequence(Qt::Key_T));
-  const std::vector<std::pair<const char*, int>> submenus{{"typeAlignmentMenu", 4}, {"typeDirectionMenu", 3},
+  const std::vector<std::pair<const char*, int>> submenus{{"typeAlignmentMenu", 7}, {"typeDirectionMenu", 3},
                                                           {"typeOrientationMenu", 2}, {"typeAntiAliasMenu", 7},
                                                           {"typeOpenTypeMenu", 8}};
   for (const auto& [name, count] : submenus) {
@@ -777,6 +777,16 @@ void ui_type_menu_applies_to_selected_text_layer() {
   open_type_menu(window);
   CHECK(action_checked(window, "typeAlignJustifyAction"));
   CHECK(!action_checked(window, "typeAlignCenterAction"));
+  // Photoshop's other justify modes (#672): each its own name, checked on its own.
+  for (const auto& [action, name] : {std::pair{"typeAlignJustifyCenterAction", "justifyCenter"},
+                                     std::pair{"typeAlignJustifyRightAction", "justifyRight"},
+                                     std::pair{"typeAlignJustifyAllAction", "justifyAll"}}) {
+    trigger(action);
+    CHECK(first_paragraph_field(window, id, 2) == QLatin1String(name));
+    open_type_menu(window);
+    CHECK(action_checked(window, action));
+    CHECK(!action_checked(window, "typeAlignJustifyAction"));
+  }
 
   trigger("typeDirectionRightToLeftAction");
   CHECK(first_paragraph_field(window, id, 9) == QStringLiteral("rtl"));

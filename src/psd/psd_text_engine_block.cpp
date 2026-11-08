@@ -38,7 +38,7 @@ EngineNode paragraph_sheet(const PsdTextParagraphRun& run) {
                             ? run.auto_leading_fraction
                             : 1.2;
   return engine_dict_of({
-      {"0", engine_integer(std::clamp(run.justification, 0, 3))},
+      {"0", engine_integer(std::clamp(run.justification, 0, 6))},
       {"1", engine_number(run.first_line_indent)},
       {"2", engine_number(run.start_indent)},
       {"3", engine_number(run.end_indent)},

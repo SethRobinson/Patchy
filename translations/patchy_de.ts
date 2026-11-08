@@ -19965,6 +19965,18 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Switch between the Type and Type Mask tools</source>
         <translation>Zwischen Text- und Textmaskenwerkzeug wechseln</translation>
     </message>
+    <message>
+        <source>Spread each line across the text box and center the last one</source>
+        <translation>Jede Zeile über die Breite des Textrahmens verteilen und die letzte zentrieren</translation>
+    </message>
+    <message>
+        <source>Spread each line across the text box and set the last one right</source>
+        <translation>Jede Zeile über die Breite des Textrahmens verteilen und die letzte rechts ausrichten</translation>
+    </message>
+    <message>
+        <source>Spread every line across the text box, the last one too</source>
+        <translation>Jede Zeile über die Breite des Textrahmens verteilen, auch die letzte</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -27850,10 +27862,6 @@ Y: %2
         <translation>Blocksatz (letzte Zeile links)</translation>
     </message>
     <message>
-        <source>Paragraph alignment; Justify spreads every line but the last across the box</source>
-        <translation>Absatzausrichtung; Blocksatz verteilt jede Zeile außer der letzten über die Textbox</translation>
-    </message>
-    <message>
         <source>Alignment:</source>
         <translation>Ausrichtung:</translation>
     </message>
@@ -33724,6 +33732,22 @@ Fixiert: %1</translation>
         <source>Made a selection from the text.</source>
         <translation>Auswahl aus dem Text erstellt.</translation>
     </message>
+    <message>
+        <source>Justify (last line centered)</source>
+        <translation>Blocksatz (letzte Zeile zentriert)</translation>
+    </message>
+    <message>
+        <source>Justify (last line right)</source>
+        <translation>Blocksatz (letzte Zeile rechts)</translation>
+    </message>
+    <message>
+        <source>Justify all</source>
+        <translation>Blocksatz (alle Zeilen)</translation>
+    </message>
+    <message>
+        <source>Paragraph alignment. The Justify choices spread each line of a text box across it and differ in where the last line goes; point text stays flush left</source>
+        <translation>Absatzausrichtung. Die Blocksatz-Optionen verteilen jede Zeile eines Textrahmens über seine Breite und unterscheiden sich darin, wo die letzte Zeile steht; Punkttext bleibt linksbündig</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35853,10 +35877,6 @@ Fixiert: %1</translation>
         <translation>intervalMinutes muss 5, 10, 15, 30 oder 60 sein</translation>
     </message>
     <message>
-        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
-        <translation>textAlign muss &apos;left&apos;, &apos;center&apos;, &apos;right&apos; oder &apos;justify&apos; sein.</translation>
-    </message>
-    <message>
         <source>%1: runs must be an array of {text, font, size, bold, italic, color} objects.</source>
         <translation>%1: runs muss ein Array aus {text, font, size, bold, italic, color}-Objekten sein.</translation>
     </message>
@@ -35883,10 +35903,6 @@ Fixiert: %1</translation>
     <message>
         <source>box must be {width, height} of at least 16 document pixels each.</source>
         <translation>box muss {width, height} mit jeweils mindestens 16 Dokumentpixeln sein.</translation>
-    </message>
-    <message>
-        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
-        <translation>align muss &apos;left&apos;, &apos;center&apos;, &apos;right&apos; oder &apos;justify&apos; sein.</translation>
     </message>
     <message>
         <source>%1: paragraph must be an object with firstLineIndent, startIndent, endIndent, spaceBefore and spaceAfter numbers (document pixels).</source>
@@ -36719,6 +36735,14 @@ Fixiert: %1</translation>
     <message>
         <source>linkGroup must be 0 or a positive whole number</source>
         <translation>linkGroup muss 0 oder eine positive ganze Zahl sein</translation>
+    </message>
+    <message>
+        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
+        <translation>textAlign muss &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; oder &apos;justifyAll&apos; sein.</translation>
+    </message>
+    <message>
+        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
+        <translation>align muss &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; oder &apos;justifyAll&apos; sein.</translation>
     </message>
 </context>
 <context>

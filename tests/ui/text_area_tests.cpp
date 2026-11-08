@@ -45,6 +45,8 @@
 #include "ui_test_support.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/text_area_layout.hpp"
+#include "ui/text_document.hpp"
+#include "ui/text_render.hpp"
 #include "core/text_area.hpp"
 #include "core/pixel_depth.hpp"
 #include "core/layer_render_utils.hpp"
@@ -54,6 +56,7 @@
 #include "psd/psd_document_io.hpp"
 #include "local_psd_fixtures.hpp"
 #include <QElapsedTimer>
+#include <QTextBlock>
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QDir>
@@ -146,6 +149,171 @@ void ui_text_area_concave_flow_alignment_and_vertical() {
     const double first_axis = 500.0 - QFontMetricsF(font).capHeight() / 2.0 - 57.6;
     CHECK(std::abs(vertical.columns[i].axis-(first_axis-28.8*static_cast<double>(i)))<.05);
   }
+}
+
+// Ink columns [left, right) of the bottom band of rows that hold ink (the last line), in the
+// render's local units. Empty when nothing is inked.
+std::optional<std::pair<double, double>> last_line_ink_extent(const RenderedTextPixels& rendered) {
+  const auto& pixels = rendered.pixels;
+  const auto channels = pixels.format().channels;
+  if (pixels.empty() || channels < 4U) return std::nullopt;
+  const auto bytes = pixels.data();
+  const auto stride = pixels.stride_bytes();
+  const auto alpha = [&](int x, int y) {
+    return bytes[static_cast<std::size_t>(y) * stride + static_cast<std::size_t>(x) * channels + 3U];
+  };
+  const auto row_inked = [&](int y) {
+    for (int x = 0; x < pixels.width(); ++x) if (alpha(x, y) > 0) return true;
+    return false;
+  };
+  int bottom = pixels.height() - 1;
+  while (bottom >= 0 && !row_inked(bottom)) --bottom;
+  if (bottom < 0) return std::nullopt;
+  int top = bottom;
+  while (top > 0 && row_inked(top - 1)) --top;
+  int left = pixels.width();
+  int right = -1;
+  for (int y = top; y <= bottom; ++y) {
+    for (int x = 0; x < pixels.width(); ++x) {
+      if (alpha(x, y) > 0) { left = std::min(left, x); right = std::max(right, x); }
+    }
+  }
+  return std::make_pair(rendered.local_rect.left() + left, rendered.local_rect.left() + right + 1);
+}
+
+// Photoshop's justify modes (#672), calibrated with Photoshop 2026 COM probes: Arial 20 px in a
+// 300 px box at x = 50 ("Hello world", "Word"; layer bounds less 50). In a box a lone line is
+// the last line: Justify Last Left, Centered and Right place it like Left, Center and Right, and
+// Justify All spreads it over the box, a single word letter by letter. Point text sets every
+// justify mode flush left at its anchor.
+void ui_text_justify_last_line_modes_match_photoshop_if_available() {
+  if (!QFontDatabase::hasFamily(QStringLiteral("Arial"))) {
+    std::printf("  [SKIP] Arial is not installed\n");
+    return;
+  }
+  const auto render = [](const QString& text, const QString& align, bool boxed) {
+    TextToolSettings settings;
+    settings.text = text;
+    settings.family = QStringLiteral("Arial");
+    settings.size = 20;
+    settings.photoshop_layout = true;
+    settings.boxed = boxed;
+    settings.box_width = 300;
+    settings.box_height = 100;
+    const auto runs = QStringLiteral("v1\n0\t%1\t%2").arg(text.size()).arg(align);
+    return last_line_ink_extent(render_text_pixels_with_local_rect(settings, QColor(Qt::black), 300, runs));
+  };
+  struct Expected {
+    const char* text;
+    const char* align;
+    double left;
+    double right;
+  };
+  const std::array<Expected, 7> box{{
+      {"Hello world", "justify", 1, 98},
+      {"Hello world", "justifyCenter", 102, 198},
+      {"Hello world", "justifyRight", 202, 299},
+      {"Hello world", "justifyAll", 1, 299},
+      {"Word", "justify", 0, 46},
+      {"Word", "justifyCenter", 126, 173},
+      {"Word", "justifyAll", 0, 299},
+  }};
+  for (const auto& expected : box) {
+    const auto ink = render(QString::fromLatin1(expected.text), QString::fromLatin1(expected.align), true);
+    CHECK(ink.has_value());
+    if (!ink.has_value()) continue;
+    std::printf("  box %-11s %-13s ink %.0f..%.0f (photoshop %.0f..%.0f)\n", expected.text, expected.align,
+                ink->first, ink->second, expected.left, expected.right);
+    CHECK(std::abs(ink->first - expected.left) <= 1.0);
+    CHECK(std::abs(ink->second - expected.right) <= 1.0);
+  }
+  const auto point_left = render(QStringLiteral("Hello world"), QStringLiteral("left"), false);
+  CHECK(point_left.has_value());
+  for (const auto* align : {"justify", "justifyCenter", "justifyRight", "justifyAll"}) {
+    const auto ink = render(QStringLiteral("Hello world"), QString::fromLatin1(align), false);
+    CHECK(ink.has_value() && point_left.has_value() && ink == point_left);
+  }
+
+  // Two lines: every mode justifies the first; the last line follows the mode.
+  const auto two_lines = QStringLiteral("One two three four five six seven eight nine ten eleven");
+  const auto first_line_right = [&](const QString& align) {
+    TextToolSettings settings;
+    settings.text = two_lines;
+    settings.family = QStringLiteral("Arial");
+    settings.size = 20;
+    settings.photoshop_layout = true;
+    settings.boxed = true;
+    settings.box_width = 300;
+    settings.box_height = 100;
+    const auto built = build_text_render_document(settings, QColor(Qt::black), 300,
+                                                  QStringLiteral("v1\n0\t%1\t%2").arg(two_lines.size()).arg(align),
+                                                  QString(), 1.0);
+    const auto plan = photoshop_text_layout_plan(*built.document, true);
+    CHECK(plan.lines.size() == 2U);
+    if (plan.lines.size() != 2U) return std::make_pair(0.0, 0.0);
+    const auto block_text = built.document->begin().text();
+    const auto line_right = [&block_text](const BoxTextLineRenderItem& item) {
+      auto end = item.line.textStart() + item.line.textLength();
+      while (end > item.line.textStart() && block_text.at(end - 1).isSpace()) --end;
+      return item.block_origin.x() + item.line.cursorToX(end);
+    };
+    const auto& last = plan.lines.back();
+    const auto last_left = last.block_origin.x() + last.line.cursorToX(last.line.textStart());
+    return std::make_pair(line_right(plan.lines.front()), last_left);
+  };
+  for (const auto* align : {"justify", "justifyCenter", "justifyRight", "justifyAll"}) {
+    const auto [first_right, last_left] = first_line_right(QString::fromLatin1(align));
+    std::printf("  two lines %-13s first line ends %.2f, last line starts %.2f\n", align, first_right, last_left);
+    CHECK(std::abs(first_right - 300.0) <= 0.5);
+    if (std::string_view(align) == "justify" || std::string_view(align) == "justifyAll") {
+      CHECK(std::abs(last_left) <= 0.5);
+    } else {
+      CHECK(last_left > 20.0);
+    }
+  }
+
+  // An area flows the same way: the last line sits in its own span's slack.
+  QTextDocument document;
+  QFont font(QStringLiteral("Arial")); font.setPixelSize(20);
+  document.setDefaultFont(font); document.setDocumentMargin(0);
+  document.setPlainText(QStringLiteral("Hello world"));
+  QTextCursor cursor(&document); cursor.select(QTextCursor::Document);
+  QTextCharFormat format; format.setFont(font); format.setProperty(kTextExactSizeFormatProperty, 20.0);
+  cursor.setCharFormat(format);
+  const auto area = polygon({{0, 0}, {300, 0}, {300, 100}, {0, 100}});
+  const auto area_right_edge = [&](const QString& align) {
+    QTextBlockFormat paragraph;
+    set_paragraph_alignment(paragraph, align);
+    cursor.setBlockFormat(paragraph);
+    const auto plan = area_text_layout_plan(document, area);
+    CHECK(plan.lines.size() == 1U);
+    if (plan.lines.empty()) return 0.0;
+    const auto& item = plan.lines.front();
+    return item.block_origin.x() + item.line.cursorToX(item.line.textStart() + item.line.textLength());
+  };
+  const auto natural = area_right_edge(QStringLiteral("justify"));
+  CHECK(natural < 120.0);
+  CHECK(std::abs(area_right_edge(QStringLiteral("justifyRight")) - 300.0) <= 0.5);
+  CHECK(std::abs(area_right_edge(QStringLiteral("justifyCenter")) - (150.0 + natural / 2.0)) <= 0.5);
+}
+
+// The alignment names are persisted (paragraph runs, script API): every one round-trips through
+// a block format, and an unknown name leaves the format alone.
+void ui_text_paragraph_alignment_names_round_trip() {
+  for (const auto* name : {"left", "center", "right", "justify", "justifyCenter", "justifyRight", "justifyAll"}) {
+    QTextBlockFormat format;
+    set_paragraph_alignment(format, QString::fromLatin1(name).toUpper());
+    CHECK(paragraph_alignment_name(format) == QLatin1String(name));
+    CHECK(canonical_paragraph_alignment_name(QString::fromLatin1(name).toLower()) == QLatin1String(name));
+  }
+  QTextBlockFormat format;
+  set_paragraph_alignment(format, QStringLiteral("justifyAll"));
+  set_paragraph_alignment(format, QStringLiteral("sideways"));
+  CHECK(paragraph_alignment_name(format) == QStringLiteral("justifyAll"));
+  set_paragraph_alignment(format, QStringLiteral("center"));
+  CHECK(paragraph_alignment_name(format) == QStringLiteral("center"));
+  CHECK(text_justify_last_line(format) == TextJustifyLastLine::Left);
+  CHECK(canonical_paragraph_alignment_name(QStringLiteral("justified")).isEmpty());
 }
 
 void ui_text_area_photoshop_triangle_line_breaks_and_caret() {
@@ -930,6 +1098,9 @@ std::vector<patchy::test::TestCase> text_area_tests() {
   return {{"ui_text_area_full_band_spans",ui_text_area_full_band_spans},
           {"ui_text_area_concave_flow_alignment_and_vertical",ui_text_area_concave_flow_alignment_and_vertical},
           {"ui_text_area_photoshop_triangle_line_breaks_and_caret",ui_text_area_photoshop_triangle_line_breaks_and_caret},
+          {"ui_text_justify_last_line_modes_match_photoshop_if_available",
+           ui_text_justify_last_line_modes_match_photoshop_if_available},
+          {"ui_text_paragraph_alignment_names_round_trip", ui_text_paragraph_alignment_names_round_trip},
           {"ui_text_area_script_creation_boundary_edit_and_undo",ui_text_area_script_creation_boundary_edit_and_undo},
           {"ui_text_area_depth_edit_transform_and_roundtrip",ui_text_area_depth_edit_transform_and_roundtrip},
           {"ui_text_area_empty_and_large_frames",ui_text_area_empty_and_large_frames},

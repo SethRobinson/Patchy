@@ -67,6 +67,7 @@
 #include "ui/script_vector.hpp"
 #include "ui/text_layer_painter.hpp"
 #include "ui/text_outline.hpp"
+#include "ui/text_document.hpp"
 #include "core/document_path.hpp"
 #include "core/rect_utils.hpp"
 #include "ui/watermark_scan_report.hpp"
@@ -205,8 +206,7 @@ bool parse_color(ScriptEngineHost& host, const QString& text, QColor* color) {
 namespace {
 
 bool text_align_name_is_valid(const QString& align) {
-  return align == QLatin1String("left") || align == QLatin1String("center") ||
-         align == QLatin1String("right") || align == QLatin1String("justify");
+  return !align.isEmpty() && canonical_paragraph_alignment_name(align) == align;
 }
 
 // An array of {text, font?, size?, bold?, italic?, color?} objects (a bare string counts as a
@@ -1047,7 +1047,8 @@ void ScriptLayerObject::set_text_align(const QString& align) {
     return;
   }
   if (!text_align_name_is_valid(align)) {
-    host_.throw_js_error(ScriptEngineHost::tr("textAlign must be 'left', 'center', 'right' or 'justify'."));
+    host_.throw_js_error(ScriptEngineHost::tr(
+        "textAlign must be 'left', 'center', 'right', 'justify', 'justifyCenter', 'justifyRight' or 'justifyAll'."));
     return;
   }
   if (!host_.set_text_layer_align(session_id_, layer_id_, align)) {
@@ -3146,7 +3147,8 @@ QJSValue ScriptDocumentObject::addTextLayer(const QJSValue& text, const QJSValue
     if (const auto align = options.property(QStringLiteral("align")); align.isString()) {
       params.align = align.toString();
       if (!text_align_name_is_valid(params.align)) {
-        host_.throw_js_error(ScriptEngineHost::tr("align must be 'left', 'center', 'right' or 'justify'."));
+        host_.throw_js_error(ScriptEngineHost::tr(
+            "align must be 'left', 'center', 'right', 'justify', 'justifyCenter', 'justifyRight' or 'justifyAll'."));
         return QJSValue();
       }
     }

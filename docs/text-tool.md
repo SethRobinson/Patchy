@@ -102,6 +102,34 @@ to `mergeCurrentCharFormat`, which only formats the NEXT typed character.
 
 [font-resolution.md](font-resolution.md) (display name to Qt font, flag flattening, GDI names, exact sizes); read it before touching `render_text_font_for_display_family`, `available_text_family_style_match`, or `psd_text_read.cpp`'s DirectWrite resolver.
 
+## Justify modes
+
+Photoshop's four justify modes (GitHub issue 672) differ only in a paragraph's last line: Justify
+(last line left), Justify (last line centered), Justify (last line right) and Justify all, which
+spreads the last line too. They are the Paragraph panel's and Type > Alignment's last four
+entries and the script API's `justify`, `justifyCenter`, `justifyRight`, `justifyAll`.
+
+- **Names and values are persisted.** `patchy.text.paragraph_runs` column 2 stores the name
+  (`paragraph_alignment_name` / `set_paragraph_alignment`, text_document.hpp); the TySh and the
+  Txt2 paragraph sheet store EngineData `/Justification` 3, 5, 4, 6 ([txt2.md](txt2.md)). A
+  justified block is `Qt::AlignJustify` plus `kTextBlockJustifyLastLineProperty`; alignment edits
+  merge both (`apply_text_alignment_to_editor`), never `QTextEdit::setAlignment`.
+- **Box and area text only** (PS 2026 probes: Arial 20 px in a 300 px box). A lone line is the
+  last line, so Justify last centered and right place it like Center and Right, and Justify all
+  spreads even a single word across the box letter by letter. Point text sets every justify mode
+  flush left at its anchor, so neither the shift nor the spread applies there.
+- **Placement**: Qt leaves the last line flush left; `justified_last_line_shift` moves it by half
+  or all of its slack in every box and area line plan (`photoshop_text_layout_plan`,
+  `boxed_text_line_render_items`, `area_text_layout_plan`, the caret geometry fallback).
+  Justify all is QTextLayout's forced justification (`apply_justify_all_to_document`, set by
+  `build_text_render_document` on box and area documents); the flag cannot be cleared, so it is
+  only ever set on a freshly built document.
+- Vertical text treats every justify mode as Justify (last line left).
+- Tests: `ui_text_justify_last_line_modes_match_photoshop_if_available` (pixel extents against
+  the PS captures), `ui_text_paragraph_alignment_names_round_trip`,
+  `text_engine_justify_modes_round_trip`, `psd_issue_672_justify_modes_read_if_available`
+  (`local-test-fixtures/psd/issue-672-justify-modes.psd`, the reporter's file).
+
 ## Vertical text and paragraph direction
 
 Vertical type (`patchy.text.orientation = vertical`) and the paragraph base direction

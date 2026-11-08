@@ -19918,6 +19918,18 @@ Do you want to replace it?</source>
         <source>Switch between the Type and Type Mask tools</source>
         <translation>文字ツールと文字マスクツールを交互に選択</translation>
     </message>
+    <message>
+        <source>Spread each line across the text box and center the last one</source>
+        <translation>各行をテキストボックスの幅いっぱいに広げ、最終行を中央に揃える</translation>
+    </message>
+    <message>
+        <source>Spread each line across the text box and set the last one right</source>
+        <translation>各行をテキストボックスの幅いっぱいに広げ、最終行を右に揃える</translation>
+    </message>
+    <message>
+        <source>Spread every line across the text box, the last one too</source>
+        <translation>最終行も含めて各行をテキストボックスの幅いっぱいに広げる</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -27777,10 +27789,6 @@ Clipped to the layer below</source>
         <translation>均等配置（最終行左揃え）</translation>
     </message>
     <message>
-        <source>Paragraph alignment; Justify spreads every line but the last across the box</source>
-        <translation>段落の配置。均等配置は最終行以外の各行をテキストボックスの幅いっぱいに広げます</translation>
-    </message>
-    <message>
         <source>Alignment:</source>
         <translation>配置:</translation>
     </message>
@@ -33636,6 +33644,22 @@ Locked: %1</source>
         <source>Made a selection from the text.</source>
         <translation>テキストから選択範囲を作成しました。</translation>
     </message>
+    <message>
+        <source>Justify (last line centered)</source>
+        <translation>均等配置（最終行中央揃え）</translation>
+    </message>
+    <message>
+        <source>Justify (last line right)</source>
+        <translation>均等配置（最終行右揃え）</translation>
+    </message>
+    <message>
+        <source>Justify all</source>
+        <translation>均等配置（全行）</translation>
+    </message>
+    <message>
+        <source>Paragraph alignment. The Justify choices spread each line of a text box across it and differ in where the last line goes; point text stays flush left</source>
+        <translation>段落の配置。均等配置の各項目はテキストボックスの各行を幅いっぱいに広げ、最終行の位置だけが異なります。ポイントテキストは左揃えのままです</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35761,10 +35785,6 @@ Locked: %1</source>
         <translation>intervalMinutes は 5、10、15、30、60 のいずれかにしてください</translation>
     </message>
     <message>
-        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
-        <translation>textAlign は &apos;left&apos;、&apos;center&apos;、&apos;right&apos;、&apos;justify&apos; のいずれかにしてください。</translation>
-    </message>
-    <message>
         <source>%1: runs must be an array of {text, font, size, bold, italic, color} objects.</source>
         <translation>%1: runs は {text, font, size, bold, italic, color} オブジェクトの配列にしてください。</translation>
     </message>
@@ -35791,10 +35811,6 @@ Locked: %1</source>
     <message>
         <source>box must be {width, height} of at least 16 document pixels each.</source>
         <translation>box は {width, height} で、それぞれ 16 ドキュメントピクセル以上にしてください。</translation>
-    </message>
-    <message>
-        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
-        <translation>align は &apos;left&apos;、&apos;center&apos;、&apos;right&apos;、&apos;justify&apos; のいずれかにしてください。</translation>
     </message>
     <message>
         <source>%1: paragraph must be an object with firstLineIndent, startIndent, endIndent, spaceBefore and spaceAfter numbers (document pixels).</source>
@@ -36627,6 +36643,14 @@ Locked: %1</source>
     <message>
         <source>linkGroup must be 0 or a positive whole number</source>
         <translation>linkGroup は 0 または正の整数にしてください</translation>
+    </message>
+    <message>
+        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
+        <translation>textAlign は &apos;left&apos;、&apos;center&apos;、&apos;right&apos;、&apos;justify&apos;、&apos;justifyCenter&apos;、&apos;justifyRight&apos;、&apos;justifyAll&apos; のいずれかにしてください。</translation>
+    </message>
+    <message>
+        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
+        <translation>align は &apos;left&apos;、&apos;center&apos;、&apos;right&apos;、&apos;justify&apos;、&apos;justifyCenter&apos;、&apos;justifyRight&apos;、&apos;justifyAll&apos; のいずれかにしてください。</translation>
     </message>
 </context>
 <context>

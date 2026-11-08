@@ -118,12 +118,33 @@ inline constexpr int kTextDiscretionaryLigaturesFormatProperty = QTextFormat::Us
 inline constexpr int kTextSwashFormatProperty = QTextFormat::UserProperty + 56;
 inline constexpr int kTextStylisticAlternatesFormatProperty = QTextFormat::UserProperty + 57;
 inline constexpr int kTextTitlingAlternatesFormatProperty = QTextFormat::UserProperty + 58;
+// Block property: where a justified paragraph (Qt::AlignJustify) puts its last line in a text
+// box or area. Qt always leaves it flush left; Photoshop also centres it, sets it right, or
+// spreads it across the frame like the other lines (TextJustifyLastLine; absent is Left).
+inline constexpr int kTextBlockJustifyLastLineProperty = QTextFormat::UserProperty + 59;
+
+enum class TextJustifyLastLine { Left = 0, Center = 1, Right = 2, All = 3 };
 
 // One visual line as the renderer draws it: the line, the origin it is drawn at, and the
 // rect it is clipped to. `block_position` is the owning block's document position, which
 // QTextLine alone cannot recover (its lineNumber() is an index within its own block's
 // layout); TextLineGeometry needs it to convert between block-relative and document
 // positions. The render pass ignores it.
+[[nodiscard]] TextJustifyLastLine text_justify_last_line(const QTextBlockFormat& format);
+
+// Photoshop's justify modes in a text box or area (PS 2026 renders of issue 672's file and
+// single-line probes, docs/text-tool.md "Justify modes"): Qt lays out the last line of a
+// justified paragraph flush left; Justify Last Centered and Right move it by half or all of
+// its line's slack, which is what this returns for that line (0 for every other line; mirrored
+// in a right-to-left paragraph, whose last line Qt sets flush right). Point text sets every
+// justify mode flush left, so callers apply it to box and area lines only.
+[[nodiscard]] double justified_last_line_shift(const QTextBlock& block, const QTextLine& line);
+
+// Justify All spreads the last line too, a lone word letter by letter: QTextLayout's forced
+// justification on each such block. Box and area documents only (point text stays flush left).
+// The flag cannot be cleared again, so call it on a freshly built document.
+void apply_justify_all_to_document(QTextDocument& document);
+
 struct BoxTextLineRenderItem {
   QTextLine line;
   QPointF block_origin;

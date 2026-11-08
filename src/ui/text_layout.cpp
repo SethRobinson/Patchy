@@ -50,16 +50,31 @@ std::optional<QTextCharFormat> line_last_char_format(const QTextBlock& block, co
   return std::nullopt;
 }
 
-// Photoshop alignment of a left-to-right block as a fraction of the slack: 0.5 centred, 1 right,
-// 0 for left and justified text (and right-to-left blocks, whose trailing gap Qt places
-// elsewhere).
-double photoshop_alignment_fraction(const QTextBlock& block) {
+bool is_last_line_of_block(const QTextBlock& block, const QTextLine& line) {
+  return block.layout() != nullptr && line.lineNumber() == block.layout()->lineCount() - 1;
+}
+
+// Photoshop alignment of a left-to-right block's line as a fraction of the slack: 0.5 centred,
+// 1 right, 0 for left and justified text (and right-to-left blocks, whose trailing gap Qt places
+// elsewhere). In a frame, a justified paragraph's last line takes its Justify Last mode's.
+double photoshop_alignment_fraction(const QTextBlock& block, const QTextLine& line, bool boxed) {
   if (block.textDirection() != Qt::LeftToRight) {
     return 0.0;
   }
-  const auto alignment = block.blockFormat().alignment();
+  const auto format = block.blockFormat();
+  const auto alignment = format.alignment();
   if ((alignment & Qt::AlignJustify) != 0) {
-    return 0.0;
+    if (!boxed || !is_last_line_of_block(block, line)) {
+      return 0.0;
+    }
+    switch (text_justify_last_line(format)) {
+      case TextJustifyLastLine::Center:
+        return 0.5;
+      case TextJustifyLastLine::Right:
+        return 1.0;
+      default:
+        return 0.0;
+    }
   }
   if ((alignment & Qt::AlignHCenter) != 0) {
     return 0.5;
@@ -132,6 +147,46 @@ double photoshop_paragraph_end_kern(const QTextBlock& block, const QTextLine& li
 }
 
 }  // namespace
+
+TextJustifyLastLine text_justify_last_line(const QTextBlockFormat& format) {
+  if ((format.alignment() & Qt::AlignJustify) == 0 || !format.hasProperty(kTextBlockJustifyLastLineProperty)) {
+    return TextJustifyLastLine::Left;
+  }
+  switch (format.intProperty(kTextBlockJustifyLastLineProperty)) {
+    case static_cast<int>(TextJustifyLastLine::Center):
+      return TextJustifyLastLine::Center;
+    case static_cast<int>(TextJustifyLastLine::Right):
+      return TextJustifyLastLine::Right;
+    case static_cast<int>(TextJustifyLastLine::All):
+      return TextJustifyLastLine::All;
+    default:
+      return TextJustifyLastLine::Left;
+  }
+}
+
+double justified_last_line_shift(const QTextBlock& block, const QTextLine& line) {
+  const auto mode = text_justify_last_line(block.blockFormat());
+  if ((mode != TextJustifyLastLine::Center && mode != TextJustifyLastLine::Right) || !line.isValid() ||
+      !is_last_line_of_block(block, line)) {
+    return 0.0;
+  }
+  const auto slack = line.width() - line.naturalTextWidth();
+  if (!std::isfinite(slack) || slack <= 0.0) {
+    return 0.0;
+  }
+  // Qt sets the last line at the paragraph's start edge: the left, or the right in a
+  // right-to-left paragraph, where "right" (the end edge) means the left.
+  const auto fraction = mode == TextJustifyLastLine::Center ? 0.5 : 1.0;
+  return block.textDirection() == Qt::RightToLeft ? -fraction * slack : fraction * slack;
+}
+
+void apply_justify_all_to_document(QTextDocument& document) {
+  for (auto block = document.begin(); block.isValid(); block = block.next()) {
+    if (text_justify_last_line(block.blockFormat()) == TextJustifyLastLine::All && block.layout() != nullptr) {
+      block.layout()->setFlags(Qt::TextJustificationForced);
+    }
+  }
+}
 
 double photoshop_ascender_fraction(const QFont& font) {
   static QHash<QString, double> cache;
@@ -301,7 +356,7 @@ std::vector<BoxTextLineRenderItem> boxed_text_line_render_items(const QTextDocum
       }
       items.push_back(BoxTextLineRenderItem{
           line,
-          block_rect.topLeft(),
+          block_rect.topLeft() + QPointF(justified_last_line_shift(block, line), 0.0),
           QRectF(gate_rect.left() - horizontal_bleed,
                  line_top - top_bleed,
                  gate_rect.width() + horizontal_bleed * 2.0,
@@ -401,11 +456,12 @@ PhotoshopTextLayoutPlan photoshop_text_layout_plan(const QTextDocument& document
 
       const auto target_top = baseline - line.ascent();
       const auto offset_y = target_top - natural_rect.top();
-      const auto block_origin = block_rect.topLeft() + QPointF(0.0, offset_y);
+      const auto block_origin =
+          block_rect.topLeft() + QPointF(boxed ? justified_last_line_shift(block, line) : 0.0, offset_y);
       plan.lines.push_back(BoxTextLineRenderItem{line, block_origin, QRectF(), block.position()});
       const auto trailing = photoshop_line_trailing_tracking(block, line) - photoshop_paragraph_end_kern(block, line);
       widths.push_back(LineWidths{line.naturalTextWidth(), trailing,
-                                  trailing != 0.0 ? photoshop_alignment_fraction(block) : 0.0});
+                                  trailing != 0.0 ? photoshop_alignment_fraction(block, line, boxed) : 0.0});
     }
   }
   // Photoshop tracks only the gaps BETWEEN glyphs, while Qt's absolute letter spacing also
@@ -1150,7 +1206,9 @@ TextLineGeometry TextLineGeometry::build(const QTextDocument& document, bool box
       if (!line.isValid()) {
         continue;
       }
-      natural.push_back(BoxTextLineRenderItem{line, block_origin, QRectF(), block.position()});
+      // Box text draws through the boxed plan, which places a Justify Last line itself.
+      const auto shift = boxed ? justified_last_line_shift(block, line) : 0.0;
+      natural.push_back(BoxTextLineRenderItem{line, block_origin + QPointF(shift, 0.0), QRectF(), block.position()});
     }
   }
   return from_lines(document, natural);

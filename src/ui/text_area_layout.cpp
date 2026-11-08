@@ -252,8 +252,13 @@ PhotoshopTextLayoutPlan area_text_layout_plan(const QTextDocument& document, con
     }
     previous_after = std::max(0.0, format.bottomMargin());
   }
-  for (const auto& item : plan.lines) {
-    plan.ink_rect = plan.ink_rect.isNull() ? item.line.rect() : plan.ink_rect.united(item.line.rect());
+  for (auto& item : plan.lines) {
+    // Justify Last Centered / Right: the paragraph's last line sits in its own span's slack.
+    const auto shift = justified_last_line_shift(document.findBlock(item.block_position), item.line);
+    item.block_origin.rx() += shift;
+    item.clip_rect.translate(shift, 0.0);
+    const auto rect = item.line.rect().translated(item.block_origin);
+    plan.ink_rect = plan.ink_rect.isNull() ? rect : plan.ink_rect.united(rect);
   }
   return plan;
 }
