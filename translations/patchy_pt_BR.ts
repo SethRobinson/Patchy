@@ -20676,18 +20676,6 @@ Deseja substituí-lo?</translation>
         <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
         <translation>%1 é integrado, então suas alterações estão no conjunto Personalizado. Renomeie-o para mantê-lo como um conjunto seu.</translation>
     </message>
-    <message>
-        <source>Tool modifiers as in GIMP: %CTRL% zooms out, zooms with the wheel, picks colors with the Brush, Eraser and Fill tools, sets the clone source, swaps Dodge and Burn or Blur and Sharpen, and subtracts from a selection. Where %CTRL% picks, sets the source or swaps, %ALT% is the temporary Move.</source>
-        <translation>Modificadores de ferramenta como no GIMP: %CTRL% diminui o zoom, aplica zoom com a roda, coleta cores com Pincel, Borracha e Preencher, define a origem da clonagem, troca Subexposição e Superexposição ou Desfoque e Nitidez e subtrai de uma seleção. Onde %CTRL% coleta cores, define a origem ou troca, %ALT% é o Mover temporário.</translation>
-    </message>
-    <message>
-        <source>Tool modifiers as in Krita: %CTRL% zooms out, picks colors with the Brush, Mixer Brush, Smudge and Eraser tools, and sets the clone source; %ALT% subtracts from a selection. Where %CTRL% picks or sets the source, %ALT% is the temporary Move.</source>
-        <translation>Modificadores de ferramenta como no Krita: %CTRL% diminui o zoom, coleta cores com Pincel, Pincel misturador, Borrar e Borracha e define a origem da clonagem; %ALT% subtrai de uma seleção. Onde %CTRL% coleta cores ou define a origem, %ALT% é o Mover temporário.</translation>
-    </message>
-    <message>
-        <source>Tool modifiers: %ALT% zooms out, picks colors, sets the clone source and subtracts from a selection; %CTRL% is the painting tools&apos; temporary Move. The GIMP-style and Krita-style sets use %CTRL% instead.</source>
-        <translation>Modificadores de ferramenta: %ALT% diminui o zoom, coleta cores, define a origem da clonagem e subtrai de uma seleção; %CTRL% é o Mover temporário das ferramentas de pintura. Os conjuntos Estilo GIMP e Estilo Krita usam %CTRL% no lugar.</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>

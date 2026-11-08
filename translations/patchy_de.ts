@@ -20676,18 +20676,6 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
         <translation>%1 ist integriert, daher stehen Ihre Änderungen im Satz „Benutzerdefiniert“. Benennen Sie ihn um, um ihn als eigenen Satz zu behalten.</translation>
     </message>
-    <message>
-        <source>Tool modifiers as in GIMP: %CTRL% zooms out, zooms with the wheel, picks colors with the Brush, Eraser and Fill tools, sets the clone source, swaps Dodge and Burn or Blur and Sharpen, and subtracts from a selection. Where %CTRL% picks, sets the source or swaps, %ALT% is the temporary Move.</source>
-        <translation>Werkzeugmodifikatoren wie in GIMP: %CTRL% zoomt heraus, zoomt mit dem Mausrad, nimmt mit Pinsel, Radiergummi und Fläche eine Farbe auf, legt die Kopierquelle fest, tauscht Abwedler und Nachbelichter oder Weichzeichner und Scharfzeichner und zieht von einer Auswahl ab. Wo %CTRL% eine Farbe aufnimmt, die Quelle festlegt oder tauscht, ist %ALT% das vorübergehende Verschieben.</translation>
-    </message>
-    <message>
-        <source>Tool modifiers as in Krita: %CTRL% zooms out, picks colors with the Brush, Mixer Brush, Smudge and Eraser tools, and sets the clone source; %ALT% subtracts from a selection. Where %CTRL% picks or sets the source, %ALT% is the temporary Move.</source>
-        <translation>Werkzeugmodifikatoren wie in Krita: %CTRL% zoomt heraus, nimmt mit Pinsel, Mischpinsel, Wischfinger und Radiergummi eine Farbe auf und legt die Kopierquelle fest; %ALT% zieht von einer Auswahl ab. Wo %CTRL% eine Farbe aufnimmt oder die Quelle festlegt, ist %ALT% das vorübergehende Verschieben.</translation>
-    </message>
-    <message>
-        <source>Tool modifiers: %ALT% zooms out, picks colors, sets the clone source and subtracts from a selection; %CTRL% is the painting tools&apos; temporary Move. The GIMP-style and Krita-style sets use %CTRL% instead.</source>
-        <translation>Werkzeugmodifikatoren: %ALT% zoomt heraus, nimmt eine Farbe auf, legt die Kopierquelle fest und zieht von einer Auswahl ab; %CTRL% ist das vorübergehende Verschieben der Malwerkzeuge. Die Sätze für GIMP und Krita verwenden stattdessen %CTRL%.</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>

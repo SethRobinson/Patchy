@@ -11,7 +11,6 @@
 #include "ui/hotkey_sets.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
-#include "ui/modifier_names.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/tool_modifier_style.hpp"
 #include "test_harness.hpp"
@@ -722,10 +721,10 @@ void ui_keyboard_shortcuts_command_opens_hotkeys_page() {
   CHECK(saw_dialog);
 }
 
-// A set carries its tool modifiers (GitHub issue 302): the line under the set row says which
-// key the tools use, OK makes the canvas use it and stores it, Custom made from GIMP-style
-// keeps GIMP's, and a hotkey file carries it to the set an import makes.
-void ui_hotkey_editor_set_shows_and_applies_tool_modifiers() {
+// A set carries its tool modifiers (GitHub issue 302): OK makes the canvas use the style of
+// the set chosen and stores it, Custom made from GIMP-style keeps GIMP's, and a hotkey file
+// carries it to the set an import makes. The page shows no line for it (Seth, November 8, 2026).
+void ui_hotkey_editor_set_applies_tool_modifiers() {
   HotkeyGroupRestorer restore;
   auto&& [window, canvas] = ShownWindowFixture{};
   using patchy::ui::ToolModifierStyle;
@@ -737,28 +736,14 @@ void ui_hotkey_editor_set_shows_and_applies_tool_modifiers() {
   bool drove = false;
   when_dialog_visible(QStringLiteral("patchyPreferencesDialog"), [&](QDialog& dialog) {
     auto* panel = hotkey_panel(dialog);
-    auto* line = dialog.findChild<QLabel*>(QStringLiteral("hotkeyToolModifiersLabel"));
-    CHECK(line != nullptr);
-    if (line == nullptr) {
-      dialog.reject();
-      return;
-    }
-    CHECK(line->isVisible());
-    const auto patchy_text = line->text();
-    CHECK(patchy_text.contains(patchy::ui::alt_key_name() + QStringLiteral(" zooms out")));
+    CHECK(dialog.findChild<QLabel*>(QStringLiteral("hotkeyToolModifiersLabel")) == nullptr);
+    CHECK(panel->staged_tool_modifier_style() == ToolModifierStyle::Patchy);
     panel->apply_shortcut_set(QStringLiteral("krita"));
     CHECK(panel->staged_tool_modifier_style() == ToolModifierStyle::Krita);
-    CHECK(line->text().contains(QStringLiteral("Krita")));
     panel->apply_shortcut_set(QStringLiteral("photoshop"));
     CHECK(panel->staged_tool_modifier_style() == ToolModifierStyle::Patchy);
-    CHECK(line->text() == patchy_text);
     panel->apply_shortcut_set(QStringLiteral("gimp"));
     CHECK(panel->staged_tool_modifier_style() == ToolModifierStyle::Gimp);
-    CHECK(line->text().contains(patchy::ui::ctrl_key_name() + QStringLiteral(" zooms out")));
-    CHECK(line->text().contains(QStringLiteral("GIMP")));
-    QApplication::processEvents();
-    QApplication::processEvents();
-    save_widget_artifact("hotkey_editor_tool_modifiers", dialog);
     // Nothing reaches the canvas before OK.
     CHECK(patchy::ui::active_tool_modifier_style() == ToolModifierStyle::Patchy);
     QString error;
@@ -834,6 +819,6 @@ std::vector<patchy::test::TestCase> hotkey_sets_tests() {
       {"ui_hotkey_editor_built_in_sets_stay_unchanged", ui_hotkey_editor_built_in_sets_stay_unchanged},
       {"ui_hotkey_editor_shortcut_set_combo_has_room_for_its_entries",
        ui_hotkey_editor_shortcut_set_combo_has_room_for_its_entries},
-      {"ui_hotkey_editor_set_shows_and_applies_tool_modifiers", ui_hotkey_editor_set_shows_and_applies_tool_modifiers},
+      {"ui_hotkey_editor_set_applies_tool_modifiers", ui_hotkey_editor_set_applies_tool_modifiers},
   };
 }

@@ -2,7 +2,6 @@
 #include "ui/command_search.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/hotkey_sets.hpp"
-#include "ui/modifier_names.hpp"
 #include "ui/tool_modifier_style.hpp"
 #include "ui/theme_qss.hpp"
 
@@ -204,13 +203,6 @@ HotkeyEditorPanel::HotkeyEditorPanel(HotkeyRegistry& registry, QMenuBar* menu_ba
   top_layout->addWidget(reset_all_button);
   header_layout->addWidget(top_row);
   header_layout->addWidget(build_set_row(header_));
-  // Which key the set's tools use on the canvas (GitHub issue 302): read-only, it follows the set.
-  tool_modifiers_label_ = new QLabel(header_);
-  tool_modifiers_label_->setObjectName(QStringLiteral("hotkeyToolModifiersLabel"));
-  tool_modifiers_label_->setProperty("hotkeyDim", true);
-  tool_modifiers_label_->setWordWrap(true);
-  header_layout->addWidget(tool_modifiers_label_);
-  refresh_tool_modifiers_label();
   transfer_status_ = new QLabel(header_);
   transfer_status_->setObjectName(QStringLiteral("hotkeyTransferStatus"));
   transfer_status_->setProperty("hotkeyDim", true);
@@ -384,34 +376,6 @@ ToolModifierStyle HotkeyEditorPanel::set_tool_modifier_style(const QString& set_
 
 ToolModifierStyle HotkeyEditorPanel::staged_tool_modifier_style() const {
   return set_tool_modifier_style(active_set_id_);
-}
-
-// One sentence per style naming the gestures it moves (docs/hotkey-sets.md "Tool modifiers").
-QString HotkeyEditorPanel::tool_modifiers_text(ToolModifierStyle style) const {
-  switch (style) {
-    case ToolModifierStyle::Gimp:
-      return resolve_modifier_names(
-          tr("Tool modifiers as in GIMP: %CTRL% zooms out, zooms with the wheel, picks colors with the Brush, "
-             "Eraser and Fill tools, sets the clone source, swaps Dodge and Burn or Blur and Sharpen, and "
-             "subtracts from a selection. Where %CTRL% picks, sets the source or swaps, %ALT% is the temporary "
-             "Move."));
-    case ToolModifierStyle::Krita:
-      return resolve_modifier_names(
-          tr("Tool modifiers as in Krita: %CTRL% zooms out, picks colors with the Brush, Mixer Brush, Smudge "
-             "and Eraser tools, and sets the clone source; %ALT% subtracts from a selection. Where %CTRL% picks "
-             "or sets the source, %ALT% is the temporary Move."));
-    case ToolModifierStyle::Patchy:
-      break;
-  }
-  return resolve_modifier_names(
-      tr("Tool modifiers: %ALT% zooms out, picks colors, sets the clone source and subtracts from a selection; "
-         "%CTRL% is the painting tools' temporary Move. The GIMP-style and Krita-style sets use %CTRL% instead."));
-}
-
-void HotkeyEditorPanel::refresh_tool_modifiers_label() {
-  if (tool_modifiers_label_ != nullptr) {
-    tool_modifiers_label_->setText(tool_modifiers_text(staged_tool_modifier_style()));
-  }
 }
 
 // Which set the page opens on: the one last applied when the registry still holds its keys.
@@ -832,7 +796,6 @@ void HotkeyEditorPanel::rebuild_set_combo() {
   if (delete_set_button_ != nullptr) {
     delete_set_button_->setEnabled(own_set);
   }
-  refresh_tool_modifiers_label();
   fit_set_combo_width();
 }
 

@@ -20676,18 +20676,6 @@ Voulez-vous le remplacer ?</translation>
         <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
         <translation>%1 est intégré : vos modifications sont donc dans le jeu Personnalisé. Renommez-le pour le garder comme jeu à vous.</translation>
     </message>
-    <message>
-        <source>Tool modifiers as in GIMP: %CTRL% zooms out, zooms with the wheel, picks colors with the Brush, Eraser and Fill tools, sets the clone source, swaps Dodge and Burn or Blur and Sharpen, and subtracts from a selection. Where %CTRL% picks, sets the source or swaps, %ALT% is the temporary Move.</source>
-        <translation>Modificateurs d&apos;outil comme dans GIMP : %CTRL% fait un zoom arrière, zoome avec la molette, prélève les couleurs avec Pinceau, Gomme et Fond, définit la source de duplication, échange Densité - et Densité + ou Goutte d&apos;eau et Netteté, et soustrait d&apos;une sélection. Là où %CTRL% prélève, définit la source ou échange, %ALT% est le Déplacement temporaire.</translation>
-    </message>
-    <message>
-        <source>Tool modifiers as in Krita: %CTRL% zooms out, picks colors with the Brush, Mixer Brush, Smudge and Eraser tools, and sets the clone source; %ALT% subtracts from a selection. Where %CTRL% picks or sets the source, %ALT% is the temporary Move.</source>
-        <translation>Modificateurs d&apos;outil comme dans Krita : %CTRL% fait un zoom arrière, prélève les couleurs avec Pinceau, Pinceau mélangeur, Doigt et Gomme, et définit la source de duplication ; %ALT% soustrait d&apos;une sélection. Là où %CTRL% prélève ou définit la source, %ALT% est le Déplacement temporaire.</translation>
-    </message>
-    <message>
-        <source>Tool modifiers: %ALT% zooms out, picks colors, sets the clone source and subtracts from a selection; %CTRL% is the painting tools&apos; temporary Move. The GIMP-style and Krita-style sets use %CTRL% instead.</source>
-        <translation>Modificateurs d&apos;outil : %ALT% fait un zoom arrière, prélève les couleurs, définit la source de duplication et soustrait d&apos;une sélection ; %CTRL% est le Déplacement temporaire des outils de peinture. Les jeux Style GIMP et Style Krita utilisent %CTRL% à la place.</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>
