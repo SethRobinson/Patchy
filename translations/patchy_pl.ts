@@ -15113,6 +15113,10 @@ Czy chcesz go zastąpić?</translation>
         <source>Show the &gt; arrow that opens more columns</source>
         <translation>Pokaż strzałkę &gt;, która otwiera kolejne kolumny</translation>
     </message>
+    <message>
+        <source>No to &amp;All</source>
+        <translation>Nie dla &amp;wszystkich</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

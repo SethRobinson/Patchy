@@ -749,6 +749,7 @@ void MainWindow::close_other_document_tabs(int index) {
   const auto keep_id = keep_session->session_id;
   auto other_ids = sessions_.ids();
   std::erase(other_ids, keep_id);
+  const CloseBatchScope batch(*this, other_ids);
   for (auto other_it = other_ids.rbegin(); other_it != other_ids.rend(); ++other_it) {
     auto* candidate = session_with_id(*other_it);
     if (candidate != nullptr && !close_document_session(*candidate)) {
@@ -766,6 +767,7 @@ void MainWindow::close_all_document_tabs() {
     return;
   }
   const auto session_ids = sessions_.ids();
+  const CloseBatchScope batch(*this, session_ids);
   for (auto id_it = session_ids.rbegin(); id_it != session_ids.rend(); ++id_it) {
     auto* candidate = session_with_id(*id_it);
     if (candidate != nullptr && !close_document_session(*candidate)) {
@@ -1361,12 +1363,42 @@ void MainWindow::show_document_tab_context_menu(const QPoint& position) {
   menu.exec(tab_bar->mapToGlobal(position));
 }
 
+MainWindow::CloseBatchScope::CloseBatchScope(MainWindow& window, std::vector<std::int64_t> session_ids)
+    : window_(window) {
+  if (!window_.close_batch_.has_value()) {
+    window_.close_batch_ = CloseBatch{std::move(session_ids), false};
+    owns_ = true;
+  }
+}
+
+MainWindow::CloseBatchScope::~CloseBatchScope() {
+  if (owns_) {
+    window_.close_batch_.reset();
+  }
+}
+
 bool MainWindow::confirm_close_session(DocumentSession& target_session) {
   if (!session_is_modified(target_session)) {
     return true;
   }
   if (unattended_automation()) {
     return false;
+  }
+  const auto in_batch = [this](std::int64_t id) {
+    return close_batch_.has_value() && std::ranges::find(close_batch_->pending_ids, id) !=
+                                           close_batch_->pending_ids.end();
+  };
+  const auto leave_batch = [this](std::int64_t id) {
+    if (close_batch_.has_value()) {
+      std::erase(close_batch_->pending_ids, id);
+    }
+  };
+  // No to All was answered earlier in this batch: the documents it covers close
+  // unsaved. A document outside the batch (a kept Edit Contents tab closed with its
+  // parent) still gets its own question.
+  if (close_batch_.has_value() && close_batch_->discard_all && in_batch(target_session.session_id)) {
+    leave_batch(target_session.session_id);
+    return true;
   }
 
   // Yes whose save does not settle the document (Save As cancelled, a format question
@@ -1386,17 +1418,37 @@ bool MainWindow::confirm_close_session(DocumentSession& target_session) {
     // underlined, and keeps S and D as aliases (GitHub issues 70 and 240). Yes is the
     // default; the text stays a yes/no question. The name is quoted so it reads apart
     // from the question (GitHub issue 605).
-    const auto answer = show_warning_message(this, tr("Save changes?"),
-                                             tr("Save changes to \"%1\" before closing?").arg(title),
-                                             QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
-                                             QMessageBox::Save, QStringLiteral("saveChangesMessageBox"));
+    // No to All only while another document in the batch still waits with unsaved
+    // changes; the last one asked keeps the three answers (local-041).
+    auto buttons = QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel;
+    if (close_batch_.has_value()) {
+      const bool others_waiting = std::ranges::any_of(close_batch_->pending_ids, [&](std::int64_t id) {
+        const auto* other = id == session_id ? nullptr : session_with_id(id);
+        return other != nullptr && session_is_modified(*other);
+      });
+      if (others_waiting) {
+        buttons |= QMessageBox::NoToAll;
+      }
+    }
+    const auto answer =
+        show_warning_message(this, tr("Save changes?"), tr("Save changes to \"%1\" before closing?").arg(title),
+                             buttons, QMessageBox::Save, QStringLiteral("saveChangesMessageBox"));
     if (answer == QMessageBox::Cancel) {
       return false;
     }
+    if (answer == QMessageBox::NoToAll) {
+      if (close_batch_.has_value()) {
+        close_batch_->discard_all = true;
+      }
+      leave_batch(session_id);
+      return true;
+    }
     if (answer == QMessageBox::Discard) {
+      leave_batch(session_id);
       return true;
     }
     if (auto* saving = session_with_id(session_id); saving != nullptr && maybe_save_session(*saving)) {
+      leave_batch(session_id);
       return true;
     }
   }

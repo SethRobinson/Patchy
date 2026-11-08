@@ -15048,6 +15048,10 @@ Do you want to replace it?</source>
         <source>Show the &gt; arrow that opens more columns</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>No to &amp;All</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

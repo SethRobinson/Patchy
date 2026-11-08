@@ -446,6 +446,10 @@ bool MainWindowTestAccess::close_document_tab(MainWindow& window, int index) {
   return window.close_document_tab(index);
 }
 
+void MainWindowTestAccess::close_other_document_tabs(MainWindow& window, int index) {
+  window.close_other_document_tabs(index);
+}
+
 void MainWindowTestAccess::float_active_document(MainWindow& window) {
   window.float_active_document();
 }

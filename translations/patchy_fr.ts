@@ -15066,6 +15066,10 @@ Voulez-vous le remplacer ?</translation>
         <source>Show the &gt; arrow that opens more columns</source>
         <translation>Afficher la flèche &gt; qui ouvre d&apos;autres colonnes</translation>
     </message>
+    <message>
+        <source>No to &amp;All</source>
+        <translation>Non à &amp;tout</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

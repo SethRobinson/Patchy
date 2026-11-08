@@ -429,7 +429,8 @@ void move_pointer_to_global_position(QPoint global_position);
 void suppress_native_tab_bar_base(QTabWidget& tabs);
 // Plain letter keys answer the box (native-message-box style; Qt itself only
 // wires Alt+mnemonic): Y/N for Yes/No, S/D for Save/Discard, and Y/N also
-// stand in for Save/Discard. A Discard button always reads "Don't Save".
+// stand in for Save/Discard, A answers No to All. With Save and Discard the buttons
+// read Yes, No (and No to All) and Cancel.
 [[nodiscard]] QMessageBox::StandardButton show_warning_message(
     QWidget* parent, const QString& title, const QString& text, QMessageBox::StandardButtons buttons,
     QMessageBox::StandardButton default_button = QMessageBox::NoButton, const QString& object_name = QString());
