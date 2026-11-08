@@ -1853,9 +1853,218 @@ QRect CanvasWidget::draw_brush_dab(QPointF point, bool erase, EditOptions& optio
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return {};
   }
-  const auto dirty = to_qrect(patchy::paint_brush_dab(
-      *document_, *document_->active_layer_id(), point.x(), point.y(), options, erase));
+  const auto started = std::chrono::steady_clock::now();
+  const auto banded = draw_banded_brush_dab(point, erase, options);
+  const auto dirty = banded.has_value()
+                         ? *banded
+                         : to_qrect(patchy::paint_brush_dab(*document_, *document_->active_layer_id(), point.x(),
+                                                            point.y(), options, erase));
+  ++render_cache_diagnostics_.brush_dabs;
+  render_cache_diagnostics_.brush_dab_ms +=
+      std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
   return finalize_pending_wet_edges(dirty);
+}
+
+// GitHub issue 677: a big soft dab at reduced Flow cost about 3 ms on one thread, through two
+// std::function calls and two stroke-map lookups per pixel, so a fast Airbrush stroke at fit
+// asked for more paint per second than one core could give and the paint trailed the cursor.
+// This is core paint_brush_dab's walk (begin_brush_dab_walk) with install_brush_stroke_compositor's
+// plain gate and writer inlined. Each pixel reads only its own bytes, its own accumulated alpha
+// and the stroke-start snapshot, so the 64x64 tiles of a big dab are painted on separate threads
+// (each with its own StrokePixelMap::Cursor, the tiles reserved first) and give the one-thread
+// walk's bytes (ui_brush_banded_dabs_keep_bytes).
+std::optional<QRect> CanvasWidget::draw_banded_brush_dab(QPointF point, bool erase, const EditOptions& options) {
+  if (!banded_brush_dabs_enabled_ || !brush_stroke_plain_writer_installed_ || document_ == nullptr ||
+      !document_->active_layer_id().has_value() || options.brush_tip != nullptr ||
+      !options.stroke_pixel_writer || !options.stroke_pixel_gate || options.stroke_coverage_observer ||
+      options.dab_primary_provider || options.stroke_progress || options.palette_snap != nullptr ||
+      !brush_stroke_layer_snapshot_.has_value() ||
+      brush_stroke_layer_snapshot_->layer_id != *document_->active_layer_id()) {
+    return std::nullopt;
+  }
+  const auto layer_id = *document_->active_layer_id();
+  const auto walk =
+      patchy::begin_brush_dab_walk(*document_, layer_id, point.x(), point.y(), options, erase);
+  if (!walk.has_value()) {
+    return QRect{};
+  }
+  auto* layer = document_->find_layer(layer_id);
+  auto& pixels = layer->pixels();
+  const auto bounds = layer->bounds();
+  const auto row_begin = std::max(walk->rect.y, bounds.y);
+  const auto row_end = std::min(walk->rect.y + walk->rect.height, bounds.y + pixels.height());
+
+  struct RowSpan {
+    std::int32_t y{0};
+    std::int32_t first{0};
+    std::int32_t end{0};
+  };
+  std::vector<RowSpan> spans;
+  spans.reserve(static_cast<std::size_t>(std::max(0, row_end - row_begin)));
+  std::int64_t span_pixels = 0;
+  auto left = std::numeric_limits<std::int32_t>::max();
+  auto right = std::numeric_limits<std::int32_t>::min();
+  for (auto y = row_begin; y < row_end; ++y) {
+    auto [first, end] = walk->row_span(y);
+    // Pixels outside the layer are skipped by paint_brush_dab too.
+    first = std::max(first, bounds.x);
+    end = std::min(end, bounds.x + pixels.width());
+    if (first >= end) {
+      continue;
+    }
+    spans.push_back(RowSpan{y, first, end});
+    span_pixels += end - first;
+    left = std::min(left, first);
+    right = std::max(right, end);
+  }
+  if (spans.empty()) {
+    if (options.progress_callback) {
+      options.progress_callback();
+    }
+    return QRect{};
+  }
+
+  // The mutable access detaches the layer's bytes here, on the launching thread.
+  auto* const data = pixels.data().data();
+  const auto stride = pixels.stride_bytes();
+  const auto channels = pixels.format().channels;
+  const auto pixel_bytes = bytes_per_pixel(pixels.format());
+  // install_brush_stroke_compositor's gate and writer, with the values they captured.
+  const auto source_alpha =
+      std::clamp(static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F, 1.0F / 255.0F, 1.0F);
+  const auto gate_alpha = source_alpha - 0.0005F;
+  const auto flow =
+      static_cast<float>(tool_ == CanvasTool::MixerBrush ? mixer_flow_ : brush_flow_) / 100.0F;
+  const auto primary = options.primary;
+  const auto secondary = options.secondary;
+  const auto lock_transparent_pixels = options.lock_transparent_pixels;
+
+  auto& accumulated = brush_stroke_accumulated_alpha_;
+  constexpr auto kTileShift = StrokePixelMap<float>::kTileRowsShift;
+  constexpr std::int32_t kTileSize = 1 << kTileShift;
+  accumulated.reserve_tiles(left, row_begin, right, row_end);
+  // Paints columns [column_begin, column_end) of spans [first_span, end_span).
+  const auto paint_spans = [&](StrokePixelMap<float>::Cursor& cursor, std::size_t first_span, std::size_t end_span,
+                               std::int32_t column_begin, std::int32_t column_end) {
+    const auto alpha_at = [&cursor](std::int32_t x, std::int32_t y) -> float& { return cursor(x, y); };
+    QRect dirty;
+    for (auto index = first_span; index < end_span; ++index) {
+      const auto& span = spans[index];
+      auto* const row = data + static_cast<std::size_t>(span.y - bounds.y) * stride;
+      auto changed_first = std::numeric_limits<std::int32_t>::max();
+      auto changed_last = std::numeric_limits<std::int32_t>::min();
+      const auto end = std::min(span.end, column_end);
+      for (auto x = std::max(span.first, column_begin); x < end; ++x) {
+        const auto selected = patchy::edit_selection_coverage(options, x, span.y);
+        if (selected <= 0.0F) {
+          continue;
+        }
+        const auto coverage = walk->coverage(x, span.y, options) * selected;
+        if (coverage <= 0.0F) {
+          continue;
+        }
+        if (const auto* found = cursor.find(x, span.y); found != nullptr && !(*found < gate_alpha)) {
+          continue;
+        }
+        auto* const pixel = row + static_cast<std::size_t>(x - bounds.x) * pixel_bytes;
+        if (blend_brush_stroke_pixel_from_snapshot(alpha_at, x, span.y, pixel, channels, primary, secondary,
+                                                   lock_transparent_pixels, coverage, erase, flow)) {
+          changed_first = std::min(changed_first, x);
+          changed_last = x;
+        }
+      }
+      if (changed_first <= changed_last) {
+        dirty = dirty.united(QRect(changed_first, span.y, changed_last - changed_first + 1, 1));
+      }
+    }
+    return dirty;
+  };
+
+  // Work cells are the stroke map's 64x64 tiles: no two workers ever touch one tile (its
+  // presence bits share words), and a 179 px dab gives about a dozen cells to share out.
+  struct Cell {
+    std::size_t first_span{0};
+    std::size_t end_span{0};
+    std::int32_t column_begin{0};
+    std::int64_t pixels{0};
+  };
+  std::vector<Cell> cells;
+  constexpr std::int64_t kParallelPixels = 8192;
+  // The selection lookups rasterize the selection lazily on first use, so a selection keeps
+  // the dab on this thread.
+  const auto parallel = span_pixels >= kParallelPixels && !options.selection_coverage && !options.selection_mask &&
+                        !qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED");
+  if (parallel) {
+    for (std::size_t band_start = 0; band_start < spans.size();) {
+      const auto band = spans[band_start].y >> kTileShift;
+      auto band_end = band_start;
+      auto band_left = std::numeric_limits<std::int32_t>::max();
+      auto band_right = std::numeric_limits<std::int32_t>::min();
+      while (band_end < spans.size() && (spans[band_end].y >> kTileShift) == band) {
+        band_left = std::min(band_left, spans[band_end].first);
+        band_right = std::max(band_right, spans[band_end].end);
+        ++band_end;
+      }
+      for (auto tile_x = band_left >> kTileShift; tile_x <= (band_right - 1) >> kTileShift; ++tile_x) {
+        Cell cell{band_start, band_end, tile_x * kTileSize, 0};
+        for (auto index = band_start; index < band_end; ++index) {
+          cell.pixels += std::max(0, std::min(spans[index].end, cell.column_begin + kTileSize) -
+                                         std::max(spans[index].first, cell.column_begin));
+        }
+        if (cell.pixels > 0) {
+          cells.push_back(cell);
+        }
+      }
+      band_start = band_end;
+    }
+  }
+  const auto workers =
+      cells.size() >= 2
+          ? patchy::max_blocking_fanout_workers(std::clamp(
+                std::min(static_cast<int>(cells.size()), patchy::hardware_worker_threads()), 1, 16))
+          : 1;
+  QRect dirty;
+  if (workers < 2) {
+    StrokePixelMap<float>::Cursor cursor(accumulated);
+    dirty = paint_spans(cursor, 0, spans.size(), std::numeric_limits<std::int32_t>::min(),
+                        std::numeric_limits<std::int32_t>::max());
+  } else {
+    // Biggest cells first, each to the least loaded worker.
+    std::sort(cells.begin(), cells.end(), [](const Cell& a, const Cell& b) { return a.pixels > b.pixels; });
+    std::vector<std::vector<const Cell*>> shares(static_cast<std::size_t>(workers));
+    std::vector<std::int64_t> loads(static_cast<std::size_t>(workers), 0);
+    for (const auto& cell : cells) {
+      const auto lightest = static_cast<std::size_t>(std::min_element(loads.begin(), loads.end()) - loads.begin());
+      shares[lightest].push_back(&cell);
+      loads[lightest] += cell.pixels;
+    }
+    const auto paint_share = [&](const std::vector<const Cell*>& share) {
+      StrokePixelMap<float>::Cursor cursor(accumulated);
+      QRect share_dirty;
+      for (const auto* cell : share) {
+        share_dirty = share_dirty.united(
+            paint_spans(cursor, cell->first_span, cell->end_span, cell->column_begin, cell->column_begin + kTileSize));
+      }
+      return share_dirty;
+    };
+    std::vector<std::future<QRect>> futures;
+    futures.reserve(shares.size());
+    for (std::size_t share = 1; share < shares.size(); ++share) {
+      if (!shares[share].empty()) {
+        futures.push_back(std::async(std::launch::async, [&paint_share, &shares, share] {
+          return paint_share(shares[share]);
+        }));
+      }
+    }
+    dirty = paint_share(shares.front());
+    for (auto& future : futures) {
+      dirty = dirty.united(future.get());
+    }
+  }
+  if (options.progress_callback) {
+    options.progress_callback();
+  }
+  return dirty;
 }
 
 QRect CanvasWidget::draw_brush_segment_with_dabs(QPointF from, QPointF to, bool erase,
@@ -2180,22 +2389,20 @@ bool CanvasWidget::write_brush_stroke_pixel_from_snapshot(std::int32_t x, std::i
   return false;
 }
 
-bool CanvasWidget::write_brush_stroke_pixel_from_snapshot_blend(std::int32_t x, std::int32_t y,
-                                                                std::uint8_t* pixel,
-                                                                std::uint16_t channels,
-                                                                EditColor primary,
-                                                                 EditColor secondary,
-                                                                 bool lock_transparent_pixels,
-                                                                 float coverage, bool erase, float flow) {
+template <typename AccumulatedAlphaAt>
+bool CanvasWidget::blend_brush_stroke_pixel_from_snapshot(AccumulatedAlphaAt&& accumulated_alpha_at,
+                                                          std::int32_t x, std::int32_t y, std::uint8_t* pixel,
+                                                          std::uint16_t channels, EditColor primary,
+                                                          EditColor secondary, bool lock_transparent_pixels,
+                                                          float coverage, bool erase, float flow) const {
   coverage = std::clamp(coverage, 0.0F, 1.0F);
   const auto source_alpha = static_cast<float>(primary.a) / 255.0F;
   if (coverage <= 0.0F || source_alpha <= 0.0F) {
     return false;
   }
 
-  const auto original = brush_stroke_original_pixel(x, y);
   const auto locked_alpha = lock_transparent_pixels && channels >= 4;
-  if (locked_alpha && original[3] == 0) {
+  if (locked_alpha && brush_stroke_original_pixel(x, y)[3] == 0) {
     return false;
   }
 
@@ -2204,7 +2411,7 @@ bool CanvasWidget::write_brush_stroke_pixel_from_snapshot_blend(std::int32_t x, 
   }
   flow = std::clamp(flow, 0.01F, 1.0F);
   const auto dab_alpha = std::clamp(source_alpha * flow * coverage, 0.0F, source_alpha);
-  auto& accumulated_alpha = brush_stroke_accumulated_alpha_(x, y);
+  float& accumulated_alpha = accumulated_alpha_at(x, y);
   const auto target_alpha =
       std::min(source_alpha, 1.0F - (1.0F - accumulated_alpha) * (1.0F - dab_alpha));
   if (target_alpha <= accumulated_alpha + 0.0005F) {
@@ -2215,6 +2422,19 @@ bool CanvasWidget::write_brush_stroke_pixel_from_snapshot_blend(std::int32_t x, 
   return render_brush_stroke_pixel_from_snapshot_target(
       x, y, pixel, channels, primary, secondary, lock_transparent_pixels, target_alpha, erase);
 }
+
+bool CanvasWidget::write_brush_stroke_pixel_from_snapshot_blend(std::int32_t x, std::int32_t y,
+                                                                std::uint8_t* pixel,
+                                                                std::uint16_t channels,
+                                                                EditColor primary,
+                                                                 EditColor secondary,
+                                                                 bool lock_transparent_pixels,
+                                                                 float coverage, bool erase, float flow) {
+  return blend_brush_stroke_pixel_from_snapshot(
+      [this](std::int32_t px, std::int32_t py) -> float& { return brush_stroke_accumulated_alpha_(px, py); }, x, y,
+      pixel, channels, primary, secondary, lock_transparent_pixels, coverage, erase, flow);
+}
+
 
 bool CanvasWidget::render_brush_stroke_pixel_from_snapshot_target(
     std::int32_t x, std::int32_t y, std::uint8_t* pixel, std::uint16_t channels,
@@ -2481,6 +2701,7 @@ patchy::EditColor CanvasWidget::sample_mixer_pickup(double x, double y, int brus
 }
 
 void CanvasWidget::install_brush_stroke_compositor(EditOptions& options, bool erase) {
+  brush_stroke_plain_writer_installed_ = false;
   if (script_brush_progress_) options.stroke_progress = [this](Rect dirty) {
     return script_brush_progress_(finalize_pending_wet_edges(to_qrect(dirty)));
   };
@@ -2573,10 +2794,12 @@ void CanvasWidget::install_brush_stroke_compositor(EditOptions& options, bool er
     }
   }
 
+  // draw_banded_brush_dab reproduces this gate and writer: keep the two in step.
   options.stroke_pixel_gate = [this, source_alpha](std::int32_t x, std::int32_t y) {
     const auto* found = brush_stroke_accumulated_alpha_.find(x, y);
     return found == nullptr || *found < source_alpha - 0.0005F;
   };
+  brush_stroke_plain_writer_installed_ = true;
   const auto* palette_snap = options.palette_snap;
   options.stroke_pixel_writer = [this, secondary, lock_transparent_pixels, erase, palette_snap](
                                     std::int32_t x, std::int32_t y, std::uint8_t* pixel,
@@ -2817,6 +3040,12 @@ QRect CanvasWidget::draw_airbrush_dab(QPointF point) {
   auto options = current_brush_edit_options(brush);
   apply_brush_tip_to_options(options, brush.size, brush.softness);
   install_brush_stroke_compositor(options, false);
+  if (options.brush_tip == nullptr) {
+    // paint_stationary_airbrush_dab is paint_brush_dab without a tip.
+    if (const auto banded = draw_banded_brush_dab(point, false, options); banded.has_value()) {
+      return finalize_pending_wet_edges(*banded);
+    }
+  }
   const auto dirty = to_qrect(patchy::paint_stationary_airbrush_dab(
       *document_, *document_->active_layer_id(), point.x(), point.y(), options,
       brush_tip_stroke_state_));

@@ -843,6 +843,10 @@ public:
   // Turns off the hard round brush's covered-disk skip (GitHub issue 135) so a test can paint
   // the same stroke both ways and compare the bytes.
   void set_hard_round_skip_enabled_for_testing(bool enabled) noexcept { hard_round_skip_enabled_ = enabled; }
+  // Sends the Brush's spaced dabs (Soft, Flow, Airbrush) through core paint_brush_dab one pixel
+  // at a time again instead of the banded walk (GitHub issue 677), so a test can paint the same
+  // stroke both ways and compare the bytes.
+  void set_banded_brush_dabs_enabled_for_testing(bool enabled) noexcept { banded_brush_dabs_enabled_ = enabled; }
   // Turns off the Clone/Healing stamp's row spans and continued-segment skip (GitHub issue
   // 597) so a test can paint the same stroke both ways and compare the bytes.
   void set_clone_stamp_skip_enabled_for_testing(bool enabled) noexcept { clone_stamp_skip_enabled_ = enabled; }
@@ -2408,6 +2412,9 @@ private:
   [[nodiscard]] double brush_stamp_spacing(const EffectiveBrushInput& brush) const noexcept;
   [[nodiscard]] bool brush_uses_dab_stroke(const EffectiveBrushInput& brush, bool erase) const noexcept;
   [[nodiscard]] QRect draw_brush_dab(QPointF point, bool erase, EditOptions& options);
+  // A procedural dab through the stroke compositor without per-pixel callbacks, its rows fanned
+  // out over threads when big (GitHub issue 677). Nullopt when options need core paint_brush_dab.
+  [[nodiscard]] std::optional<QRect> draw_banded_brush_dab(QPointF point, bool erase, const EditOptions& options);
   [[nodiscard]] QRect draw_brush_segment_with_dabs(QPointF from, QPointF to, bool erase,
                                                    const EffectiveBrushInput& brush,
                                                    bool stamp_endpoint);
@@ -2431,6 +2438,16 @@ private:
                                                             bool lock_transparent_pixels,
                                                             float coverage, bool erase,
                                                             const PaletteSnapContext* palette_snap);
+  // write_brush_stroke_pixel_from_snapshot_blend with the accumulated alpha from
+  // `accumulated_alpha_at(x, y)` (a float&): const, so band workers can run it, each through
+  // its own StrokePixelMap::Cursor (GitHub issue 677).
+  template <typename AccumulatedAlphaAt>
+  [[nodiscard]] bool blend_brush_stroke_pixel_from_snapshot(AccumulatedAlphaAt&& accumulated_alpha_at,
+                                                            std::int32_t x, std::int32_t y,
+                                                            std::uint8_t* pixel, std::uint16_t channels,
+                                                            EditColor primary, EditColor secondary,
+                                                            bool lock_transparent_pixels, float coverage,
+                                                            bool erase, float flow) const;
   [[nodiscard]] bool write_brush_stroke_pixel_from_snapshot_blend(std::int32_t x, std::int32_t y,
                                                                   std::uint8_t* pixel,
                                                                   std::uint16_t channels,
@@ -4383,6 +4400,10 @@ private:
   };
   std::optional<HardRoundSegmentEnd> brush_stroke_hard_round_end_;
   bool hard_round_skip_enabled_{true};
+  bool banded_brush_dabs_enabled_{true};
+  // install_brush_stroke_compositor gave the options its plain snapshot writer and gate (not
+  // Pattern Stamp's, not the Opacity-0 no-op), the pair draw_banded_brush_dab reproduces.
+  bool brush_stroke_plain_writer_installed_{false};
   // Where this stroke's last Clone/Healing stamp segment ended and the round brush it used.
   // The next segment from that point skips the pixels it cannot change (CloneSegmentRows,
   // GitHub issue 597).

@@ -102,6 +102,17 @@ class StrokePixelMap {
       return tile_->values[index];
     }
 
+    // find() of the map, for a pixel whose tile reserve_tiles created.
+    [[nodiscard]] T* find(std::int32_t x, std::int32_t y) {
+      const auto key = tile_key(x, y);
+      if (tile_ == nullptr || key_ != key) {
+        tile_ = map_->tiles_.at(key).get();
+        key_ = key;
+      }
+      const auto index = index_in_tile(x, y);
+      return tile_->present[index] ? &tile_->values[index] : nullptr;
+    }
+
    private:
     StrokePixelMap* map_;
     std::uint64_t key_{0};

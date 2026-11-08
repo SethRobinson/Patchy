@@ -1782,25 +1782,68 @@ Rect paint_tip_dab(Document& document, LayerId layer_id, double x, double y, con
   return dirty;
 }
 
+float edit_selection_coverage(const EditOptions& options, std::int32_t x, std::int32_t y) noexcept {
+  return selection_coverage(options, x, y);
+}
+
+std::pair<std::int32_t, std::int32_t> BrushDabWalk::row_span(std::int32_t row) const noexcept {
+  auto first_x = rect.x;
+  auto end_x = rect.x + rect.width;
+  if (round_rows) {
+    // A round footprint covers only part of its bounding square: each row visits the columns
+    // its circle can reach (padded a pixel), so the corners cost nothing (GitHub issue 135).
+    // Every skipped pixel has coverage 0, so the written bytes are unchanged.
+    const auto radius_squared = static_cast<double>(radius) * static_cast<double>(radius);
+    const auto row_offset = static_cast<double>(row) - y;
+    const auto remaining = radius_squared - row_offset * row_offset;
+    if (remaining < 0.0) {
+      return {first_x, first_x};
+    }
+    const auto half_width = std::sqrt(remaining);
+    first_x = std::max(first_x, static_cast<std::int32_t>(std::floor(x - half_width)) - 1);
+    end_x = std::min(end_x, static_cast<std::int32_t>(std::ceil(x + half_width)) + 2);
+  }
+  return {first_x, end_x};
+}
+
+float BrushDabWalk::coverage(std::int32_t px, std::int32_t py, const EditOptions& options) const {
+  return brush_shape_coverage(static_cast<double>(px) - x, static_cast<double>(py) - y, radius, options);
+}
+
+std::optional<BrushDabWalk> begin_brush_dab_walk(Document& document, LayerId layer_id, double x, double y,
+                                                 const EditOptions& options, bool erase) {
+  auto* layer = paintable_layer(document, layer_id);
+  if (layer == nullptr) {
+    return std::nullopt;
+  }
+  if (erase && !options.lock_transparent_pixels) {
+    ensure_alpha_for_erase(*layer);
+  }
+
+  BrushDabWalk walk;
+  walk.x = x;
+  walk.y = y;
+  walk.radius = std::max(1, options.brush_size) / 2;
+  walk.rect = brush_dab_rect(x, y, walk.radius, options, canvas_rect(document));
+  if (!erase && !options.lock_transparent_pixels) {
+    expand_layer_to_include_rect(*layer, walk.rect);
+  }
+  walk.round_rows = walk.radius > 0 && brush_shape_is_round(options);
+  return walk;
+}
+
 Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y, const EditOptions& options,
                      bool erase) {
   if (options.brush_tip != nullptr) {
     return paint_tip_dab(document, layer_id, x, y, options, erase, tip_dab_transform(options), 1.0F);
   }
 
-  auto* layer = paintable_layer(document, layer_id);
-  if (layer == nullptr) {
+  const auto walk = begin_brush_dab_walk(document, layer_id, x, y, options, erase);
+  if (!walk.has_value()) {
     return {};
   }
-  if (erase && !options.lock_transparent_pixels) {
-    ensure_alpha_for_erase(*layer);
-  }
-
-  const auto radius = std::max(1, options.brush_size) / 2;
-  const auto dab_rect = brush_dab_rect(x, y, radius, options, canvas_rect(document));
-  if (!erase && !options.lock_transparent_pixels) {
-    expand_layer_to_include_rect(*layer, dab_rect);
-  }
+  auto* layer = document.find_layer(layer_id);
+  const auto dab_rect = walk->rect;
 
   auto& pixels = layer->pixels();
   const auto bounds = layer->bounds();
@@ -1811,32 +1854,17 @@ Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y, c
     dab_options.primary = options.dab_primary_provider(x, y, dab_options.primary);
   }
   Rect dirty;
-  // A round footprint covers only part of its bounding square: each row visits the columns its
-  // circle can reach (padded a pixel), so the corners cost nothing (GitHub issue 135). Every
-  // skipped pixel has coverage 0, so the written bytes are unchanged.
-  const auto round_rows = radius > 0 && brush_shape_is_round(options);
-  const auto radius_squared = static_cast<double>(radius) * static_cast<double>(radius);
-
   for (std::int32_t py = dab_rect.y; py < dab_rect.y + dab_rect.height; ++py) {
     const auto local_y = py - bounds.y;
     if (local_y < 0 || local_y >= pixels.height()) {
       continue;
     }
 
-    auto first_x = dab_rect.x;
-    auto end_x = dab_rect.x + dab_rect.width;
-    if (round_rows) {
-      const auto row_offset = static_cast<double>(py) - y;
-      const auto remaining = radius_squared - row_offset * row_offset;
-      if (remaining < 0.0) {
-        report_edit_progress(options);
-        continue;
-      }
-      const auto half_width = std::sqrt(remaining);
-      first_x = std::max(first_x, static_cast<std::int32_t>(std::floor(x - half_width)) - 1);
-      end_x = std::min(end_x, static_cast<std::int32_t>(std::ceil(x + half_width)) + 2);
+    const auto [first_x, end_x] = walk->row_span(py);
+    if (first_x >= end_x) {
+      report_edit_progress(options);
+      continue;
     }
-
     auto row = pixels.row(local_y);
     for (std::int32_t px_doc = first_x; px_doc < end_x; ++px_doc) {
       const auto selected_coverage = selection_coverage(options, px_doc, py);
@@ -1847,9 +1875,7 @@ Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y, c
       if (local_x < 0 || local_x >= pixels.width()) {
         continue;
       }
-      const auto effective_coverage =
-          brush_shape_coverage(static_cast<double>(px_doc) - x, static_cast<double>(py) - y, radius, options) *
-          selected_coverage;
+      const auto effective_coverage = walk->coverage(px_doc, py, options) * selected_coverage;
       if (effective_coverage <= 0.0F) {
         continue;
       }

@@ -517,6 +517,12 @@ struct CanvasRenderCacheDiagnostics {
   int toning_segments{0};
   std::int64_t toning_segment_pixels{0};
   double toning_segment_ms{0.0};
+  // Spaced Brush dabs (reduced Flow, Airbrush) and Airbrush build-up ticks painted, with the
+  // time they took (patchy_perf_tests airbrushbig, GitHub #677).
+  int brush_dabs{0};
+  double brush_dab_ms{0.0};
+  int airbrush_ticks{0};
+  double airbrush_tick_ms{0.0};
 };
 
 // Where the latest Clone or Healing press spent its time, through its first dab and the

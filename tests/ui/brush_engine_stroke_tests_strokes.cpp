@@ -5261,6 +5261,196 @@ void ui_hard_round_stroke_skip_keeps_bytes() {
   }
 }
 
+// GitHub issue 677: a big soft Brush at reduced Flow (philipzae's Airbrush: 179 px, Soft 13,
+// Flow 12) paints its spaced dabs through draw_banded_brush_dab, an inlined walk whose big dabs
+// fan out over 64-row bands. The bytes must match core paint_brush_dab through the stroke
+// compositor's callbacks, on one thread and on several, for the Airbrush, a soft partial-opacity
+// stroke, the soft Eraser, Multiply, a rotated Square, an oval, a feathered selection, 16-bit
+// and the Dissolve paint mode, with folded mouse samples and repeated points. A stroke sent one
+// pixel per move still places one dab per spacing step.
+void ui_brush_banded_dabs_keep_bytes() {
+  struct Case {
+    const char* name;
+    patchy::ui::CanvasTool tool;
+    int size;
+    int softness;
+    int opacity;
+    int flow;
+    bool build_up;
+    int roundness;
+    patchy::BrushShape shape;
+    std::optional<patchy::BlendMode> mode;
+    bool feathered_selection;
+    bool deep;
+  };
+  const auto round = patchy::BrushShape::Round;
+  const std::vector<Case> cases{
+      {"airbrush_flow12", patchy::ui::CanvasTool::Brush, 179, 13, 100, 12, true, 100, round, std::nullopt, false, false},
+      {"soft_60", patchy::ui::CanvasTool::Brush, 241, 50, 60, 100, false, 100, round, std::nullopt, false, false},
+      {"eraser_soft", patchy::ui::CanvasTool::Eraser, 201, 40, 80, 100, false, 100, round, std::nullopt, false, false},
+      {"multiply", patchy::ui::CanvasTool::Brush, 181, 30, 100, 40, true, 100, round, patchy::BlendMode::Multiply,
+       false, false},
+      {"dissolve", patchy::ui::CanvasTool::Brush, 161, 60, 70, 30, false, 100, round, patchy::BlendMode::Dissolve,
+       false, false},
+      {"square", patchy::ui::CanvasTool::Brush, 151, 20, 100, 30, true, 100, patchy::BrushShape::Square, std::nullopt,
+       false, false},
+      {"oval", patchy::ui::CanvasTool::Brush, 221, 35, 90, 25, false, 55, round, std::nullopt, false, false},
+      {"feathered", patchy::ui::CanvasTool::Brush, 201, 25, 100, 25, true, 100, round, std::nullopt, true, false},
+      {"deep_16", patchy::ui::CanvasTool::Brush, 179, 13, 100, 12, true, 100, round, std::nullopt, false, true},
+  };
+  patchy::set_deep_editing_override(true);
+  for (const auto& test_case : cases) {
+    struct Result {
+      std::vector<std::uint8_t> bytes;
+      int dabs{0};
+    };
+    const auto paint = [&test_case](bool banded, bool single_threaded) {
+      if (single_threaded) {
+        qputenv("PATCHY_RENDER_SINGLE_THREADED", "1");
+      }
+      const auto restore_threads = qScopeGuard([single_threaded] {
+        if (single_threaded) {
+          qunsetenv("PATCHY_RENDER_SINGLE_THREADED");
+        }
+      });
+      constexpr int kWidth = 700;
+      constexpr int kHeight = 520;
+      auto pixels = solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 255));
+      for (int y = 0; y < kHeight; ++y) {
+        for (int x = 0; x < kWidth; ++x) {
+          auto* px = pixels.pixel(x, y);
+          px[0] = static_cast<std::uint8_t>((x * 7 + y * 3) % 256);
+          px[1] = static_cast<std::uint8_t>((y * 5) % 256);
+          px[2] = static_cast<std::uint8_t>(((x ^ y) * 11) % 256);
+          px[3] = static_cast<std::uint8_t>(x < 60 ? 128 : 255);
+        }
+      }
+      patchy::Document document(kWidth, kHeight, patchy::PixelFormat::rgba8());
+      const auto layer_id = document.add_pixel_layer("Photo", std::move(pixels)).id();
+      if (test_case.deep) {
+        patchy::convert_document_depth(document, patchy::BitDepth::UInt16);
+      }
+      patchy::ui::CanvasWidget canvas;
+      canvas.resize(520, 420);
+      canvas.set_document(&document);
+      canvas.set_zoom(0.5);
+      canvas.set_banded_brush_dabs_enabled_for_testing(banded);
+      canvas.show();
+      QApplication::processEvents();
+      const auto widget_point = [&canvas](QPoint document_point) {
+        return canvas.widget_position_for_document_point(document_point);
+      };
+      if (test_case.feathered_selection) {
+        canvas.set_tool(patchy::ui::CanvasTool::EllipticalMarquee);
+        canvas.set_selection_feather_radius(25);
+        drag(canvas, widget_point(QPoint(200, 90)), widget_point(QPoint(640, 470)));
+        QApplication::processEvents();
+      }
+      canvas.set_tool(test_case.tool);
+      canvas.set_primary_color(QColor(30, 90, 200));
+      canvas.set_secondary_color(QColor(240, 200, 40));
+      canvas.set_brush_size(test_case.size);
+      canvas.set_brush_softness(test_case.softness);
+      canvas.set_brush_opacity(test_case.opacity);
+      canvas.set_brush_flow(test_case.flow);
+      canvas.set_brush_build_up(test_case.build_up);
+      canvas.set_brush_shape(test_case.shape);
+      canvas.set_brush_base_shape(30.0, test_case.roundness);
+      if (test_case.mode.has_value()) {
+        canvas.set_brush_paint_mode(patchy::PaintMode::of(*test_case.mode));
+      }
+      // Every fourth move folds three extra samples into it (GitHub issue 165), every
+      // seventh repeats the previous point, and the path turns back on itself.
+      std::vector<QPoint> path;
+      for (int index = 0; index <= 90; ++index) {
+        const auto t = static_cast<double>(index);
+        path.emplace_back(static_cast<int>(std::lround(400.0 + 160.0 * std::sin(t * 0.05))),
+                          static_cast<int>(std::lround(260.0 + 120.0 * std::sin(t * 0.11) + (index % 5) * 2)));
+        if (index % 7 == 3) {
+          path.push_back(path.back());
+        }
+      }
+      std::vector<QPointF> folded;
+      canvas.set_coalesced_mouse_positions_provider(
+          [&folded](const QMouseEvent&) -> std::vector<QPointF> { return folded; });
+      const auto layer_bytes = [&document, layer_id] {
+        const auto bytes = std::as_const(*document.find_layer(layer_id)).pixels().data();
+        return std::vector<std::uint8_t>(bytes.begin(), bytes.end());
+      };
+      const auto before = layer_bytes();
+      const auto dabs_before = canvas.render_cache_diagnostics().brush_dabs;
+      // Sent events only: no event-loop pass runs between press and release, so no Airbrush
+      // timer tick lands and both runs paint the same dabs.
+      send_mouse(canvas, QEvent::MouseButtonPress, widget_point(path.front()), Qt::LeftButton, Qt::LeftButton);
+      for (std::size_t index = 1; index < path.size();) {
+        const auto extra = index % 4 == 0 ? std::min<std::size_t>(3, path.size() - 1 - index) : 0;
+        folded.clear();
+        for (std::size_t sample = 0; sample < extra; ++sample) {
+          folded.emplace_back(widget_point(path[index + sample]));
+        }
+        const auto event_point = widget_point(path[index + extra]);
+        QMouseEvent event(QEvent::MouseMove, event_point, canvas.mapToGlobal(event_point), Qt::NoButton,
+                          Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(&canvas, &event);
+        index += extra + 1;
+      }
+      folded.clear();
+      send_mouse(canvas, QEvent::MouseButtonRelease, widget_point(path.back()), Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+      Result result;
+      result.bytes = layer_bytes();
+      result.dabs = canvas.render_cache_diagnostics().brush_dabs - dabs_before;
+      CHECK(result.bytes != before);
+      return result;
+    };
+    // Core paint_brush_dab through the compositor's callbacks is the dab as it was before.
+    const auto core = paint(false, true);
+    const auto single = paint(true, true);
+    const auto parallel = paint(true, false);
+    if (single.bytes != core.bytes || parallel.bytes != core.bytes) {
+      std::printf("[INFO] banded dab case %s: one thread %s, bands %s\n", test_case.name,
+                  single.bytes == core.bytes ? "same" : "changed", parallel.bytes == core.bytes ? "same" : "changed");
+    }
+    CHECK(core.dabs > 0);
+    CHECK(single.dabs == core.dabs);
+    CHECK(parallel.dabs == core.dabs);
+    CHECK(single.bytes == core.bytes);
+    CHECK(parallel.bytes == core.bytes);
+  }
+  patchy::set_deep_editing_override(std::nullopt);
+
+  // Work per move: 600 one-pixel moves of the 179 px Airbrush place one dab per spacing step
+  // (179 / 8 = 22.4 px), not one per move.
+  patchy::Document document(800, 300, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paint", solid_pixels(800, 300, patchy::PixelFormat::rgba8(), QColor(255, 255, 255)));
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(820, 320);
+  canvas.set_document(&document);
+  canvas.set_zoom(1.0);
+  canvas.show();
+  QApplication::processEvents();
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_brush_size(179);
+  canvas.set_brush_softness(13);
+  canvas.set_brush_opacity(100);
+  canvas.set_brush_flow(12);
+  canvas.set_brush_build_up(true);
+  const auto dabs_before = canvas.render_cache_diagnostics().brush_dabs;
+  send_mouse(canvas, QEvent::MouseButtonPress, canvas.widget_position_for_document_point(QPoint(100, 150)),
+             Qt::LeftButton, Qt::LeftButton);
+  for (int x = 101; x <= 700; ++x) {
+    send_mouse(canvas, QEvent::MouseMove, canvas.widget_position_for_document_point(QPoint(x, 150)), Qt::NoButton,
+               Qt::LeftButton);
+  }
+  send_mouse(canvas, QEvent::MouseButtonRelease, canvas.widget_position_for_document_point(QPoint(700, 150)),
+             Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto dabs = canvas.render_cache_diagnostics().brush_dabs - dabs_before;
+  std::printf("[INFO] 600 one-pixel moves at 179 px: %d dabs\n", dabs);
+  CHECK(dabs >= 26);
+  CHECK(dabs <= 30);
+}
+
 // GitHub issue 597: a big Clone Stamp segment visits only its capsule's row spans, one
 // continuing the previous segment skips the half-plane behind its start and the fully covered
 // disk there, and big segments fan out over 64-row bands. The bytes must match the full
@@ -6005,6 +6195,7 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
       {"ui_brush_stroke_paints_every_coalesced_mouse_sample",
        ui_brush_stroke_paints_every_coalesced_mouse_sample},
       {"ui_hard_round_stroke_skip_keeps_bytes", ui_hard_round_stroke_skip_keeps_bytes},
+      {"ui_brush_banded_dabs_keep_bytes", ui_brush_banded_dabs_keep_bytes},
       {"ui_clone_stamp_large_brush_skip_keeps_bytes", ui_clone_stamp_large_brush_skip_keeps_bytes},
       {"ui_clone_stroke_coalesces_queued_moves_and_keeps_bytes",
        ui_clone_stroke_coalesces_queued_moves_and_keeps_bytes},
