@@ -3134,7 +3134,11 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
           constrained_point = QPoint(static_cast<int>(std::lround(final_point.x)),
                                      static_cast<int>(std::lround(final_point.y)));
         }
-        dirty = draw_brush_segment(last_document_position_, constrained_point, effective_tool == CanvasTool::Eraser);
+        // The release pixel is painted, as the hard 1 px line does; the dab-spaced path
+        // (Flow, Airbrush) can otherwise stop a pixel short of it (local-040).
+        const auto erase = effective_tool == CanvasTool::Eraser;
+        dirty = draw_brush_segment(last_document_position_, constrained_point, erase,
+                                   brush_uses_dab_stroke(effective_brush_input(), erase));
         last_document_position_ = constrained_point;
         last_document_position_f_ = QPointF(constrained_point);
       } else {

@@ -1835,6 +1835,21 @@ QRect CanvasWidget::draw_brush_segment_with_dabs(QPointF from, QPointF to, bool 
   install_brush_stroke_compositor(options, erase);
 
   const auto spacing = brush_stamp_spacing(brush);
+  // The end of the segment still needs a dab unless the last one already covers it: for a
+  // 1 px brush that is the same pixel (a dab paints the pixel nearest it), so a stroke's last
+  // pixel is painted without a second dab building up on it (local-040).
+  const auto one_pixel = std::max(1, brush.size) / 2 == 0;
+  const auto endpoint_needs_stamp = [&]() {
+    if (!brush_stroke_last_stamp_position_.has_value()) {
+      return true;
+    }
+    const auto last = *brush_stroke_last_stamp_position_;
+    if (one_pixel) {
+      return std::floor(last.x() + 0.5) != std::floor(to.x() + 0.5) ||
+             std::floor(last.y() + 0.5) != std::floor(to.y() + 0.5);
+    }
+    return point_distance(last, to) > 0.001;
+  };
   auto dirty = QRect{};
   const auto stamp = [&](QPointF point) {
     dirty = united_dirty_rect(dirty, draw_brush_dab(point, erase, options));
@@ -1853,9 +1868,7 @@ QRect CanvasWidget::draw_brush_segment_with_dabs(QPointF from, QPointF to, bool 
 
   const auto segment_length = point_distance(from, to);
   if (segment_length <= std::numeric_limits<double>::epsilon()) {
-    if (stamp_endpoint &&
-        (!brush_stroke_last_stamp_position_.has_value() ||
-         point_distance(*brush_stroke_last_stamp_position_, to) > 0.001)) {
+    if (stamp_endpoint && endpoint_needs_stamp()) {
       stamp(to);
     }
     return dirty;
@@ -1887,9 +1900,7 @@ QRect CanvasWidget::draw_brush_segment_with_dabs(QPointF from, QPointF to, bool 
     brush_stroke_distance_since_last_stamp_ = std::fmod(brush_stroke_distance_since_last_stamp_, spacing);
   }
 
-  if (stamp_endpoint &&
-      (!brush_stroke_last_stamp_position_.has_value() ||
-       point_distance(*brush_stroke_last_stamp_position_, to) > 0.001)) {
+  if (stamp_endpoint && endpoint_needs_stamp()) {
     stamp(to);
   }
   return dirty;

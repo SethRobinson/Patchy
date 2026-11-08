@@ -4658,6 +4658,7 @@ void ui_brush_one_pixel_slanted_drag_stays_continuous() {
     QApplication::processEvents();
 
     if (c.artifact != nullptr) {
+      process_events_for(300);  // the stroke's display refresh settles
       const QRect frame(canvas->widget_position_for_document_point(QPoint(0, 0)),
                         canvas->widget_position_for_document_point(
                             QPoint(c.document_size.width(), c.document_size.height())));
