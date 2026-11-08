@@ -415,7 +415,7 @@ void MainWindow::create_shape_layer_from_drag(const LiveShapeParams& params) {
 
 void MainWindow::create_or_extend_shape_layer(std::vector<PathSubpath> subpaths,
                                               std::optional<LiveShapeParams> origination,
-                                              const QString& name_pattern) {
+                                              const QString& name_pattern, std::string library_shape_id) {
   auto& doc = document();
   if (subpaths.empty()) {
     return;
@@ -434,6 +434,7 @@ void MainWindow::create_or_extend_shape_layer(std::vector<PathSubpath> subpaths,
         const auto old_effect_rect =
             to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()));
         auto content = *layer->vector_shape();
+        content.library_shape_id.clear();  // the outline is no longer one library shape
         const auto group = content.path.next_shape_group();
         const auto op = combine_op_for_index(combine_index);
         if (!content.parts.empty()) {
@@ -498,6 +499,7 @@ void MainWindow::create_or_extend_shape_layer(std::vector<PathSubpath> subpaths,
   if (origination.has_value()) {
     content.origination = {std::move(*origination)};
   }
+  content.library_shape_id = std::move(library_shape_id);
   // A pattern default picked from the library must land in the document store
   // before the rasterize (and before the writer's Patt collection).
   ensure_vector_fill_patterns(doc, content, pattern_library());
@@ -593,7 +595,12 @@ void MainWindow::handle_vector_path_committed(VectorPath path, bool closed,
                               : source == VectorPathSource::CustomShape
                                   ? tr("Custom Shape %1")
                                   : tr("Shape %1");
-    create_or_extend_shape_layer(std::move(path.subpaths), std::nullopt, name_pattern);
+    // A stamp records its library shape, so Shape Appearance's picker can show it (GitHub #644).
+    std::string library_shape_id;
+    if (source == VectorPathSource::CustomShape && custom_shape_combo_ != nullptr)
+      library_shape_id = custom_shape_combo_->currentData().toString().toStdString();
+    create_or_extend_shape_layer(std::move(path.subpaths), std::nullopt, name_pattern,
+                                 std::move(library_shape_id));
     return;
   }
   add_subpaths_to_work_path(std::move(path.subpaths));

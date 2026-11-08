@@ -1068,6 +1068,9 @@ bool matrix_keeps_live_shapes(const std::array<double, 6>& matrix) {
 
 void transform_origination_or_drop(VectorShapeContent& content,
                                    const std::array<double, 6>& matrix) {
+  if (!matrix_keeps_live_shapes(matrix)) {
+    content.library_shape_id.clear();  // rotated, skewed or flipped: no longer the library shape's form
+  }
   if (content.origination.empty()) {
     return;
   }
@@ -1205,6 +1208,7 @@ void transform_layer_vector_data_projective(Document& document, Layer& layer,
       }
     }
     content.origination.clear();
+    content.library_shape_id.clear();
     layer.set_vector_shape(std::move(content));
     layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
     update_vector_shape_raster(layer, canvas_after, &document.metadata().patterns);

@@ -829,10 +829,11 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     });
   }
 
-  // The Shape picker (GitHub #644): the Custom Shape tool's library. The layer does not
-  // record the shape it was stamped from, so the picker opens with none chosen; a pick
-  // replaces the outline with that shape fitted to the box above (each selected
-  // plain-path layer's own box when several are selected).
+  // The Shape picker (GitHub #644): the Custom Shape tool's library. It opens on the shape
+  // the layer was stamped from (or last picked here) while the outline still is that shape
+  // fitted to its box: one lookup by id, one comparison (follow-up); otherwise, and with
+  // several layers selected, none is chosen. A pick replaces the outline with that shape
+  // fitted to the box above (each selected plain-path layer's own box when several are).
   const bool any_path_box = multiple
       ? std::any_of(batch->originals.begin(), batch->originals.end(),
                     [](const ShapeAppearanceSettings& value) { return value.path_box.has_value(); })
@@ -854,7 +855,14 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     populate_custom_shape_combo(*shape_combo, *library());
     {
       const QSignalBlocker blocker(shape_combo);
-      shape_combo->setCurrentIndex(-1);
+      int stamped = -1;
+      if (!multiple && !state->settings.library_shape_id.empty() && state->settings.library_shape_outline) {
+        const auto id = QString::fromStdString(state->settings.library_shape_id);
+        const auto* entry = library()->find_entry_by_shape_id(id);
+        if (entry != nullptr && vector_path_is_fitted_shape(*state->settings.library_shape_outline, entry->path))
+          stamped = shape_combo->findData(id);
+      }
+      shape_combo->setCurrentIndex(stamped);
     }
     add_grid_widget_row(section, QObject::tr("Shape:"), shape_combo);
     QObject::connect(shape_combo, &QComboBox::currentIndexChanged, &dialog,
@@ -863,7 +871,8 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
       const auto* entry =
           current != nullptr ? current->find_entry_by_shape_id(shape_combo->itemData(index).toString()) : nullptr;
       if (entry == nullptr || entry->path.empty()) return;
-      state->settings.path_shape = std::make_shared<const VectorPath>(entry->path);
+      state->settings.path_shape =
+          std::make_shared<const PickedCustomShape>(PickedCustomShape{entry->id.toStdString(), entry->path});
       notify({"path.shape"});
     });
   }
@@ -1008,7 +1017,10 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     ends_layout->addWidget(arrow_start);
     ends_layout->addWidget(arrow_end);
     ends_layout->addStretch(1);
-    arrow_form->addRow(QString(), ends);
+    // The row's label (GitHub #622 follow-up 3): which heads the line has.
+    auto* ends_label = new QLabel(QObject::tr("Heads:"), arrow_group);
+    ends_label->setObjectName(QStringLiteral("shapeArrowHeadsLabel"));
+    arrow_form->addRow(ends_label, ends);
 
     const auto make_percent_spin = [arrow_group](const char* name, int minimum, int maximum, double value,
                                                  const QString& tooltip) {

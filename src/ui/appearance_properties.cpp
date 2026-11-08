@@ -526,8 +526,13 @@ ShapeAppearanceSettings shape_appearance_settings(const Layer& layer) {
       std::none_of(content->origination.begin(), content->origination.end(), [](const LiveShapeParams& params) {
         return params.kind != LiveShapeKind::None && params.raw_descriptor.empty();
       })) {
-    if (const auto bounds = content->path.bounds())
+    if (const auto bounds = content->path.bounds()) {
       result.path_box = ShapePathBox{bounds->left, bounds->top, bounds->right, bounds->bottom};
+      if (!content->library_shape_id.empty()) {
+        result.library_shape_id = content->library_shape_id;
+        result.library_shape_outline = std::make_shared<const VectorPath>(content->path);
+      }
+    }
   }
   return result;
 }
@@ -563,6 +568,28 @@ void fit_vector_path_to_box(VectorPath& path, const ShapePathBox& box) {
   const auto [scale_x, offset_x] = axis(bounds->left, bounds->right, box.left, box.right);
   const auto [scale_y, offset_y] = axis(bounds->top, bounds->bottom, box.top, box.bottom);
   transform_vector_path(path, {scale_x, 0.0, 0.0, scale_y, offset_x, offset_y});
+}
+
+bool vector_path_is_fitted_shape(const VectorPath& outline, const VectorPath& shape) {
+  const auto bounds = outline.bounds();
+  if (!bounds || outline.subpaths.size() != shape.subpaths.size()) return false;
+  auto fitted = shape;
+  fit_vector_path_to_box(fitted, ShapePathBox{bounds->left, bounds->top, bounds->right, bounds->bottom});
+  const double tolerance = 0.01 + 1e-4 * std::max(bounds->right - bounds->left, bounds->bottom - bounds->top);
+  const auto near = [tolerance](double a, double b) { return std::abs(a - b) <= tolerance; };
+  for (std::size_t i = 0; i < outline.subpaths.size(); ++i) {
+    const auto& have = outline.subpaths[i];
+    const auto& want = fitted.subpaths[i];
+    if (have.closed != want.closed || have.anchors.size() != want.anchors.size()) return false;
+    for (std::size_t k = 0; k < have.anchors.size(); ++k) {
+      const auto& a = have.anchors[k];
+      const auto& b = want.anchors[k];
+      if (!near(a.anchor_x, b.anchor_x) || !near(a.anchor_y, b.anchor_y) || !near(a.in_x, b.in_x) ||
+          !near(a.in_y, b.in_y) || !near(a.out_x, b.out_x) || !near(a.out_y, b.out_y))
+        return false;
+    }
+  }
+  return true;
 }
 
 void give_line_arrowheads_default_size(LiveShapeParams& params) {
@@ -716,9 +743,9 @@ std::vector<AppearanceProperty<ShapeAppearanceSettings>> shape_appearance_proper
       [](Settings& target, const ShapePathBox& box) {
         if (target.path_box) target.path_box = box;
       }));
-  result.push_back(appearance_property<Settings, std::shared_ptr<const VectorPath>>(
+  result.push_back(appearance_property<Settings, std::shared_ptr<const PickedCustomShape>>(
       "path.shape", [](const Settings& value) { return value.path_shape ? &value.path_shape : nullptr; },
-      [](Settings& target, const std::shared_ptr<const VectorPath>& shape) {
+      [](Settings& target, const std::shared_ptr<const PickedCustomShape>& shape) {
         if (target.path_box) target.path_shape = shape;
       }));
   auto geometry = appearance_property<Settings, std::optional<LiveShapeParams>>(
@@ -901,15 +928,16 @@ VectorShapeContent assemble_shape_appearance(const VectorShapeContent& original,
     const auto bounds = content.path.bounds();
     const bool moved = bounds && ShapePathBox{bounds->left, bounds->top, bounds->right, bounds->bottom} !=
                                      *settings.path_box;
-    if (settings.path_shape && !settings.path_shape->empty()) {
+    if (settings.path_shape && !settings.path_shape->path.empty()) {
       // One shape unit, as the Custom Shape tool stamps it: the layer's first group and op.
       const auto group = content.path.subpaths.front().shape_group;
       const auto op = content.path.subpaths.front().op;
-      content.path.subpaths = settings.path_shape->subpaths;
+      content.path.subpaths = settings.path_shape->path.subpaths;
       for (auto& subpath : content.path.subpaths) {
         subpath.shape_group = group;
         subpath.op = op;
       }
+      content.library_shape_id = settings.path_shape->id;  // the picker shows it next time
     }
     if (moved || settings.path_shape) {
       fit_vector_path_to_box(content.path, *settings.path_box);

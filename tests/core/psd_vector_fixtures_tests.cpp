@@ -1228,7 +1228,8 @@ void psd_authored_dash_presets_round_trip() {
 
 // GitHub #521: a live polygon regenerates from its parameters, survives a move (resolved by
 // translation) and an axis-aligned scale, ends at a point edit, and stays out of the PSD:
-// Photoshop's polygon origination is unprobed, so the file carries a plain path and no vogk.
+// Photoshop's polygon origination is only partly probed, so the file carries a plain path
+// and no vogk. The reader recognizes the outline and gives the polygon back (GitHub #643).
 void live_polygon_regenerates_resolves_and_writes_a_plain_path() {
   patchy::LiveShapeParams params;
   params.kind = patchy::LiveShapeKind::Polygon;
@@ -1287,8 +1288,123 @@ void live_polygon_regenerates_resolves_and_writes_a_plain_path() {
   CHECK(bytes.find("keyOriginType") == std::string::npos);
   const auto reread = patchy::psd::DocumentIo::read(written, {});
   const auto* roundtrip = reread.layers()[1].vector_shape();
-  CHECK(roundtrip != nullptr && roundtrip->origination.empty());
+  CHECK(roundtrip != nullptr && roundtrip->origination.size() == 1);
   CHECK(roundtrip->path.subpaths.size() == 1 && roundtrip->path.subpaths[0].anchors.size() == 10);
+  const auto& live = roundtrip->origination.front();
+  CHECK(live.kind == patchy::LiveShapeKind::Polygon);
+  CHECK(live.polygon_sides == 5 && live.polygon_star_inset == 40);
+  CHECK(std::fabs(live.left - 10.0) < 0.01 && std::fabs(live.right - 50.0) < 0.01);
+  CHECK(std::fabs(live.top - 10.0) < 0.01 && std::fabs(live.bottom - 50.0) < 0.01);
+  CHECK(std::fabs(live.polygon_angle + std::numbers::pi / 2.0) < 1e-4);
+  CHECK(!patchy::layer_vector_block_dirty(reread.layers()[1]));
+}
+
+// GitHub #643 follow-up: polygons drawn in Patchy (any angle, a stretched box, stars) reopen
+// from a PSD as live polygons, recognized from their single outline; anything that is not
+// exactly a generated polygon (a rectangle, a curve, an uneven outline, two outlines, a shape
+// read with its own origination) stays as it was.
+void psd_reopened_polygons_are_recognized_as_live() {
+  const auto polygon = [](double left, double top, double right, double bottom, int sides, int inset,
+                          double angle) {
+    patchy::LiveShapeParams params;
+    params.kind = patchy::LiveShapeKind::Polygon;
+    params.left = left;
+    params.top = top;
+    params.right = right;
+    params.bottom = bottom;
+    params.polygon_sides = sides;
+    params.polygon_star_inset = inset;
+    params.polygon_angle = angle;
+    return params;
+  };
+  const std::vector<patchy::LiveShapeParams> live{
+      polygon(20.25, 30.5, 120.25, 130.5, 6, 0, 0.7311),         // a drag at an angle
+      polygon(150, 20, 390, 110, 7, 0, -std::numbers::pi / 2),   // the Create dialog's W x H box
+      polygon(40, 150, 140, 250, 5, 50, -2.1),                   // a star
+      polygon(200, 160, 260, 220, 4, 0, -std::numbers::pi / 2),  // a diamond
+      polygon(300, 150, 380, 230, 3, 0, 1.0),                    // a triangle
+      polygon(10, 300, 210, 380, 100, 12, 0.25),                 // the most sides, a star
+  };
+  patchy::Document document(400, 400, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("bg", patchy::test::solid_rgba(400, 400, 255, 255, 255, 255));
+  const auto add_shape = [&document](const std::string& name, std::vector<patchy::PathSubpath> subpaths) {
+    patchy::Layer shape(document.allocate_layer_id(), name, patchy::PixelBuffer());
+    patchy::VectorShapeContent content;
+    content.path.subpaths = std::move(subpaths);
+    content.fill.kind = patchy::VectorFillKind::Solid;
+    shape.set_vector_shape(content);
+    shape.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+    patchy::update_vector_shape_raster(shape, patchy::Rect::from_size(400, 400), nullptr);
+    document.add_layer(std::move(shape));
+  };
+  for (std::size_t i = 0; i < live.size(); ++i) {
+    add_shape("Polygon " + std::to_string(i), patchy::generate_live_shape_subpaths(live[i]));
+  }
+  // Not polygons: an axis-aligned rectangle path, an ellipse (curves), a pentagon with one
+  // vertex nudged by a pixel, and two polygons in one layer.
+  patchy::LiveShapeParams rect;
+  rect.kind = patchy::LiveShapeKind::Rectangle;
+  rect.left = 10;
+  rect.top = 10;
+  rect.right = 60;
+  rect.bottom = 40;
+  add_shape("Rect path", patchy::generate_live_shape_subpaths(rect));
+  auto ellipse = rect;
+  ellipse.kind = patchy::LiveShapeKind::Ellipse;
+  add_shape("Ellipse path", patchy::generate_live_shape_subpaths(ellipse));
+  auto nudged = patchy::generate_live_shape_subpaths(polygon(10, 10, 90, 90, 5, 0, 0.2));
+  auto& moved_anchor = nudged.front().anchors[2];
+  moved_anchor.anchor_x += 1.0;
+  moved_anchor.in_x = moved_anchor.anchor_x;
+  moved_anchor.out_x = moved_anchor.anchor_x;
+  add_shape("Uneven", std::move(nudged));
+  auto two = patchy::generate_live_shape_subpaths(polygon(10, 10, 90, 90, 5, 0, 0.2));
+  auto second = patchy::generate_live_shape_subpaths(polygon(100, 10, 180, 90, 5, 0, 0.2));
+  second.front().shape_group = 1;
+  two.push_back(second.front());
+  add_shape("Two polygons", std::move(two));
+
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const std::string bytes(written.begin(), written.end());
+  CHECK(bytes.find("vogk") == std::string::npos);
+  const auto reread = patchy::psd::DocumentIo::read(written, {});
+  CHECK(reread.layers().size() == live.size() + 5);
+  for (std::size_t i = 0; i < live.size(); ++i) {
+    const auto* content = reread.layers()[i + 1].vector_shape();
+    CHECK(content != nullptr && content->origination.size() == 1);
+    if (content == nullptr || content->origination.size() != 1) continue;
+    const auto& found = content->origination.front();
+    CHECK(found.kind == patchy::LiveShapeKind::Polygon);
+    CHECK(found.polygon_sides == live[i].polygon_sides);
+    CHECK(found.polygon_star_inset == live[i].polygon_star_inset);
+    CHECK(std::fabs(found.left - live[i].left) < 0.01 && std::fabs(found.right - live[i].right) < 0.01);
+    CHECK(std::fabs(found.top - live[i].top) < 0.01 && std::fabs(found.bottom - live[i].bottom) < 0.01);
+    const double turn = std::remainder(found.polygon_angle - live[i].polygon_angle, 2.0 * std::numbers::pi);
+    CHECK(std::fabs(turn) < 1e-4);
+    // Regenerating gives the same outline, so Sides and Star inset edits start from it.
+    CHECK(patchy::resolve_live_shape_group(content->path, content->origination, found.index).has_value());
+  }
+  for (std::size_t i = live.size() + 1; i < reread.layers().size(); ++i) {
+    const auto* content = reread.layers()[i].vector_shape();
+    CHECK(content != nullptr && content->origination.empty());
+  }
+  // A live rectangle read with its own vogk keeps it (the recognizer never replaces one).
+  patchy::Document live_rect(100, 100, patchy::PixelFormat::rgb8());
+  patchy::Layer rect_layer(live_rect.allocate_layer_id(), "Rectangle 1", patchy::PixelBuffer());
+  patchy::VectorShapeContent rect_content;
+  patchy::populate_live_shape_box_corners(rect);
+  rect_content.path.subpaths = patchy::generate_live_shape_subpaths(rect);
+  rect_content.origination = {rect};
+  rect_content.fill.kind = patchy::VectorFillKind::Solid;
+  rect_layer.set_vector_shape(rect_content);
+  rect_layer.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+  patchy::update_vector_shape_raster(rect_layer, patchy::Rect::from_size(100, 100), nullptr);
+  live_rect.add_layer(std::move(rect_layer));
+  const auto rect_reread =
+      patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(live_rect), {});
+  const auto* rect_back = rect_reread.layers().front().vector_shape();
+  CHECK(rect_back != nullptr && rect_back->origination.size() == 1 &&
+        rect_back->origination.front().kind == patchy::LiveShapeKind::Rectangle);
 }
 
 // Compound groups: several contours sharing one shape_group are ONE shape
@@ -3239,6 +3355,7 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
       {"psd_authored_dash_offset_round_trip", psd_authored_dash_offset_round_trip},
       {"live_polygon_regenerates_resolves_and_writes_a_plain_path",
        live_polygon_regenerates_resolves_and_writes_a_plain_path},
+      {"psd_reopened_polygons_are_recognized_as_live", psd_reopened_polygons_are_recognized_as_live},
       {"psd_compound_group_writes_continuation_records_and_round_trips",
        psd_compound_group_writes_continuation_records_and_round_trips},
       {"psd_compound_group_fixture_matches_photoshop_flatten", psd_compound_group_fixture_matches_photoshop_flatten},

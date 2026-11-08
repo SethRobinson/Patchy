@@ -2051,9 +2051,11 @@ private:
   // The combine index a shape commit uses: the options-bar setting, or Add for a
   // shape drag pressed with Shift (GitHub issue 313; the setting itself is untouched).
   [[nodiscard]] int effective_vector_combine_index() const;
+  // `library_shape_id`: the Custom Shape library entry a new layer was stamped from
+  // (VectorShapeContent::library_shape_id); extending a layer clears its id.
   void create_or_extend_shape_layer(std::vector<patchy::PathSubpath> subpaths,
                                     std::optional<patchy::LiveShapeParams> origination,
-                                    const QString& name_pattern);
+                                    const QString& name_pattern, std::string library_shape_id = {});
   void handle_vector_path_committed(patchy::VectorPath path, bool closed, VectorPathSource source);
   // `live` (GitHub #521) keeps a Rectangle, Ellipse or Polygon component's parameters on the
   // path, so the Properties panel can still change them afterwards.

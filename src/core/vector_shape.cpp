@@ -292,6 +292,7 @@ void drop_live_shape_origination(VectorShapeContent& content, const std::vector<
   if (groups.empty()) {
     return;
   }
+  content.library_shape_id.clear();
   std::erase_if(content.origination, [&groups](const LiveShapeParams& params) {
     return std::find(groups.begin(), groups.end(), params.index) != groups.end();
   });

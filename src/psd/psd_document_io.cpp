@@ -1,4 +1,5 @@
 #include "core/vector_compound.hpp"
+#include "core/vector_live_shapes.hpp"
 #include "psd/psd_document_io.hpp"
 #include "psd/psd_io_internal.hpp"
 
@@ -1320,6 +1321,14 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
         // origination stays in the model for this session's live editing,
         // and the writer's coverage gate keeps it out of regenerated saves.
         drop_partial_origination_blocks = true;
+      }
+      // Polygons are written without origination (Photoshop's polygon record is only
+      // partly probed), so a single-outline regular polygon or star gets its live
+      // parameters back here (GitHub #643). Model only: the layer's blocks stay as read.
+      if (content.origination.empty() && content.parts.empty()) {
+        if (auto polygon = recognize_live_polygon(content.path)) {
+          content.origination.push_back(std::move(*polygon));
+        }
       }
       // A gradient paint without transparency stops can only come from a Patchy build that
       // wrote an empty Trns list (before September 2026): Photoshop treats that as unknown

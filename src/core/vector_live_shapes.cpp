@@ -482,4 +482,109 @@ PathSubpath generate_polygon_subpath(double cx, double cy, double radius, double
   return subpath;
 }
 
+std::optional<LiveShapeParams> recognize_live_polygon(const VectorPath& path) {
+  if (path.subpaths.size() != 1) {
+    return std::nullopt;
+  }
+  const auto& subpath = path.subpaths.front();
+  const auto& anchors = subpath.anchors;
+  const auto count = anchors.size();
+  if (!subpath.closed || count < 3 || count > 200) {
+    return std::nullopt;
+  }
+  constexpr double kHandleTolerance = 1e-6;
+  double sum_x = 0.0;
+  double sum_y = 0.0;
+  for (const auto& anchor : anchors) {
+    if (std::abs(anchor.in_x - anchor.anchor_x) > kHandleTolerance ||
+        std::abs(anchor.in_y - anchor.anchor_y) > kHandleTolerance ||
+        std::abs(anchor.out_x - anchor.anchor_x) > kHandleTolerance ||
+        std::abs(anchor.out_y - anchor.anchor_y) > kHandleTolerance) {
+      return std::nullopt;  // a curve: never a polygon
+    }
+    sum_x += anchor.anchor_x;
+    sum_y += anchor.anchor_y;
+  }
+  // The vertices of a regular polygon (and of a star's inner ring) average to its center.
+  const double cx = sum_x / static_cast<double>(count);
+  const double cy = sum_y / static_cast<double>(count);
+  const auto fit = [&](int sides, bool star) -> std::optional<LiveShapeParams> {
+    // Outer vertex k sits at (cx + rx cos(a + k t), cy + ry sin(a + k t)), t = 2 pi / sides;
+    // its Fourier sums against cos(k t) and sin(k t) give rx, ry and a directly.
+    const int step = star ? 2 : 1;
+    const double turn = 2.0 * std::numbers::pi / sides;
+    double ucos = 0.0, usin = 0.0, vcos = 0.0, vsin = 0.0;
+    for (int k = 0; k < sides; ++k) {
+      const auto& vertex = anchors[static_cast<std::size_t>(k * step)];
+      const double u = vertex.anchor_x - cx;
+      const double v = vertex.anchor_y - cy;
+      ucos += u * std::cos(k * turn);
+      usin += u * std::sin(k * turn);
+      vcos += v * std::cos(k * turn);
+      vsin += v * std::sin(k * turn);
+    }
+    const double rx = 2.0 / sides * std::hypot(ucos, usin);
+    const double ry = 2.0 / sides * std::hypot(vcos, vsin);
+    if (rx < 0.25 || ry < 0.25) {
+      return std::nullopt;
+    }
+    LiveShapeParams params;
+    params.kind = LiveShapeKind::Polygon;
+    params.left = cx - rx;
+    params.top = cy - ry;
+    params.right = cx + rx;
+    params.bottom = cy + ry;
+    params.polygon_sides = sides;
+    params.polygon_angle = std::atan2(-usin, ucos);
+    params.index = subpath.shape_group;
+    if (star) {
+      const auto& inner = anchors[1];
+      const double ratio = std::hypot((inner.anchor_x - cx) / rx, (inner.anchor_y - cy) / ry);
+      params.polygon_star_inset = static_cast<std::int32_t>(std::lround(100.0 * (1.0 - ratio)));
+      if (params.polygon_star_inset < 1 || params.polygon_star_inset > 99) {
+        return std::nullopt;
+      }
+    }
+    populate_live_shape_box_corners(params);
+    // Accept only what the generator reproduces: PSD path records hold 1/2^24 of the
+    // canvas, so a real polygon comes back within a small fraction of a pixel.
+    const auto generated = generate_live_shape_subpaths(params);
+    if (generated.size() != 1 || generated.front().anchors.size() != count) {
+      return std::nullopt;
+    }
+    const double tolerance = 0.02 + 1e-5 * std::max(rx, ry);
+    for (std::size_t i = 0; i < count; ++i) {
+      const auto& made = generated.front().anchors[i];
+      if (std::abs(made.anchor_x - anchors[i].anchor_x) > tolerance ||
+          std::abs(made.anchor_y - anchors[i].anchor_y) > tolerance) {
+        return std::nullopt;
+      }
+    }
+    return params;
+  };
+  if (count <= 100) {
+    if (count == 4) {
+      // An axis-aligned rectangle fits a 4-sided polygon too; leave it a plain path.
+      bool axis_aligned = true;
+      for (std::size_t i = 0; i < 4; ++i) {
+        const auto& from = anchors[i];
+        const auto& to = anchors[(i + 1) % 4];
+        if (std::abs(from.anchor_x - to.anchor_x) > 1e-3 && std::abs(from.anchor_y - to.anchor_y) > 1e-3) {
+          axis_aligned = false;
+        }
+      }
+      if (axis_aligned) {
+        return std::nullopt;
+      }
+    }
+    if (auto plain = fit(static_cast<int>(count), false)) {
+      return plain;
+    }
+  }
+  if (count % 2 == 0 && count >= 6) {
+    return fit(static_cast<int>(count / 2), true);
+  }
+  return std::nullopt;
+}
+
 }  // namespace patchy

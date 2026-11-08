@@ -15155,6 +15155,10 @@ Do you want to replace it?</source>
         <source>%1 x %2 in</source>
         <translation>%1 x %2 дюйм</translation>
     </message>
+    <message>
+        <source>Heads:</source>
+        <translation>Наконечники:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

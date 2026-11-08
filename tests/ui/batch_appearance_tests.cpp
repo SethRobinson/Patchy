@@ -903,6 +903,29 @@ void ui_line_options_bar_edits_selected_line() {
 
 // GitHub #622: Shape Appearance has Start and End arrowhead checkboxes for a line; they
 // preview live, Cancel restores the line, OK is one undo step.
+bool inside(const QWidget* widget, const char* group);
+
+// GitHub #622 follow-up 3: the Start / End row is labeled Heads:, in the Arrowheads label
+// column (the same left edge as Width:) and on the checkboxes' line.
+void check_heads_label(QDialog& dialog) {
+  auto* label = field<QLabel>(dialog, "shapeArrowHeadsLabel");
+  auto* start = field<QCheckBox>(dialog, "shapeGeometryLineArrowStartCheck");
+  if (label == nullptr || start == nullptr) return;
+  CHECK(label->text() == QStringLiteral("Heads:"));
+  CHECK(label->isVisible() && inside(label, "shapeArrowheadsGroup"));
+  QLabel* width_label = nullptr;
+  for (auto* candidate : dialog.findChildren<QLabel*>())
+    if (candidate->text() == QStringLiteral("Width:") && inside(candidate, "shapeArrowheadsGroup"))
+      width_label = candidate;
+  CHECK(width_label != nullptr);
+  if (width_label != nullptr)
+    CHECK(label->mapTo(&dialog, QPoint(0, 0)).x() == width_label->mapTo(&dialog, QPoint(0, 0)).x());
+  const auto label_middle = label->mapTo(&dialog, label->rect().center()).y();
+  const auto start_top = start->mapTo(&dialog, QPoint(0, 0)).y();
+  CHECK(label_middle >= start_top && label_middle <= start_top + start->height());
+  CHECK(label->mapTo(&dialog, QPoint(label->width(), 0)).x() <= start->mapTo(&dialog, QPoint(0, 0)).x());
+}
+
 void ui_shape_appearance_line_arrowheads() {
   VectorSettingsGuard guard;
   MainWindow window; show_window(window);
@@ -915,6 +938,7 @@ void ui_shape_appearance_line_arrowheads() {
     auto* start = field<QCheckBox>(dialog, "shapeGeometryLineArrowStartCheck");
     auto* end = field<QCheckBox>(dialog, "shapeGeometryLineArrowEndCheck");
     CHECK(!start->isChecked() && end->isChecked());
+    check_heads_label(dialog);
     start->setChecked(true);
     end->setChecked(false);
     CHECK(process_events_until([&] { return line_params(doc, id).arrow_start && !line_params(doc, id).arrow_end; }));
@@ -1058,6 +1082,7 @@ void ui_shape_appearance_arrowheads_multiple_lines() {
   const auto before = MainWindowTestAccess::active_session_undo_depth(window);
   when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
     CHECK(dialog.findChild<QLabel*>(QStringLiteral("shapeArrowheadSelectionSummary")) != nullptr);
+    check_heads_label(dialog);
     auto* weight = field<QDoubleSpinBox>(dialog, "shapeGeometryLineWeightSpin");
     auto* width = field<QSpinBox>(dialog, "shapeArrowWidthSpin");
     CHECK(weight->property("appearanceMixed").toBool());
@@ -1338,6 +1363,116 @@ void ui_shape_appearance_custom_shape_picker() {
   CHECK(MainWindowTestAccess::active_session_undo_depth(window) == before + 1);
 }
 
+// GitHub #643 follow-up: a polygon drawn with the Polygon tool (not built from parameters)
+// opens Shape Appearance with its Polygon section, not the plain-path Shape picker, and so
+// does the same layer after a PSD save and reopen.
+void ui_shape_appearance_polygon_drawn_with_tool() {
+  VectorSettingsGuard guard;
+  SettingsValueRestorer saved_sides(QStringLiteral("tools/polygonSides"));
+  SettingsValueRestorer saved_inset(QStringLiteral("tools/polygonStarInset"));
+  MainWindow window; show_window(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(CanvasTool::Polygon);
+  auto* sides = window.findChild<QSpinBox*>(QStringLiteral("polygonSidesSpin"));
+  auto* inset = window.findChild<QSpinBox*>(QStringLiteral("polygonStarInsetSpin"));
+  CHECK(sides != nullptr && inset != nullptr);
+  if (sides == nullptr || inset == nullptr) return;
+  sides->setValue(6);
+  inset->setValue(30);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(200, 200)),
+       canvas->widget_position_for_document_point(QPoint(250, 150)));
+  QApplication::processEvents();
+  const auto id = doc.active_layer_id();
+  CHECK(id.has_value());
+  if (!id) return;
+  CHECK(shape_content(doc, *id).origination.size() == 1);
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    CHECK(dialog.findChild<QWidget*>(QStringLiteral("shapePolygonGroup")) != nullptr);
+    CHECK(dialog.findChild<QWidget*>(QStringLiteral("shapeGeometryCustomShapeCombo")) == nullptr);
+    CHECK(field<QSpinBox>(dialog, "shapePolygonSidesSpin")->value() == 6);
+    CHECK(field<QSpinBox>(dialog, "shapePolygonStarInsetSpin")->value() == 30);
+    dialog.reject();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+
+  const auto reread = psd::DocumentIo::read(psd::DocumentIo::write_layered_rgb8(doc), {});
+  const Layer* reopened = nullptr;
+  for (const auto& layer : reread.layers())
+    if (layer.vector_shape() != nullptr) reopened = &layer;
+  CHECK(reopened != nullptr);
+  if (reopened == nullptr) return;
+  const auto settings = shape_appearance_settings(*reopened);
+  CHECK(appearance_has_editable_polygon(settings));
+  CHECK(!settings.path_box.has_value());
+  CHECK(settings.geometry && settings.geometry->polygon_sides == 6 && settings.geometry->polygon_star_inset == 30);
+}
+
+// GitHub #644 follow-up: a custom shape stamped with the Custom Shape tool opens Shape
+// Appearance with that shape chosen in the picker; a pick there is shown next time (and undo
+// brings back the stamped one); once the outline is no longer that shape (a point edit) the
+// picker opens empty.
+void ui_shape_appearance_picker_shows_stamped_shape() {
+  VectorSettingsGuard guard;
+  SettingsValueRestorer saved_shape(QStringLiteral("tools/customShapeId"));
+  MainWindow window; show_window(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(CanvasTool::CustomShape);
+  auto* tool_combo = window.findChild<QComboBox*>(QStringLiteral("customShapeCombo"));
+  CHECK(tool_combo != nullptr);
+  if (tool_combo == nullptr) return;
+  const auto heart = QStringLiteral("shape.builtin.heart");
+  CHECK(tool_combo->findData(heart) >= 0);
+  tool_combo->setCurrentIndex(tool_combo->findData(heart));
+  QApplication::processEvents();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+       canvas->widget_position_for_document_point(QPoint(220, 190)));
+  QApplication::processEvents();
+  const auto id = doc.active_layer_id();
+  CHECK(id.has_value());
+  if (!id) return;
+  CHECK(shape_content(doc, *id).library_shape_id == heart.toStdString());
+
+  QString picked;
+  when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+    auto* combo = field<QComboBox>(dialog, "shapeGeometryCustomShapeCombo");
+    CHECK(combo->currentData().toString() == heart);
+    save_widget_artifact("ui_shape_appearance_picker_shows_stamped_shape", dialog);
+    for (int index = 0; index < combo->count() && picked.isEmpty(); ++index)
+      if (combo->itemData(index).toString() != heart) picked = combo->itemData(index).toString();
+    combo->setCurrentIndex(combo->findData(picked));
+    CHECK(process_events_until([&] { return !require_canvas(window)->processing_operation_active(); }));
+    dialog.accept();
+  });
+  MainWindowTestAccess::edit_active_shape_appearance(window);
+  CHECK(shape_content(doc, *id).library_shape_id == picked.toStdString());
+  const auto picker_shows = [&](const QString& expected) {
+    when_dialog_visible(QStringLiteral("shapeAppearanceDialog"), [&](QDialog& dialog) {
+      auto* combo = field<QComboBox>(dialog, "shapeGeometryCustomShapeCombo");
+      CHECK(expected.isEmpty() ? combo->currentIndex() == -1 : combo->currentData().toString() == expected);
+      dialog.reject();
+    });
+    MainWindowTestAccess::edit_active_shape_appearance(window);
+  };
+  picker_shows(picked);
+  MainWindowTestAccess::undo(window);
+  CHECK(shape_content(doc, *id).library_shape_id == heart.toStdString());
+  picker_shows(heart);
+
+  // A point edit clears the id; an outline changed some other way no longer matches it.
+  auto edited = shape_content(doc, *id);
+  auto copy = edited;
+  drop_live_shape_origination(copy, {copy.path.subpaths.front().shape_group});
+  CHECK(copy.library_shape_id.empty());
+  auto& anchor = edited.path.subpaths.front().anchors.front();
+  anchor.anchor_x += 9.0;
+  anchor.in_x += 9.0;
+  anchor.out_x += 9.0;
+  doc.find_layer(*id)->set_vector_shape(std::move(edited));
+  picker_shows(QString());
+}
+
 // GitHub #641: a rectangle's four corner radii are their own Radius section under Geometry,
 // labeled Top left: and so on, with their link; every left-column section starts its
 // fields at the same x.
@@ -1450,6 +1585,8 @@ std::vector<patchy::test::TestCase> batch_appearance_tests() {
     {"ui_shape_appearance_polygons_multiple", ui_shape_appearance_polygons_multiple},
     {"ui_shape_appearance_custom_path_geometry", ui_shape_appearance_custom_path_geometry},
     {"ui_shape_appearance_custom_shape_picker", ui_shape_appearance_custom_shape_picker},
+    {"ui_shape_appearance_polygon_drawn_with_tool", ui_shape_appearance_polygon_drawn_with_tool},
+    {"ui_shape_appearance_picker_shows_stamped_shape", ui_shape_appearance_picker_shows_stamped_shape},
     {"ui_shape_appearance_radius_section_layout", ui_shape_appearance_radius_section_layout},
     {"ui_shape_appearance_line_weight_in_geometry", ui_shape_appearance_line_weight_in_geometry},
   };

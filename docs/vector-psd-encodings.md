@@ -157,6 +157,20 @@ captured order (kind-dependent):
   line (November 2026), so how PS draws flag-false sizes is unprobed.
 - App-level (`executeActionGet`) path-drawn subpaths report keyActionMode
   entries instead of live-shape data.
+- Polygon/triangle (type 7; PS 2026, November 2026, seen only on an unrotated
+  3-sided shape in a third-party file): keyOriginType, keyOriginBoxCorners,
+  keyOriginPolySides, keyOriginShapeBBox (the outline's tight box; no
+  unitValueQuadVersion), keyOriginPolyPreviousTightBoxCorners,
+  keyOriginPolyTrueRectCorners, keyOriginPolyPixelHSF (1.0), Trnf (a
+  non-identity scale), keyOriginIndex, keyOriginResolution last; a resave adds
+  keyOriginMaxPolyOuterCornerRadius. PS's terminology also lists
+  keyOriginPolyStarRatio (percent), keyOriginPolyCornerRadius,
+  keyOriginPolySmthCrns and keyOriginPolySmthIndnt. Unprobed: COM cannot
+  author one (`Mk` contentLayer with the `polygon` or `triangle` shape class
+  fails with "program error"; a work-path `setd` too), and `changePathDetails`
+  with those keys returns but changes nothing, so star, rotation and stretch
+  are unknown. Patchy therefore writes no polygon vogk and reads type 7 as
+  Custom (raw descriptor kept).
 
 Live-shape knot constructions (kappa handles, corner orders):
 src/core/vector_live_shapes.hpp.
