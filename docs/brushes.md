@@ -65,7 +65,7 @@ Airbrush adds one copy of the current flat 2D stamp every 50 ms while the pointe
 
 Patent review (July 15, 2026): the classic flat-stamp behavior Adobe documents: Flow accumulates only to Opacity and a held stationary airbrush builds color. The binding boundary (no particles, 3D spray cone, stylus-pose projection, velocity-dependent deposition, bristle or fluid simulation, wet/dirty paint, or bidirectional transfer; US 8854342, US 9600907, US 10489937) lives in [legal-constraints.md](legal-constraints.md). Keep the matching constraint comment in `CanvasWidget::timerEvent` in sync with that file.
 
-`ui_brush_flow_builds_only_to_opacity_cap_and_round_trips_psd` pins the Opacity ceiling and exact layered PSD reopen; `ui_airbrush_fast_strokes_ignore_mouse_event_density` pins the spatial cadence; `ui_brush_opacity_and_flow_accept_zero_and_paint_nothing` pins 0%.
+`ui_brush_flow_builds_only_to_opacity_cap_and_round_trips_psd` pins the Opacity ceiling and exact layered PSD reopen; `ui_airbrush_fast_strokes_ignore_mouse_event_density` pins the spatial cadence; `ui_brush_opacity_and_flow_accept_zero_and_paint_nothing` pins 0%. Big spaced dabs (moving and timer) paint through a banded walk without per-pixel callbacks, so a 179 px Flow 12% Airbrush keeps up with the pointer on a 3500 px photo (GitHub issue 677; [performance-strokes.md](performance-strokes.md), `patchy_perf_tests.exe airbrushbig`).
 
 ## Brush Mode
 

@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <utility>
 #include <vector>
 
 namespace patchy {
@@ -253,6 +254,30 @@ enum class CanvasAnchor {
                                const EditOptions& options, bool erase);
 [[nodiscard]] Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y,
                                    const EditOptions& options, bool erase);
+
+// A procedural (Round or Square, no tip) dab as paint_brush_dab walks it, for a caller that
+// writes the pixels itself: the Brush's banded dab path paints big dabs on several threads
+// (GitHub issue 677). Visit rows rect.y.. of the layer, columns row_span(row), and skip pixels
+// whose selection_coverage or coverage is 0, in that order, to match paint_brush_dab.
+struct BrushDabWalk {
+  Rect rect;  // canvas-clipped footprint
+  double x{0.0};
+  double y{0.0};
+  int radius{0};
+  bool round_rows{false};
+
+  // Columns [first, end) of `row` the footprint can reach (empty when first >= end).
+  [[nodiscard]] std::pair<std::int32_t, std::int32_t> row_span(std::int32_t row) const noexcept;
+  // The footprint's coverage of pixel (px, py), before selection.
+  [[nodiscard]] float coverage(std::int32_t px, std::int32_t py, const EditOptions& options) const;
+};
+// Does what paint_brush_dab does before its pixel walk: checks the layer, gives an erase target
+// alpha, grows the layer to the dab. Nullopt when paint_brush_dab would paint nothing.
+[[nodiscard]] std::optional<BrushDabWalk> begin_brush_dab_walk(Document& document, LayerId layer_id, double x,
+                                                               double y, const EditOptions& options, bool erase);
+// The selection's coverage of a pixel as every core writer reads it (selection_coverage,
+// selection_mask, then the selection rect).
+[[nodiscard]] float edit_selection_coverage(const EditOptions& options, std::int32_t x, std::int32_t y) noexcept;
 // One stationary Airbrush timer tick. Active shape/Transfer dynamics advance through the
 // stroke state, while scatter/count are deliberately suppressed so a held pointer remains one
 // flat 2D stamp rather than a particle burst. Falls back to paint_brush_dab without dynamics.

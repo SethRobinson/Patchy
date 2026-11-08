@@ -4231,6 +4231,206 @@ void toning_big_brush_perf() {
   }
 }
 
+// A big soft Brush with reduced Flow and Airbrush on a ~3500 px photo (GitHub issue 677:
+// Size 179, Opacity 100, Soft 13, Flow 12, Airbrush on). Each case paints a 60-move sent stroke,
+// real-time strokes (one move every 8 ms for a second, as a 125 Hz mouse sends them, 4 and 24
+// widget px apart) whose behind_ms is how long after the last move was due the canvas finished
+// painting (a busy event loop posts the moves late, so the lag counts from the schedule), and, with Airbrush, a held pointer for a second (build-up ticks). Each runs through
+// core paint_brush_dab ("core", the path before the issue) and the banded dab walk ("banded").
+// PATCHY_PERF_AIRBRUSH_SIZE overrides 179; PATCHY_PERF_AIRBRUSH_CASES picks cases (airbrush,
+// flow12, airbrush100, plain), PATCHY_PERF_AIRBRUSH_VARIANTS variants (core, banded).
+void airbrush_big_brush_perf() {
+  isolate_perf_settings();
+  constexpr int kWidth = 3500;
+  constexpr int kHeight = 2330;
+  const auto image_path = std::filesystem::absolute("test-artifacts/perf_airbrush_3500x2330.jpg");
+  {
+    std::filesystem::create_directories(image_path.parent_path());
+    QImage image(kWidth, kHeight, QImage::Format_RGB32);
+    for (int y = 0; y < kHeight; ++y) {
+      auto* row = reinterpret_cast<QRgb*>(image.scanLine(y));
+      for (int x = 0; x < kWidth; ++x) {
+        row[x] = qRgb(96 + (x / 5) % 128, 80 + (y / 7) % 128, 64 + ((x + y) / 11) % 128);
+      }
+    }
+    CHECK(image.save(patchy::ui::to_qstring(image_path), "JPG", 92));
+  }
+  patchy::ui::MainWindow window;
+  window.resize(1600, 1000);
+  if (qEnvironmentVariableIsSet("PATCHY_PERF_ONSCREEN")) {
+    window.showMaximized();
+  } else {
+    window.show();
+  }
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(image_path));
+  QApplication::processEvents();
+  auto* canvas = active_canvas(window);
+  CHECK(canvas != nullptr);
+  if (canvas == nullptr) {
+    return;
+  }
+  const auto settle = [canvas] {
+    const auto started = Clock::now();
+    while (!canvas->render_settled() && std::chrono::duration<double>(Clock::now() - started).count() < 60.0) {
+      canvas->repaint();
+      QApplication::processEvents();
+    }
+  };
+  const auto send = [canvas](QEvent::Type type, QPointF position, Qt::MouseButton button, Qt::MouseButtons buttons) {
+    QMouseEvent event(type, position, canvas->mapToGlobal(position), button, buttons, Qt::NoModifier);
+    QApplication::sendEvent(canvas, &event);
+  };
+  const auto summary = [](std::vector<double> values) {
+    std::sort(values.begin(), values.end());
+    double total = 0.0;
+    for (const auto value : values) {
+      total += value;
+    }
+    std::ostringstream text;
+    text << std::fixed << std::setprecision(2) << "avg=" << total / static_cast<double>(values.size())
+         << " median=" << values[values.size() / 2] << " max=" << values.back();
+    return text.str();
+  };
+  const auto size = qEnvironmentVariableIsSet("PATCHY_PERF_AIRBRUSH_SIZE")
+                        ? qEnvironmentVariableIntValue("PATCHY_PERF_AIRBRUSH_SIZE")
+                        : 179;
+  const auto cases_filter = qEnvironmentVariable("PATCHY_PERF_AIRBRUSH_CASES");
+  struct BrushCase {
+    const char* label;
+    int flow;
+    bool build_up;
+  };
+  canvas->set_tool(patchy::ui::CanvasTool::Brush);
+  canvas->set_brush_size(size);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_softness(13);
+  const auto diagnostics_line = [](const patchy::ui::CanvasRenderCacheDiagnostics& before,
+                                   const patchy::ui::CanvasRenderCacheDiagnostics& after) {
+    std::ostringstream text;
+    text << std::fixed << std::setprecision(2) << " dabs=" << after.brush_dabs - before.brush_dabs
+         << " dab_ms=" << after.brush_dab_ms - before.brush_dab_ms
+         << " ticks=" << after.airbrush_ticks - before.airbrush_ticks
+         << " tick_ms=" << after.airbrush_tick_ms - before.airbrush_tick_ms;
+    return text.str();
+  };
+  const auto variants_filter = qEnvironmentVariable("PATCHY_PERF_AIRBRUSH_VARIANTS");
+  for (const auto& brush_case : {BrushCase{"airbrush", 12, true}, BrushCase{"flow12", 12, false},
+                                 BrushCase{"airbrush100", 100, true}, BrushCase{"plain", 100, false}}) {
+    if (!cases_filter.isEmpty() &&
+        !cases_filter.split(QLatin1Char(',')).contains(QString::fromLatin1(brush_case.label))) {
+      continue;
+    }
+    canvas->set_brush_flow(brush_case.flow);
+    canvas->set_brush_build_up(brush_case.build_up);
+    for (const bool banded : {false, true}) {
+      const auto variant = banded ? QStringLiteral("banded") : QStringLiteral("core");
+      if (!variants_filter.isEmpty() && !variants_filter.split(QLatin1Char(',')).contains(variant)) {
+        continue;
+      }
+      canvas->set_banded_brush_dabs_enabled_for_testing(banded);
+      for (const bool fit : {true, false}) {
+        if (fit) {
+          canvas->fit_to_view();
+        } else {
+          canvas->set_zoom_centered(1.0);
+        }
+        settle();
+        std::ostringstream label_text;
+        label_text << "[PERF] airbrushbig " << brush_case.label << ' ' << variant.toStdString() << " size=" << size
+                   << (fit ? " fit" : " 100%")
+                   << std::fixed << std::setprecision(2) << " zoom=" << canvas->zoom();
+        const auto label = label_text.str();
+        const auto start = QPointF(canvas->widget_position_for_document_point(QPoint(1750, 1165))) -
+                           QPointF(fit ? 250.0 : 400.0, 0.0);
+
+        // 60 sent moves, a repaint after each.
+        {
+          const auto at = [&](double index) { return start + QPointF(8.0 * index, 30.0 * std::sin(index * 0.15)); };
+          send(QEvent::MouseMove, at(0), Qt::NoButton, Qt::NoButton);
+          QApplication::processEvents();
+          settle();
+          const auto before = canvas->render_cache_diagnostics();
+          const auto press_ms =
+              elapsed_ms([&] { send(QEvent::MouseButtonPress, at(0), Qt::LeftButton, Qt::LeftButton); });
+          std::vector<double> move_ms;
+          std::vector<double> paint_ms;
+          for (int index = 1; index <= 60; ++index) {
+            move_ms.push_back(elapsed_ms([&] { send(QEvent::MouseMove, at(index), Qt::NoButton, Qt::LeftButton); }));
+            paint_ms.push_back(elapsed_ms([&] { canvas->repaint(); }));
+          }
+          const auto after = canvas->render_cache_diagnostics();
+          send(QEvent::MouseButtonRelease, at(60), Qt::LeftButton, Qt::NoButton);
+          QApplication::processEvents();
+          std::cout << label << " sent60 press_ms=" << std::fixed << std::setprecision(2) << press_ms
+                    << diagnostics_line(before, after) << " move_ms " << summary(move_ms) << " paint_ms "
+                    << summary(paint_ms) << '\n';
+          patchy::ui::MainWindowTestAccess::undo(window);
+          settle();
+        }
+
+        // Real time: a move every 8 ms for a second, 4 or 24 widget px apart (back and forth over
+        // 600 px), with the event loop (timer ticks, repaints) running in between as it does for a
+        // real mouse.
+        for (const double step : {4.0, 24.0}) {
+          const auto at = [&](double index) {
+            const auto travel = std::fmod(step * index, 1200.0);
+            return start + QPointF(travel > 600.0 ? 1200.0 - travel : travel, 40.0 * std::sin(index * 0.05));
+          };
+          send(QEvent::MouseMove, at(0), Qt::NoButton, Qt::NoButton);
+          QApplication::processEvents();
+          settle();
+          const auto before = canvas->render_cache_diagnostics();
+          send(QEvent::MouseButtonPress, at(0), Qt::LeftButton, Qt::LeftButton);
+          const auto started = Clock::now();
+          constexpr int kMoves = 125;
+          for (int index = 1; index <= kMoves; ++index) {
+            const auto due = started + std::chrono::milliseconds(8 * index);
+            while (Clock::now() < due) {
+              QApplication::processEvents(QEventLoop::AllEvents, 1);
+            }
+            QApplication::postEvent(canvas, new QMouseEvent(QEvent::MouseMove, at(index),
+                                                            canvas->mapToGlobal(at(index)), Qt::NoButton,
+                                                            Qt::LeftButton, Qt::NoModifier));
+          }
+          // The moves still queued here are the paint trailing the cursor.
+          QApplication::sendPostedEvents(canvas, QEvent::MouseMove);
+          QApplication::processEvents();
+          const auto total_ms = std::chrono::duration<double, std::milli>(Clock::now() - started).count();
+          const auto behind_ms = total_ms - 8.0 * kMoves;
+          const auto after = canvas->render_cache_diagnostics();
+          send(QEvent::MouseButtonRelease, at(kMoves), Qt::LeftButton, Qt::NoButton);
+          QApplication::processEvents();
+          std::cout << label << " realtime125 step=" << step << " total_ms=" << std::fixed << std::setprecision(2)
+                    << total_ms << " behind_ms=" << behind_ms << diagnostics_line(before, after) << '\n';
+          patchy::ui::MainWindowTestAccess::undo(window);
+          settle();
+        }
+
+        // Held still for a second: Airbrush build-up ticks.
+        if (brush_case.build_up) {
+          send(QEvent::MouseMove, start, Qt::NoButton, Qt::NoButton);
+          QApplication::processEvents();
+          settle();
+          const auto before = canvas->render_cache_diagnostics();
+          send(QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+          const auto started = Clock::now();
+          while (Clock::now() - started < std::chrono::milliseconds(1000)) {
+            QApplication::processEvents(QEventLoop::AllEvents, 5);
+          }
+          const auto after = canvas->render_cache_diagnostics();
+          send(QEvent::MouseButtonRelease, start, Qt::LeftButton, Qt::NoButton);
+          QApplication::processEvents();
+          std::cout << label << " hold1000" << diagnostics_line(before, after) << '\n';
+          patchy::ui::MainWindowTestAccess::undo(window);
+          settle();
+        }
+      }
+    }
+  }
+  canvas->set_banded_brush_dabs_enabled_for_testing(true);
+}
+
 // A small 8-bit CMYK PSD painted with the Brush, in CMYK Proof and after leaving it,
 // against a plain RGB document of the same size (GitHub issue 220's second sample, ag-psd's
 // test/read/cmyk/src.psd). PATCHY_PERF_CMYK_PSD overrides the fixture path.
@@ -4718,6 +4918,10 @@ int main(int argc, char* argv[]) {
     }
     if (argc > 1 && std::string_view(argv[1]) == "toningbig") {
       run_scenario("toningbig", toning_big_brush_perf);
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "airbrushbig") {
+      run_scenario("airbrushbig", airbrush_big_brush_perf);
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "cmykbrush") {

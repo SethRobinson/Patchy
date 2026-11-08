@@ -5300,11 +5300,15 @@ void CanvasWidget::timerEvent(QTimerEvent* event) {
       // they do not model particles, a 3D spray cone or stylus pose,
       // velocity-dependent flow, bristles, fluid surfaces, wet paint, or
       // bidirectional paint transfer.
+      const auto started = std::chrono::steady_clock::now();
       const auto dirty = draw_airbrush_dab(last_document_position_f_);
       if (!dirty.isEmpty()) {
         active_edit_target_changed_impl(QRegion(dirty),
                                         DocumentChangeReason::BrushStrokePreview);
       }
+      ++render_cache_diagnostics_.airbrush_ticks;
+      render_cache_diagnostics_.airbrush_tick_ms +=
+          std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
     }
     event->accept();
     return;
