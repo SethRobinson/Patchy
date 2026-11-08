@@ -112,7 +112,6 @@ private:
   [[nodiscard]] bool set_name_taken(const QString& name, const QString& except_id) const;
   [[nodiscard]] QString unique_set_name(const QString& base) const;
   void fit_set_combo_width();
-  void fit_search_width();
   void show_transfer_status(const QString& text);
   void build_rows(QMenuBar* menu_bar);
   QFrame* add_category_panel(const QString& title, bool dimmed);

@@ -357,7 +357,6 @@ HotkeyEditorPanel::HotkeyEditorPanel(HotkeyRegistry& registry, QMenuBar* menu_ba
     }
   )"));
 
-  fit_search_width();
   build_rows(menu_bar);
   list_layout_->addStretch(1);
   refresh_rows();
@@ -846,23 +845,9 @@ void HotkeyEditorPanel::changeEvent(QEvent* event) {
   if (event->type() == QEvent::LanguageChange) {
     fill_filter_combo();
     rebuild_set_combo();
-    fit_search_width();
   } else if (event->type() == QEvent::StyleChange || event->type() == QEvent::FontChange) {
     fit_set_combo_width();
-    fit_search_width();
   }
-}
-
-// The Show box shares the search row (GitHub issue 676), so the search field keeps room for
-// its whole hint, clear button included; Preferences widens instead (long German text cut it).
-void HotkeyEditorPanel::fit_search_width() {
-  if (search_edit_ == nullptr) {
-    return;
-  }
-  search_edit_->ensurePolished();
-  const auto metrics = search_edit_->fontMetrics();
-  search_edit_->setMinimumWidth(metrics.horizontalAdvance(search_edit_->placeholderText()) +
-                                2 * metrics.averageCharWidth() + 28);
 }
 
 void HotkeyEditorPanel::sync_set_combo() {
