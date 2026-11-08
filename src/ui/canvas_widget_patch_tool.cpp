@@ -804,8 +804,26 @@ void CanvasWidget::write_patch_heal(Layer& layer, QRect bounds, const std::vecto
   // the outline. Solved over the destination bounds padded by one so a
   // Dirichlet ring exists wherever the canvas allows.
   const auto cells = static_cast<std::size_t>(solve_width) * static_cast<std::size_t>(solve_height);
+  const auto rgba = [](const std::uint8_t* pixel) {
+    return std::array<float, 4>{static_cast<float>(pixel[0]), static_cast<float>(pixel[1]),
+                                static_cast<float>(pixel[2]), static_cast<float>(pixel[3])};
+  };
+  // Source and Destination modes: alpha joins the membrane when the patch reads or writes a
+  // pixel that is not opaque (patchy::heal_alpha_offsets; desk card local-039 follow-up).
+  bool alpha_aware = false;
+  if (!transparent && channels >= 4) {
+    for (int y = 0; y < solve_height && !alpha_aware; ++y) {
+      for (int x = 0; x < solve_width && !alpha_aware; ++x) {
+        const auto doc_x = solve_bounds.left() + x;
+        const auto doc_y = solve_bounds.top() + y;
+        const auto* source = source_pixel_at(doc_x + source_offset.x(), doc_y + source_offset.y());
+        alpha_aware = patchy::heal_needs_alpha(rgba(tone_pixel_at(doc_x, doc_y)), rgba(source));
+      }
+    }
+  }
   std::vector<std::uint8_t> interior(cells);
   std::vector<std::int16_t> membrane(cells * 3U);
+  std::vector<std::int16_t> alpha_membrane(alpha_aware ? cells * 3U : 0U, 0);
   for (int y = 0; y < solve_height; ++y) {
     for (int x = 0; x < solve_width; ++x) {
       const auto index = static_cast<std::size_t>(y) * static_cast<std::size_t>(solve_width) +
@@ -830,6 +848,12 @@ void CanvasWidget::write_patch_heal(Layer& layer, QRect bounds, const std::vecto
               static_cast<int>(transparent_low_pass[index * 3U + static_cast<std::size_t>(channel)]) -
               static_cast<int>(source[channel]));
         }
+      } else if (alpha_aware) {
+        const auto values = patchy::heal_alpha_offsets(rgba(tone_pixel_at(doc_x, doc_y)), rgba(source), 1.0F);
+        for (std::size_t channel = 0; channel < 3U; ++channel) {
+          membrane[index * 3U + channel] = static_cast<std::int16_t>(values[channel]);
+        }
+        alpha_membrane[index * 3U] = static_cast<std::int16_t>(values[3]);
       } else {
         const auto* destination = tone_pixel_at(doc_x, doc_y);
         for (int channel = 0; channel < 3; ++channel) {
@@ -841,9 +865,16 @@ void CanvasWidget::write_patch_heal(Layer& layer, QRect bounds, const std::vecto
   }
   tick_processing_operation();
   patchy::solve_heal_membrane(interior.data(), solve_width, solve_height, membrane.data());
+  if (alpha_aware) {
+    patchy::solve_heal_membrane(interior.data(), solve_width, solve_height, alpha_membrane.data());
+  }
   tick_processing_operation();
   if (edge_band > 0) {
     patchy::fade_heal_offsets_to_edge_band(interior.data(), solve_width, solve_height, membrane.data(), edge_band);
+    if (alpha_aware) {
+      patchy::fade_heal_offsets_to_edge_band(interior.data(), solve_width, solve_height, alpha_membrane.data(),
+                                             edge_band);
+    }
   }
 
   // For each destination pixel p: coverage from the mask (at p in Source mode,
@@ -923,11 +954,19 @@ void CanvasWidget::write_patch_heal(Layer& layer, QRect bounds, const std::vecto
               static_cast<std::size_t>(document_point.y() - solve_bounds.top()) *
                   static_cast<std::size_t>(solve_width) +
               static_cast<std::size_t>(document_point.x() - solve_bounds.left());
-          for (std::size_t channel = 0; channel < 3; ++channel) {
-            healed[channel] = clamp_byte(static_cast<float>(source_pixel[channel]) +
-                                         static_cast<float>(membrane[solve_index * 3U + channel]));
+          if (alpha_aware) {
+            const auto value = patchy::heal_with_alpha(rgba(source_pixel), membrane.data() + solve_index * 3U,
+                                                       alpha_membrane[solve_index * 3U], 1.0F, false);
+            for (std::size_t channel = 0; channel < 4U; ++channel) {
+              healed[channel] = clamp_byte(value[channel]);
+            }
+          } else {
+            for (std::size_t channel = 0; channel < 3; ++channel) {
+              healed[channel] = clamp_byte(static_cast<float>(source_pixel[channel]) +
+                                           static_cast<float>(membrane[solve_index * 3U + channel]));
+            }
+            healed[3] = source_pixel[3];
           }
-          healed[3] = source_pixel[3];
         }
 
         if (channels >= 4 && !lock_transparent_pixels) {

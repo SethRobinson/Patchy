@@ -607,8 +607,26 @@ QRect CanvasWidget::heal_mask_from_surroundings(QRect bounds, const std::vector<
   };
 
   const auto cells = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+  const auto rgba = [](const std::uint8_t* pixel) {
+    return std::array<float, 4>{static_cast<float>(pixel[0]), static_cast<float>(pixel[1]),
+                                static_cast<float>(pixel[2]), static_cast<float>(pixel[3])};
+  };
+  // Alpha joins the membrane when the heal reads or writes a pixel that is not opaque
+  // (patchy::heal_alpha_offsets; desk card local-039 follow-up).
+  bool alpha_aware = false;
+  if (channels >= 4) {
+    for (int y = 0; y < height && !alpha_aware; ++y) {
+      for (int x = 0; x < width && !alpha_aware; ++x) {
+        const auto doc_x = bounds.left() + x;
+        const auto doc_y = bounds.top() + y;
+        const auto [sx, sy] = source_map.map(doc_x, doc_y);
+        alpha_aware = patchy::heal_needs_alpha(rgba(snapshot_pixel(doc_x, doc_y)), rgba(snapshot_pixel(sx, sy)));
+      }
+    }
+  }
   std::vector<std::uint8_t> interior(cells);
   std::vector<std::int16_t> offsets(cells * 3U);
+  std::vector<std::int16_t> alpha_offsets(alpha_aware ? cells * 3U : 0U, 0);
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
       const auto index = static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
@@ -622,6 +640,14 @@ QRect CanvasWidget::heal_mask_from_surroundings(QRect bounds, const std::vector<
       const auto [sx, sy] = source_map.map(doc_x, doc_y);
       const auto* destination = snapshot_pixel(doc_x, doc_y);
       const auto* source = snapshot_pixel(sx, sy);
+      if (alpha_aware) {
+        const auto values = patchy::heal_alpha_offsets(rgba(destination), rgba(source), 1.0F);
+        for (std::size_t channel = 0; channel < 3U; ++channel) {
+          offsets[index * 3U + channel] = static_cast<std::int16_t>(values[channel]);
+        }
+        alpha_offsets[index * 3U] = static_cast<std::int16_t>(values[3]);
+        continue;
+      }
       for (int channel = 0; channel < 3; ++channel) {
         offsets[index * 3U + static_cast<std::size_t>(channel)] = static_cast<std::int16_t>(
             static_cast<int>(destination[channel]) - static_cast<int>(source[channel]));
@@ -630,8 +656,14 @@ QRect CanvasWidget::heal_mask_from_surroundings(QRect bounds, const std::vector<
   }
   tick_processing_operation();
   patchy::solve_heal_membrane(interior.data(), width, height, offsets.data());
+  if (alpha_aware) {
+    patchy::solve_heal_membrane(interior.data(), width, height, alpha_offsets.data());
+  }
   if (edge_band > 0) {
     patchy::fade_heal_offsets_to_edge_band(interior.data(), width, height, offsets.data(), edge_band);
+    if (alpha_aware) {
+      patchy::fade_heal_offsets_to_edge_band(interior.data(), width, height, alpha_offsets.data(), edge_band);
+    }
   }
 
   const bool clip = clip_to_selection && has_selection();
@@ -681,12 +713,20 @@ QRect CanvasWidget::heal_mask_from_surroundings(QRect bounds, const std::vector<
         const auto [sx, sy] = source_map.map(document_point.x(), document_point.y());
         const auto* source = snapshot_pixel(sx, sy);
         std::array<std::uint8_t, 4> healed{};
-        for (int channel = 0; channel < 3; ++channel) {
-          healed[static_cast<std::size_t>(channel)] = clamp_byte(
-              static_cast<float>(source[channel]) +
-              static_cast<float>(offsets[index * 3U + static_cast<std::size_t>(channel)]));
+        if (alpha_aware) {
+          const auto value = patchy::heal_with_alpha(rgba(source), offsets.data() + index * 3U,
+                                                     alpha_offsets[index * 3U], 1.0F, false);
+          for (std::size_t channel = 0; channel < 4U; ++channel) {
+            healed[channel] = clamp_byte(value[channel]);
+          }
+        } else {
+          for (int channel = 0; channel < 3; ++channel) {
+            healed[static_cast<std::size_t>(channel)] = clamp_byte(
+                static_cast<float>(source[channel]) +
+                static_cast<float>(offsets[index * 3U + static_cast<std::size_t>(channel)]));
+          }
+          healed[3] = source[3];
         }
-        healed[3] = source[3];
         if (channels >= 4 && !lock_transparent_pixels) {
           blend_straight_rgba(dst, healed.data(), coverage);
         } else {
@@ -827,7 +867,21 @@ QRect CanvasWidget::finish_healing_brush_stroke() {
     return std::array<float, 4>{static_cast<float>(px[0]), static_cast<float>(px[1]), static_cast<float>(px[2]),
                                 static_cast<float>(px[3])};
   };
+  // Alpha joins the membrane when the heal reads or writes a pixel that is not opaque
+  // (patchy::heal_alpha_offsets; desk card local-039 follow-up).
+  bool alpha_aware = false;
+  if (format.channels >= 4) {
+    for (int y = 0; y < height && !alpha_aware; ++y) {
+      for (int x = 0; x < width && !alpha_aware; ++x) {
+        const auto doc_x = grid.left() + x;
+        const auto doc_y = grid.top() + y;
+        alpha_aware =
+            patchy::heal_needs_alpha(snapshot(doc_x, doc_y), snapshot(doc_x + offset.x(), doc_y + offset.y()));
+      }
+    }
+  }
   std::vector<std::int32_t> raw(cells * 3U, 0);
+  std::vector<std::int32_t> raw_alpha(alpha_aware ? cells * 3U : 0U, 0);
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
       const auto index = cell_index(x, y);
@@ -838,73 +892,86 @@ QRect CanvasWidget::finish_healing_brush_stroke() {
       const auto doc_y = grid.top() + y;
       const auto destination = snapshot(doc_x, doc_y);
       const auto source = snapshot(doc_x + offset.x(), doc_y + offset.y());
+      if (alpha_aware) {
+        const auto values = patchy::heal_alpha_offsets(destination, source, static_cast<float>(scale));
+        std::copy_n(values.begin(), 3U, raw.begin() + static_cast<std::ptrdiff_t>(index * 3U));
+        raw_alpha[index * 3U] = values[3];
+        continue;
+      }
       for (std::size_t channel = 0; channel < 3U; ++channel) {
         const auto value = std::lround((destination[channel] - source[channel]) * static_cast<float>(scale));
         raw[index * 3U + channel] = static_cast<std::int32_t>(std::clamp<long>(value, -32767L, 32767L));
       }
     }
   }
-  std::vector<std::int16_t> offsets(cells * 3U);
-  for (std::size_t i = 0; i < offsets.size(); ++i) {
-    offsets[i] = static_cast<std::int16_t>(raw[i]);
-  }
-  if (smoothing > 0) {
-    // Box means of the boundary offsets over the boundary cells within `smoothing`
-    // (integral images, integer sums, round half away from zero), for the cells the
-    // solve reads: those beside the footprint.
-    const auto integral_width = static_cast<std::size_t>(width) + 1U;
-    std::vector<std::int64_t> sums((static_cast<std::size_t>(height) + 1U) * integral_width * 3U, 0);
-    std::vector<std::int64_t> counts((static_cast<std::size_t>(height) + 1U) * integral_width, 0);
-    for (int y = 0; y < height; ++y) {
-      for (int x = 0; x < width; ++x) {
-        const auto index = cell_index(x, y);
-        const auto at = (static_cast<std::size_t>(y) + 1U) * integral_width + static_cast<std::size_t>(x) + 1U;
-        const auto up = at - integral_width;
-        const bool boundary = interior[index] == 0U;
-        counts[at] = counts[up] + counts[at - 1U] - counts[up - 1U] + (boundary ? 1 : 0);
-        for (std::size_t channel = 0; channel < 3U; ++channel) {
-          sums[at * 3U + channel] = sums[up * 3U + channel] + sums[(at - 1U) * 3U + channel] -
-                                    sums[(up - 1U) * 3U + channel] + (boundary ? raw[index * 3U + channel] : 0);
+  // The boundary offsets (box-smoothed when Diffusion asks) solved across the footprint.
+  const auto membrane_of = [&](const std::vector<std::int32_t>& raw_values) {
+    std::vector<std::int16_t> offsets(cells * 3U);
+    for (std::size_t i = 0; i < offsets.size(); ++i) {
+      offsets[i] = static_cast<std::int16_t>(raw_values[i]);
+    }
+    if (smoothing > 0) {
+      // Box means of the boundary offsets over the boundary cells within `smoothing`
+      // (integral images, integer sums, round half away from zero), for the cells the
+      // solve reads: those beside the footprint.
+      const auto integral_width = static_cast<std::size_t>(width) + 1U;
+      std::vector<std::int64_t> sums((static_cast<std::size_t>(height) + 1U) * integral_width * 3U, 0);
+      std::vector<std::int64_t> counts((static_cast<std::size_t>(height) + 1U) * integral_width, 0);
+      for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+          const auto index = cell_index(x, y);
+          const auto at = (static_cast<std::size_t>(y) + 1U) * integral_width + static_cast<std::size_t>(x) + 1U;
+          const auto up = at - integral_width;
+          const bool boundary = interior[index] == 0U;
+          counts[at] = counts[up] + counts[at - 1U] - counts[up - 1U] + (boundary ? 1 : 0);
+          for (std::size_t channel = 0; channel < 3U; ++channel) {
+            sums[at * 3U + channel] = sums[up * 3U + channel] + sums[(at - 1U) * 3U + channel] -
+                                      sums[(up - 1U) * 3U + channel] +
+                                      (boundary ? raw_values[index * 3U + channel] : 0);
+          }
+        }
+      }
+      const auto box = [&](const std::vector<std::int64_t>& table, std::size_t stride, std::size_t channel, int x0,
+                           int y0, int x1, int y1) {
+        const auto row0 = static_cast<std::size_t>(y0) * integral_width;
+        const auto row1 = (static_cast<std::size_t>(y1) + 1U) * integral_width;
+        const auto col0 = static_cast<std::size_t>(x0);
+        const auto col1 = static_cast<std::size_t>(x1) + 1U;
+        return table[(row1 + col1) * stride + channel] - table[(row0 + col1) * stride + channel] -
+               table[(row1 + col0) * stride + channel] + table[(row0 + col0) * stride + channel];
+      };
+      for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+          const auto index = cell_index(x, y);
+          if (interior[index] != 0U) {
+            continue;
+          }
+          const bool beside_footprint = (x > 0 && interior[index - 1U] != 0U) ||
+                                        (x + 1 < width && interior[index + 1U] != 0U) ||
+                                        (y > 0 && interior[index - static_cast<std::size_t>(width)] != 0U) ||
+                                        (y + 1 < height && interior[index + static_cast<std::size_t>(width)] != 0U);
+          if (!beside_footprint) {
+            continue;
+          }
+          const auto x0 = std::max(0, x - smoothing);
+          const auto y0 = std::max(0, y - smoothing);
+          const auto x1 = std::min(width - 1, x + smoothing);
+          const auto y1 = std::min(height - 1, y + smoothing);
+          const auto count = box(counts, 1U, 0U, x0, y0, x1, y1);
+          for (std::size_t channel = 0; channel < 3U; ++channel) {
+            const auto sum = box(sums, 3U, channel, x0, y0, x1, y1);
+            const auto mean = sum >= 0 ? (sum + count / 2) / count : -((-sum + count / 2) / count);
+            offsets[index * 3U + channel] = static_cast<std::int16_t>(std::clamp<std::int64_t>(mean, -32767, 32767));
+          }
         }
       }
     }
-    const auto box = [&](const std::vector<std::int64_t>& table, std::size_t stride, std::size_t channel, int x0,
-                         int y0, int x1, int y1) {
-      const auto row0 = static_cast<std::size_t>(y0) * integral_width;
-      const auto row1 = (static_cast<std::size_t>(y1) + 1U) * integral_width;
-      const auto col0 = static_cast<std::size_t>(x0);
-      const auto col1 = static_cast<std::size_t>(x1) + 1U;
-      return table[(row1 + col1) * stride + channel] - table[(row0 + col1) * stride + channel] -
-             table[(row1 + col0) * stride + channel] + table[(row0 + col0) * stride + channel];
-    };
-    for (int y = 0; y < height; ++y) {
-      for (int x = 0; x < width; ++x) {
-        const auto index = cell_index(x, y);
-        if (interior[index] != 0U) {
-          continue;
-        }
-        const bool beside_footprint = (x > 0 && interior[index - 1U] != 0U) ||
-                                      (x + 1 < width && interior[index + 1U] != 0U) ||
-                                      (y > 0 && interior[index - static_cast<std::size_t>(width)] != 0U) ||
-                                      (y + 1 < height && interior[index + static_cast<std::size_t>(width)] != 0U);
-        if (!beside_footprint) {
-          continue;
-        }
-        const auto x0 = std::max(0, x - smoothing);
-        const auto y0 = std::max(0, y - smoothing);
-        const auto x1 = std::min(width - 1, x + smoothing);
-        const auto y1 = std::min(height - 1, y + smoothing);
-        const auto count = box(counts, 1U, 0U, x0, y0, x1, y1);
-        for (std::size_t channel = 0; channel < 3U; ++channel) {
-          const auto sum = box(sums, 3U, channel, x0, y0, x1, y1);
-          const auto mean = sum >= 0 ? (sum + count / 2) / count : -((-sum + count / 2) / count);
-          offsets[index * 3U + channel] = static_cast<std::int16_t>(std::clamp<std::int64_t>(mean, -32767, 32767));
-        }
-      }
-    }
-  }
-  tick_processing_operation();
-  patchy::solve_heal_membrane(interior.data(), width, height, offsets.data());
+    tick_processing_operation();
+    patchy::solve_heal_membrane(interior.data(), width, height, offsets.data());
+    return offsets;
+  };
+  const auto offsets = membrane_of(raw);
+  const auto alpha_offsets = alpha_aware ? membrane_of(raw_alpha) : std::vector<std::int16_t>{};
 
   const auto* palette_snap = palette_snap_for_edits();
   const auto lock_transparent_pixels = active_layer_locks_transparent_pixels();
@@ -954,13 +1021,18 @@ QRect CanvasWidget::finish_healing_brush_stroke() {
         }
         const auto source = snapshot(x + offset.x(), y + offset.y());
         std::array<float, 4> healed{};
-        for (std::size_t channel = 0; channel < 3U; ++channel) {
-          const auto value = source[channel] + static_cast<float>(offsets[index * 3U + channel]) /
-                                                   static_cast<float>(scale);
-          healed[channel] = format.bit_depth == BitDepth::Float32 ? std::max(0.0F, value)
-                                                                    : std::clamp(value, 0.0F, 255.0F);
+        if (alpha_aware) {
+          healed = patchy::heal_with_alpha(source, offsets.data() + index * 3U, alpha_offsets[index * 3U],
+                                           static_cast<float>(scale), format.bit_depth == BitDepth::Float32);
+        } else {
+          for (std::size_t channel = 0; channel < 3U; ++channel) {
+            const auto value = source[channel] + static_cast<float>(offsets[index * 3U + channel]) /
+                                                     static_cast<float>(scale);
+            healed[channel] = format.bit_depth == BitDepth::Float32 ? std::max(0.0F, value)
+                                                                      : std::clamp(value, 0.0F, 255.0F);
+          }
+          healed[3] = source[3];
         }
-        healed[3] = source[3];
         const auto coverage = amount[index];
         std::array<float, 4> value = before;
         if (!deep) {

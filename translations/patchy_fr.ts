@@ -15085,6 +15085,18 @@ Voulez-vous le remplacer ?</translation>
         <translation>Unités</translation>
     </message>
     <message>
+        <source>Needs &quot;Mouse wheel scrolls the palette&quot; on: otherwise these are the only way to reach tools that do not fit.</source>
+        <translation>Nécessite « La molette fait défiler la palette quand elle déborde » : sinon, ce sont le seul moyen d&apos;atteindre les outils qui ne tiennent pas.</translation>
+    </message>
+    <message>
+        <source>Show the up and down scroll arrows</source>
+        <translation>Afficher les flèches de défilement haut et bas</translation>
+    </message>
+    <message>
+        <source>Show the &gt; arrow that opens more columns</source>
+        <translation>Afficher la flèche &gt; qui ouvre d&apos;autres colonnes</translation>
+    </message>
+    <message>
         <source>%1 x %2 mm</source>
         <translation>%1 x %2 mm</translation>
     </message>
@@ -15882,10 +15894,6 @@ Voulez-vous le remplacer ?</translation>
         <translation>Livres numérisés Patchy</translation>
     </message>
     <message>
-        <source>Book</source>
-        <translation>Livre</translation>
-    </message>
-    <message>
         <source>Title:</source>
         <translation>Titre :</translation>
     </message>
@@ -15922,12 +15930,24 @@ Voulez-vous le remplacer ?</translation>
         <translation>Ouvrez le livre et posez-le face vers le bas sur la vitre de sorte que la couverture arrière, le dos et la couverture avant y reposent tous, puis appuyez sur « Numériser la couverture ». Patchy mesure le livre à partir de cette numérisation. Ignorez-la pour mesurer plutôt à partir des premières pages (les couvertures ne figurent alors pas dans le PDF).</translation>
     </message>
     <message>
+        <source>Start Over...</source>
+        <translation>Recommencer...</translation>
+    </message>
+    <message>
+        <source>Delete this folder&apos;s book scans and scan a new book here</source>
+        <translation>Supprimer les numérisations de livre de ce dossier et numériser un nouveau livre ici</translation>
+    </message>
+    <message>
         <source>Skip Cover</source>
         <translation>Ignorer la couverture</translation>
     </message>
     <message>
         <source>Scan Cover</source>
         <translation>Numériser la couverture</translation>
+    </message>
+    <message>
+        <source>Continue This Book</source>
+        <translation>Continuer ce livre</translation>
     </message>
     <message>
         <source>Choose Project Folder</source>
@@ -16194,8 +16214,20 @@ Voulez-vous le remplacer ?</translation>
         <translation>Qualité d&apos;image :</translation>
     </message>
     <message>
+        <source>Open Book Folder</source>
+        <translation>Ouvrir le dossier du livre</translation>
+    </message>
+    <message>
+        <source>Show the scans in the file manager. This window stays open.</source>
+        <translation>Affiche les numérisations dans le gestionnaire de fichiers. Cette fenêtre reste ouverte.</translation>
+    </message>
+    <message>
         <source>Export PDF...</source>
         <translation>Exporter en PDF...</translation>
+    </message>
+    <message>
+        <source>Book</source>
+        <translation>Livre</translation>
     </message>
     <message>
         <source>Export Book PDF</source>
@@ -16234,8 +16266,49 @@ Voulez-vous le remplacer ?</translation>
         <translation>Choisissez d&apos;abord un dossier de projet.</translation>
     </message>
     <message>
+        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
+        <translation>Ce dossier contient déjà une numérisation de livre. Continuez-la, recommencez ou choisissez un autre dossier.</translation>
+    </message>
+    <message>
         <source>The project folder %1 could not be created.</source>
         <translation>Le dossier de projet %1 n&apos;a pas pu être créé.</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>Sans titre</translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>Ce dossier contient « %1 » (%n numérisation), prêt à exporter. « Continuer ce livre » permet de le vérifier et de l&apos;exporter ; « Recommencer » supprime ses numérisations pour numériser un nouveau livre ici.</numerusform>
+            <numerusform>Ce dossier contient « %1 » (%n numérisations), prêt à exporter. « Continuer ce livre » permet de le vérifier et de l&apos;exporter ; « Recommencer » supprime ses numérisations pour numériser un nouveau livre ici.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>Ce dossier contient « %1 » (%n numérisation pour l&apos;instant). « Continuer ce livre » reprend là où vous vous étiez arrêté ; « Recommencer » supprime ses numérisations pour numériser un nouveau livre ici.</numerusform>
+            <numerusform>Ce dossier contient « %1 » (%n numérisations pour l&apos;instant). « Continuer ce livre » reprend là où vous vous étiez arrêté ; « Recommencer » supprime ses numérisations pour numériser un nouveau livre ici.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This folder holds a book scan Patchy cannot read: %1</source>
+        <translation>Ce dossier contient une numérisation de livre que Patchy ne peut pas lire : %1</translation>
+    </message>
+    <message>
+        <source>A new book is saved in this folder.</source>
+        <translation>Un nouveau livre sera enregistré dans ce dossier.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
+        <translation>
+            <numerusform>Supprimer la %n numérisation de « %1 » dans %2 et y commencer un nouveau livre ? Les autres fichiers du dossier, comme un PDF exporté, sont conservés. Cette action est irréversible.</numerusform>
+            <numerusform>Supprimer les %n numérisations de « %1 » dans %2 et y commencer un nouveau livre ? Les autres fichiers du dossier, comme un PDF exporté, sont conservés. Cette action est irréversible.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The book folder %1 could not be opened.</source>
+        <translation>Impossible d&apos;ouvrir le dossier du livre %1.</translation>
     </message>
     <message>
         <source>Scanning is not available here.</source>
@@ -16244,6 +16317,10 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>The scanner could not be opened.</source>
         <translation>Le scanner n&apos;a pas pu être ouvert.</translation>
+    </message>
+    <message>
+        <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
+        <translation>Essayez « Utiliser la boîte de dialogue de numérisation du système pour chaque numérisation » à l&apos;étape 1.</translation>
     </message>
     <message>
         <source>Scanning the cover...</source>
@@ -16270,6 +16347,18 @@ Voulez-vous le remplacer ?</translation>
         <translation>La boîte de dialogue de numérisation définit la résolution et le mode de chaque numérisation.</translation>
     </message>
     <message>
+        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
+        <translation>Le livre ouvert atteint les bords de la vitre. Si les deux pages ne tiennent pas sur la vitre, choisissez « Une page par numérisation ».</translation>
+    </message>
+    <message>
+        <source>Front cover</source>
+        <translation>Couverture avant</translation>
+    </message>
+    <message>
+        <source>Back cover</source>
+        <translation>Couverture arrière</translation>
+    </message>
+    <message>
         <source>about %1</source>
         <translation>environ %1</translation>
     </message>
@@ -16294,8 +16383,28 @@ Voulez-vous le remplacer ?</translation>
         <translation>Numérisation %1 terminée.</translation>
     </message>
     <message>
+        <source>Each scan now holds one page.</source>
+        <translation>Chaque numérisation contient maintenant une page.</translation>
+    </message>
+    <message>
+        <source>Each scan now holds two pages.</source>
+        <translation>Chaque numérisation contient maintenant deux pages.</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation>Une page par numérisation : posez la première page face vers le bas sur la vitre, puis appuyez sur « Numériser » (ou Espace).</translation>
+    </message>
+    <message>
         <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
         <translation>Ouvrez le livre aux premières pages, posez-le face vers le bas sur la vitre, puis appuyez sur « Numériser » (ou Espace).</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation>Une page par numérisation : posez la page %1 face vers le bas sur la vitre, puis appuyez sur « Numériser ». Appuyez sur « Terminé » après la dernière page.</translation>
+    </message>
+    <message>
+        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
+        <translation>Tournez aux pages %1 et %2, posez le livre face vers le bas, puis appuyez sur « Numériser ». Appuyez sur « Terminé » après les dernières pages.</translation>
     </message>
     <message numerus="yes">
         <source>Finished (%n page(s))</source>
@@ -16303,14 +16412,6 @@ Voulez-vous le remplacer ?</translation>
             <numerusform>Terminé (%n page)</numerusform>
             <numerusform>Terminé (%n pages)</numerusform>
         </translation>
-    </message>
-    <message>
-        <source>Front cover</source>
-        <translation>Couverture avant</translation>
-    </message>
-    <message>
-        <source>Back cover</source>
-        <translation>Couverture arrière</translation>
     </message>
     <message>
         <source>Blank</source>
@@ -16353,95 +16454,6 @@ Voulez-vous le remplacer ?</translation>
     <message>
         <source>The PDF is written. Keep the scan project folder (%1) so you can change pages and export again later?</source>
         <translation>Le PDF est écrit. Conserver le dossier du projet de numérisation (%1) pour pouvoir modifier des pages et exporter à nouveau plus tard ?</translation>
-    </message>
-    <message>
-        <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
-        <translation>Essayez « Utiliser la boîte de dialogue de numérisation du système pour chaque numérisation » à l&apos;étape 1.</translation>
-    </message>
-    <message>
-        <source>Start Over...</source>
-        <translation>Recommencer...</translation>
-    </message>
-    <message>
-        <source>Delete this folder&apos;s book scans and scan a new book here</source>
-        <translation>Supprimer les numérisations de livre de ce dossier et numériser un nouveau livre ici</translation>
-    </message>
-    <message>
-        <source>Continue This Book</source>
-        <translation>Continuer ce livre</translation>
-    </message>
-    <message>
-        <source>Open Book Folder</source>
-        <translation>Ouvrir le dossier du livre</translation>
-    </message>
-    <message>
-        <source>Show the scans in the file manager. This window stays open.</source>
-        <translation>Affiche les numérisations dans le gestionnaire de fichiers. Cette fenêtre reste ouverte.</translation>
-    </message>
-    <message>
-        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
-        <translation>Ce dossier contient déjà une numérisation de livre. Continuez-la, recommencez ou choisissez un autre dossier.</translation>
-    </message>
-    <message>
-        <source>Untitled</source>
-        <translation>Sans titre</translation>
-    </message>
-    <message numerus="yes">
-        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
-        <translation>
-            <numerusform>Ce dossier contient « %1 » (%n numérisation), prêt à exporter. « Continuer ce livre » permet de le vérifier et de l&apos;exporter ; « Recommencer » supprime ses numérisations pour numériser un nouveau livre ici.</numerusform>
-            <numerusform>Ce dossier contient « %1 » (%n numérisations), prêt à exporter. « Continuer ce livre » permet de le vérifier et de l&apos;exporter ; « Recommencer » supprime ses numérisations pour numériser un nouveau livre ici.</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
-        <translation>
-            <numerusform>Ce dossier contient « %1 » (%n numérisation pour l&apos;instant). « Continuer ce livre » reprend là où vous vous étiez arrêté ; « Recommencer » supprime ses numérisations pour numériser un nouveau livre ici.</numerusform>
-            <numerusform>Ce dossier contient « %1 » (%n numérisations pour l&apos;instant). « Continuer ce livre » reprend là où vous vous étiez arrêté ; « Recommencer » supprime ses numérisations pour numériser un nouveau livre ici.</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>This folder holds a book scan Patchy cannot read: %1</source>
-        <translation>Ce dossier contient une numérisation de livre que Patchy ne peut pas lire : %1</translation>
-    </message>
-    <message>
-        <source>A new book is saved in this folder.</source>
-        <translation>Un nouveau livre sera enregistré dans ce dossier.</translation>
-    </message>
-    <message numerus="yes">
-        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
-        <translation>
-            <numerusform>Supprimer la %n numérisation de « %1 » dans %2 et y commencer un nouveau livre ? Les autres fichiers du dossier, comme un PDF exporté, sont conservés. Cette action est irréversible.</numerusform>
-            <numerusform>Supprimer les %n numérisations de « %1 » dans %2 et y commencer un nouveau livre ? Les autres fichiers du dossier, comme un PDF exporté, sont conservés. Cette action est irréversible.</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>The book folder %1 could not be opened.</source>
-        <translation>Impossible d&apos;ouvrir le dossier du livre %1.</translation>
-    </message>
-    <message>
-        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
-        <translation>Le livre ouvert atteint les bords de la vitre. Si les deux pages ne tiennent pas sur la vitre, choisissez « Une page par numérisation ».</translation>
-    </message>
-    <message>
-        <source>Each scan now holds one page.</source>
-        <translation>Chaque numérisation contient maintenant une page.</translation>
-    </message>
-    <message>
-        <source>Each scan now holds two pages.</source>
-        <translation>Chaque numérisation contient maintenant deux pages.</translation>
-    </message>
-    <message>
-        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
-        <translation>Une page par numérisation : posez la première page face vers le bas sur la vitre, puis appuyez sur « Numériser » (ou Espace).</translation>
-    </message>
-    <message>
-        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
-        <translation>Une page par numérisation : posez la page %1 face vers le bas sur la vitre, puis appuyez sur « Numériser ». Appuyez sur « Terminé » après la dernière page.</translation>
-    </message>
-    <message>
-        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
-        <translation>Tournez aux pages %1 et %2, posez le livre face vers le bas, puis appuyez sur « Numériser ». Appuyez sur « Terminé » après les dernières pages.</translation>
     </message>
 </context>
 <context>
@@ -17018,12 +17030,12 @@ Voulez-vous le remplacer ?</translation>
         <translation>La duplication n&apos;est pas disponible pendant la modification d&apos;une couche en niveaux de gris</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a healing source</source>
-        <translation>%ALT%-clic pour définir une source de correction</translation>
+        <source>%SOURCE_KEY%-click to set a healing source</source>
+        <translation>%SOURCE_KEY%-clic pour définir une source de correction</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a clone source</source>
-        <translation>%ALT%-clic pour définir une source de duplication</translation>
+        <source>%SOURCE_KEY%-click to set a clone source</source>
+        <translation>%SOURCE_KEY%-clic pour définir une source de duplication</translation>
     </message>
     <message>
         <source>Healing brush</source>
@@ -18150,8 +18162,8 @@ Voulez-vous le remplacer ?</translation>
         <translation>Déplacer le point médian du dégradé</translation>
     </message>
     <message>
-        <source>%1 while %ALT% is held</source>
-        <translation>%1 tant que %ALT% est enfoncée</translation>
+        <source>%1 while %SWAP_KEY% is held</source>
+        <translation>%1 tant que %SWAP_KEY% est enfoncée</translation>
     </message>
     <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
@@ -18392,8 +18404,8 @@ Voulez-vous le remplacer ?</translation>
         <translation>Source %1 : non définie</translation>
     </message>
     <message>
-        <source>Not set: %ALT%-click the canvas</source>
-        <translation>Non définie : %ALT%-clic sur le canevas</translation>
+        <source>Not set: %SOURCE_KEY%-click the canvas</source>
+        <translation>Non définie : %SOURCE_KEY%-clic sur le canevas</translation>
     </message>
     <message>
         <source>Aligned is off: every stroke starts at the source point.</source>
@@ -18432,8 +18444,8 @@ Voulez-vous le remplacer ?</translation>
         <translation>Effacer la source</translation>
     </message>
     <message>
-        <source>Clear this source point; %ALT%-click the canvas to set a new one</source>
-        <translation>Efface ce point source ; %ALT%-clic sur le canevas pour en définir un autre</translation>
+        <source>Clear this source point; %SOURCE_KEY%-click the canvas to set a new one</source>
+        <translation>Efface ce point source ; %SOURCE_KEY%-clic sur le canevas pour en définir un autre</translation>
     </message>
     <message>
         <source>Back to 100%, 0 degrees and no flip; the source point stays</source>
@@ -30590,28 +30602,28 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         </translation>
     </message>
     <message>
-        <source>Rectangular Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a square and %ALT% draws from the center.</source>
-        <translation>Rectangle de sélection : faites glisser pour sélectionner. Maj+glisser ajoute, %ALT%+glisser soustrait, Maj+%ALT%+glisser crée une intersection. Sans sélection, Maj trace un carré et %ALT% trace depuis le centre.</translation>
+        <source>Rectangular Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a square and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>Rectangle de sélection : faites glisser pour sélectionner. Maj+glisser ajoute, %SUBTRACT_KEY%+glisser soustrait, Maj+%SUBTRACT_KEY%+glisser crée une intersection. Sans sélection, Maj trace un carré et %SUBTRACT_KEY% trace depuis le centre.</translation>
     </message>
     <message>
-        <source>Elliptical Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a circle and %ALT% draws from the center.</source>
-        <translation>Ellipse de sélection : faites glisser pour sélectionner. Maj+glisser ajoute, %ALT%+glisser soustrait, Maj+%ALT%+glisser crée une intersection. Sans sélection, Maj trace un cercle et %ALT% trace depuis le centre.</translation>
+        <source>Elliptical Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a circle and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>Ellipse de sélection : faites glisser pour sélectionner. Maj+glisser ajoute, %SUBTRACT_KEY%+glisser soustrait, Maj+%SUBTRACT_KEY%+glisser crée une intersection. Sans sélection, Maj trace un cercle et %SUBTRACT_KEY% trace depuis le centre.</translation>
     </message>
     <message>
-        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
-        <translation>Lasso magnétique : cliquez sur un bord et suivez-le ; cliquez pour fixer un point. Commencez par Maj+clic pour ajouter, %ALT%+clic pour soustraire, Maj+%ALT%+clic pour une intersection. Retour arrière retire le dernier point, Entrée ferme, Échap annule.</translation>
+        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
+        <translation>Lasso magnétique : cliquez sur un bord et suivez-le ; cliquez pour fixer un point. Commencez par Maj+clic pour ajouter, %SUBTRACT_KEY%+clic pour soustraire, Maj+%SUBTRACT_KEY%+clic pour une intersection. Retour arrière retire le dernier point, Entrée ferme, Échap annule.</translation>
     </message>
     <message>
-        <source>Magic Wand: click a color to select it. Shift+click adds, %ALT%+click subtracts, Shift+%ALT%+click intersects.</source>
-        <translation>Baguette magique : cliquez sur une couleur pour la sélectionner. Maj+clic ajoute, %ALT%+clic soustrait, Maj+%ALT%+clic crée une intersection.</translation>
+        <source>Magic Wand: click a color to select it. Shift+click adds, %SUBTRACT_KEY%+click subtracts, Shift+%SUBTRACT_KEY%+click intersects.</source>
+        <translation>Baguette magique : cliquez sur une couleur pour la sélectionner. Maj+clic ajoute, %SUBTRACT_KEY%+clic soustrait, Maj+%SUBTRACT_KEY%+clic crée une intersection.</translation>
     </message>
     <message>
-        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>Sélection rapide : peignez sur la zone à sélectionner ; les tracés suivants l&apos;agrandissent. Maj+glisser ajoute, %ALT%+glisser soustrait.</translation>
+        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>Sélection rapide : peignez sur la zone à sélectionner ; les tracés suivants l&apos;agrandissent. Maj+glisser ajoute, %SUBTRACT_KEY%+glisser soustrait.</translation>
     </message>
     <message>
-        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>Sélection d&apos;objet : tracez un cadre autour d&apos;un objet ou cliquez dessus. Maj+glisser ajoute, %ALT%+glisser soustrait.</translation>
+        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>Sélection d&apos;objet : tracez un cadre autour d&apos;un objet ou cliquez dessus. Maj+glisser ajoute, %SUBTRACT_KEY%+glisser soustrait.</translation>
     </message>
     <message>
         <source>Daily</source>
@@ -31049,12 +31061,12 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Cliquez pour placer des points, Maj garde 45 degrés, %ALT%+glisser trace à main levée. Cliquez sur le point de départ, double-cliquez ou appuyez sur Entrée pour fermer.</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
-        <translation>Lasso : faites glisser autour de la zone pour la sélectionner. Maj+glisser ajoute, %ALT%+glisser soustrait, Maj+%ALT%+glisser crée une intersection. Appuyez sur %ALT% pendant le glissement et relâchez le bouton pour cliquer des segments droits jusqu’au relâchement de %ALT%.</translation>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>Lasso : faites glisser autour de la zone pour la sélectionner. Maj+glisser ajoute, %SUBTRACT_KEY%+glisser soustrait, Maj+%SUBTRACT_KEY%+glisser crée une intersection. Appuyez sur %ALT% pendant le glissement et relâchez le bouton pour cliquer des segments droits jusqu’au relâchement de %ALT%.</translation>
     </message>
     <message>
-        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
-        <translation>Lasso polygonal : cliquez pour placer des points. Commencez par Maj+clic pour ajouter, %ALT%+clic pour soustraire, Maj+%ALT%+clic pour une intersection. Maj garde 45 degrés, %ALT%+glisser trace à main levée. Cliquez sur le point de départ, double-cliquez ou appuyez sur Entrée pour fermer ; Retour arrière retire le dernier point, Échap annule.</translation>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>Lasso polygonal : cliquez pour placer des points. Commencez par Maj+clic pour ajouter, %SUBTRACT_KEY%+clic pour soustraire, Maj+%SUBTRACT_KEY%+clic pour une intersection. Maj garde 45 degrés, %ALT%+glisser trace à main levée. Cliquez sur le point de départ, double-cliquez ou appuyez sur Entrée pour fermer ; Retour arrière retire le dernier point, Échap annule.</translation>
     </message>
     <message>
         <source>New &amp;Layer...</source>
@@ -32161,12 +32173,12 @@ Le document ouvert garde ses modes de fusion dans les deux cas.</translation>
         <translation>&amp;Tracé cible</translation>
     </message>
     <message>
-        <source>%1: Shift+click draws a line, %ALT%+click picks a color, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1 : Maj+clic trace une ligne, %ALT%+clic prélève une couleur, %ALT%+glisser avec le bouton droit modifie la taille et la douceur.</translation>
+        <source>%1: Shift+click draws a line, %PICK_KEY%+click picks a color, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1 : Maj+clic trace une ligne, %PICK_KEY%+clic prélève une couleur, %ALT%+glisser avec le bouton droit modifie la taille et la douceur.</translation>
     </message>
     <message>
-        <source>%1: %ALT%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1 : %ALT%+clic définit la source, Maj+clic trace une ligne, %ALT%+glisser avec le bouton droit modifie la taille et la douceur.</translation>
+        <source>%1: %SOURCE_KEY%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1 : %SOURCE_KEY%+clic définit la source, Maj+clic trace une ligne, %ALT%+glisser avec le bouton droit modifie la taille et la douceur.</translation>
     </message>
     <message>
         <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
@@ -34371,8 +34383,8 @@ Verrouillé : %1</translation>
         <translation>Modifier l&apos;étape de couleur</translation>
     </message>
     <message>
-        <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1 : %ALT%+glisser peint avec %2, Maj+clic trace une ligne, %ALT%+glisser avec le bouton droit modifie la taille et la douceur.</translation>
+        <source>%1: %SWAP_KEY%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1 : %SWAP_KEY%+glisser peint avec %2, Maj+clic trace une ligne, %ALT%+glisser avec le bouton droit modifie la taille et la douceur.</translation>
     </message>
     <message>
         <source>Pages as layers</source>

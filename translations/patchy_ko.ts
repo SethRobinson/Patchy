@@ -15038,6 +15038,18 @@ Do you want to replace it?</source>
         <translation>단위</translation>
     </message>
     <message>
+        <source>Needs &quot;Mouse wheel scrolls the palette&quot; on: otherwise these are the only way to reach tools that do not fit.</source>
+        <translation>&quot;넘칠 때 마우스 휠로 팔레트 스크롤&quot;을 켜야 합니다. 끄면 이것이 들어가지 않는 도구에 닿는 유일한 방법입니다.</translation>
+    </message>
+    <message>
+        <source>Show the up and down scroll arrows</source>
+        <translation>위아래 스크롤 화살표 표시</translation>
+    </message>
+    <message>
+        <source>Show the &gt; arrow that opens more columns</source>
+        <translation>열을 더 여는 &gt; 화살표 표시</translation>
+    </message>
+    <message>
         <source>%1 x %2 mm</source>
         <translation>%1 x %2 mm</translation>
     </message>
@@ -15835,10 +15847,6 @@ Do you want to replace it?</source>
         <translation>Patchy 책 스캔</translation>
     </message>
     <message>
-        <source>Book</source>
-        <translation>책</translation>
-    </message>
-    <message>
         <source>Title:</source>
         <translation>제목:</translation>
     </message>
@@ -15875,12 +15883,24 @@ Do you want to replace it?</source>
         <translation>책을 펼쳐 뒤표지, 책등, 앞표지가 모두 유리면에 놓이도록 엎어 놓은 다음 &apos;표지 스캔&apos;을 누르세요. Patchy는 이 스캔으로 책의 크기를 측정합니다. 건너뛰면 처음 몇 페이지로 대신 측정합니다(이 경우 표지는 PDF에 포함되지 않습니다).</translation>
     </message>
     <message>
+        <source>Start Over...</source>
+        <translation>다시 시작...</translation>
+    </message>
+    <message>
+        <source>Delete this folder&apos;s book scans and scan a new book here</source>
+        <translation>이 폴더의 책 스캔을 삭제하고 여기에서 새 책을 스캔합니다</translation>
+    </message>
+    <message>
         <source>Skip Cover</source>
         <translation>표지 건너뛰기</translation>
     </message>
     <message>
         <source>Scan Cover</source>
         <translation>표지 스캔</translation>
+    </message>
+    <message>
+        <source>Continue This Book</source>
+        <translation>이 책 계속하기</translation>
     </message>
     <message>
         <source>Choose Project Folder</source>
@@ -16147,8 +16167,20 @@ Do you want to replace it?</source>
         <translation>이미지 품질:</translation>
     </message>
     <message>
+        <source>Open Book Folder</source>
+        <translation>책 폴더 열기</translation>
+    </message>
+    <message>
+        <source>Show the scans in the file manager. This window stays open.</source>
+        <translation>파일 관리자에서 스캔을 표시합니다. 이 창은 계속 열려 있습니다.</translation>
+    </message>
+    <message>
         <source>Export PDF...</source>
         <translation>PDF 내보내기...</translation>
+    </message>
+    <message>
+        <source>Book</source>
+        <translation>책</translation>
     </message>
     <message>
         <source>Export Book PDF</source>
@@ -16187,8 +16219,46 @@ Do you want to replace it?</source>
         <translation>먼저 프로젝트 폴더를 선택하세요.</translation>
     </message>
     <message>
+        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
+        <translation>이 폴더에는 이미 책 스캔이 있습니다. 계속하거나 다시 시작하거나 다른 폴더를 선택하세요.</translation>
+    </message>
+    <message>
         <source>The project folder %1 could not be created.</source>
         <translation>프로젝트 폴더 %1을(를) 만들 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>제목 없음</translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>이 폴더에는 &apos;%1&apos;(스캔 %n개)이 있으며 내보낼 준비가 되었습니다. &apos;이 책 계속하기&apos;로 검토하고 내보낼 수 있고, &apos;다시 시작&apos;은 스캔을 삭제하여 여기에서 새 책을 스캔할 수 있게 합니다.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>이 폴더에는 &apos;%1&apos;(지금까지 스캔 %n개)이 있습니다. &apos;이 책 계속하기&apos;는 멈춘 곳부터 이어서 진행하고, &apos;다시 시작&apos;은 스캔을 삭제하여 여기에서 새 책을 스캔할 수 있게 합니다.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This folder holds a book scan Patchy cannot read: %1</source>
+        <translation>이 폴더에는 Patchy가 읽을 수 없는 책 스캔이 있습니다: %1</translation>
+    </message>
+    <message>
+        <source>A new book is saved in this folder.</source>
+        <translation>새 책은 이 폴더에 저장됩니다.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
+        <translation>
+            <numerusform>%2에 있는 &apos;%1&apos;의 스캔 %n개를 삭제하고 그곳에서 새 책을 시작할까요? 내보낸 PDF 같은 폴더의 다른 파일은 유지됩니다. 이 작업은 되돌릴 수 없습니다.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The book folder %1 could not be opened.</source>
+        <translation>책 폴더 %1을(를) 열 수 없습니다.</translation>
     </message>
     <message>
         <source>Scanning is not available here.</source>
@@ -16197,6 +16267,10 @@ Do you want to replace it?</source>
     <message>
         <source>The scanner could not be opened.</source>
         <translation>스캐너를 열 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
+        <translation>1단계에서 &apos;스캔할 때마다 시스템 스캔 대화 상자 사용&apos;을 시도해 보세요.</translation>
     </message>
     <message>
         <source>Scanning the cover...</source>
@@ -16223,6 +16297,18 @@ Do you want to replace it?</source>
         <translation>스캔할 때마다 스캔 대화 상자에서 해상도와 모드를 설정합니다.</translation>
     </message>
     <message>
+        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
+        <translation>펼친 책이 유리면 가장자리까지 닿습니다. 두 페이지가 유리면에 모두 들어가지 않으면 &apos;스캔당 1페이지&apos;를 선택하세요.</translation>
+    </message>
+    <message>
+        <source>Front cover</source>
+        <translation>앞표지</translation>
+    </message>
+    <message>
+        <source>Back cover</source>
+        <translation>뒤표지</translation>
+    </message>
+    <message>
         <source>about %1</source>
         <translation>약 %1</translation>
     </message>
@@ -16247,22 +16333,34 @@ Do you want to replace it?</source>
         <translation>스캔 %1 완료.</translation>
     </message>
     <message>
+        <source>Each scan now holds one page.</source>
+        <translation>이제 각 스캔에 1페이지가 들어갑니다.</translation>
+    </message>
+    <message>
+        <source>Each scan now holds two pages.</source>
+        <translation>이제 각 스캔에 2페이지가 들어갑니다.</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation>스캔당 1페이지: 첫 페이지를 유리면에 엎어 놓은 다음 &apos;스캔&apos;(또는 Space)을 누르세요.</translation>
+    </message>
+    <message>
         <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
         <translation>책의 첫 페이지를 펼쳐 유리면에 엎어 놓은 다음 &apos;스캔&apos;(또는 Space)을 누르세요.</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation>스캔당 1페이지: %1페이지를 유리면에 엎어 놓은 다음 &apos;스캔&apos;을 누르세요. 마지막 페이지 후에는 &apos;완료&apos;를 누르세요.</translation>
+    </message>
+    <message>
+        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
+        <translation>%1페이지와 %2페이지를 펼쳐 책을 엎어 놓은 다음 &apos;스캔&apos;을 누르세요. 마지막 페이지 후에는 &apos;완료&apos;를 누르세요.</translation>
     </message>
     <message numerus="yes">
         <source>Finished (%n page(s))</source>
         <translation>
             <numerusform>완료(%n페이지)</numerusform>
         </translation>
-    </message>
-    <message>
-        <source>Front cover</source>
-        <translation>앞표지</translation>
-    </message>
-    <message>
-        <source>Back cover</source>
-        <translation>뒤표지</translation>
     </message>
     <message>
         <source>Blank</source>
@@ -16303,92 +16401,6 @@ Do you want to replace it?</source>
     <message>
         <source>The PDF is written. Keep the scan project folder (%1) so you can change pages and export again later?</source>
         <translation>PDF를 썼습니다. 나중에 페이지를 바꾸고 다시 내보낼 수 있도록 스캔 프로젝트 폴더(%1)를 유지하시겠습니까?</translation>
-    </message>
-    <message>
-        <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
-        <translation>1단계에서 &apos;스캔할 때마다 시스템 스캔 대화 상자 사용&apos;을 시도해 보세요.</translation>
-    </message>
-    <message>
-        <source>Start Over...</source>
-        <translation>다시 시작...</translation>
-    </message>
-    <message>
-        <source>Delete this folder&apos;s book scans and scan a new book here</source>
-        <translation>이 폴더의 책 스캔을 삭제하고 여기에서 새 책을 스캔합니다</translation>
-    </message>
-    <message>
-        <source>Continue This Book</source>
-        <translation>이 책 계속하기</translation>
-    </message>
-    <message>
-        <source>Open Book Folder</source>
-        <translation>책 폴더 열기</translation>
-    </message>
-    <message>
-        <source>Show the scans in the file manager. This window stays open.</source>
-        <translation>파일 관리자에서 스캔을 표시합니다. 이 창은 계속 열려 있습니다.</translation>
-    </message>
-    <message>
-        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
-        <translation>이 폴더에는 이미 책 스캔이 있습니다. 계속하거나 다시 시작하거나 다른 폴더를 선택하세요.</translation>
-    </message>
-    <message>
-        <source>Untitled</source>
-        <translation>제목 없음</translation>
-    </message>
-    <message numerus="yes">
-        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
-        <translation>
-            <numerusform>이 폴더에는 &apos;%1&apos;(스캔 %n개)이 있으며 내보낼 준비가 되었습니다. &apos;이 책 계속하기&apos;로 검토하고 내보낼 수 있고, &apos;다시 시작&apos;은 스캔을 삭제하여 여기에서 새 책을 스캔할 수 있게 합니다.</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
-        <translation>
-            <numerusform>이 폴더에는 &apos;%1&apos;(지금까지 스캔 %n개)이 있습니다. &apos;이 책 계속하기&apos;는 멈춘 곳부터 이어서 진행하고, &apos;다시 시작&apos;은 스캔을 삭제하여 여기에서 새 책을 스캔할 수 있게 합니다.</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>This folder holds a book scan Patchy cannot read: %1</source>
-        <translation>이 폴더에는 Patchy가 읽을 수 없는 책 스캔이 있습니다: %1</translation>
-    </message>
-    <message>
-        <source>A new book is saved in this folder.</source>
-        <translation>새 책은 이 폴더에 저장됩니다.</translation>
-    </message>
-    <message numerus="yes">
-        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
-        <translation>
-            <numerusform>%2에 있는 &apos;%1&apos;의 스캔 %n개를 삭제하고 그곳에서 새 책을 시작할까요? 내보낸 PDF 같은 폴더의 다른 파일은 유지됩니다. 이 작업은 되돌릴 수 없습니다.</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>The book folder %1 could not be opened.</source>
-        <translation>책 폴더 %1을(를) 열 수 없습니다.</translation>
-    </message>
-    <message>
-        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
-        <translation>펼친 책이 유리면 가장자리까지 닿습니다. 두 페이지가 유리면에 모두 들어가지 않으면 &apos;스캔당 1페이지&apos;를 선택하세요.</translation>
-    </message>
-    <message>
-        <source>Each scan now holds one page.</source>
-        <translation>이제 각 스캔에 1페이지가 들어갑니다.</translation>
-    </message>
-    <message>
-        <source>Each scan now holds two pages.</source>
-        <translation>이제 각 스캔에 2페이지가 들어갑니다.</translation>
-    </message>
-    <message>
-        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
-        <translation>스캔당 1페이지: 첫 페이지를 유리면에 엎어 놓은 다음 &apos;스캔&apos;(또는 Space)을 누르세요.</translation>
-    </message>
-    <message>
-        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
-        <translation>스캔당 1페이지: %1페이지를 유리면에 엎어 놓은 다음 &apos;스캔&apos;을 누르세요. 마지막 페이지 후에는 &apos;완료&apos;를 누르세요.</translation>
-    </message>
-    <message>
-        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
-        <translation>%1페이지와 %2페이지를 펼쳐 책을 엎어 놓은 다음 &apos;스캔&apos;을 누르세요. 마지막 페이지 후에는 &apos;완료&apos;를 누르세요.</translation>
     </message>
 </context>
 <context>
@@ -16965,12 +16977,12 @@ Do you want to replace it?</source>
         <translation>회색조 채널을 편집하는 동안 복제를 사용할 수 없습니다.</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a healing source</source>
-        <translation>%ALT%-클릭하여 복구 소스 설정</translation>
+        <source>%SOURCE_KEY%-click to set a healing source</source>
+        <translation>%SOURCE_KEY%-클릭하여 복구 소스 설정</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a clone source</source>
-        <translation>%ALT%-클릭하여 복제 소스 설정</translation>
+        <source>%SOURCE_KEY%-click to set a clone source</source>
+        <translation>%SOURCE_KEY%-클릭하여 복제 소스 설정</translation>
     </message>
     <message>
         <source>Healing brush</source>
@@ -18097,8 +18109,8 @@ Do you want to replace it?</source>
         <translation>그레이디언트 중간점 이동</translation>
     </message>
     <message>
-        <source>%1 while %ALT% is held</source>
-        <translation>%ALT%를 누르는 동안 %1</translation>
+        <source>%1 while %SWAP_KEY% is held</source>
+        <translation>%SWAP_KEY%를 누르는 동안 %1</translation>
     </message>
     <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
@@ -18339,8 +18351,8 @@ Do you want to replace it?</source>
         <translation>소스 %1: 설정 안 됨</translation>
     </message>
     <message>
-        <source>Not set: %ALT%-click the canvas</source>
-        <translation>설정 안 됨: 캔버스를 %ALT%-클릭하세요</translation>
+        <source>Not set: %SOURCE_KEY%-click the canvas</source>
+        <translation>설정 안 됨: 캔버스를 %SOURCE_KEY%-클릭하세요</translation>
     </message>
     <message>
         <source>Aligned is off: every stroke starts at the source point.</source>
@@ -18379,8 +18391,8 @@ Do you want to replace it?</source>
         <translation>소스 지우기</translation>
     </message>
     <message>
-        <source>Clear this source point; %ALT%-click the canvas to set a new one</source>
-        <translation>이 소스 지점을 지웁니다. 새로 설정하려면 캔버스를 %ALT%-클릭하세요</translation>
+        <source>Clear this source point; %SOURCE_KEY%-click the canvas to set a new one</source>
+        <translation>이 소스 지점을 지웁니다. 새로 설정하려면 캔버스를 %SOURCE_KEY%-클릭하세요</translation>
     </message>
     <message>
         <source>Back to 100%, 0 degrees and no flip; the source point stays</source>
@@ -30500,28 +30512,28 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         </translation>
     </message>
     <message>
-        <source>Rectangular Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a square and %ALT% draws from the center.</source>
-        <translation>사각형 선택 윤곽: 드래그하여 선택합니다. Shift+드래그로 추가, %ALT%+드래그로 빼기, Shift+%ALT%+드래그로 교차 영역을 선택합니다. 선택 영역이 없으면 Shift는 정사각형을, %ALT%는 중심에서 그립니다.</translation>
+        <source>Rectangular Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a square and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>사각형 선택 윤곽: 드래그하여 선택합니다. Shift+드래그로 추가, %SUBTRACT_KEY%+드래그로 빼기, Shift+%SUBTRACT_KEY%+드래그로 교차 영역을 선택합니다. 선택 영역이 없으면 Shift는 정사각형을, %SUBTRACT_KEY%는 중심에서 그립니다.</translation>
     </message>
     <message>
-        <source>Elliptical Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a circle and %ALT% draws from the center.</source>
-        <translation>타원형 선택 윤곽: 드래그하여 선택합니다. Shift+드래그로 추가, %ALT%+드래그로 빼기, Shift+%ALT%+드래그로 교차 영역을 선택합니다. 선택 영역이 없으면 Shift는 정원을, %ALT%는 중심에서 그립니다.</translation>
+        <source>Elliptical Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a circle and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>타원형 선택 윤곽: 드래그하여 선택합니다. Shift+드래그로 추가, %SUBTRACT_KEY%+드래그로 빼기, Shift+%SUBTRACT_KEY%+드래그로 교차 영역을 선택합니다. 선택 영역이 없으면 Shift는 정원을, %SUBTRACT_KEY%는 중심에서 그립니다.</translation>
     </message>
     <message>
-        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
-        <translation>자석 올가미: 가장자리를 클릭하고 따라가며, 클릭하면 점이 고정됩니다. 시작할 때 Shift+클릭은 추가, %ALT%+클릭은 빼기, Shift+%ALT%+클릭은 교차입니다. Backspace는 마지막 점을 지우고, Enter는 닫고, Esc는 취소합니다.</translation>
+        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
+        <translation>자석 올가미: 가장자리를 클릭하고 따라가며, 클릭하면 점이 고정됩니다. 시작할 때 Shift+클릭은 추가, %SUBTRACT_KEY%+클릭은 빼기, Shift+%SUBTRACT_KEY%+클릭은 교차입니다. Backspace는 마지막 점을 지우고, Enter는 닫고, Esc는 취소합니다.</translation>
     </message>
     <message>
-        <source>Magic Wand: click a color to select it. Shift+click adds, %ALT%+click subtracts, Shift+%ALT%+click intersects.</source>
-        <translation>자동 선택: 색을 클릭하여 선택합니다. Shift+클릭으로 추가, %ALT%+클릭으로 빼기, Shift+%ALT%+클릭으로 교차 영역을 선택합니다.</translation>
+        <source>Magic Wand: click a color to select it. Shift+click adds, %SUBTRACT_KEY%+click subtracts, Shift+%SUBTRACT_KEY%+click intersects.</source>
+        <translation>자동 선택: 색을 클릭하여 선택합니다. Shift+클릭으로 추가, %SUBTRACT_KEY%+클릭으로 빼기, Shift+%SUBTRACT_KEY%+클릭으로 교차 영역을 선택합니다.</translation>
     </message>
     <message>
-        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>빠른 선택: 선택할 영역 위를 칠합니다. 이후의 획은 선택에 추가됩니다. Shift+드래그로 추가, %ALT%+드래그로 뺍니다.</translation>
+        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>빠른 선택: 선택할 영역 위를 칠합니다. 이후의 획은 선택에 추가됩니다. Shift+드래그로 추가, %SUBTRACT_KEY%+드래그로 뺍니다.</translation>
     </message>
     <message>
-        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>개체 선택: 개체 주위로 상자를 드래그하거나 개체를 클릭합니다. Shift+드래그로 추가, %ALT%+드래그로 뺍니다.</translation>
+        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>개체 선택: 개체 주위로 상자를 드래그하거나 개체를 클릭합니다. Shift+드래그로 추가, %SUBTRACT_KEY%+드래그로 뺍니다.</translation>
     </message>
     <message>
         <source>Daily</source>
@@ -30958,12 +30970,12 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>클릭하여 점을 놓습니다. Shift는 45도를 유지하고 %ALT%+드래그는 자유롭게 그립니다. 시작점을 클릭하거나 더블클릭하거나 Enter를 누르면 닫힙니다.</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
-        <translation>올가미: 영역 주위를 드래그하여 선택합니다. Shift+드래그로 추가, %ALT%+드래그로 빼기, Shift+%ALT%+드래그로 교차 영역을 선택합니다. 드래그 중에 %ALT%를 누르고 버튼을 놓으면 %ALT%를 뗄 때까지 클릭으로 직선 구간을 그립니다.</translation>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>올가미: 영역 주위를 드래그하여 선택합니다. Shift+드래그로 추가, %SUBTRACT_KEY%+드래그로 빼기, Shift+%SUBTRACT_KEY%+드래그로 교차 영역을 선택합니다. 드래그 중에 %ALT%를 누르고 버튼을 놓으면 %ALT%를 뗄 때까지 클릭으로 직선 구간을 그립니다.</translation>
     </message>
     <message>
-        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
-        <translation>다각형 올가미: 클릭하여 점을 놓습니다. 시작할 때 Shift+클릭은 추가, %ALT%+클릭은 빼기, Shift+%ALT%+클릭은 교차입니다. Shift는 45도를 유지하고 %ALT%+드래그는 자유롭게 그립니다. 시작점을 클릭하거나 더블클릭하거나 Enter를 누르면 닫히고, Backspace는 마지막 점을 지우며, Esc는 취소합니다.</translation>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>다각형 올가미: 클릭하여 점을 놓습니다. 시작할 때 Shift+클릭은 추가, %SUBTRACT_KEY%+클릭은 빼기, Shift+%SUBTRACT_KEY%+클릭은 교차입니다. Shift는 45도를 유지하고 %ALT%+드래그는 자유롭게 그립니다. 시작점을 클릭하거나 더블클릭하거나 Enter를 누르면 닫히고, Backspace는 마지막 점을 지우며, Esc는 취소합니다.</translation>
     </message>
     <message>
         <source>New &amp;Layer...</source>
@@ -32069,12 +32081,12 @@ The open document keeps its blend modes either way.</source>
         <translation>대상 패스(&amp;T)</translation>
     </message>
     <message>
-        <source>%1: Shift+click draws a line, %ALT%+click picks a color, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: Shift+클릭으로 직선, %ALT%+클릭으로 색 가져오기, %ALT%+오른쪽 드래그로 크기와 부드러움을 바꿉니다.</translation>
+        <source>%1: Shift+click draws a line, %PICK_KEY%+click picks a color, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: Shift+클릭으로 직선, %PICK_KEY%+클릭으로 색 가져오기, %ALT%+오른쪽 드래그로 크기와 부드러움을 바꿉니다.</translation>
     </message>
     <message>
-        <source>%1: %ALT%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: %ALT%+클릭으로 소스 지정, Shift+클릭으로 직선, %ALT%+오른쪽 드래그로 크기와 부드러움을 바꿉니다.</translation>
+        <source>%1: %SOURCE_KEY%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %SOURCE_KEY%+클릭으로 소스 지정, Shift+클릭으로 직선, %ALT%+오른쪽 드래그로 크기와 부드러움을 바꿉니다.</translation>
     </message>
     <message>
         <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
@@ -34277,8 +34289,8 @@ Locked: %1</source>
         <translation>색상 정지점 변경</translation>
     </message>
     <message>
-        <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: %ALT%+드래그로 %2 적용, Shift+클릭으로 직선, %ALT%+오른쪽 드래그로 크기와 부드러움을 바꿉니다.</translation>
+        <source>%1: %SWAP_KEY%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %SWAP_KEY%+드래그로 %2 적용, Shift+클릭으로 직선, %ALT%+오른쪽 드래그로 크기와 부드러움을 바꿉니다.</translation>
     </message>
     <message>
         <source>Pages as layers</source>

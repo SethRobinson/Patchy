@@ -165,6 +165,7 @@
 #include "ui/document_float_window.hpp"
 #include "ui/font_picker.hpp"
 #include "ui/hotkey_editor.hpp"
+#include "ui/tool_modifier_style.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/color_dock_panel.hpp"
 #include "ui/color_panel.hpp"
@@ -4707,6 +4708,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   default_tab_groups_ = panel_column_->tab_groups();
   install_window_panel_entries();
   hotkey_registry_.apply_to_actions();
+  // The shortcut set's tool modifiers (GitHub issue 302): Alt, or Ctrl for GIMP-style and Krita-style.
+  set_active_tool_modifier_style(load_active_tool_modifier_style());
   hotkeys_phase.end();
   // Script hotkeys must work from the first keypress, before File > Scripts was ever
   // opened: register every script's command now (docs/scripting.md "Script hotkeys").

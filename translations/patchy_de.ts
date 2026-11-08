@@ -15085,6 +15085,18 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Einheiten</translation>
     </message>
     <message>
+        <source>Needs &quot;Mouse wheel scrolls the palette&quot; on: otherwise these are the only way to reach tools that do not fit.</source>
+        <translation>Erfordert „Mausrad scrollt die Palette, wenn sie überläuft“: sonst sind sie der einzige Weg zu Werkzeugen, die nicht hineinpassen.</translation>
+    </message>
+    <message>
+        <source>Show the up and down scroll arrows</source>
+        <translation>Bildlaufpfeile oben und unten anzeigen</translation>
+    </message>
+    <message>
+        <source>Show the &gt; arrow that opens more columns</source>
+        <translation>Pfeil &gt; anzeigen, der weitere Spalten öffnet</translation>
+    </message>
+    <message>
         <source>%1 x %2 mm</source>
         <translation>%1 x %2 mm</translation>
     </message>
@@ -15882,10 +15894,6 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Patchy Buchscans</translation>
     </message>
     <message>
-        <source>Book</source>
-        <translation>Buch</translation>
-    </message>
-    <message>
         <source>Title:</source>
         <translation>Titel:</translation>
     </message>
@@ -15922,12 +15930,24 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Schlagen Sie das Buch auf und legen Sie es mit dem Einband nach unten so auf das Vorlagenglas, dass hinterer Einband, Buchrücken und vorderer Einband darauf liegen. Drücken Sie dann „Einband scannen“. Patchy vermisst das Buch anhand dieses Scans. Überspringen Sie ihn, um stattdessen anhand der ersten Seiten zu messen (die Einbände sind dann nicht im PDF).</translation>
     </message>
     <message>
+        <source>Start Over...</source>
+        <translation>Neu beginnen...</translation>
+    </message>
+    <message>
+        <source>Delete this folder&apos;s book scans and scan a new book here</source>
+        <translation>Die Buchscans dieses Ordners löschen und hier ein neues Buch scannen</translation>
+    </message>
+    <message>
         <source>Skip Cover</source>
         <translation>Einband überspringen</translation>
     </message>
     <message>
         <source>Scan Cover</source>
         <translation>Einband scannen</translation>
+    </message>
+    <message>
+        <source>Continue This Book</source>
+        <translation>Dieses Buch fortsetzen</translation>
     </message>
     <message>
         <source>Choose Project Folder</source>
@@ -16194,8 +16214,20 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Bildqualität:</translation>
     </message>
     <message>
+        <source>Open Book Folder</source>
+        <translation>Buchordner öffnen</translation>
+    </message>
+    <message>
+        <source>Show the scans in the file manager. This window stays open.</source>
+        <translation>Zeigt die Scans im Dateimanager. Dieses Fenster bleibt geöffnet.</translation>
+    </message>
+    <message>
         <source>Export PDF...</source>
         <translation>PDF exportieren...</translation>
+    </message>
+    <message>
+        <source>Book</source>
+        <translation>Buch</translation>
     </message>
     <message>
         <source>Export Book PDF</source>
@@ -16234,8 +16266,49 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Wählen Sie zuerst einen Projektordner.</translation>
     </message>
     <message>
+        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
+        <translation>Dieser Ordner enthält bereits einen Buchscan. Setzen Sie ihn fort, beginnen Sie neu oder wählen Sie einen anderen Ordner.</translation>
+    </message>
+    <message>
         <source>The project folder %1 could not be created.</source>
         <translation>Der Projektordner %1 konnte nicht erstellt werden.</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>Unbenannt</translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>Dieser Ordner enthält „%1“ (%n Scan), bereit zum Export. „Dieses Buch fortsetzen“ prüft und exportiert es; „Neu beginnen“ löscht seine Scans, damit hier ein neues Buch gescannt werden kann.</numerusform>
+            <numerusform>Dieser Ordner enthält „%1“ (%n Scans), bereit zum Export. „Dieses Buch fortsetzen“ prüft und exportiert es; „Neu beginnen“ löscht seine Scans, damit hier ein neues Buch gescannt werden kann.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>Dieser Ordner enthält „%1“ (bisher %n Scan). „Dieses Buch fortsetzen“ macht dort weiter, wo Sie aufgehört haben; „Neu beginnen“ löscht seine Scans, damit hier ein neues Buch gescannt werden kann.</numerusform>
+            <numerusform>Dieser Ordner enthält „%1“ (bisher %n Scans). „Dieses Buch fortsetzen“ macht dort weiter, wo Sie aufgehört haben; „Neu beginnen“ löscht seine Scans, damit hier ein neues Buch gescannt werden kann.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This folder holds a book scan Patchy cannot read: %1</source>
+        <translation>Dieser Ordner enthält einen Buchscan, den Patchy nicht lesen kann: %1</translation>
+    </message>
+    <message>
+        <source>A new book is saved in this folder.</source>
+        <translation>Ein neues Buch wird in diesem Ordner gespeichert.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
+        <translation>
+            <numerusform>Den %n Scan von „%1“ in %2 löschen und dort ein neues Buch beginnen? Andere Dateien im Ordner, etwa ein exportiertes PDF, bleiben erhalten. Dies kann nicht rückgängig gemacht werden.</numerusform>
+            <numerusform>Die %n Scans von „%1“ in %2 löschen und dort ein neues Buch beginnen? Andere Dateien im Ordner, etwa ein exportiertes PDF, bleiben erhalten. Dies kann nicht rückgängig gemacht werden.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The book folder %1 could not be opened.</source>
+        <translation>Der Buchordner %1 konnte nicht geöffnet werden.</translation>
     </message>
     <message>
         <source>Scanning is not available here.</source>
@@ -16244,6 +16317,10 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>The scanner could not be opened.</source>
         <translation>Der Scanner konnte nicht geöffnet werden.</translation>
+    </message>
+    <message>
+        <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
+        <translation>Versuchen Sie „Für jeden Scan den Scandialog des Systems verwenden“ in Schritt 1.</translation>
     </message>
     <message>
         <source>Scanning the cover...</source>
@@ -16270,6 +16347,18 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Der Scandialog legt Auflösung und Modus für jeden Scan fest.</translation>
     </message>
     <message>
+        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
+        <translation>Das aufgeschlagene Buch reicht bis an die Ränder des Vorlagenglases. Wenn nicht beide Seiten auf das Glas passen, wählen Sie „Eine Seite pro Scan“.</translation>
+    </message>
+    <message>
+        <source>Front cover</source>
+        <translation>Vorderer Einband</translation>
+    </message>
+    <message>
+        <source>Back cover</source>
+        <translation>Hinterer Einband</translation>
+    </message>
+    <message>
         <source>about %1</source>
         <translation>etwa %1</translation>
     </message>
@@ -16294,8 +16383,28 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Scan %1 fertig.</translation>
     </message>
     <message>
+        <source>Each scan now holds one page.</source>
+        <translation>Jeder Scan enthält jetzt eine Seite.</translation>
+    </message>
+    <message>
+        <source>Each scan now holds two pages.</source>
+        <translation>Jeder Scan enthält jetzt zwei Seiten.</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation>Eine Seite pro Scan: Legen Sie die erste Seite mit der Vorderseite nach unten auf das Vorlagenglas und drücken Sie dann „Scannen“ (oder die Leertaste).</translation>
+    </message>
+    <message>
         <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
         <translation>Schlagen Sie das Buch bei den ersten Seiten auf, legen Sie es mit den Seiten nach unten auf das Vorlagenglas und drücken Sie dann „Scannen“ (oder die Leertaste).</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation>Eine Seite pro Scan: Legen Sie Seite %1 mit der Vorderseite nach unten auf das Vorlagenglas und drücken Sie dann „Scannen“. Drücken Sie nach der letzten Seite „Fertig“.</translation>
+    </message>
+    <message>
+        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
+        <translation>Blättern Sie zu den Seiten %1 und %2, legen Sie das Buch mit den Seiten nach unten auf das Vorlagenglas und drücken Sie dann „Scannen“. Drücken Sie nach den letzten Seiten „Fertig“.</translation>
     </message>
     <message numerus="yes">
         <source>Finished (%n page(s))</source>
@@ -16303,14 +16412,6 @@ Möchten Sie die Datei ersetzen?</translation>
             <numerusform>Fertig (%n Seite)</numerusform>
             <numerusform>Fertig (%n Seiten)</numerusform>
         </translation>
-    </message>
-    <message>
-        <source>Front cover</source>
-        <translation>Vorderer Einband</translation>
-    </message>
-    <message>
-        <source>Back cover</source>
-        <translation>Hinterer Einband</translation>
     </message>
     <message>
         <source>Blank</source>
@@ -16353,95 +16454,6 @@ Möchten Sie die Datei ersetzen?</translation>
     <message>
         <source>The PDF is written. Keep the scan project folder (%1) so you can change pages and export again later?</source>
         <translation>Das PDF ist geschrieben. Den Scan-Projektordner (%1) behalten, damit Sie später Seiten ändern und erneut exportieren können?</translation>
-    </message>
-    <message>
-        <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
-        <translation>Versuchen Sie „Für jeden Scan den Scandialog des Systems verwenden“ in Schritt 1.</translation>
-    </message>
-    <message>
-        <source>Start Over...</source>
-        <translation>Neu beginnen...</translation>
-    </message>
-    <message>
-        <source>Delete this folder&apos;s book scans and scan a new book here</source>
-        <translation>Die Buchscans dieses Ordners löschen und hier ein neues Buch scannen</translation>
-    </message>
-    <message>
-        <source>Continue This Book</source>
-        <translation>Dieses Buch fortsetzen</translation>
-    </message>
-    <message>
-        <source>Open Book Folder</source>
-        <translation>Buchordner öffnen</translation>
-    </message>
-    <message>
-        <source>Show the scans in the file manager. This window stays open.</source>
-        <translation>Zeigt die Scans im Dateimanager. Dieses Fenster bleibt geöffnet.</translation>
-    </message>
-    <message>
-        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
-        <translation>Dieser Ordner enthält bereits einen Buchscan. Setzen Sie ihn fort, beginnen Sie neu oder wählen Sie einen anderen Ordner.</translation>
-    </message>
-    <message>
-        <source>Untitled</source>
-        <translation>Unbenannt</translation>
-    </message>
-    <message numerus="yes">
-        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
-        <translation>
-            <numerusform>Dieser Ordner enthält „%1“ (%n Scan), bereit zum Export. „Dieses Buch fortsetzen“ prüft und exportiert es; „Neu beginnen“ löscht seine Scans, damit hier ein neues Buch gescannt werden kann.</numerusform>
-            <numerusform>Dieser Ordner enthält „%1“ (%n Scans), bereit zum Export. „Dieses Buch fortsetzen“ prüft und exportiert es; „Neu beginnen“ löscht seine Scans, damit hier ein neues Buch gescannt werden kann.</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
-        <translation>
-            <numerusform>Dieser Ordner enthält „%1“ (bisher %n Scan). „Dieses Buch fortsetzen“ macht dort weiter, wo Sie aufgehört haben; „Neu beginnen“ löscht seine Scans, damit hier ein neues Buch gescannt werden kann.</numerusform>
-            <numerusform>Dieser Ordner enthält „%1“ (bisher %n Scans). „Dieses Buch fortsetzen“ macht dort weiter, wo Sie aufgehört haben; „Neu beginnen“ löscht seine Scans, damit hier ein neues Buch gescannt werden kann.</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>This folder holds a book scan Patchy cannot read: %1</source>
-        <translation>Dieser Ordner enthält einen Buchscan, den Patchy nicht lesen kann: %1</translation>
-    </message>
-    <message>
-        <source>A new book is saved in this folder.</source>
-        <translation>Ein neues Buch wird in diesem Ordner gespeichert.</translation>
-    </message>
-    <message numerus="yes">
-        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
-        <translation>
-            <numerusform>Den %n Scan von „%1“ in %2 löschen und dort ein neues Buch beginnen? Andere Dateien im Ordner, etwa ein exportiertes PDF, bleiben erhalten. Dies kann nicht rückgängig gemacht werden.</numerusform>
-            <numerusform>Die %n Scans von „%1“ in %2 löschen und dort ein neues Buch beginnen? Andere Dateien im Ordner, etwa ein exportiertes PDF, bleiben erhalten. Dies kann nicht rückgängig gemacht werden.</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>The book folder %1 could not be opened.</source>
-        <translation>Der Buchordner %1 konnte nicht geöffnet werden.</translation>
-    </message>
-    <message>
-        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
-        <translation>Das aufgeschlagene Buch reicht bis an die Ränder des Vorlagenglases. Wenn nicht beide Seiten auf das Glas passen, wählen Sie „Eine Seite pro Scan“.</translation>
-    </message>
-    <message>
-        <source>Each scan now holds one page.</source>
-        <translation>Jeder Scan enthält jetzt eine Seite.</translation>
-    </message>
-    <message>
-        <source>Each scan now holds two pages.</source>
-        <translation>Jeder Scan enthält jetzt zwei Seiten.</translation>
-    </message>
-    <message>
-        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
-        <translation>Eine Seite pro Scan: Legen Sie die erste Seite mit der Vorderseite nach unten auf das Vorlagenglas und drücken Sie dann „Scannen“ (oder die Leertaste).</translation>
-    </message>
-    <message>
-        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
-        <translation>Eine Seite pro Scan: Legen Sie Seite %1 mit der Vorderseite nach unten auf das Vorlagenglas und drücken Sie dann „Scannen“. Drücken Sie nach der letzten Seite „Fertig“.</translation>
-    </message>
-    <message>
-        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
-        <translation>Blättern Sie zu den Seiten %1 und %2, legen Sie das Buch mit den Seiten nach unten auf das Vorlagenglas und drücken Sie dann „Scannen“. Drücken Sie nach den letzten Seiten „Fertig“.</translation>
     </message>
 </context>
 <context>
@@ -17018,12 +17030,12 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Kopierstempel ist beim Bearbeiten eines Graustufenkanals nicht verfügbar</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a healing source</source>
-        <translation>Mit %ALT%-Klick eine Reparaturquelle festlegen</translation>
+        <source>%SOURCE_KEY%-click to set a healing source</source>
+        <translation>Mit %SOURCE_KEY%-Klick eine Reparaturquelle festlegen</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a clone source</source>
-        <translation>Mit %ALT%-Klick eine Kopierquelle festlegen</translation>
+        <source>%SOURCE_KEY%-click to set a clone source</source>
+        <translation>Mit %SOURCE_KEY%-Klick eine Kopierquelle festlegen</translation>
     </message>
     <message>
         <source>Healing brush</source>
@@ -18150,8 +18162,8 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Verlaufsmittelpunkt verschieben</translation>
     </message>
     <message>
-        <source>%1 while %ALT% is held</source>
-        <translation>%1, solange %ALT% gedrückt ist</translation>
+        <source>%1 while %SWAP_KEY% is held</source>
+        <translation>%1, solange %SWAP_KEY% gedrückt ist</translation>
     </message>
     <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
@@ -18392,8 +18404,8 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Quelle %1: nicht festgelegt</translation>
     </message>
     <message>
-        <source>Not set: %ALT%-click the canvas</source>
-        <translation>Nicht festgelegt: %ALT%-Klick auf die Arbeitsfläche</translation>
+        <source>Not set: %SOURCE_KEY%-click the canvas</source>
+        <translation>Nicht festgelegt: %SOURCE_KEY%-Klick auf die Arbeitsfläche</translation>
     </message>
     <message>
         <source>Aligned is off: every stroke starts at the source point.</source>
@@ -18432,8 +18444,8 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Quelle löschen</translation>
     </message>
     <message>
-        <source>Clear this source point; %ALT%-click the canvas to set a new one</source>
-        <translation>Diesen Quellpunkt löschen; ein %ALT%-Klick auf die Arbeitsfläche legt einen neuen fest</translation>
+        <source>Clear this source point; %SOURCE_KEY%-click the canvas to set a new one</source>
+        <translation>Diesen Quellpunkt löschen; ein %SOURCE_KEY%-Klick auf die Arbeitsfläche legt einen neuen fest</translation>
     </message>
     <message>
         <source>Back to 100%, 0 degrees and no flip; the source point stays</source>
@@ -30590,28 +30602,28 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         </translation>
     </message>
     <message>
-        <source>Rectangular Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a square and %ALT% draws from the center.</source>
-        <translation>Auswahlrechteck: Ziehen, um auszuwählen. Umschalt+Ziehen fügt hinzu, %ALT%+Ziehen zieht ab, Umschalt+%ALT%+Ziehen bildet die Schnittmenge. Ohne Auswahl zeichnet Umschalt ein Quadrat und %ALT% vom Mittelpunkt aus.</translation>
+        <source>Rectangular Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a square and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>Auswahlrechteck: Ziehen, um auszuwählen. Umschalt+Ziehen fügt hinzu, %SUBTRACT_KEY%+Ziehen zieht ab, Umschalt+%SUBTRACT_KEY%+Ziehen bildet die Schnittmenge. Ohne Auswahl zeichnet Umschalt ein Quadrat und %SUBTRACT_KEY% vom Mittelpunkt aus.</translation>
     </message>
     <message>
-        <source>Elliptical Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a circle and %ALT% draws from the center.</source>
-        <translation>Auswahlellipse: Ziehen, um auszuwählen. Umschalt+Ziehen fügt hinzu, %ALT%+Ziehen zieht ab, Umschalt+%ALT%+Ziehen bildet die Schnittmenge. Ohne Auswahl zeichnet Umschalt einen Kreis und %ALT% vom Mittelpunkt aus.</translation>
+        <source>Elliptical Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a circle and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>Auswahlellipse: Ziehen, um auszuwählen. Umschalt+Ziehen fügt hinzu, %SUBTRACT_KEY%+Ziehen zieht ab, Umschalt+%SUBTRACT_KEY%+Ziehen bildet die Schnittmenge. Ohne Auswahl zeichnet Umschalt einen Kreis und %SUBTRACT_KEY% vom Mittelpunkt aus.</translation>
     </message>
     <message>
-        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
-        <translation>Magnetisches Lasso: Auf eine Kante klicken und ihr folgen; ein Klick setzt einen Punkt. Mit Umschalt+Klick beginnen, um hinzuzufügen, mit %ALT%+Klick, um abzuziehen, mit Umschalt+%ALT%+Klick für die Schnittmenge. Rücktaste entfernt den letzten Punkt, Eingabe schließt, Esc bricht ab.</translation>
+        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
+        <translation>Magnetisches Lasso: Auf eine Kante klicken und ihr folgen; ein Klick setzt einen Punkt. Mit Umschalt+Klick beginnen, um hinzuzufügen, mit %SUBTRACT_KEY%+Klick, um abzuziehen, mit Umschalt+%SUBTRACT_KEY%+Klick für die Schnittmenge. Rücktaste entfernt den letzten Punkt, Eingabe schließt, Esc bricht ab.</translation>
     </message>
     <message>
-        <source>Magic Wand: click a color to select it. Shift+click adds, %ALT%+click subtracts, Shift+%ALT%+click intersects.</source>
-        <translation>Zauberstab: Auf eine Farbe klicken, um sie auszuwählen. Umschalt+Klick fügt hinzu, %ALT%+Klick zieht ab, Umschalt+%ALT%+Klick bildet die Schnittmenge.</translation>
+        <source>Magic Wand: click a color to select it. Shift+click adds, %SUBTRACT_KEY%+click subtracts, Shift+%SUBTRACT_KEY%+click intersects.</source>
+        <translation>Zauberstab: Auf eine Farbe klicken, um sie auszuwählen. Umschalt+Klick fügt hinzu, %SUBTRACT_KEY%+Klick zieht ab, Umschalt+%SUBTRACT_KEY%+Klick bildet die Schnittmenge.</translation>
     </message>
     <message>
-        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>Schnellauswahl: Über den Bereich malen, um ihn auszuwählen; weitere Striche fügen hinzu. Umschalt+Ziehen fügt hinzu, %ALT%+Ziehen zieht ab.</translation>
+        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>Schnellauswahl: Über den Bereich malen, um ihn auszuwählen; weitere Striche fügen hinzu. Umschalt+Ziehen fügt hinzu, %SUBTRACT_KEY%+Ziehen zieht ab.</translation>
     </message>
     <message>
-        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>Objektauswahl: Einen Rahmen um ein Objekt ziehen oder darauf klicken. Umschalt+Ziehen fügt hinzu, %ALT%+Ziehen zieht ab.</translation>
+        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>Objektauswahl: Einen Rahmen um ein Objekt ziehen oder darauf klicken. Umschalt+Ziehen fügt hinzu, %SUBTRACT_KEY%+Ziehen zieht ab.</translation>
     </message>
     <message>
         <source>Daily</source>
@@ -31049,12 +31061,12 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <translation>Klicken, um Punkte zu setzen, Umschalt hält 45 Grad ein, %ALT%+Ziehen zeichnet freihand. Zum Schließen auf den Startpunkt klicken, doppelklicken oder Eingabe drücken.</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
-        <translation>Lasso: Um den Bereich ziehen, um ihn auszuwählen. Umschalt+Ziehen fügt hinzu, %ALT%+Ziehen zieht ab, Umschalt+%ALT%+Ziehen bildet die Schnittmenge. Während des Ziehens %ALT% drücken und die Maustaste loslassen, um gerade Segmente zu klicken, bis %ALT% losgelassen wird.</translation>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>Lasso: Um den Bereich ziehen, um ihn auszuwählen. Umschalt+Ziehen fügt hinzu, %SUBTRACT_KEY%+Ziehen zieht ab, Umschalt+%SUBTRACT_KEY%+Ziehen bildet die Schnittmenge. Während des Ziehens %ALT% drücken und die Maustaste loslassen, um gerade Segmente zu klicken, bis %ALT% losgelassen wird.</translation>
     </message>
     <message>
-        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
-        <translation>Polygon-Lasso: Klicken, um Punkte zu setzen. Mit Umschalt+Klick beginnen, um hinzuzufügen, mit %ALT%+Klick, um abzuziehen, mit Umschalt+%ALT%+Klick für die Schnittmenge. Umschalt hält 45 Grad ein, %ALT%+Ziehen zeichnet freihand. Zum Schließen auf den Startpunkt klicken, doppelklicken oder Eingabe drücken; Rücktaste entfernt den letzten Punkt, Esc bricht ab.</translation>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>Polygon-Lasso: Klicken, um Punkte zu setzen. Mit Umschalt+Klick beginnen, um hinzuzufügen, mit %SUBTRACT_KEY%+Klick, um abzuziehen, mit Umschalt+%SUBTRACT_KEY%+Klick für die Schnittmenge. Umschalt hält 45 Grad ein, %ALT%+Ziehen zeichnet freihand. Zum Schließen auf den Startpunkt klicken, doppelklicken oder Eingabe drücken; Rücktaste entfernt den letzten Punkt, Esc bricht ab.</translation>
     </message>
     <message>
         <source>New &amp;Layer...</source>
@@ -32161,12 +32173,12 @@ Das geöffnete Dokument behält seine Füllmethoden in beiden Fällen.</translat
         <translation>Ziel&amp;pfad</translation>
     </message>
     <message>
-        <source>%1: Shift+click draws a line, %ALT%+click picks a color, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: Umschalt+Klick zeichnet eine Linie, %ALT%+Klick nimmt eine Farbe auf, %ALT%+Rechtsziehen ändert Größe und Weichheit.</translation>
+        <source>%1: Shift+click draws a line, %PICK_KEY%+click picks a color, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: Umschalt+Klick zeichnet eine Linie, %PICK_KEY%+Klick nimmt eine Farbe auf, %ALT%+Rechtsziehen ändert Größe und Weichheit.</translation>
     </message>
     <message>
-        <source>%1: %ALT%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: %ALT%+Klick legt die Quelle fest, Umschalt+Klick zeichnet eine Linie, %ALT%+Rechtsziehen ändert Größe und Weichheit.</translation>
+        <source>%1: %SOURCE_KEY%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %SOURCE_KEY%+Klick legt die Quelle fest, Umschalt+Klick zeichnet eine Linie, %ALT%+Rechtsziehen ändert Größe und Weichheit.</translation>
     </message>
     <message>
         <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
@@ -34371,8 +34383,8 @@ Fixiert: %1</translation>
         <translation>Farbunterbrechung ändern</translation>
     </message>
     <message>
-        <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: %ALT%+Ziehen malt mit %2, Umschalt+Klick zeichnet eine Linie, %ALT%+Rechtsziehen ändert Größe und Weichheit.</translation>
+        <source>%1: %SWAP_KEY%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %SWAP_KEY%+Ziehen malt mit %2, Umschalt+Klick zeichnet eine Linie, %ALT%+Rechtsziehen ändert Größe und Weichheit.</translation>
     </message>
     <message>
         <source>Pages as layers</source>

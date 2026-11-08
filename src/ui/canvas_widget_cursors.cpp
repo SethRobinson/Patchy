@@ -9,6 +9,7 @@
 #include "core/pixel_tools.hpp"
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget_shared.hpp"
+#include "ui/tool_modifier_style.hpp"
 #include "ui/theme_script_host.hpp"
 #include "ui/tool_cursors.hpp"
 
@@ -484,7 +485,8 @@ void CanvasWidget::update_tool_cursor() {
   // standalone Eyedropper tool uses the same cursor unconditionally.
   const bool alt_held = alt_color_pick_cursor_override_.has_value()
                             ? *alt_color_pick_cursor_override_
-                            : (QApplication::keyboardModifiers() & Qt::AltModifier) != 0;
+                            : tool_modifier_held(ToolModifierRole::ColorPick, tool_,
+                                                 QApplication::keyboardModifiers());
   if (tool_ == CanvasTool::Eyedropper) {
     // The badge names the color a click sets, Alt inverting the Sets option.
     setCursor(eyedropper_target_cursor(
@@ -492,11 +494,13 @@ void CanvasWidget::update_tool_cursor() {
     return;
   }
   if (tool_has_ctrl_temporary_move(tool_) && !painting_) {
-    // Every painting tool's temporary Move under Ctrl (GitHub issues 380, 421), checked
-    // before the Alt eyedropper: Ctrl+Alt is not the Move.
+    // Every painting tool's temporary Move under Ctrl (GitHub issues 380, 421; Alt where the
+    // tool modifiers put the pick or source on Ctrl, issue 302), checked before the
+    // eyedropper: Ctrl+Alt is not the Move.
     const auto modifiers = retouch_cursor_modifier_override_.value_or(QApplication::keyboardModifiers());
+    const auto move_modifier = tool_modifier(ToolModifierRole::TemporaryMove, tool_);
     if (moving_layer_ || move_drag_pending_ || paint_ctrl_click_.has_value() ||
-        ((modifiers & Qt::ControlModifier) != 0 && (modifiers & Qt::AltModifier) == 0)) {
+        (modifiers.testFlag(move_modifier) && !modifiers.testFlag(other_tool_modifier(move_modifier)))) {
       setCursor(Qt::SizeAllCursor);
       return;
     }
@@ -509,7 +513,7 @@ void CanvasWidget::update_tool_cursor() {
     // Clone and Healing (GitHub issue 380): the source cursor under Alt, and the
     // not-allowed cursor where a press would be refused.
     const auto modifiers = retouch_cursor_modifier_override_.value_or(QApplication::keyboardModifiers());
-    if ((modifiers & Qt::AltModifier) != 0) {
+    if (tool_modifier_held(ToolModifierRole::RetouchSource, tool_, modifiers)) {
       static const QCursor source_cursor = build_retouch_source_cursor();
       setCursor(source_cursor);
       return;

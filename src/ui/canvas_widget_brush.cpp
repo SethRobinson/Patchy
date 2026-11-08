@@ -423,6 +423,35 @@ constexpr double sharpen_lightness(double red, double green, double blue) noexce
   return (54.0 * red + 183.0 * green + 19.0 * blue) / 256.0;
 }
 
+}  // namespace
+
+// The Dodge or Burn curve of the current Range and Protect Tones setting, sampled at every
+// value the 8-bit walk reads it at, kept until the setting changes (GitHub #660).
+const CanvasWidget::DodgeBurnStrokeTable& CanvasWidget::dodge_burn_stroke_table(bool dodge) {
+  const auto& knots = dodge_burn_knots(dodge, local_tone_range_, local_protect_tones_);
+  auto& table = dodge_burn_stroke_table_;
+  if (table.knots == &knots && table.protect_tones == local_protect_tones_) {
+    return table;
+  }
+  table.knots = &knots;
+  table.protect_tones = local_protect_tones_;
+  if (local_protect_tones_) {
+    table.lightness_change.resize(54 * 255 + 183 * 255 + 19 * 255 + 1);
+    for (std::size_t sum = 0; sum < table.lightness_change.size(); ++sum) {
+      table.lightness_change[sum] = dodge_burn::curve_at(knots, static_cast<double>(sum) / (256.0 * 255.0));
+    }
+  } else {
+    for (int value = 0; value < 256; ++value) {
+      const auto level = static_cast<double>(value);
+      table.channel[static_cast<std::size_t>(value)] =
+          clamp_byte(static_cast<float>(level + dodge_burn::curve_at(knots, level / 255.0)));
+    }
+  }
+  return table;
+}
+
+namespace {
+
 // One row of a stroke segment and the runs of it a CloneSegmentRows walk visits.
 struct SegmentRowRuns {
   int y{0};
@@ -1427,6 +1456,8 @@ void CanvasWidget::clear_brush_stroke_tracking() noexcept {
   local_adjustment_alt_swap_ = false;
   toning_dab_placed_ = false;
   toning_dab_distance_ = 0.0;
+  toning_pending_point_.reset();
+  toning_tail_timer_.stop();
   brush_stroke_paint_mode_ = {};
   brush_stroke_last_stamp_position_.reset();
   brush_stroke_hard_round_end_.reset();
@@ -1617,9 +1648,13 @@ bool CanvasWidget::tool_supports_shift_click_stroke_connect(CanvasTool tool) noe
 
 std::optional<QLineF> CanvasWidget::stroke_connect_preview_line() const {
   // Shift alone: Ctrl is the painting tools' temporary Move and Alt picks a color
-  // or sets a clone source, so a click with either would not draw this line.
+  // or sets a clone source, so a click with either would not draw this line. On Dodge,
+  // Burn, Blur and Sharpen Alt swaps the tool instead (GitHub issue 662), and
+  // Alt+Shift+click draws the swapped tool's line, so the line shows with Alt too.
   const auto held = stroke_connect_preview_modifiers_ & (Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier);
-  if (held != Qt::ShiftModifier || !stroke_connect_preview_pointer_inside_ || !last_stroke_end_document_.has_value() ||
+  const auto alt_swaps = alt_swapped_toning_tool(effective_tool_for_input()) != effective_tool_for_input();
+  const auto line_modifiers = held == Qt::ShiftModifier || (alt_swaps && held == (Qt::ShiftModifier | Qt::AltModifier));
+  if (!line_modifiers || !stroke_connect_preview_pointer_inside_ || !last_stroke_end_document_.has_value() ||
       document_ == nullptr || painting_ || spacebar_panning_ || panning_ || brush_adjust_dragging_ ||
       move_drag_pending_ || moving_layer_ || !isVisible() || transient_read_callback_ ||
       !tool_supports_shift_click_stroke_connect(effective_tool_for_input())) {
@@ -2976,8 +3011,10 @@ QRect CanvasWidget::blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasToo
     return {};
   }
   const bool sharpen = operation == CanvasTool::SharpenBrush;
-  const bool spread_alpha =
-      !sharpen && std::as_const(*layer).pixels().format().channels >= 4 && !active_layer_locks_transparent_pixels();
+  const bool layer_alpha_free =
+      std::as_const(*layer).pixels().format().channels >= 4 && !active_layer_locks_transparent_pixels();
+  const bool spread_alpha = !sharpen && layer_alpha_free;
+  const bool sharpen_alpha = sharpen && layer_alpha_free;
   if (spread_alpha) {
     // Grow the layer to the segment's dabs and the kernel's reach, clipped to the canvas, so a
     // blur past the layer's stored edge has pixels to spread into.
@@ -3124,6 +3161,7 @@ QRect CanvasWidget::blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasToo
             continue;
           }
           if (sharpen) {
+            // `weights` ends as the 21-tap blur of alpha (0..1): the kernel sums to 1.
             double weighted = 0.0;
             double weights = 0.0;
             for (int k = -kSharpenRadius; k <= kSharpenRadius; ++k) {
@@ -3147,6 +3185,15 @@ QRect CanvasWidget::blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasToo
             for (std::size_t channel = 0; channel < 3U; ++channel) {
               // The same change on every channel, so the pixel keeps its color unless it clips.
               value[channel] = decode(std::clamp(center[channel] + change * amount, 0.0, 255.0));
+            }
+            if (sharpen_alpha) {
+              // Alpha takes the same step against its own blur, so a soft edge against
+              // transparency steepens (desk card local-039 follow-up). A transparent pixel
+              // never rises: its alpha is at or below any blur of it.
+              const auto alpha_change = kSharpenGain * (center[3] - weights * 255.0);
+              if (std::abs(alpha_change) > 1e-9) {
+                value[3] = static_cast<float>(std::clamp(center[3] + alpha_change * amount, 0.0, 255.0));
+              }
             }
             store_pixel(format, destination, value);
             if (palette_snap != nullptr) {
@@ -3215,6 +3262,7 @@ QRect CanvasWidget::blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasToo
     constexpr std::int64_t kParallelPixels = 8192;
     constexpr int kMinRowsPerBand = 16;
     const auto dab_pixels = static_cast<std::int64_t>(dab_rect.width()) * dab_rect.height();
+    render_cache_diagnostics_.toning_segment_pixels += dab_pixels;
     auto workers = 1;
     if (dab_pixels >= kParallelPixels && dab_rect.height() >= 2 * kMinRowsPerBand &&
         !qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED")) {
@@ -3309,10 +3357,12 @@ QRect CanvasWidget::local_adjustment_brush_segment(QPoint from, QPoint to) {
     return {};
   }
 
+  // Every pixel the walk visits lies in the layer (stroke_rect), so the snapshot is read by row.
+  const auto* source_bytes = std::as_const(source_pixels).data().data();
+  const auto source_stride = source_pixels.stride_bytes();
   const auto source_pixel = [&](int document_x, int document_y) {
-    const auto x = std::clamp(document_x, layer_rect.left(), layer_rect.right()) - snapshot.bounds.x;
-    const auto y = std::clamp(document_y, layer_rect.top(), layer_rect.bottom()) - snapshot.bounds.y;
-    const auto* pixel = source_pixels.pixel(x, y);
+    const auto* pixel = source_bytes + static_cast<std::size_t>(document_y - snapshot.bounds.y) * source_stride +
+                        static_cast<std::size_t>(document_x - snapshot.bounds.x) * channels;
     return std::array<std::uint8_t, 4>{pixel[0], pixel[1], pixel[2],
                                        channels >= 4 ? pixel[3] : std::uint8_t{255}};
   };
@@ -3323,28 +3373,35 @@ QRect CanvasWidget::local_adjustment_brush_segment(QPoint from, QPoint to) {
   // US 9142009, and the abandoned US 2007/0188510 all cover variants of those
   // adaptive techniques. The brush footprint alone chooses which pixels change.
   const auto operation = local_adjustment_operation();
+  // The Range's calibrated curve (GitHub #661), sampled once per stroke at every value it can be
+  // read at (GitHub #660): with Protect Tones the lightness change for every 54R + 183G + 19B,
+  // without it each channel's adjusted byte. The same doubles curve_at gives per pixel.
+  const auto* tone_table = (operation == CanvasTool::Dodge || operation == CanvasTool::Burn)
+                               ? &dodge_burn_stroke_table(operation == CanvasTool::Dodge)
+                               : nullptr;
   const auto adjusted_source_pixel = [&](QPoint point) {
     const auto center = source_pixel(point.x(), point.y());
     std::array<std::uint8_t, 3> result{center[0], center[1], center[2]};
 
+    if (tone_table != nullptr) {
+      if (local_protect_tones_) {
+        const auto lightness_change =
+            tone_table->lightness_change[static_cast<std::size_t>(54 * center[0] + 183 * center[1] + 19 * center[2])];
+        for (std::size_t channel = 0; channel < result.size(); ++channel) {
+          result[channel] = clamp_byte(static_cast<float>(static_cast<double>(center[channel]) + lightness_change));
+        }
+      } else {
+        for (std::size_t channel = 0; channel < result.size(); ++channel) {
+          result[channel] = tone_table->channel[center[channel]];
+        }
+      }
+      return result;
+    }
 
     const auto red = static_cast<double>(center[0]);
     const auto green = static_cast<double>(center[1]);
     const auto blue = static_cast<double>(center[2]);
     const auto lightness = (54.0 * red + 183.0 * green + 19.0 * blue) / (256.0 * 255.0);
-    if (operation == CanvasTool::Dodge || operation == CanvasTool::Burn) {
-      // The Range's calibrated curve (GitHub #661): with Protect Tones the lightness
-      // change moves every channel alike; without it each channel follows the curve.
-      const auto& knots = dodge_burn_knots(operation == CanvasTool::Dodge, local_tone_range_, local_protect_tones_);
-      const auto lightness_change = local_protect_tones_ ? dodge_burn::curve_at(knots, lightness) : 0.0;
-      for (std::size_t channel = 0; channel < result.size(); ++channel) {
-        const auto value = static_cast<double>(center[channel]);
-        const auto adjusted =
-            value + (local_protect_tones_ ? lightness_change : dodge_burn::curve_at(knots, value / 255.0));
-        result[channel] = clamp_byte(static_cast<float>(adjusted));
-      }
-      return result;
-    }
 
     if (operation == CanvasTool::Sponge) {
       const auto maximum = static_cast<double>(std::max({center[0], center[1], center[2]}));
@@ -3448,6 +3505,7 @@ QRect CanvasWidget::local_adjustment_brush_segment(QPoint from, QPoint to) {
                               full_coverage_radius(radius, brush.softness));
   std::int64_t segment_pixels = 0;
   const auto segment_rows = segment_row_runs(rows, stroke_rect, segment_pixels);
+  render_cache_diagnostics_.toning_segment_pixels += segment_pixels;
   const auto paint_row = [&](const SegmentRowRuns& row, auto& cap_at) -> QRect {
     auto row_dirty_left = std::numeric_limits<int>::max();
     auto row_dirty_right = std::numeric_limits<int>::min();
@@ -3607,6 +3665,7 @@ QRect CanvasWidget::local_adjustment_brush_segment_deep(QPoint from, QPoint to) 
                               full_coverage_radius(radius, brush.softness));
   std::int64_t segment_pixels = 0;
   const auto segment_rows = segment_row_runs(rows, stroke_rect, segment_pixels);
+  render_cache_diagnostics_.toning_segment_pixels += segment_pixels;
   const auto paint_row = [&](const SegmentRowRuns& row, auto& cap_at) -> QRect {
     auto row_dirty_left = std::numeric_limits<int>::max();
     auto row_dirty_right = std::numeric_limits<int>::min();

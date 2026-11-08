@@ -5,8 +5,20 @@
 #include <QFormLayout>
 #include <QIcon>
 #include <QStyleOptionSpinBox>
+#include <QWidget>
 
 namespace patchy::ui {
+
+int AppStyle::pixelMetric(PixelMetric metric, const QStyleOption* option, const QWidget* widget) const {
+  // QToolBarLayout asks with the bar, QToolBarExtension::sizeHint with the button itself.
+  if (metric == PM_ToolBarExtensionExtent && widget != nullptr) {
+    const auto* bar = widget->property(kToolBarExtensionHiddenProperty).isValid() ? widget : widget->parentWidget();
+    if (bar != nullptr && bar->property(kToolBarExtensionHiddenProperty).toBool()) {
+      return 0;
+    }
+  }
+  return QProxyStyle::pixelMetric(metric, option, widget);
+}
 
 int AppStyle::styleHint(StyleHint hint, const QStyleOption* option, const QWidget* widget,
                         QStyleHintReturn* return_data) const {

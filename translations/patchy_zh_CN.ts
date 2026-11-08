@@ -15038,6 +15038,18 @@ Do you want to replace it?</source>
         <translation>单位</translation>
     </message>
     <message>
+        <source>Needs &quot;Mouse wheel scrolls the palette&quot; on: otherwise these are the only way to reach tools that do not fit.</source>
+        <translation>需要开启“放不下时用鼠标滚轮滚动面板”：否则只能靠它们找到放不下的工具。</translation>
+    </message>
+    <message>
+        <source>Show the up and down scroll arrows</source>
+        <translation>显示上下滚动箭头</translation>
+    </message>
+    <message>
+        <source>Show the &gt; arrow that opens more columns</source>
+        <translation>显示用于展开更多列的 &gt; 箭头</translation>
+    </message>
+    <message>
         <source>%1 x %2 mm</source>
         <translation>%1 x %2 mm</translation>
     </message>
@@ -15835,10 +15847,6 @@ Do you want to replace it?</source>
         <translation>Patchy 书籍扫描</translation>
     </message>
     <message>
-        <source>Book</source>
-        <translation>书籍</translation>
-    </message>
-    <message>
         <source>Title:</source>
         <translation>书名:</translation>
     </message>
@@ -15875,12 +15883,24 @@ Do you want to replace it?</source>
         <translation>打开书本，将其正面朝下放在玻璃板上，使封底、书脊和封面都在玻璃板上，然后按“扫描封面”。Patchy 会根据这次扫描测量书本。跳过此步骤则改为根据前几页测量（这样封面不会包含在 PDF 中）。</translation>
     </message>
     <message>
+        <source>Start Over...</source>
+        <translation>重新开始...</translation>
+    </message>
+    <message>
+        <source>Delete this folder&apos;s book scans and scan a new book here</source>
+        <translation>删除此文件夹中的书籍扫描，并在这里扫描新书</translation>
+    </message>
+    <message>
         <source>Skip Cover</source>
         <translation>跳过封面</translation>
     </message>
     <message>
         <source>Scan Cover</source>
         <translation>扫描封面</translation>
+    </message>
+    <message>
+        <source>Continue This Book</source>
+        <translation>继续这本书</translation>
     </message>
     <message>
         <source>Choose Project Folder</source>
@@ -16147,8 +16167,20 @@ Do you want to replace it?</source>
         <translation>图像品质:</translation>
     </message>
     <message>
+        <source>Open Book Folder</source>
+        <translation>打开书籍文件夹</translation>
+    </message>
+    <message>
+        <source>Show the scans in the file manager. This window stays open.</source>
+        <translation>在文件管理器中显示扫描。此窗口保持打开。</translation>
+    </message>
+    <message>
         <source>Export PDF...</source>
         <translation>导出 PDF...</translation>
+    </message>
+    <message>
+        <source>Book</source>
+        <translation>书籍</translation>
     </message>
     <message>
         <source>Export Book PDF</source>
@@ -16187,8 +16219,46 @@ Do you want to replace it?</source>
         <translation>请先选择项目文件夹。</translation>
     </message>
     <message>
+        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
+        <translation>该文件夹已包含书籍扫描。请继续扫描、重新开始或选择其他文件夹。</translation>
+    </message>
+    <message>
         <source>The project folder %1 could not be created.</source>
         <translation>无法创建项目文件夹 %1。</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>无标题</translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>此文件夹包含“%1”（%n 次扫描），可以导出。“继续这本书”可检查并导出它；“重新开始”会删除其扫描，以便在这里扫描新书。</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>此文件夹包含“%1”（目前已扫描 %n 次）。“继续这本书”从上次停下的地方继续；“重新开始”会删除其扫描，以便在这里扫描新书。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This folder holds a book scan Patchy cannot read: %1</source>
+        <translation>此文件夹包含 Patchy 无法读取的书籍扫描：%1</translation>
+    </message>
+    <message>
+        <source>A new book is saved in this folder.</source>
+        <translation>新书将保存在此文件夹中。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
+        <translation>
+            <numerusform>删除 %2 中“%1”的 %n 次扫描，并在那里开始新书？文件夹中的其他文件（例如导出的 PDF）会保留。此操作无法撤消。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The book folder %1 could not be opened.</source>
+        <translation>无法打开书籍文件夹 %1。</translation>
     </message>
     <message>
         <source>Scanning is not available here.</source>
@@ -16197,6 +16267,10 @@ Do you want to replace it?</source>
     <message>
         <source>The scanner could not be opened.</source>
         <translation>无法打开扫描仪。</translation>
+    </message>
+    <message>
+        <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
+        <translation>请在第 1 步中尝试“每次扫描都使用系统扫描对话框”。</translation>
     </message>
     <message>
         <source>Scanning the cover...</source>
@@ -16223,6 +16297,18 @@ Do you want to replace it?</source>
         <translation>每次扫描的分辨率和模式由扫描对话框设置。</translation>
     </message>
     <message>
+        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
+        <translation>打开的书已到达玻璃板边缘。如果两页无法同时放在玻璃板上，请选择“每次扫描一页”。</translation>
+    </message>
+    <message>
+        <source>Front cover</source>
+        <translation>封面</translation>
+    </message>
+    <message>
+        <source>Back cover</source>
+        <translation>封底</translation>
+    </message>
+    <message>
         <source>about %1</source>
         <translation>约 %1</translation>
     </message>
@@ -16247,22 +16333,34 @@ Do you want to replace it?</source>
         <translation>第 %1 次扫描完成。</translation>
     </message>
     <message>
+        <source>Each scan now holds one page.</source>
+        <translation>现在每次扫描包含一页。</translation>
+    </message>
+    <message>
+        <source>Each scan now holds two pages.</source>
+        <translation>现在每次扫描包含两页。</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation>每次扫描一页：将第一页正面朝下放在玻璃板上，然后按“扫描”（或空格键）。</translation>
+    </message>
+    <message>
         <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
         <translation>将书本翻开到最前面几页，正面朝下放在玻璃板上，然后按“扫描”（或空格键）。</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation>每次扫描一页：将第 %1 页正面朝下放在玻璃板上，然后按“扫描”。最后一页之后按“完成”。</translation>
+    </message>
+    <message>
+        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
+        <translation>翻到第 %1 页和第 %2 页，将书正面朝下放好，然后按“扫描”。最后几页之后按“完成”。</translation>
     </message>
     <message numerus="yes">
         <source>Finished (%n page(s))</source>
         <translation>
             <numerusform>完成（%n 页）</numerusform>
         </translation>
-    </message>
-    <message>
-        <source>Front cover</source>
-        <translation>封面</translation>
-    </message>
-    <message>
-        <source>Back cover</source>
-        <translation>封底</translation>
     </message>
     <message>
         <source>Blank</source>
@@ -16303,92 +16401,6 @@ Do you want to replace it?</source>
     <message>
         <source>The PDF is written. Keep the scan project folder (%1) so you can change pages and export again later?</source>
         <translation>PDF 已写入。是否保留扫描项目文件夹（%1），以便以后更改页面并再次导出？</translation>
-    </message>
-    <message>
-        <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
-        <translation>请在第 1 步中尝试“每次扫描都使用系统扫描对话框”。</translation>
-    </message>
-    <message>
-        <source>Start Over...</source>
-        <translation>重新开始...</translation>
-    </message>
-    <message>
-        <source>Delete this folder&apos;s book scans and scan a new book here</source>
-        <translation>删除此文件夹中的书籍扫描，并在这里扫描新书</translation>
-    </message>
-    <message>
-        <source>Continue This Book</source>
-        <translation>继续这本书</translation>
-    </message>
-    <message>
-        <source>Open Book Folder</source>
-        <translation>打开书籍文件夹</translation>
-    </message>
-    <message>
-        <source>Show the scans in the file manager. This window stays open.</source>
-        <translation>在文件管理器中显示扫描。此窗口保持打开。</translation>
-    </message>
-    <message>
-        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
-        <translation>该文件夹已包含书籍扫描。请继续扫描、重新开始或选择其他文件夹。</translation>
-    </message>
-    <message>
-        <source>Untitled</source>
-        <translation>无标题</translation>
-    </message>
-    <message numerus="yes">
-        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
-        <translation>
-            <numerusform>此文件夹包含“%1”（%n 次扫描），可以导出。“继续这本书”可检查并导出它；“重新开始”会删除其扫描，以便在这里扫描新书。</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
-        <translation>
-            <numerusform>此文件夹包含“%1”（目前已扫描 %n 次）。“继续这本书”从上次停下的地方继续；“重新开始”会删除其扫描，以便在这里扫描新书。</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>This folder holds a book scan Patchy cannot read: %1</source>
-        <translation>此文件夹包含 Patchy 无法读取的书籍扫描：%1</translation>
-    </message>
-    <message>
-        <source>A new book is saved in this folder.</source>
-        <translation>新书将保存在此文件夹中。</translation>
-    </message>
-    <message numerus="yes">
-        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
-        <translation>
-            <numerusform>删除 %2 中“%1”的 %n 次扫描，并在那里开始新书？文件夹中的其他文件（例如导出的 PDF）会保留。此操作无法撤消。</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>The book folder %1 could not be opened.</source>
-        <translation>无法打开书籍文件夹 %1。</translation>
-    </message>
-    <message>
-        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
-        <translation>打开的书已到达玻璃板边缘。如果两页无法同时放在玻璃板上，请选择“每次扫描一页”。</translation>
-    </message>
-    <message>
-        <source>Each scan now holds one page.</source>
-        <translation>现在每次扫描包含一页。</translation>
-    </message>
-    <message>
-        <source>Each scan now holds two pages.</source>
-        <translation>现在每次扫描包含两页。</translation>
-    </message>
-    <message>
-        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
-        <translation>每次扫描一页：将第一页正面朝下放在玻璃板上，然后按“扫描”（或空格键）。</translation>
-    </message>
-    <message>
-        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
-        <translation>每次扫描一页：将第 %1 页正面朝下放在玻璃板上，然后按“扫描”。最后一页之后按“完成”。</translation>
-    </message>
-    <message>
-        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
-        <translation>翻到第 %1 页和第 %2 页，将书正面朝下放好，然后按“扫描”。最后几页之后按“完成”。</translation>
     </message>
 </context>
 <context>
@@ -16965,12 +16977,12 @@ Do you want to replace it?</source>
         <translation>编辑灰度通道时无法使用仿制功能</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a healing source</source>
-        <translation>按住 %ALT% 并单击以设置修复源</translation>
+        <source>%SOURCE_KEY%-click to set a healing source</source>
+        <translation>按住 %SOURCE_KEY% 并单击以设置修复源</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a clone source</source>
-        <translation>按住 %ALT% 并单击以设置仿制源</translation>
+        <source>%SOURCE_KEY%-click to set a clone source</source>
+        <translation>按住 %SOURCE_KEY% 并单击以设置仿制源</translation>
     </message>
     <message>
         <source>Healing brush</source>
@@ -18097,8 +18109,8 @@ Do you want to replace it?</source>
         <translation>移动渐变中点</translation>
     </message>
     <message>
-        <source>%1 while %ALT% is held</source>
-        <translation>按住 %ALT% 时为%1</translation>
+        <source>%1 while %SWAP_KEY% is held</source>
+        <translation>按住 %SWAP_KEY% 时为%1</translation>
     </message>
     <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
@@ -18339,8 +18351,8 @@ Do you want to replace it?</source>
         <translation>源 %1: 未设置</translation>
     </message>
     <message>
-        <source>Not set: %ALT%-click the canvas</source>
-        <translation>未设置: 按住 %ALT% 并单击画布</translation>
+        <source>Not set: %SOURCE_KEY%-click the canvas</source>
+        <translation>未设置: 按住 %SOURCE_KEY% 并单击画布</translation>
     </message>
     <message>
         <source>Aligned is off: every stroke starts at the source point.</source>
@@ -18379,8 +18391,8 @@ Do you want to replace it?</source>
         <translation>清除源</translation>
     </message>
     <message>
-        <source>Clear this source point; %ALT%-click the canvas to set a new one</source>
-        <translation>清除此源点；按住 %ALT% 并单击画布可设置新的源点</translation>
+        <source>Clear this source point; %SOURCE_KEY%-click the canvas to set a new one</source>
+        <translation>清除此源点；按住 %SOURCE_KEY% 并单击画布可设置新的源点</translation>
     </message>
     <message>
         <source>Back to 100%, 0 degrees and no flip; the source point stays</source>
@@ -30500,28 +30512,28 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         </translation>
     </message>
     <message>
-        <source>Rectangular Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a square and %ALT% draws from the center.</source>
-        <translation>矩形选框：拖动以选择。Shift+拖动添加，%ALT%+拖动减去，Shift+%ALT%+拖动取交集。没有选区时，Shift 绘制正方形，%ALT% 从中心绘制。</translation>
+        <source>Rectangular Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a square and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>矩形选框：拖动以选择。Shift+拖动添加，%SUBTRACT_KEY%+拖动减去，Shift+%SUBTRACT_KEY%+拖动取交集。没有选区时，Shift 绘制正方形，%SUBTRACT_KEY% 从中心绘制。</translation>
     </message>
     <message>
-        <source>Elliptical Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a circle and %ALT% draws from the center.</source>
-        <translation>椭圆选框：拖动以选择。Shift+拖动添加，%ALT%+拖动减去，Shift+%ALT%+拖动取交集。没有选区时，Shift 绘制正圆，%ALT% 从中心绘制。</translation>
+        <source>Elliptical Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a circle and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>椭圆选框：拖动以选择。Shift+拖动添加，%SUBTRACT_KEY%+拖动减去，Shift+%SUBTRACT_KEY%+拖动取交集。没有选区时，Shift 绘制正圆，%SUBTRACT_KEY% 从中心绘制。</translation>
     </message>
     <message>
-        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
-        <translation>磁性套索：单击边缘并沿其移动，单击可固定一个点。以 Shift+单击开始为添加，以 %ALT%+单击开始为减去，以 Shift+%ALT%+单击开始为取交集。Backspace 删除最后一个点，Enter 闭合，Esc 取消。</translation>
+        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
+        <translation>磁性套索：单击边缘并沿其移动，单击可固定一个点。以 Shift+单击开始为添加，以 %SUBTRACT_KEY%+单击开始为减去，以 Shift+%SUBTRACT_KEY%+单击开始为取交集。Backspace 删除最后一个点，Enter 闭合，Esc 取消。</translation>
     </message>
     <message>
-        <source>Magic Wand: click a color to select it. Shift+click adds, %ALT%+click subtracts, Shift+%ALT%+click intersects.</source>
-        <translation>魔棒：单击一种颜色以选择它。Shift+单击添加，%ALT%+单击减去，Shift+%ALT%+单击取交集。</translation>
+        <source>Magic Wand: click a color to select it. Shift+click adds, %SUBTRACT_KEY%+click subtracts, Shift+%SUBTRACT_KEY%+click intersects.</source>
+        <translation>魔棒：单击一种颜色以选择它。Shift+单击添加，%SUBTRACT_KEY%+单击减去，Shift+%SUBTRACT_KEY%+单击取交集。</translation>
     </message>
     <message>
-        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>快速选择：在要选择的区域上涂抹，之后的笔画会添加到选区。Shift+拖动添加，%ALT%+拖动减去。</translation>
+        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>快速选择：在要选择的区域上涂抹，之后的笔画会添加到选区。Shift+拖动添加，%SUBTRACT_KEY%+拖动减去。</translation>
     </message>
     <message>
-        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>对象选择：围绕对象拖出一个框，或单击对象。Shift+拖动添加，%ALT%+拖动减去。</translation>
+        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>对象选择：围绕对象拖出一个框，或单击对象。Shift+拖动添加，%SUBTRACT_KEY%+拖动减去。</translation>
     </message>
     <message>
         <source>Daily</source>
@@ -30958,12 +30970,12 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <translation>单击放置点，按住 Shift 保持 45 度，%ALT%+拖动可徒手绘制。单击起点、双击或按 Enter 闭合。</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
-        <translation>套索：围绕区域拖动以选择。Shift+拖动添加，%ALT%+拖动减去，Shift+%ALT%+拖动取交集。拖动时按下 %ALT% 并松开鼠标键，即可单击绘制直线段，直到松开 %ALT%。</translation>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>套索：围绕区域拖动以选择。Shift+拖动添加，%SUBTRACT_KEY%+拖动减去，Shift+%SUBTRACT_KEY%+拖动取交集。拖动时按下 %ALT% 并松开鼠标键，即可单击绘制直线段，直到松开 %ALT%。</translation>
     </message>
     <message>
-        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
-        <translation>多边形套索：单击放置点。以 Shift+单击开始为添加，以 %ALT%+单击开始为减去，以 Shift+%ALT%+单击开始为取交集。按住 Shift 保持 45 度，%ALT%+拖动可徒手绘制。单击起点、双击或按 Enter 闭合；Backspace 删除最后一个点，Esc 取消。</translation>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>多边形套索：单击放置点。以 Shift+单击开始为添加，以 %SUBTRACT_KEY%+单击开始为减去，以 Shift+%SUBTRACT_KEY%+单击开始为取交集。按住 Shift 保持 45 度，%ALT%+拖动可徒手绘制。单击起点、双击或按 Enter 闭合；Backspace 删除最后一个点，Esc 取消。</translation>
     </message>
     <message>
         <source>New &amp;Layer...</source>
@@ -32069,12 +32081,12 @@ The open document keeps its blend modes either way.</source>
         <translation>目标路径(&amp;T)</translation>
     </message>
     <message>
-        <source>%1: Shift+click draws a line, %ALT%+click picks a color, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1：Shift+单击画直线，%ALT%+单击拾取颜色，%ALT%+右键拖动更改大小和柔和度。</translation>
+        <source>%1: Shift+click draws a line, %PICK_KEY%+click picks a color, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1：Shift+单击画直线，%PICK_KEY%+单击拾取颜色，%ALT%+右键拖动更改大小和柔和度。</translation>
     </message>
     <message>
-        <source>%1: %ALT%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1：%ALT%+单击设置源，Shift+单击画直线，%ALT%+右键拖动更改大小和柔和度。</translation>
+        <source>%1: %SOURCE_KEY%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1：%SOURCE_KEY%+单击设置源，Shift+单击画直线，%ALT%+右键拖动更改大小和柔和度。</translation>
     </message>
     <message>
         <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
@@ -34277,8 +34289,8 @@ Locked: %1</source>
         <translation>更改色标</translation>
     </message>
     <message>
-        <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1：%ALT%+拖动以%2绘制，Shift+单击画直线，%ALT%+右键拖动更改大小和柔和度。</translation>
+        <source>%1: %SWAP_KEY%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1：%SWAP_KEY%+拖动以%2绘制，Shift+单击画直线，%ALT%+右键拖动更改大小和柔和度。</translation>
     </message>
     <message>
         <source>Pages as layers</source>

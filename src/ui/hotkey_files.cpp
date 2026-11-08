@@ -23,6 +23,8 @@ namespace {
 const QString kFormatKey = QStringLiteral("format");
 const QString kVersionKey = QStringLiteral("version");
 const QString kShortcutsKey = QStringLiteral("shortcuts");
+// Optional since GitHub issue 302: the set's tool modifiers token (tool_modifier_style.hpp).
+const QString kToolModifiersKey = QStringLiteral("toolModifiers");
 
 HotkeyFileReadResult failure(QString error) {
   HotkeyFileReadResult result;
@@ -58,7 +60,7 @@ bool usable_imported_sequence(const QKeySequence& sequence, const std::vector<Ho
 
 }  // namespace
 
-QByteArray hotkey_overrides_to_json(const HotkeyOverrideMap& overrides) {
+QByteArray hotkey_overrides_to_json(const HotkeyOverrideMap& overrides, ToolModifierStyle tool_modifiers) {
   QJsonObject shortcuts;
   for (auto it = overrides.constBegin(); it != overrides.constEnd(); ++it) {
     QJsonArray keys;
@@ -73,6 +75,9 @@ QByteArray hotkey_overrides_to_json(const HotkeyOverrideMap& overrides) {
   root.insert(kFormatKey, QString::fromLatin1(kHotkeyFileFormat));
   root.insert(kVersionKey, kHotkeyFileVersion);
   root.insert(kShortcutsKey, shortcuts);
+  if (tool_modifiers != ToolModifierStyle::Patchy) {
+    root.insert(kToolModifiersKey, tool_modifier_style_token(tool_modifiers));
+  }
   return QJsonDocument(root).toJson(QJsonDocument::Indented);
 }
 
@@ -99,6 +104,7 @@ HotkeyFileReadResult hotkey_overrides_from_json(const QByteArray& bytes, const s
 
   HotkeyFileReadResult result;
   result.ok = true;
+  result.tool_modifiers = tool_modifier_style_from_token(root.value(kToolModifiersKey).toString());
   const auto shortcuts = shortcuts_value.toObject();
   for (auto it = shortcuts.constBegin(); it != shortcuts.constEnd(); ++it) {
     const auto* command = find_command(commands, it.key());
@@ -155,8 +161,9 @@ HotkeyFileReadResult read_hotkey_file(const QString& path, const std::vector<Hot
   return hotkey_overrides_from_json(file.readAll(), commands);
 }
 
-bool write_hotkey_file(const QString& path, const HotkeyOverrideMap& overrides, QString* error) {
-  const auto bytes = hotkey_overrides_to_json(overrides);
+bool write_hotkey_file(const QString& path, const HotkeyOverrideMap& overrides, QString* error,
+                       ToolModifierStyle tool_modifiers) {
+  const auto bytes = hotkey_overrides_to_json(overrides, tool_modifiers);
   try {
     write_file_bytes_atomically(
         to_filesystem_path(path),

@@ -15132,6 +15132,18 @@ Do you want to replace it?</source>
         <translation>Единицы</translation>
     </message>
     <message>
+        <source>Needs &quot;Mouse wheel scrolls the palette&quot; on: otherwise these are the only way to reach tools that do not fit.</source>
+        <translation>Нужен включённый параметр «Колесо мыши прокручивает палитру, когда она не помещается»: иначе только так можно добраться до инструментов, которые не помещаются.</translation>
+    </message>
+    <message>
+        <source>Show the up and down scroll arrows</source>
+        <translation>Показывать стрелки прокрутки вверх и вниз</translation>
+    </message>
+    <message>
+        <source>Show the &gt; arrow that opens more columns</source>
+        <translation>Показывать стрелку &gt;, открывающую дополнительные столбцы</translation>
+    </message>
+    <message>
         <source>%1 x %2 mm</source>
         <translation>%1 x %2 мм</translation>
     </message>
@@ -15929,10 +15941,6 @@ Do you want to replace it?</source>
         <translation>Сканы книг Patchy</translation>
     </message>
     <message>
-        <source>Book</source>
-        <translation>Книга</translation>
-    </message>
-    <message>
         <source>Title:</source>
         <translation>Название:</translation>
     </message>
@@ -15969,12 +15977,24 @@ Do you want to replace it?</source>
         <translation>Откройте книгу и положите её лицом вниз на стекло так, чтобы задняя обложка, корешок и передняя обложка были на стекле, затем нажмите «Сканировать обложку». Patchy измеряет книгу по этому скану. Пропустите этот шаг, чтобы измерить её по первым страницам (тогда обложки не попадут в PDF).</translation>
     </message>
     <message>
+        <source>Start Over...</source>
+        <translation>Начать заново...</translation>
+    </message>
+    <message>
+        <source>Delete this folder&apos;s book scans and scan a new book here</source>
+        <translation>Удалить сканы книги в этой папке и отсканировать здесь новую книгу</translation>
+    </message>
+    <message>
         <source>Skip Cover</source>
         <translation>Пропустить обложку</translation>
     </message>
     <message>
         <source>Scan Cover</source>
         <translation>Сканировать обложку</translation>
+    </message>
+    <message>
+        <source>Continue This Book</source>
+        <translation>Продолжить эту книгу</translation>
     </message>
     <message>
         <source>Choose Project Folder</source>
@@ -16241,8 +16261,20 @@ Do you want to replace it?</source>
         <translation>Качество изображения:</translation>
     </message>
     <message>
+        <source>Open Book Folder</source>
+        <translation>Открыть папку книги</translation>
+    </message>
+    <message>
+        <source>Show the scans in the file manager. This window stays open.</source>
+        <translation>Показывает сканы в файловом менеджере. Это окно остаётся открытым.</translation>
+    </message>
+    <message>
         <source>Export PDF...</source>
         <translation>Экспорт PDF...</translation>
+    </message>
+    <message>
+        <source>Book</source>
+        <translation>Книга</translation>
     </message>
     <message>
         <source>Export Book PDF</source>
@@ -16281,8 +16313,52 @@ Do you want to replace it?</source>
         <translation>Сначала выберите папку проекта.</translation>
     </message>
     <message>
+        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
+        <translation>В этой папке уже есть скан книги. Продолжите его, начните заново или выберите другую папку.</translation>
+    </message>
+    <message>
         <source>The project folder %1 could not be created.</source>
         <translation>Не удалось создать папку проекта %1.</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>Без названия</translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>В этой папке находится «%1» (%n скан), книга готова к экспорту. «Продолжить эту книгу» открывает проверку и экспорт; «Начать заново» удаляет её сканы, чтобы здесь можно было отсканировать новую книгу.</numerusform>
+            <numerusform>В этой папке находится «%1» (%n скана), книга готова к экспорту. «Продолжить эту книгу» открывает проверку и экспорт; «Начать заново» удаляет её сканы, чтобы здесь можно было отсканировать новую книгу.</numerusform>
+            <numerusform>В этой папке находится «%1» (%n сканов), книга готова к экспорту. «Продолжить эту книгу» открывает проверку и экспорт; «Начать заново» удаляет её сканы, чтобы здесь можно было отсканировать новую книгу.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>В этой папке находится «%1» (пока %n скан). «Продолжить эту книгу» продолжает с того места, где вы остановились; «Начать заново» удаляет её сканы, чтобы здесь можно было отсканировать новую книгу.</numerusform>
+            <numerusform>В этой папке находится «%1» (пока %n скана). «Продолжить эту книгу» продолжает с того места, где вы остановились; «Начать заново» удаляет её сканы, чтобы здесь можно было отсканировать новую книгу.</numerusform>
+            <numerusform>В этой папке находится «%1» (пока %n сканов). «Продолжить эту книгу» продолжает с того места, где вы остановились; «Начать заново» удаляет её сканы, чтобы здесь можно было отсканировать новую книгу.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This folder holds a book scan Patchy cannot read: %1</source>
+        <translation>В этой папке есть скан книги, который Patchy не может прочитать: %1</translation>
+    </message>
+    <message>
+        <source>A new book is saved in this folder.</source>
+        <translation>Новая книга будет сохранена в этой папке.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
+        <translation>
+            <numerusform>Удалить %n скан книги «%1» в %2 и начать там новую книгу? Другие файлы в папке, например экспортированный PDF, сохранятся. Это действие нельзя отменить.</numerusform>
+            <numerusform>Удалить %n скана книги «%1» в %2 и начать там новую книгу? Другие файлы в папке, например экспортированный PDF, сохранятся. Это действие нельзя отменить.</numerusform>
+            <numerusform>Удалить %n сканов книги «%1» в %2 и начать там новую книгу? Другие файлы в папке, например экспортированный PDF, сохранятся. Это действие нельзя отменить.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The book folder %1 could not be opened.</source>
+        <translation>Не удалось открыть папку книги %1.</translation>
     </message>
     <message>
         <source>Scanning is not available here.</source>
@@ -16291,6 +16367,10 @@ Do you want to replace it?</source>
     <message>
         <source>The scanner could not be opened.</source>
         <translation>Не удалось открыть сканер.</translation>
+    </message>
+    <message>
+        <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
+        <translation>На шаге 1 попробуйте вариант «Открывать системное окно сканирования при каждом сканировании».</translation>
     </message>
     <message>
         <source>Scanning the cover...</source>
@@ -16317,6 +16397,18 @@ Do you want to replace it?</source>
         <translation>Окно сканирования задаёт разрешение и режим для каждого сканирования.</translation>
     </message>
     <message>
+        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
+        <translation>Раскрытая книга доходит до краёв стекла. Если обе страницы не помещаются на стекле, выберите «Одна страница за скан».</translation>
+    </message>
+    <message>
+        <source>Front cover</source>
+        <translation>Передняя обложка</translation>
+    </message>
+    <message>
+        <source>Back cover</source>
+        <translation>Задняя обложка</translation>
+    </message>
+    <message>
         <source>about %1</source>
         <translation>около %1</translation>
     </message>
@@ -16341,8 +16433,28 @@ Do you want to replace it?</source>
         <translation>Скан %1 готов.</translation>
     </message>
     <message>
+        <source>Each scan now holds one page.</source>
+        <translation>Теперь каждый скан содержит одну страницу.</translation>
+    </message>
+    <message>
+        <source>Each scan now holds two pages.</source>
+        <translation>Теперь каждый скан содержит две страницы.</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation>Одна страница за скан: положите первую страницу лицом вниз на стекло, затем нажмите «Сканировать» (или Пробел).</translation>
+    </message>
+    <message>
         <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
         <translation>Откройте книгу на первых страницах, положите её лицом вниз на стекло, затем нажмите «Сканировать» (или Пробел).</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation>Одна страница за скан: положите страницу %1 лицом вниз на стекло, затем нажмите «Сканировать». После последней страницы нажмите «Готово».</translation>
+    </message>
+    <message>
+        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
+        <translation>Перейдите к страницам %1 и %2, положите книгу лицом вниз, затем нажмите «Сканировать». После последних страниц нажмите «Готово».</translation>
     </message>
     <message numerus="yes">
         <source>Finished (%n page(s))</source>
@@ -16351,14 +16463,6 @@ Do you want to replace it?</source>
             <numerusform>Готово (%n страницы)</numerusform>
             <numerusform>Готово (%n страниц)</numerusform>
         </translation>
-    </message>
-    <message>
-        <source>Front cover</source>
-        <translation>Передняя обложка</translation>
-    </message>
-    <message>
-        <source>Back cover</source>
-        <translation>Задняя обложка</translation>
     </message>
     <message>
         <source>Blank</source>
@@ -16403,98 +16507,6 @@ Do you want to replace it?</source>
     <message>
         <source>The PDF is written. Keep the scan project folder (%1) so you can change pages and export again later?</source>
         <translation>PDF записан. Сохранить папку проекта сканирования (%1), чтобы позже можно было изменить страницы и экспортировать снова?</translation>
-    </message>
-    <message>
-        <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
-        <translation>На шаге 1 попробуйте вариант «Открывать системное окно сканирования при каждом сканировании».</translation>
-    </message>
-    <message>
-        <source>Start Over...</source>
-        <translation>Начать заново...</translation>
-    </message>
-    <message>
-        <source>Delete this folder&apos;s book scans and scan a new book here</source>
-        <translation>Удалить сканы книги в этой папке и отсканировать здесь новую книгу</translation>
-    </message>
-    <message>
-        <source>Continue This Book</source>
-        <translation>Продолжить эту книгу</translation>
-    </message>
-    <message>
-        <source>Open Book Folder</source>
-        <translation>Открыть папку книги</translation>
-    </message>
-    <message>
-        <source>Show the scans in the file manager. This window stays open.</source>
-        <translation>Показывает сканы в файловом менеджере. Это окно остаётся открытым.</translation>
-    </message>
-    <message>
-        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
-        <translation>В этой папке уже есть скан книги. Продолжите его, начните заново или выберите другую папку.</translation>
-    </message>
-    <message>
-        <source>Untitled</source>
-        <translation>Без названия</translation>
-    </message>
-    <message numerus="yes">
-        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
-        <translation>
-            <numerusform>В этой папке находится «%1» (%n скан), книга готова к экспорту. «Продолжить эту книгу» открывает проверку и экспорт; «Начать заново» удаляет её сканы, чтобы здесь можно было отсканировать новую книгу.</numerusform>
-            <numerusform>В этой папке находится «%1» (%n скана), книга готова к экспорту. «Продолжить эту книгу» открывает проверку и экспорт; «Начать заново» удаляет её сканы, чтобы здесь можно было отсканировать новую книгу.</numerusform>
-            <numerusform>В этой папке находится «%1» (%n сканов), книга готова к экспорту. «Продолжить эту книгу» открывает проверку и экспорт; «Начать заново» удаляет её сканы, чтобы здесь можно было отсканировать новую книгу.</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
-        <translation>
-            <numerusform>В этой папке находится «%1» (пока %n скан). «Продолжить эту книгу» продолжает с того места, где вы остановились; «Начать заново» удаляет её сканы, чтобы здесь можно было отсканировать новую книгу.</numerusform>
-            <numerusform>В этой папке находится «%1» (пока %n скана). «Продолжить эту книгу» продолжает с того места, где вы остановились; «Начать заново» удаляет её сканы, чтобы здесь можно было отсканировать новую книгу.</numerusform>
-            <numerusform>В этой папке находится «%1» (пока %n сканов). «Продолжить эту книгу» продолжает с того места, где вы остановились; «Начать заново» удаляет её сканы, чтобы здесь можно было отсканировать новую книгу.</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>This folder holds a book scan Patchy cannot read: %1</source>
-        <translation>В этой папке есть скан книги, который Patchy не может прочитать: %1</translation>
-    </message>
-    <message>
-        <source>A new book is saved in this folder.</source>
-        <translation>Новая книга будет сохранена в этой папке.</translation>
-    </message>
-    <message numerus="yes">
-        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
-        <translation>
-            <numerusform>Удалить %n скан книги «%1» в %2 и начать там новую книгу? Другие файлы в папке, например экспортированный PDF, сохранятся. Это действие нельзя отменить.</numerusform>
-            <numerusform>Удалить %n скана книги «%1» в %2 и начать там новую книгу? Другие файлы в папке, например экспортированный PDF, сохранятся. Это действие нельзя отменить.</numerusform>
-            <numerusform>Удалить %n сканов книги «%1» в %2 и начать там новую книгу? Другие файлы в папке, например экспортированный PDF, сохранятся. Это действие нельзя отменить.</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>The book folder %1 could not be opened.</source>
-        <translation>Не удалось открыть папку книги %1.</translation>
-    </message>
-    <message>
-        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
-        <translation>Раскрытая книга доходит до краёв стекла. Если обе страницы не помещаются на стекле, выберите «Одна страница за скан».</translation>
-    </message>
-    <message>
-        <source>Each scan now holds one page.</source>
-        <translation>Теперь каждый скан содержит одну страницу.</translation>
-    </message>
-    <message>
-        <source>Each scan now holds two pages.</source>
-        <translation>Теперь каждый скан содержит две страницы.</translation>
-    </message>
-    <message>
-        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
-        <translation>Одна страница за скан: положите первую страницу лицом вниз на стекло, затем нажмите «Сканировать» (или Пробел).</translation>
-    </message>
-    <message>
-        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
-        <translation>Одна страница за скан: положите страницу %1 лицом вниз на стекло, затем нажмите «Сканировать». После последней страницы нажмите «Готово».</translation>
-    </message>
-    <message>
-        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
-        <translation>Перейдите к страницам %1 и %2, положите книгу лицом вниз, затем нажмите «Сканировать». После последних страниц нажмите «Готово».</translation>
     </message>
 </context>
 <context>
@@ -17071,12 +17083,12 @@ Do you want to replace it?</source>
         <translation>Клонирование недоступно при редактировании канала в оттенках серого.</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a healing source</source>
-        <translation>Щёлкните с %ALT%, чтобы задать источник восстановления</translation>
+        <source>%SOURCE_KEY%-click to set a healing source</source>
+        <translation>Щёлкните с %SOURCE_KEY%, чтобы задать источник восстановления</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a clone source</source>
-        <translation>%ALT% — нажмите, чтобы установить источник клонирования</translation>
+        <source>%SOURCE_KEY%-click to set a clone source</source>
+        <translation>%SOURCE_KEY% — нажмите, чтобы установить источник клонирования</translation>
     </message>
     <message>
         <source>Healing brush</source>
@@ -18203,8 +18215,8 @@ Do you want to replace it?</source>
         <translation>Переместить среднюю точку градиента</translation>
     </message>
     <message>
-        <source>%1 while %ALT% is held</source>
-        <translation>%1, пока удерживается %ALT%</translation>
+        <source>%1 while %SWAP_KEY% is held</source>
+        <translation>%1, пока удерживается %SWAP_KEY%</translation>
     </message>
     <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
@@ -18445,8 +18457,8 @@ Do you want to replace it?</source>
         <translation>Источник %1: не задан</translation>
     </message>
     <message>
-        <source>Not set: %ALT%-click the canvas</source>
-        <translation>Не задан: щелкните холст с %ALT%</translation>
+        <source>Not set: %SOURCE_KEY%-click the canvas</source>
+        <translation>Не задан: щелкните холст с %SOURCE_KEY%</translation>
     </message>
     <message>
         <source>Aligned is off: every stroke starts at the source point.</source>
@@ -18485,8 +18497,8 @@ Do you want to replace it?</source>
         <translation>Очистить источник</translation>
     </message>
     <message>
-        <source>Clear this source point; %ALT%-click the canvas to set a new one</source>
-        <translation>Убрать эту точку источника; щелкните холст с %ALT%, чтобы задать новую</translation>
+        <source>Clear this source point; %SOURCE_KEY%-click the canvas to set a new one</source>
+        <translation>Убрать эту точку источника; щелкните холст с %SOURCE_KEY%, чтобы задать новую</translation>
     </message>
     <message>
         <source>Back to 100%, 0 degrees and no flip; the source point stays</source>
@@ -30680,28 +30692,28 @@ Patchy может скачать обновление, заменить этот
         </translation>
     </message>
     <message>
-        <source>Rectangular Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a square and %ALT% draws from the center.</source>
-        <translation>Прямоугольная область: протяните указатель для выделения. Shift+перетаскивание добавляет, %ALT%+перетаскивание вычитает, Shift+%ALT%+перетаскивание оставляет пересечение. Без выделения Shift рисует квадрат, а %ALT% рисует от центра.</translation>
+        <source>Rectangular Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a square and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>Прямоугольная область: протяните указатель для выделения. Shift+перетаскивание добавляет, %SUBTRACT_KEY%+перетаскивание вычитает, Shift+%SUBTRACT_KEY%+перетаскивание оставляет пересечение. Без выделения Shift рисует квадрат, а %SUBTRACT_KEY% рисует от центра.</translation>
     </message>
     <message>
-        <source>Elliptical Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a circle and %ALT% draws from the center.</source>
-        <translation>Овальная область: протяните указатель для выделения. Shift+перетаскивание добавляет, %ALT%+перетаскивание вычитает, Shift+%ALT%+перетаскивание оставляет пересечение. Без выделения Shift рисует круг, а %ALT% рисует от центра.</translation>
+        <source>Elliptical Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a circle and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>Овальная область: протяните указатель для выделения. Shift+перетаскивание добавляет, %SUBTRACT_KEY%+перетаскивание вычитает, Shift+%SUBTRACT_KEY%+перетаскивание оставляет пересечение. Без выделения Shift рисует круг, а %SUBTRACT_KEY% рисует от центра.</translation>
     </message>
     <message>
-        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
-        <translation>Магнитное лассо: щёлкните по краю и ведите вдоль него; щелчок закрепляет точку. Начните с Shift+щелчка, чтобы добавить, %ALT%+щелчка, чтобы вычесть, или Shift+%ALT%+щелчка для пересечения. Backspace удаляет последнюю точку, Enter замыкает контур, Esc отменяет.</translation>
+        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
+        <translation>Магнитное лассо: щёлкните по краю и ведите вдоль него; щелчок закрепляет точку. Начните с Shift+щелчка, чтобы добавить, %SUBTRACT_KEY%+щелчка, чтобы вычесть, или Shift+%SUBTRACT_KEY%+щелчка для пересечения. Backspace удаляет последнюю точку, Enter замыкает контур, Esc отменяет.</translation>
     </message>
     <message>
-        <source>Magic Wand: click a color to select it. Shift+click adds, %ALT%+click subtracts, Shift+%ALT%+click intersects.</source>
-        <translation>Волшебная палочка: щёлкните по цвету, чтобы выделить его. Shift+щелчок добавляет, %ALT%+щелчок вычитает, Shift+%ALT%+щелчок оставляет пересечение.</translation>
+        <source>Magic Wand: click a color to select it. Shift+click adds, %SUBTRACT_KEY%+click subtracts, Shift+%SUBTRACT_KEY%+click intersects.</source>
+        <translation>Волшебная палочка: щёлкните по цвету, чтобы выделить его. Shift+щелчок добавляет, %SUBTRACT_KEY%+щелчок вычитает, Shift+%SUBTRACT_KEY%+щелчок оставляет пересечение.</translation>
     </message>
     <message>
-        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>Быстрое выделение: закрасьте область, которую нужно выделить; следующие мазки добавляют к ней. Shift+перетаскивание добавляет, %ALT%+перетаскивание вычитает.</translation>
+        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>Быстрое выделение: закрасьте область, которую нужно выделить; следующие мазки добавляют к ней. Shift+перетаскивание добавляет, %SUBTRACT_KEY%+перетаскивание вычитает.</translation>
     </message>
     <message>
-        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>Выделение объектов: обведите объект рамкой или щёлкните по нему. Shift+перетаскивание добавляет, %ALT%+перетаскивание вычитает.</translation>
+        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>Выделение объектов: обведите объект рамкой или щёлкните по нему. Shift+перетаскивание добавляет, %SUBTRACT_KEY%+перетаскивание вычитает.</translation>
     </message>
     <message>
         <source>Daily</source>
@@ -31140,12 +31152,12 @@ Patchy может скачать обновление, заменить этот
         <translation>Щёлкайте, чтобы ставить точки; Shift держит 45 градусов, %ALT%+перетаскивание рисует от руки. Чтобы замкнуть контур, щёлкните по начальной точке, дважды щёлкните или нажмите Enter.</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
-        <translation>Лассо: обведите область, чтобы выделить её. Shift+перетаскивание добавляет, %ALT%+перетаскивание вычитает, Shift+%ALT%+перетаскивание оставляет пересечение. Нажмите %ALT% во время перетаскивания и отпустите кнопку, чтобы щелчками ставить прямые отрезки, пока %ALT% не будет отпущена.</translation>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>Лассо: обведите область, чтобы выделить её. Shift+перетаскивание добавляет, %SUBTRACT_KEY%+перетаскивание вычитает, Shift+%SUBTRACT_KEY%+перетаскивание оставляет пересечение. Нажмите %ALT% во время перетаскивания и отпустите кнопку, чтобы щелчками ставить прямые отрезки, пока %ALT% не будет отпущена.</translation>
     </message>
     <message>
-        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
-        <translation>Многоугольное лассо: щёлкайте, чтобы ставить точки. Начните с Shift+щелчка, чтобы добавить, %ALT%+щелчка, чтобы вычесть, или Shift+%ALT%+щелчка для пересечения. Shift держит 45 градусов, %ALT%+перетаскивание рисует от руки. Чтобы замкнуть контур, щёлкните по начальной точке, дважды щёлкните или нажмите Enter; Backspace удаляет последнюю точку, Esc отменяет.</translation>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>Многоугольное лассо: щёлкайте, чтобы ставить точки. Начните с Shift+щелчка, чтобы добавить, %SUBTRACT_KEY%+щелчка, чтобы вычесть, или Shift+%SUBTRACT_KEY%+щелчка для пересечения. Shift держит 45 градусов, %ALT%+перетаскивание рисует от руки. Чтобы замкнуть контур, щёлкните по начальной точке, дважды щёлкните или нажмите Enter; Backspace удаляет последнюю точку, Esc отменяет.</translation>
     </message>
     <message>
         <source>New &amp;Layer...</source>
@@ -32253,12 +32265,12 @@ The open document keeps its blend modes either way.</source>
         <translation>Целевой &amp;контур</translation>
     </message>
     <message>
-        <source>%1: Shift+click draws a line, %ALT%+click picks a color, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: Shift+щелчок рисует линию, %ALT%+щелчок берёт цвет, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
+        <source>%1: Shift+click draws a line, %PICK_KEY%+click picks a color, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: Shift+щелчок рисует линию, %PICK_KEY%+щелчок берёт цвет, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
     </message>
     <message>
-        <source>%1: %ALT%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: %ALT%+щелчок задаёт источник, Shift+щелчок рисует линию, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
+        <source>%1: %SOURCE_KEY%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %SOURCE_KEY%+щелчок задаёт источник, Shift+щелчок рисует линию, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
     </message>
     <message>
         <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
@@ -34465,8 +34477,8 @@ Locked: %1</source>
         <translation>Изменить контрольную точку цвета</translation>
     </message>
     <message>
-        <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: %ALT%+перетаскивание рисует как %2, Shift+щелчок рисует линию, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
+        <source>%1: %SWAP_KEY%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %SWAP_KEY%+перетаскивание рисует как %2, Shift+щелчок рисует линию, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
     </message>
     <message>
         <source>Pages as layers</source>

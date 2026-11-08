@@ -1,5 +1,6 @@
 #include "ui/tool_palette_layout.hpp"
 
+#include "ui/app_style.hpp"
 #include "ui/icon_theme.hpp"
 #include "ui/theme_palette.hpp"
 
@@ -152,6 +153,7 @@ ToolPaletteLayout::ToolPaletteLayout(QToolBar* palette, QWidget* stash)
     // Open columns show every tool and need no rows of ours: settled before Qt's own
     // expand or collapse (clicked) lays the bar out.
     connect(extension_, &QToolButton::toggled, this, [this] {
+      update_extension_band();
       update_bottom_reserve();
       schedule_scroll_update();
     });
@@ -275,6 +277,8 @@ void ToolPaletteLayout::apply(const ToolPaletteCustomization& customization) {
   scroll_offset_ = 0;
   wheel_remainder_ = 0;
   apply_scroll();
+  update_extension_band();
+  update_bottom_reserve();
   schedule_scroll_update();
 }
 
@@ -346,6 +350,31 @@ void ToolPaletteLayout::build_items() {
 
 bool ToolPaletteLayout::scroll_mode() const { return customization_.wheel_scroll; }
 
+bool ToolPaletteLayout::scroll_arrows_shown() const { return scroll_mode() && customization_.show_scroll_arrows; }
+
+bool ToolPaletteLayout::expand_row_shown() const { return scroll_mode() && customization_.show_expand_button; }
+
+void ToolPaletteLayout::update_extension_band() {
+  if (palette_ == nullptr || extension_ == nullptr) {
+    return;
+  }
+  // Open columns keep Qt's extension: it is the arrow that closes them.
+  const bool hidden = scroll_mode() && !customization_.show_scroll_arrows && !expanded();
+  if (palette_->property(kToolBarExtensionHiddenProperty).toBool() == hidden) {
+    return;
+  }
+  palette_->setProperty(kToolBarExtensionHiddenProperty, hidden);
+  // The sheet's rule for the button reads the bar's property: re-evaluate it, then let Qt
+  // lay the bar out again with the style's new extension extent.
+  extension_->style()->unpolish(extension_);
+  extension_->style()->polish(extension_);
+  extension_->updateGeometry();
+  if (auto* bar_layout = palette_->layout(); bar_layout != nullptr) {
+    bar_layout->invalidate();
+  }
+  palette_->updateGeometry();
+}
+
 int ToolPaletteLayout::scrollable_count() const {
   return static_cast<int>(std::count_if(items_.begin(), items_.end(), [](const Item& item) { return !item.separator; }));
 }
@@ -365,7 +394,7 @@ void ToolPaletteLayout::apply_scroll() {
     item.action->setVisible(index >= scroll_offset_);
     ++index;
   }
-  scroll_up_item_->setVisible(scroll_mode() && scroll_offset_ > 0);
+  scroll_up_item_->setVisible(scroll_arrows_shown() && scroll_offset_ > 0);
 }
 
 bool ToolPaletteLayout::expanded() const { return extension_ != nullptr && extension_->isChecked(); }
@@ -459,7 +488,7 @@ void ToolPaletteLayout::update_scroll_state() {
     }
     int slack = palette_->height() - palette_->sizeHint().height();
     if (scroll_offset_ == 1) {
-      if (auto* arrow = palette_->widgetForAction(scroll_up_item_); arrow != nullptr) {
+      if (auto* arrow = palette_->widgetForAction(scroll_up_item_); arrow != nullptr && scroll_up_item_->isVisible()) {
         slack += arrow->sizeHint().height() + spacing;
       }
       // With every tool back the expand row goes too.
@@ -482,7 +511,7 @@ void ToolPaletteLayout::update_scroll_state() {
 // top or overflowing below (measured without the row, so the row never keeps itself).
 void ToolPaletteLayout::update_bottom_reserve() {
   int wanted = 0;
-  if (palette_ != nullptr && scroll_mode() && !expanded() &&
+  if (palette_ != nullptr && expand_row_shown() && !expanded() &&
       (scroll_offset_ > 0 || palette_->sizeHint().height() - bottom_reserve_ > palette_->height())) {
     wanted = kExpandRowHeight;
   }
@@ -546,7 +575,7 @@ void ToolPaletteLayout::place_arrows() {
   const int width = std::max(1, palette_->width() - 1);
   // The down arrow covers Qt's extension band, so it shows exactly while the collapsed
   // column overflows below.
-  if (scroll_mode() && !expanded() && extension_ != nullptr && !extension_->isHidden()) {
+  if (scroll_arrows_shown() && !expanded() && extension_ != nullptr && !extension_->isHidden()) {
     const auto band = extension_->geometry();
     scroll_down_arrow_->setGeometry(0, band.top(), width, band.height());
     scroll_down_arrow_->show();

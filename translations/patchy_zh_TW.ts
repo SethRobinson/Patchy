@@ -15038,6 +15038,18 @@ Do you want to replace it?</source>
         <translation>單位</translation>
     </message>
     <message>
+        <source>Needs &quot;Mouse wheel scrolls the palette&quot; on: otherwise these are the only way to reach tools that do not fit.</source>
+        <translation>需要開啟「放不下時用滑鼠滾輪捲動面板」：否則只能靠它們找到放不下的工具。</translation>
+    </message>
+    <message>
+        <source>Show the up and down scroll arrows</source>
+        <translation>顯示上下捲動箭頭</translation>
+    </message>
+    <message>
+        <source>Show the &gt; arrow that opens more columns</source>
+        <translation>顯示用來展開更多欄的 &gt; 箭頭</translation>
+    </message>
+    <message>
         <source>%1 x %2 mm</source>
         <translation>%1 x %2 mm</translation>
     </message>
@@ -15835,10 +15847,6 @@ Do you want to replace it?</source>
         <translation>Patchy 書籍掃描</translation>
     </message>
     <message>
-        <source>Book</source>
-        <translation>書籍</translation>
-    </message>
-    <message>
         <source>Title:</source>
         <translation>書名:</translation>
     </message>
@@ -15875,12 +15883,24 @@ Do you want to replace it?</source>
         <translation>打開書本，將其正面朝下放在玻璃板上，讓封底、書背和封面都在玻璃板上，然後按「掃描封面」。Patchy 會根據這次掃描測量書本。略過此步驟則改為根據前幾頁測量（這樣封面不會包含在 PDF 中）。</translation>
     </message>
     <message>
+        <source>Start Over...</source>
+        <translation>重新開始...</translation>
+    </message>
+    <message>
+        <source>Delete this folder&apos;s book scans and scan a new book here</source>
+        <translation>刪除此資料夾中的書籍掃描，並在這裡掃描新書</translation>
+    </message>
+    <message>
         <source>Skip Cover</source>
         <translation>略過封面</translation>
     </message>
     <message>
         <source>Scan Cover</source>
         <translation>掃描封面</translation>
+    </message>
+    <message>
+        <source>Continue This Book</source>
+        <translation>繼續這本書</translation>
     </message>
     <message>
         <source>Choose Project Folder</source>
@@ -16147,8 +16167,20 @@ Do you want to replace it?</source>
         <translation>影像品質:</translation>
     </message>
     <message>
+        <source>Open Book Folder</source>
+        <translation>開啟書籍資料夾</translation>
+    </message>
+    <message>
+        <source>Show the scans in the file manager. This window stays open.</source>
+        <translation>在檔案管理員中顯示掃描。此視窗會保持開啟。</translation>
+    </message>
+    <message>
         <source>Export PDF...</source>
         <translation>匯出 PDF...</translation>
+    </message>
+    <message>
+        <source>Book</source>
+        <translation>書籍</translation>
     </message>
     <message>
         <source>Export Book PDF</source>
@@ -16187,8 +16219,46 @@ Do you want to replace it?</source>
         <translation>請先選擇專案資料夾。</translation>
     </message>
     <message>
+        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
+        <translation>該資料夾已包含書籍掃描。請繼續掃描、重新開始或選擇其他資料夾。</translation>
+    </message>
+    <message>
         <source>The project folder %1 could not be created.</source>
         <translation>無法建立專案資料夾 %1。</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>未命名</translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>此資料夾包含「%1」（%n 次掃描），可以匯出。「繼續這本書」可檢查並匯出它；「重新開始」會刪除其掃描，以便在這裡掃描新書。</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>此資料夾包含「%1」（目前已掃描 %n 次）。「繼續這本書」會從上次停下的地方繼續；「重新開始」會刪除其掃描，以便在這裡掃描新書。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This folder holds a book scan Patchy cannot read: %1</source>
+        <translation>此資料夾包含 Patchy 無法讀取的書籍掃描：%1</translation>
+    </message>
+    <message>
+        <source>A new book is saved in this folder.</source>
+        <translation>新書將儲存在此資料夾中。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
+        <translation>
+            <numerusform>刪除 %2 中「%1」的 %n 次掃描，並在那裡開始新書？資料夾中的其他檔案（例如匯出的 PDF）會保留。此動作無法復原。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The book folder %1 could not be opened.</source>
+        <translation>無法開啟書籍資料夾 %1。</translation>
     </message>
     <message>
         <source>Scanning is not available here.</source>
@@ -16197,6 +16267,10 @@ Do you want to replace it?</source>
     <message>
         <source>The scanner could not be opened.</source>
         <translation>無法開啟掃描器。</translation>
+    </message>
+    <message>
+        <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
+        <translation>請在第 1 步中嘗試「每次掃描都使用系統掃描對話方塊」。</translation>
     </message>
     <message>
         <source>Scanning the cover...</source>
@@ -16223,6 +16297,18 @@ Do you want to replace it?</source>
         <translation>每次掃描的解析度和模式由掃描對話方塊設定。</translation>
     </message>
     <message>
+        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
+        <translation>打開的書已到達玻璃板邊緣。如果兩頁無法同時放在玻璃板上，請選擇「每次掃描一頁」。</translation>
+    </message>
+    <message>
+        <source>Front cover</source>
+        <translation>封面</translation>
+    </message>
+    <message>
+        <source>Back cover</source>
+        <translation>封底</translation>
+    </message>
+    <message>
         <source>about %1</source>
         <translation>約 %1</translation>
     </message>
@@ -16247,22 +16333,34 @@ Do you want to replace it?</source>
         <translation>第 %1 次掃描完成。</translation>
     </message>
     <message>
+        <source>Each scan now holds one page.</source>
+        <translation>現在每次掃描包含一頁。</translation>
+    </message>
+    <message>
+        <source>Each scan now holds two pages.</source>
+        <translation>現在每次掃描包含兩頁。</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation>每次掃描一頁：將第一頁正面朝下放在玻璃板上，然後按「掃描」（或空白鍵）。</translation>
+    </message>
+    <message>
         <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
         <translation>將書本翻開到最前面幾頁，正面朝下放在玻璃板上，然後按「掃描」（或空白鍵）。</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation>每次掃描一頁：將第 %1 頁正面朝下放在玻璃板上，然後按「掃描」。最後一頁之後按「完成」。</translation>
+    </message>
+    <message>
+        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
+        <translation>翻到第 %1 頁和第 %2 頁，將書正面朝下放好，然後按「掃描」。最後幾頁之後按「完成」。</translation>
     </message>
     <message numerus="yes">
         <source>Finished (%n page(s))</source>
         <translation>
             <numerusform>完成（%n 頁）</numerusform>
         </translation>
-    </message>
-    <message>
-        <source>Front cover</source>
-        <translation>封面</translation>
-    </message>
-    <message>
-        <source>Back cover</source>
-        <translation>封底</translation>
     </message>
     <message>
         <source>Blank</source>
@@ -16303,92 +16401,6 @@ Do you want to replace it?</source>
     <message>
         <source>The PDF is written. Keep the scan project folder (%1) so you can change pages and export again later?</source>
         <translation>PDF 已寫入。是否保留掃描專案資料夾（%1），以便日後變更頁面並再次匯出？</translation>
-    </message>
-    <message>
-        <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
-        <translation>請在第 1 步中嘗試「每次掃描都使用系統掃描對話方塊」。</translation>
-    </message>
-    <message>
-        <source>Start Over...</source>
-        <translation>重新開始...</translation>
-    </message>
-    <message>
-        <source>Delete this folder&apos;s book scans and scan a new book here</source>
-        <translation>刪除此資料夾中的書籍掃描，並在這裡掃描新書</translation>
-    </message>
-    <message>
-        <source>Continue This Book</source>
-        <translation>繼續這本書</translation>
-    </message>
-    <message>
-        <source>Open Book Folder</source>
-        <translation>開啟書籍資料夾</translation>
-    </message>
-    <message>
-        <source>Show the scans in the file manager. This window stays open.</source>
-        <translation>在檔案管理員中顯示掃描。此視窗會保持開啟。</translation>
-    </message>
-    <message>
-        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
-        <translation>該資料夾已包含書籍掃描。請繼續掃描、重新開始或選擇其他資料夾。</translation>
-    </message>
-    <message>
-        <source>Untitled</source>
-        <translation>未命名</translation>
-    </message>
-    <message numerus="yes">
-        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
-        <translation>
-            <numerusform>此資料夾包含「%1」（%n 次掃描），可以匯出。「繼續這本書」可檢查並匯出它；「重新開始」會刪除其掃描，以便在這裡掃描新書。</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
-        <translation>
-            <numerusform>此資料夾包含「%1」（目前已掃描 %n 次）。「繼續這本書」會從上次停下的地方繼續；「重新開始」會刪除其掃描，以便在這裡掃描新書。</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>This folder holds a book scan Patchy cannot read: %1</source>
-        <translation>此資料夾包含 Patchy 無法讀取的書籍掃描：%1</translation>
-    </message>
-    <message>
-        <source>A new book is saved in this folder.</source>
-        <translation>新書將儲存在此資料夾中。</translation>
-    </message>
-    <message numerus="yes">
-        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
-        <translation>
-            <numerusform>刪除 %2 中「%1」的 %n 次掃描，並在那裡開始新書？資料夾中的其他檔案（例如匯出的 PDF）會保留。此動作無法復原。</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>The book folder %1 could not be opened.</source>
-        <translation>無法開啟書籍資料夾 %1。</translation>
-    </message>
-    <message>
-        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
-        <translation>打開的書已到達玻璃板邊緣。如果兩頁無法同時放在玻璃板上，請選擇「每次掃描一頁」。</translation>
-    </message>
-    <message>
-        <source>Each scan now holds one page.</source>
-        <translation>現在每次掃描包含一頁。</translation>
-    </message>
-    <message>
-        <source>Each scan now holds two pages.</source>
-        <translation>現在每次掃描包含兩頁。</translation>
-    </message>
-    <message>
-        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
-        <translation>每次掃描一頁：將第一頁正面朝下放在玻璃板上，然後按「掃描」（或空白鍵）。</translation>
-    </message>
-    <message>
-        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
-        <translation>每次掃描一頁：將第 %1 頁正面朝下放在玻璃板上，然後按「掃描」。最後一頁之後按「完成」。</translation>
-    </message>
-    <message>
-        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
-        <translation>翻到第 %1 頁和第 %2 頁，將書正面朝下放好，然後按「掃描」。最後幾頁之後按「完成」。</translation>
     </message>
 </context>
 <context>
@@ -16965,12 +16977,12 @@ Do you want to replace it?</source>
         <translation>編輯灰階色版時無法使用仿製印章</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a healing source</source>
-        <translation>按住 %ALT% 並按一下可設定修復來源</translation>
+        <source>%SOURCE_KEY%-click to set a healing source</source>
+        <translation>按住 %SOURCE_KEY% 並按一下可設定修復來源</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a clone source</source>
-        <translation>按住 %ALT% 並按一下可設定仿製來源</translation>
+        <source>%SOURCE_KEY%-click to set a clone source</source>
+        <translation>按住 %SOURCE_KEY% 並按一下可設定仿製來源</translation>
     </message>
     <message>
         <source>Healing brush</source>
@@ -18097,8 +18109,8 @@ Do you want to replace it?</source>
         <translation>移動漸層中點</translation>
     </message>
     <message>
-        <source>%1 while %ALT% is held</source>
-        <translation>按住 %ALT% 時為%1</translation>
+        <source>%1 while %SWAP_KEY% is held</source>
+        <translation>按住 %SWAP_KEY% 時為%1</translation>
     </message>
     <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
@@ -18339,8 +18351,8 @@ Do you want to replace it?</source>
         <translation>來源 %1: 未設定</translation>
     </message>
     <message>
-        <source>Not set: %ALT%-click the canvas</source>
-        <translation>未設定: 按住 %ALT% 並按一下畫布</translation>
+        <source>Not set: %SOURCE_KEY%-click the canvas</source>
+        <translation>未設定: 按住 %SOURCE_KEY% 並按一下畫布</translation>
     </message>
     <message>
         <source>Aligned is off: every stroke starts at the source point.</source>
@@ -18379,8 +18391,8 @@ Do you want to replace it?</source>
         <translation>清除來源</translation>
     </message>
     <message>
-        <source>Clear this source point; %ALT%-click the canvas to set a new one</source>
-        <translation>清除此來源點；按住 %ALT% 並按一下畫布可設定新的來源點</translation>
+        <source>Clear this source point; %SOURCE_KEY%-click the canvas to set a new one</source>
+        <translation>清除此來源點；按住 %SOURCE_KEY% 並按一下畫布可設定新的來源點</translation>
     </message>
     <message>
         <source>Back to 100%, 0 degrees and no flip; the source point stays</source>
@@ -30500,28 +30512,28 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         </translation>
     </message>
     <message>
-        <source>Rectangular Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a square and %ALT% draws from the center.</source>
-        <translation>矩形選取畫面：拖曳以選取。Shift+拖曳加入，%ALT%+拖曳減去，Shift+%ALT%+拖曳取交集。沒有選取範圍時，Shift 繪製正方形，%ALT% 從中心繪製。</translation>
+        <source>Rectangular Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a square and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>矩形選取畫面：拖曳以選取。Shift+拖曳加入，%SUBTRACT_KEY%+拖曳減去，Shift+%SUBTRACT_KEY%+拖曳取交集。沒有選取範圍時，Shift 繪製正方形，%SUBTRACT_KEY% 從中心繪製。</translation>
     </message>
     <message>
-        <source>Elliptical Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a circle and %ALT% draws from the center.</source>
-        <translation>橢圓選取畫面：拖曳以選取。Shift+拖曳加入，%ALT%+拖曳減去，Shift+%ALT%+拖曳取交集。沒有選取範圍時，Shift 繪製正圓，%ALT% 從中心繪製。</translation>
+        <source>Elliptical Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a circle and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>橢圓選取畫面：拖曳以選取。Shift+拖曳加入，%SUBTRACT_KEY%+拖曳減去，Shift+%SUBTRACT_KEY%+拖曳取交集。沒有選取範圍時，Shift 繪製正圓，%SUBTRACT_KEY% 從中心繪製。</translation>
     </message>
     <message>
-        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
-        <translation>磁性套索：按一下邊緣並沿著它移動，按一下可固定一個點。以 Shift+點按開始為加入，以 %ALT%+點按開始為減去，以 Shift+%ALT%+點按開始為取交集。Backspace 刪除最後一個點，Enter 封閉，Esc 取消。</translation>
+        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
+        <translation>磁性套索：按一下邊緣並沿著它移動，按一下可固定一個點。以 Shift+點按開始為加入，以 %SUBTRACT_KEY%+點按開始為減去，以 Shift+%SUBTRACT_KEY%+點按開始為取交集。Backspace 刪除最後一個點，Enter 封閉，Esc 取消。</translation>
     </message>
     <message>
-        <source>Magic Wand: click a color to select it. Shift+click adds, %ALT%+click subtracts, Shift+%ALT%+click intersects.</source>
-        <translation>魔術棒：按一下顏色以選取它。Shift+點按加入，%ALT%+點按減去，Shift+%ALT%+點按取交集。</translation>
+        <source>Magic Wand: click a color to select it. Shift+click adds, %SUBTRACT_KEY%+click subtracts, Shift+%SUBTRACT_KEY%+click intersects.</source>
+        <translation>魔術棒：按一下顏色以選取它。Shift+點按加入，%SUBTRACT_KEY%+點按減去，Shift+%SUBTRACT_KEY%+點按取交集。</translation>
     </message>
     <message>
-        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>快速選取：在要選取的區域上塗抹，之後的筆畫會加入選取範圍。Shift+拖曳加入，%ALT%+拖曳減去。</translation>
+        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>快速選取：在要選取的區域上塗抹，之後的筆畫會加入選取範圍。Shift+拖曳加入，%SUBTRACT_KEY%+拖曳減去。</translation>
     </message>
     <message>
-        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>物件選取：在物件周圍拖曳出方框，或按一下物件。Shift+拖曳加入，%ALT%+拖曳減去。</translation>
+        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>物件選取：在物件周圍拖曳出方框，或按一下物件。Shift+拖曳加入，%SUBTRACT_KEY%+拖曳減去。</translation>
     </message>
     <message>
         <source>Daily</source>
@@ -30958,12 +30970,12 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>按一下可放置點，按住 Shift 可保持 45 度，%ALT%+拖曳可徒手繪製。按一下起點、按兩下或按 Enter 即可封閉。</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
-        <translation>套索：沿區域周圍拖曳以選取。Shift+拖曳加入，%ALT%+拖曳減去，Shift+%ALT%+拖曳取交集。拖曳時按下 %ALT% 並放開滑鼠按鈕，即可按一下繪製直線段，直到放開 %ALT%。</translation>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>套索：沿區域周圍拖曳以選取。Shift+拖曳加入，%SUBTRACT_KEY%+拖曳減去，Shift+%SUBTRACT_KEY%+拖曳取交集。拖曳時按下 %ALT% 並放開滑鼠按鈕，即可按一下繪製直線段，直到放開 %ALT%。</translation>
     </message>
     <message>
-        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
-        <translation>多邊形套索：按一下可放置點。以 Shift+點按開始為加入，以 %ALT%+點按開始為減去，以 Shift+%ALT%+點按開始為取交集。按住 Shift 可保持 45 度，%ALT%+拖曳可徒手繪製。按一下起點、按兩下或按 Enter 即可封閉；Backspace 刪除最後一個點，Esc 取消。</translation>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>多邊形套索：按一下可放置點。以 Shift+點按開始為加入，以 %SUBTRACT_KEY%+點按開始為減去，以 Shift+%SUBTRACT_KEY%+點按開始為取交集。按住 Shift 可保持 45 度，%ALT%+拖曳可徒手繪製。按一下起點、按兩下或按 Enter 即可封閉；Backspace 刪除最後一個點，Esc 取消。</translation>
     </message>
     <message>
         <source>New &amp;Layer...</source>
@@ -32069,12 +32081,12 @@ The open document keeps its blend modes either way.</source>
         <translation>目標路徑(&amp;T)</translation>
     </message>
     <message>
-        <source>%1: Shift+click draws a line, %ALT%+click picks a color, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1：Shift+點按畫直線，%ALT%+點按拾取顏色，%ALT%+右鍵拖曳變更大小與柔和度。</translation>
+        <source>%1: Shift+click draws a line, %PICK_KEY%+click picks a color, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1：Shift+點按畫直線，%PICK_KEY%+點按拾取顏色，%ALT%+右鍵拖曳變更大小與柔和度。</translation>
     </message>
     <message>
-        <source>%1: %ALT%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1：%ALT%+點按設定來源，Shift+點按畫直線，%ALT%+右鍵拖曳變更大小與柔和度。</translation>
+        <source>%1: %SOURCE_KEY%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1：%SOURCE_KEY%+點按設定來源，Shift+點按畫直線，%ALT%+右鍵拖曳變更大小與柔和度。</translation>
     </message>
     <message>
         <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
@@ -34277,8 +34289,8 @@ Locked: %1</source>
         <translation>變更色標</translation>
     </message>
     <message>
-        <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1：%ALT%+拖曳以%2繪製，Shift+點按畫直線，%ALT%+右鍵拖曳變更大小與柔和度。</translation>
+        <source>%1: %SWAP_KEY%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1：%SWAP_KEY%+拖曳以%2繪製，Shift+點按畫直線，%ALT%+右鍵拖曳變更大小與柔和度。</translation>
     </message>
     <message>
         <source>Pages as layers</source>

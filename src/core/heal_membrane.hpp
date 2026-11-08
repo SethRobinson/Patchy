@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 
 namespace patchy {
@@ -34,5 +35,29 @@ void solve_heal_membrane(const std::uint8_t* interior, std::int32_t width, std::
 // gradients are involved. Integer math, deterministic.
 void fade_heal_offsets_to_edge_band(const std::uint8_t* interior, std::int32_t width, std::int32_t height,
                                     std::int16_t* offsets_rgb, std::int32_t band);
+
+// Alpha in the membrane (desk card local-039 follow-up). When a heal reads or writes pixels
+// that are not opaque, its color offsets are taken between alpha-premultiplied values and
+// alpha gets offsets of its own, solved by the same membrane as a separate field (alpha in the
+// first channel, the other two zero). The heal then neither darkens toward the black that
+// transparent pixels store nor turns transparent pixels opaque; with every pixel opaque it is
+// the plain membrane. Straight RGBA on the 0..255 scale (16-bit / 257, 32-bit linear * 255).
+
+// True when either pixel is not opaque.
+[[nodiscard]] constexpr bool heal_needs_alpha(const std::array<float, 4>& destination,
+                                              const std::array<float, 4>& source) noexcept {
+  return destination[3] < 255.0F || source[3] < 255.0F;
+}
+// Destination minus source: premultiplied color in [0..2], alpha in [3]; each times `scale`,
+// rounded and clamped to the solver's int16 range.
+[[nodiscard]] std::array<std::int32_t, 4> heal_alpha_offsets(const std::array<float, 4>& destination,
+                                                             const std::array<float, 4>& source,
+                                                             float scale) noexcept;
+// The healed straight RGBA: the source's premultiplied color plus `color_offsets` (3 values)
+// and its alpha plus `alpha_offset`, all offsets times `scale`. Alpha clamps to 0..255;
+// color clamps to 0..255, or only at 0 with `unbounded_color` (32-bit linear).
+[[nodiscard]] std::array<float, 4> heal_with_alpha(const std::array<float, 4>& source,
+                                                   const std::int16_t* color_offsets, std::int16_t alpha_offset,
+                                                   float scale, bool unbounded_color) noexcept;
 
 }  // namespace patchy

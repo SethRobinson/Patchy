@@ -59,6 +59,8 @@ public:
   [[nodiscard]] const HotkeyOverrideMap& staged_overrides() const noexcept { return staged_; }
   [[nodiscard]] const QString& active_shortcut_set_id() const noexcept { return active_set_id_; }
   [[nodiscard]] const std::vector<UserHotkeySet>& user_shortcut_sets() const noexcept { return user_sets_; }
+  // The tool modifiers of the set shown, which OK makes the canvas use (GitHub issue 302).
+  [[nodiscard]] ToolModifierStyle staged_tool_modifier_style() const;
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -89,6 +91,7 @@ private:
   void note_staged_change();
   void rebuild_set_combo();
   void put_staged_in_custom_set();
+  [[nodiscard]] ToolModifierStyle set_tool_modifier_style(const QString& set_id) const;
   [[nodiscard]] std::optional<QString> ask_set_name(const QString& title, const QString& initial,
                                                     const QString& except_id);
   // A built-in set's name without the "(built-in)" the combo adds; empty for other ids.

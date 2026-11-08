@@ -39,7 +39,7 @@ The dynamics model (controls, jitter, curves, Photoshop calibration) is in [brus
 
 ## Deliberate limitations
 
-Layer-**mask** painting and Clone/Healing/Smudge/Dodge/Burn/Sponge/Blur/Sharpen stay procedural. The four effect families apply to Brush strokes only. Dual Brush imports one secondary tip's basic geometry, not its own scatter/dynamics stack or arbitrary blend mode. Brush Texture uses a generated substitute instead of imported pattern pixels, and its depth dynamics are static by design.
+Layer-**mask** painting and Clone/Healing/Smudge/Dodge/Burn/Sponge/Blur/Sharpen stay procedural. Smudge mixes its carried sample and each pixel by alpha (premultiplied, `smudge_mix` in core/pixel_tools.cpp, both the write and the pickup, 8 bit and deep), so smearing paint into transparency keeps its color and smearing transparency into paint thins it without darkening; with equal alphas it is the plain straight mix (desk card local-039 follow-up, `ui_smudge_keeps_color_at_transparent_edges`). Edges against transparency, tool by tool: [healing.md](healing.md), [brushes-local-adjustments.md](brushes-local-adjustments.md). The four effect families apply to Brush strokes only. Dual Brush imports one secondary tip's basic geometry, not its own scatter/dynamics stack or arbitrary blend mode. Brush Texture uses a generated substitute instead of imported pattern pixels, and its depth dynamics are static by design.
 
 ## Pattern Stamp
 

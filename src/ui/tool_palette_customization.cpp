@@ -50,6 +50,10 @@ namespace {
 QString hidden_tools_key() { return QStringLiteral("toolPalette/hiddenTools"); }
 QString layout_key() { return QStringLiteral("toolPalette/layout"); }
 QString wheel_scroll_key() { return QStringLiteral("toolPalette/wheelScroll"); }
+// True when the user hid the wheel-scroll expand row or scroll arrows (GitHub issue 668);
+// absent while they show.
+QString hide_expand_button_key() { return QStringLiteral("toolPalette/hideExpandButton"); }
+QString hide_scroll_arrows_key() { return QStringLiteral("toolPalette/hideScrollArrows"); }
 // True when every tool shows on its own button (GitHub issue 499); absent for tool groups.
 QString ungroup_tools_key() { return QStringLiteral("toolPalette/ungroupTools"); }
 // The size the user dragged the Customize Tool Palette dialog to; absent until then.
@@ -599,6 +603,8 @@ ToolPaletteCustomization stored_tool_palette_customization() {
   value.two_columns = settings.value(layout_key()).toString() == QLatin1String(kTwoColumnsToken);
   value.wheel_scroll = settings.value(wheel_scroll_key(), true).toBool();
   value.ungroup_tools = settings.value(ungroup_tools_key(), false).toBool();
+  value.show_expand_button = !settings.value(hide_expand_button_key(), false).toBool();
+  value.show_scroll_arrows = !settings.value(hide_scroll_arrows_key(), false).toBool();
   value.hidden_layer_buttons = settings.value(hidden_layer_buttons_key()).toStringList();
   const auto shown_layer_buttons = settings.value(shown_layer_buttons_key()).toStringList();
   for (const auto* id : kLayerFooterButtonIdsHiddenByDefault) {
@@ -656,6 +662,15 @@ void set_stored_tool_palette_customization(const ToolPaletteCustomization& value
   } else {
     settings.remove(ungroup_tools_key());
   }
+  const auto store_hidden = [&settings](const QString& key, bool shown) {
+    if (shown) {
+      settings.remove(key);
+    } else {
+      settings.setValue(key, true);
+    }
+  };
+  store_hidden(hide_expand_button_key(), normalized.show_expand_button);
+  store_hidden(hide_scroll_arrows_key(), normalized.show_scroll_arrows);
 }
 
 // The Preferences labels live in MainWindow's translation context, where Preferences
@@ -758,6 +773,19 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   wheel_hint->setObjectName(QStringLiteral("toolPaletteWheelScrollHint"));
   wheel_hint->setIndent(22);
   side->addWidget(wheel_hint);
+  // Wheel-scroll mode's own rows (GitHub issue 668), indented under the option they depend
+  // on: without the wheel they are the only way to reach tools that do not fit, so the boxes
+  // are off then. The up arrow sits at the top of the column, the down arrow and the > row
+  // at its bottom.
+  auto* wheel_rows = new QVBoxLayout();
+  wheel_rows->setContentsMargins(22, 0, 0, 0);
+  auto* scroll_arrows = new QCheckBox(QObject::tr("Show the up and down scroll arrows"), tools_page);
+  scroll_arrows->setObjectName(QStringLiteral("toolPaletteShowScrollArrowsCheck"));
+  wheel_rows->addWidget(scroll_arrows);
+  auto* expand_button = new QCheckBox(QObject::tr("Show the > arrow that opens more columns"), tools_page);
+  expand_button->setObjectName(QStringLiteral("toolPaletteShowExpandButtonCheck"));
+  wheel_rows->addWidget(expand_button);
+  side->addLayout(wheel_rows);
   side->addSpacing(10);
 
   // The two Preferences settings that shape the palette, kept in step with Preferences
@@ -979,6 +1007,8 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
     value.two_columns = two_columns->isChecked();
     value.wheel_scroll = wheel_scroll->isChecked();
     value.ungroup_tools = ungroup_tools->isChecked();
+    value.show_expand_button = expand_button->isChecked();
+    value.show_scroll_arrows = scroll_arrows->isChecked();
     // The default choice already hides the optional buttons: start from the rows alone.
     value.hidden_layer_buttons.clear();
     for (int index = 0; index < layer_list->count(); ++index) {
@@ -1071,6 +1101,8 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
     (value.two_columns ? two_columns : one_column)->setChecked(true);
     wheel_scroll->setChecked(value.wheel_scroll);
     ungroup_tools->setChecked(value.ungroup_tools);
+    expand_button->setChecked(value.show_expand_button);
+    scroll_arrows->setChecked(value.show_scroll_arrows);
     set_layer_rows(value);
     refresh_preset_combo();
     for (const auto& check : footer_checks) {
@@ -1138,11 +1170,24 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   QObject::connect(order_up, &QPushButton::clicked, &dialog, [&] { move_current_row(-1); });
   QObject::connect(order_down, &QPushButton::clicked, &dialog, [&] { move_current_row(1); });
   refresh_order_buttons();
-  std::vector<QAbstractButton*> toggles{two_columns, wheel_scroll, ungroup_tools};
+  std::vector<QAbstractButton*> toggles{two_columns, wheel_scroll, ungroup_tools, expand_button, scroll_arrows};
   // Without tool groups there is no flyout to open.
   const auto refresh_flyout_open = [&] { flyout_open->setEnabled(!ungroup_tools->isChecked()); };
   QObject::connect(ungroup_tools, &QAbstractButton::toggled, &dialog, [&](bool) { refresh_flyout_open(); });
   refresh_flyout_open();
+  // The expand button and scroll arrows can leave only while the wheel scrolls the palette.
+  const auto refresh_wheel_rows = [&] {
+    const bool wheel = wheel_scroll->isChecked();
+    const auto needs_wheel =
+        QObject::tr("Needs \"Mouse wheel scrolls the palette\" on: otherwise these are the only way to reach tools "
+                    "that do not fit.");
+    expand_button->setEnabled(wheel);
+    scroll_arrows->setEnabled(wheel);
+    expand_button->setToolTip(wheel ? QString() : needs_wheel);
+    scroll_arrows->setToolTip(wheel ? QString() : needs_wheel);
+  };
+  QObject::connect(wheel_scroll, &QAbstractButton::toggled, &dialog, [&](bool) { refresh_wheel_rows(); });
+  refresh_wheel_rows();
   for (const auto& check : footer_checks) {
     toggles.push_back(check.box);
   }

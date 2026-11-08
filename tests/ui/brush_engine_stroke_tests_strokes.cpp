@@ -20,6 +20,7 @@
 #include "core/clone_source_transform.hpp"
 #include "core/document_depth.hpp"
 #include "core/pixel_depth.hpp"
+#include "core/pattern_resource.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/aseprite_document_io.hpp"
@@ -3093,6 +3094,310 @@ void ui_blur_brush_softens_edges_against_transparency() {
   CHECK(locked_outside[3] == 0);
 }
 
+// Tools at an edge that borders transparency (desk card local-039 follow-up). The document is
+// 64 x 24 RGBA; columns 0..25 are opaque, 26..34 an alpha ramp down to 0 (or a hard edge at
+// column 30), the rest transparent, all with the color `paint` (transparent pixels store
+// 0,0,0,0). With `layer_width` below 64 the layer stores only that many columns, so its stored
+// edge is the shape's edge.
+namespace transparent_edge {
+
+constexpr int kWidth = 64;
+constexpr int kHeight = 24;
+
+struct Scene {
+  std::unique_ptr<patchy::Document> document;
+  patchy::LayerId layer_id{0};
+  std::unique_ptr<patchy::ui::CanvasWidget> canvas;
+};
+
+int ramp_alpha(int x, bool ramp) {
+  if (!ramp) {
+    return x < 30 ? 255 : 0;
+  }
+  if (x < 26) {
+    return 255;
+  }
+  if (x > 34) {
+    return 0;
+  }
+  return (34 - x) * 255 / 8;
+}
+
+Scene make_scene(patchy::PixelFormat format, QColor paint, bool ramp, int layer_width, bool lock_transparent) {
+  Scene scene;
+  scene.document = std::make_unique<patchy::Document>(kWidth, kHeight, format);
+  auto& layer = scene.document->add_pixel_layer("Paint Layer", solid_pixels(kWidth, kHeight, format, Qt::transparent));
+  auto pixels = solid_pixels(layer_width, kHeight, format, Qt::transparent);
+  for (std::int32_t y = 0; y < kHeight; ++y) {
+    for (std::int32_t x = 0; x < layer_width; ++x) {
+      const auto alpha = ramp_alpha(x, ramp);
+      if (alpha > 0) {
+        patchy::store_pixel(format, pixels.pixel(x, y),
+                            {static_cast<float>(paint.red()), static_cast<float>(paint.green()),
+                             static_cast<float>(paint.blue()), static_cast<float>(alpha)});
+      }
+    }
+  }
+  layer.set_pixels(std::move(pixels));
+  if (lock_transparent) {
+    patchy::set_layer_locks_transparent_pixels(layer, true);
+  }
+  scene.layer_id = layer.id();
+  scene.canvas = std::make_unique<patchy::ui::CanvasWidget>();
+  scene.canvas->resize(kWidth * 6, kHeight * 6);
+  scene.canvas->set_document(scene.document.get());
+  scene.canvas->set_brush_softness(0);
+  scene.canvas->set_brush_opacity(100);
+  scene.canvas->set_brush_flow(100);
+  scene.canvas->show();
+  QApplication::processEvents();
+  return scene;
+}
+
+// Straight RGBA on the 0..255 scale; outside the stored pixels, transparent.
+std::array<float, 4> pixel(const Scene& scene, int x, int y) {
+  const auto* layer = scene.document->find_layer(scene.layer_id);
+  CHECK(layer != nullptr);
+  const auto bounds = layer->bounds();
+  if (x < bounds.x || y < bounds.y || x >= bounds.x + bounds.width || y >= bounds.y + bounds.height) {
+    return {0.0F, 0.0F, 0.0F, 0.0F};
+  }
+  const auto& pixels = layer->pixels();
+  return patchy::load_pixel(pixels.format(), pixels.pixel(x - bounds.x, y - bounds.y));
+}
+
+void print_row(const char* label, const Scene& scene, int y) {
+  std::printf("[probe] %s:", label);
+  for (int x = 18; x <= 46; x += 2) {
+    const auto value = pixel(scene, x, y);
+    std::printf(" %d=(%.0f,%.0f,%.0f,%.0f)", x, static_cast<double>(value[0]), static_cast<double>(value[1]),
+                static_cast<double>(value[2]), static_cast<double>(value[3]));
+  }
+  const auto bounds = scene.document->find_layer(scene.layer_id)->bounds();
+  std::printf(" bounds=%dx%d\n", bounds.width, bounds.height);
+  std::fflush(stdout);
+}
+
+void stroke(Scene& scene, QPoint from, QPoint to) {
+  drag_document_pixel_centers(*scene.canvas, {from, to}, 12);
+  QApplication::processEvents();
+}
+
+bool near_color(const std::array<float, 4>& value, QColor color, float tolerance) {
+  return std::abs(value[0] - static_cast<float>(color.red())) <= tolerance &&
+         std::abs(value[1] - static_cast<float>(color.green())) <= tolerance &&
+         std::abs(value[2] - static_cast<float>(color.blue())) <= tolerance;
+}
+
+// How many pixels of row `y` are partly transparent; each must keep `color` (no darkening
+// toward the black transparent pixels store) when its alpha is at least `min_alpha`.
+int check_partial_pixels_keep_color(const Scene& scene, int y, QColor color, float tolerance, float min_alpha) {
+  int partial = 0;
+  for (int x = 0; x < kWidth; ++x) {
+    const auto value = pixel(scene, x, y);
+    if (value[3] > 0.0F && value[3] < 255.0F) {
+      ++partial;
+      if (value[3] >= min_alpha && !near_color(value, color, tolerance)) {
+        std::printf("[probe] darkened pixel %d: (%.0f,%.0f,%.0f,%.0f)\n", x, static_cast<double>(value[0]),
+                    static_cast<double>(value[1]), static_cast<double>(value[2]), static_cast<double>(value[3]));
+        CHECK(near_color(value, color, tolerance));
+      }
+    }
+  }
+  return partial;
+}
+
+}  // namespace transparent_edge
+
+// Smudge mixes by alpha (premultiplied): smearing paint into transparency keeps its color
+// instead of darkening toward the transparent pixels' stored black, and smearing transparency
+// into paint thins it without darkening it (with Lock transparent pixels it changes nothing).
+// 8 and 16-bit layers (the core's byte and deep paths).
+void ui_smudge_keeps_color_at_transparent_edges() {
+  using namespace transparent_edge;
+  const QColor paint(220, 40, 30);
+  for (const auto depth : {patchy::BitDepth::UInt8, patchy::BitDepth::UInt16}) {
+    const auto format = patchy::with_bit_depth(patchy::PixelFormat::rgba8(), depth);
+    const auto smudge = [&format, &paint](int layer_width, bool lock, QPoint from, QPoint to) {
+      auto scene = make_scene(format, paint, false, layer_width, lock);
+      scene.canvas->set_tool(patchy::ui::CanvasTool::Smudge);
+      scene.canvas->set_brush_size(12);
+      scene.canvas->set_brush_opacity(70);
+      stroke(scene, from, to);
+      return scene;
+    };
+    // Paint into transparency, and past the layer's stored edge.
+    for (const auto layer_width : {kWidth, 30}) {
+      const auto scene = smudge(layer_width, false, QPoint(20, 12), QPoint(46, 12));
+      print_row("smudge out", scene, 12);
+      const auto smeared = pixel(scene, 36, 12);
+      CHECK(smeared[3] > 20.0F);
+      CHECK(near_color(smeared, paint, 2.0F));
+      CHECK(check_partial_pixels_keep_color(scene, 12, paint, 2.0F, 1.0F) > 0);
+    }
+    // Transparency into paint.
+    const auto thinned_scene = smudge(kWidth, false, QPoint(44, 12), QPoint(18, 12));
+    print_row("smudge in", thinned_scene, 12);
+    CHECK(pixel(thinned_scene, 26, 12)[3] < 250.0F);
+    CHECK(check_partial_pixels_keep_color(thinned_scene, 12, paint, 2.0F, 1.0F) > 0);
+    // Lock transparent pixels: alpha and color stay.
+    const auto locked = smudge(kWidth, true, QPoint(44, 12), QPoint(18, 12));
+    print_row("smudge in locked", locked, 12);
+    const auto kept = pixel(locked, 26, 12);
+    CHECK(kept[3] == 255.0F);
+    CHECK(near_color(kept, paint, 2.0F));
+    CHECK(pixel(locked, 34, 12)[3] == 0.0F);
+  }
+}
+
+// Sharpen acts on alpha the way it acts on lightness: a soft edge against transparency gets
+// steeper (alpha rises on its inner half and falls on its outer half), the color stays, and
+// Lock transparent pixels keeps alpha.
+void ui_sharpen_steepens_soft_edges_against_transparency() {
+  using namespace transparent_edge;
+  const QColor paint(220, 40, 30);
+  const auto sharpen = [&paint](bool lock) {
+    auto scene = make_scene(patchy::PixelFormat::rgba8(), paint, true, kWidth, lock);
+    scene.canvas->set_tool(patchy::ui::CanvasTool::SharpenBrush);
+    scene.canvas->set_brush_size(15);
+    scene.canvas->set_local_adjustment_strength(100);
+    stroke(scene, QPoint(30, 2), QPoint(30, 21));
+    return scene;
+  };
+  const auto scene = sharpen(false);
+  print_row("sharpen", scene, 12);
+  const auto inner = pixel(scene, 28, 12);
+  const auto outer = pixel(scene, 32, 12);
+  CHECK(inner[3] > static_cast<float>(ramp_alpha(28, true)) + 4.0F);
+  CHECK(outer[3] < static_cast<float>(ramp_alpha(32, true)) - 4.0F);
+  CHECK(near_color(inner, paint, 0.0F));
+  CHECK(pixel(scene, 40, 12)[3] == 0.0F);
+
+  const auto locked = sharpen(true);
+  print_row("sharpen locked", locked, 12);
+  CHECK(pixel(locked, 28, 12)[3] == static_cast<float>(ramp_alpha(28, true)));
+  CHECK(pixel(locked, 32, 12)[3] == static_cast<float>(ramp_alpha(32, true)));
+}
+
+// The other tools at the same edges (desk card local-039 follow-up): each one's row is printed
+// as a [probe] line, and the checks pin what each must do: paint carried into transparency and
+// past the stored edge keeps its color, Lock transparent pixels keeps alpha, the healing tools
+// carry alpha in their membrane (no opaque black from the black transparent pixels store, no
+// hole cut into a soft edge), and the toning tools change the color of semi-transparent pixels
+// without touching alpha.
+void ui_retouch_tools_keep_color_and_alpha_at_transparent_edges() {
+  using namespace transparent_edge;
+  const QColor paint(220, 40, 30);
+  const auto rgba8 = patchy::PixelFormat::rgba8();
+  const auto alt_click = [](Scene& scene, QPoint point) {
+    const auto source = scene.canvas->widget_position_for_document_point(point);
+    send_mouse(*scene.canvas, QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+    send_mouse(*scene.canvas, QEvent::MouseButtonRelease, source, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  };
+  for (const bool lock : {false, true}) {
+    // Clone Stamp: source in the paint, painted into transparency and past the stored edge.
+    for (const auto layer_width : {kWidth, 30}) {
+      auto scene = make_scene(rgba8, paint, false, layer_width, lock);
+      scene.canvas->set_tool(patchy::ui::CanvasTool::Clone);
+      scene.canvas->set_clone_overlay_shown(false);
+      scene.canvas->set_brush_size(9);
+      alt_click(scene, QPoint(8, 12));
+      stroke(scene, QPoint(40, 12), QPoint(46, 12));
+      print_row(lock ? "clone locked" : "clone", scene, 12);
+      const auto cloned = pixel(scene, 42, 12);
+      CHECK(lock ? cloned[3] == 0.0F : (cloned[3] == 255.0F && near_color(cloned, paint, 0.0F)));
+    }
+    // Pattern Stamp into transparency and past the stored edge.
+    for (const auto layer_width : {kWidth, 30}) {
+      auto scene = make_scene(rgba8, paint, false, layer_width, lock);
+      patchy::PatternResource pattern;
+      pattern.id = "local-039-probe";
+      pattern.name = "Probe";
+      pattern.tile = solid_pixels(4, 4, rgba8, QColor(30, 160, 60, 255));
+      scene.canvas->set_tool(patchy::ui::CanvasTool::PatternStamp);
+      scene.canvas->set_pattern_stamp_pattern(pattern);
+      scene.canvas->set_brush_size(9);
+      stroke(scene, QPoint(24, 12), QPoint(46, 12));
+      print_row(lock ? "pattern locked" : "pattern", scene, 12);
+      const auto stamped = pixel(scene, 42, 12);
+      CHECK(lock ? stamped[3] == 0.0F : (stamped[3] == 255.0F && near_color(stamped, QColor(30, 160, 60), 0.0F)));
+    }
+    // Mixer Brush across the edge.
+    {
+      auto scene = make_scene(rgba8, paint, false, kWidth, lock);
+      scene.canvas->set_tool(patchy::ui::CanvasTool::MixerBrush);
+      scene.canvas->set_primary_color(QColor(30, 60, 220));
+      scene.canvas->set_brush_size(9);
+      scene.canvas->set_mixer_wet(50);
+      scene.canvas->set_mixer_load(50);
+      scene.canvas->set_mixer_mix(50);
+      stroke(scene, QPoint(20, 12), QPoint(46, 12));
+      print_row(lock ? "mixer locked" : "mixer", scene, 12);
+      if (lock) {
+        CHECK(pixel(scene, 42, 12)[3] == 0.0F);
+      }
+    }
+    // Healing Brush: source in the paint, painted across the soft edge.
+    {
+      auto scene = make_scene(rgba8, paint, true, kWidth, lock);
+      scene.canvas->set_tool(patchy::ui::CanvasTool::Healing);
+      scene.canvas->set_brush_size(9);
+      alt_click(scene, QPoint(8, 12));
+      stroke(scene, QPoint(24, 12), QPoint(44, 12));
+      print_row(lock ? "healing locked" : "healing", scene, 12);
+      for (int x = 18; x <= 50; ++x) {
+        const auto healed = pixel(scene, x, 12);
+        if (healed[3] >= 64.0F) {  // below that, 8-bit premultiplied rounding moves the color
+          CHECK(near_color(healed, paint, 8.0F));
+        }
+        if (lock) {
+          CHECK(healed[3] == static_cast<float>(ramp_alpha(x, true)));
+        } else if (x >= 38) {
+          // Mostly transparent where the boundary is transparent (the membrane solve leaves
+          // a faint trace on a long thin stroke).
+          CHECK(healed[3] < 96.0F);
+        }
+      }
+    }
+    // Spot Healing on the soft edge.
+    {
+      auto scene = make_scene(rgba8, paint, true, kWidth, lock);
+      scene.canvas->set_tool(patchy::ui::CanvasTool::SpotHealing);
+      scene.canvas->set_brush_size(9);
+      stroke(scene, QPoint(30, 12), QPoint(31, 12));
+      print_row(lock ? "spot locked" : "spot", scene, 12);
+      for (int x = 24; x <= 38; ++x) {
+        const auto healed = pixel(scene, x, 12);
+        if (healed[3] >= 64.0F) {  // below that, 8-bit premultiplied rounding moves the color
+          CHECK(near_color(healed, paint, 8.0F));
+        }
+        if (lock) {
+          CHECK(healed[3] == static_cast<float>(ramp_alpha(x, true)));
+        }
+      }
+      // The soft edge continues through the healed spot instead of a transparent hole.
+      CHECK(pixel(scene, 28, 12)[3] > 128.0F);
+      CHECK(pixel(scene, 32, 12)[3] > 24.0F);
+    }
+  }
+  // Dodge, Burn and Sponge on the soft edge: color moves on semi-transparent pixels, alpha stays.
+  const auto toning = [&rgba8](patchy::ui::CanvasTool tool, const char* label) {
+    auto scene = make_scene(rgba8, QColor(200, 120, 60), true, kWidth, false);
+    scene.canvas->set_tool(tool);
+    scene.canvas->set_brush_size(15);
+    scene.canvas->set_local_adjustment_strength(100);
+    stroke(scene, QPoint(30, 2), QPoint(30, 21));
+    print_row(label, scene, 12);
+    for (int x = 20; x <= 40; ++x) {
+      CHECK(pixel(scene, x, 12)[3] == static_cast<float>(ramp_alpha(x, true)));
+    }
+    CHECK(!near_color(pixel(scene, 31, 12), QColor(200, 120, 60), 0.0F));
+  };
+  toning(patchy::ui::CanvasTool::Dodge, "dodge");
+  toning(patchy::ui::CanvasTool::Burn, "burn");
+  toning(patchy::ui::CanvasTool::Sponge, "sponge");
+}
+
 void ui_smudge_tool_drags_painted_pixels() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -5435,6 +5740,11 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
       {"ui_local_adjustment_brushes_use_fixed_math_and_round_trip_psd",
        ui_local_adjustment_brushes_use_fixed_math_and_round_trip_psd},
       {"ui_blur_brush_softens_edges_against_transparency", ui_blur_brush_softens_edges_against_transparency},
+      {"ui_smudge_keeps_color_at_transparent_edges", ui_smudge_keeps_color_at_transparent_edges},
+      {"ui_sharpen_steepens_soft_edges_against_transparency",
+       ui_sharpen_steepens_soft_edges_against_transparency},
+      {"ui_retouch_tools_keep_color_and_alpha_at_transparent_edges",
+       ui_retouch_tools_keep_color_and_alpha_at_transparent_edges},
       {"ui_smudge_tool_drags_painted_pixels", ui_smudge_tool_drags_painted_pixels},
       {"ui_wet_edges_uses_one_continuous_stroke_boundary",
        ui_wet_edges_uses_one_continuous_stroke_boundary},

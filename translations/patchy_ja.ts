@@ -15038,6 +15038,18 @@ Do you want to replace it?</source>
         <translation>単位</translation>
     </message>
     <message>
+        <source>Needs &quot;Mouse wheel scrolls the palette&quot; on: otherwise these are the only way to reach tools that do not fit.</source>
+        <translation>「はみ出したときはマウスホイールでパレットをスクロール」をオンにする必要があります。オフのときは、収まらないツールに届く唯一の手段です。</translation>
+    </message>
+    <message>
+        <source>Show the up and down scroll arrows</source>
+        <translation>上下のスクロール矢印を表示</translation>
+    </message>
+    <message>
+        <source>Show the &gt; arrow that opens more columns</source>
+        <translation>列を追加表示する &gt; 矢印を表示</translation>
+    </message>
+    <message>
         <source>%1 x %2 mm</source>
         <translation>%1 x %2 mm</translation>
     </message>
@@ -15835,10 +15847,6 @@ Do you want to replace it?</source>
         <translation>Patchy 本のスキャン</translation>
     </message>
     <message>
-        <source>Book</source>
-        <translation>本</translation>
-    </message>
-    <message>
         <source>Title:</source>
         <translation>タイトル:</translation>
     </message>
@@ -15875,12 +15883,24 @@ Do you want to replace it?</source>
         <translation>本を開いてガラス面に伏せて置き、裏表紙、背、表表紙がすべてガラス面に載るようにしてから、「表紙をスキャン」を押してください。Patchy はこのスキャンから本のサイズを測ります。スキップすると、代わりに最初のページから測ります (その場合、表紙は PDF に含まれません)。</translation>
     </message>
     <message>
+        <source>Start Over...</source>
+        <translation>やり直す...</translation>
+    </message>
+    <message>
+        <source>Delete this folder&apos;s book scans and scan a new book here</source>
+        <translation>このフォルダーの本のスキャンを削除して、ここで新しい本をスキャンします</translation>
+    </message>
+    <message>
         <source>Skip Cover</source>
         <translation>表紙をスキップ</translation>
     </message>
     <message>
         <source>Scan Cover</source>
         <translation>表紙をスキャン</translation>
+    </message>
+    <message>
+        <source>Continue This Book</source>
+        <translation>この本を続ける</translation>
     </message>
     <message>
         <source>Choose Project Folder</source>
@@ -16147,8 +16167,20 @@ Do you want to replace it?</source>
         <translation>画質:</translation>
     </message>
     <message>
+        <source>Open Book Folder</source>
+        <translation>本のフォルダーを開く</translation>
+    </message>
+    <message>
+        <source>Show the scans in the file manager. This window stays open.</source>
+        <translation>スキャンをファイル マネージャーで表示します。このウィンドウは開いたままです。</translation>
+    </message>
+    <message>
         <source>Export PDF...</source>
         <translation>PDF を書き出し...</translation>
+    </message>
+    <message>
+        <source>Book</source>
+        <translation>本</translation>
     </message>
     <message>
         <source>Export Book PDF</source>
@@ -16187,8 +16219,46 @@ Do you want to replace it?</source>
         <translation>先にプロジェクトフォルダーを選択してください。</translation>
     </message>
     <message>
+        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
+        <translation>そのフォルダーにはすでに本のスキャンがあります。続けるか、やり直すか、別のフォルダーを選んでください。</translation>
+    </message>
+    <message>
         <source>The project folder %1 could not be created.</source>
         <translation>プロジェクトフォルダー %1 を作成できませんでした。</translation>
+    </message>
+    <message>
+        <source>Untitled</source>
+        <translation>無題</translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>このフォルダーには「%1」(%n 回のスキャン) があり、書き出しの準備ができています。「この本を続ける」で確認して書き出せます。「やり直す」はスキャンを削除し、ここで新しい本をスキャンできるようにします。</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
+        <translation>
+            <numerusform>このフォルダーには「%1」(これまでに %n 回のスキャン) があります。「この本を続ける」で中断したところから再開できます。「やり直す」はスキャンを削除し、ここで新しい本をスキャンできるようにします。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>This folder holds a book scan Patchy cannot read: %1</source>
+        <translation>このフォルダーには Patchy が読み取れない本のスキャンがあります: %1</translation>
+    </message>
+    <message>
+        <source>A new book is saved in this folder.</source>
+        <translation>新しい本はこのフォルダーに保存されます。</translation>
+    </message>
+    <message numerus="yes">
+        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
+        <translation>
+            <numerusform>%2 にある「%1」の %n 件のスキャンを削除して、そこで新しい本を始めますか? 書き出した PDF など、フォルダー内のほかのファイルは残ります。この操作は元に戻せません。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The book folder %1 could not be opened.</source>
+        <translation>本のフォルダー %1 を開けませんでした。</translation>
     </message>
     <message>
         <source>Scanning is not available here.</source>
@@ -16197,6 +16267,10 @@ Do you want to replace it?</source>
     <message>
         <source>The scanner could not be opened.</source>
         <translation>スキャナーを開けませんでした。</translation>
+    </message>
+    <message>
+        <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
+        <translation>手順 1 で「スキャンごとにシステムのスキャンダイアログを使う」を試してください。</translation>
     </message>
     <message>
         <source>Scanning the cover...</source>
@@ -16223,6 +16297,18 @@ Do you want to replace it?</source>
         <translation>スキャンごとの解像度とモードはスキャンダイアログで設定します。</translation>
     </message>
     <message>
+        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
+        <translation>開いた本がガラス面の端まで届いています。両方のページがガラス面に収まらない場合は「1 回のスキャンで 1 ページ」を選んでください。</translation>
+    </message>
+    <message>
+        <source>Front cover</source>
+        <translation>表表紙</translation>
+    </message>
+    <message>
+        <source>Back cover</source>
+        <translation>裏表紙</translation>
+    </message>
+    <message>
         <source>about %1</source>
         <translation>約 %1</translation>
     </message>
@@ -16247,22 +16333,34 @@ Do you want to replace it?</source>
         <translation>スキャン %1 が完了しました。</translation>
     </message>
     <message>
+        <source>Each scan now holds one page.</source>
+        <translation>各スキャンは 1 ページになりました。</translation>
+    </message>
+    <message>
+        <source>Each scan now holds two pages.</source>
+        <translation>各スキャンは 2 ページになりました。</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
+        <translation>1 回のスキャンで 1 ページ: 最初のページをガラス面に伏せて置き、「スキャン」(または Space キー) を押してください。</translation>
+    </message>
+    <message>
         <source>Open the book at the first pages, lay it face down on the glass, then press Scan (or Space).</source>
         <translation>本の最初のページを開いてガラス面に伏せて置き、「スキャン」(または Space キー) を押してください。</translation>
+    </message>
+    <message>
+        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
+        <translation>1 回のスキャンで 1 ページ: %1 ページ目をガラス面に伏せて置き、「スキャン」を押してください。最後のページの後で「完了」を押してください。</translation>
+    </message>
+    <message>
+        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
+        <translation>%1 ページと %2 ページを開いて本を伏せて置き、「スキャン」を押してください。最後のページの後で「完了」を押してください。</translation>
     </message>
     <message numerus="yes">
         <source>Finished (%n page(s))</source>
         <translation>
             <numerusform>完了 (%n ページ)</numerusform>
         </translation>
-    </message>
-    <message>
-        <source>Front cover</source>
-        <translation>表表紙</translation>
-    </message>
-    <message>
-        <source>Back cover</source>
-        <translation>裏表紙</translation>
     </message>
     <message>
         <source>Blank</source>
@@ -16303,92 +16401,6 @@ Do you want to replace it?</source>
     <message>
         <source>The PDF is written. Keep the scan project folder (%1) so you can change pages and export again later?</source>
         <translation>PDF を書き出しました。後でページを変更して再度書き出せるように、スキャンのプロジェクトフォルダー (%1) を残しますか?</translation>
-    </message>
-    <message>
-        <source>Try &quot;Use the system scan dialog for each scan&quot; in step 1.</source>
-        <translation>手順 1 で「スキャンごとにシステムのスキャンダイアログを使う」を試してください。</translation>
-    </message>
-    <message>
-        <source>Start Over...</source>
-        <translation>やり直す...</translation>
-    </message>
-    <message>
-        <source>Delete this folder&apos;s book scans and scan a new book here</source>
-        <translation>このフォルダーの本のスキャンを削除して、ここで新しい本をスキャンします</translation>
-    </message>
-    <message>
-        <source>Continue This Book</source>
-        <translation>この本を続ける</translation>
-    </message>
-    <message>
-        <source>Open Book Folder</source>
-        <translation>本のフォルダーを開く</translation>
-    </message>
-    <message>
-        <source>Show the scans in the file manager. This window stays open.</source>
-        <translation>スキャンをファイル マネージャーで表示します。このウィンドウは開いたままです。</translation>
-    </message>
-    <message>
-        <source>That folder already holds a book scan. Continue it, start over, or choose another folder.</source>
-        <translation>そのフォルダーにはすでに本のスキャンがあります。続けるか、やり直すか、別のフォルダーを選んでください。</translation>
-    </message>
-    <message>
-        <source>Untitled</source>
-        <translation>無題</translation>
-    </message>
-    <message numerus="yes">
-        <source>This folder holds &quot;%1&quot; (%n scan(s)), ready to export. Continue This Book reviews and exports it; Start Over deletes its scans so a new book can be scanned here.</source>
-        <translation>
-            <numerusform>このフォルダーには「%1」(%n 回のスキャン) があり、書き出しの準備ができています。「この本を続ける」で確認して書き出せます。「やり直す」はスキャンを削除し、ここで新しい本をスキャンできるようにします。</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>This folder holds &quot;%1&quot; (%n scan(s) so far). Continue This Book picks up where you stopped; Start Over deletes its scans so a new book can be scanned here.</source>
-        <translation>
-            <numerusform>このフォルダーには「%1」(これまでに %n 回のスキャン) があります。「この本を続ける」で中断したところから再開できます。「やり直す」はスキャンを削除し、ここで新しい本をスキャンできるようにします。</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>This folder holds a book scan Patchy cannot read: %1</source>
-        <translation>このフォルダーには Patchy が読み取れない本のスキャンがあります: %1</translation>
-    </message>
-    <message>
-        <source>A new book is saved in this folder.</source>
-        <translation>新しい本はこのフォルダーに保存されます。</translation>
-    </message>
-    <message numerus="yes">
-        <source>Delete the %n scan(s) of &quot;%1&quot; in %2 and start a new book there? Other files in the folder, such as an exported PDF, are kept. This cannot be undone.</source>
-        <translation>
-            <numerusform>%2 にある「%1」の %n 件のスキャンを削除して、そこで新しい本を始めますか? 書き出した PDF など、フォルダー内のほかのファイルは残ります。この操作は元に戻せません。</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>The book folder %1 could not be opened.</source>
-        <translation>本のフォルダー %1 を開けませんでした。</translation>
-    </message>
-    <message>
-        <source>The open book reaches the edges of the glass. If both pages do not fit on the glass, choose One page per scan.</source>
-        <translation>開いた本がガラス面の端まで届いています。両方のページがガラス面に収まらない場合は「1 回のスキャンで 1 ページ」を選んでください。</translation>
-    </message>
-    <message>
-        <source>Each scan now holds one page.</source>
-        <translation>各スキャンは 1 ページになりました。</translation>
-    </message>
-    <message>
-        <source>Each scan now holds two pages.</source>
-        <translation>各スキャンは 2 ページになりました。</translation>
-    </message>
-    <message>
-        <source>One page per scan: lay the first page face down on the glass, then press Scan (or Space).</source>
-        <translation>1 回のスキャンで 1 ページ: 最初のページをガラス面に伏せて置き、「スキャン」(または Space キー) を押してください。</translation>
-    </message>
-    <message>
-        <source>One page per scan: lay page %1 face down on the glass, then press Scan. Press Finished after the last page.</source>
-        <translation>1 回のスキャンで 1 ページ: %1 ページ目をガラス面に伏せて置き、「スキャン」を押してください。最後のページの後で「完了」を押してください。</translation>
-    </message>
-    <message>
-        <source>Turn to pages %1 and %2, lay the book face down, then press Scan. Press Finished after the last pages.</source>
-        <translation>%1 ページと %2 ページを開いて本を伏せて置き、「スキャン」を押してください。最後のページの後で「完了」を押してください。</translation>
     </message>
 </context>
 <context>
@@ -17129,12 +17141,12 @@ Do you want to replace it?</source>
         <translation>処理中...</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a clone source</source>
-        <translation>%ALT% クリックでクローン元を設定します</translation>
+        <source>%SOURCE_KEY%-click to set a clone source</source>
+        <translation>%SOURCE_KEY% クリックでクローン元を設定します</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a healing source</source>
-        <translation>%ALT% クリックで修復元を設定します</translation>
+        <source>%SOURCE_KEY%-click to set a healing source</source>
+        <translation>%SOURCE_KEY% クリックで修復元を設定します</translation>
     </message>
     <message>
         <source>Select the Clone or Healing Brush tool to set a sample source</source>
@@ -18097,8 +18109,8 @@ Do you want to replace it?</source>
         <translation>グラデーションの中間点を移動</translation>
     </message>
     <message>
-        <source>%1 while %ALT% is held</source>
-        <translation>%ALT%を押している間は%1</translation>
+        <source>%1 while %SWAP_KEY% is held</source>
+        <translation>%SWAP_KEY%を押している間は%1</translation>
     </message>
     <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
@@ -18339,8 +18351,8 @@ Do you want to replace it?</source>
         <translation>ソース %1: 未設定</translation>
     </message>
     <message>
-        <source>Not set: %ALT%-click the canvas</source>
-        <translation>未設定: カンバスを %ALT% クリックしてください</translation>
+        <source>Not set: %SOURCE_KEY%-click the canvas</source>
+        <translation>未設定: カンバスを %SOURCE_KEY% クリックしてください</translation>
     </message>
     <message>
         <source>Aligned is off: every stroke starts at the source point.</source>
@@ -18379,8 +18391,8 @@ Do you want to replace it?</source>
         <translation>ソースをクリア</translation>
     </message>
     <message>
-        <source>Clear this source point; %ALT%-click the canvas to set a new one</source>
-        <translation>このソースポイントをクリアします。新しく設定するにはカンバスを %ALT% クリックします</translation>
+        <source>Clear this source point; %SOURCE_KEY%-click the canvas to set a new one</source>
+        <translation>このソースポイントをクリアします。新しく設定するにはカンバスを %SOURCE_KEY% クリックします</translation>
     </message>
     <message>
         <source>Back to 100%, 0 degrees and no flip; the source point stays</source>
@@ -30500,28 +30512,28 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         </translation>
     </message>
     <message>
-        <source>Rectangular Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a square and %ALT% draws from the center.</source>
-        <translation>長方形選択: ドラッグして選択します。Shift+ドラッグで追加、%ALT%+ドラッグで削除、Shift+%ALT%+ドラッグで共通範囲を選択します。選択範囲がないときは、Shiftで正方形、%ALT%で中心から描きます。</translation>
+        <source>Rectangular Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a square and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>長方形選択: ドラッグして選択します。Shift+ドラッグで追加、%SUBTRACT_KEY%+ドラッグで削除、Shift+%SUBTRACT_KEY%+ドラッグで共通範囲を選択します。選択範囲がないときは、Shiftで正方形、%SUBTRACT_KEY%で中心から描きます。</translation>
     </message>
     <message>
-        <source>Elliptical Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a circle and %ALT% draws from the center.</source>
-        <translation>楕円形選択: ドラッグして選択します。Shift+ドラッグで追加、%ALT%+ドラッグで削除、Shift+%ALT%+ドラッグで共通範囲を選択します。選択範囲がないときは、Shiftで正円、%ALT%で中心から描きます。</translation>
+        <source>Elliptical Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a circle and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>楕円形選択: ドラッグして選択します。Shift+ドラッグで追加、%SUBTRACT_KEY%+ドラッグで削除、Shift+%SUBTRACT_KEY%+ドラッグで共通範囲を選択します。選択範囲がないときは、Shiftで正円、%SUBTRACT_KEY%で中心から描きます。</translation>
     </message>
     <message>
-        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
-        <translation>マグネット選択: エッジをクリックしてなぞり、クリックでポイントを固定します。開始時にShift+クリックで追加、%ALT%+クリックで削除、Shift+%ALT%+クリックで共通範囲になります。Backspaceで最後のポイントを削除、Enterで閉じ、Escでキャンセルします。</translation>
+        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
+        <translation>マグネット選択: エッジをクリックしてなぞり、クリックでポイントを固定します。開始時にShift+クリックで追加、%SUBTRACT_KEY%+クリックで削除、Shift+%SUBTRACT_KEY%+クリックで共通範囲になります。Backspaceで最後のポイントを削除、Enterで閉じ、Escでキャンセルします。</translation>
     </message>
     <message>
-        <source>Magic Wand: click a color to select it. Shift+click adds, %ALT%+click subtracts, Shift+%ALT%+click intersects.</source>
-        <translation>自動選択: 色をクリックして選択します。Shift+クリックで追加、%ALT%+クリックで削除、Shift+%ALT%+クリックで共通範囲を選択します。</translation>
+        <source>Magic Wand: click a color to select it. Shift+click adds, %SUBTRACT_KEY%+click subtracts, Shift+%SUBTRACT_KEY%+click intersects.</source>
+        <translation>自動選択: 色をクリックして選択します。Shift+クリックで追加、%SUBTRACT_KEY%+クリックで削除、Shift+%SUBTRACT_KEY%+クリックで共通範囲を選択します。</translation>
     </message>
     <message>
-        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>クイック選択: 選択する範囲をなぞって塗ります。2回目以降のストロークは追加されます。Shift+ドラッグで追加、%ALT%+ドラッグで削除します。</translation>
+        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>クイック選択: 選択する範囲をなぞって塗ります。2回目以降のストロークは追加されます。Shift+ドラッグで追加、%SUBTRACT_KEY%+ドラッグで削除します。</translation>
     </message>
     <message>
-        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>オブジェクト選択: オブジェクトを囲むようにドラッグするか、クリックします。Shift+ドラッグで追加、%ALT%+ドラッグで削除します。</translation>
+        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>オブジェクト選択: オブジェクトを囲むようにドラッグするか、クリックします。Shift+ドラッグで追加、%SUBTRACT_KEY%+ドラッグで削除します。</translation>
     </message>
     <message>
         <source>Daily</source>
@@ -30958,12 +30970,12 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>クリックでポイントを置きます。Shiftで45度に固定、%ALT%+ドラッグでフリーハンドで描きます。開始点をクリック、ダブルクリック、またはEnterで閉じます。</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
-        <translation>なげなわ: 範囲を囲むようにドラッグして選択します。Shift+ドラッグで追加、%ALT%+ドラッグで削除、Shift+%ALT%+ドラッグで共通範囲を選択します。ドラッグ中に%ALT%を押してボタンを離すと、%ALT%を離すまでクリックで直線を描けます。</translation>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>なげなわ: 範囲を囲むようにドラッグして選択します。Shift+ドラッグで追加、%SUBTRACT_KEY%+ドラッグで削除、Shift+%SUBTRACT_KEY%+ドラッグで共通範囲を選択します。ドラッグ中に%ALT%を押してボタンを離すと、%ALT%を離すまでクリックで直線を描けます。</translation>
     </message>
     <message>
-        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
-        <translation>多角形選択: クリックでポイントを置きます。開始時にShift+クリックで追加、%ALT%+クリックで削除、Shift+%ALT%+クリックで共通範囲になります。Shiftで45度に固定、%ALT%+ドラッグでフリーハンドで描きます。開始点をクリック、ダブルクリック、またはEnterで閉じ、Backspaceで最後のポイントを削除、Escでキャンセルします。</translation>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>多角形選択: クリックでポイントを置きます。開始時にShift+クリックで追加、%SUBTRACT_KEY%+クリックで削除、Shift+%SUBTRACT_KEY%+クリックで共通範囲になります。Shiftで45度に固定、%ALT%+ドラッグでフリーハンドで描きます。開始点をクリック、ダブルクリック、またはEnterで閉じ、Backspaceで最後のポイントを削除、Escでキャンセルします。</translation>
     </message>
     <message>
         <source>New &amp;Layer...</source>
@@ -32069,12 +32081,12 @@ The open document keeps its blend modes either way.</source>
         <translation>ターゲットパス(&amp;T)</translation>
     </message>
     <message>
-        <source>%1: Shift+click draws a line, %ALT%+click picks a color, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: Shift+クリックで直線、%ALT%+クリックで色を取得、%ALT%+右ドラッグでサイズとぼかしを変更します。</translation>
+        <source>%1: Shift+click draws a line, %PICK_KEY%+click picks a color, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: Shift+クリックで直線、%PICK_KEY%+クリックで色を取得、%ALT%+右ドラッグでサイズとぼかしを変更します。</translation>
     </message>
     <message>
-        <source>%1: %ALT%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: %ALT%+クリックでソースを設定、Shift+クリックで直線、%ALT%+右ドラッグでサイズとぼかしを変更します。</translation>
+        <source>%1: %SOURCE_KEY%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %SOURCE_KEY%+クリックでソースを設定、Shift+クリックで直線、%ALT%+右ドラッグでサイズとぼかしを変更します。</translation>
     </message>
     <message>
         <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
@@ -34277,8 +34289,8 @@ Locked: %1</source>
         <translation>カラー分岐点を変更</translation>
     </message>
     <message>
-        <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: %ALT%+ドラッグで%2として描画、Shift+クリックで直線、%ALT%+右ドラッグでサイズとぼかしを変更します。</translation>
+        <source>%1: %SWAP_KEY%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %SWAP_KEY%+ドラッグで%2として描画、Shift+クリックで直線、%ALT%+右ドラッグでサイズとぼかしを変更します。</translation>
     </message>
     <message>
         <source>Pages as layers</source>

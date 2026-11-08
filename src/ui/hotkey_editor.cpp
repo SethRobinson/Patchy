@@ -2,6 +2,7 @@
 #include "ui/command_search.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/hotkey_sets.hpp"
+#include "ui/tool_modifier_style.hpp"
 #include "ui/theme_qss.hpp"
 
 #include <QAction>
@@ -363,7 +364,18 @@ bool HotkeyEditorPanel::eventFilter(QObject* watched, QEvent* event) {
 
 void HotkeyEditorPanel::commit() {
   store_user_hotkey_sets(user_sets_, active_set_id_);
+  set_active_tool_modifier_style(staged_tool_modifier_style());
   registry_.apply_overrides(staged_);
+}
+
+ToolModifierStyle HotkeyEditorPanel::set_tool_modifier_style(const QString& set_id) const {
+  const auto it = std::find_if(user_sets_.begin(), user_sets_.end(),
+                               [&set_id](const UserHotkeySet& set) { return set.id == set_id; });
+  return it != user_sets_.end() ? it->tool_modifiers : builtin_set_tool_modifier_style(set_id);
+}
+
+ToolModifierStyle HotkeyEditorPanel::staged_tool_modifier_style() const {
+  return set_tool_modifier_style(active_set_id_);
 }
 
 // Which set the page opens on: the one last applied when the registry still holds its keys.
@@ -441,7 +453,7 @@ QWidget* HotkeyEditorPanel::build_set_row(QWidget* parent) {
 }
 
 bool HotkeyEditorPanel::export_to_file(const QString& path, QString* error) {
-  if (!write_hotkey_file(path, staged_, error)) {
+  if (!write_hotkey_file(path, staged_, error, staged_tool_modifier_style())) {
     return false;
   }
   remember_hotkey_file_folder(path);
@@ -464,7 +476,7 @@ HotkeyFileReadResult HotkeyEditorPanel::import_from_file(const QString& path, co
     stage_override(it.key(), it.value());
   }
   const auto id = next_user_set_id();
-  user_sets_.push_back({id, name, staged_});
+  user_sets_.push_back({id, name, staged_, result.tool_modifiers});
   active_set_id_ = id;
   refresh_rows();
   show_transfer_status(tr("Imported \"%1\" as the set \"%2\". Commands: %3. Skipped commands this Patchy does not "
@@ -714,10 +726,13 @@ QString HotkeyEditorPanel::unique_set_name(const QString& base) const {
 }
 
 void HotkeyEditorPanel::put_staged_in_custom_set() {
+  // Custom keeps the tool modifiers of the set its keys came from (GitHub issue 302).
+  const auto style = set_tool_modifier_style(active_set_id_);
   if (auto* custom = find_user_set(QString::fromLatin1(kCustomHotkeySetId)); custom != nullptr) {
     custom->overrides = staged_;
+    custom->tool_modifiers = style;
   } else {
-    user_sets_.push_back({QString::fromLatin1(kCustomHotkeySetId), QString(), staged_});
+    user_sets_.push_back({QString::fromLatin1(kCustomHotkeySetId), QString(), staged_, style});
   }
   active_set_id_ = QString::fromLatin1(kCustomHotkeySetId);
 }

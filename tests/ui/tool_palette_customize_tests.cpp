@@ -45,6 +45,7 @@
 #include <QScreen>
 #include <QScrollBar>
 #include <QStatusBar>
+#include <QStyle>
 #include <QStyleFactory>
 #include <QStyleOptionViewItem>
 #include <QStyledItemDelegate>
@@ -87,7 +88,8 @@ struct CustomizationSettingsGuard {
                             "layersPanel/shownFooterButtons", "toolPalette/hiddenFooterItems",
                             "layersPanel/footerButtonOrder", "preferences/toolbarIconSize",
                             "preferences/toolFlyoutOpenMode", "layersPanel/footerIconSize",
-                            "toolPalette/ungroupTools", "toolPalette/customizeDialogSize"}) {
+                            "toolPalette/ungroupTools", "toolPalette/customizeDialogSize",
+                            "toolPalette/hideExpandButton", "toolPalette/hideScrollArrows"}) {
       restorers.push_back(std::make_unique<SettingsValueRestorer>(QString::fromLatin1(key)));
       patchy::ui::app_settings().remove(QString::fromLatin1(key));
     }
@@ -617,6 +619,214 @@ void ui_tool_palette_scroll_mode_keeps_expand_button_reachable() {
     }
     patchy::ui::set_active_color_scheme(saved_scheme);
   }
+}
+
+// GitHub issue 668: in wheel-scroll mode the expand row and the scroll arrows can leave the
+// palette (both shown by default, stored only when hidden). Hidden arrows give their band
+// back to the tools (Qt keeps no extension band), the wheel still scrolls, and open columns
+// keep Qt's arrow that closes them. Without wheel scrolling both settings are ignored. The
+// dialog's two boxes are off while the wheel option is off.
+void ui_tool_palette_wheel_rows_can_be_hidden() {
+  CustomizationSettingsGuard settings_guard;
+  // Defaults: both shown, nothing stored.
+  CHECK(patchy::ui::stored_tool_palette_customization().show_expand_button);
+  CHECK(patchy::ui::stored_tool_palette_customization().show_scroll_arrows);
+
+  auto&& [window, canvas] = ShownWindowFixture{};
+  window.setAnimated(false);
+  auto* palette = tool_palette(window);
+  auto* layout = window.tool_palette_layout();
+  CHECK(layout != nullptr);
+  if (palette == nullptr || layout == nullptr) {
+    return;
+  }
+  auto* down = palette->findChild<QWidget*>(QStringLiteral("toolPaletteScrollDownArrow"));
+  auto* up = palette->findChild<QWidget*>(QStringLiteral("toolPaletteScrollUpArrow"));
+  auto* expand = palette->findChild<QWidget*>(QStringLiteral("toolPaletteExpandArrow"));
+  auto* extension = palette->findChild<QToolButton*>(QStringLiteral("qt_toolbar_ext_button"));
+  auto* zoom = button_named(window, "zoomToolButton");
+  auto* move = button_named(window, "moveToolButton");
+  CHECK(down != nullptr && up != nullptr && expand != nullptr && extension != nullptr);
+  if (down == nullptr || up == nullptr || expand == nullptr || extension == nullptr || zoom == nullptr ||
+      move == nullptr) {
+    return;
+  }
+  const auto extension_extent = [&] {
+    return palette->style()->pixelMetric(QStyle::PM_ToolBarExtensionExtent, nullptr, palette);
+  };
+  const auto visible_tools = [&] {
+    int count = 0;
+    for (auto* button : palette->findChildren<QToolButton*>()) {
+      if (button != extension && button->isVisible() && button->objectName().endsWith(QLatin1String("ToolButton"))) {
+        ++count;
+      }
+    }
+    return count;
+  };
+  const auto apply = [&](bool wheel, bool show_expand, bool show_arrows) {
+    auto customization = window.tool_palette_customization();
+    customization.wheel_scroll = wheel;
+    customization.show_expand_button = show_expand;
+    customization.show_scroll_arrows = show_arrows;
+    window.apply_tool_palette_customization(customization);
+    shrink_palette(window, *palette, 150);
+  };
+
+  // Everything shown: the reference count of tools in the short column.
+  apply(true, true, true);
+  CHECK(down->isVisible() && expand->isVisible());
+  const int normal_extent = extension_extent();
+  CHECK(normal_extent > 0);
+  const int tools_with_rows = visible_tools();
+
+  // Both hidden: no arrows, no expand row, no reserved band; the tools get the room.
+  apply(true, false, false);
+  CHECK(!down->isVisible());
+  CHECK(!expand->isVisible());
+  CHECK(!up->isVisible());
+  CHECK(layout->bottom_reserve() == 0);
+  CHECK(extension_extent() == 0);
+  if (extension->height() != 0) {
+    std::printf("  hidden extension: %d px tall\n", extension->height());
+  }
+  CHECK(extension->height() == 0);
+  CHECK(layout->can_scroll_down());
+  const int tools_without_rows = visible_tools();
+  if (tools_without_rows <= tools_with_rows) {
+    std::printf("  tools shown: %d with the rows, %d without\n", tools_with_rows, tools_without_rows);
+  }
+  CHECK(tools_without_rows > tools_with_rows);
+  (void)capture_widget_artifact("ui_tool_palette_668_rows_hidden", *palette);
+  // The wheel still scrolls, with no up arrow at the top.
+  int notches = 0;
+  while (!zoom->isVisible() && notches < 30) {
+    send_wheel(*palette, -120);
+    ++notches;
+  }
+  CHECK(zoom->isVisible());
+  CHECK(layout->scroll_offset() > 0);
+  CHECK(!move->isVisible());
+  CHECK(!up->isVisible());
+  CHECK(!expand->isVisible());
+  CHECK(layout->bottom_reserve() == 0);
+  (void)capture_widget_artifact("ui_tool_palette_668_rows_hidden_scrolled", *palette);
+  for (int step = 0; step < 30 && layout->scroll_offset() > 0; ++step) {
+    send_wheel(*palette, 120);
+  }
+  CHECK(layout->scroll_offset() == 0);
+  CHECK(move->isVisible());
+
+  // Only the expand row hidden: the arrows work as before.
+  apply(true, false, true);
+  CHECK(down->isVisible());
+  CHECK(!expand->isVisible());
+  CHECK(layout->bottom_reserve() == 0);
+  CHECK(extension_extent() == normal_extent);
+
+  // Only the arrows hidden: the expand row opens the columns, and open columns keep Qt's
+  // arrow that closes them.
+  apply(true, true, false);
+  CHECK(!down->isVisible());
+  CHECK(expand->isVisible());
+  CHECK(extension_extent() == 0);
+  const int collapsed_width = palette->width();
+  QTest::mouseClick(expand, Qt::LeftButton, Qt::NoModifier, expand->rect().center());
+  CHECK(process_events_until([&] { return palette->width() > collapsed_width && extension->isChecked(); }));
+  settle();
+  CHECK(extension_extent() == normal_extent);
+  CHECK(extension->isVisible());
+  CHECK(extension->height() >= 14);
+  CHECK(zoom->isVisible() && move->isVisible());
+  QTest::mouseClick(extension, Qt::LeftButton, Qt::NoModifier, extension->rect().center());
+  CHECK(process_events_until([&] { return palette->width() <= collapsed_width && !extension->isChecked(); }));
+  settle();
+  CHECK(extension_extent() == 0);
+  CHECK(expand->isVisible());
+
+  // Hiding the expand row while the columns are open closes them.
+  QTest::mouseClick(expand, Qt::LeftButton, Qt::NoModifier, expand->rect().center());
+  CHECK(process_events_until([&] { return extension->isChecked(); }));
+  auto customization = window.tool_palette_customization();
+  customization.show_expand_button = false;
+  window.apply_tool_palette_customization(customization);
+  settle();
+  CHECK(!extension->isChecked());
+  CHECK(!expand->isVisible());
+
+  // Wheel scrolling off: both settings are ignored and Qt's > arrow opens the columns.
+  apply(false, false, false);
+  CHECK(extension_extent() == normal_extent);
+  CHECK(extension->isVisible());
+  CHECK(extension->height() >= 14);
+  CHECK(!down->isVisible());
+  CHECK(!expand->isVisible());
+
+  // Stored only when hidden; read back.
+  customization = window.tool_palette_customization();
+  customization.wheel_scroll = true;
+  customization.show_expand_button = false;
+  customization.show_scroll_arrows = false;
+  patchy::ui::set_stored_tool_palette_customization(customization);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("toolPalette/hideExpandButton")).toBool());
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("toolPalette/hideScrollArrows")).toBool());
+  const auto stored = patchy::ui::stored_tool_palette_customization();
+  CHECK(!stored.show_expand_button && !stored.show_scroll_arrows);
+  patchy::ui::set_stored_tool_palette_customization(ToolPaletteCustomization{});
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("toolPalette/hideExpandButton")));
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("toolPalette/hideScrollArrows")));
+
+  // The dialog: both boxes ticked by default, off with a reason while the wheel option is off,
+  // and OK stores what was unticked.
+  window.apply_tool_palette_customization(ToolPaletteCustomization{});
+  settle();
+  bool ran = false;
+  when_customize_dialog_opens([&](QDialog& dialog) {
+    ran = true;
+    auto* wheel = dialog.findChild<QCheckBox*>(QStringLiteral("toolPaletteWheelScrollCheck"));
+    auto* expand_box = dialog.findChild<QCheckBox*>(QStringLiteral("toolPaletteShowExpandButtonCheck"));
+    auto* arrows_box = dialog.findChild<QCheckBox*>(QStringLiteral("toolPaletteShowScrollArrowsCheck"));
+    CHECK(wheel != nullptr && expand_box != nullptr && arrows_box != nullptr);
+    if (wheel == nullptr || expand_box == nullptr || arrows_box == nullptr) {
+      dialog.reject();
+      return;
+    }
+    CHECK(wheel->isChecked() && expand_box->isChecked() && arrows_box->isChecked());
+    CHECK(expand_box->isEnabled() && arrows_box->isEnabled());
+    // Indented under the wheel option they depend on, above the Bottom of the palette boxes
+    // (the up arrow sits at the top of the column, so they are not bottom items).
+    if (auto* colors = dialog.findChild<QCheckBox*>(QStringLiteral("toolPaletteShowColorsCheck")); colors != nullptr) {
+      const auto top_in_dialog = [&](const QWidget* widget) { return widget->mapTo(&dialog, QPoint(0, 0)); };
+      for (const auto* box : {arrows_box, expand_box}) {
+        CHECK(top_in_dialog(box).y() > top_in_dialog(wheel).y());
+        CHECK(top_in_dialog(box).y() < top_in_dialog(colors).y());
+        CHECK(top_in_dialog(box).x() >= top_in_dialog(wheel).x() + 16);
+      }
+      CHECK(top_in_dialog(arrows_box).y() < top_in_dialog(expand_box).y());
+    } else {
+      CHECK(false);
+    }
+    CHECK(arrows_box->toolTip().isEmpty() && expand_box->toolTip().isEmpty());
+    wheel->setChecked(false);
+    QApplication::processEvents();
+    CHECK(!expand_box->isEnabled() && !arrows_box->isEnabled());
+    CHECK(expand_box->toolTip().contains(QStringLiteral("Mouse wheel scrolls the palette")));
+    CHECK(arrows_box->toolTip().contains(QStringLiteral("Mouse wheel scrolls the palette")));
+    wheel->setChecked(true);
+    QApplication::processEvents();
+    CHECK(expand_box->isEnabled() && arrows_box->isEnabled());
+    expand_box->setChecked(false);
+    arrows_box->setChecked(false);
+    settle();
+    (void)capture_widget_artifact("ui_tool_palette_668_customize_dialog", dialog);
+    press_dialog_button(dialog, QDialogButtonBox::Ok);
+  });
+  window.show_tool_palette_customization();
+  CHECK(ran);
+  settle();
+  CHECK(!window.tool_palette_customization().show_expand_button);
+  CHECK(!window.tool_palette_customization().show_scroll_arrows);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("toolPalette/hideExpandButton")).toBool());
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("toolPalette/hideScrollArrows")).toBool());
 }
 
 // GitHub issue 199: a right-click on any Layers footer button lists the buttons with a tick
@@ -3245,8 +3455,12 @@ void ui_tool_palette_customize_preview_fits_its_height() {
     settle();
     CHECK(grip->isVisible());
     // It opens short and inside the screen; the default single column does not fit, so the
-    // preview is cut, with the gap drawn, and its strip stays inside the preview.
-    CHECK(dialog.height() <= 480);
+    // preview is cut, with the gap drawn, and its strip stays inside the preview. About 505 px
+    // since the expand button and scroll arrow boxes (GitHub issue 668).
+    if (dialog.height() > 520) {
+      std::printf("  opens %d px tall\n", dialog.height());
+    }
+    CHECK(dialog.height() <= 520);
     CHECK(dialog.width() <= available.width() && dialog.height() <= available.height());
     CHECK(dialog.minimumHeight() <= dialog.height());
     CHECK(preview_is_cut(*preview));
@@ -3566,6 +3780,7 @@ std::vector<patchy::test::TestCase> tool_palette_customize_tests() {
       {"ui_tool_palette_wheel_scrolls_overflowing_column", ui_tool_palette_wheel_scrolls_overflowing_column},
       {"ui_tool_palette_scroll_mode_keeps_expand_button_reachable",
        ui_tool_palette_scroll_mode_keeps_expand_button_reachable},
+      {"ui_tool_palette_wheel_rows_can_be_hidden", ui_tool_palette_wheel_rows_can_be_hidden},
       {"ui_layer_footer_buttons_hide_from_their_menu", ui_layer_footer_buttons_hide_from_their_menu},
       {"ui_layers_panel_gear_opens_layer_button_customize", ui_layers_panel_gear_opens_layer_button_customize},
       {"ui_tool_palette_customize_dialog_applies_cancels_and_resets",
