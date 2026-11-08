@@ -6,6 +6,7 @@
   "roles": {
     "window_bg": "#282a36",
     "window_border": "#21222d",
+    "window_outer_edge": "#51556b",
     "resize_grip_ink": "#909cc0",
     "text_primary": "#f8f8f2",
     "script_accent": "#a375e2",

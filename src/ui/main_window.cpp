@@ -5692,7 +5692,8 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
   }
 
   if (watched == menuBar()) {
-    if (event->type() == QEvent::Resize || event->type() == QEvent::Show) {
+    // StyleChange too: the bar's margins, which size the controls' reserve, come from QSS.
+    if (event->type() == QEvent::Resize || event->type() == QEvent::Show || event->type() == QEvent::StyleChange) {
       position_window_chrome_controls();
     }
     // A full-screen window has no title bar to drag (screen modes, GitHub issue 212);

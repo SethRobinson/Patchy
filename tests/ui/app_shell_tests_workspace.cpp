@@ -3026,8 +3026,12 @@ void ui_screen_modes_title_bar_double_click_returns_to_standard() {
 
   // A blank spot of the bar: not a menu title, not the window controls.
   QPoint blank(-1, bar->height() / 2);
+  // Not the overflow button either, which a window too narrow for every title shows
+  // just left of the controls.
+  const auto* overflow = bar->findChild<QWidget*>(QStringLiteral("qt_menubar_ext_button"));
   for (int x = controls->x() - 1; x >= 0; --x) {
-    if (bar->actionAt(QPoint(x, blank.y())) == nullptr) {
+    if (bar->actionAt(QPoint(x, blank.y())) == nullptr &&
+        (overflow == nullptr || !overflow->isVisible() || !overflow->geometry().contains(QPoint(x, blank.y())))) {
       blank.setX(x);
       break;
     }

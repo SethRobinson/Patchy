@@ -1942,8 +1942,12 @@ void ui_maximized_title_bar_click_keeps_window_maximized() {
   // also counts, it is transparent for mouse events) rather than assuming one past the
   // last title.
   QPoint blank(-1, bar->height() / 2);
+  // Not the overflow button either, which a window too narrow for every title shows
+  // just left of the controls.
+  const auto* overflow = bar->findChild<QWidget*>(QStringLiteral("qt_menubar_ext_button"));
   for (int x = controls->x() - 1; x >= 0; --x) {
-    if (bar->actionAt(QPoint(x, blank.y())) == nullptr) {
+    if (bar->actionAt(QPoint(x, blank.y())) == nullptr &&
+        (overflow == nullptr || !overflow->isVisible() || !overflow->geometry().contains(QPoint(x, blank.y())))) {
       blank.setX(x);
       break;
     }
@@ -2059,13 +2063,42 @@ void ui_window_chrome_controls_drive_window_state() {
 
 // GitHub issue 674: on Windows the frameless main window keeps a full native frame
 // (WM_NCCALCSIZE hides it), because Windows animates minimize, maximize and restore
-// only for a captioned window, and Windows 11's border takes the theme's window_border
-// role. The style bits are spelled as numbers so the test needs no windows.h.
+// only for a captioned window, and Windows 11's border takes the theme's
+// window_outer_edge role. That edge must stand out from the chrome along the window's
+// edges (the follow-up: a border darker than the chrome read as no border on a black
+// desktop), lighter in a dark theme and darker in a light one, bundled themes included.
+// The style bits are spelled as numbers so the test needs no windows.h.
 void ui_frameless_window_keeps_caption_and_themed_border() {
   CHECK(patchy::ui::dwm_border_colorref(QColor(0x12, 0x34, 0x56)) == 0x563412U);
   CHECK(patchy::ui::dwm_border_colorref(QColor(0x12, 0x34, 0x56, 0x40)) == 0x563412U);
-  CHECK(patchy::ui::dwm_border_colorref(patchy::ui::theme().window_border) ==
-        patchy::ui::dwm_border_colorref(patchy::ui::theme().window_border.toRgb()));
+  CHECK(patchy::ui::dwm_border_colorref(patchy::ui::theme().window_outer_edge) ==
+        patchy::ui::dwm_border_colorref(patchy::ui::theme().window_outer_edge.toRgb()));
+  // The chrome that meets the window's outer edge: title bar, tool palette, options
+  // bar, panels, status bar and the window surface.
+  const auto edge_stands_out = [](const patchy::ui::ThemePalette& palette, bool dark, const char* label) {
+    const int edge = palette.window_outer_edge.lightness();
+    bool ok = true;
+    for (const auto& chrome : {palette.title_bar_bg, palette.tool_palette_bg, palette.options_bar_bg,
+                               palette.toolbar_bg, palette.dock_separator_bg, palette.window_bg}) {
+      const bool stands_out = dark ? edge > chrome.lightness() : edge < chrome.lightness();
+      if (!stands_out) {
+        std::cout << "  " << label << ": edge " << palette.window_outer_edge.name().toStdString()
+                  << " does not stand out from " << chrome.name().toStdString() << std::endl;
+        ok = false;
+      }
+    }
+    return ok;
+  };
+  CHECK(edge_stands_out(patchy::ui::dark_palette(), true, "Dark"));
+  CHECK(edge_stands_out(patchy::ui::light_palette(), false, "Light"));
+  for (const auto& name : patchy::ui::bundled_theme_file_names()) {
+    const auto result = patchy::ui::load_theme_by_id(patchy::ui::kBundledThemeIdPrefix + name);
+    CHECK(result.theme.has_value());
+    if (result.theme.has_value()) {
+      CHECK(edge_stands_out(result.theme->palette, result.theme->base == patchy::ui::ColorScheme::Dark,
+                            name.toUtf8().constData()));
+    }
+  }
   constexpr std::intptr_t kPopup = static_cast<std::intptr_t>(0x80000000U);  // WS_POPUP
   constexpr std::intptr_t kCaption = 0x00C00000;                              // WS_CAPTION
   constexpr std::intptr_t kSysMenu = 0x00080000;                              // WS_SYSMENU
@@ -2083,6 +2116,62 @@ void ui_frameless_window_keeps_caption_and_themed_border() {
 #else
   CHECK(style == kPopup);
 #endif
+}
+
+// GitHub issue 674 follow-up: the window controls sit on top of the menu bar, so the
+// bar keeps their width free and a narrow window moves the titles that do not fit into
+// the bar's overflow button instead of under the controls, where they could not be
+// reached. The overflow button is a click target, never title-bar drag area.
+void ui_narrow_menu_bar_overflows_before_window_controls() {
+  if (!patchy::ui::MainWindow::use_custom_window_chrome()) {
+    patchy::test::skip("native window frame owns the title bar on this platform");
+    return;
+  }
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  auto* bar = window.menuBar();
+  auto* controls = window.findChild<QWidget*>(QStringLiteral("windowChromeControls"));
+  CHECK(bar != nullptr && controls != nullptr);
+  if (bar == nullptr || controls == nullptr) {
+    return;
+  }
+  // Wide enough for every title: no overflow button.
+  window.resize(1400, window.height());
+  QApplication::processEvents();
+  QApplication::processEvents();
+  if (const auto* wide_extension = bar->findChild<QToolButton*>(QStringLiteral("qt_menubar_ext_button"));
+      wide_extension != nullptr) {
+    CHECK(!wide_extension->isVisible());
+  }
+  window.resize(560, window.height());
+  QApplication::processEvents();
+  QApplication::processEvents();
+  save_stacked_artifact("issue674_narrow_menu_bar", {bar->grab().toImage()});
+  auto* extension = bar->findChild<QToolButton*>(QStringLiteral("qt_menubar_ext_button"));
+  CHECK(extension != nullptr && extension->isVisible());
+  if (extension == nullptr || !extension->isVisible()) {
+    return;
+  }
+  // The overflow button ends before the controls, and every title the bar still shows
+  // ends before the overflow button (the bar paints only those; the rest are in its menu).
+  CHECK(extension->geometry().right() < controls->x());
+  CHECK(!patchy::ui::MainWindowTestAccess::title_bar_drag_area_contains(window, extension->geometry().center()));
+  int shown = 0;
+  int overflowed = 0;
+  for (auto* action : bar->actions()) {
+    if (!action->isVisible() || action->menu() == nullptr) {
+      continue;
+    }
+    const QRect title = bar->actionGeometry(action);
+    if (title.isValid() && title.right() < extension->x()) {
+      ++shown;
+    } else {
+      ++overflowed;
+    }
+  }
+  CHECK(shown >= 4);
+  CHECK(overflowed > 0);
+  std::cout << "  560 px: " << shown << " titles shown, " << overflowed << " in the overflow menu" << std::endl;
 }
 
 // The Qt-level title-bar drag of a restored window (Linux without a system move, the
@@ -2103,8 +2192,12 @@ void ui_title_bar_drag_moves_window_only_past_threshold() {
   auto* controls = window.findChild<QWidget*>(QStringLiteral("windowChromeControls"));
   CHECK(bar != nullptr && controls != nullptr);
   QPoint blank(-1, bar->height() / 2);
+  // Not the overflow button either, which a window too narrow for every title shows
+  // just left of the controls.
+  const auto* overflow = bar->findChild<QWidget*>(QStringLiteral("qt_menubar_ext_button"));
   for (int x = controls->x() - 1; x >= 0; --x) {
-    if (bar->actionAt(QPoint(x, blank.y())) == nullptr) {
+    if (bar->actionAt(QPoint(x, blank.y())) == nullptr &&
+        (overflow == nullptr || !overflow->isVisible() || !overflow->geometry().contains(QPoint(x, blank.y())))) {
       blank.setX(x);
       break;
     }
@@ -2741,6 +2834,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part3() {
       {"ui_maximized_title_bar_click_keeps_window_maximized", ui_maximized_title_bar_click_keeps_window_maximized},
       {"ui_window_chrome_controls_drive_window_state", ui_window_chrome_controls_drive_window_state},
       {"ui_frameless_window_keeps_caption_and_themed_border", ui_frameless_window_keeps_caption_and_themed_border},
+      {"ui_narrow_menu_bar_overflows_before_window_controls", ui_narrow_menu_bar_overflows_before_window_controls},
       {"ui_title_bar_drag_moves_window_only_past_threshold", ui_title_bar_drag_moves_window_only_past_threshold},
       {"ui_menu_bar_reserves_badge_space_only_with_custom_chrome",
        ui_menu_bar_reserves_badge_space_only_with_custom_chrome},

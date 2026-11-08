@@ -30,6 +30,11 @@ struct ThemePalette {
   // Base surfaces, text, and window frame.
   QColor window_bg;
   QColor window_border;
+  // The 1px border Windows 11 draws around the frameless main window and the
+  // self-framed dialogs (DWMWA_BORDER_COLOR, window_effects.hpp). Lighter than the
+  // chrome along the window's edges in a dark theme and darker in a light one, so
+  // the window reads as framed on any desktop (GitHub issue 674).
+  QColor window_outer_edge;
   QColor resize_grip_ink;
   QColor text_primary;
   QColor script_accent;

@@ -56,7 +56,7 @@ protected:
       }
     } else if (event->type() == QEvent::StyleChange) {
       // A theme switch restyles the dialog (Preferences stays open through it),
-      // so its border follows the new window_border color.
+      // so its border follows the new window_outer_edge color.
       if (auto* handle = window_.windowHandle(); handle != nullptr && window_.isVisible()) {
         apply_window_border_color(handle->winId());
       }
@@ -112,7 +112,7 @@ void apply_window_border_color([[maybe_unused]] WId window_id) {
   if (!IsWindow(hwnd)) {
     return;
   }
-  const COLORREF color = dwm_border_colorref(theme().window_border);
+  const COLORREF color = dwm_border_colorref(theme().window_outer_edge);
   DwmSetWindowAttribute(hwnd, kDwmwaBorderColor, &color, sizeof(color));
 #endif
 }

@@ -33,6 +33,7 @@
 #include <QAction>
 #include <QActionGroup>
 #include <QApplication>
+#include <QResizeEvent>
 #include <QByteArray>
 #include <QCursor>
 #include <QDialog>
@@ -204,6 +205,15 @@ Qt::CursorShape resize_cursor_for_edges(Qt::Edges edges) {
   return Qt::ArrowCursor;
 }
 
+// The empty top-right corner widget of the custom-chrome menu bar that keeps the window
+// controls' width free (configure_window_chrome). QMenuBar reserves a corner widget's
+// sizeHint(), which a plain QWidget leaves invalid, so it reports its fixed size.
+class MenuBarControlsReserve final : public QWidget {
+public:
+  using QWidget::QWidget;
+  [[nodiscard]] QSize sizeHint() const override { return minimumSize(); }
+};
+
 #ifdef Q_OS_WIN
 void apply_windows_frameless_resize_style(WId window_id) {
   auto* hwnd = reinterpret_cast<HWND>(window_id);
@@ -224,7 +234,7 @@ void apply_windows_frameless_resize_style(WId window_id) {
   SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
 
-  // Windows 11's 1px border in the theme's window_border color, steady across activation
+  // Windows 11's 1px border in the theme's window_outer_edge color, steady across activation
   // (GitHub issue 674: with the default color it turned white on deactivation, with none
   // the window had no edge on a dark desktop). apply_color_scheme sets it again on a theme
   // switch.
@@ -796,6 +806,13 @@ bool MainWindow::title_bar_drag_area_contains(QPoint menu_bar_position) const {
       command_search_button_->geometry().contains(menu_bar_position)) {
     return false;
   }
+  // The overflow button of a narrow window (QMenuBar's own; the controls' reserve keeps
+  // it clear of the window controls).
+  if (const auto* extension =
+          bar->findChild<QWidget*>(QStringLiteral("qt_menubar_ext_button"), Qt::FindDirectChildrenOnly);
+      extension != nullptr && extension->isVisible() && extension->geometry().contains(menu_bar_position)) {
+    return false;
+  }
   return true;
 }
 
@@ -875,11 +892,28 @@ void MainWindow::resync_native_frame_geometry() {
 }
 
 void MainWindow::position_window_chrome_controls() {
-  if (window_chrome_controls_ == nullptr || menuBar() == nullptr) {
+  auto* bar = menuBar();
+  if (window_chrome_controls_ == nullptr || bar == nullptr) {
     return;
   }
-  window_chrome_controls_->move(std::max(0, menuBar()->width() - window_chrome_controls_->width()), 0);
+  const int controls_width = window_chrome_controls_->width();
+  window_chrome_controls_->move(std::max(0, bar->width() - controls_width), 0);
   window_chrome_controls_->raise();
+  // QMenuBar lays its titles out from its left margin but takes only the corner widget's
+  // width off the room they get, and places that widget inside its right margin. Widening
+  // the reserve by that margin (the style's, the same metrics QMenuBar reads) makes the
+  // titles and the overflow button end where the controls begin.
+  if (auto* reserve = bar->cornerWidget(Qt::TopRightCorner); reserve != nullptr) {
+    const int margin = bar->style()->pixelMetric(QStyle::PM_MenuBarHMargin, nullptr, bar) +
+                       bar->style()->pixelMetric(QStyle::PM_MenuBarPanelWidth, nullptr, bar);
+    const int width = controls_width + std::max(0, margin);
+    if (reserve->width() != width) {
+      reserve->setFixedWidth(width);
+      // Lay the titles out again against the new reserve.
+      QResizeEvent relayout(bar->size(), bar->size());
+      QApplication::sendEvent(bar, &relayout);
+    }
+  }
 }
 
 void MainWindow::ensure_native_resizable_frame() {
@@ -1072,6 +1106,17 @@ void MainWindow::configure_window_chrome() {
   auto* close_button =
       add_chrome_button(QStringLiteral("windowCloseButton"), window_chrome_icon(QStringLiteral("close")), tr("Close"));
   bind_tooltip(close_button, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Close"));
+  // QMenuBar lays its titles out only up to its corner widget and moves the rest into its
+  // overflow button. The controls sit on top of the bar's right end, so an empty corner
+  // widget (sized in position_window_chrome_controls) keeps their width free: a narrow
+  // window overflows its last menus instead of hiding them under the controls (GitHub
+  // issue 674).
+  auto* reserve = new MenuBarControlsReserve(bar);
+  reserve->setObjectName(QStringLiteral("windowChromeControlsReserve"));
+  reserve->setAttribute(Qt::WA_TransparentForMouseEvents);
+  // No height, so it paints nothing over the bar.
+  reserve->setFixedSize(controls->width(), 0);
+  bar->setCornerWidget(reserve, Qt::TopRightCorner);
   position_window_chrome_controls();
   controls->show();
 

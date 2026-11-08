@@ -45,6 +45,7 @@
   "roles": {
     "window_bg": "#22180e",
     "window_border": "#1b130b",
+    "window_outer_edge": "#5e4a30",
     "text_primary": "#efe1be",
     "script_accent": "#a9d186",
     "script_card_border": "#67563d",

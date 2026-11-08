@@ -57,12 +57,13 @@ void apply_rounded_window_corners(WId window_id, WindowCornerRadius radius);
 void apply_frameless_window_shadow(WId window_id);
 
 // Colors the 1px border Windows 11 draws around a window with the theme's
-// window_border role, the same color whether the window is active or not.
+// window_outer_edge role, the same color whether the window is active or not.
 //
 // Left to itself Windows 11 draws that border in a light gray that turns near
 // white when the window loses focus; with no border at all a dark window has no
-// visible edge on a dark desktop (GitHub issue 674). An explicit color keeps one
-// steady edge. Call it again after a theme change: DWM keeps the color it was
+// visible edge on a dark desktop (GitHub issue 674), and one darker than the
+// chrome beside it (window_border) did not read as an edge either. An explicit
+// color keeps one steady edge. Call it again after a theme change: DWM keeps the color it was
 // given. Windows 10 does not know the attribute and draws no border, which is why
 // the frameless windows still paint their own 1px window_border edge.
 void apply_window_border_color(WId window_id);
