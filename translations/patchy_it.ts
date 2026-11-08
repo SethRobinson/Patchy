@@ -22481,14 +22481,6 @@ Sostituirlo?</translation>
         <translation>Stile font</translation>
     </message>
     <message>
-        <source>Smoothing:</source>
-        <translation>Arrotondamento:</translation>
-    </message>
-    <message>
-        <source>Text smoothing</source>
-        <translation>Arrotondamento del testo</translation>
-    </message>
-    <message>
         <source>Sharp</source>
         <translation>Netto</translation>
     </message>
@@ -33807,6 +33799,34 @@ Bloccato: %1</translation>
     <message>
         <source>Clear Filter</source>
         <translation>Rimuovi filtro</translation>
+    </message>
+    <message>
+        <source>How smooth the text&apos;s edges are (anti-aliasing)</source>
+        <translation>Quanto sono morbidi i bordi del testo (anti-alias)</translation>
+    </message>
+    <message>
+        <source>Anti-alias:</source>
+        <translation>Anti-alias:</translation>
+    </message>
+    <message>
+        <source>Bold (faux bold: thickens the current face)</source>
+        <translation>Grassetto (grassetto simulato: ispessisce lo stile attuale)</translation>
+    </message>
+    <message>
+        <source>Italic (faux italic: slants the current face)</source>
+        <translation>Corsivo (corsivo simulato: inclina lo stile attuale)</translation>
+    </message>
+    <message>
+        <source>Justify: spread lines to both edges; the last line follows Left, Center or Right</source>
+        <translation>Giustifica: estende le righe fino a entrambi i bordi; l&apos;ultima riga segue Sinistra, Centro o Destra</translation>
+    </message>
+    <message>
+        <source>RTL</source>
+        <translation>RTL</translation>
+    </message>
+    <message>
+        <source>Right to left paragraph direction (press again for left to right)</source>
+        <translation>Direzione del paragrafo da destra a sinistra (premi di nuovo per da sinistra a destra)</translation>
     </message>
 </context>
 <context>

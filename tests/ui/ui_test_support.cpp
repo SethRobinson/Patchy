@@ -691,6 +691,38 @@ QAction* require_action(QWidget& root, const char* object_name) {
   return action;
 }
 
+int shown_text_anti_alias(QWidget& window) {
+  auto* type_menu = window.findChild<QMenu*>(QStringLiteral("typeMenu"));
+  auto* anti_alias_menu = window.findChild<QMenu*>(QStringLiteral("typeAntiAliasMenu"));
+  CHECK(type_menu != nullptr && anti_alias_menu != nullptr);
+  if (type_menu == nullptr || anti_alias_menu == nullptr) {
+    return -1;
+  }
+  emit type_menu->aboutToShow();
+  for (auto* action : anti_alias_menu->actions()) {
+    if (action->isCheckable() && action->isChecked()) {
+      return action->data().toInt();
+    }
+  }
+  return -1;
+}
+
+void choose_text_anti_alias(QWidget& window, int value) {
+  auto* anti_alias_menu = window.findChild<QMenu*>(QStringLiteral("typeAntiAliasMenu"));
+  CHECK(anti_alias_menu != nullptr);
+  if (anti_alias_menu == nullptr) {
+    return;
+  }
+  for (auto* action : anti_alias_menu->actions()) {
+    if (action->isCheckable() && action->data().toInt() == value) {
+      action->trigger();
+      QApplication::processEvents();
+      return;
+    }
+  }
+  CHECK(false);
+}
+
 QAction* require_hotkey_action(patchy::ui::MainWindow& window, const QString& id) {
   const auto* command = window.hotkey_registry().find_command(id);
   CHECK(command != nullptr);

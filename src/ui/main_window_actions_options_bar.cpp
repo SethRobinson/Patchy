@@ -5043,7 +5043,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_style_combo_->view()->setMinimumWidth(ui_text_length(170));
   refresh_text_style_combo(text_font_combo_->currentFont().family(), QString());
   add_option_widget(text_style_combo_, {CanvasTool::Text, CanvasTool::TypeMask});
-  // Font and style | Size and Smoothing (GitHub issue 343).
+  // Font and style | Size | Bold, Italic, Underline (GitHub issues 343, 673).
   add_option_separator({CanvasTool::Text, CanvasTool::TypeMask});
   add_option_label(QT_TR_NOOP("Size:"), {CanvasTool::Text, CanvasTool::TypeMask});
   text_size_spin_ = new UnitSpinBox(SpinUnit::Points, toolbar);
@@ -5072,28 +5072,42 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_size_spin_->setProperty(kToolbarSpinboxWidthSampleProperty, 888.88);
   configure_toolbar_spinbox(text_size_spin_, 60);
   add_option_widget(text_size_spin_, {CanvasTool::Text, CanvasTool::TypeMask});
-  add_option_label(QT_TR_NOOP("Smoothing:"), {CanvasTool::Text, CanvasTool::TypeMask});
-  text_smoothing_combo_ = new QComboBox(toolbar);
-  text_smoothing_combo_->setObjectName(QStringLiteral("textSmoothingCombo"));
-  bind_tooltip(text_smoothing_combo_, QT_TR_NOOP("Text smoothing"));
-  text_smoothing_combo_->addItem(tr("None"), kTextAntiAliasNone);
-  text_smoothing_combo_->addItem(tr("Sharp"), kTextAntiAliasSharp);
-  text_smoothing_combo_->addItem(tr("Crisp"), kTextAntiAliasCrisp);
-  text_smoothing_combo_->addItem(tr("Strong"), kTextAntiAliasStrong);
-  text_smoothing_combo_->addItem(tr("Smooth"), kTextAntiAliasSmooth);
-  text_smoothing_combo_->addItem(tr("Windows LCD"), kTextAntiAliasWindowsLcd);
-  text_smoothing_combo_->addItem(tr("Windows"), kTextAntiAliasWindows);
-  register_retranslation([this] {
-    const QSignalBlocker blocker(text_smoothing_combo_);
-    const char* sources[] = {QT_TR_NOOP("None"), QT_TR_NOOP("Sharp"), QT_TR_NOOP("Crisp"),
-                             QT_TR_NOOP("Strong"), QT_TR_NOOP("Smooth"), QT_TR_NOOP("Windows LCD"), QT_TR_NOOP("Windows")};
-    for (int index = 0; index < 7; ++index) text_smoothing_combo_->setItemText(index, tr(sources[index]));
-  });
-  text_smoothing_combo_->setFixedWidth(ui_text_length(104));
-  set_text_smoothing_combo_value(
-      text_smoothing_combo_,
-      app_settings().value(QStringLiteral("tools/textSmoothing"), kDefaultTextAntiAlias).toInt());
-  add_option_widget(text_smoothing_combo_, {CanvasTool::Text, CanvasTool::TypeMask});
+  // Anti-alias lives in the Character panel and Type > Anti-Alias (GitHub issue 673); the bar
+  // keeps the next new layer's value in text_anti_alias_ (tools/textSmoothing).
+  text_anti_alias_ = std::clamp(
+      app_settings().value(QStringLiteral("tools/textSmoothing"), kDefaultTextAntiAlias).toInt(), 0, 16);
+  // Size | Bold, Italic, Underline (GitHub issue 673): the Character panel's faux bold, faux
+  // italic and underline toggles, the same state and apply path. Qt::NoFocus like the panel's
+  // buttons, so a press never commits a live session.
+  {
+    const auto make_style_toggle = [toolbar](const char* object_name, int icon) {
+      auto* button = new QPushButton(toolbar);
+      button->setObjectName(QLatin1String(object_name));
+      button->setIcon(text_character_style_icon(icon));
+      // The panel's size: the letter glyphs read small at the default 16 px.
+      button->setIconSize(QSize(20, 20));
+      button->setCheckable(true);
+      button->setFixedSize(30, 26);
+      button->setFocusPolicy(Qt::NoFocus);
+      return button;
+    };
+    text_faux_bold_button_ = make_style_toggle("textFauxBoldButton", 8);
+    bind_tooltip(text_faux_bold_button_, QT_TR_NOOP("Bold (faux bold: thickens the current face)"));
+    text_faux_italic_button_ = make_style_toggle("textFauxItalicButton", 9);
+    bind_tooltip(text_faux_italic_button_, QT_TR_NOOP("Italic (faux italic: slants the current face)"));
+    text_underline_button_ = make_style_toggle("textUnderlineButton", 4);
+    bind_tooltip(text_underline_button_, QT_TR_NOOP("Underline"));
+    add_option_separator({CanvasTool::Text, CanvasTool::TypeMask});
+    for (QPushButton* button : {text_faux_bold_button_, text_faux_italic_button_, text_underline_button_}) {
+      add_option_widget(button, {CanvasTool::Text, CanvasTool::TypeMask});
+    }
+    connect(text_faux_bold_button_, &QPushButton::clicked, this,
+            [this](bool on) { apply_text_character_faux_bold_to_active_editor(on); });
+    connect(text_faux_italic_button_, &QPushButton::clicked, this,
+            [this](bool on) { apply_text_character_faux_italic_to_active_editor(on); });
+    connect(text_underline_button_, &QPushButton::clicked, this,
+            [this](bool on) { apply_text_character_style_to_active_editor(4, on); });
+  }
   // No "Color:" label (Photoshop has none either): the swatch and its tooltip name it, and
   // the Type row must fit one line at 1366 px (GitHub issue 91). It is the shape bar's
   // Fill/Stroke swatch button, a framed chip of the color (GitHub issue 343).
@@ -5112,6 +5126,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // vertical type.
   auto* text_alignment_group = new QButtonGroup(toolbar);
   text_alignment_group->setExclusive(true);
+  text_alignment_group_ = text_alignment_group;
   text_align_left_button_ = new QPushButton(toolbar);
   text_align_left_button_->setIcon(text_alignment_icon(Qt::AlignLeft, false));
   text_align_left_button_->setObjectName(QStringLiteral("textAlignLeftButton"));
@@ -5141,6 +5156,18 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_align_right_button_->setFocusPolicy(Qt::TabFocus);
   text_alignment_group->addButton(text_align_right_button_);
   add_option_widget(text_align_right_button_, {CanvasTool::Text, CanvasTool::TypeMask});
+  // Justify on top of L / C / R (GitHub issue 673): L, C and R show the last line, so Center +
+  // Justify is Justify (last line centered); Justify all shows Justify with none of the three.
+  // Outside the exclusive group, and Qt::NoFocus like the Vertical toggle.
+  text_justify_button_ = new QPushButton(toolbar);
+  text_justify_button_->setIcon(text_alignment_icon(Qt::AlignJustify, false));
+  text_justify_button_->setObjectName(QStringLiteral("textJustifyButton"));
+  text_justify_button_->setCheckable(true);
+  bind_tooltip(text_justify_button_,
+               QT_TR_NOOP("Justify: spread lines to both edges; the last line follows Left, Center or Right"));
+  text_justify_button_->setFixedSize(30, 26);
+  text_justify_button_->setFocusPolicy(Qt::NoFocus);
+  add_option_widget(text_justify_button_, {CanvasTool::Text, CanvasTool::TypeMask});
   // Photoshop's "Toggle text orientation": one Type tool with a vertical switch instead of a
   // second tool. Qt::NoFocus like the session buttons, so toggling never auto-commits.
   text_orientation_button_ = new QPushButton(tr("Vertical"), toolbar);
@@ -5152,6 +5179,18 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_orientation_button_->setFocusPolicy(Qt::NoFocus);
   add_option_separator({CanvasTool::Text, CanvasTool::TypeMask});
   add_option_widget(text_orientation_button_, {CanvasTool::Text, CanvasTool::TypeMask});
+  // Paragraph direction as one toggle (GitHub issue 673): checked only for an explicit right to
+  // left paragraph; a press sets right to left, a second press left to right. The Paragraph
+  // panel's Direction list and Type > Direction keep Auto.
+  text_rtl_button_ = new QPushButton(tr("RTL"), toolbar);
+  bind_widget_text(text_rtl_button_, QT_TR_NOOP("RTL"));
+  text_rtl_button_->setObjectName(QStringLiteral("textRtlButton"));
+  text_rtl_button_->setCheckable(true);
+  bind_tooltip(text_rtl_button_,
+               QT_TR_NOOP("Right to left paragraph direction (press again for left to right)"));
+  text_rtl_button_->setFocusPolicy(Qt::NoFocus);
+  add_option_widget(text_rtl_button_, {CanvasTool::Text, CanvasTool::TypeMask});
+  add_option_separator({CanvasTool::Text});
   text_warp_button_ = new QPushButton(tr("Warp..."), toolbar);
   bind_widget_text(text_warp_button_, QT_TR_NOOP("Warp..."));
   text_warp_button_->setObjectName(QStringLiteral("textWarpButton"));
@@ -5192,18 +5231,12 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     apply_text_size_to_active_editor();
     refresh_document_info();
   });
-  connect(text_smoothing_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-          [this](int) {
-            apply_text_smoothing_to_active_editor();
-            save_tool_settings();
-            refresh_document_info();
-          });
   connect(text_color_button_, &QToolButton::clicked, this, [this] { choose_text_color(); });
   // The controls that need the keyboard while in use hand it back to a live session once the
   // pick lands: a popup choice, or Enter in the size field. editingFinished on focus loss finds
   // the spin no longer focused, except when its slider popup opens: Qt sends that FocusOut while
   // the field still holds focus, and an active popup tells the two apart.
-  for (QComboBox* combo : {static_cast<QComboBox*>(text_font_combo_), text_style_combo_, text_smoothing_combo_}) {
+  for (QComboBox* combo : {static_cast<QComboBox*>(text_font_combo_), text_style_combo_}) {
     connect(combo, QOverload<int>::of(&QComboBox::activated), this, [this](int) { return_keyboard_to_text_editor(); });
   }
   connect(text_size_spin_, &QAbstractSpinBox::editingFinished, this, [this] {
@@ -5212,11 +5245,16 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
   connect(text_align_left_button_, &QPushButton::clicked, this,
-          [this] { apply_text_alignment_to_active_editor(QStringLiteral("left")); });
+          [this] { apply_text_alignment_base_from_options_bar(QStringLiteral("left")); });
   connect(text_align_center_button_, &QPushButton::clicked, this,
-          [this] { apply_text_alignment_to_active_editor(QStringLiteral("center")); });
+          [this] { apply_text_alignment_base_from_options_bar(QStringLiteral("center")); });
   connect(text_align_right_button_, &QPushButton::clicked, this,
-          [this] { apply_text_alignment_to_active_editor(QStringLiteral("right")); });
+          [this] { apply_text_alignment_base_from_options_bar(QStringLiteral("right")); });
+  connect(text_justify_button_, &QPushButton::clicked, this,
+          [this](bool on) { apply_text_justify_from_options_bar(on); });
+  connect(text_rtl_button_, &QPushButton::clicked, this, [this](bool on) {
+    apply_text_direction_to_active_editor(on ? Qt::RightToLeft : Qt::LeftToRight);
+  });
   connect(text_warp_button_, &QPushButton::clicked, this, [this] { request_warp_text_dialog(); });
   connect(text_orientation_button_, &QPushButton::toggled, this,
           [this](bool checked) { apply_text_orientation(checked); });

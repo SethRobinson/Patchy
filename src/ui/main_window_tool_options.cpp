@@ -3107,11 +3107,7 @@ void MainWindow::load_tool_settings() {
   } else {
     canvas_->set_gradient_definition(std::nullopt);
   }
-  if (text_smoothing_combo_ != nullptr) {
-    set_text_smoothing_combo_value(
-        text_smoothing_combo_,
-        settings.value(QStringLiteral("tools/textSmoothing"), kDefaultTextAntiAlias).toInt());
-  }
+  show_text_anti_alias(settings.value(QStringLiteral("tools/textSmoothing"), kDefaultTextAntiAlias).toInt());
 }
 
 void MainWindow::set_red_eye_pupil_size(int percent) {
@@ -3575,9 +3571,7 @@ void MainWindow::save_tool_settings() const {
     settings.remove(QStringLiteral("tools/gradientStops"));
     settings.remove(QStringLiteral("tools/gradientDefinition"));
   }
-  if (text_smoothing_combo_ != nullptr) {
-    settings.setValue(QStringLiteral("tools/textSmoothing"), text_smoothing_combo_value(text_smoothing_combo_));
-  }
+  settings.setValue(QStringLiteral("tools/textSmoothing"), text_anti_alias_);
 }
 
 MainWindow::BrushToolSettings& MainWindow::active_stored_brush_settings() {

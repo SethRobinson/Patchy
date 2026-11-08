@@ -22873,14 +22873,6 @@ Deseja substituí-lo?</translation>
         <translation>Estilo da fonte</translation>
     </message>
     <message>
-        <source>Smoothing:</source>
-        <translation>Suavização:</translation>
-    </message>
-    <message>
-        <source>Text smoothing</source>
-        <translation>Suavização de texto</translation>
-    </message>
-    <message>
         <source>Sharp</source>
         <translation>Nítido</translation>
     </message>
@@ -33807,6 +33799,34 @@ Bloqueado: %1</translation>
     <message>
         <source>Clear Filter</source>
         <translation>Limpar filtro</translation>
+    </message>
+    <message>
+        <source>How smooth the text&apos;s edges are (anti-aliasing)</source>
+        <translation>Quão suaves são as bordas do texto (suavização)</translation>
+    </message>
+    <message>
+        <source>Anti-alias:</source>
+        <translation>Suavização:</translation>
+    </message>
+    <message>
+        <source>Bold (faux bold: thickens the current face)</source>
+        <translation>Negrito (negrito simulado: engrossa o estilo atual)</translation>
+    </message>
+    <message>
+        <source>Italic (faux italic: slants the current face)</source>
+        <translation>Itálico (itálico simulado: inclina o estilo atual)</translation>
+    </message>
+    <message>
+        <source>Justify: spread lines to both edges; the last line follows Left, Center or Right</source>
+        <translation>Justificar: estende as linhas até as duas bordas; a última linha segue Esquerda, Centro ou Direita</translation>
+    </message>
+    <message>
+        <source>RTL</source>
+        <translation>RTL</translation>
+    </message>
+    <message>
+        <source>Right to left paragraph direction (press again for left to right)</source>
+        <translation>Direção do parágrafo da direita para a esquerda (pressione de novo para da esquerda para a direita)</translation>
     </message>
 </context>
 <context>

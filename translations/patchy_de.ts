@@ -22481,14 +22481,6 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Schriftschnitt</translation>
     </message>
     <message>
-        <source>Smoothing:</source>
-        <translation>Glättung:</translation>
-    </message>
-    <message>
-        <source>Text smoothing</source>
-        <translation>Textglättung</translation>
-    </message>
-    <message>
         <source>Sharp</source>
         <translation>Scharf</translation>
     </message>
@@ -33807,6 +33799,34 @@ Fixiert: %1</translation>
     <message>
         <source>Clear Filter</source>
         <translation>Filter aufheben</translation>
+    </message>
+    <message>
+        <source>How smooth the text&apos;s edges are (anti-aliasing)</source>
+        <translation>Wie glatt die Kanten des Textes sind (Glätten)</translation>
+    </message>
+    <message>
+        <source>Anti-alias:</source>
+        <translation>Glätten:</translation>
+    </message>
+    <message>
+        <source>Bold (faux bold: thickens the current face)</source>
+        <translation>Fett (Faux-Fett: verstärkt den aktuellen Schriftschnitt)</translation>
+    </message>
+    <message>
+        <source>Italic (faux italic: slants the current face)</source>
+        <translation>Kursiv (Faux-Kursiv: neigt den aktuellen Schriftschnitt)</translation>
+    </message>
+    <message>
+        <source>Justify: spread lines to both edges; the last line follows Left, Center or Right</source>
+        <translation>Blocksatz: streckt die Zeilen bis an beide Ränder; die letzte Zeile folgt Links, Zentriert oder Rechts</translation>
+    </message>
+    <message>
+        <source>RTL</source>
+        <translation>RTL</translation>
+    </message>
+    <message>
+        <source>Right to left paragraph direction (press again for left to right)</source>
+        <translation>Absatzrichtung rechts nach links (erneut drücken für links nach rechts)</translation>
     </message>
 </context>
 <context>

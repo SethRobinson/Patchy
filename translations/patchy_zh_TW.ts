@@ -22432,14 +22432,6 @@ Do you want to replace it?</source>
         <translation>字體樣式</translation>
     </message>
     <message>
-        <source>Smoothing:</source>
-        <translation>消除鋸齒:</translation>
-    </message>
-    <message>
-        <source>Text smoothing</source>
-        <translation>文字的消除鋸齒方式</translation>
-    </message>
-    <message>
         <source>Sharp</source>
         <translation>銳利</translation>
     </message>
@@ -33719,6 +33711,34 @@ Locked: %1</source>
     <message>
         <source>Clear Filter</source>
         <translation>清除篩選</translation>
+    </message>
+    <message>
+        <source>How smooth the text&apos;s edges are (anti-aliasing)</source>
+        <translation>文字邊緣的平滑程度（消除鋸齒）</translation>
+    </message>
+    <message>
+        <source>Anti-alias:</source>
+        <translation>消除鋸齒:</translation>
+    </message>
+    <message>
+        <source>Bold (faux bold: thickens the current face)</source>
+        <translation>粗體（仿粗體：加粗目前的字體樣式）</translation>
+    </message>
+    <message>
+        <source>Italic (faux italic: slants the current face)</source>
+        <translation>斜體（仿斜體：傾斜目前的字體樣式）</translation>
+    </message>
+    <message>
+        <source>Justify: spread lines to both edges; the last line follows Left, Center or Right</source>
+        <translation>左右對齊：將各行延伸到兩側邊緣；末行依照靠左、置中或靠右</translation>
+    </message>
+    <message>
+        <source>RTL</source>
+        <translation>RTL</translation>
+    </message>
+    <message>
+        <source>Right to left paragraph direction (press again for left to right)</source>
+        <translation>段落方向由右至左（再按一次為由左至右）</translation>
     </message>
 </context>
 <context>

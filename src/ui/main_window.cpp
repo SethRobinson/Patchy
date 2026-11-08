@@ -53,6 +53,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QBrush>
+#include <QButtonGroup>
 #include <QByteArray>
 #include <QChar>
 #include <QCheckBox>
@@ -6771,7 +6772,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
   bool text_italic = picker_flags.italic;
   QString text_style =
       !picker_style.isEmpty() && !text_style_is_flag_expressible(picker_style) ? picker_style : QString();
-  int text_anti_alias = text_smoothing_combo_value(text_smoothing_combo_);
+  int text_anti_alias = text_anti_alias_;
   QColor text_color = canvas_->primary_color();
   bool boxed_text = requested_text_box.isValid() && requested_text_box.width() >= kMinimumTextBoxDocumentSize &&
                     requested_text_box.height() >= kMinimumTextBoxDocumentSize;
@@ -6913,7 +6914,7 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
       // style is recorded.
       refresh_text_style_combo(family, first_text_run_style_name(initial_rich_text_runs), text_bold,
                                text_italic);
-      set_text_smoothing_combo_value(text_smoothing_combo_, text_anti_alias);
+      show_text_anti_alias(text_anti_alias);
       boxed_text = text_flow_is_box(
           layer->metadata().contains(kLayerMetadataTextFlow)
               ? QString::fromStdString(layer->metadata().at(kLayerMetadataTextFlow))
@@ -8549,12 +8550,31 @@ void MainWindow::open_text_character_dialog() {
       tr("Lay Latin letters on their side along the column instead of upright (Photoshop's Standard Vertical Roman Alignment)"));
   layout->addRow(QString(), text_character_rotate_roman_);
 
+  // Anti-aliasing (GitHub issue 673: off the options bar, so the panel carries it next to Type >
+  // Anti-Alias). Like the menu it also sets what the next new layer takes, so it stays enabled
+  // with no text to edit.
+  text_character_anti_alias_combo_ = new QComboBox(dialog);
+  text_character_anti_alias_combo_->setObjectName(QStringLiteral("textCharacterAntiAliasCombo"));
+  text_character_anti_alias_combo_->setToolTip(tr("How smooth the text's edges are (anti-aliasing)"));
+  text_character_anti_alias_combo_->addItem(tr("None"), kTextAntiAliasNone);
+  text_character_anti_alias_combo_->addItem(tr("Sharp"), kTextAntiAliasSharp);
+  text_character_anti_alias_combo_->addItem(tr("Crisp"), kTextAntiAliasCrisp);
+  text_character_anti_alias_combo_->addItem(tr("Strong"), kTextAntiAliasStrong);
+  text_character_anti_alias_combo_->addItem(tr("Smooth"), kTextAntiAliasSmooth);
+  text_character_anti_alias_combo_->addItem(tr("Windows LCD"), kTextAntiAliasWindowsLcd);
+  text_character_anti_alias_combo_->addItem(tr("Windows"), kTextAntiAliasWindows);
+  set_text_smoothing_combo_value(text_character_anti_alias_combo_, text_anti_alias_);
+  layout->addRow(tr("Anti-alias:"), text_character_anti_alias_combo_);
+  connect(text_character_anti_alias_combo_, QOverload<int>::of(&QComboBox::activated), this, [this](int) {
+    choose_text_anti_alias(text_smoothing_combo_value(text_character_anti_alias_combo_));
+  });
+
   connect(text_character_auto_leading_, &QCheckBox::toggled, this,
           [this](bool) { apply_text_character_leading_to_active_editor(); });
   connect(text_character_faux_bold_, &QPushButton::toggled, this,
-          [this](bool) { apply_text_character_faux_bold_to_active_editor(); });
+          [this](bool on) { apply_text_character_faux_bold_to_active_editor(on); });
   connect(text_character_faux_italic_, &QPushButton::toggled, this,
-          [this](bool) { apply_text_character_faux_italic_to_active_editor(); });
+          [this](bool on) { apply_text_character_faux_italic_to_active_editor(on); });
   connect(text_character_rotate_roman_, &QCheckBox::toggled, this,
           [this](bool) { apply_text_character_rotate_roman_to_active_editor(); });
   connect(text_character_leading_spin_, &QDoubleSpinBox::valueChanged, this, [this](double) {
@@ -8587,6 +8607,7 @@ void MainWindow::open_text_character_dialog() {
   text_character_faux_bold_ = nullptr;
   text_character_faux_italic_ = nullptr;
   text_character_rotate_roman_ = nullptr;
+  text_character_anti_alias_combo_ = nullptr;
   text_character_style_buttons_.fill(nullptr);
 }
 
@@ -8646,6 +8667,8 @@ void MainWindow::apply_text_character_edit(const std::function<bool(QTextEdit&)>
   if (canvas_ == nullptr || preview_dialog_edit_locked()) {
     return;
   }
+  // The bar's toggles read the result again even when a refused edit left the layer as it was.
+  text_options_toggles_sync_key_.clear();
   const QPointer<QWidget> previous_focus(QApplication::focusWidget());
   auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   const bool session_open = editor != nullptr && !editor->property(kTextEditorFinishedProperty).toBool();
@@ -8734,8 +8757,10 @@ void MainWindow::apply_text_character_edit(const std::function<bool(QTextEdit&)>
 }
 
 void MainWindow::sync_text_character_dialog_from_editor() {
-  // The Paragraph panel mirrors the same session-or-layer state at every one of these sites.
+  // The Paragraph panel and the options bar's style toggles mirror the same session-or-layer
+  // state at every one of these sites.
   sync_text_paragraph_dialog_from_editor();
+  sync_text_options_bar_toggles();
   if (text_character_dialog_ == nullptr || text_character_auto_leading_ == nullptr ||
       text_character_leading_spin_ == nullptr || text_character_tracking_spin_ == nullptr ||
       text_character_h_scale_spin_ == nullptr || text_character_v_scale_spin_ == nullptr ||
@@ -9399,18 +9424,16 @@ void MainWindow::apply_text_style_to_editor(QTextEdit& editor, const QString& st
   mark_text_editor_changed(&editor);
 }
 
-void MainWindow::apply_text_character_faux_bold_to_active_editor() {
-  if (canvas_ == nullptr || text_character_faux_bold_ == nullptr) {
+void MainWindow::apply_text_character_faux_bold_to_active_editor(bool faux_bold) {
+  if (canvas_ == nullptr) {
     return;
   }
-  const bool faux_bold = text_character_faux_bold_->isChecked();
   apply_text_character_edit([this, faux_bold](QTextEdit& editor) {
     if (faux_bold && text_editor_layer_is_warped(document(), editor)) {
       // Photoshop parity, the reverse direction: enabling faux bold on warped type is refused
       // (unchecking stays allowed so imported faux+warp layers can be fixed).
+      // The panel and bar toggles read the layer again once the edit pass is over.
       show_status_error(tr("Faux bold is not available on warped text. Remove the text warp first."));
-      QSignalBlocker blocker(text_character_faux_bold_);
-      text_character_faux_bold_->setChecked(false);
       return false;
     }
     mutate_text_editor_character_formats(editor, [faux_bold](QTextCharFormat& format) {
@@ -9422,11 +9445,10 @@ void MainWindow::apply_text_character_faux_bold_to_active_editor() {
   });
 }
 
-void MainWindow::apply_text_character_faux_italic_to_active_editor() {
-  if (canvas_ == nullptr || text_character_faux_italic_ == nullptr) {
+void MainWindow::apply_text_character_faux_italic_to_active_editor(bool faux_italic) {
+  if (canvas_ == nullptr) {
     return;
   }
-  const bool faux_italic = text_character_faux_italic_->isChecked();
   apply_text_character_edit([faux_italic](QTextEdit& editor) {
     mutate_text_editor_character_formats(editor, [faux_italic](QTextCharFormat& format) {
       // A flag only; the shear happens at render time, so it follows later size and face edits.
@@ -11020,8 +11042,7 @@ void MainWindow::sync_text_options_from_active_editor() {
                                : display_family,
                            format.property(kTextStyleNameFormatProperty).toString(), format_font.bold(),
                            format_font.italic());
-  set_text_smoothing_combo_value(text_smoothing_combo_,
-                                 std::clamp(editor->property("patchy.documentTextAntiAlias").toInt(), 0, 16));
+  show_text_anti_alias(editor->property("patchy.documentTextAntiAlias").toInt());
 
   if (const auto color = text_color_from_format(format); color.has_value()) {
     editor->setProperty("patchy.documentTextColor", *color);
@@ -11114,7 +11135,7 @@ void MainWindow::sync_text_options_from_active_layer() {
   }
   const auto style = first_text_run_style_name(runs);
   const auto anti_alias_text = read(kLayerMetadataTextAntiAlias);
-  const int text_anti_alias = anti_alias_text.isEmpty() ? text_smoothing_combo_value(text_smoothing_combo_)
+  const int text_anti_alias = anti_alias_text.isEmpty() ? text_anti_alias_
                                                          : std::clamp(anti_alias_text.toInt(), 0, 16);
   const auto key = QStringLiteral("%1|%2|%3|%4|%5|%6|%7|%8")
                        .arg(static_cast<qulonglong>(layer->id()))
@@ -11138,7 +11159,7 @@ void MainWindow::sync_text_options_from_active_layer() {
                                          text_size_spin_->minimum(), text_size_spin_->maximum()));
   }
   refresh_text_style_combo(family, style, text_bold, text_italic);
-  set_text_smoothing_combo_value(text_smoothing_combo_, text_anti_alias);
+  show_text_anti_alias(text_anti_alias);
 }
 
 void MainWindow::remove_text_editor_transform_overlay(QTextEdit* editor) {
@@ -12431,6 +12452,14 @@ void MainWindow::sync_text_orientation_controls_from_editor() {
     const auto index = text_direction_combo_->findData(static_cast<int>(direction));
     text_direction_combo_->setCurrentIndex(std::max(0, index));
   }
+  if (text_rtl_button_ != nullptr) {
+    // Auto shows unchecked: only an explicit right to left paragraph checks the toggle.
+    QSignalBlocker blocker(text_rtl_button_);
+    text_rtl_button_->setChecked(direction == Qt::RightToLeft);
+  }
+  if (text_justify_button_ != nullptr) {
+    text_justify_button_->setIcon(text_alignment_icon(Qt::AlignJustify, vertical));
+  }
   // Vertical text aligns along the column: the buttons read Top / Center / Bottom, and their
   // glyphs turn into columns.
   const auto set_tip = [](QPushButton* button, const char* horizontal, const char* vertical_tip, bool is_vertical,
@@ -12452,31 +12481,30 @@ void MainWindow::sync_text_alignment_buttons_from_editor() {
       text_align_right_button_ == nullptr || canvas_ == nullptr) {
     return;
   }
-  const auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
-  Qt::Alignment alignment = Qt::AlignLeft;
-  if (editor != nullptr) {
-    alignment = editor->alignment();
-  } else if (const auto* layer = text_character_target_layer(); layer != nullptr) {
-    // No session: the active text layer's first paragraph (column 2 of patchy.text.paragraph_runs).
-    if (const auto found = layer->metadata().find(kLayerMetadataTextParagraphRuns);
-        found != layer->metadata().end()) {
-      for (const auto& raw_line : QString::fromStdString(found->second).split(QLatin1Char('\n'))) {
-        const auto fields = raw_line.trimmed().split(QLatin1Char('\t'));
-        if (fields.size() < 3) {
-          continue;
-        }
-        alignment = paragraph_alignment_from_name(fields[2]);
-        break;
-      }
-    }
-  }
+  // L / C / R show the last line and Justify sits on top (GitHub issue 673); Justify all has no
+  // last-line alignment, so it shows Justify alone.
+  const auto name = current_text_alignment_name();
+  const bool justified = name.startsWith(QStringLiteral("justify"));
+  const bool left = name == QStringLiteral("left") || name == QStringLiteral("justify");
+  const bool center = name == QStringLiteral("center") || name == QStringLiteral("justifyCenter");
+  const bool right = name == QStringLiteral("right") || name == QStringLiteral("justifyRight");
   const auto set_checked = [](QPushButton* button, bool checked) {
-    QSignalBlocker blocker(button);
-    button->setChecked(checked);
+    if (button != nullptr) {
+      QSignalBlocker blocker(button);
+      button->setChecked(checked);
+    }
   };
-  set_checked(text_align_left_button_, (alignment & (Qt::AlignHCenter | Qt::AlignRight)) == 0);
-  set_checked(text_align_center_button_, (alignment & Qt::AlignHCenter) != 0);
-  set_checked(text_align_right_button_, (alignment & Qt::AlignRight) != 0);
+  // An exclusive group refuses to uncheck its last checked button.
+  if (text_alignment_group_ != nullptr) {
+    text_alignment_group_->setExclusive(false);
+  }
+  set_checked(text_align_left_button_, left);
+  set_checked(text_align_center_button_, center);
+  set_checked(text_align_right_button_, right);
+  if (text_alignment_group_ != nullptr) {
+    text_alignment_group_->setExclusive(true);
+  }
+  set_checked(text_justify_button_, justified);
   sync_text_orientation_controls_from_editor();
   // The Paragraph panel's alignment combo follows the buttons (no-op while it is closed).
   sync_text_paragraph_dialog_from_editor();
@@ -12500,7 +12528,7 @@ void MainWindow::refresh_type_menu_states() {
   QString alignment_name = QStringLiteral("left");
   auto direction = Qt::LayoutDirectionAuto;
   bool vertical = text_vertical_next_;
-  int anti_alias = text_smoothing_combo_value(text_smoothing_combo_);
+  int anti_alias = text_anti_alias_;
   QTextCharFormat format;
   if (session_open) {
     alignment_name = paragraph_alignment_name(editor->textCursor().blockFormat());
@@ -12828,11 +12856,128 @@ void MainWindow::apply_primary_color_to_active_text_editor(QColor color) {
   apply_text_color_to_active_editor();
 }
 
+void MainWindow::show_text_anti_alias(int value) {
+  text_anti_alias_ = std::clamp(value, 0, 16);
+  set_text_smoothing_combo_value(text_character_anti_alias_combo_, text_anti_alias_);
+}
+
+void MainWindow::choose_text_anti_alias(int value) {
+  show_text_anti_alias(value);
+  apply_text_smoothing_to_active_editor();
+  save_tool_settings();
+  refresh_document_info();
+}
+
+QString MainWindow::current_text_alignment_name() const {
+  const auto* editor =
+      canvas_ != nullptr ? canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) : nullptr;
+  if (editor != nullptr) {
+    return paragraph_alignment_name(editor->textCursor().blockFormat());
+  }
+  if (const auto* layer = text_character_target_layer(); layer != nullptr) {
+    // No session: the active text layer's first paragraph (column 2 of patchy.text.paragraph_runs).
+    if (const auto found = layer->metadata().find(kLayerMetadataTextParagraphRuns);
+        found != layer->metadata().end()) {
+      for (const auto& raw_line : QString::fromStdString(found->second).split(QLatin1Char('\n'))) {
+        const auto fields = raw_line.trimmed().split(QLatin1Char('\t'));
+        if (fields.size() < 3) {
+          continue;
+        }
+        const auto name = canonical_paragraph_alignment_name(fields[2]);
+        return name.isEmpty() ? QStringLiteral("left") : name;
+      }
+    }
+  }
+  return QStringLiteral("left");
+}
+
+void MainWindow::apply_text_alignment_base_from_options_bar(const QString& base) {
+  // Justify stays on: the button picks the last line (GitHub issue 673).
+  if (text_justify_button_ != nullptr && text_justify_button_->isChecked()) {
+    apply_text_alignment_to_active_editor(base == QStringLiteral("center")  ? QStringLiteral("justifyCenter")
+                                          : base == QStringLiteral("right") ? QStringLiteral("justifyRight")
+                                                                            : QStringLiteral("justify"));
+    return;
+  }
+  apply_text_alignment_to_active_editor(base);
+}
+
+void MainWindow::apply_text_justify_from_options_bar(bool on) {
+  // The last line follows the checked L / C / R; Justify all (none checked) turns off to Left.
+  const bool center = text_align_center_button_ != nullptr && text_align_center_button_->isChecked();
+  const bool right = text_align_right_button_ != nullptr && text_align_right_button_->isChecked();
+  if (on) {
+    apply_text_alignment_to_active_editor(center  ? QStringLiteral("justifyCenter")
+                                          : right ? QStringLiteral("justifyRight")
+                                                  : QStringLiteral("justify"));
+  } else {
+    apply_text_alignment_to_active_editor(center  ? QStringLiteral("center")
+                                          : right ? QStringLiteral("right")
+                                                  : QStringLiteral("left"));
+  }
+}
+
+void MainWindow::sync_text_options_bar_toggles() {
+  if (canvas_ == nullptr || text_faux_bold_button_ == nullptr || text_faux_italic_button_ == nullptr ||
+      text_underline_button_ == nullptr || text_rtl_button_ == nullptr) {
+    return;
+  }
+  // The toggles show only with the Type tools; a tool switch refreshes them through
+  // refresh_options_bar.
+  if (!is_type_tool(current_tool_)) {
+    text_options_toggles_sync_key_.clear();
+    return;
+  }
+  auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  const bool editable = has_active_document() && !preview_dialog_edit_locked();
+  const bool session_open =
+      editable && editor != nullptr && !editor->property(kTextEditorFinishedProperty).toBool();
+  // Type Mask never edits a layer, so there only its own session counts.
+  const auto* layer =
+      editable && !session_open && current_tool_ != CanvasTool::TypeMask ? text_character_target_layer() : nullptr;
+  if (!session_open) {
+    // A layer is read through a render document; skip that while it has not changed.
+    const auto key = layer == nullptr
+                         ? QStringLiteral("none|%1").arg(editable ? 1 : 0)
+                         : QStringLiteral("%1|%2|%3|%4")
+                               .arg(reinterpret_cast<quintptr>(&document()))
+                               .arg(static_cast<qulonglong>(layer->id()))
+                               .arg(static_cast<qulonglong>(layer->render_revision()))
+                               .arg(static_cast<qulonglong>(layer->content_revision()));
+    if (key == text_options_toggles_sync_key_) {
+      return;
+    }
+    text_options_toggles_sync_key_ = key;
+  } else {
+    text_options_toggles_sync_key_.clear();
+  }
+  const auto inputs = layer != nullptr ? text_render_inputs_from_layer(*layer) : std::nullopt;
+  const bool enabled = session_open || inputs.has_value();
+  QTextCharFormat format;
+  if (session_open) {
+    format = text_editor_reference_format(*editor);
+  } else if (inputs.has_value()) {
+    const auto built = build_text_render_document(inputs->settings, inputs->color, inputs->max_width,
+                                                  inputs->paragraph_runs, inputs->rich_text_runs, 1.0);
+    format = QTextCursor(built.document.get()).charFormat();
+  }
+  const auto set = [enabled](QPushButton* button, bool checked) {
+    QSignalBlocker blocker(button);
+    button->setEnabled(enabled);
+    button->setChecked(enabled && checked);
+  };
+  set(text_faux_bold_button_, format.property(kTextFauxBoldFormatProperty).toBool());
+  set(text_faux_italic_button_, format.property(kTextFauxItalicFormatProperty).toBool());
+  set(text_underline_button_, text_character_styles_from_format(format).underline);
+  // Direction is paragraph-level and sync_text_orientation_controls_from_editor checks it.
+  text_rtl_button_->setEnabled(enabled);
+}
+
 void MainWindow::apply_text_smoothing_to_active_editor() {
   if (canvas_ == nullptr || applying_text_options_to_layers_) {
     return;
   }
-  const auto text_anti_alias = text_smoothing_combo_value(text_smoothing_combo_);
+  const auto text_anti_alias = text_anti_alias_;
   auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
   if (editor != nullptr) {
     apply_text_smoothing_to_editor(*editor, text_anti_alias);
@@ -12883,8 +13028,9 @@ bool MainWindow::is_text_option_widget(QWidget* widget) const {
     return false;
   };
   return owns(text_font_combo_) || owns(text_style_combo_) || owns(text_size_spin_) ||
-         owns(text_smoothing_combo_) || owns(text_color_button_) || owns(text_align_left_button_) ||
-         owns(text_orientation_button_) || owns(text_direction_combo_) ||
+         owns(text_faux_bold_button_) || owns(text_faux_italic_button_) || owns(text_underline_button_) ||
+         owns(text_color_button_) || owns(text_align_left_button_) || owns(text_justify_button_) ||
+         owns(text_orientation_button_) || owns(text_rtl_button_) || owns(text_direction_combo_) ||
          owns(text_align_center_button_) || owns(text_align_right_button_) || owns(text_apply_button_) ||
          owns(text_cancel_button_) || owns(text_character_button_) || owns(text_paragraph_button_) ||
          owns(primary_color_button_) ||

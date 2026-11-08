@@ -1342,10 +1342,11 @@ void ui_pick_options_bar_groups_its_controls() {
   }
 }
 
-// GitHub issue 343: the Text bar reads Font and style | Size and Smoothing | color | ..., and
-// the text color button is the shape bar's framed swatch button (optionsBarSwatch, a wide
-// chip of the color) instead of a colored "T". The row still fits one line at 1366 px. The
-// artifacts are the issue shots, in both schemes.
+// GitHub issue 343: the Text bar reads Font and style | Size | ... | color | ..., and the text
+// color button is the shape bar's framed swatch button (optionsBarSwatch, a wide chip of the
+// color) instead of a colored "T". GitHub issue 673: Size | Bold Italic Underline | color |
+// L C R Justify | Vertical RTL | Warp | Character Paragraph, with no Smoothing list. The row
+// still fits one line at 1366 px. The artifacts are the issue shots, in both schemes.
 void ui_text_options_bar_groups_its_controls() {
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore_scheme(scheme);
@@ -1381,6 +1382,27 @@ void ui_text_options_bar_groups_its_controls() {
     const int color_index = at(QStringLiteral("textColorButton"));
     CHECK(color_index > 0 && tokens[static_cast<std::size_t>(color_index) - 1] == QStringLiteral("|"));
     CHECK(options_row_extent(*options).second == 1);
+    // Issue 673's runs: each list is consecutive tokens.
+    const auto run_at = [&tokens, &at](const QStringList& run) {
+      const int first = at(run.front());
+      if (first < 0 || first + run.size() > static_cast<int>(tokens.size())) {
+        return -1;
+      }
+      for (int index = 0; index < run.size(); ++index) {
+        if (tokens[static_cast<std::size_t>(first + index)] != run[index]) {
+          return -1;
+        }
+      }
+      return first;
+    };
+    CHECK(at(QStringLiteral("textSmoothingCombo")) < 0);
+    CHECK(run_at({QStringLiteral("textSizeSpin"), QStringLiteral("|"), QStringLiteral("textFauxBoldButton"),
+                  QStringLiteral("textFauxItalicButton"), QStringLiteral("textUnderlineButton"), QStringLiteral("|"),
+                  QStringLiteral("textColorButton"), QStringLiteral("|"), QStringLiteral("textAlignLeftButton"),
+                  QStringLiteral("textAlignCenterButton"), QStringLiteral("textAlignRightButton"),
+                  QStringLiteral("textJustifyButton"), QStringLiteral("|"), QStringLiteral("textOrientationButton"),
+                  QStringLiteral("textRtlButton"), QStringLiteral("|"), QStringLiteral("textWarpButton"),
+                  QStringLiteral("|"), QStringLiteral("textCharacterButton")}) >= 0);
 
     auto* color = window.findChild<QToolButton*>(QStringLiteral("textColorButton"));
     auto* fill = window.findChild<QToolButton*>(QStringLiteral("vectorFillSwatchButton"));
@@ -8610,7 +8632,7 @@ void ui_options_bar_tracks_active_tool() {
   auto* text_font = window.findChild<QFontComboBox*>(QStringLiteral("textFontCombo"));
   auto* text_size = window.findChild<QDoubleSpinBox*>(QStringLiteral("textSizeSpin"));
   auto* text_style = window.findChild<QComboBox*>(QStringLiteral("textStyleCombo"));
-  auto* text_smoothing = window.findChild<QComboBox*>(QStringLiteral("textSmoothingCombo"));
+  auto* text_bold = window.findChild<QPushButton*>(QStringLiteral("textFauxBoldButton"));
   auto* text_color = window.findChild<QToolButton*>(QStringLiteral("textColorButton"));
   auto* brush_size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
   auto* brush_size_slider = window.findChild<QSlider*>(QStringLiteral("brushSizeSlider"));
@@ -8643,7 +8665,7 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(text_size->buttonSymbols() == QAbstractSpinBox::NoButtons);
   CHECK(text_size->minimum() <= 0.01);
   CHECK(text_style != nullptr);
-  CHECK(text_smoothing != nullptr);
+  CHECK(text_bold != nullptr);
   CHECK(text_color != nullptr);
   CHECK(brush_size != nullptr);
   CHECK(brush_size_slider != nullptr);
@@ -11836,7 +11858,9 @@ void ui_right_dock_floors_fit_the_screen_height() {
 // section under the panel's minimum; the panel still gets its full minimum height for its
 // width (wrapped footer included) and the overflow area scrolls vertically, so no footer
 // button or Lock-row control is squeezed, clipped or left under the sideways bar: each
-// one shows whole once scrolled to.
+// one shows whole once scrolled to. The name filter is the row's stretch item: wrapped onto
+// its own line (with issue 671's filter button) it spans the panel, wider than this viewport,
+// so once scrolled to it fills the viewport's width.
 void ui_right_dock_short_narrow_column_scrolls_instead_of_clipping() {
   auto&& [window, canvas] = ShownWindowFixture{};
   patchy::Document document(320, 240, patchy::PixelFormat::rgb8());
@@ -11916,12 +11940,18 @@ void ui_right_dock_short_narrow_column_scrolls_instead_of_clipping() {
     scroll_to(overflow->verticalScrollBar(), in_panel.y(), in_panel.height(), viewport->height());
     QApplication::processEvents();
     const QRect in_viewport(control->mapTo(viewport, QPoint()), control->size());
-    if (!viewport->rect().contains(in_viewport)) {
+    // Only the stretching name filter may be wider than the viewport; then it fills its width.
+    const bool wide_filter = in_viewport.width() > viewport->width() &&
+                             control->objectName() == QStringLiteral("layerNameFilterEdit");
+    const bool fits = wide_filter ? in_viewport.left() <= 0 && in_viewport.right() >= viewport->width() - 1 &&
+                                        in_viewport.top() >= 0 && in_viewport.bottom() < viewport->height()
+                                  : viewport->rect().contains(in_viewport);
+    if (!fits) {
       std::cout << "[INFO] " << control->objectName().toStdString() << " at " << in_viewport.x() << ","
                 << in_viewport.y() << " " << in_viewport.width() << "x" << in_viewport.height() << " in viewport "
                 << viewport->width() << "x" << viewport->height() << "\n";
     }
-    CHECK(viewport->rect().contains(in_viewport));
+    CHECK(fits);
   }
   // The footer scrolled into view, for the card.
   overflow->horizontalScrollBar()->setValue(0);

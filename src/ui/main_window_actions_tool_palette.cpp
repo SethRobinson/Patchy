@@ -2042,7 +2042,7 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
           [this](QAction* action) { apply_text_orientation(action->data().toInt() != 0); });
   type_menu->addSeparator();
 
-  // Anti-aliasing: the options bar's Smoothing list, in its order.
+  // Anti-aliasing: the Character panel's Anti-alias list, in its order.
   type_anti_alias_menu_ = add_type_submenu(QT_TR_NOOP("Anti-Alias"), "typeAntiAliasMenu");
   auto* anti_alias_group = new QActionGroup(this);
   anti_alias_group->setExclusive(true);
@@ -2060,19 +2060,10 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
                   "typeAntiAliasWindowsLcdAction", "type.anti_alias_windows_lcd", kTextAntiAliasWindowsLcd);
   add_type_choice(type_anti_alias_menu_, anti_alias_group, QT_TR_NOOP("Windows"), "typeAntiAliasWindowsAction",
                   "type.anti_alias_windows", kTextAntiAliasWindows);
-  connect(anti_alias_group, &QActionGroup::triggered, this, [this](QAction* action) {
-    if (text_smoothing_combo_ == nullptr) {
-      return;
-    }
-    // Through the list itself, so its own slot applies, stores the tool setting and refreshes
-    // the info field. A value it already shows (mirrored from the layer) re-applies directly.
-    const int index = text_smoothing_combo_->findData(action->data().toInt());
-    if (index >= 0 && index != text_smoothing_combo_->currentIndex()) {
-      text_smoothing_combo_->setCurrentIndex(index);
-    } else {
-      apply_text_smoothing_to_active_editor();
-    }
-  });
+  // The Character panel's Anti-alias list takes the same path: it applies, stores the tool
+  // setting and refreshes the info field.
+  connect(anti_alias_group, &QActionGroup::triggered, this,
+          [this](QAction* action) { choose_text_anti_alias(action->data().toInt()); });
 
   // OpenType features: the Character panel's second row of toggles, in Photoshop's menu order.
   // The data is the toggle's apply_text_character_style_to_active_editor index.

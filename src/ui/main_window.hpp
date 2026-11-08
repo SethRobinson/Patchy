@@ -9,6 +9,7 @@
 #include "core/hdr_color.hpp"
 #include "ui/document_session_store.hpp"
 #include "core/layer_alignment.hpp"
+#include "core/layer_metadata.hpp"
 #include "core/layer_tree.hpp"
 #include "core/resample.hpp"
 #include "core/smart_filter.hpp"
@@ -69,6 +70,7 @@
 #include <vector>
 
 class QAbstractButton;
+class QButtonGroup;
 class QAction;
 class QActionGroup;
 class QCheckBox;
@@ -2944,6 +2946,20 @@ private:
   void apply_primary_color_to_active_text_editor(QColor color);
   void apply_text_smoothing_to_active_editor();
   void apply_text_smoothing_to_editor(QTextEdit& editor, int text_anti_alias);
+  // The anti-alias the Type tool shows (the session's or the active text layer's, else the next
+  // new layer's, saved as tools/textSmoothing). show_ only mirrors it (Character panel list);
+  // choose_ is a user pick from the panel or Type > Anti-Alias: it applies, saves and mirrors.
+  [[nodiscard]] int text_anti_alias_value() const { return text_anti_alias_; }
+  void show_text_anti_alias(int value);
+  void choose_text_anti_alias(int value);
+  // The options bar's Bold, Italic and Underline (faux bold, faux italic, underline: the
+  // Character panel's toggles), Justify and RTL follow the session or the target text layer.
+  void sync_text_options_bar_toggles();
+  // Justify on top of L / C / R (GitHub issue 673): pressing L, C or R keeps justify on and
+  // changes the last line; the Justify toggle switches between plain and justified.
+  void apply_text_alignment_base_from_options_bar(const QString& base);
+  void apply_text_justify_from_options_bar(bool on);
+  [[nodiscard]] QString current_text_alignment_name() const;
   // `alignment` is a paragraph alignment name (text_document.hpp: left ... justifyAll).
   void apply_text_alignment_to_active_editor(const QString& alignment);
   void apply_text_alignment_to_editor(QTextEdit& editor, const QString& alignment);
@@ -2998,8 +3014,8 @@ private:
   void apply_text_character_leading_to_active_editor();
   void apply_text_character_tracking_to_active_editor();
   void apply_text_character_glyph_scales_to_active_editor();
-  void apply_text_character_faux_bold_to_active_editor();
-  void apply_text_character_faux_italic_to_active_editor();
+  void apply_text_character_faux_bold_to_active_editor(bool faux_bold);
+  void apply_text_character_faux_italic_to_active_editor(bool faux_italic);
   void apply_text_character_rotate_roman_to_active_editor();
   // One of the Character panel's style toggles: 0 All Caps, 1 Small Caps, 2 Superscript,
   // 3 Subscript, 4 Underline, 5 Strikethrough, 6 Ordinals, 7 Fractions, 8 Standard Ligatures,
@@ -3747,12 +3763,22 @@ private:
   QFontComboBox* text_font_combo_{nullptr};
   UnitSpinBox* text_size_spin_{nullptr};
   QComboBox* text_style_combo_{nullptr};
-  QComboBox* text_smoothing_combo_{nullptr};
+  // Off the bar since GitHub issue 673; the Character panel's list mirrors it.
+  int text_anti_alias_{kTextAntiAliasSmooth};
+  QComboBox* text_character_anti_alias_combo_{nullptr};
   QToolButton* text_color_button_{nullptr};
+  QPushButton* text_faux_bold_button_{nullptr};
+  QPushButton* text_faux_italic_button_{nullptr};
+  QPushButton* text_underline_button_{nullptr};
+  QButtonGroup* text_alignment_group_{nullptr};
   QPushButton* text_align_left_button_{nullptr};
   QPushButton* text_align_center_button_{nullptr};
   QPushButton* text_align_right_button_{nullptr};
+  QPushButton* text_justify_button_{nullptr};
   QPushButton* text_orientation_button_{nullptr};
+  QPushButton* text_rtl_button_{nullptr};
+  // Layer id and revisions the bar toggles last read, so an unchanged layer costs nothing.
+  QString text_options_toggles_sync_key_;
   // The size the options bar last set on its own (points). While the spin still shows it, a
   // new session re-derives the size from the document / dragged box; a size the user typed
   // sticks (last used, like Photoshop).

@@ -923,18 +923,25 @@ QIcon distribute_mode_icon(DistributeMode mode) {
 QIcon text_alignment_icon(Qt::Alignment alignment, bool vertical) {
   // Drawn in a 22-unit square: four ragged lines of text, the word-processor convention.
   // Long and short lines alternate so the shared edge (or center) reads at 18 px.
-  const int mode = (alignment & Qt::AlignHCenter) != 0 ? 1 : (alignment & Qt::AlignRight) != 0 ? 2 : 0;
+  // Justify (GitHub issue 673): three full lines over a short last one, flush to the start.
+  const int mode = (alignment & Qt::AlignHCenter) != 0  ? 1
+                   : (alignment & Qt::AlignRight) != 0  ? 2
+                   : (alignment & Qt::AlignJustify) != 0 ? 3
+                                                         : 0;
   auto glyph = [mode, vertical](QPainter& painter, const QColor& ink) {
     painter.setRenderHint(QPainter::Antialiasing, true);
     painter.setPen(Qt::NoPen);
     painter.setBrush(ink);
     constexpr double kLengths[] = {16.0, 10.0, 16.0, 8.0};
+    constexpr double kJustifiedLengths[] = {16.0, 16.0, 16.0, 9.0};
     constexpr double kStart = 3.0;
     constexpr double kSpan = 16.0;
     constexpr double kThickness = 2.0;
     for (int line = 0; line < 4; ++line) {
-      const double length = kLengths[line];
-      const double offset = mode == 0 ? kStart : mode == 1 ? kStart + (kSpan - length) / 2.0 : kStart + kSpan - length;
+      const double length = mode == 3 ? kJustifiedLengths[line] : kLengths[line];
+      const double offset = mode == 0 || mode == 3 ? kStart
+                            : mode == 1           ? kStart + (kSpan - length) / 2.0
+                                                  : kStart + kSpan - length;
       // Horizontal type stacks lines top to bottom; vertical type sets columns right to left.
       const double across = 4.0 + line * 4.4;
       if (vertical) {
