@@ -581,6 +581,7 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"tools.eyedropper", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Pick a color from the image")},
     {"tools.ruler", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Measure distances and angles")},
     {"tools.type", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Add text")},
+    {"tools.type_mask", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Type text to make a selection in the shape of the letters")},
     {"tools.hand", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Scroll the view")},
     {"tools.rotate_view", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Turn the canvas on screen like a sheet of paper")},
     {"tools.zoom", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Zoom in and out")},
@@ -608,6 +609,7 @@ constexpr CommandDescription kCommandDescriptions[] = {
     {"tools.cycle.hand", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the hand and rotate view tools")},
     {"tools.cycle.shape", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the shape tools")},
     {"tools.cycle.pick", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the eyedropper and ruler")},
+    {"tools.cycle.type", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Switch between the Type and Type Mask tools")},
     // Color and brush keys
     {"color.default", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Reset to black and white")},
     {"color.swap", QT_TRANSLATE_NOOP("patchy::ui::CommandSearch", "Exchange foreground and background colors")},

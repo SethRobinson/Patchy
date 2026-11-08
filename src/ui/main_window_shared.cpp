@@ -922,6 +922,8 @@ const char* tool_action_source(CanvasTool tool) {
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Artboard");
     case CanvasTool::RotateView:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Rotate View");
+    case CanvasTool::TypeMask:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Type Mask");
   }
   return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Tool");
 }

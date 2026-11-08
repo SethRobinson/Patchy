@@ -534,6 +534,11 @@ void CanvasWidget::update_tool_cursor() {
   if (apply_selection_cursor_for_mode(selection_operation(QApplication::keyboardModifiers()))) {
     return;
   }
+  if (tool_ == CanvasTool::TypeMask) {
+    // Type Mask (GitHub issue 670): always the I-beam; it never moves or opens a text layer.
+    setCursor(theme_tool_cursor(tool_).value_or(QCursor(Qt::IBeamCursor)));
+    return;
+  }
   if (tool_ == CanvasTool::Text) {
     // Ctrl+drag moves text (GitHub issue 216): the four-way cursor while it drags, and while
     // Ctrl is held over a text layer a press would move.

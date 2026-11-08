@@ -19965,6 +19965,14 @@ Do you want to replace it?</source>
         <source>Select every layer linked to the selected ones</source>
         <translation>Seleccionar todas las capas enlazadas con las seleccionadas</translation>
     </message>
+    <message>
+        <source>Type text to make a selection in the shape of the letters</source>
+        <translation>Escribir texto para crear una selección con la forma de las letras</translation>
+    </message>
+    <message>
+        <source>Switch between the Type and Type Mask tools</source>
+        <translation>Alternar entre las herramientas Texto y Máscara de texto</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -33699,6 +33707,30 @@ Bloqueada: %1</translation>
     <message>
         <source>Opening multi-page TIFFs:</source>
         <translation>Al abrir TIFF de varias páginas:</translation>
+    </message>
+    <message>
+        <source>Type Mask</source>
+        <translation>Máscara de texto</translation>
+    </message>
+    <message>
+        <source>Type, then commit: the letters become a selection and no layer is made. Shift+click adds, %ALT%+click subtracts, Shift+%ALT%+click intersects.</source>
+        <translation>Escriba y confirme: las letras se convierten en una selección y no se crea ninguna capa. Mayús+clic añade, %ALT%+clic resta, Mayús+%ALT%+clic interseca.</translation>
+    </message>
+    <message>
+        <source>Type Mask: click or drag a box and type. %CTRL%+Enter makes a selection from the letters; Shift adds, %ALT% subtracts, Shift+%ALT% intersects. Esc cancels.</source>
+        <translation>Máscara de texto: haga clic o arrastre un cuadro y escriba. %CTRL%+Intro crea una selección a partir de las letras; Mayús añade, %ALT% resta, Mayús+%ALT% interseca. Esc cancela.</translation>
+    </message>
+    <message>
+        <source>Type Tools</source>
+        <translation>Herramientas de texto</translation>
+    </message>
+    <message>
+        <source>Cycle Type Tools</source>
+        <translation>Alternar herramientas de texto</translation>
+    </message>
+    <message>
+        <source>Made a selection from the text.</source>
+        <translation>Se ha creado una selección a partir del texto.</translation>
     </message>
 </context>
 <context>

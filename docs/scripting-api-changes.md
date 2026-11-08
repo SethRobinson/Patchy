@@ -23,6 +23,10 @@ when `python scripts/check-docs.py` reports a broken link in it.
 
 Every entry below is API 1.
 
+2026-11-08 (additive): the Type Mask tool (#670, [type-mask.md](type-mask.md)). Its tool id
+`tools.type_mask` (theme tool id `type_mask`) and the Type group's cycle command `tools.cycle.type`
+are permanent identifiers; `patchy.ui.toolPalette`'s `hiddenTools` accepts `tools.type_mask`.
+
 2026-11-06 (additive): `layer.linkGroup` reads and sets a layer's link group (Layer > Arrange >
 Link Layers, #656): layers sharing a nonzero number are linked; 0 is unlinked, and a layer whose
 partners are gone reads 0. `patchy.ui.toolPalette`'s layer button ids take `"link"`, the Layers

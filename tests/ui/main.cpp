@@ -471,6 +471,7 @@ int main(int argc, char* argv[]) {
            kra_ui_tests,
            image_trace_ui_tests,
            text_outline_tests,
+           type_mask_tests,
            scripting_tests,
            script_move_tests,
            document_recovery_tests,

@@ -63,6 +63,8 @@ constexpr std::array kGimpEntries{
     HotkeySetEntry{"filter.perspective_planes", ""},
     HotkeySetEntry{"file.open_clipboard", "Ctrl+Shift+V"},
     HotkeySetEntry{"edit.free_transform", "Shift+T"},
+    // GIMP has no Type Mask tool, and Shift+T is its Unified Transform.
+    HotkeySetEntry{"tools.cycle.type", ""},
     HotkeySetEntry{"edit.transform_scale", "Shift+S"},
     HotkeySetEntry{"edit.transform_rotate", "Shift+R"},
     HotkeySetEntry{"edit.transform_perspective", "Shift+P"},

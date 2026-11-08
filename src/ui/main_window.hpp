@@ -2283,6 +2283,11 @@ private:
   // work path, the text kept (GitHub issue 598; main_window_text_outlines.cpp).
   void convert_text_layers_to_shapes();
   void create_work_path_from_text();
+  // Type Mask commit (GitHub issue 670; docs/type-mask.md): the letters of `text_layer` (never
+  // added to the document) as a selection, combined by `operation` (0 replace, 1 add,
+  // 2 subtract, 3 intersect) in one history step. False, with the status message, when the
+  // text has no outlines.
+  bool apply_type_mask_selection(const Layer& text_layer, int operation);
   // Type > Rasterize Type Layer (GitHub issue 650): Layer > Rasterize for the selected text
   // layers only.
   void rasterize_text_layers();

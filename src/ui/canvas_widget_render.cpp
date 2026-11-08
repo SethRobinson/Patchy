@@ -1084,6 +1084,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
       }
       draw_mask_display_overlay(painter, target_rect, pixel_aligned_view, pixel_aligned_target_rect);
     }
+    draw_type_mask_overlay(painter, target_rect);
     painter.restore();
   }
 
@@ -3319,6 +3320,74 @@ void CanvasWidget::refresh_mask_display_image(QRegion document_region) {
       }
     }
   }
+}
+
+void CanvasWidget::set_type_mask_overlay(std::optional<TypeMaskOverlay> session) {
+  type_mask_overlay_ = session;
+  if (!type_mask_overlay_.has_value()) {
+    type_mask_hole_cache_ = {};
+  }
+  update();
+}
+
+// Type Mask (GitHub issue 670): the canvas under a translucent tint, as Quick Mask shows masked
+// areas, with the session's letters left clear so the text reads over any artwork. Only the
+// preview layer's own rect is built per pixel, and only when its pixels change.
+void CanvasWidget::draw_type_mask_overlay(QPainter& painter, const QRectF& target_rect) {
+  if (!type_mask_overlay_.has_value() || document_ == nullptr || document_->width() <= 0 ||
+      document_->height() <= 0) {
+    return;
+  }
+  constexpr int kTintAlpha = 128;
+  QColor tint = theme().canvas_type_mask_tint;
+  tint.setAlpha(kTintAlpha);
+  const QRect document_rect(0, 0, document_->width(), document_->height());
+  QRect hole_bounds;
+  if (type_mask_overlay_->preview_layer.has_value()) {
+    const auto* layer = std::as_const(*document_).find_layer(*type_mask_overlay_->preview_layer);
+    if (layer != nullptr && !layer->pixels().empty()) {
+      const auto bounds = layer->bounds();
+      const QRect layer_rect(bounds.x, bounds.y, layer->pixels().width(), layer->pixels().height());
+      auto& cache = type_mask_hole_cache_;
+      if (cache.layer != layer->id() || cache.pixel_revision != layer->pixel_revision() || cache.bounds != layer_rect ||
+          cache.tint != tint.rgba() || cache.image.isNull()) {
+        const auto letters = display_qimage_from_pixel_buffer(layer->pixels())
+                                 .convertToFormat(QImage::Format_ARGB32_Premultiplied);
+        QImage hole(letters.size(), QImage::Format_ARGB32_Premultiplied);
+        for (int y = 0; y < hole.height(); ++y) {
+          const auto* source = reinterpret_cast<const QRgb*>(letters.constScanLine(y));
+          auto* row = reinterpret_cast<QRgb*>(hole.scanLine(y));
+          for (int x = 0; x < hole.width(); ++x) {
+            const int alpha = (kTintAlpha * (255 - qAlpha(source[x])) + 127) / 255;
+            row[x] = qPremultiply(qRgba(tint.red(), tint.green(), tint.blue(), alpha));
+          }
+        }
+        cache = TypeMaskHoleCache{layer->id(), layer->pixel_revision(), layer_rect, tint.rgba(), std::move(hole)};
+      }
+      hole_bounds = layer_rect;
+    }
+  }
+  const auto scale_x = target_rect.width() / static_cast<double>(document_rect.width());
+  const auto scale_y = target_rect.height() / static_cast<double>(document_rect.height());
+  const auto to_target = [&](const QRect& rect) {
+    return QRectF(target_rect.left() + rect.x() * scale_x, target_rect.top() + rect.y() * scale_y,
+                  rect.width() * scale_x, rect.height() * scale_y);
+  };
+  painter.save();
+  painter.setRenderHint(QPainter::Antialiasing, false);
+  QPainterPath tinted;
+  tinted.setFillRule(Qt::OddEvenFill);
+  tinted.addRect(target_rect);
+  const auto clear_rect = hole_bounds.intersected(document_rect);
+  if (!clear_rect.isEmpty()) {
+    tinted.addRect(to_target(clear_rect));
+  }
+  painter.fillPath(tinted, tint);
+  if (!clear_rect.isEmpty()) {
+    painter.setClipRect(target_rect, Qt::IntersectClip);
+    painter.drawImage(to_target(hole_bounds), type_mask_hole_cache_.image);
+  }
+  painter.restore();
 }
 
 void CanvasWidget::draw_mask_display_overlay(QPainter& painter, const QRectF& target_rect, bool pixel_aligned_view,

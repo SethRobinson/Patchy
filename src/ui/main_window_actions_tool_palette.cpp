@@ -191,6 +191,8 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.artboard");
     case CanvasTool::RotateView:
       return QStringLiteral("tools.rotate_view");
+    case CanvasTool::TypeMask:
+      return QStringLiteral("tools.type_mask");
   }
   return QStringLiteral("tools.unknown");
 }
@@ -238,6 +240,9 @@ const char* tool_tooltip_detail_source(CanvasTool tool) {
     case CanvasTool::RotateView:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Drag to turn the view, Shift snaps to 15 degrees. Esc or Reset View turns "
              "it upright. The image does not change.");
+    case CanvasTool::TypeMask:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Type, then commit: the letters become a selection and no layer is made. "
+             "Shift+click adds, %ALT%+click subtracts, Shift+%ALT%+click intersects.");
     default:
       return nullptr;
   }
@@ -296,6 +301,9 @@ const char* tool_activation_hint_source(CanvasTool tool) {
     case CanvasTool::RotateView:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Rotate View: drag to turn the view like a sheet of paper, Shift snaps to 15 "
              "degrees. Esc turns it upright. Only the view turns; the image is unchanged.");
+    case CanvasTool::TypeMask:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Type Mask: click or drag a box and type. %CTRL%+Enter makes a selection from the "
+             "letters; Shift adds, %ALT% subtracts, Shift+%ALT% intersects. Esc cancels.");
     // The selection tools name their Shift / Alt combinations (GitHub issue 192); the
     // cursor already shows the drag, resize and move gestures. Shift+Alt intersects
     // everywhere except Quick Select and Object Selection, which treat it as Add.
@@ -1418,6 +1426,9 @@ QIcon tool_icon(CanvasTool tool) {
     case CanvasTool::RotateView:
       name = "tool-rotate-view";
       break;
+    case CanvasTool::TypeMask:
+      name = "tool-type-mask";
+      break;
   }
   return themed_svg_icon(QLatin1String(name));
 }
@@ -1824,8 +1835,20 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
                          line_tool_action, custom_shape_tool_action},
                         QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Cycle Shape Tools"),
                         "toolCycleShapeAction", "tools.cycle.shape", QKeySequence(Qt::SHIFT | Qt::Key_U));
-  type_tool_action_ =
-      add_tool_action(tool_palette, tool_group, tr("Type"), CanvasTool::Text, QKeySequence(Qt::Key_T), cluster);
+  // Type and Type Mask share a slot (GitHub issue 670; docs/type-mask.md). The group button
+  // keeps the Type tool's typeToolButton name; type_tool_action_ stays the Type tool's.
+  auto* type_tools_menu = new ToolFlyoutMenu(tr("Type Tools"), tool_palette);
+  type_tools_menu->setObjectName(QStringLiteral("typeToolMenu"));
+  bind_widget_text(type_tools_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Type Tools"));
+  type_tool_action_ = create_flyout_tool_action(type_tools_menu, tr("Type"), CanvasTool::Text, QKeySequence(Qt::Key_T));
+  auto* type_mask_action =
+      create_flyout_tool_action(type_tools_menu, tr("Type Mask"), CanvasTool::TypeMask, QKeySequence());
+  auto* type_tool_button = new QToolButton(tool_palette);
+  type_tool_button->setObjectName(QStringLiteral("typeToolButton"));
+  configure_tool_flyout(tool_palette, type_tools_menu, type_tool_button, type_tool_action_,
+                        {type_tool_action_, type_mask_action},
+                        QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Cycle Type Tools"),
+                        "toolCycleTypeAction", "tools.cycle.type", QKeySequence(Qt::SHIFT | Qt::Key_T));
   ++cluster;
 
   // Pick and Ruler share a slot, as in Photoshop (docs/pick-tool.md, GitHub issue 331).
@@ -1875,7 +1898,8 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
       if (canvas_->warp_transform_active()) {
         canvas_->finish_warp_transform();
       }
-      if (selected != CanvasTool::Text) {
+      // Type and Type Mask sessions differ, so switching between them commits too.
+      if (!is_type_tool(selected) || selected != current_tool_) {
         finish_active_text_editor();
       }
     }
@@ -1892,7 +1916,7 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     // The next launch starts on this tool (GitHub issue 254; tools/activeTool).
     if (canvas_ != nullptr) {
       schedule_save_tool_settings();
-      if (selected != CanvasTool::Text ||
+      if (!is_type_tool(selected) ||
           canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr) {
         canvas_->setFocus(Qt::OtherFocusReason);
       }

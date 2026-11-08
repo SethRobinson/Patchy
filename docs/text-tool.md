@@ -8,6 +8,7 @@ Related documents:
 
 - [text-tool-layout.md](text-tool-layout.md): the line plan that draws text and answers caret, selection and hit-testing (`TextLineGeometry`), the auto leading handed to Photoshop, and how document geometry operations follow the text transform.
 - [text-tool-panels.md](text-tool-panels.md): options-bar and Character panel edits that reach every selected text layer without a session, color picks during a session, and the Character and Paragraph panels.
+- [type-mask.md](type-mask.md): the Type Mask tool, a Type session whose commit makes a selection from the letters and no layer.
 
 ## The text on screen is never missing
 

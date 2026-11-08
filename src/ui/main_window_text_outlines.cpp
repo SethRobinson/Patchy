@@ -10,6 +10,7 @@
 #include "ui/qt_geometry.hpp"
 #include "ui/text_layer_painter.hpp"
 #include "ui/text_outline.hpp"
+#include "ui/vector_operations.hpp"
 
 #include <QStatusBar>
 
@@ -147,6 +148,43 @@ void MainWindow::create_work_path_from_text() {
   }
   target_document_path_row(work_id);
   statusBar()->showMessage(tr("Made a work path from the text."));
+}
+
+// Type Mask (GitHub issue 670): the same glyph outlines Create Work Path uses, filled as the
+// selection, so the letters select exactly what the text layer would draw.
+bool MainWindow::apply_type_mask_selection(const Layer& text_layer, int operation) {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return false;
+  }
+  std::string error;
+  const auto outlines = text_layer_outlines(text_layer, &error);
+  VectorPath path;
+  if (outlines.has_value()) {
+    for (const auto& paint : outlines->paints) {
+      append_outline_subpaths(paint.path, path, nullptr);
+    }
+  }
+  if (path.subpaths.empty()) {
+    show_status_error(tr("The text has no outlines."));
+    return false;
+  }
+  const auto& doc = std::as_const(document());
+  canvas_->run_selection_command(tr("Type Mask"), [this, &path, &doc, operation] {
+    const auto existing = canvas_->selection_as_grayscale();
+    const auto coverage =
+        make_path_selection_coverage(path, doc.width(), doc.height(), 0.0, true, operation, &existing);
+    canvas_->apply_grayscale_to_selection(coverage);
+  });
+  canvas_->update();
+  auto message = tr("Made a selection from the text.");
+  if (!outlines->note.empty()) {
+    message += QLatin1Char(' ') + tr("A missing font was drawn in a substitute.");
+  }
+  if (outlines->skipped_glyph_images > 0) {
+    message += QLatin1Char(' ') + tr("Color emoji have no outlines and were left out.");
+  }
+  statusBar()->showMessage(message);
+  return true;
 }
 
 // Type > Rasterize Type Layer (GitHub issue 650): Layer > Rasterize's path, given only the

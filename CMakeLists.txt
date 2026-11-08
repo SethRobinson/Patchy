@@ -2697,6 +2697,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/kra_ui_tests.cpp
       tests/ui/image_trace_ui_tests.cpp
       tests/ui/text_outline_tests.cpp
+      tests/ui/type_mask_tests.cpp
       tests/ui/scripting_tests.cpp
       tests/ui/scripting_test_support.cpp
       tests/ui/scripting_tests_mutations_text.cpp

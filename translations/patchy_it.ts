@@ -19965,6 +19965,14 @@ Sostituirlo?</translation>
         <source>Select every layer linked to the selected ones</source>
         <translation>Seleziona tutti i livelli collegati a quelli selezionati</translation>
     </message>
+    <message>
+        <source>Type text to make a selection in the shape of the letters</source>
+        <translation>Digita del testo per creare una selezione con la forma delle lettere</translation>
+    </message>
+    <message>
+        <source>Switch between the Type and Type Mask tools</source>
+        <translation>Alterna tra gli strumenti Testo e Maschera testo</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -33699,6 +33707,30 @@ Bloccato: %1</translation>
     <message>
         <source>Opening multi-page TIFFs:</source>
         <translation>Apertura di TIFF multipagina:</translation>
+    </message>
+    <message>
+        <source>Type Mask</source>
+        <translation>Maschera testo</translation>
+    </message>
+    <message>
+        <source>Type, then commit: the letters become a selection and no layer is made. Shift+click adds, %ALT%+click subtracts, Shift+%ALT%+click intersects.</source>
+        <translation>Digita e conferma: le lettere diventano una selezione e non viene creato alcun livello. Maiusc+clic aggiunge, %ALT%+clic sottrae, Maiusc+%ALT%+clic interseca.</translation>
+    </message>
+    <message>
+        <source>Type Mask: click or drag a box and type. %CTRL%+Enter makes a selection from the letters; Shift adds, %ALT% subtracts, Shift+%ALT% intersects. Esc cancels.</source>
+        <translation>Maschera testo: fai clic o trascina un riquadro e digita. %CTRL%+Invio crea una selezione dalle lettere; Maiusc aggiunge, %ALT% sottrae, Maiusc+%ALT% interseca. Esc annulla.</translation>
+    </message>
+    <message>
+        <source>Type Tools</source>
+        <translation>Strumenti testo</translation>
+    </message>
+    <message>
+        <source>Cycle Type Tools</source>
+        <translation>Alterna strumenti testo</translation>
+    </message>
+    <message>
+        <source>Made a selection from the text.</source>
+        <translation>Selezione creata dal testo.</translation>
     </message>
 </context>
 <context>

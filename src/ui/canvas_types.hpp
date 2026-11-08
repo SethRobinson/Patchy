@@ -98,8 +98,16 @@ enum class CanvasTool {
   // November 2026 Content-Aware Move (append-only: values ride persisted settings).
   ContentAwareMove,
   // November 2026 Rotate View (append-only: values ride persisted settings).
-  RotateView
+  RotateView,
+  // November 2026 Type Mask (append-only: values ride persisted settings). Shares the Type
+  // tool's editor; its commit makes a selection from the letters (docs/type-mask.md).
+  TypeMask
 };
+
+// The tools that open the inline text editor on a click: Type and Type Mask.
+[[nodiscard]] constexpr bool is_type_tool(CanvasTool tool) noexcept {
+  return tool == CanvasTool::Text || tool == CanvasTool::TypeMask;
+}
 
 // The tools that draw a lasso outline and drag the selected region (the Patch tool's
 // machinery in canvas_widget_patch_tool.cpp): Patch and Content-Aware Move.

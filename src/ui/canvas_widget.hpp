@@ -1638,6 +1638,19 @@ public:
   void set_brush_settings_changed_callback(std::function<void()> callback);
   void set_pen_button_action_callback(std::function<void(PenButtonAction)> callback);
   void set_text_requested_callback(std::function<void(QPoint, QRect)> callback);
+  // Type Mask (GitHub issue 670; docs/type-mask.md). The modifiers of the press that opened the
+  // last Type Mask session: Shift adds its letters to the selection, Alt subtracts, both
+  // intersect, none replaces.
+  [[nodiscard]] Qt::KeyboardModifiers type_mask_press_modifiers() const noexcept {
+    return type_mask_press_modifiers_;
+  }
+  // While a Type Mask session is open the canvas is tinted, the letters (the session's preview
+  // layer `preview_layer`, when it has one yet) left clear. nullopt `session` ends the tint.
+  struct TypeMaskOverlay {
+    std::optional<LayerId> preview_layer;
+  };
+  void set_type_mask_overlay(std::optional<TypeMaskOverlay> session);
+  [[nodiscard]] bool type_mask_overlay_active() const noexcept { return type_mask_overlay_.has_value(); }
   // The Type-tool press that opens a session on an existing layer keeps the rest of its gesture
   // on the canvas (Qt delivers a gesture to the widget that took the press), so the canvas hands
   // the drag to the host: begin = true right after the session opened (returns whether a live
@@ -2240,6 +2253,7 @@ private:
   void refresh_mask_display_image(QRegion document_region);
   // The mask/channel display overlay image, refreshed when stale, or nullptr when none shows.
   [[nodiscard]] const QImage* mask_display_overlay_image();
+  void draw_type_mask_overlay(QPainter& painter, const QRectF& target_rect);
   void draw_mask_display_overlay(QPainter& painter, const QRectF& target_rect, bool pixel_aligned_view,
                                  QRect pixel_aligned_target_rect);
   [[nodiscard]] bool active_layer_locks_transparent_pixels() const noexcept;
@@ -3839,6 +3853,18 @@ private:
   bool drawing_shape_{false};
   bool dragging_text_rect_{false};
   bool dragging_text_entry_selection_{false};
+  Qt::KeyboardModifiers type_mask_press_modifiers_{};
+  std::optional<TypeMaskOverlay> type_mask_overlay_;
+  // The tint over the session's preview layer with its letters cut out, rebuilt only when the
+  // layer's pixels or bounds change (never per repaint).
+  struct TypeMaskHoleCache {
+    LayerId layer{0};
+    std::uint64_t pixel_revision{0};
+    QRect bounds;
+    QRgb tint{0};
+    QImage image;
+  };
+  TypeMaskHoleCache type_mask_hole_cache_;
   bool move_drag_pending_{false};
   // Selection roots an Alt press asked to duplicate once the drag starts
   // (empty: a plain move). Consumed by the first drag frame.

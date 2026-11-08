@@ -19918,6 +19918,14 @@ Do you want to replace it?</source>
         <source>Select every layer linked to the selected ones</source>
         <translation>選取與所選圖層連結的所有圖層</translation>
     </message>
+    <message>
+        <source>Type text to make a selection in the shape of the letters</source>
+        <translation>輸入文字以建立文字形狀的選取範圍</translation>
+    </message>
+    <message>
+        <source>Switch between the Type and Type Mask tools</source>
+        <translation>在文字工具和文字遮色片工具之間切換</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -33611,6 +33619,30 @@ Locked: %1</source>
     <message>
         <source>Opening multi-page TIFFs:</source>
         <translation>開啟多頁 TIFF：</translation>
+    </message>
+    <message>
+        <source>Type Mask</source>
+        <translation>文字遮色片</translation>
+    </message>
+    <message>
+        <source>Type, then commit: the letters become a selection and no layer is made. Shift+click adds, %ALT%+click subtracts, Shift+%ALT%+click intersects.</source>
+        <translation>輸入後確認：文字會變成選取範圍，不建立圖層。Shift+按一下為增加，%ALT%+按一下為減去，Shift+%ALT%+按一下為交集。</translation>
+    </message>
+    <message>
+        <source>Type Mask: click or drag a box and type. %CTRL%+Enter makes a selection from the letters; Shift adds, %ALT% subtracts, Shift+%ALT% intersects. Esc cancels.</source>
+        <translation>文字遮色片：按一下或拖曳出文字框後輸入。%CTRL%+Enter 以文字建立選取範圍；Shift 增加，%ALT% 減去，Shift+%ALT% 交集。Esc 取消。</translation>
+    </message>
+    <message>
+        <source>Type Tools</source>
+        <translation>文字工具</translation>
+    </message>
+    <message>
+        <source>Cycle Type Tools</source>
+        <translation>循環切換文字工具</translation>
+    </message>
+    <message>
+        <source>Made a selection from the text.</source>
+        <translation>已從文字建立選取範圍。</translation>
     </message>
 </context>
 <context>

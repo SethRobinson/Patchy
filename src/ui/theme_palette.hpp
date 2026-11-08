@@ -380,6 +380,10 @@ struct ThemePalette {
   QColor canvas_gradient_handle_ink;
   QColor canvas_gradient_handle_fill;
   QColor canvas_gradient_handle_active;
+  // The Type Mask session's tint over the canvas (GitHub issue 670), drawn at half opacity
+  // with the typed letters left clear. Red like Quick Mask's masked areas: it sits on
+  // artwork, so Light keeps it.
+  QColor canvas_type_mask_tint;
 
   // Scroll bars. The canvas track slaves to the canvas backdrop rather than the
   // window surface: it is document-window chrome sitting against the pasteboard,
