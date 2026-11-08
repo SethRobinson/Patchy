@@ -2965,12 +2965,29 @@ float CanvasWidget::local_adjustment_stroke_amount(CanvasTool operation) const n
 // its rectangle plus the kernel's reach), applies the fixed alpha-aware 3x3 binomial blur once,
 // or for Sharpen moves every channel by kSharpenGain times the lightness minus its fixed 21-tap
 // blur, and mixes the result in at Strength times the footprint's coverage. Overlapping dabs and repeat passes build up, as Photoshop's
-// tools do. Same patent boundary as local_adjustment_brush_segment: one fixed kernel, the
-// footprint alone picks the pixels, nothing measures or ranks the image.
+// tools do. On a layer with alpha whose transparent pixels are not locked, Blur blurs alpha with
+// the same kernel (premultiplied), so an edge against transparency softens and the layer grows to
+// the stroke like a brush stroke (desk card local-039). Same patent boundary as
+// local_adjustment_brush_segment: one fixed kernel, the footprint alone picks the pixels, nothing
+// measures or ranks the image.
 QRect CanvasWidget::blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasTool operation) {
   auto* layer = active_pixel_layer();
   if (document_ == nullptr || layer == nullptr) {
     return {};
+  }
+  const bool sharpen = operation == CanvasTool::SharpenBrush;
+  const bool spread_alpha =
+      !sharpen && std::as_const(*layer).pixels().format().channels >= 4 && !active_layer_locks_transparent_pixels();
+  if (spread_alpha) {
+    // Grow the layer to the segment's dabs and the kernel's reach, clipped to the canvas, so a
+    // blur past the layer's stored edge has pixels to spread into.
+    const auto reach = std::max(1, effective_brush_input().size) / 2 + 2;
+    const auto segment_rect = QRect(QPoint(std::min(from.x(), to.x()) - reach, std::min(from.y(), to.y()) - reach),
+                                    QPoint(std::max(from.x(), to.x()) + reach, std::max(from.y(), to.y()) + reach))
+                                  .intersected(QRect(0, 0, document_->width(), document_->height()));
+    if (!segment_rect.isEmpty()) {
+      patchy::expand_layer_to_include_rect(*layer, to_core_rect(segment_rect));
+    }
   }
   auto& pixels = layer->pixels();
   if (std::exchange(retouch_press_times_layer_detach_, false)) {
@@ -2994,7 +3011,6 @@ QRect CanvasWidget::blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasToo
     return {};
   }
   const auto strength = static_cast<double>(local_adjustment_strength_) / 100.0;
-  const bool sharpen = operation == CanvasTool::SharpenBrush;
   const auto* palette_snap = palette_snap_for_edits();
   const auto selection_active = has_selection();
   auto* layer_bytes = pixels.data().data();  // detaches shared storage on this thread
@@ -3104,7 +3120,7 @@ QRect CanvasWidget::blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasToo
             coverage = 1.0F;
           }
           const auto* center = sample(x, y);
-          if (format.channels >= 4 && center[3] <= 0.0) {
+          if (format.channels >= 4 && center[3] <= 0.0 && !spread_alpha) {
             continue;
           }
           if (sharpen) {
@@ -3144,12 +3160,15 @@ QRect CanvasWidget::blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasToo
           constexpr std::array<double, 3> kBinomial{1.0, 2.0, 1.0};
           std::array<double, 3> premultiplied{};
           double alpha_weight = 0.0;
+          double alpha_sum = 0.0;  // the binomial sum of alpha (0..255 each); exact in doubles
           for (int offset_y = -1; offset_y <= 1; ++offset_y) {
             for (int offset_x = -1; offset_x <= 1; ++offset_x) {
               const auto* neighbor = sample(x + offset_x, y + offset_y);
-              const auto weight = kBinomial[static_cast<std::size_t>(offset_x + 1)] *
-                                  kBinomial[static_cast<std::size_t>(offset_y + 1)] * (neighbor[3] / 255.0);
+              const auto kernel = kBinomial[static_cast<std::size_t>(offset_x + 1)] *
+                                  kBinomial[static_cast<std::size_t>(offset_y + 1)];
+              const auto weight = kernel * (neighbor[3] / 255.0);
               alpha_weight += weight;
+              alpha_sum += kernel * neighbor[3];
               for (std::size_t channel = 0; channel < premultiplied.size(); ++channel) {
                 premultiplied[channel] += weight * neighbor[channel];
               }
@@ -3162,9 +3181,25 @@ QRect CanvasWidget::blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasToo
           const auto before = load_pixel(format, destination);
           const auto amount = strength * static_cast<double>(coverage);
           auto value = before;
-          for (std::size_t channel = 0; channel < premultiplied.size(); ++channel) {
-            const auto blurred = premultiplied[channel] / alpha_weight;
-            value[channel] = decode(std::clamp(blurred, 0.0, 255.0) * amount + center[channel] * (1.0 - amount));
+          const auto blurred_alpha = alpha_sum / 16.0;
+          if (spread_alpha && blurred_alpha != center[3]) {
+            // Alpha moves too: mix premultiplied, so a transparent pixel takes its neighbors' color.
+            const auto blurred_part = blurred_alpha * amount;
+            const auto center_part = center[3] * (1.0 - amount);
+            const auto mixed_alpha = blurred_part + center_part;
+            if (mixed_alpha <= 0.0) {
+              continue;
+            }
+            for (std::size_t channel = 0; channel < premultiplied.size(); ++channel) {
+              const auto blurred = std::clamp(premultiplied[channel] / alpha_weight, 0.0, 255.0);
+              value[channel] = decode((blurred * blurred_part + center[channel] * center_part) / mixed_alpha);
+            }
+            value[3] = static_cast<float>(std::clamp(mixed_alpha, 0.0, 255.0));
+          } else {
+            for (std::size_t channel = 0; channel < premultiplied.size(); ++channel) {
+              const auto blurred = premultiplied[channel] / alpha_weight;
+              value[channel] = decode(std::clamp(blurred, 0.0, 255.0) * amount + center[channel] * (1.0 - amount));
+            }
           }
           store_pixel(format, destination, value);
           if (palette_snap != nullptr) {

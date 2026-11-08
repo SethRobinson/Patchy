@@ -2974,6 +2974,125 @@ void ui_local_adjustment_brushes_use_fixed_math_and_round_trip_psd() {
   }
 }
 
+// Blur softens an edge against transparency (desk card local-039: a stroke along the right edge
+// of a shape on a transparent layer changed nothing). Blur spreads alpha with the same 3x3 kernel,
+// grows a layer whose stored edge is the shape's edge, and keeps alpha when transparent pixels are
+// locked.
+void ui_blur_brush_softens_edges_against_transparency() {
+  const auto pixel_at = [](const patchy::Layer& layer, int x, int y) {
+    std::array<int, 4> value{0, 0, 0, 0};
+    const auto bounds = layer.bounds();
+    if (x < bounds.x || y < bounds.y || x >= bounds.x + bounds.width || y >= bounds.y + bounds.height) {
+      return value;
+    }
+    const auto* pixel = layer.pixels().pixel(x - bounds.x, y - bounds.y);
+    for (std::size_t channel = 0; channel < 4U; ++channel) {
+      value[channel] = pixel[channel];
+    }
+    return value;
+  };
+  // Picture for the card, written before the checks so a failing run still writes it: a hard red
+  // disc on a transparent layer over light gray, black paint behind its left edge, one blur pass
+  // down each edge (4x, nearest neighbor).
+  patchy::Document picture_document(96, 72, patchy::PixelFormat::rgba8());
+  auto disc = solid_pixels(96, 72, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  for (std::int32_t y = 0; y < 72; ++y) {
+    for (std::int32_t x = 0; x < 96; ++x) {
+      auto* pixel = disc.pixel(x, y);
+      if ((x - 48) * (x - 48) + (y - 36) * (y - 36) <= 28 * 28) {
+        pixel[0] = 255;
+        pixel[3] = 255;
+      } else if (x >= 10 && x < 30) {
+        pixel[3] = 255;  // black paint behind the disc's left edge, as in the report
+      }
+    }
+  }
+  const auto disc_id = picture_document.add_pixel_layer("Paint Layer", std::move(disc)).id();
+  patchy::ui::CanvasWidget picture_canvas;
+  picture_canvas.resize(480, 360);
+  picture_canvas.set_document(&picture_document);
+  picture_canvas.set_brush_size(12);
+  picture_canvas.set_brush_softness(0);
+  picture_canvas.set_local_adjustment_strength(100);
+  picture_canvas.set_tool(patchy::ui::CanvasTool::BlurBrush);
+  picture_canvas.show();
+  QApplication::processEvents();
+  drag_document_pixel_centers(picture_canvas, {QPoint(70, 18), QPoint(76, 36), QPoint(70, 54)}, 8);
+  drag_document_pixel_centers(picture_canvas, {QPoint(26, 18), QPoint(20, 36), QPoint(26, 54)}, 8);
+  QApplication::processEvents();
+  const auto* blurred_disc = picture_document.find_layer(disc_id);
+  CHECK(blurred_disc != nullptr);
+  QImage picture(96 * 4, 72 * 4, QImage::Format_RGB32);
+  for (int y = 0; y < 72; ++y) {
+    for (int x = 0; x < 96; ++x) {
+      const auto value = pixel_at(*blurred_disc, x, y);
+      const auto mix = [&value](int channel) {
+        return (value[static_cast<std::size_t>(channel)] * value[3] + 224 * (255 - value[3]) + 127) / 255;
+      };
+      const auto color = qRgb(mix(0), mix(1), mix(2));
+      for (int dy = 0; dy < 4; ++dy) {
+        for (int dx = 0; dx < 4; ++dx) {
+          picture.setPixel(x * 4 + dx, y * 4 + dy, color);
+        }
+      }
+    }
+  }
+  save_image_artifact("ui_blur_brush_transparent_edge", picture);
+
+  // An opaque red block on x < 20; the layer is either the whole 40 x 24 canvas (transparent on
+  // the right) or only the block.
+  const auto run = [&pixel_at](bool layer_covers_canvas, bool lock_transparent) {
+    patchy::Document document(40, 24, patchy::PixelFormat::rgba8());
+    auto pixels = solid_pixels(40, 24, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+    for (std::int32_t y = 0; y < 24; ++y) {
+      for (std::int32_t x = 0; x < 20; ++x) {
+        auto* pixel = pixels.pixel(x, y);
+        pixel[0] = 255;
+        pixel[1] = 0;
+        pixel[2] = 0;
+        pixel[3] = 255;
+      }
+    }
+    auto& added = document.add_pixel_layer("Paint Layer", std::move(pixels));
+    if (!layer_covers_canvas) {
+      added.set_pixels(solid_pixels(20, 24, patchy::PixelFormat::rgba8(), QColor(255, 0, 0, 255)));
+      CHECK(added.bounds().width == 20);
+    }
+    if (lock_transparent) {
+      patchy::set_layer_locks_transparent_pixels(added, true);
+    }
+    const auto layer_id = added.id();
+
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(400, 240);
+    canvas.set_document(&document);
+    canvas.set_brush_size(9);
+    canvas.set_brush_softness(0);
+    canvas.set_local_adjustment_strength(100);
+    canvas.set_tool(patchy::ui::CanvasTool::BlurBrush);
+    canvas.show();
+    QApplication::processEvents();
+    drag_document_pixel_centers(canvas, {QPoint(20, 4), QPoint(20, 19)}, 8);
+    QApplication::processEvents();
+    const auto* layer = document.find_layer(layer_id);
+    CHECK(layer != nullptr);
+    return std::make_pair(pixel_at(*layer, 19, 12), pixel_at(*layer, 20, 12));
+  };
+
+  for (const bool covers_canvas : {true, false}) {
+    const auto [inside, outside] = run(covers_canvas, false);
+    // The last opaque column loses some alpha and the first transparent one gains some, both red.
+    CHECK(inside[3] > 0 && inside[3] < 255);
+    CHECK(inside[0] == 255 && inside[1] == 0 && inside[2] == 0);
+    CHECK(outside[3] > 0 && outside[3] < inside[3]);
+    CHECK(outside[0] == 255 && outside[1] == 0 && outside[2] == 0);
+  }
+  // Lock transparent pixels: alpha stays as it was.
+  const auto [locked_inside, locked_outside] = run(true, true);
+  CHECK(locked_inside[3] == 255 && locked_inside[0] == 255);
+  CHECK(locked_outside[3] == 0);
+}
+
 void ui_smudge_tool_drags_painted_pixels() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -5315,6 +5434,7 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
        ui_healing_brush_transfers_detail_and_preserves_destination_tone},
       {"ui_local_adjustment_brushes_use_fixed_math_and_round_trip_psd",
        ui_local_adjustment_brushes_use_fixed_math_and_round_trip_psd},
+      {"ui_blur_brush_softens_edges_against_transparency", ui_blur_brush_softens_edges_against_transparency},
       {"ui_smudge_tool_drags_painted_pixels", ui_smudge_tool_drags_painted_pixels},
       {"ui_wet_edges_uses_one_continuous_stroke_boundary",
        ui_wet_edges_uses_one_continuous_stroke_boundary},
