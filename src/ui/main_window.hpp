@@ -2455,6 +2455,20 @@ private:
   void reveal_layer_in_layer_list(LayerId id, bool clicked_in_panel = false);
   void select_layers_in_layer_list(const std::vector<LayerId>& ids, LayerId active_id,
                                    bool clicked_in_panel = false);
+  // The Layers panel filter menu (GitHub issue 671): the criteria live in the session
+  // (DocumentSession::layer_filter); the name text in layerNameFilterEdit.
+  [[nodiscard]] bool layer_list_filter_active() const;
+  void set_layer_list_filter_bit(int group, std::uint32_t bit, bool on);
+  void set_layer_list_filter_selected_only(bool on);
+  // Clears the criteria and the name text, then rebuilds the rows.
+  void clear_layer_list_filter();
+  // Clears both without a rebuild (the caller rebuilds).
+  void clear_layer_list_filter_silently();
+  void refresh_layer_filter_controls();
+  void show_layer_filter_menu();
+  void build_layer_filter_menu();
+  // Rebuilds the rows for a filter change, keeping the selected rows that remain listed.
+  void refresh_layer_list_for_filter();
   // Select > Deselect Layers: no selected rows and no active layer.
   void deselect_all_layers();
   // Select > All Layers (GitHub issue 479): every row of the Layers panel but the Background.
@@ -3364,6 +3378,11 @@ private:
   QListWidget* layer_list_{nullptr};
   QPointer<QWidget> layer_drop_hint_;
   QLineEdit* layer_name_filter_edit_{nullptr};
+  QToolButton* layer_filter_button_{nullptr};
+  QToolButton* layer_filter_clear_button_{nullptr};
+  QMenu* layer_filter_menu_{nullptr};
+  // Set while reveal/select rebuild for a new active layer (Selected only lists it).
+  std::optional<LayerId> layer_filter_pending_active_;
   ChannelPanel* channel_panel_{nullptr};
   PathsPanel* paths_panel_{nullptr};
   std::optional<patchy::DocumentPathId> active_document_path_id_;

@@ -490,6 +490,29 @@ QIcon info_mark_icon() {
                            });
 }
 
+QIcon layer_filter_icon() {
+  return themed_glyph_icon(QStringLiteral("layer-filter"), 16.0, &ThemePalette::icon_ink,
+                           [](QPainter& painter, const QColor& ink) {
+                             painter.setPen(Qt::NoPen);
+                             painter.setBrush(ink);
+                             painter.drawRoundedRect(QRectF(1.5, 3.0, 13.0, 2.0), 1.0, 1.0);
+                             painter.drawRoundedRect(QRectF(4.0, 7.0, 8.0, 2.0), 1.0, 1.0);
+                             painter.drawRoundedRect(QRectF(6.5, 11.0, 3.0, 2.0), 1.0, 1.0);
+                           });
+}
+
+QIcon layer_filter_clear_icon() {
+  return themed_glyph_icon(QStringLiteral("layer-filter-clear"), 16.0, &ThemePalette::icon_ink,
+                           [](QPainter& painter, const QColor& ink) {
+                             painter.setRenderHint(QPainter::Antialiasing);
+                             QPen pen(ink, 1.6);
+                             pen.setCapStyle(Qt::RoundCap);
+                             painter.setPen(pen);
+                             painter.drawLine(QPointF(4.0, 4.0), QPointF(12.0, 12.0));
+                             painter.drawLine(QPointF(12.0, 4.0), QPointF(4.0, 12.0));
+                           });
+}
+
 QIcon layer_lock_icon(const QString& kind, QColor ThemePalette::* ink_role) {
   // Two designs on a 16 px grid, chosen by the logical size (GitHub issue 484). The 16 px lock
   // button icons span 1 to 15, a 14 px glyph with 5 px to the button's border; smaller renders

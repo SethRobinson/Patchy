@@ -938,7 +938,7 @@ QString photoshop_style_template() {
       border: 0;
       padding: 0;
     }
-    QToolButton[layerLockControl="true"] {
+    QToolButton[layerLockControl="true"], QToolButton#layerFilterButton, QToolButton#layerFilterClearButton {
       background: @panel_inset_bg;
       border: 1px solid @layer_lock_border;
       border-radius: 3px;
@@ -948,9 +948,16 @@ QString photoshop_style_template() {
       min-height: 24px;
       max-height: 24px;
     }
-    QToolButton[layerLockControl="true"]:hover {
+    QToolButton[layerLockControl="true"]:hover, QToolButton#layerFilterButton:hover,
+    QToolButton#layerFilterClearButton:hover {
       background: @layer_button_hover_bg;
       border-color: @layer_lock_hover_border;
+    }
+    /* A ticked Layers panel filter criterion (GitHub issue 671) lights the filter button like a
+       checked lock. */
+    QToolButton#layerFilterButton[layerFilterActive="true"] {
+      background: @layer_lock_checked_bg;
+      border-color: @layer_lock_checked_border;
     }
     QToolButton[layerLockControl="true"]:checked {
       background: @layer_lock_checked_bg;

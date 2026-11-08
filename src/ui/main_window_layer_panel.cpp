@@ -120,6 +120,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -3763,7 +3764,314 @@ void scroll_layer_row_into_view(QListWidget& list, QListWidgetItem* item, bool c
   list.scrollToItem(item, QAbstractItemView::PositionAtCenter);
 }
 
+bool layer_name_matches_filter(const Layer& layer, const QString& text) {
+  return text.isEmpty() || QString::fromStdString(layer.name()).contains(text, Qt::CaseInsensitive);
+}
+
+// The filter menu's criteria (GitHub issue 671): within a group any ticked item matches, and
+// every group with a tick must match. `active_id` is listed by Selected only whatever the
+// snapshot holds; the Background counts as locked, as its row shows.
+bool layer_matches_list_filter(const Layer& layer, const LayerListFilter& filter, std::optional<LayerId> active_id,
+                               std::optional<LayerId> background_id) {
+  if (filter.kinds != 0U) {
+    std::uint32_t kind = kLayerFilterPixel;
+    if (layer.kind() == LayerKind::Group) {
+      kind = kLayerFilterFolder;
+    } else if (layer.kind() == LayerKind::Text) {
+      kind = kLayerFilterText;
+    } else if (layer.kind() == LayerKind::SmartObject || layer_is_smart_object(layer)) {
+      kind = kLayerFilterSmartObject;
+    } else if (layer.kind() == LayerKind::Adjustment || layer_is_fill_layer(layer)) {
+      kind = kLayerFilterAdjustment;
+    } else if (layer.kind() == LayerKind::Vector || layer_is_vector_shape(layer)) {
+      kind = kLayerFilterShape;
+    }
+    if ((filter.kinds & kind) == 0U) {
+      return false;
+    }
+  }
+  if (filter.properties != 0U) {
+    const auto has = [&filter](std::uint32_t bit) { return (filter.properties & bit) != 0U; };
+    const bool matches =
+        (has(kLayerFilterHasMask) && (layer.mask().has_value() || layer.vector_mask() != nullptr)) ||
+        (has(kLayerFilterHasStyle) && layer.layer_style().effect_count() > 0) ||
+        (has(kLayerFilterHidden) && !layer.visible()) ||
+        (has(kLayerFilterLocked) && ((layer_lock_flags(layer) & kLayerLockAll) != kLayerLockNone ||
+                                     (background_id.has_value() && *background_id == layer.id())));
+    if (!matches) {
+      return false;
+    }
+  }
+  if (filter.colors != 0U) {
+    // An index Patchy does not know shows as no color.
+    const auto label = layer.color_label() <= kLayerColorLast ? layer.color_label() : kLayerColorNone;
+    if ((filter.colors & (1U << label)) == 0U) {
+      return false;
+    }
+  }
+  if (filter.selected_only && !filter.selected_ids.contains(layer.id()) &&
+      !(active_id.has_value() && *active_id == layer.id())) {
+    return false;
+  }
+  return true;
+}
+
+// Lets a click tick several filter criteria in a row: a checkable entry toggles and the menu
+// stays open. Keyboard activation and every other entry close it as usual.
+class LayerFilterMenuKeepOpen final : public QObject {
+public:
+  using QObject::QObject;
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::MouseButtonRelease) {
+      auto* menu = qobject_cast<QMenu*>(watched);
+      const auto* mouse = static_cast<QMouseEvent*>(event);
+      if (menu != nullptr && mouse->button() == Qt::LeftButton) {
+        auto* action = menu->actionAt(mouse->position().toPoint());
+        if (action != nullptr && action->isCheckable() && action->isEnabled() && action->menu() == nullptr) {
+          action->trigger();
+          return true;
+        }
+      }
+    }
+    return QObject::eventFilter(watched, event);
+  }
+};
+
 }  // namespace
+
+bool MainWindow::layer_list_filter_active() const {
+  return (layer_name_filter_edit_ != nullptr && !layer_name_filter_edit_->text().isEmpty()) ||
+         (has_active_document() && session().layer_filter.active());
+}
+
+void MainWindow::set_layer_list_filter_bit(int group, std::uint32_t bit, bool on) {
+  if (!has_active_document()) {
+    return;
+  }
+  auto& filter = session().layer_filter;
+  auto& field = group == 0 ? filter.kinds : group == 1 ? filter.properties : filter.colors;
+  const auto updated = on ? (field | bit) : (field & ~bit);
+  if (updated == field) {
+    refresh_layer_filter_controls();
+    return;
+  }
+  field = updated;
+  refresh_layer_list_for_filter();
+}
+
+void MainWindow::set_layer_list_filter_selected_only(bool on) {
+  if (!has_active_document()) {
+    return;
+  }
+  auto& filter = session().layer_filter;
+  if (filter.selected_only == on) {
+    refresh_layer_filter_controls();
+    return;
+  }
+  filter.selected_only = on;
+  filter.selected_ids.clear();
+  if (on) {
+    for (const auto id : selected_layer_ids()) {
+      filter.selected_ids.insert(id);
+    }
+    if (const auto active = std::as_const(document()).active_layer_id(); active.has_value()) {
+      filter.selected_ids.insert(*active);
+    }
+  }
+  refresh_layer_list_for_filter();
+}
+
+void MainWindow::clear_layer_list_filter_silently() {
+  if (has_active_document()) {
+    session().layer_filter = LayerListFilter{};
+  }
+  if (layer_name_filter_edit_ != nullptr && !layer_name_filter_edit_->text().isEmpty()) {
+    // The caller rebuilds; blocking the signal avoids a second rebuild from textChanged.
+    const QSignalBlocker blocker(layer_name_filter_edit_);
+    layer_name_filter_edit_->clear();
+  }
+}
+
+void MainWindow::clear_layer_list_filter() {
+  if (!layer_list_filter_active()) {
+    refresh_layer_filter_controls();
+    return;
+  }
+  clear_layer_list_filter_silently();
+  refresh_layer_list_for_filter();
+}
+
+void MainWindow::refresh_layer_list_for_filter() {
+  if (layer_list_ == nullptr || !has_active_document()) {
+    refresh_layer_list();
+    return;
+  }
+  const auto selected = selected_layer_ids();
+  refresh_layer_list();
+  // The rebuild selects the active row alone; give back the rest of a multi-selection that is
+  // still listed. Nothing is restored while the active layer has no row: selecting other rows
+  // would move the active layer.
+  const auto active = std::as_const(document()).active_layer_id();
+  if (selected.size() < 2U || !active.has_value() || layer_row_item(*layer_list_, *active) == nullptr) {
+    return;
+  }
+  std::vector<LayerId> kept;
+  for (const auto id : selected) {
+    if (layer_row_item(*layer_list_, id) != nullptr) {
+      kept.push_back(id);
+    }
+  }
+  if (kept.size() > 1U) {
+    select_layers_in_layer_list(kept, *active, true);
+  }
+}
+
+void MainWindow::refresh_layer_filter_controls() {
+  const LayerListFilter none;
+  const auto& filter = has_active_document() ? session().layer_filter : none;
+  const bool active = filter.active();
+  if (layer_filter_button_ != nullptr && layer_filter_button_->property("layerFilterActive").toBool() != active) {
+    layer_filter_button_->setProperty("layerFilterActive", active);
+    layer_filter_button_->style()->unpolish(layer_filter_button_);
+    layer_filter_button_->style()->polish(layer_filter_button_);
+    layer_filter_button_->update();
+  }
+  if (layer_filter_clear_button_ != nullptr && !layer_filter_clear_button_->isHidden() != active) {
+    layer_filter_clear_button_->setVisible(active);
+  }
+  if (layer_filter_menu_ == nullptr) {
+    return;
+  }
+  const auto sync = [&filter](QMenu* menu) {
+    for (auto* action : menu->actions()) {
+      const auto group = action->property("layerFilterGroup");
+      if (!group.isValid()) {
+        continue;
+      }
+      const auto bit = action->property("layerFilterBit").toUInt();
+      bool checked = false;
+      switch (group.toInt()) {
+        case 0: checked = (filter.kinds & bit) != 0U; break;
+        case 1: checked = (filter.properties & bit) != 0U; break;
+        case 2: checked = (filter.colors & bit) != 0U; break;
+        default: checked = filter.selected_only; break;
+      }
+      const QSignalBlocker blocker(action);
+      action->setChecked(checked);
+    }
+  };
+  sync(layer_filter_menu_);
+  if (auto* colors = layer_filter_menu_->findChild<QMenu*>(QStringLiteral("layerFilterColorMenu")); colors != nullptr) {
+    sync(colors);
+    // The submenu's own entry says how many colors it filters by.
+    const auto count = std::popcount(filter.colors);
+    colors->menuAction()->setText(count > 0 ? tr("Row Color (%1)").arg(count) : tr("Row Color"));
+  }
+}
+
+void MainWindow::build_layer_filter_menu() {
+  if (layer_filter_menu_ != nullptr) {
+    return;
+  }
+  layer_filter_menu_ = new QMenu(this);
+  layer_filter_menu_->setObjectName(QStringLiteral("layerFilterMenu"));
+  auto* keep_open = new LayerFilterMenuKeepOpen(layer_filter_menu_);
+  layer_filter_menu_->installEventFilter(keep_open);
+  const auto add_header = [this](QMenu* menu, const char* text, const char* object_name) {
+    auto* action = menu->addAction(tr(text));
+    action->setObjectName(QLatin1String(object_name));
+    action->setEnabled(false);
+    action->setMenuRole(QAction::NoRole);
+    bind_action_text(action, text);
+  };
+  const auto add_toggle = [this](QMenu* menu, const char* text, const char* object_name, int group,
+                                 std::uint32_t bit) {
+    auto* action = menu->addAction(tr(text));
+    action->setObjectName(QLatin1String(object_name));
+    action->setCheckable(true);
+    action->setMenuRole(QAction::NoRole);
+    action->setProperty("layerFilterGroup", group);
+    action->setProperty("layerFilterBit", static_cast<uint>(bit));
+    bind_action_text(action, text);
+    connect(action, &QAction::triggered, this, [this, group, bit](bool checked) {
+      if (group == 3) {
+        set_layer_list_filter_selected_only(checked);
+      } else {
+        set_layer_list_filter_bit(group, bit, checked);
+      }
+    });
+    return action;
+  };
+  auto* menu = layer_filter_menu_;
+  add_header(menu, QT_TR_NOOP("Layer Type"), "layerFilterTypeHeader");
+  add_toggle(menu, QT_TR_NOOP("Pixel"), "layerFilterPixelAction", 0, kLayerFilterPixel);
+  add_toggle(menu, QT_TR_NOOP("Text"), "layerFilterTextAction", 0, kLayerFilterText);
+  add_toggle(menu, QT_TR_NOOP("Shape"), "layerFilterShapeAction", 0, kLayerFilterShape);
+  add_toggle(menu, QT_TR_NOOP("Adjustment or Fill"), "layerFilterAdjustmentAction", 0, kLayerFilterAdjustment);
+  add_toggle(menu, QT_TR_NOOP("Smart Object"), "layerFilterSmartObjectAction", 0, kLayerFilterSmartObject);
+  add_toggle(menu, QT_TR_NOOP("Folder"), "layerFilterFolderAction", 0, kLayerFilterFolder);
+  menu->addSeparator();
+  add_header(menu, QT_TR_NOOP("Properties"), "layerFilterPropertiesHeader");
+  add_toggle(menu, QT_TR_NOOP("Has a Mask"), "layerFilterMaskAction", 1, kLayerFilterHasMask);
+  add_toggle(menu, QT_TR_NOOP("Has a Layer Style"), "layerFilterStyleAction", 1, kLayerFilterHasStyle);
+  add_toggle(menu, QT_TR_NOOP("Hidden"), "layerFilterHiddenAction", 1, kLayerFilterHidden);
+  add_toggle(menu, QT_TR_NOOP("Locked"), "layerFilterLockedAction", 1, kLayerFilterLocked);
+  menu->addSeparator();
+  auto* colors = menu->addMenu(tr("Row Color"));
+  colors->setObjectName(QStringLiteral("layerFilterColorMenu"));
+  colors->menuAction()->setObjectName(QStringLiteral("layerFilterColorMenuAction"));
+  colors->menuAction()->setMenuRole(QAction::NoRole);
+  colors->installEventFilter(keep_open);
+  struct ColorEntry {
+    LayerColorLabel label;
+    const char* text;
+    const char* object_name;
+    QColor ThemePalette::* role;
+  };
+  // The Layer > Color names and swatches, in the same hue order (kLayerColorMenuOrder).
+  const std::array<ColorEntry, kLayerColorLast> entries{{
+      {kLayerColorRed, QT_TR_NOOP("Red"), "layerFilterColorRedAction", &ThemePalette::layer_color_red},
+      {kLayerColorOrange, QT_TR_NOOP("Orange"), "layerFilterColorOrangeAction", &ThemePalette::layer_color_orange},
+      {kLayerColorYellow, QT_TR_NOOP("Yellow"), "layerFilterColorYellowAction", &ThemePalette::layer_color_yellow},
+      {kLayerColorGreen, QT_TR_NOOP("Green"), "layerFilterColorGreenAction", &ThemePalette::layer_color_green},
+      {kLayerColorSeafoam, QT_TR_NOOP("Seafoam"), "layerFilterColorSeafoamAction", &ThemePalette::layer_color_seafoam},
+      {kLayerColorBlue, QT_TR_NOOP("Blue"), "layerFilterColorBlueAction", &ThemePalette::layer_color_blue},
+      {kLayerColorIndigo, QT_TR_NOOP("Indigo"), "layerFilterColorIndigoAction", &ThemePalette::layer_color_indigo},
+      {kLayerColorMagenta, QT_TR_NOOP("Magenta"), "layerFilterColorMagentaAction", &ThemePalette::layer_color_magenta},
+      {kLayerColorFuchsia, QT_TR_NOOP("Fuchsia"), "layerFilterColorFuchsiaAction", &ThemePalette::layer_color_fuchsia},
+      {kLayerColorViolet, QT_TR_NOOP("Violet"), "layerFilterColorVioletAction", &ThemePalette::layer_color_violet},
+      {kLayerColorGray, QT_TR_NOOP("Gray"), "layerFilterColorGrayAction", &ThemePalette::layer_color_gray},
+  }};
+  for (const auto& entry : entries) {
+    auto* action = add_toggle(colors, entry.text, entry.object_name, 2, 1U << entry.label);
+    // The same swatch glyph as Layer > Color (populate_layer_color_actions).
+    action->setIcon(themed_glyph_icon(QStringLiteral("layer-color-%1").arg(entry.label), 16.0, entry.role,
+                                      [](QPainter& painter, const QColor& ink) {
+                                        painter.setPen(Qt::NoPen);
+                                        painter.setBrush(ink);
+                                        painter.drawRoundedRect(QRectF(2.0, 2.0, 12.0, 12.0), 2.5, 2.5);
+                                      }));
+  }
+  menu->addSeparator();
+  add_toggle(menu, QT_TR_NOOP("Selected Only"), "layerFilterSelectedOnlyAction", 3, 0U);
+  menu->addSeparator();
+  auto* clear = menu->addAction(tr("Clear Filter"));
+  clear->setObjectName(QStringLiteral("layerFilterClearAction"));
+  clear->setMenuRole(QAction::NoRole);
+  bind_action_text(clear, QT_TR_NOOP("Clear Filter"));
+  connect(clear, &QAction::triggered, this, [this] { clear_layer_list_filter(); });
+  connect(menu, &QMenu::aboutToShow, this, [this] { refresh_layer_filter_controls(); });
+  refresh_layer_filter_controls();
+}
+
+void MainWindow::show_layer_filter_menu() {
+  if (layer_filter_menu_ == nullptr || layer_filter_button_ == nullptr || !has_active_document()) {
+    return;
+  }
+  layer_filter_menu_->popup(layer_filter_button_->mapToGlobal(QPoint(0, layer_filter_button_->height())));
+}
 
 void MainWindow::reveal_layer_in_layer_list(LayerId id, bool clicked_in_panel) {
   if (layer_list_ == nullptr) {
@@ -3783,21 +4091,30 @@ void MainWindow::reveal_layer_in_layer_list(LayerId id, bool clicked_in_panel) {
     rows_change = session().collapsed_layer_groups.erase(ancestor_id) > 0 || rows_change;
   }
 
-  if (layer_name_filter_edit_ != nullptr && !layer_name_filter_edit_->text().isEmpty()) {
-    const auto* target = document().find_layer(id);
-    if (target == nullptr || !QString::fromStdString(target->name())
-                                  .contains(layer_name_filter_edit_->text(), Qt::CaseInsensitive)) {
-      // The refresh below re-reads the emptied text; blocking the signal
-      // avoids a second rebuild from textChanged.
-      const QSignalBlocker blocker(layer_name_filter_edit_);
-      layer_name_filter_edit_->clear();
+  if (layer_list_filter_active()) {
+    auto& filter = session().layer_filter;
+    // Selected only follows a selection made outside the panel (issue 671).
+    if (filter.selected_only && !clicked_in_panel && filter.selected_ids != std::set<LayerId>{id}) {
+      filter.selected_ids = {id};
+      rows_change = true;
+    }
+    const auto* target = std::as_const(document()).find_layer(id);
+    const auto* background = document_background_layer();
+    const auto name_text = layer_name_filter_edit_ != nullptr ? layer_name_filter_edit_->text() : QString();
+    if (target == nullptr || !layer_name_matches_filter(*target, name_text) ||
+        !layer_matches_list_filter(*target, filter, id,
+                                   background != nullptr ? std::optional<LayerId>(background->id()) : std::nullopt)) {
+      // The whole filter goes, name text and criteria (the refresh below re-reads them).
+      clear_layer_list_filter_silently();
       rows_change = true;
     }
   }
 
   auto* item = layer_row_item(*layer_list_, id);
   if (rows_change || item == nullptr) {
+    layer_filter_pending_active_ = id;
     refresh_layer_list();
+    layer_filter_pending_active_.reset();
     item = layer_row_item(*layer_list_, id);
   }
   if (item == nullptr) {
@@ -3984,8 +4301,7 @@ void MainWindow::select_layers_in_layer_list(const std::vector<LayerId>& ids, La
         rows_change = session().collapsed_layer_groups.erase(ancestor_id) > 0 || rows_change;
       }
     }
-    if (!filter_text.isEmpty() &&
-        !QString::fromStdString(layer->name()).contains(filter_text, Qt::CaseInsensitive)) {
+    if (!layer_name_matches_filter(*layer, filter_text)) {
       filter_matches_all = false;
     }
     if (layer_row_item(*layer_list_, id) == nullptr) {
@@ -3995,16 +4311,34 @@ void MainWindow::select_layers_in_layer_list(const std::vector<LayerId>& ids, La
   if (present_ids.empty()) {
     return;
   }
-  if (!filter_matches_all && layer_name_filter_edit_ != nullptr) {
-    // The refresh below re-reads the emptied text; blocking the signal avoids
-    // a second rebuild from textChanged.
-    const QSignalBlocker blocker(layer_name_filter_edit_);
-    layer_name_filter_edit_->clear();
+  if (auto& criteria = session().layer_filter; criteria.active()) {
+    // Selected only follows a selection made outside the panel (issue 671).
+    if (criteria.selected_only && !clicked_in_panel) {
+      std::set<LayerId> now(present_ids.begin(), present_ids.end());
+      if (criteria.selected_ids != now) {
+        criteria.selected_ids = std::move(now);
+        rows_change = true;
+      }
+    }
+    const auto* background = document_background_layer();
+    const auto background_id = background != nullptr ? std::optional<LayerId>(background->id()) : std::nullopt;
+    for (const auto id : present_ids) {
+      const auto* layer = std::as_const(document()).find_layer(id);
+      if (layer == nullptr || !layer_matches_list_filter(*layer, criteria, active_id, background_id)) {
+        filter_matches_all = false;
+      }
+    }
+  }
+  if (!filter_matches_all) {
+    // The whole filter goes, name text and criteria (the refresh below re-reads them).
+    clear_layer_list_filter_silently();
     rows_change = true;
   }
 
   if (rows_change) {
+    layer_filter_pending_active_ = active_id;
     refresh_layer_list();
+    layer_filter_pending_active_.reset();
   }
   auto* selection_model = layer_list_->selectionModel();
   auto* model = layer_list_->model();
@@ -4367,6 +4701,7 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
     }
     layer_list_->setUpdatesEnabled(true);
     updating_layer_list_ = false;
+    refresh_layer_filter_controls();
     return;
   }
 
@@ -4391,14 +4726,24 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
   // guards, and the thumbnail cache stay correct without a hidden-row state.
   // The set holds matches plus their ancestor groups; it is built in a
   // pre-pass because append_layers creates a group's row before recursing.
+  // The filter menu's criteria (issue 671) combine with the name text the same way.
   const auto filter_text =
       layer_name_filter_edit_ != nullptr ? layer_name_filter_edit_->text() : QString();
-  const bool filter_active = !filter_text.isEmpty();
+  const auto& list_filter = session().layer_filter;
+  const bool filter_active = !filter_text.isEmpty() || list_filter.active();
+  std::optional<LayerId> background_id;
+  if (const auto* background = document_background_layer(); background != nullptr) {
+    background_id = background->id();
+  }
+  // A selection change from outside the panel rebuilds before it selects its rows, so
+  // Selected only lists the layer about to become active rather than the one leaving.
+  const auto filter_active_id =
+      layer_filter_pending_active_.has_value() ? layer_filter_pending_active_ : doc.active_layer_id();
   std::set<LayerId> filter_included_ids;
   if (filter_active) {
     std::function<bool(const Layer&)> mark_included = [&](const Layer& layer) {
-      bool included =
-          QString::fromStdString(layer.name()).contains(filter_text, Qt::CaseInsensitive);
+      bool included = layer_name_matches_filter(layer, filter_text) &&
+                      layer_matches_list_filter(layer, list_filter, filter_active_id, background_id);
       for (const auto& child : layer.children()) {
         if (mark_included(child)) {
           included = true;  // No short-circuit: every subtree must be visited.
@@ -4431,10 +4776,6 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
   // for the 622-row Affinity card template; batched, the item and insert
   // passes cost ~10 ms and the whole rebuild ~0.4 s, all of it genuine widget
   // construction and QSS polish). Pass 3 attaches the row widgets.
-  std::optional<LayerId> background_id;
-  if (const auto* background = document_background_layer(); background != nullptr) {
-    background_id = background->id();
-  }
   std::vector<LayerListRowSpec> pending_rows;
   std::function<void(const std::vector<Layer>&, int, bool, LayerLockFlags)> append_layers =
       [&](const std::vector<Layer>& layers, int depth, bool ancestors_visible, LayerLockFlags ancestor_lock_flags) {
@@ -4533,6 +4874,7 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
          << " set_widget_ms=" << set_widget_ms << " restyle_ms=" << restyle_ms
          << " widths_ms=" << widths_ms << " repaint_ms=" << repaint_ms << " paths_ms=" << paths_ms;
   log_ui_profile("refresh_layer_list", phase_ms(started), detail.str());
+  refresh_layer_filter_controls();
 }
 
 QString MainWindow::layer_list_item_tooltip(const LayerListRowSpec& row) const {
@@ -4797,7 +5139,7 @@ bool MainWindow::insert_duplicated_layer_rows(const std::vector<LayerId>& copy_i
       copy_ids_top_to_bottom.empty()) {
     return false;
   }
-  if (layer_name_filter_edit_ != nullptr && !layer_name_filter_edit_->text().isEmpty()) {
+  if (layer_list_filter_active()) {
     return false;
   }
   const auto started = std::chrono::steady_clock::now();
