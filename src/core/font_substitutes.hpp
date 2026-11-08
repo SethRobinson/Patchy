@@ -72,6 +72,20 @@ struct FontSubstituteSuggestion {
 // Sans Serif" is sans and "Noto Sans Mono" is mono. unknown when no word says.
 [[nodiscard]] FontClass classify_font_name_words(std::string_view family);
 
+// A font name split into its family and face, for naming a font this computer lacks the way
+// Photoshop does (GitHub issue 669): a PostScript-style name without spaces splits at its first
+// hyphen ("MuseoSansRounded-500" -> "MuseoSansRounded" + "500"); any other name drops its
+// trailing face words ("Museo Sans Rounded 500" -> "Museo Sans Rounded" + "500", "Myriad Pro
+// Semi Bold Italic" -> "Myriad Pro" + "Semi Bold Italic"). Face words are weights (Thin to Black,
+// with a Semi/Demi/Extra/Ultra prefix), numeric weights 100 to 1000, Regular/Normal/Plain, Italic
+// and Oblique; widths and "Roman" stay in the family ("Times New Roman", "Arial Narrow"). At least
+// one family word is kept. `style` is empty when the name has no face part; both are as written.
+struct FontNameParts {
+  std::string family;
+  std::string style;
+};
+[[nodiscard]] FontNameParts split_font_family_and_style(std::string_view name);
+
 // The table's font type for `family` (by family, alias or face-baked name), else its name words.
 [[nodiscard]] FontClass font_class_for_name(std::string_view family);
 

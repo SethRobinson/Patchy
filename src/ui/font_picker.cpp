@@ -1215,15 +1215,20 @@ QString FontPickerCombo::row_family() const {
   return missing_family_.isEmpty() ? currentText() : itemText(currentIndex());
 }
 
-void FontPickerCombo::set_missing_family(const QString& family) {
+void FontPickerCombo::set_missing_family(const QString& family, const QString& shown) {
   const auto trimmed = family.trimmed();
-  if (trimmed == missing_family_) {
+  const auto shown_text = trimmed.isEmpty() || shown.trimmed().isEmpty() ? trimmed : shown.trimmed();
+  if (trimmed == missing_family_ && (trimmed.isEmpty() || lineEdit() == nullptr || lineEdit()->text() == shown_text)) {
     return;
   }
   missing_family_ = trimmed;
   if (auto* edit = lineEdit(); edit != nullptr) {
-    // Unmodified, so the name scrolls to its start like any code-set text.
-    edit->setText(missing_family_.isEmpty() ? itemText(currentIndex()) : missing_family_);
+    // Unmodified, so the name scrolls to its start like any code-set text. Shown text that
+    // differs from the missing name (its family without the face, issue 669) would reach
+    // QFontComboBox through currentTextChanged and replace currentFont(), which applies that
+    // family to the selected layer: the combo's signals stay blocked while it is set.
+    const QSignalBlocker blocker(missing_family_.isEmpty() ? nullptr : this);
+    edit->setText(missing_family_.isEmpty() ? itemText(currentIndex()) : shown_text);
     edit->setModified(false);
     show_name_from_start();
   }

@@ -4,6 +4,7 @@
 #include "test_harness.hpp"
 
 #include <algorithm>
+#include <cstdio>
 #include <set>
 #include <string>
 #include <string_view>
@@ -191,10 +192,48 @@ void font_substitutes_same_class_defaults_cover_each_platform() {
   CHECK(patchy::same_class_default_families(FontClass::display).empty());
 }
 
+// GitHub issue 669: a missing font's name splits into family and face the way Photoshop names it.
+void font_substitutes_split_font_names_into_family_and_style() {
+  const auto split = [](std::string_view name, std::string_view family, std::string_view style) {
+    const auto parts = patchy::split_font_family_and_style(name);
+    if (parts.family != family || parts.style != style) {
+      std::fprintf(stderr, "  '%.*s' -> '%s' + '%s'\n", static_cast<int>(name.size()), name.data(),
+                   parts.family.c_str(), parts.style.c_str());
+    }
+    CHECK(parts.family == family);
+    CHECK(parts.style == style);
+  };
+  // PostScript names split at the hyphen.
+  split("MuseoSansRounded-500", "MuseoSansRounded", "500");
+  split("ArialMT-BoldItalic", "ArialMT", "BoldItalic");
+  split("  MyriadPro-Semibold ", "MyriadPro", "Semibold");
+  // Readable names drop their trailing face words: numeric weights, multi-word faces.
+  split("Museo Sans Rounded 500", "Museo Sans Rounded", "500");
+  split("Museo 300 Italic", "Museo", "300 Italic");
+  split("Museo Sans Rounded 1000", "Museo Sans Rounded", "1000");
+  split("Myriad Pro Semi Bold Italic", "Myriad Pro", "Semi Bold Italic");
+  split("Open Sans Light Italic", "Open Sans", "Light Italic");
+  split("Source Sans Pro Extra Light", "Source Sans Pro", "Extra Light");
+  split("Arial Black", "Arial", "Black");
+  split("Brightwell Sans Bold", "Brightwell Sans", "Bold");
+  // No face part: the family alone.
+  split("Brightwell Sans", "Brightwell Sans", "");
+  split("Times New Roman", "Times New Roman", "");
+  split("Arial Narrow", "Arial Narrow", "");
+  split("PatchyDefinitelyMissingFont123456", "PatchyDefinitelyMissingFont123456", "");
+  split("Font 3", "Font 3", "");
+  split("Extra Bold", "Extra", "Bold");  // one family word always stays
+  split("Bold", "Bold", "");
+  split("-Bold", "-Bold", "");
+  split("", "", "");
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> font_substitutes_tests() {
   return {
+      {"font_substitutes_split_font_names_into_family_and_style",
+       font_substitutes_split_font_names_into_family_and_style},
       {"font_substitutes_classify_font_types_from_name_words", font_substitutes_classify_font_types_from_name_words},
       {"font_substitutes_same_class_defaults_cover_each_platform",
        font_substitutes_same_class_defaults_cover_each_platform},

@@ -320,6 +320,92 @@ std::optional<FontSubstituteLookup> find_font_substitutes(std::string_view famil
 
 namespace {
 
+// Trailing words split_font_family_and_style moves into the style, compared as keys.
+constexpr std::string_view kStyleWords[] = {
+    "thin",      "hairline",  "extralight", "ultralight", "light",   "book",       "regular",
+    "normal",    "plain",     "medium",     "semibold",   "demibold", "demi",      "bold",
+    "extrabold", "ultrabold", "heavy",      "black",      "extrablack", "ultrablack", "italic",
+    "oblique",
+};
+// Prefixes a humanized name splits off a weight ("Semi Bold", "Extra Light").
+constexpr std::string_view kStyleWordPrefixes[] = {"semi", "demi", "extra", "ultra"};
+
+bool is_numeric_weight_word(std::string_view word) {
+  if (word.size() < 3 || word.size() > 4 ||
+      !std::ranges::all_of(word, [](char ch) { return ch >= '0' && ch <= '9'; })) {
+    return false;
+  }
+  int value = 0;
+  for (const auto ch : word) {
+    value = value * 10 + (ch - '0');
+  }
+  return value >= 100 && value <= 1000;
+}
+
+bool is_style_word(std::string_view word) {
+  const auto key = font_substitute_key(word);
+  return is_numeric_weight_word(word) ||
+         (!key.empty() && std::ranges::find(kStyleWords, std::string_view(key)) != std::end(kStyleWords));
+}
+
+bool is_style_word_prefix(std::string_view word) {
+  const auto key = font_substitute_key(word);
+  return std::ranges::find(kStyleWordPrefixes, std::string_view(key)) != std::end(kStyleWordPrefixes);
+}
+
+std::string_view trimmed_ascii(std::string_view value) {
+  while (!value.empty() && (value.front() == ' ' || value.front() == '\t')) {
+    value.remove_prefix(1);
+  }
+  while (!value.empty() && (value.back() == ' ' || value.back() == '\t')) {
+    value.remove_suffix(1);
+  }
+  return value;
+}
+
+}  // namespace
+
+FontNameParts split_font_family_and_style(std::string_view name) {
+  const auto trimmed = trimmed_ascii(name);
+  if (trimmed.find(' ') == std::string_view::npos) {
+    const auto hyphen = trimmed.find('-');
+    if (hyphen != std::string_view::npos && hyphen > 0 && hyphen + 1 < trimmed.size()) {
+      return FontNameParts{std::string(trimmed.substr(0, hyphen)), std::string(trimmed.substr(hyphen + 1))};
+    }
+    return FontNameParts{std::string(trimmed), {}};
+  }
+  std::vector<std::string_view> words;
+  std::size_t start = 0;
+  for (std::size_t i = 0; i <= trimmed.size(); ++i) {
+    if (i == trimmed.size() || trimmed[i] == ' ') {
+      if (i > start) {
+        words.push_back(trimmed.substr(start, i - start));
+      }
+      start = i + 1;
+    }
+  }
+  std::size_t kept = words.size();
+  while (kept > 1 && is_style_word(words[kept - 1])) {
+    --kept;
+    if (kept > 1 && is_style_word_prefix(words[kept - 1]) && !is_numeric_weight_word(words[kept])) {
+      --kept;
+    }
+  }
+  const auto join = [&words](std::size_t from, std::size_t to) {
+    std::string joined;
+    for (std::size_t i = from; i < to; ++i) {
+      if (!joined.empty()) {
+        joined += ' ';
+      }
+      joined += words[i];
+    }
+    return joined;
+  };
+  return FontNameParts{join(0, kept), join(kept, words.size())};
+}
+
+namespace {
+
 // Words of a family name: split at spaces, hyphens, underscores and lower-to-upper case changes,
 // lower-cased (ASCII only; other bytes stay as they are).
 std::vector<std::string> family_name_words(std::string_view family) {

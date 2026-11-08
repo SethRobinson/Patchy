@@ -402,6 +402,147 @@ void ui_options_bar_names_a_missing_font_family() {
   CHECK(edit->text() == parked);
 }
 
+// GitHub issue 669: a missing font's name carries its face ("Museo Sans Rounded 500", how the PSD
+// reader names an uninstalled MuseoSansRounded-500). The family field shows the family without the
+// face and the style field shows the face, both marked missing, as Photoshop does; the layer keeps
+// the whole name and new type still starts Regular in the installed row.
+void ui_options_bar_splits_a_missing_font_into_family_and_style() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  struct Case {
+    const char* layer;
+    QString font;
+    QString family;
+    QString style;  // empty: no face in the name
+  };
+  // The reporter's font for the screenshots; a made-up name where a host has it.
+  const bool has_museo = patchy::ui::available_text_family_match(QStringLiteral("Museo Sans Rounded 500")).has_value();
+  const std::vector<Case> cases{
+      {"Numeric", has_museo ? QStringLiteral("Brightwell Rounded 500") : QStringLiteral("Museo Sans Rounded 500"),
+       has_museo ? QStringLiteral("Brightwell Rounded") : QStringLiteral("Museo Sans Rounded"), QStringLiteral("500")},
+      {"Words", QStringLiteral("Brightwell Sans Semi Bold Italic"), QStringLiteral("Brightwell Sans"),
+       QStringLiteral("Semi Bold Italic")},
+      {"PostScript", QStringLiteral("BrightwellRounded-700"), QStringLiteral("BrightwellRounded"), QStringLiteral("700")},
+      {"Plain", QStringLiteral("Brightwell Sans"), QStringLiteral("Brightwell Sans"), QString()},
+  };
+  auto document = white_document();
+  int top = 10;
+  for (const auto& entry : cases) {
+    if (patchy::ui::available_text_family_match(entry.font).has_value()) {
+      std::fprintf(stderr, "  [SKIP] %s is installed here\n", qPrintable(entry.font));
+      return;
+    }
+    document.add_layer(missing_font_text_layer(document, entry.layer, entry.font, top));
+    top += 40;
+  }
+  const auto installed = patchy::ui::default_text_family();
+  document.add_layer(missing_font_text_layer(document, "Installed", installed, 180));
+  // An installed face-baked family, the way the PSD reader stores Arial-Black on Windows.
+  const bool has_arial_black = patchy::ui::available_text_family_match(QStringLiteral("Arial Black")).has_value() ||
+                               patchy::ui::available_text_family_style_match(QStringLiteral("Arial Black")).has_value();
+  if (has_arial_black) {
+    auto face = missing_font_text_layer(document, "Face", QStringLiteral("Arial Black"), 200);
+    face.metadata()[patchy::kLayerMetadataTextBold] = "true";
+    document.add_layer(std::move(face));
+  }
+
+  MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Missing Font Split"));
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* picker = window.findChild<patchy::ui::FontPickerCombo*>(QStringLiteral("textFontCombo"));
+  auto* style = window.findChild<QComboBox*>(QStringLiteral("textStyleCombo"));
+  auto* edit = picker == nullptr ? nullptr : picker->lineEdit();
+  CHECK(layer_list != nullptr && picker != nullptr && style != nullptr && edit != nullptr);
+  if (layer_list == nullptr || picker == nullptr || style == nullptr || edit == nullptr) {
+    return;
+  }
+  const auto select = [&](const char* name) {
+    // Showing a font never edits the layer, so no missing-font prompt may open.
+    auto answered = std::make_shared<int>(0);
+    answer_missing_font_prompt(false, answered);
+    layer_list->setCurrentItem(require_layer_item(*layer_list, QString::fromUtf8(name)));
+    QApplication::processEvents();
+    CHECK(*answered == 0);
+  };
+  const auto tip_for = [](const QString& font) {
+    return QStringLiteral("Font is missing on this computer: %1").arg(font);
+  };
+  const auto check_style_plain = [&] {
+    CHECK(style->currentIndex() >= 0);
+    CHECK(style->placeholderText().isEmpty());
+    CHECK(!style->font().italic());
+    CHECK(style->toolTip() == QStringLiteral("Font style"));
+  };
+
+  check_style_plain();
+  for (const auto& entry : cases) {
+    select(entry.layer);
+    CHECK(picker->missing_family() == entry.font);
+    CHECK(picker->currentFont().family() == entry.font);  // the shown text never replaces it
+    CHECK(edit->text() == entry.family);
+    CHECK(edit->font().italic());
+    CHECK(edit->toolTip() == tip_for(entry.font));
+    CHECK(edit->findChild<QAction*>(QStringLiteral("textFontMissingBadge")) != nullptr);
+    CHECK(style->font().italic());
+    CHECK(style->toolTip() == tip_for(entry.font));
+    if (entry.style.isEmpty()) {
+      CHECK(style->currentIndex() >= 0);  // the Regular row, as before
+      CHECK(style->placeholderText().isEmpty());
+    } else {
+      CHECK(style->currentIndex() == -1);
+      CHECK(style->placeholderText() == entry.style);
+      CHECK(style->currentData().toString().isEmpty());
+    }
+    // The layer keeps the font's whole name.
+    std::optional<patchy::LayerId> id;
+    for (const auto& layer : std::as_const(MainWindowTestAccess::document(window)).layers()) {
+      if (layer.name() == entry.layer) {
+        id = layer.id();
+      }
+    }
+    CHECK(id.has_value() && layer_font(window, *id) == entry.font);
+  }
+
+  // The AFTER shot: the Font and style fields for the numeric weight, in both schemes.
+  select("Numeric");
+  if (auto* bar = window.findChild<QToolBar*>(QStringLiteral("Options")); bar != nullptr) {
+    for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+      ColorSchemeRestorer restore(scheme);
+      process_events_for(60);
+      CHECK(style->placeholderText() == QStringLiteral("500"));
+      CHECK(style->font().italic());
+      const auto origin = picker->mapTo(bar, QPoint(0, 0));
+      const auto style_origin = style->mapTo(bar, QPoint(0, 0));
+      const auto right = style_origin.x() + style->width() + 40;
+      const QRect crop(std::max(0, origin.x() - 60), 0, right - std::max(0, origin.x() - 60), bar->height());
+      save_image_artifact(scheme == patchy::ui::ColorSchemePreference::Dark ? "ui_missing_font_split_bar_dark"
+                                                                            : "ui_missing_font_split_bar_light",
+                          bar->grab(crop.intersected(bar->rect())).toImage());
+    }
+  }
+
+  // An installed layer and no text layer clear both fields' marking.
+  select("Installed");
+  CHECK(picker->missing_family().isEmpty());
+  CHECK(edit->text() == installed);
+  check_style_plain();
+  select("Numeric");
+  CHECK(style->placeholderText() == QStringLiteral("500"));
+  select("Background");
+  CHECK(picker->missing_family().isEmpty());
+  check_style_plain();
+
+  // An installed face-baked family is never marked or split.
+  if (has_arial_black) {
+    select("Face");
+    std::fprintf(stderr, "  installed Arial Black shows '%s' + '%s'\n", qPrintable(edit->text()),
+                 qPrintable(style->currentText()));
+    CHECK(picker->missing_family().isEmpty());
+    check_style_plain();
+  }
+}
+
 // GitHub issue 442: on Linux under a plain Qt theme (the Flatpak) the application font is Qt's
 // generic "Sans Serif". Qt's Linux database lists that name as a family, but it draws in another
 // face (DejaVu Sans on the test host); Windows does not list it at all. The first text layer of a
@@ -1608,6 +1749,8 @@ std::vector<patchy::test::TestCase> missing_fonts_tests() {
       {"ui_new_text_uses_the_options_bar_font_after_a_missing_font_layer",
        ui_new_text_uses_the_options_bar_font_after_a_missing_font_layer},
       {"ui_options_bar_names_a_missing_font_family", ui_options_bar_names_a_missing_font_family},
+      {"ui_options_bar_splits_a_missing_font_into_family_and_style",
+       ui_options_bar_splits_a_missing_font_into_family_and_style},
       {"ui_first_text_layer_in_a_generic_app_font_has_no_missing_font_badge",
        ui_first_text_layer_in_a_generic_app_font_has_no_missing_font_badge},
       {"ui_hidden_missing_font_text_layer_still_warns_before_substitution",
