@@ -147,6 +147,16 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.30" date="2026-11-09">
+      <description>
+        <ul>
+          <li>Scan a Book to PDF (experimental, tested on Windows so far)</li>
+          <li>Smudge Strength, and big Airbrush and toning strokes keep up</li>
+          <li>Type Mask tool, Bold/Italic/Underline on the Type bar, more justify modes</li>
+          <li>Layers panel filters by type, properties and color</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.29" date="2026-11-08">
       <description>
         <ul>
