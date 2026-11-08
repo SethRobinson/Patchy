@@ -4596,6 +4596,113 @@ void ui_brush_smoothing_catch_up_on_end_completes_stroke() {
 }
 
 
+// local-040: a 1 px Brush drag paints a continuous line on a new transparent layer and on an
+// opaque one, at Flow under 100 too. The dab-spaced path (Flow, Airbrush) puts slanted dabs
+// between pixel indices, and a 1 px dab used to paint only when it landed exactly on one, so
+// the line stopped after a few pixels while 2 px strokes were fine.
+void ui_brush_one_pixel_slanted_drag_stays_continuous() {
+  struct Case {
+    int flow;
+    bool new_layer;
+    double zoom;
+    QSize document_size;
+    QPoint from;
+    QPoint to;
+    const char* artifact;
+  };
+  const std::vector<Case> cases{
+      {90, true, 8.0, QSize(48, 24), QPoint(3, 3), QPoint(44, 20), "local040_one_pixel_flow90_stroke_800"},
+      {90, true, 1.0, QSize(160, 80), QPoint(20, 20), QPoint(140, 62), nullptr},
+      {90, true, 1.0, QSize(160, 80), QPoint(140, 15), QPoint(25, 70), nullptr},
+      {90, false, 1.0, QSize(160, 80), QPoint(20, 20), QPoint(140, 62), nullptr},
+      {100, true, 1.0, QSize(160, 80), QPoint(20, 20), QPoint(140, 62), nullptr},
+  };
+  for (const auto& c : cases) {
+    patchy::Document document(c.document_size.width(), c.document_size.height(), patchy::PixelFormat::rgba8());
+    document.add_pixel_layer("Background", solid_pixels(c.document_size.width(), c.document_size.height(),
+                                                        patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+    patchy::ui::MainWindow window;
+    window.add_document_session(std::move(document), QStringLiteral("One Pixel"));
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    if (c.new_layer) {
+      require_action(window, "layerNewAction")->trigger();
+      QApplication::processEvents();
+    }
+    require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+    canvas->set_zoom_centered(c.zoom);
+    canvas->set_primary_color(Qt::black);
+    canvas->set_brush_size(1);
+    canvas->set_brush_opacity(100);
+    canvas->set_brush_flow(c.flow);
+    canvas->set_brush_softness(0);
+    canvas->set_brush_build_up(false);
+    canvas->set_brush_smoothing(0);
+    QApplication::processEvents();
+
+    // The pointer moves one screen pixel at a time along the line, as a hand-drawn drag does.
+    const auto center_of = [canvas](QPoint document_point) {
+      return widget_center_of_document_pixel(*canvas, document_point);
+    };
+    const auto start = center_of(c.from);
+    const auto end = center_of(c.to);
+    const auto steps = std::max(std::abs(end.x() - start.x()), std::abs(end.y() - start.y()));
+    send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+    for (int i = 1; i <= steps; ++i) {
+      const auto t = static_cast<double>(i) / steps;
+      const QPoint point(start.x() + static_cast<int>(std::lround((end.x() - start.x()) * t)),
+                         start.y() + static_cast<int>(std::lround((end.y() - start.y()) * t)));
+      send_mouse(*canvas, QEvent::MouseMove, point, Qt::NoButton, Qt::LeftButton);
+    }
+    send_mouse(*canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+
+    if (c.artifact != nullptr) {
+      const QRect frame(canvas->widget_position_for_document_point(QPoint(0, 0)),
+                        canvas->widget_position_for_document_point(
+                            QPoint(c.document_size.width(), c.document_size.height())));
+      save_image_artifact(c.artifact, canvas->grab().toImage().copy(frame));
+    }
+
+    const auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+    const auto& layer = std::as_const(*doc.find_layer(*doc.active_layer_id()));
+    const auto& pixels = layer.pixels();
+    const auto bounds = layer.bounds();
+    const auto painted_at = [&](int x, int y) {
+      const auto lx = x - bounds.x;
+      const auto ly = y - bounds.y;
+      if (lx < 0 || ly < 0 || lx >= pixels.width() || ly >= pixels.height()) {
+        return false;
+      }
+      const auto* px = pixels.pixel(lx, ly);
+      return px[3] > 128 && px[0] < 128;
+    };
+    // Every column along the line holds paint within a pixel of it, to the very end.
+    const auto dx = c.to.x() - c.from.x();
+    const auto dy = c.to.y() - c.from.y();
+    int missing = 0;
+    int first_missing = -1;
+    for (int i = 0; i <= std::abs(dx); ++i) {
+      const auto x = c.from.x() + (dx < 0 ? -i : i);
+      const auto ideal_y = static_cast<double>(c.from.y()) + static_cast<double>(dy) * i / std::abs(dx);
+      const auto y = static_cast<int>(std::lround(ideal_y));
+      if (!painted_at(x, y - 1) && !painted_at(x, y) && !painted_at(x, y + 1)) {
+        ++missing;
+        if (first_missing < 0) {
+          first_missing = x;
+        }
+      }
+    }
+    if (missing > 0) {
+      std::cerr << "local-040 flow " << c.flow << (c.new_layer ? " new layer" : " background") << " zoom " << c.zoom
+                << ": " << missing << " columns without paint, first at x " << first_missing << '\n';
+    }
+    CHECK(missing == 0);
+    CHECK(painted_at(c.from.x(), c.from.y()));
+    CHECK(painted_at(c.to.x(), c.to.y()));
+  }
+}
+
 // GitHub issue 165: a busy GUI thread gets one mouse move per frame, and the
 // platform folds the skipped positions into it (Windows mouse history, X11
 // compression). Every folded position must reach the stroke as its own
@@ -5459,6 +5566,7 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
        ui_brush_overlay_opacity_label_aligns_with_item_text},
       {"ui_brush_smoothing_pulled_string_short_drag_paints_only_press_dab",
        ui_brush_smoothing_pulled_string_short_drag_paints_only_press_dab},
+      {"ui_brush_one_pixel_slanted_drag_stays_continuous", ui_brush_one_pixel_slanted_drag_stays_continuous},
       {"ui_brush_smoothing_catch_up_on_end_completes_stroke",
        ui_brush_smoothing_catch_up_on_end_completes_stroke},
       {"ui_brush_stroke_paints_every_coalesced_mouse_sample",
