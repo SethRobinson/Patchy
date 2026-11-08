@@ -19957,6 +19957,14 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>Select every layer linked to the selected ones</source>
         <translation>Alle mit der Auswahl verknüpften Ebenen auswählen</translation>
     </message>
+    <message>
+        <source>Type text to make a selection in the shape of the letters</source>
+        <translation>Text eingeben, um eine Auswahl in Form der Buchstaben zu erstellen</translation>
+    </message>
+    <message>
+        <source>Switch between the Type and Type Mask tools</source>
+        <translation>Zwischen Text- und Textmaskenwerkzeug wechseln</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -33691,6 +33699,30 @@ Fixiert: %1</translation>
     <message>
         <source>Opening multi-page TIFFs:</source>
         <translation>Mehrseitige TIFF-Dateien öffnen:</translation>
+    </message>
+    <message>
+        <source>Type Mask</source>
+        <translation>Textmaske</translation>
+    </message>
+    <message>
+        <source>Type, then commit: the letters become a selection and no layer is made. Shift+click adds, %ALT%+click subtracts, Shift+%ALT%+click intersects.</source>
+        <translation>Text eingeben, dann bestätigen: Die Buchstaben werden zur Auswahl, es entsteht keine Ebene. Umschalt+Klick fügt hinzu, %ALT%+Klick zieht ab, Umschalt+%ALT%+Klick bildet die Schnittmenge.</translation>
+    </message>
+    <message>
+        <source>Type Mask: click or drag a box and type. %CTRL%+Enter makes a selection from the letters; Shift adds, %ALT% subtracts, Shift+%ALT% intersects. Esc cancels.</source>
+        <translation>Textmaske: Klicken oder einen Rahmen ziehen und tippen. %CTRL%+Eingabe erstellt eine Auswahl aus den Buchstaben; Umschalt fügt hinzu, %ALT% zieht ab, Umschalt+%ALT% bildet die Schnittmenge. Esc bricht ab.</translation>
+    </message>
+    <message>
+        <source>Type Tools</source>
+        <translation>Text-Werkzeuge</translation>
+    </message>
+    <message>
+        <source>Cycle Type Tools</source>
+        <translation>Text-Werkzeuge durchschalten</translation>
+    </message>
+    <message>
+        <source>Made a selection from the text.</source>
+        <translation>Auswahl aus dem Text erstellt.</translation>
     </message>
 </context>
 <context>

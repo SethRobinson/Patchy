@@ -19910,6 +19910,14 @@ Do you want to replace it?</source>
         <source>Select every layer linked to the selected ones</source>
         <translation>선택한 레이어와 연결된 모든 레이어를 선택합니다</translation>
     </message>
+    <message>
+        <source>Type text to make a selection in the shape of the letters</source>
+        <translation>텍스트를 입력하여 글자 모양의 선택 영역 만들기</translation>
+    </message>
+    <message>
+        <source>Switch between the Type and Type Mask tools</source>
+        <translation>문자 도구와 문자 마스크 도구 간 전환</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -33603,6 +33611,30 @@ Locked: %1</source>
     <message>
         <source>Opening multi-page TIFFs:</source>
         <translation>다중 페이지 TIFF를 열 때:</translation>
+    </message>
+    <message>
+        <source>Type Mask</source>
+        <translation>문자 마스크</translation>
+    </message>
+    <message>
+        <source>Type, then commit: the letters become a selection and no layer is made. Shift+click adds, %ALT%+click subtracts, Shift+%ALT%+click intersects.</source>
+        <translation>입력한 다음 확정하면 글자가 선택 영역이 되며 레이어는 만들어지지 않습니다. Shift+클릭은 추가, %ALT%+클릭은 빼기, Shift+%ALT%+클릭은 교차입니다.</translation>
+    </message>
+    <message>
+        <source>Type Mask: click or drag a box and type. %CTRL%+Enter makes a selection from the letters; Shift adds, %ALT% subtracts, Shift+%ALT% intersects. Esc cancels.</source>
+        <translation>문자 마스크: 클릭하거나 상자를 드래그한 후 입력합니다. %CTRL%+Enter를 누르면 글자로 선택 영역을 만듭니다. Shift는 추가, %ALT%는 빼기, Shift+%ALT%는 교차입니다. Esc는 취소합니다.</translation>
+    </message>
+    <message>
+        <source>Type Tools</source>
+        <translation>문자 도구</translation>
+    </message>
+    <message>
+        <source>Cycle Type Tools</source>
+        <translation>문자 도구 전환</translation>
+    </message>
+    <message>
+        <source>Made a selection from the text.</source>
+        <translation>텍스트에서 선택 영역을 만들었습니다.</translation>
     </message>
 </context>
 <context>

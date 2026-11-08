@@ -5023,7 +5023,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
 
-  add_option_label(QT_TR_NOOP("Font:"), {CanvasTool::Text});
+  add_option_label(QT_TR_NOOP("Font:"), {CanvasTool::Text, CanvasTool::TypeMask});
   text_font_combo_ = new FontPickerCombo(toolbar);
   text_font_combo_->setObjectName(QStringLiteral("textFontCombo"));
   // The installed family, never a generic name like Linux's "Sans Serif" (GitHub issue 442).
@@ -5031,7 +5031,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // GitHub issue 91: narrower closed controls keep the Text row on one line at
   // 1366 px; the family popup sizes itself, and the style list opens wider.
   text_font_combo_->setFixedWidth(ui_text_length(160));
-  add_option_widget(text_font_combo_, {CanvasTool::Text});
+  add_option_widget(text_font_combo_, {CanvasTool::Text, CanvasTool::TypeMask});
   // Photoshop's style picker: the family's OWN face list, and the only face control in the bar
   // (no B/I buttons, like Photoshop). A family with no italic simply does not offer one, and
   // Ctrl+B / Ctrl+I toggle the real face during a session, falling back to faux when the family
@@ -5042,10 +5042,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_style_combo_->setFixedWidth(ui_text_length(104));
   text_style_combo_->view()->setMinimumWidth(ui_text_length(170));
   refresh_text_style_combo(text_font_combo_->currentFont().family(), QString());
-  add_option_widget(text_style_combo_, {CanvasTool::Text});
+  add_option_widget(text_style_combo_, {CanvasTool::Text, CanvasTool::TypeMask});
   // Font and style | Size and Smoothing (GitHub issue 343).
-  add_option_separator({CanvasTool::Text});
-  add_option_label(QT_TR_NOOP("Size:"), {CanvasTool::Text});
+  add_option_separator({CanvasTool::Text, CanvasTool::TypeMask});
+  add_option_label(QT_TR_NOOP("Size:"), {CanvasTool::Text, CanvasTool::TypeMask});
   text_size_spin_ = new UnitSpinBox(SpinUnit::Points, toolbar);
   text_size_spin_->setObjectName(QStringLiteral("textSizeSpin"));
   text_size_spin_->set_context_provider([this] {
@@ -5071,8 +5071,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // Sized for a realistic widest value; the trimmed max ("10000 pt") is narrower.
   text_size_spin_->setProperty(kToolbarSpinboxWidthSampleProperty, 888.88);
   configure_toolbar_spinbox(text_size_spin_, 60);
-  add_option_widget(text_size_spin_, {CanvasTool::Text});
-  add_option_label(QT_TR_NOOP("Smoothing:"), {CanvasTool::Text});
+  add_option_widget(text_size_spin_, {CanvasTool::Text, CanvasTool::TypeMask});
+  add_option_label(QT_TR_NOOP("Smoothing:"), {CanvasTool::Text, CanvasTool::TypeMask});
   text_smoothing_combo_ = new QComboBox(toolbar);
   text_smoothing_combo_->setObjectName(QStringLiteral("textSmoothingCombo"));
   bind_tooltip(text_smoothing_combo_, QT_TR_NOOP("Text smoothing"));
@@ -5093,7 +5093,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   set_text_smoothing_combo_value(
       text_smoothing_combo_,
       app_settings().value(QStringLiteral("tools/textSmoothing"), kDefaultTextAntiAlias).toInt());
-  add_option_widget(text_smoothing_combo_, {CanvasTool::Text});
+  add_option_widget(text_smoothing_combo_, {CanvasTool::Text, CanvasTool::TypeMask});
   // No "Color:" label (Photoshop has none either): the swatch and its tooltip name it, and
   // the Type row must fit one line at 1366 px (GitHub issue 91). It is the shape bar's
   // Fill/Stroke swatch button, a framed chip of the color (GitHub issue 343).
@@ -5121,8 +5121,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_align_left_button_->setFixedSize(30, 26);
   text_align_left_button_->setFocusPolicy(Qt::TabFocus);
   text_alignment_group->addButton(text_align_left_button_);
-  add_option_separator({CanvasTool::Text});
-  add_option_widget(text_align_left_button_, {CanvasTool::Text});
+  add_option_separator({CanvasTool::Text, CanvasTool::TypeMask});
+  add_option_widget(text_align_left_button_, {CanvasTool::Text, CanvasTool::TypeMask});
   text_align_center_button_ = new QPushButton(toolbar);
   text_align_center_button_->setIcon(text_alignment_icon(Qt::AlignHCenter, false));
   text_align_center_button_->setObjectName(QStringLiteral("textAlignCenterButton"));
@@ -5131,7 +5131,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_align_center_button_->setFixedSize(30, 26);
   text_align_center_button_->setFocusPolicy(Qt::TabFocus);
   text_alignment_group->addButton(text_align_center_button_);
-  add_option_widget(text_align_center_button_, {CanvasTool::Text});
+  add_option_widget(text_align_center_button_, {CanvasTool::Text, CanvasTool::TypeMask});
   text_align_right_button_ = new QPushButton(toolbar);
   text_align_right_button_->setIcon(text_alignment_icon(Qt::AlignRight, false));
   text_align_right_button_->setObjectName(QStringLiteral("textAlignRightButton"));
@@ -5140,7 +5140,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_align_right_button_->setFixedSize(30, 26);
   text_align_right_button_->setFocusPolicy(Qt::TabFocus);
   text_alignment_group->addButton(text_align_right_button_);
-  add_option_widget(text_align_right_button_, {CanvasTool::Text});
+  add_option_widget(text_align_right_button_, {CanvasTool::Text, CanvasTool::TypeMask});
   // Photoshop's "Toggle text orientation": one Type tool with a vertical switch instead of a
   // second tool. Qt::NoFocus like the session buttons, so toggling never auto-commits.
   text_orientation_button_ = new QPushButton(tr("Vertical"), toolbar);
@@ -5150,8 +5150,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_orientation_button_->setChecked(false);
   bind_tooltip(text_orientation_button_, QT_TR_NOOP("Vertical text: columns read top to bottom, right to left"));
   text_orientation_button_->setFocusPolicy(Qt::NoFocus);
-  add_option_separator({CanvasTool::Text});
-  add_option_widget(text_orientation_button_, {CanvasTool::Text});
+  add_option_separator({CanvasTool::Text, CanvasTool::TypeMask});
+  add_option_widget(text_orientation_button_, {CanvasTool::Text, CanvasTool::TypeMask});
   text_warp_button_ = new QPushButton(tr("Warp..."), toolbar);
   bind_widget_text(text_warp_button_, QT_TR_NOOP("Warp..."));
   text_warp_button_->setObjectName(QStringLiteral("textWarpButton"));
@@ -5168,8 +5168,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_character_button_->setObjectName(QStringLiteral("textCharacterButton"));
   bind_tooltip(text_character_button_, QT_TR_NOOP("Character panel (leading, tracking, glyph scales)"));
   text_character_button_->setFocusPolicy(Qt::NoFocus);
-  add_option_separator({CanvasTool::Text});
-  add_option_widget(text_character_button_, {CanvasTool::Text});
+  add_option_separator({CanvasTool::Text, CanvasTool::TypeMask});
+  add_option_widget(text_character_button_, {CanvasTool::Text, CanvasTool::TypeMask});
   connect(text_character_button_, &QPushButton::clicked, this, [this] { open_text_character_dialog(); });
   // Paragraph panel: same live-session rules as the Character panel (Qt::NoFocus).
   text_paragraph_button_ = new QPushButton(tr("Paragraph..."), toolbar);
@@ -5177,7 +5177,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_paragraph_button_->setObjectName(QStringLiteral("textParagraphButton"));
   bind_tooltip(text_paragraph_button_, QT_TR_NOOP("Paragraph panel (alignment, indents, spacing)"));
   text_paragraph_button_->setFocusPolicy(Qt::NoFocus);
-  add_option_widget(text_paragraph_button_, {CanvasTool::Text});
+  add_option_widget(text_paragraph_button_, {CanvasTool::Text, CanvasTool::TypeMask});
   connect(text_paragraph_button_, &QPushButton::clicked, this, [this] { open_text_paragraph_dialog(); });
   connect(text_font_combo_, &QFontComboBox::currentFontChanged, this, [this](const QFont& chosen) {
     // Repopulate before applying: apply_text_family_to_active_editor renders with the style the

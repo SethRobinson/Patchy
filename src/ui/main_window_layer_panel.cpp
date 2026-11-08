@@ -5809,7 +5809,7 @@ void MainWindow::refresh_document_info() {
       lines << tr("Selection: feather %1 px, %2")
                    .arg(current_selection_feather_radius_)
                    .arg(current_selection_antialias_ ? tr("anti-aliased") : tr("hard edge"));
-    } else if (current_tool_ == CanvasTool::Text && text_size_spin_ != nullptr) {
+    } else if (is_type_tool(current_tool_) && text_size_spin_ != nullptr) {
       lines << tr("Text size: %1 pt").arg(format_text_points(text_size_spin_->value()));
     }
     set_property_label_text(active_tool_info_label_, lines.join(QStringLiteral(" | ")));

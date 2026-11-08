@@ -32,6 +32,7 @@ Related documents:
 - Rich text with per-run color, font, size and style, a searchable font picker (recent fonts you can remove one by one, favorite fonts with a Favorites-only view, style/language filters with a count of search matches they hide), stand-ins for missing fonts (the Font and style fields name a selected layer's missing font and its face in italics, with a warning badge), and Character controls (leading, tracking, glyph scale, caps, super/subscript, underline, strikethrough, OpenType features) that edit selected layers
 - Paragraph alignment and justification, first-line and left/right indents, spacing before and after paragraphs, vertical text, and left-to-right or right-to-left paragraphs
 - Type > Convert to Shape and Create Work Path turn any text, warped too, into vector outlines
+- Type Mask tool: type over a tinted canvas and the letters become a selection (new, add, subtract or intersect), horizontal or vertical, with no layer made
 - The Type menu opens the Character and Paragraph panels and sets alignment, direction, orientation, anti-aliasing and OpenType features for the selected text, with Rasterize Type Layer and Warp Text
 
 ## Pixel art and game assets

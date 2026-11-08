@@ -5585,7 +5585,7 @@ void ui_stamp_and_gradient_flyouts_swap_tools() {
   // smudge/dodge buttons that historically lacked the indicator.
   for (const auto* name : {"marqueeToolButton", "lassoToolButton", "wandToolButton", "gradientToolButton",
                            "stampToolButton", "healingToolButton", "detailToolButton", "toneToolButton",
-                           "shapeToolButton", "pathSelectToolButton", "penToolButton"}) {
+                           "shapeToolButton", "pathSelectToolButton", "penToolButton", "typeToolButton"}) {
     auto* button = window.findChild<QToolButton*>(QString::fromLatin1(name));
     CHECK(button != nullptr);
     CHECK(button->property("toolFlyout").toBool());
@@ -5687,7 +5687,7 @@ void ui_tool_cycle_hotkeys_walk_each_flyout() {
       {"toolCyclePenAction", "tools.cycle.pen"},         {"toolCyclePathAction", "tools.cycle.path_select"},
       {"toolCycleShapeAction", "tools.cycle.shape"},     {"toolCycleMoveAction", "tools.cycle.move"},
       {"toolCycleCropAction", "tools.cycle.crop"},
-      {"toolCyclePickAction", "tools.cycle.pick"},
+      {"toolCyclePickAction", "tools.cycle.pick"},      {"toolCycleTypeAction", "tools.cycle.type"},
   };
   for (const auto& [object_name, id] : cycles) {
     auto* action = require_action(window, object_name);
@@ -6168,9 +6168,8 @@ void ui_tool_button_right_click_selects_plain_tool() {
     const char* button_name;
     patchy::ui::CanvasTool tool;
   };
-  // The Hand shares a flyout with Rotate View, so Type stands in for a third plain tool.
+  // The Hand and Type share flyouts (Rotate View, Type Mask), so Eraser and Zoom are the plain tools.
   const PlainTool plain_tools[] = {{"toolEraserAction", "eraserToolButton", patchy::ui::CanvasTool::Eraser},
-                                   {"toolTypeAction", "typeToolButton", patchy::ui::CanvasTool::Text},
                                    {"toolZoomAction", "zoomToolButton", patchy::ui::CanvasTool::Zoom}};
   for (const auto& plain : plain_tools) {
     auto* action = require_action(window, plain.action_name);
@@ -7182,6 +7181,7 @@ void ui_tool_palette_icons_render_sheet() {
       {"toolPickAction", "Pick"},
       {"toolRulerAction", "Ruler"},
       {"toolTypeAction", "Type"},
+      {"toolTypeMaskAction", "Type Mask"},
       {"toolHandAction", "Hand"},
       {"toolZoomAction", "Zoom"},
       // The tool palette footer's screen mode button (GitHub issue 212).

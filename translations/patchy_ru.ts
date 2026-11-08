@@ -20004,6 +20004,14 @@ Do you want to replace it?</source>
         <source>Select every layer linked to the selected ones</source>
         <translation>Выделить все слои, связанные с выделенными</translation>
     </message>
+    <message>
+        <source>Type text to make a selection in the shape of the letters</source>
+        <translation>Введите текст, чтобы создать выделение в форме букв</translation>
+    </message>
+    <message>
+        <source>Switch between the Type and Type Mask tools</source>
+        <translation>Переключаться между инструментами «Текст» и «Текстовая маска»</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -33779,6 +33787,30 @@ Locked: %1</source>
     <message>
         <source>Opening multi-page TIFFs:</source>
         <translation>Открытие многостраничных TIFF:</translation>
+    </message>
+    <message>
+        <source>Type Mask</source>
+        <translation>Текстовая маска</translation>
+    </message>
+    <message>
+        <source>Type, then commit: the letters become a selection and no layer is made. Shift+click adds, %ALT%+click subtracts, Shift+%ALT%+click intersects.</source>
+        <translation>Введите текст и примените: буквы станут выделением, слой не создаётся. Shift+щелчок добавляет, %ALT%+щелчок вычитает, Shift+%ALT%+щелчок оставляет пересечение.</translation>
+    </message>
+    <message>
+        <source>Type Mask: click or drag a box and type. %CTRL%+Enter makes a selection from the letters; Shift adds, %ALT% subtracts, Shift+%ALT% intersects. Esc cancels.</source>
+        <translation>Текстовая маска: щёлкните или растяните рамку и введите текст. %CTRL%+Enter создаёт выделение из букв; Shift добавляет, %ALT% вычитает, Shift+%ALT% оставляет пересечение. Esc отменяет.</translation>
+    </message>
+    <message>
+        <source>Type Tools</source>
+        <translation>Инструменты текста</translation>
+    </message>
+    <message>
+        <source>Cycle Type Tools</source>
+        <translation>Сменить инструмент текста</translation>
+    </message>
+    <message>
+        <source>Made a selection from the text.</source>
+        <translation>Из текста создано выделение.</translation>
     </message>
 </context>
 <context>

@@ -4159,7 +4159,7 @@ void MainWindow::refresh_options_bar_rows(bool live_shape) {
     }
     // Reserve room for the text session's apply/cancel pair, so opening an
     // editor never grows the bar either.
-    if (tool == CanvasTool::Text) {
+    if (is_type_tool(tool)) {
       for (QWidget* button : {static_cast<QWidget*>(text_apply_button_), static_cast<QWidget*>(text_cancel_button_)}) {
         if (button != nullptr) {
           row.insert(button);

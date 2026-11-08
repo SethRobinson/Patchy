@@ -136,6 +136,7 @@
     <file alias="tool-ellipse.svg">icons/tool-ellipse.svg</file>
     <file alias="tool-eyedropper.svg">icons/tool-eyedropper.svg</file>
     <file alias="tool-text.svg">icons/tool-text.svg</file>
+    <file alias="tool-type-mask.svg">icons/tool-type-mask.svg</file>
     <file alias="tool-pen.svg">icons/tool-pen.svg</file>
     <file alias="tool-path-select.svg">icons/tool-path-select.svg</file>
     <file alias="tool-direct-select.svg">icons/tool-direct-select.svg</file>

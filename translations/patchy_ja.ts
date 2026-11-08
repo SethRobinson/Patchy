@@ -19910,6 +19910,14 @@ Do you want to replace it?</source>
         <source>Select every layer linked to the selected ones</source>
         <translation>選択したレイヤーにリンクしているすべてのレイヤーを選択します</translation>
     </message>
+    <message>
+        <source>Type text to make a selection in the shape of the letters</source>
+        <translation>テキストを入力して文字の形の選択範囲を作成</translation>
+    </message>
+    <message>
+        <source>Switch between the Type and Type Mask tools</source>
+        <translation>文字ツールと文字マスクツールを交互に選択</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -33603,6 +33611,30 @@ Locked: %1</source>
     <message>
         <source>Opening multi-page TIFFs:</source>
         <translation>マルチページ TIFF を開くとき:</translation>
+    </message>
+    <message>
+        <source>Type Mask</source>
+        <translation>文字マスク</translation>
+    </message>
+    <message>
+        <source>Type, then commit: the letters become a selection and no layer is made. Shift+click adds, %ALT%+click subtracts, Shift+%ALT%+click intersects.</source>
+        <translation>入力して確定すると、文字が選択範囲になり、レイヤーは作成されません。Shift+クリックで追加、%ALT%+クリックで削除、Shift+%ALT%+クリックで共通範囲。</translation>
+    </message>
+    <message>
+        <source>Type Mask: click or drag a box and type. %CTRL%+Enter makes a selection from the letters; Shift adds, %ALT% subtracts, Shift+%ALT% intersects. Esc cancels.</source>
+        <translation>文字マスク: クリックするかボックスをドラッグして入力します。%CTRL%+Enter で文字から選択範囲を作成します。Shift で追加、%ALT% で削除、Shift+%ALT% で共通範囲。Esc でキャンセル。</translation>
+    </message>
+    <message>
+        <source>Type Tools</source>
+        <translation>文字ツール</translation>
+    </message>
+    <message>
+        <source>Cycle Type Tools</source>
+        <translation>文字ツールを切り替え</translation>
+    </message>
+    <message>
+        <source>Made a selection from the text.</source>
+        <translation>テキストから選択範囲を作成しました。</translation>
     </message>
 </context>
 <context>

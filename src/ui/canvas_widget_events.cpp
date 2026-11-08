@@ -155,6 +155,7 @@ bool tool_sets_layer_opacity_with_digit_keys(CanvasTool tool) noexcept {
     case CanvasTool::Eyedropper:
     case CanvasTool::Ruler:
     case CanvasTool::Text:
+    case CanvasTool::TypeMask:
     case CanvasTool::Pan:
     case CanvasTool::Zoom:
     case CanvasTool::Pen:
@@ -970,6 +971,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       case CanvasTool::BlurBrush:
       case CanvasTool::SharpenBrush:
       case CanvasTool::Text:
+      case CanvasTool::TypeMask:
       case CanvasTool::Pen:
       case CanvasTool::AddAnchor:
       case CanvasTool::DeleteAnchor:
@@ -1031,7 +1033,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
        uses_patch_drag(effective_tool) || effective_tool == CanvasTool::PatternStamp ||
        effective_tool == CanvasTool::Smudge || effective_tool == CanvasTool::MixerBrush ||
        is_local_adjustment_tool(effective_tool) ||
-       effective_tool == CanvasTool::Text || effective_tool == CanvasTool::Crop ||
+       is_type_tool(effective_tool) || effective_tool == CanvasTool::Crop ||
        effective_tool == CanvasTool::PerspectiveCrop || effective_tool == CanvasTool::RedEye)) {
     report_status_error(tr("This tool is unavailable while viewing a document channel"));
     event->accept();
@@ -1070,7 +1072,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
                                          tool_ == CanvasTool::Line ||
                                          tool_ == CanvasTool::Polygon ||
                                          tool_ == CanvasTool::CustomShape ||
-                                         tool_ == CanvasTool::Text ||
+                                         is_type_tool(tool_) ||
                                          (event->button() == Qt::LeftButton &&
                                           tool_supports_off_canvas_brush_strokes(effective_tool));
     if (!allows_off_canvas_press) {
@@ -1269,6 +1271,19 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       lap(timings.preview_ms);
     }
     last_retouch_press_timings_ = timings;
+    return;
+  }
+
+  if (tool_ == CanvasTool::TypeMask) {
+    // Type Mask (GitHub issue 670; docs/type-mask.md): every press starts new mask text, never
+    // an edit of a text layer; a click places point text, a drag draws a box. The press's own
+    // modifiers choose how the letters combine with the selection on commit.
+    type_mask_press_modifiers_ = event->modifiers();
+    dragging_text_rect_ = true;
+    text_rect_start_ = snapped_document_point(document_point);
+    text_rect_current_ = text_rect_start_;
+    event->accept();
+    update();
     return;
   }
 
@@ -3913,7 +3928,7 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
        tool_ == CanvasTool::PolygonLasso || tool_ == CanvasTool::MagneticLasso || tool_ == CanvasTool::MagicWand ||
        tool_ == CanvasTool::QuickSelect || tool_ == CanvasTool::ObjectSelect || tool_ == CanvasTool::Clone ||
        tool_ == CanvasTool::Healing ||
-       tool_ == CanvasTool::Smudge || is_local_adjustment_tool(tool_) || tool_ == CanvasTool::Text)) {
+       tool_ == CanvasTool::Smudge || is_local_adjustment_tool(tool_) || is_type_tool(tool_))) {
     report_status_error(tr("This tool is unavailable in Quick Mask mode"));
     event->accept();
     return;
@@ -3924,7 +3939,7 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
        tool_ == CanvasTool::PolygonLasso || tool_ == CanvasTool::MagneticLasso || tool_ == CanvasTool::MagicWand ||
        tool_ == CanvasTool::QuickSelect || tool_ == CanvasTool::ObjectSelect || tool_ == CanvasTool::Clone ||
        tool_ == CanvasTool::Healing ||
-       tool_ == CanvasTool::Smudge || is_local_adjustment_tool(tool_) || tool_ == CanvasTool::Text)) {
+       tool_ == CanvasTool::Smudge || is_local_adjustment_tool(tool_) || is_type_tool(tool_))) {
     report_status_error(tr("This tool is unavailable while editing a Smart Filter mask"));
     event->accept();
     return;
@@ -3980,7 +3995,10 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
       QWidget::mouseDoubleClickEvent(event);
       return;
     }
-    if (auto* layer = inside_document ? topmost_text_layer_at(document_point) : nullptr; layer != nullptr) {
+    // Type Mask never opens a text layer: its double-click is just two presses of new mask text.
+    if (auto* layer = inside_document && tool_ != CanvasTool::TypeMask ? topmost_text_layer_at(document_point)
+                                                                        : nullptr;
+        layer != nullptr) {
       activate_layer(*layer);
       if (text_requested_callback_) {
         text_requested_callback_(document_point, QRect());

@@ -232,6 +232,7 @@
     "canvas_gradient_handle_ink": "#0b1013",
     "canvas_gradient_handle_fill": "#f6f9fb",
     "canvas_gradient_handle_active": "#73c7eb",
+    "canvas_type_mask_tint": "#ff0000",
     "canvas_scrollbar_track": "#2e3440",
     "panel_scrollbar_track": "#2e3440",
     "scrollbar_handle_bg": "#485164",

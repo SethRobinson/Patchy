@@ -307,6 +307,11 @@ constexpr auto kTextEditorExtendedBoxPreviewProperty = "patchy.extendedBoxPrevie
 constexpr auto kTextEditorLineAwareBoxPreviewProperty = "patchy.lineAwareBoxPreview";
 constexpr auto kTextEditorMetricScaleProperty = "patchy.textMetricScale";
 constexpr auto kTextEditorProvisionalLayerProperty = "patchy.provisionalTextLayerId";
+// A Type Mask session (GitHub issue 670; docs/type-mask.md): its commit makes a selection and
+// no layer, Esc always cancels. The int property holds the selection combine (0 replace,
+// 1 add, 2 subtract, 3 intersect) the opening press's modifiers chose.
+constexpr auto kTextEditorTypeMaskProperty = "patchy.typeMask";
+constexpr auto kTextEditorTypeMaskOperationProperty = "patchy.typeMaskOperation";
 // Marks the empty text layer inserted the moment the Type tool starts a NEW edit (Photoshop
 // shows the layer immediately); commit/cancel remove it again, and the marker is the identity
 // check so a stale id can never delete an unrelated layer (layer ids restart per document).
@@ -5451,7 +5456,8 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
       if (key_event->key() == Qt::Key_Escape) {
         // Preferences > Tools "Use Esc to commit text" (GitHub issue 173); off, Esc cancels.
         // An untouched placeholder is dropped either way (issue 415).
-        if (escape_commits_text_ && !text_editor_shows_untouched_placeholder(*editor, tr("Type"))) {
+        if (escape_commits_text_ && !editor->property(kTextEditorTypeMaskProperty).toBool() &&
+            !text_editor_shows_untouched_placeholder(*editor, tr("Type"))) {
           commit_text_editor(editor,
                              QPoint(editor->property("patchy.documentTextX").toInt(),
                                     editor->property("patchy.documentTextY").toInt()),
@@ -6699,7 +6705,13 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
   if (canvas_->free_transform_active()) {
     canvas_->finish_free_transform();
   }
-  if (show_editor && current_tool_ != CanvasTool::Text) {
+  // Type Mask (GitHub issue 670) always starts new mask text: no text layer is opened and no
+  // shape's area is filled; the session's commit makes a selection instead of a layer.
+  const bool type_mask = show_editor && current_tool_ == CanvasTool::TypeMask && !target_text_layer.has_value();
+  if (type_mask) {
+    requested_area.reset();
+  }
+  if (show_editor && !is_type_tool(current_tool_)) {
     if (type_tool_action_ != nullptr) {
       type_tool_action_->trigger();
     } else {
@@ -6777,7 +6789,8 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
       boxed_text ? requested_text_box.width() : std::max(160, std::min(520, document().width() - document_point.x() - 8));
   int document_editor_height = boxed_text ? requested_text_box.height() : 96;
   if (const auto active = document().active_layer_id(); active.has_value()) {
-    if (auto* layer = document().find_layer(*active); !creating_area && layer != nullptr && layer_is_text(*layer) &&
+    if (auto* layer = document().find_layer(*active);
+        !type_mask && !creating_area && layer != nullptr && layer_is_text(*layer) &&
         (target_text_layer == active || layer->bounds().contains(document_point.x(), document_point.y()) ||
          (text_area_in_document(std::as_const(*layer)) &&
           TextAreaGeometry(*text_area_in_document(std::as_const(*layer))).contains(document_point)))) {
@@ -7126,6 +7139,12 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
     store_patchy_text_metadata(provisional, placeholder_settings, text_color, QString(), QString(),
                                document_editor_width, document_editor_height);
     provisional.metadata()[kLayerMetadataProvisionalTextMarker] = "true";
+    if (type_mask) {
+      // The preview takes the provisional's opacity: at zero the letters only cut the clear
+      // shape out of the tint (CanvasWidget::draw_type_mask_overlay), showing the image.
+      provisional.set_name(tr("Type Mask").toStdString());
+      provisional.set_opacity(0.0F);
+    }
     provisional_layer = provisional.id();
     document().add_layer(std::move(provisional));
     refresh_layer_list();
@@ -7216,6 +7235,14 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
   }
   if (provisional_layer.has_value()) {
     editor->setProperty(kTextEditorProvisionalLayerProperty, QVariant::fromValue<qulonglong>(*provisional_layer));
+  }
+  if (type_mask) {
+    const auto modifiers = canvas_->type_mask_press_modifiers();
+    const bool add = modifiers.testFlag(Qt::ShiftModifier);
+    const bool subtract = modifiers.testFlag(Qt::AltModifier);
+    editor->setProperty(kTextEditorTypeMaskProperty, true);
+    editor->setProperty(kTextEditorTypeMaskOperationProperty, add && subtract ? 3 : add ? 1 : subtract ? 2 : 0);
+    canvas_->set_type_mask_overlay(CanvasWidget::TypeMaskOverlay{});
   }
   if (editing_layer_was_visible.has_value()) {
     editor->setProperty("patchy.editingLayerWasVisible", *editing_layer_was_visible);
@@ -7439,7 +7466,8 @@ void MainWindow::add_text_at(QPoint document_point, QRect requested_text_box, bo
             if (*committed || editor == nullptr) {
               return;
             }
-            if (escape_commits_text_ && !text_editor_shows_untouched_placeholder(*editor, tr("Type"))) {
+            if (escape_commits_text_ && !editor->property(kTextEditorTypeMaskProperty).toBool() &&
+                !text_editor_shows_untouched_placeholder(*editor, tr("Type"))) {
               commit();
               return;
             }
@@ -7505,6 +7533,9 @@ void MainWindow::cancel_text_editor(QTextEdit* editor, std::optional<LayerId> la
   if (!mark_text_editor_finished(editor)) {
     return;
   }
+  if (canvas_ != nullptr && editor->property(kTextEditorTypeMaskProperty).toBool()) {
+    canvas_->set_type_mask_overlay(std::nullopt);
+  }
   const auto restore_existing_visibility =
       editor->property("patchy.editingLayerWasVisible").isValid()
           ? editor->property("patchy.editingLayerWasVisible").toBool()
@@ -7546,6 +7577,11 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
   }
   if (!mark_text_editor_finished(editor)) {
     return;
+  }
+  const bool type_mask = editor->property(kTextEditorTypeMaskProperty).toBool();
+  const int type_mask_operation = editor->property(kTextEditorTypeMaskOperationProperty).toInt();
+  if (type_mask && canvas_ != nullptr) {
+    canvas_->set_type_mask_overlay(std::nullopt);
   }
   if (canvas_ == nullptr || !has_active_document()) {
     // A stray commit with no canvas/document to rasterize into (e.g. a focus
@@ -7948,8 +7984,8 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
     }
   }
   // A multi-layer hidden-session pass (apply_text_character_edit) snapshots once for all
-  // of its commits.
-  if (!text_commit_snapshot_suppressed_) {
+  // of its commits. Type Mask's step is the selection's own, taken below.
+  if (!text_commit_snapshot_suppressed_ && !type_mask) {
     push_undo_snapshot(tr("Type"));
   }
   if (layer_id.has_value()) {
@@ -7980,6 +8016,16 @@ void MainWindow::commit_text_editor(QTextEdit* editor, QPoint document_point, st
       // Point text records its pen too (see the existing-layer branch above).
       text_layer.metadata()[kLayerMetadataTextTransform] =
           serialize_layer_affine_transform(committed_text_transform(document_point, std::nullopt));
+    }
+    if (type_mask) {
+      // The text layer is only the outline source: the letters become the selection and the
+      // document keeps no layer. The provisional row is already gone; repaint where the
+      // preview drew and refresh the panel.
+      restore_hidden_text_layer();
+      canvas_->document_changed_effect_bounds(pre_commit_dirty);
+      static_cast<void>(apply_type_mask_selection(text_layer, type_mask_operation));
+      refresh_text_color_button();
+      return;
     }
     document().add_layer(std::move(text_layer));
   }
@@ -12091,6 +12137,9 @@ void MainWindow::update_text_editor_preview(QTextEdit* editor) {
   const auto preview_id = preview.id();
   insert_layer_after_anchor(doc, std::move(preview), editing_layer_id);
   editor->setProperty("patchy.textPreviewLayerId", QVariant::fromValue<qulonglong>(preview_id));
+  if (editor->property(kTextEditorTypeMaskProperty).toBool()) {
+    canvas_->set_type_mask_overlay(CanvasWidget::TypeMaskOverlay{preview_id});
+  }
   if (restore_active_layer.has_value() && doc.find_layer(*restore_active_layer) != nullptr) {
     doc.set_active_layer(*restore_active_layer);
   }
@@ -12279,7 +12328,9 @@ void MainWindow::apply_text_orientation(bool vertical, bool remember_default) {
   }
   // No session: the selected text layer converts through a hidden session (one undo step),
   // the Character-panel pattern. Nothing selected: the next new layer takes the orientation.
-  if (const auto* layer = text_character_target_layer(); layer != nullptr) {
+  // Type Mask never edits a layer, so there the toggle always arms its next session.
+  if (const auto* layer = current_tool_ == CanvasTool::TypeMask ? nullptr : text_character_target_layer();
+      layer != nullptr) {
     if (layer_text_is_vertical(*layer) != vertical) {
       apply_text_character_edit([vertical](QTextEdit& target) {
         target.setProperty(kTextEditorOrientationProperty,
@@ -12340,7 +12391,8 @@ void MainWindow::sync_text_orientation_controls_from_editor() {
   if (session_open) {
     vertical = text_editor_is_vertical(*editor);
     direction = editor->textCursor().blockFormat().layoutDirection();
-  } else if (const auto* layer = text_character_target_layer(); layer != nullptr) {
+  } else if (const auto* layer = current_tool_ == CanvasTool::TypeMask ? nullptr : text_character_target_layer();
+             layer != nullptr) {
     vertical = layer_text_is_vertical(*layer);
     if (const auto found = layer->metadata().find(kLayerMetadataTextParagraphRuns);
         found != layer->metadata().end()) {
@@ -12496,7 +12548,7 @@ void MainWindow::refresh_type_menu_states() {
   }
   // Paragraph and character settings need text to change; orientation and smoothing also set
   // what the Type tool's next new layer takes, as their options-bar controls do.
-  const bool text_tool = editable && current_tool_ == CanvasTool::Text;
+  const bool text_tool = editable && is_type_tool(current_tool_);
   type_alignment_menu_->menuAction()->setEnabled(has_target);
   type_direction_menu_->menuAction()->setEnabled(has_target);
   type_opentype_menu_->menuAction()->setEnabled(has_target);
@@ -13205,7 +13257,7 @@ void MainWindow::update_document_action_state() {
                            QStringLiteral("layer.distribute_vertical_spacing"),
                            QStringLiteral("tools.move"), QStringLiteral("tools.clone"),
                            QStringLiteral("tools.smudge"), QStringLiteral("tools.type"),
-                           QStringLiteral("image.levels"), QStringLiteral("image.curves"),
+                           QStringLiteral("tools.type_mask"), QStringLiteral("image.levels"), QStringLiteral("image.curves"),
                            QStringLiteral("image.hue_saturation"), QStringLiteral("image.color_balance"),
                            QStringLiteral("image.black_white"), QStringLiteral("image.vibrance"),
                            QStringLiteral("image.exposure"), QStringLiteral("image.channel_mixer"),
