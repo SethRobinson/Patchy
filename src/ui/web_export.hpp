@@ -37,7 +37,6 @@ enum class WebExportFormat : std::uint8_t { Jpeg, Webp, Png, Gif, Avif, Jxl };
 [[nodiscard]] QString web_export_format_key(WebExportFormat format);
 [[nodiscard]] std::optional<WebExportFormat> web_export_format_from_key(const QString& key);
 // The file extension written: "jpg", "webp", "png", "gif", "avif", "jxl".
-[[nodiscard]] bool web_export_format_is_slow(WebExportFormat format);
 [[nodiscard]] QString web_export_extension(WebExportFormat format);
 [[nodiscard]] QString web_export_format_name(WebExportFormat format);
 
@@ -109,6 +108,18 @@ struct WebExportSettings {
 
 [[nodiscard]] WebExportSettings load_web_export_settings();
 void save_web_export_settings(const WebExportSettings& settings);
+
+// GIF and PNG (full color and palette) of at least this many output pixels encode only once
+// their row has been selected, as AVIF and JPEG XL always do (GitHub issue 571: seconds each
+// on a large photo, docs/web-export.md "Preview engine").
+inline constexpr std::int64_t kWebExportDeferredPixels = 3'000'000;
+// One frame's output pixels at these settings (the size fields or the Pixel art factor,
+// before any trim).
+[[nodiscard]] std::int64_t web_export_output_pixels(const WebExportSettings& settings, QSize document_size);
+// Whether the format's row waits until it has been selected once before encoding in the
+// background: AVIF and JPEG XL always, GIF and PNG from kWebExportDeferredPixels.
+[[nodiscard]] bool web_export_format_is_slow(WebExportFormat format, const WebExportSettings& settings,
+                                             QSize document_size);
 
 // The ImageSaveOptions that write `format` at these settings for a document of
 // `document_size` (the export transforms included).

@@ -233,8 +233,29 @@ void ui_web_export_defaults_and_options() {
   CHECK(avif.avif_quality == 55 && avif.avif_speed == 9 && !avif.avif_lossless);
   const auto jxl = patchy::ui::web_export_image_options(slow_settings, WebExportFormat::Jxl, size);
   CHECK(jxl.jxl_lossless && jxl.jxl_effort == 3);
-  CHECK(patchy::ui::web_export_format_is_slow(WebExportFormat::Avif));
-  CHECK(!patchy::ui::web_export_format_is_slow(WebExportFormat::Png));
+  // AVIF and JPEG XL always wait for selection; GIF and PNG only from
+  // kWebExportDeferredPixels output pixels (GitHub issue 571), JPEG and WebP never.
+  const QSize small(1600, 1200);
+  const QSize large(2000, 2000);
+  CHECK(patchy::ui::web_export_format_is_slow(WebExportFormat::Avif, loaded, small));
+  CHECK(patchy::ui::web_export_format_is_slow(WebExportFormat::Jxl, loaded, small));
+  CHECK(!patchy::ui::web_export_format_is_slow(WebExportFormat::Png, loaded, small));
+  CHECK(!patchy::ui::web_export_format_is_slow(WebExportFormat::Gif, loaded, small));
+  CHECK(patchy::ui::web_export_format_is_slow(WebExportFormat::Png, loaded, large));
+  CHECK(patchy::ui::web_export_format_is_slow(WebExportFormat::Gif, loaded, large));
+  CHECK(!patchy::ui::web_export_format_is_slow(WebExportFormat::Jpeg, loaded, large));
+  CHECK(!patchy::ui::web_export_format_is_slow(WebExportFormat::Webp, loaded, large));
+  // The output size counts, not the document's: a smaller export, or Pixel art's factor.
+  auto reduced = loaded;
+  reduced.width = 1000;
+  reduced.height = 1000;
+  CHECK(patchy::ui::web_export_output_pixels(reduced, large) == 1000000);
+  CHECK(!patchy::ui::web_export_format_is_slow(WebExportFormat::Gif, reduced, large));
+  auto doubled = loaded;
+  doubled.resample = patchy::ui::WebExportResample::PixelArt;
+  doubled.pixel_scale = 2;
+  CHECK(patchy::ui::web_export_output_pixels(doubled, small) == 7680000);
+  CHECK(patchy::ui::web_export_format_is_slow(WebExportFormat::Png, doubled, small));
   // GIF and palette PNG: 256 colors, no dither, full-color PNG by default; the options
   // reach the writers only for their own format.
   CHECK(!loaded.png_palette && loaded.png_colors == 256 && loaded.gif_colors == 256);
@@ -2216,6 +2237,57 @@ void ui_web_export_view_modes_keep_the_dialog_size() {
   });
 }
 
+// On a large image GIF and PNG wait until their row has been selected once, as AVIF and
+// JPEG XL do (GitHub issue 571: seconds each on a photo); the selected one encodes at once and
+// keeps encoding in the background after that.
+void ui_web_export_large_image_defers_gif_and_png() {
+  WebExportSettingsGuard guard;
+  // Just over kWebExportDeferredPixels.
+  const auto document = textured_document(2400, 1700);
+  CHECK(patchy::ui::kWebExportDeferredPixels <= 2400 * 1700);
+  with_web_export_dialog(document, [&](QDialog& dialog) {
+    auto* list = dialog.findChild<QTreeWidget*>(QStringLiteral("webExportFormatList"));
+    auto* quality = dialog.findChild<QSpinBox*>(QStringLiteral("webExportJpegQualitySpin"));
+    CHECK(list != nullptr && quality != nullptr);
+    if (list == nullptr || quality == nullptr) {
+      return;
+    }
+    auto* jpeg_row = row_named(list, QStringLiteral("JPEG"));
+    auto* webp_row = row_named(list, QStringLiteral("WebP"));
+    auto* png_row = row_named(list, QStringLiteral("PNG"));
+    auto* gif_row = row_named(list, QStringLiteral("GIF"));
+    CHECK(jpeg_row != nullptr && webp_row != nullptr && png_row != nullptr && gif_row != nullptr);
+    if (jpeg_row == nullptr || webp_row == nullptr || png_row == nullptr || gif_row == nullptr) {
+      return;
+    }
+    const auto sized = [](QTreeWidgetItem* row) {
+      const auto text = row->text(2);
+      return text.contains(QLatin1Char('B')) && !text.endsWith(QStringLiteral("..."));
+    };
+    const QString deferred = QStringLiteral("select to encode");
+    // JPEG is selected and WebP encodes in the background; GIF and PNG wait.
+    CHECK(wait_until([&] { return sized(jpeg_row) && sized(webp_row); }));
+    QElapsedTimer settle;
+    settle.start();
+    while (settle.elapsed() < 300) {
+      QApplication::processEvents();
+    }
+    CHECK(png_row->text(2) == deferred);
+    CHECK(gif_row->text(2) == deferred);
+    // Selecting GIF encodes it at once; PNG still waits.
+    list->setCurrentItem(gif_row);
+    CHECK(wait_until([&] { return sized(gif_row); }));
+    CHECK(png_row->text(2) == deferred);
+    // Back on JPEG, a new quality keeps GIF's size (its settings did not change) and PNG still waits.
+    list->setCurrentItem(jpeg_row);
+    const auto gif_before = gif_row->text(2);
+    quality->setValue(41);
+    CHECK(wait_until([&] { return sized(jpeg_row) && sized(gif_row); }));
+    CHECK(gif_row->text(2) == gif_before);
+    CHECK(png_row->text(2) == deferred);
+  });
+}
+
 // JPEG shows Keep transparent too, disabled, with Fill with selected; the user's own choice
 // comes back for the formats with alpha. Captures
 // web_export_jpeg_settings with the quality presets list open.
@@ -2318,6 +2390,7 @@ void ui_web_export_spinner_stops_when_the_shown_results_arrive() {
   });
 }
 
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> web_export_tests() {
@@ -2350,6 +2423,7 @@ std::vector<patchy::test::TestCase> web_export_tests() {
       {"ui_web_export_view_row_order_and_zoom_controls", ui_web_export_view_row_order_and_zoom_controls},
       {"ui_web_export_view_modes_keep_the_dialog_size", ui_web_export_view_modes_keep_the_dialog_size},
       {"ui_web_export_jpeg_keeps_the_transparency_choice", ui_web_export_jpeg_keeps_the_transparency_choice},
+      {"ui_web_export_large_image_defers_gif_and_png", ui_web_export_large_image_defers_gif_and_png},
       {"ui_web_export_spinner_stops_when_the_shown_results_arrive",
        ui_web_export_spinner_stops_when_the_shown_results_arrive},
   };
