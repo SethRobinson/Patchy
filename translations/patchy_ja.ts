@@ -15008,24 +15008,16 @@ Do you want to replace it?</source>
         <translation>単位</translation>
     </message>
     <message>
-        <source>Expand button</source>
-        <translation>展開ボタン</translation>
-    </message>
-    <message>
-        <source>Scroll arrows</source>
-        <translation>スクロール矢印</translation>
-    </message>
-    <message>
         <source>Needs &quot;Mouse wheel scrolls the palette&quot; on: otherwise these are the only way to reach tools that do not fit.</source>
         <translation>「はみ出したときはマウスホイールでパレットをスクロール」をオンにする必要があります。オフのときは、収まらないツールに届く唯一の手段です。</translation>
     </message>
     <message>
-        <source>The &gt; row under the tools that opens more columns.</source>
-        <translation>ツールの下にある、列を追加表示する &gt; の行。</translation>
+        <source>Show the up and down scroll arrows</source>
+        <translation>上下のスクロール矢印を表示</translation>
     </message>
     <message>
-        <source>The small arrows above and below the tools that scroll them.</source>
-        <translation>ツールの上下にある、ツールをスクロールする小さな矢印。</translation>
+        <source>Show the &gt; arrow that opens more columns</source>
+        <translation>列を追加表示する &gt; 矢印を表示</translation>
     </message>
 </context>
 <context>

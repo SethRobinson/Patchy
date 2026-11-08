@@ -15055,24 +15055,16 @@ Möchten Sie die Datei ersetzen?</translation>
         <translation>Einheiten</translation>
     </message>
     <message>
-        <source>Expand button</source>
-        <translation>Erweitern-Schaltfläche</translation>
-    </message>
-    <message>
-        <source>Scroll arrows</source>
-        <translation>Bildlaufpfeile</translation>
-    </message>
-    <message>
         <source>Needs &quot;Mouse wheel scrolls the palette&quot; on: otherwise these are the only way to reach tools that do not fit.</source>
         <translation>Erfordert „Mausrad scrollt die Palette, wenn sie überläuft“: sonst sind sie der einzige Weg zu Werkzeugen, die nicht hineinpassen.</translation>
     </message>
     <message>
-        <source>The &gt; row under the tools that opens more columns.</source>
-        <translation>Die Zeile &gt; unter den Werkzeugen, die weitere Spalten öffnet.</translation>
+        <source>Show the up and down scroll arrows</source>
+        <translation>Bildlaufpfeile oben und unten anzeigen</translation>
     </message>
     <message>
-        <source>The small arrows above and below the tools that scroll them.</source>
-        <translation>Die kleinen Pfeile über und unter den Werkzeugen, die sie scrollen.</translation>
+        <source>Show the &gt; arrow that opens more columns</source>
+        <translation>Pfeil &gt; anzeigen, der weitere Spalten öffnet</translation>
     </message>
 </context>
 <context>

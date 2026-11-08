@@ -15102,24 +15102,16 @@ Czy chcesz go zastąpić?</translation>
         <translation>Jednostki</translation>
     </message>
     <message>
-        <source>Expand button</source>
-        <translation>Przycisk rozwijania</translation>
-    </message>
-    <message>
-        <source>Scroll arrows</source>
-        <translation>Strzałki przewijania</translation>
-    </message>
-    <message>
         <source>Needs &quot;Mouse wheel scrolls the palette&quot; on: otherwise these are the only way to reach tools that do not fit.</source>
         <translation>Wymaga włączenia „Kółko myszy przewija paletę, gdy się nie mieści”: w przeciwnym razie to jedyny sposób, by dotrzeć do narzędzi, które się nie mieszczą.</translation>
     </message>
     <message>
-        <source>The &gt; row under the tools that opens more columns.</source>
-        <translation>Wiersz &gt; pod narzędziami, który otwiera kolejne kolumny.</translation>
+        <source>Show the up and down scroll arrows</source>
+        <translation>Pokaż strzałki przewijania w górę i w dół</translation>
     </message>
     <message>
-        <source>The small arrows above and below the tools that scroll them.</source>
-        <translation>Małe strzałki nad i pod narzędziami, które je przewijają.</translation>
+        <source>Show the &gt; arrow that opens more columns</source>
+        <translation>Pokaż strzałkę &gt;, która otwiera kolejne kolumny</translation>
     </message>
 </context>
 <context>

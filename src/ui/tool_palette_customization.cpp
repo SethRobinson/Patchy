@@ -773,6 +773,19 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   wheel_hint->setObjectName(QStringLiteral("toolPaletteWheelScrollHint"));
   wheel_hint->setIndent(22);
   side->addWidget(wheel_hint);
+  // Wheel-scroll mode's own rows (GitHub issue 668), indented under the option they depend
+  // on: without the wheel they are the only way to reach tools that do not fit, so the boxes
+  // are off then. The up arrow sits at the top of the column, the down arrow and the > row
+  // at its bottom.
+  auto* wheel_rows = new QVBoxLayout();
+  wheel_rows->setContentsMargins(22, 0, 0, 0);
+  auto* scroll_arrows = new QCheckBox(QObject::tr("Show the up and down scroll arrows"), tools_page);
+  scroll_arrows->setObjectName(QStringLiteral("toolPaletteShowScrollArrowsCheck"));
+  wheel_rows->addWidget(scroll_arrows);
+  auto* expand_button = new QCheckBox(QObject::tr("Show the > arrow that opens more columns"), tools_page);
+  expand_button->setObjectName(QStringLiteral("toolPaletteShowExpandButtonCheck"));
+  wheel_rows->addWidget(expand_button);
+  side->addLayout(wheel_rows);
   side->addSpacing(10);
 
   // The two Preferences settings that shape the palette, kept in step with Preferences
@@ -821,14 +834,6 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
   for (const auto& check : footer_checks) {
     side->addWidget(check.box);
   }
-  // Wheel-scroll mode's own rows (GitHub issue 668). They only apply while the wheel scrolls
-  // the palette: otherwise they are the only way to reach tools that do not fit.
-  auto* expand_button = new QCheckBox(QObject::tr("Expand button"), tools_page);
-  expand_button->setObjectName(QStringLiteral("toolPaletteShowExpandButtonCheck"));
-  side->addWidget(expand_button);
-  auto* scroll_arrows = new QCheckBox(QObject::tr("Scroll arrows"), tools_page);
-  scroll_arrows->setObjectName(QStringLiteral("toolPaletteShowScrollArrowsCheck"));
-  side->addWidget(scroll_arrows);
   side->addStretch(1);
   tools_layout->addSpacing(8);
   tools_layout->addLayout(side);
@@ -1178,9 +1183,8 @@ std::optional<ToolPaletteDialogChoice> request_tool_palette_customization(QWidge
                     "that do not fit.");
     expand_button->setEnabled(wheel);
     scroll_arrows->setEnabled(wheel);
-    expand_button->setToolTip(wheel ? QObject::tr("The > row under the tools that opens more columns.") : needs_wheel);
-    scroll_arrows->setToolTip(wheel ? QObject::tr("The small arrows above and below the tools that scroll them.")
-                                    : needs_wheel);
+    expand_button->setToolTip(wheel ? QString() : needs_wheel);
+    scroll_arrows->setToolTip(wheel ? QString() : needs_wheel);
   };
   QObject::connect(wheel_scroll, &QAbstractButton::toggled, &dialog, [&](bool) { refresh_wheel_rows(); });
   refresh_wheel_rows();

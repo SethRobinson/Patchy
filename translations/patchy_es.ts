@@ -15055,24 +15055,16 @@ Do you want to replace it?</source>
         <translation>Unidades</translation>
     </message>
     <message>
-        <source>Expand button</source>
-        <translation>Botón de expandir</translation>
-    </message>
-    <message>
-        <source>Scroll arrows</source>
-        <translation>Flechas de desplazamiento</translation>
-    </message>
-    <message>
         <source>Needs &quot;Mouse wheel scrolls the palette&quot; on: otherwise these are the only way to reach tools that do not fit.</source>
         <translation>Requiere «La rueda del ratón desplaza la paleta cuando no cabe» activado: si no, son la única forma de llegar a las herramientas que no caben.</translation>
     </message>
     <message>
-        <source>The &gt; row under the tools that opens more columns.</source>
-        <translation>La fila &gt; bajo las herramientas que abre más columnas.</translation>
+        <source>Show the up and down scroll arrows</source>
+        <translation>Mostrar las flechas de desplazamiento arriba y abajo</translation>
     </message>
     <message>
-        <source>The small arrows above and below the tools that scroll them.</source>
-        <translation>Las flechas pequeñas encima y debajo de las herramientas que las desplazan.</translation>
+        <source>Show the &gt; arrow that opens more columns</source>
+        <translation>Mostrar la flecha &gt; que abre más columnas</translation>
     </message>
 </context>
 <context>

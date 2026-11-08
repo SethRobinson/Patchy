@@ -15102,24 +15102,16 @@ Do you want to replace it?</source>
         <translation>Единицы</translation>
     </message>
     <message>
-        <source>Expand button</source>
-        <translation>Кнопка развёртывания</translation>
-    </message>
-    <message>
-        <source>Scroll arrows</source>
-        <translation>Стрелки прокрутки</translation>
-    </message>
-    <message>
         <source>Needs &quot;Mouse wheel scrolls the palette&quot; on: otherwise these are the only way to reach tools that do not fit.</source>
         <translation>Нужен включённый параметр «Колесо мыши прокручивает палитру, когда она не помещается»: иначе только так можно добраться до инструментов, которые не помещаются.</translation>
     </message>
     <message>
-        <source>The &gt; row under the tools that opens more columns.</source>
-        <translation>Строка &gt; под инструментами, открывающая дополнительные столбцы.</translation>
+        <source>Show the up and down scroll arrows</source>
+        <translation>Показывать стрелки прокрутки вверх и вниз</translation>
     </message>
     <message>
-        <source>The small arrows above and below the tools that scroll them.</source>
-        <translation>Маленькие стрелки над и под инструментами, прокручивающие их.</translation>
+        <source>Show the &gt; arrow that opens more columns</source>
+        <translation>Показывать стрелку &gt;, открывающую дополнительные столбцы</translation>
     </message>
 </context>
 <context>

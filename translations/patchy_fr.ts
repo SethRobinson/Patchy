@@ -15055,24 +15055,16 @@ Voulez-vous le remplacer ?</translation>
         <translation>Unités</translation>
     </message>
     <message>
-        <source>Expand button</source>
-        <translation>Bouton de développement</translation>
-    </message>
-    <message>
-        <source>Scroll arrows</source>
-        <translation>Flèches de défilement</translation>
-    </message>
-    <message>
         <source>Needs &quot;Mouse wheel scrolls the palette&quot; on: otherwise these are the only way to reach tools that do not fit.</source>
         <translation>Nécessite « La molette fait défiler la palette quand elle déborde » : sinon, ce sont le seul moyen d&apos;atteindre les outils qui ne tiennent pas.</translation>
     </message>
     <message>
-        <source>The &gt; row under the tools that opens more columns.</source>
-        <translation>La rangée &gt; sous les outils, qui ouvre d&apos;autres colonnes.</translation>
+        <source>Show the up and down scroll arrows</source>
+        <translation>Afficher les flèches de défilement haut et bas</translation>
     </message>
     <message>
-        <source>The small arrows above and below the tools that scroll them.</source>
-        <translation>Les petites flèches au-dessus et au-dessous des outils, qui les font défiler.</translation>
+        <source>Show the &gt; arrow that opens more columns</source>
+        <translation>Afficher la flèche &gt; qui ouvre d&apos;autres colonnes</translation>
     </message>
 </context>
 <context>

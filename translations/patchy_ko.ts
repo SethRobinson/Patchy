@@ -15008,24 +15008,16 @@ Do you want to replace it?</source>
         <translation>단위</translation>
     </message>
     <message>
-        <source>Expand button</source>
-        <translation>확장 버튼</translation>
-    </message>
-    <message>
-        <source>Scroll arrows</source>
-        <translation>스크롤 화살표</translation>
-    </message>
-    <message>
         <source>Needs &quot;Mouse wheel scrolls the palette&quot; on: otherwise these are the only way to reach tools that do not fit.</source>
         <translation>&quot;넘칠 때 마우스 휠로 팔레트 스크롤&quot;을 켜야 합니다. 끄면 이것이 들어가지 않는 도구에 닿는 유일한 방법입니다.</translation>
     </message>
     <message>
-        <source>The &gt; row under the tools that opens more columns.</source>
-        <translation>도구 아래에서 열을 더 여는 &gt; 줄입니다.</translation>
+        <source>Show the up and down scroll arrows</source>
+        <translation>위아래 스크롤 화살표 표시</translation>
     </message>
     <message>
-        <source>The small arrows above and below the tools that scroll them.</source>
-        <translation>도구 위아래에서 도구를 스크롤하는 작은 화살표입니다.</translation>
+        <source>Show the &gt; arrow that opens more columns</source>
+        <translation>열을 더 여는 &gt; 화살표 표시</translation>
     </message>
 </context>
 <context>

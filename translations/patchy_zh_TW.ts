@@ -15008,24 +15008,16 @@ Do you want to replace it?</source>
         <translation>單位</translation>
     </message>
     <message>
-        <source>Expand button</source>
-        <translation>展開按鈕</translation>
-    </message>
-    <message>
-        <source>Scroll arrows</source>
-        <translation>捲動箭頭</translation>
-    </message>
-    <message>
         <source>Needs &quot;Mouse wheel scrolls the palette&quot; on: otherwise these are the only way to reach tools that do not fit.</source>
         <translation>需要開啟「放不下時用滑鼠滾輪捲動面板」：否則只能靠它們找到放不下的工具。</translation>
     </message>
     <message>
-        <source>The &gt; row under the tools that opens more columns.</source>
-        <translation>工具下方用來展開更多欄的 &gt; 列。</translation>
+        <source>Show the up and down scroll arrows</source>
+        <translation>顯示上下捲動箭頭</translation>
     </message>
     <message>
-        <source>The small arrows above and below the tools that scroll them.</source>
-        <translation>工具上方和下方用來捲動工具的小箭頭。</translation>
+        <source>Show the &gt; arrow that opens more columns</source>
+        <translation>顯示用來展開更多欄的 &gt; 箭頭</translation>
     </message>
 </context>
 <context>

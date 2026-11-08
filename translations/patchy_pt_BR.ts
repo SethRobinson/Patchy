@@ -15055,24 +15055,16 @@ Deseja substituí-lo?</translation>
         <translation>Unidades</translation>
     </message>
     <message>
-        <source>Expand button</source>
-        <translation>Botão de expandir</translation>
-    </message>
-    <message>
-        <source>Scroll arrows</source>
-        <translation>Setas de rolagem</translation>
-    </message>
-    <message>
         <source>Needs &quot;Mouse wheel scrolls the palette&quot; on: otherwise these are the only way to reach tools that do not fit.</source>
         <translation>Requer “A roda do mouse rola a paleta quando ela não cabe” ligado: caso contrário, elas são o único jeito de chegar às ferramentas que não cabem.</translation>
     </message>
     <message>
-        <source>The &gt; row under the tools that opens more columns.</source>
-        <translation>A linha &gt; abaixo das ferramentas que abre mais colunas.</translation>
+        <source>Show the up and down scroll arrows</source>
+        <translation>Mostrar as setas de rolagem para cima e para baixo</translation>
     </message>
     <message>
-        <source>The small arrows above and below the tools that scroll them.</source>
-        <translation>As pequenas setas acima e abaixo das ferramentas que as rolam.</translation>
+        <source>Show the &gt; arrow that opens more columns</source>
+        <translation>Mostrar a seta &gt; que abre mais colunas</translation>
     </message>
 </context>
 <context>

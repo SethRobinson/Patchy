@@ -792,6 +792,20 @@ void ui_tool_palette_wheel_rows_can_be_hidden() {
     }
     CHECK(wheel->isChecked() && expand_box->isChecked() && arrows_box->isChecked());
     CHECK(expand_box->isEnabled() && arrows_box->isEnabled());
+    // Indented under the wheel option they depend on, above the Bottom of the palette boxes
+    // (the up arrow sits at the top of the column, so they are not bottom items).
+    if (auto* colors = dialog.findChild<QCheckBox*>(QStringLiteral("toolPaletteShowColorsCheck")); colors != nullptr) {
+      const auto top_in_dialog = [&](const QWidget* widget) { return widget->mapTo(&dialog, QPoint(0, 0)); };
+      for (const auto* box : {arrows_box, expand_box}) {
+        CHECK(top_in_dialog(box).y() > top_in_dialog(wheel).y());
+        CHECK(top_in_dialog(box).y() < top_in_dialog(colors).y());
+        CHECK(top_in_dialog(box).x() >= top_in_dialog(wheel).x() + 16);
+      }
+      CHECK(top_in_dialog(arrows_box).y() < top_in_dialog(expand_box).y());
+    } else {
+      CHECK(false);
+    }
+    CHECK(arrows_box->toolTip().isEmpty() && expand_box->toolTip().isEmpty());
     wheel->setChecked(false);
     QApplication::processEvents();
     CHECK(!expand_box->isEnabled() && !arrows_box->isEnabled());

@@ -15055,24 +15055,16 @@ Sostituirlo?</translation>
         <translation>Unità</translation>
     </message>
     <message>
-        <source>Expand button</source>
-        <translation>Pulsante di espansione</translation>
-    </message>
-    <message>
-        <source>Scroll arrows</source>
-        <translation>Frecce di scorrimento</translation>
-    </message>
-    <message>
         <source>Needs &quot;Mouse wheel scrolls the palette&quot; on: otherwise these are the only way to reach tools that do not fit.</source>
         <translation>Richiede «La rotella del mouse scorre la palette quando non entra» attivo: altrimenti sono l&apos;unico modo per raggiungere gli strumenti che non entrano.</translation>
     </message>
     <message>
-        <source>The &gt; row under the tools that opens more columns.</source>
-        <translation>La riga &gt; sotto gli strumenti che apre altre colonne.</translation>
+        <source>Show the up and down scroll arrows</source>
+        <translation>Mostra le frecce di scorrimento su e giù</translation>
     </message>
     <message>
-        <source>The small arrows above and below the tools that scroll them.</source>
-        <translation>Le piccole frecce sopra e sotto gli strumenti che li scorrono.</translation>
+        <source>Show the &gt; arrow that opens more columns</source>
+        <translation>Mostra la freccia &gt; che apre altre colonne</translation>
     </message>
 </context>
 <context>
