@@ -20627,18 +20627,6 @@ Do you want to replace it?</source>
         <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
         <translation>%1 是內建方案，所以你的變更已放入「自訂」方案。重新命名它即可作為你自己的方案保留。</translation>
     </message>
-    <message>
-        <source>Tool modifiers as in GIMP: %CTRL% zooms out, zooms with the wheel, picks colors with the Brush, Eraser and Fill tools, sets the clone source, swaps Dodge and Burn or Blur and Sharpen, and subtracts from a selection. Where %CTRL% picks, sets the source or swaps, %ALT% is the temporary Move.</source>
-        <translation>與 GIMP 相同的工具輔助鍵：%CTRL% 縮小、以滾輪縮放、以筆刷、橡皮擦和填滿揀選顏色、設定仿製來源、互換加亮與加深或模糊與銳利化，並從選取範圍中減去。在 %CTRL% 用於揀選、設定來源或互換的工具上，%ALT% 是暫時移動。</translation>
-    </message>
-    <message>
-        <source>Tool modifiers as in Krita: %CTRL% zooms out, picks colors with the Brush, Mixer Brush, Smudge and Eraser tools, and sets the clone source; %ALT% subtracts from a selection. Where %CTRL% picks or sets the source, %ALT% is the temporary Move.</source>
-        <translation>與 Krita 相同的工具輔助鍵：%CTRL% 縮小、以筆刷、混合器筆刷、指尖和橡皮擦揀選顏色，並設定仿製來源；%ALT% 從選取範圍中減去。在 %CTRL% 用於揀選或設定來源的工具上，%ALT% 是暫時移動。</translation>
-    </message>
-    <message>
-        <source>Tool modifiers: %ALT% zooms out, picks colors, sets the clone source and subtracts from a selection; %CTRL% is the painting tools&apos; temporary Move. The GIMP-style and Krita-style sets use %CTRL% instead.</source>
-        <translation>工具輔助鍵：%ALT% 縮小、揀選顏色、設定仿製來源並從選取範圍中減去；%CTRL% 是繪圖工具的暫時移動。GIMP 風格和 Krita 風格的快速鍵組改用 %CTRL%。</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>

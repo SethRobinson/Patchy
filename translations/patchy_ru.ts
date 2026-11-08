@@ -20725,18 +20725,6 @@ Do you want to replace it?</source>
         <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
         <translation>%1 встроенный, поэтому ваши изменения в наборе «Пользовательский». Переименуйте его, чтобы сохранить как собственный набор.</translation>
     </message>
-    <message>
-        <source>Tool modifiers as in GIMP: %CTRL% zooms out, zooms with the wheel, picks colors with the Brush, Eraser and Fill tools, sets the clone source, swaps Dodge and Burn or Blur and Sharpen, and subtracts from a selection. Where %CTRL% picks, sets the source or swaps, %ALT% is the temporary Move.</source>
-        <translation>Модификаторы инструментов как в GIMP: %CTRL% уменьшает масштаб, масштабирует колесом, берёт цвет Кистью, Ластиком и Заливкой, задаёт источник клонирования, меняет местами Осветлитель и Затемнитель или Размытие и Резкость и вычитает из выделения. Там, где %CTRL% берёт цвет, задаёт источник или меняет местами, %ALT% служит временным Перемещением.</translation>
-    </message>
-    <message>
-        <source>Tool modifiers as in Krita: %CTRL% zooms out, picks colors with the Brush, Mixer Brush, Smudge and Eraser tools, and sets the clone source; %ALT% subtracts from a selection. Where %CTRL% picks or sets the source, %ALT% is the temporary Move.</source>
-        <translation>Модификаторы инструментов как в Krita: %CTRL% уменьшает масштаб, берёт цвет Кистью, Микс-кистью, Пальцем и Ластиком и задаёт источник клонирования; %ALT% вычитает из выделения. Там, где %CTRL% берёт цвет или задаёт источник, %ALT% служит временным Перемещением.</translation>
-    </message>
-    <message>
-        <source>Tool modifiers: %ALT% zooms out, picks colors, sets the clone source and subtracts from a selection; %CTRL% is the painting tools&apos; temporary Move. The GIMP-style and Krita-style sets use %CTRL% instead.</source>
-        <translation>Модификаторы инструментов: %ALT% уменьшает масштаб, берёт цвет, задаёт источник клонирования и вычитает из выделения; %CTRL% служит временным Перемещением для инструментов рисования. Наборы «Как в GIMP» и «Как в Krita» используют вместо него %CTRL%.</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>

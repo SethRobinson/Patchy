@@ -92,8 +92,6 @@ private:
   void rebuild_set_combo();
   void put_staged_in_custom_set();
   [[nodiscard]] ToolModifierStyle set_tool_modifier_style(const QString& set_id) const;
-  [[nodiscard]] QString tool_modifiers_text(ToolModifierStyle style) const;
-  void refresh_tool_modifiers_label();
   [[nodiscard]] std::optional<QString> ask_set_name(const QString& title, const QString& initial,
                                                     const QString& except_id);
   // A built-in set's name without the "(built-in)" the combo adds; empty for other ids.
@@ -140,7 +138,6 @@ private:
   QPushButton* rename_set_button_{nullptr};
   QPushButton* delete_set_button_{nullptr};
   QLabel* transfer_status_{nullptr};
-  QLabel* tool_modifiers_label_{nullptr};
   QWidget* header_{nullptr};
   QScrollArea* list_scroll_{nullptr};
   QVBoxLayout* list_layout_{nullptr};
