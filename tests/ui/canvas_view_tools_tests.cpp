@@ -11858,7 +11858,9 @@ void ui_right_dock_floors_fit_the_screen_height() {
 // section under the panel's minimum; the panel still gets its full minimum height for its
 // width (wrapped footer included) and the overflow area scrolls vertically, so no footer
 // button or Lock-row control is squeezed, clipped or left under the sideways bar: each
-// one shows whole once scrolled to.
+// one shows whole once scrolled to. The name filter is the row's stretch item: wrapped onto
+// its own line (with issue 671's filter button) it spans the panel, wider than this viewport,
+// so once scrolled to it fills the viewport's width.
 void ui_right_dock_short_narrow_column_scrolls_instead_of_clipping() {
   auto&& [window, canvas] = ShownWindowFixture{};
   patchy::Document document(320, 240, patchy::PixelFormat::rgb8());
@@ -11938,12 +11940,18 @@ void ui_right_dock_short_narrow_column_scrolls_instead_of_clipping() {
     scroll_to(overflow->verticalScrollBar(), in_panel.y(), in_panel.height(), viewport->height());
     QApplication::processEvents();
     const QRect in_viewport(control->mapTo(viewport, QPoint()), control->size());
-    if (!viewport->rect().contains(in_viewport)) {
+    // Only the stretching name filter may be wider than the viewport; then it fills its width.
+    const bool wide_filter = in_viewport.width() > viewport->width() &&
+                             control->objectName() == QStringLiteral("layerNameFilterEdit");
+    const bool fits = wide_filter ? in_viewport.left() <= 0 && in_viewport.right() >= viewport->width() - 1 &&
+                                        in_viewport.top() >= 0 && in_viewport.bottom() < viewport->height()
+                                  : viewport->rect().contains(in_viewport);
+    if (!fits) {
       std::cout << "[INFO] " << control->objectName().toStdString() << " at " << in_viewport.x() << ","
                 << in_viewport.y() << " " << in_viewport.width() << "x" << in_viewport.height() << " in viewport "
                 << viewport->width() << "x" << viewport->height() << "\n";
     }
-    CHECK(viewport->rect().contains(in_viewport));
+    CHECK(fits);
   }
   // The footer scrolled into view, for the card.
   overflow->horizontalScrollBar()->setValue(0);
