@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ui/hotkey_registry.hpp"
+#include "ui/tool_modifier_style.hpp"
 
 #include <QString>
 #include <QStringView>
@@ -53,11 +54,16 @@ struct UserHotkeySet {
   QString id;
   QString name;  // empty for the Custom set, which shows as "Custom" in the current language
   HotkeyOverrideMap overrides;
+  // The tool modifiers of the set it came from (GitHub issue 302): Custom made from GIMP-style
+  // keeps GIMP's, an imported file carries its own.
+  ToolModifierStyle tool_modifiers{ToolModifierStyle::Patchy};
 };
 // The stored sets, read against the registered commands (unknown ids and keys are dropped).
 [[nodiscard]] std::vector<UserHotkeySet> load_user_hotkey_sets(const std::vector<HotkeyCommand>& commands);
 // The set Preferences > Hotkeys last applied: kPatchyHotkeySetId, a built-in id or a user set id.
 [[nodiscard]] QString load_active_hotkey_set_id();
+// Also stores the active set's tool modifiers (`hotkeySets/toolModifiers`), which the canvas
+// reads at startup (load_active_tool_modifier_style).
 void store_user_hotkey_sets(const std::vector<UserHotkeySet>& sets, const QString& active_id);
 // The folder Import... and Export... open in: the last one used, else Documents.
 [[nodiscard]] QString hotkey_file_folder();

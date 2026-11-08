@@ -16375,12 +16375,12 @@ Do you want to replace it?</source>
         <translation>Клонирование недоступно при редактировании канала в оттенках серого.</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a healing source</source>
-        <translation>Щёлкните с %ALT%, чтобы задать источник восстановления</translation>
+        <source>%SOURCE_KEY%-click to set a healing source</source>
+        <translation>Щёлкните с %SOURCE_KEY%, чтобы задать источник восстановления</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a clone source</source>
-        <translation>%ALT% — нажмите, чтобы установить источник клонирования</translation>
+        <source>%SOURCE_KEY%-click to set a clone source</source>
+        <translation>%SOURCE_KEY% — нажмите, чтобы установить источник клонирования</translation>
     </message>
     <message>
         <source>Healing brush</source>
@@ -17507,8 +17507,8 @@ Do you want to replace it?</source>
         <translation>Переместить среднюю точку градиента</translation>
     </message>
     <message>
-        <source>%1 while %ALT% is held</source>
-        <translation>%1, пока удерживается %ALT%</translation>
+        <source>%1 while %SWAP_KEY% is held</source>
+        <translation>%1, пока удерживается %SWAP_KEY%</translation>
     </message>
     <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
@@ -17749,8 +17749,8 @@ Do you want to replace it?</source>
         <translation>Источник %1: не задан</translation>
     </message>
     <message>
-        <source>Not set: %ALT%-click the canvas</source>
-        <translation>Не задан: щелкните холст с %ALT%</translation>
+        <source>Not set: %SOURCE_KEY%-click the canvas</source>
+        <translation>Не задан: щелкните холст с %SOURCE_KEY%</translation>
     </message>
     <message>
         <source>Aligned is off: every stroke starts at the source point.</source>
@@ -17789,8 +17789,8 @@ Do you want to replace it?</source>
         <translation>Очистить источник</translation>
     </message>
     <message>
-        <source>Clear this source point; %ALT%-click the canvas to set a new one</source>
-        <translation>Убрать эту точку источника; щелкните холст с %ALT%, чтобы задать новую</translation>
+        <source>Clear this source point; %SOURCE_KEY%-click the canvas to set a new one</source>
+        <translation>Убрать эту точку источника; щелкните холст с %SOURCE_KEY%, чтобы задать новую</translation>
     </message>
     <message>
         <source>Back to 100%, 0 degrees and no flip; the source point stays</source>
@@ -20704,6 +20704,18 @@ Do you want to replace it?</source>
     <message>
         <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
         <translation>%1 встроенный, поэтому ваши изменения в наборе «Пользовательский». Переименуйте его, чтобы сохранить как собственный набор.</translation>
+    </message>
+    <message>
+        <source>Tool modifiers as in GIMP: %CTRL% zooms out, zooms with the wheel, picks colors with the Brush, Eraser and Fill tools, sets the clone source, swaps Dodge and Burn or Blur and Sharpen, and subtracts from a selection. Where %CTRL% picks, sets the source or swaps, %ALT% is the temporary Move.</source>
+        <translation>Модификаторы инструментов как в GIMP: %CTRL% уменьшает масштаб, масштабирует колесом, берёт цвет Кистью, Ластиком и Заливкой, задаёт источник клонирования, меняет местами Осветлитель и Затемнитель или Размытие и Резкость и вычитает из выделения. Там, где %CTRL% берёт цвет, задаёт источник или меняет местами, %ALT% служит временным Перемещением.</translation>
+    </message>
+    <message>
+        <source>Tool modifiers as in Krita: %CTRL% zooms out, picks colors with the Brush, Mixer Brush, Smudge and Eraser tools, and sets the clone source; %ALT% subtracts from a selection. Where %CTRL% picks or sets the source, %ALT% is the temporary Move.</source>
+        <translation>Модификаторы инструментов как в Krita: %CTRL% уменьшает масштаб, берёт цвет Кистью, Микс-кистью, Пальцем и Ластиком и задаёт источник клонирования; %ALT% вычитает из выделения. Там, где %CTRL% берёт цвет или задаёт источник, %ALT% служит временным Перемещением.</translation>
+    </message>
+    <message>
+        <source>Tool modifiers: %ALT% zooms out, picks colors, sets the clone source and subtracts from a selection; %CTRL% is the painting tools&apos; temporary Move. The GIMP-style and Krita-style sets use %CTRL% instead.</source>
+        <translation>Модификаторы инструментов: %ALT% уменьшает масштаб, берёт цвет, задаёт источник клонирования и вычитает из выделения; %CTRL% служит временным Перемещением для инструментов рисования. Наборы «Как в GIMP» и «Как в Krita» используют вместо него %CTRL%.</translation>
     </message>
 </context>
 <context>
@@ -29980,28 +29992,28 @@ Patchy может скачать обновление, заменить этот
         </translation>
     </message>
     <message>
-        <source>Rectangular Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a square and %ALT% draws from the center.</source>
-        <translation>Прямоугольная область: протяните указатель для выделения. Shift+перетаскивание добавляет, %ALT%+перетаскивание вычитает, Shift+%ALT%+перетаскивание оставляет пересечение. Без выделения Shift рисует квадрат, а %ALT% рисует от центра.</translation>
+        <source>Rectangular Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a square and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>Прямоугольная область: протяните указатель для выделения. Shift+перетаскивание добавляет, %SUBTRACT_KEY%+перетаскивание вычитает, Shift+%SUBTRACT_KEY%+перетаскивание оставляет пересечение. Без выделения Shift рисует квадрат, а %SUBTRACT_KEY% рисует от центра.</translation>
     </message>
     <message>
-        <source>Elliptical Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a circle and %ALT% draws from the center.</source>
-        <translation>Овальная область: протяните указатель для выделения. Shift+перетаскивание добавляет, %ALT%+перетаскивание вычитает, Shift+%ALT%+перетаскивание оставляет пересечение. Без выделения Shift рисует круг, а %ALT% рисует от центра.</translation>
+        <source>Elliptical Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a circle and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>Овальная область: протяните указатель для выделения. Shift+перетаскивание добавляет, %SUBTRACT_KEY%+перетаскивание вычитает, Shift+%SUBTRACT_KEY%+перетаскивание оставляет пересечение. Без выделения Shift рисует круг, а %SUBTRACT_KEY% рисует от центра.</translation>
     </message>
     <message>
-        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
-        <translation>Магнитное лассо: щёлкните по краю и ведите вдоль него; щелчок закрепляет точку. Начните с Shift+щелчка, чтобы добавить, %ALT%+щелчка, чтобы вычесть, или Shift+%ALT%+щелчка для пересечения. Backspace удаляет последнюю точку, Enter замыкает контур, Esc отменяет.</translation>
+        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
+        <translation>Магнитное лассо: щёлкните по краю и ведите вдоль него; щелчок закрепляет точку. Начните с Shift+щелчка, чтобы добавить, %SUBTRACT_KEY%+щелчка, чтобы вычесть, или Shift+%SUBTRACT_KEY%+щелчка для пересечения. Backspace удаляет последнюю точку, Enter замыкает контур, Esc отменяет.</translation>
     </message>
     <message>
-        <source>Magic Wand: click a color to select it. Shift+click adds, %ALT%+click subtracts, Shift+%ALT%+click intersects.</source>
-        <translation>Волшебная палочка: щёлкните по цвету, чтобы выделить его. Shift+щелчок добавляет, %ALT%+щелчок вычитает, Shift+%ALT%+щелчок оставляет пересечение.</translation>
+        <source>Magic Wand: click a color to select it. Shift+click adds, %SUBTRACT_KEY%+click subtracts, Shift+%SUBTRACT_KEY%+click intersects.</source>
+        <translation>Волшебная палочка: щёлкните по цвету, чтобы выделить его. Shift+щелчок добавляет, %SUBTRACT_KEY%+щелчок вычитает, Shift+%SUBTRACT_KEY%+щелчок оставляет пересечение.</translation>
     </message>
     <message>
-        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>Быстрое выделение: закрасьте область, которую нужно выделить; следующие мазки добавляют к ней. Shift+перетаскивание добавляет, %ALT%+перетаскивание вычитает.</translation>
+        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>Быстрое выделение: закрасьте область, которую нужно выделить; следующие мазки добавляют к ней. Shift+перетаскивание добавляет, %SUBTRACT_KEY%+перетаскивание вычитает.</translation>
     </message>
     <message>
-        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>Выделение объектов: обведите объект рамкой или щёлкните по нему. Shift+перетаскивание добавляет, %ALT%+перетаскивание вычитает.</translation>
+        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>Выделение объектов: обведите объект рамкой или щёлкните по нему. Shift+перетаскивание добавляет, %SUBTRACT_KEY%+перетаскивание вычитает.</translation>
     </message>
     <message>
         <source>Daily</source>
@@ -30440,12 +30452,12 @@ Patchy может скачать обновление, заменить этот
         <translation>Щёлкайте, чтобы ставить точки; Shift держит 45 градусов, %ALT%+перетаскивание рисует от руки. Чтобы замкнуть контур, щёлкните по начальной точке, дважды щёлкните или нажмите Enter.</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
-        <translation>Лассо: обведите область, чтобы выделить её. Shift+перетаскивание добавляет, %ALT%+перетаскивание вычитает, Shift+%ALT%+перетаскивание оставляет пересечение. Нажмите %ALT% во время перетаскивания и отпустите кнопку, чтобы щелчками ставить прямые отрезки, пока %ALT% не будет отпущена.</translation>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>Лассо: обведите область, чтобы выделить её. Shift+перетаскивание добавляет, %SUBTRACT_KEY%+перетаскивание вычитает, Shift+%SUBTRACT_KEY%+перетаскивание оставляет пересечение. Нажмите %ALT% во время перетаскивания и отпустите кнопку, чтобы щелчками ставить прямые отрезки, пока %ALT% не будет отпущена.</translation>
     </message>
     <message>
-        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
-        <translation>Многоугольное лассо: щёлкайте, чтобы ставить точки. Начните с Shift+щелчка, чтобы добавить, %ALT%+щелчка, чтобы вычесть, или Shift+%ALT%+щелчка для пересечения. Shift держит 45 градусов, %ALT%+перетаскивание рисует от руки. Чтобы замкнуть контур, щёлкните по начальной точке, дважды щёлкните или нажмите Enter; Backspace удаляет последнюю точку, Esc отменяет.</translation>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>Многоугольное лассо: щёлкайте, чтобы ставить точки. Начните с Shift+щелчка, чтобы добавить, %SUBTRACT_KEY%+щелчка, чтобы вычесть, или Shift+%SUBTRACT_KEY%+щелчка для пересечения. Shift держит 45 градусов, %ALT%+перетаскивание рисует от руки. Чтобы замкнуть контур, щёлкните по начальной точке, дважды щёлкните или нажмите Enter; Backspace удаляет последнюю точку, Esc отменяет.</translation>
     </message>
     <message>
         <source>New &amp;Layer...</source>
@@ -31553,12 +31565,12 @@ The open document keeps its blend modes either way.</source>
         <translation>Целевой &amp;контур</translation>
     </message>
     <message>
-        <source>%1: Shift+click draws a line, %ALT%+click picks a color, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: Shift+щелчок рисует линию, %ALT%+щелчок берёт цвет, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
+        <source>%1: Shift+click draws a line, %PICK_KEY%+click picks a color, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: Shift+щелчок рисует линию, %PICK_KEY%+щелчок берёт цвет, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
     </message>
     <message>
-        <source>%1: %ALT%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: %ALT%+щелчок задаёт источник, Shift+щелчок рисует линию, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
+        <source>%1: %SOURCE_KEY%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %SOURCE_KEY%+щелчок задаёт источник, Shift+щелчок рисует линию, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
     </message>
     <message>
         <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
@@ -33765,8 +33777,8 @@ Locked: %1</source>
         <translation>Изменить контрольную точку цвета</translation>
     </message>
     <message>
-        <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: %ALT%+перетаскивание рисует как %2, Shift+щелчок рисует линию, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
+        <source>%1: %SWAP_KEY%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %SWAP_KEY%+перетаскивание рисует как %2, Shift+щелчок рисует линию, %ALT%+перетаскивание правой кнопкой меняет размер и мягкость.</translation>
     </message>
     <message>
         <source>Pages as layers</source>

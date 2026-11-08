@@ -16281,12 +16281,12 @@ Do you want to replace it?</source>
         <translation>회색조 채널을 편집하는 동안 복제를 사용할 수 없습니다.</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a healing source</source>
-        <translation>%ALT%-클릭하여 복구 소스 설정</translation>
+        <source>%SOURCE_KEY%-click to set a healing source</source>
+        <translation>%SOURCE_KEY%-클릭하여 복구 소스 설정</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a clone source</source>
-        <translation>%ALT%-클릭하여 복제 소스 설정</translation>
+        <source>%SOURCE_KEY%-click to set a clone source</source>
+        <translation>%SOURCE_KEY%-클릭하여 복제 소스 설정</translation>
     </message>
     <message>
         <source>Healing brush</source>
@@ -17413,8 +17413,8 @@ Do you want to replace it?</source>
         <translation>그레이디언트 중간점 이동</translation>
     </message>
     <message>
-        <source>%1 while %ALT% is held</source>
-        <translation>%ALT%를 누르는 동안 %1</translation>
+        <source>%1 while %SWAP_KEY% is held</source>
+        <translation>%SWAP_KEY%를 누르는 동안 %1</translation>
     </message>
     <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
@@ -17655,8 +17655,8 @@ Do you want to replace it?</source>
         <translation>소스 %1: 설정 안 됨</translation>
     </message>
     <message>
-        <source>Not set: %ALT%-click the canvas</source>
-        <translation>설정 안 됨: 캔버스를 %ALT%-클릭하세요</translation>
+        <source>Not set: %SOURCE_KEY%-click the canvas</source>
+        <translation>설정 안 됨: 캔버스를 %SOURCE_KEY%-클릭하세요</translation>
     </message>
     <message>
         <source>Aligned is off: every stroke starts at the source point.</source>
@@ -17695,8 +17695,8 @@ Do you want to replace it?</source>
         <translation>소스 지우기</translation>
     </message>
     <message>
-        <source>Clear this source point; %ALT%-click the canvas to set a new one</source>
-        <translation>이 소스 지점을 지웁니다. 새로 설정하려면 캔버스를 %ALT%-클릭하세요</translation>
+        <source>Clear this source point; %SOURCE_KEY%-click the canvas to set a new one</source>
+        <translation>이 소스 지점을 지웁니다. 새로 설정하려면 캔버스를 %SOURCE_KEY%-클릭하세요</translation>
     </message>
     <message>
         <source>Back to 100%, 0 degrees and no flip; the source point stays</source>
@@ -20606,6 +20606,18 @@ Do you want to replace it?</source>
     <message>
         <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
         <translation>%1은(는) 기본 제공 세트이므로 변경 내용은 사용자 지정 세트에 있습니다. 내 세트로 유지하려면 이름을 바꾸세요.</translation>
+    </message>
+    <message>
+        <source>Tool modifiers as in GIMP: %CTRL% zooms out, zooms with the wheel, picks colors with the Brush, Eraser and Fill tools, sets the clone source, swaps Dodge and Burn or Blur and Sharpen, and subtracts from a selection. Where %CTRL% picks, sets the source or swaps, %ALT% is the temporary Move.</source>
+        <translation>GIMP와 같은 도구 보조 키: %CTRL%는 축소, 휠로 확대/축소, 브러시·지우개·칠 도구로 색 가져오기, 복제 소스 지정, 닷지와 번 또는 흐림과 선명하게 바꾸기, 선택 영역에서 빼기를 합니다. %CTRL%로 색을 가져오거나 소스를 지정하거나 바꾸는 도구에서는 %ALT%가 임시 이동입니다.</translation>
+    </message>
+    <message>
+        <source>Tool modifiers as in Krita: %CTRL% zooms out, picks colors with the Brush, Mixer Brush, Smudge and Eraser tools, and sets the clone source; %ALT% subtracts from a selection. Where %CTRL% picks or sets the source, %ALT% is the temporary Move.</source>
+        <translation>Krita와 같은 도구 보조 키: %CTRL%는 축소, 브러시·혼합 브러시·손가락·지우개 도구로 색 가져오기, 복제 소스 지정을 하고, %ALT%는 선택 영역에서 뺍니다. %CTRL%로 색을 가져오거나 소스를 지정하는 도구에서는 %ALT%가 임시 이동입니다.</translation>
+    </message>
+    <message>
+        <source>Tool modifiers: %ALT% zooms out, picks colors, sets the clone source and subtracts from a selection; %CTRL% is the painting tools&apos; temporary Move. The GIMP-style and Krita-style sets use %CTRL% instead.</source>
+        <translation>도구 보조 키: %ALT%는 축소, 색 가져오기, 복제 소스 지정, 선택 영역에서 빼기를 하고, %CTRL%는 페인팅 도구의 임시 이동입니다. GIMP 스타일과 Krita 스타일 세트는 대신 %CTRL%를 사용합니다.</translation>
     </message>
 </context>
 <context>
@@ -29812,28 +29824,28 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         </translation>
     </message>
     <message>
-        <source>Rectangular Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a square and %ALT% draws from the center.</source>
-        <translation>사각형 선택 윤곽: 드래그하여 선택합니다. Shift+드래그로 추가, %ALT%+드래그로 빼기, Shift+%ALT%+드래그로 교차 영역을 선택합니다. 선택 영역이 없으면 Shift는 정사각형을, %ALT%는 중심에서 그립니다.</translation>
+        <source>Rectangular Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a square and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>사각형 선택 윤곽: 드래그하여 선택합니다. Shift+드래그로 추가, %SUBTRACT_KEY%+드래그로 빼기, Shift+%SUBTRACT_KEY%+드래그로 교차 영역을 선택합니다. 선택 영역이 없으면 Shift는 정사각형을, %SUBTRACT_KEY%는 중심에서 그립니다.</translation>
     </message>
     <message>
-        <source>Elliptical Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a circle and %ALT% draws from the center.</source>
-        <translation>타원형 선택 윤곽: 드래그하여 선택합니다. Shift+드래그로 추가, %ALT%+드래그로 빼기, Shift+%ALT%+드래그로 교차 영역을 선택합니다. 선택 영역이 없으면 Shift는 정원을, %ALT%는 중심에서 그립니다.</translation>
+        <source>Elliptical Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a circle and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>타원형 선택 윤곽: 드래그하여 선택합니다. Shift+드래그로 추가, %SUBTRACT_KEY%+드래그로 빼기, Shift+%SUBTRACT_KEY%+드래그로 교차 영역을 선택합니다. 선택 영역이 없으면 Shift는 정원을, %SUBTRACT_KEY%는 중심에서 그립니다.</translation>
     </message>
     <message>
-        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
-        <translation>자석 올가미: 가장자리를 클릭하고 따라가며, 클릭하면 점이 고정됩니다. 시작할 때 Shift+클릭은 추가, %ALT%+클릭은 빼기, Shift+%ALT%+클릭은 교차입니다. Backspace는 마지막 점을 지우고, Enter는 닫고, Esc는 취소합니다.</translation>
+        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
+        <translation>자석 올가미: 가장자리를 클릭하고 따라가며, 클릭하면 점이 고정됩니다. 시작할 때 Shift+클릭은 추가, %SUBTRACT_KEY%+클릭은 빼기, Shift+%SUBTRACT_KEY%+클릭은 교차입니다. Backspace는 마지막 점을 지우고, Enter는 닫고, Esc는 취소합니다.</translation>
     </message>
     <message>
-        <source>Magic Wand: click a color to select it. Shift+click adds, %ALT%+click subtracts, Shift+%ALT%+click intersects.</source>
-        <translation>자동 선택: 색을 클릭하여 선택합니다. Shift+클릭으로 추가, %ALT%+클릭으로 빼기, Shift+%ALT%+클릭으로 교차 영역을 선택합니다.</translation>
+        <source>Magic Wand: click a color to select it. Shift+click adds, %SUBTRACT_KEY%+click subtracts, Shift+%SUBTRACT_KEY%+click intersects.</source>
+        <translation>자동 선택: 색을 클릭하여 선택합니다. Shift+클릭으로 추가, %SUBTRACT_KEY%+클릭으로 빼기, Shift+%SUBTRACT_KEY%+클릭으로 교차 영역을 선택합니다.</translation>
     </message>
     <message>
-        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>빠른 선택: 선택할 영역 위를 칠합니다. 이후의 획은 선택에 추가됩니다. Shift+드래그로 추가, %ALT%+드래그로 뺍니다.</translation>
+        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>빠른 선택: 선택할 영역 위를 칠합니다. 이후의 획은 선택에 추가됩니다. Shift+드래그로 추가, %SUBTRACT_KEY%+드래그로 뺍니다.</translation>
     </message>
     <message>
-        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>개체 선택: 개체 주위로 상자를 드래그하거나 개체를 클릭합니다. Shift+드래그로 추가, %ALT%+드래그로 뺍니다.</translation>
+        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>개체 선택: 개체 주위로 상자를 드래그하거나 개체를 클릭합니다. Shift+드래그로 추가, %SUBTRACT_KEY%+드래그로 뺍니다.</translation>
     </message>
     <message>
         <source>Daily</source>
@@ -30270,12 +30282,12 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>클릭하여 점을 놓습니다. Shift는 45도를 유지하고 %ALT%+드래그는 자유롭게 그립니다. 시작점을 클릭하거나 더블클릭하거나 Enter를 누르면 닫힙니다.</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
-        <translation>올가미: 영역 주위를 드래그하여 선택합니다. Shift+드래그로 추가, %ALT%+드래그로 빼기, Shift+%ALT%+드래그로 교차 영역을 선택합니다. 드래그 중에 %ALT%를 누르고 버튼을 놓으면 %ALT%를 뗄 때까지 클릭으로 직선 구간을 그립니다.</translation>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>올가미: 영역 주위를 드래그하여 선택합니다. Shift+드래그로 추가, %SUBTRACT_KEY%+드래그로 빼기, Shift+%SUBTRACT_KEY%+드래그로 교차 영역을 선택합니다. 드래그 중에 %ALT%를 누르고 버튼을 놓으면 %ALT%를 뗄 때까지 클릭으로 직선 구간을 그립니다.</translation>
     </message>
     <message>
-        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
-        <translation>다각형 올가미: 클릭하여 점을 놓습니다. 시작할 때 Shift+클릭은 추가, %ALT%+클릭은 빼기, Shift+%ALT%+클릭은 교차입니다. Shift는 45도를 유지하고 %ALT%+드래그는 자유롭게 그립니다. 시작점을 클릭하거나 더블클릭하거나 Enter를 누르면 닫히고, Backspace는 마지막 점을 지우며, Esc는 취소합니다.</translation>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>다각형 올가미: 클릭하여 점을 놓습니다. 시작할 때 Shift+클릭은 추가, %SUBTRACT_KEY%+클릭은 빼기, Shift+%SUBTRACT_KEY%+클릭은 교차입니다. Shift는 45도를 유지하고 %ALT%+드래그는 자유롭게 그립니다. 시작점을 클릭하거나 더블클릭하거나 Enter를 누르면 닫히고, Backspace는 마지막 점을 지우며, Esc는 취소합니다.</translation>
     </message>
     <message>
         <source>New &amp;Layer...</source>
@@ -31381,12 +31393,12 @@ The open document keeps its blend modes either way.</source>
         <translation>대상 패스(&amp;T)</translation>
     </message>
     <message>
-        <source>%1: Shift+click draws a line, %ALT%+click picks a color, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: Shift+클릭으로 직선, %ALT%+클릭으로 색 가져오기, %ALT%+오른쪽 드래그로 크기와 부드러움을 바꿉니다.</translation>
+        <source>%1: Shift+click draws a line, %PICK_KEY%+click picks a color, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: Shift+클릭으로 직선, %PICK_KEY%+클릭으로 색 가져오기, %ALT%+오른쪽 드래그로 크기와 부드러움을 바꿉니다.</translation>
     </message>
     <message>
-        <source>%1: %ALT%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: %ALT%+클릭으로 소스 지정, Shift+클릭으로 직선, %ALT%+오른쪽 드래그로 크기와 부드러움을 바꿉니다.</translation>
+        <source>%1: %SOURCE_KEY%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %SOURCE_KEY%+클릭으로 소스 지정, Shift+클릭으로 직선, %ALT%+오른쪽 드래그로 크기와 부드러움을 바꿉니다.</translation>
     </message>
     <message>
         <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
@@ -33589,8 +33601,8 @@ Locked: %1</source>
         <translation>색상 정지점 변경</translation>
     </message>
     <message>
-        <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: %ALT%+드래그로 %2 적용, Shift+클릭으로 직선, %ALT%+오른쪽 드래그로 크기와 부드러움을 바꿉니다.</translation>
+        <source>%1: %SWAP_KEY%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %SWAP_KEY%+드래그로 %2 적용, Shift+클릭으로 직선, %ALT%+오른쪽 드래그로 크기와 부드러움을 바꿉니다.</translation>
     </message>
     <message>
         <source>Pages as layers</source>

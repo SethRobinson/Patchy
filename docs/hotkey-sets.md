@@ -42,6 +42,25 @@ Rules for the tables:
 - Patchy's defaults already follow Photoshop's for most commands, so the Photoshop-style set is short; GIMP-style and Krita-style move more letters.
 - Where a program's manual gives no default for a function, the set keeps Patchy's key.
 
+## Tool modifiers
+
+GitHub issue 302. `src/ui/tool_modifier_style.cpp`. A set also says which key the on-canvas tool gestures use (`ToolModifierStyle`): Patchy default and Photoshop-style keep Alt; GIMP-style and Krita-style move to Ctrl the gestures their program's manual gives Ctrl, and nothing else. There is no general Alt/Ctrl swap. Canvas code asks `tool_modifier(role, tool)` for the key of a role, fed by the event's own modifiers; sentences name a role's key with `%ZOOM_OUT_KEY%`, `%PICK_KEY%`, `%SOURCE_KEY%`, `%SWAP_KEY%` or `%SUBTRACT_KEY%` and resolve through `resolve_tool_modifier_names(text, tool)` (status-bar tool hints, the clone source messages and the Clone Source panel). Ctrl is Command on macOS, as everywhere.
+
+| Role | Patchy, Photoshop-style | GIMP-style | Krita-style |
+|---|---|---|---|
+| Zoom tool click zooms out (`ZoomOut`) | Alt | Ctrl | Ctrl |
+| Wheel zooms (`WheelZoom`; the other key pans sideways) | Alt | Ctrl | Alt |
+| Color pick (`ColorPick`) | Alt | Ctrl: Brush, Eraser, Fill | Ctrl: Brush, Mixer Brush, Smudge, Eraser |
+| Clone and Healing source (`RetouchSource`) | Alt | Ctrl | Ctrl |
+| Dodge/Burn, Blur/Sharpen swap (`ToningSwap`, #662) | Alt | Ctrl | Alt |
+| Selection subtract, Shift+it intersect, marquee from center mid-drag (`SelectionSubtract`) | Alt | Ctrl | Alt |
+| Painting tools' temporary Move (`TemporaryMove`) | Ctrl | Alt where the tool's pick, source or swap is Ctrl | same |
+
+- Collisions: where a tool's pick, source or swap moves to Ctrl, its temporary Move (Ctrl, issues 380 and 421) takes the freed Alt, so the gesture stays. Left on Patchy's keys because neither manual gives Ctrl for them or Ctrl already means something there: the Mixer Brush, Pattern Stamp, Smudge (GIMP), Gradient and Line picks (GIMP's Gradient uses Ctrl for 15-degree steps), Eyedropper Alt (background), Alt+right-drag brush size, the marquee handles' Alt mirror, the Lasso's Alt straight segments, the Polygonal Lasso's Alt freehand run, Type Mask (Ctrl is the Type tools' temporary Move), the Hand tool's Ctrl/Alt click zoom, Move, pen, path and transform gestures, Alt-drag duplicate, and the Perspective Planes dialog. GIMP's Eraser picks into the background color and its Bucket Fill toggles foreground/background with Alt; Patchy's Eraser and Fill pick the foreground as before. A ruler guide under the pointer still takes a Ctrl press on any tool.
+- Storage (persisted identifiers): tokens `patchy`, `gimp`, `krita` (a built-in set's id is its token). `hotkeySets/toolModifiers` holds the active set's style, written by `store_user_hotkey_sets` and read at startup (`load_active_tool_modifier_style`; settings without it take the style of the built-in set in `hotkeySets/active`); each `hotkeySets/user` entry has `toolModifiers`; a hotkey file may carry `"toolModifiers"` (written only for GIMP's and Krita's; readers that do not know it ignore it, and an unknown token reads as Patchy's). Custom keeps the style of the built-in set it came from; an import takes the file's.
+- Preferences > Hotkeys shows the style read-only under the set row (`hotkeyToolModifiersLabel`); OK applies it (`set_active_tool_modifier_style`).
+- Tests: `ui_tool_modifier_style_` (roles per set, GIMP gestures and cursors, Krita's Alt subtract, Patchy default unchanged, hints), `ui_hotkey_editor_set_shows_and_applies_tool_modifiers`.
+
 ## Sources and legal limits
 
 Binding rule: [legal-licensing.md](legal-licensing.md) ("Shortcut sets"). Each table was built from the program's published user documentation only, read on November 5, 2026, and records facts (which key runs which command), never documentation text. Never use GIMP's `menurc`/`shortcutsrc`, Krita's shipped `.shortcuts` files, either program's source, or Adobe `.kys` files. Program names identify the other products only (referential use); README's trademark notice stays.
@@ -49,6 +68,7 @@ Binding rule: [legal-licensing.md](legal-licensing.md) ("Shortcut sets"). Each t
 - **Photoshop-style**: Adobe's "Default keyboard shortcuts" help page (helpx.adobe.com/photoshop/using/default-keyboard-shortcuts.html and its PDF; the live page has redirected since 2026 to a page without key tables, so its last published tables were read, capture of October 27, 2025), Adobe's Photoshop CC Windows keyboard shortcuts reference PDF (menu keys: Proof Colors, Gamut Warning, Close All) and the Layers help page (Merge Visible and the stamp key). Keys Photoshop gives a whole tool group (Shift+letter walks it) are not copied onto every member: Patchy keeps one letter per group plus its cycle command.
 - **GIMP-style**: the GIMP 3.0 User Manual (docs.gimp.org/3.0/en): each tool's and menu command's "Activating" section and the Keys and Mouse Reference (`key-reference-*.html`); the 2.10 manual matched it. The set leaves Rotate View unbound: GIMP turns the view with Shift+middle drag and its R is Rectangle Select.
 - **Krita-style**: the Krita Manual 5.3 (docs.krita.org/en): the tool pages and the main menu pages. The manual gives no key for many tools (crop, gradient, fill, text and others), so those keep Patchy's.
+- **Tool modifiers** (read November 8, 2026): GIMP 3.0 manual pages for the Zoom tool, the paint tools' common options, Eraser, Rectangle Select and the common selection tool options, Clone, Heal, Dodge/Burn, Blur/Sharpen, Bucket Fill and Gradient (each page's key modifiers); Krita Manual 5.3 pages for the Zoom tool, Freehand Brush, Color Sampler, Selections and Rectangular Selection (Alt subtracts by default; Krita's own "Switch Control/Alt Selection Modifiers" setting is not mirrored), the Clone brush engine and Navigation. Krita's pages give no wheel key and no Dodge/Burn swap, so those keep Patchy's.
 
 ## Second check (GitHub issue 645, November 6, 2026)
 

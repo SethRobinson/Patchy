@@ -23,6 +23,7 @@
 #include "ui/action_icons.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/modifier_names.hpp"
+#include "ui/tool_modifier_style.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/document_float_window.hpp"
@@ -308,35 +309,35 @@ const char* tool_activation_hint_source(CanvasTool tool) {
     // cursor already shows the drag, resize and move gestures. Shift+Alt intersects
     // everywhere except Quick Select and Object Selection, which treat it as Add.
     case CanvasTool::Marquee:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Rectangular Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, "
-             "Shift+%ALT%+drag intersects. With nothing selected, Shift draws a square and %ALT% draws from the "
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Rectangular Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, "
+             "Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a square and %SUBTRACT_KEY% draws from the "
              "center.");
     case CanvasTool::EllipticalMarquee:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Elliptical Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, "
-             "Shift+%ALT%+drag intersects. With nothing selected, Shift draws a circle and %ALT% draws from the "
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Elliptical Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, "
+             "Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a circle and %SUBTRACT_KEY% draws from the "
              "center.");
     case CanvasTool::Lasso:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, "
-             "Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight "
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Lasso: drag around the area to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, "
+             "Shift+%SUBTRACT_KEY%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight "
              "segments until %ALT% is released.");
     case CanvasTool::PolygonLasso:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Polygonal Lasso: click to place points. Start with Shift+click to add, "
-             "%ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws "
+             "%SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws "
              "freehand. Click the start point, double-click or press Enter to close; Backspace removes the last "
              "point, Esc cancels.");
     case CanvasTool::MagneticLasso:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Magnetic Lasso: click an edge and follow it; click to pin a point. Start "
-             "with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace "
+             "with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Backspace "
              "removes the last point, Enter closes, Esc cancels.");
     case CanvasTool::MagicWand:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Magic Wand: click a color to select it. Shift+click adds, %ALT%+click subtracts, "
-             "Shift+%ALT%+click intersects.");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Magic Wand: click a color to select it. Shift+click adds, %SUBTRACT_KEY%+click subtracts, "
+             "Shift+%SUBTRACT_KEY%+click intersects.");
     case CanvasTool::QuickSelect:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Quick Select: paint over the area to select; later strokes add to it. "
-             "Shift+drag adds, %ALT%+drag subtracts.");
+             "Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.");
     case CanvasTool::ObjectSelect:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Object Selection: drag a box around an object or click it. Shift+drag "
-             "adds, %ALT%+drag subtracts.");
+             "adds, %SUBTRACT_KEY%+drag subtracts.");
     default:
       return nullptr;
   }
@@ -349,18 +350,18 @@ const char* paint_tool_hint_source(CanvasTool tool) {
   switch (tool) {
     case CanvasTool::Brush:
     case CanvasTool::MixerBrush:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "%1: Shift+click draws a line, %ALT%+click picks a color, "
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "%1: Shift+click draws a line, %PICK_KEY%+click picks a color, "
              "%ALT%+right-drag changes size and softness.");
     case CanvasTool::Clone:
     case CanvasTool::Healing:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "%1: %ALT%+click sets the source, Shift+click draws a line, "
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "%1: %SOURCE_KEY%+click sets the source, Shift+click draws a line, "
              "%ALT%+right-drag changes size and softness.");
     case CanvasTool::Dodge:
     case CanvasTool::Burn:
     case CanvasTool::BlurBrush:
     case CanvasTool::SharpenBrush:
       // %2 is the opposite tool an Alt stroke paints with (GitHub issue 662).
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "%1: %ALT%+drag paints with %2, Shift+click draws a line, "
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "%1: %SWAP_KEY%+drag paints with %2, Shift+click draws a line, "
              "%ALT%+right-drag changes size and softness.");
     default:
       return tool_has_ctrl_temporary_move(tool)
@@ -1927,12 +1928,14 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     refresh_document_info();
     // Tools whose gestures the name does not explain get a one-line hint.
     if (const auto* hint = tool_activation_hint_source(selected); hint != nullptr) {
-      statusBar()->showMessage(resolve_modifier_names(tr(hint)));
+      // The role tokens name the key the active tool modifiers give it (GitHub issue 302).
+      statusBar()->showMessage(resolve_tool_modifier_names(tr(hint), selected));
     } else if (const auto* paint_hint = paint_tool_hint_source(selected); paint_hint != nullptr) {
       const auto opposite = alt_swapped_toning_tool(selected);
-      statusBar()->showMessage(resolve_modifier_names(
+      statusBar()->showMessage(resolve_tool_modifier_names(
           opposite != selected ? tr(paint_hint).arg(tool_name(selected), tool_name(opposite))
-                               : tr(paint_hint).arg(tool_name(selected))));
+                               : tr(paint_hint).arg(tool_name(selected)),
+          selected));
     } else {
       statusBar()->showMessage(tool_name(selected));
     }

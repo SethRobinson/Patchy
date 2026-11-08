@@ -227,6 +227,7 @@ const HotkeyCommand* find_command(const std::vector<HotkeyCommand>& commands, co
 // own, never under "hotkeys", whose every child key the registry reads as a command id.
 const QString kSetsGroup = QStringLiteral("hotkeySets");
 const QString kActiveKey = QStringLiteral("hotkeySets/active");
+const QString kToolModifiersKey = QStringLiteral("hotkeySets/toolModifiers");
 const QString kLastFolderKey = QStringLiteral("hotkeySets/lastFolder");
 const QString kUserArray = QStringLiteral("user");
 
@@ -301,7 +302,8 @@ std::vector<UserHotkeySet> load_user_hotkey_sets(const std::vector<HotkeyCommand
     if (id.isEmpty() || duplicate || !read.ok) {
       continue;
     }
-    sets.push_back({id, settings.value(QStringLiteral("name")).toString(), std::move(read.overrides)});
+    sets.push_back({id, settings.value(QStringLiteral("name")).toString(), std::move(read.overrides),
+                    tool_modifier_style_from_token(settings.value(QStringLiteral("toolModifiers")).toString())});
   }
   settings.endArray();
   settings.endGroup();
@@ -324,10 +326,16 @@ void store_user_hotkey_sets(const std::vector<UserHotkeySet>& sets, const QStrin
     settings.setValue(QStringLiteral("id"), set.id);
     settings.setValue(QStringLiteral("name"), set.name);
     settings.setValue(QStringLiteral("shortcuts"), QString::fromUtf8(hotkey_overrides_to_json(set.overrides)));
+    settings.setValue(QStringLiteral("toolModifiers"), tool_modifier_style_token(set.tool_modifiers));
   }
   settings.endArray();
   settings.endGroup();
   settings.setValue(kActiveKey, active_id);
+  const auto active_user_set =
+      std::find_if(sets.begin(), sets.end(), [&active_id](const UserHotkeySet& set) { return set.id == active_id; });
+  const auto active_style = active_user_set != sets.end() ? active_user_set->tool_modifiers
+                                                          : builtin_set_tool_modifier_style(active_id);
+  settings.setValue(kToolModifiersKey, tool_modifier_style_token(active_style));
   if (last_folder.isValid()) {
     settings.setValue(kLastFolderKey, last_folder);
   }

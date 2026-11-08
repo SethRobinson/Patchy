@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ui/hotkey_registry.hpp"
+#include "ui/tool_modifier_style.hpp"
 
 #include <QByteArray>
 #include <QString>
@@ -20,7 +21,10 @@ inline constexpr const char* kHotkeyFileSuffix = "patchykeys";
 // Larger files are refused before parsing (every real set is a few kilobytes).
 inline constexpr qint64 kHotkeyFileMaxBytes = 1024 * 1024;
 
-[[nodiscard]] QByteArray hotkey_overrides_to_json(const HotkeyOverrideMap& overrides);
+// A style other than Patchy's adds "toolModifiers": "gimp" or "krita" (GitHub issue 302);
+// readers that do not know the key ignore it.
+[[nodiscard]] QByteArray hotkey_overrides_to_json(const HotkeyOverrideMap& overrides,
+                                                  ToolModifierStyle tool_modifiers = ToolModifierStyle::Patchy);
 
 struct HotkeyFileReadResult {
   bool ok{false};
@@ -29,6 +33,8 @@ struct HotkeyFileReadResult {
   HotkeyOverrideMap overrides;
   int skipped_commands{0};  // command ids this Patchy does not have
   int skipped_keys{0};      // key texts that did not parse, or keys reserved for the canvas
+  // The file's "toolModifiers"; Patchy's when it has none or names one this Patchy lacks.
+  ToolModifierStyle tool_modifiers{ToolModifierStyle::Patchy};
 };
 
 // Parses a hotkey file against the registered commands. Unknown ids and unusable keys are
@@ -37,6 +43,7 @@ struct HotkeyFileReadResult {
                                                               const std::vector<HotkeyCommand>& commands);
 [[nodiscard]] HotkeyFileReadResult read_hotkey_file(const QString& path, const std::vector<HotkeyCommand>& commands);
 // Writes atomically (write_file_bytes_atomically). False with a translated `error` on failure.
-[[nodiscard]] bool write_hotkey_file(const QString& path, const HotkeyOverrideMap& overrides, QString* error);
+[[nodiscard]] bool write_hotkey_file(const QString& path, const HotkeyOverrideMap& overrides, QString* error,
+                                     ToolModifierStyle tool_modifiers = ToolModifierStyle::Patchy);
 
 }  // namespace patchy::ui

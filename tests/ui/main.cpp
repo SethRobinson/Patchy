@@ -403,6 +403,7 @@ int main(int argc, char* argv[]) {
            destructive_filters_gallery_tests,
            pickers_notices_hotkeys_tests,
            hotkey_sets_tests,
+           tool_modifier_style_tests,
            canvas_view_tools_tests,
            view_rotation_tests,
            layer_context_lifecycle_tests,

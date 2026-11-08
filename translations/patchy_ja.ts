@@ -16445,12 +16445,12 @@ Do you want to replace it?</source>
         <translation>処理中...</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a clone source</source>
-        <translation>%ALT% クリックでクローン元を設定します</translation>
+        <source>%SOURCE_KEY%-click to set a clone source</source>
+        <translation>%SOURCE_KEY% クリックでクローン元を設定します</translation>
     </message>
     <message>
-        <source>%ALT%-click to set a healing source</source>
-        <translation>%ALT% クリックで修復元を設定します</translation>
+        <source>%SOURCE_KEY%-click to set a healing source</source>
+        <translation>%SOURCE_KEY% クリックで修復元を設定します</translation>
     </message>
     <message>
         <source>Select the Clone or Healing Brush tool to set a sample source</source>
@@ -17413,8 +17413,8 @@ Do you want to replace it?</source>
         <translation>グラデーションの中間点を移動</translation>
     </message>
     <message>
-        <source>%1 while %ALT% is held</source>
-        <translation>%ALT%を押している間は%1</translation>
+        <source>%1 while %SWAP_KEY% is held</source>
+        <translation>%SWAP_KEY%を押している間は%1</translation>
     </message>
     <message>
         <source>Drag to move this color stop. Drag it off the line or select it and press Delete to remove it, right-click for more, double-click to change its color.</source>
@@ -17655,8 +17655,8 @@ Do you want to replace it?</source>
         <translation>ソース %1: 未設定</translation>
     </message>
     <message>
-        <source>Not set: %ALT%-click the canvas</source>
-        <translation>未設定: カンバスを %ALT% クリックしてください</translation>
+        <source>Not set: %SOURCE_KEY%-click the canvas</source>
+        <translation>未設定: カンバスを %SOURCE_KEY% クリックしてください</translation>
     </message>
     <message>
         <source>Aligned is off: every stroke starts at the source point.</source>
@@ -17695,8 +17695,8 @@ Do you want to replace it?</source>
         <translation>ソースをクリア</translation>
     </message>
     <message>
-        <source>Clear this source point; %ALT%-click the canvas to set a new one</source>
-        <translation>このソースポイントをクリアします。新しく設定するにはカンバスを %ALT% クリックします</translation>
+        <source>Clear this source point; %SOURCE_KEY%-click the canvas to set a new one</source>
+        <translation>このソースポイントをクリアします。新しく設定するにはカンバスを %SOURCE_KEY% クリックします</translation>
     </message>
     <message>
         <source>Back to 100%, 0 degrees and no flip; the source point stays</source>
@@ -20606,6 +20606,18 @@ Do you want to replace it?</source>
     <message>
         <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
         <translation>%1 は組み込みのため、変更は「カスタム」セットに入りました。自分のセットとして残すには名前を変更してください。</translation>
+    </message>
+    <message>
+        <source>Tool modifiers as in GIMP: %CTRL% zooms out, zooms with the wheel, picks colors with the Brush, Eraser and Fill tools, sets the clone source, swaps Dodge and Burn or Blur and Sharpen, and subtracts from a selection. Where %CTRL% picks, sets the source or swaps, %ALT% is the temporary Move.</source>
+        <translation>GIMP と同じツール修飾キー: %CTRL% でズームアウト、ホイールでズーム、ブラシ・消しゴム・塗りつぶしで色を取得、クローン元を設定、覆い焼きと焼き込みまたはぼかしとシャープを入れ替え、選択範囲から削除します。%CTRL% で色の取得、ソースの設定、入れ替えをするツールでは、%ALT% が一時的な移動になります。</translation>
+    </message>
+    <message>
+        <source>Tool modifiers as in Krita: %CTRL% zooms out, picks colors with the Brush, Mixer Brush, Smudge and Eraser tools, and sets the clone source; %ALT% subtracts from a selection. Where %CTRL% picks or sets the source, %ALT% is the temporary Move.</source>
+        <translation>Krita と同じツール修飾キー: %CTRL% でズームアウト、ブラシ・ミキサーブラシ・指先・消しゴムで色を取得、クローン元を設定します。%ALT% で選択範囲から削除します。%CTRL% で色の取得やソースの設定をするツールでは、%ALT% が一時的な移動になります。</translation>
+    </message>
+    <message>
+        <source>Tool modifiers: %ALT% zooms out, picks colors, sets the clone source and subtracts from a selection; %CTRL% is the painting tools&apos; temporary Move. The GIMP-style and Krita-style sets use %CTRL% instead.</source>
+        <translation>ツール修飾キー: %ALT% でズームアウト、色を取得、クローン元を設定、選択範囲から削除します。%CTRL% はペイントツールの一時的な移動です。GIMP 風と Krita 風のセットでは代わりに %CTRL% を使います。</translation>
     </message>
 </context>
 <context>
@@ -29812,28 +29824,28 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         </translation>
     </message>
     <message>
-        <source>Rectangular Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a square and %ALT% draws from the center.</source>
-        <translation>長方形選択: ドラッグして選択します。Shift+ドラッグで追加、%ALT%+ドラッグで削除、Shift+%ALT%+ドラッグで共通範囲を選択します。選択範囲がないときは、Shiftで正方形、%ALT%で中心から描きます。</translation>
+        <source>Rectangular Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a square and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>長方形選択: ドラッグして選択します。Shift+ドラッグで追加、%SUBTRACT_KEY%+ドラッグで削除、Shift+%SUBTRACT_KEY%+ドラッグで共通範囲を選択します。選択範囲がないときは、Shiftで正方形、%SUBTRACT_KEY%で中心から描きます。</translation>
     </message>
     <message>
-        <source>Elliptical Marquee: drag to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. With nothing selected, Shift draws a circle and %ALT% draws from the center.</source>
-        <translation>楕円形選択: ドラッグして選択します。Shift+ドラッグで追加、%ALT%+ドラッグで削除、Shift+%ALT%+ドラッグで共通範囲を選択します。選択範囲がないときは、Shiftで正円、%ALT%で中心から描きます。</translation>
+        <source>Elliptical Marquee: drag to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. With nothing selected, Shift draws a circle and %SUBTRACT_KEY% draws from the center.</source>
+        <translation>楕円形選択: ドラッグして選択します。Shift+ドラッグで追加、%SUBTRACT_KEY%+ドラッグで削除、Shift+%SUBTRACT_KEY%+ドラッグで共通範囲を選択します。選択範囲がないときは、Shiftで正円、%SUBTRACT_KEY%で中心から描きます。</translation>
     </message>
     <message>
-        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
-        <translation>マグネット選択: エッジをクリックしてなぞり、クリックでポイントを固定します。開始時にShift+クリックで追加、%ALT%+クリックで削除、Shift+%ALT%+クリックで共通範囲になります。Backspaceで最後のポイントを削除、Enterで閉じ、Escでキャンセルします。</translation>
+        <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
+        <translation>マグネット選択: エッジをクリックしてなぞり、クリックでポイントを固定します。開始時にShift+クリックで追加、%SUBTRACT_KEY%+クリックで削除、Shift+%SUBTRACT_KEY%+クリックで共通範囲になります。Backspaceで最後のポイントを削除、Enterで閉じ、Escでキャンセルします。</translation>
     </message>
     <message>
-        <source>Magic Wand: click a color to select it. Shift+click adds, %ALT%+click subtracts, Shift+%ALT%+click intersects.</source>
-        <translation>自動選択: 色をクリックして選択します。Shift+クリックで追加、%ALT%+クリックで削除、Shift+%ALT%+クリックで共通範囲を選択します。</translation>
+        <source>Magic Wand: click a color to select it. Shift+click adds, %SUBTRACT_KEY%+click subtracts, Shift+%SUBTRACT_KEY%+click intersects.</source>
+        <translation>自動選択: 色をクリックして選択します。Shift+クリックで追加、%SUBTRACT_KEY%+クリックで削除、Shift+%SUBTRACT_KEY%+クリックで共通範囲を選択します。</translation>
     </message>
     <message>
-        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>クイック選択: 選択する範囲をなぞって塗ります。2回目以降のストロークは追加されます。Shift+ドラッグで追加、%ALT%+ドラッグで削除します。</translation>
+        <source>Quick Select: paint over the area to select; later strokes add to it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>クイック選択: 選択する範囲をなぞって塗ります。2回目以降のストロークは追加されます。Shift+ドラッグで追加、%SUBTRACT_KEY%+ドラッグで削除します。</translation>
     </message>
     <message>
-        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %ALT%+drag subtracts.</source>
-        <translation>オブジェクト選択: オブジェクトを囲むようにドラッグするか、クリックします。Shift+ドラッグで追加、%ALT%+ドラッグで削除します。</translation>
+        <source>Object Selection: drag a box around an object or click it. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts.</source>
+        <translation>オブジェクト選択: オブジェクトを囲むようにドラッグするか、クリックします。Shift+ドラッグで追加、%SUBTRACT_KEY%+ドラッグで削除します。</translation>
     </message>
     <message>
         <source>Daily</source>
@@ -30270,12 +30282,12 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>クリックでポイントを置きます。Shiftで45度に固定、%ALT%+ドラッグでフリーハンドで描きます。開始点をクリック、ダブルクリック、またはEnterで閉じます。</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
-        <translation>なげなわ: 範囲を囲むようにドラッグして選択します。Shift+ドラッグで追加、%ALT%+ドラッグで削除、Shift+%ALT%+ドラッグで共通範囲を選択します。ドラッグ中に%ALT%を押してボタンを離すと、%ALT%を離すまでクリックで直線を描けます。</translation>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %SUBTRACT_KEY%+drag subtracts, Shift+%SUBTRACT_KEY%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>なげなわ: 範囲を囲むようにドラッグして選択します。Shift+ドラッグで追加、%SUBTRACT_KEY%+ドラッグで削除、Shift+%SUBTRACT_KEY%+ドラッグで共通範囲を選択します。ドラッグ中に%ALT%を押してボタンを離すと、%ALT%を離すまでクリックで直線を描けます。</translation>
     </message>
     <message>
-        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
-        <translation>多角形選択: クリックでポイントを置きます。開始時にShift+クリックで追加、%ALT%+クリックで削除、Shift+%ALT%+クリックで共通範囲になります。Shiftで45度に固定、%ALT%+ドラッグでフリーハンドで描きます。開始点をクリック、ダブルクリック、またはEnterで閉じ、Backspaceで最後のポイントを削除、Escでキャンセルします。</translation>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %SUBTRACT_KEY%+click to subtract, Shift+%SUBTRACT_KEY%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>多角形選択: クリックでポイントを置きます。開始時にShift+クリックで追加、%SUBTRACT_KEY%+クリックで削除、Shift+%SUBTRACT_KEY%+クリックで共通範囲になります。Shiftで45度に固定、%ALT%+ドラッグでフリーハンドで描きます。開始点をクリック、ダブルクリック、またはEnterで閉じ、Backspaceで最後のポイントを削除、Escでキャンセルします。</translation>
     </message>
     <message>
         <source>New &amp;Layer...</source>
@@ -31381,12 +31393,12 @@ The open document keeps its blend modes either way.</source>
         <translation>ターゲットパス(&amp;T)</translation>
     </message>
     <message>
-        <source>%1: Shift+click draws a line, %ALT%+click picks a color, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: Shift+クリックで直線、%ALT%+クリックで色を取得、%ALT%+右ドラッグでサイズとぼかしを変更します。</translation>
+        <source>%1: Shift+click draws a line, %PICK_KEY%+click picks a color, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: Shift+クリックで直線、%PICK_KEY%+クリックで色を取得、%ALT%+右ドラッグでサイズとぼかしを変更します。</translation>
     </message>
     <message>
-        <source>%1: %ALT%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: %ALT%+クリックでソースを設定、Shift+クリックで直線、%ALT%+右ドラッグでサイズとぼかしを変更します。</translation>
+        <source>%1: %SOURCE_KEY%+click sets the source, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %SOURCE_KEY%+クリックでソースを設定、Shift+クリックで直線、%ALT%+右ドラッグでサイズとぼかしを変更します。</translation>
     </message>
     <message>
         <source>%1: Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
@@ -33589,8 +33601,8 @@ Locked: %1</source>
         <translation>カラー分岐点を変更</translation>
     </message>
     <message>
-        <source>%1: %ALT%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
-        <translation>%1: %ALT%+ドラッグで%2として描画、Shift+クリックで直線、%ALT%+右ドラッグでサイズとぼかしを変更します。</translation>
+        <source>%1: %SWAP_KEY%+drag paints with %2, Shift+click draws a line, %ALT%+right-drag changes size and softness.</source>
+        <translation>%1: %SWAP_KEY%+ドラッグで%2として描画、Shift+クリックで直線、%ALT%+右ドラッグでサイズとぼかしを変更します。</translation>
     </message>
     <message>
         <source>Pages as layers</source>
