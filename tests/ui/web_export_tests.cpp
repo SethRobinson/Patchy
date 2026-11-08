@@ -2157,6 +2157,10 @@ void ui_web_export_preview_buttons_fit_at_minimum_size() {
 void ui_web_export_view_row_order_and_zoom_controls() {
   WebExportSettingsGuard guard;
   with_web_export_dialog(textured_document(320, 200), [&](QDialog& dialog) {
+    // A result that arrives after the 100% click resets the pane to Fit, so wait for it first.
+    auto* preview = dialog.findChild<QWidget*>(QStringLiteral("webExportPreview"));
+    CHECK(preview != nullptr &&
+          wait_until([&] { return preview->property("webExportShowsCurrent").toBool(); }));
     dialog.resize(dialog.minimumSize());
     QApplication::processEvents();
     auto* row = dialog.findChild<QWidget*>(QStringLiteral("webExportViewRow"));
