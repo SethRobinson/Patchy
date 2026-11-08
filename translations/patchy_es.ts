@@ -33700,6 +33700,66 @@ Bloqueada: %1</translation>
         <source>Opening multi-page TIFFs:</source>
         <translation>Al abrir TIFF de varias páginas:</translation>
     </message>
+    <message>
+        <source>Clear the layer filter to reorder layers</source>
+        <translation>Quita el filtro de capas para reordenar capas</translation>
+    </message>
+    <message>
+        <source>Filter layers by type, properties, row color or selection</source>
+        <translation>Filtrar capas por tipo, propiedades, color de fila o selección</translation>
+    </message>
+    <message>
+        <source>Clear the layer filter and show every layer</source>
+        <translation>Quitar el filtro de capas y mostrar todas las capas</translation>
+    </message>
+    <message>
+        <source>Row Color (%1)</source>
+        <translation>Color de fila (%1)</translation>
+    </message>
+    <message>
+        <source>Row Color</source>
+        <translation>Color de fila</translation>
+    </message>
+    <message>
+        <source>Layer Type</source>
+        <translation>Tipo de capa</translation>
+    </message>
+    <message>
+        <source>Pixel</source>
+        <translation>Píxeles</translation>
+    </message>
+    <message>
+        <source>Text</source>
+        <translation>Texto</translation>
+    </message>
+    <message>
+        <source>Adjustment or Fill</source>
+        <translation>Ajuste o relleno</translation>
+    </message>
+    <message>
+        <source>Smart Object</source>
+        <translation>Objeto inteligente</translation>
+    </message>
+    <message>
+        <source>Has a Mask</source>
+        <translation>Tiene máscara</translation>
+    </message>
+    <message>
+        <source>Has a Layer Style</source>
+        <translation>Tiene estilo de capa</translation>
+    </message>
+    <message>
+        <source>Locked</source>
+        <translation>Bloqueadas</translation>
+    </message>
+    <message>
+        <source>Selected Only</source>
+        <translation>Solo seleccionadas</translation>
+    </message>
+    <message>
+        <source>Clear Filter</source>
+        <translation>Quitar filtro</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

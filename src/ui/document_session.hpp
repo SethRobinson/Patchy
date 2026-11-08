@@ -30,6 +30,34 @@ namespace patchy::ui {
 class CanvasWidget;
 class DocumentFloatWindow;
 
+// The Layers panel's filter menu (GitHub issue 671, docs/layer-panel-filter.md):
+// the criteria that, with the name text, decide which layers get rows. Within a group a layer
+// matches any ticked item; the groups, Selected only and the name text must all match.
+// Session-only: never written to a file or to settings.
+inline constexpr std::uint32_t kLayerFilterPixel = 1U << 0U;
+inline constexpr std::uint32_t kLayerFilterText = 1U << 1U;
+inline constexpr std::uint32_t kLayerFilterShape = 1U << 2U;
+inline constexpr std::uint32_t kLayerFilterAdjustment = 1U << 3U;  // adjustment and fill layers
+inline constexpr std::uint32_t kLayerFilterSmartObject = 1U << 4U;
+inline constexpr std::uint32_t kLayerFilterFolder = 1U << 5U;
+inline constexpr std::uint32_t kLayerFilterHasMask = 1U << 0U;  // a layer mask or a vector mask
+inline constexpr std::uint32_t kLayerFilterHasStyle = 1U << 1U;
+inline constexpr std::uint32_t kLayerFilterHidden = 1U << 2U;
+inline constexpr std::uint32_t kLayerFilterLocked = 1U << 3U;
+struct LayerListFilter {
+  std::uint32_t kinds{0};       // kLayerFilterPixel...kLayerFilterFolder
+  std::uint32_t properties{0};  // kLayerFilterHasMask...kLayerFilterLocked
+  std::uint32_t colors{0};      // bit (1 << LayerColorLabel)
+  bool selected_only{false};
+  // The layers Selected only lists, besides the active layer. Follows selection changes made
+  // outside the panel (reveal_layer_in_layer_list, select_layers_in_layer_list); clicks in the
+  // panel leave it, so the rows stay to pick among.
+  std::set<LayerId> selected_ids;
+  [[nodiscard]] bool active() const noexcept {
+    return kinds != 0U || properties != 0U || colors != 0U || selected_only;
+  }
+};
+
 struct DocumentSession {
   using HistoryState = SessionHistory::State;
 
@@ -94,6 +122,9 @@ struct DocumentSession {
   std::set<LayerId> expanded_layer_effects;
   // Layers whose Smart Filter rows are closed in the Layers panel: open by default (issue 361).
   std::set<LayerId> collapsed_smart_filters;
+  // The Layers panel filter menu's criteria for this document (issue 671); the name text is
+  // the panel's own field.
+  LayerListFilter layer_filter;
   // Alt-click eye isolation. `saved` is the pre-isolation visibility snapshot
   // (pre-order); `applied` is the state right after isolating, so any outside
   // visibility change invalidates the restore and the next Alt-click starts a

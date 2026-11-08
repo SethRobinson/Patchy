@@ -33612,6 +33612,66 @@ Locked: %1</source>
         <source>Opening multi-page TIFFs:</source>
         <translation>開啟多頁 TIFF：</translation>
     </message>
+    <message>
+        <source>Clear the layer filter to reorder layers</source>
+        <translation>清除圖層篩選後才能重新排列圖層</translation>
+    </message>
+    <message>
+        <source>Filter layers by type, properties, row color or selection</source>
+        <translation>依類型、屬性、列顏色或選取範圍篩選圖層</translation>
+    </message>
+    <message>
+        <source>Clear the layer filter and show every layer</source>
+        <translation>清除圖層篩選並顯示所有圖層</translation>
+    </message>
+    <message>
+        <source>Row Color (%1)</source>
+        <translation>列顏色 (%1)</translation>
+    </message>
+    <message>
+        <source>Row Color</source>
+        <translation>列顏色</translation>
+    </message>
+    <message>
+        <source>Layer Type</source>
+        <translation>圖層類型</translation>
+    </message>
+    <message>
+        <source>Pixel</source>
+        <translation>像素</translation>
+    </message>
+    <message>
+        <source>Text</source>
+        <translation>文字</translation>
+    </message>
+    <message>
+        <source>Adjustment or Fill</source>
+        <translation>調整或填色</translation>
+    </message>
+    <message>
+        <source>Smart Object</source>
+        <translation>智慧型物件</translation>
+    </message>
+    <message>
+        <source>Has a Mask</source>
+        <translation>有遮色片</translation>
+    </message>
+    <message>
+        <source>Has a Layer Style</source>
+        <translation>有圖層樣式</translation>
+    </message>
+    <message>
+        <source>Locked</source>
+        <translation>已鎖定</translation>
+    </message>
+    <message>
+        <source>Selected Only</source>
+        <translation>僅限選取的</translation>
+    </message>
+    <message>
+        <source>Clear Filter</source>
+        <translation>清除篩選</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

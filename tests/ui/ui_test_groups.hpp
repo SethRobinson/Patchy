@@ -86,6 +86,7 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests();
 std::vector<patchy::test::TestCase> vector_commands_tests();
 std::vector<patchy::test::TestCase> vector_path_edits_tests();
 std::vector<patchy::test::TestCase> layer_merge_tests();
+std::vector<patchy::test::TestCase> layer_filter_menu_tests();
 std::vector<patchy::test::TestCase> vector_scripting_tests();
 std::vector<patchy::test::TestCase> svg_ui_tests();
 std::vector<patchy::test::TestCase> ora_ui_tests();

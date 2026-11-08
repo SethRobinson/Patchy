@@ -64,6 +64,11 @@ QIcon text_character_style_icon(int style);
 // device pixels at any screen scale.
 QIcon layer_lock_icon(const QString& kind, QColor ThemePalette::* ink_role);
 
+// The Layers panel filter button (GitHub issue 671): three bars, each shorter than the one
+// above it, centered; and its clear button's cross.
+QIcon layer_filter_icon();
+QIcon layer_filter_clear_icon();
+
 // A one-off procedural mark: a glyph outside the shared icon vocabulary, drawn by
 // the caller against an `authored_size` square area with the ink handed to it.
 // Use this rather than painting into a QPixmap and wrapping it in a QIcon. A

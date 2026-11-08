@@ -33788,6 +33788,66 @@ Zablokowano: %1</translation>
         <source>Opening multi-page TIFFs:</source>
         <translation>Otwieranie wielostronicowych TIFF:</translation>
     </message>
+    <message>
+        <source>Clear the layer filter to reorder layers</source>
+        <translation>Wyczyść filtr warstw, aby zmienić kolejność warstw</translation>
+    </message>
+    <message>
+        <source>Filter layers by type, properties, row color or selection</source>
+        <translation>Filtruj warstwy według typu, właściwości, koloru wiersza lub zaznaczenia</translation>
+    </message>
+    <message>
+        <source>Clear the layer filter and show every layer</source>
+        <translation>Wyczyść filtr warstw i pokaż wszystkie warstwy</translation>
+    </message>
+    <message>
+        <source>Row Color (%1)</source>
+        <translation>Kolor wiersza (%1)</translation>
+    </message>
+    <message>
+        <source>Row Color</source>
+        <translation>Kolor wiersza</translation>
+    </message>
+    <message>
+        <source>Layer Type</source>
+        <translation>Typ warstwy</translation>
+    </message>
+    <message>
+        <source>Pixel</source>
+        <translation>Piksele</translation>
+    </message>
+    <message>
+        <source>Text</source>
+        <translation>Tekst</translation>
+    </message>
+    <message>
+        <source>Adjustment or Fill</source>
+        <translation>Dopasowanie lub wypełnienie</translation>
+    </message>
+    <message>
+        <source>Smart Object</source>
+        <translation>Obiekt inteligentny</translation>
+    </message>
+    <message>
+        <source>Has a Mask</source>
+        <translation>Ma maskę</translation>
+    </message>
+    <message>
+        <source>Has a Layer Style</source>
+        <translation>Ma styl warstwy</translation>
+    </message>
+    <message>
+        <source>Locked</source>
+        <translation>Zablokowane</translation>
+    </message>
+    <message>
+        <source>Selected Only</source>
+        <translation>Tylko zaznaczone</translation>
+    </message>
+    <message>
+        <source>Clear Filter</source>
+        <translation>Wyczyść filtr</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

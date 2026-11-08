@@ -96,6 +96,10 @@ Its entries (patch-based algorithms, the filter allowlist, point handles, exclus
 
 - **Context menus use only Patchy's own commands** (GitHub issue 323): never another editor's menu set, order or grouping, even when an issue posts its screenshots ([canvas-context-menu.md](canvas-context-menu.md)).
 
+## Layers panel filter
+
+- **The filter menu is Patchy's own and filters stored layer properties only** (GitHub issue 671, decided 2026-11-08, [record](patent-research.md), [design](layer-panel-filter.md)). One button opens checkable criteria that combine (Layer Type, Properties, Row Color, Selected Only); never another editor's filter row, mode list, order, one-mode dropdown or row of kind toggles, even when an issue posts its screenshots. Criteria read what the layer already stores (kind, mask, style, visibility, locks, color label, selection); never labels or classes a model assigns or updates for the filter (Adobe US 12056791, claim 12 builds on that, to 2042-10-15).
+
 ## Format, copyright, trademarks, and assets
 
 Moved to [legal-licensing.md](legal-licensing.md#format-copyright-trademarks-and-assets).

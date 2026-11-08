@@ -33612,6 +33612,66 @@ Locked: %1</source>
         <source>Opening multi-page TIFFs:</source>
         <translation>マルチページ TIFF を開くとき:</translation>
     </message>
+    <message>
+        <source>Clear the layer filter to reorder layers</source>
+        <translation>レイヤーを並べ替えるにはレイヤーフィルターを解除してください</translation>
+    </message>
+    <message>
+        <source>Filter layers by type, properties, row color or selection</source>
+        <translation>種類、プロパティ、行の色、選択でレイヤーを絞り込みます</translation>
+    </message>
+    <message>
+        <source>Clear the layer filter and show every layer</source>
+        <translation>レイヤーフィルターを解除してすべてのレイヤーを表示します</translation>
+    </message>
+    <message>
+        <source>Row Color (%1)</source>
+        <translation>行の色 (%1)</translation>
+    </message>
+    <message>
+        <source>Row Color</source>
+        <translation>行の色</translation>
+    </message>
+    <message>
+        <source>Layer Type</source>
+        <translation>レイヤーの種類</translation>
+    </message>
+    <message>
+        <source>Pixel</source>
+        <translation>ピクセル</translation>
+    </message>
+    <message>
+        <source>Text</source>
+        <translation>テキスト</translation>
+    </message>
+    <message>
+        <source>Adjustment or Fill</source>
+        <translation>調整または塗りつぶし</translation>
+    </message>
+    <message>
+        <source>Smart Object</source>
+        <translation>スマートオブジェクト</translation>
+    </message>
+    <message>
+        <source>Has a Mask</source>
+        <translation>マスクあり</translation>
+    </message>
+    <message>
+        <source>Has a Layer Style</source>
+        <translation>レイヤースタイルあり</translation>
+    </message>
+    <message>
+        <source>Locked</source>
+        <translation>ロック</translation>
+    </message>
+    <message>
+        <source>Selected Only</source>
+        <translation>選択中のみ</translation>
+    </message>
+    <message>
+        <source>Clear Filter</source>
+        <translation>フィルターを解除</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

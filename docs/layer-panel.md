@@ -6,6 +6,7 @@ Related documents:
 
 - [layer-panel-selection.md](layer-panel-selection.md): row click, modifier and range selection, thumbnail Ctrl-click selection loads with the thumbnail and badge menus, canvas-requested selection, the deselected state and the selected count.
 - [layer-panel-row-controls.md](layer-panel-row-controls.md): the folder disclosure arrow, row and thumbnail double-clicks with inline rename, the visibility eye and its sweep, and the Layer Styles and Smart Filters rows listed under a layer.
+- [layer-panel-filter.md](layer-panel-filter.md): the filter menu beside the name field (issue 671): criteria, how they combine, Selected Only, session state.
 - [layer-drag-duplicate.md](layer-drag-duplicate.md): drags to another document, Duplicate Layer, and layer export (Quick Export as PNG, Export As...).
 
 ## Row styling
@@ -51,7 +52,7 @@ Canvas-driven selection never rebuilds existing rows. `reveal_layer_in_layer_lis
 
 Row masks: `LayerListWidget::update_row_viewport_masks` (on scroll, resize, range, value and focus changes) masks the rows under the raised scroll bars. Scroll-bar rects map through global coordinates (the bars are siblings of the viewport). Only rows in view change. Test: `ui_layer_list_row_masks_map_scroll_bars_without_warnings`.
 
-The list may omit rows: collapsed folders and the name filter (`layerNameFilterEdit`) rebuild without rows for excluded layers. Never assume every layer has a row, and never add a "row exists but hidden" state: absent rows are the one not-shown state consumers handle. While the name filter is active, `LayerListWidget::set_drag_blocked` refuses drag reordering because a reorder would silently move filtered-out layers; each refused attempt reports through `show_status_error` and leftover held-button moves are swallowed so the base view cannot start a drag-selection sweep.
+The list may omit rows: collapsed folders and the filter (the name text in `layerNameFilterEdit` and the filter menu's criteria) rebuild without rows for excluded layers ([layer-panel-filter.md](layer-panel-filter.md)). Never assume every layer has a row, and never add a "row exists but hidden" state: absent rows are the one not-shown state consumers handle. While any filter is active (`layer_list_filter_active`), `LayerListWidget::set_drag_blocked` refuses drag reordering because a reorder would silently move filtered-out layers; each refused attempt reports through `show_status_error` (it names the name filter while there is name text) and leftover held-button moves are swallowed so the base view cannot start a drag-selection sweep.
 
 ## Blend and opacity row
 

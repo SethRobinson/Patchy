@@ -1371,7 +1371,11 @@ void MainWindow::create_docks() {
   layer_list->set_file_drop_paths_callback(
       [this](const QMimeData* mime_data) { return supported_layer_drop_paths(mime_data); });
   layer_list->set_drag_blocked_callback([this] {
-    show_status_error(tr("Clear the layer name filter to reorder layers"));
+    if (layer_name_filter_edit_ != nullptr && !layer_name_filter_edit_->text().isEmpty()) {
+      show_status_error(tr("Clear the layer name filter to reorder layers"));
+    } else {
+      show_status_error(tr("Clear the layer filter to reorder layers"));
+    }
   });
   layer_list->set_clip_boundary_callbacks(
       [this](LayerId upper, LayerId lower) {
@@ -1802,8 +1806,37 @@ void MainWindow::create_docks() {
   bind_widget_text(layer_name_filter_edit_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Filter layers by name..."));
   connect(layer_name_filter_edit_, &QLineEdit::textChanged, this, [this] { refresh_layer_list(); });
   register_document_widget(layer_name_filter_edit_);
+  // The filter menu (GitHub issue 671) sits just left of the name field, so it wraps with the
+  // field onto the second line of a narrow column; its clear button shows only while a
+  // criterion is ticked.
+  auto* filter_group = new QHBoxLayout();
+  filter_group->setContentsMargins(0, 0, 0, 0);
+  filter_group->setSpacing(4);
+  layer_filter_button_ = new QToolButton(layers_panel);
+  layer_filter_button_->setObjectName(QStringLiteral("layerFilterButton"));
+  layer_filter_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  layer_filter_button_->setIcon(layer_filter_icon());
+  layer_filter_button_->setIconSize(QSize(16, 16));
+  layer_filter_button_->setFixedSize(24, 24);
+  bind_tooltip(layer_filter_button_, QT_TR_NOOP("Filter layers by type, properties, row color or selection"));
+  connect(layer_filter_button_, &QToolButton::clicked, this, [this] { show_layer_filter_menu(); });
+  register_document_widget(layer_filter_button_);
+  layer_filter_clear_button_ = new QToolButton(layers_panel);
+  layer_filter_clear_button_->setObjectName(QStringLiteral("layerFilterClearButton"));
+  layer_filter_clear_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  layer_filter_clear_button_->setIcon(layer_filter_clear_icon());
+  layer_filter_clear_button_->setIconSize(QSize(16, 16));
+  layer_filter_clear_button_->setFixedSize(24, 24);
+  bind_tooltip(layer_filter_clear_button_, QT_TR_NOOP("Clear the layer filter and show every layer"));
+  connect(layer_filter_clear_button_, &QToolButton::clicked, this, [this] { clear_layer_list_filter(); });
+  register_document_widget(layer_filter_clear_button_);
+  layer_filter_clear_button_->hide();
+  build_layer_filter_menu();
+  filter_group->addWidget(layer_filter_button_);
+  filter_group->addWidget(layer_filter_clear_button_);
   lock_group->addLayout(lock_controls);
   lock_row->add_layout(lock_group);
+  lock_row->add_layout(filter_group);
   // Rides the otherwise-empty stretch space beside the lock buttons instead of
   // spending a panel row of its own, until that space drops under a few
   // characters' typing room.

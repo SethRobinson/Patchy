@@ -2690,6 +2690,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/vector_commands_tests.cpp
       tests/ui/vector_path_edits_tests.cpp
       tests/ui/layer_merge_tests.cpp
+      tests/ui/layer_filter_menu_tests.cpp
       tests/ui/vector_scripting_tests.cpp
       tests/ui/svg_ui_tests.cpp
       tests/ui/ora_ui_tests.cpp

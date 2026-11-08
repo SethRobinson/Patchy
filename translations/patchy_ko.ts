@@ -33612,6 +33612,66 @@ Locked: %1</source>
         <source>Opening multi-page TIFFs:</source>
         <translation>다중 페이지 TIFF를 열 때:</translation>
     </message>
+    <message>
+        <source>Clear the layer filter to reorder layers</source>
+        <translation>레이어 순서를 바꾸려면 레이어 필터를 해제하세요</translation>
+    </message>
+    <message>
+        <source>Filter layers by type, properties, row color or selection</source>
+        <translation>유형, 속성, 행 색상 또는 선택 항목으로 레이어 필터링</translation>
+    </message>
+    <message>
+        <source>Clear the layer filter and show every layer</source>
+        <translation>레이어 필터를 해제하고 모든 레이어 표시</translation>
+    </message>
+    <message>
+        <source>Row Color (%1)</source>
+        <translation>행 색상 (%1)</translation>
+    </message>
+    <message>
+        <source>Row Color</source>
+        <translation>행 색상</translation>
+    </message>
+    <message>
+        <source>Layer Type</source>
+        <translation>레이어 유형</translation>
+    </message>
+    <message>
+        <source>Pixel</source>
+        <translation>픽셀</translation>
+    </message>
+    <message>
+        <source>Text</source>
+        <translation>텍스트</translation>
+    </message>
+    <message>
+        <source>Adjustment or Fill</source>
+        <translation>조정 또는 채우기</translation>
+    </message>
+    <message>
+        <source>Smart Object</source>
+        <translation>스마트 개체</translation>
+    </message>
+    <message>
+        <source>Has a Mask</source>
+        <translation>마스크 있음</translation>
+    </message>
+    <message>
+        <source>Has a Layer Style</source>
+        <translation>레이어 스타일 있음</translation>
+    </message>
+    <message>
+        <source>Locked</source>
+        <translation>잠김</translation>
+    </message>
+    <message>
+        <source>Selected Only</source>
+        <translation>선택한 항목만</translation>
+    </message>
+    <message>
+        <source>Clear Filter</source>
+        <translation>필터 해제</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

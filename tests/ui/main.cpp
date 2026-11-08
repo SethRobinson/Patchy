@@ -464,6 +464,7 @@ int main(int argc, char* argv[]) {
            vector_commands_tests,
            vector_path_edits_tests,
            layer_merge_tests,
+           layer_filter_menu_tests,
            vector_scripting_tests,
            svg_ui_tests,
            ora_ui_tests,

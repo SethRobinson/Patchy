@@ -33618,6 +33618,66 @@ Locked: %1</source>
         <source>Opening multi-page TIFFs:</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Clear the layer filter to reorder layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filter layers by type, properties, row color or selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear the layer filter and show every layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Row Color (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Row Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer Type</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pixel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Adjustment or Fill</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Smart Object</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Has a Mask</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Has a Layer Style</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Locked</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selected Only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

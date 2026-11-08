@@ -33788,6 +33788,66 @@ Locked: %1</source>
         <source>Opening multi-page TIFFs:</source>
         <translation>Открытие многостраничных TIFF:</translation>
     </message>
+    <message>
+        <source>Clear the layer filter to reorder layers</source>
+        <translation>Снимите фильтр слоёв, чтобы менять порядок слоёв</translation>
+    </message>
+    <message>
+        <source>Filter layers by type, properties, row color or selection</source>
+        <translation>Фильтровать слои по типу, свойствам, цвету строки или выделению</translation>
+    </message>
+    <message>
+        <source>Clear the layer filter and show every layer</source>
+        <translation>Снять фильтр слоёв и показать все слои</translation>
+    </message>
+    <message>
+        <source>Row Color (%1)</source>
+        <translation>Цвет строки (%1)</translation>
+    </message>
+    <message>
+        <source>Row Color</source>
+        <translation>Цвет строки</translation>
+    </message>
+    <message>
+        <source>Layer Type</source>
+        <translation>Тип слоя</translation>
+    </message>
+    <message>
+        <source>Pixel</source>
+        <translation>Пиксельные</translation>
+    </message>
+    <message>
+        <source>Text</source>
+        <translation>Текст</translation>
+    </message>
+    <message>
+        <source>Adjustment or Fill</source>
+        <translation>Коррекция или заливка</translation>
+    </message>
+    <message>
+        <source>Smart Object</source>
+        <translation>Смарт-объект</translation>
+    </message>
+    <message>
+        <source>Has a Mask</source>
+        <translation>Есть маска</translation>
+    </message>
+    <message>
+        <source>Has a Layer Style</source>
+        <translation>Есть стиль слоя</translation>
+    </message>
+    <message>
+        <source>Locked</source>
+        <translation>Заблокированные</translation>
+    </message>
+    <message>
+        <source>Selected Only</source>
+        <translation>Только выделенные</translation>
+    </message>
+    <message>
+        <source>Clear Filter</source>
+        <translation>Снять фильтр</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

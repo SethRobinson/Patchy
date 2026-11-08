@@ -259,6 +259,8 @@ bool McpActivity::eventFilter(QObject* watched, QEvent* event) {
       (widget->parentWidget()->objectName() == QStringLiteral("statusZoomControls") ||
        qobject_cast<ZoomPercentEdit*>(widget->parentWidget()) != nullptr)) { return false; }
   if (widget->objectName() == QStringLiteral("layerNameFilterEdit") ||
+      widget->objectName() == QStringLiteral("layerFilterButton") ||
+      widget->objectName() == QStringLiteral("layerFilterClearButton") ||
       widget->objectName() == QStringLiteral("layerFolderDisclosureButton") ||
       widget->objectName() == QStringLiteral("layerEffectsDisclosureButton") ||
       widget->objectName() == QStringLiteral("layerSmartFiltersDisclosureButton") ||
