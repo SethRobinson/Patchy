@@ -1,30 +1,30 @@
 {
   "platforms": {
     "windows": {
-      "version": "1.29",
+      "version": "1.30",
       "download_url": "https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyWindowsInstaller.exe",
-      "installer_url": "https://github.com/SethRobinson/Patchy/releases/download/v1.29/PatchyWindowsInstaller.exe",
-      "installer_size": 131010064,
-      "installer_sha256": "692aff181a75b12981b3e64b11407c603d361c96d50c98a3f6070950608ae235"
+      "installer_url": "https://github.com/SethRobinson/Patchy/releases/download/v1.30/PatchyWindowsInstaller.exe",
+      "installer_size": 131624464,
+      "installer_sha256": "245d7101386b101852c9321bbbe47c386eaa974faefc0a41a587428fd531fd27"
     },
     "windows-arm64": {
-      "version": "1.29",
+      "version": "1.30",
       "download_url": "https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyWindowsArm64Installer.exe",
-      "installer_url": "https://github.com/SethRobinson/Patchy/releases/download/v1.29/PatchyWindowsArm64Installer.exe",
-      "installer_size": 121323024,
-      "installer_sha256": "3cbc8920a5c1b61e255793ee32a67bcb06ce6a7cf6d6f3caa6b5f26bc6a45de0"
+      "installer_url": "https://github.com/SethRobinson/Patchy/releases/download/v1.30/PatchyWindowsArm64Installer.exe",
+      "installer_size": 121929232,
+      "installer_sha256": "d233ccaeee9b52d46a085335e7183c37ee35e9cf10cc6884c0effd98e24ef685"
     },
     "macos": {
-      "version": "1.29",
+      "version": "1.30",
       "download_url": "https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyMacOS.dmg"
     },
     "linux": {
-      "version": "1.29",
+      "version": "1.30",
       "download_url": "https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyLinux.flatpak",
       "appimage_url": "https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyLinux.AppImage",
-      "appimage_install_url": "https://github.com/SethRobinson/Patchy/releases/download/v1.29/PatchyLinux.AppImage",
-      "appimage_install_size": 108972536,
-      "appimage_install_sha256": "42c4258d1427fca58adb289ce082c55a306efd33a8526e58a219634d5df26f36"
+      "appimage_install_url": "https://github.com/SethRobinson/Patchy/releases/download/v1.30/PatchyLinux.AppImage",
+      "appimage_install_size": 109251064,
+      "appimage_install_sha256": "4850d4d26652ca754ffb02779d5f13d3d93995b1190985a00ba309ad61254eef"
     }
   }
 }
