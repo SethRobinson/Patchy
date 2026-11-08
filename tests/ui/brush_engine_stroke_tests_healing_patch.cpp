@@ -2,6 +2,7 @@
 #include <atomic>
 #include <array>
 #include <cstdint>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <exception>
@@ -1838,6 +1839,179 @@ void ui_patch_tool_source_drag_heals_region_on_release() {
   CHECK(source_area[0] == 40 && source_area[1] == 80 && source_area[2] == 120 && source_area[3] == 255);
 }
 
+// A patch over a soft edge against transparency, dragged to a transparent spot (desk card
+// local-039 follow-up): alpha joins the healing membrane, so the edge continues through the
+// patched region in its own color instead of the region turning transparent.
+void ui_patch_tool_keeps_soft_edges_against_transparency() {
+  patchy::Document document(64, 24, patchy::PixelFormat::rgba8());
+  auto pixels = solid_pixels(64, 24, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  for (std::int32_t y = 0; y < 24; ++y) {
+    for (std::int32_t x = 0; x <= 34; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = 220;
+      px[1] = 40;
+      px[2] = 30;
+      px[3] = static_cast<std::uint8_t>(x < 26 ? 255 : (34 - x) * 255 / 8);
+    }
+  }
+  auto& layer = document.add_pixel_layer("Patch", std::move(pixels));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(256, 96);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::PatchTool);
+  canvas.show();
+  canvas.set_zoom(4.0);
+  QApplication::processEvents();
+
+  draw_patch_outline(canvas, QPoint(26, 6), QPoint(33, 16));
+  const auto to_widget = [&canvas](QPoint point) {
+    return canvas.widget_position_for_document_point(point);
+  };
+  send_mouse(canvas, QEvent::MouseButtonPress, to_widget(QPoint(30, 11)), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, to_widget(QPoint(40, 11)), Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, to_widget(QPoint(50, 11)), Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, to_widget(QPoint(50, 11)), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  for (std::int32_t x = 26; x <= 33; ++x) {
+    const auto* healed = layer.pixels().pixel(x, 11);
+    std::printf("[probe] patch %d=(%d,%d,%d,%d)\n", x, healed[0], healed[1], healed[2], healed[3]);
+    if (healed[3] >= 64U) {
+      CHECK(std::abs(healed[0] - 220) <= 8 && std::abs(healed[1] - 40) <= 8 && std::abs(healed[2] - 30) <= 8);
+    }
+  }
+  CHECK(layer.pixels().pixel(27, 11)[3] > 128U);
+  CHECK(layer.pixels().pixel(31, 11)[3] > 32U);
+}
+
+// Picture for the desk card (local-039 follow-up): Smudge, Sharpen, Healing Brush, Spot Healing
+// and Patch at a red disc's edge against transparency, composited over light gray, 3x. Panels
+// left to right; the hard disc for Smudge and Healing, a soft-edged disc for the others.
+void ui_retouch_tools_transparent_edge_gallery() {
+  static constexpr int kDiscWidth = 96;
+  static constexpr int kDiscHeight = 72;
+  static constexpr int kScale = 3;
+  struct DiscScene {
+    std::unique_ptr<patchy::Document> document;
+    patchy::LayerId layer_id{0};
+    std::unique_ptr<patchy::ui::CanvasWidget> canvas;
+  };
+  const auto make_disc = [](bool soft) {
+    DiscScene scene;
+    scene.document = std::make_unique<patchy::Document>(kDiscWidth, kDiscHeight, patchy::PixelFormat::rgba8());
+    auto pixels = solid_pixels(kDiscWidth, kDiscHeight, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+    for (std::int32_t y = 0; y < kDiscHeight; ++y) {
+      for (std::int32_t x = 0; x < kDiscWidth; ++x) {
+        const auto distance = std::hypot(static_cast<double>(x - 44), static_cast<double>(y - 36));
+        const auto alpha = soft ? std::clamp((30.0 - distance) / 8.0, 0.0, 1.0) : (distance <= 26.0 ? 1.0 : 0.0);
+        if (alpha > 0.0) {
+          auto* px = pixels.pixel(x, y);
+          px[0] = 220;
+          px[1] = 40;
+          px[2] = 30;
+          px[3] = static_cast<std::uint8_t>(std::lround(alpha * 255.0));
+        }
+      }
+    }
+    scene.layer_id = scene.document->add_pixel_layer("Paint Layer", std::move(pixels)).id();
+    scene.canvas = std::make_unique<patchy::ui::CanvasWidget>();
+    scene.canvas->resize(kDiscWidth * 4, kDiscHeight * 4);
+    scene.canvas->set_document(scene.document.get());
+    scene.canvas->set_brush_softness(0);
+    scene.canvas->set_brush_opacity(100);
+    scene.canvas->set_brush_flow(100);
+    scene.canvas->show();
+    QApplication::processEvents();
+    return scene;
+  };
+  const auto alt_click = [](DiscScene& scene, QPoint point) {
+    const auto source = scene.canvas->widget_position_for_document_point(point);
+    send_mouse(*scene.canvas, QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+    send_mouse(*scene.canvas, QEvent::MouseButtonRelease, source, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  };
+  std::vector<DiscScene> panels;
+  {
+    auto scene = make_disc(false);
+    scene.canvas->set_tool(patchy::ui::CanvasTool::Smudge);
+    scene.canvas->set_brush_size(14);
+    scene.canvas->set_brush_opacity(60);
+    drag_document_pixel_centers(*scene.canvas, {QPoint(50, 26), QPoint(90, 26)}, 12);
+    drag_document_pixel_centers(*scene.canvas, {QPoint(92, 46), QPoint(54, 46)}, 12);
+    panels.push_back(std::move(scene));
+  }
+  {
+    auto scene = make_disc(true);
+    scene.canvas->set_tool(patchy::ui::CanvasTool::SharpenBrush);
+    scene.canvas->set_brush_size(20);
+    scene.canvas->set_local_adjustment_strength(100);
+    for (int pass = 0; pass < 3; ++pass) {
+      drag_document_pixel_centers(*scene.canvas, {QPoint(66, 10), QPoint(74, 36), QPoint(66, 62)}, 12);
+    }
+    panels.push_back(std::move(scene));
+  }
+  {
+    auto scene = make_disc(false);
+    scene.canvas->set_tool(patchy::ui::CanvasTool::Healing);
+    scene.canvas->set_brush_size(12);
+    alt_click(scene, QPoint(36, 36));
+    drag_document_pixel_centers(*scene.canvas, {QPoint(64, 36), QPoint(88, 36)}, 12);
+    panels.push_back(std::move(scene));
+  }
+  {
+    auto scene = make_disc(true);
+    scene.canvas->set_tool(patchy::ui::CanvasTool::SpotHealing);
+    scene.canvas->set_brush_size(14);
+    drag_document_pixel_centers(*scene.canvas, {QPoint(70, 36), QPoint(71, 36)}, 4);
+    panels.push_back(std::move(scene));
+  }
+  {
+    auto scene = make_disc(true);
+    scene.canvas->set_tool(patchy::ui::CanvasTool::PatchTool);
+    scene.canvas->set_zoom(4.0);
+    QApplication::processEvents();
+    draw_patch_outline(*scene.canvas, QPoint(62, 30), QPoint(76, 44));
+    const auto to_widget = [&scene](QPoint point) { return scene.canvas->widget_position_for_document_point(point); };
+    send_mouse(*scene.canvas, QEvent::MouseButtonPress, to_widget(QPoint(69, 37)), Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*scene.canvas, QEvent::MouseMove, to_widget(QPoint(78, 50)), Qt::NoButton, Qt::LeftButton);
+    send_mouse(*scene.canvas, QEvent::MouseMove, to_widget(QPoint(86, 62)), Qt::NoButton, Qt::LeftButton);
+    send_mouse(*scene.canvas, QEvent::MouseButtonRelease, to_widget(QPoint(86, 62)), Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    panels.push_back(std::move(scene));
+  }
+
+  constexpr int kGap = 8;
+  const auto panel_width = kDiscWidth * kScale;
+  QImage picture(static_cast<int>(panels.size()) * (panel_width + kGap) - kGap, kDiscHeight * kScale,
+                 QImage::Format_RGB32);
+  picture.fill(qRgb(255, 255, 255));
+  for (std::size_t index = 0; index < panels.size(); ++index) {
+    const auto* layer = panels[index].document->find_layer(panels[index].layer_id);
+    CHECK(layer != nullptr);
+    const auto bounds = layer->bounds();
+    const auto origin_x = static_cast<int>(index) * (panel_width + kGap);
+    for (int y = 0; y < kDiscHeight; ++y) {
+      for (int x = 0; x < kDiscWidth; ++x) {
+        std::array<int, 4> value{0, 0, 0, 0};
+        if (x >= bounds.x && y >= bounds.y && x < bounds.x + bounds.width && y < bounds.y + bounds.height) {
+          const auto* px = layer->pixels().pixel(x - bounds.x, y - bounds.y);
+          value = {px[0], px[1], px[2], px[3]};
+        }
+        const auto mix = [&value](std::size_t channel) {
+          return (value[channel] * value[3] + 224 * (255 - value[3]) + 127) / 255;
+        };
+        const auto color = qRgb(mix(0), mix(1), mix(2));
+        for (int dy = 0; dy < kScale; ++dy) {
+          for (int dx = 0; dx < kScale; ++dx) {
+            picture.setPixel(origin_x + x * kScale + dx, y * kScale + dy, color);
+          }
+        }
+      }
+    }
+  }
+  save_image_artifact("ui_retouch_tools_transparent_edge_gallery", picture);
+}
+
 void ui_patch_tool_destination_mode_copies_detail_and_moves_selection() {
   patchy::Document document(64, 24, patchy::PixelFormat::rgba8());
   auto pixels = solid_pixels(64, 24, patchy::PixelFormat::rgba8(), QColor(40, 80, 120, 255));
@@ -3226,6 +3400,8 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part2() {
       {"ui_remove_object_sequential_heal_detaches_after_each_tick",
        ui_remove_object_sequential_heal_detaches_after_each_tick},
       {"ui_patch_tool_enter_removes_object", ui_patch_tool_enter_removes_object},
+      {"ui_patch_tool_keeps_soft_edges_against_transparency", ui_patch_tool_keeps_soft_edges_against_transparency},
+      {"ui_retouch_tools_transparent_edge_gallery", ui_retouch_tools_transparent_edge_gallery},
       {"ui_patch_tool_source_drag_heals_region_on_release",
        ui_patch_tool_source_drag_heals_region_on_release},
       {"ui_patch_tool_destination_mode_copies_detail_and_moves_selection",

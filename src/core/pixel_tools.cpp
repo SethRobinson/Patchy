@@ -1058,6 +1058,30 @@ std::array<std::uint8_t, 4> sample_layer_rgba(const Layer& layer, std::int32_t d
           pixels.format().channels >= 4 ? px[3] : static_cast<std::uint8_t>(255)};
 }
 
+// One Smudge mix (desk card local-039 follow-up): `amount` of the straight RGBA `src` into the
+// straight RGBA `dst` (0..255 scale), color weighted by alpha (a premultiplied mix), so a
+// transparent sample adds no color and a transparent pixel takes the sample's color instead of
+// darkening toward the black it stores. With equal alphas it is the plain straight mix, the
+// values Smudge gave before. Unclamped straight RGBA.
+std::array<float, 4> smudge_mix(const std::array<float, 4>& src, const std::array<float, 4>& dst,
+                                float amount) noexcept {
+  std::array<float, 4> out{};
+  if (src[3] == dst[3]) {
+    for (std::size_t channel = 0; channel < 4U; ++channel) {
+      out[channel] = src[channel] * amount + dst[channel] * (1.0F - amount);
+    }
+    return out;
+  }
+  const auto src_weight = src[3] * amount;
+  const auto dst_weight = dst[3] * (1.0F - amount);
+  const auto weight = src_weight + dst_weight;
+  for (std::size_t channel = 0; channel < 3U; ++channel) {
+    out[channel] = weight > 0.0F ? (src[channel] * src_weight + dst[channel] * dst_weight) / weight : dst[channel];
+  }
+  out[3] = src[3] * amount + dst[3] * (1.0F - amount);
+  return out;
+}
+
 void ensure_smudge_sample(SmudgeState& state, int diameter) {
   diameter = std::max(1, diameter);
   const auto required_size = static_cast<std::size_t>(diameter) * static_cast<std::size_t>(diameter) * 4U;
@@ -2427,11 +2451,12 @@ Rect smudge_brush_segment_deep(Document& document, Layer& layer, std::int32_t x0
                                                       (px_doc - (center_x - radius))) * 4);
           const auto amount = std::clamp(strength * coverage, 0.0F, 1.0F);
           auto value = before;
+          const auto mixed = smudge_mix({src[0], src[1], src[2], src[3]}, before, amount);
           for (std::size_t c = 0; c < 3U; ++c) {
-            value[c] = src[c] * amount + before[c] * (1.0F - amount);
+            value[c] = mixed[c];
           }
           if (format.channels >= 4 && !options.lock_transparent_pixels) {
-            value[3] = src[3] * amount + before[3] * (1.0F - amount);
+            value[3] = mixed[3];
           }
           store_pixel(format, dst, value);
           if (load_pixel(format, dst) != before) {
@@ -2454,9 +2479,8 @@ Rect smudge_brush_segment_deep(Document& document, Layer& layer, std::int32_t x0
                          static_cast<std::size_t>(((py - (center_y - radius)) * state.diameter +
                                                    (px_doc - (center_x - radius))) * 4);
           const auto amount = std::clamp(pickup * coverage, 0.0F, 1.0F);
-          for (std::size_t c = 0; c < 4U; ++c) {
-            sample[c] = current[c] * amount + sample[c] * (1.0F - amount);
-          }
+          const auto mixed = smudge_mix(current, {sample[0], sample[1], sample[2], sample[3]}, amount);
+          std::copy(mixed.begin(), mixed.end(), sample);
         }
       }
       return band_dirty;
@@ -2597,16 +2621,20 @@ Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0,
                static_cast<std::size_t>(sample_x)) *
                   4U;
           const auto amount = std::clamp(strength * coverage, 0.0F, 1.0F);
+          const auto mixed = smudge_mix(
+              {static_cast<float>(src[0]), static_cast<float>(src[1]), static_cast<float>(src[2]),
+               static_cast<float>(src[3])},
+              {static_cast<float>(dst[0]), static_cast<float>(dst[1]), static_cast<float>(dst[2]),
+               channels >= 4 ? static_cast<float>(dst[3]) : 255.0F},
+              amount);
           bool changed = false;
           for (std::uint16_t channel = 0; channel < color_channels; ++channel) {
-            const auto value = clamp_byte(static_cast<float>(src[channel]) * amount +
-                                          static_cast<float>(dst[channel]) * (1.0F - amount));
+            const auto value = clamp_byte(mixed[channel]);
             changed = changed || value != dst[channel];
             dst[channel] = value;
           }
           if (channels >= 4 && !options.lock_transparent_pixels) {
-            const auto alpha = clamp_byte(static_cast<float>(src[3]) * amount +
-                                          static_cast<float>(dst[3]) * (1.0F - amount));
+            const auto alpha = clamp_byte(mixed[3]);
             changed = changed || alpha != dst[3];
             dst[3] = alpha;
           }
@@ -2647,9 +2675,14 @@ Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0,
                static_cast<std::size_t>(sample_x)) *
                   4U;
           const auto amount = std::clamp(pickup * coverage, 0.0F, 1.0F);
+          const auto mixed = smudge_mix(
+              {static_cast<float>(current[0]), static_cast<float>(current[1]), static_cast<float>(current[2]),
+               static_cast<float>(current[3])},
+              {static_cast<float>(sample[0]), static_cast<float>(sample[1]), static_cast<float>(sample[2]),
+               static_cast<float>(sample[3])},
+              amount);
           for (std::size_t channel = 0; channel < 4U; ++channel) {
-            sample[channel] = clamp_byte(static_cast<float>(current[channel]) * amount +
-                                         static_cast<float>(sample[channel]) * (1.0F - amount));
+            sample[channel] = clamp_byte(mixed[channel]);
           }
         }
       }

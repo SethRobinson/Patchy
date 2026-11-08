@@ -2976,8 +2976,10 @@ QRect CanvasWidget::blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasToo
     return {};
   }
   const bool sharpen = operation == CanvasTool::SharpenBrush;
-  const bool spread_alpha =
-      !sharpen && std::as_const(*layer).pixels().format().channels >= 4 && !active_layer_locks_transparent_pixels();
+  const bool layer_alpha_free =
+      std::as_const(*layer).pixels().format().channels >= 4 && !active_layer_locks_transparent_pixels();
+  const bool spread_alpha = !sharpen && layer_alpha_free;
+  const bool sharpen_alpha = sharpen && layer_alpha_free;
   if (spread_alpha) {
     // Grow the layer to the segment's dabs and the kernel's reach, clipped to the canvas, so a
     // blur past the layer's stored edge has pixels to spread into.
@@ -3124,6 +3126,7 @@ QRect CanvasWidget::blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasToo
             continue;
           }
           if (sharpen) {
+            // `weights` ends as the 21-tap blur of alpha (0..1): the kernel sums to 1.
             double weighted = 0.0;
             double weights = 0.0;
             for (int k = -kSharpenRadius; k <= kSharpenRadius; ++k) {
@@ -3147,6 +3150,15 @@ QRect CanvasWidget::blur_sharpen_brush_segment(QPoint from, QPoint to, CanvasToo
             for (std::size_t channel = 0; channel < 3U; ++channel) {
               // The same change on every channel, so the pixel keeps its color unless it clips.
               value[channel] = decode(std::clamp(center[channel] + change * amount, 0.0, 255.0));
+            }
+            if (sharpen_alpha) {
+              // Alpha takes the same step against its own blur, so a soft edge against
+              // transparency steepens (desk card local-039 follow-up). A transparent pixel
+              // never rises: its alpha is at or below any blur of it.
+              const auto alpha_change = kSharpenGain * (center[3] - weights * 255.0);
+              if (std::abs(alpha_change) > 1e-9) {
+                value[3] = static_cast<float>(std::clamp(center[3] + alpha_change * amount, 0.0, 255.0));
+              }
             }
             store_pixel(format, destination, value);
             if (palette_snap != nullptr) {

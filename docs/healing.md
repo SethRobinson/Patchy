@@ -10,6 +10,10 @@ Related documents:
 
 - [healing-remove-object.md](healing-remove-object.md): Edit > Remove Object (dialog, worker fill, variations, tone match, edge feather), the content-aware exemplar fill with its Nearest Edge fallback, and the entry points that share the command.
 
+## Alpha in the membrane
+
+Code: `heal_needs_alpha`, `heal_alpha_offsets` and `heal_with_alpha` in `core/heal_membrane.hpp` (desk card local-039 follow-up). On a layer with alpha, when any destination or source pixel the heal reads is not opaque, the color offsets are taken between alpha-premultiplied values and alpha gets offsets of its own, solved by the same membrane as a second field; the healed pixel is the source's premultiplied color and alpha plus those offsets, unpremultiplied. So a heal next to transparency neither pulls color toward the black that transparent pixels store nor turns them opaque (before, a Healing Brush stroke into transparency painted opaque near-black and Spot Healing or Patch on a soft edge cut a transparent hole into it). All-opaque heals take the plain path and keep their bytes. The solver's accuracy on long, thin footprints leaves a faint trace (about 20% alpha) where a Healing Brush stroke runs far into empty transparency. Tests: `ui_retouch_tools_keep_color_and_alpha_at_transparent_edges`, `ui_patch_tool_keeps_soft_edges_against_transparency`, picture `ui_retouch_tools_transparent_edge_gallery`.
+
 ## Sample
 
 Clone, Healing, Spot Healing, Patch and Remove Object share one Sample choice (issue 382; combo `retouchSampleLayersCombo`, canvas `retouch_sample_layers_`, a `SampleLayers` value limited to three choices), persisted as the Pick tool's token under `tools/retouchSampleLayers`; a missing token falls back to the pre-382 bool `tools/retouchSampleAllLayers` (true All Layers, false Current Layer), still written (anything but Current Layer as true) for older builds. The gesture snapshot (`retouch_source_snapshot()`, deep `retouch_source_deep()`) is:
