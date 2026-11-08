@@ -445,8 +445,12 @@ interface PatchyLayer {
   readonly textBox: { width: number; height: number } | null;
   /** Detached boundary in document pixels. One closed contour; null converts area text to box text. */
   textArea: PatchyVectorPath | null;
-  /** Text layers: the first paragraph's alignment; setting it aligns every paragraph and re-renders. */
-  textAlign: 'left' | 'center' | 'right' | 'justify';
+  /**
+   * Text layers: the first paragraph's alignment; setting it aligns every paragraph and re-renders.
+   * The justify modes differ in a box's last line: left ("justify"), centered, right, or spread
+   * ("justifyAll").
+   */
+  textAlign: 'left' | 'center' | 'right' | 'justify' | 'justifyCenter' | 'justifyRight' | 'justifyAll';
   /**
    * Text layers: the first paragraph's indents and spacing in DOCUMENT PIXELS
    * (Photoshop's Paragraph panel: first line indent, left indent, right indent,
@@ -1146,7 +1150,10 @@ interface PatchyDocument {
    * column's top centre). box: {width, height} (each at least 16 document px)
    * opens a paragraph text box with x/y as its top-left corner: lines wrap at
    * the box width, exactly like dragging a box with the Type tool. align
-   * ("left", "center", "right", "justify") sets every paragraph's alignment;
+   * ("left", "center", "right", or a justify mode: "justify" leaves a box's
+   * last line left, "justifyCenter" centers it, "justifyRight" sets it right,
+   * "justifyAll" spreads it like the others; point text sets every justify
+   * mode flush left) sets every paragraph's alignment;
    * paragraph ({firstLineIndent, startIndent, endIndent, spaceBefore,
    * spaceAfter}, document pixels, each optional) sets every paragraph's
    * indents and spacing, like layer.textParagraph.
@@ -1173,7 +1180,7 @@ interface PatchyDocument {
     box?: { width: number; height: number };
     /** Copy a closed contour in document coordinates. Mutually exclusive with box; x/y are ignored. */
     area?: PatchyVectorPath;
-    align?: 'left' | 'center' | 'right' | 'justify';
+    align?: 'left' | 'center' | 'right' | 'justify' | 'justifyCenter' | 'justifyRight' | 'justifyAll';
     paragraph?: { firstLineIndent?: number; startIndent?: number; endIndent?: number; spaceBefore?: number; spaceAfter?: number };
   }): PatchyLayer;
   /**

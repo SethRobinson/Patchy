@@ -2376,6 +2376,38 @@ void psd_issue_345_paragraph_style_font_size_if_available() {
   check_sizes(patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(read)));
 }
 
+// The reporter's file of #672 (Photoshop, four Arial box layers named for their mode; EngineData
+// /Justification 3, 5, 4, 6): each reads as its own justify mode and survives a save.
+void psd_issue_672_justify_modes_read_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("issue-672-justify-modes.psd");
+  patchy::test::skip_unless_exists(path);
+  const auto expected = std::vector<std::pair<std::string, std::string>>{{"Justify Left", "justify"},
+                                                                         {"Justify Center", "justifyCenter"},
+                                                                         {"Justify Right", "justifyRight"},
+                                                                         {"Justify Full", "justifyAll"}};
+  const auto check = [&expected](const patchy::Document& document) {
+    for (const auto& [name, alignment] : expected) {
+      const patchy::Layer* found = nullptr;
+      for (const auto& layer : document.layers()) {
+        if (layer.name() == name) found = &layer;
+      }
+      CHECK(found != nullptr);
+      if (found == nullptr) continue;
+      const auto& runs = found->metadata().at(patchy::kLayerMetadataTextParagraphRuns);
+      const auto fields = split_tabs(split_lines(runs).at(1));
+      CHECK(fields.size() >= 3U && fields[2] == alignment);
+    }
+  };
+  auto read = patchy::psd::DocumentIo::read_file(path);
+  check(read);
+  for (auto& layer : read.layers()) {
+    if (patchy::layer_is_text(layer)) {
+      layer.metadata()[patchy::kLayerMetadataTextRasterStatus] = "patchy_raster";
+    }
+  }
+  check(patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(read)));
+}
+
 void psd_restaurant_menu_dishes_leading_survives_save_round_trip_if_available() {
   // A converted (patchy_raster) layer regenerates its TySh on save; the fixed leadings,
   // tracking, and default-inherited sizes must survive Patchy's own write -> read cycle so a
@@ -3429,6 +3461,7 @@ std::vector<patchy::test::TestCase> psd_text_tests() {
        psd_text_paragraph_style_supplies_missing_run_font_size},
       {"psd_issue_345_paragraph_style_font_size_if_available",
        psd_issue_345_paragraph_style_font_size_if_available},
+      {"psd_issue_672_justify_modes_read_if_available", psd_issue_672_justify_modes_read_if_available},
       {"psd_text_engine_data_humanizes_postscript_font_family_names",
        psd_text_engine_data_humanizes_postscript_font_family_names},
       {"psd_text_engine_data_resolves_hyphenated_font_family_names",

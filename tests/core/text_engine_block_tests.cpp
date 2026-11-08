@@ -657,6 +657,70 @@ void text_engine_paragraph_composer_round_trips() {
   CHECK(saved_composers(latin) == std::vector<int>{0});
 }
 
+// Photoshop's justify modes (#672, PS 2026 DOM readback): EngineData /Justification 4 is
+// justify last right, 5 last centered, 6 justify all. Each paragraph-runs name writes its value
+// into the TySh and the Txt2 paragraph sheet (/0) and reads back as the same name.
+void text_engine_justify_modes_round_trip() {
+  patchy::Document document(420, 240, patchy::PixelFormat::rgb8());
+  auto layer = patchy_text_layer(document, "Justify", "a\nb\nc\nd\ne\nf\ng", true);
+  const std::string runs =
+      "v1\n0\t2\tleft\n2\t2\tcenter\n4\t2\tright\n6\t2\tjustify\n8\t2\tjustifyCenter\n10\t2\tjustifyRight\n"
+      "12\t1\tjustifyAll";
+  layer.metadata()[patchy::kLayerMetadataTextParagraphRuns] = runs;
+  document.add_layer(std::move(layer));
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+
+  const auto tysh = psd_layer_block_payload(psd_layer_extra_data(bytes, 0), "TySh");
+  CHECK(tysh.has_value());
+  if (tysh.has_value()) {
+    const std::string text(tysh->begin(), tysh->end());
+    for (const auto* value : {"/Justification 1", "/Justification 2", "/Justification 3", "/Justification 4",
+                              "/Justification 5", "/Justification 6"}) {
+      CHECK(text.find(value) != std::string::npos);
+    }
+  }
+
+  const auto payload = text_engine_payload(bytes);
+  const auto block = payload.has_value() ? patchy::psd::TextEngineBlock::parse(*payload) : std::nullopt;
+  const auto index = text_index_of(bytes, 0);
+  CHECK(block.has_value() && index.has_value());
+  if (block.has_value() && index.has_value()) {
+    const auto* paragraphs = block->root().at_path({"1", "1", std::to_string(*index), "0", "5", "0"});
+    CHECK(paragraphs != nullptr);
+    std::vector<long long> justifications;
+    if (paragraphs != nullptr) {
+      for (const auto& entry : paragraphs->list) {
+        const auto* value = entry.at_path({"0", "0", "5", "0"});
+        justifications.push_back(value != nullptr ? value->integer().value_or(-1) : -1);
+      }
+    }
+    CHECK((justifications == std::vector<long long>{0, 2, 1, 3, 5, 4, 6}));
+  }
+
+  const auto read = patchy::psd::DocumentIo::read(bytes);
+  CHECK(read.layers().size() == 1U);
+  if (read.layers().size() == 1U) {
+    const auto& read_runs = read.layers().front().metadata().at(patchy::kLayerMetadataTextParagraphRuns);
+    std::vector<std::string> names;
+    std::size_t start = 0;
+    while (start < read_runs.size()) {
+      auto end = read_runs.find('\n', start);
+      if (end == std::string::npos) end = read_runs.size();
+      const auto line = read_runs.substr(start, end - start);
+      const auto first_tab = line.find('\t');
+      const auto second_tab = first_tab == std::string::npos ? first_tab : line.find('\t', first_tab + 1);
+      if (second_tab != std::string::npos) {
+        const auto third_tab = line.find('\t', second_tab + 1);
+        names.push_back(line.substr(second_tab + 1, third_tab == std::string::npos ? std::string::npos
+                                                                                  : third_tab - second_tab - 1));
+      }
+      start = end + 1;
+    }
+    CHECK((names == std::vector<std::string>{"left", "center", "right", "justify", "justifyCenter", "justifyRight",
+                                             "justifyAll"}));
+  }
+}
+
 std::vector<patchy::test::TestCase> text_engine_block_tests() {
   return {
       {"text_engine_area_frames_preserve_native_contours", text_engine_area_frames_preserve_native_contours},
@@ -669,6 +733,7 @@ std::vector<patchy::test::TestCase> text_engine_block_tests() {
       {"text_engine_patchy_born_document_writes_a_block", text_engine_patchy_born_document_writes_a_block},
       {"text_engine_retyped_layer_replaces_its_object_in_place", text_engine_retyped_layer_replaces_its_object_in_place},
       {"text_engine_paragraph_composer_round_trips", text_engine_paragraph_composer_round_trips},
+      {"text_engine_justify_modes_round_trip", text_engine_justify_modes_round_trip},
       {"text_engine_issue341_every_object_keeps_a_cache_key_if_available",
        text_engine_issue341_every_object_keeps_a_cache_key_if_available},
   };

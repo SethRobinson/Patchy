@@ -28,6 +28,7 @@
 #include <QTextLayout>
 #include <QTextOption>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <set>
@@ -152,7 +153,38 @@ QString text_display_family_from_format(const QTextCharFormat& format, const QSt
   return fallback.trimmed().isEmpty() ? default_text_family() : fallback.trimmed();
 }
 
-QString paragraph_alignment_name(Qt::Alignment alignment) {
+namespace {
+
+struct ParagraphAlignmentName {
+  const char* name;
+  Qt::Alignment alignment;
+  TextJustifyLastLine last_line;
+};
+
+constexpr std::array<ParagraphAlignmentName, 7> kParagraphAlignmentNames{{
+    {"left", Qt::AlignLeft, TextJustifyLastLine::Left},
+    {"center", Qt::AlignHCenter, TextJustifyLastLine::Left},
+    {"right", Qt::AlignRight, TextJustifyLastLine::Left},
+    {"justify", Qt::AlignJustify, TextJustifyLastLine::Left},
+    {"justifyCenter", Qt::AlignJustify, TextJustifyLastLine::Center},
+    {"justifyRight", Qt::AlignJustify, TextJustifyLastLine::Right},
+    {"justifyAll", Qt::AlignJustify, TextJustifyLastLine::All},
+}};
+
+const ParagraphAlignmentName* find_paragraph_alignment_name(const QString& name) {
+  const auto trimmed = name.trimmed();
+  for (const auto& entry : kParagraphAlignmentNames) {
+    if (trimmed.compare(QLatin1String(entry.name), Qt::CaseInsensitive) == 0) {
+      return &entry;
+    }
+  }
+  return nullptr;
+}
+
+}  // namespace
+
+QString paragraph_alignment_name(const QTextBlockFormat& format) {
+  const auto alignment = format.alignment();
   if ((alignment & Qt::AlignHCenter) != 0) {
     return QStringLiteral("center");
   }
@@ -160,22 +192,38 @@ QString paragraph_alignment_name(Qt::Alignment alignment) {
     return QStringLiteral("right");
   }
   if ((alignment & Qt::AlignJustify) != 0) {
+    switch (text_justify_last_line(format)) {
+      case TextJustifyLastLine::Center:
+        return QStringLiteral("justifyCenter");
+      case TextJustifyLastLine::Right:
+        return QStringLiteral("justifyRight");
+      case TextJustifyLastLine::All:
+        return QStringLiteral("justifyAll");
+      case TextJustifyLastLine::Left:
+        break;
+    }
     return QStringLiteral("justify");
   }
   return QStringLiteral("left");
 }
 
+QString canonical_paragraph_alignment_name(const QString& name) {
+  const auto* entry = find_paragraph_alignment_name(name);
+  return entry != nullptr ? QString::fromLatin1(entry->name) : QString();
+}
+
 Qt::Alignment paragraph_alignment_from_name(const QString& name) {
-  if (name.compare(QStringLiteral("center"), Qt::CaseInsensitive) == 0) {
-    return Qt::AlignHCenter;
+  const auto* entry = find_paragraph_alignment_name(name);
+  return entry != nullptr ? entry->alignment : Qt::Alignment(Qt::AlignLeft);
+}
+
+void set_paragraph_alignment(QTextBlockFormat& format, const QString& name) {
+  const auto* entry = find_paragraph_alignment_name(name);
+  if (entry == nullptr) {
+    return;
   }
-  if (name.compare(QStringLiteral("right"), Qt::CaseInsensitive) == 0) {
-    return Qt::AlignRight;
-  }
-  if (name.compare(QStringLiteral("justify"), Qt::CaseInsensitive) == 0) {
-    return Qt::AlignJustify;
-  }
-  return Qt::AlignLeft;
+  format.setAlignment(entry->alignment);
+  format.setProperty(kTextBlockJustifyLastLineProperty, static_cast<int>(entry->last_line));
 }
 
 QTextCharFormat text_format_with_smoothing(QTextCharFormat format, int anti_alias) {
@@ -790,7 +838,7 @@ QString paragraph_runs_from_document(const QTextDocument& document) {
     ParagraphRunLine run;
     run.start = start;
     run.length = length;
-    run.alignment = paragraph_alignment_name(format.alignment());
+    run.alignment = paragraph_alignment_name(format);
     run.first_line_indent = normalized_metric(format.textIndent());
     run.start_indent = normalized_metric(format.leftMargin());
     run.end_indent = normalized_metric(format.rightMargin());
@@ -886,7 +934,8 @@ void apply_paragraph_runs_to_document(QTextDocument& document, const QString& pa
     cursor.setPosition(start);
     cursor.setPosition(std::min(plain_length, start + std::max(1, length)), QTextCursor::KeepAnchor);
     QTextBlockFormat format;
-    format.setAlignment(paragraph_alignment_from_name(fields[2]));
+    format.setAlignment(Qt::AlignLeft);
+    set_paragraph_alignment(format, fields[2]);
     if (fields.size() >= 10) {
       if (fields[9] == QStringLiteral("rtl")) {
         format.setLayoutDirection(Qt::RightToLeft);
@@ -1552,6 +1601,9 @@ TextRenderDocument build_text_render_document(const TextToolSettings& settings, 
   document.setTextWidth(settings.boxed && !settings.vertical ? static_cast<qreal>(result.text_width) : -1.0);
   if (!paragraph_runs.trimmed().isEmpty()) {
     apply_paragraph_runs_to_document(document, paragraph_runs, layout_scale);
+  }
+  if ((settings.boxed || settings.area.has_value()) && !settings.vertical) {
+    apply_justify_all_to_document(document);
   }
   apply_text_smoothing_to_document(document, settings.anti_alias);
   if (!settings.boxed || settings.vertical) {

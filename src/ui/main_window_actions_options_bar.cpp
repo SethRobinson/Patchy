@@ -5212,11 +5212,11 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
   connect(text_align_left_button_, &QPushButton::clicked, this,
-          [this] { apply_text_alignment_to_active_editor(Qt::AlignLeft); });
+          [this] { apply_text_alignment_to_active_editor(QStringLiteral("left")); });
   connect(text_align_center_button_, &QPushButton::clicked, this,
-          [this] { apply_text_alignment_to_active_editor(Qt::AlignHCenter); });
+          [this] { apply_text_alignment_to_active_editor(QStringLiteral("center")); });
   connect(text_align_right_button_, &QPushButton::clicked, this,
-          [this] { apply_text_alignment_to_active_editor(Qt::AlignRight); });
+          [this] { apply_text_alignment_to_active_editor(QStringLiteral("right")); });
   connect(text_warp_button_, &QPushButton::clicked, this, [this] { request_warp_text_dialog(); });
   connect(text_orientation_button_, &QPushButton::toggled, this,
           [this](bool checked) { apply_text_orientation(checked); });

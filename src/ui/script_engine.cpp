@@ -12,6 +12,7 @@
 
 #include "ui/main_window_shared.hpp"
 #include "ui/script_engine.hpp"
+#include "ui/text_document.hpp"
 
 #include "filters/gmic/gmic_catalog.hpp"
 #include "filters/gmic/gmic_engine.hpp"
@@ -2463,19 +2464,6 @@ bool ScriptEngineHost::set_text_layer_direction(std::int64_t session_id, LayerId
 
 namespace {
 
-Qt::Alignment text_alignment_for_name(const QString& name) {
-  if (name.compare(QLatin1String("center"), Qt::CaseInsensitive) == 0) {
-    return Qt::AlignHCenter;
-  }
-  if (name.compare(QLatin1String("right"), Qt::CaseInsensitive) == 0) {
-    return Qt::AlignRight;
-  }
-  if (name.compare(QLatin1String("justify"), Qt::CaseInsensitive) == 0) {
-    return Qt::AlignJustify;
-  }
-  return Qt::AlignLeft;
-}
-
 // The format a run is typed with: `base` (the session's typing format, or the first character's
 // on a re-edit) with the run's own family, size, face and color on top. The size lands in editor
 // units beside its exact value, exactly as the options bar's size spin does. A run that names a
@@ -2628,7 +2616,7 @@ std::optional<LayerId> ScriptEngineHost::add_text_layer(std::int64_t session_id,
     auto all = editor->textCursor();
     all.select(QTextCursor::Document);
     editor->setTextCursor(all);
-    window_.apply_text_alignment_to_editor(*editor, text_alignment_for_name(params.align));
+    window_.apply_text_alignment_to_editor(*editor, params.align);
   }
   if (const auto direction = layout_direction_for_name(params.direction); direction.has_value()) {
     auto all = editor->textCursor();
@@ -2811,7 +2799,8 @@ QString ScriptEngineHost::text_layer_align(std::int64_t session_id, LayerId laye
       if (fields.size() < 3) {
         continue;
       }
-      return fields[2].trimmed().toLower();
+      const auto name = canonical_paragraph_alignment_name(fields[2]);
+      return name.isEmpty() ? QStringLiteral("left") : name;
     }
   }
   return QStringLiteral("left");
@@ -2890,7 +2879,7 @@ bool ScriptEngineHost::set_text_layer_area(std::int64_t session_id, LayerId laye
 }
 
 bool ScriptEngineHost::set_text_layer_align(std::int64_t session_id, LayerId layer_id, const QString& align) {
-  const auto alignment = text_alignment_for_name(align);
+  const auto alignment = canonical_paragraph_alignment_name(align);
   return edit_text_layer_session(session_id, layer_id, "layer.textAlign", [this, alignment](QTextEdit& editor) {
     auto all = editor.textCursor();
     all.select(QTextCursor::Document);

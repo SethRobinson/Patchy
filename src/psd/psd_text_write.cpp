@@ -92,6 +92,15 @@ int photoshop_justification_from_patchy_alignment(std::string_view alignment) {
   if (lower == "justify") {
     return 3;
   }
+  if (lower == "justifyright") {
+    return 4;
+  }
+  if (lower == "justifycenter") {
+    return 5;
+  }
+  if (lower == "justifyall") {
+    return 6;
+  }
   return 0;
 }
 
@@ -1504,7 +1513,7 @@ std::string engine_paragraph_metric(double value) {
 
 std::string engine_paragraph_properties(const PsdTextParagraphRun& run) {
   std::string properties = "<< /Justification ";
-  properties += std::to_string(std::clamp(run.justification, 0, 3));
+  properties += std::to_string(std::clamp(run.justification, 0, 6));
   properties += " /FirstLineIndent ";
   properties += engine_paragraph_metric(run.first_line_indent);
   properties += " /StartIndent ";

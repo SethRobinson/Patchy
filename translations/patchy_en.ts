@@ -19947,6 +19947,18 @@ Do you want to replace it?</source>
         <source>Select every layer linked to the selected ones</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Spread each line across the text box and center the last one</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Spread each line across the text box and set the last one right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Spread every line across the text box, the last one too</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -27802,10 +27814,6 @@ Y: %2
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Paragraph alignment; Justify spreads every line but the last across the box</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Alignment:</source>
         <translation type="unfinished"></translation>
     </message>
@@ -33618,6 +33626,22 @@ Locked: %1</source>
         <source>Opening multi-page TIFFs:</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Justify (last line centered)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Justify (last line right)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Justify all</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paragraph alignment. The Justify choices spread each line of a text box across it and differ in where the last line goes; point text stays flush left</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35747,10 +35771,6 @@ Locked: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>%1: runs must be an array of {text, font, size, bold, italic, color} objects.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -35776,10 +35796,6 @@ Locked: %1</source>
     </message>
     <message>
         <source>box must be {width, height} of at least 16 document pixels each.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -36612,6 +36628,14 @@ Locked: %1</source>
     </message>
     <message>
         <source>linkGroup must be 0 or a positive whole number</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

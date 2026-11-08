@@ -20012,6 +20012,18 @@ Do you want to replace it?</source>
         <source>Select every layer linked to the selected ones</source>
         <translation>Выделить все слои, связанные с выделенными</translation>
     </message>
+    <message>
+        <source>Spread each line across the text box and center the last one</source>
+        <translation>Растянуть каждую строку на ширину текстовой рамки и выровнять последнюю по центру</translation>
+    </message>
+    <message>
+        <source>Spread each line across the text box and set the last one right</source>
+        <translation>Растянуть каждую строку на ширину текстовой рамки и выровнять последнюю по правому краю</translation>
+    </message>
+    <message>
+        <source>Spread every line across the text box, the last one too</source>
+        <translation>Растянуть все строки на ширину текстовой рамки, включая последнюю</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::CompanionMenu</name>
@@ -20864,10 +20876,6 @@ Do you want to replace it?</source>
     <message>
         <source>Justify (last line left)</source>
         <translation>Выравнивание (последняя строка слева)</translation>
-    </message>
-    <message>
-        <source>Paragraph alignment; Justify spreads every line but the last across the box</source>
-        <translation>Выравнивание абзаца; выравнивание по ширине растягивает все строки, кроме последней, до границ блока</translation>
     </message>
     <message>
         <source>Alignment:</source>
@@ -33788,6 +33796,22 @@ Locked: %1</source>
         <source>Opening multi-page TIFFs:</source>
         <translation>Открытие многостраничных TIFF:</translation>
     </message>
+    <message>
+        <source>Justify (last line centered)</source>
+        <translation>Выравнивание (последняя строка по центру)</translation>
+    </message>
+    <message>
+        <source>Justify (last line right)</source>
+        <translation>Выравнивание (последняя строка справа)</translation>
+    </message>
+    <message>
+        <source>Justify all</source>
+        <translation>Выравнивание по ширине (все строки)</translation>
+    </message>
+    <message>
+        <source>Paragraph alignment. The Justify choices spread each line of a text box across it and differ in where the last line goes; point text stays flush left</source>
+        <translation>Выравнивание абзаца. Варианты выравнивания по ширине растягивают каждую строку текстовой рамки до её границ и различаются положением последней строки; точечный текст остаётся выровненным по левому краю</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -35333,10 +35357,6 @@ Locked: %1</source>
         <translation>textOrientation должен быть «horizontal» или «vertical».</translation>
     </message>
     <message>
-        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
-        <translation>textAlign должен быть «left», «center», «right» или «justify».</translation>
-    </message>
-    <message>
         <source>textDirection must be &apos;auto&apos;, &apos;ltr&apos; or &apos;rtl&apos;.</source>
         <translation>textDirection должно быть «auto», «ltr» или «rtl».</translation>
     </message>
@@ -35563,10 +35583,6 @@ Locked: %1</source>
     <message>
         <source>box must be {width, height} of at least 16 document pixels each.</source>
         <translation>box должен иметь вид {width, height}, каждое значение не менее 16 пикселей документа.</translation>
-    </message>
-    <message>
-        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
-        <translation>align должен быть «left», «center», «right» или «justify».</translation>
     </message>
     <message>
         <source>Could not create the text layer.</source>
@@ -36787,6 +36803,14 @@ Locked: %1</source>
     <message>
         <source>linkGroup must be 0 or a positive whole number</source>
         <translation>linkGroup должен быть 0 или целым положительным числом</translation>
+    </message>
+    <message>
+        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
+        <translation>textAlign должен быть «left», «center», «right», «justify», «justifyCenter», «justifyRight» или «justifyAll».</translation>
+    </message>
+    <message>
+        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos;, &apos;justify&apos;, &apos;justifyCenter&apos;, &apos;justifyRight&apos; or &apos;justifyAll&apos;.</source>
+        <translation>align должен быть «left», «center», «right», «justify», «justifyCenter», «justifyRight» или «justifyAll».</translation>
     </message>
 </context>
 <context>

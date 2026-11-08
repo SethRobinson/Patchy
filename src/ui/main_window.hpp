@@ -2925,8 +2925,9 @@ private:
   void apply_primary_color_to_active_text_editor(QColor color);
   void apply_text_smoothing_to_active_editor();
   void apply_text_smoothing_to_editor(QTextEdit& editor, int text_anti_alias);
-  void apply_text_alignment_to_active_editor(Qt::Alignment alignment);
-  void apply_text_alignment_to_editor(QTextEdit& editor, Qt::Alignment alignment);
+  // `alignment` is a paragraph alignment name (text_document.hpp: left ... justifyAll).
+  void apply_text_alignment_to_active_editor(const QString& alignment);
+  void apply_text_alignment_to_editor(QTextEdit& editor, const QString& alignment);
   void sync_text_alignment_buttons_from_editor();
   // Vertical type (options-bar toggle / layer context menu): a live session re-lays out, the
   // selected text layer converts through a hidden session, otherwise the next new layer takes

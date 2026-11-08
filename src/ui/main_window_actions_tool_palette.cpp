@@ -1949,7 +1949,8 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   // A checkable entry whose data is the value it applies; refresh_type_menu_states checks the
   // one matching what the text uses.
   const auto add_type_choice = [&add_type_action](QMenu* menu, QActionGroup* group, const char* source,
-                                                  const char* object_name, const char* hotkey_id, int value) {
+                                                  const char* object_name, const char* hotkey_id,
+                                                  const QVariant& value) {
     auto* action = add_type_action(menu, source, object_name, hotkey_id);
     action->setCheckable(true);
     action->setData(value);
@@ -1967,21 +1968,27 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   connect(paragraph_action, &QAction::triggered, this, [this] { open_text_paragraph_dialog(); });
   type_menu->addSeparator();
 
-  // Paragraph alignment: the options-bar buttons and the Paragraph panel's combo (Justify is
-  // the panel's last-line-left justify, the only one modeled).
+  // Paragraph alignment: the options-bar buttons and the Paragraph panel's combo. Each entry's
+  // data is its paragraph alignment name (text_document.hpp).
   type_alignment_menu_ = add_type_submenu(QT_TR_NOOP("Alignment"), "typeAlignmentMenu");
   auto* alignment_group = new QActionGroup(this);
   alignment_group->setExclusive(true);
   add_type_choice(type_alignment_menu_, alignment_group, QT_TR_NOOP("Left"), "typeAlignLeftAction",
-                  "type.align_left", static_cast<int>(Qt::AlignLeft));
+                  "type.align_left", QStringLiteral("left"));
   add_type_choice(type_alignment_menu_, alignment_group, QT_TR_NOOP("Center"), "typeAlignCenterAction",
-                  "type.align_center", static_cast<int>(Qt::AlignHCenter));
+                  "type.align_center", QStringLiteral("center"));
   add_type_choice(type_alignment_menu_, alignment_group, QT_TR_NOOP("Right"), "typeAlignRightAction",
-                  "type.align_right", static_cast<int>(Qt::AlignRight));
+                  "type.align_right", QStringLiteral("right"));
   add_type_choice(type_alignment_menu_, alignment_group, QT_TR_NOOP("Justify (last line left)"),
-                  "typeAlignJustifyAction", "type.align_justify", static_cast<int>(Qt::AlignJustify));
+                  "typeAlignJustifyAction", "type.align_justify", QStringLiteral("justify"));
+  add_type_choice(type_alignment_menu_, alignment_group, QT_TR_NOOP("Justify (last line centered)"),
+                  "typeAlignJustifyCenterAction", "type.align_justify_center", QStringLiteral("justifyCenter"));
+  add_type_choice(type_alignment_menu_, alignment_group, QT_TR_NOOP("Justify (last line right)"),
+                  "typeAlignJustifyRightAction", "type.align_justify_right", QStringLiteral("justifyRight"));
+  add_type_choice(type_alignment_menu_, alignment_group, QT_TR_NOOP("Justify all"), "typeAlignJustifyAllAction",
+                  "type.align_justify_all", QStringLiteral("justifyAll"));
   connect(alignment_group, &QActionGroup::triggered, this, [this](QAction* action) {
-    apply_text_alignment_to_active_editor(Qt::Alignment::fromInt(action->data().toInt()));
+    apply_text_alignment_to_active_editor(action->data().toString());
   });
 
   // Paragraph direction: the Paragraph panel's Direction combo.

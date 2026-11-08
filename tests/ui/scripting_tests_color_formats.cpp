@@ -346,6 +346,32 @@ void ui_script_text_box_wraps_and_aligns() {
   CHECK(backlog_contains(window, QStringLiteral("tiny-box-throws=true")));
 }
 
+// Photoshop's justify modes through the script API (#672): every name sets and reads back, and
+// a name in the wrong letter case throws.
+void ui_script_text_align_justify_modes() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var words = 'The modified emulator renders the scene once per viewpoint from a slightly different camera.';
+    var box = doc.addTextLayer(words, {font: 'Arial', size: 20, x: 10, y: 20, box: {width: 300, height: 200}, align: 'justifyAll'});
+    console.log('justify-option=' + box.textAlign);
+    var names = ['justifyCenter', 'justifyRight', 'justify', 'left', 'justifyAll'];
+    for (var i = 0; i < names.length; ++i) {
+      box.textAlign = names[i];
+      console.log('justify-set-' + names[i] + '=' + box.textAlign);
+    }
+    var threw = false;
+    try { box.textAlign = 'JustifyAll'; } catch (e) { threw = true; }
+    console.log('justify-case-throws=' + threw);
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("justify-option=justifyAll")));
+  for (const auto* name : {"justifyCenter", "justifyRight", "justify", "left", "justifyAll"}) {
+    CHECK(backlog_contains(window, QStringLiteral("justify-set-%1=%1").arg(QLatin1String(name))));
+  }
+  CHECK(backlog_contains(window, QStringLiteral("justify-case-throws=true")));
+}
+
 // Baseline shifts move individual glyphs and scale with the text during Image Size.
 void ui_text_baseline_shift_moves_individual_runs() {
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
@@ -2752,6 +2778,7 @@ std::vector<patchy::test::TestCase> scripting_tests_part2() {
       {"ui_text_windows_named_font_data_drops_macintosh_records_if_available", ui_text_windows_named_font_data_drops_macintosh_records_if_available},
       {"ui_script_text_runs_create_and_read_back", ui_script_text_runs_create_and_read_back},
       {"ui_script_text_box_wraps_and_aligns", ui_script_text_box_wraps_and_aligns},
+      {"ui_script_text_align_justify_modes", ui_script_text_align_justify_modes},
       {"ui_text_baseline_shift_moves_individual_runs", ui_text_baseline_shift_moves_individual_runs},
       {"ui_text_blank_lines_keep_fixed_leading", ui_text_blank_lines_keep_fixed_leading},
       {"ui_script_set_text_runs_edits_existing_layer", ui_script_set_text_runs_edits_existing_layer},

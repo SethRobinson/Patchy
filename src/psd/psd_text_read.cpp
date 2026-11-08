@@ -1758,7 +1758,7 @@ std::optional<std::vector<PsdTextParagraphRun>> extract_engine_paragraph_runs(st
     run.length = std::min(length, text_utf16_length - start);
     run.justification =
         std::clamp(static_cast<int>(std::lround(engine_number_after_key(dictionaries[index], "/Justification").value_or(0.0))),
-                   0, 3);
+                   0, 6);
     run.first_line_indent = engine_number_after_key(dictionaries[index], "/FirstLineIndent").value_or(0.0);
     run.start_indent = engine_number_after_key(dictionaries[index], "/StartIndent").value_or(0.0);
     run.end_indent = engine_number_after_key(dictionaries[index], "/EndIndent").value_or(0.0);
@@ -1994,6 +1994,14 @@ std::string patchy_alignment_name_from_justification(int justification) {
       return "center";
     case 3:
       return "justify";
+    // Photoshop's other justify modes differ only in the last line (PS 2026 DOM readback of
+    // issue 672's file: 4 last right, 5 last centered, 6 justify all).
+    case 4:
+      return "justifyRight";
+    case 5:
+      return "justifyCenter";
+    case 6:
+      return "justifyAll";
     default:
       return "left";
   }
@@ -2149,8 +2157,10 @@ std::string css_escaped_family(std::string_view family) {
 
 std::string html_from_text_runs(std::string_view text, std::span<const PsdTextStyleRun> runs,
                                 std::span<const PsdTextParagraphRun> paragraph_runs) {
+  const auto justification = paragraph_runs.empty() ? 0 : paragraph_runs.front().justification;
+  // CSS knows one justify; the last-line modes are paragraph-runs metadata only.
   const auto alignment =
-      paragraph_runs.empty() ? std::string("left") : patchy_alignment_name_from_justification(paragraph_runs.front().justification);
+      justification >= 3 ? std::string("justify") : patchy_alignment_name_from_justification(justification);
   std::string html =
       "<!DOCTYPE HTML><html><head><meta name=\"qrichtext\" content=\"1\" /></head>"
       "<body style=\"margin:0px;\"><p style=\"margin:0px; text-align:";
