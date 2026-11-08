@@ -39,6 +39,7 @@
 #include <QItemSelectionModel>
 #include <QLabel>
 #include <QLineEdit>
+#include <QToolButton>
 #include <QListWidget>
 #include <QContextMenuEvent>
 #include <QCursor>
@@ -5114,20 +5115,20 @@ void ui_right_dock_opens_at_content_width_without_gap() {
   auto* palette_dock = patchy::ui::MainWindowTestAccess::panel_section(window, QStringLiteral("paletteDock"));
   auto* combo = window.findChild<QComboBox*>(QStringLiteral("layerBlendModeCombo"));
   auto* opacity = window.findChild<QSpinBox*>(QStringLiteral("layerOpacitySpin"));
-  auto* filter = window.findChild<QLineEdit*>(QStringLiteral("layerNameFilterEdit"));
+  auto* filter_button = window.findChild<QToolButton*>(QStringLiteral("layerFilterButton"));
   auto* delete_button = window.findChild<QPushButton*>(QStringLiteral("layerDeleteButton"));
   auto* layers_page = window.findChild<QWidget*>(QStringLiteral("layersDock"));
   auto* overflow =
       layers_page != nullptr ? layers_page->findChild<QScrollArea*>(QStringLiteral("rightDockOverflowScroll")) : nullptr;
   CHECK(dock != nullptr && palette_dock != nullptr && combo != nullptr && opacity != nullptr);
-  CHECK(filter != nullptr && delete_button != nullptr && overflow != nullptr);
+  CHECK(filter_button != nullptr && delete_button != nullptr && overflow != nullptr);
   CHECK(dock->width() == patchy::ui::MainWindowTestAccess::right_dock_content_minimum_width(window));
   CHECK(palette_dock->width() == dock->width());
   CHECK(!overflow->horizontalScrollBar()->isVisible());
   CHECK(opacity->y() > combo->geometry().bottom());
-  // The footer buttons reach the panel's right inset (the name filter's
-  // right edge), with no dead strip after them.
-  CHECK(std::abs(delete_button->geometry().right() - filter->geometry().right()) <= 8);
+  // The footer buttons reach the panel's right inset (the right edge of the
+  // filter menu button that ends the name filter row), with no dead strip after them.
+  CHECK(std::abs(delete_button->geometry().right() - filter_button->geometry().right()) <= 8);
   save_widget_artifact("ui_right_dock_opens_at_content_width_pl", *dock);
 }
 
@@ -5147,7 +5148,9 @@ void ui_layer_blend_row_wraps_in_narrow_panel() {
     auto* opacity = window.findChild<QSpinBox*>(QStringLiteral("layerOpacitySpin"));
     auto* fill = window.findChild<QSpinBox*>(QStringLiteral("layerFillOpacitySpin"));
     auto* filter = window.findChild<QLineEdit*>(QStringLiteral("layerNameFilterEdit"));
+    auto* filter_button = window.findChild<QToolButton*>(QStringLiteral("layerFilterButton"));
     CHECK(dock != nullptr && combo != nullptr && opacity != nullptr && fill != nullptr && filter != nullptr);
+    CHECK(filter_button != nullptr);
     const auto one_line_width = combo->width() + opacity->width() + fill->width() + 12;
 
     const auto content_minimum = patchy::ui::MainWindowTestAccess::right_dock_content_minimum_width(window);
@@ -5155,9 +5158,9 @@ void ui_layer_blend_row_wraps_in_narrow_panel() {
     QApplication::processEvents();
     QApplication::processEvents();
     CHECK(dock->width() == content_minimum);
-    // The name filter stretches to the panel's right inset, the edge every row
-    // must stay inside.
-    const auto content_right = filter->geometry().right();
+    // The name filter row (the field and the filter menu button after it)
+    // stretches to the panel's right inset, the edge every row must stay inside.
+    const auto content_right = filter_button->geometry().right();
     const auto content_width = content_right + 1 - combo->x();
     const auto wrapped = one_line_width > content_width;
     if (code != QStringLiteral("en")) {
@@ -5178,7 +5181,7 @@ void ui_layer_blend_row_wraps_in_narrow_panel() {
         window, content_minimum + std::max(0, one_line_width - content_width) + 40);
     QApplication::processEvents();
     QApplication::processEvents();
-    const auto wide_right = filter->geometry().right();
+    const auto wide_right = filter_button->geometry().right();
     CHECK(std::abs(opacity->geometry().center().y() - combo->geometry().center().y()) <= 1);
     CHECK(fill->geometry().center().y() == opacity->geometry().center().y());
     CHECK(opacity->x() > combo->geometry().right());
