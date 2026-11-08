@@ -20668,6 +20668,35 @@ Voulez-vous le remplacer ?</translation>
         <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
         <translation>%1 est intégré : vos modifications sont donc dans le jeu Personnalisé. Renommez-le pour le garder comme jeu à vous.</translation>
     </message>
+    <message>
+        <source>Show:</source>
+        <extracomment>Preferences &gt; Hotkeys: label of the box that limits the list to some kinds of commands.</extracomment>
+        <translation>Afficher :</translation>
+    </message>
+    <message>
+        <source>List only some kinds of commands</source>
+        <translation>N’afficher que certains types de commandes</translation>
+    </message>
+    <message>
+        <source>All commands</source>
+        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: every command.</extracomment>
+        <translation>Toutes les commandes</translation>
+    </message>
+    <message>
+        <source>Menu commands</source>
+        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: only the commands found in the menus.</extracomment>
+        <translation>Commandes de menu</translation>
+    </message>
+    <message>
+        <source>Commands with shortcuts</source>
+        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: only the commands that have a key.</extracomment>
+        <translation>Commandes avec raccourci</translation>
+    </message>
+    <message>
+        <source>Other commands</source>
+        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: commands outside the menus that are not tools.</extracomment>
+        <translation>Autres commandes</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>

@@ -20668,6 +20668,35 @@ Möchten Sie die Datei ersetzen?</translation>
         <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
         <translation>%1 ist integriert, daher stehen Ihre Änderungen im Satz „Benutzerdefiniert“. Benennen Sie ihn um, um ihn als eigenen Satz zu behalten.</translation>
     </message>
+    <message>
+        <source>Show:</source>
+        <extracomment>Preferences &gt; Hotkeys: label of the box that limits the list to some kinds of commands.</extracomment>
+        <translation>Anzeigen:</translation>
+    </message>
+    <message>
+        <source>List only some kinds of commands</source>
+        <translation>Nur bestimmte Arten von Befehlen auflisten</translation>
+    </message>
+    <message>
+        <source>All commands</source>
+        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: every command.</extracomment>
+        <translation>Alle Befehle</translation>
+    </message>
+    <message>
+        <source>Menu commands</source>
+        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: only the commands found in the menus.</extracomment>
+        <translation>Menübefehle</translation>
+    </message>
+    <message>
+        <source>Commands with shortcuts</source>
+        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: only the commands that have a key.</extracomment>
+        <translation>Befehle mit Tastaturbefehl</translation>
+    </message>
+    <message>
+        <source>Other commands</source>
+        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: commands outside the menus that are not tools.</extracomment>
+        <translation>Andere Befehle</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>

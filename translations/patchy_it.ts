@@ -20668,6 +20668,35 @@ Sostituirlo?</translation>
         <source>%1 is built in, so your changes are in the Custom set. Rename it to keep it as a set of your own.</source>
         <translation>%1 è integrato, quindi le tue modifiche sono nel set Personalizzato. Rinominalo per tenerlo come set tuo.</translation>
     </message>
+    <message>
+        <source>Show:</source>
+        <extracomment>Preferences &gt; Hotkeys: label of the box that limits the list to some kinds of commands.</extracomment>
+        <translation>Mostra:</translation>
+    </message>
+    <message>
+        <source>List only some kinds of commands</source>
+        <translation>Elenca solo alcuni tipi di comandi</translation>
+    </message>
+    <message>
+        <source>All commands</source>
+        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: every command.</extracomment>
+        <translation>Tutti i comandi</translation>
+    </message>
+    <message>
+        <source>Menu commands</source>
+        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: only the commands found in the menus.</extracomment>
+        <translation>Comandi dei menu</translation>
+    </message>
+    <message>
+        <source>Commands with shortcuts</source>
+        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: only the commands that have a key.</extracomment>
+        <translation>Comandi con scelte rapide</translation>
+    </message>
+    <message>
+        <source>Other commands</source>
+        <extracomment>Preferences &gt; Hotkeys &quot;Show&quot; box: commands outside the menus that are not tools.</extracomment>
+        <translation>Altri comandi</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>

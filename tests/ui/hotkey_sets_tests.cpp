@@ -24,6 +24,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
 #include <QMenuBar>
@@ -389,6 +390,20 @@ void ui_hotkey_editor_shortcut_set_combo_has_room_for_its_entries() {
         auto* button = dialog.findChild<QPushButton*>(QString::fromLatin1(name));
         CHECK(button != nullptr);
         CHECK(button->width() >= button->sizeHint().width());
+      }
+      // The Show box beside the search (GitHub issue 676) leaves the search its whole hint, and
+      // shows its own entry whole.
+      auto* search = dialog.findChild<QLineEdit*>(QStringLiteral("hotkeySearchEdit"));
+      auto* filter = dialog.findChild<QComboBox*>(QStringLiteral("hotkeyFilterCombo"));
+      CHECK(search != nullptr && filter != nullptr);
+      if (search != nullptr && filter != nullptr) {
+        const int hint = search->fontMetrics().horizontalAdvance(search->placeholderText());
+        if (search->width() < hint + 28) {
+          std::fprintf(stderr, "%s: the search field is %d px for a %d px hint\n", language, search->width(), hint);
+        }
+        CHECK(search->width() >= hint + 28);
+        CHECK(filter->width() >= filter->sizeHint().width());
+        CHECK(search->geometry().right() < filter->geometry().left());
       }
       if (std::string(language) == "de") {
         save_widget_artifact("hotkey_editor_shortcut_set_combo_de", dialog);
