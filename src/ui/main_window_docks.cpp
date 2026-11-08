@@ -249,6 +249,13 @@ public:
     stretch_widget_ = widget;
     stretch_minimum_ = minimum_width;
   }
+  // A child layout that takes the line's leftover width as one item: `widget` inside it
+  // stretches (at least `minimum_width`) and the rest of the layout keeps its natural width
+  // on the same line, so they wrap together (the name filter and its buttons, issue 671).
+  void set_stretch_layout(QLayout* layout, QWidget* widget, int minimum_width) {
+    stretch_layout_ = layout;
+    set_stretch_widget(widget, minimum_width);
+  }
 
   [[nodiscard]] int heightForWidth(int width) const override {
     return lines_height(line_starts(width - horizontal_margins())) + vertical_margins();
@@ -302,10 +309,27 @@ public:
 
 private:
   [[nodiscard]] bool is_stretch(QLayoutItem* candidate) const {
-    return stretch_widget_ != nullptr && candidate->widget() == stretch_widget_;
+    return (stretch_widget_ != nullptr && candidate->widget() == stretch_widget_) ||
+           (stretch_layout_ != nullptr && candidate->layout() == stretch_layout_);
   }
   [[nodiscard]] int item_width(int index) const {
     auto* candidate = item(index);
+    if (stretch_layout_ != nullptr && candidate->layout() == stretch_layout_) {
+      // The stretching widget at its minimum, the rest at their natural widths.
+      int width = 0;
+      int shown = 0;
+      for (int child = 0; child < stretch_layout_->count(); ++child) {
+        auto* part = stretch_layout_->itemAt(child);
+        if (part == nullptr || part->isEmpty()) {
+          continue;
+        }
+        width += part->widget() == stretch_widget_
+                     ? std::max(stretch_minimum_, stretch_widget_->minimumSize().width())
+                     : part->sizeHint().width();
+        ++shown;
+      }
+      return width + std::max(0, shown - 1) * stretch_layout_->spacing();
+    }
     return is_stretch(candidate) ? std::max(stretch_minimum_, candidate->minimumSize().width())
                                  : candidate->sizeHint().width();
   }
@@ -370,6 +394,7 @@ private:
   }
 
   QWidget* stretch_widget_{nullptr};
+  QLayout* stretch_layout_{nullptr};
   int stretch_minimum_{0};
 };
 
@@ -1806,9 +1831,9 @@ void MainWindow::create_docks() {
   bind_widget_text(layer_name_filter_edit_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Filter layers by name..."));
   connect(layer_name_filter_edit_, &QLineEdit::textChanged, this, [this] { refresh_layer_list(); });
   register_document_widget(layer_name_filter_edit_);
-  // The filter menu (GitHub issue 671) sits just left of the name field, so it wraps with the
-  // field onto the second line of a narrow column; its clear button shows only while a
-  // criterion is ticked.
+  // The filter menu button (GitHub issue 671) and its clear button follow the name field in
+  // one stretch item, so all three wrap together onto the second line of a narrow column; the
+  // clear button shows only while a criterion is ticked. Creation order is the tab order.
   auto* filter_group = new QHBoxLayout();
   filter_group->setContentsMargins(0, 0, 0, 0);
   filter_group->setSpacing(4);
@@ -1832,16 +1857,16 @@ void MainWindow::create_docks() {
   register_document_widget(layer_filter_clear_button_);
   layer_filter_clear_button_->hide();
   build_layer_filter_menu();
+  filter_group->addWidget(layer_name_filter_edit_, 1);
   filter_group->addWidget(layer_filter_button_);
   filter_group->addWidget(layer_filter_clear_button_);
   lock_group->addLayout(lock_controls);
   lock_row->add_layout(lock_group);
-  lock_row->add_layout(filter_group);
   // Rides the otherwise-empty stretch space beside the lock buttons instead of
   // spending a panel row of its own, until that space drops under a few
   // characters' typing room.
-  lock_row->addWidget(layer_name_filter_edit_);
-  lock_row->set_stretch_widget(layer_name_filter_edit_, kLayerNameFilterMinimumWidth);
+  lock_row->add_layout(filter_group);
+  lock_row->set_stretch_layout(filter_group, layer_name_filter_edit_, kLayerNameFilterMinimumWidth);
   layers_layout->addLayout(lock_row);
   layers_layout->addWidget(layer_list_, 1);
 

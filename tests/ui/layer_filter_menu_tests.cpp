@@ -463,9 +463,15 @@ void ui_layer_filter_button_active_state_in_both_schemes() {
       const QPoint inside(2, rest.height() / 2);
       CHECK(rest.pixelColor(inside) != active.pixelColor(inside));
     }
-    // The clear button sits on the same line as the name field.
-    CHECK(std::abs(clear->mapTo(&window, clear->rect().center()).y() -
-                   fixture.name_edit->mapTo(&window, fixture.name_edit->rect().center()).y()) <= 1);
+    // The filter button and then the clear button follow the name field on its line.
+    const auto field_rect = QRect(fixture.name_edit->mapTo(&window, QPoint()), fixture.name_edit->size());
+    const auto button_rect = QRect(button->mapTo(&window, QPoint()), button->size());
+    const auto clear_rect = QRect(clear->mapTo(&window, QPoint()), clear->size());
+    CHECK(button_rect.left() > field_rect.right());
+    CHECK(clear_rect.left() > button_rect.right());
+    CHECK(std::abs(button_rect.center().y() - field_rect.center().y()) <= 1);
+    CHECK(std::abs(clear_rect.center().y() - field_rect.center().y()) <= 1);
+    CHECK(fixture.name_edit->width() >= 90);
 
     auto* panel = window.findChild<QWidget*>(QStringLiteral("layersPanel"));
     CHECK(panel != nullptr);
@@ -498,6 +504,73 @@ void ui_layer_filter_button_active_state_in_both_schemes() {
   }
 }
 
+// The filter button and its clear button follow the name field (issue 671 follow-up): one
+// line after the Lock buttons at the opening width, and wrapped together onto the next line
+// in the compact column, the x included, with the field keeping its typing room.
+void ui_layer_filter_button_follows_name_field_in_narrow_column() {
+  FilterFixture fixture;
+  auto& window = fixture.window;
+  auto* button = filter_button(window);
+  auto* clear = filter_clear_button(window);
+  auto* panel = window.findChild<QWidget*>(QStringLiteral("layersPanel"));
+  auto* lock_all = window.findChild<QWidget*>(QStringLiteral("layerLockAllButton"));
+  if (button == nullptr || clear == nullptr || panel == nullptr || lock_all == nullptr) {
+    CHECK(false);
+    return;
+  }
+  const auto rect_in_panel = [panel](QWidget* widget) { return QRect(widget->mapTo(panel, QPoint()), widget->size()); };
+  const auto settle = [] {
+    for (int pass = 0; pass < 3; ++pass) {
+      QApplication::processEvents();
+    }
+  };
+  const auto check_order = [&](const char* where) {
+    const auto field = rect_in_panel(fixture.name_edit);
+    const auto menu_button = rect_in_panel(button);
+    std::cout << "[INFO] " << where << ": field " << field.x() << "," << field.y() << " " << field.width()
+              << "x" << field.height() << ", button at " << menu_button.x() << "\n";
+    CHECK(menu_button.left() > field.right());
+    CHECK(std::abs(menu_button.center().y() - field.center().y()) <= 1);
+    CHECK(panel->rect().contains(menu_button));
+    CHECK(fixture.name_edit->width() >= 90);
+    if (clear->isVisible()) {
+      const auto x = rect_in_panel(clear);
+      CHECK(x.left() > menu_button.right());
+      CHECK(std::abs(x.center().y() - field.center().y()) <= 1);
+      CHECK(panel->rect().contains(x));
+    }
+  };
+
+  const auto opening = patchy::ui::MainWindowTestAccess::right_dock_content_minimum_width(window);
+  const auto compact = patchy::ui::MainWindowTestAccess::right_dock_compact_width(window);
+  patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, opening);
+  settle();
+  check_order("opening");
+  CHECK(std::abs(rect_in_panel(fixture.name_edit).center().y() - rect_in_panel(lock_all).center().y()) <= 1);
+  // Showing the x takes its width from the field alone: the field keeps its left edge.
+  const auto field_left = rect_in_panel(fixture.name_edit).left();
+  const auto field_width = fixture.name_edit->width();
+  set_filter(window, "layerFilterHiddenAction", true);
+  settle();
+  CHECK(clear->isVisible());
+  check_order("opening, filter on");
+  CHECK(rect_in_panel(fixture.name_edit).left() == field_left);
+  CHECK(fixture.name_edit->width() < field_width);
+
+  patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, compact);
+  settle();
+  check_order("compact, filter on");
+  // Wrapped below the Lock buttons, all three together.
+  CHECK(rect_in_panel(fixture.name_edit).top() > rect_in_panel(lock_all).bottom());
+  save_widget_artifact("issue_671_filter_row_compact", *panel);
+  set_filter(window, "layerFilterHiddenAction", false);
+  settle();
+  CHECK(!clear->isVisible());
+  check_order("compact, filter off");
+  patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, opening);
+  settle();
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_filter_menu_tests() {
@@ -509,5 +582,7 @@ std::vector<patchy::test::TestCase> layer_filter_menu_tests() {
       {"ui_layer_filter_menu_selected_only_follows_selection", ui_layer_filter_menu_selected_only_follows_selection},
       {"ui_layer_filter_menu_is_per_document", ui_layer_filter_menu_is_per_document},
       {"ui_layer_filter_button_active_state_in_both_schemes", ui_layer_filter_button_active_state_in_both_schemes},
+      {"ui_layer_filter_button_follows_name_field_in_narrow_column",
+       ui_layer_filter_button_follows_name_field_in_narrow_column},
   };
 }
